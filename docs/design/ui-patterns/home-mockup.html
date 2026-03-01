@@ -282,6 +282,7 @@
     .btn-primary { background: var(--pacific); color: #fff; }
     .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--fg); }
     .btn-ghost   { background: transparent; color: var(--fg-muted); }
+    .btn-muted   { background: var(--bg-muted); border: 1px solid var(--border); color: var(--fg-muted); }
     .btn-sm { font-size: 12px; padding: 5px 11px; }
 
     /* ── Progress ───────────────────────────────────── */
@@ -505,6 +506,108 @@
       color: var(--fg);
       background: var(--bg-card);
     }
+    .scope-edit-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .scope-edit-field p:first-child {
+      font-size: 11px;
+      color: var(--fg-muted);
+      margin-bottom: 4px;
+    }
+    .scope-field-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .scope-head-tags {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+    .scope-provenance {
+      font-size: 10px;
+      color: var(--fg-subtle);
+      margin-top: 4px;
+      line-height: 1.35;
+    }
+    .scope-edit-input,
+    .scope-edit-select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 9px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      background: var(--bg-card);
+      color: var(--fg);
+      outline: none;
+    }
+    .scope-edit-input:disabled,
+    .scope-edit-select:disabled {
+      background: var(--bg-muted);
+      color: var(--fg-muted);
+      cursor: not-allowed;
+    }
+    .scope-section {
+      margin-top: 12px;
+      border-top: 1px solid var(--border);
+      padding-top: 10px;
+    }
+    .scope-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .scope-rel-head,
+    .scope-rel-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr .7fr .9fr;
+      gap: 8px;
+      align-items: center;
+      font-size: 11px;
+    }
+    .scope-rel-head {
+      color: var(--fg-muted);
+      font-weight: 600;
+      padding: 0 2px 6px;
+    }
+    .scope-rel-row + .scope-rel-row {
+      margin-top: 8px;
+    }
+    .scope-pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .scope-evidence-item {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px;
+      background: var(--bg-muted);
+      margin-top: 8px;
+    }
+    .scope-inline-note {
+      font-size: 11px;
+      color: var(--fg-muted);
+      margin-top: 5px;
+    }
+    .scope-edit-field.manual .scope-agent-chip,
+    .scope-edit-field.manual .scope-provenance {
+      display: none;
+    }
+    .scope-manual-chip {
+      display: none;
+    }
+    .scope-edit-field.manual .scope-manual-chip {
+      display: inline-flex;
+    }
 
     /* ═══════════════════════════════════════════════
        SURFACE: MONITOR
@@ -549,7 +652,8 @@
         <button class="sw-btn"     onclick="show('home', this); homeState('empty')">Home — Ready</button>
         <button class="sw-btn"     onclick="show('home', this); homeState('active')">Home — Active</button>
         <button class="sw-btn"     onclick="show('scope-select', this, 'scope')">Scope — Select Tables</button>
-        <button class="sw-btn"     onclick="show('scope-details', this, 'scope')">Scope — Table Details</button>
+        <button class="sw-btn"     onclick="show('scope-details', this, 'scope'); scopeDetailsState('pending')">Scope — Table Details (Pending)</button>
+        <button class="sw-btn"     onclick="show('scope-details', this, 'scope'); scopeDetailsState('approved')">Scope — Table Details (Approved)</button>
         <button class="sw-btn"     onclick="show('plan', this, 'plan')">Plan — Draft</button>
         <button class="sw-btn" id="sw-monitor-ready"   onclick="show('monitor',  this); monitorState('ready')">Monitor — Ready</button>
         <button class="sw-btn" id="sw-monitor-running" onclick="show('monitor',  this); monitorState('running')">Monitor — Running</button>
@@ -927,7 +1031,8 @@
             <div class="scope-header">
               <div class="scope-summary">
                 <span class="chip chip-blue">9 / 14 tables ready</span>
-                <span class="text-xs text-muted">Needs details for 5 tables</span>
+                <span class="text-xs text-muted" id="scope-details-needs-text">1 table pending approval</span>
+                <span class="chip chip-green" id="scope-details-approved-chip">5 approved</span>
                 <span class="text-xs text-muted" data-scope-meta-text>Saved 2m ago</span>
                 <span class="text-xs text-muted" data-scope-lock-meta>Scope editable</span>
               </div>
@@ -942,77 +1047,234 @@
               <div class="scope-tab active">2. Table Details</div>
             </div>
 
-            <div class="scope-grid" style="flex:1;">
-              <div class="card" style="overflow-y:auto;">
-                <div class="scope-table-head">
-                  <span></span><span>Name</span><span>Schema</span><span>Rows</span><span>Status</span>
-                </div>
-                <details class="scope-schema-block" open>
-                  <summary class="scope-schema-summary">
-                    <span class="scope-schema-title"><span class="scope-disclosure">▸</span>dbo</span>
-                    <span class="text-xs">2 selected</span>
-                  </summary>
-                  <div class="scope-table-row" style="background:var(--pacific-10); border-top:none;">
-                    <input type="radio" checked data-scope-lockable />
-                    <span class="font-mono">fact_sales</span>
-                    <span class="font-mono text-muted">dbo</span>
-                    <span class="font-mono text-muted">12.4M</span>
-                    <span class="chip chip-green">Ready</span>
-                  </div>
-                  <div class="scope-table-row">
-                    <input type="radio" data-scope-lockable />
-                    <span class="font-mono">dim_customer</span>
-                    <span class="font-mono text-muted">dbo</span>
-                    <span class="font-mono text-muted">1.1M</span>
-                    <span class="chip chip-amber">Missing SCD</span>
-                  </div>
-                </details>
-                <details class="scope-schema-block" open>
-                  <summary class="scope-schema-summary">
-                    <span class="scope-schema-title"><span class="scope-disclosure">▸</span>reporting</span>
-                    <span class="text-xs">1 selected</span>
-                  </summary>
-                  <div class="scope-table-row">
-                    <input type="radio" data-scope-lockable />
-                    <span class="font-mono">gold_summary</span>
-                    <span class="font-mono text-muted">reporting</span>
-                    <span class="font-mono text-muted">420K</span>
-                    <span class="chip chip-amber">Missing PK</span>
-                  </div>
-                </details>
-              </div>
-
+            <div class="scope-grid" style="grid-template-columns:1fr; flex:1;">
               <div class="card card-p" style="overflow-y:auto;">
+                <div class="row between mb8">
+                  <div style="min-width:320px;">
+                    <p class="text-xs text-muted mb8">Selected table</p>
+                    <select class="scope-edit-select" data-scope-lockable>
+                      <option id="scope-details-selected-option" selected>dbo.fact_sales — Pending approval</option>
+                      <option>dbo.dim_customer — Missing SCD</option>
+                      <option>reporting.gold_summary — Missing PK</option>
+                      <option>reporting.gold_sales_rollup — Needs relationships</option>
+                    </select>
+                    <p class="scope-inline-note">Table details editor is full-screen for focused review. Use dropdown to switch tables.</p>
+                  </div>
+                  <div class="row gap8">
+                    <button class="btn btn-primary btn-sm" id="scope-details-approve-btn" data-scope-lockable>Approve</button>
+                    <button class="btn btn-outline btn-sm" data-scope-lockable>Analyze again</button>
+                  </div>
+                </div>
+
                 <div class="row between mb8">
                   <div>
                     <p class="text-sm font-semibold font-mono">dbo.fact_sales</p>
                     <p class="text-xs text-muted mt4">Migration metadata required for build + tests</p>
                   </div>
-                  <button class="btn btn-outline btn-sm" data-scope-lockable>Refresh plan</button>
                 </div>
 
-                <div class="kv-grid">
-                  <div class="kv-field"><p>Table type</p><div class="kv-pill">fact</div></div>
-                  <div class="kv-field"><p>Load strategy</p><div class="kv-pill">incremental</div></div>
-                  <div class="kv-field"><p>CDC column</p><div class="kv-pill">load_date</div></div>
-                  <div class="kv-field"><p>Canonical date column</p><div class="kv-pill">sale_date</div></div>
-                  <div class="kv-field"><p>PK columns</p><div class="kv-pill">["sale_id"]</div></div>
-                  <div class="kv-field"><p>Grain columns</p><div class="kv-pill">["sale_id"]</div></div>
+                <div class="scope-edit-grid">
+                  <div class="scope-edit-field">
+                    <div class="scope-field-head">
+                      <p>Table type</p>
+                    </div>
+                    <select class="scope-edit-select" data-scope-lockable data-agent-key="table_type" onchange="markFieldManual(this)">
+                      <option selected>fact</option>
+                      <option>dimension</option>
+                    </select>
+                  </div>
+                  <div class="scope-edit-field">
+                    <div class="scope-field-head">
+                      <p>Load strategy</p>
+                    </div>
+                    <select class="scope-edit-select" data-scope-lockable data-agent-key="load_strategy" onchange="markFieldManual(this)">
+                      <option selected>incremental</option>
+                      <option>full_refresh</option>
+                    </select>
+                  </div>
+                  <div class="scope-edit-field">
+                    <div class="scope-field-head">
+                      <p>CDC column</p>
+                    </div>
+                    <select class="scope-edit-select" data-scope-lockable data-agent-key="cdc_column" onchange="markFieldManual(this)">
+                      <option selected>load_date</option>
+                      <option>updated_at</option>
+                      <option>ingested_at</option>
+                    </select>
+                  </div>
+                  <div class="scope-edit-field">
+                    <div class="scope-field-head">
+                      <p>Canonical date column</p>
+                    </div>
+                    <select class="scope-edit-select" data-scope-lockable data-agent-key="canonical_date" onchange="markFieldManual(this)">
+                      <option selected>sale_date</option>
+                      <option>created_date</option>
+                      <option>order_date</option>
+                    </select>
+                  </div>
+                </div>
+                <p class="scope-inline-note">Core fields stay clean; all agent inferences and reasons are listed in Agent rationale below.</p>
+
+                <div class="scope-section">
+                  <div class="scope-section-header">
+                    <p class="text-xs text-muted">Keys and grain</p>
+                    <span class="chip chip-green">Confirmed</span>
+                  </div>
+                  <div class="scope-edit-grid">
+                    <div class="scope-edit-field">
+                      <p>PK columns (required)</p>
+                      <input class="scope-edit-input" value="sale_id" data-scope-lockable />
+                    </div>
+                    <div class="scope-edit-field">
+                      <p>Grain columns (required)</p>
+                      <input class="scope-edit-input" value="sale_id" data-scope-lockable />
+                    </div>
+                  </div>
                 </div>
 
-                <div style="margin-top:10px;">
-                  <p class="text-xs text-muted mb8">Relationships (required for tests)</p>
-                  <div class="kv-pill">[{"column":"customer_id","ref_table":"dim_customer","ref_column":"customer_id"}]</div>
+                <div class="scope-section">
+                  <div class="scope-section-header">
+                    <p class="text-xs text-muted">Relationships (required for tests)</p>
+                    <div class="row gap6">
+                      <span class="chip chip-amber">Needs review</span>
+                      <button class="btn btn-outline btn-sm" data-scope-lockable>+ Add relationship</button>
+                    </div>
+                  </div>
+
+                  <div class="scope-rel-head">
+                    <span>Child column</span>
+                    <span>Parent table</span>
+                    <span>Parent column</span>
+                    <span>Cardinality</span>
+                    <span>Validation</span>
+                  </div>
+                  <div class="scope-rel-row">
+                    <select class="scope-edit-select" data-scope-lockable>
+                      <option selected>customer_id</option>
+                      <option>product_id</option>
+                      <option>order_id</option>
+                    </select>
+                    <select class="scope-edit-select" data-scope-lockable>
+                      <option selected>dbo.dim_customer</option>
+                      <option>dbo.dim_product</option>
+                      <option>dbo.dim_store</option>
+                    </select>
+                    <select class="scope-edit-select" data-scope-lockable>
+                      <option selected>customer_id</option>
+                      <option>surrogate_key</option>
+                    </select>
+                    <select class="scope-edit-select" data-scope-lockable>
+                      <option selected>many_to_one</option>
+                      <option>one_to_one</option>
+                    </select>
+                    <span class="chip chip-green">Valid</span>
+                  </div>
+                  <div class="scope-rel-row">
+                    <select class="scope-edit-select" data-scope-lockable>
+                      <option selected>channel_id</option>
+                      <option>store_id</option>
+                    </select>
+                    <select class="scope-edit-select" data-scope-lockable>
+                      <option selected>dbo.dim_channel</option>
+                      <option>dbo.dim_store</option>
+                    </select>
+                    <select class="scope-edit-select" data-scope-lockable>
+                      <option selected>channel_key</option>
+                      <option>channel_id</option>
+                    </select>
+                    <select class="scope-edit-select" data-scope-lockable>
+                      <option selected>many_to_one</option>
+                      <option>one_to_one</option>
+                    </select>
+                    <span class="chip chip-amber">Type mismatch</span>
+                  </div>
+                  <p class="scope-inline-note">Blocking rule: all relationship rows must be valid before scope can be finalized.</p>
                 </div>
 
-                <div style="margin-top:10px;">
-                  <p class="text-xs text-muted mb8">PII columns (required for fixture masking)</p>
-                  <div class="kv-pill">["customer_email","customer_phone"]</div>
+                <div class="scope-section">
+                  <div class="scope-section-header">
+                    <p class="text-xs text-muted">PII columns (required for fixture masking)</p>
+                    <span class="chip chip-blue">2 selected</span>
+                  </div>
+                  <div class="scope-pill-row">
+                    <label class="chip chip-muted"><input type="checkbox" checked data-scope-lockable /> customer_email</label>
+                    <label class="chip chip-muted"><input type="checkbox" checked data-scope-lockable /> customer_phone</label>
+                    <label class="chip chip-muted"><input type="checkbox" data-scope-lockable /> customer_name</label>
+                    <label class="chip chip-muted"><input type="checkbox" data-scope-lockable /> billing_address</label>
+                  </div>
                 </div>
 
-                <div style="margin-top:10px;">
-                  <p class="text-xs text-muted mb8">SCD (dimensions only)</p>
-                  <div class="kv-pill">scd_type=none</div>
+                <div class="scope-section">
+                  <div class="scope-section-header">
+                    <p class="text-xs text-muted">SCD (dimensions only)</p>
+                    <span class="chip chip-muted">Not applicable</span>
+                  </div>
+                  <div class="scope-edit-grid">
+                    <div class="scope-edit-field">
+                      <p>SCD type</p>
+                      <select class="scope-edit-select" data-scope-lockable>
+                        <option selected>none</option>
+                        <option>type_1</option>
+                        <option>type_2</option>
+                      </select>
+                    </div>
+                    <div class="scope-edit-field">
+                      <p>Effective date column</p>
+                      <select class="scope-edit-select" data-scope-lockable>
+                        <option selected>none</option>
+                        <option>effective_from</option>
+                        <option>valid_from</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="scope-section">
+                  <div class="scope-section-header">
+                    <p class="text-xs text-muted">Agent rationale</p>
+                  </div>
+                  <div class="scope-evidence-item" data-agent-key="table_type">
+                    <div class="row between">
+                      <span class="text-xs font-medium">Table type: fact</span>
+                      <span class="chip chip-green">SP inference 0.91</span>
+                    </div>
+                    <p class="scope-inline-note">Judged from aggregate grain + transactional joins across analyzed stored procedures.</p>
+                  </div>
+                  <div class="scope-evidence-item" data-agent-key="load_strategy">
+                    <div class="row between">
+                      <span class="text-xs font-medium">Load strategy: incremental</span>
+                      <span class="chip chip-amber">SP inference 0.67</span>
+                    </div>
+                    <p class="scope-inline-note">Judged from watermark predicates and merge/upsert patterns in stored procedures.</p>
+                  </div>
+                  <div class="scope-evidence-item" data-agent-key="cdc_column">
+                    <div class="row between">
+                      <span class="text-xs font-medium">CDC column: load_date</span>
+                      <span class="chip chip-green">SP inference 0.89</span>
+                    </div>
+                    <p class="scope-inline-note">Judged from WHERE predicates and max-watermark comparison logic in stored procedures.</p>
+                  </div>
+                  <div class="scope-evidence-item" data-agent-key="canonical_date">
+                    <div class="row between">
+                      <span class="text-xs font-medium">Canonical date column: sale_date</span>
+                      <span class="chip chip-amber">SP inference 0.62</span>
+                    </div>
+                    <p class="scope-inline-note">Judged from date filtering and reporting window usage in downstream stored procedures.</p>
+                  </div>
+                  <div class="scope-evidence-item">
+                    <div class="row between">
+                      <span class="text-xs font-medium">Suggested relationship: customer_id -> dbo.dim_customer.customer_id</span>
+                      <span class="chip chip-green">Confidence 0.92</span>
+                    </div>
+                    <p class="scope-inline-note">Source: JOIN pattern detected in 14 procedures. Last seen: 2026-02-27.</p>
+                  </div>
+                  <div class="scope-evidence-item">
+                    <div class="row between">
+                      <span class="text-xs font-medium">Suggested relationship: channel_id -> dbo.dim_channel.channel_key</span>
+                      <span class="chip chip-amber">Confidence 0.58</span>
+                    </div>
+                    <p class="scope-inline-note">Source: partial alias match. Review required due to data type mismatch.</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1907,6 +2169,44 @@
       setScopeLocked(true);
     }
 
+    function scopeDetailsState(state) {
+      var btn = document.getElementById('scope-details-approve-btn');
+      var approvedChip = document.getElementById('scope-details-approved-chip');
+      var needsText = document.getElementById('scope-details-needs-text');
+      var selectedOption = document.getElementById('scope-details-selected-option');
+      if (!btn || !approvedChip || !needsText || !selectedOption) return;
+
+      if (state === 'approved') {
+        btn.textContent = 'Approved';
+        btn.disabled = true;
+        btn.classList.remove('btn-primary');
+        btn.classList.remove('btn-outline');
+        btn.classList.add('btn-muted');
+        approvedChip.textContent = '6 approved';
+        needsText.textContent = 'No pending approvals';
+        selectedOption.textContent = 'dbo.fact_sales — Approved';
+      } else {
+        btn.textContent = 'Approve';
+        btn.disabled = false;
+        btn.classList.remove('btn-outline');
+        btn.classList.remove('btn-muted');
+        btn.classList.add('btn-primary');
+        approvedChip.textContent = '5 approved';
+        needsText.textContent = '1 table pending approval';
+        selectedOption.textContent = 'dbo.fact_sales — Pending approval';
+      }
+    }
+
+    function markFieldManual(control) {
+      var field = control && control.closest('.scope-edit-field');
+      if (!field) return;
+      field.classList.add('manual');
+      var agentKey = control.getAttribute('data-agent-key');
+      if (!agentKey) return;
+      var inference = document.querySelector('.scope-evidence-item[data-agent-key="' + agentKey + '"]');
+      if (inference) inference.style.display = 'none';
+    }
+
     function homeState(state) {
       document.getElementById('home-setup').style.display  = state === 'setup'  ? 'block' : 'none';
       document.getElementById('home-empty').style.display  = state === 'empty'  ? 'block' : 'none';
@@ -1935,6 +2235,7 @@
     updateScopeSelectCount();
     filterScopeSelectRows();
     setScopeLocked(false);
+    scopeDetailsState('pending');
 
   </script>
 
