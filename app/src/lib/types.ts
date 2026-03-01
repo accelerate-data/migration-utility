@@ -144,3 +144,36 @@ export interface UsageRunDetail {
   run: UsageRun;
   events: UsageEvent[];
 }
+
+export interface ScopeTableRef {
+  warehouseItemId: string;
+  schemaName: string;
+  tableName: string;
+}
+
+export interface ScopeInventoryRow {
+  warehouseItemId: string;
+  schemaName: string;
+  tableName: string;
+  rowCount: number | null;
+  isSelected: boolean;
+}
+
+export interface ScopeRefreshSummary {
+  kept: number;
+  invalidated: number;
+  removed: number;
+}
+
+export interface TableConfigPayload {
+  selectedTableId: string;
+  tableType: string | null;
+  loadStrategy: string | null;
+  grainColumns: string | null;
+  relationshipsJson: string | null;
+  incrementalColumn: string | null;
+  dateColumn: string | null;
+  snapshotStrategy: string;
+  piiColumns: string | null;
+  confirmedAt: string | null;
+}

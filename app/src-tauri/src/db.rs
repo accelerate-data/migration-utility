@@ -43,6 +43,10 @@ const MIGRATIONS: &[(i64, &str)] = &[
         8,
         include_str!("../migrations/008_add_canonical_source_model.sql"),
     ),
+    (
+        9,
+        include_str!("../migrations/009_selected_tables_natural_key.sql"),
+    ),
 ];
 
 pub fn open(path: &Path) -> Result<Connection, DbError> {
@@ -354,7 +358,7 @@ mod tests {
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM schema_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(count, 8, "schema_version should have exactly 8 rows");
+        assert_eq!(count, 9, "schema_version should have exactly 9 rows");
     }
 
     #[test]
@@ -651,6 +655,12 @@ mod tests {
             "data_objects",
             "id",
         );
+    }
+
+    #[test]
+    fn selected_tables_has_natural_unique_index() {
+        let conn = open_memory();
+        assert_index_exists(&conn, "ux_selected_tables_natural", "selected_tables");
     }
 
     #[test]

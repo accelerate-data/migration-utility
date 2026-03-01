@@ -39,7 +39,6 @@ function SetupState() {
 // Placeholder counts until scope data is wired from the backend.
 const STEP_COUNTS: Record<string, string> = {
   scope: '— tables',
-  candidacy: '— migrate',
   config: '— / —',
 };
 

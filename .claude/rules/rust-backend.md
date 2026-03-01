@@ -32,6 +32,7 @@ message mapping only when adding user-facing context.
 - For any schema or persistence model change, follow `.claude/rules/db-schema-change.md` end-to-end.
 - Define foreign keys with `ON DELETE CASCADE` for app table relationships so parent deletes clean up dependent rows.
 - Exception: usage/log snapshot tables must not have foreign keys to mutable entities; they must preserve point-in-time records and remain unaffected by parent-row deletes.
+- Never use `INSERT OR REPLACE` on parent rows that are referenced by `ON DELETE CASCADE` children. In SQLite, `REPLACE` is delete+insert and will trigger cascades (for example, unexpectedly clearing `selected_tables` during refresh). Use `INSERT ... ON CONFLICT (...) DO UPDATE` instead.
 - Use parameterized SQL (`?1`, `?2`, `params![...]`) for SQLite writes; never build SQL by interpolating user input.
 - Wrap multi-table write flows in a transaction and commit once; rollback on error via normal `?` propagation.
 - For destructive reset flows, clear child tables before parent tables to satisfy foreign keys.

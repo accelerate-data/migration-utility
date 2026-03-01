@@ -44,8 +44,8 @@ describe('useWorkflowStore', () => {
   });
 
   it('setCurrentScopeStep updates currentScopeStep', () => {
-    useWorkflowStore.getState().setCurrentScopeStep('candidacy');
-    expect(useWorkflowStore.getState().currentScopeStep).toBe('candidacy');
+    useWorkflowStore.getState().setCurrentScopeStep('config');
+    expect(useWorkflowStore.getState().currentScopeStep).toBe('config');
   });
 
   it('saveScopeStep sets status to done and records timestamp', () => {
@@ -56,9 +56,9 @@ describe('useWorkflowStore', () => {
   });
 
   it('saveScopeStep is idempotent', () => {
-    useWorkflowStore.getState().saveScopeStep('candidacy');
-    useWorkflowStore.getState().saveScopeStep('candidacy');
-    expect(useWorkflowStore.getState().scopeStepStatus.candidacy).toBe('done');
+    useWorkflowStore.getState().saveScopeStep('config');
+    useWorkflowStore.getState().saveScopeStep('config');
+    expect(useWorkflowStore.getState().scopeStepStatus.config).toBe('done');
   });
 
   it('setMigrationStatus updates migrationStatus', () => {

@@ -7,16 +7,44 @@ function makeConfig(overrides: Partial<SidecarConfig> = {}): SidecarConfig {
     prompt: 'translate this proc',
     apiKey: 'sk-ant-test',
     cwd: '/tmp/migration',
-    model: 'claude-sonnet-4-6',
     ...overrides,
   };
 }
 
 describe('buildSessionOptions', () => {
-  it('keeps project setting source and claude_code preset', () => {
-    const options = buildSessionOptions(makeConfig());
+  it('uses agent-only when agentName is provided (no explicit model)', () => {
+    const options = buildSessionOptions(makeConfig({ agentName: 'scope-table-details-analyzer' }));
+    expect(options).toHaveProperty('agent', 'scope-table-details-analyzer');
+    expect(options).not.toHaveProperty('model');
     expect(options.settingSources).toEqual(['project']);
-    expect(options.systemPrompt).toEqual({ type: 'preset', preset: 'claude_code' });
+  });
+
+  it('uses explicit model when provided without agentName', () => {
+    const options = buildSessionOptions(makeConfig({ model: 'claude-sonnet-4-6' }));
+    expect(options).toHaveProperty('model', 'claude-sonnet-4-6');
+    expect(options).not.toHaveProperty('agent');
+  });
+
+  it('passes both agent and model when both are provided', () => {
+    const options = buildSessionOptions(
+      makeConfig({
+        agentName: 'scope-table-details-analyzer',
+        model: 'claude-sonnet-4-6',
+      }),
+    );
+    expect(options).toHaveProperty('agent', 'scope-table-details-analyzer');
+    expect(options).toHaveProperty('model', 'claude-sonnet-4-6');
+  });
+
+  it('falls back to default model when neither agentName nor model is provided', () => {
+    const options = buildSessionOptions(makeConfig());
+    expect(options).toHaveProperty('model', 'claude-sonnet-4-6');
+  });
+
+  it('keeps project setting source', () => {
+    const options = buildSessionOptions(makeConfig({ model: 'claude-sonnet-4-6' }));
+    expect(options.settingSources).toEqual(['project']);
+    expect(options).not.toHaveProperty('systemPrompt');
   });
 
   it('uses cwd and env api key', () => {
@@ -37,4 +65,3 @@ describe('buildInitialPrompt', () => {
     );
   });
 });
-

@@ -8,6 +8,10 @@ import type {
   GitHubAuthResult,
   GitHubRepo,
   GitHubUser,
+  ScopeInventoryRow,
+  ScopeRefreshSummary,
+  ScopeTableRef,
+  TableConfigPayload,
   UsageRun,
   UsageRunDetail,
   UsageSummary,
@@ -116,3 +120,39 @@ export const usageListRuns = (limit = 50) =>
 
 export const usageGetRunDetail = (runId: string) =>
   invoke<UsageRunDetail>('usage_get_run_detail', { runId });
+
+export const migrationListScopeInventory = (workspaceId: string) =>
+  invoke<ScopeInventoryRow[]>('migration_list_scope_inventory', { workspaceId });
+
+export const migrationAddTablesToSelection = (workspaceId: string, tables: ScopeTableRef[]) =>
+  invoke<number>('migration_add_tables_to_selection', { workspaceId, tables });
+
+export const migrationSetTableSelected = (workspaceId: string, table: ScopeTableRef, selected: boolean) =>
+  invoke<void>('migration_set_table_selected', { workspaceId, table, selected });
+
+export const migrationResetSelectedTables = (workspaceId: string) =>
+  invoke<number>('migration_reset_selected_tables', { workspaceId });
+
+export const migrationSaveTableConfig = (config: TableConfigPayload) =>
+  invoke<void>('migration_save_table_config', { config });
+
+export const migrationGetTableConfig = (selectedTableId: string) =>
+  invoke<TableConfigPayload | null>('migration_get_table_config', { selectedTableId });
+
+export const migrationAnalyzeTableDetails = (args: {
+  workspaceId: string;
+  selectedTableId: string;
+  schemaName: string;
+  tableName: string;
+  force?: boolean;
+}) =>
+  invoke<TableConfigPayload>('migration_analyze_table_details', {
+    workspaceId: args.workspaceId,
+    selectedTableId: args.selectedTableId,
+    schemaName: args.schemaName,
+    tableName: args.tableName,
+    force: args.force ?? false,
+  });
+
+export const migrationReconcileScopeState = (workspaceId: string) =>
+  invoke<ScopeRefreshSummary>('migration_reconcile_scope_state', { workspaceId });

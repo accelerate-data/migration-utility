@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 use tauri::{AppHandle, Manager};
 
@@ -11,6 +12,11 @@ const MANAGED_SUBDIRS: [&str; 2] = ["agents", "skills"];
 pub fn deploy_on_startup(app: &AppHandle) -> Result<(), String> {
     let source = resolve_source_dir(app)?;
     let workspace_root = workspace_target_dir(app)?;
+    log::info!(
+        "agent_sources: startup deploy begin source={} workspace={}",
+        source.display(),
+        workspace_root.display()
+    );
     deploy_agent_sources(&source, &workspace_root)?;
     log::info!(
         "agent_sources: deployed {} -> {}",
@@ -49,7 +55,17 @@ fn workspace_target_dir(app: &AppHandle) -> Result<PathBuf, String> {
 
 fn resolve_source_dir_from_candidates(candidates: &[PathBuf]) -> Result<PathBuf, String> {
     for candidate in candidates {
+        log::debug!(
+            "agent_sources: checking source candidate path={} exists={} is_dir={}",
+            candidate.display(),
+            candidate.exists(),
+            candidate.is_dir()
+        );
         if candidate.is_dir() {
+            log::info!(
+                "agent_sources: selected source directory {}",
+                candidate.display()
+            );
             return Ok(candidate.clone());
         }
     }
@@ -57,6 +73,7 @@ fn resolve_source_dir_from_candidates(candidates: &[PathBuf]) -> Result<PathBuf,
 }
 
 fn deploy_agent_sources(source: &Path, workspace_root: &Path) -> Result<(), String> {
+    let start = Instant::now();
     if !source.is_dir() {
         return Err(format!(
             "agent_sources: source directory does not exist: {}",
@@ -78,6 +95,11 @@ fn deploy_agent_sources(source: &Path, workspace_root: &Path) -> Result<(), Stri
     }
     let target_claude = target_claude_dir.join(CLAUDE_FILE);
     if !target_claude.exists() {
+        log::info!(
+            "agent_sources: copying CLAUDE.md {} -> {}",
+            source_claude.display(),
+            target_claude.display()
+        );
         fs::copy(&source_claude, &target_claude).map_err(|e| {
             format!(
                 "agent_sources: failed to copy {} -> {}: {}",
@@ -86,6 +108,11 @@ fn deploy_agent_sources(source: &Path, workspace_root: &Path) -> Result<(), Stri
                 e
             )
         })?;
+    } else {
+        log::debug!(
+            "agent_sources: preserving existing CLAUDE.md at {}",
+            target_claude.display()
+        );
     }
 
     for dir in MANAGED_SUBDIRS {
@@ -96,9 +123,28 @@ fn deploy_agent_sources(source: &Path, workspace_root: &Path) -> Result<(), Stri
                 source_dir.display()
             ));
         }
-        replace_directory(&source_dir, &target_claude_dir.join(dir))?;
+        let target_dir = target_claude_dir.join(dir);
+        let source_files = count_files_recursive(&source_dir)?;
+        log::info!(
+            "agent_sources: syncing managed dir '{}' source={} target={} source_files={}",
+            dir,
+            source_dir.display(),
+            target_dir.display(),
+            source_files
+        );
+        replace_directory(&source_dir, &target_dir)?;
+        let copied_files = count_files_recursive(&target_dir)?;
+        log::info!(
+            "agent_sources: synced managed dir '{}' copied_files={}",
+            dir,
+            copied_files
+        );
     }
 
+    log::info!(
+        "agent_sources: deploy completed in {}ms",
+        start.elapsed().as_millis()
+    );
     Ok(())
 }
 
@@ -110,6 +156,10 @@ fn replace_directory(source: &Path, target: &Path) -> Result<(), String> {
         ));
     }
     if target.exists() {
+        log::debug!(
+            "agent_sources: removing existing managed directory {}",
+            target.display()
+        );
         remove_path(target, "existing directory")?;
     }
     copy_dir_recursive(source, target)
@@ -150,6 +200,11 @@ fn copy_dir_recursive(source: &Path, target: &Path) -> Result<(), String> {
             continue;
         }
 
+        log::debug!(
+            "agent_sources: copying file {} -> {}",
+            path.display(),
+            destination.display()
+        );
         fs::copy(&path, &destination).map_err(|e| {
             format!(
                 "agent_sources: failed to copy {} -> {}: {}",
@@ -160,6 +215,31 @@ fn copy_dir_recursive(source: &Path, target: &Path) -> Result<(), String> {
         })?;
     }
     Ok(())
+}
+
+fn count_files_recursive(path: &Path) -> Result<usize, String> {
+    if !path.is_dir() {
+        return Ok(0);
+    }
+    let mut count = 0usize;
+    for entry in fs::read_dir(path).map_err(|e| {
+        format!(
+            "agent_sources: failed to read directory for counting {}: {}",
+            path.display(),
+            e
+        )
+    })? {
+        let entry = entry.map_err(|e| format!("agent_sources: failed to read entry: {e}"))?;
+        let file_type = entry
+            .file_type()
+            .map_err(|e| format!("agent_sources: failed to read file type: {e}"))?;
+        if file_type.is_dir() {
+            count += count_files_recursive(&entry.path())?;
+        } else {
+            count += 1;
+        }
+    }
+    Ok(count)
 }
 
 fn ensure_dir(path: &Path, label: &str) -> Result<(), String> {

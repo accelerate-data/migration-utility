@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     process::Command,
     sync::{
@@ -527,6 +527,7 @@ fn fetch_sql_server_inventory(
                 schema_name,
                 table_name,
                 object_id_local: row.get::<i64, _>(2),
+                row_count: row.get::<i64, _>(3),
             });
         }
 
@@ -747,8 +748,16 @@ fn persist_sql_server_inventory(
     let source_item_id = format!("source-db-{workspace_id}");
 
     tx.execute(
-        "INSERT OR REPLACE INTO items(id, workspace_id, display_name, description, folder_id, item_type, connection_string, collation_type)
-         VALUES (?1, ?2, ?3, ?4, NULL, 'Warehouse', NULL, NULL)",
+        "INSERT INTO items(id, workspace_id, display_name, description, folder_id, item_type, connection_string, collation_type)
+         VALUES (?1, ?2, ?3, ?4, NULL, 'Warehouse', NULL, NULL)
+         ON CONFLICT(id) DO UPDATE SET
+           workspace_id = excluded.workspace_id,
+           display_name = excluded.display_name,
+           description = excluded.description,
+           folder_id = excluded.folder_id,
+           item_type = excluded.item_type,
+           connection_string = excluded.connection_string,
+           collation_type = excluded.collation_type",
         params![
             source_item_id,
             workspace_id,
@@ -761,14 +770,43 @@ fn persist_sql_server_inventory(
         CommandError::from(e)
     })?;
 
-    tx.execute(
-        "DELETE FROM warehouse_tables WHERE warehouse_item_id=?1",
-        params![source_item_id],
-    )
-    .map_err(|e| {
-        log::error!("workspace_apply_and_clone: failed to clear source tables: {e}");
-        CommandError::from(e)
-    })?;
+    let mut existing_keys: HashSet<(String, String)> = HashSet::new();
+    {
+        let mut existing_tables_stmt = tx
+            .prepare(
+                "SELECT schema_name, table_name
+                 FROM warehouse_tables
+                 WHERE warehouse_item_id = ?1",
+            )
+            .map_err(|e| {
+                log::error!("workspace_apply_and_clone: failed to prepare existing table diff: {e}");
+                CommandError::from(e)
+            })?;
+        let existing_rows = existing_tables_stmt
+            .query_map(params![source_item_id.clone()], |row| {
+                let schema_name: String = row.get(0)?;
+                let table_name: String = row.get(1)?;
+                Ok((schema_name, table_name))
+            })
+            .map_err(|e| {
+                log::error!("workspace_apply_and_clone: failed to read existing table diff: {e}");
+                CommandError::from(e)
+            })?;
+        for row in existing_rows {
+            let (schema_name, table_name) = row.map_err(CommandError::from)?;
+            existing_keys.insert((schema_name.to_lowercase(), table_name.to_lowercase()));
+        }
+    }
+
+    let discovered_keys: HashSet<(String, String)> = inventory
+        .tables
+        .iter()
+        .map(|t| (t.schema_name.to_lowercase(), t.table_name.to_lowercase()))
+        .collect();
+    let removed_keys: Vec<(String, String)> = existing_keys
+        .difference(&discovered_keys)
+        .cloned()
+        .collect();
     tx.execute(
         "DELETE FROM warehouse_procedures WHERE warehouse_item_id=?1",
         params![source_item_id],
@@ -815,6 +853,19 @@ fn persist_sql_server_inventory(
         })?;
         imported_objects += 1;
         maybe_emit_object_import_progress(app, job_id, imported_objects, total_objects);
+    }
+    for (schema_name_lc, table_name_lc) in removed_keys {
+        tx.execute(
+            "DELETE FROM warehouse_tables
+             WHERE warehouse_item_id = ?1
+               AND LOWER(schema_name) = ?2
+               AND LOWER(table_name) = ?3",
+            params![source_item_id, schema_name_lc, table_name_lc],
+        )
+        .map_err(|e| {
+            log::error!("workspace_apply_and_clone: failed to remove stale source table: {e}");
+            CommandError::from(e)
+        })?;
     }
     for procedure in &inventory.procedures {
         tx.execute(
@@ -950,6 +1001,20 @@ fn persist_sql_server_canonical_model(
             ],
         )
         .map_err(CommandError::from)?;
+
+        if let Some(row_count) = table.row_count {
+            let partition_id = format!(
+                "partition-{workspace_id}-{}-{}-1",
+                table.schema_name.to_lowercase(),
+                table.table_name.to_lowercase()
+            );
+            tx.execute(
+                "INSERT INTO sqlserver_partitions(id, data_object_id, partition_number, row_count)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![partition_id, object_id, 1_i64, row_count],
+            )
+            .map_err(CommandError::from)?;
+        }
     }
 
     for procedure in &inventory.procedures {
@@ -1927,6 +1992,7 @@ mod tests {
                 schema_name: "sales".to_string(),
                 table_name: "orders".to_string(),
                 object_id_local: Some(10),
+                row_count: Some(123),
             }],
             procedures: vec![WarehouseProcedure {
                 warehouse_item_id: String::new(),
@@ -1938,6 +2004,18 @@ mod tests {
         };
         let cfg = test_source_cfg("AdventureWorks");
         persist_sql_server_inventory(&conn, "ws-1", &cfg, &first, None, None).unwrap();
+        let first_partition_rows: i64 = conn
+            .query_row("SELECT COUNT(*) FROM sqlserver_partitions", [], |row| row.get(0))
+            .unwrap();
+        let first_partition_row_count: i64 = conn
+            .query_row(
+                "SELECT COALESCE(SUM(row_count), 0) FROM sqlserver_partitions",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(first_partition_rows, 1);
+        assert_eq!(first_partition_row_count, 123);
 
         let second = SqlServerInventory {
             container_id_local: Some(1),
@@ -1966,6 +2044,9 @@ mod tests {
                 row.get(0)
             })
             .unwrap();
+        let partition_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM sqlserver_partitions", [], |row| row.get(0))
+            .unwrap();
         let schema_name: String = conn
             .query_row(
                 "SELECT schema_name FROM warehouse_schemas LIMIT 1",
@@ -1977,7 +2058,83 @@ mod tests {
         assert_eq!(schema_count, 1);
         assert_eq!(table_count, 0);
         assert_eq!(procedure_count, 0);
+        assert_eq!(partition_count, 0);
         assert_eq!(schema_name, "finance");
+    }
+
+    #[test]
+    fn persist_sql_server_inventory_keeps_selected_tables_for_unchanged_rows() {
+        let conn = db::open_in_memory().unwrap();
+        conn.execute(
+            "INSERT INTO workspaces(id, display_name, migration_repo_path, created_at) VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params!["ws-1", "Workspace", "/tmp/repo", "2026-01-01T00:00:00Z"],
+        )
+        .unwrap();
+
+        let first = SqlServerInventory {
+            container_id_local: Some(1),
+            schemas: vec![WarehouseSchema {
+                warehouse_item_id: String::new(),
+                schema_name: "dbo".to_string(),
+                schema_id_local: Some(1),
+            }],
+            tables: vec![
+                WarehouseTable {
+                    warehouse_item_id: String::new(),
+                    schema_name: "dbo".to_string(),
+                    table_name: "dim_account".to_string(),
+                    object_id_local: Some(10),
+                    row_count: Some(1),
+                },
+                WarehouseTable {
+                    warehouse_item_id: String::new(),
+                    schema_name: "dbo".to_string(),
+                    table_name: "dim_currency".to_string(),
+                    object_id_local: Some(11),
+                    row_count: Some(1),
+                },
+            ],
+            procedures: vec![],
+        };
+        let cfg = test_source_cfg("AdventureWorks");
+        persist_sql_server_inventory(&conn, "ws-1", &cfg, &first, None, None).unwrap();
+
+        conn.execute(
+            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![
+                "st-1",
+                "ws-1",
+                "source-db-ws-1",
+                "dbo",
+                "dim_account"
+            ],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![
+                "st-2",
+                "ws-1",
+                "source-db-ws-1",
+                "dbo",
+                "dim_currency"
+            ],
+        )
+        .unwrap();
+
+        // Refresh with same tables should preserve selections.
+        persist_sql_server_inventory(&conn, "ws-1", &cfg, &first, None, None).unwrap();
+
+        let selected_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM selected_tables WHERE workspace_id = ?1",
+                rusqlite::params!["ws-1"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(selected_count, 2);
     }
 
     #[test]
@@ -2305,6 +2462,7 @@ mod tests {
                         schema_name: schema_name.to_string(),
                         table_name: table_name.to_string(),
                         object_id_local: row.get::<i64, _>(2),
+                        row_count: row.get::<i64, _>(3),
                     })
                 })
                 .collect();

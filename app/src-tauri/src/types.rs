@@ -199,6 +199,7 @@ pub struct WarehouseTable {
     pub schema_name: String,
     pub table_name: String,
     pub object_id_local: Option<i64>,
+    pub row_count: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -258,7 +259,7 @@ pub struct Candidacy {
     pub override_reason: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TableConfig {
     pub selected_table_id: String,
@@ -271,4 +272,30 @@ pub struct TableConfig {
     pub snapshot_strategy: String,
     pub pii_columns: Option<String>,
     pub confirmed_at: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ScopeTableRef {
+    pub warehouse_item_id: String,
+    pub schema_name: String,
+    pub table_name: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ScopeInventoryRow {
+    pub warehouse_item_id: String,
+    pub schema_name: String,
+    pub table_name: String,
+    pub row_count: Option<i64>,
+    pub is_selected: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ScopeRefreshSummary {
+    pub kept: i64,
+    pub invalidated: i64,
+    pub removed: i64,
 }

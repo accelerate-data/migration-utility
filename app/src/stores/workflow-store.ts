@@ -6,24 +6,22 @@ import type { AppPhase, AppPhaseState } from '@/lib/types';
 
 export type Surface = 'home' | 'scope' | 'plan' | 'monitor' | 'settings';
 
-export type ScopeStep = 'scope' | 'candidacy' | 'config';
+export type ScopeStep = 'scope' | 'config';
 export type ScopeStepStatus = 'pending' | 'active' | 'done';
 
 export type MigrationStatus = 'idle' | 'running' | 'complete';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-export const SCOPE_STEPS: ScopeStep[] = ['scope', 'candidacy', 'config'];
+export const SCOPE_STEPS: ScopeStep[] = ['scope', 'config'];
 
 export const SCOPE_STEP_LABELS: Record<ScopeStep, string> = {
   scope: 'Scope',
-  candidacy: 'Candidacy Review',
   config: 'Table Config',
 };
 
 export const SCOPE_STEP_ROUTES: Record<ScopeStep, string> = {
   scope: '/scope',
-  candidacy: '/scope/candidacy',
   config: '/scope/config',
 };
 

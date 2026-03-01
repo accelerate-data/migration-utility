@@ -40,7 +40,10 @@ struct SidecarConfigPayload {
     prompt: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     system_prompt: Option<String>,
-    model: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    agent_name: Option<String>,
     api_key: String,
     cwd: String,
 }
@@ -73,14 +76,43 @@ struct MonitorStreamEvent {
     output_tokens: Option<i64>,
 }
 
-#[tauri::command]
-pub async fn monitor_launch_agent(
+#[derive(Debug, Clone)]
+pub struct AgentRunResult {
+    pub request_id: String,
+    pub transcript_path: PathBuf,
+    pub output_text: String,
+}
+
+pub async fn launch_agent_with_transcript(
     prompt: String,
     system_prompt: Option<String>,
     state: State<'_, DbState>,
     app: AppHandle,
     sidecar: State<'_, SidecarManager>,
-) -> Result<String, String> {
+) -> Result<AgentRunResult, String> {
+    launch_agent_with_transcript_config(prompt, system_prompt, None, Some(DEFAULT_MODEL.to_string()), state, app, sidecar).await
+}
+
+pub async fn launch_named_agent_with_transcript(
+    agent_name: String,
+    prompt: String,
+    system_prompt: Option<String>,
+    state: State<'_, DbState>,
+    app: AppHandle,
+    sidecar: State<'_, SidecarManager>,
+) -> Result<AgentRunResult, String> {
+    launch_agent_with_transcript_config(prompt, system_prompt, Some(agent_name), None, state, app, sidecar).await
+}
+
+async fn launch_agent_with_transcript_config(
+    prompt: String,
+    system_prompt: Option<String>,
+    agent_name: Option<String>,
+    model: Option<String>,
+    state: State<'_, DbState>,
+    app: AppHandle,
+    sidecar: State<'_, SidecarManager>,
+) -> Result<AgentRunResult, String> {
     log::info!("monitor_launch_agent");
     let request = {
         let conn = state
@@ -94,8 +126,15 @@ pub async fn monitor_launch_agent(
             .filter(|k| !k.trim().is_empty())
             .ok_or_else(|| "Anthropic API key is not configured in Settings".to_string())?;
 
-        let working_directory = resolve_working_directory(&conn, &app)?;
-        build_request(prompt, system_prompt, api_key, working_directory)
+        let working_directory = resolve_working_directory(&app)?;
+        build_request(
+            prompt,
+            system_prompt,
+            agent_name,
+            model,
+            api_key,
+            working_directory,
+        )
     };
 
     let log_path = prepare_log_path(&request.config.cwd, &request.id)?;
@@ -175,11 +214,29 @@ pub async fn monitor_launch_agent(
         return Err("monitor_launch_agent: sidecar stream ended before completion".to_string());
     }
 
-    if aggregated.trim().is_empty() {
-        Ok("Agent run completed with no text output".to_string())
+    let output_text = if aggregated.trim().is_empty() {
+        "Agent run completed with no text output".to_string()
     } else {
-        Ok(aggregated)
-    }
+        aggregated
+    };
+
+    Ok(AgentRunResult {
+        request_id: request.id,
+        transcript_path: log_path,
+        output_text,
+    })
+}
+
+#[tauri::command]
+pub async fn monitor_launch_agent(
+    prompt: String,
+    system_prompt: Option<String>,
+    state: State<'_, DbState>,
+    app: AppHandle,
+    sidecar: State<'_, SidecarManager>,
+) -> Result<String, String> {
+    let run = launch_agent_with_transcript(prompt, system_prompt, state, app, sidecar).await?;
+    Ok(run.output_text)
 }
 
 async fn read_sidecar_line_with_heartbeat<R, W>(
@@ -461,10 +518,10 @@ fn transcript_config_line(config: &SidecarConfigPayload) -> String {
             "prompt": config.prompt,
             "systemPrompt": config.system_prompt,
             "model": config.model,
+            "agentName": config.agent_name,
             "apiKey": "[REDACTED]",
             "cwd": config.cwd,
             "settingSources": ["project"],
-            "systemPromptPreset": "claude_code",
             "permissionMode": "bypassPermissions",
             "allowDangerouslySkipPermissions": true
         }
@@ -509,25 +566,7 @@ fn resolve_sidecar_entrypoint() -> Result<PathBuf, String> {
     }
 }
 
-fn resolve_working_directory(
-    conn: &rusqlite::Connection,
-    app: &AppHandle,
-) -> Result<String, String> {
-    let latest_workspace_dir: Option<String> = conn
-        .query_row(
-            "SELECT migration_repo_path FROM workspaces ORDER BY created_at DESC LIMIT 1",
-            [],
-            |row| row.get(0),
-        )
-        .ok();
-
-    if let Some(path) = latest_workspace_dir {
-        let trimmed = path.trim();
-        if !trimmed.is_empty() {
-            return Ok(trimmed.to_string());
-        }
-    }
-
+fn resolve_working_directory(app: &AppHandle) -> Result<String, String> {
     let home = app
         .path()
         .home_dir()
@@ -542,6 +581,8 @@ fn resolve_working_directory(
 fn build_request(
     prompt: String,
     system_prompt: Option<String>,
+    agent_name: Option<String>,
+    model: Option<String>,
     api_key: String,
     working_directory: String,
 ) -> AgentRequest {
@@ -550,7 +591,8 @@ fn build_request(
         config: SidecarConfigPayload {
             prompt,
             system_prompt,
-            model: DEFAULT_MODEL.to_string(),
+            model,
+            agent_name,
             api_key,
             cwd: working_directory,
         },
@@ -649,6 +691,8 @@ mod tests {
         let req = build_request(
             "prompt".to_string(),
             Some("system".to_string()),
+            None,
+            Some("claude-sonnet-4-6".to_string()),
             "sk-ant-test".to_string(),
             "/tmp/work".to_string(),
         );
@@ -665,6 +709,8 @@ mod tests {
         let req = build_request(
             "prompt body".to_string(),
             Some("system".to_string()),
+            None,
+            Some("claude-sonnet-4-6".to_string()),
             "sk-ant-secret".to_string(),
             "/tmp/work".to_string(),
         );
