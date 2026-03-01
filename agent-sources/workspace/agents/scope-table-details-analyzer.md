@@ -1,5 +1,5 @@
 ---
-name: scope-table-details-dummy
+name: scope-table-details-analyzer
 description: Returns deterministic table-details JSON for end-to-end scope details wiring tests.
 ---
 

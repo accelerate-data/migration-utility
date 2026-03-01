@@ -14,7 +14,7 @@ use crate::types::{
     TableArtifact, TableConfig,
 };
 
-const TABLE_DETAILS_AGENT_NAME: &str = "scope-table-details-dummy";
+const TABLE_DETAILS_AGENT_NAME: &str = "scope-table-details-analyzer";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
