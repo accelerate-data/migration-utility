@@ -154,6 +154,7 @@ export default function ConfigStep() {
     () => rows.find((row) => row.selectedTableId === activeId) ?? null,
     [rows, activeId],
   );
+  const activeIsAnalyzing = activeRow ? analyzingById[activeRow.selectedTableId] === true : false;
 
   const readyCount = useMemo(
     () => rows.filter((row) => isReady(configsById[row.selectedTableId])).length,
@@ -373,7 +374,7 @@ export default function ConfigStep() {
           </div>
         </div>
 
-        <div className="rounded-md border bg-card p-4 lg:pr-8">
+        <div className={`rounded-md border bg-card p-4 lg:pr-8 ${activeIsAnalyzing ? 'cursor-wait' : ''}`}>
           {!activeRow && <p className="text-sm text-muted-foreground">Select a table to edit details.</p>}
           {activeRow && draft && (
             <div className="space-y-4">
@@ -388,10 +389,10 @@ export default function ConfigStep() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={isLocked || analyzingById[activeRow.selectedTableId] === true}
+                  disabled={isLocked || activeIsAnalyzing}
                   onClick={() => void analyzeTable(activeRow, true)}
                 >
-                  {analyzingById[activeRow.selectedTableId] ? 'Analyzing...' : 'Analyze again'}
+                  {activeIsAnalyzing ? 'Analyzing...' : 'Analyze again'}
                 </Button>
               </div>
 
@@ -401,7 +402,7 @@ export default function ConfigStep() {
                   <select
                     className="h-9 w-full rounded-md border bg-background px-3 text-sm"
                     value={draft.tableType ?? ''}
-                    disabled={isLocked}
+                    disabled={isLocked || activeIsAnalyzing}
                     onChange={(e) => updateDraft('tableType', e.target.value || null)}
                   >
                     <option value="">Select...</option>
@@ -415,7 +416,7 @@ export default function ConfigStep() {
                   <select
                     className="h-9 w-full rounded-md border bg-background px-3 text-sm"
                     value={draft.loadStrategy ?? ''}
-                    disabled={isLocked}
+                    disabled={isLocked || activeIsAnalyzing}
                     onChange={(e) => updateDraft('loadStrategy', e.target.value || null)}
                   >
                     <option value="">Select...</option>
@@ -428,7 +429,7 @@ export default function ConfigStep() {
                   <span>CDC column</span>
                   <Input
                     value={draft.incrementalColumn ?? ''}
-                    disabled={isLocked}
+                    disabled={isLocked || activeIsAnalyzing}
                     onChange={(e) => updateDraft('incrementalColumn', e.target.value || null)}
                   />
                 </label>
@@ -436,7 +437,7 @@ export default function ConfigStep() {
                   <span>Canonical date column</span>
                   <Input
                     value={draft.dateColumn ?? ''}
-                    disabled={isLocked}
+                    disabled={isLocked || activeIsAnalyzing}
                     onChange={(e) => updateDraft('dateColumn', e.target.value || null)}
                   />
                 </label>
@@ -444,7 +445,7 @@ export default function ConfigStep() {
                   <span>PII columns (required for fixture masking)</span>
                   <Input
                     value={draft.piiColumns ?? ''}
-                    disabled={isLocked}
+                    disabled={isLocked || activeIsAnalyzing}
                     onChange={(e) => updateDraft('piiColumns', e.target.value || null)}
                   />
                 </label>
@@ -452,7 +453,7 @@ export default function ConfigStep() {
                   <span>Grain columns</span>
                   <Input
                     value={draft.grainColumns ?? ''}
-                    disabled={isLocked}
+                    disabled={isLocked || activeIsAnalyzing}
                     onChange={(e) => updateDraft('grainColumns', e.target.value || null)}
                   />
                 </label>
@@ -460,7 +461,7 @@ export default function ConfigStep() {
                   <span>Relationships (required for tests)</span>
                   <Input
                     value={draft.relationshipsJson ?? ''}
-                    disabled={isLocked}
+                    disabled={isLocked || activeIsAnalyzing}
                     onChange={(e) => updateDraft('relationshipsJson', e.target.value || null)}
                   />
                 </label>
@@ -469,7 +470,7 @@ export default function ConfigStep() {
                   <select
                     className="h-9 w-full rounded-md border bg-background px-3 text-sm"
                     value={draft.snapshotStrategy}
-                    disabled={isLocked || draft.tableType !== 'dimension'}
+                    disabled={isLocked || activeIsAnalyzing || draft.tableType !== 'dimension'}
                     onChange={(e) => updateDraft('snapshotStrategy', e.target.value)}
                   >
                     <option value="sample_1day">sample_1day</option>
