@@ -596,7 +596,6 @@ fn list_scope_inventory_for_workspace(
                     EXISTS(
                       SELECT 1 FROM selected_tables st
                       WHERE st.workspace_id = ?1
-                        AND st.warehouse_item_id = wt.warehouse_item_id
                         AND LOWER(st.schema_name) = LOWER(wt.schema_name)
                         AND LOWER(st.table_name) = LOWER(wt.table_name)
                     ) AS is_selected
@@ -790,13 +789,11 @@ pub fn migration_add_tables_to_selection(
                 "SELECT EXISTS(
                    SELECT 1 FROM selected_tables
                    WHERE workspace_id = ?1
-                     AND warehouse_item_id = ?2
-                     AND LOWER(schema_name) = LOWER(?3)
-                     AND LOWER(table_name) = LOWER(?4)
+                     AND LOWER(schema_name) = LOWER(?2)
+                     AND LOWER(table_name) = LOWER(?3)
                  )",
                 params![
                     workspace_id,
-                    table.warehouse_item_id,
                     table.schema_name,
                     table.table_name
                 ],
@@ -858,12 +855,10 @@ pub fn migration_set_table_selected(
         conn.execute(
             "DELETE FROM selected_tables
              WHERE workspace_id = ?1
-               AND warehouse_item_id = ?2
-               AND LOWER(schema_name) = LOWER(?3)
-               AND LOWER(table_name) = LOWER(?4)",
+               AND LOWER(schema_name) = LOWER(?2)
+               AND LOWER(table_name) = LOWER(?3)",
             params![
                 workspace_id,
-                table.warehouse_item_id,
                 table.schema_name,
                 table.table_name
             ],
