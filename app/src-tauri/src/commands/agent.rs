@@ -126,7 +126,7 @@ async fn launch_agent_with_transcript_config(
             .filter(|k| !k.trim().is_empty())
             .ok_or_else(|| "Anthropic API key is not configured in Settings".to_string())?;
 
-        let working_directory = resolve_working_directory(&conn, &app)?;
+        let working_directory = resolve_working_directory(&app)?;
         build_request(
             prompt,
             system_prompt,
@@ -567,25 +567,7 @@ fn resolve_sidecar_entrypoint() -> Result<PathBuf, String> {
     }
 }
 
-fn resolve_working_directory(
-    conn: &rusqlite::Connection,
-    app: &AppHandle,
-) -> Result<String, String> {
-    let latest_workspace_dir: Option<String> = conn
-        .query_row(
-            "SELECT migration_repo_path FROM workspaces ORDER BY created_at DESC LIMIT 1",
-            [],
-            |row| row.get(0),
-        )
-        .ok();
-
-    if let Some(path) = latest_workspace_dir {
-        let trimmed = path.trim();
-        if !trimmed.is_empty() {
-            return Ok(trimmed.to_string());
-        }
-    }
-
+fn resolve_working_directory(app: &AppHandle) -> Result<String, String> {
     let home = app
         .path()
         .home_dir()
