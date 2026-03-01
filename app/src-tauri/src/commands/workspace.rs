@@ -748,8 +748,16 @@ fn persist_sql_server_inventory(
     let source_item_id = format!("source-db-{workspace_id}");
 
     tx.execute(
-        "INSERT OR REPLACE INTO items(id, workspace_id, display_name, description, folder_id, item_type, connection_string, collation_type)
-         VALUES (?1, ?2, ?3, ?4, NULL, 'Warehouse', NULL, NULL)",
+        "INSERT INTO items(id, workspace_id, display_name, description, folder_id, item_type, connection_string, collation_type)
+         VALUES (?1, ?2, ?3, ?4, NULL, 'Warehouse', NULL, NULL)
+         ON CONFLICT(id) DO UPDATE SET
+           workspace_id = excluded.workspace_id,
+           display_name = excluded.display_name,
+           description = excluded.description,
+           folder_id = excluded.folder_id,
+           item_type = excluded.item_type,
+           connection_string = excluded.connection_string,
+           collation_type = excluded.collation_type",
         params![
             source_item_id,
             workspace_id,
@@ -2052,6 +2060,81 @@ mod tests {
         assert_eq!(procedure_count, 0);
         assert_eq!(partition_count, 0);
         assert_eq!(schema_name, "finance");
+    }
+
+    #[test]
+    fn persist_sql_server_inventory_keeps_selected_tables_for_unchanged_rows() {
+        let conn = db::open_in_memory().unwrap();
+        conn.execute(
+            "INSERT INTO workspaces(id, display_name, migration_repo_path, created_at) VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params!["ws-1", "Workspace", "/tmp/repo", "2026-01-01T00:00:00Z"],
+        )
+        .unwrap();
+
+        let first = SqlServerInventory {
+            container_id_local: Some(1),
+            schemas: vec![WarehouseSchema {
+                warehouse_item_id: String::new(),
+                schema_name: "dbo".to_string(),
+                schema_id_local: Some(1),
+            }],
+            tables: vec![
+                WarehouseTable {
+                    warehouse_item_id: String::new(),
+                    schema_name: "dbo".to_string(),
+                    table_name: "dim_account".to_string(),
+                    object_id_local: Some(10),
+                    row_count: Some(1),
+                },
+                WarehouseTable {
+                    warehouse_item_id: String::new(),
+                    schema_name: "dbo".to_string(),
+                    table_name: "dim_currency".to_string(),
+                    object_id_local: Some(11),
+                    row_count: Some(1),
+                },
+            ],
+            procedures: vec![],
+        };
+        let cfg = test_source_cfg("AdventureWorks");
+        persist_sql_server_inventory(&conn, "ws-1", &cfg, &first, None, None).unwrap();
+
+        conn.execute(
+            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![
+                "st-1",
+                "ws-1",
+                "source-db-ws-1",
+                "dbo",
+                "dim_account"
+            ],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![
+                "st-2",
+                "ws-1",
+                "source-db-ws-1",
+                "dbo",
+                "dim_currency"
+            ],
+        )
+        .unwrap();
+
+        // Refresh with same tables should preserve selections.
+        persist_sql_server_inventory(&conn, "ws-1", &cfg, &first, None, None).unwrap();
+
+        let selected_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM selected_tables WHERE workspace_id = ?1",
+                rusqlite::params!["ws-1"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(selected_count, 2);
     }
 
     #[test]
