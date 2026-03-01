@@ -73,14 +73,20 @@ struct MonitorStreamEvent {
     output_tokens: Option<i64>,
 }
 
-#[tauri::command]
-pub async fn monitor_launch_agent(
+#[derive(Debug, Clone)]
+pub struct AgentRunResult {
+    pub request_id: String,
+    pub transcript_path: PathBuf,
+    pub output_text: String,
+}
+
+pub async fn launch_agent_with_transcript(
     prompt: String,
     system_prompt: Option<String>,
     state: State<'_, DbState>,
     app: AppHandle,
     sidecar: State<'_, SidecarManager>,
-) -> Result<String, String> {
+) -> Result<AgentRunResult, String> {
     log::info!("monitor_launch_agent");
     let request = {
         let conn = state
@@ -175,11 +181,29 @@ pub async fn monitor_launch_agent(
         return Err("monitor_launch_agent: sidecar stream ended before completion".to_string());
     }
 
-    if aggregated.trim().is_empty() {
-        Ok("Agent run completed with no text output".to_string())
+    let output_text = if aggregated.trim().is_empty() {
+        "Agent run completed with no text output".to_string()
     } else {
-        Ok(aggregated)
-    }
+        aggregated
+    };
+
+    Ok(AgentRunResult {
+        request_id: request.id,
+        transcript_path: log_path,
+        output_text,
+    })
+}
+
+#[tauri::command]
+pub async fn monitor_launch_agent(
+    prompt: String,
+    system_prompt: Option<String>,
+    state: State<'_, DbState>,
+    app: AppHandle,
+    sidecar: State<'_, SidecarManager>,
+) -> Result<String, String> {
+    let run = launch_agent_with_transcript(prompt, system_prompt, state, app, sidecar).await?;
+    Ok(run.output_text)
 }
 
 async fn read_sidecar_line_with_heartbeat<R, W>(

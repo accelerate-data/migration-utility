@@ -259,7 +259,7 @@ pub struct Candidacy {
     pub override_reason: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TableConfig {
     pub selected_table_id: String,
@@ -290,26 +290,6 @@ pub struct ScopeInventoryRow {
     pub table_name: String,
     pub row_count: Option<i64>,
     pub is_selected: bool,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct TableDetailRow {
-    pub selected_table_id: String,
-    pub warehouse_item_id: String,
-    pub schema_name: String,
-    pub table_name: String,
-    pub row_count: Option<i64>,
-    pub table_type: Option<String>,
-    pub load_strategy: Option<String>,
-    pub snapshot_strategy: String,
-    pub incremental_column: Option<String>,
-    pub date_column: Option<String>,
-    pub grain_columns: Option<String>,
-    pub relationships_json: Option<String>,
-    pub pii_columns: Option<String>,
-    pub confirmed_at: Option<String>,
-    pub status: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -69,7 +69,7 @@ pub fn run() {
             commands::migration::migration_add_tables_to_selection,
             commands::migration::migration_set_table_selected,
             commands::migration::migration_reset_selected_tables,
-            commands::migration::migration_list_table_details,
+            commands::migration::migration_analyze_table_details,
             commands::migration::migration_save_table_config,
             commands::migration::migration_get_table_config,
             commands::migration::migration_reconcile_scope_state,
