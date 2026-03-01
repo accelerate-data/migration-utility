@@ -8,7 +8,7 @@ use serde_json::Value;
 use tauri::{AppHandle, Manager, State};
 use tokio::time::{timeout, Duration};
 
-use crate::commands::agent::{launch_agent_with_transcript, SidecarManager};
+use crate::commands::agent::{launch_named_agent_with_transcript, SidecarManager};
 use crate::db::DbState;
 use crate::types::{
     Candidacy, CommandError, ScopeInventoryRow, ScopeRefreshSummary, ScopeTableRef, SelectedTable,
@@ -377,8 +377,8 @@ pub async fn migration_analyze_table_details(
     }
 
     let prompt = format!(
-        "You are `{}`.\nAnalyze table details for migration metadata.\nReturn exactly one JSON object following the contract.\nCONTEXT_START\nworkspace_id: {}\nselected_table_id: {}\nschema_name: {}\ntable_name: {}\nCONTEXT_END",
-        TABLE_DETAILS_AGENT_NAME, workspace_id, selected_table_id, schema_name, table_name
+        "Analyze table details for migration metadata.\nReturn exactly one JSON object following the contract.\nCONTEXT_START\nworkspace_id: {}\nselected_table_id: {}\nschema_name: {}\ntable_name: {}\nCONTEXT_END",
+        workspace_id, selected_table_id, schema_name, table_name
     );
 
     log::info!(
@@ -388,7 +388,8 @@ pub async fn migration_analyze_table_details(
     );
     let launched = match timeout(
         Duration::from_secs(60),
-        launch_agent_with_transcript(
+        launch_named_agent_with_transcript(
+            TABLE_DETAILS_AGENT_NAME.to_string(),
             prompt,
             None,
             state.clone(),
@@ -689,12 +690,12 @@ fn parse_agent_json_object(text: &str) -> Result<Value, String> {
         return Err("agent response must be a JSON object".to_string());
     }
 
-    let fence_start = trimmed.find('{').ok_or_else(|| {
-        "agent response did not contain JSON object start".to_string()
-    })?;
-    let fence_end = trimmed.rfind('}').ok_or_else(|| {
-        "agent response did not contain JSON object end".to_string()
-    })?;
+    let fence_start = trimmed
+        .find('{')
+        .ok_or_else(|| "agent response did not contain JSON object start".to_string())?;
+    let fence_end = trimmed
+        .rfind('}')
+        .ok_or_else(|| "agent response did not contain JSON object end".to_string())?;
     let candidate = &trimmed[fence_start..=fence_end];
     let value: Value = serde_json::from_str(candidate)
         .map_err(|e| format!("failed parsing agent JSON object: {e}"))?;
@@ -727,7 +728,9 @@ fn redact_sensitive_value(value: Value) -> Value {
                 .collect();
             Value::Object(redacted)
         }
-        Value::Array(items) => Value::Array(items.into_iter().map(redact_sensitive_value).collect()),
+        Value::Array(items) => {
+            Value::Array(items.into_iter().map(redact_sensitive_value).collect())
+        }
         other => other,
     }
 }
@@ -762,8 +765,7 @@ fn write_table_details_run_history(
     workspace_id: &str,
     history: TableDetailsRunHistory,
 ) -> Result<(), String> {
-    let conn_state = app
-        .state::<DbState>();
+    let conn_state = app.state::<DbState>();
     let conn = conn_state
         .0
         .lock()
@@ -776,8 +778,8 @@ fn write_table_details_run_history(
         .join(&history.selected_table_id);
     fs::create_dir_all(&run_dir).map_err(|e| format!("failed to create run history dir: {e}"))?;
     let history_path = run_dir.join(format!("{}.json", history.run_id));
-    let serialized =
-        serde_json::to_string_pretty(&history).map_err(|e| format!("serialize run history: {e}"))?;
+    let serialized = serde_json::to_string_pretty(&history)
+        .map_err(|e| format!("serialize run history: {e}"))?;
     fs::write(&history_path, serialized).map_err(|e| format!("write run history: {e}"))?;
     Ok(())
 }
@@ -806,11 +808,7 @@ pub fn migration_add_tables_to_selection(
                      AND LOWER(schema_name) = LOWER(?2)
                      AND LOWER(table_name) = LOWER(?3)
                  )",
-                params![
-                    workspace_id,
-                    table.schema_name,
-                    table.table_name
-                ],
+                params![workspace_id, table.schema_name, table.table_name],
                 |row| row.get(0),
             )
             .map_err(CommandError::from)?;
@@ -871,11 +869,7 @@ pub fn migration_set_table_selected(
              WHERE workspace_id = ?1
                AND LOWER(schema_name) = LOWER(?2)
                AND LOWER(table_name) = LOWER(?3)",
-            params![
-                workspace_id,
-                table.schema_name,
-                table.table_name
-            ],
+            params![workspace_id, table.schema_name, table.table_name],
         )
         .map_err(CommandError::from)?;
     }
@@ -1444,9 +1438,14 @@ mod tests {
         });
 
         let redacted = super::redact_sensitive_value(input);
-        assert_eq!(redacted.get("api_key").and_then(serde_json::Value::as_str), Some("[REDACTED]"));
         assert_eq!(
-            redacted.get("tokenValue").and_then(serde_json::Value::as_str),
+            redacted.get("api_key").and_then(serde_json::Value::as_str),
+            Some("[REDACTED]")
+        );
+        assert_eq!(
+            redacted
+                .get("tokenValue")
+                .and_then(serde_json::Value::as_str),
             Some("[REDACTED]")
         );
         assert_eq!(

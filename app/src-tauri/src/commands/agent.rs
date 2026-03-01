@@ -40,7 +40,10 @@ struct SidecarConfigPayload {
     prompt: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     system_prompt: Option<String>,
-    model: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    agent_name: Option<String>,
     api_key: String,
     cwd: String,
 }
@@ -87,6 +90,29 @@ pub async fn launch_agent_with_transcript(
     app: AppHandle,
     sidecar: State<'_, SidecarManager>,
 ) -> Result<AgentRunResult, String> {
+    launch_agent_with_transcript_config(prompt, system_prompt, None, Some(DEFAULT_MODEL.to_string()), state, app, sidecar).await
+}
+
+pub async fn launch_named_agent_with_transcript(
+    agent_name: String,
+    prompt: String,
+    system_prompt: Option<String>,
+    state: State<'_, DbState>,
+    app: AppHandle,
+    sidecar: State<'_, SidecarManager>,
+) -> Result<AgentRunResult, String> {
+    launch_agent_with_transcript_config(prompt, system_prompt, Some(agent_name), None, state, app, sidecar).await
+}
+
+async fn launch_agent_with_transcript_config(
+    prompt: String,
+    system_prompt: Option<String>,
+    agent_name: Option<String>,
+    model: Option<String>,
+    state: State<'_, DbState>,
+    app: AppHandle,
+    sidecar: State<'_, SidecarManager>,
+) -> Result<AgentRunResult, String> {
     log::info!("monitor_launch_agent");
     let request = {
         let conn = state
@@ -101,7 +127,14 @@ pub async fn launch_agent_with_transcript(
             .ok_or_else(|| "Anthropic API key is not configured in Settings".to_string())?;
 
         let working_directory = resolve_working_directory(&conn, &app)?;
-        build_request(prompt, system_prompt, api_key, working_directory)
+        build_request(
+            prompt,
+            system_prompt,
+            agent_name,
+            model,
+            api_key,
+            working_directory,
+        )
     };
 
     let log_path = prepare_log_path(&request.config.cwd, &request.id)?;
@@ -485,6 +518,7 @@ fn transcript_config_line(config: &SidecarConfigPayload) -> String {
             "prompt": config.prompt,
             "systemPrompt": config.system_prompt,
             "model": config.model,
+            "agentName": config.agent_name,
             "apiKey": "[REDACTED]",
             "cwd": config.cwd,
             "settingSources": ["project"],
@@ -566,6 +600,8 @@ fn resolve_working_directory(
 fn build_request(
     prompt: String,
     system_prompt: Option<String>,
+    agent_name: Option<String>,
+    model: Option<String>,
     api_key: String,
     working_directory: String,
 ) -> AgentRequest {
@@ -574,7 +610,8 @@ fn build_request(
         config: SidecarConfigPayload {
             prompt,
             system_prompt,
-            model: DEFAULT_MODEL.to_string(),
+            model,
+            agent_name,
             api_key,
             cwd: working_directory,
         },
@@ -673,6 +710,8 @@ mod tests {
         let req = build_request(
             "prompt".to_string(),
             Some("system".to_string()),
+            None,
+            Some("claude-sonnet-4-6".to_string()),
             "sk-ant-test".to_string(),
             "/tmp/work".to_string(),
         );
@@ -689,6 +728,8 @@ mod tests {
         let req = build_request(
             "prompt body".to_string(),
             Some("system".to_string()),
+            None,
+            Some("claude-sonnet-4-6".to_string()),
             "sk-ant-secret".to_string(),
             "/tmp/work".to_string(),
         );
