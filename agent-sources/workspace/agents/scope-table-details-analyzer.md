@@ -1,7 +1,7 @@
 ---
 name: scope-table-details-analyzer
 description: Returns deterministic table-details JSON for end-to-end scope details wiring tests.
-model: claude-3-5-haiku-20241022
+model: claude-haiku-4-5
 tools:
   - Bash
 ---
