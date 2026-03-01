@@ -155,6 +155,7 @@ export default function ConfigStep() {
     [rows, activeId],
   );
   const activeIsAnalyzing = activeRow ? analyzingById[activeRow.selectedTableId] === true : false;
+  const anyAnalyzing = Object.values(analyzingById).some((v) => v === true);
 
   const readyCount = useMemo(
     () => rows.filter((row) => isReady(configsById[row.selectedTableId])).length,
@@ -344,7 +345,7 @@ export default function ConfigStep() {
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[40%_60%]">
-        <div className="rounded-md border bg-card">
+        <div className={`rounded-md border bg-card ${anyAnalyzing ? 'cursor-wait' : ''}`}>
           <div className="max-h-[560px] overflow-auto">
             {loading && <p className="p-3 text-sm text-muted-foreground">Loading details...</p>}
             {!loading && rows.length === 0 && (
@@ -364,6 +365,7 @@ export default function ConfigStep() {
                       className={`w-full border-t px-3 py-2 text-left text-sm ${
                         row.selectedTableId === activeId ? 'bg-primary/10' : ''
                       }`}
+                      disabled={anyAnalyzing}
                       onClick={() => setActiveId(row.selectedTableId)}
                     >
                       <span className="font-mono">{row.tableName}</span>
