@@ -377,7 +377,7 @@ pub async fn migration_analyze_table_details(
     }
 
     let prompt = format!(
-        "You are `{}`.\nAnalyze table details for migration metadata.\nDo not use tools.\nDo not call other agents.\nReturn immediately with exactly one JSON object following the contract.\nCONTEXT_START\nworkspace_id: {}\nselected_table_id: {}\nschema_name: {}\ntable_name: {}\nCONTEXT_END",
+        "You are `{}`.\nAnalyze table details for migration metadata.\nReturn exactly one JSON object following the contract.\nCONTEXT_START\nworkspace_id: {}\nselected_table_id: {}\nschema_name: {}\ntable_name: {}\nCONTEXT_END",
         TABLE_DETAILS_AGENT_NAME, workspace_id, selected_table_id, schema_name, table_name
     );
 
