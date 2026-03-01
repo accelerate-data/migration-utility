@@ -36,6 +36,16 @@ export function buildSessionOptions(config: SidecarConfig): ExtendedSessionOptio
   };
 }
 
+export function redactSessionOptionsForLog(options: ExtendedSessionOptions): Record<string, unknown> {
+  return {
+    ...options,
+    env: {
+      ...(options.env ?? {}),
+      ANTHROPIC_API_KEY: '[REDACTED]',
+    },
+  };
+}
+
 export function buildInitialPrompt(config: SidecarConfig): string {
   const system = config.systemPrompt?.trim();
   if (!system) return config.prompt;

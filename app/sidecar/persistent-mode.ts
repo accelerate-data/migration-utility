@@ -4,7 +4,7 @@ import {
 } from '@anthropic-ai/claude-agent-sdk';
 import { createInterface } from 'node:readline';
 import type { SidecarConfig } from './config.ts';
-import { buildInitialPrompt, buildSessionOptions } from './options.ts';
+import { buildInitialPrompt, buildSessionOptions, redactSessionOptionsForLog } from './options.ts';
 import { parseIncomingMessage, writeLine } from './protocol.ts';
 import { StreamSession } from './stream-session.ts';
 
@@ -28,7 +28,11 @@ async function runSingleRequest(
   config: SidecarConfig,
   abortSignal: AbortSignal,
 ): Promise<void> {
-  const session: SDKSession = unstable_v2_createSession(buildSessionOptions(config));
+  const sessionOptions = buildSessionOptions(config);
+  console.error(
+    `[sidecar] request_id=${requestId} sdk_session_options=${JSON.stringify(redactSessionOptionsForLog(sessionOptions))}`,
+  );
+  const session: SDKSession = unstable_v2_createSession(sessionOptions);
   try {
     writeLine({
       type: 'system',

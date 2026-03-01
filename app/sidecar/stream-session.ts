@@ -3,7 +3,7 @@ import {
   type SDKSession,
 } from '@anthropic-ai/claude-agent-sdk';
 import type { SidecarConfig } from './config.ts';
-import { buildInitialPrompt, buildSessionOptions } from './options.ts';
+import { buildInitialPrompt, buildSessionOptions, redactSessionOptionsForLog } from './options.ts';
 import { writeLine } from './protocol.ts';
 
 function assistantTextFromEvent(event: unknown): string {
@@ -23,15 +23,24 @@ function assistantTextFromEvent(event: unknown): string {
 
 export class StreamSession {
   private readonly session: SDKSession;
+  private readonly redactedSessionOptions: Record<string, unknown>;
   private queue: Promise<void> = Promise.resolve();
   private closed = false;
+  private loggedOptions = false;
 
   constructor(config: SidecarConfig) {
     const opts = buildSessionOptions(config);
+    this.redactedSessionOptions = redactSessionOptionsForLog(opts);
     this.session = unstable_v2_createSession(opts);
   }
 
   start(requestId: string, config: SidecarConfig): Promise<void> {
+    if (!this.loggedOptions) {
+      console.error(
+        `[sidecar] request_id=${requestId} sdk_session_options=${JSON.stringify(this.redactedSessionOptions)}`,
+      );
+      this.loggedOptions = true;
+    }
     return this.sendTurn(requestId, buildInitialPrompt(config));
   }
 
