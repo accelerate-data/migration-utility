@@ -6,7 +6,7 @@ const DEFAULT_MODEL = 'claude-sonnet-4-6';
 // V2 SDK types currently omit some fields we need from existing runtime behavior.
 type ExtendedSessionOptions = SDKSessionOptions & {
   agent?: string;
-  model?: string;
+  model: string;
   cwd: string;
   settingSources: Array<'project'>;
   systemPrompt: { type: 'preset'; preset: 'claude_code' };
@@ -16,19 +16,11 @@ type ExtendedSessionOptions = SDKSessionOptions & {
 
 export function buildSessionOptions(config: SidecarConfig): ExtendedSessionOptions {
   const agentField = config.agentName?.trim() ? { agent: config.agentName.trim() } : {};
-  // Mirror skill-builder behavior:
-  // - agentName only  -> use agent/frontmatter model
-  // - model only      -> use provided model
-  // - both            -> model overrides frontmatter
-  const modelField =
-    config.model?.trim()
-      ? { model: config.model.trim() }
-      : config.agentName?.trim()
-        ? {}
-        : { model: DEFAULT_MODEL };
+  // SDKSessionOptions requires a model; keep global default unless caller overrides.
+  const model = config.model?.trim() || DEFAULT_MODEL;
   return {
     ...agentField,
-    ...modelField,
+    model,
     env: {
       ...process.env,
       ANTHROPIC_API_KEY: config.apiKey,
