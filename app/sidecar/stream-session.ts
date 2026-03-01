@@ -1,6 +1,7 @@
 import {
   unstable_v2_createSession,
   type SDKSession,
+  type SDKSessionOptions,
 } from '@anthropic-ai/claude-agent-sdk';
 import type { SidecarConfig } from './config.ts';
 import { buildInitialPrompt, buildSessionOptions, redactSessionOptionsForLog } from './options.ts';
@@ -31,7 +32,7 @@ export class StreamSession {
   constructor(config: SidecarConfig) {
     const opts = buildSessionOptions(config);
     this.redactedSessionOptions = redactSessionOptionsForLog(opts);
-    this.session = unstable_v2_createSession(opts);
+    this.session = unstable_v2_createSession(opts as SDKSessionOptions);
   }
 
   start(requestId: string, config: SidecarConfig): Promise<void> {

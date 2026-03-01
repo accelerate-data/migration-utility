@@ -4,7 +4,7 @@ import type { SidecarConfig } from './config.ts';
 const DEFAULT_MODEL = 'claude-sonnet-4-6';
 
 // V2 SDK types currently omit some fields we need from existing runtime behavior.
-type ExtendedSessionOptions = Omit<SDKSessionOptions, 'model'> & {
+export type SessionOptionsWithOptionalModel = Omit<SDKSessionOptions, 'model'> & {
   agent?: string;
   model?: string;
   cwd: string;
@@ -14,7 +14,7 @@ type ExtendedSessionOptions = Omit<SDKSessionOptions, 'model'> & {
   allowDangerouslySkipPermissions: boolean;
 };
 
-export function buildSessionOptions(config: SidecarConfig): ExtendedSessionOptions {
+export function buildSessionOptions(config: SidecarConfig): SessionOptionsWithOptionalModel {
   const hasAgent = Boolean(config.agentName?.trim());
   const agentField = hasAgent ? { agent: config.agentName!.trim() } : {};
   const explicitModel = config.model?.trim();
@@ -37,7 +37,7 @@ export function buildSessionOptions(config: SidecarConfig): ExtendedSessionOptio
   };
 }
 
-export function redactSessionOptionsForLog(options: ExtendedSessionOptions): Record<string, unknown> {
+export function redactSessionOptionsForLog(options: SessionOptionsWithOptionalModel): Record<string, unknown> {
   return {
     ...options,
     env: {

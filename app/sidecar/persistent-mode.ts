@@ -1,6 +1,7 @@
 import {
   unstable_v2_createSession,
   type SDKSession,
+  type SDKSessionOptions,
 } from '@anthropic-ai/claude-agent-sdk';
 import { createInterface } from 'node:readline';
 import type { SidecarConfig } from './config.ts';
@@ -32,7 +33,7 @@ async function runSingleRequest(
   console.error(
     `[sidecar] request_id=${requestId} sdk_session_options=${JSON.stringify(redactSessionOptionsForLog(sessionOptions))}`,
   );
-  const session: SDKSession = unstable_v2_createSession(sessionOptions);
+  const session: SDKSession = unstable_v2_createSession(sessionOptions as SDKSessionOptions);
   try {
     writeLine({
       type: 'system',
