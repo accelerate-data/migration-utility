@@ -291,7 +291,10 @@ export default function ConfigStep() {
   }
 
   return (
-    <section className="space-y-4" data-testid="scope-table-details-step">
+    <section className="relative space-y-4" data-testid="scope-table-details-step">
+      {anyAnalyzing && (
+        <div className="absolute inset-0 z-20 cursor-wait rounded-md bg-background/40 backdrop-blur-[1px]" />
+      )}
       <header className="rounded-md border bg-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-1">
@@ -314,12 +317,12 @@ export default function ConfigStep() {
               type="button"
               variant="outline"
               size="sm"
-              disabled={isLocked || refreshing}
+              disabled={isLocked || refreshing || anyAnalyzing}
               onClick={() => void refreshSchema()}
             >
               {refreshing ? 'Refreshing...' : 'Refresh schema'}
             </Button>
-            <Button type="button" size="sm" disabled={isLocked} onClick={() => void finalizeScope()}>
+            <Button type="button" size="sm" disabled={isLocked || anyAnalyzing} onClick={() => void finalizeScope()}>
               {isLocked ? 'Scope Finalized' : 'Finalize Scope'}
             </Button>
           </div>
@@ -329,6 +332,7 @@ export default function ConfigStep() {
             <button
               type="button"
               className="border-b-2 border-transparent pb-2 text-sm font-medium text-muted-foreground"
+              disabled={anyAnalyzing}
               onClick={() => navigate('/scope')}
             >
               1. Select Tables
@@ -336,6 +340,7 @@ export default function ConfigStep() {
             <button
               type="button"
               className="border-b-2 border-primary pb-2 text-sm font-medium text-primary"
+              disabled={anyAnalyzing}
               onClick={() => navigate('/scope/config')}
             >
               2. Table Details
