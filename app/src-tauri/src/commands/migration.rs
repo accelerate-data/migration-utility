@@ -898,8 +898,8 @@ pub fn migration_reconcile_scope_state(
                  FROM selected_tables st
                  LEFT JOIN warehouse_tables wt
                    ON wt.warehouse_item_id = st.warehouse_item_id
-                  AND wt.schema_name = st.schema_name
-                  AND wt.table_name = st.table_name
+                  AND LOWER(wt.schema_name) = LOWER(st.schema_name)
+                  AND LOWER(wt.table_name) = LOWER(st.table_name)
                  WHERE st.workspace_id = ?1
                    AND wt.warehouse_item_id IS NULL",
             )

@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     process::Command,
     sync::{
@@ -762,14 +762,43 @@ fn persist_sql_server_inventory(
         CommandError::from(e)
     })?;
 
-    tx.execute(
-        "DELETE FROM warehouse_tables WHERE warehouse_item_id=?1",
-        params![source_item_id],
-    )
-    .map_err(|e| {
-        log::error!("workspace_apply_and_clone: failed to clear source tables: {e}");
-        CommandError::from(e)
-    })?;
+    let mut existing_keys: HashSet<(String, String)> = HashSet::new();
+    {
+        let mut existing_tables_stmt = tx
+            .prepare(
+                "SELECT schema_name, table_name
+                 FROM warehouse_tables
+                 WHERE warehouse_item_id = ?1",
+            )
+            .map_err(|e| {
+                log::error!("workspace_apply_and_clone: failed to prepare existing table diff: {e}");
+                CommandError::from(e)
+            })?;
+        let existing_rows = existing_tables_stmt
+            .query_map(params![source_item_id.clone()], |row| {
+                let schema_name: String = row.get(0)?;
+                let table_name: String = row.get(1)?;
+                Ok((schema_name, table_name))
+            })
+            .map_err(|e| {
+                log::error!("workspace_apply_and_clone: failed to read existing table diff: {e}");
+                CommandError::from(e)
+            })?;
+        for row in existing_rows {
+            let (schema_name, table_name) = row.map_err(CommandError::from)?;
+            existing_keys.insert((schema_name.to_lowercase(), table_name.to_lowercase()));
+        }
+    }
+
+    let discovered_keys: HashSet<(String, String)> = inventory
+        .tables
+        .iter()
+        .map(|t| (t.schema_name.to_lowercase(), t.table_name.to_lowercase()))
+        .collect();
+    let removed_keys: Vec<(String, String)> = existing_keys
+        .difference(&discovered_keys)
+        .cloned()
+        .collect();
     tx.execute(
         "DELETE FROM warehouse_procedures WHERE warehouse_item_id=?1",
         params![source_item_id],
@@ -816,6 +845,19 @@ fn persist_sql_server_inventory(
         })?;
         imported_objects += 1;
         maybe_emit_object_import_progress(app, job_id, imported_objects, total_objects);
+    }
+    for (schema_name_lc, table_name_lc) in removed_keys {
+        tx.execute(
+            "DELETE FROM warehouse_tables
+             WHERE warehouse_item_id = ?1
+               AND LOWER(schema_name) = ?2
+               AND LOWER(table_name) = ?3",
+            params![source_item_id, schema_name_lc, table_name_lc],
+        )
+        .map_err(|e| {
+            log::error!("workspace_apply_and_clone: failed to remove stale source table: {e}");
+            CommandError::from(e)
+        })?;
     }
     for procedure in &inventory.procedures {
         tx.execute(
