@@ -891,18 +891,6 @@ pub fn migration_reconcile_scope_state(
     let conn = state.0.lock().unwrap();
     let tx = conn.unchecked_transaction().map_err(CommandError::from)?;
 
-    // Prevent duplicate natural keys from accumulating across repeated refresh operations.
-    tx.execute(
-        "DELETE FROM selected_tables
-         WHERE rowid NOT IN (
-           SELECT MIN(rowid)
-           FROM selected_tables
-           GROUP BY workspace_id, warehouse_item_id, schema_name, table_name
-         )",
-        [],
-    )
-    .map_err(CommandError::from)?;
-
     let invalid_selected_ids: Vec<String> = {
         let mut stmt = tx
             .prepare(
@@ -1188,6 +1176,65 @@ mod tests {
 
         assert_eq!(invalid_ids, vec!["st-2".to_string()]);
         assert_eq!(kept, 1);
+    }
+
+    #[test]
+    fn reconcile_scope_state_keeps_selected_rows_when_backend_tables_exist() {
+        let conn = db::open_in_memory().unwrap();
+        let (ws_id, item_id) = setup_workspace_and_item(&conn);
+        conn.execute(
+            "INSERT INTO warehouse_tables(warehouse_item_id, schema_name, table_name) VALUES (?1, ?2, ?3)",
+            rusqlite::params![item_id, "dbo", "fact_sales"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO warehouse_tables(warehouse_item_id, schema_name, table_name) VALUES (?1, ?2, ?3)",
+            rusqlite::params![item_id, "dbo", "dim_customer"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params!["st-1", ws_id, item_id, "dbo", "fact_sales"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params!["st-2", ws_id, item_id, "dbo", "dim_customer"],
+        )
+        .unwrap();
+
+        let tx = conn.unchecked_transaction().unwrap();
+        let invalid_ids: Vec<String> = {
+            let mut stmt = tx
+                .prepare(
+                    "SELECT st.id
+                     FROM selected_tables st
+                     LEFT JOIN warehouse_tables wt
+                       ON wt.warehouse_item_id = st.warehouse_item_id
+                      AND wt.schema_name = st.schema_name
+                      AND wt.table_name = st.table_name
+                     WHERE st.workspace_id = ?1
+                       AND wt.warehouse_item_id IS NULL",
+                )
+                .unwrap();
+            stmt.query_map(rusqlite::params![ws_id], |row| row.get(0))
+                .unwrap()
+                .map(|r| r.unwrap())
+                .collect()
+        };
+        assert!(invalid_ids.is_empty());
+        let kept: i64 = tx
+            .query_row(
+                "SELECT COUNT(*) FROM selected_tables WHERE workspace_id=?1",
+                rusqlite::params![ws_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        tx.commit().unwrap();
+
+        assert_eq!(kept, 2);
     }
 
     #[test]
