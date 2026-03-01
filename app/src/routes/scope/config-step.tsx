@@ -293,7 +293,7 @@ export default function ConfigStep() {
   return (
     <section className="relative space-y-4" data-testid="scope-table-details-step">
       {anyAnalyzing && (
-        <div className="absolute inset-0 z-20 cursor-wait rounded-md bg-background/40 backdrop-blur-[1px]" />
+        <div className="absolute inset-0 z-20 cursor-wait rounded-md bg-background/15 backdrop-blur-[0.5px]" />
       )}
       <header className="rounded-md border bg-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -350,7 +350,7 @@ export default function ConfigStep() {
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[40%_60%]">
-        <div className={`rounded-md border bg-card ${anyAnalyzing ? 'cursor-wait' : ''}`}>
+        <div className="rounded-md border bg-card">
           <div className="max-h-[560px] overflow-auto">
             {loading && <p className="p-3 text-sm text-muted-foreground">Loading details...</p>}
             {!loading && rows.length === 0 && (
@@ -381,7 +381,7 @@ export default function ConfigStep() {
           </div>
         </div>
 
-        <div className={`rounded-md border bg-card p-4 lg:pr-8 ${activeIsAnalyzing ? 'cursor-wait' : ''}`}>
+        <div className="rounded-md border bg-card p-4 lg:pr-8">
           {!activeRow && <p className="text-sm text-muted-foreground">Select a table to edit details.</p>}
           {activeRow && draft && (
             <div className="space-y-4">
