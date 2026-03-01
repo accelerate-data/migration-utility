@@ -320,6 +320,7 @@ pub fn migration_get_table_config(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn migration_analyze_table_details(
     workspace_id: String,
     selected_table_id: String,
@@ -706,7 +707,7 @@ fn parse_agent_json_object(text: &str) -> Result<Value, String> {
 }
 
 fn sanitize_log_message(message: &str) -> String {
-    message.replace('\n', " ").replace('\r', " ")
+    message.replace(['\n', '\r'], " ")
 }
 
 fn redact_sensitive_value(value: Value) -> Value {
