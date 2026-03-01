@@ -308,7 +308,6 @@ pub fn migration_list_scope_inventory(
                           OR do.external_object_id = CAST(wt.object_id_local AS TEXT)
                         )
                     ) AS row_count,
-                    NULL AS delta_per_day,
                     EXISTS(
                       SELECT 1 FROM selected_tables st
                       WHERE st.workspace_id = ?1
@@ -331,8 +330,7 @@ pub fn migration_list_scope_inventory(
                 schema_name: row.get(1)?,
                 table_name: row.get(2)?,
                 row_count: row.get(3)?,
-                delta_per_day: row.get(4)?,
-                is_selected: row.get::<_, bool>(5)?,
+                is_selected: row.get::<_, bool>(4)?,
             })
         })
         .map_err(CommandError::from)?;
@@ -481,6 +479,13 @@ pub fn migration_list_table_details(
 ) -> Result<Vec<TableDetailRow>, CommandError> {
     log::info!("migration_list_table_details: workspace_id={workspace_id}");
     let conn = state.0.lock().unwrap();
+    list_table_details_for_workspace(&conn, &workspace_id)
+}
+
+fn list_table_details_for_workspace(
+    conn: &rusqlite::Connection,
+    workspace_id: &str,
+) -> Result<Vec<TableDetailRow>, CommandError> {
     let mut stmt = conn
         .prepare(
             "SELECT st.id,
@@ -502,17 +507,210 @@ pub fn migration_list_table_details(
                         AND do.object_type = 'table'
                         AND ns.namespace_name = st.schema_name
                         AND do.object_name = st.table_name
+                        AND (
+                          wt.object_id_local IS NULL
+                          OR do.external_object_id = CAST(wt.object_id_local AS TEXT)
+                        )
                     ) AS row_count,
-                    tc.table_type,
-                    tc.load_strategy,
+                    COALESCE(
+                      tc.table_type,
+                      CASE
+                        WHEN LOWER(st.table_name) LIKE 'fact%' THEN 'fact'
+                        WHEN LOWER(st.table_name) LIKE 'dim%' THEN 'dimension'
+                        ELSE 'unknown'
+                      END
+                    ) AS table_type,
+                    COALESCE(
+                      tc.load_strategy,
+                      CASE
+                        WHEN LOWER(st.table_name) LIKE 'dim%' THEN 'snapshot'
+                        ELSE 'incremental'
+                      END
+                    ) AS load_strategy,
                     COALESCE(tc.snapshot_strategy, 'sample_1day') AS snapshot_strategy,
-                    tc.incremental_column,
-                    tc.date_column,
-                    tc.grain_columns,
-                    tc.relationships_json,
-                    tc.pii_columns,
+                    COALESCE(
+                      tc.incremental_column,
+                      (
+                        SELECT soc.column_name
+                        FROM data_objects do
+                        INNER JOIN namespaces ns ON ns.id = do.namespace_id
+                        INNER JOIN containers c ON c.id = ns.container_id
+                        INNER JOIN sources s ON s.id = c.source_id
+                        INNER JOIN sqlserver_object_columns soc ON soc.data_object_id = do.id
+                        WHERE s.workspace_id = ?1
+                          AND do.object_type = 'table'
+                          AND ns.namespace_name = st.schema_name
+                          AND do.object_name = st.table_name
+                          AND (
+                            wt.object_id_local IS NULL
+                            OR do.external_object_id = CAST(wt.object_id_local AS TEXT)
+                          )
+                          AND (
+                            LOWER(soc.column_name) LIKE '%load%'
+                            OR LOWER(soc.column_name) LIKE '%update%'
+                            OR LOWER(soc.column_name) LIKE '%modified%'
+                            OR LOWER(soc.column_name) LIKE '%timestamp%'
+                            OR LOWER(soc.column_name) LIKE '%date%'
+                          )
+                        ORDER BY
+                          CASE
+                            WHEN LOWER(soc.column_name) = 'load_date' THEN 0
+                            WHEN LOWER(soc.column_name) = 'updated_at' THEN 1
+                            WHEN LOWER(soc.column_name) = 'modified_at' THEN 2
+                            WHEN LOWER(soc.column_name) = 'last_modified_at' THEN 3
+                            WHEN LOWER(soc.column_name) = 'created_at' THEN 4
+                            WHEN LOWER(soc.column_name) = 'event_date' THEN 5
+                            ELSE 99
+                          END,
+                          COALESCE(soc.column_id, 999999),
+                          soc.column_name
+                        LIMIT 1
+                      )
+                    ) AS incremental_column,
+                    COALESCE(
+                      tc.date_column,
+                      (
+                        SELECT soc.column_name
+                        FROM data_objects do
+                        INNER JOIN namespaces ns ON ns.id = do.namespace_id
+                        INNER JOIN containers c ON c.id = ns.container_id
+                        INNER JOIN sources s ON s.id = c.source_id
+                        INNER JOIN sqlserver_object_columns soc ON soc.data_object_id = do.id
+                        WHERE s.workspace_id = ?1
+                          AND do.object_type = 'table'
+                          AND ns.namespace_name = st.schema_name
+                          AND do.object_name = st.table_name
+                          AND (
+                            wt.object_id_local IS NULL
+                            OR do.external_object_id = CAST(wt.object_id_local AS TEXT)
+                          )
+                          AND (
+                            LOWER(COALESCE(soc.data_type, '')) LIKE '%date%'
+                            OR LOWER(COALESCE(soc.data_type, '')) LIKE '%time%'
+                            OR LOWER(soc.column_name) LIKE '%date%'
+                          )
+                        ORDER BY
+                          CASE
+                            WHEN LOWER(soc.column_name) = 'date_key' THEN 0
+                            WHEN LOWER(soc.column_name) = 'business_date' THEN 1
+                            WHEN LOWER(soc.column_name) = 'event_date' THEN 2
+                            WHEN LOWER(soc.column_name) = 'sale_date' THEN 3
+                            WHEN LOWER(soc.column_name) = 'order_date' THEN 4
+                            WHEN LOWER(soc.column_name) = 'invoice_date' THEN 5
+                            WHEN LOWER(soc.column_name) = 'load_date' THEN 50
+                            ELSE 99
+                          END,
+                          COALESCE(soc.column_id, 999999),
+                          soc.column_name
+                        LIMIT 1
+                      )
+                    ) AS date_column,
+                    COALESCE(
+                      tc.grain_columns,
+                      NULLIF(
+                        (
+                          SELECT json_group_array(pk.column_name)
+                          FROM (
+                            SELECT soc.column_name
+                            FROM data_objects do
+                            INNER JOIN namespaces ns ON ns.id = do.namespace_id
+                            INNER JOIN containers c ON c.id = ns.container_id
+                            INNER JOIN sources s ON s.id = c.source_id
+                            INNER JOIN sqlserver_object_columns soc ON soc.data_object_id = do.id
+                            WHERE s.workspace_id = ?1
+                              AND do.object_type = 'table'
+                              AND ns.namespace_name = st.schema_name
+                              AND do.object_name = st.table_name
+                              AND (
+                                wt.object_id_local IS NULL
+                                OR do.external_object_id = CAST(wt.object_id_local AS TEXT)
+                              )
+                              AND COALESCE(soc.is_nullable, 1) = 0
+                              AND (
+                                LOWER(soc.column_name) = 'id'
+                                OR LOWER(soc.column_name) LIKE '%_id'
+                              )
+                            ORDER BY COALESCE(soc.column_id, 999999), soc.column_name
+                          ) pk
+                        ),
+                        '[]'
+                      )
+                    ) AS grain_columns,
+                    COALESCE(
+                      tc.relationships_json,
+                      NULLIF(
+                        (
+                          SELECT json_group_array(
+                            json_object(
+                              'constraint', fk.constraint_name,
+                              'definition', fk.definition_json
+                            )
+                          )
+                          FROM (
+                            SELECT sci.constraint_name, sci.definition_json
+                            FROM data_objects do
+                            INNER JOIN namespaces ns ON ns.id = do.namespace_id
+                            INNER JOIN containers c ON c.id = ns.container_id
+                            INNER JOIN sources s ON s.id = c.source_id
+                            INNER JOIN sqlserver_constraints_indexes sci ON sci.data_object_id = do.id
+                            WHERE s.workspace_id = ?1
+                              AND do.object_type = 'table'
+                              AND ns.namespace_name = st.schema_name
+                              AND do.object_name = st.table_name
+                              AND (
+                                wt.object_id_local IS NULL
+                                OR do.external_object_id = CAST(wt.object_id_local AS TEXT)
+                              )
+                              AND LOWER(COALESCE(sci.constraint_type, '')) LIKE '%foreign%'
+                            ORDER BY sci.constraint_name
+                          ) fk
+                        ),
+                        '[]'
+                      )
+                    ) AS relationships_json,
+                    COALESCE(
+                      tc.pii_columns,
+                      NULLIF(
+                        (
+                          SELECT json_group_array(pii.column_name)
+                          FROM (
+                            SELECT soc.column_name
+                            FROM data_objects do
+                            INNER JOIN namespaces ns ON ns.id = do.namespace_id
+                            INNER JOIN containers c ON c.id = ns.container_id
+                            INNER JOIN sources s ON s.id = c.source_id
+                            INNER JOIN sqlserver_object_columns soc ON soc.data_object_id = do.id
+                            WHERE s.workspace_id = ?1
+                              AND do.object_type = 'table'
+                              AND ns.namespace_name = st.schema_name
+                              AND do.object_name = st.table_name
+                              AND (
+                                wt.object_id_local IS NULL
+                                OR do.external_object_id = CAST(wt.object_id_local AS TEXT)
+                              )
+                              AND (
+                                LOWER(soc.column_name) LIKE '%email%'
+                                OR LOWER(soc.column_name) LIKE '%phone%'
+                                OR LOWER(soc.column_name) LIKE '%ssn%'
+                                OR LOWER(soc.column_name) LIKE '%social%'
+                                OR LOWER(soc.column_name) LIKE '%dob%'
+                                OR LOWER(soc.column_name) LIKE '%birth%'
+                                OR LOWER(soc.column_name) LIKE '%address%'
+                                OR LOWER(soc.column_name) LIKE '%postal%'
+                                OR LOWER(soc.column_name) LIKE '%zip%'
+                              )
+                            ORDER BY COALESCE(soc.column_id, 999999), soc.column_name
+                          ) pii
+                        ),
+                        '[]'
+                      )
+                    ) AS pii_columns,
                     tc.confirmed_at
              FROM selected_tables st
+             LEFT JOIN warehouse_tables wt
+               ON wt.warehouse_item_id = st.warehouse_item_id
+              AND wt.schema_name = st.schema_name
+              AND wt.table_name = st.table_name
              LEFT JOIN table_config tc
                ON tc.selected_table_id = st.id
              WHERE st.workspace_id = ?1
@@ -814,6 +1012,110 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].procedure_name, "sp_load");
         assert_eq!(results[0].tier, "migrate");
+    }
+
+    #[test]
+    fn list_table_details_derives_defaults_from_sqlserver_metadata() {
+        let conn = db::open_in_memory().unwrap();
+        let (ws_id, item_id) = setup_workspace_and_item(&conn);
+
+        conn.execute(
+            "INSERT INTO warehouse_tables(warehouse_item_id, schema_name, table_name, object_id_local)
+             VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![item_id, "dbo", "FactSales", 42i64],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params!["st-1", ws_id, item_id, "dbo", "FactSales"],
+        )
+        .unwrap();
+
+        conn.execute(
+            "INSERT INTO sources(id, workspace_id, source_type, external_source_id, display_name)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params!["source-1", ws_id, "sql_server", "sql_server://local", "local"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO containers(id, source_id, container_type, external_container_id, container_name)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params!["container-1", "source-1", "database", "1", "db"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO namespaces(id, container_id, namespace_name, external_namespace_id)
+             VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params!["ns-1", "container-1", "dbo", "1"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO data_objects(id, namespace_id, object_name, object_type, external_object_id)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params!["obj-1", "ns-1", "FactSales", "table", "42"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO sqlserver_partitions(id, data_object_id, partition_number, row_count)
+             VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params!["part-1", "obj-1", 1i64, 12345i64],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO sqlserver_object_columns(id, data_object_id, column_name, column_id, data_type, is_nullable)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params!["col-1", "obj-1", "customer_id", 1i64, "int", 0i64],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO sqlserver_object_columns(id, data_object_id, column_name, column_id, data_type, is_nullable)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params!["col-2", "obj-1", "load_date", 2i64, "datetime2", 0i64],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO sqlserver_object_columns(id, data_object_id, column_name, column_id, data_type, is_nullable)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params!["col-3", "obj-1", "sale_date", 3i64, "date", 1i64],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO sqlserver_object_columns(id, data_object_id, column_name, column_id, data_type, is_nullable)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params!["col-4", "obj-1", "customer_email", 4i64, "nvarchar", 1i64],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO sqlserver_constraints_indexes(id, data_object_id, constraint_name, index_name, constraint_type, definition_json)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                "fk-1",
+                "obj-1",
+                "FK_fact_sales_customer",
+                Option::<String>::None,
+                "FOREIGN KEY",
+                "{\"column\":\"customer_id\",\"ref_table\":\"dim_customer\",\"ref_column\":\"customer_id\"}"
+            ],
+        )
+        .unwrap();
+
+        let details = super::list_table_details_for_workspace(&conn, &ws_id).unwrap();
+        assert_eq!(details.len(), 1);
+        let row = &details[0];
+        assert_eq!(row.table_name, "FactSales");
+        assert_eq!(row.row_count, Some(12345));
+        assert_eq!(row.table_type.as_deref(), Some("fact"));
+        assert_eq!(row.load_strategy.as_deref(), Some("incremental"));
+        assert_eq!(row.incremental_column.as_deref(), Some("load_date"));
+        assert_eq!(row.date_column.as_deref(), Some("sale_date"));
+        assert_eq!(row.grain_columns.as_deref(), Some("[\"customer_id\"]"));
+        assert!(row
+            .relationships_json
+            .as_deref()
+            .is_some_and(|v| v.contains("FK_fact_sales_customer")));
+        assert_eq!(row.pii_columns.as_deref(), Some("[\"customer_email\"]"));
+        assert_eq!(row.status, "Ready");
     }
 
     #[test]

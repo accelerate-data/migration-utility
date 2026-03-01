@@ -156,7 +156,6 @@ export interface ScopeInventoryRow {
   schemaName: string;
   tableName: string;
   rowCount: number | null;
-  deltaPerDay: number | null;
   isSelected: boolean;
 }
 

@@ -31,13 +31,6 @@ function formatRowCount(value: number | null): string {
   return value.toLocaleString();
 }
 
-function formatDeltaPerDay(value: number | null): string {
-  if (value === null || value === undefined) return '--';
-  const abs = Math.abs(value);
-  const compact = abs >= 1_000 ? `${Math.round(abs / 1_000)}K` : abs.toLocaleString();
-  return `${value < 0 ? '-' : '+'}${compact}`;
-}
-
 export default function ScopeStep() {
   const navigate = useNavigate();
   const { workspaceId, appPhase, phaseFacts, setAppPhaseState } = useWorkflowStore();
@@ -284,7 +277,7 @@ export default function ScopeStep() {
           </div>
         </div>
 
-        <div className="grid grid-cols-[36px_1fr_1fr_100px_100px] gap-2 border-b px-3 py-2 text-xs font-medium text-muted-foreground">
+        <div className="grid grid-cols-[36px_140px_minmax(0,1fr)_100px] gap-2 border-b px-3 py-2 text-xs font-medium text-muted-foreground">
           <span />
           <button type="button" className="text-left" onClick={() => updateSort('schema')}>
             Schema {sortKey === 'schema' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
@@ -293,7 +286,6 @@ export default function ScopeStep() {
             Table {sortKey === 'table' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
           </button>
           <span>Rows</span>
-          <span>7d Δ/day</span>
         </div>
 
         <div className="max-h-[520px] overflow-auto">
@@ -307,7 +299,7 @@ export default function ScopeStep() {
             visibleRows.map((row) => (
               <label
                 key={keyForRow(row)}
-                className="grid grid-cols-[36px_1fr_1fr_100px_100px] items-center gap-2 border-b px-3 py-2 text-sm"
+                className="grid grid-cols-[36px_140px_minmax(0,1fr)_100px] items-center gap-2 border-b px-3 py-2 text-sm"
               >
                 <input
                   type="checkbox"
@@ -315,10 +307,9 @@ export default function ScopeStep() {
                   disabled={isLocked}
                   onChange={(e) => void setSelected(row, e.target.checked)}
                 />
-                <span className="font-mono text-muted-foreground">{row.schemaName}</span>
-                <span className="font-mono">{row.tableName}</span>
+                <span className="font-mono text-muted-foreground text-left justify-self-start truncate">{row.schemaName}</span>
+                <span className="font-mono text-left justify-self-start truncate">{row.tableName}</span>
                 <span className="font-mono text-muted-foreground">{formatRowCount(row.rowCount)}</span>
-                <span className="font-mono text-muted-foreground">{formatDeltaPerDay(row.deltaPerDay)}</span>
               </label>
             ))}
         </div>

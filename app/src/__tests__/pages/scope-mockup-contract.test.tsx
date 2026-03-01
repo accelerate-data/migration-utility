@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import ScopeStep from '@/routes/scope/scope-step';
 import ConfigStep from '@/routes/scope/config-step';
@@ -68,7 +68,6 @@ describe('Scope UI mockup contract', () => {
         schemaName: 'dbo',
         tableName: 'fact_sales',
         rowCount: 12_400_000,
-        deltaPerDay: null,
         isSelected: true,
       },
       {
@@ -76,7 +75,6 @@ describe('Scope UI mockup contract', () => {
         schemaName: 'dbo',
         tableName: 'dim_customer',
         rowCount: 1_100_000,
-        deltaPerDay: null,
         isSelected: false,
       },
       {
@@ -84,7 +82,6 @@ describe('Scope UI mockup contract', () => {
         schemaName: 'reporting',
         tableName: 'gold_summary',
         rowCount: 420_000,
-        deltaPerDay: null,
         isSelected: false,
       },
     ]);
@@ -187,7 +184,6 @@ describe('Scope UI mockup contract', () => {
     expect(sortButtons.some((text) => text.includes('Schema'))).toBe(true);
     expect(sortButtons.some((text) => text.includes('Table'))).toBe(true);
     expect(screen.getByText('Rows')).toBeInTheDocument();
-    expect(screen.getByText('7d Δ/day')).toBeInTheDocument();
   });
 
   it('renders scope surface without the legacy left steps rail', async () => {
@@ -197,7 +193,7 @@ describe('Scope UI mockup contract', () => {
     expect(screen.queryByText('Candidacy Review')).not.toBeInTheDocument();
   });
 
-  it('matches table-details mockup contract for summary chips, tab labels, table columns, and detail field labels', async () => {
+  it('matches table-details contract for summary chips, tabs, grouped schema list, and detail field labels', async () => {
     renderScopeDetails();
     await screen.findByText('fact_sales');
 
@@ -212,12 +208,9 @@ describe('Scope UI mockup contract', () => {
     expect(screen.getByRole('button', { name: 'Refresh schema' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Finalize Scope' })).toBeInTheDocument();
 
-    const tableHeader = screen.getByText('Name').closest('div');
-    expect(tableHeader).not.toBeNull();
-    const headerScope = within(tableHeader as HTMLElement);
-    expect(headerScope.getByText('Schema')).toBeInTheDocument();
-    expect(headerScope.getByText('Rows')).toBeInTheDocument();
-    expect(headerScope.getByText('Status')).toBeInTheDocument();
+    expect(screen.getByText('dbo')).toBeInTheDocument();
+    expect(screen.getByText('2 selected')).toBeInTheDocument();
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
 
     expect(screen.getByText('Migration metadata required for build and tests.')).toBeInTheDocument();
     expect(screen.getByLabelText('Table type')).toBeInTheDocument();

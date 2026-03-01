@@ -334,6 +334,7 @@ mod tests {
             schema_name: "dbo".to_string(),
             table_name: "orders".to_string(),
             object_id_local: Some(42),
+            row_count: None,
         };
 
         for _ in 0..2 {

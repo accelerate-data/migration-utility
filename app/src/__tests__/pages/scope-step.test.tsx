@@ -41,7 +41,6 @@ describe('ScopeStep', () => {
         schemaName: 'dbo',
         tableName: 'fact_sales',
         rowCount: 1_250_000,
-        deltaPerDay: null,
         isSelected: false,
       },
       {
@@ -49,7 +48,6 @@ describe('ScopeStep', () => {
         schemaName: 'dbo',
         tableName: 'dim_customer',
         rowCount: 810_000,
-        deltaPerDay: null,
         isSelected: true,
       },
     ]);
@@ -89,7 +87,7 @@ describe('ScopeStep', () => {
     await screen.findByText('fact_sales');
     expect(screen.getByText('1 tables selected')).toBeInTheDocument();
     expect(screen.getByText('1.3M')).toBeInTheDocument();
-    expect(screen.getAllByText('--').length).toBeGreaterThan(0);
+    expect(screen.getByText('810K')).toBeInTheDocument();
   });
 
   it('adds visible rows to selection', async () => {

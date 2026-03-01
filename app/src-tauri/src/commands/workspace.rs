@@ -527,6 +527,7 @@ fn fetch_sql_server_inventory(
                 schema_name,
                 table_name,
                 object_id_local: row.get::<i64, _>(2),
+                row_count: row.get::<i64, _>(3),
             });
         }
 
@@ -950,6 +951,20 @@ fn persist_sql_server_canonical_model(
             ],
         )
         .map_err(CommandError::from)?;
+
+        if let Some(row_count) = table.row_count {
+            let partition_id = format!(
+                "partition-{workspace_id}-{}-{}-1",
+                table.schema_name.to_lowercase(),
+                table.table_name.to_lowercase()
+            );
+            tx.execute(
+                "INSERT INTO sqlserver_partitions(id, data_object_id, partition_number, row_count)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![partition_id, object_id, 1_i64, row_count],
+            )
+            .map_err(CommandError::from)?;
+        }
     }
 
     for procedure in &inventory.procedures {
@@ -1927,6 +1942,7 @@ mod tests {
                 schema_name: "sales".to_string(),
                 table_name: "orders".to_string(),
                 object_id_local: Some(10),
+                row_count: Some(123),
             }],
             procedures: vec![WarehouseProcedure {
                 warehouse_item_id: String::new(),
@@ -1938,6 +1954,18 @@ mod tests {
         };
         let cfg = test_source_cfg("AdventureWorks");
         persist_sql_server_inventory(&conn, "ws-1", &cfg, &first, None, None).unwrap();
+        let first_partition_rows: i64 = conn
+            .query_row("SELECT COUNT(*) FROM sqlserver_partitions", [], |row| row.get(0))
+            .unwrap();
+        let first_partition_row_count: i64 = conn
+            .query_row(
+                "SELECT COALESCE(SUM(row_count), 0) FROM sqlserver_partitions",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(first_partition_rows, 1);
+        assert_eq!(first_partition_row_count, 123);
 
         let second = SqlServerInventory {
             container_id_local: Some(1),
@@ -1966,6 +1994,9 @@ mod tests {
                 row.get(0)
             })
             .unwrap();
+        let partition_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM sqlserver_partitions", [], |row| row.get(0))
+            .unwrap();
         let schema_name: String = conn
             .query_row(
                 "SELECT schema_name FROM warehouse_schemas LIMIT 1",
@@ -1977,6 +2008,7 @@ mod tests {
         assert_eq!(schema_count, 1);
         assert_eq!(table_count, 0);
         assert_eq!(procedure_count, 0);
+        assert_eq!(partition_count, 0);
         assert_eq!(schema_name, "finance");
     }
 
@@ -2305,6 +2337,7 @@ mod tests {
                         schema_name: schema_name.to_string(),
                         table_name: table_name.to_string(),
                         object_id_local: row.get::<i64, _>(2),
+                        row_count: row.get::<i64, _>(3),
                     })
                 })
                 .collect();

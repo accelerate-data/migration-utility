@@ -30,13 +30,6 @@ function toPayload(detail: TableDetailRow): TableConfigPayload {
   };
 }
 
-function formatRowCount(value: number | null): string {
-  if (value === null || value === undefined) return '--';
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${Math.round(value / 1_000)}K`;
-  return value.toLocaleString();
-}
-
 export default function ConfigStep() {
   const navigate = useNavigate();
   const { workspaceId, appPhase, phaseFacts, setAppPhaseState } = useWorkflowStore();
@@ -242,15 +235,8 @@ export default function ConfigStep() {
         </div>
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
+      <div className="grid gap-4 lg:grid-cols-[40%_60%]">
         <div className="rounded-md border bg-card">
-          <div className="grid grid-cols-[34px_1fr_1fr_80px_120px] gap-2 border-b px-3 py-2 text-xs font-medium text-muted-foreground">
-            <span />
-            <span>Name</span>
-            <span>Schema</span>
-            <span>Rows</span>
-            <span>Status</span>
-          </div>
           <div className="max-h-[560px] overflow-auto">
             {loading && <p className="p-3 text-sm text-muted-foreground">Loading details...</p>}
             {!loading && rows.length === 0 && (
@@ -258,16 +244,16 @@ export default function ConfigStep() {
             )}
             {!loading &&
               grouped.map(([schema, schemaRows]) => (
-                <div key={schema}>
-                  <div className="flex items-center justify-between border-b bg-muted/50 px-3 py-2 text-xs">
+                <details key={schema} open className="border-b">
+                  <summary className="flex cursor-pointer items-center justify-between bg-muted/50 px-3 py-2 text-xs">
                     <span className="font-medium">{schema}</span>
                     <span className="text-muted-foreground">{schemaRows.length} selected</span>
-                  </div>
+                  </summary>
                   {schemaRows.map((row) => (
                     <button
                       key={row.selectedTableId}
                       type="button"
-                      className={`grid w-full grid-cols-[34px_1fr_1fr_80px_120px] items-center gap-2 border-b px-3 py-2 text-left text-sm ${
+                      className={`w-full border-t px-3 py-2 text-left text-sm ${
                         row.selectedTableId === activeId ? 'bg-primary/10' : ''
                       }`}
                       onClick={() => {
@@ -275,27 +261,15 @@ export default function ConfigStep() {
                         setDraft(row);
                       }}
                     >
-                      <input type="radio" readOnly checked={row.selectedTableId === activeId} />
                       <span className="font-mono">{row.tableName}</span>
-                      <span className="font-mono text-muted-foreground">{row.schemaName}</span>
-                      <span className="font-mono text-muted-foreground">{formatRowCount(row.rowCount)}</span>
-                      <span
-                        className={`w-fit rounded-full px-2 py-0.5 text-xs font-medium ${
-                          row.status === 'Ready'
-                            ? 'bg-emerald-500/20 text-emerald-400'
-                            : 'bg-amber-500/20 text-amber-400'
-                        }`}
-                      >
-                        {row.status}
-                      </span>
                     </button>
                   ))}
-                </div>
+                </details>
               ))}
           </div>
         </div>
 
-        <div className="rounded-md border bg-card p-4">
+        <div className="rounded-md border bg-card p-4 lg:pr-8">
           {!draft && <p className="text-sm text-muted-foreground">Select a table to edit details.</p>}
           {draft && (
             <div className="space-y-4">

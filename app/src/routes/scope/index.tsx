@@ -6,7 +6,7 @@ export default function ScopeSurface() {
   return (
     <div className="h-full overflow-hidden">
       <main className="h-full overflow-auto px-8 py-6">
-        <div className="w-full md:w-[60%] md:min-w-[520px] md:max-w-[960px] md:resize-x overflow-auto">
+        <div className="w-full overflow-auto px-1">
           <Routes>
             <Route index element={<ScopeStep />} />
             <Route path="config" element={<ConfigStep />} />

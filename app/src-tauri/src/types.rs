@@ -199,6 +199,7 @@ pub struct WarehouseTable {
     pub schema_name: String,
     pub table_name: String,
     pub object_id_local: Option<i64>,
+    pub row_count: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -288,7 +289,6 @@ pub struct ScopeInventoryRow {
     pub schema_name: String,
     pub table_name: String,
     pub row_count: Option<i64>,
-    pub delta_per_day: Option<f64>,
     pub is_selected: bool,
 }
 
