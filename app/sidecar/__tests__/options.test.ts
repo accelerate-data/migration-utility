@@ -12,10 +12,10 @@ function makeConfig(overrides: Partial<SidecarConfig> = {}): SidecarConfig {
 }
 
 describe('buildSessionOptions', () => {
-  it('uses agent and keeps default model when agentName is provided (no explicit model)', () => {
+  it('uses agent-only when agentName is provided (no explicit model)', () => {
     const options = buildSessionOptions(makeConfig({ agentName: 'scope-table-details-analyzer' }));
     expect(options).toHaveProperty('agent', 'scope-table-details-analyzer');
-    expect(options).toHaveProperty('model', 'claude-sonnet-4-6');
+    expect(options).not.toHaveProperty('model');
     expect(options.settingSources).toEqual(['project']);
   });
 
