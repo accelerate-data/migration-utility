@@ -41,10 +41,10 @@ describe('buildSessionOptions', () => {
     expect(options).toHaveProperty('model', 'claude-sonnet-4-6');
   });
 
-  it('keeps project setting source and claude_code preset', () => {
+  it('keeps project setting source', () => {
     const options = buildSessionOptions(makeConfig({ model: 'claude-sonnet-4-6' }));
     expect(options.settingSources).toEqual(['project']);
-    expect(options.systemPrompt).toEqual({ type: 'preset', preset: 'claude_code' });
+    expect(options).not.toHaveProperty('systemPrompt');
   });
 
   it('uses cwd and env api key', () => {

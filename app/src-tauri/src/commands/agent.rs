@@ -522,7 +522,6 @@ fn transcript_config_line(config: &SidecarConfigPayload) -> String {
             "apiKey": "[REDACTED]",
             "cwd": config.cwd,
             "settingSources": ["project"],
-            "systemPromptPreset": "claude_code",
             "permissionMode": "bypassPermissions",
             "allowDangerouslySkipPermissions": true
         }

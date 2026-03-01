@@ -9,7 +9,6 @@ export type SessionOptionsWithOptionalModel = Omit<SDKSessionOptions, 'model'> &
   model?: string;
   cwd: string;
   settingSources: Array<'project'>;
-  systemPrompt: { type: 'preset'; preset: 'claude_code' };
   permissionMode: 'bypassPermissions';
   allowDangerouslySkipPermissions: boolean;
 };
@@ -28,7 +27,6 @@ export function buildSessionOptions(config: SidecarConfig): SessionOptionsWithOp
     },
     // Required parity with existing runtime behavior
     settingSources: ['project'],
-    systemPrompt: { type: 'preset', preset: 'claude_code' },
     cwd: config.cwd,
     // Non-interactive migration runs should never wait on permission prompts.
     permissionMode: 'bypassPermissions',
