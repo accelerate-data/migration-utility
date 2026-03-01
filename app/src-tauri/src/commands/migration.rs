@@ -376,7 +376,7 @@ pub async fn migration_analyze_table_details(
     }
 
     let prompt = format!(
-        "Use agent `{}`.\nAnalyze table details for migration metadata.\nworkspace_id: {}\nselected_table_id: {}\nschema_name: {}\ntable_name: {}\nReturn output strictly according to the agent contract.",
+        "Use agent `{}`.\nAnalyze table details for migration metadata.\nCONTEXT_START\nworkspace_id: {}\nselected_table_id: {}\nschema_name: {}\ntable_name: {}\nCONTEXT_END\nReturn output strictly according to the agent contract.",
         TABLE_DETAILS_AGENT_NAME, workspace_id, selected_table_id, schema_name, table_name
     );
 
