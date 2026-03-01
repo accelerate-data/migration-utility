@@ -5,7 +5,9 @@ import ConfigStep from '@/routes/scope/config-step';
 import { useWorkflowStore } from '@/stores/workflow-store';
 
 const tauriMocks = vi.hoisted(() => ({
-  migrationListTableDetails: vi.fn(),
+  migrationListScopeInventory: vi.fn(),
+  migrationGetTableConfig: vi.fn(),
+  migrationAnalyzeTableDetails: vi.fn(),
   migrationSaveTableConfig: vi.fn(),
   appSetPhaseFlags: vi.fn(),
   workspaceGet: vi.fn(),
@@ -33,25 +35,28 @@ describe('ConfigStep', () => {
       appPhase: 'scope_editable',
       phaseFacts: { ...s.phaseFacts, scopeFinalized: false },
     }));
-    tauriMocks.migrationListTableDetails.mockResolvedValue([
+    tauriMocks.migrationListScopeInventory.mockResolvedValue([
       {
-        selectedTableId: 'st-1',
         warehouseItemId: 'wh-1',
         schemaName: 'dbo',
         tableName: 'fact_sales',
         rowCount: 1_250_000,
-        tableType: null,
-        loadStrategy: null,
-        snapshotStrategy: 'sample_1day',
-        incrementalColumn: null,
-        dateColumn: null,
-        grainColumns: null,
-        relationshipsJson: null,
-        piiColumns: null,
-        confirmedAt: null,
-        status: 'Missing details',
+        isSelected: true,
       },
     ]);
+    tauriMocks.migrationGetTableConfig.mockResolvedValue(null);
+    tauriMocks.migrationAnalyzeTableDetails.mockResolvedValue({
+      selectedTableId: 'st:ws-1:wh-1:dbo:fact_sales',
+      tableType: 'unknown',
+      loadStrategy: 'incremental',
+      grainColumns: '[]',
+      relationshipsJson: '[]',
+      incrementalColumn: '',
+      dateColumn: '',
+      snapshotStrategy: 'sample_1day',
+      piiColumns: '[]',
+      confirmedAt: null,
+    });
     tauriMocks.migrationSaveTableConfig.mockResolvedValue(undefined);
     tauriMocks.appSetPhaseFlags.mockResolvedValue({
       appPhase: 'plan_editable',
@@ -85,6 +90,32 @@ describe('ConfigStep', () => {
     renderStep();
     await screen.findByText('fact_sales');
     expect(screen.getByText(/dbo.fact_sales/i)).toBeInTheDocument();
+  });
+
+  it('analyzes table on first load and supports analyze again', async () => {
+    renderStep();
+    await screen.findByText('fact_sales');
+
+    await waitFor(() => {
+      expect(tauriMocks.migrationAnalyzeTableDetails).toHaveBeenCalledWith({
+        workspaceId: 'ws-1',
+        selectedTableId: 'st:ws-1:wh-1:dbo:fact_sales',
+        schemaName: 'dbo',
+        tableName: 'fact_sales',
+        force: false,
+      });
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Analyze again' }));
+    await waitFor(() => {
+      expect(tauriMocks.migrationAnalyzeTableDetails).toHaveBeenCalledWith({
+        workspaceId: 'ws-1',
+        selectedTableId: 'st:ws-1:wh-1:dbo:fact_sales',
+        schemaName: 'dbo',
+        tableName: 'fact_sales',
+        force: true,
+      });
+    });
   });
 
   it('autosaves when changing table type', async () => {

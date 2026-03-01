@@ -16,7 +16,8 @@ const tauriMocks = vi.hoisted(() => ({
   workspaceApplyStatus: vi.fn(),
   migrationReconcileScopeState: vi.fn(),
   appSetPhaseFlags: vi.fn(),
-  migrationListTableDetails: vi.fn(),
+  migrationGetTableConfig: vi.fn(),
+  migrationAnalyzeTableDetails: vi.fn(),
   migrationSaveTableConfig: vi.fn(),
 }));
 
@@ -115,42 +116,19 @@ describe('Scope UI mockup contract', () => {
       planFinalized: false,
     });
 
-    tauriMocks.migrationListTableDetails.mockResolvedValue([
-      {
-        selectedTableId: 'st-1',
-        warehouseItemId: 'wh-1',
-        schemaName: 'dbo',
-        tableName: 'fact_sales',
-        rowCount: 12_400_000,
-        tableType: 'fact',
-        loadStrategy: 'incremental',
-        snapshotStrategy: 'sample_1day',
-        incrementalColumn: 'load_date',
-        dateColumn: 'sale_date',
-        grainColumns: '["sale_id"]',
-        relationshipsJson: '[{"column":"customer_id","ref_table":"dim_customer"}]',
-        piiColumns: '["customer_email"]',
-        confirmedAt: null,
-        status: 'Ready',
-      },
-      {
-        selectedTableId: 'st-2',
-        warehouseItemId: 'wh-1',
-        schemaName: 'dbo',
-        tableName: 'dim_customer',
-        rowCount: 1_100_000,
-        tableType: null,
-        loadStrategy: null,
-        snapshotStrategy: 'sample_1day',
-        incrementalColumn: null,
-        dateColumn: null,
-        grainColumns: null,
-        relationshipsJson: null,
-        piiColumns: null,
-        confirmedAt: null,
-        status: 'Missing details',
-      },
-    ]);
+    tauriMocks.migrationGetTableConfig.mockResolvedValue(null);
+    tauriMocks.migrationAnalyzeTableDetails.mockResolvedValue({
+      selectedTableId: 'st:ws-1:wh-1:dbo:fact_sales',
+      tableType: 'unknown',
+      loadStrategy: 'incremental',
+      snapshotStrategy: 'sample_1day',
+      incrementalColumn: '',
+      dateColumn: '',
+      grainColumns: '[]',
+      relationshipsJson: '[]',
+      piiColumns: '[]',
+      confirmedAt: null,
+    });
     tauriMocks.migrationSaveTableConfig.mockResolvedValue(undefined);
   });
 
@@ -200,7 +178,7 @@ describe('Scope UI mockup contract', () => {
     expect(screen.getByText(/Scope — Table details capture/i)).toBeInTheDocument();
     expect(screen.getByText(/tables ready/i)).toBeInTheDocument();
     expect(screen.getByText(/Needs details for/i)).toBeInTheDocument();
-    expect(screen.getByText(/Saved/i)).toBeInTheDocument();
+    expect(screen.getByText(/Analyzed just now|Saved just now/i)).toBeInTheDocument();
     expect(screen.getByText(/Scope editable/i)).toBeInTheDocument();
 
     expect(screen.getByRole('button', { name: '1. Select Tables' })).toBeInTheDocument();
@@ -209,7 +187,7 @@ describe('Scope UI mockup contract', () => {
     expect(screen.getByRole('button', { name: 'Finalize Scope' })).toBeInTheDocument();
 
     expect(screen.getByText('dbo')).toBeInTheDocument();
-    expect(screen.getByText('2 selected')).toBeInTheDocument();
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
     expect(screen.queryByRole('radio')).not.toBeInTheDocument();
 
     expect(screen.getByText('Migration metadata required for build and tests.')).toBeInTheDocument();
@@ -221,5 +199,6 @@ describe('Scope UI mockup contract', () => {
     expect(screen.getByLabelText('Grain columns')).toBeInTheDocument();
     expect(screen.getByLabelText('Relationships (required for tests)')).toBeInTheDocument();
     expect(screen.getByLabelText('SCD (dimensions only)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Analyze again' })).toBeInTheDocument();
   });
 });

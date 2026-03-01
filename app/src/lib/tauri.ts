@@ -12,7 +12,6 @@ import type {
   ScopeRefreshSummary,
   ScopeTableRef,
   TableConfigPayload,
-  TableDetailRow,
   UsageRun,
   UsageRunDetail,
   UsageSummary,
@@ -134,11 +133,26 @@ export const migrationSetTableSelected = (workspaceId: string, table: ScopeTable
 export const migrationResetSelectedTables = (workspaceId: string) =>
   invoke<number>('migration_reset_selected_tables', { workspaceId });
 
-export const migrationListTableDetails = (workspaceId: string) =>
-  invoke<TableDetailRow[]>('migration_list_table_details', { workspaceId });
-
 export const migrationSaveTableConfig = (config: TableConfigPayload) =>
   invoke<void>('migration_save_table_config', { config });
+
+export const migrationGetTableConfig = (selectedTableId: string) =>
+  invoke<TableConfigPayload | null>('migration_get_table_config', { selectedTableId });
+
+export const migrationAnalyzeTableDetails = (args: {
+  workspaceId: string;
+  selectedTableId: string;
+  schemaName: string;
+  tableName: string;
+  force?: boolean;
+}) =>
+  invoke<TableConfigPayload>('migration_analyze_table_details', {
+    workspaceId: args.workspaceId,
+    selectedTableId: args.selectedTableId,
+    schemaName: args.schemaName,
+    tableName: args.tableName,
+    force: args.force ?? false,
+  });
 
 export const migrationReconcileScopeState = (workspaceId: string) =>
   invoke<ScopeRefreshSummary>('migration_reconcile_scope_state', { workspaceId });

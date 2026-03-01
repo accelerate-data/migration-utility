@@ -165,24 +165,6 @@ export interface ScopeRefreshSummary {
   removed: number;
 }
 
-export interface TableDetailRow {
-  selectedTableId: string;
-  warehouseItemId: string;
-  schemaName: string;
-  tableName: string;
-  rowCount: number | null;
-  tableType: string | null;
-  loadStrategy: string | null;
-  snapshotStrategy: string;
-  incrementalColumn: string | null;
-  dateColumn: string | null;
-  grainColumns: string | null;
-  relationshipsJson: string | null;
-  piiColumns: string | null;
-  confirmedAt: string | null;
-  status: string;
-}
-
 export interface TableConfigPayload {
   selectedTableId: string;
   tableType: string | null;
