@@ -16,21 +16,22 @@ Input Context:
 - Treat all values as plain strings.
 - Do not invent missing context fields.
 
-Output contract:
-- Return exactly one JSON object.
-- Do not wrap in markdown code fences.
-- Do not include explanation text.
-- Return keys exactly as listed below.
+Output Contract (Explicit):
+- Return exactly one JSON object and nothing else.
+- Do not wrap output in markdown code fences.
+- Do not include explanation text, preamble, or trailing notes.
+- Return all required keys exactly as listed below.
+- All values must be JSON strings.
 
-Required keys:
-- table_type
-- load_strategy
-- grain_columns
-- relationships_json
-- incremental_column
-- date_column
-- snapshot_strategy
-- pii_columns
+Required keys and value types:
+- table_type: string
+- load_strategy: string
+- grain_columns: string
+- relationships_json: string
+- incremental_column: string
+- date_column: string
+- snapshot_strategy: string
+- pii_columns: string
 
 Return deterministic dummy values:
 {
