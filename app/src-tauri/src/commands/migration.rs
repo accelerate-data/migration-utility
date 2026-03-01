@@ -6,6 +6,7 @@ use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{AppHandle, Manager, State};
+use tokio::time::{timeout, Duration};
 
 use crate::commands::agent::{launch_agent_with_transcript, SidecarManager};
 use crate::db::DbState;
@@ -376,7 +377,7 @@ pub async fn migration_analyze_table_details(
     }
 
     let prompt = format!(
-        "Use agent `{}`.\nAnalyze table details for migration metadata.\nCONTEXT_START\nworkspace_id: {}\nselected_table_id: {}\nschema_name: {}\ntable_name: {}\nCONTEXT_END\nReturn output strictly according to the agent contract.",
+        "You are `{}`.\nAnalyze table details for migration metadata.\nDo not use tools.\nDo not call other agents.\nReturn immediately with exactly one JSON object following the contract.\nCONTEXT_START\nworkspace_id: {}\nselected_table_id: {}\nschema_name: {}\ntable_name: {}\nCONTEXT_END",
         TABLE_DETAILS_AGENT_NAME, workspace_id, selected_table_id, schema_name, table_name
     );
 
@@ -385,17 +386,29 @@ pub async fn migration_analyze_table_details(
         run_id,
         selected_table_id
     );
-    let launched = match launch_agent_with_transcript(
-        prompt,
-        None,
-        state.clone(),
-        app.clone(),
-        sidecar.clone(),
+    let launched = match timeout(
+        Duration::from_secs(60),
+        launch_agent_with_transcript(
+            prompt,
+            None,
+            state.clone(),
+            app.clone(),
+            sidecar.clone(),
+        ),
     )
     .await
     {
-        Ok(run) => run,
-        Err(e) => {
+        Err(_) => {
+            let message = "agent analysis timed out after 60s".to_string();
+            log::error!(
+                "event=table_details_analysis component=migration operation=agent_call_end run_id={} request_id=unknown selected_table_id={} status=failure error_code=agent_timeout message={}",
+                run_id,
+                selected_table_id,
+                message
+            );
+            return Err(CommandError::Io(message));
+        }
+        Ok(Err(e)) => {
             let message = sanitize_log_message(&e);
             log::error!(
                 "event=table_details_analysis component=migration operation=agent_call_end run_id={} request_id=unknown selected_table_id={} status=failure error_code=agent_error message={}",
@@ -405,6 +418,7 @@ pub async fn migration_analyze_table_details(
             );
             return Err(CommandError::Io(e));
         }
+        Ok(Ok(run)) => run,
     };
     let request_id = launched.request_id.clone();
     log::info!(
