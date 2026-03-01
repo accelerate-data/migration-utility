@@ -563,6 +563,13 @@ pub fn migration_list_scope_inventory(
 ) -> Result<Vec<ScopeInventoryRow>, CommandError> {
     log::info!("migration_list_scope_inventory: workspace_id={workspace_id}");
     let conn = state.0.lock().unwrap();
+    list_scope_inventory_for_workspace(&conn, &workspace_id)
+}
+
+fn list_scope_inventory_for_workspace(
+    conn: &rusqlite::Connection,
+    workspace_id: &str,
+) -> Result<Vec<ScopeInventoryRow>, CommandError> {
     let mut stmt = conn
         .prepare(
             "SELECT wt.warehouse_item_id, wt.schema_name, wt.table_name,
@@ -590,8 +597,8 @@ pub fn migration_list_scope_inventory(
                       SELECT 1 FROM selected_tables st
                       WHERE st.workspace_id = ?1
                         AND st.warehouse_item_id = wt.warehouse_item_id
-                        AND st.schema_name = wt.schema_name
-                        AND st.table_name = wt.table_name
+                        AND LOWER(st.schema_name) = LOWER(wt.schema_name)
+                        AND LOWER(st.table_name) = LOWER(wt.table_name)
                     ) AS is_selected
              FROM warehouse_tables wt
              INNER JOIN items i
@@ -784,8 +791,8 @@ pub fn migration_add_tables_to_selection(
                    SELECT 1 FROM selected_tables
                    WHERE workspace_id = ?1
                      AND warehouse_item_id = ?2
-                     AND schema_name = ?3
-                     AND table_name = ?4
+                     AND LOWER(schema_name) = LOWER(?3)
+                     AND LOWER(table_name) = LOWER(?4)
                  )",
                 params![
                     workspace_id,
@@ -852,8 +859,8 @@ pub fn migration_set_table_selected(
             "DELETE FROM selected_tables
              WHERE workspace_id = ?1
                AND warehouse_item_id = ?2
-               AND schema_name = ?3
-               AND table_name = ?4",
+               AND LOWER(schema_name) = LOWER(?3)
+               AND LOWER(table_name) = LOWER(?4)",
             params![
                 workspace_id,
                 table.warehouse_item_id,
@@ -891,21 +898,24 @@ pub fn migration_reconcile_scope_state(
     let conn = state.0.lock().unwrap();
     let tx = conn.unchecked_transaction().map_err(CommandError::from)?;
 
-    let invalid_selected_ids: Vec<String> = {
+    let mut remapped: i64 = 0;
+    let selected_rows: Vec<(String, String, String, String)> = {
         let mut stmt = tx
             .prepare(
-                "SELECT st.id
-                 FROM selected_tables st
-                 LEFT JOIN warehouse_tables wt
-                   ON wt.warehouse_item_id = st.warehouse_item_id
-                  AND LOWER(wt.schema_name) = LOWER(st.schema_name)
-                  AND LOWER(wt.table_name) = LOWER(st.table_name)
-                 WHERE st.workspace_id = ?1
-                   AND wt.warehouse_item_id IS NULL",
+                "SELECT id, warehouse_item_id, schema_name, table_name
+                 FROM selected_tables
+                 WHERE workspace_id = ?1",
             )
             .map_err(CommandError::from)?;
         let rows = stmt
-            .query_map(params![workspace_id], |row| row.get::<_, String>(0))
+            .query_map(params![workspace_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            })
             .map_err(CommandError::from)?;
         let mut result = Vec::new();
         for row in rows {
@@ -914,7 +924,43 @@ pub fn migration_reconcile_scope_state(
         result
     };
 
-    for selected_table_id in &invalid_selected_ids {
+    let mut invalid_selected_ids: Vec<String> = Vec::new();
+    for (selected_table_id, selected_item_id, schema_name, table_name) in selected_rows {
+        let match_item_id: Option<String> = tx
+            .query_row(
+                "SELECT wt.warehouse_item_id
+                 FROM warehouse_tables wt
+                 INNER JOIN items i
+                   ON i.id = wt.warehouse_item_id
+                 WHERE i.workspace_id = ?1
+                   AND LOWER(wt.schema_name) = LOWER(?2)
+                   AND LOWER(wt.table_name) = LOWER(?3)
+                 ORDER BY wt.warehouse_item_id
+                 LIMIT 1",
+                params![workspace_id, schema_name, table_name],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(CommandError::from)?;
+
+        match match_item_id {
+            Some(current_item_id) => {
+                if current_item_id != selected_item_id {
+                    tx.execute(
+                        "UPDATE selected_tables
+                         SET warehouse_item_id = ?1
+                         WHERE id = ?2",
+                        params![current_item_id, selected_table_id],
+                    )
+                    .map_err(CommandError::from)?;
+                    remapped += 1;
+                }
+            }
+            None => invalid_selected_ids.push(selected_table_id),
+        }
+    }
+
+    for selected_table_id in invalid_selected_ids.iter() {
         tx.execute(
             "DELETE FROM selected_tables WHERE id = ?1",
             params![selected_table_id],
@@ -930,6 +976,12 @@ pub fn migration_reconcile_scope_state(
         )
         .map_err(CommandError::from)?;
     let removed = i64::try_from(invalid_selected_ids.len()).unwrap_or(0);
+    log::info!(
+        "migration_reconcile_scope_state: workspace_id={} remapped={} removed={}",
+        workspace_id,
+        remapped,
+        removed
+    );
 
     tx.commit().map_err(CommandError::from)?;
     Ok(ScopeRefreshSummary {
@@ -1235,6 +1287,119 @@ mod tests {
         tx.commit().unwrap();
 
         assert_eq!(kept, 2);
+    }
+
+    #[test]
+    fn reconcile_scope_state_remaps_selected_item_when_table_still_exists() {
+        let conn = db::open_in_memory().unwrap();
+        let (ws_id, old_item_id) = setup_workspace_and_item(&conn);
+        let new_item_id = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO items(id, workspace_id, display_name, item_type) VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![new_item_id, ws_id, "Warehouse-new", "Warehouse"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO warehouse_schemas(warehouse_item_id, schema_name) VALUES (?1, ?2)",
+            rusqlite::params![new_item_id, "dbo"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO warehouse_tables(warehouse_item_id, schema_name, table_name) VALUES (?1, ?2, ?3)",
+            rusqlite::params![new_item_id, "dbo", "dim_account"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params!["st-1", ws_id, old_item_id, "dbo", "dim_account"],
+        )
+        .unwrap();
+
+        let tx = conn.unchecked_transaction().unwrap();
+        let selected_rows: Vec<(String, String, String, String)> = {
+            let mut stmt = tx
+                .prepare(
+                    "SELECT id, warehouse_item_id, schema_name, table_name
+                     FROM selected_tables
+                     WHERE workspace_id = ?1",
+                )
+                .unwrap();
+            stmt.query_map(rusqlite::params![ws_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            })
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect()
+        };
+        assert_eq!(selected_rows.len(), 1);
+        for (selected_table_id, selected_item_id, schema_name, table_name) in selected_rows {
+            let match_item_id: Option<String> = tx
+                .query_row(
+                    "SELECT wt.warehouse_item_id
+                     FROM warehouse_tables wt
+                     INNER JOIN items i
+                       ON i.id = wt.warehouse_item_id
+                     WHERE i.workspace_id = ?1
+                       AND LOWER(wt.schema_name) = LOWER(?2)
+                       AND LOWER(wt.table_name) = LOWER(?3)
+                     ORDER BY wt.warehouse_item_id
+                     LIMIT 1",
+                    rusqlite::params![ws_id, schema_name, table_name],
+                    |row| row.get(0),
+                )
+                .optional()
+                .unwrap();
+            if let Some(current_item_id) = match_item_id {
+                if current_item_id != selected_item_id {
+                    tx.execute(
+                        "UPDATE selected_tables
+                         SET warehouse_item_id = ?1
+                         WHERE id = ?2",
+                        rusqlite::params![current_item_id, selected_table_id],
+                    )
+                    .unwrap();
+                }
+            }
+        }
+        tx.commit().unwrap();
+
+        let remapped_item_id: String = conn
+            .query_row(
+                "SELECT warehouse_item_id FROM selected_tables WHERE id = 'st-1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(remapped_item_id, new_item_id);
+    }
+
+    #[test]
+    fn list_scope_inventory_marks_selected_with_case_insensitive_match() {
+        let conn = db::open_in_memory().unwrap();
+        let (ws_id, item_id) = setup_workspace_and_item(&conn);
+        conn.execute(
+            "INSERT INTO warehouse_tables(warehouse_item_id, schema_name, table_name) VALUES (?1, ?2, ?3)",
+            rusqlite::params![item_id, "dbo", "DimCurrency"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params!["st-1", ws_id, item_id, "DBO", "dimcurrency"],
+        )
+        .unwrap();
+
+        let rows = super::list_scope_inventory_for_workspace(&conn, &ws_id).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].schema_name, "dbo");
+        assert_eq!(rows[0].table_name, "DimCurrency");
+        assert!(rows[0].is_selected);
     }
 
     #[test]
