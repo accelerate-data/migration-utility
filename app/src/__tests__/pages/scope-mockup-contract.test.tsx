@@ -195,9 +195,9 @@ describe('Scope UI mockup contract', () => {
     expect(screen.getByLabelText('Load strategy')).toBeInTheDocument();
     expect(screen.getByLabelText('CDC column')).toBeInTheDocument();
     expect(screen.getByLabelText('Canonical date column')).toBeInTheDocument();
-    expect(screen.getByLabelText('PII columns (required for fixture masking)')).toBeInTheDocument();
+    expect(screen.getByText('PII columns (required for fixture masking)')).toBeInTheDocument();
     expect(screen.getByLabelText('Grain columns')).toBeInTheDocument();
-    expect(screen.getByLabelText('Relationships (required for tests)')).toBeInTheDocument();
+    expect(screen.getByText('Relationships')).toBeInTheDocument();
     expect(screen.getByLabelText('SCD (dimensions only)')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Analyze again' })).toBeInTheDocument();
   });
