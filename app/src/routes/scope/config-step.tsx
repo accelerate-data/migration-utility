@@ -324,10 +324,12 @@ export default function ConfigStep() {
 
   async function finalizeScope() {
     if (isLocked) return;
+    logger.info('scope: finalizing scope');
     try {
       const phase = await appSetPhase('plan_editable');
       setAppPhaseState(phase);
       setMessage('Scope finalized just now');
+      logger.info('scope: finalize scope succeeded');
     } catch (err) {
       logger.error('finalize scope failed', err);
       setError(err instanceof Error ? err.message : String(err));
