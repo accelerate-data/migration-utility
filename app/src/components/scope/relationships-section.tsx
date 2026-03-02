@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { CheckCircle2, XCircle } from 'lucide-react';
 import { MultiSelectColumns } from './multi-select-columns';
 import { migrationValidateRelationship } from '@/lib/tauri';
 import type { RelationshipValidationResult, ColumnMetadata } from '@/lib/types';
@@ -12,6 +13,7 @@ interface RelationshipsSectionProps {
   selectedTableId?: string;
   availableColumns?: ColumnMetadata[];
   onUpdateGrain: (value: string | null) => void;
+  onValidationChange?: (errorCount: number) => void;
 }
 
 interface Relationship {
@@ -29,6 +31,7 @@ export function RelationshipsSection({
   selectedTableId,
   availableColumns = [],
   onUpdateGrain,
+  onValidationChange,
 }: RelationshipsSectionProps) {
   let relationships: Relationship[] = [];
   try {
@@ -54,6 +57,7 @@ export function RelationshipsSection({
   useEffect(() => {
     if (!workspaceId || !selectedTableId || relationships.length === 0) {
       setValidationResults({});
+      onValidationChange?.(0);
       return;
     }
 
@@ -91,6 +95,10 @@ export function RelationshipsSection({
         }
       }
       setValidationResults(results);
+      
+      // Count errors and report to parent
+      const errorCount = Object.values(results).filter(r => !r.isValid).length;
+      onValidationChange?.(errorCount);
     }
 
     void validateAll();
@@ -103,10 +111,17 @@ export function RelationshipsSection({
     }
 
     const isValid = result.parentTableExists && result.childColumnExists && result.parentColumnExists;
-    
+
     if (isValid) {
       return (
-        <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
+        <span
+          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+          style={{
+            backgroundColor: 'color-mix(in oklch, var(--color-seafoam), transparent 85%)',
+            color: 'var(--color-seafoam)',
+          }}
+        >
+          <CheckCircle2 className="h-3 w-3" />
           Valid
         </span>
       );
@@ -114,7 +129,8 @@ export function RelationshipsSection({
 
     return (
       <div className="space-y-1">
-        <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-900/30 dark:text-red-400">
+        <span className="inline-flex items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive">
+          <XCircle className="h-3 w-3" />
           Invalid
         </span>
         {result.errorMessage && (
@@ -149,9 +165,9 @@ export function RelationshipsSection({
       <div className="space-y-2">
         <span className="text-sm font-medium">Relationships</span>
         {relationships.length > 0 ? (
-          <div className="space-y-2">
+        <div className="space-y-2">
             {relationships.map((rel, idx) => (
-              <div key={idx} className="p-3 border rounded-md bg-muted/50 text-sm">
+              <div key={idx} className="rounded-md border bg-muted/50 p-4 text-sm">
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-xs font-medium text-muted-foreground">Relationship {idx + 1}</span>
                   {getValidationStatusChip(idx)}
@@ -178,8 +194,8 @@ export function RelationshipsSection({
             ))}
           </div>
         ) : (
-          <div className="text-sm text-muted-foreground p-3 border rounded-md bg-muted/50">
-            No relationships detected
+          <div className="rounded-md border bg-muted/50 p-4 text-sm text-muted-foreground">
+            No relationships detected by agent analysis.
           </div>
         )}
       </div>

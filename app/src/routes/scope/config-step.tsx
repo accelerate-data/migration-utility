@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   appSetPhaseFlags,
@@ -85,6 +86,7 @@ export default function ConfigStep() {
   const [refreshing, setRefreshing] = useState(false);
   const [analyzingById, setAnalyzingById] = useState<Record<string, boolean>>({});
   const [analyzeErrorById, setAnalyzeErrorById] = useState<Record<string, string | null>>({});
+  const [validationErrorsById, setValidationErrorsById] = useState<Record<string, number>>({});
   const autosaveTimerRef = useRef<number | null>(null);
   const autoAnalyzeAttemptedRef = useRef<Set<string>>(new Set());
 
@@ -284,6 +286,13 @@ export default function ConfigStep() {
     }, 500);
   }
 
+  function handleValidationChange(tableId: string, errorCount: number) {
+    setValidationErrorsById((prev) => ({
+      ...prev,
+      [tableId]: errorCount,
+    }));
+  }
+
   async function refreshSchema() {
     if (!workspaceId || isLocked || refreshing) return;
     setRefreshing(true);
@@ -390,13 +399,14 @@ export default function ConfigStep() {
           loading={loading}
           anyAnalyzing={anyAnalyzing || refreshing}
           approvalStatusById={approvalStatusById}
+          validationErrorsById={validationErrorsById}
           onSelectTable={setActiveId}
         />
 
         <div className="min-w-0 space-y-4">
           {!activeRow && (
             <div className="rounded-md border bg-card p-6">
-              <p className="text-sm text-muted-foreground">Select a table to edit details.</p>
+              <p className="text-sm text-muted-foreground">Select a table from the list to view and edit its details.</p>
             </div>
           )}
           {activeRow && draft && (
@@ -452,6 +462,7 @@ export default function ConfigStep() {
                     selectedTableId={activeRow.selectedTableId}
                     availableColumns={draft.availableColumns}
                     onUpdateGrain={(value) => updateDraft('grainColumns', value)}
+                    onValidationChange={(errorCount) => handleValidationChange(activeRow.selectedTableId, errorCount)}
                   />
                   <ScdSection
                     tableType={draft.tableType}
@@ -462,16 +473,33 @@ export default function ConfigStep() {
                 </div>
 
                 {analyzeErrorById[activeRow.selectedTableId] && (
-                  <p className="mt-4 text-sm text-destructive">{analyzeErrorById[activeRow.selectedTableId]}</p>
+                  <div className="mt-4 flex items-start gap-2 text-sm text-destructive">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{analyzeErrorById[activeRow.selectedTableId]}</span>
+                  </div>
                 )}
-                {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
+                {error && (
+                  <div className="mt-4 flex items-start gap-2 text-sm text-destructive">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                )}
                 {saving && <span className="mt-4 block text-xs text-muted-foreground">Saving...</span>}
               </div>
 
               {/* Agent Analysis & Approval Panel */}
               {draft.confirmedAt && (
                 <div className="rounded-md border bg-card p-6">
-                  <AgentRationaleSection analysisMetadataJson={draft.analysisMetadataJson} />
+                  <AgentRationaleSection 
+                    analysisMetadataJson={draft.analysisMetadataJson}
+                    manualOverrides={(() => {
+                      try {
+                        return draft.manualOverridesJson ? JSON.parse(draft.manualOverridesJson) : [];
+                      } catch {
+                        return [];
+                      }
+                    })()}
+                  />
 
                   <div className="mt-6">
                     <ApprovalActions
@@ -479,6 +507,7 @@ export default function ConfigStep() {
                       approvedAt={draft.approvedAt}
                       confirmedAt={draft.confirmedAt}
                       isLocked={isLocked}
+                      validationErrorCount={validationErrorsById[activeRow.selectedTableId] || 0}
                       onApprove={handleApprove}
                     />
                   </div>
