@@ -173,6 +173,10 @@ export default function ConfigStep() {
     () => rows.filter((row) => isReady(configsById[row.selectedTableId])).length,
     [rows, configsById],
   );
+  const approvedCount = useMemo(
+    () => rows.filter((row) => configsById[row.selectedTableId]?.approvalStatus === 'approved').length,
+    [rows, configsById],
+  );
   const needsDetails = rows.length - readyCount;
 
   async function analyzeTable(row: SelectedTableRow, force: boolean) {
@@ -355,6 +359,7 @@ export default function ConfigStep() {
       <div className="sticky top-0 z-10 bg-background pb-4">
         <ConfigStepHeader
           readyCount={readyCount}
+          approvedCount={approvedCount}
           totalCount={rows.length}
           needsDetails={needsDetails}
           message={message}

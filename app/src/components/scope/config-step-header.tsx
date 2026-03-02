@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 
 interface ConfigStepHeaderProps {
   readyCount: number;
+  approvedCount: number;
   totalCount: number;
   needsDetails: number;
   message: string;
@@ -16,6 +17,7 @@ interface ConfigStepHeaderProps {
 
 export function ConfigStepHeader({
   readyCount,
+  approvedCount,
   totalCount,
   needsDetails,
   message,
@@ -37,6 +39,15 @@ export function ConfigStepHeader({
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-primary/20 px-2 py-0.5 text-xs font-medium text-primary">
               {readyCount} / {totalCount} tables ready
+            </span>
+            <span
+              className="rounded-full px-2 py-0.5 text-xs font-medium"
+              style={{
+                backgroundColor: 'color-mix(in oklch, var(--color-seafoam), transparent 85%)',
+                color: 'var(--color-seafoam)',
+              }}
+            >
+              {approvedCount} approved
             </span>
             <span className="text-xs text-muted-foreground">Needs details for {needsDetails} tables</span>
             <span className="text-xs text-muted-foreground">{message}</span>
