@@ -29,23 +29,30 @@ Required JSON keys:
 - table_type: string
 - load_strategy: string
 - grain_columns: string
-- relationships_json: string
+- relationships_json: string (JSON array of relationship objects)
 - incremental_column: string
 - date_column: string
 - snapshot_strategy: string
-- pii_columns: string
+- pii_columns: string (JSON array of column names)
 - analysis_metadata: object with confidence scores and reasoning
+
+Relationship format:
+Each relationship object should have:
+- child_column: string (column in this table)
+- parent_table: string (referenced table name)
+- parent_column: string (column in parent table)
+- cardinality: string (one_to_one, many_to_one, one_to_many, many_to_many)
 
 For testing, return this exact JSON with no modifications:
 {
   "table_type": "dimension",
   "load_strategy": "full_refresh",
   "grain_columns": "[\"currency_key\"]",
-  "relationships_json": "[]",
+  "relationships_json": "[{\"child_column\":\"currency_key\",\"parent_table\":\"dim_currency\",\"parent_column\":\"currency_id\",\"cardinality\":\"many_to_one\"},{\"child_column\":\"region_id\",\"parent_table\":\"dim_region\",\"parent_column\":\"region_key\",\"cardinality\":\"many_to_one\"}]",
   "incremental_column": "modified_date",
   "date_column": "date_key",
   "snapshot_strategy": "sample_1day",
-  "pii_columns": "[]",
+  "pii_columns": "[\"customer_email\",\"customer_phone\"]",
   "analysis_metadata": {
     "table_type": {
       "value": "dimension",
@@ -62,6 +69,11 @@ For testing, return this exact JSON with no modifications:
       "confidence": 95,
       "reasoning": "Primary key column identified as grain"
     },
+    "relationships": {
+      "value": "[{\"child_column\":\"currency_key\",\"parent_table\":\"dim_currency\",\"parent_column\":\"currency_id\",\"cardinality\":\"many_to_one\"},{\"child_column\":\"region_id\",\"parent_table\":\"dim_region\",\"parent_column\":\"region_key\",\"cardinality\":\"many_to_one\"}]",
+      "confidence": 85,
+      "reasoning": "Foreign key relationships detected based on column naming patterns and schema metadata"
+    },
     "incremental_column": {
       "value": "modified_date",
       "confidence": 85,
@@ -73,9 +85,9 @@ For testing, return this exact JSON with no modifications:
       "reasoning": "Date key represents canonical business date"
     },
     "pii_columns": {
-      "value": "[]",
-      "confidence": 100,
-      "reasoning": "No PII columns detected in dimension table"
+      "value": "[\"customer_email\",\"customer_phone\"]",
+      "confidence": 92,
+      "reasoning": "Email and phone columns contain personally identifiable information"
     }
   }
 }
