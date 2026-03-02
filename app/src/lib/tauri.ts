@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import type {
-  AppSettings,
+  AppSettingsPublic,
   AppPhase,
   AppPhaseState,
   ApplyWorkspaceArgs,
@@ -18,7 +18,7 @@ import type {
   UsageSummary,
   WorkspaceApplyJobStatus,
   WorkspaceApplyProgressEvent,
-  Workspace,
+  WorkspacePublic,
 } from './types';
 
 export const githubStartDeviceFlow = () =>
@@ -37,7 +37,7 @@ export const githubListRepos = (query: string, limit = 10) =>
   invoke<GitHubRepo[]>('github_list_repos', { query, limit });
 
 export const workspaceGet = () =>
-  invoke<Workspace | null>('workspace_get');
+  invoke<WorkspacePublic | null>('workspace_get');
 
 export const workspaceApplyStart = (args: ApplyWorkspaceArgs) =>
   invoke<string>('workspace_apply_start', { args });
@@ -75,7 +75,7 @@ export const workspaceDiscoverSourceDatabases = (args: {
   invoke<string[]>('workspace_discover_source_databases', { args });
 
 export const getSettings = () =>
-  invoke<AppSettings>('get_settings');
+  invoke<AppSettingsPublic>('get_settings');
 
 export const saveAnthropicApiKey = (apiKey: string | null) =>
   invoke<void>('save_anthropic_api_key', { apiKey });

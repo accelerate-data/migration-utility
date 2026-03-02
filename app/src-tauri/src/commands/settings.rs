@@ -1,16 +1,16 @@
 use tauri::State;
 
 use crate::db::DbState;
-use crate::types::{AppPhase, AppPhaseState, AppSettings};
+use crate::types::{AppPhase, AppPhaseState, AppSettings, AppSettingsPublic};
 
 #[tauri::command]
-pub fn get_settings(state: State<'_, DbState>) -> Result<AppSettings, String> {
+pub fn get_settings(state: State<'_, DbState>) -> Result<AppSettingsPublic, String> {
     log::info!("[get_settings]");
-    let conn = state.0.lock().map_err(|e| {
+    let conn = state.conn().map_err(|e| {
         log::error!("[get_settings] Failed to acquire DB lock: {}", e);
-        e.to_string()
+        e
     })?;
-    crate::db::read_settings(&conn)
+    crate::db::read_settings(&conn).map(AppSettingsPublic::from)
 }
 
 #[tauri::command]
@@ -19,9 +19,9 @@ pub fn save_anthropic_api_key(
     api_key: Option<String>,
 ) -> Result<(), String> {
     log::info!("[save_anthropic_api_key]");
-    let conn = state.0.lock().map_err(|e| {
+    let conn = state.conn().map_err(|e| {
         log::error!("[save_anthropic_api_key] Failed to acquire DB lock: {}", e);
-        e.to_string()
+        e
     })?;
     let mut settings = crate::db::read_settings(&conn).map_err(|e| {
         log::error!("[save_anthropic_api_key] read_settings failed: {}", e);
@@ -38,9 +38,9 @@ pub fn save_anthropic_api_key(
 #[tauri::command]
 pub fn app_hydrate_phase(state: State<'_, DbState>) -> Result<AppPhaseState, String> {
     log::info!("[app_hydrate_phase]");
-    let conn = state.0.lock().map_err(|e| {
+    let conn = state.conn().map_err(|e| {
         log::error!("[app_hydrate_phase] Failed to acquire DB lock: {}", e);
-        e.to_string()
+        e
     })?;
     crate::db::reconcile_and_persist_app_phase(&conn)
 }
@@ -51,9 +51,9 @@ pub fn app_set_phase(
     app_phase: String,
 ) -> Result<AppPhaseState, String> {
     log::info!("[app_set_phase] {}", app_phase);
-    let conn = state.0.lock().map_err(|e| {
+    let conn = state.conn().map_err(|e| {
         log::error!("[app_set_phase] Failed to acquire DB lock: {}", e);
-        e.to_string()
+        e
     })?;
     let phase = AppPhase::from_str(app_phase.as_str())
         .ok_or_else(|| format!("Unsupported app phase: {}", app_phase))?;
@@ -126,9 +126,9 @@ pub fn save_agent_settings(
         preferred_model,
         effort,
     );
-    let conn = state.0.lock().map_err(|e| {
+    let conn = state.conn().map_err(|e| {
         log::error!("[save_agent_settings] Failed to acquire DB lock: {}", e);
-        e.to_string()
+        e
     })?;
     let mut settings = crate::db::read_settings(&conn)?;
     settings.preferred_model = preferred_model;

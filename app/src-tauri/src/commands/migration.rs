@@ -74,7 +74,7 @@ pub fn migration_save_selected_tables(
         workspace_id,
         tables.len()
     );
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
     let tx = conn.unchecked_transaction().map_err(|e| {
         log::error!("migration_save_selected_tables: failed to begin transaction: {e}");
         CommandError::from(e)
@@ -119,7 +119,7 @@ pub fn migration_save_table_artifact(
         "migration_save_table_artifact: selected_table_id={}",
         artifact.selected_table_id
     );
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
     conn.execute(
         "INSERT OR REPLACE INTO table_artifacts(selected_table_id, warehouse_item_id, schema_name, procedure_name, pipeline_activity_id, discovery_status)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -150,7 +150,7 @@ pub fn migration_save_candidacy(
         candidacy.schema_name,
         candidacy.procedure_name
     );
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
     conn.execute(
         "INSERT OR REPLACE INTO candidacy(warehouse_item_id, schema_name, procedure_name, tier, reasoning, overridden, override_reason)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
@@ -187,7 +187,7 @@ pub fn migration_override_candidacy(
         procedure_name,
         new_tier
     );
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
     let rows_affected = conn
         .execute(
             "UPDATE candidacy SET tier=?1, overridden=1, override_reason=?2 WHERE warehouse_item_id=?3 AND schema_name=?4 AND procedure_name=?5",
@@ -217,7 +217,7 @@ pub fn migration_list_candidacy(
     state: State<DbState>,
 ) -> Result<Vec<Candidacy>, CommandError> {
     log::info!("migration_list_candidacy: workspace_id={}", workspace_id);
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
     let mut stmt = conn
         .prepare(
             "SELECT DISTINCT c.warehouse_item_id, c.schema_name, c.procedure_name, c.tier, c.reasoning, c.overridden, c.override_reason
@@ -272,7 +272,7 @@ pub fn migration_save_table_config(
         "migration_save_table_config: selected_table_id={}",
         config.selected_table_id
     );
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
     conn.execute(
         "INSERT OR REPLACE INTO table_config(selected_table_id, table_type, load_strategy, grain_columns, relationships_json, incremental_column, date_column, snapshot_strategy, pii_columns, confirmed_at, analysis_metadata_json, approval_status, approved_at, manual_overrides_json)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
@@ -309,7 +309,7 @@ pub fn migration_get_table_config(
         "migration_get_table_config: selected_table_id={}",
         selected_table_id
     );
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
     
     // Fetch table config
     let mut config = conn
@@ -421,7 +421,7 @@ pub fn migration_approve_table_config(
         "event=table_config_approval component=migration operation=approve selected_table_id={} status=started",
         selected_table_id
     );
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
     let approved_at = Utc::now().to_rfc3339();
     let rows_affected = conn
         .execute(
@@ -479,7 +479,7 @@ pub async fn migration_analyze_table_details(
     );
 
     {
-        let conn = state.0.lock().unwrap();
+        let conn = state.conn().map_err(CommandError::Database)?;
         let exists: bool = conn
             .query_row(
                 "SELECT EXISTS(
@@ -661,7 +661,7 @@ pub async fn migration_analyze_table_details(
     };
 
     {
-        let conn = state.0.lock().unwrap();
+        let conn = state.conn().map_err(CommandError::Database)?;
         conn.execute(
             "INSERT OR REPLACE INTO table_config(selected_table_id, table_type, load_strategy, grain_columns, relationships_json, incremental_column, date_column, snapshot_strategy, pii_columns, confirmed_at, analysis_metadata_json, approval_status, approved_at, manual_overrides_json)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
@@ -729,7 +729,7 @@ pub fn migration_list_scope_inventory(
     state: State<DbState>,
 ) -> Result<Vec<ScopeInventoryRow>, CommandError> {
     log::info!("migration_list_scope_inventory: workspace_id={workspace_id}");
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
     list_scope_inventory_for_workspace(&conn, &workspace_id)
 }
 
@@ -979,7 +979,7 @@ pub fn migration_add_tables_to_selection(
         workspace_id,
         tables.len()
     );
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
     let tx = conn.unchecked_transaction().map_err(CommandError::from)?;
     let mut added: i64 = 0;
 
@@ -1033,7 +1033,7 @@ pub fn migration_set_table_selected(
         table.table_name,
         selected
     );
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
     if selected {
         conn.execute(
             "INSERT OR IGNORE INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name)
@@ -1066,7 +1066,7 @@ pub fn migration_reset_selected_tables(
     state: State<DbState>,
 ) -> Result<i64, CommandError> {
     log::info!("migration_reset_selected_tables: workspace_id={workspace_id}");
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
     let deleted = conn
         .execute(
             "DELETE FROM selected_tables WHERE workspace_id = ?1",
@@ -1082,7 +1082,7 @@ pub fn migration_reconcile_scope_state(
     state: State<DbState>,
 ) -> Result<ScopeRefreshSummary, CommandError> {
     log::info!("migration_reconcile_scope_state: workspace_id={workspace_id}");
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
     let tx = conn.unchecked_transaction().map_err(CommandError::from)?;
 
     let mut remapped: i64 = 0;
@@ -1211,7 +1211,7 @@ pub fn migration_validate_relationship(
         parent_column
     );
 
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
 
     // Check if parent table exists in selected tables
     let parent_table_exists: bool = conn

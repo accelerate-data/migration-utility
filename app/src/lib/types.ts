@@ -91,6 +91,37 @@ export interface AppSettings {
   logLevel: string | null;
 }
 
+/** Workspace shape safe to receive from the backend — omits sourcePassword and fabricServicePrincipalSecret. */
+export interface WorkspacePublic {
+  id: string;
+  displayName: string;
+  migrationRepoName?: string | null;
+  migrationRepoPath: string;
+  fabricUrl?: string | null;
+  fabricServicePrincipalId?: string | null;
+  sourceType?: 'sql_server' | 'fabric_warehouse' | null;
+  sourceServer?: string | null;
+  sourceDatabase?: string | null;
+  sourcePort?: number | null;
+  sourceAuthenticationMode?: 'sql_password' | 'entra_service_principal' | null;
+  sourceUsername?: string | null;
+  sourceEncrypt?: boolean | null;
+  sourceTrustServerCertificate?: boolean | null;
+  createdAt: string;
+}
+
+/** App settings safe to receive from the backend — secrets replaced with presence booleans. */
+export interface AppSettingsPublic {
+  hasAnthropicKey: boolean;
+  hasGithubAuth: boolean;
+  githubUserLogin: string | null;
+  githubUserAvatar: string | null;
+  githubUserEmail: string | null;
+  preferredModel: string | null;
+  effort: string | null;
+  logLevel: string | null;
+}
+
 export type AppPhase =
   | 'setup_required'
   | 'scope_editable'

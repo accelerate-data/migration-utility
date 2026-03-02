@@ -293,7 +293,7 @@ export default function ConfigStep() {
         sourcePort: workspace.sourcePort ?? undefined,
         sourceAuthenticationMode: workspace.sourceAuthenticationMode ?? undefined,
         sourceUsername: workspace.sourceUsername ?? undefined,
-        sourcePassword: workspace.sourcePassword ?? undefined,
+        // sourcePassword not returned by workspaceGet (security) — backend reads it from storage
         sourceEncrypt: workspace.sourceEncrypt ?? undefined,
         sourceTrustServerCertificate: workspace.sourceTrustServerCertificate ?? undefined,
       });

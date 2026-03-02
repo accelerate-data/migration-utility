@@ -40,7 +40,7 @@ export default function ConnectionsTab() {
   useEffect(() => {
     getSettings()
       .then((settings) => {
-        setApiKey(settings.anthropicApiKey ?? '');
+        // anthropicApiKey is not returned by the backend (security) — input stays empty
         setPreferredModel(settings.preferredModel ?? null);
         setEffort(settings.effort ?? 'high');
       })

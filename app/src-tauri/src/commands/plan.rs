@@ -11,7 +11,7 @@ use crate::types::CommandError;
 #[tauri::command]
 pub fn plan_serialize(workspace_id: String, state: State<DbState>) -> Result<(), CommandError> {
     log::info!("plan_serialize: workspace_id={}", workspace_id);
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
 
     // Fetch workspace to get migration_repo_path
     log::debug!("plan_serialize: fetching workspace record");

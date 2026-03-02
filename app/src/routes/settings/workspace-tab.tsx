@@ -130,7 +130,7 @@ export default function WorkspaceTab() {
         setSourcePort(String(ws.sourcePort ?? SOURCE_DEFAULTS.port));
         setSourceAuthenticationMode(ws.sourceAuthenticationMode ?? SOURCE_DEFAULTS.authenticationMode);
         setSourceUsername(ws.sourceUsername ?? ws.fabricServicePrincipalId ?? '');
-        setSourcePassword(ws.sourcePassword ?? ws.fabricServicePrincipalSecret ?? '');
+        setSourcePassword(''); // password not returned by backend (security) — user must re-enter to change
         setSourceEncrypt(ws.sourceEncrypt ?? SOURCE_DEFAULTS.encrypt);
         setSourceTrustServerCertificate(
           ws.sourceTrustServerCertificate ?? SOURCE_DEFAULTS.trustServerCertificate,

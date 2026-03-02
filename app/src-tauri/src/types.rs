@@ -175,6 +175,80 @@ pub struct Workspace {
     pub created_at: String,
 }
 
+/// Workspace representation safe to return to the renderer process.
+/// Omits `source_password` and `fabric_service_principal_secret`.
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspacePublic {
+    pub id: String,
+    pub display_name: String,
+    pub migration_repo_name: Option<String>,
+    pub migration_repo_path: String,
+    pub fabric_url: Option<String>,
+    pub fabric_service_principal_id: Option<String>,
+    pub source_type: Option<String>,
+    pub source_server: Option<String>,
+    pub source_database: Option<String>,
+    pub source_port: Option<i64>,
+    pub source_authentication_mode: Option<String>,
+    pub source_username: Option<String>,
+    pub source_encrypt: Option<bool>,
+    pub source_trust_server_certificate: Option<bool>,
+    pub created_at: String,
+}
+
+impl From<Workspace> for WorkspacePublic {
+    fn from(w: Workspace) -> Self {
+        WorkspacePublic {
+            id: w.id,
+            display_name: w.display_name,
+            migration_repo_name: w.migration_repo_name,
+            migration_repo_path: w.migration_repo_path,
+            fabric_url: w.fabric_url,
+            fabric_service_principal_id: w.fabric_service_principal_id,
+            source_type: w.source_type,
+            source_server: w.source_server,
+            source_database: w.source_database,
+            source_port: w.source_port,
+            source_authentication_mode: w.source_authentication_mode,
+            source_username: w.source_username,
+            source_encrypt: w.source_encrypt,
+            source_trust_server_certificate: w.source_trust_server_certificate,
+            created_at: w.created_at,
+        }
+    }
+}
+
+/// App settings safe to return to the renderer process.
+/// Secret fields (`anthropic_api_key`, `github_oauth_token`) are replaced with bool presence flags.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSettingsPublic {
+    pub has_anthropic_key: bool,
+    pub has_github_auth: bool,
+    pub github_user_login: Option<String>,
+    pub github_user_avatar: Option<String>,
+    pub github_user_email: Option<String>,
+    pub preferred_model: Option<String>,
+    pub effort: Option<String>,
+    pub log_level: Option<String>,
+}
+
+impl From<AppSettings> for AppSettingsPublic {
+    fn from(s: AppSettings) -> Self {
+        AppSettingsPublic {
+            has_anthropic_key: s.anthropic_api_key.is_some(),
+            has_github_auth: s.github_oauth_token.is_some(),
+            github_user_login: s.github_user_login,
+            github_user_avatar: s.github_user_avatar,
+            github_user_email: s.github_user_email,
+            preferred_model: s.preferred_model,
+            effort: s.effort,
+            log_level: s.log_level,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Item {
