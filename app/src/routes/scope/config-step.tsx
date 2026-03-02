@@ -352,7 +352,7 @@ export default function ConfigStep() {
 
   return (
     <section className="relative space-y-4" data-testid="scope-table-details-step">
-      {anyAnalyzing && (
+      {(anyAnalyzing || refreshing) && (
         <div className="absolute inset-0 z-20 cursor-wait rounded-md bg-background/15 backdrop-blur-[0.5px]" />
       )}
 
@@ -378,7 +378,7 @@ export default function ConfigStep() {
           grouped={grouped}
           activeId={activeId}
           loading={loading}
-          anyAnalyzing={anyAnalyzing}
+          anyAnalyzing={anyAnalyzing || refreshing}
           onSelectTable={setActiveId}
         />
 
