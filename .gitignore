@@ -11,6 +11,7 @@ build/
 # Working directories (user-generated output)
 context/
 workflow-state.md
+.kiro/
 
 # Test results
 test-results/
