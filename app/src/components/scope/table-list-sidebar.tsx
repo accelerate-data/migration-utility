@@ -21,7 +21,7 @@ export function TableListSidebar({
 }: TableListSidebarProps) {
   return (
     <div className="rounded-md border bg-card">
-      <div className="max-h-[560px] overflow-auto">
+      <div className="max-h-[calc(100vh-280px)] overflow-auto">
         {loading && <p className="p-3 text-sm text-muted-foreground">Loading details...</p>}
         {!loading && grouped.length === 0 && (
           <p className="p-3 text-sm text-muted-foreground">No selected tables yet.</p>

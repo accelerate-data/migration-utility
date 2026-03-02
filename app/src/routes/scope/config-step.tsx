@@ -345,7 +345,7 @@ export default function ConfigStep() {
         onNavigateToConfig={() => navigate('/scope/config')}
       />
 
-      <div className="grid gap-4 lg:grid-cols-[40%_60%]">
+      <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
         <TableListSidebar
           grouped={grouped}
           activeId={activeId}
@@ -354,7 +354,7 @@ export default function ConfigStep() {
           onSelectTable={setActiveId}
         />
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {!activeRow && (
             <div className="rounded-md border bg-card p-6">
               <p className="text-sm text-muted-foreground">Select a table to edit details.</p>
