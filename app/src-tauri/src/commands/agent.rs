@@ -146,7 +146,6 @@ async fn launch_agent_with_transcript_config(
     };
 
     let log_path = prepare_log_path(&request.config.cwd, &request.id)?;
-    append_log_line(&log_path, &transcript_config_line(&request.config))?;
     log::info!("monitor_launch_agent: transcript={}", log_path.display());
 
     let mut guard = sidecar.0.lock().await;
@@ -519,23 +518,6 @@ fn append_log_line(path: &PathBuf, line: &str) -> Result<(), String> {
         .map_err(|e| format!("monitor_launch_agent: failed to append transcript line: {e}"))
 }
 
-fn transcript_config_line(config: &SidecarConfigPayload) -> String {
-    serde_json::json!({
-        "type": "config",
-        "config": {
-            "prompt": config.prompt,
-            "systemPrompt": config.system_prompt,
-            "model": config.model,
-            "agentName": config.agent_name,
-            "allowedTools": config.allowed_tools,
-            "apiKey": "[REDACTED]",
-            "cwd": config.cwd,
-            "settingSources": ["project"],
-            "permissionMode": "bypassPermissions"
-        }
-    })
-    .to_string()
-}
 
 fn append_request_scoped_sidecar_line(
     path: &PathBuf,
@@ -780,7 +762,7 @@ fn handle_sidecar_line(
 mod tests {
     use super::{
         append_request_scoped_sidecar_line, build_request, handle_sidecar_line, parse_agent_front_matter,
-        parse_message_type, prepare_log_path, read_sidecar_line_with_heartbeat, transcript_config_line,
+        parse_message_type, prepare_log_path, read_sidecar_line_with_heartbeat,
         wait_for_sidecar_message, HeartbeatState, SidecarLineResult,
     };
     use std::fs;
@@ -804,35 +786,6 @@ mod tests {
             Some("sk-ant-test")
         );
         assert_eq!(json.get("cwd").and_then(|v| v.as_str()), Some("/tmp/work"));
-    }
-
-    #[test]
-    fn transcript_config_line_redacts_api_key_and_keeps_prompt() {
-        let req = build_request(
-            "prompt body".to_string(),
-            Some("system".to_string()),
-            None,
-            Some("claude-sonnet-4-6".to_string()),
-            None,
-            "sk-ant-secret".to_string(),
-            "/tmp/work".to_string(),
-        );
-        let line = transcript_config_line(&req.config);
-        let json: serde_json::Value = serde_json::from_str(&line).unwrap();
-        let cfg = json.get("config").unwrap();
-        assert_eq!(
-            cfg.get("apiKey").and_then(|v| v.as_str()),
-            Some("[REDACTED]")
-        );
-        assert_eq!(
-            cfg.get("prompt").and_then(|v| v.as_str()),
-            Some("prompt body")
-        );
-        assert_eq!(cfg.get("cwd").and_then(|v| v.as_str()), Some("/tmp/work"));
-        assert!(
-            cfg.get("allowDangerouslySkipPermissions").is_none(),
-            "allowDangerouslySkipPermissions must not appear in transcript config"
-        );
     }
 
     #[test]
