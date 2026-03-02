@@ -11,7 +11,7 @@ use tokio::time::{timeout, Duration};
 use crate::commands::agent::{launch_named_agent_with_transcript, SidecarManager};
 use crate::db::DbState;
 use crate::types::{
-    Candidacy, CommandError, RelationshipMapping, RelationshipValue, ScopeInventoryRow,
+    Candidacy, CommandError, RelationshipValue, ScopeInventoryRow,
     ScopeRefreshSummary, ScopeTableRef, SelectedTable, TableArtifact, TableConfig,
 };
 
@@ -20,6 +20,7 @@ const TABLE_DETAILS_AGENT_NAME: &str = "scope-table-details-analyzer";
 /// Wrapper for every field the agent emits: `{ "value": T, "confidence": f64, "reasoning": "..." }`.
 /// `confidence` and `reasoning` are optional because the `relationships` wrapper omits them.
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct FieldValue<T> {
     value: T,
     #[serde(default)]
@@ -1300,6 +1301,7 @@ pub fn migration_validate_relationship(
 mod tests {
     use super::*;
     use crate::db;
+    use crate::types::RelationshipMapping;
 
     fn setup_workspace_and_item(conn: &rusqlite::Connection) -> (String, String) {
         let ws_id = uuid::Uuid::new_v4().to_string();

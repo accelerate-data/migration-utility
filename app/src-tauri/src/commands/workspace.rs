@@ -259,6 +259,7 @@ struct SqlServerInventory {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct TableColumn {
     schema_name: String,
     table_name: String,
@@ -270,6 +271,7 @@ struct TableColumn {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct IndexConstraint {
     schema_name: String,
     table_name: String,

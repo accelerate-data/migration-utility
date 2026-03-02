@@ -597,6 +597,7 @@ fn resolve_working_directory(app: &AppHandle) -> Result<String, String> {
         .to_string())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_request(
     prompt: String,
     system_prompt: Option<String>,
