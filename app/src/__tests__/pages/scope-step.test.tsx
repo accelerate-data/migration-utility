@@ -14,7 +14,7 @@ const tauriMocks = vi.hoisted(() => ({
   workspaceApplyStart: vi.fn(),
   workspaceApplyStatus: vi.fn(),
   migrationReconcileScopeState: vi.fn(),
-  appSetPhaseFlags: vi.fn(),
+  appSetPhase: vi.fn(),
 }));
 
 vi.mock('@/lib/tauri', () => tauriMocks);
@@ -34,7 +34,7 @@ describe('ScopeStep', () => {
       ...s,
       workspaceId: 'ws-1',
       appPhase: 'scope_editable',
-      phaseFacts: { ...s.phaseFacts, scopeFinalized: false },
+
     }));
     tauriMocks.migrationListScopeInventory.mockResolvedValue([
       {
@@ -74,13 +74,11 @@ describe('ScopeStep', () => {
     tauriMocks.workspaceApplyStart.mockResolvedValue('job-1');
     tauriMocks.workspaceApplyStatus.mockResolvedValue({ state: 'succeeded', error: null });
     tauriMocks.migrationReconcileScopeState.mockResolvedValue({ kept: 1, invalidated: 0, removed: 0 });
-    tauriMocks.appSetPhaseFlags.mockResolvedValue({
+    tauriMocks.appSetPhase.mockResolvedValue({
       appPhase: 'plan_editable',
       hasGithubAuth: true,
       hasAnthropicKey: true,
       isSourceApplied: true,
-      scopeFinalized: true,
-      planFinalized: false,
     });
   });
 

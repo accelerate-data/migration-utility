@@ -62,8 +62,9 @@ export function isSurfaceEnabledForPhase(surface: Surface, appPhase: AppPhase): 
 }
 
 export function isSurfaceReadOnlyForPhase(surface: Surface, appPhase: AppPhase): boolean {
-  if (appPhase !== 'running_locked') return false;
-  return surface === 'scope' || surface === 'plan';
+  if (surface === 'scope') return appPhase !== 'scope_editable';
+  if (surface === 'plan') return appPhase === 'running_locked';
+  return false;
 }
 
 // ── Store shape ─────────────────────────────────────────────────────────────
@@ -111,8 +112,6 @@ const INITIAL_STATE = {
     hasGithubAuth: false,
     hasAnthropicKey: false,
     isSourceApplied: false,
-    scopeFinalized: false,
-    planFinalized: false,
   } as Omit<AppPhaseState, 'appPhase'>,
 };
 
@@ -144,8 +143,6 @@ export const useWorkflowStore = create<WorkflowState>()(
           hasGithubAuth: state.hasGithubAuth,
           hasAnthropicKey: state.hasAnthropicKey,
           isSourceApplied: state.isSourceApplied,
-          scopeFinalized: state.scopeFinalized,
-          planFinalized: state.planFinalized,
         },
         appPhaseHydrated: true,
         migrationStatus: state.appPhase === 'running_locked' ? 'running' : 'idle',

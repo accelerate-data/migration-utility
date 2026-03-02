@@ -151,23 +151,16 @@ export async function invoke<T>(cmd: string, args?: Record<string, unknown>): Pr
       hasGithubAuth: false,
       hasAnthropicKey: false,
       isSourceApplied: workspace !== null,
-      scopeFinalized: false,
-      planFinalized: false,
     } as T;
   }
 
-  if (cmd === "app_set_phase" || cmd === "app_set_phase_flags") {
-    // Respect the explicit phase/flags passed by the caller.
+  if (cmd === "app_set_phase") {
     const requestedPhase = (args?.appPhase as string | undefined) ?? "setup_required";
-    const scopeFinalized = (args?.scopeFinalized as boolean | undefined) ?? false;
-    const planFinalized = (args?.planFinalized as boolean | undefined) ?? false;
     return {
       appPhase: requestedPhase,
       hasGithubAuth: false,
       hasAnthropicKey: false,
       isSourceApplied: requestedPhase !== "setup_required",
-      scopeFinalized,
-      planFinalized,
     } as T;
   }
 

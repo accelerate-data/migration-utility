@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { ConfigStepHeader } from '@/components/scope/config-step-header';
 import { Button } from '@/components/ui/button';
 import {
-  appSetPhaseFlags,
+  appSetPhase,
   migrationAddTablesToSelection,
   migrationGetTableConfig,
   migrationListScopeInventory,
@@ -64,8 +64,8 @@ function isReady(config: TableConfigPayload | null | undefined): boolean {
 
 export default function ScopeStep() {
   const navigate = useNavigate();
-  const { workspaceId, appPhase, phaseFacts, setAppPhaseState } = useWorkflowStore();
-  const isLocked = phaseFacts.scopeFinalized || appPhase === 'running_locked';
+  const { workspaceId, appPhase, setAppPhaseState } = useWorkflowStore();
+  const isLocked = appPhase !== 'scope_editable';
   const [rows, setRows] = useState<ScopeInventoryRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [, setMessage] = useState<string>('Saved just now');
@@ -228,7 +228,7 @@ export default function ScopeStep() {
   async function finalizeScope() {
     if (isLocked) return;
     try {
-      const phase = await appSetPhaseFlags({ scopeFinalized: true });
+      const phase = await appSetPhase('plan_editable');
       setAppPhaseState(phase);
       setMessage('Scope finalized just now');
     } catch (err) {

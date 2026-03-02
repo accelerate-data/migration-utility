@@ -17,7 +17,7 @@ const tauriMocks = vi.hoisted(() => ({
   migrationGetTableConfig: vi.fn(),
   migrationAnalyzeTableDetails: vi.fn(),
   migrationSaveTableConfig: vi.fn(),
-  appSetPhaseFlags: vi.fn(),
+  appSetPhase: vi.fn(),
   workspaceGet: vi.fn(),
   workspaceApplyStart: vi.fn(),
   workspaceApplyStatus: vi.fn(),
@@ -78,7 +78,7 @@ describe('ConfigStep — multi-table navigation', () => {
       ...s,
       workspaceId: 'ws-1',
       appPhase: 'scope_editable',
-      phaseFacts: { ...s.phaseFacts, scopeFinalized: false },
+
     }));
     tauriMocks.migrationListScopeInventory.mockResolvedValue([
       { warehouseItemId: 'wh-1', schemaName: 'dbo', tableName: 'fact_sales', rowCount: 0, isSelected: true },
@@ -89,7 +89,7 @@ describe('ConfigStep — multi-table navigation', () => {
       Promise.resolve(makeConfig(selectedTableId)),
     );
     tauriMocks.migrationSaveTableConfig.mockResolvedValue(undefined);
-    tauriMocks.appSetPhaseFlags.mockResolvedValue({ appPhase: 'scope_editable', hasGithubAuth: true, hasAnthropicKey: true, isSourceApplied: true, scopeFinalized: false, planFinalized: false });
+    tauriMocks.appSetPhase.mockResolvedValue({ appPhase: 'scope_editable', hasGithubAuth: true, hasAnthropicKey: true, isSourceApplied: true });
     tauriMocks.workspaceGet.mockResolvedValue(BASE_WORKSPACE);
     tauriMocks.workspaceApplyStart.mockResolvedValue('job-1');
     tauriMocks.workspaceApplyStatus.mockResolvedValue({ state: 'succeeded', error: null });
@@ -130,13 +130,13 @@ describe('ConfigStep — approval state integration', () => {
       ...s,
       workspaceId: 'ws-1',
       appPhase: 'scope_editable',
-      phaseFacts: { ...s.phaseFacts, scopeFinalized: false },
+
     }));
     tauriMocks.migrationListScopeInventory.mockResolvedValue([
       { warehouseItemId: 'wh-1', schemaName: 'dbo', tableName: 'fact_sales', rowCount: 0, isSelected: true },
     ]);
     tauriMocks.migrationSaveTableConfig.mockResolvedValue(undefined);
-    tauriMocks.appSetPhaseFlags.mockResolvedValue({ appPhase: 'scope_editable', hasGithubAuth: true, hasAnthropicKey: true, isSourceApplied: true, scopeFinalized: false, planFinalized: false });
+    tauriMocks.appSetPhase.mockResolvedValue({ appPhase: 'scope_editable', hasGithubAuth: true, hasAnthropicKey: true, isSourceApplied: true });
     tauriMocks.workspaceGet.mockResolvedValue(BASE_WORKSPACE);
     tauriMocks.workspaceApplyStart.mockResolvedValue('job-1');
     tauriMocks.workspaceApplyStatus.mockResolvedValue({ state: 'succeeded', error: null });
@@ -173,8 +173,7 @@ describe('ConfigStep — locked state integration', () => {
     useWorkflowStore.setState((s) => ({
       ...s,
       workspaceId: 'ws-1',
-      appPhase: 'scope_editable',
-      phaseFacts: { ...s.phaseFacts, scopeFinalized: true },
+      appPhase: 'plan_editable',
     }));
     tauriMocks.migrationListScopeInventory.mockResolvedValue([
       { warehouseItemId: 'wh-1', schemaName: 'dbo', tableName: 'fact_sales', rowCount: 0, isSelected: true },
@@ -184,7 +183,7 @@ describe('ConfigStep — locked state integration', () => {
     );
     tauriMocks.migrationAnalyzeTableDetails = vi.fn();
     tauriMocks.migrationSaveTableConfig.mockResolvedValue(undefined);
-    tauriMocks.appSetPhaseFlags.mockResolvedValue({ appPhase: 'plan_editable', hasGithubAuth: true, hasAnthropicKey: true, isSourceApplied: true, scopeFinalized: true, planFinalized: false });
+    tauriMocks.appSetPhase.mockResolvedValue({ appPhase: 'plan_editable', hasGithubAuth: true, hasAnthropicKey: true, isSourceApplied: true });
     tauriMocks.workspaceGet.mockResolvedValue(BASE_WORKSPACE);
     tauriMocks.workspaceApplyStart.mockResolvedValue('job-1');
     tauriMocks.workspaceApplyStatus.mockResolvedValue({ state: 'succeeded', error: null });

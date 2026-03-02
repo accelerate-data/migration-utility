@@ -16,8 +16,6 @@ pub enum DbError {
 pub struct DbState(pub Mutex<Connection>);
 
 const APP_PHASE_KEY: &str = "app_phase";
-const SCOPE_FINALIZED_KEY: &str = "scope_finalized";
-const PLAN_FINALIZED_KEY: &str = "plan_finalized";
 
 const MIGRATIONS: &[(i64, &str)] = &[
     (1, include_str!("../migrations/001_initial_schema.sql")),
@@ -50,6 +48,10 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (
         10,
         include_str!("../migrations/010_table_config_approval.sql"),
+    ),
+    (
+        11,
+        include_str!("../migrations/011_remove_bool_phase_flags.sql"),
     ),
 ];
 
@@ -149,34 +151,6 @@ fn write_settings_value(conn: &Connection, key: &str, value: &str) -> Result<(),
     Ok(())
 }
 
-fn read_bool_flag(conn: &Connection, key: &str) -> Result<bool, String> {
-    let raw = read_settings_value(conn, key)?;
-    Ok(matches!(
-        raw.as_deref(),
-        Some("1") | Some("true") | Some("TRUE")
-    ))
-}
-
-fn write_bool_flag(conn: &Connection, key: &str, value: bool) -> Result<(), String> {
-    write_settings_value(conn, key, if value { "1" } else { "0" })
-}
-
-pub fn read_scope_finalized(conn: &Connection) -> Result<bool, String> {
-    read_bool_flag(conn, SCOPE_FINALIZED_KEY)
-}
-
-pub fn write_scope_finalized(conn: &Connection, finalized: bool) -> Result<(), String> {
-    write_bool_flag(conn, SCOPE_FINALIZED_KEY, finalized)
-}
-
-pub fn read_plan_finalized(conn: &Connection) -> Result<bool, String> {
-    read_bool_flag(conn, PLAN_FINALIZED_KEY)
-}
-
-pub fn write_plan_finalized(conn: &Connection, finalized: bool) -> Result<(), String> {
-    write_bool_flag(conn, PLAN_FINALIZED_KEY, finalized)
-}
-
 pub fn read_app_phase(conn: &Connection) -> Result<Option<AppPhase>, String> {
     let raw = read_settings_value(conn, APP_PHASE_KEY)?;
     let phase = raw.and_then(|v| AppPhase::from_str(v.as_str()));
@@ -204,16 +178,12 @@ fn read_phase_facts(conn: &Connection) -> Result<AppPhaseState, String> {
             |row| row.get(0),
         )
         .map_err(|e| e.to_string())?;
-    let scope_finalized = read_scope_finalized(conn)?;
-    let plan_finalized = read_plan_finalized(conn)?;
 
     Ok(AppPhaseState {
         app_phase: AppPhase::SetupRequired,
         has_github_auth,
         has_anthropic_key,
         is_source_applied,
-        scope_finalized,
-        plan_finalized,
     })
 }
 
@@ -223,27 +193,32 @@ pub fn read_current_app_phase_state(conn: &Connection) -> Result<AppPhaseState, 
     Ok(state)
 }
 
+/// Reconcile the effective app phase from persisted state and prerequisites.
+///
+/// When prerequisites are missing the effective phase is `setup_required`, but
+/// the persisted DB value is left unchanged so the intended phase is restored
+/// automatically when prerequisites are satisfied again. The DB is only written
+/// when prerequisites are present and the persisted value needs updating.
 pub fn reconcile_and_persist_app_phase(conn: &Connection) -> Result<AppPhaseState, String> {
     let persisted_phase = read_app_phase(conn)?;
     let mut state = read_phase_facts(conn)?;
 
-    let reconciled =
-        if !state.has_github_auth || !state.has_anthropic_key || !state.is_source_applied {
-            AppPhase::SetupRequired
-        } else if matches!(persisted_phase, Some(AppPhase::RunningLocked)) {
-            AppPhase::RunningLocked
-        } else if !state.scope_finalized {
-            AppPhase::ScopeEditable
-        } else if !state.plan_finalized {
-            AppPhase::PlanEditable
-        } else {
-            AppPhase::ReadyToRun
-        };
+    let prereqs_ok =
+        state.has_github_auth && state.has_anthropic_key && state.is_source_applied;
 
-    if persisted_phase != Some(reconciled) {
-        write_app_phase(conn, reconciled)?;
+    let effective = if !prereqs_ok {
+        AppPhase::SetupRequired
+    } else {
+        persisted_phase.unwrap_or(AppPhase::ScopeEditable)
+    };
+
+    // Only persist when prerequisites are satisfied — preserves the intended
+    // phase across prerequisite loss/regain cycles.
+    if prereqs_ok && persisted_phase.map_or(true, |p| p != effective) {
+        write_app_phase(conn, effective)?;
     }
-    state.app_phase = reconciled;
+
+    state.app_phase = effective;
     Ok(state)
 }
 
@@ -362,7 +337,7 @@ mod tests {
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM schema_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(count, 10, "schema_version should have exactly 10 rows");
+        assert_eq!(count, 11, "schema_version should have exactly 11 rows");
     }
 
     #[test]
@@ -696,7 +671,7 @@ mod tests {
     }
 
     #[test]
-    fn reconcile_phase_returns_ready_when_scope_and_plan_finalized() {
+    fn reconcile_phase_returns_ready_when_phase_persisted_as_ready() {
         let conn = open_memory();
         let settings = AppSettings {
             anthropic_api_key: Some("sk-ant-test".to_string()),
@@ -709,11 +684,46 @@ mod tests {
             params!["ws-1", "ws", "/tmp/repo", "2026-01-01T00:00:00Z"],
         )
         .unwrap();
-        write_scope_finalized(&conn, true).unwrap();
-        write_plan_finalized(&conn, true).unwrap();
+        write_app_phase(&conn, AppPhase::ReadyToRun).unwrap();
 
         let state = reconcile_and_persist_app_phase(&conn).unwrap();
         assert_eq!(state.app_phase, AppPhase::ReadyToRun);
+    }
+
+    #[test]
+    fn reconcile_phase_restores_intended_phase_after_prereq_regain() {
+        let conn = open_memory();
+        let settings = AppSettings {
+            anthropic_api_key: Some("sk-ant-test".to_string()),
+            github_oauth_token: Some("gho_test".to_string()),
+            ..AppSettings::default()
+        };
+        write_settings(&conn, &settings).unwrap();
+        conn.execute(
+            "INSERT INTO workspaces(id, display_name, migration_repo_path, created_at) VALUES (?1, ?2, ?3, ?4)",
+            params!["ws-1", "ws", "/tmp/repo", "2026-01-01T00:00:00Z"],
+        )
+        .unwrap();
+        // User was in plan_editable
+        write_app_phase(&conn, AppPhase::PlanEditable).unwrap();
+
+        // Simulate losing GitHub token: reconcile returns setup_required but does NOT overwrite DB
+        let mut settings_no_gh = AppSettings {
+            anthropic_api_key: Some("sk-ant-test".to_string()),
+            github_oauth_token: None,
+            ..AppSettings::default()
+        };
+        write_settings(&conn, &settings_no_gh).unwrap();
+        let state = reconcile_and_persist_app_phase(&conn).unwrap();
+        assert_eq!(state.app_phase, AppPhase::SetupRequired);
+        // Intended phase must still be plan_editable in DB
+        assert_eq!(read_app_phase(&conn).unwrap(), Some(AppPhase::PlanEditable));
+
+        // Restore token: reconcile should return plan_editable again
+        settings_no_gh.github_oauth_token = Some("gho_test".to_string());
+        write_settings(&conn, &settings_no_gh).unwrap();
+        let state = reconcile_and_persist_app_phase(&conn).unwrap();
+        assert_eq!(state.app_phase, AppPhase::PlanEditable);
     }
 
     #[test]
@@ -917,11 +927,11 @@ mod tests {
             "existing data should be preserved after migration re-run"
         );
 
-        // Verify schema_version still has exactly 10 entries
+        // Verify schema_version still has exactly 11 entries
         let version_count: i64 = conn
             .query_row("SELECT COUNT(*) FROM schema_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version_count, 10, "schema_version should still have exactly 10 rows");
+        assert_eq!(version_count, 11, "schema_version should still have exactly 11 rows");
     }
 
     #[test]
