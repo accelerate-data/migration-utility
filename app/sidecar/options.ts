@@ -40,7 +40,14 @@ export function buildQueryOptions(
     // user's MCP servers anyway (those are CLI-process-only).
     settingSources: ['project' as const],
     cwd: config.cwd,
-    allowedTools: config.allowedTools,
+    // `tools` restricts which built-in tools are available to the agent.
+    // `allowedTools` only bypasses permission prompts — it does not restrict tool availability.
+    // Pass as `tools` so the agent cannot call tools outside its declared set.
+    ...(config.allowedTools ? { tools: config.allowedTools } : {}),
+    // Suppress MCP server loading — the agent's cwd may have project settings
+    // that reference user MCP integrations (Gmail, Slack, etc.) which are
+    // irrelevant and inflate the tool list unnecessarily.
+    mcpServers: {},
     maxTurns: config.maxTurns ?? 50,
     permissionMode: (config.permissionMode || "bypassPermissions") as
       | "default"

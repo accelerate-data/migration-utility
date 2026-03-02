@@ -719,6 +719,31 @@ fn handle_sidecar_line(
             }
             Ok(SidecarLineResult::Continue)
         }
+        "result" => {
+            // The SDK v1 query() API emits a top-level {"type":"result",...} message
+            // as its final event. Extract the agent's text from the "result" field.
+            let id = parsed
+                .get("request_id")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            if id != request_id {
+                return Ok(SidecarLineResult::Continue);
+            }
+            let is_error = parsed.get("is_error").and_then(Value::as_bool).unwrap_or(false);
+            if is_error {
+                let message = parsed
+                    .get("result")
+                    .and_then(Value::as_str)
+                    .unwrap_or("agent returned an error result");
+                return Err(format!(
+                    "monitor_launch_agent: agent result error: {message}"
+                ));
+            }
+            if let Some(text) = parsed.get("result").and_then(Value::as_str) {
+                aggregated.push_str(text);
+            }
+            Ok(SidecarLineResult::Continue)
+        }
         "request_complete" => {
             let id = parsed
                 .get("request_id")
@@ -844,6 +869,30 @@ mod tests {
 
         assert_eq!(result, SidecarLineResult::Continue);
         assert_eq!(aggregated, r#"{"table_type":"fact"}"#);
+    }
+
+    #[test]
+    fn handle_sidecar_line_extracts_result_from_sdk_result_message() {
+        let mut aggregated = String::new();
+        let id = "agent-1";
+        let msg = r#"{"request_id":"agent-1","type":"result","subtype":"success","is_error":false,"result":"{\"table_type\":\"dimension\"}"}"#;
+
+        let result = handle_sidecar_line(msg, id, &mut aggregated).unwrap();
+
+        assert_eq!(result, SidecarLineResult::Continue);
+        assert_eq!(aggregated, r#"{"table_type":"dimension"}"#);
+    }
+
+    #[test]
+    fn handle_sidecar_line_errors_on_sdk_result_is_error() {
+        let mut aggregated = String::new();
+        let id = "agent-1";
+        let msg = r#"{"request_id":"agent-1","type":"result","subtype":"error_max_turns","is_error":true,"result":"max turns exceeded"}"#;
+
+        let err = handle_sidecar_line(msg, id, &mut aggregated).unwrap_err();
+
+        assert!(err.contains("agent result error"));
+        assert!(err.contains("max turns exceeded"));
     }
 
     #[test]
