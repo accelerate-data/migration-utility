@@ -85,14 +85,14 @@ Express as a JSON array of column name strings. Empty array if none found.
 
 ## Step 6 — Score Confidence
 
-Assign an integer confidence score (0–100) per field based on observable evidence only.
+Assign a decimal confidence score (0.0–1.0) per field based on observable evidence only.
 
 | Range | Meaning |
 |---|---|
-| 90–100 | Naming convention + structural signals both match |
-| 70–89 | One strong signal; the other absent or weak |
-| 50–69 | Conflicting signals — state the conflict |
-| 0–49 | Insufficient evidence — state what is missing |
+| 0.90–1.0 | Naming convention + structural signals both match |
+| 0.70–0.89 | One strong signal; the other absent or weak |
+| 0.50–0.69 | Conflicting signals — state the conflict |
+| 0.0–0.49 | Insufficient evidence — state what is missing |
 
 Always commit to the most probable answer. A low-confidence best-guess is more useful than
 returning empty or hedging.
@@ -107,37 +107,37 @@ arrays; never serialised strings inside quotes.
 {
   "table_type": {
     "value": "<fact|dimension|bridge|aggregate|staging|snapshot>",
-    "confidence": 0,
+    "confidence": 0.0,
     "reasoning": "<string>"
   },
   "load_strategy": {
     "value": "<full_refresh|incremental|snapshot>",
-    "confidence": 0,
+    "confidence": 0.0,
     "reasoning": "<string>"
   },
   "grain_columns": {
     "value": ["<column_name>"],
-    "confidence": 0,
+    "confidence": 0.0,
     "reasoning": "<string>"
   },
   "incremental_column": {
     "value": "<column_name or empty string>",
-    "confidence": 0,
+    "confidence": 0.0,
     "reasoning": "<string>"
   },
   "date_column": {
     "value": "<column_name or empty string>",
-    "confidence": 0,
+    "confidence": 0.0,
     "reasoning": "<string>"
   },
   "snapshot_strategy": {
     "value": "<strategy note or empty string>",
-    "confidence": 0,
+    "confidence": 0.0,
     "reasoning": "<string>"
   },
   "pii_columns": {
     "value": ["<column_name>"],
-    "confidence": 0,
+    "confidence": 0.0,
     "reasoning": "<string>"
   },
   "relationships": {
@@ -147,7 +147,7 @@ arrays; never serialised strings inside quotes.
         "mappings": [
           { "source": "<child_column>", "references": "<parent_column>" }
         ],
-        "confidence": 0,
+        "confidence": 0.0,
         "reasoning": "<string>"
       }
     ]

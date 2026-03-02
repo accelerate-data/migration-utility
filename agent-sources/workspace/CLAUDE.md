@@ -52,7 +52,7 @@ When the prompt specifies a JSON response:
 - No markdown code fences (no ` ``` `)
 - No preamble, explanation, or trailing commentary before or after the JSON
 - All values are JSON strings unless the schema explicitly specifies a number or array
-- Confidence values are **integers** (0–100), not floats
+- Confidence values are **decimals** (0.0–1.0) — e.g. `0.9` not `90`
 - Array values are proper JSON arrays: `["col_a", "col_b"]` — never serialised strings
 
 Violating these rules causes the caller to fail silently. There are no second chances.

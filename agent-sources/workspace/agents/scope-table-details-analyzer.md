@@ -21,37 +21,37 @@ Return exactly this JSON, unchanged:
 {
   "table_type": {
     "value": "fact",
-    "confidence": 90,
+    "confidence": 0.9,
     "reasoning": "Table name and FK structure match fact table pattern with numeric measures and dimension references"
   },
   "load_strategy": {
     "value": "incremental",
-    "confidence": 85,
+    "confidence": 0.85,
     "reasoning": "[updated_at] column present, suitable for incremental loads based on last modified timestamp"
   },
   "grain_columns": {
     "value": ["[order_id]"],
-    "confidence": 80,
+    "confidence": 0.8,
     "reasoning": "Primary key [order_id] represents the grain; one row per order"
   },
   "incremental_column": {
     "value": "[updated_at]",
-    "confidence": 90,
+    "confidence": 0.9,
     "reasoning": "[updated_at] is a standard CDC column for tracking row changes"
   },
   "date_column": {
     "value": "[order_date]",
-    "confidence": 95,
+    "confidence": 0.95,
     "reasoning": "[order_date] is the primary business date for this fact table"
   },
   "snapshot_strategy": {
     "value": "",
-    "confidence": 100,
+    "confidence": 1.0,
     "reasoning": "No SCD2 or valid_from/valid_to columns detected"
   },
   "pii_columns": {
     "value": ["[customer_email]", "[customer_phone]"],
-    "confidence": 85,
+    "confidence": 0.85,
     "reasoning": "[customer_email] and [customer_phone] match PII patterns for personal contact information"
   },
   "relationships": {
@@ -61,7 +61,7 @@ Return exactly this JSON, unchanged:
         "mappings": [
           { "source": "[customer_id]", "references": "[id]" }
         ],
-        "confidence": 95,
+        "confidence": 0.95,
         "reasoning": "Explicit foreign key constraint defined in schema metadata"
       },
       {
@@ -69,7 +69,7 @@ Return exactly this JSON, unchanged:
         "mappings": [
           { "source": "[product_id]", "references": "[id]" }
         ],
-        "confidence": 95,
+        "confidence": 0.95,
         "reasoning": "Explicit foreign key constraint defined in schema metadata"
       }
     ]
