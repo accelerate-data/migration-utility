@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   appSetPhaseFlags,
   migrationAnalyzeTableDetails,
+  migrationApproveTableConfig,
   migrationGetTableConfig,
   migrationListScopeInventory,
   migrationReconcileScopeState,
@@ -16,6 +16,14 @@ import {
 import { logger } from '@/lib/logger';
 import type { ScopeInventoryRow, TableConfigPayload } from '@/lib/types';
 import { useWorkflowStore } from '@/stores/workflow-store';
+import { ConfigStepHeader } from '@/components/scope/config-step-header';
+import { TableListSidebar } from '@/components/scope/table-list-sidebar';
+import { CoreFieldsSection } from '@/components/scope/core-fields-section';
+import { PiiSection } from '@/components/scope/pii-section';
+import { RelationshipsSection } from '@/components/scope/relationships-section';
+import { ScdSection } from '@/components/scope/scd-section';
+import { AgentRationaleSection } from '@/components/scope/agent-rationale-section';
+import { ApprovalActions } from '@/components/scope/approval-actions';
 
 type SelectedTableRow = ScopeInventoryRow & {
   selectedTableId: string;
@@ -186,7 +194,14 @@ export default function ConfigStep() {
       setMessage(force ? 'Re-analyzed just now' : 'Analyzed just now');
     } catch (err) {
       logger.error('table details analysis failed', err);
-      const msg = err instanceof Error ? err.message : String(err);
+      let msg = 'Analysis failed';
+      if (err instanceof Error) {
+        msg = err.message;
+      } else if (typeof err === 'object' && err !== null) {
+        msg = JSON.stringify(err);
+      } else {
+        msg = String(err);
+      }
       setAnalyzeErrorById((prev) => ({ ...prev, [row.selectedTableId]: msg }));
       setError(msg);
     } finally {
@@ -294,96 +309,50 @@ export default function ConfigStep() {
     }
   }
 
+  async function handleApprove() {
+    if (!activeRow) return;
+    try {
+      await migrationApproveTableConfig(activeRow.selectedTableId);
+      const updated = await migrationGetTableConfig(activeRow.selectedTableId);
+      if (updated) {
+        setConfigsById((prev) => ({ ...prev, [activeRow.selectedTableId]: updated }));
+        setDraft(updated);
+        setMessage('Approved just now');
+      }
+    } catch (err) {
+      logger.error('failed to approve table config', err);
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   return (
     <section className="relative space-y-4" data-testid="scope-table-details-step">
       {anyAnalyzing && (
         <div className="absolute inset-0 z-20 cursor-wait rounded-md bg-background/15 backdrop-blur-[0.5px]" />
       )}
-      <header className="rounded-md border bg-card p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="space-y-1">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Scope — Table details capture
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-primary/20 px-2 py-0.5 text-xs font-medium text-primary">
-                {readyCount} / {rows.length} tables ready
-              </span>
-              <span className="text-xs text-muted-foreground">Needs details for {needsDetails} tables</span>
-              <span className="text-xs text-muted-foreground">{message}</span>
-              <span className="text-xs text-muted-foreground">
-                {isLocked ? 'Scope finalized (read-only)' : 'Scope editable'}
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={isLocked || refreshing || anyAnalyzing}
-              onClick={() => void refreshSchema()}
-            >
-              {refreshing ? 'Refreshing...' : 'Refresh schema'}
-            </Button>
-            <Button type="button" size="sm" disabled={isLocked || anyAnalyzing} onClick={() => void finalizeScope()}>
-              {isLocked ? 'Scope Finalized' : 'Finalize Scope'}
-            </Button>
-          </div>
-        </div>
-        <div className="mt-4 border-b border-border">
-          <div className="flex items-center gap-6">
-            <button
-              type="button"
-              className="border-b-2 border-transparent pb-2 text-sm font-medium text-muted-foreground"
-              disabled={anyAnalyzing}
-              onClick={() => navigate('/scope')}
-            >
-              1. Select Tables
-            </button>
-            <button
-              type="button"
-              className="border-b-2 border-primary pb-2 text-sm font-medium text-primary"
-              disabled={anyAnalyzing}
-              onClick={() => navigate('/scope/config')}
-            >
-              2. Table Details
-            </button>
-          </div>
-        </div>
-      </header>
+
+      <ConfigStepHeader
+        readyCount={readyCount}
+        totalCount={rows.length}
+        needsDetails={needsDetails}
+        message={message}
+        isLocked={isLocked}
+        refreshing={refreshing}
+        anyAnalyzing={anyAnalyzing}
+        onRefreshSchema={() => void refreshSchema()}
+        onFinalizeScope={() => void finalizeScope()}
+        onNavigateToSelect={() => navigate('/scope')}
+        onNavigateToConfig={() => navigate('/scope/config')}
+      />
 
       <div className="grid gap-4 lg:grid-cols-[40%_60%]">
-        <div className="rounded-md border bg-card">
-          <div className="max-h-[560px] overflow-auto">
-            {loading && <p className="p-3 text-sm text-muted-foreground">Loading details...</p>}
-            {!loading && rows.length === 0 && (
-              <p className="p-3 text-sm text-muted-foreground">No selected tables yet.</p>
-            )}
-            {!loading &&
-              grouped.map(([schema, schemaRows]) => (
-                <details key={schema} open className="border-b">
-                  <summary className="flex cursor-pointer items-center justify-between bg-muted/50 px-3 py-2 text-xs">
-                    <span className="font-medium">{schema}</span>
-                    <span className="text-muted-foreground">{schemaRows.length} selected</span>
-                  </summary>
-                  {schemaRows.map((row) => (
-                    <button
-                      key={row.selectedTableId}
-                      type="button"
-                      className={`w-full border-t px-3 py-2 text-left text-sm ${
-                        row.selectedTableId === activeId ? 'bg-primary/10' : ''
-                      }`}
-                      disabled={anyAnalyzing}
-                      onClick={() => setActiveId(row.selectedTableId)}
-                    >
-                      <span className="font-mono">{row.tableName}</span>
-                    </button>
-                  ))}
-                </details>
-              ))}
-          </div>
-        </div>
+        <TableListSidebar
+          grouped={grouped}
+          activeId={activeId}
+          loading={loading}
+          anyAnalyzing={anyAnalyzing}
+          onSelectTable={setActiveId}
+        />
 
         <div className="rounded-md border bg-card p-4 lg:pr-8">
           {!activeRow && <p className="text-sm text-muted-foreground">Select a table to edit details.</p>}
@@ -408,88 +377,43 @@ export default function ConfigStep() {
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">
-                <label className="space-y-1 text-sm">
-                  <span>Table type</span>
-                  <select
-                    className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                    value={draft.tableType ?? ''}
-                    disabled={isLocked || activeIsAnalyzing}
-                    onChange={(e) => updateDraft('tableType', e.target.value || null)}
-                  >
-                    <option value="">Select...</option>
-                    <option value="fact">fact</option>
-                    <option value="dimension">dimension</option>
-                    <option value="unknown">unknown</option>
-                  </select>
-                </label>
-                <label className="space-y-1 text-sm">
-                  <span>Load strategy</span>
-                  <select
-                    className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                    value={draft.loadStrategy ?? ''}
-                    disabled={isLocked || activeIsAnalyzing}
-                    onChange={(e) => updateDraft('loadStrategy', e.target.value || null)}
-                  >
-                    <option value="">Select...</option>
-                    <option value="incremental">incremental</option>
-                    <option value="full_refresh">full_refresh</option>
-                    <option value="snapshot">snapshot</option>
-                  </select>
-                </label>
-                <label className="space-y-1 text-sm">
-                  <span>CDC column</span>
-                  <Input
-                    value={draft.incrementalColumn ?? ''}
-                    disabled={isLocked || activeIsAnalyzing}
-                    onChange={(e) => updateDraft('incrementalColumn', e.target.value || null)}
-                  />
-                </label>
-                <label className="space-y-1 text-sm">
-                  <span>Canonical date column</span>
-                  <Input
-                    value={draft.dateColumn ?? ''}
-                    disabled={isLocked || activeIsAnalyzing}
-                    onChange={(e) => updateDraft('dateColumn', e.target.value || null)}
-                  />
-                </label>
-                <label className="space-y-1 text-sm md:col-span-2">
-                  <span>PII columns (required for fixture masking)</span>
-                  <Input
-                    value={draft.piiColumns ?? ''}
-                    disabled={isLocked || activeIsAnalyzing}
-                    onChange={(e) => updateDraft('piiColumns', e.target.value || null)}
-                  />
-                </label>
-                <label className="space-y-1 text-sm">
-                  <span>Grain columns</span>
-                  <Input
-                    value={draft.grainColumns ?? ''}
-                    disabled={isLocked || activeIsAnalyzing}
-                    onChange={(e) => updateDraft('grainColumns', e.target.value || null)}
-                  />
-                </label>
-                <label className="space-y-1 text-sm md:col-span-2">
-                  <span>Relationships (required for tests)</span>
-                  <Input
-                    value={draft.relationshipsJson ?? ''}
-                    disabled={isLocked || activeIsAnalyzing}
-                    onChange={(e) => updateDraft('relationshipsJson', e.target.value || null)}
-                  />
-                </label>
-                <label className="space-y-1 text-sm md:col-span-2">
-                  <span>SCD (dimensions only)</span>
-                  <select
-                    className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                    value={draft.snapshotStrategy}
-                    disabled={isLocked || activeIsAnalyzing || draft.tableType !== 'dimension'}
-                    onChange={(e) => updateDraft('snapshotStrategy', e.target.value)}
-                  >
-                    <option value="sample_1day">sample_1day</option>
-                    <option value="full">full</option>
-                    <option value="full_flagged">full_flagged</option>
-                  </select>
-                </label>
+                <CoreFieldsSection
+                  tableType={draft.tableType}
+                  loadStrategy={draft.loadStrategy}
+                  incrementalColumn={draft.incrementalColumn}
+                  dateColumn={draft.dateColumn}
+                  disabled={isLocked || activeIsAnalyzing}
+                  onUpdate={updateDraft}
+                />
+                <PiiSection
+                  piiColumns={draft.piiColumns}
+                  disabled={isLocked || activeIsAnalyzing}
+                  onUpdate={(value) => updateDraft('piiColumns', value)}
+                />
+                <RelationshipsSection
+                  relationshipsJson={draft.relationshipsJson}
+                  grainColumns={draft.grainColumns}
+                  disabled={isLocked || activeIsAnalyzing}
+                  onUpdateRelationships={(value) => updateDraft('relationshipsJson', value)}
+                  onUpdateGrain={(value) => updateDraft('grainColumns', value)}
+                />
+                <ScdSection
+                  tableType={draft.tableType}
+                  snapshotStrategy={draft.snapshotStrategy}
+                  disabled={isLocked || activeIsAnalyzing}
+                  onUpdate={(value) => updateDraft('snapshotStrategy', value)}
+                />
               </div>
+
+              <ApprovalActions
+                approvalStatus={draft.approvalStatus}
+                approvedAt={draft.approvedAt}
+                confirmedAt={draft.confirmedAt}
+                isLocked={isLocked}
+                onApprove={handleApprove}
+              />
+
+              <AgentRationaleSection analysisMetadataJson={draft.analysisMetadataJson} />
 
               {analyzeErrorById[activeRow.selectedTableId] && (
                 <p className="text-sm text-destructive">{analyzeErrorById[activeRow.selectedTableId]}</p>
