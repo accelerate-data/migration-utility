@@ -108,6 +108,8 @@ export class StreamSession {
           role: "user" as const,
           content: config.prompt,
         },
+        parent_tool_use_id: null,
+        session_id: self.sessionId,
       };
 
       // Subsequent messages: wait for pushMessage() calls
@@ -118,6 +120,8 @@ export class StreamSession {
           yield {
             type: "user" as const,
             message: { role: "user" as const, content: message },
+            parent_tool_use_id: null,
+            session_id: self.sessionId,
           };
           continue;
         }
@@ -144,6 +148,8 @@ export class StreamSession {
             role: "user" as const,
             content: nextMessage,
           },
+          parent_tool_use_id: null,
+          session_id: self.sessionId,
         };
       }
     }
