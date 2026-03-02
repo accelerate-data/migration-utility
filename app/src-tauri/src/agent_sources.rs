@@ -29,11 +29,17 @@ pub fn deploy_on_startup(app: &AppHandle) -> Result<(), String> {
 fn resolve_source_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let mut candidates: Vec<PathBuf> = Vec::new();
 
+    // In dev builds the Tauri resource_dir resolves to the target artifact directory
+    // (target/debug/_up_/_up_/agent-sources), which only reflects the last cargo build and
+    // may belong to a different worktree. Always use the live compile-time source instead.
+    #[cfg(not(debug_assertions))]
     if let Ok(resource_dir) = app.path().resource_dir() {
         candidates.push(resource_dir.join("agent-sources").join("workspace"));
     }
+    #[cfg(debug_assertions)]
+    let _ = app; // suppress unused-variable warning in dev
 
-    // Local dev fallback when running unbundled.
+    // Production fallback (or primary dev source): the compile-time workspace root.
     candidates.push(
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("..")
