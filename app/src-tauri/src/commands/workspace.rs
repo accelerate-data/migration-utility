@@ -489,6 +489,10 @@ fn fetch_sql_server_inventory(
                 schema_id_local: row.get::<i64, _>(0),
             });
         }
+        log::info!(
+            "workspace_apply_and_clone: discovered {} schemas",
+            schemas.len()
+        );
 
         emit_apply_progress(
             app,
@@ -542,6 +546,10 @@ fn fetch_sql_server_inventory(
                 row_count: row.get::<i64, _>(3),
             });
         }
+        log::info!(
+            "workspace_apply_and_clone: discovered {} tables",
+            tables.len()
+        );
 
         emit_apply_progress(
             app,
@@ -596,6 +604,10 @@ fn fetch_sql_server_inventory(
                 sql_body: row.get::<&str, _>(3).map(|v| v.to_string()),
             });
         }
+        log::info!(
+            "workspace_apply_and_clone: discovered {} procedures",
+            procedures.len()
+        );
 
         emit_apply_progress(
             app,
@@ -673,6 +685,10 @@ fn fetch_sql_server_inventory(
                 is_nullable,
             });
         }
+        log::info!(
+            "workspace_apply_and_clone: discovered {} columns",
+            columns.len()
+        );
 
         log::info!(
             "workspace_apply_and_clone: discovered {} schemas, {} tables, {} procedures, {} columns",
