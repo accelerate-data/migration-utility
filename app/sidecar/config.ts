@@ -2,6 +2,7 @@ export interface SidecarConfig {
   prompt: string;
   model?: string;
   agentName?: string;
+  allowedTools?: string[];
   apiKey: string;
   cwd: string;
   systemPrompt?: string;
@@ -25,6 +26,7 @@ export function parseSidecarConfig(raw: unknown): SidecarConfig {
     prompt: c.prompt,
     model: typeof c.model === 'string' ? c.model : undefined,
     agentName: typeof c.agentName === 'string' ? c.agentName : undefined,
+    allowedTools: Array.isArray(c.allowedTools) ? (c.allowedTools as string[]) : undefined,
     apiKey: c.apiKey,
     cwd: c.cwd,
     systemPrompt: typeof c.systemPrompt === 'string' ? c.systemPrompt : undefined,

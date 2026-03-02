@@ -525,6 +525,7 @@ fn transcript_config_line(config: &SidecarConfigPayload) -> String {
             "systemPrompt": config.system_prompt,
             "model": config.model,
             "agentName": config.agent_name,
+            "allowedTools": config.allowed_tools,
             "apiKey": "[REDACTED]",
             "cwd": config.cwd,
             "settingSources": ["project"],
@@ -740,8 +741,8 @@ fn handle_sidecar_line(
 #[cfg(test)]
 mod tests {
     use super::{
-        append_request_scoped_sidecar_line, build_request, handle_sidecar_line, parse_message_type,
-        prepare_log_path, read_sidecar_line_with_heartbeat, transcript_config_line,
+        append_request_scoped_sidecar_line, build_request, handle_sidecar_line, parse_agent_allowed_tools,
+        parse_message_type, prepare_log_path, read_sidecar_line_with_heartbeat, transcript_config_line,
         wait_for_sidecar_message, HeartbeatState, SidecarLineResult,
     };
     use std::fs;
@@ -755,6 +756,7 @@ mod tests {
             Some("system".to_string()),
             None,
             Some("claude-sonnet-4-6".to_string()),
+            None,
             "sk-ant-test".to_string(),
             "/tmp/work".to_string(),
         );
@@ -773,6 +775,7 @@ mod tests {
             Some("system".to_string()),
             None,
             Some("claude-sonnet-4-6".to_string()),
+            None,
             "sk-ant-secret".to_string(),
             "/tmp/work".to_string(),
         );
@@ -976,5 +979,81 @@ mod tests {
         .await
         .unwrap_err();
         assert!(err.contains("did not emit pong within"));
+    }
+
+    #[test]
+    fn parse_agent_allowed_tools_block_list() {
+        let tmp = tempfile::tempdir().unwrap();
+        let agents_dir = tmp.path().join(".claude").join("agents");
+        fs::create_dir_all(&agents_dir).unwrap();
+        fs::write(
+            agents_dir.join("my-agent.md"),
+            "---\nname: my-agent\nmodel: claude-haiku-4-5\ntools:\n  - Bash\n  - Computer\n---\n\nContent here.\n",
+        ).unwrap();
+        let tools = parse_agent_allowed_tools(tmp.path().to_str().unwrap(), "my-agent").unwrap();
+        assert_eq!(tools, vec!["Bash", "Computer"]);
+    }
+
+    #[test]
+    fn parse_agent_allowed_tools_inline_list() {
+        let tmp = tempfile::tempdir().unwrap();
+        let agents_dir = tmp.path().join(".claude").join("agents");
+        fs::create_dir_all(&agents_dir).unwrap();
+        fs::write(
+            agents_dir.join("my-agent.md"),
+            "---\ntools: [Bash, Computer]\n---\n\nContent.\n",
+        ).unwrap();
+        let tools = parse_agent_allowed_tools(tmp.path().to_str().unwrap(), "my-agent").unwrap();
+        assert_eq!(tools, vec!["Bash", "Computer"]);
+    }
+
+    #[test]
+    fn parse_agent_allowed_tools_missing_file_returns_none() {
+        let tmp = tempfile::tempdir().unwrap();
+        assert!(parse_agent_allowed_tools(tmp.path().to_str().unwrap(), "no-such-agent").is_none());
+    }
+
+    #[test]
+    fn parse_agent_allowed_tools_no_tools_field_returns_none() {
+        let tmp = tempfile::tempdir().unwrap();
+        let agents_dir = tmp.path().join(".claude").join("agents");
+        fs::create_dir_all(&agents_dir).unwrap();
+        fs::write(
+            agents_dir.join("my-agent.md"),
+            "---\nname: my-agent\nmodel: claude-haiku-4-5\n---\n\nContent.\n",
+        ).unwrap();
+        assert!(parse_agent_allowed_tools(tmp.path().to_str().unwrap(), "my-agent").is_none());
+    }
+
+    #[test]
+    fn allowed_tools_serialized_in_payload_when_set() {
+        let req = build_request(
+            "p".to_string(),
+            None,
+            Some("my-agent".to_string()),
+            None,
+            Some(vec!["Bash".to_string()]),
+            "sk-ant-test".to_string(),
+            "/tmp/work".to_string(),
+        );
+        let json = serde_json::to_value(&req.config).unwrap();
+        let tools = json.get("allowedTools").unwrap().as_array().unwrap();
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0].as_str(), Some("Bash"));
+    }
+
+    #[test]
+    fn allowed_tools_omitted_from_payload_when_none() {
+        let req = build_request(
+            "p".to_string(),
+            None,
+            None,
+            Some("claude-sonnet-4-6".to_string()),
+            None,
+            "sk-ant-test".to_string(),
+            "/tmp/work".to_string(),
+        );
+        let json = serde_json::to_value(&req.config).unwrap();
+        assert!(json.get("allowedTools").is_none());
     }
 }

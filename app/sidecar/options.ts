@@ -7,6 +7,7 @@ const DEFAULT_MODEL = 'claude-sonnet-4-6';
 export type SessionOptionsWithOptionalModel = Omit<SDKSessionOptions, 'model'> & {
   agent?: string;
   model?: string;
+  allowedTools?: string[];
   cwd: string;
   settingSources: Array<'project'>;
   permissionMode: 'bypassPermissions';
@@ -21,6 +22,7 @@ export function buildSessionOptions(config: SidecarConfig): SessionOptionsWithOp
   return {
     ...agentField,
     ...modelField,
+    ...(config.allowedTools !== undefined ? { allowedTools: config.allowedTools } : {}),
     env: {
       ...process.env,
       ANTHROPIC_API_KEY: config.apiKey,
