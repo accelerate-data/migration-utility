@@ -25,7 +25,7 @@ describe('App routing guards', () => {
     window.history.pushState({}, '', '/');
   });
 
-  it('redirects startup to settings when appPhase is setup_required', async () => {
+  it('redirects startup to home when appPhase is setup_required', async () => {
     mockInvokeCommands({
       workspace_get: null,
       app_hydrate_phase: {
@@ -43,8 +43,8 @@ describe('App routing guards', () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByTestId('settings-panel-connections')).toBeInTheDocument();
-      expect(screen.getByTestId('nav-home')).toBeDisabled();
+      expect(screen.getByTestId('home-setup-state')).toBeInTheDocument();
+      expect(screen.getByTestId('nav-home')).not.toBeDisabled();
     });
   });
 

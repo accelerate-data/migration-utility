@@ -243,7 +243,7 @@ describe('TableListSidebar', () => {
         loading: true,
       };
       render(<TableListSidebar {...props} />);
-      expect(screen.getByText('Loading details...')).toBeInTheDocument();
+      expect(screen.getByText('Loading tables...')).toBeInTheDocument();
     });
 
     it('does not display table list when loading', () => {
