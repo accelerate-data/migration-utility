@@ -4,7 +4,9 @@ This guide sets up a local SQL Server container for development and test runs in
 
 Databases restored by the helper script:
 
+- `AdventureWorks2022`
 - `AdventureWorksDW2022`
+- `WideWorldImporters`
 - `WideWorldImportersDW`
 
 Container conventions used by this repo:

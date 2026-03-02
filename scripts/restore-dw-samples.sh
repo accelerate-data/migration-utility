@@ -12,6 +12,10 @@ KEEP_BACKUPS="${KEEP_BACKUPS:-0}"
 CONTAINER_BACKUP_DIR="/var/opt/mssql/backup"
 SQLCMD_ARGS=(-S "${SQL_SERVER_HOST},${SQL_SERVER_PORT}" -U sa -P "$SA_PASSWORD" -C -W -h -1 -s "|")
 
+AW_DB_NAME="AdventureWorks2022"
+AW_BAK_NAME="AdventureWorks2022.bak"
+AW_BAK_URL="https://github.com/microsoft/sql-server-samples/releases/download/adventureworks/AdventureWorks2022.bak"
+
 ADW_DB_NAME="AdventureWorksDW2022"
 ADW_BAK_NAME="AdventureWorksDW2022.bak"
 ADW_BAK_URL="https://github.com/microsoft/sql-server-samples/releases/download/adventureworks/AdventureWorksDW2022.bak"
@@ -19,6 +23,10 @@ ADW_BAK_URL="https://github.com/microsoft/sql-server-samples/releases/download/a
 WWI_DB_NAME="WideWorldImportersDW"
 WWI_BAK_NAME="WideWorldImportersDW-Full.bak"
 WWI_BAK_URL="https://github.com/microsoft/sql-server-samples/releases/download/wide-world-importers-v1.0/WideWorldImportersDW-Full.bak"
+
+WWI_OLTP_DB_NAME="WideWorldImporters"
+WWI_OLTP_BAK_NAME="WideWorldImporters-Full.bak"
+WWI_OLTP_BAK_URL="https://github.com/microsoft/sql-server-samples/releases/download/wide-world-importers-v1.0/WideWorldImporters-Full.bak"
 
 DOWNLOADED_FILES=()
 
@@ -57,7 +65,7 @@ cleanup_local_backups() {
   if [[ "$KEEP_BACKUPS" == "1" ]]; then
     return
   fi
-  for file in "${DOWNLOADED_FILES[@]}"; do
+  for file in "${DOWNLOADED_FILES[@]+"${DOWNLOADED_FILES[@]}"}"; do
     rm -f "$file"
   done
 }
@@ -151,12 +159,14 @@ restore_if_missing() {
   restore_database_from_backup "$db_name" "$bak_name"
 }
 
-echo "Checking sample DW databases in container '$CONTAINER_NAME' ..."
+echo "Checking sample databases in container '$CONTAINER_NAME' ..."
+restore_if_missing "$AW_DB_NAME" "$AW_BAK_NAME" "$AW_BAK_URL"
 restore_if_missing "$ADW_DB_NAME" "$ADW_BAK_NAME" "$ADW_BAK_URL"
 restore_if_missing "$WWI_DB_NAME" "$WWI_BAK_NAME" "$WWI_BAK_URL"
+restore_if_missing "$WWI_OLTP_DB_NAME" "$WWI_OLTP_BAK_NAME" "$WWI_OLTP_BAK_URL"
 
 echo "Verifying restored databases ..."
-run_sql "SET NOCOUNT ON; SELECT name FROM sys.databases WHERE name IN (N'$ADW_DB_NAME', N'$WWI_DB_NAME') ORDER BY name;"
+run_sql "SET NOCOUNT ON; SELECT name FROM sys.databases WHERE name IN (N'$AW_DB_NAME', N'$ADW_DB_NAME', N'$WWI_DB_NAME', N'$WWI_OLTP_DB_NAME') ORDER BY name;"
 
 if [[ "$KEEP_BACKUPS" == "1" ]]; then
   echo "Local backup files kept in $BACKUP_DIR"
