@@ -17,6 +17,10 @@ test-results/
 playwright-report/
 playwright-artifacts/
 
+# IDE and tool directories
+.vscode/
+.kiro/
+
 # Claude Code — ignore local config, track committed skills
 .claude/settings.json
 .claude/settings.local.json
