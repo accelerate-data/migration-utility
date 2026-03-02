@@ -196,8 +196,8 @@ export default function ScopeStep() {
   }
 
   return (
-    <section className="space-y-4" data-testid="scope-select-step">
-      <div className="sticky top-0 z-10 bg-background pb-4">
+    <section className="flex h-full min-h-0 flex-col gap-4" data-testid="scope-select-step">
+      <div className="sticky top-0 z-20 bg-background pb-4">
         <header className="rounded-md border bg-card p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-1">
@@ -248,7 +248,7 @@ export default function ScopeStep() {
         </header>
       </div>
 
-      <div className="rounded-md border bg-card">
+      <div className="flex min-h-0 flex-1 flex-col rounded-md border bg-card">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b p-3">
           <div className="flex flex-wrap items-center gap-2">
             <Input
@@ -279,41 +279,57 @@ export default function ScopeStep() {
           </div>
         </div>
 
-        <div className="grid grid-cols-[36px_140px_minmax(0,1fr)_100px] gap-2 border-b px-3 py-2 text-xs font-medium text-muted-foreground">
-          <span />
-          <button type="button" className="text-left" onClick={() => updateSort('schema')}>
-            Schema {sortKey === 'schema' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
-          </button>
-          <button type="button" className="text-left" onClick={() => updateSort('table')}>
-            Table {sortKey === 'table' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
-          </button>
-          <span>Rows</span>
-        </div>
-
-        <div className="max-h-[520px] overflow-auto">
+        <div className="min-h-0 flex-1 overflow-auto">
           {loading && <p className="p-3 text-sm text-muted-foreground">Loading tables...</p>}
           {!loading && error && <p className="p-3 text-sm text-destructive">{error}</p>}
           {!loading && !error && visibleRows.length === 0 && (
             <p className="p-3 text-sm text-muted-foreground">No tables match current filters.</p>
           )}
-          {!loading &&
-            !error &&
-            visibleRows.map((row) => (
-              <label
-                key={keyForRow(row)}
-                className="grid grid-cols-[36px_140px_minmax(0,1fr)_100px] items-center gap-2 border-b px-3 py-2 text-sm"
-              >
-                <input
-                  type="checkbox"
-                  checked={row.isSelected}
-                  disabled={isLocked}
-                  onChange={(e) => void setSelected(row, e.target.checked)}
-                />
-                <span className="font-mono text-muted-foreground text-left justify-self-start truncate">{row.schemaName}</span>
-                <span className="font-mono text-left justify-self-start truncate">{row.tableName}</span>
-                <span className="font-mono text-muted-foreground">{formatRowCount(row.rowCount)}</span>
-              </label>
-            ))}
+          {!loading && !error && visibleRows.length > 0 && (
+            <table className="w-full table-fixed border-collapse">
+              <colgroup>
+                <col className="w-9" />
+                <col className="w-36" />
+                <col />
+                <col className="w-28" />
+              </colgroup>
+              <thead className="sticky top-0 z-10 bg-card">
+                <tr className="border-y text-xs font-medium text-muted-foreground">
+                  <th className="px-3 py-2 text-left" />
+                  <th className="px-3 py-2 text-left">
+                    <button type="button" className="text-left" onClick={() => updateSort('schema')}>
+                      Schema {sortKey === 'schema' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                    </button>
+                  </th>
+                  <th className="px-3 py-2 text-left">
+                    <button type="button" className="text-left" onClick={() => updateSort('table')}>
+                      Table {sortKey === 'table' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                    </button>
+                  </th>
+                  <th className="px-3 py-2 text-left">Rows</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleRows.map((row) => (
+                  <tr key={keyForRow(row)} className="border-b text-sm">
+                    <td className="px-3 py-2 align-middle">
+                      <input
+                        type="checkbox"
+                        checked={row.isSelected}
+                        disabled={isLocked}
+                        onChange={(e) => void setSelected(row, e.target.checked)}
+                      />
+                    </td>
+                    <td className="px-3 py-2 font-mono text-muted-foreground">{row.schemaName}</td>
+                    <td className="px-3 py-2 font-mono">
+                      <span className="block truncate">{row.tableName}</span>
+                    </td>
+                    <td className="px-3 py-2 font-mono text-muted-foreground">{formatRowCount(row.rowCount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </section>
