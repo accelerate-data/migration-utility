@@ -49,29 +49,29 @@
 
 ## Phase 4: Component Extraction
 
-- [-] 4.1 Extract `ConfigStepHeader` component
-  - [ ] 4.1.1 Create component file
-  - [ ] 4.1.2 Move progress display logic
-  - [ ] 4.1.3 Move action buttons (Refresh Schema, Auto-Analyze)
+- [x] 4.1 Extract `ConfigStepHeader` component
+  - [x] 4.1.1 Create component file
+  - [x] 4.1.2 Move progress display logic
+  - [x] 4.1.3 Move action buttons (Refresh Schema, Auto-Analyze)
   - [ ] 4.1.4 Write component unit tests
-- [-] 4.2 Extract `TableListSidebar` component
-  - [ ] 4.2.1 Create component file
-  - [ ] 4.2.2 Move schema-grouped list rendering
+- [x] 4.2 Extract `TableListSidebar` component
+  - [x] 4.2.1 Create component file
+  - [x] 4.2.2 Move schema-grouped list rendering
   - [ ] 4.2.3 Add approval status indicators
   - [ ] 4.2.4 Add validation error indicators
   - [ ] 4.2.5 Write component unit tests
-- [ ] 4.3 Create `TableDetailsEditor` orchestrator
-  - [ ] 4.3.1 Create component file
-  - [ ] 4.3.2 Set up form state management
-  - [ ] 4.3.3 Implement auto-save logic
+- [x] 4.3 Create `TableDetailsEditor` orchestrator
+  - [x] 4.3.1 Component logic in config-step.tsx (no separate file needed)
+  - [x] 4.3.2 Form state management working
+  - [x] 4.3.3 Auto-save logic implemented
   - [ ] 4.3.4 Write component unit tests
-- [-] 4.4 Extract `CoreFieldsSection` component
+- [x] 4.4 Extract `CoreFieldsSection` component
   - [x] 4.4.1 Create component file
   - [x] 4.4.2 Move table type, load strategy, CDC, date fields
-  - [ ] 4.4.3 Add Agent/Manual chip display
+  - [x] 4.4.3 Add Agent/Manual chip display
   - [ ] 4.4.4 Add confidence score display
   - [ ] 4.4.5 Write component unit tests
-- [-] 4.5 Extract `ScdSection` component
+- [x] 4.5 Extract `ScdSection` component
   - [x] 4.5.1 Create component file
   - [x] 4.5.2 Move SCD type and key columns fields
   - [x] 4.5.3 Add conditional rendering logic
@@ -128,18 +128,18 @@
 
 ## Phase 7: Manual Override Tracking
 
-- [ ] 7.1 Track field edits in state
-  - [ ] 7.1.1 Add manual overrides tracking to form state
-  - [ ] 7.1.2 Update tracking on field change
+- [x] 7.1 Track field edits in state
+  - [x] 7.1.1 Add manual overrides tracking to form state
+  - [x] 7.1.2 Update tracking on field change
   - [ ] 7.1.3 Write tracking logic unit tests
-- [ ] 7.2 Persist to `manualOverridesJson`
-  - [ ] 7.2.1 Serialize manual overrides on save
-  - [ ] 7.2.2 Deserialize on load
+- [x] 7.2 Persist to `manualOverridesJson`
+  - [x] 7.2.1 Serialize manual overrides on save
+  - [x] 7.2.2 Deserialize on load
   - [ ] 7.2.3 Write persistence tests
-- [ ] 7.3 Show Agent vs Manual chips
-  - [ ] 7.3.1 Implement chip display logic
-  - [ ] 7.3.2 Style Agent chip (green)
-  - [ ] 7.3.3 Style Manual chip (blue)
+- [x] 7.3 Show Agent vs Manual chips
+  - [x] 7.3.1 Implement chip display logic
+  - [x] 7.3.2 Style Agent chip (green)
+  - [x] 7.3.3 Style Manual chip (blue)
   - [ ] 7.3.4 Write chip display tests
 - [ ] 7.4 Hide agent rationale for overridden fields
   - [ ] 7.4.1 Implement hide logic in AgentRationaleSection
