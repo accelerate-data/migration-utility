@@ -674,6 +674,14 @@ fn fetch_sql_server_inventory(
             });
         }
 
+        log::info!(
+            "workspace_apply_and_clone: discovered {} schemas, {} tables, {} procedures, {} columns",
+            schemas.len(),
+            tables.len(),
+            procedures.len(),
+            columns.len()
+        );
+
         Ok(SqlServerInventory {
             container_id_local,
             schemas,

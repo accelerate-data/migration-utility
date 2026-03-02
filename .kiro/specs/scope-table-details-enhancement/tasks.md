@@ -112,17 +112,27 @@
 
 ## Phase 6: Validation Logic
 
+## Phase 6: Validation Logic
+
+**Prerequisites** (must be done first):
+- [ ] 6.0 Add column discovery during workspace apply
+  - [ ] 6.0.1 Create `discover_columns.sql` query for SQL Server
+  - [ ] 6.0.2 Add column extraction to workspace apply flow
+  - [ ] 6.0.3 Populate `sqlserver_object_columns` table during apply
+  - [ ] 6.0.4 Write column discovery tests
+
 - [ ] 6.1 Implement relationship validation
   - [ ] 6.1.1 Create validation utility file
   - [ ] 6.1.2 Check parent table exists in scope
-  - [ ] 6.1.3 Check data type compatibility (if schema available)
-  - [ ] 6.1.4 Return validation status
-  - [ ] 6.1.5 Write validation unit tests
+  - [ ] 6.1.3 Check child column exists in current table
+  - [ ] 6.1.4 Check parent column exists in parent table
+  - [ ] 6.1.5 Return validation status
+  - [ ] 6.1.6 Write validation unit tests
 - [ ] 6.2 Add validation UI feedback
   - [ ] 6.2.1 Display validation status chips
   - [ ] 6.2.2 Show error messages
   - [ ] 6.2.3 Highlight invalid fields
-- [ ] 6.3 Block approval on validation errors
+- [ ] 6.3 Block approval on validation errors (optional - user can approve anytime)
   - [ ] 6.3.1 Implement approval validation check
   - [ ] 6.3.2 Disable approve button when errors exist
   - [ ] 6.3.3 Show validation error summary
