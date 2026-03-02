@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest';
 import { spawn } from 'child_process';
 import { resolve, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync, mkdirSync, copyFileSync, readdirSync, readFileSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, copyFileSync, readdirSync, readFileSync, rmSync, statSync } from 'fs';
 import { tmpdir } from 'os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -204,6 +204,72 @@ describe.skipIf(!canRun)('sidecar integration', () => {
       expect(parsed).toHaveProperty('table_type');
       expect(parsed).toHaveProperty('load_strategy');
       expect(parsed).toHaveProperty('grain_columns');
+
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  }, 150_000);
+
+  it('debug: true + debugFile creates a debug log file', async () => {
+    const cwd = setupWorkspace();
+    const debugFilePath = join(cwd, 'agent-debug.log');
+
+    try {
+      const env = { ...process.env };
+      delete env['CLAUDECODE'];
+      const child = spawn('node', [sidecarEntry], { stdio: 'pipe', env });
+      const messages: Record<string, unknown>[] = [];
+
+      child.stdout.on('data', (data: Buffer) => {
+        for (const line of data.toString().split('\n').filter(Boolean)) {
+          try { messages.push(JSON.parse(line) as Record<string, unknown>); } catch { /* ignore */ }
+        }
+      });
+      child.stderr.on('data', (d: Buffer) => {
+        process.stderr.write(`[sidecar-stderr] ${d.toString()}`);
+      });
+
+      // Wait for sidecar_ready
+      await new Promise<void>((res, rej) => {
+        const t = setTimeout(() => rej(new Error('sidecar_ready timeout')), 15_000);
+        const iv = setInterval(() => {
+          if (messages.some((m) => m['type'] === 'sidecar_ready')) {
+            clearInterval(iv); clearTimeout(t); res();
+          }
+        }, 50);
+      });
+
+      const req = {
+        type: 'agent_request',
+        request_id: 'int-debug-test-1',
+        config: {
+          prompt: 'Say "hello" and nothing else.',
+          model: 'claude-haiku-4-5-20251001',
+          apiKey,
+          cwd,
+          debug: true,
+          debugFile: debugFilePath,
+        },
+      };
+
+      child.stdin.write(JSON.stringify(req) + '\n');
+
+      // Wait for request_complete
+      await new Promise<void>((res, rej) => {
+        const t = setTimeout(() => rej(new Error('request_complete timeout')), 120_000);
+        const iv = setInterval(() => {
+          if (messages.some((m) => m['type'] === 'request_complete')) {
+            clearInterval(iv); clearTimeout(t); res();
+          }
+        }, 100);
+      });
+
+      child.stdin.write('{"type":"shutdown"}\n');
+      await new Promise<void>((res) => child.on('exit', () => res()));
+
+      // Debug log file must have been created and contain data
+      expect(existsSync(debugFilePath)).toBe(true);
+      expect(statSync(debugFilePath).size).toBeGreaterThan(0);
 
     } finally {
       rmSync(cwd, { recursive: true, force: true });

@@ -3,8 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { MemoryRouter } from 'react-router';
 import ProfileTab from '../../routes/settings/profile-tab';
-import { getStoredLogLevel, storeLogLevel } from '@/lib/logger';
-import { mockInvokeCommands, resetTauriMocks } from '../../test/mocks/tauri';
+import { setFrontendLogLevel } from '@/lib/logger';
+import { mockInvoke, mockInvokeCommands, resetTauriMocks } from '../../test/mocks/tauri';
 
 vi.mock('next-themes', () => ({
   useTheme: () => ({ theme: 'system', setTheme: vi.fn() }),
@@ -27,12 +27,13 @@ async function renderTabReady() {
 }
 
 beforeEach(() => {
-  storeLogLevel('info');
+  setFrontendLogLevel('info');
   resetTauriMocks();
   mockInvokeCommands({
     get_log_file_path: '/tmp/migration-utility.log',
     get_data_dir_path: '/tmp/data',
     set_log_level: undefined,
+    get_settings: {},
   });
 });
 
@@ -45,19 +46,32 @@ describe('ProfileTab', () => {
     expect(screen.getByTestId('settings-profile-directories-card')).toBeInTheDocument();
   });
 
-  it('renders log level select with current level selected', async () => {
-    storeLogLevel('warn');
-    await renderTabReady();
-    const select = screen.getByTestId('select-log-level') as HTMLSelectElement;
-    expect(select.value).toBe('warn');
+  it('renders log level select with DB-loaded level', async () => {
+    mockInvokeCommands({
+      get_log_file_path: '/tmp/migration-utility.log',
+      get_data_dir_path: '/tmp/data',
+      set_log_level: undefined,
+      get_settings: { logLevel: 'warn' },
+    });
+    renderTab();
+    await waitFor(() => {
+      const select = screen.getByTestId('select-log-level') as HTMLSelectElement;
+      expect(select.value).toBe('warn');
+    });
   });
 
-  it('changing log level select updates stored level', async () => {
+  it('defaults to info when settings has no logLevel', async () => {
+    await renderTabReady();
+    const select = screen.getByTestId('select-log-level') as HTMLSelectElement;
+    expect(select.value).toBe('info');
+  });
+
+  it('changing log level calls set_log_level command', async () => {
     const user = userEvent.setup();
     await renderTabReady();
     const select = screen.getByTestId('select-log-level');
     await user.selectOptions(select, 'debug');
-    expect(getStoredLogLevel()).toBe('debug');
+    expect(mockInvoke).toHaveBeenCalledWith('set_log_level', { level: 'debug' });
   });
 
   it('does not render fire test logs button', async () => {

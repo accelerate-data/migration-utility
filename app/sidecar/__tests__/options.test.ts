@@ -57,4 +57,33 @@ describe('buildQueryOptions', () => {
     const options = buildQueryOptions(makeConfig(), new AbortController());
     expect(options.permissionMode).toBe('bypassPermissions');
   });
+
+  it('passes debug flag through when set', () => {
+    const options = buildQueryOptions(makeConfig({ debug: true }), new AbortController());
+    expect(options).toHaveProperty('debug', true);
+  });
+
+  it('omits debug when not set', () => {
+    const options = buildQueryOptions(makeConfig(), new AbortController());
+    expect(options).not.toHaveProperty('debug');
+  });
+
+  it('passes debugFile through when set', () => {
+    const options = buildQueryOptions(makeConfig({ debugFile: '/tmp/agent-debug.log' }), new AbortController());
+    expect(options).toHaveProperty('debugFile', '/tmp/agent-debug.log');
+  });
+
+  it('omits debugFile when not set', () => {
+    const options = buildQueryOptions(makeConfig(), new AbortController());
+    expect(options).not.toHaveProperty('debugFile');
+  });
+
+  it('passes both debug and debugFile together', () => {
+    const options = buildQueryOptions(
+      makeConfig({ debug: true, debugFile: '/tmp/agent-debug.log' }),
+      new AbortController(),
+    );
+    expect(options).toHaveProperty('debug', true);
+    expect(options).toHaveProperty('debugFile', '/tmp/agent-debug.log');
+  });
 });

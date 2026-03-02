@@ -26,9 +26,14 @@ pub fn run() {
                 e
             })?;
             // Restore persisted log level before moving conn into DbState.
-            if let Ok(settings) = db::read_settings(&conn) {
-                if let Some(ref level) = settings.log_level {
-                    logging::set_log_level(level);
+            match db::read_settings(&conn) {
+                Ok(settings) => {
+                    if let Some(ref level) = settings.log_level {
+                        logging::set_log_level(level);
+                    }
+                }
+                Err(e) => {
+                    log::warn!("startup: failed to read settings for log level restore: {}", e);
                 }
             }
             app.manage(db::DbState(Mutex::new(conn)));

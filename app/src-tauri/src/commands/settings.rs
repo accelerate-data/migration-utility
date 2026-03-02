@@ -23,10 +23,19 @@ pub fn save_anthropic_api_key(
         log::error!("[save_anthropic_api_key] Failed to acquire DB lock: {}", e);
         e.to_string()
     })?;
-    let mut settings = crate::db::read_settings(&conn)?;
+    let mut settings = crate::db::read_settings(&conn).map_err(|e| {
+        log::error!("[save_anthropic_api_key] read_settings failed: {}", e);
+        e
+    })?;
     settings.anthropic_api_key = api_key;
-    crate::db::write_settings(&conn, &settings)?;
-    let _ = crate::db::reconcile_and_persist_app_phase(&conn)?;
+    crate::db::write_settings(&conn, &settings).map_err(|e| {
+        log::error!("[save_anthropic_api_key] write_settings failed: {}", e);
+        e
+    })?;
+    let _ = crate::db::reconcile_and_persist_app_phase(&conn).map_err(|e| {
+        log::error!("[save_anthropic_api_key] reconcile_app_phase failed: {}", e);
+        e
+    })?;
     Ok(())
 }
 
@@ -110,11 +119,18 @@ pub async fn list_models(api_key: String) -> Result<Vec<ModelInfo>, String> {
         .header("anthropic-version", "2023-06-01")
         .send()
         .await
-        .map_err(|e| format!("Request failed: {e}"))?;
+        .map_err(|e| {
+            log::error!("[list_models] request failed: {}", e);
+            format!("Request failed: {e}")
+        })?;
     if !resp.status().is_success() {
+        log::error!("[list_models] API error: {}", resp.status());
         return Err(format!("API error: {}", resp.status()));
     }
-    let body: ModelsApiResponse = resp.json().await.map_err(|e| format!("Parse error: {e}"))?;
+    let body: ModelsApiResponse = resp.json().await.map_err(|e| {
+        log::error!("[list_models] parse error: {}", e);
+        format!("Parse error: {e}")
+    })?;
     let models = body
         .data
         .into_iter()
@@ -208,5 +224,17 @@ mod tests {
         let read = db::read_settings(&conn).unwrap();
         assert_eq!(read.preferred_model.as_deref(), Some("claude-haiku-4-5-20251001"));
         assert_eq!(read.effort.as_deref(), Some("low"));
+    }
+
+    #[test]
+    fn log_level_roundtrip_persists_and_deserializes() {
+        let conn = db::open_in_memory().unwrap();
+        let settings = AppSettings {
+            log_level: Some("debug".to_string()),
+            ..AppSettings::default()
+        };
+        db::write_settings(&conn, &settings).unwrap();
+        let read = db::read_settings(&conn).unwrap();
+        assert_eq!(read.log_level.as_deref(), Some("debug"));
     }
 }

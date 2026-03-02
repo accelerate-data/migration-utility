@@ -1,27 +1,47 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { LOG_LEVEL_KEY, getStoredLogLevel, logger, storeLogLevel } from '@/lib/logger';
+import { setFrontendLogLevel, logger } from '@/lib/logger';
 
 describe('logger', () => {
   beforeEach(() => {
-    localStorage.clear();
+    // Reset to default before each test (module-level state)
+    setFrontendLogLevel('info');
   });
 
-  it('defaults to info when storage is empty', () => {
-    expect(getStoredLogLevel()).toBe('info');
+  it('defaults to info level', () => {
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+
+    logger.info('visible');
+    logger.debug('hidden');
+
+    expect(infoSpy).toHaveBeenCalledTimes(1);
+    expect(debugSpy).not.toHaveBeenCalled();
+
+    infoSpy.mockRestore();
+    debugSpy.mockRestore();
   });
 
-  it('falls back to info for invalid stored level', () => {
-    localStorage.setItem(LOG_LEVEL_KEY, 'invalid');
-    expect(getStoredLogLevel()).toBe('info');
-  });
+  it('setFrontendLogLevel changes active level', () => {
+    setFrontendLogLevel('warn');
+    const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-  it('persists and reads selected log level', () => {
-    storeLogLevel('warn');
-    expect(getStoredLogLevel()).toBe('warn');
+    logger.debug('hidden debug');
+    logger.info('hidden info');
+    logger.warn('visible warn');
+
+    expect(debugSpy).not.toHaveBeenCalled();
+    expect(infoSpy).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+
+    debugSpy.mockRestore();
+    infoSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 
   it('filters debug/info when level is warn', () => {
-    storeLogLevel('warn');
+    setFrontendLogLevel('warn');
     const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
     const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});

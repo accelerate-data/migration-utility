@@ -5,8 +5,8 @@ use crate::db::DbState;
 /// Set the global log level for Rust backend and also persist it to AppSettings.
 #[tauri::command]
 pub fn set_log_level(state: State<'_, DbState>, level: String) -> Result<(), String> {
-    log::info!("[set_log_level] level={}", level);
     crate::logging::set_log_level(&level);
+    log::info!("[set_log_level] level={}", level);
     let conn = state.0.lock().map_err(|e| e.to_string())?;
     let mut settings = crate::db::read_settings(&conn)?;
     settings.log_level = Some(level);
@@ -35,14 +35,21 @@ pub fn get_data_dir_path(app: AppHandle) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+
+    // log::max_level() is a global AtomicUsize — serialize tests that mutate it.
+    static LOG_LEVEL_LOCK: Mutex<()> = Mutex::new(());
+
     #[test]
     fn set_log_level_sets_debug() {
+        let _g = LOG_LEVEL_LOCK.lock().unwrap();
         crate::logging::set_log_level("debug");
         assert_eq!(log::max_level(), log::LevelFilter::Debug);
     }
 
     #[test]
     fn set_log_level_defaults_to_info_for_unknown() {
+        let _g = LOG_LEVEL_LOCK.lock().unwrap();
         crate::logging::set_log_level("not-a-level");
         assert_eq!(log::max_level(), log::LevelFilter::Info);
     }
