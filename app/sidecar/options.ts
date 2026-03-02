@@ -40,12 +40,10 @@ export function buildQueryOptions(
     // user's MCP servers anyway (those are CLI-process-only).
     settingSources: ['project' as const],
     cwd: config.cwd,
-    // For named agents the SDK applies the agent's front-matter `tools:` declaration
-    // automatically (via the `agent:` option). Passing a programmatic `tools` override
-    // alongside `agent:` disrupts the agent's model resolution, causing the SDK to fall
-    // back to the default Sonnet model instead of the front-matter model.
-    // Only apply tool restriction programmatically for non-agent (model-only) runs.
-    ...(!config.agentName && config.allowedTools ? { tools: config.allowedTools } : {}),
+    // Always pass the tool restriction when set. For agent runs, Rust extracts
+    // allowedTools from the agent's front-matter and includes it in the payload;
+    // forwarding it here enforces the front-matter tool policy at the SDK level.
+    ...(config.allowedTools ? { tools: config.allowedTools } : {}),
     // Suppress all MCP server loading. The agent cwd may have project settings
     // that reference user claude.ai MCP integrations (Gmail, Slack, Linear, etc.)
     // which are irrelevant to analysis agents and inflate the tool list.
