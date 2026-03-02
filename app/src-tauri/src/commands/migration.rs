@@ -22,12 +22,12 @@ const TABLE_DETAILS_AGENT_NAME: &str = "scope-table-details-analyzer";
 struct AgentTableConfigPayload {
     table_type: Option<String>,
     load_strategy: Option<String>,
-    grain_columns: Option<String>,
-    relationships_json: Option<String>,
+    grain_columns: Option<Value>,
+    relationships_json: Option<Value>,
     incremental_column: Option<String>,
     date_column: Option<String>,
     snapshot_strategy: Option<String>,
-    pii_columns: Option<String>,
+    pii_columns: Option<Value>,
     #[serde(default)]
     analysis_metadata: Option<Value>,
 }
@@ -347,10 +347,14 @@ pub fn migration_get_table_config(
             
             let mut stmt = conn
                 .prepare(
-                    "SELECT column_name, data_type, is_nullable
-                     FROM sqlserver_object_columns
-                     WHERE schema_name = ?1 AND table_name = ?2
-                     ORDER BY column_id"
+                    "SELECT c.column_name, c.data_type, c.is_nullable
+                     FROM sqlserver_object_columns c
+                     INNER JOIN data_objects o ON o.id = c.data_object_id
+                     INNER JOIN namespaces n ON n.id = o.namespace_id
+                     WHERE LOWER(n.namespace_name) = LOWER(?1) 
+                       AND LOWER(o.object_name) = LOWER(?2)
+                       AND o.object_type = 'table'
+                     ORDER BY c.column_id"
                 )
                 .map_err(|e| {
                     log::error!("migration_get_table_config: failed to prepare column query: {e}");
@@ -616,14 +620,14 @@ pub async fn migration_analyze_table_details(
         selected_table_id: selected_table_id.clone(),
         table_type: payload.table_type,
         load_strategy: payload.load_strategy,
-        grain_columns: payload.grain_columns,
-        relationships_json: payload.relationships_json,
+        grain_columns: payload.grain_columns.as_ref().and_then(|v| serde_json::to_string(v).ok()),
+        relationships_json: payload.relationships_json.as_ref().and_then(|v| serde_json::to_string(v).ok()),
         incremental_column: payload.incremental_column,
         date_column: payload.date_column,
         snapshot_strategy: payload
             .snapshot_strategy
             .unwrap_or_else(|| "sample_1day".to_string()),
-        pii_columns: payload.pii_columns,
+        pii_columns: payload.pii_columns.as_ref().and_then(|v| serde_json::to_string(v).ok()),
         confirmed_at: Some(Utc::now().to_rfc3339()),
         analysis_metadata_json: payload.analysis_metadata.as_ref().and_then(|v| serde_json::to_string(v).ok()),
         approval_status: Some("pending".to_string()),
@@ -1770,5 +1774,161 @@ mod tests {
         
         // Should return 0 rows affected
         assert_eq!(rows, 0);
+    }
+
+    // ── Relationship validation unit tests ──────────────────────────────────
+
+    /// Sets up selected_tables + canonical source model fixtures for validation tests.
+    /// Returns (workspace_id, current_selected_table_id).
+    fn setup_validation_fixtures(conn: &rusqlite::Connection) -> (String, String) {
+        let (ws_id, item_id) = setup_workspace_and_item(conn);
+
+        // Current table: dbo.fact_orders
+        let st_id = format!("st:{}:{}:dbo:fact_orders", ws_id, item_id);
+        conn.execute(
+            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![st_id, ws_id, item_id, "dbo", "fact_orders"],
+        ).unwrap();
+
+        // Parent table: dbo.dim_customer (also in scope)
+        let parent_st_id = format!("st:{}:{}:dbo:dim_customer", ws_id, item_id);
+        conn.execute(
+            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![parent_st_id, ws_id, item_id, "dbo", "dim_customer"],
+        ).unwrap();
+
+        // Build canonical source model: source → container → namespace → data_objects → columns
+        let source_id = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO sources(id, workspace_id, source_type, external_source_id) VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![source_id, ws_id, "sqlserver", "ext-src-1"],
+        ).unwrap();
+
+        let container_id = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO containers(id, source_id, container_type, external_container_id, container_name) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![container_id, source_id, "database", "ext-db-1", "TestDB"],
+        ).unwrap();
+
+        let ns_id = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO namespaces(id, container_id, namespace_name) VALUES (?1, ?2, ?3)",
+            rusqlite::params![ns_id, container_id, "dbo"],
+        ).unwrap();
+
+        // fact_orders with customer_id column
+        let obj_orders_id = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO data_objects(id, namespace_id, object_name, object_type) VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![obj_orders_id, ns_id, "fact_orders", "table"],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO sqlserver_object_columns(id, data_object_id, column_name, data_type, column_id) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![uuid::Uuid::new_v4().to_string(), obj_orders_id, "customer_id", "int", 1],
+        ).unwrap();
+
+        // dim_customer with customer_id column
+        let obj_customer_id = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO data_objects(id, namespace_id, object_name, object_type) VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![obj_customer_id, ns_id, "dim_customer", "table"],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO sqlserver_object_columns(id, data_object_id, column_name, data_type, column_id) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![uuid::Uuid::new_v4().to_string(), obj_customer_id, "customer_id", "int", 1],
+        ).unwrap();
+
+        (ws_id, st_id)
+    }
+
+    #[test]
+    fn validate_relationship_returns_valid_when_all_checks_pass() {
+        let conn = db::open_in_memory().unwrap();
+        let (ws_id, _st_id) = setup_validation_fixtures(&conn);
+
+        let parent_exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM selected_tables WHERE workspace_id=?1 AND LOWER(schema_name)=LOWER(?2) AND LOWER(table_name)=LOWER(?3))",
+            rusqlite::params![ws_id, "dbo", "dim_customer"],
+            |r| r.get(0),
+        ).unwrap();
+
+        let child_col_exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlserver_object_columns soc INNER JOIN data_objects do ON do.id=soc.data_object_id INNER JOIN namespaces n ON n.id=do.namespace_id WHERE LOWER(n.namespace_name)=LOWER(?1) AND LOWER(do.object_name)=LOWER(?2) AND LOWER(soc.column_name)=LOWER(?3))",
+            rusqlite::params!["dbo", "fact_orders", "customer_id"],
+            |r| r.get(0),
+        ).unwrap();
+
+        let parent_col_exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlserver_object_columns soc INNER JOIN data_objects do ON do.id=soc.data_object_id INNER JOIN namespaces n ON n.id=do.namespace_id WHERE LOWER(n.namespace_name)=LOWER(?1) AND LOWER(do.object_name)=LOWER(?2) AND LOWER(soc.column_name)=LOWER(?3))",
+            rusqlite::params!["dbo", "dim_customer", "customer_id"],
+            |r| r.get(0),
+        ).unwrap();
+
+        assert!(parent_exists, "parent table should be in scope");
+        assert!(child_col_exists, "child column should exist");
+        assert!(parent_col_exists, "parent column should exist");
+    }
+
+    #[test]
+    fn validate_relationship_detects_missing_parent_table() {
+        let conn = db::open_in_memory().unwrap();
+        let (ws_id, _st_id) = setup_validation_fixtures(&conn);
+
+        let parent_exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM selected_tables WHERE workspace_id=?1 AND LOWER(schema_name)=LOWER(?2) AND LOWER(table_name)=LOWER(?3))",
+            rusqlite::params![ws_id, "dbo", "nonexistent_table"],
+            |r| r.get(0),
+        ).unwrap();
+
+        assert!(!parent_exists, "nonexistent parent table should not be found");
+    }
+
+    #[test]
+    fn validate_relationship_detects_missing_child_column() {
+        let conn = db::open_in_memory().unwrap();
+        let (_ws_id, _st_id) = setup_validation_fixtures(&conn);
+
+        let child_col_exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlserver_object_columns soc INNER JOIN data_objects do ON do.id=soc.data_object_id INNER JOIN namespaces n ON n.id=do.namespace_id WHERE LOWER(n.namespace_name)=LOWER(?1) AND LOWER(do.object_name)=LOWER(?2) AND LOWER(soc.column_name)=LOWER(?3))",
+            rusqlite::params!["dbo", "fact_orders", "nonexistent_column"],
+            |r| r.get(0),
+        ).unwrap();
+
+        assert!(!child_col_exists, "nonexistent child column should not be found");
+    }
+
+    #[test]
+    fn validate_relationship_detects_missing_parent_column() {
+        let conn = db::open_in_memory().unwrap();
+        let (_ws_id, _st_id) = setup_validation_fixtures(&conn);
+
+        let parent_col_exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlserver_object_columns soc INNER JOIN data_objects do ON do.id=soc.data_object_id INNER JOIN namespaces n ON n.id=do.namespace_id WHERE LOWER(n.namespace_name)=LOWER(?1) AND LOWER(do.object_name)=LOWER(?2) AND LOWER(soc.column_name)=LOWER(?3))",
+            rusqlite::params!["dbo", "dim_customer", "nonexistent_column"],
+            |r| r.get(0),
+        ).unwrap();
+
+        assert!(!parent_col_exists, "nonexistent parent column should not be found");
+    }
+
+    #[test]
+    fn validate_relationship_is_case_insensitive() {
+        let conn = db::open_in_memory().unwrap();
+        let (ws_id, _st_id) = setup_validation_fixtures(&conn);
+
+        let parent_exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM selected_tables WHERE workspace_id=?1 AND LOWER(schema_name)=LOWER(?2) AND LOWER(table_name)=LOWER(?3))",
+            rusqlite::params![ws_id, "DBO", "DIM_CUSTOMER"],
+            |r| r.get(0),
+        ).unwrap();
+
+        let child_col_exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlserver_object_columns soc INNER JOIN data_objects do ON do.id=soc.data_object_id INNER JOIN namespaces n ON n.id=do.namespace_id WHERE LOWER(n.namespace_name)=LOWER(?1) AND LOWER(do.object_name)=LOWER(?2) AND LOWER(soc.column_name)=LOWER(?3))",
+            rusqlite::params!["DBO", "FACT_ORDERS", "CUSTOMER_ID"],
+            |r| r.get(0),
+        ).unwrap();
+
+        assert!(parent_exists, "case-insensitive parent table lookup should succeed");
+        assert!(child_col_exists, "case-insensitive column lookup should succeed");
     }
 }

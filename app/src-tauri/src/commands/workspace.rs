@@ -255,6 +255,7 @@ struct SqlServerInventory {
     tables: Vec<WarehouseTable>,
     procedures: Vec<WarehouseProcedure>,
     columns: Vec<TableColumn>,
+    indexes_constraints: Vec<IndexConstraint>,
 }
 
 #[derive(Debug, Clone)]
@@ -266,6 +267,19 @@ struct TableColumn {
     column_id: i32,
     data_type: String,
     is_nullable: bool,
+}
+
+#[derive(Debug, Clone)]
+struct IndexConstraint {
+    schema_name: String,
+    table_name: String,
+    object_id_local: i64,
+    index_name: String,
+    index_type: String,
+    is_unique: bool,
+    is_primary_key: bool,
+    is_unique_constraint: bool,
+    columns_json: Option<String>,
 }
 
 fn emit_apply_progress(
@@ -690,12 +704,100 @@ fn fetch_sql_server_inventory(
             columns.len()
         );
 
+        emit_apply_progress(
+            app,
+            job_id,
+            "importing_indexes",
+            95,
+            "Importing indexes and constraints...",
+        );
+        let indexes_query = resolve_source_query(&cfg.source_type, SourceQuery::DiscoverIndexesConstraints)?;
+        if should_log_source_sql() {
+            log::debug!(
+                "workspace_apply_and_clone: executing query={} source_type={} sql={}",
+                SourceQuery::DiscoverIndexesConstraints.name(),
+                cfg.source_type,
+                indexes_query.trim()
+            );
+        }
+        let index_rows = client
+            .simple_query(indexes_query)
+            .await
+            .map_err(|e| {
+                log::error!("workspace_apply_and_clone: index query failed: {e}");
+                CommandError::Io(format!("Index discovery failed: {e}"))
+            })?
+            .into_first_result()
+            .await
+            .map_err(|e| {
+                log::error!("workspace_apply_and_clone: index result parse failed: {e}");
+                CommandError::Io(format!("Index discovery failed: {e}"))
+            })?;
+
+        let mut indexes_constraints: Vec<IndexConstraint> = Vec::with_capacity(index_rows.len());
+        for row in index_rows {
+            let schema_name = row
+                .get::<&str, _>(0)
+                .ok_or_else(|| {
+                    CommandError::Io("Index discovery returned invalid schema".to_string())
+                })?
+                .to_string();
+            let table_name = row
+                .get::<&str, _>(1)
+                .ok_or_else(|| {
+                    CommandError::Io("Index discovery returned invalid table".to_string())
+                })?
+                .to_string();
+            let object_id_local = row.get::<i64, _>(2).ok_or_else(|| {
+                CommandError::Io("Index discovery returned invalid object_id".to_string())
+            })?;
+            let index_name = row
+                .get::<&str, _>(3)
+                .ok_or_else(|| {
+                    CommandError::Io("Index discovery returned invalid index name".to_string())
+                })?
+                .to_string();
+            let index_type = row
+                .get::<&str, _>(4)
+                .ok_or_else(|| {
+                    CommandError::Io("Index discovery returned invalid index type".to_string())
+                })?
+                .to_string();
+            let is_unique = row.get::<bool, _>(5).ok_or_else(|| {
+                CommandError::Io("Index discovery returned invalid is_unique".to_string())
+            })?;
+            let is_primary_key = row.get::<bool, _>(6).ok_or_else(|| {
+                CommandError::Io("Index discovery returned invalid is_primary_key".to_string())
+            })?;
+            let is_unique_constraint = row.get::<bool, _>(7).ok_or_else(|| {
+                CommandError::Io("Index discovery returned invalid is_unique_constraint".to_string())
+            })?;
+            let columns_json = row.get::<&str, _>(8).map(|v| v.to_string());
+
+            indexes_constraints.push(IndexConstraint {
+                schema_name,
+                table_name,
+                object_id_local,
+                index_name,
+                index_type,
+                is_unique,
+                is_primary_key,
+                is_unique_constraint,
+                columns_json,
+            });
+        }
         log::info!(
-            "workspace_apply_and_clone: discovered {} schemas, {} tables, {} procedures, {} columns",
+            "workspace_apply_and_clone: discovered {} indexes/constraints",
+            indexes_constraints.len()
+        );
+
+        log::info!(
+            "workspace_apply_and_clone: discovered {} schemas, {} tables, {} procedures, {} columns, {} indexes/constraints",
             schemas.len(),
             tables.len(),
             procedures.len(),
-            columns.len()
+            columns.len(),
+            indexes_constraints.len()
         );
 
         Ok(SqlServerInventory {
@@ -704,6 +806,7 @@ fn fetch_sql_server_inventory(
             tables,
             procedures,
             columns,
+            indexes_constraints,
         })
     })
 }
@@ -939,7 +1042,7 @@ fn persist_sql_server_inventory(
     })?;
 
     let total_objects =
-        inventory.schemas.len() + inventory.tables.len() + inventory.procedures.len() + inventory.columns.len();
+        inventory.schemas.len() + inventory.tables.len() + inventory.procedures.len() + inventory.columns.len() + inventory.indexes_constraints.len();
     let mut imported_objects = 0usize;
 
     for schema in &inventory.schemas {
@@ -1153,6 +1256,47 @@ fn persist_sql_server_canonical_model(
                 column.column_id,
                 column.data_type,
                 if column.is_nullable { 1 } else { 0 }
+            ],
+        )
+        .map_err(CommandError::from)?;
+    }
+
+    for index_constraint in &inventory.indexes_constraints {
+        let object_id = format!(
+            "object-{workspace_id}-table-{}-{}",
+            index_constraint.schema_name.to_lowercase(),
+            index_constraint.table_name.to_lowercase()
+        );
+        let constraint_index_id = format!(
+            "constraint-index-{workspace_id}-{}-{}-{}",
+            index_constraint.schema_name.to_lowercase(),
+            index_constraint.table_name.to_lowercase(),
+            index_constraint.index_name.to_lowercase()
+        );
+        
+        // Determine constraint type based on flags
+        let constraint_type = if index_constraint.is_primary_key {
+            "PRIMARY KEY"
+        } else if index_constraint.is_unique_constraint {
+            "UNIQUE"
+        } else {
+            "INDEX"
+        };
+
+        tx.execute(
+            "INSERT INTO sqlserver_constraints_indexes(id, data_object_id, constraint_name, index_name, constraint_type, definition_json)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                constraint_index_id,
+                object_id,
+                if index_constraint.is_primary_key || index_constraint.is_unique_constraint {
+                    Some(index_constraint.index_name.as_str())
+                } else {
+                    None::<&str>
+                },
+                Some(index_constraint.index_name.as_str()),
+                constraint_type,
+                index_constraint.columns_json.as_deref()
             ],
         )
         .map_err(CommandError::from)?;
@@ -2143,6 +2287,7 @@ mod tests {
                 sql_body: Some("SELECT 1".to_string()),
             }],
             columns: vec![],
+            indexes_constraints: vec![],
         };
         let cfg = test_source_cfg("AdventureWorks");
         persist_sql_server_inventory(&conn, "ws-1", &cfg, &first, None, None).unwrap();
@@ -2169,6 +2314,7 @@ mod tests {
             tables: vec![],
             procedures: vec![],
             columns: vec![],
+            indexes_constraints: vec![],
         };
         persist_sql_server_inventory(&conn, "ws-1", &cfg, &second, None, None).unwrap();
 
@@ -2239,6 +2385,7 @@ mod tests {
             ],
             procedures: vec![],
             columns: vec![],
+            indexes_constraints: vec![],
         };
         let cfg = test_source_cfg("AdventureWorks");
         persist_sql_server_inventory(&conn, "ws-1", &cfg, &first, None, None).unwrap();
@@ -2301,6 +2448,7 @@ mod tests {
             tables: vec![],
             procedures: vec![],
             columns: vec![],
+            indexes_constraints: vec![],
         };
 
         let err = persist_sql_server_inventory(&conn, "ws-1", &cfg, &inventory, None, None)
@@ -2654,6 +2802,7 @@ mod tests {
             tables,
             procedures,
             columns: vec![],
+            indexes_constraints: vec![],
         };
         persist_sql_server_inventory(&conn, "ws-live", &cfg, &inventory, None, None).unwrap();
 

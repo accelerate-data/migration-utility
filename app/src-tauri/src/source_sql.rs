@@ -9,6 +9,7 @@ pub enum SourceQuery {
     DiscoverTables,
     DiscoverColumns,
     DiscoverProcedures,
+    DiscoverIndexesConstraints,
 }
 
 impl SourceQuery {
@@ -20,6 +21,7 @@ impl SourceQuery {
             SourceQuery::DiscoverTables => "discover_tables",
             SourceQuery::DiscoverColumns => "discover_columns",
             SourceQuery::DiscoverProcedures => "discover_procedures",
+            SourceQuery::DiscoverIndexesConstraints => "discover_indexes_constraints",
         }
     }
 }
@@ -49,6 +51,9 @@ pub fn resolve_source_query(
         }
         ("sql_server", SourceQuery::DiscoverProcedures) => Ok(include_str!(
             "../sql/source/sql_server/discover_procedures.sql"
+        )),
+        ("sql_server", SourceQuery::DiscoverIndexesConstraints) => Ok(include_str!(
+            "../sql/source/sql_server/discover_indexes_constraints.sql"
         )),
         _ => Err(CommandError::Io(format!(
             "Unsupported source query lookup: source_type={source_type}, query={}",
