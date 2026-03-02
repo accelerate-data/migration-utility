@@ -169,12 +169,12 @@ export interface TableConfigPayload {
   selectedTableId: string;
   tableType: string | null;
   loadStrategy: string | null;
-  grainColumns: string | null;
-  relationshipsJson: string | null;
+  grainColumns: string[] | null;
+  relationshipsJson: Relationship[] | null;
   incrementalColumn: string | null;
   dateColumn: string | null;
   snapshotStrategy: string;
-  piiColumns: string | null;
+  piiColumns: string[] | null;
   confirmedAt: string | null;
   analysisMetadataJson: string | null;
   approvalStatus: string | null;
@@ -195,10 +195,16 @@ export interface AnalysisMetadata {
   suggestedValues?: Record<string, unknown>;
 }
 
+export interface RelationshipMapping {
+  source: string;
+  references: string;
+}
+
 export interface Relationship {
-  targetTable: string;
-  joinColumns: string[];
-  relationshipType: string;
+  target_table: string;
+  mappings: RelationshipMapping[];
+  confidence: number | null;
+  reasoning: string | null;
 }
 
 export interface RelationshipValidationResult {

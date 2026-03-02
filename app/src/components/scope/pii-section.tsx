@@ -2,24 +2,17 @@ import { MultiSelectColumns } from './multi-select-columns';
 import type { ColumnMetadata } from '@/lib/types';
 
 interface PiiSectionProps {
-  piiColumns: string | null;
+  piiColumns: string[] | null;
   disabled: boolean;
   availableColumns?: ColumnMetadata[];
-  onUpdate: (value: string | null) => void;
+  onUpdate: (value: string[] | null) => void;
 }
 
 export function PiiSection({ piiColumns, disabled, availableColumns = [], onUpdate }: PiiSectionProps) {
-  let selectedColumns: string[] = [];
-  try {
-    if (piiColumns) {
-      selectedColumns = JSON.parse(piiColumns);
-    }
-  } catch {
-    // Invalid JSON, show raw input
-  }
+  const selectedColumns = piiColumns ?? [];
 
   function handleUpdate(columns: string[]) {
-    onUpdate(columns.length > 0 ? JSON.stringify(columns) : null);
+    onUpdate(columns.length > 0 ? columns : null);
   }
 
   return (

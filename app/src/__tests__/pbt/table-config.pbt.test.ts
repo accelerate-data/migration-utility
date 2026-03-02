@@ -5,12 +5,16 @@
  */
 import { describe, it, expect } from 'vitest';
 import * as fc from 'fast-check';
-import type { TableConfigPayload, RelationshipValidationResult } from '@/lib/types';
+import type { TableConfigPayload, Relationship, RelationshipValidationResult } from '@/lib/types';
 
 // ── Pure logic extracted from config-step.tsx ────────────────────────────────
 
 function isFilled(value: string | null): boolean {
   return value !== null && value.trim().length > 0;
+}
+
+function isFilledArray(value: unknown[] | null | undefined): boolean {
+  return value != null && value.length > 0;
 }
 
 function isReady(config: TableConfigPayload | null | undefined): boolean {
@@ -20,9 +24,9 @@ function isReady(config: TableConfigPayload | null | undefined): boolean {
     isFilled(config.loadStrategy) &&
     isFilled(config.incrementalColumn) &&
     isFilled(config.dateColumn) &&
-    isFilled(config.grainColumns) &&
-    isFilled(config.relationshipsJson) &&
-    isFilled(config.piiColumns)
+    isFilledArray(config.grainColumns) &&
+    isFilledArray(config.relationshipsJson) &&
+    isFilledArray(config.piiColumns)
   );
 }
 
@@ -60,16 +64,23 @@ function deriveIsValid(result: Pick<RelationshipValidationResult, 'parentTableEx
 const nonEmptyString = fc.string({ minLength: 1 }).filter((s) => s.trim().length > 0);
 const nullableNonEmpty = fc.option(nonEmptyString, { nil: null });
 
+const relationshipArb: fc.Arbitrary<Relationship> = fc.constant({
+  target_table: 'dbo.t',
+  mappings: [{ source: 'a', references: 'b' }],
+  confidence: null,
+  reasoning: null,
+});
+
 const tableConfigArb: fc.Arbitrary<TableConfigPayload> = fc.record({
   selectedTableId: nonEmptyString,
   tableType: nullableNonEmpty,
   loadStrategy: nullableNonEmpty,
-  grainColumns: nullableNonEmpty,
-  relationshipsJson: nullableNonEmpty,
+  grainColumns: fc.option(fc.array(nonEmptyString, { minLength: 1 }), { nil: null }),
+  relationshipsJson: fc.option(fc.array(relationshipArb, { minLength: 1 }), { nil: null }),
   incrementalColumn: nullableNonEmpty,
   dateColumn: nullableNonEmpty,
   snapshotStrategy: fc.constantFrom('sample_1day', 'full_history', 'rolling_30d'),
-  piiColumns: nullableNonEmpty,
+  piiColumns: fc.option(fc.array(nonEmptyString, { minLength: 1 }), { nil: null }),
   confirmedAt: nullableNonEmpty,
   analysisMetadataJson: nullableNonEmpty,
   approvalStatus: fc.option(fc.constantFrom('pending', 'approved'), { nil: null }),
@@ -117,12 +128,12 @@ describe('PBT-1: approval state consistency', () => {
       selectedTableId: nonEmptyString,
       tableType: nonEmptyString,
       loadStrategy: nonEmptyString,
-      grainColumns: nonEmptyString,
-      relationshipsJson: nonEmptyString,
+      grainColumns: fc.array(nonEmptyString, { minLength: 1 }),
+      relationshipsJson: fc.array(relationshipArb, { minLength: 1 }),
       incrementalColumn: nonEmptyString,
       dateColumn: nonEmptyString,
       snapshotStrategy: fc.constant('sample_1day'),
-      piiColumns: nonEmptyString,
+      piiColumns: fc.array(nonEmptyString, { minLength: 1 }),
       confirmedAt: nonEmptyString,
       analysisMetadataJson: fc.constant(null),
       approvalStatus: fc.constant(null),

@@ -49,12 +49,12 @@ describe('ConfigStep', () => {
       selectedTableId: 'st:ws-1:wh-1:dbo:fact_sales',
       tableType: 'unknown',
       loadStrategy: 'incremental',
-      grainColumns: '[]',
-      relationshipsJson: '[]',
+      grainColumns: [],
+      relationshipsJson: [],
       incrementalColumn: '',
       dateColumn: '',
       snapshotStrategy: 'sample_1day',
-      piiColumns: '[]',
+      piiColumns: [],
       confirmedAt: null,
     });
     tauriMocks.migrationSaveTableConfig.mockResolvedValue(undefined);

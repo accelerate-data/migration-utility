@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { RelationshipsSection } from '@/components/scope/relationships-section';
-import type { ColumnMetadata } from '@/lib/types';
+import type { ColumnMetadata, Relationship } from '@/lib/types';
 
 // Mock the tauri command — validation is async and requires backend
 vi.mock('@/lib/tauri', () => ({
@@ -22,14 +22,14 @@ const availableColumns: ColumnMetadata[] = [
   { columnName: 'order_date', dataType: 'datetime', isNullable: true },
 ];
 
-const sampleRelationships = JSON.stringify([
+const sampleRelationships: Relationship[] = [
   {
-    child_column: 'customer_id',
-    parent_table: 'dbo.dim_customer',
-    parent_column: 'customer_id',
-    cardinality: 'many_to_one',
+    target_table: 'dbo.dim_customer',
+    mappings: [{ source: 'customer_id', references: 'customer_id' }],
+    confidence: 0.95,
+    reasoning: null,
   },
-]);
+];
 
 describe('RelationshipsSection', () => {
   const onUpdateGrain = vi.fn();
@@ -88,12 +88,11 @@ describe('RelationshipsSection', () => {
         onUpdateGrain={onUpdateGrain}
       />,
     );
-    expect(screen.getByText('Relationship 1')).toBeInTheDocument();
     expect(screen.getAllByText('customer_id').length).toBeGreaterThan(0);
     expect(screen.getByText('dbo.dim_customer')).toBeInTheDocument();
   });
 
-  it('displays cardinality with underscores replaced', () => {
+  it('renders mapping arrow between source and references columns', () => {
     render(
       <RelationshipsSection
         relationshipsJson={sampleRelationships}
@@ -105,14 +104,14 @@ describe('RelationshipsSection', () => {
         onUpdateGrain={onUpdateGrain}
       />,
     );
-    expect(screen.getByText('many to one')).toBeInTheDocument();
+    expect(screen.getByText('→')).toBeInTheDocument();
   });
 
   it('renders pre-filled grain columns as pills', () => {
     render(
       <RelationshipsSection
         relationshipsJson={null}
-        grainColumns="customer_id,order_date"
+        grainColumns={['customer_id', 'order_date']}
         disabled={false}
         availableColumns={availableColumns}
         onUpdateGrain={onUpdateGrain}
@@ -122,17 +121,16 @@ describe('RelationshipsSection', () => {
     expect(screen.getByText('order_date')).toBeInTheDocument();
   });
 
-  it('handles invalid JSON gracefully', () => {
-    const { container } = render(
+  it('shows empty state when relationships is an empty array', () => {
+    render(
       <RelationshipsSection
-        relationshipsJson="not-json"
+        relationshipsJson={[]}
         grainColumns={null}
         disabled={false}
         availableColumns={availableColumns}
         onUpdateGrain={onUpdateGrain}
       />,
     );
-    expect(container).not.toBeEmptyDOMElement();
     expect(screen.getByText('No relationships detected by agent analysis.')).toBeInTheDocument();
   });
 

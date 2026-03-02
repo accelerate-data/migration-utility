@@ -124,9 +124,9 @@ describe('Scope UI mockup contract', () => {
       snapshotStrategy: 'sample_1day',
       incrementalColumn: '',
       dateColumn: '',
-      grainColumns: '[]',
-      relationshipsJson: '[]',
-      piiColumns: '[]',
+      grainColumns: [],
+      relationshipsJson: [],
+      piiColumns: [],
       confirmedAt: null,
     });
     tauriMocks.migrationSaveTableConfig.mockResolvedValue(undefined);

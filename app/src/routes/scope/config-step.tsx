@@ -57,6 +57,10 @@ function isFilled(value: string | null): boolean {
   return value !== null && value.trim().length > 0;
 }
 
+function isFilledArray(value: unknown[] | null | undefined): boolean {
+  return value != null && value.length > 0;
+}
+
 function isReady(config: TableConfigPayload | null | undefined): boolean {
   if (!config) return false;
   return (
@@ -64,9 +68,9 @@ function isReady(config: TableConfigPayload | null | undefined): boolean {
     isFilled(config.loadStrategy) &&
     isFilled(config.incrementalColumn) &&
     isFilled(config.dateColumn) &&
-    isFilled(config.grainColumns) &&
-    isFilled(config.relationshipsJson) &&
-    isFilled(config.piiColumns)
+    isFilledArray(config.grainColumns) &&
+    isFilledArray(config.relationshipsJson) &&
+    isFilledArray(config.piiColumns)
   );
 }
 

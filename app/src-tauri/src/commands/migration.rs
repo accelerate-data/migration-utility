@@ -11,23 +11,35 @@ use tokio::time::{timeout, Duration};
 use crate::commands::agent::{launch_named_agent_with_transcript, SidecarManager};
 use crate::db::DbState;
 use crate::types::{
-    Candidacy, CommandError, ScopeInventoryRow, ScopeRefreshSummary, ScopeTableRef, SelectedTable,
-    TableArtifact, TableConfig,
+    Candidacy, CommandError, RelationshipMapping, RelationshipValue, ScopeInventoryRow,
+    ScopeRefreshSummary, ScopeTableRef, SelectedTable, TableArtifact, TableConfig,
 };
 
 const TABLE_DETAILS_AGENT_NAME: &str = "scope-table-details-analyzer";
 
+/// Wrapper for every field the agent emits: `{ "value": T, "confidence": f64, "reasoning": "..." }`.
+/// `confidence` and `reasoning` are optional because the `relationships` wrapper omits them.
+#[derive(Debug, Deserialize)]
+struct FieldValue<T> {
+    value: T,
+    #[serde(default)]
+    confidence: Option<f64>,
+    #[serde(default)]
+    reasoning: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 struct AgentTableConfigPayload {
-    table_type: Option<String>,
-    load_strategy: Option<String>,
-    grain_columns: Option<Value>,
-    relationships_json: Option<Value>,
-    incremental_column: Option<String>,
-    date_column: Option<String>,
-    snapshot_strategy: Option<String>,
-    pii_columns: Option<Value>,
+    table_type: Option<FieldValue<String>>,
+    load_strategy: Option<FieldValue<String>>,
+    grain_columns: Option<FieldValue<Vec<String>>>,
+    /// Agent key is `"relationships"`, not `"relationships_json"`.
+    relationships: Option<FieldValue<Vec<RelationshipValue>>>,
+    incremental_column: Option<FieldValue<String>>,
+    date_column: Option<FieldValue<String>>,
+    snapshot_strategy: Option<FieldValue<String>>,
+    pii_columns: Option<FieldValue<Vec<String>>>,
     #[serde(default)]
     analysis_metadata: Option<Value>,
 }
@@ -267,12 +279,12 @@ pub fn migration_save_table_config(
             config.selected_table_id,
             config.table_type,
             config.load_strategy,
-            config.grain_columns,
-            config.relationships_json,
+            config.grain_columns.as_ref().and_then(|v| serde_json::to_string(v).ok()),
+            config.relationships_json.as_ref().and_then(|v| serde_json::to_string(v).ok()),
             config.incremental_column,
             config.date_column,
             config.snapshot_strategy,
-            config.pii_columns,
+            config.pii_columns.as_ref().and_then(|v| serde_json::to_string(v).ok()),
             config.confirmed_at,
             config.analysis_metadata_json,
             config.approval_status,
@@ -309,12 +321,18 @@ pub fn migration_get_table_config(
                     selected_table_id: row.get(0)?,
                     table_type: row.get(1)?,
                     load_strategy: row.get(2)?,
-                    grain_columns: row.get(3)?,
-                    relationships_json: row.get(4)?,
+                    grain_columns: row
+                        .get::<_, Option<String>>(3)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
+                    relationships_json: row
+                        .get::<_, Option<String>>(4)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     incremental_column: row.get(5)?,
                     date_column: row.get(6)?,
                     snapshot_strategy: row.get(7)?,
-                    pii_columns: row.get(8)?,
+                    pii_columns: row
+                        .get::<_, Option<String>>(8)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     confirmed_at: row.get(9)?,
                     analysis_metadata_json: row.get(10)?,
                     approval_status: row.get(11)?,
@@ -618,18 +636,23 @@ pub async fn migration_analyze_table_details(
 
     let config = TableConfig {
         selected_table_id: selected_table_id.clone(),
-        table_type: payload.table_type,
-        load_strategy: payload.load_strategy,
-        grain_columns: payload.grain_columns.as_ref().and_then(|v| serde_json::to_string(v).ok()),
-        relationships_json: payload.relationships_json.as_ref().and_then(|v| serde_json::to_string(v).ok()),
-        incremental_column: payload.incremental_column,
-        date_column: payload.date_column,
+        table_type: payload.table_type.map(|f| f.value),
+        load_strategy: payload.load_strategy.map(|f| f.value),
+        grain_columns: payload.grain_columns.map(|f| f.value),
+        relationships_json: payload.relationships.map(|f| f.value),
+        incremental_column: payload.incremental_column.map(|f| f.value),
+        date_column: payload.date_column.map(|f| f.value),
         snapshot_strategy: payload
             .snapshot_strategy
+            .map(|f| f.value)
+            .filter(|s| !s.is_empty())
             .unwrap_or_else(|| "sample_1day".to_string()),
-        pii_columns: payload.pii_columns.as_ref().and_then(|v| serde_json::to_string(v).ok()),
+        pii_columns: payload.pii_columns.map(|f| f.value),
         confirmed_at: Some(Utc::now().to_rfc3339()),
-        analysis_metadata_json: payload.analysis_metadata.as_ref().and_then(|v| serde_json::to_string(v).ok()),
+        analysis_metadata_json: payload
+            .analysis_metadata
+            .as_ref()
+            .and_then(|v| serde_json::to_string(v).ok()),
         approval_status: Some("pending".to_string()),
         approved_at: None,
         manual_overrides_json: None,
@@ -645,12 +668,12 @@ pub async fn migration_analyze_table_details(
                 config.selected_table_id,
                 config.table_type,
                 config.load_strategy,
-                config.grain_columns,
-                config.relationships_json,
+                config.grain_columns.as_ref().and_then(|v| serde_json::to_string(v).ok()),
+                config.relationships_json.as_ref().and_then(|v| serde_json::to_string(v).ok()),
                 config.incremental_column,
                 config.date_column,
                 config.snapshot_strategy,
-                config.pii_columns,
+                config.pii_columns.as_ref().and_then(|v| serde_json::to_string(v).ok()),
                 config.confirmed_at,
                 config.analysis_metadata_json,
                 config.approval_status,
@@ -792,12 +815,18 @@ fn load_table_config_for_selected(
                 selected_table_id: row.get(0)?,
                 table_type: row.get(1)?,
                 load_strategy: row.get(2)?,
-                grain_columns: row.get(3)?,
-                relationships_json: row.get(4)?,
+                grain_columns: row
+                    .get::<_, Option<String>>(3)?
+                    .and_then(|s| serde_json::from_str(&s).ok()),
+                relationships_json: row
+                    .get::<_, Option<String>>(4)?
+                    .and_then(|s| serde_json::from_str(&s).ok()),
                 incremental_column: row.get(5)?,
                 date_column: row.get(6)?,
                 snapshot_strategy: row.get(7)?,
-                pii_columns: row.get(8)?,
+                pii_columns: row
+                    .get::<_, Option<String>>(8)?
+                    .and_then(|s| serde_json::from_str(&s).ok()),
                 confirmed_at: row.get(9)?,
                 analysis_metadata_json: row.get(10)?,
                 approval_status: row.get(11)?,
@@ -1930,5 +1959,186 @@ mod tests {
 
         assert!(parent_exists, "case-insensitive parent table lookup should succeed");
         assert!(child_col_exists, "case-insensitive column lookup should succeed");
+    }
+
+    // ── Agent payload JSON contract ───────────────────────────────────────────
+
+    #[test]
+    fn agent_payload_deserializes_full_json_sample() {
+        // Representative JSON that the scope-table-details-analyzer agent emits.
+        // Every field uses the FieldValue wrapper: { "value": T, "confidence": f64, "reasoning": "..." }
+        let json = r#"{
+            "table_type": { "value": "fact", "confidence": 0.95, "reasoning": "large row count" },
+            "load_strategy": { "value": "incremental", "confidence": 0.90, "reasoning": "has date column" },
+            "grain_columns": { "value": ["order_id", "line_item_id"], "confidence": 0.85, "reasoning": "composite key" },
+            "relationships": {
+                "value": [
+                    {
+                        "target_table": "dbo.dim_customer",
+                        "mappings": [{ "source": "customer_id", "references": "customer_id" }],
+                        "confidence": 0.92,
+                        "reasoning": "FK pattern"
+                    }
+                ]
+            },
+            "incremental_column": { "value": "updated_at", "confidence": 0.88, "reasoning": "datetime column" },
+            "date_column": { "value": "order_date", "confidence": 0.80, "reasoning": "date column" },
+            "snapshot_strategy": { "value": "sample_1day", "confidence": 0.75, "reasoning": null },
+            "pii_columns": { "value": ["customer_email", "customer_phone"], "confidence": 0.99, "reasoning": "contains PII" }
+        }"#;
+
+        let payload: AgentTableConfigPayload = serde_json::from_str(json).expect("should deserialize");
+
+        assert_eq!(payload.table_type.unwrap().value, "fact");
+        assert_eq!(payload.load_strategy.unwrap().value, "incremental");
+
+        let grain = payload.grain_columns.unwrap();
+        assert_eq!(grain.value, vec!["order_id", "line_item_id"]);
+        assert_eq!(grain.confidence, Some(0.85));
+
+        let rels = payload.relationships.unwrap().value;
+        assert_eq!(rels.len(), 1);
+        assert_eq!(rels[0].target_table, "dbo.dim_customer");
+        assert_eq!(rels[0].mappings.len(), 1);
+        assert_eq!(rels[0].mappings[0].source, "customer_id");
+        assert_eq!(rels[0].mappings[0].references, "customer_id");
+
+        assert_eq!(payload.incremental_column.unwrap().value, "updated_at");
+        assert_eq!(payload.date_column.unwrap().value, "order_date");
+
+        let pii = payload.pii_columns.unwrap().value;
+        assert_eq!(pii, vec!["customer_email", "customer_phone"]);
+    }
+
+    #[test]
+    fn agent_payload_handles_missing_confidence_and_reasoning() {
+        // Agent may omit confidence/reasoning from some fields (especially relationships).
+        // The #[serde(default)] attributes must make these Option::None, not fail.
+        let json = r#"{
+            "grain_columns": { "value": ["id"] },
+            "relationships": {
+                "value": [
+                    {
+                        "target_table": "dbo.dim_product",
+                        "mappings": [{ "source": "product_id", "references": "id" }]
+                    }
+                ]
+            },
+            "pii_columns": { "value": [] }
+        }"#;
+
+        let payload: AgentTableConfigPayload = serde_json::from_str(json).expect("should deserialize with missing optionals");
+
+        let grain = payload.grain_columns.unwrap();
+        assert_eq!(grain.value, vec!["id"]);
+        assert_eq!(grain.confidence, None, "confidence should default to None");
+        assert_eq!(grain.reasoning, None, "reasoning should default to None");
+
+        let rels = payload.relationships.unwrap().value;
+        assert_eq!(rels[0].confidence, None);
+        assert_eq!(rels[0].reasoning, None);
+
+        // Empty pii array is valid
+        assert_eq!(payload.pii_columns.unwrap().value, Vec::<String>::new());
+
+        // Absent fields become None
+        assert!(payload.table_type.is_none());
+        assert!(payload.load_strategy.is_none());
+    }
+
+    // ── DB array roundtrip ────────────────────────────────────────────────────
+
+    #[test]
+    fn table_config_arrays_roundtrip_through_db() {
+        // Verify the invariant: typed arrays serialize to TEXT at the rusqlite
+        // write boundary and deserialize back to typed arrays at the read boundary.
+        // No double-encoding: Vec<String> → "[\"a\",\"b\"]" (TEXT) → Vec<String>.
+        let conn = db::open_in_memory().unwrap();
+        let (ws_id, item_id) = setup_workspace_and_item(&conn);
+
+        let st_id = format!("st:{}:{}:dbo:fact_orders", ws_id, item_id);
+        conn.execute(
+            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![st_id, ws_id, item_id, "dbo", "fact_orders"],
+        ).unwrap();
+
+        let grain_columns: Vec<String> = vec!["order_id".to_string(), "line_item_id".to_string()];
+        let pii_columns: Vec<String> = vec!["customer_email".to_string()];
+        let relationships: Vec<RelationshipValue> = vec![RelationshipValue {
+            target_table: "dbo.dim_customer".to_string(),
+            mappings: vec![RelationshipMapping {
+                source: "customer_id".to_string(),
+                references: "customer_id".to_string(),
+            }],
+            confidence: Some(0.9),
+            reasoning: Some("FK pattern".to_string()),
+        }];
+
+        // Write — arrays serialized to TEXT at the rusqlite boundary only
+        conn.execute(
+            "INSERT INTO table_config(selected_table_id, table_type, load_strategy, grain_columns, relationships_json, incremental_column, date_column, snapshot_strategy, pii_columns, confirmed_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            rusqlite::params![
+                st_id,
+                "fact",
+                "incremental",
+                serde_json::to_string(&grain_columns).unwrap(),
+                serde_json::to_string(&relationships).unwrap(),
+                "updated_at",
+                "order_date",
+                "sample_1day",
+                serde_json::to_string(&pii_columns).unwrap(),
+                "2026-01-01T00:00:00Z",
+            ],
+        ).unwrap();
+
+        // Read — TEXT deserialized back to typed arrays at the rusqlite boundary only
+        let config: TableConfig = conn.query_row(
+            "SELECT selected_table_id, table_type, load_strategy, grain_columns, relationships_json, incremental_column, date_column, snapshot_strategy, pii_columns, confirmed_at, analysis_metadata_json, approval_status, approved_at, manual_overrides_json
+             FROM table_config WHERE selected_table_id=?1",
+            rusqlite::params![st_id],
+            |row| {
+                Ok(TableConfig {
+                    selected_table_id: row.get(0)?,
+                    table_type: row.get(1)?,
+                    load_strategy: row.get(2)?,
+                    grain_columns: row.get::<_, Option<String>>(3)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    relationships_json: row.get::<_, Option<String>>(4)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    incremental_column: row.get(5)?,
+                    date_column: row.get(6)?,
+                    snapshot_strategy: row.get(7)?,
+                    pii_columns: row.get::<_, Option<String>>(8)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    confirmed_at: row.get(9)?,
+                    analysis_metadata_json: row.get(10)?,
+                    approval_status: row.get(11)?,
+                    approved_at: row.get(12)?,
+                    manual_overrides_json: row.get(13)?,
+                    available_columns: None,
+                })
+            },
+        ).unwrap();
+
+        // grain_columns: Vec<String> survives the TEXT roundtrip intact
+        let got_grain = config.grain_columns.expect("grain_columns should be Some");
+        assert_eq!(got_grain, vec!["order_id", "line_item_id"]);
+
+        // pii_columns: Vec<String> survives the TEXT roundtrip intact
+        let got_pii = config.pii_columns.expect("pii_columns should be Some");
+        assert_eq!(got_pii, vec!["customer_email"]);
+
+        // relationships_json: Vec<RelationshipValue> survives the TEXT roundtrip intact
+        let got_rels = config.relationships_json.expect("relationships_json should be Some");
+        assert_eq!(got_rels.len(), 1);
+        assert_eq!(got_rels[0].target_table, "dbo.dim_customer");
+        assert_eq!(got_rels[0].mappings.len(), 1);
+        assert_eq!(got_rels[0].mappings[0].source, "customer_id");
+        assert_eq!(got_rels[0].mappings[0].references, "customer_id");
+        assert_eq!(got_rels[0].confidence, Some(0.9));
+        assert_eq!(got_rels[0].reasoning.as_deref(), Some("FK pattern"));
+
+        // Scalar fields unchanged
+        assert_eq!(config.table_type.as_deref(), Some("fact"));
+        assert_eq!(config.load_strategy.as_deref(), Some("incremental"));
+        assert_eq!(config.incremental_column.as_deref(), Some("updated_at"));
     }
 }

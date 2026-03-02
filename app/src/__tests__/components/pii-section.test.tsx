@@ -31,7 +31,7 @@ describe('PiiSection', () => {
   it('renders selected columns as pills', () => {
     render(
       <PiiSection
-        piiColumns={JSON.stringify(['customer_email', 'customer_phone'])}
+        piiColumns={['customer_email', 'customer_phone']}
         disabled={false}
         availableColumns={availableColumns}
         onUpdate={onUpdate}
@@ -41,11 +41,12 @@ describe('PiiSection', () => {
     expect(screen.getByText('customer_phone')).toBeInTheDocument();
   });
 
-  it('handles invalid JSON gracefully', () => {
-    const { container } = render(
-      <PiiSection piiColumns="not-json" disabled={false} availableColumns={availableColumns} onUpdate={onUpdate} />,
+  it('renders empty input when piiColumns is an empty array', () => {
+    render(
+      <PiiSection piiColumns={[]} disabled={false} availableColumns={availableColumns} onUpdate={onUpdate} />,
     );
-    expect(container).not.toBeEmptyDOMElement();
+    expect(screen.queryByText('customer_email')).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/search and add PII columns/i)).toBeInTheDocument();
   });
 
   it('renders placeholder text', () => {
