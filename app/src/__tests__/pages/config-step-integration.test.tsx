@@ -174,6 +174,7 @@ describe('ConfigStep — locked state integration', () => {
       ...s,
       workspaceId: 'ws-1',
       appPhase: 'plan_editable',
+      appPhaseHydrated: true,
     }));
     tauriMocks.migrationListScopeInventory.mockResolvedValue([
       { warehouseItemId: 'wh-1', schemaName: 'dbo', tableName: 'fact_sales', rowCount: 0, isSelected: true },

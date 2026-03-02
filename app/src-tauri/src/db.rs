@@ -212,9 +212,17 @@ pub fn reconcile_and_persist_app_phase(conn: &Connection) -> Result<AppPhaseStat
         persisted_phase.unwrap_or(AppPhase::ScopeEditable)
     };
 
+    log::debug!(
+        "[reconcile_app_phase] persisted={:?} prereqs_ok={} effective={:?}",
+        persisted_phase,
+        prereqs_ok,
+        effective
+    );
+
     // Only persist when prerequisites are satisfied — preserves the intended
     // phase across prerequisite loss/regain cycles.
     if prereqs_ok && persisted_phase.map_or(true, |p| p != effective) {
+        log::info!("[reconcile_app_phase] writing phase {:?}", effective);
         write_app_phase(conn, effective)?;
     }
 

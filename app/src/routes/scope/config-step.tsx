@@ -79,8 +79,8 @@ function isReady(config: TableConfigPayload | null | undefined): boolean {
 
 export default function ConfigStep() {
   const navigate = useNavigate();
-  const { workspaceId, appPhase, setAppPhaseState } = useWorkflowStore();
-  const isLocked = appPhase !== 'scope_editable';
+  const { workspaceId, appPhase, appPhaseHydrated, setAppPhaseState } = useWorkflowStore();
+  const isLocked = appPhaseHydrated && appPhase !== 'scope_editable';
 
   const [rows, setRows] = useState<SelectedTableRow[]>([]);
   const [configsById, setConfigsById] = useState<Record<string, TableConfigPayload | null>>({});

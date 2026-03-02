@@ -64,8 +64,8 @@ function isReady(config: TableConfigPayload | null | undefined): boolean {
 
 export default function ScopeStep() {
   const navigate = useNavigate();
-  const { workspaceId, appPhase, setAppPhaseState } = useWorkflowStore();
-  const isLocked = appPhase !== 'scope_editable';
+  const { workspaceId, appPhase, appPhaseHydrated, setAppPhaseState } = useWorkflowStore();
+  const isLocked = appPhaseHydrated && appPhase !== 'scope_editable';
   const [rows, setRows] = useState<ScopeInventoryRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [, setMessage] = useState<string>('Saved just now');

@@ -61,6 +61,9 @@ pub fn app_set_phase(
     })?;
     let phase = AppPhase::from_str(app_phase.as_str())
         .ok_or_else(|| format!("Unsupported app phase: {}", app_phase))?;
+    if phase == AppPhase::SetupRequired {
+        return Err("Cannot explicitly set phase to setup_required".to_string());
+    }
     crate::db::write_app_phase(&conn, phase)?;
     crate::db::reconcile_and_persist_app_phase(&conn)
 }
