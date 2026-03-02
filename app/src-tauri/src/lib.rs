@@ -74,6 +74,7 @@ pub fn run() {
             commands::migration::migration_get_table_config,
             commands::migration::migration_approve_table_config,
             commands::migration::migration_reconcile_scope_state,
+            commands::migration::migration_validate_relationship,
             commands::plan::plan_serialize,
             commands::github_auth::github_start_device_flow,
             commands::github_auth::github_poll_for_token,

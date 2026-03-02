@@ -1061,6 +1061,125 @@ pub fn migration_reconcile_scope_state(
     })
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RelationshipValidationResult {
+    pub child_column: String,
+    pub parent_table: String,
+    pub parent_column: String,
+    pub parent_table_exists: bool,
+    pub child_column_exists: bool,
+    pub parent_column_exists: bool,
+    pub is_valid: bool,
+    pub error_message: Option<String>,
+}
+
+#[tauri::command]
+pub fn migration_validate_relationship(
+    workspace_id: String,
+    current_table_id: String,
+    child_column: String,
+    parent_schema: String,
+    parent_table: String,
+    parent_column: String,
+    state: State<DbState>,
+) -> Result<RelationshipValidationResult, CommandError> {
+    log::info!(
+        "migration_validate_relationship: workspace_id={} table_id={} child_column={} parent={}.{}.{}",
+        workspace_id,
+        current_table_id,
+        child_column,
+        parent_schema,
+        parent_table,
+        parent_column
+    );
+
+    let conn = state.0.lock().unwrap();
+
+    // Check if parent table exists in selected tables
+    let parent_table_exists: bool = conn
+        .query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM selected_tables
+                WHERE workspace_id = ?1
+                  AND LOWER(schema_name) = LOWER(?2)
+                  AND LOWER(table_name) = LOWER(?3)
+            )",
+            params![workspace_id, parent_schema, parent_table],
+            |row| row.get(0),
+        )
+        .map_err(CommandError::from)?;
+
+    // Get current table's schema and name
+    let (current_schema, current_table): (String, String) = conn
+        .query_row(
+            "SELECT schema_name, table_name FROM selected_tables WHERE id = ?1",
+            params![current_table_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(CommandError::from)?;
+
+    // Check if child column exists in current table
+    let child_column_exists: bool = conn
+        .query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM sqlserver_object_columns soc
+                INNER JOIN data_objects do ON do.id = soc.data_object_id
+                INNER JOIN namespaces n ON n.id = do.namespace_id
+                WHERE LOWER(n.namespace_name) = LOWER(?1)
+                  AND LOWER(do.object_name) = LOWER(?2)
+                  AND LOWER(soc.column_name) = LOWER(?3)
+            )",
+            params![current_schema, current_table, child_column],
+            |row| row.get(0),
+        )
+        .map_err(CommandError::from)?;
+
+    // Check if parent column exists in parent table
+    let parent_column_exists: bool = conn
+        .query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM sqlserver_object_columns soc
+                INNER JOIN data_objects do ON do.id = soc.data_object_id
+                INNER JOIN namespaces n ON n.id = do.namespace_id
+                WHERE LOWER(n.namespace_name) = LOWER(?1)
+                  AND LOWER(do.object_name) = LOWER(?2)
+                  AND LOWER(soc.column_name) = LOWER(?3)
+            )",
+            params![parent_schema, parent_table, parent_column],
+            |row| row.get(0),
+        )
+        .map_err(CommandError::from)?;
+
+    let is_valid = parent_table_exists && child_column_exists && parent_column_exists;
+    let error_message = if !is_valid {
+        let mut errors = Vec::new();
+        if !parent_table_exists {
+            errors.push(format!("Parent table {}.{} not in scope", parent_schema, parent_table));
+        }
+        if !child_column_exists {
+            errors.push(format!("Column {} not found in {}.{}", child_column, current_schema, current_table));
+        }
+        if !parent_column_exists {
+            errors.push(format!("Column {} not found in {}.{}", parent_column, parent_schema, parent_table));
+        }
+        Some(errors.join("; "))
+    } else {
+        None
+    };
+
+    Ok(RelationshipValidationResult {
+        child_column,
+        parent_table: format!("{}.{}", parent_schema, parent_table),
+        parent_column,
+        parent_table_exists,
+        child_column_exists,
+        parent_column_exists,
+        is_valid,
+        error_message,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
