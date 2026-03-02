@@ -5,7 +5,7 @@
  *   - ANTHROPIC_API_KEY env var  OR  .claude/settings.local with { "env": { "ANTHROPIC_API_KEY": "..." } }
  *   - Built sidecar: `npm run sidecar:build` from app/
  */
-import { describe, it } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { spawn } from 'child_process';
 import { resolve, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -149,26 +149,61 @@ describe.skipIf(!canRun)('sidecar integration', () => {
       child.stdin.write('{"type":"shutdown"}\n');
       await new Promise<void>((res) => child.on('exit', () => res()));
 
-      // ── Summary ──────────────────────────────────────────────────────────────
-      const toolUses = messages.filter(
-        (m) => m['type'] === 'tool_use' || (m['type'] === 'assistant' &&
-          Array.isArray((m['message'] as Record<string,unknown>)?.['content']) &&
-          ((m['message'] as Record<string,unknown>)['content'] as unknown[]).some(
-            (b) => (b as Record<string,unknown>)['type'] === 'tool_use'
-          ))
+      // ── Collect assistant messages ────────────────────────────────────────────
+      const assistantMessages = messages.filter(
+        (m) => m['type'] === 'assistant' &&
+          typeof (m['message'] as Record<string, unknown>)?.['model'] === 'string',
       );
+
+      // ── Tool call analysis ────────────────────────────────────────────────────
+      const toolNamesCalled: string[] = [];
+      for (const m of messages) {
+        if (m['type'] !== 'assistant') continue;
+        const content = (m['message'] as Record<string, unknown>)?.['content'];
+        if (!Array.isArray(content)) continue;
+        for (const block of content as Record<string, unknown>[]) {
+          if (block['type'] === 'tool_use' && typeof block['name'] === 'string') {
+            toolNamesCalled.push(block['name'] as string);
+          }
+        }
+      }
+
       // V1 SDK emits the final output as type='result' with a 'result' field
       const agentResponses = messages.filter(
-        (m) => m['type'] === 'result' && typeof m['result'] === 'string' && (m['result'] as string).length > 0
+        (m) => m['type'] === 'result' && typeof m['result'] === 'string' && (m['result'] as string).length > 0,
       );
 
-      process.stderr.write('\n=== TOOL USES ===\n');
-      process.stderr.write(`count: ${toolUses.length}\n`);
-      for (const t of toolUses) process.stderr.write(JSON.stringify(t) + '\n');
-
+      // ── Summary (stderr for visibility) ──────────────────────────────────────
+      const modelsUsed = [...new Set(
+        assistantMessages.map(m => (m['message'] as Record<string, unknown>)?.['model'] as string)
+      )];
+      process.stderr.write(`\n=== MODEL USED: ${modelsUsed.join(', ') || 'unknown'} ===\n`);
+      process.stderr.write(`\n=== TOOL CALLS (${toolNamesCalled.length}) ===\n`);
+      for (const t of toolNamesCalled) process.stderr.write(`  ${t}\n`);
       process.stderr.write('\n=== AGENT TEXT RESPONSES ===\n');
       for (const r of agentResponses) process.stderr.write((r['result'] as string) + '\n');
       process.stderr.write('============================\n');
+
+      // ── Assertions ────────────────────────────────────────────────────────────
+
+      // Model: sidecar should resolve model from front-matter and use haiku, not sonnet
+      expect(modelsUsed).toHaveLength(1);
+      expect(modelsUsed[0]).toMatch(/claude-haiku/);
+
+      // Tool restriction: only Bash should be called — no MCP tools (Slack, Gmail, Linear, etc.)
+      const allowedTools = new Set(['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep', 'LS']);
+      const mcpToolsCalled = toolNamesCalled.filter((name) => !allowedTools.has(name));
+      expect(mcpToolsCalled).toHaveLength(0);
+
+      // Result: agent must return a valid JSON object
+      expect(agentResponses.length).toBeGreaterThanOrEqual(1);
+      const raw = agentResponses[agentResponses.length - 1]['result'] as string;
+      // Strip optional markdown code fence (agent may wrap output in ```json ... ```)
+      const resultText = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+      const parsed = JSON.parse(resultText);
+      expect(parsed).toHaveProperty('table_type');
+      expect(parsed).toHaveProperty('load_strategy');
+      expect(parsed).toHaveProperty('grain_columns');
 
     } finally {
       rmSync(cwd, { recursive: true, force: true });
