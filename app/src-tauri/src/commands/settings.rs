@@ -129,13 +129,11 @@ pub fn save_agent_settings(
     state: State<'_, DbState>,
     preferred_model: Option<String>,
     effort: Option<String>,
-    log_level: Option<String>,
 ) -> Result<(), String> {
     log::info!(
-        "[save_agent_settings] model={:?} effort={:?} log_level={:?}",
+        "[save_agent_settings] model={:?} effort={:?}",
         preferred_model,
         effort,
-        log_level
     );
     let conn = state.0.lock().map_err(|e| {
         log::error!("[save_agent_settings] Failed to acquire DB lock: {}", e);
@@ -144,10 +142,6 @@ pub fn save_agent_settings(
     let mut settings = crate::db::read_settings(&conn)?;
     settings.preferred_model = preferred_model;
     settings.effort = effort;
-    if let Some(ref level) = log_level {
-        crate::logging::set_log_level(level);
-    }
-    settings.log_level = log_level;
     crate::db::write_settings(&conn, &settings)?;
     Ok(())
 }
@@ -203,18 +197,16 @@ mod tests {
     }
 
     #[test]
-    fn agent_settings_roundtrip_persists_model_effort_log_level() {
+    fn agent_settings_roundtrip_persists_model_and_effort() {
         let conn = db::open_in_memory().unwrap();
         let settings = AppSettings {
             preferred_model: Some("claude-haiku-4-5-20251001".to_string()),
             effort: Some("low".to_string()),
-            log_level: Some("debug".to_string()),
             ..AppSettings::default()
         };
         db::write_settings(&conn, &settings).unwrap();
         let read = db::read_settings(&conn).unwrap();
         assert_eq!(read.preferred_model.as_deref(), Some("claude-haiku-4-5-20251001"));
         assert_eq!(read.effort.as_deref(), Some("low"));
-        assert_eq!(read.log_level.as_deref(), Some("debug"));
     }
 }

@@ -83,8 +83,7 @@ export const saveAnthropicApiKey = (apiKey: string | null) =>
 export const saveAgentSettings = (
   preferredModel: string | null,
   effort: string | null,
-  logLevel: string | null,
-) => invoke<void>('save_agent_settings', { preferredModel, effort, logLevel });
+) => invoke<void>('save_agent_settings', { preferredModel, effort });
 
 export const listModels = (apiKey: string) =>
   invoke<{ id: string; displayName: string }[]>('list_models', { apiKey });

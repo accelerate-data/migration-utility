@@ -17,7 +17,6 @@ import { appHydratePhase, getSettings, listModels, saveAgentSettings, saveAnthro
 import { logger } from '@/lib/logger';
 
 const EFFORT_OPTIONS = ['low', 'medium', 'high', 'max'] as const;
-const LOG_LEVEL_OPTIONS = ['error', 'warn', 'info', 'debug'] as const;
 
 export default function ConnectionsTab() {
   const appPhase = useWorkflowStore((s) => s.appPhase);
@@ -33,7 +32,6 @@ export default function ConnectionsTab() {
   const [preferredModel, setPreferredModel] = useState<string | null>(null);
   const [availableModels, setAvailableModels] = useState<{ id: string; displayName: string }[]>([]);
   const [effort, setEffort] = useState<string>('high');
-  const [logLevel, setLogLevel] = useState<string>('info');
 
   useEffect(() => {
     loadUser();
@@ -45,7 +43,6 @@ export default function ConnectionsTab() {
         setApiKey(settings.anthropicApiKey ?? '');
         setPreferredModel(settings.preferredModel ?? null);
         setEffort(settings.effort ?? 'high');
-        setLogLevel(settings.logLevel ?? 'info');
       })
       .catch((err) => {
         logger.error('get_settings failed', err);
@@ -95,14 +92,10 @@ export default function ConnectionsTab() {
     }
   }
 
-  async function handleSaveAgentSettings(
-    model: string | null,
-    eff: string,
-    level: string,
-  ) {
+  async function handleSaveAgentSettings(model: string | null, eff: string) {
     try {
-      await saveAgentSettings(model, eff, level);
-      logger.info('settings: agent settings saved model=%s effort=%s logLevel=%s', model, eff, level);
+      await saveAgentSettings(model, eff);
+      logger.info('settings: agent settings saved model=%s effort=%s', model, eff);
     } catch (err) {
       logger.error('save_agent_settings failed', err);
       toast.error('Failed to save agent settings');
@@ -244,7 +237,7 @@ export default function ConnectionsTab() {
                 onValueChange={(value) => {
                   const next = value || null;
                   setPreferredModel(next);
-                  void handleSaveAgentSettings(next, effort, logLevel);
+                  void handleSaveAgentSettings(next, effort);
                 }}
                 disabled={isLocked || availableModels.length === 0}
               >
@@ -268,7 +261,7 @@ export default function ConnectionsTab() {
                 value={effort}
                 onValueChange={(value) => {
                   setEffort(value);
-                  void handleSaveAgentSettings(preferredModel, value, logLevel);
+                  void handleSaveAgentSettings(preferredModel, value);
                 }}
                 disabled={isLocked}
                 className="flex gap-1"
@@ -293,33 +286,6 @@ export default function ConnectionsTab() {
                   </div>
                 ))}
               </RadioGroup>
-            </div>
-
-            {/* Log level */}
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-xs font-medium text-muted-foreground">Log level</Label>
-              <Select
-                value={logLevel}
-                onValueChange={(value) => {
-                  setLogLevel(value);
-                  void handleSaveAgentSettings(preferredModel, effort, value);
-                }}
-                disabled={isLocked}
-              >
-                <SelectTrigger className="w-36" data-testid="select-log-level">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {LOG_LEVEL_OPTIONS.map((opt) => (
-                    <SelectItem key={opt} value={opt}>
-                      {opt.charAt(0).toUpperCase() + opt.slice(1)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Debug enables SDK debug logs alongside each agent transcript.
-              </p>
             </div>
 
           </CardContent>

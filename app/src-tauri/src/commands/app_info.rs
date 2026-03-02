@@ -1,10 +1,16 @@
-use tauri::AppHandle;
+use tauri::{AppHandle, State};
 
-/// Set the global log level for Rust backend and frontend (via Tauri log plugin).
+use crate::db::DbState;
+
+/// Set the global log level for Rust backend and also persist it to AppSettings.
 #[tauri::command]
-pub fn set_log_level(level: String) -> Result<(), String> {
+pub fn set_log_level(state: State<'_, DbState>, level: String) -> Result<(), String> {
     log::info!("[set_log_level] level={}", level);
     crate::logging::set_log_level(&level);
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let mut settings = crate::db::read_settings(&conn)?;
+    settings.log_level = Some(level);
+    crate::db::write_settings(&conn, &settings)?;
     Ok(())
 }
 
@@ -29,17 +35,15 @@ pub fn get_data_dir_path(app: AppHandle) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn set_log_level_sets_debug() {
-        set_log_level("debug".to_string()).expect("set_log_level should succeed");
+        crate::logging::set_log_level("debug");
         assert_eq!(log::max_level(), log::LevelFilter::Debug);
     }
 
     #[test]
     fn set_log_level_defaults_to_info_for_unknown() {
-        set_log_level("not-a-level".to_string()).expect("set_log_level should succeed");
+        crate::logging::set_log_level("not-a-level");
         assert_eq!(log::max_level(), log::LevelFilter::Info);
     }
 }
