@@ -44,6 +44,8 @@ struct SidecarConfigPayload {
     model: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     agent_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    allowed_tools: Option<Vec<String>>,
     api_key: String,
     cwd: String,
 }
@@ -127,11 +129,15 @@ async fn launch_agent_with_transcript_config(
             .ok_or_else(|| "Anthropic API key is not configured in Settings".to_string())?;
 
         let working_directory = resolve_working_directory(&app)?;
+        let allowed_tools = agent_name
+            .as_deref()
+            .and_then(|name| parse_agent_allowed_tools(&working_directory, name));
         build_request(
             prompt,
             system_prompt,
             agent_name,
             model,
+            allowed_tools,
             api_key,
             working_directory,
         )
@@ -583,6 +589,7 @@ fn build_request(
     system_prompt: Option<String>,
     agent_name: Option<String>,
     model: Option<String>,
+    allowed_tools: Option<Vec<String>>,
     api_key: String,
     working_directory: String,
 ) -> AgentRequest {
@@ -593,10 +600,48 @@ fn build_request(
             system_prompt,
             model,
             agent_name,
+            allowed_tools,
             api_key,
             cwd: working_directory,
         },
     }
+}
+
+fn parse_agent_allowed_tools(working_dir: &str, agent_name: &str) -> Option<Vec<String>> {
+    let path = PathBuf::from(working_dir)
+        .join(".claude")
+        .join("agents")
+        .join(format!("{agent_name}.md"));
+    let content = fs::read_to_string(&path).ok()?;
+    let after_open = content.strip_prefix("---\n")?;
+    let end = after_open.find("\n---")?;
+    let front_matter = &after_open[..end];
+
+    let tools_pos = front_matter.find("tools:")?;
+    let after_tools = &front_matter[tools_pos + 6..];
+
+    // Inline list: tools: [Bash, Computer]
+    let first = after_tools.lines().next()?.trim();
+    if first.starts_with('[') {
+        let inner = first.trim_start_matches('[').trim_end_matches(']');
+        let tools: Vec<String> = inner
+            .split(',')
+            .map(|s| s.trim().trim_matches('"').to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        return if tools.is_empty() { None } else { Some(tools) };
+    }
+
+    // Block list:
+    //   - Bash
+    //   - Computer
+    let tools: Vec<String> = after_tools
+        .lines()
+        .skip(1)
+        .take_while(|l| l.trim().starts_with("- "))
+        .map(|l| l.trim().trim_start_matches("- ").trim_matches('"').to_string())
+        .collect();
+    if tools.is_empty() { None } else { Some(tools) }
 }
 
 #[derive(Debug, PartialEq, Eq)]

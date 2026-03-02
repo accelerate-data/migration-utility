@@ -354,73 +354,87 @@ export default function ConfigStep() {
           onSelectTable={setActiveId}
         />
 
-        <div className="rounded-md border bg-card p-6">
-          {!activeRow && <p className="text-sm text-muted-foreground">Select a table to edit details.</p>}
-          {activeRow && draft && (
-            <div className="space-y-6">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-mono text-sm font-semibold">
-                    {activeRow.schemaName}.{activeRow.tableName}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Migration metadata required for build and tests.</p>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isLocked || activeIsAnalyzing}
-                  onClick={() => void analyzeTable(activeRow, true)}
-                >
-                  {activeIsAnalyzing ? 'Analyzing...' : 'Analyze again'}
-                </Button>
-              </div>
-
-              <div className="space-y-6">
-                <CoreFieldsSection
-                  tableType={draft.tableType}
-                  loadStrategy={draft.loadStrategy}
-                  incrementalColumn={draft.incrementalColumn}
-                  dateColumn={draft.dateColumn}
-                  disabled={isLocked || activeIsAnalyzing}
-                  onUpdate={updateDraft}
-                />
-                <PiiSection
-                  piiColumns={draft.piiColumns}
-                  disabled={isLocked || activeIsAnalyzing}
-                  onUpdate={(value) => updateDraft('piiColumns', value)}
-                />
-                <RelationshipsSection
-                  relationshipsJson={draft.relationshipsJson}
-                  grainColumns={draft.grainColumns}
-                  disabled={isLocked || activeIsAnalyzing}
-                  onUpdateRelationships={(value) => updateDraft('relationshipsJson', value)}
-                  onUpdateGrain={(value) => updateDraft('grainColumns', value)}
-                />
-                <ScdSection
-                  tableType={draft.tableType}
-                  snapshotStrategy={draft.snapshotStrategy}
-                  disabled={isLocked || activeIsAnalyzing}
-                  onUpdate={(value) => updateDraft('snapshotStrategy', value)}
-                />
-              </div>
-
-              <ApprovalActions
-                approvalStatus={draft.approvalStatus}
-                approvedAt={draft.approvedAt}
-                confirmedAt={draft.confirmedAt}
-                isLocked={isLocked}
-                onApprove={handleApprove}
-              />
-
-              <AgentRationaleSection analysisMetadataJson={draft.analysisMetadataJson} />
-
-              {analyzeErrorById[activeRow.selectedTableId] && (
-                <p className="text-sm text-destructive">{analyzeErrorById[activeRow.selectedTableId]}</p>
-              )}
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              {saving && <span className="text-xs text-muted-foreground">Saving...</span>}
+        <div className="space-y-4">
+          {!activeRow && (
+            <div className="rounded-md border bg-card p-6">
+              <p className="text-sm text-muted-foreground">Select a table to edit details.</p>
             </div>
+          )}
+          {activeRow && draft && (
+            <>
+              {/* Fields Panel */}
+              <div className="rounded-md border bg-card p-6">
+                <div className="mb-6 flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-mono text-sm font-semibold">
+                      {activeRow.schemaName}.{activeRow.tableName}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Migration metadata required for build and tests.</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isLocked || activeIsAnalyzing}
+                    onClick={() => void analyzeTable(activeRow, true)}
+                  >
+                    {activeIsAnalyzing ? 'Analyzing...' : 'Analyze again'}
+                  </Button>
+                </div>
+
+                <div className="space-y-6">
+                  <CoreFieldsSection
+                    tableType={draft.tableType}
+                    loadStrategy={draft.loadStrategy}
+                    incrementalColumn={draft.incrementalColumn}
+                    dateColumn={draft.dateColumn}
+                    disabled={isLocked || activeIsAnalyzing}
+                    onUpdate={updateDraft}
+                  />
+                  <PiiSection
+                    piiColumns={draft.piiColumns}
+                    disabled={isLocked || activeIsAnalyzing}
+                    onUpdate={(value) => updateDraft('piiColumns', value)}
+                  />
+                  <RelationshipsSection
+                    relationshipsJson={draft.relationshipsJson}
+                    grainColumns={draft.grainColumns}
+                    disabled={isLocked || activeIsAnalyzing}
+                    onUpdateRelationships={(value) => updateDraft('relationshipsJson', value)}
+                    onUpdateGrain={(value) => updateDraft('grainColumns', value)}
+                  />
+                  <ScdSection
+                    tableType={draft.tableType}
+                    snapshotStrategy={draft.snapshotStrategy}
+                    disabled={isLocked || activeIsAnalyzing}
+                    onUpdate={(value) => updateDraft('snapshotStrategy', value)}
+                  />
+                </div>
+
+                {analyzeErrorById[activeRow.selectedTableId] && (
+                  <p className="mt-4 text-sm text-destructive">{analyzeErrorById[activeRow.selectedTableId]}</p>
+                )}
+                {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
+                {saving && <span className="mt-4 block text-xs text-muted-foreground">Saving...</span>}
+              </div>
+
+              {/* Agent Analysis & Approval Panel */}
+              {draft.confirmedAt && (
+                <div className="rounded-md border bg-card p-6">
+                  <AgentRationaleSection analysisMetadataJson={draft.analysisMetadataJson} />
+
+                  <div className="mt-6">
+                    <ApprovalActions
+                      approvalStatus={draft.approvalStatus}
+                      approvedAt={draft.approvedAt}
+                      confirmedAt={draft.confirmedAt}
+                      isLocked={isLocked}
+                      onApprove={handleApprove}
+                    />
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
