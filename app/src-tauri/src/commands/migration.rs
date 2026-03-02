@@ -11,23 +11,38 @@ use tokio::time::{timeout, Duration};
 use crate::commands::agent::{launch_named_agent_with_transcript, SidecarManager};
 use crate::db::DbState;
 use crate::types::{
-    Candidacy, CommandError, ScopeInventoryRow, ScopeRefreshSummary, ScopeTableRef, SelectedTable,
-    TableArtifact, TableConfig,
+    Candidacy, CommandError, RelationshipValue, ScopeInventoryRow,
+    ScopeRefreshSummary, ScopeTableRef, SelectedTable, TableArtifact, TableConfig,
 };
 
 const TABLE_DETAILS_AGENT_NAME: &str = "scope-table-details-analyzer";
 
+/// Wrapper for every field the agent emits: `{ "value": T, "confidence": f64, "reasoning": "..." }`.
+/// `confidence` and `reasoning` are optional because the `relationships` wrapper omits them.
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct FieldValue<T> {
+    value: T,
+    #[serde(default)]
+    confidence: Option<f64>,
+    #[serde(default)]
+    reasoning: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 struct AgentTableConfigPayload {
-    table_type: Option<String>,
-    load_strategy: Option<String>,
-    grain_columns: Option<String>,
-    relationships_json: Option<String>,
-    incremental_column: Option<String>,
-    date_column: Option<String>,
-    snapshot_strategy: Option<String>,
-    pii_columns: Option<String>,
+    table_type: Option<FieldValue<String>>,
+    load_strategy: Option<FieldValue<String>>,
+    grain_columns: Option<FieldValue<Vec<String>>>,
+    /// Agent key is `"relationships"`, not `"relationships_json"`.
+    relationships: Option<FieldValue<Vec<RelationshipValue>>>,
+    incremental_column: Option<FieldValue<String>>,
+    date_column: Option<FieldValue<String>>,
+    snapshot_strategy: Option<FieldValue<String>>,
+    pii_columns: Option<FieldValue<Vec<String>>>,
+    #[serde(default)]
+    analysis_metadata: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -265,12 +280,12 @@ pub fn migration_save_table_config(
             config.selected_table_id,
             config.table_type,
             config.load_strategy,
-            config.grain_columns,
-            config.relationships_json,
+            config.grain_columns.as_ref().and_then(|v| serde_json::to_string(v).ok()),
+            config.relationships_json.as_ref().and_then(|v| serde_json::to_string(v).ok()),
             config.incremental_column,
             config.date_column,
             config.snapshot_strategy,
-            config.pii_columns,
+            config.pii_columns.as_ref().and_then(|v| serde_json::to_string(v).ok()),
             config.confirmed_at,
             config.analysis_metadata_json,
             config.approval_status,
@@ -295,7 +310,9 @@ pub fn migration_get_table_config(
         selected_table_id
     );
     let conn = state.0.lock().unwrap();
-    let result = conn
+    
+    // Fetch table config
+    let mut config = conn
         .query_row(
             "SELECT selected_table_id, table_type, load_strategy, grain_columns, relationships_json, incremental_column, date_column, snapshot_strategy, pii_columns, confirmed_at, analysis_metadata_json, approval_status, approved_at, manual_overrides_json
              FROM table_config WHERE selected_table_id=?1",
@@ -305,17 +322,24 @@ pub fn migration_get_table_config(
                     selected_table_id: row.get(0)?,
                     table_type: row.get(1)?,
                     load_strategy: row.get(2)?,
-                    grain_columns: row.get(3)?,
-                    relationships_json: row.get(4)?,
+                    grain_columns: row
+                        .get::<_, Option<String>>(3)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
+                    relationships_json: row
+                        .get::<_, Option<String>>(4)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     incremental_column: row.get(5)?,
                     date_column: row.get(6)?,
                     snapshot_strategy: row.get(7)?,
-                    pii_columns: row.get(8)?,
+                    pii_columns: row
+                        .get::<_, Option<String>>(8)?
+                        .and_then(|s| serde_json::from_str(&s).ok()),
                     confirmed_at: row.get(9)?,
                     analysis_metadata_json: row.get(10)?,
                     approval_status: row.get(11)?,
                     approved_at: row.get(12)?,
                     manual_overrides_json: row.get(13)?,
+                    available_columns: None, // Will be populated below
                 })
             },
         )
@@ -324,7 +348,68 @@ pub fn migration_get_table_config(
             log::error!("migration_get_table_config: failed: {e}");
             CommandError::from(e)
         })?;
-    Ok(result)
+    
+    // If config exists, fetch available columns for the table
+    if let Some(ref mut cfg) = config {
+        // Extract schema and table name from selected_table_id
+        // Format: st:{workspace_id}:{warehouse_item_id}:{schema}:{table}
+        let parts: Vec<&str> = cfg.selected_table_id.split(':').collect();
+        if parts.len() >= 5 {
+            let schema_name = parts[3];
+            let table_name = parts[4];
+            
+            log::debug!(
+                "migration_get_table_config: fetching columns for {}.{}",
+                schema_name,
+                table_name
+            );
+            
+            let mut stmt = conn
+                .prepare(
+                    "SELECT c.column_name, c.data_type, c.is_nullable
+                     FROM sqlserver_object_columns c
+                     INNER JOIN data_objects o ON o.id = c.data_object_id
+                     INNER JOIN namespaces n ON n.id = o.namespace_id
+                     WHERE LOWER(n.namespace_name) = LOWER(?1) 
+                       AND LOWER(o.object_name) = LOWER(?2)
+                       AND o.object_type = 'table'
+                     ORDER BY c.column_id"
+                )
+                .map_err(|e| {
+                    log::error!("migration_get_table_config: failed to prepare column query: {e}");
+                    CommandError::from(e)
+                })?;
+            
+            let columns = stmt
+                .query_map(params![schema_name, table_name], |row| {
+                    Ok(crate::types::ColumnMetadata {
+                        column_name: row.get(0)?,
+                        data_type: row.get(1)?,
+                        is_nullable: row.get(2)?,
+                    })
+                })
+                .map_err(|e| {
+                    log::error!("migration_get_table_config: failed to query columns: {e}");
+                    CommandError::from(e)
+                })?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| {
+                    log::error!("migration_get_table_config: failed to collect columns: {e}");
+                    CommandError::from(e)
+                })?;
+            
+            log::debug!(
+                "migration_get_table_config: found {} columns for {}.{}",
+                columns.len(),
+                schema_name,
+                table_name
+            );
+            
+            cfg.available_columns = Some(columns);
+        }
+    }
+    
+    Ok(config)
 }
 
 #[tauri::command]
@@ -515,7 +600,7 @@ pub async fn migration_analyze_table_details(
             return Err(CommandError::Io(e));
         }
     };
-    let payload: AgentTableConfigPayload = match serde_json::from_value(raw_json.clone()) {
+    let payload: AgentTableConfigPayload = match serde_json::from_value(normalize_agent_array_fields(raw_json.clone())) {
         Ok(value) => value,
         Err(e) => {
             let err = format!("invalid agent contract payload: {e}");
@@ -552,21 +637,27 @@ pub async fn migration_analyze_table_details(
 
     let config = TableConfig {
         selected_table_id: selected_table_id.clone(),
-        table_type: payload.table_type,
-        load_strategy: payload.load_strategy,
-        grain_columns: payload.grain_columns,
-        relationships_json: payload.relationships_json,
-        incremental_column: payload.incremental_column,
-        date_column: payload.date_column,
+        table_type: payload.table_type.map(|f| f.value),
+        load_strategy: payload.load_strategy.map(|f| f.value),
+        grain_columns: payload.grain_columns.map(|f| f.value),
+        relationships_json: payload.relationships.map(|f| f.value),
+        incremental_column: payload.incremental_column.map(|f| f.value),
+        date_column: payload.date_column.map(|f| f.value),
         snapshot_strategy: payload
             .snapshot_strategy
+            .map(|f| f.value)
+            .filter(|s| !s.is_empty())
             .unwrap_or_else(|| "sample_1day".to_string()),
-        pii_columns: payload.pii_columns,
+        pii_columns: payload.pii_columns.map(|f| f.value),
         confirmed_at: Some(Utc::now().to_rfc3339()),
-        analysis_metadata_json: Some(serde_json::to_string(&raw_json).unwrap_or_default()),
+        analysis_metadata_json: payload
+            .analysis_metadata
+            .as_ref()
+            .and_then(|v| serde_json::to_string(v).ok()),
         approval_status: Some("pending".to_string()),
         approved_at: None,
         manual_overrides_json: None,
+        available_columns: None,
     };
 
     {
@@ -578,12 +669,12 @@ pub async fn migration_analyze_table_details(
                 config.selected_table_id,
                 config.table_type,
                 config.load_strategy,
-                config.grain_columns,
-                config.relationships_json,
+                config.grain_columns.as_ref().and_then(|v| serde_json::to_string(v).ok()),
+                config.relationships_json.as_ref().and_then(|v| serde_json::to_string(v).ok()),
                 config.incremental_column,
                 config.date_column,
                 config.snapshot_strategy,
-                config.pii_columns,
+                config.pii_columns.as_ref().and_then(|v| serde_json::to_string(v).ok()),
                 config.confirmed_at,
                 config.analysis_metadata_json,
                 config.approval_status,
@@ -725,22 +816,50 @@ fn load_table_config_for_selected(
                 selected_table_id: row.get(0)?,
                 table_type: row.get(1)?,
                 load_strategy: row.get(2)?,
-                grain_columns: row.get(3)?,
-                relationships_json: row.get(4)?,
+                grain_columns: row
+                    .get::<_, Option<String>>(3)?
+                    .and_then(|s| serde_json::from_str(&s).ok()),
+                relationships_json: row
+                    .get::<_, Option<String>>(4)?
+                    .and_then(|s| serde_json::from_str(&s).ok()),
                 incremental_column: row.get(5)?,
                 date_column: row.get(6)?,
                 snapshot_strategy: row.get(7)?,
-                pii_columns: row.get(8)?,
+                pii_columns: row
+                    .get::<_, Option<String>>(8)?
+                    .and_then(|s| serde_json::from_str(&s).ok()),
                 confirmed_at: row.get(9)?,
                 analysis_metadata_json: row.get(10)?,
                 approval_status: row.get(11)?,
                 approved_at: row.get(12)?,
                 manual_overrides_json: row.get(13)?,
+                available_columns: None,
             })
         },
     )
     .optional()
     .map_err(CommandError::from)
+}
+
+/// Normalises string-encoded JSON arrays in `FieldValue` wrappers emitted by the LLM.
+///
+/// Despite SKILL.md requiring `"value": [...]`, some model responses emit `"value": "[]"` or
+/// `"value": "[\"col\"]"` — a JSON string containing a JSON array.  Parse and unwrap those
+/// strings so that `serde_json::from_value::<AgentTableConfigPayload>()` succeeds.
+fn normalize_agent_array_fields(mut v: Value) -> Value {
+    const ARRAY_FIELDS: &[&str] = &["grain_columns", "pii_columns", "relationships"];
+    if let Some(obj) = v.as_object_mut() {
+        for field in ARRAY_FIELDS {
+            if let Some(wrapper) = obj.get_mut(*field) {
+                if let Some(Value::String(s)) = wrapper.get("value").cloned() {
+                    if let Ok(Value::Array(arr)) = serde_json::from_str::<Value>(&s) {
+                        wrapper["value"] = Value::Array(arr);
+                    }
+                }
+            }
+        }
+    }
+    v
 }
 
 fn parse_agent_json_object(text: &str) -> Result<Value, String> {
@@ -1059,10 +1178,130 @@ pub fn migration_reconcile_scope_state(
     })
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RelationshipValidationResult {
+    pub child_column: String,
+    pub parent_table: String,
+    pub parent_column: String,
+    pub parent_table_exists: bool,
+    pub child_column_exists: bool,
+    pub parent_column_exists: bool,
+    pub is_valid: bool,
+    pub error_message: Option<String>,
+}
+
+#[tauri::command]
+pub fn migration_validate_relationship(
+    workspace_id: String,
+    current_table_id: String,
+    child_column: String,
+    parent_schema: String,
+    parent_table: String,
+    parent_column: String,
+    state: State<DbState>,
+) -> Result<RelationshipValidationResult, CommandError> {
+    log::info!(
+        "migration_validate_relationship: workspace_id={} table_id={} child_column={} parent={}.{}.{}",
+        workspace_id,
+        current_table_id,
+        child_column,
+        parent_schema,
+        parent_table,
+        parent_column
+    );
+
+    let conn = state.0.lock().unwrap();
+
+    // Check if parent table exists in selected tables
+    let parent_table_exists: bool = conn
+        .query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM selected_tables
+                WHERE workspace_id = ?1
+                  AND LOWER(schema_name) = LOWER(?2)
+                  AND LOWER(table_name) = LOWER(?3)
+            )",
+            params![workspace_id, parent_schema, parent_table],
+            |row| row.get(0),
+        )
+        .map_err(CommandError::from)?;
+
+    // Get current table's schema and name
+    let (current_schema, current_table): (String, String) = conn
+        .query_row(
+            "SELECT schema_name, table_name FROM selected_tables WHERE id = ?1",
+            params![current_table_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(CommandError::from)?;
+
+    // Check if child column exists in current table
+    let child_column_exists: bool = conn
+        .query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM sqlserver_object_columns soc
+                INNER JOIN data_objects do ON do.id = soc.data_object_id
+                INNER JOIN namespaces n ON n.id = do.namespace_id
+                WHERE LOWER(n.namespace_name) = LOWER(?1)
+                  AND LOWER(do.object_name) = LOWER(?2)
+                  AND LOWER(soc.column_name) = LOWER(?3)
+            )",
+            params![current_schema, current_table, child_column],
+            |row| row.get(0),
+        )
+        .map_err(CommandError::from)?;
+
+    // Check if parent column exists in parent table
+    let parent_column_exists: bool = conn
+        .query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM sqlserver_object_columns soc
+                INNER JOIN data_objects do ON do.id = soc.data_object_id
+                INNER JOIN namespaces n ON n.id = do.namespace_id
+                WHERE LOWER(n.namespace_name) = LOWER(?1)
+                  AND LOWER(do.object_name) = LOWER(?2)
+                  AND LOWER(soc.column_name) = LOWER(?3)
+            )",
+            params![parent_schema, parent_table, parent_column],
+            |row| row.get(0),
+        )
+        .map_err(CommandError::from)?;
+
+    let is_valid = parent_table_exists && child_column_exists && parent_column_exists;
+    let error_message = if !is_valid {
+        let mut errors = Vec::new();
+        if !parent_table_exists {
+            errors.push(format!("Parent table {}.{} not in scope", parent_schema, parent_table));
+        }
+        if !child_column_exists {
+            errors.push(format!("Column {} not found in {}.{}", child_column, current_schema, current_table));
+        }
+        if !parent_column_exists {
+            errors.push(format!("Column {} not found in {}.{}", parent_column, parent_schema, parent_table));
+        }
+        Some(errors.join("; "))
+    } else {
+        None
+    };
+
+    Ok(RelationshipValidationResult {
+        child_column,
+        parent_table: format!("{}.{}", parent_schema, parent_table),
+        parent_column,
+        parent_table_exists,
+        child_column_exists,
+        parent_column_exists,
+        is_valid,
+        error_message,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::db;
+    use crate::types::RelationshipMapping;
 
     fn setup_workspace_and_item(conn: &rusqlite::Connection) -> (String, String) {
         let ws_id = uuid::Uuid::new_v4().to_string();
@@ -1587,5 +1826,379 @@ mod tests {
         
         // Should return 0 rows affected
         assert_eq!(rows, 0);
+    }
+
+    // ── Relationship validation unit tests ──────────────────────────────────
+
+    /// Sets up selected_tables + canonical source model fixtures for validation tests.
+    /// Returns (workspace_id, current_selected_table_id).
+    fn setup_validation_fixtures(conn: &rusqlite::Connection) -> (String, String) {
+        let (ws_id, item_id) = setup_workspace_and_item(conn);
+
+        // Current table: dbo.fact_orders
+        let st_id = format!("st:{}:{}:dbo:fact_orders", ws_id, item_id);
+        conn.execute(
+            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![st_id, ws_id, item_id, "dbo", "fact_orders"],
+        ).unwrap();
+
+        // Parent table: dbo.dim_customer (also in scope)
+        let parent_st_id = format!("st:{}:{}:dbo:dim_customer", ws_id, item_id);
+        conn.execute(
+            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![parent_st_id, ws_id, item_id, "dbo", "dim_customer"],
+        ).unwrap();
+
+        // Build canonical source model: source → container → namespace → data_objects → columns
+        let source_id = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO sources(id, workspace_id, source_type, external_source_id) VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![source_id, ws_id, "sqlserver", "ext-src-1"],
+        ).unwrap();
+
+        let container_id = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO containers(id, source_id, container_type, external_container_id, container_name) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![container_id, source_id, "database", "ext-db-1", "TestDB"],
+        ).unwrap();
+
+        let ns_id = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO namespaces(id, container_id, namespace_name) VALUES (?1, ?2, ?3)",
+            rusqlite::params![ns_id, container_id, "dbo"],
+        ).unwrap();
+
+        // fact_orders with customer_id column
+        let obj_orders_id = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO data_objects(id, namespace_id, object_name, object_type) VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![obj_orders_id, ns_id, "fact_orders", "table"],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO sqlserver_object_columns(id, data_object_id, column_name, data_type, column_id) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![uuid::Uuid::new_v4().to_string(), obj_orders_id, "customer_id", "int", 1],
+        ).unwrap();
+
+        // dim_customer with customer_id column
+        let obj_customer_id = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO data_objects(id, namespace_id, object_name, object_type) VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![obj_customer_id, ns_id, "dim_customer", "table"],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO sqlserver_object_columns(id, data_object_id, column_name, data_type, column_id) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![uuid::Uuid::new_v4().to_string(), obj_customer_id, "customer_id", "int", 1],
+        ).unwrap();
+
+        (ws_id, st_id)
+    }
+
+    #[test]
+    fn validate_relationship_returns_valid_when_all_checks_pass() {
+        let conn = db::open_in_memory().unwrap();
+        let (ws_id, _st_id) = setup_validation_fixtures(&conn);
+
+        let parent_exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM selected_tables WHERE workspace_id=?1 AND LOWER(schema_name)=LOWER(?2) AND LOWER(table_name)=LOWER(?3))",
+            rusqlite::params![ws_id, "dbo", "dim_customer"],
+            |r| r.get(0),
+        ).unwrap();
+
+        let child_col_exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlserver_object_columns soc INNER JOIN data_objects do ON do.id=soc.data_object_id INNER JOIN namespaces n ON n.id=do.namespace_id WHERE LOWER(n.namespace_name)=LOWER(?1) AND LOWER(do.object_name)=LOWER(?2) AND LOWER(soc.column_name)=LOWER(?3))",
+            rusqlite::params!["dbo", "fact_orders", "customer_id"],
+            |r| r.get(0),
+        ).unwrap();
+
+        let parent_col_exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlserver_object_columns soc INNER JOIN data_objects do ON do.id=soc.data_object_id INNER JOIN namespaces n ON n.id=do.namespace_id WHERE LOWER(n.namespace_name)=LOWER(?1) AND LOWER(do.object_name)=LOWER(?2) AND LOWER(soc.column_name)=LOWER(?3))",
+            rusqlite::params!["dbo", "dim_customer", "customer_id"],
+            |r| r.get(0),
+        ).unwrap();
+
+        assert!(parent_exists, "parent table should be in scope");
+        assert!(child_col_exists, "child column should exist");
+        assert!(parent_col_exists, "parent column should exist");
+    }
+
+    #[test]
+    fn validate_relationship_detects_missing_parent_table() {
+        let conn = db::open_in_memory().unwrap();
+        let (ws_id, _st_id) = setup_validation_fixtures(&conn);
+
+        let parent_exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM selected_tables WHERE workspace_id=?1 AND LOWER(schema_name)=LOWER(?2) AND LOWER(table_name)=LOWER(?3))",
+            rusqlite::params![ws_id, "dbo", "nonexistent_table"],
+            |r| r.get(0),
+        ).unwrap();
+
+        assert!(!parent_exists, "nonexistent parent table should not be found");
+    }
+
+    #[test]
+    fn validate_relationship_detects_missing_child_column() {
+        let conn = db::open_in_memory().unwrap();
+        let (_ws_id, _st_id) = setup_validation_fixtures(&conn);
+
+        let child_col_exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlserver_object_columns soc INNER JOIN data_objects do ON do.id=soc.data_object_id INNER JOIN namespaces n ON n.id=do.namespace_id WHERE LOWER(n.namespace_name)=LOWER(?1) AND LOWER(do.object_name)=LOWER(?2) AND LOWER(soc.column_name)=LOWER(?3))",
+            rusqlite::params!["dbo", "fact_orders", "nonexistent_column"],
+            |r| r.get(0),
+        ).unwrap();
+
+        assert!(!child_col_exists, "nonexistent child column should not be found");
+    }
+
+    #[test]
+    fn validate_relationship_detects_missing_parent_column() {
+        let conn = db::open_in_memory().unwrap();
+        let (_ws_id, _st_id) = setup_validation_fixtures(&conn);
+
+        let parent_col_exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlserver_object_columns soc INNER JOIN data_objects do ON do.id=soc.data_object_id INNER JOIN namespaces n ON n.id=do.namespace_id WHERE LOWER(n.namespace_name)=LOWER(?1) AND LOWER(do.object_name)=LOWER(?2) AND LOWER(soc.column_name)=LOWER(?3))",
+            rusqlite::params!["dbo", "dim_customer", "nonexistent_column"],
+            |r| r.get(0),
+        ).unwrap();
+
+        assert!(!parent_col_exists, "nonexistent parent column should not be found");
+    }
+
+    #[test]
+    fn validate_relationship_is_case_insensitive() {
+        let conn = db::open_in_memory().unwrap();
+        let (ws_id, _st_id) = setup_validation_fixtures(&conn);
+
+        let parent_exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM selected_tables WHERE workspace_id=?1 AND LOWER(schema_name)=LOWER(?2) AND LOWER(table_name)=LOWER(?3))",
+            rusqlite::params![ws_id, "DBO", "DIM_CUSTOMER"],
+            |r| r.get(0),
+        ).unwrap();
+
+        let child_col_exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlserver_object_columns soc INNER JOIN data_objects do ON do.id=soc.data_object_id INNER JOIN namespaces n ON n.id=do.namespace_id WHERE LOWER(n.namespace_name)=LOWER(?1) AND LOWER(do.object_name)=LOWER(?2) AND LOWER(soc.column_name)=LOWER(?3))",
+            rusqlite::params!["DBO", "FACT_ORDERS", "CUSTOMER_ID"],
+            |r| r.get(0),
+        ).unwrap();
+
+        assert!(parent_exists, "case-insensitive parent table lookup should succeed");
+        assert!(child_col_exists, "case-insensitive column lookup should succeed");
+    }
+
+    // ── Agent payload JSON contract ───────────────────────────────────────────
+
+    #[test]
+    fn agent_payload_deserializes_full_json_sample() {
+        // Representative JSON that the scope-table-details-analyzer agent emits.
+        // Every field uses the FieldValue wrapper: { "value": T, "confidence": f64, "reasoning": "..." }
+        let json = r#"{
+            "table_type": { "value": "fact", "confidence": 0.95, "reasoning": "large row count" },
+            "load_strategy": { "value": "incremental", "confidence": 0.90, "reasoning": "has date column" },
+            "grain_columns": { "value": ["order_id", "line_item_id"], "confidence": 0.85, "reasoning": "composite key" },
+            "relationships": {
+                "value": [
+                    {
+                        "target_table": "dbo.dim_customer",
+                        "mappings": [{ "source": "customer_id", "references": "customer_id" }],
+                        "confidence": 0.92,
+                        "reasoning": "FK pattern"
+                    }
+                ]
+            },
+            "incremental_column": { "value": "updated_at", "confidence": 0.88, "reasoning": "datetime column" },
+            "date_column": { "value": "order_date", "confidence": 0.80, "reasoning": "date column" },
+            "snapshot_strategy": { "value": "sample_1day", "confidence": 0.75, "reasoning": null },
+            "pii_columns": { "value": ["customer_email", "customer_phone"], "confidence": 0.99, "reasoning": "contains PII" }
+        }"#;
+
+        let payload: AgentTableConfigPayload = serde_json::from_str(json).expect("should deserialize");
+
+        assert_eq!(payload.table_type.unwrap().value, "fact");
+        assert_eq!(payload.load_strategy.unwrap().value, "incremental");
+
+        let grain = payload.grain_columns.unwrap();
+        assert_eq!(grain.value, vec!["order_id", "line_item_id"]);
+        assert_eq!(grain.confidence, Some(0.85));
+
+        let rels = payload.relationships.unwrap().value;
+        assert_eq!(rels.len(), 1);
+        assert_eq!(rels[0].target_table, "dbo.dim_customer");
+        assert_eq!(rels[0].mappings.len(), 1);
+        assert_eq!(rels[0].mappings[0].source, "customer_id");
+        assert_eq!(rels[0].mappings[0].references, "customer_id");
+
+        assert_eq!(payload.incremental_column.unwrap().value, "updated_at");
+        assert_eq!(payload.date_column.unwrap().value, "order_date");
+
+        let pii = payload.pii_columns.unwrap().value;
+        assert_eq!(pii, vec!["customer_email", "customer_phone"]);
+    }
+
+    #[test]
+    fn agent_payload_handles_missing_confidence_and_reasoning() {
+        // Agent may omit confidence/reasoning from some fields (especially relationships).
+        // The #[serde(default)] attributes must make these Option::None, not fail.
+        let json = r#"{
+            "grain_columns": { "value": ["id"] },
+            "relationships": {
+                "value": [
+                    {
+                        "target_table": "dbo.dim_product",
+                        "mappings": [{ "source": "product_id", "references": "id" }]
+                    }
+                ]
+            },
+            "pii_columns": { "value": [] }
+        }"#;
+
+        let payload: AgentTableConfigPayload = serde_json::from_str(json).expect("should deserialize with missing optionals");
+
+        let grain = payload.grain_columns.unwrap();
+        assert_eq!(grain.value, vec!["id"]);
+        assert_eq!(grain.confidence, None, "confidence should default to None");
+        assert_eq!(grain.reasoning, None, "reasoning should default to None");
+
+        let rels = payload.relationships.unwrap().value;
+        assert_eq!(rels[0].confidence, None);
+        assert_eq!(rels[0].reasoning, None);
+
+        // Empty pii array is valid
+        assert_eq!(payload.pii_columns.unwrap().value, Vec::<String>::new());
+
+        // Absent fields become None
+        assert!(payload.table_type.is_none());
+        assert!(payload.load_strategy.is_none());
+    }
+
+    #[test]
+    fn normalize_agent_array_fields_unwraps_string_encoded_arrays() {
+        // Regression test for LLM double-encoding: `{ "value": "[]" }` should become `{ "value": [] }`.
+        let raw = serde_json::json!({
+            "table_type": { "value": "dimension", "confidence": 0.95 },
+            "grain_columns": { "value": "[\"CurrencyKey\"]", "confidence": 0.85 },
+            "pii_columns": { "value": "[]", "confidence": 0.99 },
+            "relationships": { "value": "[]" }
+        });
+
+        let normalized = normalize_agent_array_fields(raw);
+        let payload: AgentTableConfigPayload = serde_json::from_value(normalized).expect("should deserialize after normalization");
+
+        assert_eq!(payload.grain_columns.unwrap().value, vec!["CurrencyKey"]);
+        assert_eq!(payload.pii_columns.unwrap().value, Vec::<String>::new());
+        assert_eq!(payload.relationships.unwrap().value.len(), 0);
+        // String fields unaffected
+        assert_eq!(payload.table_type.unwrap().value, "dimension");
+    }
+
+    #[test]
+    fn normalize_agent_array_fields_leaves_proper_arrays_unchanged() {
+        // If the LLM emits proper arrays, normalization must not corrupt them.
+        let raw = serde_json::json!({
+            "grain_columns": { "value": ["order_id", "line_item_id"], "confidence": 0.85 },
+            "pii_columns": { "value": ["customer_email"], "confidence": 0.99 },
+            "relationships": { "value": [] }
+        });
+
+        let normalized = normalize_agent_array_fields(raw.clone());
+        let payload: AgentTableConfigPayload = serde_json::from_value(normalized).expect("should deserialize");
+
+        assert_eq!(payload.grain_columns.unwrap().value, vec!["order_id", "line_item_id"]);
+        assert_eq!(payload.pii_columns.unwrap().value, vec!["customer_email"]);
+        assert_eq!(payload.relationships.unwrap().value.len(), 0);
+    }
+
+    // ── DB array roundtrip ────────────────────────────────────────────────────
+
+    #[test]
+    fn table_config_arrays_roundtrip_through_db() {
+        // Verify the invariant: typed arrays serialize to TEXT at the rusqlite
+        // write boundary and deserialize back to typed arrays at the read boundary.
+        // No double-encoding: Vec<String> → "[\"a\",\"b\"]" (TEXT) → Vec<String>.
+        let conn = db::open_in_memory().unwrap();
+        let (ws_id, item_id) = setup_workspace_and_item(&conn);
+
+        let st_id = format!("st:{}:{}:dbo:fact_orders", ws_id, item_id);
+        conn.execute(
+            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![st_id, ws_id, item_id, "dbo", "fact_orders"],
+        ).unwrap();
+
+        let grain_columns: Vec<String> = vec!["order_id".to_string(), "line_item_id".to_string()];
+        let pii_columns: Vec<String> = vec!["customer_email".to_string()];
+        let relationships: Vec<RelationshipValue> = vec![RelationshipValue {
+            target_table: "dbo.dim_customer".to_string(),
+            mappings: vec![RelationshipMapping {
+                source: "customer_id".to_string(),
+                references: "customer_id".to_string(),
+            }],
+            confidence: Some(0.9),
+            reasoning: Some("FK pattern".to_string()),
+        }];
+
+        // Write — arrays serialized to TEXT at the rusqlite boundary only
+        conn.execute(
+            "INSERT INTO table_config(selected_table_id, table_type, load_strategy, grain_columns, relationships_json, incremental_column, date_column, snapshot_strategy, pii_columns, confirmed_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            rusqlite::params![
+                st_id,
+                "fact",
+                "incremental",
+                serde_json::to_string(&grain_columns).unwrap(),
+                serde_json::to_string(&relationships).unwrap(),
+                "updated_at",
+                "order_date",
+                "sample_1day",
+                serde_json::to_string(&pii_columns).unwrap(),
+                "2026-01-01T00:00:00Z",
+            ],
+        ).unwrap();
+
+        // Read — TEXT deserialized back to typed arrays at the rusqlite boundary only
+        let config: TableConfig = conn.query_row(
+            "SELECT selected_table_id, table_type, load_strategy, grain_columns, relationships_json, incremental_column, date_column, snapshot_strategy, pii_columns, confirmed_at, analysis_metadata_json, approval_status, approved_at, manual_overrides_json
+             FROM table_config WHERE selected_table_id=?1",
+            rusqlite::params![st_id],
+            |row| {
+                Ok(TableConfig {
+                    selected_table_id: row.get(0)?,
+                    table_type: row.get(1)?,
+                    load_strategy: row.get(2)?,
+                    grain_columns: row.get::<_, Option<String>>(3)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    relationships_json: row.get::<_, Option<String>>(4)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    incremental_column: row.get(5)?,
+                    date_column: row.get(6)?,
+                    snapshot_strategy: row.get(7)?,
+                    pii_columns: row.get::<_, Option<String>>(8)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    confirmed_at: row.get(9)?,
+                    analysis_metadata_json: row.get(10)?,
+                    approval_status: row.get(11)?,
+                    approved_at: row.get(12)?,
+                    manual_overrides_json: row.get(13)?,
+                    available_columns: None,
+                })
+            },
+        ).unwrap();
+
+        // grain_columns: Vec<String> survives the TEXT roundtrip intact
+        let got_grain = config.grain_columns.expect("grain_columns should be Some");
+        assert_eq!(got_grain, vec!["order_id", "line_item_id"]);
+
+        // pii_columns: Vec<String> survives the TEXT roundtrip intact
+        let got_pii = config.pii_columns.expect("pii_columns should be Some");
+        assert_eq!(got_pii, vec!["customer_email"]);
+
+        // relationships_json: Vec<RelationshipValue> survives the TEXT roundtrip intact
+        let got_rels = config.relationships_json.expect("relationships_json should be Some");
+        assert_eq!(got_rels.len(), 1);
+        assert_eq!(got_rels[0].target_table, "dbo.dim_customer");
+        assert_eq!(got_rels[0].mappings.len(), 1);
+        assert_eq!(got_rels[0].mappings[0].source, "customer_id");
+        assert_eq!(got_rels[0].mappings[0].references, "customer_id");
+        assert_eq!(got_rels[0].confidence, Some(0.9));
+        assert_eq!(got_rels[0].reasoning.as_deref(), Some("FK pattern"));
+
+        // Scalar fields unchanged
+        assert_eq!(config.table_type.as_deref(), Some("fact"));
+        assert_eq!(config.load_strategy.as_deref(), Some("incremental"));
+        assert_eq!(config.incremental_column.as_deref(), Some("updated_at"));
     }
 }

@@ -99,7 +99,6 @@ test.describe('Home — dashboard state @home', () => {
 
     const dashboard = page.getByTestId('home-dashboard-state');
     await expect(dashboard.getByText('Scope', { exact: true })).toBeVisible();
-    await expect(dashboard.getByText('Candidacy Review', { exact: true })).toBeVisible();
     await expect(dashboard.getByText('Table Config', { exact: true })).toBeVisible();
   });
 

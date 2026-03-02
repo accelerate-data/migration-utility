@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseIncomingMessage } from '../protocol.ts';
+import { parseIncomingMessage } from '../persistent-mode.ts';
 
 describe('parseIncomingMessage', () => {
   it('parses ping and shutdown', () => {

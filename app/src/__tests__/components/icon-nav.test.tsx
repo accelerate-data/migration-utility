@@ -118,7 +118,8 @@ describe('IconNav', () => {
         <IconNav />
       </MemoryRouter>,
     );
-    expect(screen.getByTestId('nav-home')).toBeDisabled();
+    // home is always accessible — shows setup prompt when not configured
+    expect(screen.getByTestId('nav-home')).not.toBeDisabled();
     expect(screen.getByTestId('nav-scope')).toBeDisabled();
     expect(screen.getByTestId('nav-plan')).toBeDisabled();
     expect(screen.getByTestId('nav-monitor')).toBeDisabled();

@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ConfigStepHeader } from '@/components/scope/config-step-header';
+import { Button } from '@/components/ui/button';
 import {
   appSetPhaseFlags,
   migrationAddTablesToSelection,
+  migrationGetTableConfig,
   migrationListScopeInventory,
   migrationReconcileScopeState,
   migrationResetSelectedTables,
@@ -14,7 +16,7 @@ import {
   workspaceGet,
 } from '@/lib/tauri';
 import { logger } from '@/lib/logger';
-import type { ScopeInventoryRow } from '@/lib/types';
+import type { ScopeInventoryRow, TableConfigPayload } from '@/lib/types';
 import { useWorkflowStore } from '@/stores/workflow-store';
 
 type SortKey = 'schema' | 'table';
@@ -31,19 +33,49 @@ function formatRowCount(value: number | null): string {
   return value.toLocaleString();
 }
 
+function selectedTableId(workspaceId: string, row: ScopeInventoryRow): string {
+  return `st:${workspaceId}:${row.warehouseItemId}:${row.schemaName.toLowerCase()}:${row.tableName.toLowerCase()}`;
+}
+
+function isFilled(value: string | null): boolean {
+  return value !== null && value.trim().length > 0;
+}
+
+function isFilledArray(value: unknown[] | null | undefined): boolean {
+  return value != null && value.length > 0;
+}
+
+function isProvided(value: unknown[] | null | undefined): boolean {
+  return value != null;
+}
+
+function isReady(config: TableConfigPayload | null | undefined): boolean {
+  if (!config) return false;
+  return (
+    isFilled(config.tableType) &&
+    isFilled(config.loadStrategy) &&
+    isFilled(config.incrementalColumn) &&
+    isFilled(config.dateColumn) &&
+    isFilledArray(config.grainColumns) &&
+    isProvided(config.relationshipsJson) &&
+    isProvided(config.piiColumns)
+  );
+}
+
 export default function ScopeStep() {
   const navigate = useNavigate();
   const { workspaceId, appPhase, phaseFacts, setAppPhaseState } = useWorkflowStore();
   const isLocked = phaseFacts.scopeFinalized || appPhase === 'running_locked';
   const [rows, setRows] = useState<ScopeInventoryRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string>('Saved just now');
+  const [, setMessage] = useState<string>('Saved just now');
   const [error, setError] = useState<string | null>(null);
   const [schemaSearch, setSchemaSearch] = useState('');
   const [tableSearch, setTableSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('schema');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [refreshing, setRefreshing] = useState(false);
+  const [readyCount, setReadyCount] = useState(0);
 
   async function loadInventory() {
     if (!workspaceId) {
@@ -55,9 +87,19 @@ export default function ScopeStep() {
     try {
       const data = await migrationListScopeInventory(workspaceId);
       setRows(data);
+      const selected = data.filter((row) => row.isSelected);
+      if (selected.length === 0) {
+        setReadyCount(0);
+      } else {
+        const configs = await Promise.all(
+          selected.map((row) => migrationGetTableConfig(selectedTableId(workspaceId, row))),
+        );
+        setReadyCount(configs.filter((config) => isReady(config)).length);
+      }
     } catch (err) {
       logger.error('failed loading scope inventory', err);
       setError(err instanceof Error ? err.message : String(err));
+      setReadyCount(0);
     } finally {
       setLoading(false);
     }
@@ -196,57 +238,24 @@ export default function ScopeStep() {
   }
 
   return (
-    <section className="space-y-4" data-testid="scope-select-step">
-      <header className="rounded-md border bg-card p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="space-y-1">
-            <p className="text-sm font-medium">{selectedCount} tables selected</p>
-            <p className="text-xs text-muted-foreground">{message}</p>
-            <p className="text-xs text-muted-foreground">{isLocked ? 'Scope finalized (read-only)' : 'Scope editable'}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={isLocked || refreshing}
-              onClick={() => void refreshSchema()}
-              data-testid="scope-refresh-schema"
-            >
-              {refreshing ? 'Refreshing...' : 'Refresh schema'}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={isLocked}
-              onClick={() => void finalizeScope()}
-              data-testid="scope-finalize"
-            >
-              {isLocked ? 'Scope Finalized' : 'Finalize Scope'}
-            </Button>
-          </div>
-        </div>
-        <div className="mt-4 border-b border-border">
-          <div className="flex items-center gap-6">
-            <button
-              type="button"
-              className="border-b-2 border-primary pb-2 text-sm font-medium text-primary"
-              onClick={() => navigate('/scope')}
-            >
-              1. Select Tables
-            </button>
-            <button
-              type="button"
-              className="border-b-2 border-transparent pb-2 text-sm font-medium text-muted-foreground"
-              onClick={() => navigate('/scope/config')}
-            >
-              2. Table Details
-            </button>
-          </div>
-        </div>
-      </header>
+    <section className="flex h-full min-h-0 flex-col gap-4" data-testid="scope-select-step">
+      <div className="bg-background pb-4">
+        <ConfigStepHeader
+          selectedCount={selectedCount}
+          readyCount={readyCount}
+          totalCount={selectedCount}
+          activeStep="select"
+          isLocked={isLocked}
+          refreshing={refreshing}
+          anyAnalyzing={false}
+          onRefreshSchema={() => void refreshSchema()}
+          onFinalizeScope={() => void finalizeScope()}
+          onNavigateToSelect={() => navigate('/scope')}
+          onNavigateToConfig={() => navigate('/scope/config')}
+        />
+      </div>
 
-      <div className="rounded-md border bg-card">
+      <div className="flex min-h-0 flex-1 flex-col rounded-md border bg-card">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b p-3">
           <div className="flex flex-wrap items-center gap-2">
             <Input
@@ -277,41 +286,57 @@ export default function ScopeStep() {
           </div>
         </div>
 
-        <div className="grid grid-cols-[36px_140px_minmax(0,1fr)_100px] gap-2 border-b px-3 py-2 text-xs font-medium text-muted-foreground">
-          <span />
-          <button type="button" className="text-left" onClick={() => updateSort('schema')}>
-            Schema {sortKey === 'schema' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
-          </button>
-          <button type="button" className="text-left" onClick={() => updateSort('table')}>
-            Table {sortKey === 'table' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
-          </button>
-          <span>Rows</span>
-        </div>
-
-        <div className="max-h-[520px] overflow-auto">
+        <div className="min-h-0 flex-1 overflow-auto">
           {loading && <p className="p-3 text-sm text-muted-foreground">Loading tables...</p>}
           {!loading && error && <p className="p-3 text-sm text-destructive">{error}</p>}
           {!loading && !error && visibleRows.length === 0 && (
             <p className="p-3 text-sm text-muted-foreground">No tables match current filters.</p>
           )}
-          {!loading &&
-            !error &&
-            visibleRows.map((row) => (
-              <label
-                key={keyForRow(row)}
-                className="grid grid-cols-[36px_140px_minmax(0,1fr)_100px] items-center gap-2 border-b px-3 py-2 text-sm"
-              >
-                <input
-                  type="checkbox"
-                  checked={row.isSelected}
-                  disabled={isLocked}
-                  onChange={(e) => void setSelected(row, e.target.checked)}
-                />
-                <span className="font-mono text-muted-foreground text-left justify-self-start truncate">{row.schemaName}</span>
-                <span className="font-mono text-left justify-self-start truncate">{row.tableName}</span>
-                <span className="font-mono text-muted-foreground">{formatRowCount(row.rowCount)}</span>
-              </label>
-            ))}
+          {!loading && !error && visibleRows.length > 0 && (
+            <table className="w-full table-fixed border-collapse">
+              <colgroup>
+                <col className="w-9" />
+                <col className="w-36" />
+                <col />
+                <col className="w-28" />
+              </colgroup>
+              <thead className="sticky top-0 z-10 bg-card">
+                <tr className="border-y text-xs font-medium text-muted-foreground">
+                  <th className="px-3 py-2 text-left" />
+                  <th className="px-3 py-2 text-left">
+                    <button type="button" className="text-left" onClick={() => updateSort('schema')}>
+                      Schema {sortKey === 'schema' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                    </button>
+                  </th>
+                  <th className="px-3 py-2 text-left">
+                    <button type="button" className="text-left" onClick={() => updateSort('table')}>
+                      Table {sortKey === 'table' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                    </button>
+                  </th>
+                  <th className="px-3 py-2 text-left">Rows</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleRows.map((row) => (
+                  <tr key={keyForRow(row)} className="border-b text-sm">
+                    <td className="px-3 py-2 align-middle">
+                      <input
+                        type="checkbox"
+                        checked={row.isSelected}
+                        disabled={isLocked}
+                        onChange={(e) => void setSelected(row, e.target.checked)}
+                      />
+                    </td>
+                    <td className="px-3 py-2 font-mono text-muted-foreground">{row.schemaName}</td>
+                    <td className="px-3 py-2 font-mono">
+                      <span className="block truncate">{row.tableName}</span>
+                    </td>
+                    <td className="px-3 py-2 font-mono text-muted-foreground">{formatRowCount(row.rowCount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </section>

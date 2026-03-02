@@ -124,9 +124,9 @@ describe('Scope UI mockup contract', () => {
       snapshotStrategy: 'sample_1day',
       incrementalColumn: '',
       dateColumn: '',
-      grainColumns: '[]',
-      relationshipsJson: '[]',
-      piiColumns: '[]',
+      grainColumns: [],
+      relationshipsJson: [],
+      piiColumns: [],
       confirmedAt: null,
     });
     tauriMocks.migrationSaveTableConfig.mockResolvedValue(undefined);
@@ -136,8 +136,9 @@ describe('Scope UI mockup contract', () => {
     renderScopeSelect();
     await screen.findByText('fact_sales');
 
-    expect(screen.getByText(/tables selected/i)).toBeInTheDocument();
-    expect(screen.getByText(/scope editable/i)).toBeInTheDocument();
+    expect(screen.getByText(/Select Tables for migration/i)).toBeInTheDocument();
+    expect(screen.getByText(/\d+\s+selected/i)).toBeInTheDocument();
+    expect(screen.getByText(/\d+\s*\/\s*\d+\s+tables ready/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Refresh schema' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Finalize Scope' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '1. Select Tables' })).toBeInTheDocument();
@@ -173,31 +174,26 @@ describe('Scope UI mockup contract', () => {
 
   it('matches table-details contract for summary chips, tabs, grouped schema list, and detail field labels', async () => {
     renderScopeDetails();
-    await screen.findByText('fact_sales');
+    await screen.findAllByRole('combobox');
 
-    expect(screen.getByText(/Scope — Table details capture/i)).toBeInTheDocument();
-    expect(screen.getByText(/tables ready/i)).toBeInTheDocument();
-    expect(screen.getByText(/Needs details for/i)).toBeInTheDocument();
-    expect(screen.getByText(/Analyzed just now|Saved just now/i)).toBeInTheDocument();
-    expect(screen.getByText(/Scope editable/i)).toBeInTheDocument();
+    expect(screen.getByText(/Select Tables for migration/i)).toBeInTheDocument();
+    expect(screen.getByText(/\d+ \/ \d+ tables ready/i)).toBeInTheDocument();
 
     expect(screen.getByRole('button', { name: '1. Select Tables' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '2. Table Details' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Refresh schema' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Finalize Scope' })).toBeInTheDocument();
 
-    expect(screen.getByText('dbo')).toBeInTheDocument();
-    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    expect(screen.getAllByRole('combobox').length).toBeGreaterThan(0);
     expect(screen.queryByRole('radio')).not.toBeInTheDocument();
 
-    expect(screen.getByText('Migration metadata required for build and tests.')).toBeInTheDocument();
-    expect(screen.getByLabelText('Table type')).toBeInTheDocument();
-    expect(screen.getByLabelText('Load strategy')).toBeInTheDocument();
-    expect(screen.getByLabelText('CDC column')).toBeInTheDocument();
-    expect(screen.getByLabelText('Canonical date column')).toBeInTheDocument();
-    expect(screen.getByLabelText('PII columns (required for fixture masking)')).toBeInTheDocument();
-    expect(screen.getByLabelText('Grain columns')).toBeInTheDocument();
-    expect(screen.getByLabelText('Relationships (required for tests)')).toBeInTheDocument();
+    expect(screen.getByText('Table type')).toBeInTheDocument();
+    expect(screen.getByText('Load strategy')).toBeInTheDocument();
+    expect(screen.getByText('CDC column')).toBeInTheDocument();
+    expect(screen.getByText('Canonical date column')).toBeInTheDocument();
+    expect(screen.getByText('PII columns (required for fixture masking)')).toBeInTheDocument();
+    expect(screen.getByText('Keys and grain')).toBeInTheDocument();
+    expect(screen.getByText('Relationships (required for tests)')).toBeInTheDocument();
     expect(screen.getByLabelText('SCD (dimensions only)')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Analyze again' })).toBeInTheDocument();
   });

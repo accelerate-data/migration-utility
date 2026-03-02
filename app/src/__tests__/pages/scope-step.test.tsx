@@ -6,6 +6,7 @@ import { useWorkflowStore } from '@/stores/workflow-store';
 
 const tauriMocks = vi.hoisted(() => ({
   migrationListScopeInventory: vi.fn(),
+  migrationGetTableConfig: vi.fn(),
   migrationAddTablesToSelection: vi.fn(),
   migrationSetTableSelected: vi.fn(),
   migrationResetSelectedTables: vi.fn(),
@@ -52,6 +53,7 @@ describe('ScopeStep', () => {
       },
     ]);
     tauriMocks.migrationAddTablesToSelection.mockResolvedValue(1);
+    tauriMocks.migrationGetTableConfig.mockResolvedValue(null);
     tauriMocks.migrationSetTableSelected.mockResolvedValue(undefined);
     tauriMocks.migrationResetSelectedTables.mockResolvedValue(1);
     tauriMocks.workspaceGet.mockResolvedValue({
@@ -85,7 +87,8 @@ describe('ScopeStep', () => {
   it('renders scope inventory and selected count', async () => {
     renderStep();
     await screen.findByText('fact_sales');
-    expect(screen.getByText('1 tables selected')).toBeInTheDocument();
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    expect(screen.getByText('0 / 1 tables ready')).toBeInTheDocument();
     expect(screen.getByText('1.3M')).toBeInTheDocument();
     expect(screen.getByText('810K')).toBeInTheDocument();
   });
@@ -102,7 +105,7 @@ describe('ScopeStep', () => {
   it('refresh schema triggers apply flow and reconciliation', async () => {
     renderStep();
     await screen.findByText('fact_sales');
-    fireEvent.click(screen.getByTestId('scope-refresh-schema'));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh schema' }));
     await waitFor(() => {
       expect(tauriMocks.workspaceApplyStart).toHaveBeenCalled();
       expect(tauriMocks.migrationReconcileScopeState).toHaveBeenCalledWith('ws-1');

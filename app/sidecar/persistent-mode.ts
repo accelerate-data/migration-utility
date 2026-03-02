@@ -1,198 +1,365 @@
-import {
-  unstable_v2_createSession,
-  type SDKSession,
-  type SDKSessionOptions,
-} from '@anthropic-ai/claude-agent-sdk';
-import { createInterface } from 'node:readline';
-import type { SidecarConfig } from './config.ts';
-import { buildInitialPrompt, buildSessionOptions, redactSessionOptionsForLog } from './options.ts';
-import { parseIncomingMessage, writeLine } from './protocol.ts';
-import { StreamSession } from './stream-session.ts';
+import { createInterface, type Interface } from "node:readline";
+import { type SidecarConfig, parseSidecarConfig } from "./config.ts";
+import { runAgentRequest } from "./run-agent.ts";
+import { StreamSession } from "./stream-session.ts";
 
-function assistantTextFromEvent(event: unknown): string {
-  if (!event || typeof event !== 'object') return '';
-  const e = event as {
-    type?: string;
-    message?: { content?: Array<{ type?: string; text?: string }> };
-  };
-  if (e.type !== 'assistant') return '';
-  const blocks = e.message?.content;
-  if (!Array.isArray(blocks)) return '';
-  return blocks
-    .filter((b) => b?.type === 'text' && typeof b.text === 'string')
-    .map((b) => b.text as string)
-    .join('');
+/** Incoming request envelope: run an agent. */
+interface AgentRequest {
+  type: "agent_request";
+  request_id: string;
+  config: SidecarConfig;
 }
 
-async function runSingleRequest(
-  requestId: string,
-  config: SidecarConfig,
-  abortSignal: AbortSignal,
-): Promise<void> {
-  const sessionOptions = buildSessionOptions(config);
-  console.error(
-    `[sidecar] request_id=${requestId} sdk_session_options=${JSON.stringify(redactSessionOptionsForLog(sessionOptions))}`,
-  );
-  const session: SDKSession = unstable_v2_createSession(sessionOptions as SDKSessionOptions);
+/** Incoming shutdown envelope. */
+interface ShutdownRequest {
+  type: "shutdown";
+}
+
+/** Incoming ping envelope for heartbeat health checks. */
+interface PingRequest {
+  type: "ping";
+}
+
+/** Incoming cancel envelope: abort a specific in-flight request. */
+interface CancelRequest {
+  type: "cancel";
+  request_id: string;
+}
+
+/** Start a streaming session (first message). */
+interface StreamStartRequest {
+  type: "stream_start";
+  request_id: string;
+  session_id: string;
+  config: SidecarConfig;
+}
+
+/** Push a follow-up message into an active streaming session. */
+interface StreamMessageRequest {
+  type: "stream_message";
+  request_id: string;
+  session_id: string;
+  user_message: string;
+}
+
+/** Close a streaming session. */
+interface StreamEndRequest {
+  type: "stream_end";
+  session_id: string;
+}
+
+/** Union of all valid incoming messages. */
+type IncomingMessage =
+  | AgentRequest
+  | ShutdownRequest
+  | PingRequest
+  | CancelRequest
+  | StreamStartRequest
+  | StreamMessageRequest
+  | StreamEndRequest;
+
+/**
+ * Write a single JSON line to stdout.
+ */
+function writeLine(obj: Record<string, unknown>): void {
+  process.stdout.write(JSON.stringify(obj) + "\n");
+}
+
+/**
+ * Parse and validate an incoming JSON line.
+ * Returns the parsed message or null if invalid.
+ */
+export function parseIncomingMessage(line: string): IncomingMessage | null {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+
+  let parsed: unknown;
   try {
-    writeLine({
-      type: 'system',
-      request_id: requestId,
-      subtype: 'init_start',
-      timestamp: Date.now(),
-    });
-    await session.send(buildInitialPrompt(config));
-    writeLine({
-      type: 'system',
-      request_id: requestId,
-      subtype: 'sdk_ready',
-      timestamp: Date.now(),
-    });
-
-    for await (const event of session.stream()) {
-      if (abortSignal.aborted) {
-        writeLine({
-          type: 'error',
-          request_id: requestId,
-          message: 'Request aborted',
-        });
-        break;
-      }
-      writeLine({ type: 'agent_event', request_id: requestId, event });
-      const textChunk = assistantTextFromEvent(event);
-      if (textChunk.length > 0) {
-        writeLine({
-          type: 'agent_response',
-          request_id: requestId,
-          content: textChunk,
-          done: false,
-        });
-      }
-
-      const eventType =
-        typeof event === 'object' && event !== null && 'type' in event
-          ? (event as { type?: string }).type
-          : undefined;
-      if (eventType === 'result' || eventType === 'error') {
-        break;
-      }
-    }
-
-    writeLine({
-      type: 'agent_response',
-      request_id: requestId,
-      content: '',
-      done: true,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    writeLine({ type: 'error', request_id: requestId, message });
-  } finally {
-    session.close();
-    writeLine({ type: 'request_complete', request_id: requestId });
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return null;
   }
+
+  if (typeof parsed !== "object" || parsed === null) return null;
+
+  const obj = parsed as Record<string, unknown>;
+
+  if (obj.type === "shutdown") {
+    return { type: "shutdown" };
+  }
+
+  if (obj.type === "ping") {
+    return { type: "ping" };
+  }
+
+  if (obj.type === "cancel") {
+    if (typeof obj.request_id !== "string" || !obj.request_id) return null;
+    return { type: "cancel", request_id: obj.request_id };
+  }
+
+  if (obj.type === "agent_request") {
+    if (typeof obj.request_id !== "string" || !obj.request_id) return null;
+    if (typeof obj.config !== "object" || obj.config === null) return null;
+    try {
+      return {
+        type: "agent_request",
+        request_id: obj.request_id,
+        config: parseSidecarConfig(obj.config),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  if (obj.type === "stream_start") {
+    if (typeof obj.request_id !== "string" || !obj.request_id) return null;
+    if (typeof obj.session_id !== "string" || !obj.session_id) return null;
+    if (typeof obj.config !== "object" || obj.config === null) return null;
+    try {
+      return {
+        type: "stream_start",
+        request_id: obj.request_id,
+        session_id: obj.session_id,
+        config: parseSidecarConfig(obj.config),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  if (obj.type === "stream_message") {
+    if (typeof obj.request_id !== "string" || !obj.request_id) return null;
+    if (typeof obj.session_id !== "string" || !obj.session_id) return null;
+    if (typeof obj.user_message !== "string") return null;
+    return {
+      type: "stream_message",
+      request_id: obj.request_id,
+      session_id: obj.session_id,
+      user_message: obj.user_message,
+    };
+  }
+
+  if (obj.type === "stream_end") {
+    if (typeof obj.session_id !== "string" || !obj.session_id) return null;
+    return {
+      type: "stream_end",
+      session_id: obj.session_id,
+    };
+  }
+
+  return null;
 }
 
-export async function runPersistent(): Promise<void> {
-  writeLine({ type: 'sidecar_ready' });
-  console.error('[sidecar] persistent mode ready');
+/**
+ * Wrap an SDK message with a request_id prefix.
+ */
+export function wrapWithRequestId(
+  requestId: string,
+  message: Record<string, unknown>,
+): Record<string, unknown> {
+  return { request_id: requestId, ...message };
+}
 
-  const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
-  const activeSessions = new Map<string, StreamSession>();
-  const activeRequests = new Map<string, AbortController>();
+/**
+ * Run the sidecar in persistent mode.
+ *
+ * - Emits `{"type":"sidecar_ready"}` on startup
+ * - Reads stdin line-by-line for `agent_request` and `shutdown` messages
+ * - Each `agent_request` runs the SDK and streams responses with `request_id` prefix
+ * - `shutdown` causes a clean exit
+ * - stdin close (pipe broken) causes a clean exit
+ *
+ * @param input   Readable stream (defaults to process.stdin)
+ * @param exitFn  Exit function (defaults to process.exit)
+ */
+export async function runPersistent(
+  input: NodeJS.ReadableStream = process.stdin,
+  exitFn: (code: number) => void = (code) => process.exit(code),
+): Promise<void> {
+  // Signal readiness
+  writeLine({ type: "sidecar_ready" });
+  process.stderr.write("[sidecar] Persistent mode ready\n");
+
+  const rl: Interface = createInterface({
+    input,
+    crlfDelay: Infinity,
+  });
+
+  // Track in-flight requests so we can wait for them before shutdown.
+  // Also track the current request's AbortController and ID so we can cancel
+  // a stuck request when a new one arrives or Rust sends a cancel message.
   const inFlight = new Set<Promise<void>>();
+  let currentAbort: AbortController | null = null;
+  let currentRequestId: string | null = null;
+
+  // Active streaming sessions (refine chat uses these for multi-turn conversations)
+  const activeSessions = new Map<string, StreamSession>();
 
   for await (const line of rl) {
     const message = parseIncomingMessage(line);
+
     if (!message) {
-      console.error('[sidecar] unrecognized input');
+      // Unrecognized input — emit an error line (no request_id since we couldn't parse one)
+      writeLine({
+        type: "error",
+        message: `Unrecognized input: ${line.trim().substring(0, 200)}`,
+      });
       continue;
     }
 
-    if (message.type === 'ping') {
-      writeLine({ type: 'pong' });
-      continue;
-    }
-    if (message.type === 'shutdown') {
-      console.error('[sidecar] shutdown requested');
-      break;
-    }
-    if (message.type === 'cancel') {
-      activeRequests.get(message.request_id)?.abort();
+    if (message.type === "ping") {
+      writeLine({ type: "pong" });
       continue;
     }
 
-    if (message.type === 'agent_request') {
-      const controller = new AbortController();
-      activeRequests.set(message.request_id, controller);
-      const p = runSingleRequest(message.request_id, message.config, controller.signal).finally(
-        () => {
-          activeRequests.delete(message.request_id);
-          inFlight.delete(p);
+    if (message.type === "shutdown") {
+      process.stderr.write("[sidecar] Shutdown requested\n");
+      // Wait for any in-flight requests to finish
+      if (inFlight.size > 0) {
+        await Promise.allSettled(inFlight);
+      }
+      rl.close();
+      exitFn(0);
+      return;
+    }
+
+    if (message.type === "cancel") {
+      process.stderr.write(`[sidecar] Cancel request for ${message.request_id}\n`);
+      // Rust sends cancel when a request times out.
+      // Abort the matching in-flight request so the SDK stops waiting.
+      if (currentAbort && currentRequestId === message.request_id) {
+        currentAbort.abort();
+      }
+      continue;
+    }
+
+    if (message.type === "stream_start") {
+      const { request_id, session_id, config } = message;
+      process.stderr.write(
+        `[sidecar] Stream start: session=${session_id} request=${request_id}\n`,
+      );
+
+      if (activeSessions.has(session_id)) {
+        writeLine(
+          wrapWithRequestId(request_id, {
+            type: "error",
+            message: `Stream session '${session_id}' already exists`,
+          }),
+        );
+        continue;
+      }
+
+      const session = new StreamSession(
+        session_id,
+        request_id,
+        config,
+        (reqId, msg) => {
+          writeLine(wrapWithRequestId(reqId, msg));
         },
       );
-      inFlight.add(p);
+      activeSessions.set(session_id, session);
       continue;
     }
 
-    if (message.type === 'stream_start') {
-      if (activeSessions.has(message.session_id)) {
-        writeLine({
-          type: 'error',
-          request_id: message.request_id,
-          message: `stream session '${message.session_id}' already exists`,
-        });
-        writeLine({ type: 'request_complete', request_id: message.request_id });
-        continue;
-      }
-      const session = new StreamSession(message.config);
-      activeSessions.set(message.session_id, session);
-      const p = session.start(message.request_id, message.config).catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : String(err);
-        writeLine({ type: 'error', request_id: message.request_id, message: msg });
-        writeLine({ type: 'request_complete', request_id: message.request_id });
-      });
-      inFlight.add(p);
-      void p.finally(() => inFlight.delete(p));
-      continue;
-    }
+    if (message.type === "stream_message") {
+      const { request_id, session_id, user_message } = message;
+      process.stderr.write(
+        `[sidecar] Stream message: session=${session_id} request=${request_id}\n`,
+      );
 
-    if (message.type === 'stream_message') {
-      const session = activeSessions.get(message.session_id);
+      const session = activeSessions.get(session_id);
       if (!session) {
-        writeLine({
-          type: 'error',
-          request_id: message.request_id,
-          message: `no stream session found for '${message.session_id}'`,
-        });
-        writeLine({ type: 'request_complete', request_id: message.request_id });
+        writeLine(
+          wrapWithRequestId(request_id, {
+            type: "error",
+            message: `No stream session found for '${session_id}'`,
+          }),
+        );
         continue;
       }
-      const p = session.sendTurn(message.request_id, message.user_message).catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : String(err);
-        writeLine({ type: 'error', request_id: message.request_id, message: msg });
-        writeLine({ type: 'request_complete', request_id: message.request_id });
-      });
-      inFlight.add(p);
-      void p.finally(() => inFlight.delete(p));
+
+      try {
+        session.pushMessage(request_id, user_message);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        writeLine(
+          wrapWithRequestId(request_id, {
+            type: "error",
+            message: errorMessage,
+          }),
+        );
+      }
       continue;
     }
 
-    if (message.type === 'stream_end') {
-      activeSessions.get(message.session_id)?.close();
-      activeSessions.delete(message.session_id);
+    if (message.type === "stream_end") {
+      const { session_id } = message;
+      process.stderr.write(`[sidecar] Stream end: session=${session_id}\n`);
+
+      const session = activeSessions.get(session_id);
+      if (session) {
+        session.close();
+        activeSessions.delete(session_id);
+      }
+      continue;
+    }
+
+    if (message.type === "agent_request") {
+      // If a previous request is still in-flight (e.g., SDK hanging on API),
+      // abort it before starting the new one.
+      if (inFlight.size > 0 && currentAbort) {
+        currentAbort.abort();
+        // Fire-and-forget: don't block the readline loop while the aborted
+        // request tears down. The stdout writer routes by request_id so
+        // concurrent requests with different IDs are safe.
+        void Promise.allSettled([...inFlight]);
+      }
+
+      const { request_id, config } = message;
+      process.stderr.write(`[sidecar] Agent request: ${request_id}\n`);
+      const abortController = new AbortController();
+      currentAbort = abortController;
+      currentRequestId = request_id;
+
+      // Run the agent request without blocking the readline loop.
+      // This lets ping/shutdown messages be processed while the agent runs.
+      const requestPromise = (async () => {
+        try {
+          await runAgentRequest(config, (msg) => {
+            writeLine(wrapWithRequestId(request_id, msg));
+          }, abortController.signal);
+        } catch (err) {
+          const errorMessage =
+            err instanceof Error ? err.message : String(err);
+          writeLine(
+            wrapWithRequestId(request_id, {
+              type: "error",
+              message: errorMessage,
+            }),
+          );
+        } finally {
+          // Signal to Rust that this request is fully complete and the sidecar
+          // is ready for the next one.
+          writeLine(
+            wrapWithRequestId(request_id, { type: "request_complete" }),
+          );
+        }
+      })();
+
+      inFlight.add(requestPromise);
+      requestPromise.finally(() => {
+        inFlight.delete(requestPromise);
+        if (currentAbort === abortController) {
+          currentAbort = null;
+          currentRequestId = null;
+        }
+      });
     }
   }
 
-  for (const session of activeSessions.values()) {
-    session.close();
-  }
-  activeSessions.clear();
-  for (const controller of activeRequests.values()) {
-    controller.abort();
-  }
-  activeRequests.clear();
+  // stdin closed (pipe broken) — exit gracefully
   if (inFlight.size > 0) {
-    await Promise.allSettled([...inFlight]);
+    await Promise.allSettled(inFlight);
   }
+  exitFn(0);
 }

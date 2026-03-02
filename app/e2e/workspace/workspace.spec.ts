@@ -6,7 +6,7 @@ const STORE_KEY = 'migration-workflow';
 async function seedWorkspaceState(page: Page) {
   await page.addInitScript(
     ({ key }) => {
-      let isApplied = false;
+      const SESSION_KEY = '__e2e_workspace_applied__';
       const workspace = {
         id: 'ws-e2e',
         displayName: 'Migration Workspace',
@@ -42,12 +42,12 @@ async function seedWorkspaceState(page: Page) {
 
       (window as unknown as { __TAURI_MOCK_OVERRIDES__?: Record<string, unknown> }).__TAURI_MOCK_OVERRIDES__ =
         {
-          workspace_get: () => (isApplied ? workspace : null),
+          workspace_get: () => (sessionStorage.getItem(SESSION_KEY) === 'true' ? workspace : null),
           github_list_repos: () => [{ id: 1, fullName: 'acme/data-platform', private: true }],
           workspace_test_source_connection: 'Connection successful',
           workspace_discover_source_databases: ['AdventureWorks', 'master'],
           workspace_apply_start: () => {
-            isApplied = true;
+            sessionStorage.setItem(SESSION_KEY, 'true');
             return 'job-e2e-1';
           },
           workspace_apply_status: () => ({
@@ -60,7 +60,7 @@ async function seedWorkspaceState(page: Page) {
             error: null,
           }),
           workspace_reset_state: () => {
-            isApplied = false;
+            sessionStorage.removeItem(SESSION_KEY);
             return undefined;
           },
         };
@@ -106,7 +106,7 @@ test.describe('Workspace apply/reset flow @workspace', () => {
 
     await page.goto('/scope');
     await waitForAppReady(page);
-    await expect(page.getByText('Scope — coming soon.')).toBeVisible();
+    await expect(page.getByTestId('scope-select-step')).toBeVisible();
   });
 
   test('reset unlocks workspace and clears local workflow workspace id', async ({ page }) => {

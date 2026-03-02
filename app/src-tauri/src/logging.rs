@@ -11,7 +11,7 @@ pub fn build_log_plugin() -> tauri_plugin_log::Builder {
             }),
             Target::new(TargetKind::Stderr),
         ])
-        .level(log::LevelFilter::Debug)
+        .level(log::LevelFilter::Info)
         .max_file_size(50_000_000)
 }
 

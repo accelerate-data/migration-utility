@@ -264,11 +264,11 @@ mod tests {
     fn settings_roundtrip_persists_github_fields() {
         let conn = db::open_in_memory().unwrap();
         let settings = AppSettings {
-            anthropic_api_key: None,
             github_oauth_token: Some("tok_abc".to_string()),
             github_user_login: Some("octocat".to_string()),
             github_user_avatar: Some("https://github.com/octocat.png".to_string()),
             github_user_email: Some("octocat@github.com".to_string()),
+            ..AppSettings::default()
         };
         db::write_settings(&conn, &settings).unwrap();
         let read = db::read_settings(&conn).unwrap();
@@ -296,11 +296,10 @@ mod tests {
     fn logout_clears_github_fields() {
         let conn = db::open_in_memory().unwrap();
         let settings = AppSettings {
-            anthropic_api_key: None,
             github_oauth_token: Some("tok_abc".to_string()),
             github_user_login: Some("octocat".to_string()),
             github_user_avatar: Some("https://github.com/octocat.png".to_string()),
-            github_user_email: None,
+            ..AppSettings::default()
         };
         db::write_settings(&conn, &settings).unwrap();
 
@@ -338,11 +337,10 @@ mod tests {
     fn get_user_returns_some_when_token_present() {
         let conn = db::open_in_memory().unwrap();
         let settings = AppSettings {
-            anthropic_api_key: None,
             github_oauth_token: Some("tok".to_string()),
             github_user_login: Some("dev".to_string()),
             github_user_avatar: Some("https://avatars.githubusercontent.com/u/1".to_string()),
-            github_user_email: None,
+            ..AppSettings::default()
         };
         db::write_settings(&conn, &settings).unwrap();
         let s = db::read_settings(&conn).unwrap();

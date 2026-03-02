@@ -25,6 +25,17 @@ pub fn run() {
                 log::error!("db::open failed: {e}");
                 e
             })?;
+            // Restore persisted log level before moving conn into DbState.
+            match db::read_settings(&conn) {
+                Ok(settings) => {
+                    if let Some(ref level) = settings.log_level {
+                        logging::set_log_level(level);
+                    }
+                }
+                Err(e) => {
+                    log::warn!("startup: failed to read settings for log level restore: {}", e);
+                }
+            }
             app.manage(db::DbState(Mutex::new(conn)));
             agent_sources::deploy_on_startup(app.handle()).map_err(|e| {
                 log::error!("agent_sources deploy failed on startup: {e}");
@@ -43,6 +54,8 @@ pub fn run() {
             commands::usage::usage_get_run_detail,
             commands::settings::get_settings,
             commands::settings::save_anthropic_api_key,
+            commands::settings::save_agent_settings,
+            commands::settings::list_models,
             commands::settings::test_api_key,
             commands::settings::app_hydrate_phase,
             commands::settings::app_set_phase,
@@ -74,6 +87,7 @@ pub fn run() {
             commands::migration::migration_get_table_config,
             commands::migration::migration_approve_table_config,
             commands::migration::migration_reconcile_scope_state,
+            commands::migration::migration_validate_relationship,
             commands::plan::plan_serialize,
             commands::github_auth::github_start_device_flow,
             commands::github_auth::github_poll_for_token,
