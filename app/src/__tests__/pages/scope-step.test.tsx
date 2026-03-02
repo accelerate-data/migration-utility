@@ -86,7 +86,7 @@ describe('ScopeStep', () => {
     renderStep();
     await screen.findByText('fact_sales');
     expect(screen.getByText('1 selected')).toBeInTheDocument();
-    expect(screen.getByText('0 / 1 tables ready')).toBeInTheDocument();
+    expect(screen.getByText('0 / 1 ready')).toBeInTheDocument();
     expect(screen.getByText('1.3M')).toBeInTheDocument();
     expect(screen.getByText('810K')).toBeInTheDocument();
   });

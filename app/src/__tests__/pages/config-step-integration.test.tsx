@@ -118,7 +118,7 @@ describe('ConfigStep — multi-table navigation', () => {
     renderStep();
     await screen.findAllByRole('combobox');
     await waitFor(() => {
-      expect(screen.getByText(/0\s*\/\s*2 tables ready/i)).toBeInTheDocument();
+      expect(screen.getByText(/0\s*\/\s*2 ready/i)).toBeInTheDocument();
     });
   });
 });
