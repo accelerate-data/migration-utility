@@ -47,7 +47,7 @@ describe('RelationshipsSection', () => {
         onUpdateGrain={onUpdateGrain}
       />,
     );
-    expect(screen.getByText('Grain columns')).toBeInTheDocument();
+    expect(screen.getByText('Keys and grain')).toBeInTheDocument();
   });
 
   it('renders relationships section heading', () => {
@@ -60,7 +60,7 @@ describe('RelationshipsSection', () => {
         onUpdateGrain={onUpdateGrain}
       />,
     );
-    expect(screen.getByText('Relationships')).toBeInTheDocument();
+    expect(screen.getByText('Relationships (required for tests)')).toBeInTheDocument();
   });
 
   it('shows empty state when no relationships', () => {
