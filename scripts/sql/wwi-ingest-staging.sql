@@ -1,26 +1,21 @@
 -- =============================================================================
--- scripts/sql/wwi-ingest-staging.sql
+-- WideWorldImportersDW — Staging ingestion procedures
 --
--- Creates Integration.Ingest*Staging stored procedures in WideWorldImportersDW.
--- Each procedure performs a full refresh of one Integration.*_Staging table
--- by calling the corresponding Integration.Get*Updates procedure in
--- WideWorldImporters (OLTP) on the same SQL Server instance.
+-- These procedures read from WideWorldImporters (OLTP) via Integration.Get*Updates
+-- and populate the memory-optimized staging tables in WideWorldImportersDW.
 --
--- Architecture note: WideWorldImportersDW staging tables are memory-optimized
--- (SCHEMA_ONLY). Memory-optimized tables cannot participate in cross-database
--- transactions, so each procedure stages data through a regular #temp table:
---   1. INSERT INTO #temp EXEC [WideWorldImporters].Integration.Get*Updates
---   2. DELETE FROM memory-optimized staging table
---   3. INSERT INTO staging SELECT FROM #temp
+-- Pattern for all fact procedures:
+--   1. Get LastCutoff from Integration.[ETL Cutoff]
+--   2. Open a Lineage row (Was Successful=0)
+--   3. INSERT ... EXEC into a #temp table (avoids cross-DB + memory-optimized
+--      transaction restriction: msg 41317)
+--   4. DELETE staging + INSERT from #temp (single-DB operation)
+--   5. UPDATE ETL Cutoff + mark Lineage successful
+--   CATCH: mark Lineage failed, re-throw
 --
--- Usage:
---   docker cp scripts/sql/wwi-ingest-staging.sql aw-sql:/tmp/wwi-ingest-staging.sql
---   docker exec aw-sql /opt/mssql-tools18/bin/sqlcmd \
---     -S localhost,1433 -U sa -P '<password>' -C \
---     -i /tmp/wwi-ingest-staging.sql
---
---   Ingest all tables:  EXEC Integration.IngestAllStaging;
---   Ingest one table:   EXEC Integration.IngestCityStaging;
+-- The #temp table must match EXACTLY the columns returned by the source proc.
+-- Surrogate key columns in the staging tables (e.g. [City Key]) are NOT returned
+-- by Get*Updates — they are populated later by MigrateStaged*Data procedures.
 -- =============================================================================
 
 USE [WideWorldImportersDW];
@@ -56,18 +51,18 @@ BEGIN
 
     BEGIN TRY
         CREATE TABLE #CityTemp (
-            [WWI City ID]                int            NOT NULL,
-            [City]                       nvarchar(50)   NOT NULL,
-            [State Province]             nvarchar(50)   NOT NULL,
-            [Country]                    nvarchar(60)   NOT NULL,
-            [Continent]                  nvarchar(30)   NOT NULL,
-            [Sales Territory]            nvarchar(50)   NOT NULL,
-            [Region]                     nvarchar(30)   NOT NULL,
-            [Subregion]                  nvarchar(30)   NOT NULL,
-            [Location]                   geography          NULL,
-            [Latest Recorded Population] bigint             NULL,
-            [Valid From]                 datetime2(7)   NOT NULL,
-            [Valid To]                   datetime2(7)   NOT NULL
+            [WWI City ID]                 int            NULL,
+            [City]                        nvarchar(50)   NULL,
+            [State Province]              nvarchar(50)   NULL,
+            [Country]                     nvarchar(60)   NULL,
+            [Continent]                   nvarchar(30)   NULL,
+            [Sales Territory]             nvarchar(50)   NULL,
+            [Region]                      nvarchar(30)   NULL,
+            [Subregion]                   nvarchar(30)   NULL,
+            [Location]                    geography      NULL,
+            [Latest Recorded Population]  bigint         NULL,
+            [Valid From]                  datetime2(7)   NULL,
+            [Valid To]                    datetime2(7)   NULL
         );
 
         INSERT INTO #CityTemp
@@ -132,15 +127,15 @@ BEGIN
 
     BEGIN TRY
         CREATE TABLE #CustomerTemp (
-            [WWI Customer ID]   int            NOT NULL,
-            [Customer]          nvarchar(100)  NOT NULL,
-            [Bill To Customer]  nvarchar(100)  NOT NULL,
-            [Category]          nvarchar(50)   NOT NULL,
-            [Buying Group]      nvarchar(50)   NOT NULL,
-            [Primary Contact]   nvarchar(50)   NOT NULL,
-            [Postal Code]       nvarchar(10)   NOT NULL,
-            [Valid From]        datetime2(7)   NOT NULL,
-            [Valid To]          datetime2(7)   NOT NULL
+            [WWI Customer ID]   int            NULL,
+            [Customer]          nvarchar(100)  NULL,
+            [Bill To Customer]  nvarchar(100)  NULL,
+            [Category]          nvarchar(50)   NULL,
+            [Buying Group]      nvarchar(50)   NULL,
+            [Primary Contact]   nvarchar(50)   NULL,
+            [Postal Code]       nvarchar(10)   NULL,
+            [Valid From]        datetime2(7)   NULL,
+            [Valid To]          datetime2(7)   NULL
         );
 
         INSERT INTO #CustomerTemp
@@ -203,13 +198,13 @@ BEGIN
 
     BEGIN TRY
         CREATE TABLE #EmployeeTemp (
-            [WWI Employee ID]  int            NOT NULL,
-            [Employee]         nvarchar(50)   NOT NULL,
-            [Preferred Name]   nvarchar(50)   NOT NULL,
-            [Is Salesperson]   bit            NOT NULL,
-            [Photo]            varbinary(max)     NULL,
-            [Valid From]       datetime2(7)   NOT NULL,
-            [Valid To]         datetime2(7)   NOT NULL
+            [WWI Employee ID]   int            NULL,
+            [Employee]          nvarchar(50)   NULL,
+            [Preferred Name]    nvarchar(50)   NULL,
+            [Is Salesperson]    bit            NULL,
+            [Photo]             varbinary(max) NULL,
+            [Valid From]        datetime2(7)   NULL,
+            [Valid To]          datetime2(7)   NULL
         );
 
         INSERT INTO #EmployeeTemp
@@ -218,10 +213,10 @@ BEGIN
         DELETE FROM Integration.Employee_Staging;
 
         INSERT INTO Integration.Employee_Staging
-               ([WWI Employee ID], [Employee], [Preferred Name], [Is Salesperson],
-                [Photo], [Valid From], [Valid To])
-        SELECT [WWI Employee ID], [Employee], [Preferred Name], [Is Salesperson],
-               [Photo], [Valid From], [Valid To]
+               ([WWI Employee ID], [Employee], [Preferred Name],
+                [Is Salesperson], [Photo], [Valid From], [Valid To])
+        SELECT [WWI Employee ID], [Employee], [Preferred Name],
+               [Is Salesperson], [Photo], [Valid From], [Valid To]
         FROM   #EmployeeTemp;
 
         DROP TABLE #EmployeeTemp;
@@ -272,10 +267,10 @@ BEGIN
 
     BEGIN TRY
         CREATE TABLE #PaymentMethodTemp (
-            [WWI Payment Method ID] int           NOT NULL,
-            [Payment Method]        nvarchar(50)  NOT NULL,
-            [Valid From]            datetime2(7)  NOT NULL,
-            [Valid To]              datetime2(7)  NOT NULL
+            [WWI Payment Method ID]  int           NULL,
+            [Payment Method]         nvarchar(50)  NULL,
+            [Valid From]             datetime2(7)  NULL,
+            [Valid To]               datetime2(7)  NULL
         );
 
         INSERT INTO #PaymentMethodTemp
@@ -336,24 +331,24 @@ BEGIN
 
     BEGIN TRY
         CREATE TABLE #StockItemTemp (
-            [WWI Stock Item ID]          int             NOT NULL,
-            [Stock Item]                 nvarchar(100)   NOT NULL,
-            [Color]                      nvarchar(20)    NOT NULL,
-            [Selling Package]            nvarchar(50)    NOT NULL,
-            [Buying Package]             nvarchar(50)    NOT NULL,
-            [Brand]                      nvarchar(50)    NOT NULL,
-            [Size]                       nvarchar(20)    NOT NULL,
-            [Lead Time Days]             int             NOT NULL,
-            [Quantity Per Outer]         int             NOT NULL,
-            [Is Chiller Stock]           bit             NOT NULL,
-            [Barcode]                    nvarchar(50)        NULL,
-            [Tax Rate]                   decimal(18,3)   NOT NULL,
-            [Unit Price]                 decimal(18,2)   NOT NULL,
-            [Recommended Retail Price]   decimal(18,2)       NULL,
-            [Typical Weight Per Unit]    decimal(18,3)   NOT NULL,
-            [Photo]                      varbinary(max)      NULL,
-            [Valid From]                 datetime2(7)    NOT NULL,
-            [Valid To]                   datetime2(7)    NOT NULL
+            [WWI Stock Item ID]           int             NULL,
+            [Stock Item]                  nvarchar(100)   NULL,
+            [Color]                       nvarchar(20)    NULL,
+            [Selling Package]             nvarchar(50)    NULL,
+            [Buying Package]              nvarchar(50)    NULL,
+            [Brand]                       nvarchar(50)    NULL,
+            [Size]                        nvarchar(20)    NULL,
+            [Lead Time Days]              int             NULL,
+            [Quantity Per Outer]          int             NULL,
+            [Is Chiller Stock]            bit             NULL,
+            [Barcode]                     nvarchar(50)    NULL,
+            [Tax Rate]                    decimal(18,3)   NULL,
+            [Unit Price]                  decimal(18,2)   NULL,
+            [Recommended Retail Price]    decimal(18,2)   NULL,
+            [Typical Weight Per Unit]     decimal(18,3)   NULL,
+            [Photo]                       varbinary(max)  NULL,
+            [Valid From]                  datetime2(7)    NULL,
+            [Valid To]                    datetime2(7)    NULL
         );
 
         INSERT INTO #StockItemTemp
@@ -362,14 +357,16 @@ BEGIN
         DELETE FROM Integration.StockItem_Staging;
 
         INSERT INTO Integration.StockItem_Staging
-               ([WWI Stock Item ID], [Stock Item], [Color], [Selling Package], [Buying Package],
-                [Brand], [Size], [Lead Time Days], [Quantity Per Outer], [Is Chiller Stock],
-                [Barcode], [Tax Rate], [Unit Price], [Recommended Retail Price],
-                [Typical Weight Per Unit], [Photo], [Valid From], [Valid To])
-        SELECT [WWI Stock Item ID], [Stock Item], [Color], [Selling Package], [Buying Package],
-               [Brand], [Size], [Lead Time Days], [Quantity Per Outer], [Is Chiller Stock],
-               [Barcode], [Tax Rate], [Unit Price], [Recommended Retail Price],
-               [Typical Weight Per Unit], [Photo], [Valid From], [Valid To]
+               ([WWI Stock Item ID], [Stock Item], [Color], [Selling Package],
+                [Buying Package], [Brand], [Size], [Lead Time Days],
+                [Quantity Per Outer], [Is Chiller Stock], [Barcode], [Tax Rate],
+                [Unit Price], [Recommended Retail Price], [Typical Weight Per Unit],
+                [Photo], [Valid From], [Valid To])
+        SELECT [WWI Stock Item ID], [Stock Item], [Color], [Selling Package],
+               [Buying Package], [Brand], [Size], [Lead Time Days],
+               [Quantity Per Outer], [Is Chiller Stock], [Barcode], [Tax Rate],
+               [Unit Price], [Recommended Retail Price], [Typical Weight Per Unit],
+               [Photo], [Valid From], [Valid To]
         FROM   #StockItemTemp;
 
         DROP TABLE #StockItemTemp;
@@ -420,15 +417,15 @@ BEGIN
 
     BEGIN TRY
         CREATE TABLE #SupplierTemp (
-            [WWI Supplier ID]    int            NOT NULL,
-            [Supplier]           nvarchar(100)  NOT NULL,
-            [Category]           nvarchar(50)   NOT NULL,
-            [Primary Contact]    nvarchar(50)   NOT NULL,
-            [Supplier Reference] nvarchar(20)       NULL,
-            [Payment Days]       int            NOT NULL,
-            [Postal Code]        nvarchar(10)   NOT NULL,
-            [Valid From]         datetime2(7)   NOT NULL,
-            [Valid To]           datetime2(7)   NOT NULL
+            [WWI Supplier ID]       int            NULL,
+            [Supplier]              nvarchar(100)  NULL,
+            [Category]              nvarchar(50)   NULL,
+            [Primary Contact]       nvarchar(50)   NULL,
+            [Supplier Reference]    nvarchar(20)   NULL,
+            [Payment Days]          int            NULL,
+            [Postal Code]           nvarchar(10)   NULL,
+            [Valid From]            datetime2(7)   NULL,
+            [Valid To]              datetime2(7)   NULL
         );
 
         INSERT INTO #SupplierTemp
@@ -491,10 +488,10 @@ BEGIN
 
     BEGIN TRY
         CREATE TABLE #TransactionTypeTemp (
-            [WWI Transaction Type ID] int           NOT NULL,
-            [Transaction Type]        nvarchar(50)  NOT NULL,
-            [Valid From]              datetime2(7)  NOT NULL,
-            [Valid To]                datetime2(7)  NOT NULL
+            [WWI Transaction Type ID]  int           NULL,
+            [Transaction Type]         nvarchar(50)  NULL,
+            [Valid From]               datetime2(7)  NULL,
+            [Valid To]                 datetime2(7)  NULL
         );
 
         INSERT INTO #TransactionTypeTemp
@@ -535,7 +532,9 @@ GO
 
 -- -----------------------------------------------------------------------------
 -- Movement  |  ETL Cutoff: 'Movement'
--- Note: [Last Modifed When] preserves the typo present in the staging table.
+-- GetMovementUpdates returns 10 cols (no surrogate keys).
+-- [Transaction Occurred When] from proc maps to [Last Modifed When] in staging
+-- (the typo 'Modifed' is preserved from the actual staging table definition).
 -- -----------------------------------------------------------------------------
 CREATE OR ALTER PROCEDURE Integration.IngestMovementStaging
 AS
@@ -559,21 +558,20 @@ BEGIN
     SET @LineageKey = SCOPE_IDENTITY();
 
     BEGIN TRY
+        -- Matches exactly the 10 columns returned by GetMovementUpdates.
+        -- Surrogate keys ([Stock Item Key] etc.) are NOT returned by the proc;
+        -- they remain NULL in staging until MigrateStagedMovementData runs.
         CREATE TABLE #MovementTemp (
-            [Date Key]                      date          NOT NULL,
-            [Stock Item Key]                int           NOT NULL,
-            [Customer Key]                  int               NULL,
-            [Supplier Key]                  int               NULL,
-            [Transaction Type Key]          int           NOT NULL,
-            [WWI Stock Item Transaction ID] int           NOT NULL,
-            [WWI Invoice ID]                int               NULL,
-            [WWI Purchase Order ID]         int               NULL,
-            [Quantity]                      int           NOT NULL,
-            [WWI Stock Item ID]             int           NOT NULL,
-            [WWI Customer ID]               int               NULL,
-            [WWI Supplier ID]               int               NULL,
-            [WWI Transaction Type ID]       int           NOT NULL,
-            [Last Modifed When]             datetime2(7)  NOT NULL
+            [Date Key]                      date          NULL,
+            [WWI Stock Item Transaction ID] int           NULL,
+            [WWI Invoice ID]                int           NULL,
+            [WWI Purchase Order ID]         int           NULL,
+            [Quantity]                      int           NULL,
+            [WWI Stock Item ID]             int           NULL,
+            [WWI Customer ID]               int           NULL,
+            [WWI Supplier ID]               int           NULL,
+            [WWI Transaction Type ID]       int           NULL,
+            [Transaction Occurred When]     datetime2(7)  NULL
         );
 
         INSERT INTO #MovementTemp
@@ -582,16 +580,14 @@ BEGIN
         DELETE FROM Integration.Movement_Staging;
 
         INSERT INTO Integration.Movement_Staging
-               ([Date Key], [Stock Item Key], [Customer Key], [Supplier Key],
-                [Transaction Type Key], [WWI Stock Item Transaction ID],
+               ([Date Key], [WWI Stock Item Transaction ID],
                 [WWI Invoice ID], [WWI Purchase Order ID], [Quantity],
                 [WWI Stock Item ID], [WWI Customer ID], [WWI Supplier ID],
                 [WWI Transaction Type ID], [Last Modifed When])
-        SELECT [Date Key], [Stock Item Key], [Customer Key], [Supplier Key],
-               [Transaction Type Key], [WWI Stock Item Transaction ID],
+        SELECT [Date Key], [WWI Stock Item Transaction ID],
                [WWI Invoice ID], [WWI Purchase Order ID], [Quantity],
                [WWI Stock Item ID], [WWI Customer ID], [WWI Supplier ID],
-               [WWI Transaction Type ID], [Last Modifed When]
+               [WWI Transaction Type ID], [Transaction Occurred When]
         FROM   #MovementTemp;
 
         DROP TABLE #MovementTemp;
@@ -618,7 +614,8 @@ GO
 
 -- -----------------------------------------------------------------------------
 -- Order  |  ETL Cutoff: 'Order'
--- Note: [Lineage Key] is not returned by GetOrderUpdates; stamped after insert.
+-- GetOrderUpdates returns 18 cols (no surrogate keys).
+-- [Lineage Key] is not returned by the proc; stamped via UPDATE after insert.
 -- -----------------------------------------------------------------------------
 CREATE OR ALTER PROCEDURE Integration.IngestOrderStaging
 AS
@@ -642,30 +639,27 @@ BEGIN
     SET @LineageKey = SCOPE_IDENTITY();
 
     BEGIN TRY
+        -- Matches exactly the 18 columns returned by GetOrderUpdates.
+        -- Surrogate keys ([City Key], [Customer Key], etc.) remain NULL.
         CREATE TABLE #OrderTemp (
-            [City Key]              int             NOT NULL,
-            [Customer Key]          int             NOT NULL,
-            [Stock Item Key]        int             NOT NULL,
-            [Order Date Key]        date            NOT NULL,
-            [Picked Date Key]       date                NULL,
-            [Salesperson Key]       int             NOT NULL,
-            [Picker Key]            int                 NULL,
-            [WWI Order ID]          int             NOT NULL,
-            [WWI Backorder ID]      int                 NULL,
-            [Description]           nvarchar(100)   NOT NULL,
-            [Package]               nvarchar(50)    NOT NULL,
-            [Quantity]              int             NOT NULL,
-            [Unit Price]            decimal(18,2)   NOT NULL,
-            [Tax Rate]              decimal(18,3)   NOT NULL,
-            [Total Excluding Tax]   decimal(18,2)   NOT NULL,
-            [Tax Amount]            decimal(18,2)   NOT NULL,
-            [Total Including Tax]   decimal(18,2)   NOT NULL,
-            [WWI City ID]           int             NOT NULL,
-            [WWI Customer ID]       int             NOT NULL,
-            [WWI Stock Item ID]     int             NOT NULL,
-            [WWI Salesperson ID]    int             NOT NULL,
-            [WWI Picker ID]         int                 NULL,
-            [Last Modified When]    datetime2(7)    NOT NULL
+            [Order Date Key]        date            NULL,
+            [Picked Date Key]       date            NULL,
+            [WWI Order ID]          int             NULL,
+            [WWI Backorder ID]      int             NULL,
+            [Description]           nvarchar(100)   NULL,
+            [Package]               nvarchar(50)    NULL,
+            [Quantity]              int             NULL,
+            [Unit Price]            decimal(18,2)   NULL,
+            [Tax Rate]              decimal(18,3)   NULL,
+            [Total Excluding Tax]   decimal(18,2)   NULL,
+            [Tax Amount]            decimal(18,2)   NULL,
+            [Total Including Tax]   decimal(18,2)   NULL,
+            [WWI City ID]           int             NULL,
+            [WWI Customer ID]       int             NULL,
+            [WWI Stock Item ID]     int             NULL,
+            [WWI Salesperson ID]    int             NULL,
+            [WWI Picker ID]         int             NULL,
+            [Last Modified When]    datetime2(7)    NULL
         );
 
         INSERT INTO #OrderTemp
@@ -673,17 +667,15 @@ BEGIN
 
         DELETE FROM Integration.Order_Staging;
 
-        -- [Lineage Key] excluded from INSERT; stamped below.
+        -- [Lineage Key] excluded from INSERT; stamped below via UPDATE.
         INSERT INTO Integration.Order_Staging
-               ([City Key], [Customer Key], [Stock Item Key],
-                [Order Date Key], [Picked Date Key], [Salesperson Key], [Picker Key],
+               ([Order Date Key], [Picked Date Key],
                 [WWI Order ID], [WWI Backorder ID], [Description], [Package], [Quantity],
                 [Unit Price], [Tax Rate], [Total Excluding Tax], [Tax Amount],
                 [Total Including Tax],
                 [WWI City ID], [WWI Customer ID], [WWI Stock Item ID],
                 [WWI Salesperson ID], [WWI Picker ID], [Last Modified When])
-        SELECT [City Key], [Customer Key], [Stock Item Key],
-               [Order Date Key], [Picked Date Key], [Salesperson Key], [Picker Key],
+        SELECT [Order Date Key], [Picked Date Key],
                [WWI Order ID], [WWI Backorder ID], [Description], [Package], [Quantity],
                [Unit Price], [Tax Rate], [Total Excluding Tax], [Tax Amount],
                [Total Including Tax],
@@ -718,6 +710,7 @@ GO
 
 -- -----------------------------------------------------------------------------
 -- Purchase  |  ETL Cutoff: 'Purchase'
+-- GetPurchaseUpdates returns 10 cols (no surrogate keys).
 -- -----------------------------------------------------------------------------
 CREATE OR ALTER PROCEDURE Integration.IngestPurchaseStaging
 AS
@@ -741,19 +734,19 @@ BEGIN
     SET @LineageKey = SCOPE_IDENTITY();
 
     BEGIN TRY
+        -- Matches exactly the 10 columns returned by GetPurchaseUpdates.
+        -- Surrogate keys ([Supplier Key], [Stock Item Key]) remain NULL.
         CREATE TABLE #PurchaseTemp (
-            [Date Key]               date           NOT NULL,
-            [Supplier Key]           int            NOT NULL,
-            [Stock Item Key]         int            NOT NULL,
-            [WWI Purchase Order ID]  int            NOT NULL,
-            [Ordered Outers]         int            NOT NULL,
-            [Ordered Quantity]       int            NOT NULL,
-            [Received Outers]        int            NOT NULL,
-            [Package]                nvarchar(50)   NOT NULL,
-            [Is Order Finalized]     bit            NOT NULL,
-            [WWI Supplier ID]        int            NOT NULL,
-            [WWI Stock Item ID]      int            NOT NULL,
-            [Last Modified When]     datetime2(7)   NOT NULL
+            [Date Key]               date           NULL,
+            [WWI Purchase Order ID]  int            NULL,
+            [Ordered Outers]         int            NULL,
+            [Ordered Quantity]       int            NULL,
+            [Received Outers]        int            NULL,
+            [Package]                nvarchar(50)   NULL,
+            [Is Order Finalized]     bit            NULL,
+            [WWI Supplier ID]        int            NULL,
+            [WWI Stock Item ID]      int            NULL,
+            [Last Modified When]     datetime2(7)   NULL
         );
 
         INSERT INTO #PurchaseTemp
@@ -762,12 +755,10 @@ BEGIN
         DELETE FROM Integration.Purchase_Staging;
 
         INSERT INTO Integration.Purchase_Staging
-               ([Date Key], [Supplier Key], [Stock Item Key],
-                [WWI Purchase Order ID], [Ordered Outers], [Ordered Quantity],
+               ([Date Key], [WWI Purchase Order ID], [Ordered Outers], [Ordered Quantity],
                 [Received Outers], [Package], [Is Order Finalized],
                 [WWI Supplier ID], [WWI Stock Item ID], [Last Modified When])
-        SELECT [Date Key], [Supplier Key], [Stock Item Key],
-               [WWI Purchase Order ID], [Ordered Outers], [Ordered Quantity],
+        SELECT [Date Key], [WWI Purchase Order ID], [Ordered Outers], [Ordered Quantity],
                [Received Outers], [Package], [Is Order Finalized],
                [WWI Supplier ID], [WWI Stock Item ID], [Last Modified When]
         FROM   #PurchaseTemp;
@@ -796,6 +787,10 @@ GO
 
 -- -----------------------------------------------------------------------------
 -- Sale  |  ETL Cutoff: 'Sale'
+-- GetSaleUpdates returns 20 cols (no surrogate keys).
+-- Note: the proc returns [WWI Saleperson ID] (typo in source); the #temp column
+-- is named [WWI Salesperson ID] (correct). INSERT...EXEC maps by position so
+-- this works correctly despite the name mismatch in the source proc.
 -- -----------------------------------------------------------------------------
 CREATE OR ALTER PROCEDURE Integration.IngestSaleStaging
 AS
@@ -819,32 +814,29 @@ BEGIN
     SET @LineageKey = SCOPE_IDENTITY();
 
     BEGIN TRY
+        -- Matches exactly the 20 columns returned by GetSaleUpdates.
+        -- Surrogate keys ([City Key], [Customer Key], etc.) remain NULL.
         CREATE TABLE #SaleTemp (
-            [City Key]              int            NOT NULL,
-            [Customer Key]          int            NOT NULL,
-            [Bill To Customer Key]  int            NOT NULL,
-            [Stock Item Key]        int            NOT NULL,
-            [Invoice Date Key]      date           NOT NULL,
-            [Delivery Date Key]     date               NULL,
-            [Salesperson Key]       int            NOT NULL,
-            [WWI Invoice ID]        int            NOT NULL,
-            [Description]           nvarchar(100)  NOT NULL,
-            [Package]               nvarchar(50)   NOT NULL,
-            [Quantity]              int            NOT NULL,
-            [Unit Price]            decimal(18,2)  NOT NULL,
-            [Tax Rate]              decimal(18,3)  NOT NULL,
-            [Total Excluding Tax]   decimal(18,2)  NOT NULL,
-            [Tax Amount]            decimal(18,2)  NOT NULL,
-            [Profit]                decimal(18,2)  NOT NULL,
-            [Total Including Tax]   decimal(18,2)  NOT NULL,
-            [Total Dry Items]       int            NOT NULL,
-            [Total Chiller Items]   int            NOT NULL,
-            [WWI City ID]           int            NOT NULL,
-            [WWI Customer ID]       int            NOT NULL,
-            [WWI Bill To Customer ID] int          NOT NULL,
-            [WWI Stock Item ID]     int            NOT NULL,
-            [WWI Salesperson ID]    int            NOT NULL,
-            [Last Modified When]    datetime2(7)   NOT NULL
+            [Invoice Date Key]          date           NULL,
+            [Delivery Date Key]         date           NULL,
+            [WWI Invoice ID]            int            NULL,
+            [Description]               nvarchar(100)  NULL,
+            [Package]                   nvarchar(50)   NULL,
+            [Quantity]                  int            NULL,
+            [Unit Price]                decimal(18,2)  NULL,
+            [Tax Rate]                  decimal(18,3)  NULL,
+            [Total Excluding Tax]       decimal(18,2)  NULL,
+            [Tax Amount]                decimal(18,2)  NULL,
+            [Profit]                    decimal(18,2)  NULL,
+            [Total Including Tax]       decimal(18,2)  NULL,
+            [Total Dry Items]           int            NULL,
+            [Total Chiller Items]       int            NULL,
+            [WWI City ID]               int            NULL,
+            [WWI Customer ID]           int            NULL,
+            [WWI Bill To Customer ID]   int            NULL,
+            [WWI Stock Item ID]         int            NULL,
+            [WWI Salesperson ID]        int            NULL,
+            [Last Modified When]        datetime2(7)   NULL
         );
 
         INSERT INTO #SaleTemp
@@ -853,16 +845,14 @@ BEGIN
         DELETE FROM Integration.Sale_Staging;
 
         INSERT INTO Integration.Sale_Staging
-               ([City Key], [Customer Key], [Bill To Customer Key], [Stock Item Key],
-                [Invoice Date Key], [Delivery Date Key], [Salesperson Key],
-                [WWI Invoice ID], [Description], [Package], [Quantity],
+               ([Invoice Date Key], [Delivery Date Key], [WWI Invoice ID],
+                [Description], [Package], [Quantity],
                 [Unit Price], [Tax Rate], [Total Excluding Tax], [Tax Amount],
                 [Profit], [Total Including Tax], [Total Dry Items], [Total Chiller Items],
                 [WWI City ID], [WWI Customer ID], [WWI Bill To Customer ID],
                 [WWI Stock Item ID], [WWI Salesperson ID], [Last Modified When])
-        SELECT [City Key], [Customer Key], [Bill To Customer Key], [Stock Item Key],
-               [Invoice Date Key], [Delivery Date Key], [Salesperson Key],
-               [WWI Invoice ID], [Description], [Package], [Quantity],
+        SELECT [Invoice Date Key], [Delivery Date Key], [WWI Invoice ID],
+               [Description], [Package], [Quantity],
                [Unit Price], [Tax Rate], [Total Excluding Tax], [Tax Amount],
                [Profit], [Total Including Tax], [Total Dry Items], [Total Chiller Items],
                [WWI City ID], [WWI Customer ID], [WWI Bill To Customer ID],
@@ -893,7 +883,8 @@ GO
 
 -- -----------------------------------------------------------------------------
 -- Stock Holding  |  ETL Cutoff: 'Stock Holding'
--- Full refresh — no temporal filter on source data.
+-- GetStockHoldingUpdates returns 7 cols (no date filter — full snapshot).
+-- Surrogate key [Stock Item Key] remains NULL.
 -- -----------------------------------------------------------------------------
 CREATE OR ALTER PROCEDURE Integration.IngestStockHoldingStaging
 AS
@@ -917,29 +908,28 @@ BEGIN
     SET @LineageKey = SCOPE_IDENTITY();
 
     BEGIN TRY
+        -- Matches exactly the 7 columns returned by GetStockHoldingUpdates.
+        -- [Stock Item Key] surrogate remains NULL.
         CREATE TABLE #StockHoldingTemp (
-            [Stock Item Key]         int            NOT NULL,
-            [Quantity On Hand]       int            NOT NULL,
-            [Bin Location]           nvarchar(20)   NOT NULL,
-            [Last Stocktake Quantity] int           NOT NULL,
-            [Last Cost Price]        decimal(18,2)  NOT NULL,
-            [Reorder Level]          int            NOT NULL,
-            [Target Stock Level]     int            NOT NULL,
-            [WWI Stock Item ID]      int            NOT NULL
+            [Quantity On Hand]        int            NULL,
+            [Bin Location]            nvarchar(20)   NULL,
+            [Last Stocktake Quantity] int            NULL,
+            [Last Cost Price]         decimal(18,2)  NULL,
+            [Reorder Level]           int            NULL,
+            [Target Stock Level]      int            NULL,
+            [WWI Stock Item ID]       int            NULL
         );
 
         INSERT INTO #StockHoldingTemp
-        EXEC [WideWorldImporters].Integration.GetStockHoldingUpdates @LastCutoff, @NewCutoff;
+        EXEC [WideWorldImporters].Integration.GetStockHoldingUpdates;
 
         DELETE FROM Integration.StockHolding_Staging;
 
         INSERT INTO Integration.StockHolding_Staging
-               ([Stock Item Key], [Quantity On Hand], [Bin Location],
-                [Last Stocktake Quantity], [Last Cost Price],
-                [Reorder Level], [Target Stock Level], [WWI Stock Item ID])
-        SELECT [Stock Item Key], [Quantity On Hand], [Bin Location],
-               [Last Stocktake Quantity], [Last Cost Price],
-               [Reorder Level], [Target Stock Level], [WWI Stock Item ID]
+               ([Quantity On Hand], [Bin Location], [Last Stocktake Quantity],
+                [Last Cost Price], [Reorder Level], [Target Stock Level], [WWI Stock Item ID])
+        SELECT [Quantity On Hand], [Bin Location], [Last Stocktake Quantity],
+               [Last Cost Price], [Reorder Level], [Target Stock Level], [WWI Stock Item ID]
         FROM   #StockHoldingTemp;
 
         DROP TABLE #StockHoldingTemp;
@@ -966,6 +956,8 @@ GO
 
 -- -----------------------------------------------------------------------------
 -- Transaction  |  ETL Cutoff: 'Transaction'
+-- GetTransactionUpdates returns 17 cols (UNION of customer + supplier txns).
+-- Surrogate keys ([Customer Key], [Bill To Customer Key], etc.) remain NULL.
 -- -----------------------------------------------------------------------------
 CREATE OR ALTER PROCEDURE Integration.IngestTransactionStaging
 AS
@@ -989,29 +981,26 @@ BEGIN
     SET @LineageKey = SCOPE_IDENTITY();
 
     BEGIN TRY
+        -- Matches exactly the 17 columns returned by GetTransactionUpdates.
+        -- Surrogate keys remain NULL.
         CREATE TABLE #TransactionTemp (
-            [Date Key]                      date           NOT NULL,
-            [Customer Key]                  int                NULL,
-            [Bill To Customer Key]          int                NULL,
-            [Supplier Key]                  int                NULL,
-            [Transaction Type Key]          int            NOT NULL,
-            [Payment Method Key]            int                NULL,
-            [WWI Customer Transaction ID]   int                NULL,
-            [WWI Supplier Transaction ID]   int                NULL,
-            [WWI Invoice ID]                int                NULL,
-            [WWI Purchase Order ID]         int                NULL,
-            [Supplier Invoice Number]       nvarchar(20)       NULL,
-            [Total Excluding Tax]           decimal(18,2)  NOT NULL,
-            [Tax Amount]                    decimal(18,2)  NOT NULL,
-            [Total Including Tax]           decimal(18,2)  NOT NULL,
-            [Outstanding Balance]           decimal(18,2)  NOT NULL,
-            [Is Finalized]                  bit            NOT NULL,
-            [WWI Customer ID]               int                NULL,
-            [WWI Bill To Customer ID]       int                NULL,
-            [WWI Supplier ID]               int                NULL,
-            [WWI Transaction Type ID]       int            NOT NULL,
-            [WWI Payment Method ID]         int                NULL,
-            [Last Modified When]            datetime2(7)   NOT NULL
+            [Date Key]                      date           NULL,
+            [WWI Customer Transaction ID]   int            NULL,
+            [WWI Supplier Transaction ID]   int            NULL,
+            [WWI Invoice ID]                int            NULL,
+            [WWI Purchase Order ID]         int            NULL,
+            [Supplier Invoice Number]       nvarchar(20)   NULL,
+            [Total Excluding Tax]           decimal(18,2)  NULL,
+            [Tax Amount]                    decimal(18,2)  NULL,
+            [Total Including Tax]           decimal(18,2)  NULL,
+            [Outstanding Balance]           decimal(18,2)  NULL,
+            [Is Finalized]                  bit            NULL,
+            [WWI Customer ID]               int            NULL,
+            [WWI Bill To Customer ID]       int            NULL,
+            [WWI Supplier ID]               int            NULL,
+            [WWI Transaction Type ID]       int            NULL,
+            [WWI Payment Method ID]         int            NULL,
+            [Last Modified When]            datetime2(7)   NULL
         );
 
         INSERT INTO #TransactionTemp
@@ -1020,16 +1009,14 @@ BEGIN
         DELETE FROM Integration.Transaction_Staging;
 
         INSERT INTO Integration.Transaction_Staging
-               ([Date Key], [Customer Key], [Bill To Customer Key], [Supplier Key],
-                [Transaction Type Key], [Payment Method Key],
+               ([Date Key],
                 [WWI Customer Transaction ID], [WWI Supplier Transaction ID],
                 [WWI Invoice ID], [WWI Purchase Order ID], [Supplier Invoice Number],
                 [Total Excluding Tax], [Tax Amount], [Total Including Tax],
                 [Outstanding Balance], [Is Finalized],
                 [WWI Customer ID], [WWI Bill To Customer ID], [WWI Supplier ID],
                 [WWI Transaction Type ID], [WWI Payment Method ID], [Last Modified When])
-        SELECT [Date Key], [Customer Key], [Bill To Customer Key], [Supplier Key],
-               [Transaction Type Key], [Payment Method Key],
+        SELECT [Date Key],
                [WWI Customer Transaction ID], [WWI Supplier Transaction ID],
                [WWI Invoice ID], [WWI Purchase Order ID], [Supplier Invoice Number],
                [Total Excluding Tax], [Tax Amount], [Total Including Tax],
@@ -1082,4 +1069,12 @@ BEGIN
     EXEC Integration.IngestStockHoldingStaging;
     EXEC Integration.IngestTransactionStaging;
 END;
+GO
+
+-- =============================================================================
+-- Reset ETL Cutoff times to force a full reload on next run.
+-- Run this once after deploying corrected procedures.
+-- =============================================================================
+UPDATE Integration.[ETL Cutoff]
+SET    [Cutoff Time] = CONVERT(datetime2(7), '19000101', 112);
 GO
