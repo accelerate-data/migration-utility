@@ -49,7 +49,7 @@ BEGIN
     SET @LineageKey = SCOPE_IDENTITY();
 
     BEGIN TRY
-        TRUNCATE TABLE Integration.City_Staging;
+        DELETE FROM Integration.City_Staging;
 
         INSERT INTO Integration.City_Staging
                ([WWI City ID], [City], [State Province], [Country], [Continent],
@@ -101,7 +101,7 @@ BEGIN
     SET @LineageKey = SCOPE_IDENTITY();
 
     BEGIN TRY
-        TRUNCATE TABLE Integration.Customer_Staging;
+        DELETE FROM Integration.Customer_Staging;
 
         INSERT INTO Integration.Customer_Staging
                ([WWI Customer ID], [Customer], [Bill To Customer], [Category],
@@ -152,7 +152,7 @@ BEGIN
     SET @LineageKey = SCOPE_IDENTITY();
 
     BEGIN TRY
-        TRUNCATE TABLE Integration.Employee_Staging;
+        DELETE FROM Integration.Employee_Staging;
 
         INSERT INTO Integration.Employee_Staging
                ([WWI Employee ID], [Employee], [Preferred Name], [Is Salesperson],
@@ -203,7 +203,7 @@ BEGIN
     SET @LineageKey = SCOPE_IDENTITY();
 
     BEGIN TRY
-        TRUNCATE TABLE Integration.PaymentMethod_Staging;
+        DELETE FROM Integration.PaymentMethod_Staging;
 
         INSERT INTO Integration.PaymentMethod_Staging
                ([WWI Payment Method ID], [Payment Method], [Valid From], [Valid To])
@@ -253,7 +253,7 @@ BEGIN
     SET @LineageKey = SCOPE_IDENTITY();
 
     BEGIN TRY
-        TRUNCATE TABLE Integration.StockItem_Staging;
+        DELETE FROM Integration.StockItem_Staging;
 
         INSERT INTO Integration.StockItem_Staging
                ([WWI Stock Item ID], [Stock Item], [Color], [Selling Package], [Buying Package],
@@ -306,7 +306,7 @@ BEGIN
     SET @LineageKey = SCOPE_IDENTITY();
 
     BEGIN TRY
-        TRUNCATE TABLE Integration.Supplier_Staging;
+        DELETE FROM Integration.Supplier_Staging;
 
         INSERT INTO Integration.Supplier_Staging
                ([WWI Supplier ID], [Supplier], [Category], [Primary Contact],
@@ -357,7 +357,7 @@ BEGIN
     SET @LineageKey = SCOPE_IDENTITY();
 
     BEGIN TRY
-        TRUNCATE TABLE Integration.TransactionType_Staging;
+        DELETE FROM Integration.TransactionType_Staging;
 
         INSERT INTO Integration.TransactionType_Staging
                ([WWI Transaction Type ID], [Transaction Type], [Valid From], [Valid To])
@@ -412,7 +412,7 @@ BEGIN
     SET @LineageKey = SCOPE_IDENTITY();
 
     BEGIN TRY
-        TRUNCATE TABLE Integration.Movement_Staging;
+        DELETE FROM Integration.Movement_Staging;
 
         INSERT INTO Integration.Movement_Staging
                ([Date Key], [Stock Item Key], [Customer Key], [Supplier Key],
@@ -468,7 +468,7 @@ BEGIN
     SET @LineageKey = SCOPE_IDENTITY();
 
     BEGIN TRY
-        TRUNCATE TABLE Integration.Order_Staging;
+        DELETE FROM Integration.Order_Staging;
 
         -- [Lineage Key] excluded from INSERT; stamped below.
         INSERT INTO Integration.Order_Staging
@@ -528,7 +528,7 @@ BEGIN
     SET @LineageKey = SCOPE_IDENTITY();
 
     BEGIN TRY
-        TRUNCATE TABLE Integration.Purchase_Staging;
+        DELETE FROM Integration.Purchase_Staging;
 
         INSERT INTO Integration.Purchase_Staging
                ([Date Key], [Supplier Key], [Stock Item Key],
@@ -581,7 +581,7 @@ BEGIN
     SET @LineageKey = SCOPE_IDENTITY();
 
     BEGIN TRY
-        TRUNCATE TABLE Integration.Sale_Staging;
+        DELETE FROM Integration.Sale_Staging;
 
         INSERT INTO Integration.Sale_Staging
                ([City Key], [Customer Key], [Bill To Customer Key], [Stock Item Key],
@@ -638,7 +638,7 @@ BEGIN
     SET @LineageKey = SCOPE_IDENTITY();
 
     BEGIN TRY
-        TRUNCATE TABLE Integration.StockHolding_Staging;
+        DELETE FROM Integration.StockHolding_Staging;
 
         INSERT INTO Integration.StockHolding_Staging
                ([Stock Item Key], [Quantity On Hand], [Bin Location],
@@ -690,7 +690,7 @@ BEGIN
     SET @LineageKey = SCOPE_IDENTITY();
 
     BEGIN TRY
-        TRUNCATE TABLE Integration.Transaction_Staging;
+        DELETE FROM Integration.Transaction_Staging;
 
         INSERT INTO Integration.Transaction_Staging
                ([Date Key], [Customer Key], [Bill To Customer Key], [Supplier Key],
