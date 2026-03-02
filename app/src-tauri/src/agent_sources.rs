@@ -8,6 +8,7 @@ const WORKSPACE_DIR: &str = ".vibedata/migration-utility";
 const CLAUDE_DIR: &str = ".claude";
 const CLAUDE_FILE: &str = "CLAUDE.md";
 const MANAGED_SUBDIRS: [&str; 3] = ["agents", "skills", "rules"];
+const CUSTOMIZATION_SENTINEL: &str = "\n## Customization";
 
 pub fn deploy_on_startup(app: &AppHandle) -> Result<(), String> {
     let source = resolve_source_dir(app)?;
@@ -100,26 +101,7 @@ fn deploy_agent_sources(source: &Path, workspace_root: &Path) -> Result<(), Stri
         ));
     }
     let target_claude = target_claude_dir.join(CLAUDE_FILE);
-    if !target_claude.exists() {
-        log::info!(
-            "agent_sources: copying CLAUDE.md {} -> {}",
-            source_claude.display(),
-            target_claude.display()
-        );
-        fs::copy(&source_claude, &target_claude).map_err(|e| {
-            format!(
-                "agent_sources: failed to copy {} -> {}: {}",
-                source_claude.display(),
-                target_claude.display(),
-                e
-            )
-        })?;
-    } else {
-        log::debug!(
-            "agent_sources: preserving existing CLAUDE.md at {}",
-            target_claude.display()
-        );
-    }
+    merge_claude_md(&source_claude, &target_claude)?;
 
     for dir in MANAGED_SUBDIRS {
         let source_dir = source.join(dir);
@@ -152,6 +134,81 @@ fn deploy_agent_sources(source: &Path, workspace_root: &Path) -> Result<(), Stri
         start.elapsed().as_millis()
     );
     Ok(())
+}
+
+fn merge_claude_md(source_path: &Path, target_path: &Path) -> Result<(), String> {
+    let source_content = fs::read_to_string(source_path).map_err(|e| {
+        format!(
+            "agent_sources: failed to read source CLAUDE.md {}: {}",
+            source_path.display(),
+            e
+        )
+    })?;
+
+    if !target_path.exists() {
+        log::info!(
+            "agent_sources: creating CLAUDE.md {} -> {}",
+            source_path.display(),
+            target_path.display()
+        );
+        return fs::write(target_path, &source_content).map_err(|e| {
+            format!(
+                "agent_sources: failed to write CLAUDE.md {}: {}",
+                target_path.display(),
+                e
+            )
+        });
+    }
+
+    let existing_content = fs::read_to_string(target_path).map_err(|e| {
+        format!(
+            "agent_sources: failed to read existing CLAUDE.md {}: {}",
+            target_path.display(),
+            e
+        )
+    })?;
+
+    let merged = merge_claude_content(&source_content, &existing_content);
+
+    if merged == existing_content {
+        log::debug!(
+            "agent_sources: CLAUDE.md unchanged, skipping write {}",
+            target_path.display()
+        );
+        return Ok(());
+    }
+
+    log::info!(
+        "agent_sources: updating CLAUDE.md managed section {}",
+        target_path.display()
+    );
+    fs::write(target_path, merged).map_err(|e| {
+        format!(
+            "agent_sources: failed to write CLAUDE.md {}: {}",
+            target_path.display(),
+            e
+        )
+    })
+}
+
+fn merge_claude_content(source: &str, existing: &str) -> String {
+    let managed = match source.find(CUSTOMIZATION_SENTINEL) {
+        Some(pos) => &source[..pos],
+        None => source,
+    };
+    match existing.find(CUSTOMIZATION_SENTINEL) {
+        Some(pos) => {
+            let user_section = &existing[pos..];
+            let mut result = managed.trim_end().to_string();
+            result.push('\n');
+            result.push_str(user_section);
+            if !result.ends_with('\n') {
+                result.push('\n');
+            }
+            result
+        }
+        None => source.to_string(),
+    }
 }
 
 fn replace_directory(source: &Path, target: &Path) -> Result<(), String> {
@@ -306,7 +363,7 @@ fn remove_path(path: &Path, label: &str) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{deploy_agent_sources, resolve_source_dir_from_candidates};
+    use super::{deploy_agent_sources, merge_claude_content, merge_claude_md, resolve_source_dir_from_candidates};
     use std::fs;
 
     fn seed_source(source: &std::path::Path) {
@@ -379,7 +436,7 @@ mod tests {
         fs::create_dir_all(source.join("skills")).unwrap();
         fs::create_dir_all(source.join("agents")).unwrap();
         fs::create_dir_all(source.join("rules")).unwrap();
-        fs::write(source.join("CLAUDE.md"), "new").unwrap();
+        fs::write(source.join("CLAUDE.md"), "# New\n\n## Customization\n").unwrap();
         fs::write(source.join("skills").join("new-skill.md"), "new skill").unwrap();
         fs::write(source.join("agents").join("new-agent.md"), "new agent").unwrap();
         fs::write(source.join("rules").join("new-rule.md"), "new rule").unwrap();
@@ -387,7 +444,7 @@ mod tests {
         fs::create_dir_all(existing_claude.join("skills")).unwrap();
         fs::create_dir_all(existing_claude.join("agents")).unwrap();
         fs::create_dir_all(existing_claude.join("rules")).unwrap();
-        fs::write(existing_claude.join("CLAUDE.md"), "old").unwrap();
+        fs::write(existing_claude.join("CLAUDE.md"), "# Old\n\n## Customization\n\nmy note\n").unwrap();
         fs::write(existing_claude.join("skills").join("old-skill.md"), "old").unwrap();
         fs::write(existing_claude.join("agents").join("old-agent.md"), "old").unwrap();
         fs::write(existing_claude.join("rules").join("old-rule.md"), "old").unwrap();
@@ -397,7 +454,7 @@ mod tests {
 
         assert_eq!(
             fs::read_to_string(existing_claude.join("CLAUDE.md")).unwrap(),
-            "old"
+            "# New\n\n## Customization\n\nmy note\n"
         );
         assert!(!existing_claude.join("skills").join("old-skill.md").exists());
         assert!(!existing_claude.join("agents").join("old-agent.md").exists());
@@ -547,5 +604,52 @@ mod tests {
         let missing = tmp.path().join("missing");
         let err = resolve_source_dir_from_candidates(&[missing]).unwrap_err();
         assert!(err.contains("could not locate bundled or dev agent source directory"));
+    }
+
+    #[test]
+    fn merge_claude_content_updates_managed_preserves_user_section() {
+        let source = "# App\n\n## Customization\n";
+        let existing = "# Old\n\n## Customization\n\nuser stuff\n";
+        let result = merge_claude_content(source, existing);
+        assert_eq!(result, "# App\n\n## Customization\n\nuser stuff\n");
+    }
+
+    #[test]
+    fn merge_claude_content_replaces_entirely_when_no_sentinel_in_existing() {
+        let source = "# App\n\n## Customization\n";
+        let existing = "old content without sentinel";
+        let result = merge_claude_content(source, existing);
+        assert_eq!(result, source);
+    }
+
+    #[test]
+    fn merge_claude_md_creates_file_on_first_run() {
+        let tmp = tempfile::tempdir().unwrap();
+        let source_path = tmp.path().join("CLAUDE.md");
+        let target_path = tmp.path().join("target").join("CLAUDE.md");
+        fs::create_dir_all(target_path.parent().unwrap()).unwrap();
+        fs::write(&source_path, "# App\n\n## Customization\n").unwrap();
+
+        assert!(!target_path.exists());
+        merge_claude_md(&source_path, &target_path).unwrap();
+        assert_eq!(
+            fs::read_to_string(&target_path).unwrap(),
+            "# App\n\n## Customization\n"
+        );
+    }
+
+    #[test]
+    fn merge_claude_md_preserves_user_section_on_update() {
+        let tmp = tempfile::tempdir().unwrap();
+        let source_path = tmp.path().join("source.md");
+        let target_path = tmp.path().join("target.md");
+        fs::write(&source_path, "# New\n\n## Customization\n").unwrap();
+        fs::write(&target_path, "# Old\n\n## Customization\n\nmy note\n").unwrap();
+
+        merge_claude_md(&source_path, &target_path).unwrap();
+        assert_eq!(
+            fs::read_to_string(&target_path).unwrap(),
+            "# New\n\n## Customization\n\nmy note\n"
+        );
     }
 }
