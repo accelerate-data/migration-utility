@@ -31,82 +31,10 @@ says otherwise.
 
 Source-specific patterns are in `.claude/rules/` and auto-loaded alongside this file.
 
-## Data Modeling Conventions
+## Classification Conventions
 
-### Table Classification
-
-Classify every source object into exactly one type. Use name patterns first, then structural
-signals. When both are present, structural signals take priority.
-
-| Type | Name signals | Structural signals |
-|---|---|---|
-| **fact** | `Fact`, `F_`, `FCT` prefix/suffix | Numeric measure columns + multiple FK columns; large estimated row count |
-| **dimension** | `Dim`, `D_`, `DIM` prefix/suffix | Low-medium cardinality; natural business key; descriptive attributes |
-| **bridge** | `Bridge`, `Junc`, `Map`, `Xref` | Exactly two or more FK columns; no or few measures |
-| **aggregate** | `Agg`, `Summary`, `Rollup` | Pre-grouped, no grain-level detail |
-| **staging** | `Stg`, `Staging`, `Raw`, `Landing` | Mirrors source structure; minimal transformation |
-| **snapshot** | `Snapshot`, `History`, `SCD` | `valid_from`/`valid_to` or `dbt_scd_id`-style columns present |
-
-When the type is genuinely ambiguous, classify as `fact` or `dimension` (whichever fits better)
-with a confidence score below 70 and explain the ambiguity in reasoning.
-
-### Load Strategy Selection
-
-Choose in this order:
-
-1. **snapshot** — when the object tracks slowly-changing history (`valid_from`/`valid_to`,
-   `is_current` flag, or explicit SCD2 requirement).
-2. **incremental** — when the object has a reliable `modified_date`, `updated_at`, or
-   equivalent CDC column AND full refresh would be impractical at production volume.
-3. **full_refresh** — default for everything else. Prefer it for dimensions and reference data
-   unless there is a clear reason not to.
-
-### Grain
-
-The grain is the set of columns that **uniquely identify one row at the business level** —
-not surrogate or system keys. Express as a JSON array of column name strings.
-
-- **Fact grain**: the combination of FK dimension keys plus the date key that makes a row unique.
-- **Dimension grain**: the natural business key (e.g. `customer_id`, `product_code`).
-- When the grain cannot be determined from metadata alone, return the primary key columns and
-  lower the confidence score accordingly.
-
-### Column Role Definitions
-
-| Role | What to look for |
-|---|---|
-| `incremental_column` | Timestamp or date updated on every insert/update: `modified_date`, `updated_at`, `last_modified`, `row_version`, `etl_updated_at` |
-| `date_column` | Canonical business date representing when the fact occurred: `order_date`, `transaction_date`, `date_key`, `posting_date`, `effective_date` |
-| `pii_columns` | Columns containing personal identifiers — see PII patterns below |
-
-### PII Detection Patterns
-
-Flag a column as PII when its name or content matches any of:
-
-- Personal identity: `first_name`, `last_name`, `full_name`, `given_name`, `surname`
-- Contact: `email`, `phone`, `mobile`, `address`, `postcode`, `zip_code`
-- Government ID: `ssn`, `national_id`, `passport`, `tax_id`, `nino`, `date_of_birth`, `dob`
-- Financial: `account_number`, `credit_card`, `iban`, `bsb`
-- Network: `ip_address`, `mac_address`, `device_id` (when linked to a person)
-
-When in doubt, flag and lower confidence — do not silently omit a potential PII column.
-
-## Confidence Scoring
-
-Every classification must include a confidence score (integer, 0–100) and a one-sentence
-reasoning statement grounded in **observable evidence** (column names, table names, SP logic,
-row counts). Do not speculate.
-
-| Range | Meaning | Guidance |
-|---|---|---|
-| 90–100 | Strong structural evidence | Naming convention + structural signals both match |
-| 70–89 | Likely, inferred from partial evidence | One strong signal; the other is absent or weak |
-| 50–69 | Ambiguous | Conflicting signals; explain the conflict in reasoning |
-| 0–49 | Insufficient evidence | Flag for manual review; state what information is missing |
-
-**Always commit to the most probable answer.** A low-confidence best-guess is more useful than
-returning "unknown" or hedging. Use low confidence scores to communicate uncertainty, not
-absence of output.
+Classification logic — table type, load strategy, grain, column roles, PII detection, and
+confidence scoring — is defined in `.claude/skills/classify-source-object/SKILL.md`.
 
 ## Output Format Rules
 
