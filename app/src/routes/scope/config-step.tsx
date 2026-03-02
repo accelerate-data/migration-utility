@@ -331,19 +331,21 @@ export default function ConfigStep() {
         <div className="absolute inset-0 z-20 cursor-wait rounded-md bg-background/15 backdrop-blur-[0.5px]" />
       )}
 
-      <ConfigStepHeader
-        readyCount={readyCount}
-        totalCount={rows.length}
-        needsDetails={needsDetails}
-        message={message}
-        isLocked={isLocked}
-        refreshing={refreshing}
-        anyAnalyzing={anyAnalyzing}
-        onRefreshSchema={() => void refreshSchema()}
-        onFinalizeScope={() => void finalizeScope()}
-        onNavigateToSelect={() => navigate('/scope')}
-        onNavigateToConfig={() => navigate('/scope/config')}
-      />
+      <div className="sticky top-0 z-10 bg-background pb-4">
+        <ConfigStepHeader
+          readyCount={readyCount}
+          totalCount={rows.length}
+          needsDetails={needsDetails}
+          message={message}
+          isLocked={isLocked}
+          refreshing={refreshing}
+          anyAnalyzing={anyAnalyzing}
+          onRefreshSchema={() => void refreshSchema()}
+          onFinalizeScope={() => void finalizeScope()}
+          onNavigateToSelect={() => navigate('/scope')}
+          onNavigateToConfig={() => navigate('/scope/config')}
+        />
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
         <TableListSidebar

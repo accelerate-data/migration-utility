@@ -197,54 +197,56 @@ export default function ScopeStep() {
 
   return (
     <section className="space-y-4" data-testid="scope-select-step">
-      <header className="rounded-md border bg-card p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="space-y-1">
-            <p className="text-sm font-medium">{selectedCount} tables selected</p>
-            <p className="text-xs text-muted-foreground">{message}</p>
-            <p className="text-xs text-muted-foreground">{isLocked ? 'Scope finalized (read-only)' : 'Scope editable'}</p>
+      <div className="sticky top-0 z-10 bg-background pb-4">
+        <header className="rounded-md border bg-card p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-1">
+              <p className="text-sm font-medium">{selectedCount} tables selected</p>
+              <p className="text-xs text-muted-foreground">{message}</p>
+              <p className="text-xs text-muted-foreground">{isLocked ? 'Scope finalized (read-only)' : 'Scope editable'}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isLocked || refreshing}
+                onClick={() => void refreshSchema()}
+                data-testid="scope-refresh-schema"
+              >
+                {refreshing ? 'Refreshing...' : 'Refresh schema'}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={isLocked}
+                onClick={() => void finalizeScope()}
+                data-testid="scope-finalize"
+              >
+                {isLocked ? 'Scope Finalized' : 'Finalize Scope'}
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={isLocked || refreshing}
-              onClick={() => void refreshSchema()}
-              data-testid="scope-refresh-schema"
-            >
-              {refreshing ? 'Refreshing...' : 'Refresh schema'}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={isLocked}
-              onClick={() => void finalizeScope()}
-              data-testid="scope-finalize"
-            >
-              {isLocked ? 'Scope Finalized' : 'Finalize Scope'}
-            </Button>
+          <div className="mt-4 border-b border-border">
+            <div className="flex items-center gap-6">
+              <button
+                type="button"
+                className="border-b-2 border-primary pb-2 text-sm font-medium text-primary"
+                onClick={() => navigate('/scope')}
+              >
+                1. Select Tables
+              </button>
+              <button
+                type="button"
+                className="border-b-2 border-transparent pb-2 text-sm font-medium text-muted-foreground"
+                onClick={() => navigate('/scope/config')}
+              >
+                2. Table Details
+              </button>
+            </div>
           </div>
-        </div>
-        <div className="mt-4 border-b border-border">
-          <div className="flex items-center gap-6">
-            <button
-              type="button"
-              className="border-b-2 border-primary pb-2 text-sm font-medium text-primary"
-              onClick={() => navigate('/scope')}
-            >
-              1. Select Tables
-            </button>
-            <button
-              type="button"
-              className="border-b-2 border-transparent pb-2 text-sm font-medium text-muted-foreground"
-              onClick={() => navigate('/scope/config')}
-            >
-              2. Table Details
-            </button>
-          </div>
-        </div>
-      </header>
+        </header>
+      </div>
 
       <div className="rounded-md border bg-card">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b p-3">
