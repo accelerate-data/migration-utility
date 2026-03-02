@@ -136,8 +136,9 @@ describe('Scope UI mockup contract', () => {
     renderScopeSelect();
     await screen.findByText('fact_sales');
 
-    expect(screen.getByText(/tables selected/i)).toBeInTheDocument();
-    expect(screen.getByText(/scope editable/i)).toBeInTheDocument();
+    expect(screen.getByText(/Select Tables for migration/i)).toBeInTheDocument();
+    expect(screen.getByText(/\d+\s+selected/i)).toBeInTheDocument();
+    expect(screen.getByText(/\d+\s*\/\s*\d+\s+tables ready/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Refresh schema' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Finalize Scope' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '1. Select Tables' })).toBeInTheDocument();
@@ -173,24 +174,19 @@ describe('Scope UI mockup contract', () => {
 
   it('matches table-details contract for summary chips, tabs, grouped schema list, and detail field labels', async () => {
     renderScopeDetails();
-    await screen.findByText('Selected table');
+    await screen.findAllByRole('combobox');
 
-    expect(screen.getByText(/Scope — Table details capture/i)).toBeInTheDocument();
+    expect(screen.getByText(/Select Tables for migration/i)).toBeInTheDocument();
     expect(screen.getByText(/\d+ \/ \d+ tables ready/i)).toBeInTheDocument();
-    expect(screen.getByText(/pending approvals|No pending approvals/i)).toBeInTheDocument();
-    expect(screen.getByText(/Analyzed just now|Saved just now/i)).toBeInTheDocument();
-    expect(screen.getByText(/Scope editable/i)).toBeInTheDocument();
 
     expect(screen.getByRole('button', { name: '1. Select Tables' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '2. Table Details' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Refresh schema' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Finalize Scope' })).toBeInTheDocument();
 
-    expect(screen.getByText('Selected table')).toBeInTheDocument();
     expect(screen.getAllByRole('combobox').length).toBeGreaterThan(0);
     expect(screen.queryByRole('radio')).not.toBeInTheDocument();
 
-    expect(screen.getByText('Migration metadata required for build + tests')).toBeInTheDocument();
     expect(screen.getByText('Table type')).toBeInTheDocument();
     expect(screen.getByText('Load strategy')).toBeInTheDocument();
     expect(screen.getByText('CDC column')).toBeInTheDocument();

@@ -4,11 +4,10 @@ import { ConfigStepHeader } from '@/components/scope/config-step-header';
 
 describe('ConfigStepHeader', () => {
   const defaultProps = {
+    selectedCount: 10,
     readyCount: 5,
-    approvedCount: 3,
     totalCount: 10,
-    needsDetails: 5,
-    message: 'All systems operational',
+    activeStep: 'details' as const,
     isLocked: false,
     refreshing: false,
     anyAnalyzing: false,
@@ -23,43 +22,22 @@ describe('ConfigStepHeader', () => {
   });
 
   describe('Progress Display', () => {
+    it('renders selected count correctly', () => {
+      render(<ConfigStepHeader {...defaultProps} />);
+      expect(screen.getByText('10 selected')).toBeInTheDocument();
+    });
+
     it('renders ready count correctly', () => {
       render(<ConfigStepHeader {...defaultProps} />);
       expect(screen.getByText('5 / 10 tables ready')).toBeInTheDocument();
-    });
-
-    it('renders approved count correctly', () => {
-      render(<ConfigStepHeader {...defaultProps} />);
-      expect(screen.getByText('3 approved')).toBeInTheDocument();
-    });
-
-    it('renders needs details count correctly', () => {
-      render(<ConfigStepHeader {...defaultProps} />);
-      expect(screen.getByText(/5 pending approvals/)).toBeInTheDocument();
     });
 
     it('updates counts when props change', () => {
       const { rerender } = render(<ConfigStepHeader {...defaultProps} />);
       expect(screen.getByText('5 / 10 tables ready')).toBeInTheDocument();
 
-      rerender(<ConfigStepHeader {...defaultProps} readyCount={8} approvedCount={6} />);
+      rerender(<ConfigStepHeader {...defaultProps} readyCount={8} />);
       expect(screen.getByText('8 / 10 tables ready')).toBeInTheDocument();
-      expect(screen.getByText('6 approved')).toBeInTheDocument();
-    });
-
-    it('displays message text', () => {
-      render(<ConfigStepHeader {...defaultProps} />);
-      expect(screen.getByText('All systems operational')).toBeInTheDocument();
-    });
-
-    it('shows locked status when isLocked is true', () => {
-      render(<ConfigStepHeader {...defaultProps} isLocked={true} />);
-      expect(screen.getByText('Scope finalized (read-only)')).toBeInTheDocument();
-    });
-
-    it('shows editable status when isLocked is false', () => {
-      render(<ConfigStepHeader {...defaultProps} isLocked={false} />);
-      expect(screen.getByText('Scope editable')).toBeInTheDocument();
     });
   });
 
@@ -151,32 +129,18 @@ describe('ConfigStepHeader', () => {
       render(
         <ConfigStepHeader
           {...defaultProps}
+          selectedCount={0}
           readyCount={0}
-          approvedCount={0}
           totalCount={0}
-          needsDetails={0}
         />,
       );
+      expect(screen.getByText('0 selected')).toBeInTheDocument();
       expect(screen.getByText('0 / 0 tables ready')).toBeInTheDocument();
-      expect(screen.getByText('0 approved')).toBeInTheDocument();
-      expect(screen.getByText('No pending approvals')).toBeInTheDocument();
     });
 
     it('handles all tables ready', () => {
-      render(<ConfigStepHeader {...defaultProps} readyCount={10} totalCount={10} needsDetails={0} />);
+      render(<ConfigStepHeader {...defaultProps} readyCount={10} totalCount={10} />);
       expect(screen.getByText('10 / 10 tables ready')).toBeInTheDocument();
-      expect(screen.getByText('No pending approvals')).toBeInTheDocument();
-    });
-
-    it('handles all tables approved', () => {
-      render(<ConfigStepHeader {...defaultProps} approvedCount={10} totalCount={10} />);
-      expect(screen.getByText('10 approved')).toBeInTheDocument();
-    });
-
-    it('handles empty message', () => {
-      render(<ConfigStepHeader {...defaultProps} message="" />);
-      // Component should still render without errors
-      expect(screen.getByText('5 / 10 tables ready')).toBeInTheDocument();
     });
   });
 });

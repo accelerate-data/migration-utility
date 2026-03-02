@@ -1,11 +1,10 @@
 import { Button } from '@/components/ui/button';
 
 interface ConfigStepHeaderProps {
+  selectedCount: number;
   readyCount: number;
-  approvedCount: number;
   totalCount: number;
-  needsDetails: number;
-  message: string;
+  activeStep: 'select' | 'details';
   isLocked: boolean;
   refreshing: boolean;
   anyAnalyzing: boolean;
@@ -16,11 +15,10 @@ interface ConfigStepHeaderProps {
 }
 
 export function ConfigStepHeader({
+  selectedCount,
   readyCount,
-  approvedCount,
   totalCount,
-  needsDetails,
-  message,
+  activeStep,
   isLocked,
   refreshing,
   anyAnalyzing,
@@ -34,27 +32,14 @@ export function ConfigStepHeader({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Scope — Table details capture
+            Select Tables for migration
           </p>
           <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-foreground">
+              {selectedCount} selected
+            </span>
             <span className="rounded-full bg-primary/20 px-2 py-0.5 text-xs font-medium text-primary">
               {readyCount} / {totalCount} tables ready
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {needsDetails === 0 ? 'No pending approvals' : `${needsDetails} pending approvals`}
-            </span>
-            <span
-              className="rounded-full px-2 py-0.5 text-xs font-medium"
-              style={{
-                backgroundColor: 'color-mix(in oklch, var(--color-seafoam), transparent 85%)',
-                color: 'var(--color-seafoam)',
-              }}
-            >
-              {approvedCount} approved
-            </span>
-            <span className="text-xs text-muted-foreground">{message}</span>
-            <span className="text-xs text-muted-foreground">
-              {isLocked ? 'Scope finalized (read-only)' : 'Scope editable'}
             </span>
           </div>
         </div>
@@ -77,7 +62,11 @@ export function ConfigStepHeader({
         <div className="flex items-center gap-6">
           <button
             type="button"
-            className="border-b-2 border-transparent pb-2 text-sm font-medium text-muted-foreground"
+            className={
+              activeStep === 'select'
+                ? 'border-b-2 border-primary pb-2 text-sm font-medium text-primary'
+                : 'border-b-2 border-transparent pb-2 text-sm font-medium text-muted-foreground'
+            }
             disabled={anyAnalyzing}
             onClick={onNavigateToSelect}
           >
@@ -85,7 +74,11 @@ export function ConfigStepHeader({
           </button>
           <button
             type="button"
-            className="border-b-2 border-primary pb-2 text-sm font-medium text-primary"
+            className={
+              activeStep === 'details'
+                ? 'border-b-2 border-primary pb-2 text-sm font-medium text-primary'
+                : 'border-b-2 border-transparent pb-2 text-sm font-medium text-muted-foreground'
+            }
             disabled={anyAnalyzing}
             onClick={onNavigateToConfig}
           >

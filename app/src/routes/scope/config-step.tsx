@@ -89,7 +89,7 @@ export default function ConfigStep() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState('Saved just now');
+  const [, setMessage] = useState('Saved just now');
   const [refreshing, setRefreshing] = useState(false);
   const [analyzingById, setAnalyzingById] = useState<Record<string, boolean>>({});
   const [analyzeErrorById, setAnalyzeErrorById] = useState<Record<string, string | null>>({});
@@ -172,19 +172,6 @@ export default function ConfigStep() {
     () => rows.filter((row) => isReady(configsById[row.selectedTableId])).length,
     [rows, configsById],
   );
-  const approvedCount = useMemo(
-    () => rows.filter((row) => configsById[row.selectedTableId]?.approvalStatus === 'approved').length,
-    [rows, configsById],
-  );
-  const pendingApprovals = useMemo(
-    () =>
-      rows.filter((row) => {
-        const config = configsById[row.selectedTableId];
-        return isReady(config) && config?.approvalStatus !== 'approved';
-      }).length,
-    [rows, configsById],
-  );
-
   async function analyzeTable(row: SelectedTableRow, force: boolean) {
     if (!workspaceId || isLocked) return;
     setAnalyzeErrorById((prev) => ({ ...prev, [row.selectedTableId]: null }));
@@ -371,11 +358,10 @@ export default function ConfigStep() {
 
       <div className="sticky top-0 z-20 bg-background pb-4">
         <ConfigStepHeader
+          selectedCount={rows.length}
           readyCount={readyCount}
-          approvedCount={approvedCount}
           totalCount={rows.length}
-          needsDetails={pendingApprovals}
-          message={message}
+          activeStep="details"
           isLocked={isLocked}
           refreshing={refreshing}
           anyAnalyzing={anyAnalyzing}

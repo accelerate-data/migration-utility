@@ -98,9 +98,9 @@ describe('ConfigStep — multi-table navigation', () => {
 
   it('shows both tables in dropdown and switches detail panel on selection', async () => {
     renderStep();
-    await screen.findByText('Selected table');
+    await screen.findAllByRole('combobox');
     const selectedTable = screen.getAllByRole('combobox')[0];
-    expect(screen.getByText(/dbo\.dim_customer -/i)).toBeInTheDocument();
+    expect(screen.getByText(/dbo\.dim_customer/i)).toBeInTheDocument();
 
     // Initially fact_sales is active — detail panel shows it
     await waitFor(() => {
@@ -116,14 +116,14 @@ describe('ConfigStep — multi-table navigation', () => {
 
   it('header shows correct total count for multiple tables', async () => {
     renderStep();
-    await screen.findByText('Selected table');
+    await screen.findAllByRole('combobox');
     await waitFor(() => {
       expect(screen.getByText(/0\s*\/\s*2 tables ready/i)).toBeInTheDocument();
     });
   });
 });
 
-describe('ConfigStep — header count ↔ approval state integration', () => {
+describe('ConfigStep — approval state integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useWorkflowStore.setState((s) => ({
@@ -143,33 +143,6 @@ describe('ConfigStep — header count ↔ approval state integration', () => {
     tauriMocks.migrationReconcileScopeState.mockResolvedValue({ kept: 1, invalidated: 0, removed: 0 });
   });
 
-  it('header approved count increments after approval', async () => {
-    const sid = 'st:ws-1:wh-1:dbo:fact_sales';
-    tauriMocks.migrationGetTableConfig.mockResolvedValue(
-      makeConfig(sid, { confirmedAt: '2026-01-01T10:00:00Z', approvalStatus: 'pending' }),
-    );
-    tauriMocks.migrationAnalyzeTableDetails = vi.fn();
-    tauriMocks.migrationApproveTableConfig.mockResolvedValue(undefined);
-    // After approve, getTableConfig returns approved state
-    tauriMocks.migrationGetTableConfig
-      .mockResolvedValueOnce(makeConfig(sid, { confirmedAt: '2026-01-01T10:00:00Z', approvalStatus: 'pending' }))
-      .mockResolvedValue(makeConfig(sid, { confirmedAt: '2026-01-01T10:00:00Z', approvalStatus: 'approved', approvedAt: '2026-01-15T10:00:00Z' }));
-
-    renderStep();
-    await screen.findByText('Selected table');
-
-    // Initially 0 approved
-    await waitFor(() => {
-      expect(screen.getByText(/0\s+approved/i)).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Approve Configuration' }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/1\s+approved/i)).toBeInTheDocument();
-    });
-  });
-
   it('shows approved badge after approval', async () => {
     const sid = 'st:ws-1:wh-1:dbo:fact_sales';
     tauriMocks.migrationGetTableConfig.mockResolvedValue(
@@ -182,7 +155,7 @@ describe('ConfigStep — header count ↔ approval state integration', () => {
       .mockResolvedValue(makeConfig(sid, { confirmedAt: '2026-01-01T10:00:00Z', approvalStatus: 'approved', approvedAt: '2026-01-15T10:00:00Z' }));
 
     renderStep();
-    await screen.findByText('Selected table');
+    await screen.findAllByRole('combobox');
     await waitFor(() => screen.getByRole('button', { name: 'Approve Configuration' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Approve Configuration' }));
@@ -220,7 +193,7 @@ describe('ConfigStep — locked state integration', () => {
 
   it('disables form fields when scope is locked', async () => {
     renderStep();
-    await screen.findByText('Selected table');
+    await screen.findAllByRole('combobox');
     await waitFor(() => {
       const tableTypeSelect = screen.getByRole('combobox', { name: /Table type/i });
       expect(tableTypeSelect).toBeDisabled();
@@ -229,7 +202,7 @@ describe('ConfigStep — locked state integration', () => {
 
   it('does not autosave when scope is locked', async () => {
     renderStep();
-    await screen.findByText('Selected table');
+    await screen.findAllByRole('combobox');
     // Scope is locked — no save should be triggered
     await waitFor(() => {
       expect(tauriMocks.migrationSaveTableConfig).not.toHaveBeenCalled();
