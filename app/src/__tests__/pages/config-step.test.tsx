@@ -121,7 +121,8 @@ describe('ConfigStep', () => {
   it('autosaves when changing table type', async () => {
     renderStep();
     await screen.findByText('fact_sales');
-    fireEvent.change(screen.getByLabelText('Table type'), { target: { value: 'fact' } });
+    const tableTypeSelect = screen.getByRole('combobox', { name: /Table type/i });
+    fireEvent.change(tableTypeSelect, { target: { value: 'fact' } });
     await waitFor(() => {
       expect(tauriMocks.migrationSaveTableConfig).toHaveBeenCalled();
     });
