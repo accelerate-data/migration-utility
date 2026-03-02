@@ -100,7 +100,9 @@ fn deploy_agent_sources(source: &Path, workspace_root: &Path) -> Result<(), Stri
             source_claude.display()
         ));
     }
-    let target_claude = target_claude_dir.join(CLAUDE_FILE);
+    // CLAUDE.md lives at workspace root, not inside .claude/
+    // The Claude Agent SDK auto-loads from {cwd}/CLAUDE.md
+    let target_claude = workspace_root.join(CLAUDE_FILE);
     merge_claude_md(&source_claude, &target_claude)?;
 
     for dir in MANAGED_SUBDIRS {
@@ -396,7 +398,7 @@ mod tests {
         deploy_agent_sources(&source, &workspace).unwrap();
 
         assert_eq!(
-            fs::read_to_string(workspace.join(".claude").join("CLAUDE.md")).unwrap(),
+            fs::read_to_string(workspace.join("CLAUDE.md")).unwrap(),
             "# CLAUDE"
         );
         assert_eq!(
@@ -444,7 +446,8 @@ mod tests {
         fs::create_dir_all(existing_claude.join("skills")).unwrap();
         fs::create_dir_all(existing_claude.join("agents")).unwrap();
         fs::create_dir_all(existing_claude.join("rules")).unwrap();
-        fs::write(existing_claude.join("CLAUDE.md"), "# Old\n\n## Customization\n\nmy note\n").unwrap();
+        // CLAUDE.md lives at workspace root, not inside .claude/
+        fs::write(workspace.join("CLAUDE.md"), "# Old\n\n## Customization\n\nmy note\n").unwrap();
         fs::write(existing_claude.join("skills").join("old-skill.md"), "old").unwrap();
         fs::write(existing_claude.join("agents").join("old-agent.md"), "old").unwrap();
         fs::write(existing_claude.join("rules").join("old-rule.md"), "old").unwrap();
@@ -453,7 +456,7 @@ mod tests {
         deploy_agent_sources(&source, &workspace).unwrap();
 
         assert_eq!(
-            fs::read_to_string(existing_claude.join("CLAUDE.md")).unwrap(),
+            fs::read_to_string(workspace.join("CLAUDE.md")).unwrap(),
             "# New\n\n## Customization\n\nmy note\n"
         );
         assert!(!existing_claude.join("skills").join("old-skill.md").exists());
@@ -581,7 +584,7 @@ mod tests {
             .join("transient.md")
             .exists());
         assert_eq!(
-            fs::read_to_string(workspace.join(".claude").join("CLAUDE.md")).unwrap(),
+            fs::read_to_string(workspace.join("CLAUDE.md")).unwrap(),
             "# CLAUDE"
         );
     }
