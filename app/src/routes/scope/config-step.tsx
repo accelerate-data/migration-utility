@@ -77,7 +77,7 @@ export default function ConfigStep() {
   const [refreshing, setRefreshing] = useState(false);
   const [analyzingById, setAnalyzingById] = useState<Record<string, boolean>>({});
   const [analyzeErrorById, setAnalyzeErrorById] = useState<Record<string, string | null>>({});
-  const autosaveTimerRef = useRef<number | null>(null);
+const autosaveTimerRef = useRef<number | null>(null);
   const autoAnalyzeAttemptedRef = useRef<Set<string>>(new Set());
 
   async function loadSelectedTables(preferredId?: string | null) {

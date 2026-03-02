@@ -1,0 +1,4 @@
+interface:
+  display_name: "Front End Design"
+  short_description: "Design-first UI workflow for React/Tailwind surfaces"
+  default_prompt: "Design and implement a high-quality frontend surface with clear visual direction, token-driven styling, and responsive accessibility checks."
