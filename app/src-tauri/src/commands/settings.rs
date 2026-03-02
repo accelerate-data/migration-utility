@@ -1,7 +1,7 @@
 use tauri::State;
 
 use crate::db::DbState;
-use crate::types::{AppPhase, AppPhaseState, AppSettings, AppSettingsPublic};
+use crate::types::{AppPhase, AppPhaseState, AppSettingsPublic};
 
 #[tauri::command]
 pub fn get_settings(state: State<'_, DbState>) -> Result<AppSettingsPublic, String> {
