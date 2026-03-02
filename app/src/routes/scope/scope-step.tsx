@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { Loader2, Plus, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { ConfigStepHeader } from '@/components/scope/config-step-header';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import {
   appSetPhase,
   migrationAddTablesToSelection,
@@ -195,7 +198,7 @@ export default function ScopeStep() {
         sourcePort: workspace.sourcePort ?? undefined,
         sourceAuthenticationMode: workspace.sourceAuthenticationMode ?? undefined,
         sourceUsername: workspace.sourceUsername ?? undefined,
-        sourcePassword: workspace.sourcePassword ?? undefined,
+        // sourcePassword not returned by workspaceGet (security) — backend reads it from storage
         sourceEncrypt: workspace.sourceEncrypt ?? undefined,
         sourceTrustServerCertificate: workspace.sourceTrustServerCertificate ?? undefined,
       });
@@ -239,6 +242,8 @@ export default function ScopeStep() {
     }
   }
 
+  const isFiltered = schemaSearch.trim().length > 0 || tableSearch.trim().length > 0;
+
   return (
     <section className="flex h-full min-h-0 flex-col gap-4" data-testid="scope-select-step">
       <div className="bg-background pb-4">
@@ -257,83 +262,161 @@ export default function ScopeStep() {
         />
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col rounded-md border bg-card">
+      <div className="flex min-h-0 flex-1 flex-col rounded-lg border bg-card shadow-sm">
+        {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b p-3">
           <div className="flex flex-wrap items-center gap-2">
-            <Input
-              placeholder="Search schema..."
-              value={schemaSearch}
-              onChange={(e) => setSchemaSearch(e.target.value)}
-              disabled={isLocked}
-              className="h-8 w-[180px]"
-            />
-            <Input
-              placeholder="Search tables..."
-              value={tableSearch}
-              onChange={(e) => setTableSearch(e.target.value)}
-              disabled={isLocked}
-              className="h-8 w-[220px]"
-            />
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Schema…"
+                value={schemaSearch}
+                onChange={(e) => setSchemaSearch(e.target.value)}
+                disabled={isLocked}
+                className="h-8 w-[160px] pl-8 text-sm"
+              />
+            </div>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Table…"
+                value={tableSearch}
+                onChange={(e) => setTableSearch(e.target.value)}
+                disabled={isLocked}
+                className="h-8 w-[200px] pl-8 text-sm"
+              />
+            </div>
+            {isFiltered && rows.length > 0 && (
+              <span className="text-xs text-muted-foreground">
+                {visibleRows.length} of {rows.length}
+              </span>
+            )}
           </div>
+
           <div className="flex items-center gap-2">
-            <Button type="button" size="sm" onClick={() => void addVisibleToSelection()} disabled={isLocked}>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => void addVisibleToSelection()}
+              disabled={isLocked}
+            >
+              <Plus className="size-3.5" />
               Add to selection
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => { setSchemaSearch(''); setTableSearch(''); }}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSchemaSearch('');
+                setTableSearch('');
+              }}
+              disabled={!isFiltered}
+            >
               Clear filters
             </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={() => void resetSelection()} disabled={isLocked}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => void resetSelection()}
+              disabled={isLocked}
+            >
               Reset selection
             </Button>
           </div>
         </div>
 
+        {/* Table body */}
         <div className="min-h-0 flex-1 overflow-auto">
-          {loading && <p className="p-3 text-sm text-muted-foreground">Loading tables...</p>}
-          {!loading && error && <p className="p-3 text-sm text-destructive">{error}</p>}
+          {loading && (
+            <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              Loading tables…
+            </div>
+          )}
+          {!loading && error && <p className="p-4 text-sm text-destructive">{error}</p>}
           {!loading && !error && visibleRows.length === 0 && (
-            <p className="p-3 text-sm text-muted-foreground">No tables match current filters.</p>
+            <p className="p-4 text-sm text-muted-foreground">
+              {isFiltered ? 'No tables match the current filters.' : 'No tables found.'}
+            </p>
           )}
           {!loading && !error && visibleRows.length > 0 && (
             <table className="w-full table-fixed border-collapse">
               <colgroup>
-                <col className="w-9" />
-                <col className="w-36" />
+                <col className="w-10" />
+                <col className="w-40" />
                 <col />
-                <col className="w-28" />
+                <col className="w-24" />
               </colgroup>
               <thead className="sticky top-0 z-10 bg-card">
-                <tr className="border-y text-xs font-medium text-muted-foreground">
+                <tr className="border-b text-xs font-medium text-muted-foreground">
                   <th className="px-3 py-2 text-left" />
                   <th className="px-3 py-2 text-left">
-                    <button type="button" className="text-left" onClick={() => updateSort('schema')}>
-                      Schema {sortKey === 'schema' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                    <button
+                      type="button"
+                      className="flex items-center gap-1 transition-colors duration-150 hover:text-foreground"
+                      onClick={() => updateSort('schema')}
+                    >
+                      Schema
+                      <span className="opacity-50">
+                        {sortKey === 'schema' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                      </span>
                     </button>
                   </th>
                   <th className="px-3 py-2 text-left">
-                    <button type="button" className="text-left" onClick={() => updateSort('table')}>
-                      Table {sortKey === 'table' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                    <button
+                      type="button"
+                      className="flex items-center gap-1 transition-colors duration-150 hover:text-foreground"
+                      onClick={() => updateSort('table')}
+                    >
+                      Table
+                      <span className="opacity-50">
+                        {sortKey === 'table' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                      </span>
                     </button>
                   </th>
-                  <th className="px-3 py-2 text-left">Rows</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+                    Rows
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {visibleRows.map((row) => (
-                  <tr key={keyForRow(row)} className="border-b text-sm">
-                    <td className="px-3 py-2 align-middle">
-                      <input
-                        type="checkbox"
+                  <tr
+                    key={keyForRow(row)}
+                    className={cn(
+                      'border-b text-sm transition-colors duration-150',
+                      !row.isSelected && 'hover:bg-muted/40',
+                    )}
+                    style={
+                      row.isSelected
+                        ? {
+                            background:
+                              'color-mix(in oklch, var(--color-pacific), transparent 93%)',
+                            boxShadow: 'inset 2px 0 0 var(--color-pacific)',
+                          }
+                        : undefined
+                    }
+                  >
+                    <td className="px-3 py-2.5 align-middle">
+                      <Checkbox
                         checked={row.isSelected}
                         disabled={isLocked}
-                        onChange={(e) => void setSelected(row, e.target.checked)}
+                        onCheckedChange={(checked) => void setSelected(row, checked === true)}
                       />
                     </td>
-                    <td className="px-3 py-2 font-mono text-muted-foreground">{row.schemaName}</td>
-                    <td className="px-3 py-2 font-mono">
+                    <td className="px-3 py-2.5 align-middle">
+                      <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] font-medium text-muted-foreground">
+                        {row.schemaName}
+                      </code>
+                    </td>
+                    <td className="px-3 py-2.5 font-mono text-sm">
                       <span className="block truncate">{row.tableName}</span>
                     </td>
-                    <td className="px-3 py-2 font-mono text-muted-foreground">{formatRowCount(row.rowCount)}</td>
+                    <td className="px-3 py-2.5 text-right font-mono text-xs text-muted-foreground">
+                      {formatRowCount(row.rowCount)}
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -134,28 +134,21 @@ describe('Scope UI mockup contract', () => {
     renderScopeSelect();
     await screen.findByText('fact_sales');
 
-    expect(screen.getByText(/Select Tables for migration/i)).toBeInTheDocument();
+    expect(screen.getByText(/Migration Scope/i)).toBeInTheDocument();
     expect(screen.getByText(/\d+\s+selected/i)).toBeInTheDocument();
-    expect(screen.getByText(/\d+\s*\/\s*\d+\s+tables ready/i)).toBeInTheDocument();
+    expect(screen.getByText(/\d+\s*\/\s*\d+\s+ready/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Refresh schema' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Finalize Scope' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '1. Select Tables' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '2. Table Details' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Finalize scope' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '1 Select tables' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '2 Table details' })).toBeInTheDocument();
 
     const filters = screen.getAllByRole('textbox');
-    expect(filters[0]).toHaveAttribute('placeholder', 'Search schema...');
-    expect(filters[1]).toHaveAttribute('placeholder', 'Search tables...');
+    expect(filters[0]).toHaveAttribute('placeholder', 'Schema…');
+    expect(filters[1]).toHaveAttribute('placeholder', 'Table…');
 
-    const actionButtons = [
-      screen.getByRole('button', { name: 'Add to selection' }),
-      screen.getByRole('button', { name: 'Clear filters' }),
-      screen.getByRole('button', { name: 'Reset selection' }),
-    ];
-    expect(actionButtons.map((b) => b.textContent)).toEqual([
-      'Add to selection',
-      'Clear filters',
-      'Reset selection',
-    ]);
+    expect(screen.getByRole('button', { name: 'Add to selection' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Clear filters' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reset selection' })).toBeInTheDocument();
 
     const sortButtons = screen.getAllByRole('button').map((b) => b.textContent ?? '');
     expect(sortButtons.some((text) => text.includes('Schema'))).toBe(true);
@@ -174,13 +167,13 @@ describe('Scope UI mockup contract', () => {
     renderScopeDetails();
     await screen.findAllByRole('combobox');
 
-    expect(screen.getByText(/Select Tables for migration/i)).toBeInTheDocument();
-    expect(screen.getByText(/\d+ \/ \d+ tables ready/i)).toBeInTheDocument();
+    expect(screen.getByText(/Migration Scope/i)).toBeInTheDocument();
+    expect(screen.getByText(/\d+ \/ \d+ ready/i)).toBeInTheDocument();
 
-    expect(screen.getByRole('button', { name: '1. Select Tables' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '2. Table Details' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '1 Select tables' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '2 Table details' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Refresh schema' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Finalize Scope' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Finalize scope' })).toBeInTheDocument();
 
     expect(screen.getAllByRole('combobox').length).toBeGreaterThan(0);
     expect(screen.queryByRole('radio')).not.toBeInTheDocument();

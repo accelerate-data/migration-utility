@@ -15,6 +15,15 @@ pub enum DbError {
 
 pub struct DbState(pub Mutex<Connection>);
 
+impl DbState {
+    /// Acquire the database connection, mapping a poisoned mutex to a recoverable error.
+    pub fn conn(&self) -> Result<std::sync::MutexGuard<'_, Connection>, String> {
+        self.0
+            .lock()
+            .map_err(|e| format!("DB lock poisoned: {e}"))
+    }
+}
+
 const APP_PHASE_KEY: &str = "app_phase";
 
 const MIGRATIONS: &[(i64, &str)] = &[

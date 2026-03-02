@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 use crate::db::DbState;
 use crate::source_sql::{resolve_source_query, should_log_source_sql, SourceQuery};
-use crate::types::{CommandError, WarehouseProcedure, WarehouseSchema, WarehouseTable, Workspace};
+use crate::types::{CommandError, WarehouseProcedure, WarehouseSchema, WarehouseTable, Workspace, WorkspacePublic};
 
 static WORKSPACE_APPLY_RUNNING: AtomicBool = AtomicBool::new(false);
 static WORKSPACE_APPLY_JOBS: LazyLock<Mutex<HashMap<String, WorkspaceApplyJobStatus>>> =
@@ -1374,7 +1374,7 @@ fn maybe_emit_object_import_progress(
 pub fn workspace_create(
     args: CreateWorkspaceArgs,
     state: State<DbState>,
-) -> Result<Workspace, CommandError> {
+) -> Result<WorkspacePublic, CommandError> {
     log::info!("workspace_create: name={}", args.name);
     validate_source_type(&args.source_type)?;
     if !Path::new(&args.migration_repo_path).is_dir() {
@@ -1387,7 +1387,7 @@ pub fn workspace_create(
             args.migration_repo_path
         )));
     }
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
     let id = Uuid::new_v4().to_string();
     let created_at = Utc::now().to_rfc3339();
     conn.execute(
@@ -1422,7 +1422,7 @@ pub fn workspace_create(
         log::error!("workspace_create: failed: {e}");
         CommandError::from(e)
     })?;
-    Ok(Workspace {
+    Ok(WorkspacePublic::from(Workspace {
         id,
         display_name: args.name,
         migration_repo_name: args.migration_repo_name,
@@ -1440,7 +1440,7 @@ pub fn workspace_create(
         source_encrypt: args.source_encrypt,
         source_trust_server_certificate: args.source_trust_server_certificate,
         created_at,
-    })
+    }))
 }
 
 #[tauri::command]
@@ -1448,9 +1448,9 @@ pub fn workspace_apply_and_clone(
     args: ApplyWorkspaceArgs,
     state: State<DbState>,
     app: AppHandle,
-) -> Result<Workspace, CommandError> {
-    let conn = state.0.lock().unwrap();
-    run_workspace_apply_with_conn(args, &conn, &app, "direct-apply")
+) -> Result<WorkspacePublic, CommandError> {
+    let conn = state.conn().map_err(CommandError::Database)?;
+    run_workspace_apply_with_conn(args, &conn, &app, "direct-apply").map(WorkspacePublic::from)
 }
 
 fn run_workspace_apply_with_conn(
@@ -1483,6 +1483,30 @@ fn run_workspace_apply_with_conn(
         ));
     }
     validate_source_type(&args.source_type)?;
+
+    // Refresh flow: the caller read from WorkspacePublic which omits secrets.
+    // Fall back to the stored workspace credentials when they are absent from args.
+    let mut args = args;
+    if args.source_password.is_none() || args.fabric_service_principal_secret.is_none() {
+        let row: Option<(Option<String>, Option<String>)> = conn
+            .query_row(
+                "SELECT source_password, fabric_service_principal_secret \
+                 FROM workspaces ORDER BY created_at DESC LIMIT 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
+            .map_err(|e| CommandError::Database(e.to_string()))?;
+        if let Some((stored_pw, stored_sp)) = row {
+            if args.source_password.is_none() {
+                args.source_password = stored_pw;
+            }
+            if args.fabric_service_principal_secret.is_none() {
+                args.fabric_service_principal_secret = stored_sp;
+            }
+        }
+    }
+
     let source_cfg = require_sql_server_source(&args)?;
 
     let token = {
@@ -1538,7 +1562,6 @@ fn run_workspace_apply_with_conn(
     )?;
     // Reset to scope_editable so a re-apply always starts fresh from the scoping phase.
     crate::db::write_app_phase(conn, crate::types::AppPhase::ScopeEditable).map_err(CommandError::Io)?;
-    let _ = crate::db::reconcile_and_persist_app_phase(conn).map_err(CommandError::Io)?;
 
     emit_apply_progress(app, job_id, "completed", 100, "Apply completed.");
     Ok(workspace)
@@ -1557,6 +1580,7 @@ pub fn workspace_apply_start(
             "An apply operation is already running".to_string(),
         ));
     }
+    log::info!("workspace_apply_start: name={} repo={}", args.name, args.migration_repo_name);
 
     let job_id = Uuid::new_v4().to_string();
     set_job_status(
@@ -1578,6 +1602,9 @@ pub fn workspace_apply_start(
                 .app_data_dir()
                 .map_err(|e| CommandError::Io(e.to_string()))?
                 .join("migration-utility.db");
+            // Opens a dedicated connection: this runs on a background thread and cannot
+            // hold the DbState mutex for the full duration of the apply operation.
+            // WAL mode keeps concurrent reads safe; SQLite serializes writes internally.
             let conn = crate::db::open(&db_path).map_err(|e| CommandError::Io(e.to_string()))?;
             let _workspace =
                 run_workspace_apply_with_conn(args, &conn, &app_handle, &job_id_for_thread)?;
@@ -1613,6 +1640,7 @@ pub fn workspace_apply_start(
 
 #[tauri::command]
 pub fn workspace_apply_status(job_id: String) -> Result<WorkspaceApplyJobStatus, CommandError> {
+    log::info!("workspace_apply_status: job_id={}", job_id);
     let jobs = WORKSPACE_APPLY_JOBS.lock().unwrap();
     jobs.get(&job_id)
         .cloned()
@@ -1650,12 +1678,10 @@ fn clone_repo_if_needed(repo_name: &str, repo_path: &str, token: &str) -> Result
         std::fs::create_dir_all(parent).map_err(CommandError::from)?;
     }
 
-    let clone_url = format!(
-        "https://x-access-token:{}@github.com/{}.git",
-        token, repo_name
-    );
+    let clone_url = format!("https://github.com/{}.git", repo_name);
+    let auth_header = format!("http.extraHeader=Authorization: token {}", token);
     let output = Command::new("git")
-        .args(["clone", "--depth", "1", &clone_url, repo_path])
+        .args(["clone", "-c", &auth_header, "--depth", "1", &clone_url, repo_path])
         .output()
         .map_err(|e| {
             log::error!("workspace_apply_and_clone: failed to spawn git clone: {e}");
@@ -1901,7 +1927,7 @@ pub fn workspace_discover_source_databases(
 #[tauri::command]
 pub fn workspace_reset_state(state: State<DbState>) -> Result<(), CommandError> {
     log::info!("workspace_reset_state");
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
     let migration_repo_path: Option<String> = conn
         .query_row(
             "SELECT migration_repo_path FROM workspaces ORDER BY created_at DESC LIMIT 1",
@@ -1922,9 +1948,9 @@ pub fn workspace_reset_state(state: State<DbState>) -> Result<(), CommandError> 
 }
 
 #[tauri::command]
-pub fn workspace_get(state: State<DbState>) -> Result<Option<Workspace>, CommandError> {
+pub fn workspace_get(state: State<DbState>) -> Result<Option<WorkspacePublic>, CommandError> {
     log::info!("workspace_get");
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
     let result = conn.query_row(
         "SELECT
             id, display_name, migration_repo_name, migration_repo_path, fabric_url,
@@ -1958,7 +1984,7 @@ pub fn workspace_get(state: State<DbState>) -> Result<Option<Workspace>, Command
         },
     );
     match result {
-        Ok(w) => Ok(Some(w)),
+        Ok(w) => Ok(Some(WorkspacePublic::from(w))),
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
         Err(e) => {
             log::error!("workspace_get: failed: {e}");

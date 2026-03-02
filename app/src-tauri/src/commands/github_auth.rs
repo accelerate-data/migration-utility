@@ -127,7 +127,7 @@ pub async fn github_poll_for_token(
         })?;
 
     {
-        let conn = state.0.lock().unwrap();
+        let conn = state.conn()?;
         let mut settings = crate::db::read_settings(&conn)?;
         settings.github_user_login = Some(user.login.clone());
         settings.github_user_avatar = Some(user.avatar_url.clone());
@@ -148,7 +148,7 @@ pub async fn github_poll_for_token(
 #[tauri::command]
 pub fn github_get_user(state: State<'_, DbState>) -> Result<Option<GitHubUser>, String> {
     log::info!("[github_get_user]");
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn()?;
     let settings = crate::db::read_settings(&conn)?;
 
     if settings.github_oauth_token.is_some() {
@@ -169,7 +169,7 @@ pub fn github_get_user(state: State<'_, DbState>) -> Result<Option<GitHubUser>, 
 #[tauri::command]
 pub fn github_logout(state: State<'_, DbState>) -> Result<(), String> {
     log::info!("[github_logout]");
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn()?;
     let mut settings = crate::db::read_settings(&conn)?;
     settings.github_oauth_token = None;
     settings.github_user_login = None;
@@ -187,7 +187,7 @@ pub async fn github_list_repos(
 ) -> Result<Vec<GitHubRepo>, String> {
     log::info!("[github_list_repos] query={}", query);
     let token = {
-        let conn = state.0.lock().unwrap();
+        let conn = state.conn()?;
         let settings = crate::db::read_settings(&conn)?;
         settings
             .github_oauth_token

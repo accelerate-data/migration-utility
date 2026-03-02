@@ -17,7 +17,7 @@ pub fn fabric_upsert_items(
         workspace_id,
         items.len()
     );
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
     let tx = conn.unchecked_transaction().map_err(|e| {
         log::error!("fabric_upsert_items: failed to begin transaction: {e}");
         CommandError::from(e)
@@ -56,7 +56,7 @@ pub fn fabric_upsert_schemas(
     state: State<DbState>,
 ) -> Result<(), CommandError> {
     log::info!("fabric_upsert_schemas: count={}", items.len());
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
     let tx = conn.unchecked_transaction().map_err(|e| {
         log::error!("fabric_upsert_schemas: failed to begin transaction: {e}");
         CommandError::from(e)
@@ -94,7 +94,7 @@ pub fn fabric_upsert_tables(
     state: State<DbState>,
 ) -> Result<(), CommandError> {
     log::info!("fabric_upsert_tables: count={}", items.len());
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
     let tx = conn.unchecked_transaction().map_err(|e| {
         log::error!("fabric_upsert_tables: failed to begin transaction: {e}");
         CommandError::from(e)
@@ -137,7 +137,7 @@ pub fn fabric_upsert_procedures(
     state: State<DbState>,
 ) -> Result<(), CommandError> {
     log::info!("fabric_upsert_procedures: count={}", items.len());
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
     let tx = conn.unchecked_transaction().map_err(|e| {
         log::error!("fabric_upsert_procedures: failed to begin transaction: {e}");
         CommandError::from(e)
@@ -181,7 +181,7 @@ pub fn fabric_upsert_pipeline_activities(
     state: State<DbState>,
 ) -> Result<(), CommandError> {
     log::info!("fabric_upsert_pipeline_activities: count={}", items.len());
-    let conn = state.0.lock().unwrap();
+    let conn = state.conn().map_err(CommandError::Database)?;
     let tx = conn.unchecked_transaction().map_err(|e| {
         log::error!("fabric_upsert_pipeline_activities: failed to begin transaction: {e}");
         CommandError::from(e)
