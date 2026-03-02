@@ -9,6 +9,7 @@ interface TableListSidebarProps {
   activeId: string | null;
   loading: boolean;
   anyAnalyzing: boolean;
+  approvalStatusById: Record<string, string | null>;
   onSelectTable: (id: string) => void;
 }
 
@@ -17,6 +18,7 @@ export function TableListSidebar({
   activeId,
   loading,
   anyAnalyzing,
+  approvalStatusById,
   onSelectTable,
 }: TableListSidebarProps) {
   return (
@@ -33,19 +35,29 @@ export function TableListSidebar({
                 <span className="font-medium">{schema}</span>
                 <span className="text-muted-foreground">{schemaRows.length} selected</span>
               </summary>
-              {schemaRows.map((row) => (
-                <button
-                  key={row.selectedTableId}
-                  type="button"
-                  className={`w-full border-t px-3 py-2 text-left text-sm ${
-                    row.selectedTableId === activeId ? 'bg-primary/10' : ''
-                  }`}
-                  disabled={anyAnalyzing}
-                  onClick={() => onSelectTable(row.selectedTableId)}
-                >
-                  <span className="font-mono">{row.tableName}</span>
-                </button>
-              ))}
+              {schemaRows.map((row) => {
+                const approvalStatus = approvalStatusById[row.selectedTableId];
+                const isApproved = approvalStatus === 'approved';
+                
+                return (
+                  <button
+                    key={row.selectedTableId}
+                    type="button"
+                    className={`w-full border-t px-3 py-2 text-left text-sm ${
+                      row.selectedTableId === activeId ? 'bg-primary/10' : ''
+                    }`}
+                    disabled={anyAnalyzing}
+                    onClick={() => onSelectTable(row.selectedTableId)}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono">{row.tableName}</span>
+                      {isApproved && (
+                        <span className="text-xs" style={{ color: 'var(--color-seafoam)' }}>✓</span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </details>
           ))}
       </div>

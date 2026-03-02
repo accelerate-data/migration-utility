@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Input } from '@/components/ui/input';
+import { MultiSelectColumns } from './multi-select-columns';
 import { migrationValidateRelationship } from '@/lib/tauri';
-import type { RelationshipValidationResult } from '@/lib/types';
+import type { RelationshipValidationResult, ColumnMetadata } from '@/lib/types';
 import { logger } from '@/lib/logger';
 
 interface RelationshipsSectionProps {
@@ -10,7 +10,7 @@ interface RelationshipsSectionProps {
   disabled: boolean;
   workspaceId?: string;
   selectedTableId?: string;
-  onUpdateRelationships: (value: string | null) => void;
+  availableColumns?: ColumnMetadata[];
   onUpdateGrain: (value: string | null) => void;
 }
 
@@ -27,7 +27,7 @@ export function RelationshipsSection({
   disabled,
   workspaceId,
   selectedTableId,
-  onUpdateRelationships,
+  availableColumns = [],
   onUpdateGrain,
 }: RelationshipsSectionProps) {
   let relationships: Relationship[] = [];
@@ -37,6 +37,15 @@ export function RelationshipsSection({
     }
   } catch {
     // Invalid JSON, show raw input
+  }
+
+  // Parse grain columns from comma-separated string
+  const grainColumnsList: string[] = grainColumns
+    ? grainColumns.split(',').map((c) => c.trim()).filter(Boolean)
+    : [];
+
+  function handleGrainColumnsUpdate(columns: string[]) {
+    onUpdateGrain(columns.length > 0 ? columns.join(',') : null);
   }
 
   const [validationResults, setValidationResults] = useState<Record<number, RelationshipValidationResult>>({});
@@ -126,14 +135,16 @@ export function RelationshipsSection({
 
   return (
     <div className="space-y-4">
-      <label className="block space-y-2">
+      <div className="space-y-2">
         <span className="text-sm font-medium">Grain columns</span>
-        <Input
-          value={grainColumns ?? ''}
+        <MultiSelectColumns
+          selectedColumns={grainColumnsList}
+          availableColumns={availableColumns}
           disabled={disabled}
-          onChange={(e) => onUpdateGrain(e.target.value || null)}
+          placeholder="Type to search and add grain columns..."
+          onUpdate={handleGrainColumnsUpdate}
         />
-      </label>
+      </div>
       
       <div className="space-y-2">
         <span className="text-sm font-medium">Relationships</span>
@@ -171,20 +182,6 @@ export function RelationshipsSection({
             No relationships detected
           </div>
         )}
-        
-        {/* Raw JSON input for manual editing */}
-        <details className="text-xs">
-          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-            Edit raw JSON
-          </summary>
-          <Input
-            className="mt-2 font-mono text-xs"
-            value={relationshipsJson ?? ''}
-            disabled={disabled}
-            onChange={(e) => onUpdateRelationships(e.target.value || null)}
-            placeholder='[{"child_column":"id","parent_table":"parent","parent_column":"id","cardinality":"many_to_one"}]'
-          />
-        </details>
       </div>
     </div>
   );

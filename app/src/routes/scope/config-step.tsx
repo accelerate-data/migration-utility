@@ -177,6 +177,16 @@ export default function ConfigStep() {
     () => rows.filter((row) => configsById[row.selectedTableId]?.approvalStatus === 'approved').length,
     [rows, configsById],
   );
+  const approvalStatusById = useMemo(
+    () => {
+      const map: Record<string, string | null> = {};
+      for (const row of rows) {
+        map[row.selectedTableId] = configsById[row.selectedTableId]?.approvalStatus ?? null;
+      }
+      return map;
+    },
+    [rows, configsById],
+  );
   const needsDetails = rows.length - readyCount;
 
   async function analyzeTable(row: SelectedTableRow, force: boolean) {
@@ -379,6 +389,7 @@ export default function ConfigStep() {
           activeId={activeId}
           loading={loading}
           anyAnalyzing={anyAnalyzing || refreshing}
+          approvalStatusById={approvalStatusById}
           onSelectTable={setActiveId}
         />
 
@@ -424,11 +435,13 @@ export default function ConfigStep() {
                         return [];
                       }
                     })()}
+                    availableColumns={draft.availableColumns}
                     onUpdate={updateDraft}
                   />
                   <PiiSection
                     piiColumns={draft.piiColumns}
                     disabled={isLocked || activeIsAnalyzing}
+                    availableColumns={draft.availableColumns}
                     onUpdate={(value) => updateDraft('piiColumns', value)}
                   />
                   <RelationshipsSection
@@ -437,7 +450,7 @@ export default function ConfigStep() {
                     disabled={isLocked || activeIsAnalyzing}
                     workspaceId={workspaceId ?? undefined}
                     selectedTableId={activeRow.selectedTableId}
-                    onUpdateRelationships={(value) => updateDraft('relationshipsJson', value)}
+                    availableColumns={draft.availableColumns}
                     onUpdateGrain={(value) => updateDraft('grainColumns', value)}
                   />
                   <ScdSection

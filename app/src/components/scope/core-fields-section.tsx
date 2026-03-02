@@ -1,5 +1,5 @@
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import type { ColumnMetadata } from '@/lib/types';
 
 interface CoreFieldsSectionProps {
   tableType: string | null;
@@ -8,6 +8,7 @@ interface CoreFieldsSectionProps {
   dateColumn: string | null;
   disabled: boolean;
   manualOverrides: string[];
+  availableColumns?: ColumnMetadata[];
   onUpdate: <K extends 'tableType' | 'loadStrategy' | 'incrementalColumn' | 'dateColumn'>(
     key: K,
     value: string | null,
@@ -37,8 +38,14 @@ export function CoreFieldsSection({
   dateColumn,
   disabled,
   manualOverrides,
+  availableColumns = [],
   onUpdate,
 }: CoreFieldsSectionProps) {
+  // Sort columns alphabetically
+  const sortedColumns = [...availableColumns].sort((a, b) => 
+    a.columnName.localeCompare(b.columnName)
+  );
+
   return (
     <div className="space-y-4">
       <label className="block space-y-2">
@@ -80,22 +87,38 @@ export function CoreFieldsSection({
           CDC column
           {incrementalColumn && <FieldChip fieldName="incrementalColumn" manualOverrides={manualOverrides} />}
         </span>
-        <Input
+        <select
+          className="h-10 w-full rounded-md border bg-background px-3 text-sm font-mono"
           value={incrementalColumn ?? ''}
           disabled={disabled}
           onChange={(e) => onUpdate('incrementalColumn', e.target.value || null)}
-        />
+        >
+          <option value="">Select...</option>
+          {sortedColumns.map((col) => (
+            <option key={col.columnName} value={col.columnName}>
+              {col.columnName} ({col.dataType})
+            </option>
+          ))}
+        </select>
       </label>
       <label className="block space-y-2">
         <span className="text-sm font-medium">
           Canonical date column
           {dateColumn && <FieldChip fieldName="dateColumn" manualOverrides={manualOverrides} />}
         </span>
-        <Input
+        <select
+          className="h-10 w-full rounded-md border bg-background px-3 text-sm font-mono"
           value={dateColumn ?? ''}
           disabled={disabled}
           onChange={(e) => onUpdate('dateColumn', e.target.value || null)}
-        />
+        >
+          <option value="">Select...</option>
+          {sortedColumns.map((col) => (
+            <option key={col.columnName} value={col.columnName}>
+              {col.columnName} ({col.dataType})
+            </option>
+          ))}
+        </select>
       </label>
     </div>
   );
