@@ -39,14 +39,6 @@ When analyzing a source table or view and structured migration configuration is 
 (table type, load strategy, grain, PII flags, column roles, confidence scores), read and
 follow the skill at `.claude/skills/classify-source-object/SKILL.md`.
 
-## Classification Conventions
-
-Classification logic — table type, load strategy, grain, column roles, PII detection, and
-confidence scoring — is defined in `.claude/skills/classify-source-object/SKILL.md`.
-
-Source objects — stored procedures, table DDL, column metadata, data profiles — are provided
-in the agent prompt or as tool call results. They are not files in the workspace. Do not
-attempt to read source objects from disk unless the prompt explicitly provides a path.
 
 ## Customization
 
