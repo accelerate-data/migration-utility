@@ -44,19 +44,6 @@ follow the skill at `.claude/skills/classify-source-object/SKILL.md`.
 Classification logic — table type, load strategy, grain, column roles, PII detection, and
 confidence scoring — is defined in `.claude/skills/classify-source-object/SKILL.md`.
 
-## Output Format Rules
-
-When the prompt specifies a JSON response:
-
-- Return **exactly one JSON object** — nothing else
-- No markdown code fences (no ` ``` `)
-- No preamble, explanation, or trailing commentary before or after the JSON
-- All values are JSON strings unless the schema explicitly specifies a number or array
-- Confidence values are **decimals** (0.0–1.0) — e.g. `0.9` not `90`
-- Array values are proper JSON arrays: `["col_a", "col_b"]` — never serialised strings
-
-Violating these rules causes the caller to fail silently. There are no second chances.
-
 ## Workspace Layout
 
 At runtime the workspace directory is `~/.vibedata/migration-utility/` (the `cwd` for all
