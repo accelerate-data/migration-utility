@@ -6,51 +6,14 @@ import type { SidecarConfig } from "./config.ts";
  * Emitted as a top-level "result" message so the Rust "result" arm captures it.
  */
 const SCOPE_ANALYZER_FIXTURE = JSON.stringify({
-  table_type: "dimension",
-  load_strategy: "full_refresh",
-  grain_columns: '["CurrencyKey"]',
-  incremental_column: "",
-  date_column: "",
-  snapshot_strategy: "",
-  pii_columns: "[]",
-  relationships_json: "[]",
-  analysis_metadata: {
-    table_type: {
-      value: "dimension",
-      confidence: 95,
-      reasoning: "Mock: Dim prefix indicates dimension table per Kimball convention",
-    },
-    load_strategy: {
-      value: "full_refresh",
-      confidence: 90,
-      reasoning: "Mock: dimension tables default to full_refresh",
-    },
-    grain_columns: {
-      value: '["CurrencyKey"]',
-      confidence: 85,
-      reasoning: "Mock: surrogate key is the grain for dimension tables",
-    },
-    relationships: {
-      value: "[]",
-      confidence: 80,
-      reasoning: "Mock: no FK signals in test fixture",
-    },
-    incremental_column: {
-      value: "",
-      confidence: 90,
-      reasoning: "Mock: full_refresh strategy, no incremental column needed",
-    },
-    date_column: {
-      value: "",
-      confidence: 90,
-      reasoning: "Mock: currency dimension has no canonical date column",
-    },
-    pii_columns: {
-      value: "[]",
-      confidence: 95,
-      reasoning: "Mock: currency data contains no PII",
-    },
-  },
+  table_type: { value: "dimension", confidence: 0.95, reasoning: "Mock: Dim prefix indicates dimension table per Kimball convention" },
+  load_strategy: { value: "full_refresh", confidence: 0.9, reasoning: "Mock: dimension tables default to full_refresh" },
+  grain_columns: { value: ["CurrencyKey"], confidence: 0.85, reasoning: "Mock: surrogate key is the grain for dimension tables" },
+  relationships: { value: [] },
+  incremental_column: { value: "", confidence: 0.9, reasoning: "Mock: full_refresh strategy, no incremental column needed" },
+  date_column: { value: "", confidence: 0.9, reasoning: "Mock: currency dimension has no canonical date column" },
+  snapshot_strategy: { value: "", confidence: 0.9, reasoning: "Mock: not a snapshot table" },
+  pii_columns: { value: [], confidence: 0.95, reasoning: "Mock: currency data contains no PII" },
 });
 
 /**

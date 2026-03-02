@@ -599,7 +599,7 @@ pub async fn migration_analyze_table_details(
             return Err(CommandError::Io(e));
         }
     };
-    let payload: AgentTableConfigPayload = match serde_json::from_value(raw_json.clone()) {
+    let payload: AgentTableConfigPayload = match serde_json::from_value(normalize_agent_array_fields(raw_json.clone())) {
         Ok(value) => value,
         Err(e) => {
             let err = format!("invalid agent contract payload: {e}");
@@ -838,6 +838,27 @@ fn load_table_config_for_selected(
     )
     .optional()
     .map_err(CommandError::from)
+}
+
+/// Normalises string-encoded JSON arrays in `FieldValue` wrappers emitted by the LLM.
+///
+/// Despite SKILL.md requiring `"value": [...]`, some model responses emit `"value": "[]"` or
+/// `"value": "[\"col\"]"` — a JSON string containing a JSON array.  Parse and unwrap those
+/// strings so that `serde_json::from_value::<AgentTableConfigPayload>()` succeeds.
+fn normalize_agent_array_fields(mut v: Value) -> Value {
+    const ARRAY_FIELDS: &[&str] = &["grain_columns", "pii_columns", "relationships"];
+    if let Some(obj) = v.as_object_mut() {
+        for field in ARRAY_FIELDS {
+            if let Some(wrapper) = obj.get_mut(*field) {
+                if let Some(Value::String(s)) = wrapper.get("value").cloned() {
+                    if let Ok(Value::Array(arr)) = serde_json::from_str::<Value>(&s) {
+                        wrapper["value"] = Value::Array(arr);
+                    }
+                }
+            }
+        }
+    }
+    v
 }
 
 fn parse_agent_json_object(text: &str) -> Result<Value, String> {
@@ -2044,6 +2065,43 @@ mod tests {
         // Absent fields become None
         assert!(payload.table_type.is_none());
         assert!(payload.load_strategy.is_none());
+    }
+
+    #[test]
+    fn normalize_agent_array_fields_unwraps_string_encoded_arrays() {
+        // Regression test for LLM double-encoding: `{ "value": "[]" }` should become `{ "value": [] }`.
+        let raw = serde_json::json!({
+            "table_type": { "value": "dimension", "confidence": 0.95 },
+            "grain_columns": { "value": "[\"CurrencyKey\"]", "confidence": 0.85 },
+            "pii_columns": { "value": "[]", "confidence": 0.99 },
+            "relationships": { "value": "[]" }
+        });
+
+        let normalized = normalize_agent_array_fields(raw);
+        let payload: AgentTableConfigPayload = serde_json::from_value(normalized).expect("should deserialize after normalization");
+
+        assert_eq!(payload.grain_columns.unwrap().value, vec!["CurrencyKey"]);
+        assert_eq!(payload.pii_columns.unwrap().value, Vec::<String>::new());
+        assert_eq!(payload.relationships.unwrap().value.len(), 0);
+        // String fields unaffected
+        assert_eq!(payload.table_type.unwrap().value, "dimension");
+    }
+
+    #[test]
+    fn normalize_agent_array_fields_leaves_proper_arrays_unchanged() {
+        // If the LLM emits proper arrays, normalization must not corrupt them.
+        let raw = serde_json::json!({
+            "grain_columns": { "value": ["order_id", "line_item_id"], "confidence": 0.85 },
+            "pii_columns": { "value": ["customer_email"], "confidence": 0.99 },
+            "relationships": { "value": [] }
+        });
+
+        let normalized = normalize_agent_array_fields(raw.clone());
+        let payload: AgentTableConfigPayload = serde_json::from_value(normalized).expect("should deserialize");
+
+        assert_eq!(payload.grain_columns.unwrap().value, vec!["order_id", "line_item_id"]);
+        assert_eq!(payload.pii_columns.unwrap().value, vec!["customer_email"]);
+        assert_eq!(payload.relationships.unwrap().value.len(), 0);
     }
 
     // ── DB array roundtrip ────────────────────────────────────────────────────
