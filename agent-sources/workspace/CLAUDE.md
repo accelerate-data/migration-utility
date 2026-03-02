@@ -53,8 +53,7 @@ When the prompt specifies a JSON response:
 - No preamble, explanation, or trailing commentary before or after the JSON
 - All values are JSON strings unless the schema explicitly specifies a number or array
 - Confidence values are **integers** (0–100), not floats
-- Escape double quotes inside string values with `\"`
-- Array values are JSON strings containing a serialised JSON array: `"[\"col_a\",\"col_b\"]"`
+- Array values are proper JSON arrays: `["col_a", "col_b"]` — never serialised strings
 
 Violating these rules causes the caller to fail silently. There are no second chances.
 

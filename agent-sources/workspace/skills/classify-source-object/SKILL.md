@@ -99,26 +99,48 @@ returning empty or hedging.
 
 ## Output
 
-Produce the following fields. All string values; arrays as serialised JSON strings.
+Produce exactly this JSON structure. String fields are strings; array fields are proper JSON
+arrays — never serialised strings inside quotes.
 
 ```json
 {
   "table_type": "<fact|dimension|bridge|aggregate|staging|snapshot>",
   "load_strategy": "<full_refresh|incremental|snapshot>",
-  "grain_columns": "[\"col_a\", \"col_b\"]",
-  "incremental_column": "<column name or empty string>",
-  "date_column": "<column name or empty string>",
+  "grain_columns": ["<column_name>"],
+  "incremental_column": "<column_name or empty string>",
+  "date_column": "<column_name or empty string>",
   "snapshot_strategy": "<strategy note or empty string>",
-  "pii_columns": "[\"col_a\"]",
-  "relationships_json": "[{\"child_column\":\"\",\"parent_table\":\"\",\"parent_column\":\"\",\"cardinality\":\"\"}]",
+  "pii_columns": ["<column_name>"],
+  "relationships_json": [
+    {
+      "child_column": "<column_name>",
+      "parent_table": "<schema.table_name>",
+      "parent_column": "<column_name>",
+      "cardinality": "<many-to-one|one-to-one|one-to-many|many-to-many>"
+    }
+  ],
   "analysis_metadata": {
-    "table_type":         { "value": "", "confidence": 0, "reasoning": "" },
-    "load_strategy":      { "value": "", "confidence": 0, "reasoning": "" },
-    "grain_columns":      { "value": "", "confidence": 0, "reasoning": "" },
-    "relationships":      { "value": "", "confidence": 0, "reasoning": "" },
-    "incremental_column": { "value": "", "confidence": 0, "reasoning": "" },
-    "date_column":        { "value": "", "confidence": 0, "reasoning": "" },
-    "pii_columns":        { "value": "", "confidence": 0, "reasoning": "" }
+    "table_type":         { "value": "<string>",           "confidence": 0, "reasoning": "<string>" },
+    "load_strategy":      { "value": "<string>",           "confidence": 0, "reasoning": "<string>" },
+    "grain_columns":      { "value": ["<column_name>"],    "confidence": 0, "reasoning": "<string>" },
+    "relationships":      { "value": [{ "child_column": "", "parent_table": "", "parent_column": "", "cardinality": "" }], "confidence": 0, "reasoning": "<string>" },
+    "incremental_column": { "value": "<string>",           "confidence": 0, "reasoning": "<string>" },
+    "date_column":        { "value": "<string>",           "confidence": 0, "reasoning": "<string>" },
+    "pii_columns":        { "value": ["<column_name>"],    "confidence": 0, "reasoning": "<string>" }
   }
 }
 ```
+
+### Field types
+
+| Field | Type | Notes |
+|---|---|---|
+| `table_type` | string | one of the enum values above |
+| `load_strategy` | string | one of the enum values above |
+| `grain_columns` | string[] | empty array `[]` if indeterminate |
+| `incremental_column` | string | empty string `""` if none |
+| `date_column` | string | empty string `""` if none |
+| `snapshot_strategy` | string | empty string `""` if not applicable |
+| `pii_columns` | string[] | empty array `[]` if none detected |
+| `relationships_json` | object[] | empty array `[]` if no FKs found |
+| `analysis_metadata.*` | object | every key required; `value` mirrors the top-level field type |
