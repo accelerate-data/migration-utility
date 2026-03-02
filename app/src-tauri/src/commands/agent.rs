@@ -531,8 +531,7 @@ fn transcript_config_line(config: &SidecarConfigPayload) -> String {
             "apiKey": "[REDACTED]",
             "cwd": config.cwd,
             "settingSources": ["project"],
-            "permissionMode": "bypassPermissions",
-            "allowDangerouslySkipPermissions": true
+            "permissionMode": "bypassPermissions"
         }
     })
     .to_string()
@@ -830,6 +829,10 @@ mod tests {
             Some("prompt body")
         );
         assert_eq!(cfg.get("cwd").and_then(|v| v.as_str()), Some("/tmp/work"));
+        assert!(
+            cfg.get("allowDangerouslySkipPermissions").is_none(),
+            "allowDangerouslySkipPermissions must not appear in transcript config"
+        );
     }
 
     #[test]
