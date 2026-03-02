@@ -24,6 +24,7 @@ playwright-artifacts/
 
 # Claude Code — ignore local config, track committed skills
 .claude/settings.json
+.claude/settings.local
 .claude/settings.local.json
 .claude/worktrees/
 
