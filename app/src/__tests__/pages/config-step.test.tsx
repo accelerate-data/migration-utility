@@ -88,13 +88,13 @@ describe('ConfigStep', () => {
 
   it('renders selected table details panel', async () => {
     renderStep();
-    await screen.findByText('fact_sales');
-    expect(screen.getByText(/dbo.fact_sales/i)).toBeInTheDocument();
+    await screen.findByText('Selected table');
+    expect(screen.getAllByText(/dbo\.fact_sales/i).length).toBeGreaterThan(0);
   });
 
   it('analyzes table on first load and supports analyze again', async () => {
     renderStep();
-    await screen.findByText('fact_sales');
+    await screen.findByText('Selected table');
 
     await waitFor(() => {
       expect(tauriMocks.migrationAnalyzeTableDetails).toHaveBeenCalledWith({
@@ -120,7 +120,7 @@ describe('ConfigStep', () => {
 
   it('autosaves when changing table type', async () => {
     renderStep();
-    await screen.findByText('fact_sales');
+    await screen.findByText('Selected table');
     const tableTypeSelect = screen.getByRole('combobox', { name: /Table type/i });
     fireEvent.change(tableTypeSelect, { target: { value: 'fact' } });
     await waitFor(() => {
@@ -130,7 +130,7 @@ describe('ConfigStep', () => {
 
   it('refresh schema runs apply + reconciliation', async () => {
     renderStep();
-    await screen.findByText('fact_sales');
+    await screen.findByText('Selected table');
     fireEvent.click(screen.getByRole('button', { name: 'Refresh schema' }));
     await waitFor(() => {
       expect(tauriMocks.workspaceApplyStart).toHaveBeenCalled();
@@ -180,7 +180,7 @@ describe('ConfigStep — manual override tracking', () => {
 
   it('saves manualOverridesJson when a field is changed', async () => {
     render(<MemoryRouter initialEntries={['/scope/config']}><ConfigStep /></MemoryRouter>);
-    await screen.findByText('fact_sales');
+    await screen.findByText('Selected table');
 
     const tableTypeSelect = screen.getByRole('combobox', { name: /Table type/i });
     fireEvent.change(tableTypeSelect, { target: { value: 'dimension' } });
@@ -195,15 +195,21 @@ describe('ConfigStep — manual override tracking', () => {
 
   it('accumulates multiple field overrides', async () => {
     render(<MemoryRouter initialEntries={['/scope/config']}><ConfigStep /></MemoryRouter>);
-    await screen.findByText('fact_sales');
+    await screen.findByText('Selected table');
 
-    const selects = screen.getAllByRole('combobox');
-    fireEvent.change(selects[0], { target: { value: 'dimension' } });
+    const tableTypeSelect = screen.getByRole('combobox', { name: /Table type/i });
+    fireEvent.change(tableTypeSelect, { target: { value: 'dimension' } });
 
-    await waitFor(() => expect(tauriMocks.migrationSaveTableConfig).toHaveBeenCalled());
+    await waitFor(() => expect(tableTypeSelect).toHaveValue('dimension'));
+    await waitFor(() => {
+      const call = tauriMocks.migrationSaveTableConfig.mock.calls.at(-1)?.[0];
+      const overrides = JSON.parse(call.manualOverridesJson ?? '[]');
+      expect(overrides).toContain('tableType');
+    });
     tauriMocks.migrationSaveTableConfig.mockClear();
 
-    fireEvent.change(selects[1], { target: { value: 'full_refresh' } });
+    const loadStrategySelect = screen.getByRole('combobox', { name: /Load strategy/i });
+    fireEvent.change(loadStrategySelect, { target: { value: 'full_refresh' } });
 
     await waitFor(() => {
       const call = tauriMocks.migrationSaveTableConfig.mock.calls.at(-1)?.[0];
@@ -255,7 +261,7 @@ describe('ConfigStep — manual override persistence', () => {
 
   it('deserializes manualOverridesJson on load and shows Manual chips', async () => {
     render(<MemoryRouter initialEntries={['/scope/config']}><ConfigStep /></MemoryRouter>);
-    await screen.findByText('fact_sales');
+    await screen.findByText('Selected table');
     // Both tableType and loadStrategy are in manualOverrides → both show Manual chip
     await waitFor(() => {
       const manualChips = screen.getAllByText('Manual');
@@ -297,7 +303,7 @@ describe('ConfigStep — Agent/Manual chip display', () => {
       manualOverridesJson: '[]',
     });
     render(<MemoryRouter initialEntries={['/scope/config']}><ConfigStep /></MemoryRouter>);
-    await screen.findByText('fact_sales');
+    await screen.findByText('Selected table');
     await waitFor(() => {
       expect(screen.getAllByText('Agent').length).toBeGreaterThanOrEqual(1);
     });
@@ -313,7 +319,7 @@ describe('ConfigStep — Agent/Manual chip display', () => {
       analysisMetadataJson: null, approvalStatus: null, approvedAt: null, manualOverridesJson: null,
     });
     render(<MemoryRouter initialEntries={['/scope/config']}><ConfigStep /></MemoryRouter>);
-    await screen.findByText('fact_sales');
+    await screen.findByText('Selected table');
 
     const tableTypeSelect = screen.getByRole('combobox', { name: /Table type/i });
     await act(async () => { fireEvent.change(tableTypeSelect, { target: { value: 'dimension' } }); });
@@ -358,7 +364,7 @@ describe('ConfigStep — approval logic', () => {
   it('shows Approve Configuration button when confirmedAt is set', async () => {
     tauriMocks.migrationAnalyzeTableDetails = vi.fn(); // prevent auto-analyze
     render(<MemoryRouter initialEntries={['/scope/config']}><ConfigStep /></MemoryRouter>);
-    await screen.findByText('fact_sales');
+    await screen.findByText('Selected table');
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Approve Configuration' })).toBeInTheDocument();
     });
@@ -370,7 +376,7 @@ describe('ConfigStep — approval logic', () => {
     Object.assign(tauriMocks, { migrationApproveTableConfig: approveMock });
 
     render(<MemoryRouter initialEntries={['/scope/config']}><ConfigStep /></MemoryRouter>);
-    await screen.findByText('fact_sales');
+    await screen.findByText('Selected table');
     await waitFor(() => screen.getByRole('button', { name: 'Approve Configuration' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Approve Configuration' }));
@@ -416,7 +422,7 @@ describe('ConfigStep — approval UI state', () => {
     });
     tauriMocks.migrationAnalyzeTableDetails = vi.fn();
     render(<MemoryRouter initialEntries={['/scope/config']}><ConfigStep /></MemoryRouter>);
-    await screen.findByText('fact_sales');
+    await screen.findByText('Selected table');
     await waitFor(() => {
       expect(screen.getByText('✓ Approved')).toBeInTheDocument();
     });
@@ -434,9 +440,9 @@ describe('ConfigStep — approval UI state', () => {
     });
     tauriMocks.migrationAnalyzeTableDetails = vi.fn();
     render(<MemoryRouter initialEntries={['/scope/config']}><ConfigStep /></MemoryRouter>);
-    await screen.findByText('fact_sales');
+    await screen.findByText('Selected table');
     await waitFor(() => {
-      expect(screen.getByText('Pending approval')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Approve Configuration' })).toBeInTheDocument();
     });
   });
 
@@ -452,9 +458,9 @@ describe('ConfigStep — approval UI state', () => {
     });
     tauriMocks.migrationAnalyzeTableDetails = vi.fn();
     render(<MemoryRouter initialEntries={['/scope/config']}><ConfigStep /></MemoryRouter>);
-    await screen.findByText('fact_sales');
+    await screen.findByText('Selected table');
     await waitFor(() => {
-      expect(screen.queryByText('Approval Status')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Approve Configuration' })).toBeDisabled();
     });
   });
 });

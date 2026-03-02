@@ -4,6 +4,7 @@ import { MultiSelectColumns } from './multi-select-columns';
 import { migrationValidateRelationship } from '@/lib/tauri';
 import type { Relationship, RelationshipValidationResult, ColumnMetadata } from '@/lib/types';
 import { logger } from '@/lib/logger';
+import { Button } from '@/components/ui/button';
 
 interface RelationshipsSectionProps {
   relationshipsJson: Relationship[] | null;
@@ -45,6 +46,10 @@ export function RelationshipsSection({
 
   // Per-relationship array of per-mapping validation results
   const [validationResults, setValidationResults] = useState<Record<number, RelationshipValidationResult[]>>({});
+  const relationshipValidationRows = Object.values(validationResults);
+  const hasInvalidRelationships = relationshipValidationRows.some((mappings) =>
+    mappings.some((result) => !result.isValid),
+  );
 
   useEffect(() => {
     if (!workspaceId || !selectedTableId || relationships.length === 0) {
@@ -142,9 +147,23 @@ export function RelationshipsSection({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <span className="text-sm font-medium">Grain columns</span>
+    <div className="space-y-6">
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-medium">Keys and grain</p>
+          <span
+            className="rounded-full px-2 py-0.5 text-xs font-medium"
+            style={{
+              backgroundColor: grainColumnsList.length > 0
+                ? 'color-mix(in oklch, var(--color-seafoam), transparent 85%)'
+                : 'color-mix(in oklch, var(--color-destructive), transparent 88%)',
+              color: grainColumnsList.length > 0 ? 'var(--color-seafoam)' : 'var(--color-destructive)',
+            }}
+          >
+            {grainColumnsList.length > 0 ? 'Confirmed' : 'Needs review'}
+          </span>
+        </div>
+        <span className="text-sm font-medium">Grain columns (required)</span>
         <MultiSelectColumns
           selectedColumns={grainColumnsList}
           availableColumns={availableColumns}
@@ -154,8 +173,27 @@ export function RelationshipsSection({
         />
       </div>
 
-      <div className="space-y-2">
-        <span className="text-sm font-medium">Relationships</span>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-medium">Relationships (required for tests)</p>
+          <div className="flex items-center gap-2">
+            <span
+              className="rounded-full px-2 py-0.5 text-xs font-medium"
+              style={{
+                backgroundColor: hasInvalidRelationships
+                  ? 'color-mix(in oklch, var(--color-destructive), transparent 88%)'
+                  : 'color-mix(in oklch, var(--color-seafoam), transparent 85%)',
+                color: hasInvalidRelationships ? 'var(--color-destructive)' : 'var(--color-seafoam)',
+              }}
+            >
+              {hasInvalidRelationships ? 'Needs review' : 'Confirmed'}
+            </span>
+            <Button type="button" variant="outline" size="sm" disabled>
+              + Add relationship
+            </Button>
+          </div>
+        </div>
+
         {relationships.length > 0 ? (
           <div className="space-y-2">
             {relationships.map((rel, idx) => (

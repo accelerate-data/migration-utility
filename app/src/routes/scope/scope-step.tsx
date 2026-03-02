@@ -197,7 +197,7 @@ export default function ScopeStep() {
 
   return (
     <section className="flex h-full min-h-0 flex-col gap-4" data-testid="scope-select-step">
-      <div className="sticky top-0 z-20 bg-background pb-4">
+      <div className="bg-background pb-4">
         <header className="rounded-md border bg-card p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-1">

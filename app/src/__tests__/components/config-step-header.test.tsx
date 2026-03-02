@@ -35,7 +35,7 @@ describe('ConfigStepHeader', () => {
 
     it('renders needs details count correctly', () => {
       render(<ConfigStepHeader {...defaultProps} />);
-      expect(screen.getByText(/Needs details for 5 tables/)).toBeInTheDocument();
+      expect(screen.getByText(/5 pending approvals/)).toBeInTheDocument();
     });
 
     it('updates counts when props change', () => {
@@ -159,13 +159,13 @@ describe('ConfigStepHeader', () => {
       );
       expect(screen.getByText('0 / 0 tables ready')).toBeInTheDocument();
       expect(screen.getByText('0 approved')).toBeInTheDocument();
-      expect(screen.getByText(/Needs details for 0 tables/)).toBeInTheDocument();
+      expect(screen.getByText('No pending approvals')).toBeInTheDocument();
     });
 
     it('handles all tables ready', () => {
       render(<ConfigStepHeader {...defaultProps} readyCount={10} totalCount={10} needsDetails={0} />);
       expect(screen.getByText('10 / 10 tables ready')).toBeInTheDocument();
-      expect(screen.getByText(/Needs details for 0 tables/)).toBeInTheDocument();
+      expect(screen.getByText('No pending approvals')).toBeInTheDocument();
     });
 
     it('handles all tables approved', () => {

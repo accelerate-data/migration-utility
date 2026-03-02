@@ -2,9 +2,8 @@
  * Component integration tests for ConfigStep (task 5.5)
  *
  * Tests cross-component interactions:
- * - Sidebar ↔ detail panel (table selection)
+ * - Table dropdown ↔ detail panel (table selection)
  * - Header counts ↔ approval state
- * - Validation errors ↔ sidebar badges
  * - Multi-table navigation
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -97,28 +96,29 @@ describe('ConfigStep — multi-table navigation', () => {
     tauriMocks.migrationReconcileScopeState.mockResolvedValue({ kept: 2, invalidated: 0, removed: 0 });
   });
 
-  it('shows both tables in sidebar and switches detail panel on click', async () => {
+  it('shows both tables in dropdown and switches detail panel on selection', async () => {
     renderStep();
-    await screen.findByText('fact_sales');
-    expect(screen.getByText('dim_customer')).toBeInTheDocument();
+    await screen.findByText('Selected table');
+    const selectedTable = screen.getAllByRole('combobox')[0];
+    expect(screen.getByText(/dbo\.dim_customer -/i)).toBeInTheDocument();
 
     // Initially fact_sales is active — detail panel shows it
     await waitFor(() => {
-      expect(screen.getByText(/dbo\.fact_sales/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/dbo\.fact_sales/i).length).toBeGreaterThan(0);
     });
 
-    // Click dim_customer in sidebar
-    fireEvent.click(screen.getByText('dim_customer'));
+    // Select dim_customer in dropdown
+    fireEvent.change(selectedTable, { target: { value: 'st:ws-1:wh-2:dbo:dim_customer' } });
     await waitFor(() => {
-      expect(screen.getByText(/dbo\.dim_customer/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/dbo\.dim_customer/i).length).toBeGreaterThan(0);
     });
   });
 
   it('header shows correct total count for multiple tables', async () => {
     renderStep();
-    await screen.findByText('fact_sales');
+    await screen.findByText('Selected table');
     await waitFor(() => {
-      expect(screen.getByText(/2\s+tables ready/i)).toBeInTheDocument();
+      expect(screen.getByText(/0\s*\/\s*2 tables ready/i)).toBeInTheDocument();
     });
   });
 });
@@ -156,7 +156,7 @@ describe('ConfigStep — header count ↔ approval state integration', () => {
       .mockResolvedValue(makeConfig(sid, { confirmedAt: '2026-01-01T10:00:00Z', approvalStatus: 'approved', approvedAt: '2026-01-15T10:00:00Z' }));
 
     renderStep();
-    await screen.findByText('fact_sales');
+    await screen.findByText('Selected table');
 
     // Initially 0 approved
     await waitFor(() => {
@@ -170,7 +170,7 @@ describe('ConfigStep — header count ↔ approval state integration', () => {
     });
   });
 
-  it('sidebar shows green checkmark after approval', async () => {
+  it('shows approved badge after approval', async () => {
     const sid = 'st:ws-1:wh-1:dbo:fact_sales';
     tauriMocks.migrationGetTableConfig.mockResolvedValue(
       makeConfig(sid, { confirmedAt: '2026-01-01T10:00:00Z', approvalStatus: 'pending' }),
@@ -182,7 +182,7 @@ describe('ConfigStep — header count ↔ approval state integration', () => {
       .mockResolvedValue(makeConfig(sid, { confirmedAt: '2026-01-01T10:00:00Z', approvalStatus: 'approved', approvedAt: '2026-01-15T10:00:00Z' }));
 
     renderStep();
-    await screen.findByText('fact_sales');
+    await screen.findByText('Selected table');
     await waitFor(() => screen.getByRole('button', { name: 'Approve Configuration' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Approve Configuration' }));
@@ -220,7 +220,7 @@ describe('ConfigStep — locked state integration', () => {
 
   it('disables form fields when scope is locked', async () => {
     renderStep();
-    await screen.findByText('fact_sales');
+    await screen.findByText('Selected table');
     await waitFor(() => {
       const tableTypeSelect = screen.getByRole('combobox', { name: /Table type/i });
       expect(tableTypeSelect).toBeDisabled();
@@ -229,7 +229,7 @@ describe('ConfigStep — locked state integration', () => {
 
   it('does not autosave when scope is locked', async () => {
     renderStep();
-    await screen.findByText('fact_sales');
+    await screen.findByText('Selected table');
     // Scope is locked — no save should be triggered
     await waitFor(() => {
       expect(tauriMocks.migrationSaveTableConfig).not.toHaveBeenCalled();

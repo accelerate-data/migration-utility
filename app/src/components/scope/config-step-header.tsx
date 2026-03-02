@@ -40,6 +40,9 @@ export function ConfigStepHeader({
             <span className="rounded-full bg-primary/20 px-2 py-0.5 text-xs font-medium text-primary">
               {readyCount} / {totalCount} tables ready
             </span>
+            <span className="text-xs text-muted-foreground">
+              {needsDetails === 0 ? 'No pending approvals' : `${needsDetails} pending approvals`}
+            </span>
             <span
               className="rounded-full px-2 py-0.5 text-xs font-medium"
               style={{
@@ -49,7 +52,6 @@ export function ConfigStepHeader({
             >
               {approvedCount} approved
             </span>
-            <span className="text-xs text-muted-foreground">Needs details for {needsDetails} tables</span>
             <span className="text-xs text-muted-foreground">{message}</span>
             <span className="text-xs text-muted-foreground">
               {isLocked ? 'Scope finalized (read-only)' : 'Scope editable'}
