@@ -435,6 +435,8 @@ export default function ConfigStep() {
                     relationshipsJson={draft.relationshipsJson}
                     grainColumns={draft.grainColumns}
                     disabled={isLocked || activeIsAnalyzing}
+                    workspaceId={workspaceId ?? undefined}
+                    selectedTableId={activeRow.selectedTableId}
                     onUpdateRelationships={(value) => updateDraft('relationshipsJson', value)}
                     onUpdateGrain={(value) => updateDraft('grainColumns', value)}
                   />

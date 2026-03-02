@@ -8,6 +8,7 @@ import type {
   GitHubAuthResult,
   GitHubRepo,
   GitHubUser,
+  RelationshipValidationResult,
   ScopeInventoryRow,
   ScopeRefreshSummary,
   ScopeTableRef,
@@ -159,3 +160,20 @@ export const migrationAnalyzeTableDetails = (args: {
 
 export const migrationReconcileScopeState = (workspaceId: string) =>
   invoke<ScopeRefreshSummary>('migration_reconcile_scope_state', { workspaceId });
+
+export const migrationValidateRelationship = (
+  workspaceId: string,
+  currentTableId: string,
+  childColumn: string,
+  parentSchema: string,
+  parentTable: string,
+  parentColumn: string
+) =>
+  invoke<RelationshipValidationResult>('migration_validate_relationship', {
+    workspaceId,
+    currentTableId,
+    childColumn,
+    parentSchema,
+    parentTable,
+    parentColumn,
+  });
