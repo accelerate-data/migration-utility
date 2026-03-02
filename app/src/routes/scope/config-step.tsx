@@ -239,7 +239,28 @@ export default function ConfigStep() {
 
   function updateDraft<K extends keyof TableConfigPayload>(key: K, value: TableConfigPayload[K]) {
     if (!draft || isLocked) return;
-    const next = { ...draft, [key]: value };
+    
+    // Track manual override
+    let manualOverrides: string[] = [];
+    try {
+      if (draft.manualOverridesJson) {
+        manualOverrides = JSON.parse(draft.manualOverridesJson);
+      }
+    } catch {
+      // Invalid JSON, start fresh
+    }
+    
+    // Add field to manual overrides if not already tracked
+    const fieldName = String(key);
+    if (!manualOverrides.includes(fieldName) && fieldName !== 'manualOverridesJson' && fieldName !== 'confirmedAt') {
+      manualOverrides.push(fieldName);
+    }
+    
+    const next = { 
+      ...draft, 
+      [key]: value,
+      manualOverridesJson: JSON.stringify(manualOverrides)
+    };
     setDraft(next);
     if (autosaveTimerRef.current !== null) {
       window.clearTimeout(autosaveTimerRef.current);
@@ -391,6 +412,13 @@ export default function ConfigStep() {
                     incrementalColumn={draft.incrementalColumn}
                     dateColumn={draft.dateColumn}
                     disabled={isLocked || activeIsAnalyzing}
+                    manualOverrides={(() => {
+                      try {
+                        return draft.manualOverridesJson ? JSON.parse(draft.manualOverridesJson) : [];
+                      } catch {
+                        return [];
+                      }
+                    })()}
                     onUpdate={updateDraft}
                   />
                   <PiiSection
