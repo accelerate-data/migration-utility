@@ -12,7 +12,15 @@ function assistantTextFromEvent(event: unknown): string {
   const e = event as {
     type?: string;
     message?: { content?: Array<{ type?: string; text?: string }> };
+    result?: string;
   };
+  
+  // Handle result events (agent returning final output)
+  if (e.type === 'result' && typeof e.result === 'string') {
+    return e.result;
+  }
+  
+  // Handle assistant messages (streaming text)
   if (e.type !== 'assistant') return '';
   const blocks = e.message?.content;
   if (!Array.isArray(blocks)) return '';

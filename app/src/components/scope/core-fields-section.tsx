@@ -21,11 +21,11 @@ export function CoreFieldsSection({
   onUpdate,
 }: CoreFieldsSectionProps) {
   return (
-    <div className="grid gap-3 md:grid-cols-2">
-      <label className="space-y-1 text-sm">
-        <span>Table type</span>
+    <div className="space-y-4">
+      <label className="block space-y-2">
+        <span className="text-sm font-medium">Table type</span>
         <select
-          className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+          className="h-10 w-full rounded-md border bg-background px-3 text-sm"
           value={tableType ?? ''}
           disabled={disabled}
           onChange={(e) => onUpdate('tableType', e.target.value || null)}
@@ -36,10 +36,10 @@ export function CoreFieldsSection({
           <option value="unknown">unknown</option>
         </select>
       </label>
-      <label className="space-y-1 text-sm">
-        <span>Load strategy</span>
+      <label className="block space-y-2">
+        <span className="text-sm font-medium">Load strategy</span>
         <select
-          className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+          className="h-10 w-full rounded-md border bg-background px-3 text-sm"
           value={loadStrategy ?? ''}
           disabled={disabled}
           onChange={(e) => onUpdate('loadStrategy', e.target.value || null)}
@@ -50,16 +50,16 @@ export function CoreFieldsSection({
           <option value="snapshot">snapshot</option>
         </select>
       </label>
-      <label className="space-y-1 text-sm">
-        <span>CDC column</span>
+      <label className="block space-y-2">
+        <span className="text-sm font-medium">CDC column</span>
         <Input
           value={incrementalColumn ?? ''}
           disabled={disabled}
           onChange={(e) => onUpdate('incrementalColumn', e.target.value || null)}
         />
       </label>
-      <label className="space-y-1 text-sm">
-        <span>Canonical date column</span>
+      <label className="block space-y-2">
+        <span className="text-sm font-medium">Canonical date column</span>
         <Input
           value={dateColumn ?? ''}
           disabled={disabled}

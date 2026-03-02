@@ -7,10 +7,10 @@ interface ScdSectionProps {
 
 export function ScdSection({ tableType, snapshotStrategy, disabled, onUpdate }: ScdSectionProps) {
   return (
-    <label className="space-y-1 text-sm md:col-span-2">
-      <span>SCD (dimensions only)</span>
+    <label className="block space-y-2">
+      <span className="text-sm font-medium">SCD (dimensions only)</span>
       <select
-        className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+        className="h-10 w-full rounded-md border bg-background px-3 text-sm"
         value={snapshotStrategy}
         disabled={disabled || tableType !== 'dimension'}
         onChange={(e) => onUpdate(e.target.value)}

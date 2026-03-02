@@ -2,7 +2,6 @@ import { useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { ThemeProvider } from 'next-themes';
 import IconNav from './components/icon-nav';
-import DevPhaseControls from './components/dev-phase-controls';
 import HomeSurface from './routes/home';
 import ScopeSurface from './routes/scope/index';
 import PlanSurface from './routes/plan';
@@ -97,7 +96,6 @@ export default function App() {
             </Routes>
           </main>
         </div>
-        <DevPhaseControls />
         <Toaster />
       </BrowserRouter>
     </ThemeProvider>

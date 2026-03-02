@@ -354,10 +354,10 @@ export default function ConfigStep() {
           onSelectTable={setActiveId}
         />
 
-        <div className="rounded-md border bg-card p-4 lg:pr-8">
+        <div className="rounded-md border bg-card p-6">
           {!activeRow && <p className="text-sm text-muted-foreground">Select a table to edit details.</p>}
           {activeRow && draft && (
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-mono text-sm font-semibold">
@@ -376,7 +376,7 @@ export default function ConfigStep() {
                 </Button>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-6">
                 <CoreFieldsSection
                   tableType={draft.tableType}
                   loadStrategy={draft.loadStrategy}

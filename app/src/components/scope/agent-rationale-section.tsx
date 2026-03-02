@@ -12,8 +12,8 @@ export function AgentRationaleSection({ analysisMetadataJson }: AgentRationaleSe
     if (!hasMetadata) return null;
 
     return (
-      <div className="mt-3 space-y-2">
-        <p className="mb-2 text-xs font-medium text-muted-foreground">Agent Analysis Rationale</p>
+      <div className="space-y-3">
+        <p className="text-sm font-medium">Agent Analysis Rationale</p>
         {Object.entries(metadata).map(([field, data]: [string, any]) => {
           if (!data || typeof data !== 'object') return null;
           const { value, confidence, reasoning } = data;

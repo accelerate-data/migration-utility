@@ -19,7 +19,7 @@ export function ApprovalActions({
   if (!confirmedAt) return null;
 
   return (
-    <div className="mt-6 space-y-3 rounded-md border border-border bg-muted/30 p-4">
+    <div className="space-y-3 rounded-md border border-border bg-muted/30 p-5">
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <p className="text-sm font-semibold">Approval Status</p>

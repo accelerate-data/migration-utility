@@ -642,6 +642,23 @@ fn handle_sidecar_line(
                 Ok(SidecarLineResult::Continue)
             }
         }
+        "agent_event" => {
+            let id = parsed
+                .get("id")
+                .and_then(Value::as_str)
+                .or_else(|| parsed.get("request_id").and_then(Value::as_str))
+                .unwrap_or_default();
+            if id != request_id {
+                return Ok(SidecarLineResult::Continue);
+            }
+            // Extract result from event.result field
+            if let Some(event) = parsed.get("event") {
+                if let Some(result) = event.get("result").and_then(Value::as_str) {
+                    aggregated.push_str(result);
+                }
+            }
+            Ok(SidecarLineResult::Continue)
+        }
         "request_complete" => {
             let id = parsed
                 .get("request_id")
@@ -753,6 +770,18 @@ mod tests {
         assert_eq!(r1, SidecarLineResult::Continue);
         assert_eq!(r2, SidecarLineResult::Done);
         assert_eq!(aggregated, "hello world");
+    }
+
+    #[test]
+    fn handle_sidecar_line_extracts_result_from_agent_event() {
+        let mut aggregated = String::new();
+        let id = "agent-1";
+        let event = r#"{"type":"agent_event","request_id":"agent-1","event":{"type":"result","result":"{\"table_type\":\"fact\"}"}}"#.to_string();
+
+        let result = handle_sidecar_line(&event, id, &mut aggregated).unwrap();
+
+        assert_eq!(result, SidecarLineResult::Continue);
+        assert_eq!(aggregated, r#"{"table_type":"fact"}"#);
     }
 
     #[test]

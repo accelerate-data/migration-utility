@@ -8,8 +8,8 @@ interface PiiSectionProps {
 
 export function PiiSection({ piiColumns, disabled, onUpdate }: PiiSectionProps) {
   return (
-    <label className="space-y-1 text-sm md:col-span-2">
-      <span>PII columns (required for fixture masking)</span>
+    <label className="block space-y-2">
+      <span className="text-sm font-medium">PII columns (required for fixture masking)</span>
       <Input
         value={piiColumns ?? ''}
         disabled={disabled}

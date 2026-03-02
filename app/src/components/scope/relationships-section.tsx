@@ -16,23 +16,23 @@ export function RelationshipsSection({
   onUpdateGrain,
 }: RelationshipsSectionProps) {
   return (
-    <>
-      <label className="space-y-1 text-sm">
-        <span>Grain columns</span>
+    <div className="space-y-4">
+      <label className="block space-y-2">
+        <span className="text-sm font-medium">Grain columns</span>
         <Input
           value={grainColumns ?? ''}
           disabled={disabled}
           onChange={(e) => onUpdateGrain(e.target.value || null)}
         />
       </label>
-      <label className="space-y-1 text-sm md:col-span-2">
-        <span>Relationships (required for tests)</span>
+      <label className="block space-y-2">
+        <span className="text-sm font-medium">Relationships (required for tests)</span>
         <Input
           value={relationshipsJson ?? ''}
           disabled={disabled}
           onChange={(e) => onUpdateRelationships(e.target.value || null)}
         />
       </label>
-    </>
+    </div>
   );
 }

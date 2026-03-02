@@ -28,6 +28,8 @@ struct AgentTableConfigPayload {
     date_column: Option<String>,
     snapshot_strategy: Option<String>,
     pii_columns: Option<String>,
+    #[serde(default)]
+    analysis_metadata: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -563,7 +565,7 @@ pub async fn migration_analyze_table_details(
             .unwrap_or_else(|| "sample_1day".to_string()),
         pii_columns: payload.pii_columns,
         confirmed_at: Some(Utc::now().to_rfc3339()),
-        analysis_metadata_json: Some(serde_json::to_string(&raw_json).unwrap_or_default()),
+        analysis_metadata_json: payload.analysis_metadata.as_ref().and_then(|v| serde_json::to_string(v).ok()),
         approval_status: Some("pending".to_string()),
         approved_at: None,
         manual_overrides_json: None,
