@@ -2,8 +2,8 @@
  * Frontend logger.
  *
  * Wraps console.* with a runtime level filter so only messages at or above
- * the active level are emitted. Level is persisted to localStorage under
- * LOG_LEVEL_KEY so the connections-tab UI control survives page reloads.
+ * the active level are emitted. Level is held in memory and set from the DB
+ * via setFrontendLogLevel() — no localStorage dependency.
  *
  * Usage:
  *   import { logger } from '@/lib/logger';
@@ -22,29 +22,17 @@ const LEVEL_RANK: Record<LogLevel, number> = {
   error: 3,
 };
 
-export const LOG_LEVEL_KEY = 'migration-log-level';
 const DEFAULT_LEVEL: LogLevel = 'info';
 
-export function getStoredLogLevel(): LogLevel {
-  try {
-    const stored = localStorage.getItem(LOG_LEVEL_KEY);
-    if (stored && stored in LEVEL_RANK) return stored as LogLevel;
-  } catch {
-    // localStorage unavailable (test environment)
-  }
-  return DEFAULT_LEVEL;
-}
+let activeLevel: LogLevel = DEFAULT_LEVEL;
 
-export function storeLogLevel(level: LogLevel): void {
-  try {
-    localStorage.setItem(LOG_LEVEL_KEY, level);
-  } catch {
-    // localStorage unavailable
-  }
+/** Set the active frontend log level (called once on mount from DB value). */
+export function setFrontendLogLevel(level: LogLevel): void {
+  activeLevel = level;
 }
 
 function shouldLog(level: LogLevel): boolean {
-  return LEVEL_RANK[level] >= LEVEL_RANK[getStoredLogLevel()];
+  return LEVEL_RANK[level] >= LEVEL_RANK[activeLevel];
 }
 
 export const logger = {

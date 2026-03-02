@@ -11,6 +11,7 @@ build/
 # Working directories (user-generated output)
 context/
 workflow-state.md
+.kiro/
 
 # Test results
 test-results/
@@ -23,6 +24,7 @@ playwright-artifacts/
 
 # Claude Code — ignore local config, track committed skills
 .claude/settings.json
+.claude/settings.local
 .claude/settings.local.json
 .claude/worktrees/
 

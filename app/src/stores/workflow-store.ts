@@ -36,7 +36,7 @@ export const SURFACE_ROUTES: Record<Surface, string> = {
 export function defaultRouteForPhase(appPhase: AppPhase): string {
   switch (appPhase) {
     case 'setup_required':
-      return '/settings';
+      return '/home'; // home shows the setup prompt
     case 'scope_editable':
       return '/scope';
     case 'plan_editable':
@@ -49,8 +49,8 @@ export function defaultRouteForPhase(appPhase: AppPhase): string {
 
 export function isSurfaceEnabledForPhase(surface: Surface, appPhase: AppPhase): boolean {
   if (surface === 'settings') return true;
+  if (surface === 'home') return true; // home always accessible — shows setup state when not configured
   if (appPhase === 'setup_required') return false;
-  if (surface === 'home') return true;
   if (surface === 'scope') return true;
   if (surface === 'plan') {
     return appPhase === 'plan_editable' || appPhase === 'ready_to_run' || appPhase === 'running_locked';

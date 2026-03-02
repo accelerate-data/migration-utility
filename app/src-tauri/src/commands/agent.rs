@@ -44,8 +44,16 @@ struct SidecarConfigPayload {
     model: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     agent_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    allowed_tools: Option<Vec<String>>,
     api_key: String,
     cwd: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    effort: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    debug: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    debug_file: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -90,7 +98,7 @@ pub async fn launch_agent_with_transcript(
     app: AppHandle,
     sidecar: State<'_, SidecarManager>,
 ) -> Result<AgentRunResult, String> {
-    launch_agent_with_transcript_config(prompt, system_prompt, None, Some(DEFAULT_MODEL.to_string()), state, app, sidecar).await
+    launch_agent_with_transcript_config(prompt, system_prompt, None, None, state, app, sidecar).await
 }
 
 pub async fn launch_named_agent_with_transcript(
@@ -127,19 +135,47 @@ async fn launch_agent_with_transcript_config(
             .ok_or_else(|| "Anthropic API key is not configured in Settings".to_string())?;
 
         let working_directory = resolve_working_directory(&app)?;
+        let front_matter = agent_name
+            .as_deref()
+            .and_then(|name| parse_agent_front_matter(&working_directory, name));
+        // Model priority: explicit param → front-matter → settings preferred_model → DEFAULT_MODEL
+        let resolved_model = model
+            .or_else(|| front_matter.as_ref().and_then(|fm| fm.model.clone()))
+            .or_else(|| settings.preferred_model.clone())
+            .unwrap_or_else(|| DEFAULT_MODEL.to_string());
+        let allowed_tools = front_matter.and_then(|fm| fm.allowed_tools);
+        let effort = settings.effort.clone();
         build_request(
             prompt,
             system_prompt,
             agent_name,
-            model,
+            Some(resolved_model),
+            allowed_tools,
             api_key,
             working_directory,
+            effort,
+            None, // debug and debug_file resolved after log_path is known
+            None,
         )
     };
 
     let log_path = prepare_log_path(&request.config.cwd, &request.id)?;
-    append_log_line(&log_path, &transcript_config_line(&request.config))?;
     log::info!("monitor_launch_agent: transcript={}", log_path.display());
+
+    // Derive debug mode from current log level (restored from DB on startup).
+    let debug_enabled = log::max_level() >= log::LevelFilter::Debug;
+    let request = if debug_enabled {
+        let debug_file = log_path
+            .with_file_name(format!("{}-debug.log", request.id))
+            .to_string_lossy()
+            .to_string();
+        let mut r = request;
+        r.config.debug = Some(true);
+        r.config.debug_file = Some(debug_file);
+        r
+    } else {
+        request
+    };
 
     let mut guard = sidecar.0.lock().await;
     ensure_sidecar_ready(&mut guard).await?;
@@ -511,23 +547,6 @@ fn append_log_line(path: &PathBuf, line: &str) -> Result<(), String> {
         .map_err(|e| format!("monitor_launch_agent: failed to append transcript line: {e}"))
 }
 
-fn transcript_config_line(config: &SidecarConfigPayload) -> String {
-    serde_json::json!({
-        "type": "config",
-        "config": {
-            "prompt": config.prompt,
-            "systemPrompt": config.system_prompt,
-            "model": config.model,
-            "agentName": config.agent_name,
-            "apiKey": "[REDACTED]",
-            "cwd": config.cwd,
-            "settingSources": ["project"],
-            "permissionMode": "bypassPermissions",
-            "allowDangerouslySkipPermissions": true
-        }
-    })
-    .to_string()
-}
 
 fn append_request_scoped_sidecar_line(
     path: &PathBuf,
@@ -578,13 +597,18 @@ fn resolve_working_directory(app: &AppHandle) -> Result<String, String> {
         .to_string())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_request(
     prompt: String,
     system_prompt: Option<String>,
     agent_name: Option<String>,
     model: Option<String>,
+    allowed_tools: Option<Vec<String>>,
     api_key: String,
     working_directory: String,
+    effort: Option<String>,
+    debug: Option<bool>,
+    debug_file: Option<String>,
 ) -> AgentRequest {
     AgentRequest {
         id: format!("agent-{}", uuid::Uuid::new_v4()),
@@ -593,10 +617,63 @@ fn build_request(
             system_prompt,
             model,
             agent_name,
+            allowed_tools,
             api_key,
             cwd: working_directory,
+            effort,
+            debug,
+            debug_file,
         },
     }
+}
+
+struct AgentFrontMatter {
+    model: Option<String>,
+    allowed_tools: Option<Vec<String>>,
+}
+
+fn parse_agent_front_matter(working_dir: &str, agent_name: &str) -> Option<AgentFrontMatter> {
+    let path = PathBuf::from(working_dir)
+        .join(".claude")
+        .join("agents")
+        .join(format!("{agent_name}.md"));
+    let content = fs::read_to_string(&path).ok()?;
+    let after_open = content.strip_prefix("---\n")?;
+    let end = after_open.find("\n---")?;
+    let front_matter = &after_open[..end];
+
+    let model = front_matter.lines().find_map(|line| {
+        let rest = line.strip_prefix("model:")?.trim();
+        if rest.is_empty() { None } else { Some(rest.to_string()) }
+    });
+
+    let allowed_tools = front_matter.find("tools:").and_then(|pos| {
+        let after_tools = &front_matter[pos + 6..];
+        let first = after_tools.lines().next()?.trim();
+        if first.starts_with('[') {
+            // Inline list: tools: [Bash, Computer]
+            let inner = first.trim_start_matches('[').trim_end_matches(']');
+            let tools: Vec<String> = inner
+                .split(',')
+                .map(|s| s.trim().trim_matches('"').to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            if tools.is_empty() { None } else { Some(tools) }
+        } else {
+            // Block list:
+            //   - Bash
+            //   - Computer
+            let tools: Vec<String> = after_tools
+                .lines()
+                .skip(1)
+                .take_while(|l| l.trim().starts_with("- "))
+                .map(|l| l.trim().trim_start_matches("- ").trim_matches('"').to_string())
+                .collect();
+            if tools.is_empty() { None } else { Some(tools) }
+        }
+    });
+
+    Some(AgentFrontMatter { model, allowed_tools })
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -642,6 +719,48 @@ fn handle_sidecar_line(
                 Ok(SidecarLineResult::Continue)
             }
         }
+        "agent_event" => {
+            let id = parsed
+                .get("id")
+                .and_then(Value::as_str)
+                .or_else(|| parsed.get("request_id").and_then(Value::as_str))
+                .unwrap_or_default();
+            if id != request_id {
+                return Ok(SidecarLineResult::Continue);
+            }
+            // Extract result from event.result field
+            if let Some(event) = parsed.get("event") {
+                if let Some(result) = event.get("result").and_then(Value::as_str) {
+                    aggregated.push_str(result);
+                }
+            }
+            Ok(SidecarLineResult::Continue)
+        }
+        "result" => {
+            // The SDK v1 query() API emits a top-level {"type":"result",...} message
+            // as its final event. Extract the agent's text from the "result" field.
+            let id = parsed
+                .get("request_id")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            if id != request_id {
+                return Ok(SidecarLineResult::Continue);
+            }
+            let is_error = parsed.get("is_error").and_then(Value::as_bool).unwrap_or(false);
+            if is_error {
+                let message = parsed
+                    .get("result")
+                    .and_then(Value::as_str)
+                    .unwrap_or("agent returned an error result");
+                return Err(format!(
+                    "monitor_launch_agent: agent result error: {message}"
+                ));
+            }
+            if let Some(text) = parsed.get("result").and_then(Value::as_str) {
+                aggregated.push_str(text);
+            }
+            Ok(SidecarLineResult::Continue)
+        }
         "request_complete" => {
             let id = parsed
                 .get("request_id")
@@ -678,8 +797,8 @@ fn handle_sidecar_line(
 #[cfg(test)]
 mod tests {
     use super::{
-        append_request_scoped_sidecar_line, build_request, handle_sidecar_line, parse_message_type,
-        prepare_log_path, read_sidecar_line_with_heartbeat, transcript_config_line,
+        append_request_scoped_sidecar_line, build_request, handle_sidecar_line, parse_agent_front_matter,
+        parse_message_type, prepare_log_path, read_sidecar_line_with_heartbeat,
         wait_for_sidecar_message, HeartbeatState, SidecarLineResult,
     };
     use std::fs;
@@ -693,8 +812,12 @@ mod tests {
             Some("system".to_string()),
             None,
             Some("claude-sonnet-4-6".to_string()),
+            None,
             "sk-ant-test".to_string(),
             "/tmp/work".to_string(),
+            None,
+            None,
+            None,
         );
         let json = serde_json::to_value(&req.config).unwrap();
         assert_eq!(
@@ -702,30 +825,6 @@ mod tests {
             Some("sk-ant-test")
         );
         assert_eq!(json.get("cwd").and_then(|v| v.as_str()), Some("/tmp/work"));
-    }
-
-    #[test]
-    fn transcript_config_line_redacts_api_key_and_keeps_prompt() {
-        let req = build_request(
-            "prompt body".to_string(),
-            Some("system".to_string()),
-            None,
-            Some("claude-sonnet-4-6".to_string()),
-            "sk-ant-secret".to_string(),
-            "/tmp/work".to_string(),
-        );
-        let line = transcript_config_line(&req.config);
-        let json: serde_json::Value = serde_json::from_str(&line).unwrap();
-        let cfg = json.get("config").unwrap();
-        assert_eq!(
-            cfg.get("apiKey").and_then(|v| v.as_str()),
-            Some("[REDACTED]")
-        );
-        assert_eq!(
-            cfg.get("prompt").and_then(|v| v.as_str()),
-            Some("prompt body")
-        );
-        assert_eq!(cfg.get("cwd").and_then(|v| v.as_str()), Some("/tmp/work"));
     }
 
     #[test]
@@ -753,6 +852,42 @@ mod tests {
         assert_eq!(r1, SidecarLineResult::Continue);
         assert_eq!(r2, SidecarLineResult::Done);
         assert_eq!(aggregated, "hello world");
+    }
+
+    #[test]
+    fn handle_sidecar_line_extracts_result_from_agent_event() {
+        let mut aggregated = String::new();
+        let id = "agent-1";
+        let event = r#"{"type":"agent_event","request_id":"agent-1","event":{"type":"result","result":"{\"table_type\":\"fact\"}"}}"#.to_string();
+
+        let result = handle_sidecar_line(&event, id, &mut aggregated).unwrap();
+
+        assert_eq!(result, SidecarLineResult::Continue);
+        assert_eq!(aggregated, r#"{"table_type":"fact"}"#);
+    }
+
+    #[test]
+    fn handle_sidecar_line_extracts_result_from_sdk_result_message() {
+        let mut aggregated = String::new();
+        let id = "agent-1";
+        let msg = r#"{"request_id":"agent-1","type":"result","subtype":"success","is_error":false,"result":"{\"table_type\":\"dimension\"}"}"#;
+
+        let result = handle_sidecar_line(msg, id, &mut aggregated).unwrap();
+
+        assert_eq!(result, SidecarLineResult::Continue);
+        assert_eq!(aggregated, r#"{"table_type":"dimension"}"#);
+    }
+
+    #[test]
+    fn handle_sidecar_line_errors_on_sdk_result_is_error() {
+        let mut aggregated = String::new();
+        let id = "agent-1";
+        let msg = r#"{"request_id":"agent-1","type":"result","subtype":"error_max_turns","is_error":true,"result":"max turns exceeded"}"#;
+
+        let err = handle_sidecar_line(msg, id, &mut aggregated).unwrap_err();
+
+        assert!(err.contains("agent result error"));
+        assert!(err.contains("max turns exceeded"));
     }
 
     #[test]
@@ -902,5 +1037,100 @@ mod tests {
         .await
         .unwrap_err();
         assert!(err.contains("did not emit pong within"));
+    }
+
+    fn write_agent(agents_dir: &std::path::Path, name: &str, content: &str) {
+        fs::write(agents_dir.join(format!("{name}.md")), content).unwrap();
+    }
+
+    #[test]
+    fn parse_front_matter_block_tools_and_model() {
+        let tmp = tempfile::tempdir().unwrap();
+        let agents_dir = tmp.path().join(".claude").join("agents");
+        fs::create_dir_all(&agents_dir).unwrap();
+        write_agent(
+            &agents_dir,
+            "my-agent",
+            "---\nname: my-agent\nmodel: claude-haiku-4-5\ntools:\n  - Bash\n  - Computer\n---\n\nContent.\n",
+        );
+        let fm = parse_agent_front_matter(tmp.path().to_str().unwrap(), "my-agent").unwrap();
+        assert_eq!(fm.model.as_deref(), Some("claude-haiku-4-5"));
+        assert_eq!(fm.allowed_tools.unwrap(), vec!["Bash", "Computer"]);
+    }
+
+    #[test]
+    fn parse_front_matter_inline_tools() {
+        let tmp = tempfile::tempdir().unwrap();
+        let agents_dir = tmp.path().join(".claude").join("agents");
+        fs::create_dir_all(&agents_dir).unwrap();
+        write_agent(&agents_dir, "my-agent", "---\ntools: [Bash, Computer]\n---\n\nContent.\n");
+        let fm = parse_agent_front_matter(tmp.path().to_str().unwrap(), "my-agent").unwrap();
+        assert_eq!(fm.allowed_tools.unwrap(), vec!["Bash", "Computer"]);
+    }
+
+    #[test]
+    fn parse_front_matter_missing_file_returns_none() {
+        let tmp = tempfile::tempdir().unwrap();
+        assert!(parse_agent_front_matter(tmp.path().to_str().unwrap(), "no-such-agent").is_none());
+    }
+
+    #[test]
+    fn parse_front_matter_no_tools_returns_none_tools() {
+        let tmp = tempfile::tempdir().unwrap();
+        let agents_dir = tmp.path().join(".claude").join("agents");
+        fs::create_dir_all(&agents_dir).unwrap();
+        write_agent(&agents_dir, "my-agent", "---\nname: my-agent\nmodel: claude-haiku-4-5\n---\n\nContent.\n");
+        let fm = parse_agent_front_matter(tmp.path().to_str().unwrap(), "my-agent").unwrap();
+        assert_eq!(fm.model.as_deref(), Some("claude-haiku-4-5"));
+        assert!(fm.allowed_tools.is_none());
+    }
+
+    #[test]
+    fn parse_front_matter_no_model_returns_none_model() {
+        let tmp = tempfile::tempdir().unwrap();
+        let agents_dir = tmp.path().join(".claude").join("agents");
+        fs::create_dir_all(&agents_dir).unwrap();
+        write_agent(&agents_dir, "my-agent", "---\ntools:\n  - Bash\n---\n\nContent.\n");
+        let fm = parse_agent_front_matter(tmp.path().to_str().unwrap(), "my-agent").unwrap();
+        assert!(fm.model.is_none());
+        assert_eq!(fm.allowed_tools.unwrap(), vec!["Bash"]);
+    }
+
+    #[test]
+    fn allowed_tools_serialized_in_payload_when_set() {
+        let req = build_request(
+            "p".to_string(),
+            None,
+            Some("my-agent".to_string()),
+            None,
+            Some(vec!["Bash".to_string()]),
+            "sk-ant-test".to_string(),
+            "/tmp/work".to_string(),
+            None,
+            None,
+            None,
+        );
+        let json = serde_json::to_value(&req.config).unwrap();
+        let tools = json.get("allowedTools").unwrap().as_array().unwrap();
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0].as_str(), Some("Bash"));
+    }
+
+    #[test]
+    fn allowed_tools_omitted_from_payload_when_none() {
+        let req = build_request(
+            "p".to_string(),
+            None,
+            None,
+            Some("claude-sonnet-4-6".to_string()),
+            None,
+            "sk-ant-test".to_string(),
+            "/tmp/work".to_string(),
+            None,
+            None,
+            None,
+        );
+        let json = serde_json::to_value(&req.config).unwrap();
+        assert!(json.get("allowedTools").is_none());
     }
 }

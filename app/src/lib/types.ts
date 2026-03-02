@@ -86,6 +86,9 @@ export interface AppSettings {
   githubUserLogin: string | null;
   githubUserAvatar: string | null;
   githubUserEmail: string | null;
+  preferredModel: string | null;
+  effort: string | null;
+  logLevel: string | null;
 }
 
 export type AppPhase =
@@ -169,17 +172,24 @@ export interface TableConfigPayload {
   selectedTableId: string;
   tableType: string | null;
   loadStrategy: string | null;
-  grainColumns: string | null;
-  relationshipsJson: string | null;
+  grainColumns: string[] | null;
+  relationshipsJson: Relationship[] | null;
   incrementalColumn: string | null;
   dateColumn: string | null;
   snapshotStrategy: string;
-  piiColumns: string | null;
+  piiColumns: string[] | null;
   confirmedAt: string | null;
   analysisMetadataJson: string | null;
   approvalStatus: string | null;
   approvedAt: string | null;
   manualOverridesJson: string | null;
+  availableColumns?: ColumnMetadata[];
+}
+
+export interface ColumnMetadata {
+  columnName: string;
+  dataType: string;
+  isNullable: boolean;
 }
 
 export interface AnalysisMetadata {
@@ -188,8 +198,25 @@ export interface AnalysisMetadata {
   suggestedValues?: Record<string, unknown>;
 }
 
+export interface RelationshipMapping {
+  source: string;
+  references: string;
+}
+
 export interface Relationship {
-  targetTable: string;
-  joinColumns: string[];
-  relationshipType: string;
+  target_table: string;
+  mappings: RelationshipMapping[];
+  confidence: number | null;
+  reasoning: string | null;
+}
+
+export interface RelationshipValidationResult {
+  childColumn: string;
+  parentTable: string;
+  parentColumn: string;
+  parentTableExists: boolean;
+  childColumnExists: boolean;
+  parentColumnExists: boolean;
+  isValid: boolean;
+  errorMessage: string | null;
 }

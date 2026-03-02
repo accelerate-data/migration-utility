@@ -4,14 +4,26 @@ import ConfigStep from './config-step';
 
 export default function ScopeSurface() {
   return (
-    <div className="h-full overflow-hidden">
-      <main className="h-full overflow-auto px-8 py-6">
-        <div className="w-full overflow-auto px-1">
-          <Routes>
-            <Route index element={<ScopeStep />} />
-            <Route path="config" element={<ConfigStep />} />
-          </Routes>
-        </div>
+    <div className="h-full min-h-0 overflow-hidden">
+      <main className="h-full min-h-0 overflow-hidden px-8 py-6">
+        <Routes>
+          <Route
+            index
+            element={
+              <div className="h-full min-h-0 w-full px-1">
+                <ScopeStep />
+              </div>
+            }
+          />
+          <Route
+            path="config"
+            element={
+              <div className="h-full min-h-0 w-full overflow-auto px-1">
+                <ConfigStep />
+              </div>
+            }
+          />
+        </Routes>
       </main>
     </div>
   );

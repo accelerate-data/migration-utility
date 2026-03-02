@@ -7,7 +7,9 @@ pub enum SourceQuery {
     DiscoverContainerId,
     DiscoverSchemas,
     DiscoverTables,
+    DiscoverColumns,
     DiscoverProcedures,
+    DiscoverIndexesConstraints,
 }
 
 impl SourceQuery {
@@ -17,7 +19,9 @@ impl SourceQuery {
             SourceQuery::DiscoverContainerId => "discover_container_id",
             SourceQuery::DiscoverSchemas => "discover_schemas",
             SourceQuery::DiscoverTables => "discover_tables",
+            SourceQuery::DiscoverColumns => "discover_columns",
             SourceQuery::DiscoverProcedures => "discover_procedures",
+            SourceQuery::DiscoverIndexesConstraints => "discover_indexes_constraints",
         }
     }
 }
@@ -42,8 +46,14 @@ pub fn resolve_source_query(
         ("sql_server", SourceQuery::DiscoverTables) => {
             Ok(include_str!("../sql/source/sql_server/discover_tables.sql"))
         }
+        ("sql_server", SourceQuery::DiscoverColumns) => {
+            Ok(include_str!("../sql/source/sql_server/discover_columns.sql"))
+        }
         ("sql_server", SourceQuery::DiscoverProcedures) => Ok(include_str!(
             "../sql/source/sql_server/discover_procedures.sql"
+        )),
+        ("sql_server", SourceQuery::DiscoverIndexesConstraints) => Ok(include_str!(
+            "../sql/source/sql_server/discover_indexes_constraints.sql"
         )),
         _ => Err(CommandError::Io(format!(
             "Unsupported source query lookup: source_type={source_type}, query={}",
@@ -102,6 +112,9 @@ mod tests {
 
         let tables = resolve_source_query("sql_server", SourceQuery::DiscoverTables).unwrap();
         assert!(tables.contains("sys.tables"));
+
+        let columns = resolve_source_query("sql_server", SourceQuery::DiscoverColumns).unwrap();
+        assert!(columns.contains("sys.columns"));
 
         let procedures =
             resolve_source_query("sql_server", SourceQuery::DiscoverProcedures).unwrap();
@@ -194,6 +207,7 @@ mod tests {
 
         let schemas_sql = resolve_source_query("sql_server", SourceQuery::DiscoverSchemas).unwrap();
         let tables_sql = resolve_source_query("sql_server", SourceQuery::DiscoverTables).unwrap();
+        let columns_sql = resolve_source_query("sql_server", SourceQuery::DiscoverColumns).unwrap();
         let procedures_sql =
             resolve_source_query("sql_server", SourceQuery::DiscoverProcedures).unwrap();
         let container_sql =
@@ -261,6 +275,27 @@ mod tests {
                 !table_rows.is_empty(),
                 "expected table discovery to return at least one row"
             );
+
+            let column_rows = client
+                .simple_query(columns_sql)
+                .await
+                .expect("column query execution failed")
+                .into_first_result()
+                .await
+                .expect("failed to parse column query result");
+            assert!(
+                !column_rows.is_empty(),
+                "expected column discovery to return at least one row"
+            );
+            // Verify column structure
+            let first_col = column_rows.first().expect("expected at least one column");
+            assert!(first_col.get::<&str, _>(0).is_some(), "expected schema_name");
+            assert!(first_col.get::<&str, _>(1).is_some(), "expected table_name");
+            assert!(first_col.get::<i64, _>(2).is_some(), "expected object_id_local");
+            assert!(first_col.get::<&str, _>(3).is_some(), "expected column_name");
+            assert!(first_col.get::<i32, _>(4).is_some(), "expected column_id");
+            assert!(first_col.get::<&str, _>(5).is_some(), "expected data_type");
+            assert!(first_col.get::<bool, _>(6).is_some(), "expected is_nullable");
 
             let procedure_rows = client
                 .simple_query(procedures_sql)

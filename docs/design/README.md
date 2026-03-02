@@ -25,6 +25,7 @@ Use `docs/design/` for architecture and implementation design details.
 - [Application State](application-state/README.md)
 - [Branding](branding/README.md)
 - [Sidecar](sidecar/README.md)
+- [Scoping Flow](scoping-flow/README.md) — table selection, agent analysis, config, and approval
 
 ## What Goes In `references`
 

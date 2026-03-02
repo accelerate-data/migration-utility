@@ -8,6 +8,7 @@ import type {
   GitHubAuthResult,
   GitHubRepo,
   GitHubUser,
+  RelationshipValidationResult,
   ScopeInventoryRow,
   ScopeRefreshSummary,
   ScopeTableRef,
@@ -78,6 +79,14 @@ export const getSettings = () =>
 
 export const saveAnthropicApiKey = (apiKey: string | null) =>
   invoke<void>('save_anthropic_api_key', { apiKey });
+
+export const saveAgentSettings = (
+  preferredModel: string | null,
+  effort: string | null,
+) => invoke<void>('save_agent_settings', { preferredModel, effort });
+
+export const listModels = (apiKey: string) =>
+  invoke<{ id: string; displayName: string }[]>('list_models', { apiKey });
 
 export const testApiKey = (apiKey: string) =>
   invoke<boolean>('test_api_key', { apiKey });
@@ -159,3 +168,20 @@ export const migrationAnalyzeTableDetails = (args: {
 
 export const migrationReconcileScopeState = (workspaceId: string) =>
   invoke<ScopeRefreshSummary>('migration_reconcile_scope_state', { workspaceId });
+
+export const migrationValidateRelationship = (
+  workspaceId: string,
+  currentTableId: string,
+  childColumn: string,
+  parentSchema: string,
+  parentTable: string,
+  parentColumn: string
+) =>
+  invoke<RelationshipValidationResult>('migration_validate_relationship', {
+    workspaceId,
+    currentTableId,
+    childColumn,
+    parentSchema,
+    parentTable,
+    parentColumn,
+  });

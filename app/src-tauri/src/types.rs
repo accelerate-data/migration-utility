@@ -16,6 +16,12 @@ pub struct AppSettings {
     pub github_user_avatar: Option<String>,
     #[serde(default)]
     pub github_user_email: Option<String>,
+    #[serde(default)]
+    pub preferred_model: Option<String>,
+    #[serde(default)]
+    pub effort: Option<String>,
+    #[serde(default)]
+    pub log_level: Option<String>,
 }
 
 impl std::fmt::Debug for AppSettings {
@@ -261,21 +267,45 @@ pub struct Candidacy {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct ColumnMetadata {
+    pub column_name: String,
+    pub data_type: String,
+    pub is_nullable: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct RelationshipMapping {
+    pub source: String,
+    pub references: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct RelationshipValue {
+    pub target_table: String,
+    pub mappings: Vec<RelationshipMapping>,
+    pub confidence: Option<f64>,
+    pub reasoning: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct TableConfig {
     pub selected_table_id: String,
     pub table_type: Option<String>,
     pub load_strategy: Option<String>,
-    pub grain_columns: Option<String>,
-    pub relationships_json: Option<String>,
+    pub grain_columns: Option<Vec<String>>,
+    pub relationships_json: Option<Vec<RelationshipValue>>,
     pub incremental_column: Option<String>,
     pub date_column: Option<String>,
     pub snapshot_strategy: String,
-    pub pii_columns: Option<String>,
+    pub pii_columns: Option<Vec<String>>,
     pub confirmed_at: Option<String>,
     pub analysis_metadata_json: Option<String>,
     pub approval_status: Option<String>,
     pub approved_at: Option<String>,
     pub manual_overrides_json: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub available_columns: Option<Vec<ColumnMetadata>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

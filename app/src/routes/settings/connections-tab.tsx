@@ -8,10 +8,15 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { GitHubLoginDialog } from '@/components/github-login-dialog';
 import SettingsPanelShell from '@/components/settings/settings-panel-shell';
-import { appHydratePhase, getSettings, saveAnthropicApiKey, testApiKey } from '@/lib/tauri';
+import { appHydratePhase, getSettings, listModels, saveAgentSettings, saveAnthropicApiKey, testApiKey } from '@/lib/tauri';
 import { logger } from '@/lib/logger';
+
+const EFFORT_OPTIONS = ['low', 'medium', 'high', 'max'] as const;
 
 export default function ConnectionsTab() {
   const appPhase = useWorkflowStore((s) => s.appPhase);
@@ -24,6 +29,10 @@ export default function ConnectionsTab() {
   const [testingApiKey, setTestingApiKey] = useState(false);
   const [apiKeyValid, setApiKeyValid] = useState<boolean | null>(null);
 
+  const [preferredModel, setPreferredModel] = useState<string | null>(null);
+  const [availableModels, setAvailableModels] = useState<{ id: string; displayName: string }[]>([]);
+  const [effort, setEffort] = useState<string>('high');
+
   useEffect(() => {
     loadUser();
   }, [loadUser]);
@@ -32,11 +41,22 @@ export default function ConnectionsTab() {
     getSettings()
       .then((settings) => {
         setApiKey(settings.anthropicApiKey ?? '');
+        setPreferredModel(settings.preferredModel ?? null);
+        setEffort(settings.effort ?? 'high');
       })
       .catch((err) => {
         logger.error('get_settings failed', err);
       });
   }, []);
+
+  useEffect(() => {
+    if (!apiKey) return;
+    listModels(apiKey)
+      .then(setAvailableModels)
+      .catch(() => {
+        // silently ignore — models list stays empty, placeholder shown
+      });
+  }, [apiKey]);
 
   async function handleSaveApiKey(nextValue: string) {
     try {
@@ -69,6 +89,16 @@ export default function ConnectionsTab() {
       toast.error(message);
     } finally {
       setTestingApiKey(false);
+    }
+  }
+
+  async function handleSaveAgentSettings(model: string | null, eff: string) {
+    try {
+      await saveAgentSettings(model, eff);
+      logger.info('settings: agent settings saved model=%s effort=%s', model, eff);
+    } catch (err) {
+      logger.error('save_agent_settings failed', err);
+      toast.error('Failed to save agent settings');
     }
   }
 
@@ -186,6 +216,78 @@ export default function ConnectionsTab() {
               {!testingApiKey && apiKeyValid ? <CheckCircle2 className="size-3.5" /> : null}
               {apiKeyValid ? 'Valid' : 'Test'}
             </Button>
+          </CardContent>
+        </Card>
+
+        {/* Agent settings */}
+        <Card className="gap-0 py-5" data-testid="settings-connections-agent-card">
+          <CardHeader className="pb-3">
+            <CardTitle>Agent</CardTitle>
+            <CardDescription className="mt-0.5">
+              Runtime settings for analysis agents. Model in agent front-matter takes precedence.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0 flex flex-col gap-5">
+
+            {/* Model */}
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">Fallback model</Label>
+              <Select
+                value={preferredModel ?? ''}
+                onValueChange={(value) => {
+                  const next = value || null;
+                  setPreferredModel(next);
+                  void handleSaveAgentSettings(next, effort);
+                }}
+                disabled={isLocked || availableModels.length === 0}
+              >
+                <SelectTrigger className="w-72" data-testid="select-preferred-model">
+                  <SelectValue placeholder="Default (claude-sonnet-4-6)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableModels.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.displayName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Effort */}
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">Effort</Label>
+              <RadioGroup
+                value={effort}
+                onValueChange={(value) => {
+                  setEffort(value);
+                  void handleSaveAgentSettings(preferredModel, value);
+                }}
+                disabled={isLocked}
+                className="flex gap-1"
+                data-testid="radio-effort"
+              >
+                {EFFORT_OPTIONS.map((opt) => (
+                  <div key={opt} className="flex items-center">
+                    <RadioGroupItem value={opt} id={`effort-${opt}`} className="sr-only" />
+                    <Label
+                      htmlFor={`effort-${opt}`}
+                      className={[
+                        'cursor-pointer rounded-md border px-3 py-1.5 text-xs font-medium transition-colors duration-150',
+                        effort === opt
+                          ? 'border-transparent text-white'
+                          : 'border-border bg-background text-muted-foreground hover:bg-muted',
+                        isLocked ? 'pointer-events-none opacity-50' : '',
+                      ].join(' ')}
+                      style={effort === opt ? { background: 'var(--color-pacific)' } : undefined}
+                    >
+                      {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
+            </div>
+
           </CardContent>
         </Card>
 

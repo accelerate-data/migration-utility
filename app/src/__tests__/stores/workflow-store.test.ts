@@ -109,8 +109,8 @@ describe('useWorkflowStore', () => {
 });
 
 describe('workflow phase guards', () => {
-  it('defaults to settings for setup_required phase', () => {
-    expect(defaultRouteForPhase('setup_required')).toBe('/settings');
+  it('defaults to home for setup_required phase', () => {
+    expect(defaultRouteForPhase('setup_required')).toBe('/home');
   });
 
   it('disables monitor until ready_to_run', () => {

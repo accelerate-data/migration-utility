@@ -4,8 +4,8 @@ import { Folder, Monitor, Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { logger, LOG_LEVELS, getStoredLogLevel, storeLogLevel, type LogLevel } from '@/lib/logger';
-import { setLogLevel, getLogFilePath, getDataDirPath } from '@/lib/tauri';
+import { logger, LOG_LEVELS, setFrontendLogLevel, type LogLevel } from '@/lib/logger';
+import { getSettings, setLogLevel, getLogFilePath, getDataDirPath } from '@/lib/tauri';
 import SettingsPanelShell from '@/components/settings/settings-panel-shell';
 
 // ── Log level descriptions ──────────────────────────────────────────────────
@@ -118,21 +118,31 @@ function PathRow({ label, path, testId }: { label: string; path: string | null; 
 // ── Profile tab ─────────────────────────────────────────────────────────────
 
 export default function ProfileTab() {
-  const [level, setLevel] = useState<LogLevel>(() => getStoredLogLevel());
+  const [level, setLevel] = useState<LogLevel>('info');
   const [logFilePath, setLogFilePath] = useState<string | null>(null);
   const [dataDirPath, setDataDirPath] = useState<string | null>(null);
 
   useEffect(() => {
     getLogFilePath().then(setLogFilePath).catch(() => setLogFilePath(null));
     getDataDirPath().then(setDataDirPath).catch(() => setDataDirPath(null));
+    // Load log level from DB — DB is the single source of truth.
+    getSettings()
+      .then((s) => {
+        if (s.logLevel) {
+          const persisted = s.logLevel as LogLevel;
+          setLevel(persisted);
+          setFrontendLogLevel(persisted);
+        }
+      })
+      .catch((err) => logger.warn('profile: failed to read settings for log level', err));
   }, []);
 
   function handleLevelChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const next = e.target.value as LogLevel;
-    storeLogLevel(next);
+    setFrontendLogLevel(next);
     setLevel(next);
-    setLogLevel(next).catch(() => {});
-    logger.info(`logging: level changed to ${next}`);
+    setLogLevel(next).catch((err) => logger.error('profile: failed to set log level', err));
+    logger.info('event=log_level_change operation=set_level status=success', { level: next });
   }
 
   return (

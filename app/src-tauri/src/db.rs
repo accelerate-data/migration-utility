@@ -682,9 +682,7 @@ mod tests {
         let settings = AppSettings {
             anthropic_api_key: Some("sk-ant-test".to_string()),
             github_oauth_token: Some("gho_test".to_string()),
-            github_user_login: None,
-            github_user_avatar: None,
-            github_user_email: None,
+            ..AppSettings::default()
         };
         write_settings(&conn, &settings).unwrap();
         conn.execute(
@@ -703,9 +701,7 @@ mod tests {
         let settings = AppSettings {
             anthropic_api_key: Some("sk-ant-test".to_string()),
             github_oauth_token: Some("gho_test".to_string()),
-            github_user_login: None,
-            github_user_avatar: None,
-            github_user_email: None,
+            ..AppSettings::default()
         };
         write_settings(&conn, &settings).unwrap();
         conn.execute(
@@ -726,9 +722,7 @@ mod tests {
         let settings = AppSettings {
             anthropic_api_key: Some("sk-ant-test".to_string()),
             github_oauth_token: Some("gho_test".to_string()),
-            github_user_login: None,
-            github_user_avatar: None,
-            github_user_email: None,
+            ..AppSettings::default()
         };
         write_settings(&conn, &settings).unwrap();
         conn.execute(
@@ -740,5 +734,243 @@ mod tests {
 
         let state = reconcile_and_persist_app_phase(&conn).unwrap();
         assert_eq!(state.app_phase, AppPhase::RunningLocked);
+    }
+
+    #[test]
+    fn migration_10_adds_approval_workflow_columns() {
+        let conn = open_memory();
+
+        let expected_columns = [
+            "analysis_metadata_json",
+            "approval_status",
+            "approved_at",
+            "manual_overrides_json",
+        ];
+
+        for column in expected_columns {
+            let exists: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM pragma_table_info('table_config') WHERE name=?1",
+                    [column],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(exists, 1, "column '{column}' missing from table_config");
+        }
+    }
+
+    #[test]
+    fn migration_10_approval_status_check_constraint() {
+        let conn = open_memory();
+
+        // Insert workspace and dependencies for table_config
+        conn.execute(
+            "INSERT INTO workspaces(id, display_name, migration_repo_path, created_at) VALUES (?1, ?2, ?3, ?4)",
+            params!["ws-1", "Test Workspace", "/tmp/repo", "2026-01-01T00:00:00Z"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO items(id, workspace_id, display_name, item_type) VALUES (?1, ?2, ?3, ?4)",
+            params!["item-1", "ws-1", "TestWarehouse", "Warehouse"],
+        )
+        .unwrap();
+
+        // Valid values should succeed
+        for status in ["pending", "approved", "needs_review"] {
+            let st_id = format!("st-{}", status);
+            let table_name = format!("Table_{}", status);
+            conn.execute(
+                "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![&st_id, "ws-1", "item-1", "dbo", &table_name],
+            )
+            .unwrap();
+            let result = conn.execute(
+                "INSERT INTO table_config(selected_table_id, table_type, approval_status) VALUES (?1, ?2, ?3)",
+                params![&st_id, "fact", status],
+            );
+            assert!(result.is_ok(), "valid approval_status '{status}' should be accepted");
+        }
+
+        // Invalid value should fail
+        conn.execute(
+            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params!["st-invalid", "ws-1", "item-1", "dbo", "InvalidTable"],
+        )
+        .unwrap();
+        let result = conn.execute(
+            "INSERT INTO table_config(selected_table_id, table_type, approval_status) VALUES (?1, ?2, ?3)",
+            params!["st-invalid", "fact", "invalid_status"],
+        );
+        assert!(result.is_err(), "invalid approval_status should be rejected by CHECK constraint");
+    }
+
+    #[test]
+    fn migration_10_sets_default_approval_status_for_existing_rows() {
+        let conn = Connection::open_in_memory().expect("in-memory db");
+        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+
+        // Apply migrations 1-9 only
+        conn.execute_batch(
+            "CREATE TABLE schema_version (
+               version    INTEGER PRIMARY KEY,
+               applied_at TEXT NOT NULL
+             );",
+        )
+        .unwrap();
+
+        for (version, sql) in &MIGRATIONS[..9] {
+            conn.execute_batch(sql).unwrap();
+            conn.execute(
+                "INSERT INTO schema_version(version, applied_at) VALUES (?1, datetime('now'))",
+                [version],
+            )
+            .unwrap();
+        }
+
+        // Insert test data before migration 10
+        conn.execute(
+            "INSERT INTO workspaces(id, display_name, migration_repo_path, created_at) VALUES (?1, ?2, ?3, ?4)",
+            params!["ws-1", "Test Workspace", "/tmp/repo", "2026-01-01T00:00:00Z"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO items(id, workspace_id, display_name, item_type) VALUES (?1, ?2, ?3, ?4)",
+            params!["item-1", "ws-1", "TestWarehouse", "Warehouse"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params!["st-1", "ws-1", "item-1", "dbo", "TestTable"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO table_config(selected_table_id, table_type) VALUES (?1, ?2)",
+            params!["st-1", "fact"],
+        )
+        .unwrap();
+
+        // Apply migration 10
+        conn.execute_batch(MIGRATIONS[9].1).unwrap();
+        conn.execute(
+            "INSERT INTO schema_version(version, applied_at) VALUES (?1, datetime('now'))",
+            [MIGRATIONS[9].0],
+        )
+        .unwrap();
+
+        // Verify default approval_status was set
+        let approval_status: String = conn
+            .query_row(
+                "SELECT approval_status FROM table_config WHERE selected_table_id = ?1",
+                ["st-1"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            approval_status, "pending",
+            "existing rows should have approval_status set to 'pending'"
+        );
+    }
+
+    #[test]
+    fn migration_10_is_idempotent() {
+        let conn = Connection::open_in_memory().expect("in-memory db");
+        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+
+        // Apply all migrations including 10
+        run_migrations(&conn).expect("first migration run failed");
+
+        // Insert test data
+        conn.execute(
+            "INSERT INTO workspaces(id, display_name, migration_repo_path, created_at) VALUES (?1, ?2, ?3, ?4)",
+            params!["ws-1", "Test Workspace", "/tmp/repo", "2026-01-01T00:00:00Z"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO items(id, workspace_id, display_name, item_type) VALUES (?1, ?2, ?3, ?4)",
+            params!["item-1", "ws-1", "TestWarehouse", "Warehouse"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params!["st-1", "ws-1", "item-1", "dbo", "TestTable"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO table_config(selected_table_id, table_type, approval_status) VALUES (?1, ?2, ?3)",
+            params!["st-1", "fact", "approved"],
+        )
+        .unwrap();
+
+        // Run migrations again - should be a no-op since version 10 is already recorded
+        run_migrations(&conn).expect("second migration run should succeed");
+
+        // Verify data integrity
+        let approval_status: String = conn
+            .query_row(
+                "SELECT approval_status FROM table_config WHERE selected_table_id = ?1",
+                ["st-1"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            approval_status, "approved",
+            "existing data should be preserved after migration re-run"
+        );
+
+        // Verify schema_version still has exactly 10 entries
+        let version_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM schema_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version_count, 10, "schema_version should still have exactly 10 rows");
+    }
+
+    #[test]
+    fn table_config_approval_workflow_roundtrip() {
+        let conn = open_memory();
+
+        // Insert dependencies
+        conn.execute(
+            "INSERT INTO workspaces(id, display_name, migration_repo_path, created_at) VALUES (?1, ?2, ?3, ?4)",
+            params!["ws-1", "Test Workspace", "/tmp/repo", "2026-01-01T00:00:00Z"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO items(id, workspace_id, display_name, item_type) VALUES (?1, ?2, ?3, ?4)",
+            params!["item-1", "ws-1", "TestWarehouse", "Warehouse"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params!["st-1", "ws-1", "item-1", "dbo", "TestTable"],
+        )
+        .unwrap();
+
+        // Insert table_config with approval workflow data
+        let analysis_metadata = r#"{"confidence":0.95,"reasoning":"High confidence based on schema"}"#;
+        let manual_overrides = r#"{"table_type":"manual"}"#;
+        conn.execute(
+            "INSERT INTO table_config(selected_table_id, table_type, analysis_metadata_json, approval_status, approved_at, manual_overrides_json) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params!["st-1", "fact", analysis_metadata, "approved", "2026-01-15T10:30:00Z", manual_overrides],
+        )
+        .unwrap();
+
+        // Verify roundtrip
+        let (retrieved_analysis, retrieved_status, retrieved_approved_at, retrieved_overrides): (
+            Option<String>,
+            String,
+            Option<String>,
+            Option<String>,
+        ) = conn
+            .query_row(
+                "SELECT analysis_metadata_json, approval_status, approved_at, manual_overrides_json FROM table_config WHERE selected_table_id = ?1",
+                ["st-1"],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+
+        assert_eq!(retrieved_analysis.as_deref(), Some(analysis_metadata));
+        assert_eq!(retrieved_status, "approved");
+        assert_eq!(retrieved_approved_at.as_deref(), Some("2026-01-15T10:30:00Z"));
+        assert_eq!(retrieved_overrides.as_deref(), Some(manual_overrides));
     }
 }
