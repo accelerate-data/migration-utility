@@ -165,6 +165,7 @@ Use these repo-local skills when requests match:
 - `.claude/skills/close-linear-issue/SKILL.md` — close/complete/ship/merge a Linear issue
 - `.claude/skills/tauri/SKILL.md` — Tauri-specific implementation or debugging
 - `.claude/skills/shadcn-ui/SKILL.md` — shadcn/ui component work
+- `.claude/skills/explaining-code/SKILL.md` — explain code with diagrams/teaching-style breakdowns
 
 ## Logging
 
