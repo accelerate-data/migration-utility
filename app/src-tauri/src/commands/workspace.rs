@@ -254,6 +254,18 @@ struct SqlServerInventory {
     schemas: Vec<WarehouseSchema>,
     tables: Vec<WarehouseTable>,
     procedures: Vec<WarehouseProcedure>,
+    columns: Vec<TableColumn>,
+}
+
+#[derive(Debug, Clone)]
+struct TableColumn {
+    schema_name: String,
+    table_name: String,
+    object_id_local: i64,
+    column_name: String,
+    column_id: i32,
+    data_type: String,
+    is_nullable: bool,
 }
 
 fn emit_apply_progress(
@@ -585,11 +597,89 @@ fn fetch_sql_server_inventory(
             });
         }
 
+        emit_apply_progress(
+            app,
+            job_id,
+            "importing_columns",
+            90,
+            "Importing table columns...",
+        );
+        let columns_query = resolve_source_query(&cfg.source_type, SourceQuery::DiscoverColumns)?;
+        if should_log_source_sql() {
+            log::debug!(
+                "workspace_apply_and_clone: executing query={} source_type={} sql={}",
+                SourceQuery::DiscoverColumns.name(),
+                cfg.source_type,
+                columns_query.trim()
+            );
+        }
+        let column_rows = client
+            .simple_query(columns_query)
+            .await
+            .map_err(|e| {
+                log::error!("workspace_apply_and_clone: column query failed: {e}");
+                CommandError::Io(format!("Column discovery failed: {e}"))
+            })?
+            .into_first_result()
+            .await
+            .map_err(|e| {
+                log::error!("workspace_apply_and_clone: column result parse failed: {e}");
+                CommandError::Io(format!("Column discovery failed: {e}"))
+            })?;
+
+        let mut columns: Vec<TableColumn> = Vec::with_capacity(column_rows.len());
+        for row in column_rows {
+            let schema_name = row
+                .get::<&str, _>(0)
+                .ok_or_else(|| {
+                    CommandError::Io("Column discovery returned invalid schema".to_string())
+                })?
+                .to_string();
+            let table_name = row
+                .get::<&str, _>(1)
+                .ok_or_else(|| {
+                    CommandError::Io("Column discovery returned invalid table".to_string())
+                })?
+                .to_string();
+            let object_id_local = row.get::<i64, _>(2).ok_or_else(|| {
+                CommandError::Io("Column discovery returned invalid object_id".to_string())
+            })?;
+            let column_name = row
+                .get::<&str, _>(3)
+                .ok_or_else(|| {
+                    CommandError::Io("Column discovery returned invalid column name".to_string())
+                })?
+                .to_string();
+            let column_id = row.get::<i32, _>(4).ok_or_else(|| {
+                CommandError::Io("Column discovery returned invalid column_id".to_string())
+            })?;
+            let data_type = row
+                .get::<&str, _>(5)
+                .ok_or_else(|| {
+                    CommandError::Io("Column discovery returned invalid data_type".to_string())
+                })?
+                .to_string();
+            let is_nullable = row.get::<bool, _>(6).ok_or_else(|| {
+                CommandError::Io("Column discovery returned invalid is_nullable".to_string())
+            })?;
+
+            columns.push(TableColumn {
+                schema_name,
+                table_name,
+                object_id_local,
+                column_name,
+                column_id,
+                data_type,
+                is_nullable,
+            });
+        }
+
         Ok(SqlServerInventory {
             container_id_local,
             schemas,
             tables,
             procedures,
+            columns,
         })
     })
 }
@@ -825,7 +915,7 @@ fn persist_sql_server_inventory(
     })?;
 
     let total_objects =
-        inventory.schemas.len() + inventory.tables.len() + inventory.procedures.len();
+        inventory.schemas.len() + inventory.tables.len() + inventory.procedures.len() + inventory.columns.len();
     let mut imported_objects = 0usize;
 
     for schema in &inventory.schemas {
@@ -1015,6 +1105,33 @@ fn persist_sql_server_canonical_model(
             )
             .map_err(CommandError::from)?;
         }
+    }
+
+    for column in &inventory.columns {
+        let object_id = format!(
+            "object-{workspace_id}-table-{}-{}",
+            column.schema_name.to_lowercase(),
+            column.table_name.to_lowercase()
+        );
+        let column_id = format!(
+            "column-{workspace_id}-{}-{}-{}",
+            column.schema_name.to_lowercase(),
+            column.table_name.to_lowercase(),
+            column.column_name.to_lowercase()
+        );
+        tx.execute(
+            "INSERT INTO sqlserver_object_columns(id, data_object_id, column_name, column_id, data_type, is_nullable)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                column_id,
+                object_id,
+                column.column_name,
+                column.column_id,
+                column.data_type,
+                if column.is_nullable { 1 } else { 0 }
+            ],
+        )
+        .map_err(CommandError::from)?;
     }
 
     for procedure in &inventory.procedures {
@@ -2001,6 +2118,7 @@ mod tests {
                 object_id_local: Some(100),
                 sql_body: Some("SELECT 1".to_string()),
             }],
+            columns: vec![],
         };
         let cfg = test_source_cfg("AdventureWorks");
         persist_sql_server_inventory(&conn, "ws-1", &cfg, &first, None, None).unwrap();
@@ -2026,6 +2144,7 @@ mod tests {
             }],
             tables: vec![],
             procedures: vec![],
+            columns: vec![],
         };
         persist_sql_server_inventory(&conn, "ws-1", &cfg, &second, None, None).unwrap();
 
@@ -2095,6 +2214,7 @@ mod tests {
                 },
             ],
             procedures: vec![],
+            columns: vec![],
         };
         let cfg = test_source_cfg("AdventureWorks");
         persist_sql_server_inventory(&conn, "ws-1", &cfg, &first, None, None).unwrap();
@@ -2156,6 +2276,7 @@ mod tests {
             }],
             tables: vec![],
             procedures: vec![],
+            columns: vec![],
         };
 
         let err = persist_sql_server_inventory(&conn, "ws-1", &cfg, &inventory, None, None)
@@ -2508,6 +2629,7 @@ mod tests {
             schemas,
             tables,
             procedures,
+            columns: vec![],
         };
         persist_sql_server_inventory(&conn, "ws-live", &cfg, &inventory, None, None).unwrap();
 
