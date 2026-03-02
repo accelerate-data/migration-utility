@@ -176,7 +176,7 @@ describe('Scope UI mockup contract', () => {
     await screen.findByText('fact_sales');
 
     expect(screen.getByText(/Scope — Table details capture/i)).toBeInTheDocument();
-    expect(screen.getByText(/tables ready/i)).toBeInTheDocument();
+    expect(screen.getByText(/\d+ \/ \d+ tables ready/i)).toBeInTheDocument();
     expect(screen.getByText(/Needs details for/i)).toBeInTheDocument();
     expect(screen.getByText(/Analyzed just now|Saved just now/i)).toBeInTheDocument();
     expect(screen.getByText(/Scope editable/i)).toBeInTheDocument();

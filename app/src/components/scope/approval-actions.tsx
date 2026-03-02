@@ -36,7 +36,7 @@ export function ApprovalActions({
           <p className="text-xs text-muted-foreground">Pending approval</p>
         )}
         {hasValidationErrors && (
-          <div className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400">
+          <div className="flex items-center gap-1.5 text-xs text-destructive">
             <AlertCircle className="h-3.5 w-3.5" />
             <span>
               {validationErrorCount} validation error{validationErrorCount > 1 ? 's' : ''} found
