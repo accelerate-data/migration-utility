@@ -44,20 +44,6 @@ follow the skill at `.claude/skills/classify-source-object/SKILL.md`.
 Classification logic — table type, load strategy, grain, column roles, PII detection, and
 confidence scoring — is defined in `.claude/skills/classify-source-object/SKILL.md`.
 
-## Workspace Layout
-
-At runtime the workspace directory is `~/.vibedata/migration-utility/` (the `cwd` for all
-agent sessions).
-
-```text
-~/.vibedata/migration-utility/
-├── .claude/
-│   ├── CLAUDE.md          ← this file (auto-loaded by SDK)
-│   ├── agents/            ← specialised sub-agents
-│   ├── rules/             ← source-type rules (auto-loaded by SDK)
-│   └── skills/            ← reusable skill prompts
-```
-
 Source objects — stored procedures, table DDL, column metadata, data profiles — are provided
 in the agent prompt or as tool call results. They are not files in the workspace. Do not
 attempt to read source objects from disk unless the prompt explicitly provides a path.
