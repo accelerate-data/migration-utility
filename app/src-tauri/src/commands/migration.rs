@@ -297,7 +297,9 @@ pub fn migration_get_table_config(
         selected_table_id
     );
     let conn = state.0.lock().unwrap();
-    let result = conn
+    
+    // Fetch table config
+    let mut config = conn
         .query_row(
             "SELECT selected_table_id, table_type, load_strategy, grain_columns, relationships_json, incremental_column, date_column, snapshot_strategy, pii_columns, confirmed_at, analysis_metadata_json, approval_status, approved_at, manual_overrides_json
              FROM table_config WHERE selected_table_id=?1",
@@ -318,6 +320,7 @@ pub fn migration_get_table_config(
                     approval_status: row.get(11)?,
                     approved_at: row.get(12)?,
                     manual_overrides_json: row.get(13)?,
+                    available_columns: None, // Will be populated below
                 })
             },
         )
@@ -326,7 +329,64 @@ pub fn migration_get_table_config(
             log::error!("migration_get_table_config: failed: {e}");
             CommandError::from(e)
         })?;
-    Ok(result)
+    
+    // If config exists, fetch available columns for the table
+    if let Some(ref mut cfg) = config {
+        // Extract schema and table name from selected_table_id
+        // Format: st:{workspace_id}:{warehouse_item_id}:{schema}:{table}
+        let parts: Vec<&str> = cfg.selected_table_id.split(':').collect();
+        if parts.len() >= 5 {
+            let schema_name = parts[3];
+            let table_name = parts[4];
+            
+            log::debug!(
+                "migration_get_table_config: fetching columns for {}.{}",
+                schema_name,
+                table_name
+            );
+            
+            let mut stmt = conn
+                .prepare(
+                    "SELECT column_name, data_type, is_nullable
+                     FROM sqlserver_object_columns
+                     WHERE schema_name = ?1 AND table_name = ?2
+                     ORDER BY column_id"
+                )
+                .map_err(|e| {
+                    log::error!("migration_get_table_config: failed to prepare column query: {e}");
+                    CommandError::from(e)
+                })?;
+            
+            let columns = stmt
+                .query_map(params![schema_name, table_name], |row| {
+                    Ok(crate::types::ColumnMetadata {
+                        column_name: row.get(0)?,
+                        data_type: row.get(1)?,
+                        is_nullable: row.get(2)?,
+                    })
+                })
+                .map_err(|e| {
+                    log::error!("migration_get_table_config: failed to query columns: {e}");
+                    CommandError::from(e)
+                })?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| {
+                    log::error!("migration_get_table_config: failed to collect columns: {e}");
+                    CommandError::from(e)
+                })?;
+            
+            log::debug!(
+                "migration_get_table_config: found {} columns for {}.{}",
+                columns.len(),
+                schema_name,
+                table_name
+            );
+            
+            cfg.available_columns = Some(columns);
+        }
+    }
+    
+    Ok(config)
 }
 
 #[tauri::command]
@@ -569,6 +629,7 @@ pub async fn migration_analyze_table_details(
         approval_status: Some("pending".to_string()),
         approved_at: None,
         manual_overrides_json: None,
+        available_columns: None,
     };
 
     {
@@ -738,6 +799,7 @@ fn load_table_config_for_selected(
                 approval_status: row.get(11)?,
                 approved_at: row.get(12)?,
                 manual_overrides_json: row.get(13)?,
+                available_columns: None,
             })
         },
     )

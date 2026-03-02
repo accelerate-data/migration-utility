@@ -180,6 +180,13 @@ export interface TableConfigPayload {
   approvalStatus: string | null;
   approvedAt: string | null;
   manualOverridesJson: string | null;
+  availableColumns?: ColumnMetadata[];
+}
+
+export interface ColumnMetadata {
+  columnName: string;
+  dataType: string;
+  isNullable: boolean;
 }
 
 export interface AnalysisMetadata {
@@ -192,4 +199,15 @@ export interface Relationship {
   targetTable: string;
   joinColumns: string[];
   relationshipType: string;
+}
+
+export interface RelationshipValidationResult {
+  childColumn: string;
+  parentTable: string;
+  parentColumn: string;
+  parentTableExists: boolean;
+  childColumnExists: boolean;
+  parentColumnExists: boolean;
+  isValid: boolean;
+  errorMessage: string | null;
 }

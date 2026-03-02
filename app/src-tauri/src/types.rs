@@ -261,6 +261,14 @@ pub struct Candidacy {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct ColumnMetadata {
+    pub column_name: String,
+    pub data_type: String,
+    pub is_nullable: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct TableConfig {
     pub selected_table_id: String,
     pub table_type: Option<String>,
@@ -276,6 +284,8 @@ pub struct TableConfig {
     pub approval_status: Option<String>,
     pub approved_at: Option<String>,
     pub manual_overrides_json: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub available_columns: Option<Vec<ColumnMetadata>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
