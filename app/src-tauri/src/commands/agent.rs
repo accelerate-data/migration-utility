@@ -48,6 +48,12 @@ struct SidecarConfigPayload {
     allowed_tools: Option<Vec<String>>,
     api_key: String,
     cwd: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    effort: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    debug: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    debug_file: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -92,7 +98,7 @@ pub async fn launch_agent_with_transcript(
     app: AppHandle,
     sidecar: State<'_, SidecarManager>,
 ) -> Result<AgentRunResult, String> {
-    launch_agent_with_transcript_config(prompt, system_prompt, None, Some(DEFAULT_MODEL.to_string()), state, app, sidecar).await
+    launch_agent_with_transcript_config(prompt, system_prompt, None, None, state, app, sidecar).await
 }
 
 pub async fn launch_named_agent_with_transcript(
@@ -132,21 +138,44 @@ async fn launch_agent_with_transcript_config(
         let front_matter = agent_name
             .as_deref()
             .and_then(|name| parse_agent_front_matter(&working_directory, name));
-        let resolved_model = model.or_else(|| front_matter.as_ref().and_then(|fm| fm.model.clone()));
+        // Model priority: explicit param → front-matter → settings preferred_model → DEFAULT_MODEL
+        let resolved_model = model
+            .or_else(|| front_matter.as_ref().and_then(|fm| fm.model.clone()))
+            .or_else(|| settings.preferred_model.clone())
+            .unwrap_or_else(|| DEFAULT_MODEL.to_string());
         let allowed_tools = front_matter.and_then(|fm| fm.allowed_tools);
+        let effort = settings.effort.clone();
         build_request(
             prompt,
             system_prompt,
             agent_name,
-            resolved_model,
+            Some(resolved_model),
             allowed_tools,
             api_key,
             working_directory,
+            effort,
+            None, // debug and debug_file resolved after log_path is known
+            None,
         )
     };
 
     let log_path = prepare_log_path(&request.config.cwd, &request.id)?;
     log::info!("monitor_launch_agent: transcript={}", log_path.display());
+
+    // Derive debug mode from current log level (restored from DB on startup).
+    let debug_enabled = log::max_level() >= log::LevelFilter::Debug;
+    let request = if debug_enabled {
+        let debug_file = log_path
+            .with_file_name(format!("{}-debug.log", request.id))
+            .to_string_lossy()
+            .to_string();
+        let mut r = request;
+        r.config.debug = Some(true);
+        r.config.debug_file = Some(debug_file);
+        r
+    } else {
+        request
+    };
 
     let mut guard = sidecar.0.lock().await;
     ensure_sidecar_ready(&mut guard).await?;
@@ -576,6 +605,9 @@ fn build_request(
     allowed_tools: Option<Vec<String>>,
     api_key: String,
     working_directory: String,
+    effort: Option<String>,
+    debug: Option<bool>,
+    debug_file: Option<String>,
 ) -> AgentRequest {
     AgentRequest {
         id: format!("agent-{}", uuid::Uuid::new_v4()),
@@ -587,6 +619,9 @@ fn build_request(
             allowed_tools,
             api_key,
             cwd: working_directory,
+            effort,
+            debug,
+            debug_file,
         },
     }
 }
@@ -779,6 +814,9 @@ mod tests {
             None,
             "sk-ant-test".to_string(),
             "/tmp/work".to_string(),
+            None,
+            None,
+            None,
         );
         let json = serde_json::to_value(&req.config).unwrap();
         assert_eq!(
@@ -1067,6 +1105,9 @@ mod tests {
             Some(vec!["Bash".to_string()]),
             "sk-ant-test".to_string(),
             "/tmp/work".to_string(),
+            None,
+            None,
+            None,
         );
         let json = serde_json::to_value(&req.config).unwrap();
         let tools = json.get("allowedTools").unwrap().as_array().unwrap();
@@ -1084,6 +1125,9 @@ mod tests {
             None,
             "sk-ant-test".to_string(),
             "/tmp/work".to_string(),
+            None,
+            None,
+            None,
         );
         let json = serde_json::to_value(&req.config).unwrap();
         assert!(json.get("allowedTools").is_none());

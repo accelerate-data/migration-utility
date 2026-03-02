@@ -80,6 +80,15 @@ export const getSettings = () =>
 export const saveAnthropicApiKey = (apiKey: string | null) =>
   invoke<void>('save_anthropic_api_key', { apiKey });
 
+export const saveAgentSettings = (
+  preferredModel: string | null,
+  effort: string | null,
+  logLevel: string | null,
+) => invoke<void>('save_agent_settings', { preferredModel, effort, logLevel });
+
+export const listModels = (apiKey: string) =>
+  invoke<{ id: string; displayName: string }[]>('list_models', { apiKey });
+
 export const testApiKey = (apiKey: string) =>
   invoke<boolean>('test_api_key', { apiKey });
 

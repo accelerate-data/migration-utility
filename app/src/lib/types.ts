@@ -86,6 +86,9 @@ export interface AppSettings {
   githubUserLogin: string | null;
   githubUserAvatar: string | null;
   githubUserEmail: string | null;
+  preferredModel: string | null;
+  effort: string | null;
+  logLevel: string | null;
 }
 
 export type AppPhase =

@@ -682,9 +682,7 @@ mod tests {
         let settings = AppSettings {
             anthropic_api_key: Some("sk-ant-test".to_string()),
             github_oauth_token: Some("gho_test".to_string()),
-            github_user_login: None,
-            github_user_avatar: None,
-            github_user_email: None,
+            ..AppSettings::default()
         };
         write_settings(&conn, &settings).unwrap();
         conn.execute(
@@ -703,9 +701,7 @@ mod tests {
         let settings = AppSettings {
             anthropic_api_key: Some("sk-ant-test".to_string()),
             github_oauth_token: Some("gho_test".to_string()),
-            github_user_login: None,
-            github_user_avatar: None,
-            github_user_email: None,
+            ..AppSettings::default()
         };
         write_settings(&conn, &settings).unwrap();
         conn.execute(
@@ -726,9 +722,7 @@ mod tests {
         let settings = AppSettings {
             anthropic_api_key: Some("sk-ant-test".to_string()),
             github_oauth_token: Some("gho_test".to_string()),
-            github_user_login: None,
-            github_user_avatar: None,
-            github_user_email: None,
+            ..AppSettings::default()
         };
         write_settings(&conn, &settings).unwrap();
         conn.execute(

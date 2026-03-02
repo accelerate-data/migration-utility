@@ -16,6 +16,12 @@ pub struct AppSettings {
     pub github_user_avatar: Option<String>,
     #[serde(default)]
     pub github_user_email: Option<String>,
+    #[serde(default)]
+    pub preferred_model: Option<String>,
+    #[serde(default)]
+    pub effort: Option<String>,
+    #[serde(default)]
+    pub log_level: Option<String>,
 }
 
 impl std::fmt::Debug for AppSettings {
