@@ -259,8 +259,8 @@ pub fn migration_save_table_config(
     );
     let conn = state.0.lock().unwrap();
     conn.execute(
-        "INSERT OR REPLACE INTO table_config(selected_table_id, table_type, load_strategy, grain_columns, relationships_json, incremental_column, date_column, snapshot_strategy, pii_columns, confirmed_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        "INSERT OR REPLACE INTO table_config(selected_table_id, table_type, load_strategy, grain_columns, relationships_json, incremental_column, date_column, snapshot_strategy, pii_columns, confirmed_at, analysis_metadata_json, approval_status, approved_at, manual_overrides_json)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
         params![
             config.selected_table_id,
             config.table_type,
@@ -272,6 +272,10 @@ pub fn migration_save_table_config(
             config.snapshot_strategy,
             config.pii_columns,
             config.confirmed_at,
+            config.analysis_metadata_json,
+            config.approval_status,
+            config.approved_at,
+            config.manual_overrides_json,
         ],
     )
     .map_err(|e| {
@@ -293,7 +297,7 @@ pub fn migration_get_table_config(
     let conn = state.0.lock().unwrap();
     let result = conn
         .query_row(
-            "SELECT selected_table_id, table_type, load_strategy, grain_columns, relationships_json, incremental_column, date_column, snapshot_strategy, pii_columns, confirmed_at
+            "SELECT selected_table_id, table_type, load_strategy, grain_columns, relationships_json, incremental_column, date_column, snapshot_strategy, pii_columns, confirmed_at, analysis_metadata_json, approval_status, approved_at, manual_overrides_json
              FROM table_config WHERE selected_table_id=?1",
             params![selected_table_id],
             |row| {
@@ -308,6 +312,10 @@ pub fn migration_get_table_config(
                     snapshot_strategy: row.get(7)?,
                     pii_columns: row.get(8)?,
                     confirmed_at: row.get(9)?,
+                    analysis_metadata_json: row.get(10)?,
+                    approval_status: row.get(11)?,
+                    approved_at: row.get(12)?,
+                    manual_overrides_json: row.get(13)?,
                 })
             },
         )
@@ -317,6 +325,50 @@ pub fn migration_get_table_config(
             CommandError::from(e)
         })?;
     Ok(result)
+}
+
+#[tauri::command]
+pub fn migration_approve_table_config(
+    selected_table_id: String,
+    state: State<DbState>,
+) -> Result<(), CommandError> {
+    log::info!(
+        "event=table_config_approval component=migration operation=approve selected_table_id={} status=started",
+        selected_table_id
+    );
+    let conn = state.0.lock().unwrap();
+    let approved_at = Utc::now().to_rfc3339();
+    let rows_affected = conn
+        .execute(
+            "UPDATE table_config SET approval_status='approved', approved_at=?1 WHERE selected_table_id=?2",
+            params![approved_at, selected_table_id],
+        )
+        .map_err(|e| {
+            log::error!(
+                "event=table_config_approval component=migration operation=approve selected_table_id={} status=failure error_code=db_error message={}",
+                selected_table_id,
+                sanitize_log_message(&e.to_string())
+            );
+            CommandError::from(e)
+        })?;
+    
+    if rows_affected == 0 {
+        log::error!(
+            "event=table_config_approval component=migration operation=approve selected_table_id={} status=failure error_code=not_found",
+            selected_table_id
+        );
+        return Err(CommandError::NotFound(format!(
+            "table_config not found for selected_table_id={}",
+            selected_table_id
+        )));
+    }
+    
+    log::info!(
+        "event=table_config_approval component=migration operation=approve selected_table_id={} status=success approved_at={}",
+        selected_table_id,
+        approved_at
+    );
+    Ok(())
 }
 
 #[tauri::command]
@@ -511,13 +563,17 @@ pub async fn migration_analyze_table_details(
             .unwrap_or_else(|| "sample_1day".to_string()),
         pii_columns: payload.pii_columns,
         confirmed_at: Some(Utc::now().to_rfc3339()),
+        analysis_metadata_json: Some(serde_json::to_string(&raw_json).unwrap_or_default()),
+        approval_status: Some("pending".to_string()),
+        approved_at: None,
+        manual_overrides_json: None,
     };
 
     {
         let conn = state.0.lock().unwrap();
         conn.execute(
-            "INSERT OR REPLACE INTO table_config(selected_table_id, table_type, load_strategy, grain_columns, relationships_json, incremental_column, date_column, snapshot_strategy, pii_columns, confirmed_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            "INSERT OR REPLACE INTO table_config(selected_table_id, table_type, load_strategy, grain_columns, relationships_json, incremental_column, date_column, snapshot_strategy, pii_columns, confirmed_at, analysis_metadata_json, approval_status, approved_at, manual_overrides_json)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
             params![
                 config.selected_table_id,
                 config.table_type,
@@ -529,6 +585,10 @@ pub async fn migration_analyze_table_details(
                 config.snapshot_strategy,
                 config.pii_columns,
                 config.confirmed_at,
+                config.analysis_metadata_json,
+                config.approval_status,
+                config.approved_at,
+                config.manual_overrides_json,
             ],
         )
         .map_err(CommandError::from)?;
@@ -657,7 +717,7 @@ fn load_table_config_for_selected(
     selected_table_id: &str,
 ) -> Result<Option<TableConfig>, CommandError> {
     conn.query_row(
-        "SELECT selected_table_id, table_type, load_strategy, grain_columns, relationships_json, incremental_column, date_column, snapshot_strategy, pii_columns, confirmed_at
+        "SELECT selected_table_id, table_type, load_strategy, grain_columns, relationships_json, incremental_column, date_column, snapshot_strategy, pii_columns, confirmed_at, analysis_metadata_json, approval_status, approved_at, manual_overrides_json
          FROM table_config WHERE selected_table_id=?1",
         params![selected_table_id],
         |row| {
@@ -672,6 +732,10 @@ fn load_table_config_for_selected(
                 snapshot_strategy: row.get(7)?,
                 pii_columns: row.get(8)?,
                 confirmed_at: row.get(9)?,
+                analysis_metadata_json: row.get(10)?,
+                approval_status: row.get(11)?,
+                approved_at: row.get(12)?,
+                manual_overrides_json: row.get(13)?,
             })
         },
     )
@@ -1463,5 +1527,65 @@ mod tests {
                 .and_then(serde_json::Value::as_str),
             Some("ok")
         );
+    }
+
+    #[test]
+    fn approve_table_config_sets_approval_fields() {
+        let conn = db::open_in_memory().unwrap();
+        let (ws_id, item_id) = setup_workspace_and_item(&conn);
+        
+        // Create selected_table
+        let st_id = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![st_id, ws_id, item_id, "dbo", "fact_sales"],
+        )
+        .unwrap();
+        
+        // Create table_config with pending approval
+        conn.execute(
+            "INSERT INTO table_config(selected_table_id, table_type, load_strategy, snapshot_strategy, approval_status) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![st_id, "fact", "incremental", "sample_1day", "pending"],
+        )
+        .unwrap();
+        
+        // Approve the config
+        let approved_at = chrono::Utc::now().to_rfc3339();
+        let rows = conn.execute(
+            "UPDATE table_config SET approval_status='approved', approved_at=?1 WHERE selected_table_id=?2",
+            rusqlite::params![approved_at, st_id],
+        )
+        .unwrap();
+        assert_eq!(rows, 1);
+        
+        // Verify approval fields are set
+        let (status, timestamp): (String, String) = conn
+            .query_row(
+                "SELECT approval_status, approved_at FROM table_config WHERE selected_table_id=?1",
+                rusqlite::params![st_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(status, "approved");
+        assert!(!timestamp.is_empty());
+    }
+
+    #[test]
+    fn approve_table_config_fails_when_config_not_found() {
+        let conn = db::open_in_memory().unwrap();
+        let (_ws_id, _item_id) = setup_workspace_and_item(&conn);
+        
+        let nonexistent_id = uuid::Uuid::new_v4().to_string();
+        let approved_at = chrono::Utc::now().to_rfc3339();
+        
+        // Attempt to approve non-existent config
+        let rows = conn.execute(
+            "UPDATE table_config SET approval_status='approved', approved_at=?1 WHERE selected_table_id=?2",
+            rusqlite::params![approved_at, nonexistent_id],
+        )
+        .unwrap();
+        
+        // Should return 0 rows affected
+        assert_eq!(rows, 0);
     }
 }

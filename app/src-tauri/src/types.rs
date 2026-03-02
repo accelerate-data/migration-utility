@@ -272,6 +272,10 @@ pub struct TableConfig {
     pub snapshot_strategy: String,
     pub pii_columns: Option<String>,
     pub confirmed_at: Option<String>,
+    pub analysis_metadata_json: Option<String>,
+    pub approval_status: Option<String>,
+    pub approved_at: Option<String>,
+    pub manual_overrides_json: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
