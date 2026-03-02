@@ -7,7 +7,7 @@ use tauri::{AppHandle, Manager};
 const WORKSPACE_DIR: &str = ".vibedata/migration-utility";
 const CLAUDE_DIR: &str = ".claude";
 const CLAUDE_FILE: &str = "CLAUDE.md";
-const MANAGED_SUBDIRS: [&str; 2] = ["agents", "skills"];
+const MANAGED_SUBDIRS: [&str; 3] = ["agents", "skills", "rules"];
 
 pub fn deploy_on_startup(app: &AppHandle) -> Result<(), String> {
     let source = resolve_source_dir(app)?;
@@ -312,9 +312,11 @@ mod tests {
     fn seed_source(source: &std::path::Path) {
         fs::create_dir_all(source.join("skills")).unwrap();
         fs::create_dir_all(source.join("agents")).unwrap();
+        fs::create_dir_all(source.join("rules")).unwrap();
         fs::write(source.join("CLAUDE.md"), "# CLAUDE").unwrap();
         fs::write(source.join("skills").join("seed-skill.md"), "seed skill").unwrap();
         fs::write(source.join("agents").join("seed-agent.md"), "seed agent").unwrap();
+        fs::write(source.join("rules").join("seed-rule.md"), "seed rule").unwrap();
     }
 
     #[test]
@@ -324,12 +326,15 @@ mod tests {
         let workspace = tmp.path().join("workspace");
         let nested_skill = source.join("skills").join("example");
         let nested_agent = source.join("agents");
+        let source_rules = source.join("rules");
 
         fs::create_dir_all(&nested_skill).unwrap();
         fs::create_dir_all(&nested_agent).unwrap();
+        fs::create_dir_all(&source_rules).unwrap();
         fs::write(source.join("CLAUDE.md"), "# CLAUDE").unwrap();
         fs::write(nested_skill.join("SKILL.md"), "skill").unwrap();
         fs::write(nested_agent.join("agent.md"), "agent").unwrap();
+        fs::write(source_rules.join("source-sql-server.md"), "rule").unwrap();
 
         deploy_agent_sources(&source, &workspace).unwrap();
 
@@ -352,10 +357,20 @@ mod tests {
             fs::read_to_string(workspace.join(".claude").join("agents").join("agent.md")).unwrap(),
             "agent"
         );
+        assert_eq!(
+            fs::read_to_string(
+                workspace
+                    .join(".claude")
+                    .join("rules")
+                    .join("source-sql-server.md")
+            )
+            .unwrap(),
+            "rule"
+        );
     }
 
     #[test]
-    fn deploy_replaces_agents_and_skills_but_keeps_other_claude_files() {
+    fn deploy_replaces_managed_dirs_but_keeps_other_claude_files() {
         let tmp = tempfile::tempdir().unwrap();
         let source = tmp.path().join("source");
         let workspace = tmp.path().join("workspace");
@@ -363,15 +378,19 @@ mod tests {
 
         fs::create_dir_all(source.join("skills")).unwrap();
         fs::create_dir_all(source.join("agents")).unwrap();
+        fs::create_dir_all(source.join("rules")).unwrap();
         fs::write(source.join("CLAUDE.md"), "new").unwrap();
         fs::write(source.join("skills").join("new-skill.md"), "new skill").unwrap();
         fs::write(source.join("agents").join("new-agent.md"), "new agent").unwrap();
+        fs::write(source.join("rules").join("new-rule.md"), "new rule").unwrap();
 
         fs::create_dir_all(existing_claude.join("skills")).unwrap();
         fs::create_dir_all(existing_claude.join("agents")).unwrap();
+        fs::create_dir_all(existing_claude.join("rules")).unwrap();
         fs::write(existing_claude.join("CLAUDE.md"), "old").unwrap();
         fs::write(existing_claude.join("skills").join("old-skill.md"), "old").unwrap();
         fs::write(existing_claude.join("agents").join("old-agent.md"), "old").unwrap();
+        fs::write(existing_claude.join("rules").join("old-rule.md"), "old").unwrap();
         fs::write(existing_claude.join("custom.md"), "keep").unwrap();
 
         deploy_agent_sources(&source, &workspace).unwrap();
@@ -382,6 +401,7 @@ mod tests {
         );
         assert!(!existing_claude.join("skills").join("old-skill.md").exists());
         assert!(!existing_claude.join("agents").join("old-agent.md").exists());
+        assert!(!existing_claude.join("rules").join("old-rule.md").exists());
         assert_eq!(
             fs::read_to_string(existing_claude.join("skills").join("new-skill.md")).unwrap(),
             "new skill"
@@ -389,6 +409,10 @@ mod tests {
         assert_eq!(
             fs::read_to_string(existing_claude.join("agents").join("new-agent.md")).unwrap(),
             "new agent"
+        );
+        assert_eq!(
+            fs::read_to_string(existing_claude.join("rules").join("new-rule.md")).unwrap(),
+            "new rule"
         );
         assert_eq!(
             fs::read_to_string(existing_claude.join("custom.md")).unwrap(),
@@ -410,20 +434,29 @@ mod tests {
     }
 
     #[test]
-    fn deploy_errors_when_source_missing_agents_or_skills() {
+    fn deploy_errors_when_source_missing_managed_directory() {
         let tmp = tempfile::tempdir().unwrap();
         let source = tmp.path().join("source");
         let workspace = tmp.path().join("workspace");
 
+        // Missing agents
         fs::create_dir_all(source.join("skills")).unwrap();
+        fs::create_dir_all(source.join("rules")).unwrap();
         fs::write(source.join("CLAUDE.md"), "seed").unwrap();
-        let err_agents = deploy_agent_sources(&source, &workspace).unwrap_err();
-        assert!(err_agents.contains("missing required source directory"));
+        let err = deploy_agent_sources(&source, &workspace).unwrap_err();
+        assert!(err.contains("missing required source directory"));
 
+        // Missing skills
         fs::remove_dir_all(source.join("skills")).unwrap();
         fs::create_dir_all(source.join("agents")).unwrap();
-        let err_skills = deploy_agent_sources(&source, &workspace).unwrap_err();
-        assert!(err_skills.contains("missing required source directory"));
+        let err = deploy_agent_sources(&source, &workspace).unwrap_err();
+        assert!(err.contains("missing required source directory"));
+
+        // Missing rules
+        fs::create_dir_all(source.join("skills")).unwrap();
+        fs::remove_dir_all(source.join("rules")).unwrap();
+        let err = deploy_agent_sources(&source, &workspace).unwrap_err();
+        assert!(err.contains("missing required source directory"));
     }
 
     #[test]
@@ -437,13 +470,16 @@ mod tests {
         fs::create_dir_all(&claude_dir).unwrap();
         fs::write(claude_dir.join("skills"), "bad").unwrap();
         fs::write(claude_dir.join("agents"), "bad").unwrap();
+        fs::write(claude_dir.join("rules"), "bad").unwrap();
 
         deploy_agent_sources(&source, &workspace).unwrap();
 
         assert!(claude_dir.join("skills").is_dir());
         assert!(claude_dir.join("agents").is_dir());
+        assert!(claude_dir.join("rules").is_dir());
         assert!(claude_dir.join("skills").join("seed-skill.md").exists());
         assert!(claude_dir.join("agents").join("seed-agent.md").exists());
+        assert!(claude_dir.join("rules").join("seed-rule.md").exists());
     }
 
     #[test]

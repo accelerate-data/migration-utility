@@ -29,44 +29,18 @@ says otherwise.
 
 ## Source System Patterns
 
-**This is not generic SQL migration.** Fabric and SQL Server have behaviors that differ from
-standard ANSI SQL and from each other. Agents must recognise these patterns before classifying
-or generating output.
+Source-specific patterns, constraints, and load strategy signals are in rules files auto-loaded
+by the SDK alongside this file. Apply the relevant rules for the source in scope:
 
-### T-SQL Patterns and Their Migration Status
+- `.claude/rules/source-sql-server.md` — T-SQL stored procedure patterns, SQL Server schema
+  discovery, memory-optimized tables, cross-database references
+- `.claude/rules/source-fabric-warehouse.md` — Fabric Warehouse constraints, dbt-fabric adapter
+  constraints (merge degradation, datetime2, composite keys, schema inference)
+- `.claude/rules/source-fabric-lakehouse.md` — Delta table schema discovery, type mapping,
+  partition-based incremental strategy
 
-| Pattern | Migration approach |
-|---|---|
-| `MERGE ... USING ... WHEN MATCHED` | Check adapter support — silently degrades on Lakehouse; prefer `delete+insert` or `full_refresh` |
-| `TRUNCATE TABLE / INSERT` | Maps to `full_refresh` materialization |
-| `INSERT INTO ... SELECT` with no delete | Maps to `incremental` (append) |
-| Cursor / row-by-row processing | Flag for manual review — cannot auto-migrate |
-| `#temp_table` / `##global_temp` | Replace with CTEs or ephemeral dbt models |
-| Dynamic SQL / `sp_executesql` | Flag for manual review — cannot auto-migrate |
-| `IDENTITY` columns | Surrogate key strategy — use `dbt_utils.generate_surrogate_key` |
-| `datetime2` columns in snapshot context | Known Fabric failure mode — cast to `date` or `timestamp` |
-| Cross-database refs (`OtherDB.dbo.Table`) | Must be resolved to Lakehouse shortcuts or external tables before migrating |
-| `WITH (MEMORY_OPTIMIZED = ON)` tables | Cannot `TRUNCATE` — use `DELETE` or drop/recreate via `full_refresh` |
-
-### Fabric-Specific Constraints
-
-- **Warehouse vs Lakehouse endpoint**: different SQL surface area. Default target is the
-  Lakehouse endpoint. Flag any object that requires a Warehouse endpoint feature.
-- **Memory-optimized tables**: `TRUNCATE` is blocked; the migration must use `DELETE` or
-  `full_refresh` with drop/recreate semantics.
-- **Cross-database references**: Fabric Warehouse federation and Lakehouse shortcuts are the
-  resolution paths. Flag unresolved references — do not silently drop them.
-
-### dbt-fabric Adapter Constraints
-
-- `merge` strategy silently degrades on Lakehouse endpoints. Prefer `append` + `delete+insert`
-  or `full_refresh`. Only recommend `merge` when the prompt confirms Warehouse endpoint.
-- `datetime2` columns cause SCD2 snapshot failures in some Fabric configurations. Prefer `date`
-  or explicit casting.
-- Multi-column `unique_key` requires a surrogate key column; the adapter does not support
-  composite keys natively.
-- Schema inference is not available — all output columns must be explicitly typed in generated
-  SQL.
+When multiple sources are in scope, apply all relevant rules. When no source is specified,
+default to SQL Server + Fabric Warehouse rules.
 
 ## Data Modeling Conventions
 
@@ -169,6 +143,7 @@ agent sessions).
 ├── .claude/
 │   ├── CLAUDE.md          ← this file (auto-loaded by SDK)
 │   ├── agents/            ← specialised sub-agents
+│   ├── rules/             ← source-type rules (auto-loaded by SDK)
 │   └── skills/            ← reusable skill prompts
 ```
 

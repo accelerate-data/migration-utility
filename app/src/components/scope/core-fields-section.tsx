@@ -1,4 +1,5 @@
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 
 interface CoreFieldsSectionProps {
   tableType: string | null;
@@ -6,10 +7,27 @@ interface CoreFieldsSectionProps {
   incrementalColumn: string | null;
   dateColumn: string | null;
   disabled: boolean;
+  manualOverrides: string[];
   onUpdate: <K extends 'tableType' | 'loadStrategy' | 'incrementalColumn' | 'dateColumn'>(
     key: K,
     value: string | null,
   ) => void;
+}
+
+function FieldChip({ fieldName, manualOverrides }: { fieldName: string; manualOverrides: string[] }) {
+  const isManual = manualOverrides.includes(fieldName);
+  if (!isManual) {
+    return (
+      <Badge variant="secondary" className="ml-2 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+        Agent
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="secondary" className="ml-2 bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+      Manual
+    </Badge>
+  );
 }
 
 export function CoreFieldsSection({
@@ -18,12 +36,16 @@ export function CoreFieldsSection({
   incrementalColumn,
   dateColumn,
   disabled,
+  manualOverrides,
   onUpdate,
 }: CoreFieldsSectionProps) {
   return (
     <div className="space-y-4">
       <label className="block space-y-2">
-        <span className="text-sm font-medium">Table type</span>
+        <span className="text-sm font-medium">
+          Table type
+          {tableType && <FieldChip fieldName="tableType" manualOverrides={manualOverrides} />}
+        </span>
         <select
           className="h-10 w-full rounded-md border bg-background px-3 text-sm"
           value={tableType ?? ''}
@@ -37,7 +59,10 @@ export function CoreFieldsSection({
         </select>
       </label>
       <label className="block space-y-2">
-        <span className="text-sm font-medium">Load strategy</span>
+        <span className="text-sm font-medium">
+          Load strategy
+          {loadStrategy && <FieldChip fieldName="loadStrategy" manualOverrides={manualOverrides} />}
+        </span>
         <select
           className="h-10 w-full rounded-md border bg-background px-3 text-sm"
           value={loadStrategy ?? ''}
@@ -51,7 +76,10 @@ export function CoreFieldsSection({
         </select>
       </label>
       <label className="block space-y-2">
-        <span className="text-sm font-medium">CDC column</span>
+        <span className="text-sm font-medium">
+          CDC column
+          {incrementalColumn && <FieldChip fieldName="incrementalColumn" manualOverrides={manualOverrides} />}
+        </span>
         <Input
           value={incrementalColumn ?? ''}
           disabled={disabled}
@@ -59,7 +87,10 @@ export function CoreFieldsSection({
         />
       </label>
       <label className="block space-y-2">
-        <span className="text-sm font-medium">Canonical date column</span>
+        <span className="text-sm font-medium">
+          Canonical date column
+          {dateColumn && <FieldChip fieldName="dateColumn" manualOverrides={manualOverrides} />}
+        </span>
         <Input
           value={dateColumn ?? ''}
           disabled={disabled}
