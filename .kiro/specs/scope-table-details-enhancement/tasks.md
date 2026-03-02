@@ -1,5 +1,16 @@
 # Tasks: Scope Table Details Enhancement
 
+## Agent Enhancement Status
+
+**Agent now returns hardcoded enhanced data** (Phase 5.1.4, 5.2.2 complete):
+- Relationships: 2 sample foreign key relationships with cardinality
+- PII columns: 2 sample columns (customer_email, customer_phone)
+- Analysis metadata: Confidence scores and reasoning for all fields
+- UI displays relationships as structured cards and PII as pills
+- Raw JSON editing available via collapsible sections
+
+**Next step**: Replace hardcoded values with actual schema analysis (post-MVP).
+
 ## Phase 1: Database Foundation
 
 - [x] 1.1 Create migration `010_table_config_approval.sql`
@@ -72,14 +83,15 @@
   - [x] 5.1.1 Create component file
   - [x] 5.1.2 Implement grid layout
   - [x] 5.1.3 Add dropdowns for child column, parent table, parent column, cardinality
-  - [ ] 5.1.4 Implement add/remove row functionality
-  - [ ] 5.1.5 Add validation status chip display
-  - [ ] 5.1.6 Write component unit tests
+  - [x] 5.1.4 Display relationships from agent analysis
+  - [ ] 5.1.5* Implement add/remove row functionality (manual editing)
+  - [ ] 5.1.6* Add validation status chip display
+  - [ ] 5.1.7 Write component unit tests
 - [-] 5.2 Create `PiiSection` component
   - [x] 5.2.1 Create component file
-  - [x] 5.2.2 Implement checkbox multi-select UI
-  - [ ] 5.2.3 Display available columns list
-  - [ ] 5.2.4 Add visual pill display for selected columns
+  - [x] 5.2.2 Display PII columns as pills
+  - [x] 5.2.3 Add collapsible raw JSON editor
+  - [ ] 5.2.4* Display available columns list (manual selection)
   - [ ] 5.2.5 Write component unit tests
 - [-] 5.3 Create `AgentRationaleSection` component
   - [x] 5.3.1 Create component file
