@@ -37,6 +37,10 @@ function defaultConfig(selectedTableIdValue: string): TableConfigPayload {
     snapshotStrategy: 'sample_1day',
     piiColumns: null,
     confirmedAt: null,
+    analysisMetadataJson: null,
+    approvalStatus: null,
+    approvedAt: null,
+    manualOverridesJson: null,
   };
 }
 

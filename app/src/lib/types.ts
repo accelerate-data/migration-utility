@@ -176,4 +176,20 @@ export interface TableConfigPayload {
   snapshotStrategy: string;
   piiColumns: string | null;
   confirmedAt: string | null;
+  analysisMetadataJson: string | null;
+  approvalStatus: string | null;
+  approvedAt: string | null;
+  manualOverridesJson: string | null;
+}
+
+export interface AnalysisMetadata {
+  confidence?: number;
+  reasoning?: string;
+  suggestedValues?: Record<string, unknown>;
+}
+
+export interface Relationship {
+  targetTable: string;
+  joinColumns: string[];
+  relationshipType: string;
 }

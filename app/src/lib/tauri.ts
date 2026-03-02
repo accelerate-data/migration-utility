@@ -139,6 +139,9 @@ export const migrationSaveTableConfig = (config: TableConfigPayload) =>
 export const migrationGetTableConfig = (selectedTableId: string) =>
   invoke<TableConfigPayload | null>('migration_get_table_config', { selectedTableId });
 
+export const migrationApproveTableConfig = (selectedTableId: string) =>
+  invoke<void>('migration_approve_table_config', { selectedTableId });
+
 export const migrationAnalyzeTableDetails = (args: {
   workspaceId: string;
   selectedTableId: string;
