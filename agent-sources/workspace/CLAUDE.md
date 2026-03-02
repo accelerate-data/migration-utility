@@ -29,18 +29,7 @@ says otherwise.
 
 ## Source System Patterns
 
-Source-specific patterns, constraints, and load strategy signals are in rules files auto-loaded
-by the SDK alongside this file. Apply the relevant rules for the source in scope:
-
-- `.claude/rules/source-sql-server.md` — T-SQL stored procedure patterns, SQL Server schema
-  discovery, memory-optimized tables, cross-database references
-- `.claude/rules/source-fabric-warehouse.md` — Fabric Warehouse constraints, dbt-fabric adapter
-  constraints (merge degradation, datetime2, composite keys, schema inference)
-- `.claude/rules/source-fabric-lakehouse.md` — Delta table schema discovery, type mapping,
-  partition-based incremental strategy
-
-When multiple sources are in scope, apply all relevant rules. When no source is specified,
-default to SQL Server + Fabric Warehouse rules.
+Source-specific patterns are in `.claude/rules/` and auto-loaded alongside this file.
 
 ## Data Modeling Conventions
 
