@@ -31,6 +31,14 @@ says otherwise.
 
 Source-specific patterns are in `.claude/rules/` and auto-loaded alongside this file.
 
+## Custom Skills
+
+### classify-source-object
+
+When analyzing a source table or view and structured migration configuration is needed
+(table type, load strategy, grain, PII flags, column roles, confidence scores), read and
+follow the skill at `.claude/skills/classify-source-object/SKILL.md`.
+
 ## Classification Conventions
 
 Classification logic — table type, load strategy, grain, column roles, PII detection, and

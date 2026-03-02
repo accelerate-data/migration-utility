@@ -1,3 +1,11 @@
+---
+name: classify-source-object
+description: >
+  Classifies a source table or view into migration configuration fields — table type,
+  load strategy, grain, column roles, PII flags, and confidence scores. Use whenever
+  structured classification output is required for a source object.
+---
+
 # Skill: Classify Source Object
 
 Classifies a single source table or view into the migration configuration fields required by
