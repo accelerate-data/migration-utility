@@ -5,7 +5,7 @@ import { useTheme } from 'next-themes';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { logger, LOG_LEVELS, getStoredLogLevel, storeLogLevel, type LogLevel } from '@/lib/logger';
-import { setLogLevel, getLogFilePath, getDataDirPath } from '@/lib/tauri';
+import { getSettings, setLogLevel, getLogFilePath, getDataDirPath } from '@/lib/tauri';
 import SettingsPanelShell from '@/components/settings/settings-panel-shell';
 
 // ── Log level descriptions ──────────────────────────────────────────────────
@@ -125,13 +125,23 @@ export default function ProfileTab() {
   useEffect(() => {
     getLogFilePath().then(setLogFilePath).catch(() => setLogFilePath(null));
     getDataDirPath().then(setDataDirPath).catch(() => setDataDirPath(null));
+    // Seed from SQLite so the level survives localStorage being cleared between sessions
+    getSettings()
+      .then((s) => {
+        if (s.logLevel) {
+          const persisted = s.logLevel as LogLevel;
+          setLevel(persisted);
+          storeLogLevel(persisted);
+        }
+      })
+      .catch((err) => logger.warn('profile: failed to read settings for log level', err));
   }, []);
 
   function handleLevelChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const next = e.target.value as LogLevel;
     storeLogLevel(next);
     setLevel(next);
-    setLogLevel(next).catch(() => {});
+    setLogLevel(next).catch((err) => logger.error('profile: failed to set log level', err));
     logger.info(`logging: level changed to ${next}`);
   }
 
