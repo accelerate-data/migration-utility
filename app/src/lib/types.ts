@@ -103,8 +103,6 @@ export interface AppPhaseState {
   hasGithubAuth: boolean;
   hasAnthropicKey: boolean;
   isSourceApplied: boolean;
-  scopeFinalized: boolean;
-  planFinalized: boolean;
 }
 
 export type GitHubAuthResult =

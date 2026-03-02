@@ -97,15 +97,6 @@ export const appHydratePhase = () =>
 export const appSetPhase = (appPhase: AppPhase) =>
   invoke<AppPhaseState>('app_set_phase', { appPhase });
 
-export const appSetPhaseFlags = (args: {
-  scopeFinalized?: boolean;
-  planFinalized?: boolean;
-}) =>
-  invoke<AppPhaseState>('app_set_phase_flags', {
-    scopeFinalized: args.scopeFinalized ?? null,
-    planFinalized: args.planFinalized ?? null,
-  });
-
 export const setLogLevel = (level: string) =>
   invoke<void>('set_log_level', { level });
 

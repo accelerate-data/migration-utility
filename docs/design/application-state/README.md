@@ -4,13 +4,11 @@ Canonical app state machine for surface routing and edit locks.
 
 ## Source of Truth
 
-State is persisted in SQLite `settings` keys and workspace presence checks.
+`app_phase` is the single source of truth for lifecycle state. All routing,
+surface locks, and edit guards derive from it.
 
-- `app_phase` (`setup_required` | `scope_editable` | `plan_editable` | `ready_to_run` | `running_locked`)
-- `scope_finalized` (bool)
-- `plan_finalized` (bool)
-- `app_settings` (`github_oauth_token`, `anthropic_api_key`)
-- `workspaces` existence (`is_source_applied`)
+Persisted in SQLite `settings` key `app_phase`:
+`setup_required` | `scope_editable` | `plan_editable` | `ready_to_run` | `running_locked`
 
 Implementation references:
 
@@ -20,45 +18,45 @@ Implementation references:
 
 ## Phase Definitions
 
-- `setup_required`: Missing at least one prerequisite (`github auth`, `anthropic key`, or applied source/workspace).
-- `scope_editable`: Prerequisites complete and scope is not finalized.
-- `plan_editable`: Scope finalized, plan not finalized.
-- `ready_to_run`: Scope and plan finalized.
-- `running_locked`: Migration running; Scope and Plan are read-only.
+- `setup_required`: No workspace applied yet (initial state and after reset).
+- `scope_editable`: Source applied; user is configuring scope.
+- `plan_editable`: Scope finalized; user is editing the migration plan.
+- `ready_to_run`: Plan finalized; migration can be launched.
+- `running_locked`: Migration running; all surfaces are read-only.
 
-## Reconciliation Logic
+## Phase Transitions
 
-`reconcile_and_persist_app_phase` computes phase from persisted facts with this precedence:
+All transitions are explicit writes — no dynamic inference from prerequisites.
 
-1. If any prerequisite is missing: `setup_required`
-2. Else if persisted phase is `running_locked`: `running_locked`
-3. Else if `scope_finalized` is false: `scope_editable`
-4. Else if `plan_finalized` is false: `plan_editable`
-5. Else: `ready_to_run`
+| Action | Command | Resulting phase |
+|---|---|---|
+| Apply source | `workspace_apply_and_clone` | `scope_editable` |
+| Reset / delete source | `workspace_reset_state` | `setup_required` |
+| Finalize Scope | `app_set_phase('plan_editable')` | `plan_editable` |
+| Finalize Plan | `app_set_phase('ready_to_run')` | `ready_to_run` |
+| Launch Migration | `app_set_phase('running_locked')` | `running_locked` |
 
-This reconciliation both returns and persists the computed phase.
+`app_set_phase` cannot be called with `setup_required` (rejected server-side).
 
-## Transition Entry Points
+## Reconciliation
 
-Commands that call reconciliation:
+`reconcile_and_persist_app_phase` reads the persisted phase and returns it,
+defaulting to `setup_required` if no phase has been written yet. It performs
+no inference and no writes — it is a pure read.
 
-- `app_hydrate_phase`
-- `app_set_phase_flags`
-- `save_anthropic_api_key`
-- `github_poll_for_token`
-- `github_logout`
-- `workspace_apply_and_clone` (sets `scope_finalized=false`, `plan_finalized=false` first)
-- `workspace_reset_state` (sets `scope_finalized=false`, `plan_finalized=false` first)
+Called by `app_hydrate_phase` (startup) and `app_set_phase` (returns new state).
 
-Direct phase setter:
+## Fact Fields
 
-- `app_set_phase` writes the requested phase and returns current facts without reconciliation.
+`AppPhaseState` includes `hasGithubAuth`, `hasAnthropicKey`, `isSourceApplied`
+as informational fields for the Home/Setup screen. They do **not** drive
+phase transitions.
 
 ## Frontend Routing and Locks
 
 Default route by phase:
 
-- `setup_required` -> `/settings`
+- `setup_required` -> `/home`
 - `scope_editable` -> `/scope`
 - `plan_editable` -> `/plan`
 - `ready_to_run` -> `/monitor`
@@ -67,25 +65,18 @@ Default route by phase:
 Surface availability:
 
 - `settings`: always enabled
-- `home`: enabled for all non-setup phases
+- `home`: always enabled
 - `scope`: enabled for all non-setup phases
 - `plan`: enabled in `plan_editable`, `ready_to_run`, `running_locked`
 - `monitor`: enabled in `ready_to_run`, `running_locked`
 
 Read-only behavior:
 
-- In `running_locked`, Scope and Plan are read-only
-- In all other phases, Scope and Plan are editable
+- Scope surface: read-only in all phases except `scope_editable`
+- Plan surface: read-only in `running_locked`
 
 Implementation references:
 
 - [workflow-store.ts](/Users/hbanerjee/src/migration-utility/app/src/stores/workflow-store.ts)
 - [App.tsx](/Users/hbanerjee/src/migration-utility/app/src/App.tsx)
 - [icon-nav.tsx](/Users/hbanerjee/src/migration-utility/app/src/components/icon-nav.tsx)
-- [scope-step-nav.tsx](/Users/hbanerjee/src/migration-utility/app/src/components/scope-step-nav.tsx)
-
-## Operational Invariants
-
-- Losing prerequisites always forces `setup_required`, even if `app_phase` was `running_locked`.
-- `running_locked` persists across hydration/reconciliation while prerequisites remain satisfied.
-- Workspace apply and reset both clear scope/plan finalized flags before reconciliation.

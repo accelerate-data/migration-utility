@@ -9,7 +9,7 @@ const tauriMocks = vi.hoisted(() => ({
   migrationGetTableConfig: vi.fn(),
   migrationAnalyzeTableDetails: vi.fn(),
   migrationSaveTableConfig: vi.fn(),
-  appSetPhaseFlags: vi.fn(),
+  appSetPhase: vi.fn(),
   workspaceGet: vi.fn(),
   workspaceApplyStart: vi.fn(),
   workspaceApplyStatus: vi.fn(),
@@ -33,7 +33,7 @@ describe('ConfigStep', () => {
       ...s,
       workspaceId: 'ws-1',
       appPhase: 'scope_editable',
-      phaseFacts: { ...s.phaseFacts, scopeFinalized: false },
+
     }));
     tauriMocks.migrationListScopeInventory.mockResolvedValue([
       {
@@ -58,13 +58,11 @@ describe('ConfigStep', () => {
       confirmedAt: null,
     });
     tauriMocks.migrationSaveTableConfig.mockResolvedValue(undefined);
-    tauriMocks.appSetPhaseFlags.mockResolvedValue({
+    tauriMocks.appSetPhase.mockResolvedValue({
       appPhase: 'plan_editable',
       hasGithubAuth: true,
       hasAnthropicKey: true,
       isSourceApplied: true,
-      scopeFinalized: true,
-      planFinalized: false,
     });
     tauriMocks.workspaceGet.mockResolvedValue({
       id: 'ws-1',
@@ -148,7 +146,7 @@ describe('ConfigStep — manual override tracking', () => {
       ...s,
       workspaceId: 'ws-1',
       appPhase: 'scope_editable',
-      phaseFacts: { ...s.phaseFacts, scopeFinalized: false },
+
     }));
     tauriMocks.migrationListScopeInventory.mockResolvedValue([
       { warehouseItemId: 'wh-1', schemaName: 'dbo', tableName: 'fact_sales', rowCount: 0, isSelected: true },
@@ -171,7 +169,7 @@ describe('ConfigStep — manual override tracking', () => {
       manualOverridesJson: null,
     });
     tauriMocks.migrationSaveTableConfig.mockResolvedValue(undefined);
-    tauriMocks.appSetPhaseFlags.mockResolvedValue({ appPhase: 'scope_editable', hasGithubAuth: true, hasAnthropicKey: true, isSourceApplied: true, scopeFinalized: false, planFinalized: false });
+    tauriMocks.appSetPhase.mockResolvedValue({ appPhase: 'scope_editable', hasGithubAuth: true, hasAnthropicKey: true, isSourceApplied: true });
     tauriMocks.workspaceGet.mockResolvedValue({ id: 'ws-1', displayName: 'W', migrationRepoName: 'a/b', migrationRepoPath: '/tmp', sourceType: 'sql_server', sourceServer: 'localhost', sourceDatabase: 'db', sourcePort: 1433, sourceAuthenticationMode: 'sql_password', sourceUsername: 'sa', sourcePassword: 'pw', sourceEncrypt: true, sourceTrustServerCertificate: false });
     tauriMocks.workspaceApplyStart.mockResolvedValue('job-1');
     tauriMocks.workspaceApplyStatus.mockResolvedValue({ state: 'succeeded', error: null });
@@ -229,7 +227,7 @@ describe('ConfigStep — manual override persistence', () => {
       ...s,
       workspaceId: 'ws-1',
       appPhase: 'scope_editable',
-      phaseFacts: { ...s.phaseFacts, scopeFinalized: false },
+
     }));
     tauriMocks.migrationListScopeInventory.mockResolvedValue([
       { warehouseItemId: 'wh-1', schemaName: 'dbo', tableName: 'fact_sales', rowCount: 0, isSelected: true },
@@ -252,7 +250,7 @@ describe('ConfigStep — manual override persistence', () => {
       manualOverridesJson: JSON.stringify(['tableType', 'loadStrategy']),
     });
     tauriMocks.migrationSaveTableConfig.mockResolvedValue(undefined);
-    tauriMocks.appSetPhaseFlags.mockResolvedValue({ appPhase: 'scope_editable', hasGithubAuth: true, hasAnthropicKey: true, isSourceApplied: true, scopeFinalized: false, planFinalized: false });
+    tauriMocks.appSetPhase.mockResolvedValue({ appPhase: 'scope_editable', hasGithubAuth: true, hasAnthropicKey: true, isSourceApplied: true });
     tauriMocks.workspaceGet.mockResolvedValue({ id: 'ws-1', displayName: 'W', migrationRepoName: 'a/b', migrationRepoPath: '/tmp', sourceType: 'sql_server', sourceServer: 'localhost', sourceDatabase: 'db', sourcePort: 1433, sourceAuthenticationMode: 'sql_password', sourceUsername: 'sa', sourcePassword: 'pw', sourceEncrypt: true, sourceTrustServerCertificate: false });
     tauriMocks.workspaceApplyStart.mockResolvedValue('job-1');
     tauriMocks.workspaceApplyStatus.mockResolvedValue({ state: 'succeeded', error: null });
@@ -279,13 +277,13 @@ describe('ConfigStep — Agent/Manual chip display', () => {
       ...s,
       workspaceId: 'ws-1',
       appPhase: 'scope_editable',
-      phaseFacts: { ...s.phaseFacts, scopeFinalized: false },
+
     }));
     tauriMocks.migrationListScopeInventory.mockResolvedValue([
       { warehouseItemId: 'wh-1', schemaName: 'dbo', tableName: 'fact_sales', rowCount: 0, isSelected: true },
     ]);
     tauriMocks.migrationSaveTableConfig.mockResolvedValue(undefined);
-    tauriMocks.appSetPhaseFlags.mockResolvedValue({ appPhase: 'scope_editable', hasGithubAuth: true, hasAnthropicKey: true, isSourceApplied: true, scopeFinalized: false, planFinalized: false });
+    tauriMocks.appSetPhase.mockResolvedValue({ appPhase: 'scope_editable', hasGithubAuth: true, hasAnthropicKey: true, isSourceApplied: true });
     tauriMocks.workspaceGet.mockResolvedValue({ id: 'ws-1', displayName: 'W', migrationRepoName: 'a/b', migrationRepoPath: '/tmp', sourceType: 'sql_server', sourceServer: 'localhost', sourceDatabase: 'db', sourcePort: 1433, sourceAuthenticationMode: 'sql_password', sourceUsername: 'sa', sourcePassword: 'pw', sourceEncrypt: true, sourceTrustServerCertificate: false });
     tauriMocks.workspaceApplyStart.mockResolvedValue('job-1');
     tauriMocks.workspaceApplyStatus.mockResolvedValue({ state: 'succeeded', error: null });
@@ -339,7 +337,7 @@ describe('ConfigStep — approval logic', () => {
       ...s,
       workspaceId: 'ws-1',
       appPhase: 'scope_editable',
-      phaseFacts: { ...s.phaseFacts, scopeFinalized: false },
+
     }));
     tauriMocks.migrationListScopeInventory.mockResolvedValue([
       { warehouseItemId: 'wh-1', schemaName: 'dbo', tableName: 'fact_sales', rowCount: 0, isSelected: true },
@@ -354,7 +352,7 @@ describe('ConfigStep — approval logic', () => {
       manualOverridesJson: null,
     });
     tauriMocks.migrationSaveTableConfig.mockResolvedValue(undefined);
-    tauriMocks.appSetPhaseFlags.mockResolvedValue({ appPhase: 'scope_editable', hasGithubAuth: true, hasAnthropicKey: true, isSourceApplied: true, scopeFinalized: false, planFinalized: false });
+    tauriMocks.appSetPhase.mockResolvedValue({ appPhase: 'scope_editable', hasGithubAuth: true, hasAnthropicKey: true, isSourceApplied: true });
     tauriMocks.workspaceGet.mockResolvedValue({ id: 'ws-1', displayName: 'W', migrationRepoName: 'a/b', migrationRepoPath: '/tmp', sourceType: 'sql_server', sourceServer: 'localhost', sourceDatabase: 'db', sourcePort: 1433, sourceAuthenticationMode: 'sql_password', sourceUsername: 'sa', sourcePassword: 'pw', sourceEncrypt: true, sourceTrustServerCertificate: false });
     tauriMocks.workspaceApplyStart.mockResolvedValue('job-1');
     tauriMocks.workspaceApplyStatus.mockResolvedValue({ state: 'succeeded', error: null });
@@ -395,13 +393,13 @@ describe('ConfigStep — approval UI state', () => {
       ...s,
       workspaceId: 'ws-1',
       appPhase: 'scope_editable',
-      phaseFacts: { ...s.phaseFacts, scopeFinalized: false },
+
     }));
     tauriMocks.migrationListScopeInventory.mockResolvedValue([
       { warehouseItemId: 'wh-1', schemaName: 'dbo', tableName: 'fact_sales', rowCount: 0, isSelected: true },
     ]);
     tauriMocks.migrationSaveTableConfig.mockResolvedValue(undefined);
-    tauriMocks.appSetPhaseFlags.mockResolvedValue({ appPhase: 'scope_editable', hasGithubAuth: true, hasAnthropicKey: true, isSourceApplied: true, scopeFinalized: false, planFinalized: false });
+    tauriMocks.appSetPhase.mockResolvedValue({ appPhase: 'scope_editable', hasGithubAuth: true, hasAnthropicKey: true, isSourceApplied: true });
     tauriMocks.workspaceGet.mockResolvedValue({ id: 'ws-1', displayName: 'W', migrationRepoName: 'a/b', migrationRepoPath: '/tmp', sourceType: 'sql_server', sourceServer: 'localhost', sourceDatabase: 'db', sourcePort: 1433, sourceAuthenticationMode: 'sql_password', sourceUsername: 'sa', sourcePassword: 'pw', sourceEncrypt: true, sourceTrustServerCertificate: false });
     tauriMocks.workspaceApplyStart.mockResolvedValue('job-1');
     tauriMocks.workspaceApplyStatus.mockResolvedValue({ state: 'succeeded', error: null });

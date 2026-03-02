@@ -76,8 +76,6 @@ pub struct AppPhaseState {
     pub has_github_auth: bool,
     pub has_anthropic_key: bool,
     pub is_source_applied: bool,
-    pub scope_finalized: bool,
-    pub plan_finalized: bool,
 }
 
 // ── GitHub OAuth types ────────────────────────────────────────────────────────

@@ -59,16 +59,12 @@ describe('MonitorSurface', () => {
         hasGithubAuth: true,
         hasAnthropicKey: true,
         isSourceApplied: true,
-        scopeFinalized: true,
-        planFinalized: true,
       },
       app_hydrate_phase: {
         appPhase: 'ready_to_run',
         hasGithubAuth: true,
         hasAnthropicKey: true,
         isSourceApplied: true,
-        scopeFinalized: true,
-        planFinalized: true,
       },
       monitor_launch_agent: 'agent output',
     });
@@ -119,8 +115,6 @@ describe('MonitorSurface', () => {
           hasGithubAuth: true,
           hasAnthropicKey: true,
           isSourceApplied: true,
-          scopeFinalized: true,
-          planFinalized: true,
         });
       }
       if (cmd === 'monitor_launch_agent') {

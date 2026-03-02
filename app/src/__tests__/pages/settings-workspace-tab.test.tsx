@@ -24,8 +24,6 @@ describe('WorkspaceTab (Settings)', () => {
     hasGithubAuth: true,
     hasAnthropicKey: true,
     isSourceApplied: true,
-    scopeFinalized: false,
-    planFinalized: false,
   };
 
   beforeEach(() => {

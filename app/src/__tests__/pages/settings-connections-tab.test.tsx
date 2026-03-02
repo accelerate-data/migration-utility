@@ -24,8 +24,6 @@ const PHASE_STATE = {
   hasGithubAuth: false,
   hasAnthropicKey: false,
   isSourceApplied: false,
-  scopeFinalized: false,
-  planFinalized: false,
 };
 
 function renderTab() {

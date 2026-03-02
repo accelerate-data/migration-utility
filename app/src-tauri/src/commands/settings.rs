@@ -32,10 +32,6 @@ pub fn save_anthropic_api_key(
         log::error!("[save_anthropic_api_key] write_settings failed: {}", e);
         e
     })?;
-    let _ = crate::db::reconcile_and_persist_app_phase(&conn).map_err(|e| {
-        log::error!("[save_anthropic_api_key] reconcile_app_phase failed: {}", e);
-        e
-    })?;
     Ok(())
 }
 
@@ -61,31 +57,10 @@ pub fn app_set_phase(
     })?;
     let phase = AppPhase::from_str(app_phase.as_str())
         .ok_or_else(|| format!("Unsupported app phase: {}", app_phase))?;
+    if phase == AppPhase::SetupRequired {
+        return Err("Cannot explicitly set phase to setup_required".to_string());
+    }
     crate::db::write_app_phase(&conn, phase)?;
-    crate::db::read_current_app_phase_state(&conn)
-}
-
-#[tauri::command]
-pub fn app_set_phase_flags(
-    state: State<'_, DbState>,
-    scope_finalized: Option<bool>,
-    plan_finalized: Option<bool>,
-) -> Result<AppPhaseState, String> {
-    log::info!(
-        "[app_set_phase_flags] scope_finalized={:?} plan_finalized={:?}",
-        scope_finalized,
-        plan_finalized
-    );
-    let conn = state.0.lock().map_err(|e| {
-        log::error!("[app_set_phase_flags] Failed to acquire DB lock: {}", e);
-        e.to_string()
-    })?;
-    if let Some(value) = scope_finalized {
-        crate::db::write_scope_finalized(&conn, value)?;
-    }
-    if let Some(value) = plan_finalized {
-        crate::db::write_plan_finalized(&conn, value)?;
-    }
     crate::db::reconcile_and_persist_app_phase(&conn)
 }
 

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
-  appSetPhaseFlags,
+  appSetPhase,
   migrationAnalyzeTableDetails,
   migrationApproveTableConfig,
   migrationGetTableConfig,
@@ -79,8 +79,8 @@ function isReady(config: TableConfigPayload | null | undefined): boolean {
 
 export default function ConfigStep() {
   const navigate = useNavigate();
-  const { workspaceId, appPhase, phaseFacts, setAppPhaseState } = useWorkflowStore();
-  const isLocked = phaseFacts.scopeFinalized || appPhase === 'running_locked';
+  const { workspaceId, appPhase, appPhaseHydrated, setAppPhaseState } = useWorkflowStore();
+  const isLocked = appPhaseHydrated && appPhase !== 'scope_editable';
 
   const [rows, setRows] = useState<SelectedTableRow[]>([]);
   const [configsById, setConfigsById] = useState<Record<string, TableConfigPayload | null>>({});
@@ -324,10 +324,12 @@ export default function ConfigStep() {
 
   async function finalizeScope() {
     if (isLocked) return;
+    logger.info('scope: finalizing scope');
     try {
-      const phase = await appSetPhaseFlags({ scopeFinalized: true });
+      const phase = await appSetPhase('plan_editable');
       setAppPhaseState(phase);
       setMessage('Scope finalized just now');
+      logger.info('scope: finalize scope succeeded');
     } catch (err) {
       logger.error('finalize scope failed', err);
       setError(err instanceof Error ? err.message : String(err));

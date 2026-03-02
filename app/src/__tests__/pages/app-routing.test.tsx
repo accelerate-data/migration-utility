@@ -33,8 +33,6 @@ describe('App routing guards', () => {
         hasGithubAuth: false,
         hasAnthropicKey: false,
         isSourceApplied: false,
-        scopeFinalized: false,
-        planFinalized: false,
       },
       github_get_user: null,
       get_settings: { anthropicApiKey: null },

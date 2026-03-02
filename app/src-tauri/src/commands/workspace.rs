@@ -1536,8 +1536,8 @@ fn run_workspace_apply_with_conn(
         Some(app),
         Some(job_id),
     )?;
-    crate::db::write_scope_finalized(conn, false).map_err(CommandError::Io)?;
-    crate::db::write_plan_finalized(conn, false).map_err(CommandError::Io)?;
+    // Reset to scope_editable so a re-apply always starts fresh from the scoping phase.
+    crate::db::write_app_phase(conn, crate::types::AppPhase::ScopeEditable).map_err(CommandError::Io)?;
     let _ = crate::db::reconcile_and_persist_app_phase(conn).map_err(CommandError::Io)?;
 
     emit_apply_progress(app, job_id, "completed", 100, "Apply completed.");
@@ -1916,9 +1916,8 @@ pub fn workspace_reset_state(state: State<DbState>) -> Result<(), CommandError> 
     }
 
     clear_workspace_state(&conn)?;
-    crate::db::write_scope_finalized(&conn, false).map_err(CommandError::Io)?;
-    crate::db::write_plan_finalized(&conn, false).map_err(CommandError::Io)?;
-    let _ = crate::db::reconcile_and_persist_app_phase(&conn).map_err(CommandError::Io)?;
+    // Source was removed — return to setup so the user must re-apply.
+    crate::db::write_app_phase(&conn, crate::types::AppPhase::SetupRequired).map_err(CommandError::Io)?;
     Ok(())
 }
 

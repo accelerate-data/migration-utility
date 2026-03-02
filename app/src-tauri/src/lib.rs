@@ -59,7 +59,6 @@ pub fn run() {
             commands::settings::test_api_key,
             commands::settings::app_hydrate_phase,
             commands::settings::app_set_phase,
-            commands::settings::app_set_phase_flags,
             commands::workspace::workspace_create,
             commands::workspace::workspace_apply_and_clone,
             commands::workspace::workspace_apply_start,

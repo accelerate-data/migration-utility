@@ -22,8 +22,6 @@ describe('useWorkflowStore', () => {
         hasGithubAuth: false,
         hasAnthropicKey: false,
         isSourceApplied: false,
-        scopeFinalized: false,
-        planFinalized: false,
       },
     }));
   });
@@ -98,8 +96,6 @@ describe('useWorkflowStore', () => {
       hasGithubAuth: true,
       hasAnthropicKey: true,
       isSourceApplied: true,
-      scopeFinalized: true,
-      planFinalized: true,
     });
     const state = useWorkflowStore.getState();
     expect(state.appPhase).toBe('running_locked');
