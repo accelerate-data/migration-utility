@@ -40,10 +40,10 @@ export function buildQueryOptions(
     // user's MCP servers anyway (those are CLI-process-only).
     settingSources: ['project' as const],
     cwd: config.cwd,
-    // Always pass the tool restriction when set. For agent runs, Rust extracts
+    // Whitelist filter over the loaded tool set. For agent runs, Rust extracts
     // allowedTools from the agent's front-matter and includes it in the payload;
     // forwarding it here enforces the front-matter tool policy at the SDK level.
-    ...(config.allowedTools ? { tools: config.allowedTools } : {}),
+    ...(config.allowedTools ? { allowedTools: config.allowedTools } : {}),
     // Suppress all MCP server loading. The agent cwd may have project settings
     // that reference user claude.ai MCP integrations (Gmail, Slack, Linear, etc.)
     // which are irrelevant to analysis agents and inflate the tool list.
@@ -54,6 +54,10 @@ export function buildQueryOptions(
       | "acceptEdits"
       | "bypassPermissions"
       | "plan",
+    // Required by SDK when using permissionMode: 'bypassPermissions'.
+    allowDangerouslySkipPermissions: true,
+    // Analysis agents are ephemeral — no need to persist session state to disk.
+    persistSession: false,
     abortController,
     // Use the same Node binary that's running this sidecar process,
     // so the SDK spawns cli.js with a compatible Node version.
@@ -64,6 +68,9 @@ export function buildQueryOptions(
     ...(config.sessionId ? { resume: config.sessionId } : {}),
     ...(config.betas ? { betas: config.betas as Options['betas'] } : {}),
     ...(config.maxThinkingTokens ? { maxThinkingTokens: config.maxThinkingTokens } : {}),
+    ...(config.effort ? { effort: config.effort } : {}),
+    ...(config.debugFile ? { debugFile: config.debugFile } : {}),
+    ...(config.debug ? { debug: config.debug } : {}),
     ...(stderr ? { stderr } : {}),
   };
 }

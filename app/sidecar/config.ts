@@ -11,6 +11,9 @@ export interface SidecarConfig {
   betas?: string[];
   maxThinkingTokens?: number;
   pathToClaudeCodeExecutable?: string;
+  effort?: 'low' | 'medium' | 'high' | 'max';
+  debug?: boolean;
+  debugFile?: string;
 }
 
 /**
