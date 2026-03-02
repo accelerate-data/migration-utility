@@ -96,19 +96,20 @@ describe('ConfigStep — multi-table navigation', () => {
     tauriMocks.migrationReconcileScopeState.mockResolvedValue({ kept: 2, invalidated: 0, removed: 0 });
   });
 
-  it('shows both tables in dropdown and switches detail panel on selection', async () => {
+  it('shows both tables in sidebar and switches detail panel on selection', async () => {
     renderStep();
     await screen.findAllByRole('combobox');
-    const selectedTable = screen.getAllByRole('combobox')[0];
-    expect(screen.getByText(/dbo\.dim_customer/i)).toBeInTheDocument();
 
-    // Initially fact_sales is active — detail panel shows it
+    // Both table names are visible in the sidebar
+    expect(screen.getByRole('button', { name: /dim_customer/i })).toBeInTheDocument();
+
+    // Initially fact_sales is active — detail panel header shows it
     await waitFor(() => {
       expect(screen.getAllByText(/dbo\.fact_sales/i).length).toBeGreaterThan(0);
     });
 
-    // Select dim_customer in dropdown
-    fireEvent.change(selectedTable, { target: { value: 'st:ws-1:wh-2:dbo:dim_customer' } });
+    // Select dim_customer from the sidebar
+    fireEvent.click(screen.getByRole('button', { name: /dim_customer/i }));
     await waitFor(() => {
       expect(screen.getAllByText(/dbo\.dim_customer/i).length).toBeGreaterThan(0);
     });
