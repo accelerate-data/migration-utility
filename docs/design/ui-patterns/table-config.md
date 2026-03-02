@@ -1,99 +1,158 @@
 # Table Config
 
-Route: `/config` — Step 4
+Route: `/scope/config` — Scope Step 2
 
 ## Pattern
 
-**Master-detail split layout.** Table list on the left (~40%), card-based form sections on the right (~60%). Modelled on Azure Data Studio's migration wizard (database list left, per-database config right).
+**Master-detail split layout.** Table list on the left (300px fixed), card-based form sections on
+the right. Modelled on Azure Data Studio's migration wizard.
 
-A wide inline table with 7+ config columns per row requires horizontal scroll and makes it impossible to scan or compare rows. The master-detail split keeps both the list and the active form visible simultaneously.
+## Component Architecture
+
+```text
+ConfigStep (orchestrator)
+├── ConfigStepHeader        — progress counts, Refresh Schema, Finalize Scope, tab nav
+├── TableListSidebar        — schema-grouped list, approval indicators, validation badges
+└── Detail panel (right)
+    ├── CoreFieldsSection   — table type, load strategy, CDC column, canonical date column
+    ├── PiiSection          — multi-select pills for PII columns
+    ├── RelationshipsSection — grain columns multi-select + read-only relationship cards
+    ├── ScdSection          — snapshot strategy (dimensions only)
+    └── Agent Analysis & Approval panel (shown after first analysis)
+        ├── AgentRationaleSection — collapsible accordion, confidence scores, reasoning
+        └── ApprovalActions       — approve button, approval status, timestamp
+```
 
 ## Layout
 
 ```text
 ┌─────────────────────────┬─────────────────────────────────────────┐
-│ Tables (12)             │ fact_sales                              │
-│ [Search...]             │ dbo · Stored procedure: usp_load_fact_  │
+│ dbo (3 selected)        │ dbo.fact_sales                          │
+│  fact_sales      ✓      │ Migration metadata required for build.  │
+│  dim_customer    2      │                          [Analyze again] │
+│  dim_product            │                                         │
+│                         │ Table type:    [Fact ▼]        [Agent]  │
+│                         │ Load strategy: [Incremental ▼] [Agent]  │
+│                         │ CDC column:    [load_date ▼]   [Manual] │
+│                         │ Date column:   [sale_date ▼]   [Agent]  │
 │                         │                                         │
-│ ● fact_sales     ✓      │ ┌── Classification ──────────────────┐  │
-│ ○ dim_customer   ●      │ │ Table type:      [Fact ▼]          │  │
-│ ○ dim_product           │ │ Load strategy:   [Incremental ▼]   │  │
-│ ○ silver_revenue        │ └────────────────────────────────────┘  │
-│ ○ gold_summary          │ ┌── Incremental Config ──────────────┐  │
-│                         │ │ Incremental col: [load_date ▼]     │  │
-│                         │ │ Date column:     [sale_date ▼]     │  │
-│                         │ └────────────────────────────────────┘  │
-│                         │ ┌── Snapshot ────────────────────────┐  │
-│                         │ │ Strategy:       [sample_1day ▼]    │  │
-│                         │ └────────────────────────────────────┘  │
-│                         │ ┌── PII Columns ─────────────────────┐  │
-│                         │ │ [customer_email ×] [customer_ph ×] │  │
-│                         │ │ + Add column                       │  │
-│                         │ └────────────────────────────────────┘  │
+│                         │ PII columns:                            │
+│                         │ [customer_email ×] [customer_phone ×]   │
 │                         │                                         │
-│                         │              [Confirm table →]          │
+│                         │ Grain columns:                          │
+│                         │ [order_id ×] [sale_date ×]              │
+│                         │                                         │
+│                         │ Relationships:                          │
+│                         │ ┌─ Relationship 1 ──── ✓ Valid ───────┐ │
+│                         │ │ child: customer_id                  │ │
+│                         │ │ parent: dbo.dim_customer.id         │ │
+│                         │ └─────────────────────────────────────┘ │
+│                         │                                         │
+│                         │ ▶ Agent Analysis Rationale              │
+│                         │                                         │
+│                         │ ┌─ Approval ──────────────────────────┐ │
+│                         │ │ Pending approval  [Approve Config]  │ │
+│                         │ └─────────────────────────────────────┘ │
 └─────────────────────────┴─────────────────────────────────────────┘
 ```
 
 ## Left Panel — Table List
 
-Each row shows: table name (`font-mono`), schema, and a confirmation status indicator:
+Each row shows the table name (`font-mono text-xs`) and two optional indicators:
 
 | Indicator | Meaning |
 |-----------|---------|
-| No badge | Not yet opened |
-| Muted dot | Opened, not confirmed |
-| Seafoam `CheckCircle2` | `confirmed_at` is set |
+| Seafoam `✓` | `approval_status = 'approved'` |
+| Red badge with count | Validation errors on relationships |
 
-Clicking a row loads that table's config into the right panel. The selected row gets a `bg-accent` highlight.
+Active row gets `bg-primary/10`. Loading state shows a `Loader2` spinner.
 
 ## Right Panel — Form Sections
 
-Each section is a `Card` with a title and grouped fields. Sections are separated by `Separator`.
+### CoreFieldsSection
 
-### Field Types
+Dropdowns for `tableType`, `loadStrategy`, `incrementalColumn` (CDC column), and `dateColumn`
+(canonical date column). Each field with a value shows an **Agent** (seafoam) or **Manual**
+(pacific) chip based on `manualOverridesJson`. Column dropdowns (`incrementalColumn`,
+`dateColumn`) populate from `availableColumns` discovered during workspace apply, sorted
+alphabetically and displayed as `column_name (data_type)`.
 
-| Field | Component | Source |
-|-------|-----------|--------|
-| `table_type` | `Select` | Enum: `fact`, `dimension`, `other` |
-| `load_strategy` | `Select` | Enum: `incremental`, `full_refresh` |
-| `snapshot_strategy` | `Select` | Enum: `full`, `sample_1day` |
-| `incremental_column` | `Combobox` | Column names from `warehouse_schemas` for this table |
-| `date_column` | `Combobox` | Column names from `warehouse_schemas` |
-| `grain_columns` | Multi-select `Combobox` | Column names from `warehouse_schemas` |
-| `pii_columns` | Badge chips with `×` | Column names, add via Combobox |
+### PiiSection
 
-## Agent Suggestion Indicators
+`MultiSelectColumns` component — searchable autocomplete input with removable pills. Stores as
+JSON array in `piiColumns`.
 
-The agent pre-populates config fields via candidacy analysis. Pre-filled fields show a pacific left border to signal "AI suggested":
+### RelationshipsSection
 
-```tsx
-style={{ borderLeft: "2px solid var(--color-pacific)" }}
-```
+Two sub-sections:
 
-When the FDE edits a pre-filled field, the border reverts to default — the field is now FDE-owned. A `Wand2` lucide icon alongside the label can optionally reinforce the AI origin.
+- **Grain columns** — `MultiSelectColumns`, stored as comma-separated string in `grainColumns`
+- **Relationships** — read-only cards from agent analysis (`relationshipsJson`), each validated
+  in real-time via `migrationValidateRelationship`. Validation status shown as Valid (seafoam)
+  or Invalid (destructive) chips with per-error detail text. Relationships are agent-supplied
+  only; manual add/remove is not implemented (post-MVP).
+
+### ScdSection
+
+Single `snapshotStrategy` dropdown (`sample_1day`, `full`, `full_flagged`), disabled unless
+`tableType === 'dimension'`.
+
+### AgentRationaleSection
+
+Collapsible `Accordion` (shadcn/ui). `analysisMetadataJson` is a flat JSON object keyed by
+field name, each value having `{ value, confidence, reasoning }`. One accordion item per field.
+Shows confidence score badge (seafoam ≥ 80%, pacific ≥ 60%) and reasoning text. Fields listed
+in `manualOverridesJson` are hidden.
+
+### ApprovalActions
+
+Shown only when `confirmedAt` is set (i.e., after first save/analysis). Approve button calls
+`migrationApproveTableConfig`. After approval shows timestamp and seafoam `✓ Approved` badge.
+Validation error count displayed with `AlertCircle` icon. Approval is never blocked — users
+can approve at any time regardless of validation state.
+
+## Agent/Manual Chip Logic
+
+`manualOverridesJson` is a JSON array of field names the user has edited. On every field change,
+`updateDraft` appends the field name to this array. Chips are rendered by `CoreFieldsSection`
+based on whether the field name is in the array.
 
 ## Autosave
 
-Call `table_config_save` on every field change (blur or select), debounced 500ms. The "Confirm" button is separate — it sets `confirmed_at` and updates the left panel status indicator. Autosave prevents data loss; Confirm signals the FDE has intentionally reviewed all fields.
+500ms debounce on every field change. `confirmedAt` is set to `now()` on each save. No explicit
+save button.
+
+## Validation
+
+Relationship validation runs automatically when `relationshipsJson` changes. Results are stored
+in component state and reported to `ConfigStep` via `onValidationChange`. The sidebar shows error
+counts; `ApprovalActions` shows the total. Validation errors do not block approval.
+
+## State Indicators
+
+Follows `.claude/rules/frontend-design.md` state indicator conventions:
+
+| State | Color | Usage |
+|-------|-------|-------|
+| Approved | `var(--color-seafoam)` | Sidebar checkmark, approval badge |
+| Agent-inferred | `var(--color-seafoam)` | Agent chip background |
+| Manual override | `var(--color-pacific)` | Manual chip background |
+| Validation error | `text-destructive` / `bg-destructive/15` | Error badges, error messages |
+| Loading | `Loader2 animate-spin` | Sidebar loading state |
 
 ## Components
 
 | Component | Use |
 |-----------|-----|
-| `ResizablePanelGroup` + `ResizablePanel` | Left/right split (or fixed CSS grid if resizing is not needed) |
-| `Select` | Enum fields |
-| `Combobox` | Column name pickers (searchable) |
-| `Badge` | PII column chips |
-| `Card`, `Separator` | Form section containers |
-| `Button` | Confirm, Add column |
-| `Input` | Left panel search |
-| `ScrollArea` | Left panel list if > 10 tables |
+| `MultiSelectColumns` | PII columns, grain columns (searchable pills) |
+| `Accordion` | Agent rationale collapsible |
+| `Badge` | Agent/Manual chips |
+| `Button` | Approve, Analyze again, Refresh schema, Finalize scope |
+| `AlertCircle` | Error state icons |
+| `Loader2` | Loading state icon |
 
 ## References
 
-- [Azure SQL Migration Extension for Azure Data Studio](https://learn.microsoft.com/en-us/azure-data-studio/extensions/azure-sql-migration-extension)
-- [Master-Detail Pattern — Medium](https://medium.com/@lucasurbas/case-study-master-detail-pattern-revisited-86c0ed7fc3e)
-- [Fivetran per-row sync mode dropdowns](https://fivetran.com/docs/using-fivetran/fivetran-dashboard/connectors/schema)
-- [shadcn/ui Combobox](https://ui.shadcn.com/docs/components/combobox)
-- [shadcn/ui Resizable](https://ui.shadcn.com/docs/components/resizable)
+- Implementation: `app/src/routes/scope/config-step.tsx`
+- Components: `app/src/components/scope/`
+- DB schema: `app/src-tauri/migrations/010_table_config_approval.sql`
