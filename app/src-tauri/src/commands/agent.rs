@@ -129,14 +129,16 @@ async fn launch_agent_with_transcript_config(
             .ok_or_else(|| "Anthropic API key is not configured in Settings".to_string())?;
 
         let working_directory = resolve_working_directory(&app)?;
-        let allowed_tools = agent_name
+        let front_matter = agent_name
             .as_deref()
-            .and_then(|name| parse_agent_allowed_tools(&working_directory, name));
+            .and_then(|name| parse_agent_front_matter(&working_directory, name));
+        let resolved_model = model.or_else(|| front_matter.as_ref().and_then(|fm| fm.model.clone()));
+        let allowed_tools = front_matter.and_then(|fm| fm.allowed_tools);
         build_request(
             prompt,
             system_prompt,
             agent_name,
-            model,
+            resolved_model,
             allowed_tools,
             api_key,
             working_directory,
@@ -608,7 +610,12 @@ fn build_request(
     }
 }
 
-fn parse_agent_allowed_tools(working_dir: &str, agent_name: &str) -> Option<Vec<String>> {
+struct AgentFrontMatter {
+    model: Option<String>,
+    allowed_tools: Option<Vec<String>>,
+}
+
+fn parse_agent_front_matter(working_dir: &str, agent_name: &str) -> Option<AgentFrontMatter> {
     let path = PathBuf::from(working_dir)
         .join(".claude")
         .join("agents")
@@ -618,31 +625,38 @@ fn parse_agent_allowed_tools(working_dir: &str, agent_name: &str) -> Option<Vec<
     let end = after_open.find("\n---")?;
     let front_matter = &after_open[..end];
 
-    let tools_pos = front_matter.find("tools:")?;
-    let after_tools = &front_matter[tools_pos + 6..];
+    let model = front_matter.lines().find_map(|line| {
+        let rest = line.strip_prefix("model:")?.trim();
+        if rest.is_empty() { None } else { Some(rest.to_string()) }
+    });
 
-    // Inline list: tools: [Bash, Computer]
-    let first = after_tools.lines().next()?.trim();
-    if first.starts_with('[') {
-        let inner = first.trim_start_matches('[').trim_end_matches(']');
-        let tools: Vec<String> = inner
-            .split(',')
-            .map(|s| s.trim().trim_matches('"').to_string())
-            .filter(|s| !s.is_empty())
-            .collect();
-        return if tools.is_empty() { None } else { Some(tools) };
-    }
+    let allowed_tools = front_matter.find("tools:").and_then(|pos| {
+        let after_tools = &front_matter[pos + 6..];
+        let first = after_tools.lines().next()?.trim();
+        if first.starts_with('[') {
+            // Inline list: tools: [Bash, Computer]
+            let inner = first.trim_start_matches('[').trim_end_matches(']');
+            let tools: Vec<String> = inner
+                .split(',')
+                .map(|s| s.trim().trim_matches('"').to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            if tools.is_empty() { None } else { Some(tools) }
+        } else {
+            // Block list:
+            //   - Bash
+            //   - Computer
+            let tools: Vec<String> = after_tools
+                .lines()
+                .skip(1)
+                .take_while(|l| l.trim().starts_with("- "))
+                .map(|l| l.trim().trim_start_matches("- ").trim_matches('"').to_string())
+                .collect();
+            if tools.is_empty() { None } else { Some(tools) }
+        }
+    });
 
-    // Block list:
-    //   - Bash
-    //   - Computer
-    let tools: Vec<String> = after_tools
-        .lines()
-        .skip(1)
-        .take_while(|l| l.trim().starts_with("- "))
-        .map(|l| l.trim().trim_start_matches("- ").trim_matches('"').to_string())
-        .collect();
-    if tools.is_empty() { None } else { Some(tools) }
+    Some(AgentFrontMatter { model, allowed_tools })
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -741,7 +755,7 @@ fn handle_sidecar_line(
 #[cfg(test)]
 mod tests {
     use super::{
-        append_request_scoped_sidecar_line, build_request, handle_sidecar_line, parse_agent_allowed_tools,
+        append_request_scoped_sidecar_line, build_request, handle_sidecar_line, parse_agent_front_matter,
         parse_message_type, prepare_log_path, read_sidecar_line_with_heartbeat, transcript_config_line,
         wait_for_sidecar_message, HeartbeatState, SidecarLineResult,
     };
@@ -981,48 +995,61 @@ mod tests {
         assert!(err.contains("did not emit pong within"));
     }
 
-    #[test]
-    fn parse_agent_allowed_tools_block_list() {
-        let tmp = tempfile::tempdir().unwrap();
-        let agents_dir = tmp.path().join(".claude").join("agents");
-        fs::create_dir_all(&agents_dir).unwrap();
-        fs::write(
-            agents_dir.join("my-agent.md"),
-            "---\nname: my-agent\nmodel: claude-haiku-4-5\ntools:\n  - Bash\n  - Computer\n---\n\nContent here.\n",
-        ).unwrap();
-        let tools = parse_agent_allowed_tools(tmp.path().to_str().unwrap(), "my-agent").unwrap();
-        assert_eq!(tools, vec!["Bash", "Computer"]);
+    fn write_agent(agents_dir: &std::path::Path, name: &str, content: &str) {
+        fs::write(agents_dir.join(format!("{name}.md")), content).unwrap();
     }
 
     #[test]
-    fn parse_agent_allowed_tools_inline_list() {
+    fn parse_front_matter_block_tools_and_model() {
         let tmp = tempfile::tempdir().unwrap();
         let agents_dir = tmp.path().join(".claude").join("agents");
         fs::create_dir_all(&agents_dir).unwrap();
-        fs::write(
-            agents_dir.join("my-agent.md"),
-            "---\ntools: [Bash, Computer]\n---\n\nContent.\n",
-        ).unwrap();
-        let tools = parse_agent_allowed_tools(tmp.path().to_str().unwrap(), "my-agent").unwrap();
-        assert_eq!(tools, vec!["Bash", "Computer"]);
+        write_agent(
+            &agents_dir,
+            "my-agent",
+            "---\nname: my-agent\nmodel: claude-haiku-4-5\ntools:\n  - Bash\n  - Computer\n---\n\nContent.\n",
+        );
+        let fm = parse_agent_front_matter(tmp.path().to_str().unwrap(), "my-agent").unwrap();
+        assert_eq!(fm.model.as_deref(), Some("claude-haiku-4-5"));
+        assert_eq!(fm.allowed_tools.unwrap(), vec!["Bash", "Computer"]);
     }
 
     #[test]
-    fn parse_agent_allowed_tools_missing_file_returns_none() {
-        let tmp = tempfile::tempdir().unwrap();
-        assert!(parse_agent_allowed_tools(tmp.path().to_str().unwrap(), "no-such-agent").is_none());
-    }
-
-    #[test]
-    fn parse_agent_allowed_tools_no_tools_field_returns_none() {
+    fn parse_front_matter_inline_tools() {
         let tmp = tempfile::tempdir().unwrap();
         let agents_dir = tmp.path().join(".claude").join("agents");
         fs::create_dir_all(&agents_dir).unwrap();
-        fs::write(
-            agents_dir.join("my-agent.md"),
-            "---\nname: my-agent\nmodel: claude-haiku-4-5\n---\n\nContent.\n",
-        ).unwrap();
-        assert!(parse_agent_allowed_tools(tmp.path().to_str().unwrap(), "my-agent").is_none());
+        write_agent(&agents_dir, "my-agent", "---\ntools: [Bash, Computer]\n---\n\nContent.\n");
+        let fm = parse_agent_front_matter(tmp.path().to_str().unwrap(), "my-agent").unwrap();
+        assert_eq!(fm.allowed_tools.unwrap(), vec!["Bash", "Computer"]);
+    }
+
+    #[test]
+    fn parse_front_matter_missing_file_returns_none() {
+        let tmp = tempfile::tempdir().unwrap();
+        assert!(parse_agent_front_matter(tmp.path().to_str().unwrap(), "no-such-agent").is_none());
+    }
+
+    #[test]
+    fn parse_front_matter_no_tools_returns_none_tools() {
+        let tmp = tempfile::tempdir().unwrap();
+        let agents_dir = tmp.path().join(".claude").join("agents");
+        fs::create_dir_all(&agents_dir).unwrap();
+        write_agent(&agents_dir, "my-agent", "---\nname: my-agent\nmodel: claude-haiku-4-5\n---\n\nContent.\n");
+        let fm = parse_agent_front_matter(tmp.path().to_str().unwrap(), "my-agent").unwrap();
+        assert_eq!(fm.model.as_deref(), Some("claude-haiku-4-5"));
+        assert!(fm.allowed_tools.is_none());
+    }
+
+    #[test]
+    fn parse_front_matter_no_model_returns_none_model() {
+        let tmp = tempfile::tempdir().unwrap();
+        let agents_dir = tmp.path().join(".claude").join("agents");
+        fs::create_dir_all(&agents_dir).unwrap();
+        write_agent(&agents_dir, "my-agent", "---\ntools:\n  - Bash\n---\n\nContent.\n");
+        let fm = parse_agent_front_matter(tmp.path().to_str().unwrap(), "my-agent").unwrap();
+        assert!(fm.model.is_none());
+        assert_eq!(fm.allowed_tools.unwrap(), vec!["Bash"]);
     }
 
     #[test]
