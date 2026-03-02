@@ -2,40 +2,32 @@
 
 ## Scope
 
-Defines the two-step scoping flow: selecting tables from the source warehouse and configuring
-migration metadata for each selected table.
+Defines the two-step scoping flow: selecting tables from the source warehouse and configuring migration metadata for each selected table.
 
 ## User Journey
 
-The scoping flow is the first substantive step after workspace setup. The user selects which
-tables to migrate, then provides the metadata the migration agent needs to generate correct dbt
-models.
+The scoping flow is the first substantive step after workspace setup. The user selects which tables to migrate, then provides the metadata the migration agent needs to generate correct dbt models.
 
 Two sub-steps, accessed via the scope step nav:
 
 1. **Select** — choose tables from the discovered source schema
 2. **Table Config** — review agent analysis and configure each selected table
 
-The flow is non-blocking: users can move between steps freely and return to edit at any time
-until scope is finalized.
+The flow is non-blocking: users can move between steps freely and return to edit at any time until scope is finalized.
 
 ## Step 1: Table Selection
 
-The user browses the source warehouse schema (grouped by schema name) and marks tables for
-migration. Only selected tables proceed to Table Config and downstream planning.
+The user browses the source warehouse schema (grouped by schema name) and marks tables for migration. Only selected tables proceed to Table Config and downstream planning.
 
-Refresh Schema re-runs workspace apply to pick up schema changes and reconciles the selection
-state (keeps valid selections, removes tables that no longer exist).
+Refresh Schema re-runs workspace apply to pick up schema changes and reconciles the selection state (keeps valid selections, removes tables that no longer exist).
 
 ## Step 2: Table Config
 
-Master-detail layout. Left panel lists selected tables grouped by schema. Right panel shows the
-config form for the active table.
+Master-detail layout. Left panel lists selected tables grouped by schema. Right panel shows the config form for the active table.
 
 ### Agent Analysis
 
-On first load, the app auto-triggers agent analysis for each table. The agent inspects the table
-schema and infers:
+On first load, the app auto-triggers agent analysis for each table. The agent inspects the table schema and infers:
 
 - Table type (fact / dimension / unknown)
 - Load strategy (incremental / full refresh / snapshot)
@@ -45,8 +37,7 @@ schema and infers:
 - Relationships (foreign key edges with cardinality)
 - PII columns
 
-Analysis results are saved to the database and pre-fill the form. The user can re-trigger
-analysis at any time with "Analyze again".
+Analysis results are saved to the database and pre-fill the form. The user can re-trigger analysis at any time with "Analyze again".
 
 ### Form Fields
 
@@ -63,14 +54,11 @@ analysis at any time with "Analyze again".
 
 ### Agent vs Manual Provenance
 
-Each field tracks whether its current value came from the agent or was manually edited by the
-user. An **Agent** chip (seafoam) or **Manual** chip (pacific) appears next to each populated
-field. Editing any field marks it as manual; the agent metadata is preserved for audit.
+Each field tracks whether its current value came from the agent or was manually edited by the user. An **Agent** chip (seafoam) or **Manual** chip (pacific) appears next to each populated field. Editing any field marks it as manual; the agent metadata is preserved for audit.
 
 ### Agent Analysis Rationale
 
-A collapsible accordion below the form shows the agent's reasoning and confidence score for each
-inferred field. Fields the user has manually overridden are hidden from the rationale panel.
+A collapsible accordion below the form shows the agent's reasoning and confidence score for each inferred field. Fields the user has manually overridden are hidden from the rationale panel.
 
 ### Relationship Validation
 
@@ -80,25 +68,19 @@ Relationships from agent analysis are validated in real-time:
 - Child column must exist in the current table's discovered columns
 - Parent column must exist in the parent table's discovered columns
 
-Validation status (Valid / Invalid) is shown on each relationship card. Invalid relationships
-surface an error count badge in the table list sidebar. Validation errors do not block approval.
+Validation status (Valid / Invalid) is shown on each relationship card. Invalid relationships surface an error count badge in the table list sidebar. Validation errors do not block approval.
 
 ### Auto-save
 
-Every field change triggers a 500ms debounced save. No explicit save button. `confirmed_at` is
-stamped on each save and gates display of the approval panel.
+Every field change triggers a 500ms debounced save. No explicit save button. `confirmed_at` is stamped on each save and gates display of the approval panel.
 
 ### Approval
 
-After first analysis, an approval panel appears below the form. The user clicks **Approve
-Configuration** to mark the table as reviewed. Approval is always available regardless of
-validation state — the user decides when a table is ready.
+After first analysis, an approval panel appears below the form. The user clicks **Approve Configuration** to mark the table as reviewed. Approval is always available regardless of validation state — the user decides when a table is ready.
 
-Approved tables show a seafoam ✓ in the sidebar. The header tracks approved count alongside
-configured count.
+Approved tables show a seafoam ✓ in the sidebar. The header tracks approved count alongside configured count.
 
-Scope is finalized from the header via **Finalize Scope**, which locks the flow and advances the
-app to the Plan phase.
+Scope is finalized from the header via **Finalize Scope**, which locks the flow and advances the app to the Plan phase.
 
 ## Data Model
 
@@ -115,8 +97,7 @@ Configuration state lives in `table_config` (one row per selected table):
 | `relationships_json` | JSON array of relationship objects |
 | `pii_columns` | JSON array of PII column names |
 
-Column metadata (for dropdowns and validation) is discovered during workspace apply and stored in
-`sqlserver_object_columns`.
+Column metadata (for dropdowns and validation) is discovered during workspace apply and stored in `sqlserver_object_columns`.
 
 ## Constraints
 
