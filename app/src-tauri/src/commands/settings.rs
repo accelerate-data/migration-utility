@@ -32,10 +32,6 @@ pub fn save_anthropic_api_key(
         log::error!("[save_anthropic_api_key] write_settings failed: {}", e);
         e
     })?;
-    let _ = crate::db::reconcile_and_persist_app_phase(&conn).map_err(|e| {
-        log::error!("[save_anthropic_api_key] reconcile_app_phase failed: {}", e);
-        e
-    })?;
     Ok(())
 }
 

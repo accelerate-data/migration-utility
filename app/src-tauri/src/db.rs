@@ -193,41 +193,14 @@ pub fn read_current_app_phase_state(conn: &Connection) -> Result<AppPhaseState, 
     Ok(state)
 }
 
-/// Reconcile the effective app phase from persisted state and prerequisites.
+/// Return the current app phase state from persisted DB value.
 ///
-/// When prerequisites are missing the effective phase is `setup_required`, but
-/// the persisted DB value is left unchanged so the intended phase is restored
-/// automatically when prerequisites are satisfied again. The DB is only written
-/// when prerequisites are present and the persisted value needs updating.
+/// Phase transitions are exclusively driven by explicit writes:
+/// - `workspace_apply_and_clone` writes `scope_editable` on success
+/// - `workspace_reset_state` writes `setup_required`
+/// - `app_set_phase` writes the requested phase directly
 pub fn reconcile_and_persist_app_phase(conn: &Connection) -> Result<AppPhaseState, String> {
-    let persisted_phase = read_app_phase(conn)?;
-    let mut state = read_phase_facts(conn)?;
-
-    let prereqs_ok =
-        state.has_github_auth && state.has_anthropic_key && state.is_source_applied;
-
-    let effective = if !prereqs_ok {
-        AppPhase::SetupRequired
-    } else {
-        persisted_phase.unwrap_or(AppPhase::ScopeEditable)
-    };
-
-    log::debug!(
-        "[reconcile_app_phase] persisted={:?} prereqs_ok={} effective={:?}",
-        persisted_phase,
-        prereqs_ok,
-        effective
-    );
-
-    // Only persist when prerequisites are satisfied — preserves the intended
-    // phase across prerequisite loss/regain cycles.
-    if prereqs_ok && persisted_phase.map_or(true, |p| p != effective) {
-        log::info!("[reconcile_app_phase] writing phase {:?}", effective);
-        write_app_phase(conn, effective)?;
-    }
-
-    state.app_phase = effective;
-    Ok(state)
+    read_current_app_phase_state(conn)
 }
 
 #[cfg(test)]
@@ -651,107 +624,18 @@ mod tests {
     }
 
     #[test]
-    fn reconcile_phase_prefers_setup_when_prereqs_missing() {
+    fn reconcile_phase_defaults_to_setup_required_when_no_phase_persisted() {
         let conn = open_memory();
-        write_app_phase(&conn, AppPhase::RunningLocked).unwrap();
-
         let state = reconcile_and_persist_app_phase(&conn).unwrap();
         assert_eq!(state.app_phase, AppPhase::SetupRequired);
     }
 
     #[test]
-    fn reconcile_phase_returns_scope_editable_after_prereqs() {
+    fn reconcile_phase_returns_persisted_phase() {
         let conn = open_memory();
-        let settings = AppSettings {
-            anthropic_api_key: Some("sk-ant-test".to_string()),
-            github_oauth_token: Some("gho_test".to_string()),
-            ..AppSettings::default()
-        };
-        write_settings(&conn, &settings).unwrap();
-        conn.execute(
-            "INSERT INTO workspaces(id, display_name, migration_repo_path, created_at) VALUES (?1, ?2, ?3, ?4)",
-            params!["ws-1", "ws", "/tmp/repo", "2026-01-01T00:00:00Z"],
-        )
-        .unwrap();
-
-        let state = reconcile_and_persist_app_phase(&conn).unwrap();
-        assert_eq!(state.app_phase, AppPhase::ScopeEditable);
-    }
-
-    #[test]
-    fn reconcile_phase_returns_ready_when_phase_persisted_as_ready() {
-        let conn = open_memory();
-        let settings = AppSettings {
-            anthropic_api_key: Some("sk-ant-test".to_string()),
-            github_oauth_token: Some("gho_test".to_string()),
-            ..AppSettings::default()
-        };
-        write_settings(&conn, &settings).unwrap();
-        conn.execute(
-            "INSERT INTO workspaces(id, display_name, migration_repo_path, created_at) VALUES (?1, ?2, ?3, ?4)",
-            params!["ws-1", "ws", "/tmp/repo", "2026-01-01T00:00:00Z"],
-        )
-        .unwrap();
         write_app_phase(&conn, AppPhase::ReadyToRun).unwrap();
-
         let state = reconcile_and_persist_app_phase(&conn).unwrap();
         assert_eq!(state.app_phase, AppPhase::ReadyToRun);
-    }
-
-    #[test]
-    fn reconcile_phase_restores_intended_phase_after_prereq_regain() {
-        let conn = open_memory();
-        let settings = AppSettings {
-            anthropic_api_key: Some("sk-ant-test".to_string()),
-            github_oauth_token: Some("gho_test".to_string()),
-            ..AppSettings::default()
-        };
-        write_settings(&conn, &settings).unwrap();
-        conn.execute(
-            "INSERT INTO workspaces(id, display_name, migration_repo_path, created_at) VALUES (?1, ?2, ?3, ?4)",
-            params!["ws-1", "ws", "/tmp/repo", "2026-01-01T00:00:00Z"],
-        )
-        .unwrap();
-        // User was in plan_editable
-        write_app_phase(&conn, AppPhase::PlanEditable).unwrap();
-
-        // Simulate losing GitHub token: reconcile returns setup_required but does NOT overwrite DB
-        let mut settings_no_gh = AppSettings {
-            anthropic_api_key: Some("sk-ant-test".to_string()),
-            github_oauth_token: None,
-            ..AppSettings::default()
-        };
-        write_settings(&conn, &settings_no_gh).unwrap();
-        let state = reconcile_and_persist_app_phase(&conn).unwrap();
-        assert_eq!(state.app_phase, AppPhase::SetupRequired);
-        // Intended phase must still be plan_editable in DB
-        assert_eq!(read_app_phase(&conn).unwrap(), Some(AppPhase::PlanEditable));
-
-        // Restore token: reconcile should return plan_editable again
-        settings_no_gh.github_oauth_token = Some("gho_test".to_string());
-        write_settings(&conn, &settings_no_gh).unwrap();
-        let state = reconcile_and_persist_app_phase(&conn).unwrap();
-        assert_eq!(state.app_phase, AppPhase::PlanEditable);
-    }
-
-    #[test]
-    fn reconcile_phase_keeps_running_locked_when_prereqs_hold() {
-        let conn = open_memory();
-        let settings = AppSettings {
-            anthropic_api_key: Some("sk-ant-test".to_string()),
-            github_oauth_token: Some("gho_test".to_string()),
-            ..AppSettings::default()
-        };
-        write_settings(&conn, &settings).unwrap();
-        conn.execute(
-            "INSERT INTO workspaces(id, display_name, migration_repo_path, created_at) VALUES (?1, ?2, ?3, ?4)",
-            params!["ws-1", "ws", "/tmp/repo", "2026-01-01T00:00:00Z"],
-        )
-        .unwrap();
-        write_app_phase(&conn, AppPhase::RunningLocked).unwrap();
-
-        let state = reconcile_and_persist_app_phase(&conn).unwrap();
-        assert_eq!(state.app_phase, AppPhase::RunningLocked);
     }
 
     #[test]

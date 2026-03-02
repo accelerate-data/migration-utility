@@ -7,11 +7,8 @@ Canonical app state machine for surface routing and edit locks.
 `app_phase` is the single source of truth for lifecycle state. All routing,
 surface locks, and edit guards derive from it.
 
-Persisted in SQLite `settings` keys:
-
-- `app_phase` (`setup_required` | `scope_editable` | `plan_editable` | `ready_to_run` | `running_locked`)
-- `app_settings` (`github_oauth_token`, `anthropic_api_key`)
-- `workspaces` existence (`is_source_applied`)
+Persisted in SQLite `settings` key `app_phase`:
+`setup_required` | `scope_editable` | `plan_editable` | `ready_to_run` | `running_locked`
 
 Implementation references:
 
@@ -21,46 +18,39 @@ Implementation references:
 
 ## Phase Definitions
 
-- `setup_required`: Missing at least one prerequisite (`github auth`, `anthropic key`, or applied source/workspace).
-- `scope_editable`: Prerequisites complete; user is configuring scope.
+- `setup_required`: No workspace applied yet (initial state and after reset).
+- `scope_editable`: Source applied; user is configuring scope.
 - `plan_editable`: Scope finalized; user is editing the migration plan.
 - `ready_to_run`: Plan finalized; migration can be launched.
 - `running_locked`: Migration running; all surfaces are read-only.
 
 ## Phase Transitions
 
-| Action | Resulting phase |
-|---|---|
-| Finalize Scope | `plan_editable` |
-| Finalize Plan | `ready_to_run` |
-| Launch Migration | `running_locked` |
-| Workspace apply / reset | `scope_editable` |
+All transitions are explicit writes — no dynamic inference from prerequisites.
 
-Transitions use `app_set_phase` which writes the requested phase then calls
-`reconcile_and_persist_app_phase`.
+| Action | Command | Resulting phase |
+|---|---|---|
+| Apply source | `workspace_apply_and_clone` | `scope_editable` |
+| Reset / delete source | `workspace_reset_state` | `setup_required` |
+| Finalize Scope | `app_set_phase('plan_editable')` | `plan_editable` |
+| Finalize Plan | `app_set_phase('ready_to_run')` | `ready_to_run` |
+| Launch Migration | `app_set_phase('running_locked')` | `running_locked` |
 
-## Reconciliation Logic
+`app_set_phase` cannot be called with `setup_required` (rejected server-side).
 
-`reconcile_and_persist_app_phase` in `db.rs`:
+## Reconciliation
 
-1. If prerequisites missing: return `setup_required` **without** writing to DB
-   (preserves the intended phase for when prerequisites are restored).
-2. Else: use persisted phase (default `scope_editable` if null).
+`reconcile_and_persist_app_phase` reads the persisted phase and returns it,
+defaulting to `setup_required` if no phase has been written yet. It performs
+no inference and no writes — it is a pure read.
 
-This means phase is only written to DB when prerequisites are satisfied.
-Workspace apply / reset explicitly write `scope_editable` before reconciling.
+Called by `app_hydrate_phase` (startup) and `app_set_phase` (returns new state).
 
-## Transition Entry Points
+## Fact Fields
 
-Commands that call reconciliation:
-
-- `app_hydrate_phase`
-- `app_set_phase` (writes requested phase first)
-- `save_anthropic_api_key`
-- `github_poll_for_token`
-- `github_logout`
-- `workspace_apply_and_clone` (writes `scope_editable` first)
-- `workspace_reset_state` (writes `scope_editable` first)
+`AppPhaseState` includes `hasGithubAuth`, `hasAnthropicKey`, `isSourceApplied`
+as informational fields for the Home/Setup screen. They do **not** drive
+phase transitions.
 
 ## Frontend Routing and Locks
 
@@ -90,10 +80,3 @@ Implementation references:
 - [workflow-store.ts](/Users/hbanerjee/src/migration-utility/app/src/stores/workflow-store.ts)
 - [App.tsx](/Users/hbanerjee/src/migration-utility/app/src/App.tsx)
 - [icon-nav.tsx](/Users/hbanerjee/src/migration-utility/app/src/components/icon-nav.tsx)
-
-## Operational Invariants
-
-- Losing prerequisites always forces `setup_required` effective phase without
-  overwriting the intended persisted phase.
-- The intended phase is automatically restored when prerequisites are regained.
-- Workspace apply and reset both write `scope_editable` before reconciliation.
