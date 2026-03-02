@@ -458,7 +458,7 @@ describe('ConfigStep — approval UI state', () => {
     render(<MemoryRouter initialEntries={['/scope/config']}><ConfigStep /></MemoryRouter>);
     await screen.findAllByRole('combobox');
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Approve Configuration' })).toBeDisabled();
+      expect(screen.queryByRole('button', { name: 'Approve Configuration' })).not.toBeInTheDocument();
     });
   });
 });

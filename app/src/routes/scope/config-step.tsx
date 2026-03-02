@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   appSetPhase,
@@ -23,6 +23,9 @@ import { PiiSection } from '@/components/scope/pii-section';
 import { RelationshipsSection } from '@/components/scope/relationships-section';
 import { ScdSection } from '@/components/scope/scd-section';
 import { AgentRationaleSection } from '@/components/scope/agent-rationale-section';
+import { TableListSidebar } from '@/components/scope/table-list-sidebar';
+import { ApprovalActions } from '@/components/scope/approval-actions';
+import { Separator } from '@/components/ui/separator';
 
 type SelectedTableRow = ScopeInventoryRow & {
   selectedTableId: string;
@@ -167,6 +170,23 @@ export default function ConfigStep() {
   );
   const activeIsAnalyzing = activeRow ? analyzingById[activeRow.selectedTableId] === true : false;
   const anyAnalyzing = Object.values(analyzingById).some((v) => v === true);
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, SelectedTableRow[]>();
+    for (const row of rows) {
+      if (!map.has(row.schemaName)) map.set(row.schemaName, []);
+      map.get(row.schemaName)!.push(row);
+    }
+    return Array.from(map.entries());
+  }, [rows]);
+
+  const approvalStatusById = useMemo(() => {
+    const result: Record<string, string | null> = {};
+    for (const row of rows) {
+      result[row.selectedTableId] = configsById[row.selectedTableId]?.approvalStatus ?? null;
+    }
+    return result;
+  }, [rows, configsById]);
 
   const readyCount = useMemo(
     () => rows.filter((row) => isReady(configsById[row.selectedTableId])).length,
@@ -374,51 +394,32 @@ export default function ConfigStep() {
         />
       </div>
 
-      <div className="min-h-0 min-w-0 flex-1">
-        {!activeRow && (
-          <div className="rounded-md border bg-card p-6">
-            <p className="text-sm text-muted-foreground">Select a table to view and edit its details.</p>
-          </div>
-        )}
-        {activeRow && draft && (
-          <div className="flex h-full min-h-0 flex-col rounded-md border bg-card">
-            <div className="border-b p-6">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="w-full max-w-[560px]">
-                  <select
-                    value={activeId ?? ''}
-                    disabled={loading || anyAnalyzing || refreshing}
-                    onChange={(e) => setActiveId(e.target.value || null)}
-                    className="h-10 w-full rounded-md border bg-background px-3 text-sm font-mono"
-                  >
-                    {rows.map((row) => (
-                      <option key={row.selectedTableId} value={row.selectedTableId}>
-                        {row.schemaName}.{row.tableName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+      <div className="flex min-h-0 flex-1 gap-4">
+        <div className="w-52 shrink-0">
+          <TableListSidebar
+            grouped={grouped}
+            activeId={activeId}
+            loading={loading}
+            anyAnalyzing={anyAnalyzing}
+            approvalStatusById={approvalStatusById}
+            validationErrorsById={validationErrorsById}
+            onSelectTable={setActiveId}
+          />
+        </div>
 
-                <div className="flex items-center gap-2">
-                  {draft.approvalStatus === 'approved' ? (
-                    <span className="rounded-md border bg-muted px-3 py-1.5 text-sm font-medium text-muted-foreground">
-                      ✓ Approved
-                    </span>
-                  ) : (
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={
-                        isLocked ||
-                        activeIsAnalyzing ||
-                        !draft.confirmedAt ||
-                        (validationErrorsById[activeRow.selectedTableId] || 0) > 0
-                      }
-                      onClick={() => void handleApprove()}
-                    >
-                      Approve Configuration
-                    </Button>
-                  )}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {!activeRow && (
+            <div className="rounded-md border bg-card p-6">
+              <p className="text-sm text-muted-foreground">Select a table to view and edit its details.</p>
+            </div>
+          )}
+          {activeRow && draft && (
+            <div className="flex h-full min-h-0 flex-col rounded-md border bg-card">
+              <div className="border-b p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <p className="font-mono text-sm font-medium">
+                    {activeRow.schemaName}.{activeRow.tableName}
+                  </p>
                   <Button
                     type="button"
                     variant="outline"
@@ -426,62 +427,25 @@ export default function ConfigStep() {
                     disabled={isLocked || activeIsAnalyzing}
                     onClick={() => void analyzeTable(activeRow, true)}
                   >
-                    {activeIsAnalyzing ? 'Analyzing...' : 'Analyze again'}
+                    {activeIsAnalyzing ? (
+                      <>
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        Analyzing...
+                      </>
+                    ) : (
+                      'Analyze again'
+                    )}
                   </Button>
                 </div>
               </div>
-            </div>
 
-            <div className="min-h-0 flex-1 space-y-6 overflow-auto p-6">
-              <CoreFieldsSection
-                tableType={draft.tableType}
-                loadStrategy={draft.loadStrategy}
-                incrementalColumn={draft.incrementalColumn}
-                dateColumn={draft.dateColumn}
-                disabled={isLocked || activeIsAnalyzing}
-                manualOverrides={(() => {
-                  try {
-                    return draft.manualOverridesJson ? JSON.parse(draft.manualOverridesJson) : [];
-                  } catch {
-                    return [];
-                  }
-                })()}
-                availableColumns={draft.availableColumns}
-                onUpdate={updateDraft}
-              />
-
-              <p className="text-sm text-muted-foreground">
-                Core fields stay clean; all agent inferences and reasons are listed in Agent rationale below.
-              </p>
-
-              <RelationshipsSection
-                relationshipsJson={draft.relationshipsJson}
-                grainColumns={draft.grainColumns}
-                disabled={isLocked || activeIsAnalyzing}
-                workspaceId={workspaceId ?? undefined}
-                selectedTableId={activeRow.selectedTableId}
-                availableColumns={draft.availableColumns}
-                onUpdateGrain={(value) => updateDraft('grainColumns', value)}
-                onValidationChange={(errorCount) => handleValidationChange(activeRow.selectedTableId, errorCount)}
-              />
-
-              <PiiSection
-                piiColumns={draft.piiColumns}
-                disabled={isLocked || activeIsAnalyzing}
-                availableColumns={draft.availableColumns}
-                onUpdate={(value) => updateDraft('piiColumns', value)}
-              />
-
-              <ScdSection
-                tableType={draft.tableType}
-                snapshotStrategy={draft.snapshotStrategy}
-                disabled={isLocked || activeIsAnalyzing}
-                onUpdate={(value) => updateDraft('snapshotStrategy', value)}
-              />
-
-              {draft.confirmedAt && (
-                <AgentRationaleSection
-                  analysisMetadataJson={draft.analysisMetadataJson}
+              <div className="min-h-0 flex-1 space-y-6 overflow-auto p-6">
+                <CoreFieldsSection
+                  tableType={draft.tableType}
+                  loadStrategy={draft.loadStrategy}
+                  incrementalColumn={draft.incrementalColumn}
+                  dateColumn={draft.dateColumn}
+                  disabled={isLocked || activeIsAnalyzing}
                   manualOverrides={(() => {
                     try {
                       return draft.manualOverridesJson ? JSON.parse(draft.manualOverridesJson) : [];
@@ -489,25 +453,91 @@ export default function ConfigStep() {
                       return [];
                     }
                   })()}
+                  availableColumns={draft.availableColumns}
+                  onUpdate={updateDraft}
                 />
-              )}
 
-              {analyzeErrorById[activeRow.selectedTableId] && (
-                <div className="flex items-start gap-2 text-sm text-destructive">
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>{analyzeErrorById[activeRow.selectedTableId]}</span>
-                </div>
-              )}
-              {error && (
-                <div className="flex items-start gap-2 text-sm text-destructive">
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>{error}</span>
-                </div>
-              )}
-              {saving && <span className="block text-xs text-muted-foreground">Saving...</span>}
+                <p className="text-sm text-muted-foreground">
+                  Core fields stay clean; all agent inferences and reasons are listed in Agent rationale below.
+                </p>
+
+                <Separator />
+
+                <RelationshipsSection
+                  relationshipsJson={draft.relationshipsJson}
+                  grainColumns={draft.grainColumns}
+                  disabled={isLocked || activeIsAnalyzing}
+                  workspaceId={workspaceId ?? undefined}
+                  selectedTableId={activeRow.selectedTableId}
+                  availableColumns={draft.availableColumns}
+                  onUpdateGrain={(value) => updateDraft('grainColumns', value)}
+                  onValidationChange={(errorCount) => handleValidationChange(activeRow.selectedTableId, errorCount)}
+                />
+
+                <Separator />
+
+                <PiiSection
+                  piiColumns={draft.piiColumns}
+                  disabled={isLocked || activeIsAnalyzing}
+                  availableColumns={draft.availableColumns}
+                  onUpdate={(value) => updateDraft('piiColumns', value)}
+                />
+
+                <Separator />
+
+                <ScdSection
+                  tableType={draft.tableType}
+                  snapshotStrategy={draft.snapshotStrategy}
+                  disabled={isLocked || activeIsAnalyzing}
+                  onUpdate={(value) => updateDraft('snapshotStrategy', value)}
+                />
+
+                {draft.confirmedAt && (
+                  <>
+                    <Separator />
+                    <AgentRationaleSection
+                      analysisMetadataJson={draft.analysisMetadataJson}
+                      manualOverrides={(() => {
+                        try {
+                          return draft.manualOverridesJson ? JSON.parse(draft.manualOverridesJson) : [];
+                        } catch {
+                          return [];
+                        }
+                      })()}
+                    />
+                    <Separator />
+                    <ApprovalActions
+                      approvalStatus={draft.approvalStatus}
+                      approvedAt={draft.approvedAt}
+                      confirmedAt={draft.confirmedAt}
+                      isLocked={
+                        isLocked ||
+                        activeIsAnalyzing ||
+                        (validationErrorsById[activeRow.selectedTableId] || 0) > 0
+                      }
+                      validationErrorCount={validationErrorsById[activeRow.selectedTableId] || 0}
+                      onApprove={() => void handleApprove()}
+                    />
+                  </>
+                )}
+
+                {analyzeErrorById[activeRow.selectedTableId] && (
+                  <div className="flex items-start gap-2 text-sm text-destructive">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{analyzeErrorById[activeRow.selectedTableId]}</span>
+                  </div>
+                )}
+                {error && (
+                  <div className="flex items-start gap-2 text-sm text-destructive">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                )}
+                {saving && <span className="block text-xs text-muted-foreground">Saving...</span>}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </section>
   );

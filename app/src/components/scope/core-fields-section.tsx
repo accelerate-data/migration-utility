@@ -61,7 +61,7 @@ export function CoreFieldsSection({
   );
 
   return (
-    <div className="space-y-4">
+    <div className="grid grid-cols-2 gap-4">
       <label className="block space-y-2">
         <span className="text-sm font-medium">
           Table type
