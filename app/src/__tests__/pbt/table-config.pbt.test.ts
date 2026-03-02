@@ -17,6 +17,11 @@ function isFilledArray(value: unknown[] | null | undefined): boolean {
   return value != null && value.length > 0;
 }
 
+// null = not yet analyzed; [] = analyzed and confirmed empty (valid)
+function isProvided(value: unknown[] | null | undefined): boolean {
+  return value != null;
+}
+
 function isReady(config: TableConfigPayload | null | undefined): boolean {
   if (!config) return false;
   return (
@@ -25,8 +30,8 @@ function isReady(config: TableConfigPayload | null | undefined): boolean {
     isFilled(config.incrementalColumn) &&
     isFilled(config.dateColumn) &&
     isFilledArray(config.grainColumns) &&
-    isFilledArray(config.relationshipsJson) &&
-    isFilledArray(config.piiColumns)
+    isProvided(config.relationshipsJson) &&
+    isProvided(config.piiColumns)
   );
 }
 
@@ -129,11 +134,12 @@ describe('PBT-1: approval state consistency', () => {
       tableType: nonEmptyString,
       loadStrategy: nonEmptyString,
       grainColumns: fc.array(nonEmptyString, { minLength: 1 }),
-      relationshipsJson: fc.array(relationshipArb, { minLength: 1 }),
+      // minLength: 0 — empty arrays are valid (analyzed, confirmed none found)
+      relationshipsJson: fc.array(relationshipArb, { minLength: 0 }),
       incrementalColumn: nonEmptyString,
       dateColumn: nonEmptyString,
       snapshotStrategy: fc.constant('sample_1day'),
-      piiColumns: fc.array(nonEmptyString, { minLength: 1 }),
+      piiColumns: fc.array(nonEmptyString, { minLength: 0 }),
       confirmedAt: nonEmptyString,
       analysisMetadataJson: fc.constant(null),
       approvalStatus: fc.constant(null),
