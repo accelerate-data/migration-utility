@@ -20,6 +20,8 @@ Use these exact tools:
 - `mcp__linear__list_issues`: dedupe search and child discovery
 - `mcp__linear__get_issue`: fetch parent issue for decomposition
 - `mcp__linear__list_projects`: project selection
+- `mcp__linear__get_project`: fetch full project details
+- `mcp__linear__list_milestones`: milestone discovery for selected project
 - `mcp__linear__list_issue_labels`: label selection
 - `mcp__linear__save_issue`: create/update issue(s)
 - `mcp__linear__create_comment`: optional rationale notes on parent
@@ -37,14 +39,13 @@ Fallback behavior:
 
 1. Product-level only. No file names, component names, or architecture in issue body.
 2. Confirm before creating. Always show final issue draft before `save_issue`.
-3. Clarifications: ask at most 2 targeted questions. If critical requirements are ambiguous or missing, ask before creating. Do not default assumptions that can change scope or behavior.
+3. Clarifications: ask at most 2 targeted questions. If confidence is high (>=80%), default assumptions and proceed.
 4. Idempotency: re-runs must not duplicate equivalent issues/comments. Reuse discovered open issue when appropriate.
-5. Read relevant existing code before framing requirements and ACs.
-6. Acceptance criteria in Linear must use Markdown checkboxes (`- [ ] ...`).
-7. Do not decompose by implementation layer (`frontend`/`backend`/`API`). Issues must represent integrated, user-visible outcomes that can be validated end-to-end.
-8. Decomposition is allowed only by feature slices. Frontend-only splits are allowed only when each split is an independently testable feature outcome.
-9. Every issue must contain feature requirements/spec detail, not only a goal and acceptance criteria.
-10. Requirements must be precise and testable. Avoid ambiguous words like "better", "support", "handle", "improve", or "optimize" without explicit behavior.
+5. Acceptance criteria in Linear must use Markdown checkboxes (`- [ ] ...`).
+6. Resolve the target project from user input or existing issue context. Do not hardcode a project name in this skill.
+7. Milestone selection must be from the resolved project only. If no clear milestone match exists, ask the user before creating the issue.
+8. Do not decompose by implementation layer (`frontend`/`backend`/`API`). Issues must represent integrated, user-visible outcomes that can be validated end-to-end.
+9. Decomposition is allowed only by feature slices. Frontend-only splits are allowed only when each split is an independently testable feature outcome.
 
 ## Outcomes
 
@@ -56,14 +57,6 @@ Fallback behavior:
 
 - If user intent is decompose (e.g., `break down <issue-id>`), follow **Decompose Path**.
 - Otherwise classify as `feature` or `bug`.
-
-## Codebase First (required)
-
-Before drafting requirements:
-
-1. Read the relevant existing code paths for the requested area.
-2. Identify current behavior, constraints, and likely integration points.
-3. Frame requirements and ACs based on observed current behavior (not assumptions).
 
 ## Dedupe Check (required)
 
@@ -82,10 +75,6 @@ Use this description template:
 
 ## Goal
 ...
-
-## Requirements
-- ...
-- ...
 
 ## Non-goals
 - ...
@@ -108,23 +97,35 @@ See `references/linear-operations.md` for estimate table.
 - `L` is the maximum single-issue size.
 - If scope exceeds `L`, switch to decomposition.
 
+## Project And Milestone Resolution (required)
+
+Before drafting or creating an issue:
+
+1. Resolve the target project from explicit user input, parent issue context, or team defaults discovered through Linear.
+2. Use `list_projects`/`get_project` to resolve the project ID/name.
+3. Use `list_milestones` for that project and map feature intent to milestone candidates.
+4. If exactly one milestone is a clear match, include it in the draft.
+5. If project or milestone is ambiguous, ask the user before `save_issue`.
+6. Never pick a milestone from a different project.
+
 ## Create Path
 
-1. Fetch projects and labels.
-2. Read relevant existing code for the requested area.
-3. Draft title, estimate, project, labels, description (schema above), including explicit requirements/spec and ensuring AC items are checkbox bullets (`- [ ] ...`).
+1. Resolve project and fetch labels.
+2. Resolve milestone candidates from that project.
+3. Draft title, estimate, project, milestone (if resolved), labels, description (schema above).
 4. Confirm draft with user.
 5. Create with `mcp__linear__save_issue` (`assignee: "me"` when allowed).
 6. Return issue ID + URL.
 
 ## Decompose Path
 
-1. Fetch parent issue and available projects/labels.
+1. Fetch parent issue, resolve project, and fetch labels.
 2. Split into 2-4 child issues, each <= `L`.
 3. Traceability rule: each child maps to exactly one AC group from parent.
-4. Confirm child plan with user.
-5. Create children with `save_issue` in parallel when safe.
-6. Update parent description to list child IDs and AC-group mapping.
+4. Resolve milestone candidates from the resolved project; if unclear, ask user before create.
+5. Confirm child plan with user.
+6. Create children with `save_issue` in parallel when safe.
+7. Update parent description to list child IDs and AC-group mapping.
 
 ## Output Hygiene
 

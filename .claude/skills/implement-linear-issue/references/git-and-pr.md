@@ -8,10 +8,10 @@ Title: `<issue-id>: short description`
 Fixes <issue-id>
 
 <!-- If the PR covers child issues, list EACH on its own line: -->
-<!-- Fixes VD-530 -->
-<!-- Fixes VD-531 -->
-<!-- Fixes VD-532 -->
-<!-- NEVER group as "Fixes VD-530/531/532" — each must be a separate line. -->
+<!-- Fixes ABC-530 -->
+<!-- Fixes ABC-531 -->
+<!-- Fixes ABC-532 -->
+<!-- NEVER group as "Fixes ABC-530/531/532" — each must be a separate line. -->
 
 ## Summary
 [2-3 sentences from implementation status]

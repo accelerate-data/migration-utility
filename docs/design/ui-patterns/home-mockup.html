@@ -610,6 +610,208 @@
     }
 
     /* ═══════════════════════════════════════════════
+       SURFACE: PLAN
+    ═══════════════════════════════════════════════ */
+    .plan-shell {
+      display: flex;
+      flex-direction: column;
+      min-height: 512px;
+    }
+    .plan-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .plan-summary {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .plan-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .plan-grid {
+      display: grid;
+      grid-template-columns: 1.05fr 1.4fr;
+      gap: 12px;
+      flex: 1;
+      min-height: 0;
+    }
+    .plan-list-head,
+    .plan-list-row {
+      display: grid;
+      grid-template-columns: 1.15fr .7fr .7fr;
+      gap: 8px;
+      align-items: center;
+      font-size: 12px;
+      padding: 8px 10px;
+    }
+    .plan-list-head {
+      color: var(--fg-muted);
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--bg-card);
+      z-index: 2;
+    }
+    .plan-list-row + .plan-list-row {
+      border-top: 1px solid var(--border);
+    }
+    .plan-list-row.active {
+      background: var(--pacific-10);
+    }
+    .plan-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 999px;
+      padding: 2px 8px;
+      width: fit-content;
+    }
+    .plan-status.draft {
+      color: var(--pacific);
+      background: var(--pacific-10);
+    }
+    .plan-status.missing {
+      color: var(--amber);
+      background: var(--amber-10);
+    }
+    .plan-status.stale {
+      color: var(--destructive);
+      background: color-mix(in oklch, var(--destructive), transparent 88%);
+    }
+    .plan-status.approved {
+      color: var(--seafoam);
+      background: var(--seafoam-10);
+    }
+    .plan-section {
+      margin-top: 12px;
+      border-top: 1px solid var(--border);
+      padding-top: 10px;
+    }
+    .plan-section:first-of-type {
+      margin-top: 0;
+      border-top: none;
+      padding-top: 0;
+    }
+    .plan-section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .plan-h2 {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--fg);
+      letter-spacing: .01em;
+    }
+    .plan-test-head,
+    .plan-test-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1.3fr;
+      gap: 8px;
+      align-items: center;
+      font-size: 12px;
+      padding: 6px 0;
+    }
+    .plan-test-head {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      padding-top: 0;
+      padding-bottom: 6px;
+    }
+    .plan-test-row + .plan-test-row {
+      border-top: 1px solid var(--border);
+    }
+    .plan-test-name {
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      line-height: 1.35;
+    }
+    .plan-risk-item {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg-muted);
+      padding: 8px;
+      margin-top: 8px;
+    }
+    .plan-tabbar {
+      display: flex;
+      gap: 2px;
+      border-bottom: 1px solid var(--border);
+      margin-top: 10px;
+      margin-bottom: 10px;
+    }
+    .plan-tab {
+      border: none;
+      background: transparent;
+      color: var(--fg-muted);
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 7px 10px;
+      border-radius: 6px 6px 0 0;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+    }
+    .plan-tab.active {
+      color: var(--pacific);
+      background: var(--pacific-10);
+      border-bottom-color: var(--pacific);
+    }
+    .plan-subpanel { display: none; }
+    .plan-subpanel.active { display: block; }
+    .plan-loading-card {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg-muted);
+      padding: 10px;
+      margin-top: 8px;
+    }
+    .plan-block {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-card);
+      padding: 10px;
+      margin-top: 10px;
+    }
+    .plan-block:first-child {
+      margin-top: 0;
+    }
+    .plan-loading-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .plan-code-snippet {
+      white-space: pre-wrap;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.55;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg-card);
+      padding: 10px;
+      margin-top: 8px;
+    }
+
+    /* ═══════════════════════════════════════════════
        SURFACE: MONITOR
     ═══════════════════════════════════════════════ */
     .agent-grid {
@@ -1285,46 +1487,226 @@
              PLAN SURFACE
         ════════════════════════════════════ -->
         <div id="surface-plan" class="surface">
-          <div class="section-label">Plan — Table migration plan review</div>
-          <div class="scope-shell">
-            <div class="scope-header">
-              <div class="scope-summary">
-                <span class="chip chip-blue">9 / 14 table plans ready</span>
-                <span class="text-xs text-muted">Plan status: Draft · Missing · Stale · Approved</span>
+          <div class="section-label">Plan — Table migration review</div>
+          <div class="plan-shell">
+            <div class="plan-header">
+              <div class="plan-summary">
+                <span class="chip chip-blue">9 / 14 plans ready</span>
+                <span class="chip chip-amber">3 missing details</span>
+                <span class="chip chip-muted">2 stale after schema refresh</span>
+                <span class="text-xs text-muted">Last generated 4m ago</span>
+              </div>
+              <div class="plan-actions">
+                <button class="btn btn-outline btn-sm">Validate</button>
+                <button class="btn btn-primary btn-sm">Approve all ready</button>
               </div>
             </div>
 
-            <div class="card card-p" style="overflow-y:auto; flex:1;">
-              <div class="row between mb8">
-                <div class="row gap8" style="align-items:flex-end;">
-                  <div>
-                    <p class="text-xs text-muted mb8">Table</p>
-                    <div class="kv-pill" style="min-width:240px;">dbo.fact_sales ▾</div>
-                  </div>
-                  <span class="chip chip-blue">Draft</span>
+            <div class="plan-grid">
+              <div class="card" style="overflow-y:auto;">
+                <div class="plan-list-head">
+                  <span>Table</span>
+                  <span>Status</span>
+                  <span>Owner</span>
                 </div>
-                <div class="row gap8">
-                  <button class="btn btn-outline btn-sm">Refresh plan</button>
-                  <button class="btn btn-outline btn-sm">Validate plan</button>
-                  <button class="btn btn-primary btn-sm">Approve plan</button>
+                <div class="plan-list-row active">
+                  <div>
+                    <p class="font-mono text-sm">dbo.fact_sales</p>
+                    <p class="text-xs text-muted mt4">Updated 1m ago</p>
+                  </div>
+                  <span class="plan-status draft">Draft</span>
+                  <span id="plan-owner-cell" class="text-xs text-muted">Agent</span>
+                </div>
+                <div class="plan-list-row">
+                  <div>
+                    <p class="font-mono text-sm">dbo.dim_customer</p>
+                    <p class="text-xs text-muted mt4">Blocked by key grain mismatch</p>
+                  </div>
+                  <span class="plan-status missing">Missing</span>
+                  <span class="text-xs text-muted">Manual</span>
+                </div>
+                <div class="plan-list-row">
+                  <div>
+                    <p class="font-mono text-sm">reporting.gold_summary</p>
+                    <p class="text-xs text-muted mt4">Stale after table config change</p>
+                  </div>
+                  <span class="plan-status stale">Stale</span>
+                  <span class="text-xs text-muted">Agent</span>
+                </div>
+                <div class="plan-list-row">
+                  <div>
+                    <p class="font-mono text-sm">dbo.dim_product</p>
+                    <p class="text-xs text-muted mt4">Validated + approved</p>
+                  </div>
+                  <span class="plan-status approved">Approved</span>
+                  <span class="text-xs text-muted">Agent</span>
+                </div>
+                <div class="plan-list-row">
+                  <div>
+                    <p class="font-mono text-sm">reporting.gold_sales_rollup</p>
+                    <p class="text-xs text-muted mt4">Updated 3m ago</p>
+                  </div>
+                  <span class="plan-status draft">Draft</span>
+                  <span class="text-xs text-muted">Agent</span>
                 </div>
               </div>
 
-              <pre style="white-space:pre-wrap; font-family:var(--font-mono); font-size:12px; line-height:1.6; border:1px solid var(--border); border-radius:6px; background:var(--bg-card); padding:10px;">## dbo.fact_sales
-- Objective: Build incremental fact model for sales
-- Inputs: dbo.sales_stage, dbo.dim_customer
-- Grain: sale_id
-- PK: sale_id
-- Relationships: customer_id -> dbo.dim_customer.customer_id
-- Load strategy: incremental
-- CDC column: load_date
-- Canonical date: sale_date
-- PII handling: customer_email masked, customer_phone masked
-- SCD: none
-- Tests:
-  - unique_not_null_pk
-  - relationship_customer_id
-  - freshness_sale_date</pre>
+              <div class="card card-p" style="overflow-y:auto;">
+                <div class="row between">
+                  <div>
+                    <p class="text-sm font-semibold font-mono">dbo.fact_sales</p>
+                  </div>
+                  <div class="row gap8">
+                    <span class="plan-status draft">Draft</span>
+                    <button class="btn btn-outline btn-sm">Regenerate</button>
+                    <button class="btn btn-primary btn-sm">Approve</button>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="plan-tabbar">
+                    <button id="plan-tab-model-btn" class="plan-tab active" onclick="setPlanTab('model')">Model</button>
+                    <button id="plan-tab-tests-btn" class="plan-tab" onclick="setPlanTab('tests')">Tests</button>
+                    <button id="plan-tab-current-btn" class="plan-tab" onclick="setPlanTab('current')">Current</button>
+                  </div>
+
+                  <div id="plan-subpanel-model" class="plan-subpanel active">
+                    <div class="plan-block">
+                      <div class="plan-section" style="margin-top:0; border-top:none; padding-top:0;">
+                        <div class="plan-section-head">
+                          <p class="plan-h2">Model</p>
+                        </div>
+                        <div class="kv-grid">
+                          <div class="kv-field">
+                            <p>Model name</p>
+                            <input class="scope-edit-input font-mono" value="fct_fact_sales" />
+                          </div>
+                          <div class="kv-field">
+                            <p>Materialization</p>
+                            <select class="scope-edit-select">
+                              <option selected>incremental</option>
+                              <option>table</option>
+                              <option>view</option>
+                            </select>
+                          </div>
+                          <div class="kv-field">
+                            <p>Source tables</p>
+                            <textarea class="scope-edit-input font-mono" style="min-height:62px; resize:vertical;">dbo.sales_stage
+dbo.dim_customer</textarea>
+                          </div>
+                          <div class="kv-field">
+                            <p>Unique key</p>
+                            <input class="scope-edit-input font-mono" value="sale_id" />
+                          </div>
+                          <div class="kv-field">
+                            <p>CDC column</p>
+                            <input class="scope-edit-input font-mono" value="load_date" />
+                          </div>
+                          <div class="kv-field">
+                            <p>Canonical date</p>
+                            <input class="scope-edit-input font-mono" value="sale_date" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="plan-block">
+                      <div class="plan-section" style="margin-top:0; border-top:none; padding-top:0;">
+                        <div class="plan-section-head">
+                          <p class="plan-h2">SQL</p>
+                        </div>
+                        <textarea class="scope-edit-input font-mono" style="min-height:170px; resize:vertical;">with source as (
+  select
+    s.sale_id,
+    s.customer_id,
+    s.sale_date,
+    s.load_date,
+    s.amount
+  from dbo.sales_stage s
+)
+
+select
+  source.sale_id,
+  source.customer_id,
+  source.sale_date,
+  source.load_date,
+  source.amount
+from source
+{% if is_incremental() %}
+where source.load_date > (select coalesce(max(load_date), '1900-01-01') from {{ this }})
+{% endif %}</textarea>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div id="plan-subpanel-tests" class="plan-subpanel">
+                    <div class="plan-block">
+                      <div class="plan-section" style="margin-top:0; border-top:none; padding-top:0;">
+                        <div class="plan-section-head">
+                          <p class="plan-h2">Tests</p>
+                        </div>
+                        <div class="plan-test-head">
+                          <span>Name</span>
+                          <span>Input</span>
+                          <span>Purpose</span>
+                        </div>
+                        <div class="plan-test-row">
+                          <input class="scope-edit-input font-mono plan-test-name" value="sale_id_unique_not_null" />
+                          <input class="scope-edit-input font-mono" value="sale_id" />
+                          <input class="scope-edit-input" value="Ensure primary key has no nulls and no duplicates." />
+                        </div>
+                        <div class="plan-test-row">
+                          <input class="scope-edit-input font-mono plan-test-name" value="customer_id_relationships_dim_customer" />
+                          <input class="scope-edit-input font-mono" value="customer_id -> dim_customer.customer_id" />
+                          <input class="scope-edit-input" value="Validate each customer_id maps to dim_customer.customer_id." />
+                        </div>
+                        <div class="plan-test-row">
+                          <input class="scope-edit-input font-mono plan-test-name" value="test_incremental_watermark_filter" />
+                          <input class="scope-edit-input font-mono" value="load_date > last_watermark" />
+                          <input class="scope-edit-input" value="Verify only rows newer than watermark are included." />
+                        </div>
+                        <div class="plan-test-row">
+                          <input class="scope-edit-input font-mono plan-test-name" value="sale_date_freshness_24h" />
+                          <input class="scope-edit-input font-mono" value="sale_date, warn_after=24h" />
+                          <input class="scope-edit-input" value="Warn if sale_date freshness is older than 24 hours." />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div id="plan-subpanel-current" class="plan-subpanel">
+                    <div class="plan-section">
+                      <div class="plan-section-head">
+                        <p class="text-xs text-muted">Current generation progress (read-only)</p>
+                      </div>
+                      <div class="plan-loading-card">
+                        <div class="plan-loading-head">
+                          <span class="text-xs font-medium">Current procedure loading</span>
+                          <span class="chip chip-blue"><span class="dot dot-blue"></span>Running</span>
+                        </div>
+                        <div class="kv-pill font-mono">dbo.usp_load_fact_sales</div>
+                        <p class="scope-inline-note">Step: SQL extraction from procedure body (2/4 sections parsed)</p>
+                      </div>
+                      <div class="plan-loading-card">
+                        <div class="plan-loading-head">
+                          <span class="text-xs font-medium">Current SQL loading</span>
+                          <span class="chip chip-blue"><span class="dot dot-blue"></span>Parsing</span>
+                        </div>
+                        <pre class="plan-code-snippet">SELECT
+  s.sale_id,
+  s.customer_id,
+  s.sale_date,
+  s.load_date,
+  s.amount
+FROM dbo.sales_stage s
+WHERE s.load_date &gt; @last_watermark;</pre>
+                        <p class="scope-inline-note">Extracted from `dbo.usp_load_fact_sales` statement block #3.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
             </div>
           </div>
         </div><!-- /surface-plan -->
@@ -2232,10 +2614,21 @@
       document.getElementById('theme-dark').classList.toggle('on', theme === 'dark');
     }
 
+    function setPlanTab(tab) {
+      var tabs = ['model', 'tests', 'current'];
+      tabs.forEach(function (t) {
+        var btn = document.getElementById('plan-tab-' + t + '-btn');
+        var panel = document.getElementById('plan-subpanel-' + t);
+        if (btn) btn.classList.toggle('active', t === tab);
+        if (panel) panel.classList.toggle('active', t === tab);
+      });
+    }
+
     updateScopeSelectCount();
     filterScopeSelectRows();
     setScopeLocked(false);
     scopeDetailsState('pending');
+    setPlanTab('model');
 
   </script>
 

@@ -16,7 +16,7 @@ Review the codebase directly to assess feasibility and scope.
 
 ## Step 2b: Exploration Path
 
-When complexity is high, run parallel research (directly or with sub-agents):
+When complexity is high, run parallel research.
 
 1. **Codebase analyst** — feasibility, constraints, scope (internal only)
 2. **External researcher** — how similar products handle this, UX patterns, backend patterns

@@ -1,5 +1,5 @@
 ---
-name: front-end-design
+name: ad-front-end-design
 description: Design and implement intentional, high-quality frontend UI for React and Tailwind surfaces with a clear visual direction, token-driven styles, and responsive behavior. Use when asked to create or restyle screens, design components, improve layout/UX polish, or turn rough UI requirements into production-ready frontend code.
 ---
 

@@ -3,7 +3,7 @@ name: implement-linear-issue
 description: |
   Implements a Linear issue end-to-end, from planning through PR creation.
   Triggers on "implement <issue-id>", "work on <issue-id>", "working on <issue-id>", "build <issue-id>", "fix <issue-id>", or "/implement-issue".
-  Also triggers when the user simply mentions a Linear issue identifier (e.g. "VD-123").
+  Also triggers when the user simply mentions a Linear issue identifier (e.g. "ABC-123").
 ---
 
 # Implement Linear Issue
@@ -76,6 +76,15 @@ Do not ask permission for non-destructive work. Only confirm with user:
 - M+ or multi-component: create a short plan, then execute with parallelism where useful.
 - User can always override.
 
+## Branch Sync (required)
+
+Before running Quality Gates, rebase the working branch onto `origin/main`.
+
+1. Fetch latest `origin/main`.
+2. Rebase current branch onto `origin/main`.
+3. Resolve conflicts when mechanical; escalate to user when semantic judgment is required.
+4. Push with `--force-with-lease` if history changed.
+
 ## Quality Gates
 
 ```text
@@ -128,21 +137,27 @@ Run final relevant tests after fixes/review.
 
 ## Completion
 
-1. Verify AC coverage against issue description.
-2. Create/update PR:
+1. Verify checklist coverage against issue description:
+   - Evaluate every issue checkbox under Scope / Requirements / AC / Test Notes.
+   - Check only items that are demonstrably implemented in code/tests.
+   - Leave unverifiable or partial items unchecked.
+2. Sync Linear checklist state:
+   - Update issue description checkboxes (`[ ]`/`[X]`) via `mcp__linear__save_issue`.
+   - Add one concise Linear comment with evidence for each newly checked item (file/test refs).
+3. Create/update PR:
    - Use `gh pr create/edit --body-file <tmp.md>`.
    - PR body must include `Fixes <issue-id>` lines for primary issue and any included child issues.
-3. Harden PR link:
+4. Harden PR link:
    - Run `gh pr view --json ...` and verify PR exists, is open, and `Fixes <issue-id>` entries are present.
-4. Generate concise implementation notes from:
+5. Generate concise implementation notes from:
    - `git log --oneline main..HEAD`
    - `git diff --stat main...HEAD`
-5. Post implementation notes to Linear.
-6. Branch protection awareness:
+6. Post implementation notes to Linear.
+7. Branch protection awareness:
    - Read required checks state; enforce policy above.
-7. Move issue(s) to `In Review`.
-8. Report PR URL, worktree path, recommended test mode, and manual test steps.
-9. Do not remove worktree in implement flow.
+8. Move issue(s) to `In Review`.
+9. Report PR URL, worktree path, recommended test mode, and manual test steps.
+10. Do not remove worktree in implement flow.
 
 ## Error Recovery
 

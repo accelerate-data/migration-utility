@@ -1,15 +1,12 @@
 # Agent Team Guidelines
 
-Use this only for large or parallelizable work. Default execution mode is direct implementation by the coordinator.
-
 ## Team Leads
 
-Each work stream gets a lead with: worktree path, issue ID, ACs owned, task list, and dependencies.
+Each work stream gets a team lead (spawned via `Task`). Provide: worktree path, issue ID, the ACs this stream owns, task list, and dependencies.
 
-Leads may execute work directly and optionally use sub-agents for parallel tasks.
+Team leads coordinate within their stream — spawning sub-agents for parallel tasks, not writing code themselves.
 
 ### Rules
-
 - **Test deliberately, not blindly.** Before writing any test code:
   1. Read existing tests for files you changed — understand what's already covered
   2. Update tests that broke due to your changes
