@@ -26,6 +26,7 @@ Use `docs/design/` for architecture and implementation design details.
 - [Branding](branding/README.md)
 - [Sidecar](sidecar/README.md)
 - [Scoping Flow](scoping-flow/README.md) — table selection, agent analysis, config, and approval
+- [Agent Contract](agent-contract/README.md) — structured agent output contracts and FDE review requirements
 
 ## What Goes In `references`
 
