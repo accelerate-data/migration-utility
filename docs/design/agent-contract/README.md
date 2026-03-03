@@ -2,6 +2,8 @@
 
 Contracts for multi-agent ETL migration from SQL Server stored procedures to dbt models.
 
+All contracts are batch-only. Single-table UI execution is a degenerate batch with one `items[]` element.
+
 ## Flow
 
 1. Scoping: scoping agent maps target table to writer procedure candidate(s).
@@ -20,3 +22,10 @@ Contracts for multi-agent ETL migration from SQL Server stored procedures to dbt
 - Profiler output is facts/evidence only.
 - Planner output is decisions/proposal only.
 - Planner should not re-query SQL Server when profile completeness is `complete` and required sections are present.
+- Each agent uses `items[]` input and `results[]` output for partial-failure-safe bulk execution.
+
+## Workflow Semantics
+
+- Scoping and configuration are non-blocking until scope is finalized.
+- Agent-derived values and manual overrides are both first-class and should be tracked explicitly.
+- Validation findings should be surfaced as structured warnings/errors and should not implicitly block approval unless policy requires it.

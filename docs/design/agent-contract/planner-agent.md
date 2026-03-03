@@ -7,18 +7,30 @@ Planner output is decisions/proposal, not raw profiling facts.
 
 ```json
 {
-  "request": {
-    "procedure": { "name": "dbo.usp_load_fact_sales" },
-    "target": {
-      "name": "dbo.fact_sales",
-      "intended_kind": "auto|dim_non_scd|dim_scd1|dim_scd2|dim_junk|fact_transaction|fact_periodic_snapshot|fact_accumulating_snapshot|fact_aggregate"
-    },
-    "constraints": {
-      "business_context": "",
-      "fde_overrides": []
+  "schema_version": "1.0",
+  "batch_id": "uuid",
+  "items": [
+    {
+      "item_id": "dbo.fact_sales",
+      "request": {
+        "procedure": { "name": "dbo.usp_load_fact_sales" },
+        "target": {
+          "name": "dbo.fact_sales",
+          "intended_kind": "auto|dim_non_scd|dim_scd1|dim_scd2|dim_junk|fact_transaction|fact_periodic_snapshot|fact_accumulating_snapshot|fact_aggregate"
+        },
+        "constraints": {
+          "business_context": "",
+          "fde_overrides": []
+        },
+        "scope_context": {
+          "scoping_status": "resolved",
+          "selected_by": "agent|manual",
+          "candidate_count": 1
+        }
+      },
+      "profile": "PlannerReadyProfile"
     }
-  },
-  "profile": "PlannerReadyProfile"
+  ]
 }
 ```
 
@@ -37,77 +49,93 @@ Planner may do targeted fallback queries only for missing/invalid required secti
 ```json
 {
   "schema_version": "1.0",
-  "table_ref": "dbo.fact_sales",
-  "status": "draft",
-
-  "source_context": {
-    "procedure_name": "dbo.usp_load_fact_sales",
-    "procedure_summary": "Loads fact_sales from stage + dimensions with incremental filtering.",
-    "input_relations": ["dbo.sales_stage", "dbo.dim_customer", "dbo.dim_product"],
-    "output_relation": "dbo.fact_sales"
-  },
-
-  "proposed": {
-    "model_name": "fct_fact_sales",
-    "layer": "gold",
-    "materialized": "incremental",
-    "description": "Transaction-level sales fact table for reporting.",
-    "source_tables": ["dbo.sales_stage", "dbo.dim_customer", "dbo.dim_product"],
-    "unique_key": ["sale_id"],
-    "incremental_column": "load_date",
-    "canonical_date_column": "sale_date",
-    "sql": "with src as (...) select * from ..."
-  },
-
-  "tests": [
+  "batch_id": "uuid",
+  "results": [
     {
-      "name": "not_null",
-      "input": "sale_id",
-      "purpose": "Ensure transaction key exists."
-    },
-    {
-      "name": "unique",
-      "input": "sale_id",
-      "purpose": "Enforce fact grain."
-    },
-    {
-      "name": "relationships",
-      "input": "customer_sk -> dim_customer.customer_sk",
-      "purpose": "Validate dimension key integrity."
+      "item_id": "dbo.fact_sales",
+      "status": "ok|partial|error",
+      "output": {
+        "table_ref": "dbo.fact_sales",
+        "status": "draft",
+
+        "source_context": {
+          "procedure_name": "dbo.usp_load_fact_sales",
+          "procedure_summary": "Loads fact_sales from stage + dimensions with incremental filtering.",
+          "input_relations": ["dbo.sales_stage", "dbo.dim_customer", "dbo.dim_product"],
+          "output_relation": "dbo.fact_sales"
+        },
+
+        "proposed": {
+          "model_name": "fct_fact_sales",
+          "layer": "gold",
+          "materialized": "incremental",
+          "description": "Transaction-level sales fact table for reporting.",
+          "source_tables": ["dbo.sales_stage", "dbo.dim_customer", "dbo.dim_product"],
+          "unique_key": ["sale_id"],
+          "incremental_column": "load_date",
+          "canonical_date_column": "sale_date",
+          "sql": "with src as (...) select * from ..."
+        },
+
+        "tests": [
+          {
+            "name": "not_null",
+            "input": "sale_id",
+            "purpose": "Ensure transaction key exists."
+          },
+          {
+            "name": "unique",
+            "input": "sale_id",
+            "purpose": "Enforce fact grain."
+          },
+          {
+            "name": "relationships",
+            "input": "customer_sk -> dim_customer.customer_sk",
+            "purpose": "Validate dimension key integrity."
+          }
+        ],
+
+        "pii_candidates": [
+          {
+            "column": "customer_email",
+            "entity": "email",
+            "confidence": 0.91,
+            "source": "profile",
+            "action": "mask",
+            "rationale": "PII candidate detected in profiler evidence."
+          }
+        ],
+
+        "current": {
+          "state": "completed",
+          "phase": "planning",
+          "current_procedure": "dbo.usp_load_fact_sales",
+          "current_sql": "select ..."
+        },
+
+        "fde_review": {
+          "must_confirm": [
+            "Model kind and materialization",
+            "Unique key and incremental column",
+            "Tests",
+            "PII actions"
+          ],
+          "open_questions": [],
+          "notes": ""
+        },
+
+        "confidence": {
+          "overall": 0.84
+        }
+      },
+      "errors": []
     }
   ],
-
-  "pii_candidates": [
-    {
-      "column": "customer_email",
-      "entity": "email",
-      "confidence": 0.91,
-      "source": "profile",
-      "action": "mask",
-      "rationale": "PII candidate detected in profiler evidence."
-    }
-  ],
-
-  "current": {
-    "state": "completed",
-    "phase": "planning",
-    "current_procedure": "dbo.usp_load_fact_sales",
-    "current_sql": "select ..."
-  },
-
-  "fde_review": {
-    "must_confirm": [
-      "Model kind and materialization",
-      "Unique key and incremental column",
-      "Tests",
-      "PII actions"
-    ],
-    "open_questions": [],
-    "notes": ""
-  },
-
-  "confidence": {
-    "overall": 0.84
+  "summary": {
+    "total": 1,
+    "ok": 1,
+    "partial": 0,
+    "error": 0
   }
 }
 ```

@@ -12,12 +12,23 @@ with evidence. Support multi-writer scenarios.
 
 ```json
 {
-  "target_table": "dbo.fact_sales",
-  "search_depth": 2,
-  "constraints": {
-    "include_orchestrators": true,
-    "allow_cross_database": true
-  }
+  "schema_version": "1.0",
+  "batch_id": "uuid",
+  "items": [
+    {
+      "item_id": "dbo.fact_sales",
+      "target_table": "dbo.fact_sales",
+      "search_depth": 2,
+      "constraints": {
+        "include_orchestrators": true,
+        "allow_cross_database": true,
+        "scope_phase": "draft|finalized"
+      },
+      "user_context": {
+        "selected_for_migration": true
+      }
+    }
+  ]
 }
 ```
 
@@ -33,41 +44,59 @@ with evidence. Support multi-writer scenarios.
 ```json
 {
   "schema_version": "1.0",
-  "request": {
-    "target_table": "dbo.fact_sales",
-    "search_depth": 2
-  },
-  "status": "resolved|ambiguous_multi_writer|no_writer_found|partial",
-  "auto_selected_procedure": "dbo.usp_load_fact_sales",
-  "candidates": [
+  "batch_id": "uuid",
+  "results": [
     {
-      "procedure_name": "dbo.usp_load_fact_sales",
-      "write_type": "direct|indirect|read_only",
-      "operations": ["insert", "merge", "update", "delete", "truncate", "exec_chain"],
-      "confidence": 0.98,
-      "evidence": {
-        "dependency_source": "sys.sql_expression_dependencies|code_parse",
-        "code_snippets": [
-          "INSERT INTO dbo.fact_sales (...)"
-        ],
-        "call_path": ["dbo.usp_load_fact_sales"]
+      "item_id": "dbo.fact_sales",
+      "status": "ok|partial|error",
+      "request": {
+        "target_table": "dbo.fact_sales",
+        "search_depth": 2
       },
-      "risk_flags": [
-        "dynamic_sql_detected",
-        "cross_db_write",
-        "manual_backfill_possible"
-      ]
+      "output": {
+        "status": "resolved|ambiguous_multi_writer|no_writer_found|partial",
+        "auto_selected_procedure": "dbo.usp_load_fact_sales",
+        "candidates": [
+          {
+            "procedure_name": "dbo.usp_load_fact_sales",
+            "write_type": "direct|indirect|read_only",
+            "operations": ["insert", "merge", "update", "delete", "truncate", "exec_chain"],
+            "confidence": 0.98,
+            "evidence": {
+              "dependency_source": "sys.sql_expression_dependencies|code_parse",
+              "code_snippets": [
+                "INSERT INTO dbo.fact_sales (...)"
+              ],
+              "call_path": ["dbo.usp_load_fact_sales"]
+            },
+            "risk_flags": [
+              "dynamic_sql_detected",
+              "cross_db_write",
+              "manual_backfill_possible"
+            ]
+          }
+        ],
+        "provenance": {
+          "writer_selection_source": "agent|manual",
+          "manual_override": false,
+          "analysis_confidence": 0.98,
+          "analysis_rationale": [
+            "Direct INSERT/TRUNCATE against target table found in procedure body."
+          ]
+        },
+        "validation": {
+          "passed": true,
+          "issues": []
+        }
+      },
+      "errors": []
     }
   ],
   "summary": {
-    "high_confidence_writers": 1,
-    "dynamic_sql_detected": false,
-    "notes": []
-  },
-  "fde_action_required": {
-    "required": false,
-    "reason": "",
-    "options": []
+    "total": 1,
+    "ok": 1,
+    "partial": 0,
+    "error": 0
   }
 }
 ```
@@ -78,6 +107,7 @@ with evidence. Support multi-writer scenarios.
 - If multiple high-confidence direct writers exist, return `ambiguous_multi_writer` and require FDE selection.
 - If only indirect writers are found, return `partial` and require FDE confirmation.
 - If no writers are found, return `no_writer_found`.
+- Scoping can remain editable in `draft`; once `scope_phase` is `finalized`, scoping output is read-only.
 
 ## SQL Server Signals
 
@@ -91,3 +121,33 @@ with evidence. Support multi-writer scenarios.
 - Dynamic SQL (`sp_executesql`, `EXEC(@sql)`) may hide dependencies from metadata.
 - Synonyms/views may mask base-table writers.
 - Cross-database/server writes may require additional resolution.
+
+## Handoff to Profiler
+
+Scoping output feeds profiler input after FDE confirmation of writer selection.
+
+```json
+{
+  "schema_version": "1.0",
+  "batch_id": "uuid",
+  "items": [
+    {
+      "item_id": "dbo.fact_sales",
+      "procedure": { "name": "dbo.usp_load_fact_sales" },
+      "target": {
+        "name": "dbo.fact_sales",
+        "intended_kind": "auto|dim_non_scd|dim_scd1|dim_scd2|dim_junk|fact_transaction|fact_periodic_snapshot|fact_accumulating_snapshot|fact_aggregate"
+      },
+      "constraints": {
+        "business_context": "",
+        "fde_overrides": []
+      },
+      "scope_context": {
+        "scoping_status": "resolved",
+        "selected_by": "agent|manual",
+        "candidate_count": 1
+      }
+    }
+  ]
+}
+```
