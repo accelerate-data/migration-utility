@@ -92,18 +92,16 @@ orchestrator (Python)
   │
   └─ Stage 3+4: Ground-Truth Harness
        │
-       ├─ testcontainers-python spins up ephemeral SQL Server container
-       ├─ deploys proc DDL + table schemas into container
-       │
-       ├─ for each scenario:
-       │    BEGIN TRANSACTION
-       │    INSERT fixture rows into source tables
-       │    EXEC proc
-       │    SELECT * FROM output table → expected rows  (ground truth)
-       │    ROLLBACK
-       │
-       ├─ dotnet-sqltest measures statement coverage
-       │    → Cobertura XML
+       ├─ dotnet-sqltest (testcontainers built-in):
+       │    · spins up ephemeral SQL Server container
+       │    · deploys proc DDL + table schemas
+       │    · for each scenario:
+       │        BEGIN TRANSACTION
+       │        INSERT fixture rows into source tables
+       │        EXEC proc
+       │        SELECT * FROM output table → expected rows  (ground truth)
+       │        ROLLBACK
+       │    · emits Cobertura XML (statement coverage captured during execution)
        │
        ├─ Coverage Resolver:
        │    parse Cobertura uncovered lines
@@ -116,9 +114,9 @@ orchestrator (Python)
        │      · output: new_scenarios[] (additive)
        │    → loop back with all_scenarios = existing + new
        │
-       └─ Stage 4: YAML renderer
-            {input_rows, expected_rows} → unit_tests: YAML blocks
-            written into model schema file
+       └─ Stage 4: JSON serializer
+            {input_rows, expected_rows} → unit_tests[] JSON (FixtureManifest)
+            returned to orchestrator; migrator renders unit_tests: YAML
 ```
 
 ## Branch Manifest Schema
@@ -145,6 +143,7 @@ Output of Stage 1. Each branch carries a `line_span` so the Coverage Resolver ca
     },
     {
       "id": "merge_when_not_matched_insert",
+      "block_id": "02_enrich_customer_product",
       "branch_type": "merge_arm",
       "description": "WHEN NOT MATCHED arm — insert new row when staging key absent from target",
       "positive_condition": "staging row customer_id has no match in target table",
@@ -183,16 +182,16 @@ Output of Stage 1. Each branch carries a `line_span` so the Coverage Resolver ca
 
 ## Termination
 
-| Condition | Action |
-|---|---|
-| `uncovered_branches` is empty | Write YAML, mark `coverage: complete` |
-| Max 3 iterations reached | Write YAML, mark `coverage: partial` |
-| LLM returns no scenarios for a branch | Mark branch `unreachable`, skip |
+| Condition | `coverage` | `status` |
+|---|---|---|
+| `uncovered_branches` is empty | `complete` | `ok` |
+| Max 3 iterations reached | `partial` | `partial` |
+| LLM returns no scenarios for a branch | `partial` | `ok` |
 
-Items with `coverage: partial` or `unreachable` branches are flagged for FDE manual review before sign-off.
+Items with `coverage: partial` are flagged for FDE manual review before sign-off.
 
 ## Outputs
 
-- `unit_tests:` YAML blocks in the model schema file
+- FixtureManifest: structured `unit_tests[]` JSON consumed by the migrator, which renders `unit_tests:` YAML
 - Cobertura XML per proc stored alongside the migration artifact
-- `coverage` field on migrator output: `complete | partial`
+- `coverage: complete | partial` and `status: ok | partial | error` per item

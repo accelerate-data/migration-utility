@@ -1,15 +1,16 @@
 # Migrator Agent Contract
 
-The migrator agent consumes planner output and generates dbt project artifacts.
+The migrator agent consumes planner output and test generator fixtures, then generates dbt project artifacts.
 Migrator is responsible for querying direct source metadata via tools and converting planning output
-into executable files.
+into executable files. The application merges planner output and FixtureManifest per `item_id` before routing to the migrator.
 
 ## Philosophy and Boundary
 
 - Migrator owns artifact generation (`.sql`, `.yml`, and related dbt resources).
 - Migrator fetches direct facts (schema, column types, relation metadata) using tools.
 - Migrator must not invent business decisions that require FDE judgment.
-- Planner output is authoritative for selected answers, decomposition, test plan, and documentation.
+- Planner output is authoritative for selected answers, decomposition, schema tests, and documentation.
+- Test generator output (`unit_tests[]`) is authoritative for fixture-based unit tests.
 
 ## Required Input
 
@@ -22,7 +23,8 @@ into executable files.
       "item_id": "",
       "answers": {},
       "decomposition": {...},
-      "plan": {...}
+      "plan": {...},
+      "unit_tests": []
     }
   ]
 }
@@ -63,12 +65,33 @@ into executable files.
       "plan": {
         "materialization": "incremental",
         "schema_tests": {
-          "entity_integrity_tests": [],
-          "referential_integrity_tests": [],
-          "domain_validity_tests": [],
-          "incremental_recency_tests": [],
-          "classification_semantic_tests": [],
-          "pii_governance_checks": []
+          "entity_integrity_tests": [
+            { "name": "not_null", "columns": ["sale_id"], "severity": "error" },
+            { "name": "unique", "columns": ["sale_id"], "severity": "error" },
+            { "name": "unique_combination", "columns": ["order_id", "line_number"], "severity": "error" }
+          ],
+          "referential_integrity_tests": [
+            {
+              "name": "relationships",
+              "column": "customer_sk",
+              "references_source_relation": "dbo.dim_customer",
+              "references_column": "customer_sk",
+              "severity": "error"
+            }
+          ],
+          "domain_validity_tests": [
+            { "name": "not_null", "columns": ["customer_sk"], "severity": "error" }
+          ],
+          "incremental_recency_tests": [
+            { "name": "not_null", "columns": ["load_date"], "severity": "error" },
+            { "name": "recency", "columns": ["load_date"], "severity": "warning" }
+          ],
+          "classification_semantic_tests": [
+            { "name": "grain_no_duplication", "columns": ["sale_id"], "classification": "fact_transaction", "severity": "error" }
+          ],
+          "pii_governance_checks": [
+            { "name": "column_masking_applied", "column": "customer_email", "action": "mask", "severity": "error" }
+          ]
         },
         "documentation": {
           "model_name": "fct_fact_sales",
@@ -82,7 +105,26 @@ into executable files.
           "tags": ["gold", "sales"],
           "owner": "data-platform"
         }
-      }
+      },
+      "unit_tests": [
+        {
+          "name": "test_incremental_new_sale_inserted",
+          "model": "fct_fact_sales",
+          "given": [
+            {
+              "input": "source('fabric_wh', 'staging_sales')",
+              "rows": [
+                { "order_id": 1, "line_number": 1, "customer_sk": 101, "load_date": "2024-01-15" }
+              ]
+            }
+          ],
+          "expect": {
+            "rows": [
+              { "sale_id": 1001, "order_id": 1, "line_number": 1, "customer_sk": 101, "load_date": "2024-01-15" }
+            ]
+          }
+        }
+      ]
     }
   ]
 }
@@ -143,8 +185,8 @@ into executable files.
           "model_yaml": {
             "has_model_description": true,
             "has_column_descriptions": true,
-            "has_entity_integrity_tests": true,
-            "has_referential_integrity_tests": true
+            "schema_tests_rendered": ["entity_integrity_tests", "referential_integrity_tests", "incremental_recency_tests", "pii_governance_checks"],
+            "has_unit_tests": true
           },
           "source_yaml": {
             "source_count": 1,
@@ -174,6 +216,8 @@ into executable files.
 ## Required Migrator Guarantees
 
 - Generated dbt artifacts must reflect planner output exactly.
+- `plan.schema_tests` is rendered into column/model-level dbt tests in `model_yaml` (not_null, unique, relationships, freshness, etc.).
+- `unit_tests[]` from the test generator is rendered into `unit_tests:` blocks in `model_yaml`.
 - Tool-fetched schema facts are used for type/column correctness.
 - If planner output is incomplete, return `partial|error` with explicit missing fields.
 

@@ -134,43 +134,39 @@ Group correlated columns in a single prompt call so semantic consistency is pres
 
 ---
 
-## Stage 4: dbt YAML Format
+## Stage 4: FixtureManifest JSON Format
 
-```yaml
-unit_tests:
-  - name: test_scd2_existing_row_expired_on_match
-    model: dim_customer
-    given:
-      - input: source('fabric_wh', 'staging_customer')
-        rows:
-          - {customer_id: 1, name: "Alice Updated", effective_from: "2024-01-15"}
-      - input: ref('dim_customer')
-        rows:
-          - {customer_sk: 101, customer_id: 1, name: "Alice",
-             effective_from: "2023-01-01", effective_to: null, is_current: true}
-    expect:
-      rows:
-        # expired row
-        - {customer_sk: 101, customer_id: 1, name: "Alice",
-           effective_from: "2023-01-01", effective_to: "2024-01-14", is_current: false}
-        # new row
-        - {customer_sk: 102, customer_id: 1, name: "Alice Updated",
-           effective_from: "2024-01-15", effective_to: null, is_current: true}
+The test generator emits structured `unit_tests[]` JSON. The migrator renders this to `unit_tests:` YAML.
 
-  - name: test_scd2_no_change_row_preserved
-    model: dim_customer
-    given:
-      - input: source('fabric_wh', 'staging_customer')
-        rows:
-          - {customer_id: 1, name: "Alice", effective_from: "2024-01-15"}
-      - input: ref('dim_customer')
-        rows:
-          - {customer_sk: 101, customer_id: 1, name: "Alice",
-             effective_from: "2023-01-01", effective_to: null, is_current: true}
-    expect:
-      rows:
-        - {customer_sk: 101, customer_id: 1, name: "Alice",
-           effective_from: "2023-01-01", effective_to: null, is_current: true}
+```json
+{
+  "unit_tests": [
+    {
+      "name": "test_scd2_existing_row_expired_on_match",
+      "model": "dim_customer",
+      "given": [
+        {
+          "input": "source('fabric_wh', 'staging_customer')",
+          "rows": [
+            { "customer_id": 1, "name": "Alice Updated", "effective_from": "2024-01-15" }
+          ]
+        },
+        {
+          "input": "ref('dim_customer')",
+          "rows": [
+            { "customer_sk": 101, "customer_id": 1, "name": "Alice", "effective_from": "2023-01-01", "effective_to": null, "is_current": true }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          { "customer_sk": 101, "customer_id": 1, "name": "Alice", "effective_from": "2023-01-01", "effective_to": "2024-01-14", "is_current": false },
+          { "customer_sk": 102, "customer_id": 1, "name": "Alice Updated", "effective_from": "2024-01-15", "effective_to": null, "is_current": true }
+        ]
+      }
+    }
+  ]
+}
 ```
 
 Naming convention: `test_<load_pattern>_<scenario_description>`.
@@ -202,8 +198,8 @@ Both output tables are in Fabric when comparison runs, so dbt-audit-helper works
 |---|---|
 | Decomposer | Block-level proc segmentation + statement indices used in Stage 1 extraction |
 | Profiler | FK map (reader proc JOIN analysis) used in Stage 2 topological ordering |
-| Test Generator | Runs Stage 1–4 pipeline and emits `unit_tests:` YAML blocks; outputs FixtureManifest |
-| Migrator | Consumes FixtureManifest; incorporates `unit_tests:` blocks into model schema YAML |
+| Test Generator | Runs Stage 1–4 pipeline; outputs FixtureManifest (structured `unit_tests[]` JSON) |
+| Migrator | Consumes FixtureManifest; renders `unit_tests[]` JSON to `unit_tests:` YAML in model schema |
 | Migrator | Validates via `dbt test --select "model,test_type:unit"` before marking item complete |
 
 ---
@@ -219,6 +215,7 @@ Both output tables are in Fabric when comparison runs, so dbt-audit-helper works
 | Ground-truth capture + coverage | dotnet-sqltest + SQLCoverLib | Testcontainers built-in, Cobertura XML output |
 | dbt YAML emission | Migrator agent (template) | Renders `unit_tests:` blocks |
 | dbt test execution | dbt-core-mcp | `dbt test --select model,test_type:unit` |
+| dbt model branch coverage (CI) | sqlglot + DuckDB | See [dbt-coverage-harness.md](dbt-coverage-harness.md) |
 | End-to-end comparison | dbt-audit-helper | Both sides materialized in Fabric |
 
 ---

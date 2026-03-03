@@ -6,7 +6,7 @@ See [docs/design/unit-test-strategy/](../unit-test-strategy/) for design rationa
 
 ## Philosophy and Boundary
 
-- Test generator owns fixture generation and ground-truth capture. 
+- Test generator owns fixture generation and ground-truth capture.
 - `proc_body` and `table_schemas` are tool-fetched at runtime from `sys.sql_modules` and `sys.columns`. They are not passed in the input.
 - Migrator consumes test generator output and incorporates `unit_tests:` blocks into model schema YAML.
 - Test generator must not make or modify migration business decisions (classification, keys, materialization).
@@ -84,9 +84,9 @@ The test generator receives the planner output unchanged.
 
 ### 4. CaptureGroundTruth
 
-- Spin up ephemeral SQL Server container (testcontainers-python).
+- Run dotnet-sqltest (testcontainers built-in): spins up ephemeral SQL Server container, deploys proc DDL + table schemas.
 - For each scenario: `BEGIN TRANSACTION` → load fixture rows → `EXEC proc` → `SELECT * FROM output_table` → `ROLLBACK`.
-- Run dotnet-sqltest with `--cc-cobertura` to capture statement coverage alongside proc execution.
+- dotnet-sqltest emits Cobertura XML for statement coverage alongside proc execution.
 
 ### 5. ResolveCoverage
 
@@ -96,8 +96,9 @@ The test generator receives the planner output unchanged.
 
 ### 6. EmitFixtures
 
-- Format `{input_rows, expected_rows}` per scenario as `unit_tests:` YAML blocks.
+- Format `{input_rows, expected_rows}` per scenario as structured `unit_tests[]` JSON objects.
 - Test name convention: `test_<load_pattern>_<scenario_description>`.
+- Migrator renders `unit_tests[]` to `unit_tests:` YAML.
 
 ### 7. ValidateOutput
 
@@ -117,7 +118,25 @@ The test generator receives the planner output unchanged.
       "item_id": "dbo.fact_sales",
       "status": "ok|partial|error",
       "coverage": "complete|partial",
-      "unit_tests_yaml": "unit_tests:\n  - name: ...",
+      "unit_tests": [
+        {
+          "name": "test_incremental_new_sale_inserted",
+          "model": "fct_fact_sales",
+          "given": [
+            {
+              "input": "source('fabric_wh', 'staging_sales')",
+              "rows": [
+                { "order_id": 1, "line_number": 1, "customer_sk": 101, "load_date": "2024-01-15" }
+              ]
+            }
+          ],
+          "expect": {
+            "rows": [
+              { "sale_id": 1001, "order_id": 1, "line_number": 1, "customer_sk": 101, "load_date": "2024-01-15" }
+            ]
+          }
+        }
+      ],
       "cobertura_xml_path": "artifacts/coverage/dbo.fact_sales.xml",
       "branch_manifest": {
         "branches": []
@@ -140,13 +159,26 @@ The test generator receives the planner output unchanged.
 }
 ```
 
+Migrator renders `unit_tests[]` to `unit_tests:` YAML.
+
+### unit_tests[] Entry Schema
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | Test name — convention: `test_<load_pattern>_<scenario_description>` |
+| `model` | string | yes | dbt model name from `plan.documentation.model_name` |
+| `given` | object[] | yes | One entry per mocked input relation |
+| `given[].input` | string | yes | dbt `ref(...)` or `source(...)` expression identifying the relation |
+| `given[].rows` | object[] | yes | One or more fixture input rows as column→value maps |
+| `expect.rows` | object[] | yes | Expected output rows as column→value maps (ground-truth captured from proc execution) |
+
 ## Coverage and Status Rules
 
 | Condition | `coverage` | `status` |
 |---|---|---|
 | All branches covered | `complete` | `ok` |
 | Max iterations reached, branches remain | `partial` | `partial` |
-| Branch declared unreachable by LLM | `complete` (branch skipped) | `ok` |
+| Branch declared unreachable by LLM | `partial` (branch skipped) | `ok` |
 | Proc execution or container failure | — | `error` |
 
 Items with `coverage: partial` are flagged for FDE manual fixture authoring before migration sign-off.
@@ -156,9 +188,9 @@ Items with `coverage: partial` are flagged for FDE manual fixture authoring befo
 - `item_id` is present.
 - `status` is one of: `ok|partial|error`.
 - `coverage` is one of: `complete|partial`.
-- Every `unit_tests_yaml` block has at least one `given` input and one `expect` row.
+- Every `unit_tests[]` entry has a `name`, at least one `given` input with rows, and an `expect` with rows.
 - `uncovered_branches` is empty when `coverage == "complete"`.
-- `uncovered_branches` is non-empty when `coverage == "partial"`.
+- `uncovered_branches` is non-empty when `coverage == "partial"` (includes unreachable branches).
 - `cobertura_xml_path` is present when `status != "error"`.
 - If `status == "partial"`, `validation.issues` is non-empty.
 - If `status == "error"`, `errors` is non-empty.
@@ -168,7 +200,7 @@ Items with `coverage: partial` are flagged for FDE manual fixture authoring befo
 Test generator must not output:
 
 - Generated dbt SQL model files
-- Model schema YAML (other than `unit_tests:` blocks)
+- YAML strings — `unit_tests[]` is structured JSON; migrator renders YAML
 - Materialization or business key decisions
 
 `validation.issues[]`, `warnings[]`, and `errors[]` use the shared diagnostics schema in `docs/design/agent-contract/README.md`.
