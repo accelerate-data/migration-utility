@@ -28,13 +28,13 @@ All contracts are batch-only. Single-table UI execution is a degenerate batch wi
 4. Planning: planner agent consumes approved answers + approved decomposition, then produces materialization, tests, and documentation intent.
 5. Migration: migrator agent converts planner output into dbt artifacts using tool-fetched facts.
 
-## Contract Pages
+## Workflow
 
-- [Scoping Agent Contract](scoping-agent.md) - input/output contract for table-to-writer procedure mapping.
-- [Profiler Agent Contract](profiler-agent.md) - required input and output schema for candidate generation. See [What to Profile and Why](what-to-profile-and-why.md) for rationale and detection options per field.
-- [Decomposer Agent Contract](decomposer-agent.md) - required input and output schema for SQL decomposition and model split-point proposals.
-- [Planner Agent Contract](planner-agent.md) - required input and output schema for design manifest generation.
-- [Migrator Agent Contract](migrator-agent.md) - required input and output schema for dbt artifact generation.
+- [Scoping Agent](scoping-agent.md) - input/output contract for table-to-writer procedure mapping.
+- [Profiler Agent](profiler-agent.md) - required input and output schema for candidate generation. See [What to Profile and Why](what-to-profile-and-why.md) for rationale and detection options per field.
+- [Decomposer Agent](decomposer-agent.md) - required input and output schema for SQL decomposition and model split-point proposals.
+- [Planner Agent](planner-agent.md) - required input and output schema for design manifest generation.
+- [Migrator Agent](migrator-agent.md) - required input and output schema for dbt artifact generation.
 
 ## Contract Boundary
 

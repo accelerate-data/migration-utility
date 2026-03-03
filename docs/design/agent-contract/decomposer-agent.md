@@ -1,7 +1,6 @@
 # Decomposer Agent Contract
 
-The decomposer agent consumes the selected writer procedure and returns SQL decomposition proposals.
-It segments unwieldy procedure SQL into reusable logical blocks and candidate model split points.
+The Decomposer agent takes a selected writer stored procedure and produces SQL decomposition proposals for dbt migration. It analyzes procedure SQL, breaks large/complex logic into reusable logical blocks, and identifies candidate split points that can be implemented as dbt-friendly units (CTEs, intermediate models, tables, or views).
 
 ## Philosophy and Boundary
 

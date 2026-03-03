@@ -7,13 +7,12 @@ stored-procedure-to-dbt migration, and the ranked options for deriving it.
 
 | # | Question | Verdict | Impact if missing |
 |---|---|---|---|
-| Q1 | Who writes the table? | **Scoping** | Answered by scoping agent; profiler receives `selected_writer` as input |
-| Q2 | What kind of model is this? | **Required** | Wrong materialization, wrong test suite |
-| Q3 | Primary key candidate | **Required** | Cannot write `unique_key` or uniqueness tests |
-| Q4 | Foreign key candidates | Nice-to-have | Missing `relationships` tests only; SQL still works |
-| Q5 | Natural key vs surrogate key | **Required** | Wrong `generate_surrogate_key` decision, wrong merge key |
-| Q6 | Incremental watermark | **Required** | Must fall back to full-refresh `table` materialization |
-| Q7 | PII handling candidates | Nice-to-have | SQL correct; compliance risk if PII flows unmasked |
+| Q1 | What kind of model is this? | **Required** | Wrong materialization, wrong test suite |
+| Q2 | Primary key candidate | **Required** | Cannot write `unique_key` or uniqueness tests |
+| Q3 | Foreign key candidates | Nice-to-have | Missing `relationships` tests only; SQL still works |
+| Q4 | Natural key vs surrogate key | **Required** | Wrong `generate_surrogate_key` decision, wrong merge key |
+| Q5 | Incremental watermark | **Required** | Must fall back to full-refresh `table` materialization |
+| Q6 | PII handling candidates | Nice-to-have | SQL correct; compliance risk if PII flows unmasked |
 
 ---
 
