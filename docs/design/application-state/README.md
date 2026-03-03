@@ -1,82 +1,176 @@
 # Application State Design
 
-Canonical app state machine for surface routing and edit locks.
+Canonical application state for stage-gated offline migration with DB-first state management.
 
-## Source of Truth
+## Core Model
 
-`app_phase` is the single source of truth for lifecycle state. All routing,
-surface locks, and edit guards derive from it.
+The app runs as four gated stages per batch item:
 
-Persisted in SQLite `settings` key `app_phase`:
-`setup_required` | `scope_editable` | `plan_editable` | `ready_to_run` | `running_locked`
+1. `scoping`
+2. `profiling`
+3. `planning`
+4. `running` (migration + testing)
 
-Implementation references:
+The database is canonical. Agent output files are import artifacts and audit evidence.
 
-- [db.rs](/Users/hbanerjee/src/migration-utility/app/src-tauri/src/db.rs)
-- [types.rs](/Users/hbanerjee/src/migration-utility/app/src-tauri/src/types.rs)
-- [settings.rs](/Users/hbanerjee/src/migration-utility/app/src-tauri/src/commands/settings.rs)
+## Canonical Sources
 
-## Phase Definitions
+- Canonical runtime state: SQLite tables (stage runs, stage items, overrides, approvals).
+- Import source: `artifacts/<run_id>/<stage>/output.json`.
+- Export source for next stage: DB effective values (`COALESCE(fde_value, agent_value)`).
+- File views are read-only mirrors; they never override DB directly.
 
-- `setup_required`: No workspace applied yet (initial state and after reset).
-- `scope_editable`: Source applied; user is configuring scope.
-- `plan_editable`: Scope finalized; user is editing the migration plan.
-- `ready_to_run`: Plan finalized; migration can be launched.
-- `running_locked`: Migration running; all surfaces are read-only.
+## State Layers Per Item
 
-## Phase Transitions
+Each stage item keeps three value layers:
 
-All transitions are explicit writes — no dynamic inference from prerequisites.
+1. `agent_value` - immutable value imported from agent output.
+2. `fde_value` - optional user override.
+3. `effective_value` - computed value used by downstream stage artifacts.
 
-| Action | Command | Resulting phase |
-|---|---|---|
-| Apply source | `workspace_apply_and_clone` | `scope_editable` |
-| Reset / delete source | `workspace_reset_state` | `setup_required` |
-| Finalize Scope | `app_set_phase('plan_editable')` | `plan_editable` |
-| Finalize Plan | `app_set_phase('ready_to_run')` | `ready_to_run` |
-| Launch Migration | `app_set_phase('running_locked')` | `running_locked` |
+Rule: `effective_value = COALESCE(fde_value, agent_value)`.
 
-`app_set_phase` cannot be called with `setup_required` (rejected server-side).
+## Recommended Tables
 
-## Reconciliation
+### `workflow_runs`
 
-`reconcile_and_persist_app_phase` reads the persisted phase and returns it,
-defaulting to `setup_required` if no phase has been written yet. It performs
-no inference and no writes — it is a pure read.
+- `id`
+- `batch_id`
+- `status` (`active`, `completed`, `failed`, `cancelled`)
+- `created_at`, `updated_at`
 
-Called by `app_hydrate_phase` (startup) and `app_set_phase` (returns new state).
+### `stage_runs`
 
-## Fact Fields
+- `id`
+- `workflow_run_id`
+- `stage` (`scoping`, `profiling`, `planning`, `running`)
+- `status` (`queued`, `running`, `partial`, `passed`, `failed`, `cancelled`)
+- `trigger_mode` (`normal`, `delta`, `override`)
+- `override_reason` (nullable)
+- `started_at`, `completed_at`
 
-`AppPhaseState` includes `hasGithubAuth`, `hasAnthropicKey`, `isSourceApplied`
-as informational fields for the Home/Setup screen. They do **not** drive
-phase transitions.
+### `stage_items`
 
-## Frontend Routing and Locks
+- `id`
+- `stage_run_id`
+- `table_ref`
+- `status` (`pending`, `running`, `passed`, `failed`, `blocked`, `stale`)
+- `agent_payload_json`
+- `effective_payload_json`
+- `upstream_fingerprint`
+- `input_fingerprint`
+- `stale_reason` (nullable)
 
-Default route by phase:
+### `stage_item_overrides`
 
-- `setup_required` -> `/home`
-- `scope_editable` -> `/scope`
-- `plan_editable` -> `/plan`
-- `ready_to_run` -> `/monitor`
-- `running_locked` -> `/monitor`
+- `id`
+- `stage_item_id`
+- `field_path`
+- `agent_value_json`
+- `fde_value_json`
+- `edited_by`
+- `edited_at`
 
-Surface availability:
+### `stage_item_approvals`
 
-- `settings`: always enabled
-- `home`: always enabled
-- `scope`: enabled for all non-setup phases
-- `plan`: enabled in `plan_editable`, `ready_to_run`, `running_locked`
-- `monitor`: enabled in `ready_to_run`, `running_locked`
+- `id`
+- `stage_item_id`
+- `approval_state` (`pending`, `approved`, `rejected`)
+- `approved_by`
+- `approved_at`
+- `notes`
 
-Read-only behavior:
+### `rerun_selection`
 
-- Scope surface: read-only in all phases except `scope_editable`
-- Plan surface: read-only in `running_locked`
+- `id`
+- `workflow_run_id`
+- `stage`
+- `table_ref`
+- `selection_source` (`edited_filter`, `stale_filter`, `failed_filter`, `manual`)
+- `selected_at`
 
-Implementation references:
+## Stage Gates
 
-- [workflow-store.ts](/Users/hbanerjee/src/migration-utility/app/src/stores/workflow-store.ts)
-- [App.tsx](/Users/hbanerjee/src/migration-utility/app/src/App.tsx)
-- [icon-nav.tsx](/Users/hbanerjee/src/migration-utility/app/src/components/icon-nav.tsx)
+Gate policy is warning-first with override support.
+
+- Default submission: `safe delta` (only items passing gate checks).
+- Override submission: allows selected warning items; requires override reason and audit record.
+
+Gate checks include:
+
+- Upstream stage approval missing.
+- Upstream-derived stale fingerprints.
+- Required effective fields missing.
+
+## Delta Rerun Logic
+
+Delta is default for reruns.
+
+An item is delta-eligible if any are true:
+
+- Edited by FDE since last stage run.
+- Marked stale from upstream fingerprint mismatch.
+- Prior run status `failed` or `partial`.
+- Manually selected by FDE.
+
+Rerun payload is generated from selected items only.
+
+## State Machines
+
+### Workflow-level machine
+
+- `setup_required` -> `scope_ready` -> `stage_active` -> `stage_waiting_approval` -> `stage_active` (next stage) -> `completed`
+- Any stage can transition to `failed`.
+- `reset` transitions to `setup_required`.
+
+### Stage-level machine
+
+- `queued` -> `running` -> `partial|passed|failed|cancelled`
+- `partial` can be retriggered with delta selection.
+- `passed` waits for FDE approval before opening next stage.
+
+### Item-level machine
+
+- `pending` -> `running` -> `passed|failed|blocked|stale`
+- `stale` requires rerun before downstream stage submission.
+- `blocked` can move to `pending` after dependencies are satisfied.
+
+## Transitions
+
+| Trigger | Scope | Transition | Notes |
+|---|---|---|---|
+| Import stage output JSON | stage run | `running -> partial, passed, failed` | Writes `agent_payload_json` only |
+| FDE edit | stage item | marks item dirty | Writes override row; recomputes effective value |
+| Approve item/stage | stage item/run | approval state updated | Required for gate satisfaction |
+| Submit stage run (safe delta) | stage run | creates new queued run | Includes only gate-safe selected items |
+| Submit stage run (override) | stage run | creates new queued run | Requires `override_reason` |
+| Upstream approved rerun | dependent items | mark `stale` | Fingerprint mismatch propagation |
+
+## Routing and Locking
+
+- Scoping/profiling/planning surfaces are editable from DB state.
+- Running surface is read-only.
+- While a stage run is `running`, that stage's edit controls are disabled.
+- Other stages remain viewable; downstream stage trigger remains gated.
+
+## Artifact Flow
+
+1. Agent writes stage `output.json`.
+2. Importer validates schema and upserts `agent_payload_json` rows.
+3. UI edits store `fde_value` overrides in DB.
+4. Exporter composes next stage `input.json` from effective values.
+5. Triggered stage writes new `output.json`; cycle repeats.
+
+## Non-Goals
+
+- Canonical state in markdown.
+- In-place mutation of imported agent payload.
+- Full rerun by default when delta is available.
+
+## Implementation References
+
+- [offline-stage-gated-mockup.html](/Users/hbanerjee/src/migration-utility/docs/design/ui-patterns/offline-stage-gated-mockup.html)
+- [README.md](/Users/hbanerjee/src/migration-utility/docs/design/agent-contract/README.md)
+- [scoping-agent.md](/Users/hbanerjee/src/migration-utility/docs/design/agent-contract/scoping-agent.md)
+- [profiler-agent.md](/Users/hbanerjee/src/migration-utility/docs/design/agent-contract/profiler-agent.md)
+- [planner-agent.md](/Users/hbanerjee/src/migration-utility/docs/design/agent-contract/planner-agent.md)

@@ -6,26 +6,28 @@ All contracts are batch-only. Single-table UI execution is a degenerate batch wi
 
 ## Flow
 
-1. Scoping: scoping agent maps target table to writer procedure candidate(s).
-2. Profiling: profiler agent gathers SQL Server facts and emits a deterministic profile JSON.
-3. Planning: planner agent consumes scope input + profile JSON and emits editable plan JSON for FDE review.
+1. Scoping: scoping agent maps target table to writer procedure candidate(s) and selects writer when resolvable.
+2. Profiling: profiler agent proposes candidate migration decisions for FDE approval.
+3. Planning: planner agent captures FDE-approved decisions and documentation intent.
+4. Migration: migrator agent converts approved decisions into dbt artifacts using tool-fetched facts.
 
 ## Contract Pages
 
 - [Scoping Agent Contract](scoping-agent.md) - input/output contract for table-to-writer procedure mapping.
-- [Profiler Agent Contract](profiler-agent.md) - required input and output schema for SQL Server profiling.
-- [Planner Agent Contract](planner-agent.md) - required input and output schema for dbt model planning.
+- [Profiler Agent Contract](profiler-agent.md) - required input and output schema for candidate generation.
+- [Planner Agent Contract](planner-agent.md) - required input and output schema for decision manifest generation.
+- [Migrator Agent Contract](migrator-agent.md) - required input and output schema for dbt artifact generation.
 
 ## Contract Boundary
 
-- Scoping output is writer candidate discovery and ranking.
-- Profiler output is facts/evidence only.
-- Planner output is decisions/proposal only.
-- Planner should not re-query SQL Server when profile completeness is `complete` and required sections are present.
-- Each agent uses `items[]` input and `results[]` output for partial-failure-safe bulk execution.
+- Scoping output is minimal writer discovery/selection data.
+- Profiler output is candidate proposals that require FDE judgment.
+- Planner captures approved decisions and required documentation metadata.
+- Migrator fetches direct facts via tools and materializes dbt files from approved decisions.
+- Upstream agents should not emit fields that downstream stages can derive or fetch reliably.
 
 ## Workflow Semantics
 
-- Scoping and configuration are non-blocking until scope is finalized.
-- Agent-derived values and manual overrides are both first-class and should be tracked explicitly.
-- Validation findings should be surfaced as structured warnings/errors and should not implicitly block approval unless policy requires it.
+- Scoping and profiling produce machine-readable outputs with per-item status and errors.
+- FDE approval is the decision gate between profiler candidates and migrator execution.
+- Validation findings should be surfaced as structured warnings/errors.

@@ -1,7 +1,13 @@
 # Planner Agent Contract
 
-The planner agent consumes scoping input + profiler output and returns an editable plan JSON for FDE.
-Planner output is decisions/proposal, not raw profiling facts.
+The planner agent consumes scoping context plus profiler candidates and returns an editable
+FDE decision manifest. Planner output is decisions and documentation intent only.
+
+## Philosophy and Boundary
+
+- Planner captures FDE-approved judgments.
+- Planner does not emit fields the migrator can fetch reliably using tools.
+- Migrator generates dbt SQL and YAML artifacts from planner decisions plus tool-fetched facts.
 
 ## Required Input
 
@@ -12,141 +18,125 @@ Planner output is decisions/proposal, not raw profiling facts.
   "items": [
     {
       "item_id": "dbo.fact_sales",
-      "request": {
-        "procedure": { "name": "dbo.usp_load_fact_sales" },
-        "target": {
-          "name": "dbo.fact_sales",
-          "intended_kind": "auto|dim_non_scd|dim_scd1|dim_scd2|dim_junk|fact_transaction|fact_periodic_snapshot|fact_accumulating_snapshot|fact_aggregate"
-        },
-        "constraints": {
-          "business_context": "",
-          "fde_overrides": []
-        },
-        "scope_context": {
-          "scoping_status": "resolved",
-          "selected_by": "agent|manual",
-          "candidate_count": 1
-        }
-      },
-      "profile": "PlannerReadyProfile"
+      "target_table": "dbo.fact_sales",
+      "selected_writer": "dbo.usp_load_fact_sales",
+      "candidate_profile": {
+        "candidate_classifications": [
+          { "resolved_kind": "fact_transaction", "confidence": 0.88 }
+        ],
+        "candidate_primary_keys": [
+          {
+            "columns": ["sale_id"],
+            "primary_key_type": "surrogate",
+            "confidence": 0.97
+          }
+        ],
+        "candidate_natural_keys": [
+          { "columns": ["order_id", "line_number"], "confidence": 0.78 }
+        ],
+        "candidate_foreign_keys": [
+          {
+            "column": "customer_sk",
+            "references": "dim_customer.customer_sk",
+            "confidence": 0.9
+          }
+        ],
+        "candidate_watermarks": [
+          { "column": "load_date", "confidence": 0.94 }
+        ],
+        "candidate_pii_actions": [
+          { "column": "customer_email", "suggested_action": "mask", "confidence": 0.93 }
+        ]
+      }
     }
   ]
 }
 ```
 
-## Planner Requery Rule
-
-Planner should not re-query SQL Server when:
-
-- `profile.completeness.status == "complete"`, and
-- `profile.validation.passed == true`, and
-- all planner-required fields are present.
-
-Planner may do targeted fallback queries only for missing/invalid required sections.
-
-## Output Schema (PlanAgentOutput)
+## Output Schema (PlannerDecisionManifest)
 
 ```json
 {
   "schema_version": "1.0",
   "batch_id": "uuid",
-  "results": [
+  "decisions": [
     {
       "item_id": "dbo.fact_sales",
-      "status": "ok|partial|error",
-      "output": {
-        "table_ref": "dbo.fact_sales",
-        "status": "draft",
-
-        "source_context": {
-          "procedure_name": "dbo.usp_load_fact_sales",
-          "procedure_summary": "Loads fact_sales from stage + dimensions with incremental filtering.",
-          "input_relations": ["dbo.sales_stage", "dbo.dim_customer", "dbo.dim_product"],
-          "output_relation": "dbo.fact_sales"
-        },
-
-        "proposed": {
-          "model_name": "fct_fact_sales",
-          "layer": "gold",
-          "materialized": "incremental",
-          "description": "Transaction-level sales fact table for reporting.",
-          "source_tables": ["dbo.sales_stage", "dbo.dim_customer", "dbo.dim_product"],
-          "unique_key": ["sale_id"],
-          "incremental_column": "load_date",
-          "canonical_date_column": "sale_date",
-          "sql": "with src as (...) select * from ..."
-        },
-
-        "tests": [
-          {
-            "name": "not_null",
-            "input": "sale_id",
-            "purpose": "Ensure transaction key exists."
-          },
-          {
-            "name": "unique",
-            "input": "sale_id",
-            "purpose": "Enforce fact grain."
-          },
-          {
-            "name": "relationships",
-            "input": "customer_sk -> dim_customer.customer_sk",
-            "purpose": "Validate dimension key integrity."
-          }
+      "target_table": "dbo.fact_sales",
+      "status": "draft|approved|rejected|needs_clarification|error",
+      "decision": {
+        "selected_writer": "dbo.usp_load_fact_sales",
+        "selected_classification": "fact_transaction",
+        "selected_materialization": "incremental",
+        "selected_primary_key": ["sale_id"],
+        "selected_primary_key_type": "surrogate|natural|composite|unknown",
+        "selected_natural_key": ["order_id", "line_number"],
+        "selected_foreign_keys": [
+          { "column": "customer_sk", "references": "dim_customer.customer_sk" }
         ],
-
-        "pii_candidates": [
-          {
-            "column": "customer_email",
-            "entity": "email",
-            "confidence": 0.91,
-            "source": "profile",
-            "action": "mask",
-            "rationale": "PII candidate detected in profiler evidence."
-          }
-        ],
-
-        "current": {
-          "state": "completed",
-          "phase": "planning",
-          "current_procedure": "dbo.usp_load_fact_sales",
-          "current_sql": "select ..."
-        },
-
-        "fde_review": {
-          "must_confirm": [
-            "Model kind and materialization",
-            "Unique key and incremental column",
-            "Tests",
-            "PII actions"
-          ],
-          "open_questions": [],
-          "notes": ""
-        },
-
-        "confidence": {
-          "overall": 0.84
-        }
+        "selected_watermark": "load_date",
+        "selected_pii_actions": [
+          { "column": "customer_email", "action": "mask" }
+        ]
       },
+      "documentation": {
+        "model_name": "fct_fact_sales",
+        "model_description": "Transaction-level sales fact table for reporting and analytics.",
+        "column_descriptions": [
+          { "column": "sale_id", "description": "Surrogate key for each sale event." },
+          { "column": "customer_sk", "description": "Foreign key to dim_customer." },
+          { "column": "load_date", "description": "Ingestion timestamp used for incremental loading." }
+        ],
+        "business_definitions": [
+          {
+            "term": "Sale Event",
+            "definition": "A finalized transaction line captured at checkout."
+          }
+        ],
+        "tags": ["gold", "sales"],
+        "owner": "data-platform"
+      },
+      "approval": {
+        "approved_by": "",
+        "approved_at_utc": "",
+        "notes": ""
+      },
+      "open_questions": [],
+      "warnings": [],
       "errors": []
     }
   ],
   "summary": {
     "total": 1,
-    "ok": 1,
-    "partial": 0,
+    "approved": 0,
+    "draft": 1,
+    "rejected": 0,
+    "needs_clarification": 0,
     "error": 0
   }
 }
 ```
 
-## FDE Responsibilities
+## Required Planner Decisions
 
-- Review and edit any `proposed` field.
-- Review and edit `tests` rows (`name`, `input`, `purpose`).
-- Review and confirm `pii_candidates[*].action`.
-- Approve by setting `status` from `draft`/`stale` to `approved` only after unresolved questions are closed.
+Each `decisions[*]` item must contain:
+
+- `decision.selected_classification`
+- `decision.selected_primary_key`
+- `decision.selected_primary_key_type`
+- `decision.selected_foreign_keys`
+- `decision.selected_watermark` (or explicit null when not applicable)
+- `decision.selected_pii_actions`
+- `documentation.model_name`
+- `documentation.model_description`
 
 ## Planner Boundary
 
-Planner should not copy raw profiler dumps into output. It should emit only explainable decisions and references to source evidence where needed.
+Planner must not output:
+
+- target schema metadata
+- source schema metadata
+- generated dbt SQL/Jinja content
+- generated dbt YAML content
+
+These are migrator responsibilities using tool-fetched facts and planner-approved decisions.

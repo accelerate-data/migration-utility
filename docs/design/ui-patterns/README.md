@@ -161,7 +161,7 @@ After reset, Home returns to the Ready state. FDE reconfigures Workspace and sta
 - [Launch Monitor](launch-monitor.md) — Airflow-style agent grid, log stream, partial failure handling
 - [Usage](usage.md) — Settings → Usage tab: cost summary cards, bar charts by table/phase, time series, expandable run history
 
-Interactive mockup: [home-mockup.html](home-mockup.html)
+Interactive mockups: [home-mockup.html](home-mockup.html), [offline-stage-gated-mockup.html](offline-stage-gated-mockup.html)
 
 ---
 
