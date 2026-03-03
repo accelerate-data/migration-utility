@@ -610,6 +610,138 @@
     }
 
     /* ═══════════════════════════════════════════════
+       SURFACE: SCOPE — SCOPING PANEL
+    ═══════════════════════════════════════════════ */
+
+    /* Sidebar item rows */
+    .scoping-sidebar-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      transition: background .12s;
+      border-bottom: 1px solid var(--border);
+    }
+    .scoping-sidebar-item:last-child { border-bottom: none; }
+    .scoping-sidebar-item:hover { background: var(--pacific-10); }
+    .scoping-sidebar-item.active { background: var(--pacific-10); }
+
+    /* Status dot (7px, reuses .dot base) */
+    .scoping-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .scoping-dot-green  { background: var(--seafoam); }
+    .scoping-dot-blue   { background: var(--pacific); animation: pulse 1.4s ease-in-out infinite; }
+    .scoping-dot-amber  { background: var(--amber); }
+    .scoping-dot-red    { background: var(--destructive); }
+    .scoping-dot-muted  { background: var(--fg-subtle); border: 1.5px solid var(--fg-subtle); background: transparent; }
+
+    /* Procedure candidate card */
+    .scoping-candidate-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      background: var(--bg-card);
+      margin-top: 8px;
+    }
+    .scoping-candidate-card + .scoping-candidate-card { margin-top: 8px; }
+    .scoping-candidate-card.selected {
+      border-color: var(--pacific);
+      background: var(--pacific-10);
+    }
+
+    /* Code snippet */
+    .scoping-code-snippet {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--fg-muted);
+      background: var(--bg-muted);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 6px 8px;
+      margin-top: 6px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Evidence line */
+    .scoping-evidence-line {
+      font-size: 11px;
+      color: var(--fg-muted);
+      margin-top: 4px;
+    }
+
+    /* Right panel detail header */
+    .scoping-detail-header {
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+      margin: -16px -16px 14px;
+    }
+
+    /* Scope context read-only block */
+    .scoping-context-block {
+      background: var(--bg-muted);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 10px;
+      margin-top: 6px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    /* Separator within panel */
+    .scoping-sep {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 14px 0;
+    }
+
+    /* Section label within panel */
+    .scoping-section-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--fg-subtle);
+      margin-bottom: 8px;
+    }
+
+    /* Input/select/textarea (reuse scope-edit-* but add textarea) */
+    .scoping-textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 9px;
+      font-size: 12px;
+      font-family: var(--font-sans);
+      background: var(--bg-card);
+      color: var(--fg);
+      outline: none;
+      resize: vertical;
+      min-height: 54px;
+    }
+    .scoping-textarea:disabled {
+      background: var(--bg-muted);
+      color: var(--fg-muted);
+      cursor: not-allowed;
+    }
+
+    /* Empty / not-scoped-yet state */
+    .scoping-empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 220px;
+      gap: 8px;
+      text-align: center;
+    }
+
+    /* ═══════════════════════════════════════════════
        SURFACE: PLAN
     ═══════════════════════════════════════════════ */
     .plan-shell {
@@ -856,6 +988,9 @@
         <button class="sw-btn"     onclick="show('scope-select', this, 'scope')">Scope — Select Tables</button>
         <button class="sw-btn"     onclick="show('scope-details', this, 'scope'); scopeDetailsState('pending')">Scope — Table Details (Pending)</button>
         <button class="sw-btn"     onclick="show('scope-details', this, 'scope'); scopeDetailsState('approved')">Scope — Table Details (Approved)</button>
+        <button class="sw-btn"     onclick="show('scope-scoping', this, 'scope'); scopingState('pending')">Scope — Scoping (Pre-run)</button>
+        <button class="sw-btn"     onclick="show('scope-scoping', this, 'scope'); scopingState('resolved')">Scope — Scoping (Resolved)</button>
+        <button class="sw-btn"     onclick="show('scope-scoping', this, 'scope'); scopingState('ambiguous')">Scope — Scoping (Ambiguous)</button>
         <button class="sw-btn"     onclick="show('plan', this, 'plan')">Plan — Draft</button>
         <button class="sw-btn" id="sw-monitor-ready"   onclick="show('monitor',  this); monitorState('ready')">Monitor — Ready</button>
         <button class="sw-btn" id="sw-monitor-running" onclick="show('monitor',  this); monitorState('running')">Monitor — Running</button>
@@ -1482,6 +1617,272 @@
             </div>
           </div>
         </div><!-- /surface-scope-details -->
+
+        <!-- ════════════════════════════════════
+             SCOPE SURFACE — SCOPING PANEL
+        ════════════════════════════════════ -->
+        <div id="surface-scope-scoping" class="surface">
+          <div class="section-label">Scope — Table Details (Scoping)</div>
+          <div class="scope-shell">
+
+            <!-- Header -->
+            <div class="scope-header">
+              <div class="scope-summary">
+                <span class="chip chip-muted">8 selected</span>
+                <span class="chip" id="scoping-progress-chip">0 / 8 scoped</span>
+                <span class="text-xs text-muted" data-scope-lock-meta>Scope editable</span>
+              </div>
+              <div class="scope-actions">
+                <button class="btn btn-outline btn-sm" data-scope-lockable>Refresh schema</button>
+                <button class="btn btn-outline btn-sm" id="scoping-run-btn" data-scope-lockable>
+                  ▶ Run Scoping
+                </button>
+                <button class="btn btn-primary btn-sm" onclick="finalizeScope()" data-scope-finalize-btn data-scope-lockable>
+                  Finalize scope
+                </button>
+              </div>
+            </div>
+
+            <!-- Tab bar -->
+            <div class="scope-tabbar">
+              <div class="scope-tab">1. Select tables</div>
+              <div class="scope-tab active">2. Table details</div>
+            </div>
+
+            <!-- Two-column body -->
+            <div style="display:flex; gap:12px; flex:1; min-height:0; overflow:hidden;">
+
+              <!-- LEFT: sidebar -->
+              <div style="width:160px; flex-shrink:0; overflow-y:auto;">
+                <div class="card" style="overflow:hidden;">
+
+                  <!-- Schema: dbo -->
+                  <details class="scope-schema-block" open>
+                    <summary class="scope-schema-summary">
+                      <span class="scope-schema-title">
+                        <span class="scope-disclosure font-mono" style="font-size:10px;">▶</span>
+                        <span class="font-mono" style="font-size:11px;">dbo</span>
+                      </span>
+                      <span class="text-xs text-muted">4</span>
+                    </summary>
+                    <div id="scoping-row-fact_sales" class="scoping-sidebar-item active" onclick="showScopingPanel('fact_sales')">
+                      <span id="scoping-dot-fact_sales" class="scoping-dot scoping-dot-muted"></span>
+                      <span>fact_sales</span>
+                    </div>
+                    <div id="scoping-row-dim_customer" class="scoping-sidebar-item" onclick="showScopingPanel('dim_customer')">
+                      <span id="scoping-dot-dim_customer" class="scoping-dot scoping-dot-muted"></span>
+                      <span>dim_customer</span>
+                    </div>
+                    <div id="scoping-row-dim_product" class="scoping-sidebar-item" onclick="showScopingPanel('dim_product')">
+                      <span id="scoping-dot-dim_product" class="scoping-dot scoping-dot-muted"></span>
+                      <span>dim_product</span>
+                    </div>
+                    <div id="scoping-row-dim_channel" class="scoping-sidebar-item" onclick="showScopingPanel('dim_channel')">
+                      <span id="scoping-dot-dim_channel" class="scoping-dot scoping-dot-muted"></span>
+                      <span>dim_channel</span>
+                    </div>
+                  </details>
+
+                  <!-- Schema: reporting -->
+                  <details class="scope-schema-block" open>
+                    <summary class="scope-schema-summary">
+                      <span class="scope-schema-title">
+                        <span class="scope-disclosure font-mono" style="font-size:10px;">▶</span>
+                        <span class="font-mono" style="font-size:11px;">reporting</span>
+                      </span>
+                      <span class="text-xs text-muted">2</span>
+                    </summary>
+                    <div id="scoping-row-gold_summary" class="scoping-sidebar-item" onclick="showScopingPanel('gold_summary')">
+                      <span id="scoping-dot-gold_summary" class="scoping-dot scoping-dot-muted"></span>
+                      <span>gold_summary</span>
+                    </div>
+                    <div id="scoping-row-gold_sales_rollup" class="scoping-sidebar-item" onclick="showScopingPanel('gold_sales_rollup')">
+                      <span id="scoping-dot-gold_sales_rollup" class="scoping-dot scoping-dot-muted"></span>
+                      <span>gold_sales_rollup</span>
+                    </div>
+                  </details>
+
+                </div>
+              </div><!-- /sidebar -->
+
+              <!-- RIGHT: scoping + profiler panel -->
+              <div style="flex:1; min-width:0; overflow-y:auto;">
+
+                <!-- ── PENDING STATE (before scoping runs) ── -->
+                <div id="scoping-right-pending" class="card card-p">
+                  <div class="scoping-empty-state">
+                    <div style="width:40px;height:40px;background:var(--pacific-10);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;">◎</div>
+                    <p class="text-sm font-semibold">Not scoped yet</p>
+                    <p class="text-xs text-muted" style="max-width:280px;">
+                      Click <strong>Run Scoping</strong> to analyze all selected tables and find which
+                      stored procedures write to each one.
+                    </p>
+                  </div>
+                </div>
+
+                <!-- ── RESOLVED STATE (fact_sales — 1 direct writer) ── -->
+                <div id="scoping-right-resolved" class="card card-p" style="display:none;">
+                  <div class="scoping-detail-header row between">
+                    <span class="font-mono text-sm font-medium">dbo.fact_sales</span>
+                  </div>
+
+                  <p class="scoping-section-label">Scoping Results</p>
+                  <div class="row gap8" style="margin-bottom:10px;">
+                    <span class="chip chip-green" style="gap:5px;">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+                      Resolved
+                    </span>
+                    <span class="text-xs text-muted">1 writer found</span>
+                  </div>
+
+                  <!-- Procedure candidate card: resolved -->
+                  <div class="scoping-candidate-card">
+                    <div class="row between" style="margin-bottom:6px;">
+                      <span class="font-mono" style="font-size:12px; font-weight:600;">dbo.usp_load_fact_sales</span>
+                      <span class="chip chip-green" style="font-size:11px;">98%</span>
+                    </div>
+                    <div class="row gap6" style="flex-wrap:wrap; margin-bottom:6px;">
+                      <span class="chip chip-green" style="font-size:11px;">Direct</span>
+                      <span class="chip chip-muted" style="font-size:11px;">INSERT</span>
+                      <span class="chip chip-muted" style="font-size:11px;">MERGE</span>
+                      <span class="chip chip-muted" style="font-size:11px;">TRUNCATE</span>
+                    </div>
+                    <p class="scoping-evidence-line">Evidence: sys.sql_expression_dependencies · code_parse</p>
+                    <div class="scoping-code-snippet">INSERT INTO dbo.fact_sales (sale_id, customer_id, product_id, ...) SELECT ...</div>
+                    <div class="row gap6" style="flex-wrap:wrap; margin-top:8px;">
+                      <span class="chip chip-amber" style="font-size:11px;">⚡ Dynamic SQL</span>
+                      <span class="chip chip-amber" style="font-size:11px;">⚡ Cross-DB write</span>
+                    </div>
+                  </div>
+
+                  <hr class="scoping-sep" />
+                  <p class="scoping-section-label">Profiler Inputs</p>
+
+                  <div class="scope-edit-grid" style="margin-bottom:10px;">
+                    <div class="scope-edit-field">
+                      <p>Intended Kind</p>
+                      <select class="scope-edit-select" data-scope-lockable>
+                        <option value="auto" selected>Auto-detect</option>
+                        <option>Fact — Transaction</option>
+                        <option>Fact — Periodic Snapshot</option>
+                        <option>Fact — Accumulating Snapshot</option>
+                        <option>Fact — Aggregate</option>
+                        <option>Dimension — Non-SCD</option>
+                        <option>Dimension — SCD Type 1</option>
+                        <option>Dimension — SCD Type 2</option>
+                        <option>Dimension — Junk</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="scope-edit-field" style="margin-bottom:10px;">
+                    <p>Business Context</p>
+                    <textarea class="scoping-textarea" placeholder="Optional: describe the business purpose of this table…" data-scope-lockable></textarea>
+                  </div>
+
+                  <div class="scope-section">
+                    <p class="text-xs text-muted" style="margin-bottom:6px;">Scope Context (auto-populated)</p>
+                    <div class="scoping-context-block">
+                      <span class="chip chip-green" style="font-size:11px;">resolved</span>
+                      <span class="chip chip-muted" style="font-size:11px;">agent</span>
+                      <span class="chip chip-muted" style="font-size:11px;">1 candidate</span>
+                    </div>
+                  </div>
+                </div><!-- /resolved -->
+
+                <!-- ── AMBIGUOUS STATE (dim_product — 2 writers, needs FDE selection) ── -->
+                <div id="scoping-right-ambiguous" class="card card-p" style="display:none;">
+                  <div class="scoping-detail-header row between">
+                    <span class="font-mono text-sm font-medium">dbo.dim_product</span>
+                  </div>
+
+                  <p class="scoping-section-label">Scoping Results</p>
+                  <div class="row gap8" style="margin-bottom:10px;">
+                    <span class="chip chip-amber" style="gap:5px;">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                      Ambiguous
+                    </span>
+                    <span class="text-xs text-muted">2 writers found — select one</span>
+                  </div>
+
+                  <!-- Candidate 1 (selected by default) -->
+                  <div class="scoping-candidate-card selected">
+                    <div class="row gap8" style="margin-bottom:6px;">
+                      <input type="radio" name="dim-product-proc" id="proc-daily" checked style="margin-top:1px; flex-shrink:0;" />
+                      <div style="flex:1;">
+                        <div class="row between">
+                          <label for="proc-daily" class="font-mono" style="font-size:12px; font-weight:600; cursor:pointer;">dbo.usp_load_dim_product_daily</label>
+                          <span class="chip chip-green" style="font-size:11px;">86%</span>
+                        </div>
+                        <div class="row gap6" style="flex-wrap:wrap; margin-top:5px; margin-bottom:5px;">
+                          <span class="chip chip-green" style="font-size:11px;">Direct</span>
+                          <span class="chip chip-muted" style="font-size:11px;">INSERT</span>
+                          <span class="chip chip-muted" style="font-size:11px;">MERGE</span>
+                        </div>
+                        <p class="scoping-evidence-line">Evidence: code_parse</p>
+                        <div class="scoping-code-snippet">INSERT INTO dbo.dim_product (product_id, product_name, ...) SELECT ...</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Candidate 2 -->
+                  <div class="scoping-candidate-card" style="margin-top:8px;">
+                    <div class="row gap8" style="margin-bottom:6px;">
+                      <input type="radio" name="dim-product-proc" id="proc-backfill" style="margin-top:1px; flex-shrink:0;" />
+                      <div style="flex:1;">
+                        <div class="row between">
+                          <label for="proc-backfill" class="font-mono" style="font-size:12px; font-weight:600; cursor:pointer;">dbo.usp_backfill_dim_product</label>
+                          <span class="chip chip-amber" style="font-size:11px;">71%</span>
+                        </div>
+                        <div class="row gap6" style="flex-wrap:wrap; margin-top:5px; margin-bottom:5px;">
+                          <span class="chip chip-green" style="font-size:11px;">Direct</span>
+                          <span class="chip chip-muted" style="font-size:11px;">INSERT</span>
+                        </div>
+                        <p class="scoping-evidence-line">Evidence: sys.sql_expression_dependencies</p>
+                        <div class="scoping-code-snippet">INSERT INTO dbo.dim_product (product_id, ...) VALUES ...</div>
+                        <div class="row gap6" style="flex-wrap:wrap; margin-top:8px;">
+                          <span class="chip chip-amber" style="font-size:11px;">⚡ Manual backfill possible</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <hr class="scoping-sep" />
+                  <p class="scoping-section-label">Profiler Inputs</p>
+
+                  <div class="scope-edit-grid" style="margin-bottom:10px;">
+                    <div class="scope-edit-field">
+                      <p>Intended Kind</p>
+                      <select class="scope-edit-select" data-scope-lockable>
+                        <option value="auto" selected>Auto-detect</option>
+                        <option>Fact — Transaction</option>
+                        <option>Dimension — Non-SCD</option>
+                        <option>Dimension — SCD Type 1</option>
+                        <option>Dimension — SCD Type 2</option>
+                        <option>Dimension — Junk</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="scope-edit-field" style="margin-bottom:10px;">
+                    <p>Business Context</p>
+                    <textarea class="scoping-textarea" placeholder="Optional: describe the business purpose of this table…" data-scope-lockable></textarea>
+                  </div>
+
+                  <div class="scope-section">
+                    <p class="text-xs text-muted" style="margin-bottom:6px;">Scope Context (auto-populated)</p>
+                    <div class="scoping-context-block">
+                      <span class="chip chip-amber" style="font-size:11px;">ambiguous_multi_writer</span>
+                      <span class="chip chip-muted" style="font-size:11px;">agent</span>
+                      <span class="chip chip-muted" style="font-size:11px;">2 candidates</span>
+                    </div>
+                  </div>
+                </div><!-- /ambiguous -->
+
+              </div><!-- /right panel -->
+            </div><!-- /two-column body -->
+          </div><!-- /scope-shell -->
+        </div><!-- /surface-scope-scoping -->
 
         <!-- ════════════════════════════════════
              PLAN SURFACE
@@ -2629,6 +3030,72 @@ WHERE s.load_date &gt; @last_watermark;</pre>
     setScopeLocked(false);
     scopeDetailsState('pending');
     setPlanTab('model');
+
+    function scopingState(state) {
+      var chip = document.getElementById('scoping-progress-chip');
+      var btn = document.getElementById('scoping-run-btn');
+
+      if (state === 'pending') {
+        if (chip) { chip.className = 'chip chip-muted'; chip.textContent = '0 / 8 scoped'; }
+        if (btn) btn.textContent = '▶ Run Scoping';
+        ['fact_sales','dim_customer','dim_product','dim_channel','gold_summary','gold_sales_rollup'].forEach(function(id) {
+          var d = document.getElementById('scoping-dot-' + id);
+          if (d) d.className = 'scoping-dot scoping-dot-muted';
+        });
+        showScopingPanel('fact_sales');
+        document.getElementById('scoping-right-pending').style.display = 'block';
+        document.getElementById('scoping-right-resolved').style.display = 'none';
+        document.getElementById('scoping-right-ambiguous').style.display = 'none';
+
+      } else if (state === 'resolved') {
+        if (chip) { chip.className = 'chip chip-green'; chip.textContent = '8 / 8 scoped'; }
+        if (btn) btn.textContent = '↺ Re-run Scoping';
+        var dotMap = {
+          'fact_sales': 'scoping-dot-green',
+          'dim_customer': 'scoping-dot-green',
+          'dim_product': 'scoping-dot-amber',
+          'dim_channel': 'scoping-dot-red',
+          'gold_summary': 'scoping-dot-green',
+          'gold_sales_rollup': 'scoping-dot-green'
+        };
+        Object.keys(dotMap).forEach(function(id) {
+          var d = document.getElementById('scoping-dot-' + id);
+          if (d) d.className = 'scoping-dot ' + dotMap[id];
+        });
+        showScopingPanel('fact_sales');
+        document.getElementById('scoping-right-pending').style.display = 'none';
+        document.getElementById('scoping-right-resolved').style.display = 'block';
+        document.getElementById('scoping-right-ambiguous').style.display = 'none';
+
+      } else if (state === 'ambiguous') {
+        if (chip) { chip.className = 'chip chip-green'; chip.textContent = '8 / 8 scoped'; }
+        if (btn) btn.textContent = '↺ Re-run Scoping';
+        var dotMap2 = {
+          'fact_sales': 'scoping-dot-green',
+          'dim_customer': 'scoping-dot-green',
+          'dim_product': 'scoping-dot-amber',
+          'dim_channel': 'scoping-dot-red',
+          'gold_summary': 'scoping-dot-green',
+          'gold_sales_rollup': 'scoping-dot-green'
+        };
+        Object.keys(dotMap2).forEach(function(id) {
+          var d = document.getElementById('scoping-dot-' + id);
+          if (d) d.className = 'scoping-dot ' + dotMap2[id];
+        });
+        showScopingPanel('dim_product');
+        document.getElementById('scoping-right-pending').style.display = 'none';
+        document.getElementById('scoping-right-resolved').style.display = 'none';
+        document.getElementById('scoping-right-ambiguous').style.display = 'block';
+      }
+    }
+
+    function showScopingPanel(tableId) {
+      document.querySelectorAll('.scoping-sidebar-item').forEach(function(r) {
+        r.classList.remove('active');
+      });
+      var row = document.getElementById('scoping-row-' + tableId);
+      if (row) row.classList.add('active');
+    }
 
   </script>
 
