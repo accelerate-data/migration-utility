@@ -1,16 +1,34 @@
 # Migrator Agent Contract
 
-The migrator agent consumes planner-approved decisions and generates dbt project artifacts.
-Migrator is responsible for querying direct source metadata via tools and converting decisions into executable files.
+The migrator agent consumes planner output and generates dbt project artifacts.
+Migrator is responsible for querying direct source metadata via tools and converting planning output
+into executable files.
 
 ## Philosophy and Boundary
 
 - Migrator owns artifact generation (`.sql`, `.yml`, and related dbt resources).
 - Migrator fetches direct facts (schema, column types, relation metadata) using tools.
 - Migrator must not invent business decisions that require FDE judgment.
-- Planner decisions are authoritative for classification, keys, watermark, and PII actions.
+- Planner output is authoritative for selected answers, decomposition, test plan, and documentation.
 
 ## Required Input
+
+```json
+{
+  "schema_version": "",
+  "batch_id": "",
+  "items": [
+    {
+      "item_id": "",
+      "answers": {},
+      "decomposition": {...},
+      "plan": {...}
+    }
+  ]
+}
+```
+
+**Example** 
 
 ```json
 {
@@ -19,34 +37,52 @@ Migrator is responsible for querying direct source metadata via tools and conver
   "items": [
     {
       "item_id": "dbo.fact_sales",
-      "target_table": "dbo.fact_sales",
-      "status": "approved",
-      "decision": {
-        "selected_writer": "dbo.usp_load_fact_sales",
-        "selected_classification": "fact_transaction",
-        "selected_materialization": "incremental",
-        "selected_primary_key": ["sale_id"],
-        "selected_primary_key_type": "surrogate",
-        "selected_natural_key": ["order_id", "line_number"],
-        "selected_foreign_keys": [
-          { "column": "customer_sk", "references": "dim_customer.customer_sk" }
+      "answers": {
+        "writer": "dbo.usp_load_fact_sales",
+        "classification": "fact_transaction",
+        "primary_key": ["sale_id"],
+        "primary_key_type": "surrogate",
+        "natural_key": ["order_id", "line_number"],
+        "foreign_keys": [
+          {
+            "column": "customer_sk",
+            "references_source_relation": "dbo.dim_customer",
+            "references_column": "customer_sk",
+            "fk_type": "standard"
+          }
         ],
-        "selected_watermark": "load_date",
-        "selected_pii_actions": [
+        "watermark": "load_date",
+        "pii_actions": [
           { "column": "customer_email", "action": "mask" }
         ]
       },
-      "documentation": {
-        "model_name": "fct_fact_sales",
-        "model_description": "Transaction-level sales fact table for reporting and analytics.",
-        "column_descriptions": [
-          { "column": "sale_id", "description": "Surrogate key for each sale event." },
-          { "column": "customer_sk", "description": "Foreign key to dim_customer." },
-          { "column": "load_date", "description": "Ingestion timestamp used for incremental loading." }
-        ],
-        "business_definitions": [],
-        "tags": ["gold", "sales"],
-        "owner": "data-platform"
+      "decomposition": {
+        "segmented_logical_blocks": [],
+        "candidate_model_split_points": []
+      },
+      "plan": {
+        "materialization": "incremental",
+        "test_plan": {
+          "entity_integrity_tests": [],
+          "referential_integrity_tests": [],
+          "domain_validity_tests": [],
+          "incremental_recency_tests": [],
+          "classification_semantic_tests": [],
+          "pii_governance_checks": [],
+          "unit_tests": []
+        },
+        "documentation": {
+          "model_name": "fct_fact_sales",
+          "model_description": "Transaction-level sales fact table for reporting and analytics.",
+          "column_descriptions": [
+            { "column": "sale_id", "description": "Surrogate key for each sale event." },
+            { "column": "customer_sk", "description": "Foreign key to dim_customer." },
+            { "column": "load_date", "description": "Ingestion timestamp used for incremental loading." }
+          ],
+          "business_definitions": [],
+          "tags": ["gold", "sales"],
+          "owner": "data-platform"
+        }
       }
     }
   ]
@@ -54,6 +90,35 @@ Migrator is responsible for querying direct source metadata via tools and conver
 ```
 
 ## Output Schema (MigrationArtifactManifest)
+
+
+## Output Structure (Short)
+
+```json
+{
+  "schema_version": "",
+  "batch_id": "",
+  "results": [
+    {
+      "item_id": "",
+      "status": "",
+      "output": {
+        "table_ref": "",
+        "model_name": "",
+        "artifact_paths": {...},
+        "generated": {...},
+        "execution": {...},
+        "warnings": [],
+        "errors": []
+      },
+      "errors": []
+    }
+  ],
+  "summary": {...}
+}
+```
+
+**Example**
 
 ```json
 {
@@ -75,13 +140,13 @@ Migrator is responsible for querying direct source metadata via tools and conver
           "model_sql": {
             "materialized": "incremental",
             "uses_watermark": true,
-            "uses_selected_writer_logic": true
+            "uses_writer_logic": true
           },
           "model_yaml": {
             "has_model_description": true,
             "has_column_descriptions": true,
-            "has_primary_key_tests": true,
-            "has_foreign_key_relationship_tests": true
+            "has_entity_integrity_tests": true,
+            "has_referential_integrity_tests": true
           },
           "source_yaml": {
             "source_count": 1,
@@ -110,15 +175,17 @@ Migrator is responsible for querying direct source metadata via tools and conver
 
 ## Required Migrator Guarantees
 
-- Only `status == "approved"` decision items are executed.
-- Generated dbt artifacts must reflect approved planner decisions exactly.
+- Generated dbt artifacts must reflect planner output exactly.
 - Tool-fetched schema facts are used for type/column correctness.
-- If planner decisions are incomplete, return `partial|error` with explicit missing fields.
+- If planner output is incomplete, return `partial|error` with explicit missing fields.
 
 ## Migrator Boundary
 
 Migrator must not:
 
-- change approved business decisions
+- change planner business decisions
 - request new decision candidates from profiler
-- bypass planner approval state
+- add approval gating requirements not present in planner input
+
+`warnings[]`, `errors[]`, and `execution.dbt_errors[]` use the shared diagnostics schema in
+`docs/design/agent-contract/README.md`.

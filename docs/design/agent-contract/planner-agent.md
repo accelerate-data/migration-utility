@@ -1,15 +1,45 @@
 # Planner Agent Contract
 
-The planner agent consumes scoping context plus profiler candidates and returns an editable
-FDE decision manifest. Planner output is decisions and documentation intent only.
+The planner agent consumes approved migration inputs and returns a design manifest for migrator
+execution. Planner output is final planning intent: materialization, test plan, and
+documentation.
 
 ## Philosophy and Boundary
 
-- Planner captures FDE-approved judgments.
-- Planner does not emit fields the migrator can fetch reliably using tools.
-- Migrator generates dbt SQL and YAML artifacts from planner decisions plus tool-fetched facts.
+- Planner consumes FDE decisions on the profiling output.
+- Planner consumes approved decomposition input from app routing (including FDE edits/approval).
+- Planner adds design decisions the profiler does not provide:
+  - materialization strategy
+  - explicit test plan
+  - documentation payload
+- Migrator generates dbt SQL and YAML artifacts from planner output plus tool-fetched facts.
 
 ## Required Input
+
+```json
+{
+  "schema_version": "",
+  "batch_id": "",
+  "items": [
+    {
+      "item_id": "",
+      "answers": {
+        "writer": "",
+        "classification": "",
+        "primary_key": [],
+        "primary_key_type": "",
+        "natural_key": [],
+        "foreign_keys": [],
+        "watermark": "",
+        "pii_actions": []
+      },
+      "decomposition": {...}
+    }
+  ]
+}
+```
+
+**Example**
 
 ```json
 {
@@ -18,34 +48,55 @@ FDE decision manifest. Planner output is decisions and documentation intent only
   "items": [
     {
       "item_id": "dbo.fact_sales",
-      "target_table": "dbo.fact_sales",
-      "selected_writer": "dbo.usp_load_fact_sales",
-      "candidate_profile": {
-        "candidate_classifications": [
-          { "resolved_kind": "fact_transaction", "confidence": 0.88 }
-        ],
-        "candidate_primary_keys": [
-          {
-            "columns": ["sale_id"],
-            "primary_key_type": "surrogate",
-            "confidence": 0.97
-          }
-        ],
-        "candidate_natural_keys": [
-          { "columns": ["order_id", "line_number"], "confidence": 0.78 }
-        ],
-        "candidate_foreign_keys": [
+      "answers": {
+        "writer": "dbo.usp_load_fact_sales",
+        "classification": "fact_transaction",
+        "primary_key": ["sale_id"],
+        "primary_key_type": "surrogate",
+        "natural_key": ["order_id", "line_number"],
+        "foreign_keys": [
           {
             "column": "customer_sk",
-            "references": "dim_customer.customer_sk",
-            "confidence": 0.9
+            "references_source_relation": "dbo.dim_customer",
+            "references_column": "customer_sk",
+            "fk_type": "standard"
           }
         ],
-        "candidate_watermarks": [
-          { "column": "load_date", "confidence": 0.94 }
+        "watermark": "load_date",
+        "pii_actions": [
+          { "column": "customer_email", "action": "mask" }
+        ]
+      },
+      "decomposition": {
+        "segmented_logical_blocks": [
+          {
+            "block_id": "01_extract_sales_stage",
+            "purpose": "Load source rows and apply base filters.",
+            "rationale": ["Statement boundary and source extraction phase boundary."],
+            "source_sql_ref": {
+              "statement_indices": [0],
+              "line_span": { "start": 12, "end": 37 }
+            },
+            "confidence": 0.91
+          },
+          {
+            "block_id": "02_enrich_customer_product",
+            "purpose": "Resolve dimension surrogate keys.",
+            "rationale": ["Join/enrichment phase boundary after extract block."],
+            "source_sql_ref": {
+              "statement_indices": [1],
+              "line_span": { "start": 38, "end": 79 }
+            },
+            "confidence": 0.88
+          }
         ],
-        "candidate_pii_actions": [
-          { "column": "customer_email", "suggested_action": "mask", "confidence": 0.93 }
+        "candidate_model_split_points": [
+          {
+            "split_after_block_id": "01_extract_sales_stage",
+            "proposed_model_name": "int_fact_sales_source",
+            "rationale": ["Reusable filtered source layer."],
+            "confidence": 0.86
+          }
         ]
       }
     }
@@ -53,90 +104,322 @@ FDE decision manifest. Planner output is decisions and documentation intent only
 }
 ```
 
-## Output Schema (PlannerDecisionManifest)
+## Planning Strategy
+
+### 1. ValidateSelectedAnswers
+
+- Validate presence and structure of answers.
+- Reject items with missing required selections as `partial|error`.
+
+### 2. DecideMaterialization
+
+- Choose `materialization` from answers and planning rules.
+- Apply deterministic mapping using classification + watermark availability.
+- Apply rules in order:
+  - if `classification == "dim_scd2"`, use `snapshot`
+  - else if `watermark` is missing or null, use `table`
+  - else if `classification == "fact_periodic_snapshot"`, use `table`
+  - else if `classification` is one of
+    `fact_transaction|fact_accumulating_snapshot|fact_aggregate|dim_non_scd|dim_scd1|dim_junk`
+    and `watermark` is present, use `incremental`
+  - else return `partial` with issue code `PLANNER_MATERIALIZATION_UNRESOLVED`
+
+### 3. UseApprovedDecomposition
+
+- Consume approved `decomposition` input from app routing.
+- Carry `decomposition` forward as top-level output next to `answers` (not under `plan`).
+- Planner must not modify decomposition boundaries. Boundary edits are upstream
+  (decomposer/FDE/app).
+
+### 4. BuildTestPlan
+
+- Generate explicit test intent grouped by category:
+  - `entity_integrity_tests`
+  - `referential_integrity_tests`
+  - `domain_validity_tests`
+  - `incremental_recency_tests`
+  - `classification_semantic_tests`
+  - `pii_governance_checks`
+  - `unit_tests`
+- Deterministic rules:
+  - `entity_integrity_tests`:
+    - always generate `not_null` and `unique` on `answers.primary_key`.
+    - if `answers.natural_key` is non-empty, generate `unique_combination`.
+  - `referential_integrity_tests`:
+    - generate one `relationships` test per `answers.foreign_keys[*]`.
+  - `domain_validity_tests`:
+    - generate `not_null` tests for business-critical columns explicitly provided in answers
+      (`primary_key`, `watermark`, and `foreign_keys[*].column`).
+  - `incremental_recency_tests`:
+    - if `answers.watermark` exists, generate watermark `not_null`.
+    - if `plan.materialization == "incremental"`, generate freshness/recency assertion on watermark.
+  - `classification_semantic_tests`:
+    - for `classification` that implies additive facts (`fact_transaction`, `fact_aggregate`),
+      generate grain-preservation/no-duplication assertions aligned to `primary_key`.
+    - for snapshot classifications (`fact_periodic_snapshot`, `fact_accumulating_snapshot`),
+      generate snapshot-timeline consistency assertions.
+  - `pii_governance_checks`:
+    - for each `answers.pii_actions[*]`, generate one governance check aligned to action
+      (`mask`, `drop`, `tokenize`, `keep`).
+  - `unit_tests`:
+    - generate SQL fixture-based tests only for transformation rules that cannot be covered by
+      generic data tests (for example custom CASE mappings or allocation logic).
+  - if required test inputs are missing, return `partial` with issue code
+    `PLANNER_TEST_PLAN_INCOMPLETE`.
+
+### 5. BuildDocumentation
+
+- Generate model-level and column-level documentation payload for migrator rendering.
+
+### 6. ValidateOutput
+
+- Run internal consistency/contract checks.
+- Runtime failures are reported in `errors`.
+- Validation checklist:
+  - `item_id` is present.
+  - `status` is one of: `ok|partial|error`.
+  - `answers` echo payload is present.
+  - approved input `decomposition` is present.
+  - output `decomposition` matches approved input `decomposition`.
+  - `plan.materialization` is present when `status == "ok"`.
+  - every `decomposition.candidate_model_split_points[*].split_after_block_id` exists in
+    `decomposition.segmented_logical_blocks[*].block_id`.
+  - every `decomposition.segmented_logical_blocks[*].rationale` is `string[]`.
+  - every `decomposition.candidate_model_split_points[*].rationale` is `string[]`.
+  - `plan.test_plan` contains all required categories from BuildTestPlan rules.
+  - required categories in `plan.test_plan`:
+    - `entity_integrity_tests`
+    - `referential_integrity_tests`
+    - `domain_validity_tests`
+    - `incremental_recency_tests`
+    - `classification_semantic_tests`
+    - `pii_governance_checks`
+    - `unit_tests`
+  - `plan.documentation.model_name` and `plan.documentation.model_description` are present when
+    `status == "ok"`.
+  - if `status == "partial"`, `validation.issues` is non-empty.
+  - if `status == "error"`, `errors` is non-empty.
+  - `validation.passed` is `false` when any validation issue exists.
+  - summary counts match item-level statuses.
+
+## Output Schema (PlannerDesignManifest)
+
+```json
+{
+  "schema_version": "",
+  "batch_id": "",
+  "results": [
+    {
+      "item_id": "",
+      "status": "",
+      "answers": {},
+      "decomposition": {
+        "segmented_logical_blocks": [],
+        "candidate_model_split_points": []
+      },
+      "plan": {
+        "materialization": "",
+        "test_plan": {
+          "entity_integrity_tests": [],
+          "referential_integrity_tests": [],
+          "domain_validity_tests": [],
+          "incremental_recency_tests": [],
+          "classification_semantic_tests": [],
+          "pii_governance_checks": [],
+          "unit_tests": []
+        },
+        "documentation": {
+          "model_name": "",
+          "model_description": "",
+          "column_descriptions": [],
+          "business_definitions": [],
+          "tags": [],
+          "owner": ""
+        }
+      },
+      "validation": {...}
+      "errors": []
+    }
+  ],
+  "summary": {...}
+}
+```
+
+**Example** 
 
 ```json
 {
   "schema_version": "1.0",
   "batch_id": "uuid",
-  "decisions": [
+  "results": [
     {
       "item_id": "dbo.fact_sales",
-      "target_table": "dbo.fact_sales",
-      "status": "draft|approved|rejected|needs_clarification|error",
-      "decision": {
-        "selected_writer": "dbo.usp_load_fact_sales",
-        "selected_classification": "fact_transaction",
-        "selected_materialization": "incremental",
-        "selected_primary_key": ["sale_id"],
-        "selected_primary_key_type": "surrogate|natural|composite|unknown",
-        "selected_natural_key": ["order_id", "line_number"],
-        "selected_foreign_keys": [
-          { "column": "customer_sk", "references": "dim_customer.customer_sk" }
+      "status": "ok|partial|error",
+      "answers": {
+        "writer": "dbo.usp_load_fact_sales",
+        "classification": "fact_transaction",
+        "primary_key": ["sale_id"],
+        "primary_key_type": "surrogate",
+        "natural_key": ["order_id", "line_number"],
+        "foreign_keys": [
+          {
+            "column": "customer_sk",
+            "references_source_relation": "dbo.dim_customer",
+            "references_column": "customer_sk",
+            "fk_type": "standard"
+          }
         ],
-        "selected_watermark": "load_date",
-        "selected_pii_actions": [
+        "watermark": "load_date",
+        "pii_actions": [
           { "column": "customer_email", "action": "mask" }
         ]
       },
-      "documentation": {
-        "model_name": "fct_fact_sales",
-        "model_description": "Transaction-level sales fact table for reporting and analytics.",
-        "column_descriptions": [
-          { "column": "sale_id", "description": "Surrogate key for each sale event." },
-          { "column": "customer_sk", "description": "Foreign key to dim_customer." },
-          { "column": "load_date", "description": "Ingestion timestamp used for incremental loading." }
-        ],
-        "business_definitions": [
+      "decomposition": {
+        "segmented_logical_blocks": [
           {
-            "term": "Sale Event",
-            "definition": "A finalized transaction line captured at checkout."
+            "block_id": "01_extract_sales_stage",
+            "purpose": "Load source rows and apply base filters.",
+            "rationale": ["Statement boundary and source extraction phase boundary."],
+            "source_sql_ref": {
+              "statement_indices": [0],
+              "line_span": { "start": 12, "end": 37 }
+            }
+          },
+          {
+            "block_id": "02_enrich_customer_product",
+            "purpose": "Resolve dimension surrogate keys.",
+            "rationale": ["Join/enrichment phase boundary after extract block."],
+            "source_sql_ref": {
+              "statement_indices": [1],
+              "line_span": { "start": 38, "end": 79 }
+            }
+          },
+          {
+            "block_id": "03_project_fact_sales",
+            "purpose": "Project final grain and output columns.",
+            "rationale": ["Final projection boundary before model output."],
+            "source_sql_ref": {
+              "statement_indices": [2],
+              "line_span": { "start": 80, "end": 103 }
+            }
           }
         ],
-        "tags": ["gold", "sales"],
-        "owner": "data-platform"
+        "candidate_model_split_points": [
+          {
+            "split_after_block_id": "01_extract_sales_stage",
+            "proposed_model_name": "int_fact_sales_source",
+            "rationale": ["Reusable filtered source layer."]
+          },
+          {
+            "split_after_block_id": "02_enrich_customer_product",
+            "proposed_model_name": "int_fact_sales_enriched",
+            "rationale": ["Dimension key resolution isolated from final projection."]
+          }
+        ]
       },
-      "approval": {
-        "approved_by": "",
-        "approved_at_utc": "",
-        "notes": ""
+      "plan": {
+        "materialization": "incremental",
+        "test_plan": {
+          "entity_integrity_tests": [
+            { "name": "not_null", "columns": ["sale_id"], "severity": "error" },
+            { "name": "unique", "columns": ["sale_id"], "severity": "error" },
+            {
+              "name": "unique_combination",
+              "columns": ["order_id", "line_number"],
+              "severity": "error"
+            }
+          ],
+          "referential_integrity_tests": [
+            {
+              "name": "relationships",
+              "column": "customer_sk",
+              "references_source_relation": "dbo.dim_customer",
+              "references_column": "customer_sk",
+              "severity": "error"
+            }
+          ],
+          "domain_validity_tests": [
+            { "name": "not_null", "columns": ["customer_sk"], "severity": "error" }
+          ],
+          "incremental_recency_tests": [
+            { "name": "not_null", "columns": ["load_date"], "severity": "error" },
+            { "name": "recency", "columns": ["load_date"], "severity": "warning" }
+          ],
+          "classification_semantic_tests": [
+            {
+              "name": "grain_no_duplication",
+              "columns": ["sale_id"],
+              "classification": "fact_transaction",
+              "severity": "error"
+            }
+          ],
+          "pii_governance_checks": [
+            {
+              "name": "column_masking_applied",
+              "column": "customer_email",
+              "action": "mask",
+              "severity": "error"
+            }
+          ],
+          "unit_tests": [
+            {
+              "name": "allocation_rule_fixture_test",
+              "scope": "model",
+              "severity": "warning",
+              "notes": "Required only when allocation logic exists."
+            }
+          ]
+        },
+        "documentation": {
+          "model_name": "fct_fact_sales",
+          "model_description": "Transaction-level sales fact table for reporting and analytics.",
+          "column_descriptions": [
+            { "column": "sale_id", "description": "Surrogate key for each sale event." },
+            { "column": "customer_sk", "description": "Foreign key to dim_customer." },
+            { "column": "load_date", "description": "Ingestion timestamp used for incremental loading." }
+          ],
+          "business_definitions": [
+            {
+              "term": "Sale Event",
+              "definition": "A finalized transaction line captured at checkout."
+            }
+          ],
+          "tags": ["gold", "sales"],
+          "owner": "data-platform"
+        }
       },
-      "open_questions": [],
-      "warnings": [],
+      "validation": {
+        "passed": true,
+        "issues": []
+      },
       "errors": []
     }
   ],
   "summary": {
     "total": 1,
-    "approved": 0,
-    "draft": 1,
-    "rejected": 0,
-    "needs_clarification": 0,
+    "ok": 1,
+    "partial": 0,
     "error": 0
   }
 }
 ```
 
-## Required Planner Decisions
+## Required Planner Outputs
 
-Each `decisions[*]` item must contain:
+Each `results[*]` item must contain:
 
-- `decision.selected_classification`
-- `decision.selected_primary_key`
-- `decision.selected_primary_key_type`
-- `decision.selected_foreign_keys`
-- `decision.selected_watermark` (or explicit null when not applicable)
-- `decision.selected_pii_actions`
-- `documentation.model_name`
-- `documentation.model_description`
+- `answers` echo payload
+- `decomposition` (approved and unchanged)
+- `plan.materialization`
+- `plan.test_plan` (all required categories)
+- `plan.documentation`
+- `validation`
+- `errors`
 
 ## Planner Boundary
 
-Planner must not output:
+Planner must not output generated dbt SQL/Jinja or rendered dbt YAML files.
+Those are migrator responsibilities.
 
-- target schema metadata
-- source schema metadata
-- generated dbt SQL/Jinja content
-- generated dbt YAML content
-
-These are migrator responsibilities using tool-fetched facts and planner-approved decisions.
+`validation.issues[]` and `errors[]` use the shared diagnostics schema in
+`docs/design/agent-contract/README.md`.
