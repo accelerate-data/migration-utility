@@ -20,7 +20,7 @@ The utility migrates a Fabric Warehouse to Lakehouse following Vibedata standard
 
 **Setup (Tauri desktop app).** The FDE works through a wizard on their laptop. State persists to local SQLite so sessions can span multiple days around domain owner conversations.
 
-**Execution (GitHub Actions + Claude Agent SDK).** From trigger to PR, everything runs headless. Sub-agents work in parallel across independent procedures: candidacy analysis, SQL-to-dbt translation, unit test and fixture generation, and validation against a production snapshot. The FDE monitors via `plan.md` and resolves any `BLOCKED` items before relaunching.
+**Execution (GitHub Actions + Claude Agent SDK).** Execution runs as gated batch stages: scoping, profiling, planning, and migration/testing. Each stage runs headless in GitHub Actions, writes structured JSON results, and pauses for FDE approval before the next stage.
 
 When all Migrate-tier procedures pass, the utility pushes a branch to the production repo. The FDE opens a standard PR. UAT runs in CI via an ephemeral Fabric workspace; once signed off, merge completes the cutover.
 
@@ -35,19 +35,25 @@ The FDE works through four surfaces in the Tauri app. Full screen-level detail i
 | Surface | Purpose |
 |---------|---------|
 | **Home** | Status at a glance. Routes the FDE to the right next step. Three states: Setup required / Ready (wizard progress) / Active (pipeline running). |
-| **Scope** | Three-step wizard: Scope → Candidacy → Table Config. Freely navigable before launch; locked read-only after. |
-| **Monitor** | Launch the migration and track it. Ready state → Running state on launch. |
+| **Scope** | Select in-scope tables and approve scoping candidates. Freely navigable before scope finalization; locked read-only after. |
+| **Monitor** | Trigger each batch stage and track per-item status/results. |
 | **Settings** | Connections (one-time) · Workspace (per-migration) · Reset · Usage (cost tracking). |
 
 ### Key journeys
 
 **First launch:** Home shows "Setup required". FDE goes to Settings → Connections (GitHub + Anthropic API key), then Settings → Workspace (Fabric URL, SP credentials, migration repo, working directory). Once both are configured, Home shows Ready.
 
-**Migration setup:** FDE opens Scope. Step 1 selects domain tables — the utility traces each back to its producing stored procedure (DEC-10). Step 2 shows candidacy results (Migrate / Review / Reject) with FDE override (DEC-11). Step 3 confirms per-table snapshot strategy, incremental column, and PII columns (DEC-15, DEC-16).
+**Migration setup:** FDE opens Scope and selects domain tables. The utility traces each table back to one or more producing stored procedures (DEC-10) and surfaces scoping candidates for FDE confirmation (DEC-11).
 
-**Launch:** All tables confirmed → FDE opens Monitor → clicks "Launch migration". Config is written to `plan.md`, committed, and the GitHub Actions workflow starts (DEC-19). Scope locks. Monitor shows agent phases grid, progress bar, and log stream. BLOCKED procedures (depending on unresolved Review/Reject upstreams) are resolved by the FDE marking the upstream `RESOLVED` in `plan.md` and relaunching (DEC-12, DEC-13).
+**Execution:** FDE opens Monitor and runs the stages in order:
 
-**Session resumption:** SQLite owns setup state; `plan.md` owns execution state. Both survive process restart. Home restores to the correct state on reopen (DEC-19).
+1. Trigger scoping batch and approve results.
+2. Trigger profiling batch and approve results.
+3. Trigger planning batch and approve results.
+4. Trigger migration/testing batch.
+5. After tests pass, open PR for approval.
+
+**Session resumption:** SQLite owns setup state; stage JSON artifacts in the migration repo own execution state. Both survive process restart. Home restores to the correct state on reopen (DEC-19).
 
 **Reset:** Settings → Reset clears the migration repo branch, local working directory, scope selections, and workspace config. GitHub and Anthropic credentials are kept.
 
@@ -57,9 +63,9 @@ The FDE works through four surfaces in the Tauri app. Full screen-level detail i
 |------------|-------------|
 | One migration at a time — Home shows one active migration, never a list | DEC-04 |
 | Table-first scope selection — stored procedure discovery is automatic | DEC-10 |
-| Workspace locked while pipeline is running | DEC-19 |
-| Scope locked (read-only) after launch | DEC-19 |
-| Review/Reject procedures migrated manually in parallel; BLOCKED resolves when upstream is RESOLVED | DEC-12 |
+| Workspace locked while a stage is running | DEC-19 |
+| Scope locked (read-only) after scoping approval | DEC-19 |
+| Next stage cannot run until current stage is FDE-approved | DEC-11, DEC-19 |
 
 ---
 
@@ -69,9 +75,9 @@ The FDE works through four surfaces in the Tauri app. Full screen-level detail i
 
 All utility work happens in an isolated migration repo — the production repo is never touched during migration. When all Migrate-tier procedures pass, the utility pushes a branch to the production repo (created fresh to Vibedata standards). The FDE opens a standard PR. The migration repo is scaffolding; it doesn't ship.
 
-### Review and Reject objects
+### Stage artifacts and approvals
 
-Review and Reject procedures are not blocked on — the FDE migrates them manually in parallel with the automated track. Both tracks converge at the same PR. Models that depend on an unresolved Review/Reject upstream are marked `BLOCKED` in `plan.md`; the FDE marks them `RESOLVED` and relaunches to resume.
+Each stage produces structured batch JSON artifacts (input/output with `items[]` and `results[]`). These are the canonical execution contract and state for scoping, profiling, planning, and migration/testing. Markdown views can be generated from JSON for readability, but JSON remains source of truth.
 
 ### Data sampling
 

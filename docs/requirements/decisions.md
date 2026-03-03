@@ -84,38 +84,35 @@
 
 ---
 
-### DEC-11 — Three-Tier Candidacy Classification
+### DEC-11 — Stage-Gated Pre-Migration Flow
 
-**Decision:** After scope selection, a candidacy agent classifies each in-scope artifact (stored procedure for Warehouse MVP, notebook for Lakehouse post-MVP):
+**Decision:** Pre-migration runs as three explicit gated stages in this order:
 
-| Tier | Criteria | Handling |
-|------|----------|----------|
-| Migrate | >70% SQL-expressible; no blocking patterns | Utility migrates automatically |
-| Review | 40–70% SQL-expressible; some blocking patterns present | FDE migrates manually |
-| Reject | <40% SQL-expressible; blocking patterns dominate | FDE migrates manually |
+1. Scoping batch
+2. Profiling batch
+3. Planning batch
 
-**Warehouse blocking patterns:** Dynamic SQL (`EXEC`/`sp_executesql`), cursor-based row iteration, CLR functions, cross-database queries, undocumented system procs.
-**Lakehouse blocking patterns (post-MVP):** UDFs, row iteration, ML ops, `%run` orchestration, RDD ops.
+FDE approval is required after each stage before the next stage can run.
 
-**Note:** 70%/40% thresholds are a starting point — calibrate against real customer artifacts before release.
+**Rationale:** The staged gate reduces downstream rework and gives the FDE a clear intervention point before expensive migration/testing runs.
 
 ---
 
 ## 5. Execution
 
-*Two interfaces. A Tauri desktop app handles pre-migration setup (scope, candidacy, table config) — no hosting, no auth, persists state to repo. Once the FDE triggers migration, everything runs headless via GitHub Actions + Claude Agent SDK. Execution state and agent outputs are markdown in the repo.*
+*Two interfaces. A Tauri desktop app handles pre-migration setup/review — no hosting, no auth, persists state to repo. Headless execution runs via GitHub Actions + Claude Agent SDK. Execution state and agent outputs are structured JSON in the repo.*
 
 ### DEC-19 — Execution Runtime: GitHub Actions + Claude Agent SDK
 
 **Decision:**
 
-- **Setup UI (Tauri desktop app):** scope selection, candidacy review/override, table-level config (snapshot strategy, PII column confirmation, incremental column confirmation). Working state persists in local SQLite — FDE can close and reopen across days while consulting with domain owner. Once setup is finalized, Tauri pushes config into plan.md and commits to repo
-- **Execution (headless):** GitHub Actions workflow in the migration repo. YAML is trivial: install deps, set env, run orchestrator script
-- Orchestrator agent (Agent SDK, Python) reads plan.md, identifies ready models, spawns sub-agents via `Task` for parallel migration
-- Sub-agents: candidacy, translation, test generation, validation — each defined as an `AgentDefinition` with scoped tools
+- **Setup UI (Tauri desktop app):** scope selection and FDE review/approval surfaces for scoping, profiling, and planning outputs. Working state persists in local SQLite.
+- **Execution (headless):** GitHub Actions workflows execute in stage order: scoping batch -> profiling batch -> planning batch -> migration/testing batch.
+- Orchestrator agent (Agent SDK, Python) executes each stage in batch (`items[]` -> `results[]`) with per-item status and partial-failure handling.
+- Sub-agents: scoping, profiler, planner, translation, test generation, validation — each defined as an `AgentDefinition` with scoped tools.
 - dbt-core-mcp connects as an MCP server to agents that need dbt interaction
 - Session resumption via Agent SDK sessions — each workflow run resumes from prior state
-- **Post-trigger interface is the repo:** plan.md for state/progress, agent outputs as markdown, BLOCKED → RESOLVED via plan.md edit + action re-trigger
+- **Post-trigger interface is structured state in repo:** JSON artifacts are canonical state/progress; markdown views are optional derived representations.
 
 ---
 
@@ -138,16 +135,16 @@
 
 ---
 
-### DEC-13 — Engine: Dependency-Aware Parallel Execution with plan.md State
+### DEC-13 — Engine: Dependency-Aware Parallel Execution with Structured Batch State
 
 **Decision:**
 
-- Agent builds a dependency graph of Migrate-tier artifacts (stored procedures for Warehouse, notebooks for Lakehouse) and generates `plan.md` as the persistent state file
+- Agent builds a dependency graph of Migrate-tier artifacts (stored procedures for Warehouse, notebooks for Lakehouse) and persists stage state in structured batch JSON artifacts
 - ADF/Fabric pipeline definitions are a primary input for Warehouse — stored proc execution order, parameters, and conditional logic come from ADF activity definitions. For Lakehouse, pipelines are a secondary validation input
 - Upstream tables are auto-registered as external dbt sources from the graph
 - Independent models run in parallel
-- Models blocked by unresolved Review/Reject upstream dependencies are marked BLOCKED in `plan.md`
-- FDE marks dependencies RESOLVED; relaunching the agent resumes from that state
+- Blocked items are marked in stage `results[]` with machine-readable status and reason
+- FDE approval and rerun resume from structured state
 - Engine's job ends when all Migrate-tier models are converted
 
 ---

@@ -8,12 +8,12 @@
 
 | Component | What | Tech |
 |-----------|------|------|
-| Setup UI | Scope selection, candidacy review, table config (snapshot, PII, incremental column) | Tauri + SQLite. Pushes finalized config to plan.md |
-| Orchestrator | Reads plan.md, spawns sub-agents in parallel, handles BLOCKED/RESOLVED | Claude Agent SDK (Python) |
-| Sub-agents | Candidacy, Translation, Test Generator, Validation | Agent SDK `AgentDefinition` with scoped tools |
+| Setup UI | Scope selection + FDE approvals for scoping/profiling/planning + plan edit | Tauri + SQLite |
+| Orchestrator | Runs stage-gated batches (scoping -> profiling -> planning -> migration/testing) | Claude Agent SDK (Python) |
+| Sub-agents | Scoping, Profiler, Planner, Translation, Test Generator, Validation | Agent SDK `AgentDefinition` with scoped tools |
 | dbt interaction | Lineage, compiled SQL, model execution, validation queries | dbt-core-mcp (MCP server) |
 | Runtime | Headless execution, no UI timeout | GitHub Actions (minimal YAML) |
-| State | Progress, dependencies, start/stop resumption | plan.md in repo (git-backed) |
+| State | Stage progress, approvals, per-item outcomes, resumption | Structured batch JSON artifacts in repo (git-backed) |
 
 ---
 
@@ -34,8 +34,8 @@
 
 | Phase | What | Weeks |
 |-------|------|-------|
-| 0 | Foundation — validate stack, scaffold orchestrator, create mock stored procs + ADF pipelines, define plan.md schema | 0.5 |
-| 1 | MVP pipeline — scan → classify → translate → test → push (SQL-heavy only) | 3 |
+| 0 | Foundation — validate stack, scaffold orchestrator, create mock stored procs + ADF pipelines, define batch JSON schemas | 0.5 |
+| 1 | MVP pipeline — scoping → profiling → planning → migration/testing → push (SQL-heavy only) | 3 |
 | 2 | Real customer domain end-to-end + Tauri setup UI + hardening | 1.5 |
 | **MVP** | **Full pipeline, SQL-heavy patterns** | **5** |
 | 3 | Pattern expansion | ongoing |
@@ -44,15 +44,15 @@
 
 | Week | Deliverable |
 |------|-------------|
-| 1 | Candidacy agent — ADF pipeline scan, stored proc discovery, dependency graph (`get_lineage`), tier classification → scope.md + candidacy.md + dbt sources |
-| 2 | Translation agent + test generator — SP-01, SP-02, SP-04, SP-10 → dbt model + schema.yml + unit test + YAML fixture |
-| 3 | Orchestrator + snapshot pipeline + validation agent + push to prod branch → full pipeline end-to-end on mocks |
+| 1 | Scoping + profiler agents — ADF pipeline scan, stored proc discovery, dependency graph, profile output with per-item evidence |
+| 2 | Planner agent + FDE approval loop — editable plan JSON + per-item approvals |
+| 3 | Migration/testing stage + validation + push to prod branch -> full gated pipeline end-to-end on mocks |
 
 ### Phase 2 Breakdown
 
 | Week | Deliverable |
 |------|-------------|
-| 4 | E-01, E-02 on real stored procs. Tauri setup UI (scope, candidacy, table config) |
+| 4 | E-01, E-02 on real stored procs. Tauri setup UI (scope + scoping/profiling/planning approvals) |
 | 5 | E-03 session resumption. Error handling. Edge cases from real data |
 
 ### Phase 3: Pattern Expansion (ongoing)
@@ -112,7 +112,7 @@
 | G-05 | Circular dependency (should error) |
 | G-06 | External source (table not in any stored proc) |
 | G-07 | 50+ stored procs, mixed tiers |
-| G-08 | Resumed session — plan.md 60% DONE, 2 BLOCKED |
+| G-08 | Resumed session — batch stage rerun with partial success and blocked items |
 
 ### Snapshot + Fixtures
 
