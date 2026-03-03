@@ -30,11 +30,9 @@ Regardless of which question is being answered, apply signal sources in this ord
 
 ---
 
-## Q1 — Who Writes the Table?
+## Input - Who Writes the Table?
 
-**Answered by the scoping agent, not the profiler.** The profiler receives `selected_writer` as
-input and assumes Q1 is already resolved. See the
-[Scoping Agent Contract](scoping-agent.md) for how writer discovery and selection work.
+The profiler receives `selected_writer` as input and assumes Q1 is already resolved. See the [Scoping Agent](scoping-agent.md) for how writer discovery and selection work.
 
 The options below are retained for reference — they describe how the scoping agent answers Q1.
 

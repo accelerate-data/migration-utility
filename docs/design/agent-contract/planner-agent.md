@@ -131,7 +131,7 @@ documentation.
 - Planner must not modify decomposition boundaries. Boundary edits are upstream
   (decomposer/FDE/app).
 
-### 4. BuildTestPlan
+### 4. BuildSchemaTests
 
 - Generate explicit test intent grouped by category:
   - `entity_integrity_tests`
@@ -140,7 +140,7 @@ documentation.
   - `incremental_recency_tests`
   - `classification_semantic_tests`
   - `pii_governance_checks`
-  - `unit_tests`
+- Branch-covering fixture generation is owned entirely by the test generator agent. Planner does not emit `unit_tests`.
 - Deterministic rules:
   - `entity_integrity_tests`:
     - always generate `not_null` and `unique` on `answers.primary_key`.
@@ -161,9 +161,6 @@ documentation.
   - `pii_governance_checks`:
     - for each `answers.pii_actions[*]`, generate one governance check aligned to action
       (`mask`, `drop`, `tokenize`, `keep`).
-  - `unit_tests`:
-    - generate SQL fixture-based tests only for transformation rules that cannot be covered by
-      generic data tests (for example custom CASE mappings or allocation logic).
   - if required test inputs are missing, return `partial` with issue code
     `PLANNER_TEST_PLAN_INCOMPLETE`.
 
@@ -186,15 +183,14 @@ documentation.
     `decomposition.segmented_logical_blocks[*].block_id`.
   - every `decomposition.segmented_logical_blocks[*].rationale` is `string[]`.
   - every `decomposition.candidate_model_split_points[*].rationale` is `string[]`.
-  - `plan.test_plan` contains all required categories from BuildTestPlan rules.
-  - required categories in `plan.test_plan`:
+  - `plan.schema_tests` contains all required categories from `BuildSchemaTests` rules.
+  - required categories in `plan.schema_tests`:
     - `entity_integrity_tests`
     - `referential_integrity_tests`
     - `domain_validity_tests`
     - `incremental_recency_tests`
     - `classification_semantic_tests`
     - `pii_governance_checks`
-    - `unit_tests`
   - `plan.documentation.model_name` and `plan.documentation.model_description` are present when
     `status == "ok"`.
   - if `status == "partial"`, `validation.issues` is non-empty.
@@ -219,14 +215,13 @@ documentation.
       },
       "plan": {
         "materialization": "",
-        "test_plan": {
+        "schema_tests": {
           "entity_integrity_tests": [],
           "referential_integrity_tests": [],
           "domain_validity_tests": [],
           "incremental_recency_tests": [],
           "classification_semantic_tests": [],
-          "pii_governance_checks": [],
-          "unit_tests": []
+          "pii_governance_checks": []
         },
         "documentation": {
           "model_name": "",
@@ -245,7 +240,7 @@ documentation.
 }
 ```
 
-**Example** 
+**Example**
 
 ```json
 {
@@ -319,7 +314,7 @@ documentation.
       },
       "plan": {
         "materialization": "incremental",
-        "test_plan": {
+        "schema_tests": {
           "entity_integrity_tests": [
             { "name": "not_null", "columns": ["sale_id"], "severity": "error" },
             { "name": "unique", "columns": ["sale_id"], "severity": "error" },
@@ -359,14 +354,6 @@ documentation.
               "column": "customer_email",
               "action": "mask",
               "severity": "error"
-            }
-          ],
-          "unit_tests": [
-            {
-              "name": "allocation_rule_fixture_test",
-              "scope": "model",
-              "severity": "warning",
-              "notes": "Required only when allocation logic exists."
             }
           ]
         },
@@ -411,7 +398,7 @@ Each `results[*]` item must contain:
 - `answers` echo payload
 - `decomposition` (approved and unchanged)
 - `plan.materialization`
-- `plan.test_plan` (all required categories)
+- `plan.schema_tests` (all required categories)
 - `plan.documentation`
 - `validation`
 - `errors`

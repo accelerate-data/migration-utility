@@ -26,6 +26,7 @@ Use `docs/design/` for architecture and implementation design details.
 - [Branding](branding/README.md)
 - [Sidecar](sidecar/README.md)
 - [Agent Contract](agent-contract/README.md) — structured agent output contracts and FDE review requirements
+- [Unit Test Strategy](unit-test-strategy/README.md) — synthetic vs real data for proc-to-dbt behavioral equivalence testing
 
 ## What Goes In `references`
 

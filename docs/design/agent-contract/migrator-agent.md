@@ -28,7 +28,7 @@ into executable files.
 }
 ```
 
-**Example** 
+**Example**
 
 ```json
 {
@@ -62,14 +62,13 @@ into executable files.
       },
       "plan": {
         "materialization": "incremental",
-        "test_plan": {
+        "schema_tests": {
           "entity_integrity_tests": [],
           "referential_integrity_tests": [],
           "domain_validity_tests": [],
           "incremental_recency_tests": [],
           "classification_semantic_tests": [],
-          "pii_governance_checks": [],
-          "unit_tests": []
+          "pii_governance_checks": []
         },
         "documentation": {
           "model_name": "fct_fact_sales",
@@ -90,7 +89,6 @@ into executable files.
 ```
 
 ## Output Schema (MigrationArtifactManifest)
-
 
 ## Output Structure (Short)
 
