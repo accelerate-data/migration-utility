@@ -36,7 +36,7 @@ beforeEach(() => {
 
 describe('ConnectionsTab — GitHub card', () => {
   it('shows Sign in button when not connected', async () => {
-    mockInvokeCommands({ github_get_user: null });
+    mockInvokeCommands({ github_get_user: null, get_settings: { hasGithubAuth: false, githubUserLogin: null, githubUserAvatar: null, githubUserEmail: null, logLevel: null, migrationRepoFullName: null, migrationRepoCloneUrl: null, localClonePath: null } });
     renderTab();
     await waitFor(() => {
       expect(screen.getByTestId('btn-connect-github')).toBeVisible();
@@ -46,7 +46,7 @@ describe('ConnectionsTab — GitHub card', () => {
   });
 
   it('shows github URL and Disconnect when connected', async () => {
-    mockInvokeCommands({ github_get_user: MOCK_USER });
+    mockInvokeCommands({ github_get_user: MOCK_USER, get_settings: { hasGithubAuth: true, githubUserLogin: 'octocat', githubUserAvatar: null, githubUserEmail: null, logLevel: null, migrationRepoFullName: null, migrationRepoCloneUrl: null, localClonePath: null } });
     renderTab();
     await waitFor(() => {
       expect(screen.getByText('@octocat')).toBeVisible();
@@ -59,6 +59,7 @@ describe('ConnectionsTab — GitHub card', () => {
   it('shows checking state while auth is loading', async () => {
     mockInvokeCommands({
       github_get_user: new Promise(() => {}),
+      get_settings: { hasGithubAuth: false, githubUserLogin: null, githubUserAvatar: null, githubUserEmail: null, logLevel: null, migrationRepoFullName: null, migrationRepoCloneUrl: null, localClonePath: null },
     });
     renderTab();
     await waitFor(() => {

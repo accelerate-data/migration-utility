@@ -237,6 +237,7 @@ pub async fn github_list_repos(
         .filter_map(|repo| {
             let id = repo["id"].as_i64()?;
             let full_name = repo["full_name"].as_str()?.to_string();
+            let clone_url = repo["clone_url"].as_str()?.to_string();
             let private = repo["private"].as_bool().unwrap_or(false);
             if !query_lc.is_empty() && !full_name.to_lowercase().contains(&query_lc) {
                 return None;
@@ -244,6 +245,7 @@ pub async fn github_list_repos(
             Some(GitHubRepo {
                 id,
                 full_name,
+                clone_url,
                 private,
             })
         })
@@ -251,6 +253,64 @@ pub async fn github_list_repos(
         .collect::<Vec<_>>();
 
     Ok(repos)
+}
+
+/// Check whether a GitHub repo has no branches (i.e. is a freshly created empty repo).
+/// Returns true if the repo is empty, false if it has content.
+#[tauri::command]
+pub async fn github_check_repo_empty(
+    state: State<'_, DbState>,
+    full_name: String,
+) -> Result<bool, String> {
+    log::info!("[github_check_repo_empty] repo={}", full_name);
+    let token = {
+        let conn = state.conn()?;
+        let settings = crate::db::read_settings(&conn)?;
+        settings
+            .github_oauth_token
+            .ok_or_else(|| "GitHub is not connected".to_string())?
+    };
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(format!("https://api.github.com/repos/{}/branches", full_name))
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Accept", "application/vnd.github+json")
+        .header("User-Agent", "MigrationUtility")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .send()
+        .await
+        .map_err(|e| {
+            let msg = format!("Failed to check repo: {e}");
+            log::error!("[github_check_repo_empty] {msg}");
+            msg
+        })?;
+
+    let status = response.status();
+    // 409 = Git Repository is empty (GitHub's response for brand-new repos)
+    if status.as_u16() == 409 {
+        log::info!("[github_check_repo_empty] repo={} status=empty (409)", full_name);
+        return Ok(true);
+    }
+    if !status.is_success() {
+        let body: serde_json::Value = response.json().await.unwrap_or_default();
+        let msg = format!(
+            "GitHub API error ({}): {}",
+            status,
+            body["message"].as_str().unwrap_or("unknown")
+        );
+        log::error!("[github_check_repo_empty] {msg}");
+        return Err(msg);
+    }
+
+    let branches: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
+    let is_empty = branches.as_array().map(|a| a.is_empty()).unwrap_or(false);
+    log::info!(
+        "[github_check_repo_empty] repo={} status={}",
+        full_name,
+        if is_empty { "empty" } else { "has_content" }
+    );
+    Ok(is_empty)
 }
 
 #[cfg(test)]

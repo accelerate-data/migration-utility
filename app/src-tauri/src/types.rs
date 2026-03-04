@@ -16,6 +16,12 @@ pub struct AppSettings {
     pub github_user_email: Option<String>,
     #[serde(default)]
     pub log_level: Option<String>,
+    #[serde(default)]
+    pub migration_repo_full_name: Option<String>,
+    #[serde(default)]
+    pub migration_repo_clone_url: Option<String>,
+    #[serde(default)]
+    pub local_clone_path: Option<String>,
 }
 
 impl std::fmt::Debug for AppSettings {
@@ -39,6 +45,9 @@ pub struct AppSettingsPublic {
     pub github_user_avatar: Option<String>,
     pub github_user_email: Option<String>,
     pub log_level: Option<String>,
+    pub migration_repo_full_name: Option<String>,
+    pub migration_repo_clone_url: Option<String>,
+    pub local_clone_path: Option<String>,
 }
 
 impl From<AppSettings> for AppSettingsPublic {
@@ -49,6 +58,9 @@ impl From<AppSettings> for AppSettingsPublic {
             github_user_avatar: s.github_user_avatar,
             github_user_email: s.github_user_email,
             log_level: s.log_level,
+            migration_repo_full_name: s.migration_repo_full_name,
+            migration_repo_clone_url: s.migration_repo_clone_url,
+            local_clone_path: s.local_clone_path,
         }
     }
 }
@@ -88,6 +100,7 @@ pub struct GitHubUser {
 pub struct GitHubRepo {
     pub id: i64,
     pub full_name: String,
+    pub clone_url: String,
     pub private: bool,
 }
 

@@ -30,6 +30,12 @@ export const githubListRepos = (query: string, limit = 10) =>
 export const getSettings = () =>
   invoke<AppSettingsPublic>('get_settings');
 
+export const saveRepoSettings = (fullName: string, cloneUrl: string, localPath: string) =>
+  invoke<void>('save_repo_settings', { fullName, cloneUrl, localPath });
+
+export const githubCheckRepoEmpty = (fullName: string) =>
+  invoke<boolean>('github_check_repo_empty', { fullName });
+
 // ── App info ──────────────────────────────────────────────────────────────────
 
 export const setLogLevel = (level: string) =>

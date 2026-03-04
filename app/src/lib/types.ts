@@ -15,6 +15,7 @@ export interface GitHubUser {
 export interface GitHubRepo {
   id: number;
   fullName: string;
+  cloneUrl: string;
   private: boolean;
 }
 
@@ -30,6 +31,9 @@ export interface AppSettingsPublic {
   githubUserAvatar: string | null;
   githubUserEmail: string | null;
   logLevel: string | null;
+  migrationRepoFullName: string | null;
+  migrationRepoCloneUrl: string | null;
+  localClonePath: string | null;
 }
 
 /** A migration project (safe to return to frontend — sa_password omitted). */
