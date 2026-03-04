@@ -28,6 +28,7 @@ const APP_PHASE_KEY: &str = "app_phase";
 
 const MIGRATIONS: &[(i64, &str)] = &[
     (1, include_str!("../migrations/001_initial_schema.sql")),
+    (2, include_str!("../migrations/002_drop_legacy_tables.sql")),
 ];
 
 pub fn open(path: &Path) -> Result<Connection, DbError> {
@@ -211,7 +212,7 @@ mod tests {
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM schema_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(count, 1, "schema_version should have exactly 1 row");
+        assert_eq!(count, 2, "schema_version should have exactly 2 rows");
     }
 
     #[test]
