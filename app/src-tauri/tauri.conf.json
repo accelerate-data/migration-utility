@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.vibedata.migration-utility",
   "build": {
-    "beforeDevCommand": "npm run sidecar:build && npm run dev:vite",
+    "beforeDevCommand": "npm run dev:vite",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run sidecar:build && npm run build",
+    "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -27,8 +27,7 @@
     "active": true,
     "targets": "all",
     "resources": [
-      "../../agent-sources/**/*",
-      "../sidecar/dist/**/*"
+      "../../agent-sources/**/*"
     ],
     "icon": [
       "icons/32x32.png",

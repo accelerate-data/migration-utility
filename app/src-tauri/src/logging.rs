@@ -1,6 +1,6 @@
 use tauri_plugin_log::{Target, TargetKind};
 
-const LOG_FILE_NAME: &str = "migration-utility";
+const LOG_FILE_NAME: &str = "app";
 
 /// Build the log plugin with dual targets: log file + stderr.
 pub fn build_log_plugin() -> tauri_plugin_log::Builder {
@@ -43,8 +43,8 @@ pub fn set_log_level(level: &str) {
         "debug" => log::LevelFilter::Debug,
         _ => log::LevelFilter::Info,
     };
-    log::set_max_level(filter);
     log::info!("Log level set to {}", filter);
+    log::set_max_level(filter);
 }
 
 /// Return the absolute path to the app log file.

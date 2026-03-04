@@ -133,7 +133,7 @@ mod tests {
         let username =
             std::env::var("MIGRATION_TEST_SQL_SERVER_USER").unwrap_or_else(|_| "sa".to_string());
         let password = std::env::var("MIGRATION_TEST_SQL_SERVER_PASSWORD")
-            .unwrap_or_else(|_| "YourStrong!Passw0rd".to_string());
+            .unwrap_or_else(|_| "P@ssw0rd123".to_string());
         let database = std::env::var("MIGRATION_TEST_SQL_SERVER_DATABASE")
             .unwrap_or_else(|_| "WideWorldImportersDW".to_string());
 
@@ -201,7 +201,7 @@ mod tests {
         let username =
             std::env::var("MIGRATION_TEST_SQL_SERVER_USER").unwrap_or_else(|_| "sa".to_string());
         let password = std::env::var("MIGRATION_TEST_SQL_SERVER_PASSWORD")
-            .unwrap_or_else(|_| "YourStrong!Passw0rd".to_string());
+            .unwrap_or_else(|_| "P@ssw0rd123".to_string());
         let database = std::env::var("MIGRATION_TEST_SQL_SERVER_DATABASE")
             .unwrap_or_else(|_| "WideWorldImportersDW".to_string());
 

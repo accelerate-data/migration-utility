@@ -4,12 +4,12 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "npm run sidecar:build && node scripts/dev.mjs",
+    "dev": "node scripts/dev.mjs",
     "dev:vite": "vite",
     "icons:dark": "node scripts/generate-icons.mjs dark",
     "icons:light": "node scripts/generate-icons.mjs light",
     "icons:opt1": "BRAND_ICON_SOURCE=src-tauri/icons/icon_opt1.png node scripts/generate-icons.mjs opt1",
-    "build": "npm run sidecar:build && tsc && vite build",
+    "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest run",
@@ -19,8 +19,7 @@
     "test:e2e": "playwright test",
     "test:e2e:workspace": "playwright test --grep @workspace",
     "test:changed": "vitest run --changed",
-    "test:all": "vitest run && playwright test",
-    "sidecar:build": "node scripts/ensure-sidecar-deps.mjs && node scripts/build-sidecar.mjs"
+    "test:all": "vitest run && playwright test"
   },
   "dependencies": {
     "@fontsource-variable/jetbrains-mono": "^5.2.8",

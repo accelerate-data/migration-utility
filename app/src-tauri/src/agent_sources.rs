@@ -2,14 +2,15 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
-const WORKSPACE_DIR: &str = ".vibedata/migration-utility";
 const CLAUDE_DIR: &str = ".claude";
 
-pub fn deploy_on_startup(app: &AppHandle) -> Result<(), String> {
+/// Deploy agent sources to `data_dir/workspace/` on startup.
+/// `data_dir` comes from the `DataDir` managed state (app_local_data_dir).
+pub fn deploy_on_startup(app: &AppHandle, data_dir: &Path) -> Result<(), String> {
     let source = resolve_source_dir(app)?;
-    let workspace_root = workspace_target_dir(app)?;
+    let workspace_root = data_dir.join("workspace");
     log::info!(
         "agent_sources: startup deploy begin source={} workspace={}",
         source.display(),
@@ -47,14 +48,6 @@ fn resolve_source_dir(app: &AppHandle) -> Result<PathBuf, String> {
     );
 
     resolve_source_dir_from_candidates(&candidates)
-}
-
-fn workspace_target_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let home = app
-        .path()
-        .home_dir()
-        .map_err(|e| format!("agent_sources: failed to resolve home dir: {e}"))?;
-    Ok(home.join(WORKSPACE_DIR))
 }
 
 fn resolve_source_dir_from_candidates(candidates: &[PathBuf]) -> Result<PathBuf, String> {
