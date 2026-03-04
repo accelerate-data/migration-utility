@@ -165,25 +165,4 @@ mod tests {
         assert_eq!(projects[0].slug, "my-project");
     }
 
-    #[test]
-    fn delete_project_cascades_to_agent_runs() {
-        let conn = db::open_in_memory().unwrap();
-        conn.execute(
-            "INSERT INTO projects(id, slug, name, sa_password, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params!["p1", "proj", "Proj", "pw", "2026-01-01T00:00:00Z"],
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO agent_runs(project_id, run_id, action, submitted_ts, status) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params!["p1", "run-uuid-1", "scoping-agent", "2026-01-01T00:00:00Z", "success"],
-        )
-        .unwrap();
-
-        conn.execute("DELETE FROM projects WHERE id = ?1", ["p1"]).unwrap();
-
-        let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM agent_runs", [], |row| row.get(0))
-            .unwrap();
-        assert_eq!(count, 0);
-    }
 }

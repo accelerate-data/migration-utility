@@ -52,13 +52,3 @@ export interface Project {
   createdAt: string;
 }
 
-/** One agent run submission. */
-export interface AgentRun {
-  id: number;
-  projectId: string;
-  runId: string;
-  action: string;
-  submittedTs: string;
-  githubRunId: string | null;
-  status: 'in-progress' | 'success' | 'failed';
-}

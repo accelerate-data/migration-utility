@@ -178,7 +178,6 @@ pub fn reconcile_and_persist_app_phase(conn: &Connection) -> Result<AppPhaseStat
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rusqlite::params;
 
     fn open_memory() -> Connection {
         let conn = Connection::open_in_memory().expect("in-memory db");
@@ -190,14 +189,7 @@ mod tests {
     #[test]
     fn fresh_db_has_all_tables() {
         let conn = open_memory();
-        let expected = [
-            "schema_version",
-            "settings",
-            "projects",
-            "agent_runs",
-            "stage_status",
-            "fde_overrides",
-        ];
+        let expected = ["schema_version", "settings", "projects"];
         for table in expected {
             let count: i64 = conn
                 .query_row(
@@ -220,70 +212,6 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM schema_version", [], |row| row.get(0))
             .unwrap();
         assert_eq!(count, 1, "schema_version should have exactly 1 row");
-    }
-
-    #[test]
-    fn agent_runs_fk_cascades_on_project_delete() {
-        let conn = open_memory();
-        conn.execute(
-            "INSERT INTO projects(id, slug, name, sa_password, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params!["p1", "proj", "Proj", "pw", "2026-01-01T00:00:00Z"],
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO agent_runs(project_id, run_id, action, submitted_ts, status) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params!["p1", "run-uuid-1", "scoping-agent", "2026-01-01T00:00:00Z", "success"],
-        )
-        .unwrap();
-
-        conn.execute("DELETE FROM projects WHERE id=?1", ["p1"]).unwrap();
-
-        let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM agent_runs", [], |row| row.get(0))
-            .unwrap();
-        assert_eq!(count, 0, "agent_runs should cascade on project delete");
-    }
-
-    #[test]
-    fn stage_status_fk_cascades_on_project_delete() {
-        let conn = open_memory();
-        conn.execute(
-            "INSERT INTO projects(id, slug, name, sa_password, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params!["p1", "proj", "Proj", "pw", "2026-01-01T00:00:00Z"],
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO stage_status(project_id, table_id, stage, status) VALUES (?1, ?2, ?3, ?4)",
-            params!["p1", "dbo.fact_sales", "scoping-agent", "success"],
-        )
-        .unwrap();
-
-        conn.execute("DELETE FROM projects WHERE id=?1", ["p1"]).unwrap();
-
-        let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM stage_status", [], |row| row.get(0))
-            .unwrap();
-        assert_eq!(count, 0);
-    }
-
-    #[test]
-    fn fde_overrides_unique_constraint() {
-        let conn = open_memory();
-        conn.execute(
-            "INSERT INTO projects(id, slug, name, sa_password, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params!["p1", "proj", "Proj", "pw", "2026-01-01T00:00:00Z"],
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO fde_overrides(project_id, table_id, stage, field, fde_value, source_run_id, source_submitted_ts) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params!["p1", "dbo.fact_sales", "profiler-agent", "answers.classification", "\"fact_transaction\"", "run-1", "2026-01-01T00:00:00Z"],
-        )
-        .unwrap();
-        let result = conn.execute(
-            "INSERT INTO fde_overrides(project_id, table_id, stage, field, fde_value, source_run_id, source_submitted_ts) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params!["p1", "dbo.fact_sales", "profiler-agent", "answers.classification", "\"dim_scd2\"", "run-2", "2026-01-01T00:00:00Z"],
-        );
-        assert!(result.is_err(), "duplicate (project_id, table_id, stage, field) should be rejected");
     }
 
     #[test]

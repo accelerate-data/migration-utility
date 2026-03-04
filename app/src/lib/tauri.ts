@@ -1,6 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
 import type {
-  AgentRun,
   AppPhase,
   AppPhaseState,
   AppSettingsPublic,
@@ -80,6 +79,3 @@ export const projectGet = (id: string) =>
 export const projectDelete = (id: string) =>
   invoke<void>('project_delete', { id });
 
-// ── Agent runs (placeholder — commands to be added in later issues) ───────────
-
-export type { AgentRun };

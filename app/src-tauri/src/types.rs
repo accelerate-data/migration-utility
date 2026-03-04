@@ -165,19 +165,6 @@ pub struct Project {
     pub created_at: String,
 }
 
-/// One agent run submission.
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentRun {
-    pub id: i64,
-    pub project_id: String,
-    pub run_id: String,
-    pub action: String,
-    pub submitted_ts: String,
-    pub github_run_id: Option<String>,
-    pub status: String,
-}
-
 // ── Error type ────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Error, Serialize)]
