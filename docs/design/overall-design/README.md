@@ -316,7 +316,9 @@ Each tab:
 
 ### Stage Gate
 
-A table is shown in tab N only if all of the following are true:
+**Scope (tab 1):** all tables in the project are always shown. There is no prior stage.
+
+**All other tabs (N ≥ 2):** a table is shown only if all of the following are true:
 
 1. `stage_status[N-1].status = success` — prior stage succeeded (funnel filter).
 2. `dirty = 0` OR `dirty_from = N` — either not dirty, or this is the earliest dirty stage for the table.
