@@ -56,4 +56,3 @@ Validation baseline executed on February 28, 2026:
    - Primary text and muted text use theme tokens with AA-level contrast targets in light and dark themes.
 4. Visual consistency:
    - Navigation brand mark, hierarchy, spacing, and type scale are consistent across core surfaces.
-

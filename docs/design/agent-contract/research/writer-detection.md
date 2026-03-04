@@ -409,7 +409,7 @@ lineage tool**. Better to build a targeted solution using approaches 1+2+3.
 
 ### Tiered Approach
 
-```
+```text
 Layer 1: Catalog views (sys.dm_sql_referenced_entities with is_updated/is_insert_all)
     ↓ fast, built-in, ~70-80% coverage
 Layer 2: sqlglot T-SQL parsing of sys.sql_modules.definition

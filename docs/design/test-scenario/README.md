@@ -82,4 +82,3 @@ The following scenario types are not represented by current `MigrateStaged*Data`
 3. Dynamic SQL translation (`EXEC`/`sp_executesql`) in staging-to-silver procedures.
 4. Cross-database references in migration scenarios.
 5. Cursor-based row-by-row transformation procedures.
-

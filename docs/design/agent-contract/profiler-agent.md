@@ -25,6 +25,7 @@ It should output only inferred candidates that require judgment, not direct fact
   ]
 }
 ```
+
 ## Input Semantics
 
 - `related_procedure_depth` controls supporting procedure expansion around `selected_writer`.
@@ -178,7 +179,7 @@ It should output only inferred candidates that require judgment, not direct fact
 }
 ```
 
-**Example** 
+**Example**
 
 ```json
 {
