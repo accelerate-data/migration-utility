@@ -8,14 +8,14 @@ schema and the editable field set per agent stage.
 ```sql
 CREATE TABLE fde_overrides (
   id                   INTEGER PRIMARY KEY,
-  workspace_id         INTEGER NOT NULL,
+  project_id           INTEGER NOT NULL,  -- matches projects.id type; update if projects uses TEXT PK
   table_id             TEXT NOT NULL,
   stage                TEXT NOT NULL,
   field                TEXT NOT NULL,
   fde_value            TEXT NOT NULL,  -- JSON-encoded; scalars, arrays, and objects all stored as JSON
   source_run_id        TEXT NOT NULL,
   source_submitted_ts  TEXT NOT NULL,  -- ISO 8601 UTC; for tooltip display only
-  UNIQUE (workspace_id, table_id, stage, field)
+  UNIQUE (project_id, table_id, stage, field)
 );
 ```
 
