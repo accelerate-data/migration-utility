@@ -14,7 +14,12 @@ Pre-create the parent directory before adding the worktree:
 ```bash
 mkdir -p ../worktrees/feature
 git worktree add ../worktrees/feature/<branch-name> <branch-name>
+./scripts/link-worktree-db.sh ../worktrees/feature/<branch-name>
 ```
+
+The symlink command creates `../worktrees/<branchName>/.local/migration-utility.db` pointing to the
+developer SQLite DB (`~/Library/Application Support/com.vibedata.migration-utility/migration-utility.db`).
+If your DB path is different, set `MIGRATION_UTILITY_DB_PATH` before running the command.
 
 ## PR Format
 
