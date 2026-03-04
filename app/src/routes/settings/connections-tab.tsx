@@ -19,9 +19,7 @@ import { logger } from '@/lib/logger';
 const EFFORT_OPTIONS = ['low', 'medium', 'high', 'max'] as const;
 
 export default function ConnectionsTab() {
-  const appPhase = useWorkflowStore((s) => s.appPhase);
   const setAppPhaseState = useWorkflowStore((s) => s.setAppPhaseState);
-  const isLocked = appPhase === 'running_locked';
 
   const { user, isLoggedIn, isLoading: isAuthLoading, lastCheckedAt, loadUser, logout } = useAuthStore();
   const [loginDialogOpen, setLoginDialogOpen] = useState(false);
@@ -152,7 +150,7 @@ export default function ConnectionsTab() {
                 <Button
                   variant="outline"
                   data-testid="btn-disconnect-github"
-                  disabled={isLocked}
+                  disabled={false}
                   onClick={logout}
                 >
                   <LogOut className="size-3.5" />
@@ -165,7 +163,7 @@ export default function ConnectionsTab() {
                 <Button
                   variant="outline"
                   data-testid="btn-connect-github"
-                  disabled={isLocked}
+                  disabled={false}
                   onClick={() => setLoginDialogOpen(true)}
                 >
                   <Github className="size-3.5" />
@@ -199,7 +197,7 @@ export default function ConnectionsTab() {
               }}
               placeholder="sk-ant-api03-…"
               className="font-mono text-sm flex-1"
-              disabled={isLocked}
+              disabled={false}
             />
             <Button
               type="button"
@@ -208,7 +206,7 @@ export default function ConnectionsTab() {
               onClick={() => {
                 void handleTestApiKey();
               }}
-              disabled={isLocked || testingApiKey || !apiKey.trim()}
+              disabled={testingApiKey || !apiKey.trim()}
               className={apiKeyValid ? 'text-white' : undefined}
               style={apiKeyValid ? { background: 'var(--color-seafoam)', color: 'white' } : undefined}
             >
@@ -239,7 +237,7 @@ export default function ConnectionsTab() {
                   setPreferredModel(next);
                   void handleSaveAgentSettings(next, effort);
                 }}
-                disabled={isLocked || availableModels.length === 0}
+                disabled={availableModels.length === 0}
               >
                 <SelectTrigger className="w-72" data-testid="select-preferred-model">
                   <SelectValue placeholder="Default (claude-sonnet-4-6)" />
@@ -263,7 +261,7 @@ export default function ConnectionsTab() {
                   setEffort(value);
                   void handleSaveAgentSettings(preferredModel, value);
                 }}
-                disabled={isLocked}
+                disabled={false}
                 className="flex gap-1"
                 data-testid="radio-effort"
               >
@@ -277,7 +275,7 @@ export default function ConnectionsTab() {
                         effort === opt
                           ? 'border-transparent text-white'
                           : 'border-border bg-background text-muted-foreground hover:bg-muted',
-                        isLocked ? 'pointer-events-none opacity-50' : '',
+                        '',
                       ].join(' ')}
                       style={effort === opt ? { background: 'var(--color-pacific)' } : undefined}
                     >

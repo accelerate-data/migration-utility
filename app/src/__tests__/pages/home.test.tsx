@@ -24,7 +24,6 @@ describe('HomeSurface', () => {
     useWorkflowStore.setState((s) => ({
       ...s,
       appPhase: 'setup_required',
-      migrationStatus: 'idle',
     }));
   });
 
@@ -41,22 +40,9 @@ describe('HomeSurface', () => {
     expect(screen.queryByTestId('home-setup-state')).not.toBeInTheDocument();
   });
 
-  it('renders dashboard when appPhase is running_locked', () => {
-    useWorkflowStore.setState((s) => ({ ...s, appPhase: 'running_locked', migrationStatus: 'running' }));
-    renderPage();
-    expect(screen.getByTestId('home-dashboard-state')).toBeInTheDocument();
-  });
-
   it('"Go to Settings" button navigates to /settings', () => {
     renderPage();
     fireEvent.click(screen.getByTestId('btn-go-to-settings'));
     expect(mockNavigate).toHaveBeenCalledWith('/settings');
-  });
-
-  it('"Open Monitor" button navigates to /monitor', () => {
-    useWorkflowStore.setState((s) => ({ ...s, appPhase: 'configured' }));
-    renderPage();
-    fireEvent.click(screen.getByTestId('btn-open-monitor'));
-    expect(mockNavigate).toHaveBeenCalledWith('/monitor');
   });
 });

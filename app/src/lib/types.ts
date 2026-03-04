@@ -35,7 +35,7 @@ export interface AppSettingsPublic {
   logLevel: string | null;
 }
 
-export type AppPhase = 'setup_required' | 'configured' | 'running_locked';
+export type AppPhase = 'setup_required' | 'configured';
 
 export interface AppPhaseState {
   appPhase: AppPhase;

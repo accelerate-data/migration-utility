@@ -3,8 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { ThemeProvider } from 'next-themes';
 import IconNav from './components/icon-nav';
 import HomeSurface from './routes/home';
-import PlanSurface from './routes/plan';
-import MonitorSurface from './routes/monitor';
 import SettingsSurface from './routes/settings/index';
 import { Toaster } from './components/ui/sonner';
 import { useAuthStore } from './stores/auth-store';
@@ -81,8 +79,6 @@ export default function App() {
             <Routes>
               <Route path="/" element={<RootRedirect />} />
               <Route path="/home" element={<GuardedRoute surface="home" element={<HomeSurface />} />} />
-              <Route path="/plan" element={<GuardedRoute surface="plan" element={<PlanSurface />} />} />
-              <Route path="/monitor" element={<GuardedRoute surface="monitor" element={<MonitorSurface />} />} />
               <Route path="/settings/*" element={<GuardedRoute surface="settings" element={<SettingsSurface />} />} />
             </Routes>
           </main>

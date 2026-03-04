@@ -1,10 +1,9 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { MemoryRouter } from 'react-router';
 import ConnectionsTab from '../../routes/settings/connections-tab';
 import { mockInvokeCommands, resetTauriMocks } from '../../test/mocks/tauri';
 import { useAuthStore } from '@/stores/auth-store';
-import { useWorkflowStore } from '@/stores/workflow-store';
 
 vi.mock('sonner', () => ({
   toast: {
@@ -46,7 +45,6 @@ beforeEach(() => {
     logout: initialAuthState.logout,
     reset: initialAuthState.reset,
   });
-  useWorkflowStore.setState((s) => ({ ...s, migrationStatus: 'idle' }));
 });
 
 describe('ConnectionsTab — GitHub card', () => {
@@ -72,24 +70,6 @@ describe('ConnectionsTab — GitHub card', () => {
     expect(screen.getByText('Connected')).toBeVisible();
     expect(screen.getByText(/Last checked/i)).toBeVisible();
     expect(screen.getByTestId('btn-disconnect-github')).toBeVisible();
-  });
-
-  it('Disconnect button is disabled when app phase is running_locked', async () => {
-    useAuthStore.setState({
-      user: MOCK_USER,
-      isLoggedIn: true,
-      isLoading: false,
-      lastCheckedAt: null,
-      loadUser: async () => {},
-    });
-    mockInvokeCommands({ github_get_user: MOCK_USER, get_settings: { anthropicApiKey: null }, app_hydrate_phase: PHASE_STATE });
-    act(() => {
-      useWorkflowStore.setState((s) => ({ ...s, appPhase: 'running_locked' }));
-    });
-    renderTab();
-    await waitFor(() => {
-      expect(screen.getByTestId('btn-disconnect-github')).toBeDisabled();
-    });
   });
 
   it('shows checking state while auth is loading', async () => {

@@ -7,20 +7,6 @@
  */
 
 const mockResponses: Record<string, unknown> = {
-  // Workspace
-  workspace_apply_start: "job-1",
-  workspace_apply_status: {
-    jobId: "job-1",
-    state: "succeeded",
-    isAlive: false,
-    stage: "completed",
-    percent: 100,
-    message: "Apply completed.",
-    error: null,
-  },
-  workspace_test_source_connection: "Connection successful",
-  workspace_discover_source_databases: ["master"],
-  workspace_reset_state: undefined,
   // GitHub auth
   github_get_user: null,
   github_list_repos: [],
@@ -34,58 +20,6 @@ const mockResponses: Record<string, unknown> = {
   get_log_file_path: null,
   get_data_dir_path: null,
 };
-
-const STORE_KEY = "migration-workflow";
-
-interface SeededState {
-  workspaceId?: unknown;
-  migrationStatus?: unknown;
-}
-
-function getSeededState(): SeededState | null {
-  try {
-    const raw = localStorage.getItem(STORE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { state?: SeededState };
-    return parsed?.state ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function getSeededWorkspaceResponse(): Record<string, unknown> | null {
-  const state = getSeededState();
-  const workspaceId = state?.workspaceId;
-  if (typeof workspaceId !== "string" || workspaceId.trim().length === 0) {
-    return null;
-  }
-  return {
-    id: workspaceId,
-    displayName: workspaceId,
-    migrationRepoName: "acme/repo",
-    migrationRepoPath: "/tmp/repo",
-    sourceServer: "localhost",
-    sourceDatabase: "master",
-    sourcePort: 1433,
-    sourceAuthenticationMode: "sql_password",
-    sourceUsername: "sa",
-    sourcePassword: "password",
-    sourceEncrypt: true,
-    sourceTrustServerCertificate: false,
-  };
-}
-
-/** Resolve workspace — checks overrides first, then falls back to localStorage seed. */
-function resolveWorkspace(overrides?: Record<string, unknown>): Record<string, unknown> | null {
-  if (overrides && "workspace_get" in overrides) {
-    const val = overrides["workspace_get"];
-    if (typeof val === "function") {
-      return (val as () => Record<string, unknown> | null)();
-    }
-    return val as Record<string, unknown> | null;
-  }
-  return getSeededWorkspaceResponse();
-}
 
 export async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   // Allow tests to override via window.__TAURI_MOCK_OVERRIDES__
@@ -101,23 +35,12 @@ export async function invoke<T>(cmd: string, args?: Record<string, unknown>): Pr
     return val as T;
   }
 
-  if (cmd === "workspace_get") {
-    return getSeededWorkspaceResponse() as T;
-  }
-
-  // Derive app phase from workspace availability so navigation works without explicit overrides.
   if (cmd === "app_hydrate_phase") {
-    const workspace = resolveWorkspace(overrides);
-    const migrationStatus = getSeededState()?.migrationStatus;
-    let appPhase = "setup_required";
-    if (workspace) {
-      appPhase = migrationStatus === "running" ? "running_locked" : "ready_to_run";
-    }
     return {
-      appPhase,
+      appPhase: "setup_required",
       hasGithubAuth: false,
       hasAnthropicKey: false,
-      isSourceApplied: workspace !== null,
+      hasProject: false,
     } as T;
   }
 

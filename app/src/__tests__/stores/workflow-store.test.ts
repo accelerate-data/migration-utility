@@ -10,7 +10,6 @@ describe('useWorkflowStore', () => {
     useWorkflowStore.setState((s) => ({
       ...s,
       currentSurface: 'home',
-      migrationStatus: 'idle',
       appPhase: 'setup_required',
       appPhaseHydrated: false,
       phaseFacts: {
@@ -22,44 +21,37 @@ describe('useWorkflowStore', () => {
   });
 
   it('has correct initial state', () => {
-    const { currentSurface, migrationStatus, appPhase } = useWorkflowStore.getState();
+    const { currentSurface, appPhase } = useWorkflowStore.getState();
     expect(currentSurface).toBe('home');
-    expect(migrationStatus).toBe('idle');
     expect(appPhase).toBe('setup_required');
   });
 
   it('setCurrentSurface updates currentSurface', () => {
-    useWorkflowStore.getState().setCurrentSurface('plan');
-    expect(useWorkflowStore.getState().currentSurface).toBe('plan');
-  });
-
-  it('setMigrationStatus updates migrationStatus', () => {
-    useWorkflowStore.getState().setMigrationStatus('running');
-    expect(useWorkflowStore.getState().migrationStatus).toBe('running');
+    useWorkflowStore.getState().setCurrentSurface('settings');
+    expect(useWorkflowStore.getState().currentSurface).toBe('settings');
   });
 
   it('reset restores initial state', () => {
-    useWorkflowStore.getState().setCurrentSurface('monitor');
-    useWorkflowStore.getState().setMigrationStatus('running');
+    useWorkflowStore.getState().setCurrentSurface('settings');
     useWorkflowStore.getState().reset();
     const state = useWorkflowStore.getState();
     expect(state.currentSurface).toBe('home');
-    expect(state.migrationStatus).toBe('idle');
     expect(state.appPhase).toBe('setup_required');
     expect(state.appPhaseHydrated).toBe(false);
   });
 
-  it('setAppPhaseState updates phase and syncs migrationStatus', () => {
+  it('setAppPhaseState updates phase and phaseFacts', () => {
     useWorkflowStore.getState().setAppPhaseState({
-      appPhase: 'running_locked',
+      appPhase: 'configured',
       hasGithubAuth: true,
       hasAnthropicKey: true,
       hasProject: true,
     });
     const state = useWorkflowStore.getState();
-    expect(state.appPhase).toBe('running_locked');
-    expect(state.migrationStatus).toBe('running');
+    expect(state.appPhase).toBe('configured');
     expect(state.appPhaseHydrated).toBe(true);
+    expect(state.phaseFacts.hasGithubAuth).toBe(true);
+    expect(state.phaseFacts.hasProject).toBe(true);
   });
 });
 
@@ -72,18 +64,10 @@ describe('workflow phase guards', () => {
     expect(defaultRouteForPhase('configured')).toBe('/home');
   });
 
-  it('defaults to monitor for running_locked phase', () => {
-    expect(defaultRouteForPhase('running_locked')).toBe('/monitor');
-  });
-
-  it('disables monitor until running_locked', () => {
-    expect(isSurfaceEnabledForPhase('monitor', 'configured')).toBe(false);
-    expect(isSurfaceEnabledForPhase('monitor', 'running_locked')).toBe(true);
-  });
-
-  it('enables plan for configured and running_locked', () => {
-    expect(isSurfaceEnabledForPhase('plan', 'setup_required')).toBe(false);
-    expect(isSurfaceEnabledForPhase('plan', 'configured')).toBe(true);
-    expect(isSurfaceEnabledForPhase('plan', 'running_locked')).toBe(true);
+  it('home and settings are always enabled', () => {
+    expect(isSurfaceEnabledForPhase('home', 'setup_required')).toBe(true);
+    expect(isSurfaceEnabledForPhase('settings', 'setup_required')).toBe(true);
+    expect(isSurfaceEnabledForPhase('home', 'configured')).toBe(true);
+    expect(isSurfaceEnabledForPhase('settings', 'configured')).toBe(true);
   });
 });
