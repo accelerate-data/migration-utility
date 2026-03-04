@@ -30,20 +30,6 @@ export const githubListRepos = (query: string, limit = 10) =>
 export const getSettings = () =>
   invoke<AppSettingsPublic>('get_settings');
 
-export const saveAnthropicApiKey = (apiKey: string | null) =>
-  invoke<void>('save_anthropic_api_key', { apiKey });
-
-export const saveAgentSettings = (
-  preferredModel: string | null,
-  effort: string | null,
-) => invoke<void>('save_agent_settings', { preferredModel, effort });
-
-export const listModels = (apiKey: string) =>
-  invoke<{ id: string; displayName: string }[]>('list_models', { apiKey });
-
-export const testApiKey = (apiKey: string) =>
-  invoke<boolean>('test_api_key', { apiKey });
-
 // ── App info ──────────────────────────────────────────────────────────────────
 
 export const setLogLevel = (level: string) =>

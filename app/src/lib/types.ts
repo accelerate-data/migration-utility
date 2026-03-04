@@ -25,13 +25,10 @@ export type GitHubAuthResult =
 
 /** App settings safe to receive from the backend — secrets replaced with presence booleans. */
 export interface AppSettingsPublic {
-  hasAnthropicKey: boolean;
   hasGithubAuth: boolean;
   githubUserLogin: string | null;
   githubUserAvatar: string | null;
   githubUserEmail: string | null;
-  preferredModel: string | null;
-  effort: string | null;
   logLevel: string | null;
 }
 

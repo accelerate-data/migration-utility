@@ -7,8 +7,6 @@ use thiserror::Error;
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
     #[serde(default)]
-    pub anthropic_api_key: Option<String>,
-    #[serde(default)]
     pub github_oauth_token: Option<String>,
     #[serde(default)]
     pub github_user_login: Option<String>,
@@ -17,17 +15,12 @@ pub struct AppSettings {
     #[serde(default)]
     pub github_user_email: Option<String>,
     #[serde(default)]
-    pub preferred_model: Option<String>,
-    #[serde(default)]
-    pub effort: Option<String>,
-    #[serde(default)]
     pub log_level: Option<String>,
 }
 
 impl std::fmt::Debug for AppSettings {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AppSettings")
-            .field("anthropic_api_key", &"[REDACTED]")
             .field("github_oauth_token", &"[REDACTED]")
             .field("github_user_login", &self.github_user_login)
             .field("github_user_avatar", &self.github_user_avatar)
@@ -41,26 +34,20 @@ impl std::fmt::Debug for AppSettings {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettingsPublic {
-    pub has_anthropic_key: bool,
     pub has_github_auth: bool,
     pub github_user_login: Option<String>,
     pub github_user_avatar: Option<String>,
     pub github_user_email: Option<String>,
-    pub preferred_model: Option<String>,
-    pub effort: Option<String>,
     pub log_level: Option<String>,
 }
 
 impl From<AppSettings> for AppSettingsPublic {
     fn from(s: AppSettings) -> Self {
         AppSettingsPublic {
-            has_anthropic_key: s.anthropic_api_key.is_some(),
             has_github_auth: s.github_oauth_token.is_some(),
             github_user_login: s.github_user_login,
             github_user_avatar: s.github_user_avatar,
             github_user_email: s.github_user_email,
-            preferred_model: s.preferred_model,
-            effort: s.effort,
             log_level: s.log_level,
         }
     }
