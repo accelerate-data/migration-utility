@@ -1,9 +1,5 @@
-pub mod agent;
 pub mod app_info;
-pub mod fabric;
 pub mod github_auth;
-pub mod migration;
-pub mod plan;
 pub mod settings;
 pub mod usage;
 pub mod workspace;

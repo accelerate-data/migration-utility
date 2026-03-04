@@ -28,26 +28,6 @@ static WORKSPACE_APPLY_JOBS: LazyLock<Mutex<HashMap<String, WorkspaceApplyJobSta
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CreateWorkspaceArgs {
-    pub name: String,
-    pub migration_repo_name: Option<String>,
-    pub migration_repo_path: String,
-    pub fabric_url: Option<String>,
-    pub fabric_service_principal_id: Option<String>,
-    pub fabric_service_principal_secret: Option<String>,
-    pub source_type: Option<String>,
-    pub source_server: Option<String>,
-    pub source_database: Option<String>,
-    pub source_port: Option<i64>,
-    pub source_authentication_mode: Option<String>,
-    pub source_username: Option<String>,
-    pub source_password: Option<String>,
-    pub source_encrypt: Option<bool>,
-    pub source_trust_server_certificate: Option<bool>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ApplyWorkspaceArgs {
     pub name: String,
     pub migration_repo_name: String,
@@ -1370,89 +1350,6 @@ fn maybe_emit_object_import_progress(
     }
 }
 
-#[tauri::command]
-pub fn workspace_create(
-    args: CreateWorkspaceArgs,
-    state: State<DbState>,
-) -> Result<WorkspacePublic, CommandError> {
-    log::info!("workspace_create: name={}", args.name);
-    validate_source_type(&args.source_type)?;
-    if !Path::new(&args.migration_repo_path).is_dir() {
-        log::error!(
-            "workspace_create: migration_repo_path does not exist: {}",
-            args.migration_repo_path
-        );
-        return Err(CommandError::Io(format!(
-            "Migration repo path does not exist or is not a directory: {}",
-            args.migration_repo_path
-        )));
-    }
-    let conn = state.conn().map_err(CommandError::Database)?;
-    let id = Uuid::new_v4().to_string();
-    let created_at = Utc::now().to_rfc3339();
-    conn.execute(
-        "INSERT INTO workspaces(
-            id, display_name, migration_repo_name, migration_repo_path, fabric_url,
-            fabric_service_principal_id, fabric_service_principal_secret, source_type,
-            source_server, source_database, source_port, source_authentication_mode,
-            source_username, source_password, source_encrypt, source_trust_server_certificate,
-            created_at
-          ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
-        params![
-            id,
-            args.name,
-            args.migration_repo_name,
-            args.migration_repo_path,
-            args.fabric_url,
-            args.fabric_service_principal_id,
-            args.fabric_service_principal_secret,
-            args.source_type,
-            args.source_server,
-            args.source_database,
-            args.source_port,
-            args.source_authentication_mode,
-            args.source_username,
-            args.source_password,
-            args.source_encrypt,
-            args.source_trust_server_certificate,
-            created_at
-        ],
-    )
-    .map_err(|e| {
-        log::error!("workspace_create: failed: {e}");
-        CommandError::from(e)
-    })?;
-    Ok(WorkspacePublic::from(Workspace {
-        id,
-        display_name: args.name,
-        migration_repo_name: args.migration_repo_name,
-        migration_repo_path: args.migration_repo_path,
-        fabric_url: args.fabric_url,
-        fabric_service_principal_id: args.fabric_service_principal_id,
-        fabric_service_principal_secret: args.fabric_service_principal_secret,
-        source_type: args.source_type,
-        source_server: args.source_server,
-        source_database: args.source_database,
-        source_port: args.source_port,
-        source_authentication_mode: args.source_authentication_mode,
-        source_username: args.source_username,
-        source_password: args.source_password,
-        source_encrypt: args.source_encrypt,
-        source_trust_server_certificate: args.source_trust_server_certificate,
-        created_at,
-    }))
-}
-
-#[tauri::command]
-pub fn workspace_apply_and_clone(
-    args: ApplyWorkspaceArgs,
-    state: State<DbState>,
-    app: AppHandle,
-) -> Result<WorkspacePublic, CommandError> {
-    let conn = state.conn().map_err(CommandError::Database)?;
-    run_workspace_apply_with_conn(args, &conn, &app, "direct-apply").map(WorkspacePublic::from)
-}
-
 fn run_workspace_apply_with_conn(
     args: ApplyWorkspaceArgs,
     conn: &Connection,
@@ -2693,7 +2590,7 @@ mod tests {
         let username =
             std::env::var("MIGRATION_TEST_SQL_SERVER_USER").unwrap_or_else(|_| "sa".to_string());
         let password = std::env::var("MIGRATION_TEST_SQL_SERVER_PASSWORD")
-            .unwrap_or_else(|_| "YourStrong!Passw0rd".to_string());
+            .unwrap_or_else(|_| "P@ssw0rd123".to_string());
         let database = std::env::var("MIGRATION_TEST_SQL_SERVER_DATABASE")
             .unwrap_or_else(|_| "WideWorldImportersDW".to_string());
 

@@ -21,38 +21,6 @@ const mockResponses: Record<string, unknown> = {
   workspace_test_source_connection: "Connection successful",
   workspace_discover_source_databases: ["master"],
   workspace_reset_state: undefined,
-  workspace_create: undefined,
-  get_workspaces: [],
-  create_workspace: undefined,
-  delete_workspace: undefined,
-  // Candidacy
-  get_candidacies: [],
-  update_candidacy: undefined,
-  // Scope + table details
-  migration_list_scope_inventory: [],
-  migration_add_tables_to_selection: 0,
-  migration_set_table_selected: undefined,
-  migration_reset_selected_tables: 0,
-  migration_get_table_config: null,
-  migration_analyze_table_details: {
-    selectedTableId: "st:ws-1:wh-1:dbo:fact_sales",
-    tableType: "unknown",
-    loadStrategy: "incremental",
-    grainColumns: "[]",
-    relationshipsJson: "[]",
-    incrementalColumn: "",
-    dateColumn: "",
-    snapshotStrategy: "sample_1day",
-    piiColumns: "[]",
-    confirmedAt: null,
-  },
-  migration_save_table_config: undefined,
-  migration_reconcile_scope_state: { kept: 0, invalidated: 0, removed: 0 },
-  // Plan
-  get_plan_status: { status: "pending", updatedAt: null },
-  finalize_plan: undefined,
-  // Monitor
-  monitor_launch_agent: "mock agent output",
   // GitHub auth
   github_get_user: null,
   github_list_repos: [],
@@ -138,7 +106,6 @@ export async function invoke<T>(cmd: string, args?: Record<string, unknown>): Pr
   }
 
   // Derive app phase from workspace availability so navigation works without explicit overrides.
-  // app_hydrate_phase checks workspace (including overrides); app_set_phase respects explicit arg.
   if (cmd === "app_hydrate_phase") {
     const workspace = resolveWorkspace(overrides);
     const migrationStatus = getSeededState()?.migrationStatus;
@@ -151,16 +118,6 @@ export async function invoke<T>(cmd: string, args?: Record<string, unknown>): Pr
       hasGithubAuth: false,
       hasAnthropicKey: false,
       isSourceApplied: workspace !== null,
-    } as T;
-  }
-
-  if (cmd === "app_set_phase") {
-    const requestedPhase = (args?.appPhase as string | undefined) ?? "setup_required";
-    return {
-      appPhase: requestedPhase,
-      hasGithubAuth: false,
-      hasAnthropicKey: false,
-      isSourceApplied: requestedPhase !== "setup_required",
     } as T;
   }
 

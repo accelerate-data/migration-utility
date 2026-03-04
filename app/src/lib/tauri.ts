@@ -1,24 +1,17 @@
 import { invoke } from '@tauri-apps/api/core';
 import type {
-  AppSettingsPublic,
-  AppPhase,
   AppPhaseState,
   ApplyWorkspaceArgs,
   DeviceFlowResponse,
   GitHubAuthResult,
   GitHubRepo,
   GitHubUser,
-  RelationshipValidationResult,
-  ScopeInventoryRow,
-  ScopeRefreshSummary,
-  ScopeTableRef,
-  TableConfigPayload,
   UsageRun,
   UsageRunDetail,
   UsageSummary,
   WorkspaceApplyJobStatus,
-  WorkspaceApplyProgressEvent,
   WorkspacePublic,
+  AppSettingsPublic,
 } from './types';
 
 export const githubStartDeviceFlow = () =>
@@ -47,8 +40,6 @@ export const workspaceApplyStatus = (jobId: string) =>
 
 export const workspaceResetState = () =>
   invoke<void>('workspace_reset_state');
-
-export type { WorkspaceApplyProgressEvent };
 
 export const workspaceTestSourceConnection = (args: {
   sourceType: 'sql_server' | 'fabric_warehouse';
@@ -94,9 +85,6 @@ export const testApiKey = (apiKey: string) =>
 export const appHydratePhase = () =>
   invoke<AppPhaseState>('app_hydrate_phase');
 
-export const appSetPhase = (appPhase: AppPhase) =>
-  invoke<AppPhaseState>('app_set_phase', { appPhase });
-
 export const setLogLevel = (level: string) =>
   invoke<void>('set_log_level', { level });
 
@@ -106,12 +94,6 @@ export const getLogFilePath = () =>
 export const getDataDirPath = () =>
   invoke<string>('get_data_dir_path');
 
-export const monitorLaunchAgent = (args: { prompt: string; systemPrompt?: string }) =>
-  invoke<string>('monitor_launch_agent', {
-    prompt: args.prompt,
-    systemPrompt: args.systemPrompt ?? null,
-  });
-
 export const usageGetSummary = () =>
   invoke<UsageSummary>('usage_get_summary');
 
@@ -120,59 +102,3 @@ export const usageListRuns = (limit = 50) =>
 
 export const usageGetRunDetail = (runId: string) =>
   invoke<UsageRunDetail>('usage_get_run_detail', { runId });
-
-export const migrationListScopeInventory = (workspaceId: string) =>
-  invoke<ScopeInventoryRow[]>('migration_list_scope_inventory', { workspaceId });
-
-export const migrationAddTablesToSelection = (workspaceId: string, tables: ScopeTableRef[]) =>
-  invoke<number>('migration_add_tables_to_selection', { workspaceId, tables });
-
-export const migrationSetTableSelected = (workspaceId: string, table: ScopeTableRef, selected: boolean) =>
-  invoke<void>('migration_set_table_selected', { workspaceId, table, selected });
-
-export const migrationResetSelectedTables = (workspaceId: string) =>
-  invoke<number>('migration_reset_selected_tables', { workspaceId });
-
-export const migrationSaveTableConfig = (config: TableConfigPayload) =>
-  invoke<void>('migration_save_table_config', { config });
-
-export const migrationGetTableConfig = (selectedTableId: string) =>
-  invoke<TableConfigPayload | null>('migration_get_table_config', { selectedTableId });
-
-export const migrationApproveTableConfig = (selectedTableId: string) =>
-  invoke<void>('migration_approve_table_config', { selectedTableId });
-
-export const migrationAnalyzeTableDetails = (args: {
-  workspaceId: string;
-  selectedTableId: string;
-  schemaName: string;
-  tableName: string;
-  force?: boolean;
-}) =>
-  invoke<TableConfigPayload>('migration_analyze_table_details', {
-    workspaceId: args.workspaceId,
-    selectedTableId: args.selectedTableId,
-    schemaName: args.schemaName,
-    tableName: args.tableName,
-    force: args.force ?? false,
-  });
-
-export const migrationReconcileScopeState = (workspaceId: string) =>
-  invoke<ScopeRefreshSummary>('migration_reconcile_scope_state', { workspaceId });
-
-export const migrationValidateRelationship = (
-  workspaceId: string,
-  currentTableId: string,
-  childColumn: string,
-  parentSchema: string,
-  parentTable: string,
-  parentColumn: string
-) =>
-  invoke<RelationshipValidationResult>('migration_validate_relationship', {
-    workspaceId,
-    currentTableId,
-    childColumn,
-    parentSchema,
-    parentTable,
-    parentColumn,
-  });

@@ -18,26 +18,6 @@ export interface GitHubRepo {
   private: boolean;
 }
 
-export interface Workspace {
-  id: string;
-  displayName: string;
-  migrationRepoName?: string | null;
-  migrationRepoPath: string;
-  fabricUrl?: string | null;
-  fabricServicePrincipalId?: string | null;
-  fabricServicePrincipalSecret?: string | null;
-  sourceType?: 'sql_server' | 'fabric_warehouse' | null;
-  sourceServer?: string | null;
-  sourceDatabase?: string | null;
-  sourcePort?: number | null;
-  sourceAuthenticationMode?: 'sql_password' | 'entra_service_principal' | null;
-  sourceUsername?: string | null;
-  sourcePassword?: string | null;
-  sourceEncrypt?: boolean | null;
-  sourceTrustServerCertificate?: boolean | null;
-  createdAt: string;
-}
-
 export interface ApplyWorkspaceArgs {
   name: string;
   migrationRepoName: string;
@@ -78,17 +58,6 @@ export interface WorkspaceApplyJobStatus {
   percent: number;
   message: string | null;
   error: string | null;
-}
-
-export interface AppSettings {
-  anthropicApiKey: string | null;
-  githubOauthToken: string | null;
-  githubUserLogin: string | null;
-  githubUserAvatar: string | null;
-  githubUserEmail: string | null;
-  preferredModel: string | null;
-  effort: string | null;
-  logLevel: string | null;
 }
 
 /** Workspace shape safe to receive from the backend — omits sourcePassword and fabricServicePrincipalSecret. */
@@ -177,75 +146,3 @@ export interface UsageRunDetail {
   events: UsageEvent[];
 }
 
-export interface ScopeTableRef {
-  warehouseItemId: string;
-  schemaName: string;
-  tableName: string;
-}
-
-export interface ScopeInventoryRow {
-  warehouseItemId: string;
-  schemaName: string;
-  tableName: string;
-  rowCount: number | null;
-  isSelected: boolean;
-}
-
-export interface ScopeRefreshSummary {
-  kept: number;
-  invalidated: number;
-  removed: number;
-}
-
-export interface TableConfigPayload {
-  selectedTableId: string;
-  tableType: string | null;
-  loadStrategy: string | null;
-  grainColumns: string[] | null;
-  relationshipsJson: Relationship[] | null;
-  incrementalColumn: string | null;
-  dateColumn: string | null;
-  snapshotStrategy: string;
-  piiColumns: string[] | null;
-  confirmedAt: string | null;
-  analysisMetadataJson: string | null;
-  approvalStatus: string | null;
-  approvedAt: string | null;
-  manualOverridesJson: string | null;
-  availableColumns?: ColumnMetadata[];
-}
-
-export interface ColumnMetadata {
-  columnName: string;
-  dataType: string;
-  isNullable: boolean;
-}
-
-export interface AnalysisMetadata {
-  confidence?: number;
-  reasoning?: string;
-  suggestedValues?: Record<string, unknown>;
-}
-
-export interface RelationshipMapping {
-  source: string;
-  references: string;
-}
-
-export interface Relationship {
-  target_table: string;
-  mappings: RelationshipMapping[];
-  confidence: number | null;
-  reasoning: string | null;
-}
-
-export interface RelationshipValidationResult {
-  childColumn: string;
-  parentTable: string;
-  parentColumn: string;
-  parentTableExists: boolean;
-  childColumnExists: boolean;
-  parentColumnExists: boolean;
-  isValid: boolean;
-  errorMessage: string | null;
-}

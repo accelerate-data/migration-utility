@@ -1,7 +1,7 @@
 use tauri::State;
 
 use crate::db::DbState;
-use crate::types::{AppPhase, AppPhaseState, AppSettingsPublic};
+use crate::types::{AppPhaseState, AppSettingsPublic};
 
 #[tauri::command]
 pub fn get_settings(state: State<'_, DbState>) -> Result<AppSettingsPublic, String> {
@@ -42,25 +42,6 @@ pub fn app_hydrate_phase(state: State<'_, DbState>) -> Result<AppPhaseState, Str
         log::error!("[app_hydrate_phase] Failed to acquire DB lock: {}", e);
         e
     })?;
-    crate::db::reconcile_and_persist_app_phase(&conn)
-}
-
-#[tauri::command]
-pub fn app_set_phase(
-    state: State<'_, DbState>,
-    app_phase: String,
-) -> Result<AppPhaseState, String> {
-    log::info!("[app_set_phase] {}", app_phase);
-    let conn = state.conn().map_err(|e| {
-        log::error!("[app_set_phase] Failed to acquire DB lock: {}", e);
-        e
-    })?;
-    let phase = AppPhase::from_str(app_phase.as_str())
-        .ok_or_else(|| format!("Unsupported app phase: {}", app_phase))?;
-    if phase == AppPhase::SetupRequired {
-        return Err("Cannot explicitly set phase to setup_required".to_string());
-    }
-    crate::db::write_app_phase(&conn, phase)?;
     crate::db::reconcile_and_persist_app_phase(&conn)
 }
 
