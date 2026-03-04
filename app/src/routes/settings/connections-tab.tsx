@@ -14,6 +14,7 @@ import { getSettings, githubCheckRepoEmpty, githubListRepos, saveRepoSettings } 
 import { logger } from '@/lib/logger';
 import type { GitHubRepo } from '@/lib/types';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import { homeDir } from '@tauri-apps/api/path';
 
 export default function ConnectionsTab() {
   const { user, isLoggedIn, isLoading: isAuthLoading, lastCheckedAt, loadUser, logout } = useAuthStore();
@@ -51,7 +52,11 @@ export default function ConnectionsTab() {
           setRepoQuery(s.migrationRepoFullName);
           setRepoEmptyStatus('empty'); // assume previously validated
         }
-        if (s.localClonePath) setLocalPath(s.localClonePath);
+        if (s.localClonePath) {
+          setLocalPath(s.localClonePath);
+        } else {
+          homeDir().then(setLocalPath).catch(() => {});
+        }
       })
       .catch((err) => logger.warn('connections: failed to load repo settings', err));
   }, []);
