@@ -35,6 +35,11 @@ beforeEach(() => {
     set_log_level: undefined,
     get_settings: {},
   });
+  // Polyfills required by Radix UI pointer events and scroll in jsdom
+  window.HTMLElement.prototype.hasPointerCapture = vi.fn(() => false);
+  window.HTMLElement.prototype.setPointerCapture = vi.fn();
+  window.HTMLElement.prototype.releasePointerCapture = vi.fn();
+  window.HTMLElement.prototype.scrollIntoView = vi.fn();
 });
 
 describe('ProfileTab', () => {
@@ -55,22 +60,20 @@ describe('ProfileTab', () => {
     });
     renderTab();
     await waitFor(() => {
-      const select = screen.getByTestId('select-log-level') as HTMLSelectElement;
-      expect(select.value).toBe('warn');
+      expect(screen.getByTestId('select-log-level')).toHaveTextContent('Warn');
     });
   });
 
   it('defaults to info when settings has no logLevel', async () => {
     await renderTabReady();
-    const select = screen.getByTestId('select-log-level') as HTMLSelectElement;
-    expect(select.value).toBe('info');
+    expect(screen.getByTestId('select-log-level')).toHaveTextContent('Info');
   });
 
   it('changing log level calls set_log_level command', async () => {
     const user = userEvent.setup();
     await renderTabReady();
-    const select = screen.getByTestId('select-log-level');
-    await user.selectOptions(select, 'debug');
+    await user.click(screen.getByTestId('select-log-level'));
+    await user.click(screen.getByRole('option', { name: 'Debug' }));
     expect(mockInvoke).toHaveBeenCalledWith('set_log_level', { level: 'debug' });
   });
 

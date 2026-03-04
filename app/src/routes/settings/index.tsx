@@ -3,7 +3,6 @@ import { Routes, Route, useLocation, useNavigate } from 'react-router';
 import { cn } from '@/lib/utils';
 import ConnectionsTab from './connections-tab';
 import ProfileTab from './profile-tab';
-import UsageTab from './usage-tab';
 
 interface SubTab {
   label: string;
@@ -12,9 +11,8 @@ interface SubTab {
 }
 
 const TABS: SubTab[] = [
-  { label: 'Connections', path: '/settings',            testId: 'settings-tab-connections' },
-  { label: 'Profile',     path: '/settings/profile',    testId: 'settings-tab-profile' },
-  { label: 'Usage',       path: '/settings/usage',      testId: 'settings-tab-usage' },
+  { label: 'Setup',   path: '/settings',         testId: 'settings-tab-setup' },
+  { label: 'Profile', path: '/settings/profile', testId: 'settings-tab-profile' },
 ];
 
 export default function SettingsSurface() {
@@ -86,7 +84,7 @@ export default function SettingsSurface() {
               onClick={() => navigate(tab.path)}
               onKeyDown={(e) => handleTabKeyDown(e, index)}
               className={cn(
-                'px-3 pb-2.5 pt-3 text-sm font-medium border-b transition-colors duration-150 outline-none',
+                'px-3 pb-2.5 pt-3 text-sm font-medium border-b-2 transition-colors duration-150 outline-none',
                 'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
                 active
                   ? 'border-[var(--color-pacific)] text-foreground'
@@ -109,7 +107,6 @@ export default function SettingsSurface() {
         <Routes>
           <Route index element={<ConnectionsTab />} />
           <Route path="profile" element={<ProfileTab />} />
-          <Route path="usage" element={<UsageTab />} />
         </Routes>
       </div>
     </div>

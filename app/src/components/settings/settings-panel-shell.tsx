@@ -25,7 +25,7 @@ export default function SettingsPanelShell({
       <div
         className={cn(
           "w-full md:w-[60%] md:min-w-[520px] md:max-w-[960px]",
-          "md:resize-x overflow-auto flex flex-col gap-3",
+          "overflow-auto flex flex-col gap-3",
           className,
         )}
         data-testid={panelTestId}

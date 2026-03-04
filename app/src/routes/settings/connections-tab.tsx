@@ -56,6 +56,7 @@ export default function ConnectionsTab() {
   async function handleSaveApiKey(nextValue: string) {
     try {
       await saveAnthropicApiKey(nextValue.trim() ? nextValue.trim() : null);
+      toast.success(nextValue.trim() ? 'API key saved' : 'API key cleared');
       logger.info('settings: anthropic API key saved');
     } catch (err) {
       logger.error('save_anthropic_api_key failed', err);
@@ -145,7 +146,6 @@ export default function ConnectionsTab() {
                 <Button
                   variant="outline"
                   data-testid="btn-disconnect-github"
-                  disabled={false}
                   onClick={logout}
                 >
                   <LogOut className="size-3.5" />
@@ -158,7 +158,6 @@ export default function ConnectionsTab() {
                 <Button
                   variant="outline"
                   data-testid="btn-connect-github"
-                  disabled={false}
                   onClick={() => setLoginDialogOpen(true)}
                 >
                   <Github className="size-3.5" />
@@ -192,7 +191,6 @@ export default function ConnectionsTab() {
               }}
               placeholder="sk-ant-api03-…"
               className="font-mono text-sm flex-1"
-              disabled={false}
             />
             <Button
               type="button"
@@ -245,6 +243,11 @@ export default function ConnectionsTab() {
                   ))}
                 </SelectContent>
               </Select>
+              {availableModels.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Enter your API key above to load available models.
+                </p>
+              )}
             </div>
 
             {/* Effort */}
@@ -256,7 +259,6 @@ export default function ConnectionsTab() {
                   setEffort(value);
                   void handleSaveAgentSettings(preferredModel, value);
                 }}
-                disabled={false}
                 className="flex gap-1"
                 data-testid="radio-effort"
               >

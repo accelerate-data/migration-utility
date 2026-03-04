@@ -4,7 +4,7 @@ import { MemoryRouter, Routes, Route } from 'react-router';
 import SettingsSurface from '../../routes/settings';
 
 describe('SettingsSurface tabs', () => {
-  it('renders profile and usage tabs', () => {
+  it('renders Setup and Profile tabs', () => {
     render(
       <MemoryRouter initialEntries={['/settings']}>
         <Routes>
@@ -13,9 +13,8 @@ describe('SettingsSurface tabs', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.queryByTestId('settings-tab-reset')).not.toBeInTheDocument();
-    expect(screen.getByTestId('settings-tab-connections')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-tab-setup')).toBeInTheDocument();
     expect(screen.getByTestId('settings-tab-profile')).toBeInTheDocument();
-    expect(screen.getByTestId('settings-tab-usage')).toBeInTheDocument();
+    expect(screen.queryByTestId('settings-tab-usage')).not.toBeInTheDocument();
   });
 });

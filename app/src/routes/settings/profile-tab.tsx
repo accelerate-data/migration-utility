@@ -3,6 +3,7 @@ import type { KeyboardEvent } from 'react';
 import { Folder, Monitor, Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { logger, LOG_LEVELS, setFrontendLogLevel, type LogLevel } from '@/lib/logger';
 import { getSettings, setLogLevel, getLogFilePath, getDataDirPath } from '@/lib/tauri';
@@ -137,31 +138,30 @@ export default function ProfileTab() {
       .catch((err) => logger.warn('profile: failed to read settings for log level', err));
   }, []);
 
-  function handleLevelChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const next = e.target.value as LogLevel;
-    setFrontendLogLevel(next);
-    setLevel(next);
-    setLogLevel(next).catch((err) => logger.error('profile: failed to set log level', err));
-    logger.info('event=log_level_change operation=set_level status=success', { level: next });
+  function handleLevelChange(next: string) {
+    const nextLevel = next as LogLevel;
+    setFrontendLogLevel(nextLevel);
+    setLevel(nextLevel);
+    setLogLevel(nextLevel).catch((err) => logger.error('profile: failed to set log level', err));
+    logger.info('event=log_level_change operation=set_level status=success', { level: nextLevel });
   }
 
   return (
-    <SettingsPanelShell panelTestId="settings-panel-profile" className="gap-4" outerClassName="h-full overflow-auto" >
+    <SettingsPanelShell panelTestId="settings-panel-profile" className="gap-4" outerClassName="h-full overflow-auto">
       <div data-testid="settings-profile-tab" className="flex flex-col gap-4">
 
-        {/* Appearance */}
-        <Card className="gap-0 py-5" data-testid="settings-profile-appearance-card">
-          <CardHeader className="pb-3">
-            <CardTitle>Appearance</CardTitle>
-            <CardDescription className="mt-0.5">
-              Choose your preferred colour scheme.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <ThemeToggle />
-          </CardContent>
-        </Card>
+        {/* Appearance — lightweight row, no card overhead */}
+        <div className="flex items-center justify-between py-2 px-0.5" data-testid="settings-profile-appearance">
+          <div>
+            <p className="text-sm font-medium">Appearance</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Preferred colour scheme.</p>
+          </div>
+          <ThemeToggle />
+        </div>
 
+        <div className="border-t border-border" />
+
+        {/* Logging */}
         <Card className="gap-0 py-5" data-testid="settings-profile-logging-card">
           <CardHeader className="pb-3">
             <CardTitle>Logging</CardTitle>
@@ -171,23 +171,24 @@ export default function ProfileTab() {
           </CardHeader>
           <CardContent className="pt-0">
             <div className="flex items-center gap-3">
-              <select
-                data-testid="select-log-level"
-                value={level}
-                onChange={handleLevelChange}
-                className="h-9 w-fit rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-              >
-                {LOG_LEVELS.map((l) => (
-                  <option key={l} value={l}>
-                    {l.charAt(0).toUpperCase() + l.slice(1)}
-                  </option>
-                ))}
-              </select>
+              <Select value={level} onValueChange={handleLevelChange}>
+                <SelectTrigger className="w-fit" data-testid="select-log-level">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LOG_LEVELS.map((l) => (
+                    <SelectItem key={l} value={l}>
+                      {l.charAt(0).toUpperCase() + l.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <p className="text-sm text-muted-foreground">{LEVEL_DESCRIPTION[level]}</p>
             </div>
           </CardContent>
         </Card>
 
+        {/* Directories */}
         <Card className="gap-0 py-5" data-testid="settings-profile-directories-card">
           <CardHeader className="pb-3">
             <CardTitle>Directories</CardTitle>
