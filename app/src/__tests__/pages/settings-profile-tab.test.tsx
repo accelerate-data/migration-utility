@@ -92,11 +92,6 @@ describe('ProfileTab', () => {
     expect(systemBtn.className).toContain('bg-background');
   });
 
-  it('renders working directory path', async () => {
-    await renderTabReady();
-    expect(screen.getByTestId('path-working-dir')).toHaveTextContent('~/.vibedata/migration-utility');
-  });
-
   it('renders log file path from backend', async () => {
     await renderTabReady();
   });

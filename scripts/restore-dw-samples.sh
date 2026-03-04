@@ -32,7 +32,7 @@ DOWNLOADED_FILES=()
 
 if [[ -z "$SA_PASSWORD" ]]; then
   echo "ERROR: set SA_PASSWORD (or MSSQL_SA_PASSWORD) before running."
-  echo "Example: SA_PASSWORD='YourStrong!Passw0rd' ./scripts/restore-dw-samples.sh"
+  echo "Example: SA_PASSWORD='P@ssw0rd123' ./scripts/restore-dw-samples.sh"
   exit 1
 fi
 

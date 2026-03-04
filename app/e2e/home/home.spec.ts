@@ -25,7 +25,7 @@ async function seedStore(page: Page, overrides: StoreOverrides = {}) {
     {
       key: STORE_KEY,
       state: {
-        workspaceId: null,
+        workspaceId: 'acme-corp',
         migrationStatus: 'idle',
         scopeStepStatus: {},
         scopeStepSavedAt: {},
@@ -38,51 +38,26 @@ async function seedStore(page: Page, overrides: StoreOverrides = {}) {
   );
 }
 
-// ── Setup state (no workspace configured) ────────────────────────────────────
+// ── Dashboard state ───────────────────────────────────────────────────────────
 
-test.describe('Home — setup state @home', () => {
-  test('shows Setup Required screen when no workspace is configured', async ({ page }) => {
-    await seedStore(page, { workspaceId: null });
-    await page.goto('/home');
-    await waitForAppReady(page);
-
-    await expect(page.getByTestId('home-setup-state')).toBeVisible();
-    await expect(page.getByText('Setup required')).toBeVisible();
-    await expect(page.getByTestId('btn-go-to-settings')).toBeVisible();
-  });
-
-  test('"Go to Settings" navigates to /settings', async ({ page }) => {
-    await seedStore(page, { workspaceId: null });
-    await page.goto('/home');
-    await waitForAppReady(page);
-
-    await page.getByTestId('btn-go-to-settings').click();
-    await expect(page).toHaveURL(/\/settings/);
+test.describe('Home — dashboard state @home', () => {
+  test.beforeEach(async ({ page }) => {
+    await seedStore(page);
   });
 
   test('root redirect always lands on /home', async ({ page }) => {
-    await seedStore(page, { workspaceId: null });
     await page.goto('/');
     await waitForAppReady(page);
 
     await expect(page).toHaveURL(/\/home/);
-    await expect(page.getByTestId('home-setup-state')).toBeVisible();
-  });
-});
-
-// ── Dashboard state (workspace configured) ───────────────────────────────────
-
-test.describe('Home — dashboard state @home', () => {
-  test.beforeEach(async ({ page }) => {
-    await seedStore(page, { workspaceId: 'acme-corp' });
+    await expect(page.getByTestId('home-dashboard-state')).toBeVisible();
   });
 
-  test('shows dashboard when workspace is configured', async ({ page }) => {
+  test('shows dashboard', async ({ page }) => {
     await page.goto('/home');
     await waitForAppReady(page);
 
     await expect(page.getByTestId('home-dashboard-state')).toBeVisible();
-    await expect(page.getByTestId('home-setup-state')).not.toBeVisible();
   });
 
   test('dashboard shows Active Migration section', async ({ page }) => {
@@ -93,38 +68,11 @@ test.describe('Home — dashboard state @home', () => {
     await expect(page.getByText('acme-corp')).toBeVisible();
   });
 
-  test('dashboard shows all three scope setup steps', async ({ page }) => {
-    await page.goto('/home');
-    await waitForAppReady(page);
-
-    const dashboard = page.getByTestId('home-dashboard-state');
-    await expect(dashboard.getByText('Scope', { exact: true })).toBeVisible();
-    await expect(dashboard.getByText('Table Config', { exact: true })).toBeVisible();
-  });
-
   test('dashboard shows Quick Actions', async ({ page }) => {
     await page.goto('/home');
     await waitForAppReady(page);
 
-    await expect(page.getByTestId('btn-open-monitor')).toBeVisible();
-    await expect(page.getByTestId('btn-review-scope')).toBeVisible();
     await expect(page.getByTestId('btn-cancel-migration')).toBeVisible();
-  });
-
-  test('"Open Monitor" navigates to /monitor', async ({ page }) => {
-    await page.goto('/home');
-    await waitForAppReady(page);
-
-    await page.getByTestId('btn-open-monitor').click();
-    await expect(page).toHaveURL(/\/monitor/);
-  });
-
-  test('"Review Scope" navigates to /scope', async ({ page }) => {
-    await page.goto('/home');
-    await waitForAppReady(page);
-
-    await page.getByTestId('btn-review-scope').click();
-    await expect(page).toHaveURL(/\/scope/);
   });
 });
 

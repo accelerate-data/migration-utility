@@ -24,19 +24,17 @@ These checks are done at startup:
 
 ```text
 Desktop App (Tauri)
-  ├── Splash screen — prereq checks (Docker)
-  ├── Settings — GitHub OAuth, migration repo path, local clone path
-  ├── Projects — create, select active, delete
-  └── Agent stages — Scope / Profile / Decompose / Plan / Generate Tests / Migrate
-        │
-        └── workflow_dispatch (GitHub API, OAuth token)
-              │
-              └── GitHub Actions runner
-                    ├── Restores DacPac to SQL Server Docker container (cached)
-                    └── Runs one agent → commits output JSON to migration repo
+  ├── Home — project status
+  └── Settings — GitHub OAuth, migration repo, local clone path, log level
+
+          │  workflow_dispatch (GitHub API, OAuth token)
+          ▼
+  GitHub Actions runner
+    ├── Restores DacPac → SQL Server Docker container (cached)
+    └── Runs agent → commits output JSON to migration repo
 ```
 
-All agent execution happens in GitHub Actions. The desktop app is the control plane: it submits runs, syncs artifacts, and manages FDE review and edits.
+All agent execution happens in GitHub Actions. The desktop app is the control plane: it submits runs and syncs artifacts.
 
 ---
 
@@ -83,8 +81,8 @@ Directory layout inside the repo:
 
 | Platform | Path |
 |---|---|
-| macOS | `~/Library/Logs/com.vibedata.migration-utility/migration-utility.log` |
-| Windows | `C:\Users\{user}\AppData\Roaming\com.vibedata.migration-utility\logs\migration-utility.log` |
+| macOS | `~/Library/Logs/com.vibedata.migration-utility/app.log` |
+| Windows | `C:\Users\{user}\AppData\Roaming\com.vibedata.migration-utility\logs\app.log` |
 
 ---
 

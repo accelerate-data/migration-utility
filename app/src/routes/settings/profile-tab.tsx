@@ -198,11 +198,6 @@ export default function ProfileTab() {
           <CardContent className="pt-0">
             <div className="flex flex-col gap-1">
               <PathRow
-                label="Working Directory"
-                path="~/.vibedata/migration-utility"
-                testId="path-working-dir"
-              />
-              <PathRow
                 label="Log File"
                 path={logFilePath}
                 testId="path-log-file"

@@ -86,7 +86,7 @@ async function configureWorkspaceAndPassConnectionTest(page: Page) {
 }
 
 test.describe('Workspace apply/reset flow @workspace', () => {
-  test('apply locks workspace and scope can be opened', async ({ page }) => {
+  test('apply locks workspace', async ({ page }) => {
     await seedWorkspaceState(page);
     await page.goto('/settings/workspace');
     await waitForAppReady(page);
@@ -103,10 +103,6 @@ test.describe('Workspace apply/reset flow @workspace', () => {
     await expect(page.getByTestId('btn-apply')).toBeDisabled();
     await expect(page.getByTestId('input-source-server')).toBeDisabled();
     await expect(page.getByTestId('input-repo-name')).toBeDisabled();
-
-    await page.goto('/scope');
-    await waitForAppReady(page);
-    await expect(page.getByTestId('scope-select-step')).toBeVisible();
   });
 
   test('reset unlocks workspace and clears local workflow workspace id', async ({ page }) => {
