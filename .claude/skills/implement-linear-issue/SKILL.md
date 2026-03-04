@@ -41,7 +41,7 @@ Before moving issue to `In Review`, inspect required checks for the base branch.
 ## Idempotency Rules
 
 - Re-runs must be safe:
-  - Do not duplicate implementation notes comments if an equivalent note already exists.
+  - Do not duplicate plan or implementation notes comments if an equivalent note already exists.
   - Do not reopen `Done/Cancelled/Duplicate` issues.
   - If PR already exists for branch, update it instead of creating a new one.
   - If worktree already exists on the correct branch, reuse it.
@@ -69,12 +69,35 @@ Do not ask permission for non-destructive work. Only confirm with user:
    - `In Progress`: continue (assign to me if missing).
    - `In Review`: move back to `In Progress`.
 4. Create or reuse worktree at `../worktrees/<branchName>`.
+5. Fetch comments via `mcp__linear__list_comments`. If a comment containing `## Implementation Plan` exists, load it as the active plan and skip to executing it.
 
 ## Approach Selection
 
 - XS/S + isolated changes: implement directly.
 - M+ or multi-component: create a short plan, then execute with parallelism where useful.
 - User can always override.
+- After selecting approach, post a plan comment before writing any code (see Plan Comment).
+
+## Plan Comment (required)
+
+Before writing any code:
+
+1. Check comments already fetched in Setup for an existing `## Implementation Plan`.
+2. If found: load it as the active plan — do not repost. Inspect `git log` and working tree to determine what is already done, then continue from the first unfinished step.
+3. If not found: generate a plan and post it via `mcp__linear__create_comment`:
+
+```md
+## Implementation Plan
+
+### Approach
+...
+
+### Files
+- `path/to/file` — what to create or change
+
+### Notes
+- Key decisions, constraints, or risks
+```
 
 ## Branch Sync (required)
 
