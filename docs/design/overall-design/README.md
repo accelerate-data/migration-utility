@@ -290,6 +290,7 @@ Each tab:
 - Status filter (mutually exclusive): `Pending` (never run or failed), `Success`, `In Progress`, `Dirty`. Default view is `Pending`.
 - **Refresh** button — pulls repo, re-consolidates SQLite.
 - Double-click a table row → modal showing the prior stage's output. FDE can edit fields for Scope, Profile, Decompose, and Plan stages; Generate Tests and Migrate modals are read-only. Changes are saved on explicit confirm.
+- Right-click a table row with a run (Success, Failed, or In Progress) → context menu with **View run log** — opens the GitHub Actions run URL (`https://github.com/{owner}/{repo}/actions/runs/{github_run_id}`) in the browser via `tauri-plugin-opener`. Pending rows (never submitted) have no run; the option is absent.
 - Select one or more tables → **Submit** button.
 - If any selected table already has a successful result for this stage, a confirmation prompt appears before resubmission.
 
