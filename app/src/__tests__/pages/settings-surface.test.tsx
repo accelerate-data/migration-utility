@@ -14,6 +14,7 @@ describe('SettingsSurface tabs', () => {
     );
 
     expect(screen.queryByTestId('settings-tab-reset')).not.toBeInTheDocument();
+    expect(screen.getByTestId('settings-tab-connections')).toBeInTheDocument();
     expect(screen.getByTestId('settings-tab-profile')).toBeInTheDocument();
     expect(screen.getByTestId('settings-tab-usage')).toBeInTheDocument();
   });
