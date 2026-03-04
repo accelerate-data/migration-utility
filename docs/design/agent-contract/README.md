@@ -22,7 +22,7 @@ All contracts are batch-only. Single-table UI execution is a degenerate batch wi
 
 ## Flow
 
-1. Scoping: scoping agent maps target table to writer procedure candidate(s) and selects writer when resolvable.
+1. Scoping: analysis agent maps target table to writer procedure candidate(s) and selects writer when resolvable.
 2. Profiling: profiler agent proposes candidate migration decisions for FDE approval.
 3. Decomposition: decomposer agent segments selected writer SQL into reusable logical blocks and split points.
 4. Planning: planner agent consumes approved answers + approved decomposition, then produces materialization, tests, and documentation intent.
@@ -61,7 +61,7 @@ The following object schema is shared across `validation.issues[]`, `warnings[]`
 
 ```json
 {
-  "code": "SCOPING_SELECTED_WRITER_NOT_IN_CANDIDATES",
+  "code": "ANALYSIS_SELECTED_WRITER_NOT_IN_CANDIDATES",
   "message": "selected_writer must exist in candidate_writers when status is resolved.",
   "field": "selected_writer",
   "severity": "error|warning",

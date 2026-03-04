@@ -43,7 +43,7 @@ works forward from the earliest dirty stage. See [README.md](README.md) Stage Ga
 
 ## Editable Fields per Stage
 
-### `analysis-agent`
+### `scoping-agent`
 
 The FDE override is required when status is `ambiguous_multi_writer`; optional otherwise.
 
@@ -55,7 +55,7 @@ The FDE override is required when status is `ambiguous_multi_writer`; optional o
 
 | `table_id` | `stage` | `field` | `fde_value` | `source_run_id` | `source_submitted_ts` |
 |---|---|---|---|---|---|
-| `dbo.fact_sales` | `analysis-agent` | `selected_writer` | `"dbo.usp_load_fact_sales_v2"` | `uuid-abc` | `2024-01-15T10:30:00Z` |
+| `dbo.fact_sales` | `scoping-agent` | `selected_writer` | `"dbo.usp_load_fact_sales_v2"` | `uuid-abc` | `2024-01-15T10:30:00Z` |
 
 **Read-only:** `candidate_writers`, `write_type`, `call_path`, `confidence`, `rationale`.
 

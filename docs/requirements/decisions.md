@@ -107,7 +107,7 @@
 
 **Decision:** Migration runs as six sequential stages:
 
-1. **Scope** (`analysis-agent`) — identifies candidate writers for each table.
+1. **Scope** (`scoping-agent`) — identifies candidate writers for each table.
 2. **Profile** (`profiler-agent`) — classifies tables; identifies keys, watermarks, FKs, PII.
 3. **Decompose** (`decomposer-agent`) — splits stored procedures into logical blocks with split points.
 4. **Plan** (`planner-agent`) — determines materialization, naming, documentation, schema tests.

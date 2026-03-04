@@ -5,9 +5,9 @@ It is the prerequisite step for profiler input.
 
 ## Philosophy and Boundary
 
-- Scoping is responsible only for writer discovery and writer selection.
-- Scoping should not output data that profiler can derive reliably from the selected writer.
-- Keep scoping payload minimal for clear handoff.
+- Analysis is responsible only for writer discovery and writer selection.
+- Analysis should not output data that profiler can derive reliably from the selected writer.
+- Keep analysis payload minimal for clear handoff.
 
 ## Goal
 
@@ -75,7 +75,7 @@ Given a target table, identify candidate writer procedures and select one writer
     (for example only dynamic SQL evidence or unresolved call paths).
   - `no_writer_found`: no candidates found.
   - cross-database reference detected: return `error` with issue code
-    `SCOPING_CROSS_DATABASE_OUT_OF_SCOPE`.
+    `ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE`.
   - `error`: execution/parsing/runtime failure prevented completion.
 
 ### 6. ValidateOutput
@@ -106,7 +106,6 @@ Given a target table, identify candidate writer procedures and select one writer
   - summary counts match item-level statuses.
 
 ## Output Schema (CandidateWriters)
-
 
 ```json
 {
@@ -172,7 +171,7 @@ Given a target table, identify candidate writer procedures and select one writer
 - `ambiguous_multi_writer`: multiple high-confidence writers exist.
 - `partial`: candidates exist but evidence is incomplete/insufficient for deterministic selection.
 - `no_writer_found`: no writer candidate found.
-- `error`: scoping execution failed for the table.
+- `error`: analysis execution failed for the table.
 
 ## Known Limitations
 
