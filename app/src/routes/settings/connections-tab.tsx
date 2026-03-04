@@ -56,6 +56,16 @@ export default function ConnectionsTab() {
       .catch((err) => logger.warn('connections: failed to load repo settings', err));
   }, []);
 
+  // Pre-fetch repo list as soon as the user is logged in
+  useEffect(() => {
+    if (!isLoggedIn || isAuthLoading) return;
+    setReposLoading(true);
+    githubListRepos('', 100)
+      .then(setRepos)
+      .catch(() => setRepos([]))
+      .finally(() => setReposLoading(false));
+  }, [isLoggedIn, isAuthLoading]);
+
   // Dismiss dropdown on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -76,7 +86,7 @@ export default function ConnectionsTab() {
     if (searchDebounce.current) clearTimeout(searchDebounce.current);
     searchDebounce.current = setTimeout(() => {
       setReposLoading(true);
-      githubListRepos(value, 20)
+      githubListRepos(value, 30)
         .then(setRepos)
         .catch(() => setRepos([]))
         .finally(() => setReposLoading(false));
@@ -85,13 +95,6 @@ export default function ConnectionsTab() {
 
   function handleRepoFocus() {
     setRepoDropOpen(true);
-    if (repos.length === 0 && !reposLoading) {
-      setReposLoading(true);
-      githubListRepos('', 20)
-        .then(setRepos)
-        .catch(() => setRepos([]))
-        .finally(() => setReposLoading(false));
-    }
   }
 
   function handleSelectRepo(repo: GitHubRepo) {
