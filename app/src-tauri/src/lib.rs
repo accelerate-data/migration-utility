@@ -17,7 +17,7 @@ pub fn run() {
             let db_path = app
                 .path()
                 .app_data_dir()
-                .expect("no app data dir")
+                .map_err(|e| format!("cannot resolve app data dir: {e}"))?
                 .join("migration-utility.db");
             let conn = db::open(&db_path).map_err(|e| {
                 log::error!("db::open failed: {e}");
