@@ -260,7 +260,7 @@ export default function ConnectionsTab() {
               </div>
               {repoEmptyStatus === 'not-empty' && (
                 <p className="text-xs text-destructive mt-0.5">
-                  This repository already has content. Choose an empty repo.
+                  This repository already has a project folder. Choose a repo without existing directories.
                 </p>
               )}
             </div>
