@@ -101,8 +101,6 @@ export default function ConnectionsTab() {
   return (
     <SettingsPanelShell
       panelTestId="settings-panel-connections"
-      groupLabel="One-time setup · Safe to update at any time"
-      labelTestId="settings-connections-group-label"
     >
 
         {/* GitHub */}

@@ -49,9 +49,6 @@ describe('ConnectionsTab — GitHub card', () => {
       expect(screen.getByTestId('btn-connect-github')).toBeVisible();
     });
     expect(screen.getByTestId('settings-panel-connections')).toBeInTheDocument();
-    expect(screen.getByTestId('settings-connections-group-label')).toHaveTextContent(
-      'One-time setup · Safe to update at any time',
-    );
     expect(screen.getAllByText('Not connected').length).toBeGreaterThan(0);
   });
 
