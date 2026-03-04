@@ -35,15 +35,6 @@ export async function invoke<T>(cmd: string, args?: Record<string, unknown>): Pr
     return val as T;
   }
 
-  if (cmd === "app_hydrate_phase") {
-    return {
-      appPhase: "setup_required",
-      hasGithubAuth: false,
-      hasAnthropicKey: false,
-      hasProject: false,
-    } as T;
-  }
-
   if (cmd in mockResponses) {
     return mockResponses[cmd] as T;
   }

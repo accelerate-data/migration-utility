@@ -19,20 +19,14 @@ if (!window.matchMedia) {
   });
 }
 
-describe('App routing guards', () => {
+describe('App routing', () => {
   beforeEach(() => {
     resetTauriMocks();
     window.history.pushState({}, '', '/');
   });
 
-  it('redirects startup to home when appPhase is setup_required', async () => {
+  it('redirects from / to /home on startup', async () => {
     mockInvokeCommands({
-      app_hydrate_phase: {
-        appPhase: 'setup_required',
-        hasGithubAuth: false,
-        hasAnthropicKey: false,
-        hasProject: false,
-      },
       github_get_user: null,
       get_settings: { anthropicApiKey: null },
     });
@@ -40,9 +34,7 @@ describe('App routing guards', () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByTestId('home-setup-state')).toBeInTheDocument();
-      expect(screen.getByTestId('nav-home')).not.toBeDisabled();
+      expect(screen.getByTestId('home-dashboard')).toBeInTheDocument();
     });
   });
-
 });

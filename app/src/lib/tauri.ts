@@ -1,7 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
 import type {
-  AppPhase,
-  AppPhaseState,
   AppSettingsPublic,
   DeviceFlowResponse,
   GitHubAuthResult,
@@ -45,14 +43,6 @@ export const listModels = (apiKey: string) =>
 
 export const testApiKey = (apiKey: string) =>
   invoke<boolean>('test_api_key', { apiKey });
-
-// ── App phase ─────────────────────────────────────────────────────────────────
-
-export const appHydratePhase = () =>
-  invoke<AppPhaseState>('app_hydrate_phase');
-
-export const appSetPhase = (appPhase: AppPhase) =>
-  invoke<AppPhaseState>('app_set_phase', { appPhase });
 
 // ── App info ──────────────────────────────────────────────────────────────────
 

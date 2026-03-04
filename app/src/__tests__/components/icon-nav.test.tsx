@@ -21,8 +21,6 @@ describe('IconNav', () => {
     useWorkflowStore.setState((s) => ({
       ...s,
       currentSurface: 'home',
-      appPhase: 'configured',
-      appPhaseHydrated: true,
     }));
   });
 

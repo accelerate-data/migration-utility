@@ -46,8 +46,6 @@ pub fn run() {
             commands::settings::save_agent_settings,
             commands::settings::list_models,
             commands::settings::test_api_key,
-            commands::settings::app_hydrate_phase,
-            commands::settings::app_set_phase,
             commands::github_auth::github_start_device_flow,
             commands::github_auth::github_poll_for_token,
             commands::github_auth::github_get_user,

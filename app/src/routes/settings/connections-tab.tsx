@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle2, Github, Loader2, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
-import { useWorkflowStore } from '@/stores/workflow-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -13,14 +12,12 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { GitHubLoginDialog } from '@/components/github-login-dialog';
 import SettingsPanelShell from '@/components/settings/settings-panel-shell';
-import { appHydratePhase, getSettings, listModels, saveAgentSettings, saveAnthropicApiKey, testApiKey } from '@/lib/tauri';
+import { getSettings, listModels, saveAgentSettings, saveAnthropicApiKey, testApiKey } from '@/lib/tauri';
 import { logger } from '@/lib/logger';
 
 const EFFORT_OPTIONS = ['low', 'medium', 'high', 'max'] as const;
 
 export default function ConnectionsTab() {
-  const setAppPhaseState = useWorkflowStore((s) => s.setAppPhaseState);
-
   const { user, isLoggedIn, isLoading: isAuthLoading, lastCheckedAt, loadUser, logout } = useAuthStore();
   const [loginDialogOpen, setLoginDialogOpen] = useState(false);
   const [apiKey, setApiKey] = useState('');
@@ -59,8 +56,6 @@ export default function ConnectionsTab() {
   async function handleSaveApiKey(nextValue: string) {
     try {
       await saveAnthropicApiKey(nextValue.trim() ? nextValue.trim() : null);
-      const phase = await appHydratePhase();
-      setAppPhaseState(phase);
       logger.info('settings: anthropic API key saved');
     } catch (err) {
       logger.error('save_anthropic_api_key failed', err);

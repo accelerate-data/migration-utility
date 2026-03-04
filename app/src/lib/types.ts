@@ -35,15 +35,6 @@ export interface AppSettingsPublic {
   logLevel: string | null;
 }
 
-export type AppPhase = 'setup_required' | 'configured';
-
-export interface AppPhaseState {
-  appPhase: AppPhase;
-  hasGithubAuth: boolean;
-  hasAnthropicKey: boolean;
-  hasProject: boolean;
-}
-
 /** A migration project (safe to return to frontend — sa_password omitted). */
 export interface Project {
   id: string;

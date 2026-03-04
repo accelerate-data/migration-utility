@@ -24,7 +24,11 @@ pub fn project_create(
     conn.execute(
         "INSERT INTO projects(id, slug, name, sa_password, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
         params![id, slug, name, sa_password, created_at],
-    )?;
+    )
+    .map_err(|e| {
+        log::error!("[project_create] insert failed: {}", e);
+        CommandError::from(e)
+    })?;
 
     log::info!("[project_create] created id={} slug={}", id, slug);
     Ok(Project { id, slug, name, created_at })
@@ -95,7 +99,11 @@ pub fn project_delete(
         CommandError::Database(e)
     })?;
 
-    let rows = conn.execute("DELETE FROM projects WHERE id = ?1", params![id])?;
+    let rows = conn.execute("DELETE FROM projects WHERE id = ?1", params![id])
+        .map_err(|e| {
+            log::error!("[project_delete] delete failed id={}: {}", id, e);
+            CommandError::from(e)
+        })?;
     if rows == 0 {
         return Err(CommandError::NotFound(format!("project {id}")));
     }
@@ -114,6 +122,12 @@ fn slugify(name: &str, conn: &rusqlite::Connection) -> Result<String, CommandErr
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
         .join("-");
+
+    if base.is_empty() {
+        return Err(CommandError::Validation(
+            "Project name must contain at least one alphanumeric character".into(),
+        ));
+    }
 
     let exists: bool = conn.query_row(
         "SELECT COUNT(*) > 0 FROM projects WHERE slug = ?1",

@@ -66,44 +66,6 @@ impl From<AppSettings> for AppSettingsPublic {
     }
 }
 
-// ── App phase ─────────────────────────────────────────────────────────────────
-
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum AppPhase {
-    SetupRequired,
-    Configured,
-    RunningLocked,
-}
-
-impl AppPhase {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::SetupRequired => "setup_required",
-            Self::Configured => "configured",
-            Self::RunningLocked => "running_locked",
-        }
-    }
-
-    pub fn from_str(value: &str) -> Option<Self> {
-        match value {
-            "setup_required" => Some(Self::SetupRequired),
-            "configured" => Some(Self::Configured),
-            "running_locked" => Some(Self::RunningLocked),
-            _ => None,
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AppPhaseState {
-    pub app_phase: AppPhase,
-    pub has_github_auth: bool,
-    pub has_anthropic_key: bool,
-    pub has_project: bool,
-}
-
 // ── GitHub OAuth types ────────────────────────────────────────────────────────
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -179,6 +141,8 @@ pub enum CommandError {
     #[error("git error: {0}")]
     #[allow(dead_code)]
     Git(String),
+    #[error("validation error: {0}")]
+    Validation(String),
 }
 
 impl From<rusqlite::Error> for CommandError {
