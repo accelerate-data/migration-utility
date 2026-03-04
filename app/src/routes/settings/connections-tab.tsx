@@ -15,6 +15,7 @@ import { logger } from '@/lib/logger';
 import type { GitHubRepo } from '@/lib/types';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { homeDir } from '@tauri-apps/api/path';
+import { prettyPath, expandPath } from '@/lib/path-utils';
 
 export default function ConnectionsTab() {
   const { user, isLoggedIn, isLoading: isAuthLoading, lastCheckedAt, loadUser, logout } = useAuthStore();
@@ -31,7 +32,8 @@ export default function ConnectionsTab() {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // ── Local path state ─────────────────────────────────────────────────────────
-  const [localPath, setLocalPath] = useState('');
+  const [localPath, setLocalPath] = useState(''); // stored as tilde-compressed display value
+  const [homeDirPath, setHomeDirPath] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -52,11 +54,16 @@ export default function ConnectionsTab() {
           setRepoQuery(s.migrationRepoFullName);
           setRepoEmptyStatus('empty'); // assume previously validated
         }
-        if (s.localClonePath) {
-          setLocalPath(s.localClonePath);
-        } else {
-          homeDir().then(setLocalPath).catch(() => {});
-        }
+        homeDir().then((h) => {
+          setHomeDirPath(h);
+          if (s.localClonePath) {
+            setLocalPath(prettyPath(s.localClonePath, h));
+          } else {
+            setLocalPath('~');
+          }
+        }).catch(() => {
+          if (s.localClonePath) setLocalPath(s.localClonePath);
+        });
       })
       .catch((err) => logger.warn('connections: failed to load repo settings', err));
   }, []);
@@ -114,14 +121,14 @@ export default function ConnectionsTab() {
 
   async function handleBrowseLocalPath() {
     const selected = await openDialog({ directory: true, multiple: false, title: 'Select local clone directory' });
-    if (typeof selected === 'string') setLocalPath(selected);
+    if (typeof selected === 'string') setLocalPath(prettyPath(selected, homeDirPath));
   }
 
   async function handleSave() {
     if (!selectedRepo || !localPath.trim()) return;
     setSaving(true);
     try {
-      await saveRepoSettings(selectedRepo.fullName, selectedRepo.cloneUrl, localPath.trim());
+      await saveRepoSettings(selectedRepo.fullName, selectedRepo.cloneUrl, expandPath(localPath.trim(), homeDirPath));
       toast.success('Repository settings saved');
       logger.info('settings: repo settings saved repo=%s', selectedRepo.fullName);
     } catch (err) {

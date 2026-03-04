@@ -6,7 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { logger, LOG_LEVELS, setFrontendLogLevel, type LogLevel } from '@/lib/logger';
-import { getSettings, setLogLevel, getLogFilePath, getDataDirPath } from '@/lib/tauri';
+import { getSettings, setLogLevel, getLogFilePath, getDataDirPath, getWorkingDirPath } from '@/lib/tauri';
+import { prettyPath } from '@/lib/path-utils';
+import { homeDir } from '@tauri-apps/api/path';
 import SettingsPanelShell from '@/components/settings/settings-panel-shell';
 
 // ── Log level descriptions ──────────────────────────────────────────────────
@@ -120,12 +122,20 @@ function PathRow({ label, path, testId }: { label: string; path: string | null; 
 
 export default function ProfileTab() {
   const [level, setLevel] = useState<LogLevel>('info');
+  const [workingDirPath, setWorkingDirPath] = useState<string | null>(null);
   const [logFilePath, setLogFilePath] = useState<string | null>(null);
   const [dataDirPath, setDataDirPath] = useState<string | null>(null);
 
   useEffect(() => {
-    getLogFilePath().then(setLogFilePath).catch(() => setLogFilePath(null));
-    getDataDirPath().then(setDataDirPath).catch(() => setDataDirPath(null));
+    homeDir().then((h) => {
+      getWorkingDirPath().then((p) => setWorkingDirPath(prettyPath(p, h))).catch(() => setWorkingDirPath(null));
+      getLogFilePath().then((p) => setLogFilePath(prettyPath(p, h))).catch(() => setLogFilePath(null));
+      getDataDirPath().then((p) => setDataDirPath(prettyPath(p, h))).catch(() => setDataDirPath(null));
+    }).catch(() => {
+      getWorkingDirPath().then(setWorkingDirPath).catch(() => setWorkingDirPath(null));
+      getLogFilePath().then(setLogFilePath).catch(() => setLogFilePath(null));
+      getDataDirPath().then(setDataDirPath).catch(() => setDataDirPath(null));
+    });
     // Load log level from DB — DB is the single source of truth.
     getSettings()
       .then((s) => {
@@ -198,6 +208,11 @@ export default function ProfileTab() {
           </CardHeader>
           <CardContent className="pt-0">
             <div className="flex flex-col gap-1">
+              <PathRow
+                label="Working Directory"
+                path={workingDirPath}
+                testId="path-working-dir"
+              />
               <PathRow
                 label="Log File"
                 path={logFilePath}
