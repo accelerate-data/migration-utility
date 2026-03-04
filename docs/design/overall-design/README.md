@@ -26,7 +26,7 @@ These checks are done at startup:
 Desktop App (Tauri)
   ├── Splash screen — prereq checks (Docker)
   ├── Settings — GitHub OAuth, migration repo path, local clone path
-  ├── Projects — create, select active, archive, delete
+  ├── Projects — create, select active, delete
   └── Agent stages — Scope / Profile / Decompose / Plan / Generate Tests / Migrate
         │
         └── workflow_dispatch (GitHub API, OAuth token)
@@ -369,11 +369,3 @@ Output: `{project-slug}/artifacts/migrator-agent/{run_id}.json`
 
 - Shows tables with successful Plan **and** Generate Tests outputs.
 - Modal shows: Plan output and Generate Tests output (read-only). Migrate is a final output stage — no FDE overrides.
-
----
-
-## Open Issues Summary
-
-| # | Area | Question |
-|---|---|---|
-| 1 | OAuth | Confirm the app handles 401 responses by refreshing before re-prompting the user |
