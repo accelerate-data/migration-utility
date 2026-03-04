@@ -28,19 +28,16 @@ link_path="$local_dir/migration-utility.db"
 
 mkdir -p "$local_dir"
 
-if [[ -L "$link_path" ]]; then
-  current_target="$(readlink "$link_path")"
-  if [[ "$current_target" == "$db_path" ]]; then
-    echo "Symlink already configured: $link_path -> $db_path"
-    exit 0
-  fi
-  rm "$link_path"
+if [[ -e "$link_path" || -L "$link_path" ]]; then
+  rm -f "$link_path"
 fi
 
-if [[ -e "$link_path" ]]; then
-  echo "Path exists and is not a symlink: $link_path" >&2
-  exit 1
+# Prefer hard link so consumers that reject symlinks still see a regular file.
+# Falls back to symlink if hard-linking is not possible.
+if ln "$db_path" "$link_path" 2>/dev/null; then
+  echo "Created hard link: $link_path -> $db_path"
+  exit 0
 fi
 
 ln -s "$db_path" "$link_path"
-echo "Created symlink: $link_path -> $db_path"
+echo "Created symlink fallback: $link_path -> $db_path"
