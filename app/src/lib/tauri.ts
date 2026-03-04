@@ -1,18 +1,17 @@
 import { invoke } from '@tauri-apps/api/core';
 import type {
+  AgentRun,
+  AppPhase,
   AppPhaseState,
-  ApplyWorkspaceArgs,
+  AppSettingsPublic,
   DeviceFlowResponse,
   GitHubAuthResult,
   GitHubRepo,
   GitHubUser,
-  UsageRun,
-  UsageRunDetail,
-  UsageSummary,
-  WorkspaceApplyJobStatus,
-  WorkspacePublic,
-  AppSettingsPublic,
+  Project,
 } from './types';
+
+// ── GitHub Auth ───────────────────────────────────────────────────────────────
 
 export const githubStartDeviceFlow = () =>
   invoke<DeviceFlowResponse>('github_start_device_flow');
@@ -29,41 +28,7 @@ export const githubLogout = () =>
 export const githubListRepos = (query: string, limit = 10) =>
   invoke<GitHubRepo[]>('github_list_repos', { query, limit });
 
-export const workspaceGet = () =>
-  invoke<WorkspacePublic | null>('workspace_get');
-
-export const workspaceApplyStart = (args: ApplyWorkspaceArgs) =>
-  invoke<string>('workspace_apply_start', { args });
-
-export const workspaceApplyStatus = (jobId: string) =>
-  invoke<WorkspaceApplyJobStatus>('workspace_apply_status', { jobId });
-
-export const workspaceResetState = () =>
-  invoke<void>('workspace_reset_state');
-
-export const workspaceTestSourceConnection = (args: {
-  sourceType: 'sql_server' | 'fabric_warehouse';
-  sourceServer: string;
-  sourcePort: number;
-  sourceAuthenticationMode: 'sql_password' | 'entra_service_principal';
-  sourceUsername: string;
-  sourcePassword: string;
-  sourceEncrypt: boolean;
-  sourceTrustServerCertificate: boolean;
-}) =>
-  invoke<string>('workspace_test_source_connection', { args });
-
-export const workspaceDiscoverSourceDatabases = (args: {
-  sourceType: 'sql_server' | 'fabric_warehouse';
-  sourceServer: string;
-  sourcePort: number;
-  sourceAuthenticationMode: 'sql_password' | 'entra_service_principal';
-  sourceUsername: string;
-  sourcePassword: string;
-  sourceEncrypt: boolean;
-  sourceTrustServerCertificate: boolean;
-}) =>
-  invoke<string[]>('workspace_discover_source_databases', { args });
+// ── Settings ──────────────────────────────────────────────────────────────────
 
 export const getSettings = () =>
   invoke<AppSettingsPublic>('get_settings');
@@ -82,8 +47,15 @@ export const listModels = (apiKey: string) =>
 export const testApiKey = (apiKey: string) =>
   invoke<boolean>('test_api_key', { apiKey });
 
+// ── App phase ─────────────────────────────────────────────────────────────────
+
 export const appHydratePhase = () =>
   invoke<AppPhaseState>('app_hydrate_phase');
+
+export const appSetPhase = (appPhase: AppPhase) =>
+  invoke<AppPhaseState>('app_set_phase', { appPhase });
+
+// ── App info ──────────────────────────────────────────────────────────────────
 
 export const setLogLevel = (level: string) =>
   invoke<void>('set_log_level', { level });
@@ -94,11 +66,20 @@ export const getLogFilePath = () =>
 export const getDataDirPath = () =>
   invoke<string>('get_data_dir_path');
 
-export const usageGetSummary = () =>
-  invoke<UsageSummary>('usage_get_summary');
+// ── Projects ──────────────────────────────────────────────────────────────────
 
-export const usageListRuns = (limit = 50) =>
-  invoke<UsageRun[]>('usage_list_runs', { limit });
+export const projectCreate = (name: string, saPassword: string) =>
+  invoke<Project>('project_create', { name, saPassword });
 
-export const usageGetRunDetail = (runId: string) =>
-  invoke<UsageRunDetail>('usage_get_run_detail', { runId });
+export const projectList = () =>
+  invoke<Project[]>('project_list');
+
+export const projectGet = (id: string) =>
+  invoke<Project>('project_get', { id });
+
+export const projectDelete = (id: string) =>
+  invoke<void>('project_delete', { id });
+
+// ── Agent runs (placeholder — commands to be added in later issues) ───────────
+
+export type { AgentRun };

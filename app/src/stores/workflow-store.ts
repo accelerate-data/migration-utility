@@ -2,23 +2,43 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { AppPhase, AppPhaseState } from '@/lib/types';
 
-// ── Surface type ─────────────────────────────────────────────────────────────
+// ── Surface types ────────────────────────────────────────────────────────────
 
-export type Surface = 'home' | 'settings';
+export type Surface = 'home' | 'plan' | 'monitor' | 'settings';
+
+export type MigrationStatus = 'idle' | 'running' | 'complete';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
 export const SURFACE_ROUTES: Record<Surface, string> = {
   home: '/home',
+  plan: '/plan',
+  monitor: '/monitor',
   settings: '/settings',
 };
 
-export function defaultRouteForPhase(_appPhase: AppPhase): string {
-  return '/home';
+export function defaultRouteForPhase(appPhase: AppPhase): string {
+  switch (appPhase) {
+    case 'setup_required':
+    case 'configured':
+      return '/home';
+    case 'running_locked':
+      return '/monitor';
+  }
 }
 
-export function isSurfaceEnabledForPhase(_surface: Surface, _appPhase: AppPhase): boolean {
-  return true;
+export function isSurfaceEnabledForPhase(surface: Surface, appPhase: AppPhase): boolean {
+  if (surface === 'settings') return true;
+  if (surface === 'home') return true;
+  if (appPhase === 'setup_required') return false;
+  if (surface === 'plan') return true;
+  if (surface === 'monitor') return appPhase === 'running_locked';
+  return false;
+}
+
+export function isSurfaceReadOnlyForPhase(surface: Surface, appPhase: AppPhase): boolean {
+  if (surface === 'plan') return appPhase === 'running_locked';
+  return false;
 }
 
 // ── Store shape ─────────────────────────────────────────────────────────────
@@ -26,14 +46,14 @@ export function isSurfaceEnabledForPhase(_surface: Surface, _appPhase: AppPhase)
 interface WorkflowState {
   /** Last visited surface — used for root-redirect on app restart. */
   currentSurface: Surface;
-  workspaceId: string | null;
+  migrationStatus: MigrationStatus;
   appPhase: AppPhase;
   appPhaseHydrated: boolean;
+  phaseFacts: Omit<AppPhaseState, 'appPhase'>;
 
   // Actions
   setCurrentSurface: (surface: Surface) => void;
-  setWorkspaceId: (id: string) => void;
-  clearWorkspaceId: () => void;
+  setMigrationStatus: (status: MigrationStatus) => void;
   setAppPhaseState: (state: AppPhaseState) => void;
   setAppPhaseHydrated: (hydrated: boolean) => void;
   reset: () => void;
@@ -43,9 +63,14 @@ interface WorkflowState {
 
 const INITIAL_STATE = {
   currentSurface: 'home' as Surface,
-  workspaceId: null,
+  migrationStatus: 'idle' as MigrationStatus,
   appPhase: 'setup_required' as AppPhase,
   appPhaseHydrated: false,
+  phaseFacts: {
+    hasGithubAuth: false,
+    hasAnthropicKey: false,
+    hasProject: false,
+  } as Omit<AppPhaseState, 'appPhase'>,
 };
 
 export const useWorkflowStore = create<WorkflowState>()(
@@ -55,13 +80,17 @@ export const useWorkflowStore = create<WorkflowState>()(
 
       setCurrentSurface: (surface) => set({ currentSurface: surface }),
 
-      setWorkspaceId: (id) => set({ workspaceId: id }),
-
-      clearWorkspaceId: () => set({ workspaceId: null }),
+      setMigrationStatus: (status) => set({ migrationStatus: status }),
 
       setAppPhaseState: (state) => set({
         appPhase: state.appPhase,
+        phaseFacts: {
+          hasGithubAuth: state.hasGithubAuth,
+          hasAnthropicKey: state.hasAnthropicKey,
+          hasProject: state.hasProject,
+        },
         appPhaseHydrated: true,
+        migrationStatus: state.appPhase === 'running_locked' ? 'running' : 'idle',
       }),
 
       setAppPhaseHydrated: (hydrated) => set({ appPhaseHydrated: hydrated }),

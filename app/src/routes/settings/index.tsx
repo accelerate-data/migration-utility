@@ -1,8 +1,6 @@
 import type { KeyboardEvent } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router';
 import { cn } from '@/lib/utils';
-import ConnectionsTab from './connections-tab';
-import WorkspaceTab from './workspace-tab';
 import ProfileTab from './profile-tab';
 import UsageTab from './usage-tab';
 
@@ -13,10 +11,8 @@ interface SubTab {
 }
 
 const TABS: SubTab[] = [
-  { label: 'Connections', path: '/settings',           testId: 'settings-tab-connections' },
-  { label: 'Workspace',   path: '/settings/workspace', testId: 'settings-tab-workspace' },
-  { label: 'Profile',     path: '/settings/profile',   testId: 'settings-tab-profile' },
-  { label: 'Usage',       path: '/settings/usage',     testId: 'settings-tab-usage' },
+  { label: 'Profile', path: '/settings',       testId: 'settings-tab-profile' },
+  { label: 'Usage',   path: '/settings/usage', testId: 'settings-tab-usage' },
 ];
 
 export default function SettingsSurface() {
@@ -109,9 +105,7 @@ export default function SettingsSurface() {
         aria-labelledby={activeIndex >= 0 ? `settings-tab-${activeIndex}` : undefined}
       >
         <Routes>
-          <Route index element={<ConnectionsTab />} />
-          <Route path="workspace" element={<WorkspaceTab />} />
-          <Route path="profile" element={<ProfileTab />} />
+          <Route index element={<ProfileTab />} />
           <Route path="usage" element={<UsageTab />} />
         </Routes>
       </div>

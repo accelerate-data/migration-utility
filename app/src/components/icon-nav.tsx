@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router';
-import { House, Settings, type LucideIcon } from 'lucide-react';
+import { House, FileText, Activity, Settings, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isSurfaceEnabledForPhase, type Surface, useWorkflowStore } from '@/stores/workflow-store';
 import { BRAND_ASSETS } from '@/lib/branding';
@@ -13,11 +13,13 @@ interface NavItem {
 }
 
 const TOP_ITEMS: NavItem[] = [
-  { surface: 'home', path: '/home', icon: House, label: 'Home', testId: 'nav-home' },
+  { surface: 'home',    path: '/home',    icon: House,    label: 'Home',    testId: 'nav-home' },
+  { surface: 'plan',    path: '/plan',    icon: FileText, label: 'Plan',    testId: 'nav-plan' },
+  { surface: 'monitor', path: '/monitor', icon: Activity, label: 'Monitor', testId: 'nav-monitor' },
 ];
 
 const BOTTOM_ITEMS: NavItem[] = [
-  { surface: 'settings', path: '/settings', icon: Settings, label: 'Settings', testId: 'nav-settings' },
+  { surface: 'settings', path: '/settings', icon: Settings,    label: 'Settings', testId: 'nav-settings' },
 ];
 
 function NavButton({ item, isActive, disabled, onClick }: {
@@ -78,8 +80,6 @@ export default function IconNav() {
   const { setCurrentSurface, appPhase } = useWorkflowStore();
 
   function isActive(item: NavItem): boolean {
-    // /scope/* and /settings/* should match their sub-routes
-    if (item.path === '/scope') return pathname === '/scope' || pathname.startsWith('/scope/');
     if (item.path === '/settings') return pathname === '/settings' || pathname.startsWith('/settings/');
     return pathname === item.path;
   }

@@ -28,40 +28,6 @@ const APP_PHASE_KEY: &str = "app_phase";
 
 const MIGRATIONS: &[(i64, &str)] = &[
     (1, include_str!("../migrations/001_initial_schema.sql")),
-    (2, include_str!("../migrations/002_add_fabric_url.sql")),
-    (3, include_str!("../migrations/003_add_settings.sql")),
-    (
-        4,
-        include_str!("../migrations/004_add_migration_repo_name.sql"),
-    ),
-    (
-        5,
-        include_str!("../migrations/005_add_fabric_credentials.sql"),
-    ),
-    (
-        6,
-        include_str!("../migrations/006_add_workspace_source_connection.sql"),
-    ),
-    (
-        7,
-        include_str!("../migrations/007_add_fk_delete_cascade.sql"),
-    ),
-    (
-        8,
-        include_str!("../migrations/008_add_canonical_source_model.sql"),
-    ),
-    (
-        9,
-        include_str!("../migrations/009_selected_tables_natural_key.sql"),
-    ),
-    (
-        10,
-        include_str!("../migrations/010_table_config_approval.sql"),
-    ),
-    (
-        11,
-        include_str!("../migrations/011_remove_bool_phase_flags.sql"),
-    ),
 ];
 
 pub fn open(path: &Path) -> Result<Connection, DbError> {
@@ -180,9 +146,9 @@ fn read_phase_facts(conn: &Connection) -> Result<AppPhaseState, String> {
         .anthropic_api_key
         .as_deref()
         .is_some_and(|v| !v.trim().is_empty());
-    let is_source_applied: bool = conn
+    let has_project: bool = conn
         .query_row(
-            "SELECT EXISTS(SELECT 1 FROM workspaces LIMIT 1)",
+            "SELECT EXISTS(SELECT 1 FROM projects LIMIT 1)",
             [],
             |row| row.get(0),
         )
@@ -192,7 +158,7 @@ fn read_phase_facts(conn: &Connection) -> Result<AppPhaseState, String> {
         app_phase: AppPhase::SetupRequired,
         has_github_auth,
         has_anthropic_key,
-        is_source_applied,
+        has_project,
     })
 }
 
@@ -204,10 +170,7 @@ pub fn read_current_app_phase_state(conn: &Connection) -> Result<AppPhaseState, 
 
 /// Return the current app phase state from persisted DB value.
 ///
-/// Phase transitions are exclusively driven by explicit writes:
-/// - `workspace_apply_and_clone` writes `scope_editable` on success
-/// - `workspace_reset_state` writes `setup_required`
-/// - `app_set_phase` writes the requested phase directly
+/// Phase transitions are driven by explicit writes via `app_set_phase`.
 pub fn reconcile_and_persist_app_phase(conn: &Connection) -> Result<AppPhaseState, String> {
     read_current_app_phase_state(conn)
 }
@@ -224,86 +187,16 @@ mod tests {
         conn
     }
 
-    fn assert_pk_id(conn: &Connection, table: &str) {
-        let pk_id_count: i64 = conn
-            .query_row(
-                &format!(
-                    "SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name='id' AND pk=1"
-                ),
-                [],
-                |row| row.get(0),
-            )
-            .unwrap();
-        assert_eq!(
-            pk_id_count, 1,
-            "expected primary key column id on table '{table}'"
-        );
-    }
-
-    fn assert_index_exists(conn: &Connection, index_name: &str, table: &str) {
-        let count: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name=?1 AND tbl_name=?2",
-                params![index_name, table],
-                |row| row.get(0),
-            )
-            .unwrap();
-        assert_eq!(count, 1, "expected index '{index_name}' on '{table}'");
-    }
-
-    fn assert_fk_delete_cascade(
-        conn: &Connection,
-        child_table: &str,
-        fk_from: &str,
-        parent_table: &str,
-        parent_to: &str,
-    ) {
-        let count: i64 = conn
-            .query_row(
-                &format!(
-                    "SELECT COUNT(*) FROM pragma_foreign_key_list('{child_table}')
-                     WHERE \"from\"=?1 AND \"table\"=?2 AND \"to\"=?3 AND on_delete='CASCADE'"
-                ),
-                params![fk_from, parent_table, parent_to],
-                |row| row.get(0),
-            )
-            .unwrap();
-        assert_eq!(
-            count, 1,
-            "expected CASCADE FK on '{child_table}'.{fk_from} -> '{parent_table}'.{parent_to}"
-        );
-    }
-
     #[test]
     fn fresh_db_has_all_tables() {
         let conn = open_memory();
         let expected = [
             "schema_version",
-            "workspaces",
-            "items",
-            "warehouse_schemas",
-            "warehouse_tables",
-            "warehouse_procedures",
-            "pipeline_activities",
-            "selected_tables",
-            "table_artifacts",
-            "candidacy",
-            "table_config",
             "settings",
-            "sources",
-            "containers",
-            "namespaces",
-            "data_objects",
-            "orchestration_items",
-            "orchestration_activities",
-            "activity_object_links",
-            "sqlserver_object_columns",
-            "sqlserver_constraints_indexes",
-            "sqlserver_partitions",
-            "sqlserver_procedure_parameters",
-            "sqlserver_procedure_runtime_stats",
-            "sqlserver_procedure_lineage",
-            "sqlserver_table_ddl_snapshots",
+            "projects",
+            "agent_runs",
+            "stage_status",
+            "fde_overrides",
         ];
         for table in expected {
             let count: i64 = conn
@@ -321,315 +214,76 @@ mod tests {
     fn migrations_are_idempotent() {
         let conn = Connection::open_in_memory().expect("in-memory db");
         conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
-        // Run twice — second run must be a no-op
         run_migrations(&conn).expect("first run failed");
         run_migrations(&conn).expect("second run failed");
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM schema_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(count, 11, "schema_version should have exactly 11 rows");
+        assert_eq!(count, 1, "schema_version should have exactly 1 row");
     }
 
     #[test]
-    fn migration_4_adds_migration_repo_name_to_legacy_workspaces() {
-        let conn = Connection::open_in_memory().expect("in-memory db");
-        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
-
-        // Simulate a legacy DB that already ran migrations 1-3.
-        conn.execute_batch(
-            r#"
-            CREATE TABLE schema_version (
-              version    INTEGER PRIMARY KEY,
-              applied_at TEXT NOT NULL
-            );
-            INSERT INTO schema_version(version, applied_at) VALUES (1, datetime('now'));
-            INSERT INTO schema_version(version, applied_at) VALUES (2, datetime('now'));
-            INSERT INTO schema_version(version, applied_at) VALUES (3, datetime('now'));
-            "#,
-        )
-        .unwrap();
-        conn.execute_batch(include_str!("../migrations/001_initial_schema.sql"))
-            .unwrap();
-        conn.execute_batch(include_str!("../migrations/002_add_fabric_url.sql"))
-            .unwrap();
-        conn.execute_batch(include_str!("../migrations/003_add_settings.sql"))
-            .unwrap();
-
-        run_migrations(&conn).expect("migrations failed");
-
-        let column_count: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM pragma_table_info('workspaces') WHERE name = 'migration_repo_name'",
-                [],
-                |row| row.get(0),
-            )
-            .unwrap();
-        assert_eq!(
-            column_count, 1,
-            "migration_repo_name column should be added"
-        );
-
-        let version_4_applied: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM schema_version WHERE version = 4",
-                [],
-                |row| row.get(0),
-            )
-            .unwrap();
-        assert_eq!(version_4_applied, 1, "migration 4 should be recorded");
-    }
-
-    #[test]
-    fn migration_6_adds_workspace_source_columns() {
-        let conn = open_memory();
-
-        let expected = [
-            "source_type",
-            "source_server",
-            "source_database",
-            "source_port",
-            "source_authentication_mode",
-            "source_username",
-            "source_password",
-            "source_encrypt",
-            "source_trust_server_certificate",
-        ];
-
-        for column in expected {
-            let exists: i64 = conn
-                .query_row(
-                    "SELECT COUNT(*) FROM pragma_table_info('workspaces') WHERE name=?1",
-                    [column],
-                    |row| row.get(0),
-                )
-                .unwrap();
-            assert_eq!(exists, 1, "column '{column}' missing");
-        }
-    }
-
-    #[test]
-    fn workspace_migration_repo_name_roundtrip() {
+    fn agent_runs_fk_cascades_on_project_delete() {
         let conn = open_memory();
         conn.execute(
-            "INSERT INTO workspaces(id, display_name, migration_repo_name, migration_repo_path, fabric_url, fabric_service_principal_id, fabric_service_principal_secret, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            rusqlite::params![
-                "ws-1",
-                "Migration Workspace",
-                "acme/data-platform",
-                "/tmp/repo",
-                Option::<String>::None,
-                Some("sp-id-123"),
-                Some("sp-secret-123"),
-                "2026-01-01T00:00:00Z"
-            ],
+            "INSERT INTO projects(id, slug, name, sa_password, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params!["p1", "proj", "Proj", "pw", "2026-01-01T00:00:00Z"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO agent_runs(project_id, run_id, action, submitted_ts, status) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params!["p1", "run-uuid-1", "scoping-agent", "2026-01-01T00:00:00Z", "success"],
         )
         .unwrap();
 
-        let repo_name: Option<String> = conn
-            .query_row(
-                "SELECT migration_repo_name FROM workspaces WHERE id = ?1",
-                ["ws-1"],
-                |row| row.get(0),
-            )
-            .unwrap();
-        assert_eq!(repo_name.as_deref(), Some("acme/data-platform"));
+        conn.execute("DELETE FROM projects WHERE id=?1", ["p1"]).unwrap();
 
-        let sp_id: Option<String> = conn
-            .query_row(
-                "SELECT fabric_service_principal_id FROM workspaces WHERE id = ?1",
-                ["ws-1"],
-                |row| row.get(0),
-            )
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM agent_runs", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(sp_id.as_deref(), Some("sp-id-123"));
+        assert_eq!(count, 0, "agent_runs should cascade on project delete");
     }
 
     #[test]
-    fn deleting_workspace_cascades_to_dependent_tables() {
+    fn stage_status_fk_cascades_on_project_delete() {
         let conn = open_memory();
         conn.execute(
-            "INSERT INTO workspaces(id, display_name, migration_repo_path, created_at) VALUES (?1, ?2, ?3, ?4)",
-            rusqlite::params!["ws-1", "Migration Workspace", "/tmp/repo", "2026-01-01T00:00:00Z"],
+            "INSERT INTO projects(id, slug, name, sa_password, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params!["p1", "proj", "Proj", "pw", "2026-01-01T00:00:00Z"],
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO items(id, workspace_id, display_name, item_type) VALUES (?1, ?2, ?3, ?4)",
-            rusqlite::params!["item-1", "ws-1", "AdventureWorks", "Warehouse"],
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO warehouse_schemas(warehouse_item_id, schema_name, schema_id_local) VALUES (?1, ?2, ?3)",
-            rusqlite::params!["item-1", "dbo", 1i64],
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO warehouse_tables(warehouse_item_id, schema_name, table_name, object_id_local) VALUES (?1, ?2, ?3, ?4)",
-            rusqlite::params!["item-1", "dbo", "Customers", 100i64],
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name) VALUES (?1, ?2, ?3, ?4, ?5)",
-            rusqlite::params!["st-1", "ws-1", "item-1", "dbo", "Customers"],
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO table_config(selected_table_id, table_type) VALUES (?1, ?2)",
-            rusqlite::params!["st-1", "fact"],
+            "INSERT INTO stage_status(project_id, table_id, stage, status) VALUES (?1, ?2, ?3, ?4)",
+            params!["p1", "dbo.fact_sales", "scoping-agent", "success"],
         )
         .unwrap();
 
-        conn.execute("DELETE FROM workspaces WHERE id=?1", ["ws-1"])
-            .unwrap();
+        conn.execute("DELETE FROM projects WHERE id=?1", ["p1"]).unwrap();
 
-        let items: i64 = conn
-            .query_row("SELECT COUNT(*) FROM items", [], |row| row.get(0))
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM stage_status", [], |row| row.get(0))
             .unwrap();
-        let schemas: i64 = conn
-            .query_row("SELECT COUNT(*) FROM warehouse_schemas", [], |row| {
-                row.get(0)
-            })
-            .unwrap();
-        let tables: i64 = conn
-            .query_row("SELECT COUNT(*) FROM warehouse_tables", [], |row| {
-                row.get(0)
-            })
-            .unwrap();
-        let selected: i64 = conn
-            .query_row("SELECT COUNT(*) FROM selected_tables", [], |row| row.get(0))
-            .unwrap();
-        let config: i64 = conn
-            .query_row("SELECT COUNT(*) FROM table_config", [], |row| row.get(0))
-            .unwrap();
-
-        assert_eq!(items, 0);
-        assert_eq!(schemas, 0);
-        assert_eq!(tables, 0);
-        assert_eq!(selected, 0);
-        assert_eq!(config, 0);
+        assert_eq!(count, 0);
     }
 
     #[test]
-    fn canonical_schema_contract_matches_database_design_doc() {
+    fn fde_overrides_unique_constraint() {
         let conn = open_memory();
-
-        // Foundational canonical tables use id PK.
-        for table in [
-            "sources",
-            "containers",
-            "namespaces",
-            "data_objects",
-            "orchestration_items",
-            "orchestration_activities",
-            "activity_object_links",
-        ] {
-            assert_pk_id(&conn, table);
-        }
-
-        // Named unique/index contracts.
-        assert_index_exists(&conn, "ux_sources_external", "sources");
-        assert_index_exists(&conn, "ux_containers_external", "containers");
-        assert_index_exists(&conn, "ix_containers_source_id", "containers");
-        assert_index_exists(&conn, "ux_namespaces_natural", "namespaces");
-        assert_index_exists(&conn, "ix_namespaces_container_id", "namespaces");
-        assert_index_exists(&conn, "ux_data_objects_natural", "data_objects");
-        assert_index_exists(&conn, "ix_data_objects_namespace_id", "data_objects");
-        assert_index_exists(
-            &conn,
-            "ux_orchestration_items_external",
-            "orchestration_items",
+        conn.execute(
+            "INSERT INTO projects(id, slug, name, sa_password, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params!["p1", "proj", "Proj", "pw", "2026-01-01T00:00:00Z"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO fde_overrides(project_id, table_id, stage, field, fde_value, source_run_id, source_submitted_ts) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params!["p1", "dbo.fact_sales", "profiler-agent", "answers.classification", "\"fact_transaction\"", "run-1", "2026-01-01T00:00:00Z"],
+        )
+        .unwrap();
+        let result = conn.execute(
+            "INSERT INTO fde_overrides(project_id, table_id, stage, field, fde_value, source_run_id, source_submitted_ts) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params!["p1", "dbo.fact_sales", "profiler-agent", "answers.classification", "\"dim_scd2\"", "run-2", "2026-01-01T00:00:00Z"],
         );
-        assert_index_exists(
-            &conn,
-            "ix_orchestration_items_source_id",
-            "orchestration_items",
-        );
-        assert_index_exists(
-            &conn,
-            "ux_orchestration_activities_natural",
-            "orchestration_activities",
-        );
-        assert_index_exists(
-            &conn,
-            "ix_orchestration_activities_item_id",
-            "orchestration_activities",
-        );
-        assert_index_exists(&conn, "ux_activity_object_links", "activity_object_links");
-        assert_index_exists(
-            &conn,
-            "ix_activity_object_links_activity_id",
-            "activity_object_links",
-        );
-        assert_index_exists(
-            &conn,
-            "ix_activity_object_links_data_object_id",
-            "activity_object_links",
-        );
-
-        // FK Delete Policy: cascade-by-default on foundational graph.
-        assert_fk_delete_cascade(&conn, "sources", "workspace_id", "workspaces", "id");
-        assert_fk_delete_cascade(&conn, "containers", "source_id", "sources", "id");
-        assert_fk_delete_cascade(&conn, "namespaces", "container_id", "containers", "id");
-        assert_fk_delete_cascade(&conn, "data_objects", "namespace_id", "namespaces", "id");
-        assert_fk_delete_cascade(&conn, "orchestration_items", "source_id", "sources", "id");
-        assert_fk_delete_cascade(
-            &conn,
-            "orchestration_activities",
-            "orchestration_item_id",
-            "orchestration_items",
-            "id",
-        );
-        assert_fk_delete_cascade(
-            &conn,
-            "activity_object_links",
-            "orchestration_activity_id",
-            "orchestration_activities",
-            "id",
-        );
-        assert_fk_delete_cascade(
-            &conn,
-            "activity_object_links",
-            "data_object_id",
-            "data_objects",
-            "id",
-        );
-
-        // Extension tables should cascade from data_objects.
-        for extension_table in [
-            "sqlserver_object_columns",
-            "sqlserver_constraints_indexes",
-            "sqlserver_partitions",
-            "sqlserver_procedure_parameters",
-            "sqlserver_procedure_runtime_stats",
-            "sqlserver_table_ddl_snapshots",
-        ] {
-            assert_fk_delete_cascade(
-                &conn,
-                extension_table,
-                "data_object_id",
-                "data_objects",
-                "id",
-            );
-        }
-        assert_fk_delete_cascade(
-            &conn,
-            "sqlserver_procedure_lineage",
-            "procedure_data_object_id",
-            "data_objects",
-            "id",
-        );
-        assert_fk_delete_cascade(
-            &conn,
-            "sqlserver_procedure_lineage",
-            "table_data_object_id",
-            "data_objects",
-            "id",
-        );
-    }
-
-    #[test]
-    fn selected_tables_has_natural_unique_index() {
-        let conn = open_memory();
-        assert_index_exists(&conn, "ux_selected_tables_natural", "selected_tables");
+        assert!(result.is_err(), "duplicate (project_id, table_id, stage, field) should be rejected");
     }
 
     #[test]
@@ -637,251 +291,14 @@ mod tests {
         let conn = open_memory();
         let state = reconcile_and_persist_app_phase(&conn).unwrap();
         assert_eq!(state.app_phase, AppPhase::SetupRequired);
+        assert!(!state.has_project);
     }
 
     #[test]
     fn reconcile_phase_returns_persisted_phase() {
         let conn = open_memory();
-        write_app_phase(&conn, AppPhase::ReadyToRun).unwrap();
+        write_app_phase(&conn, AppPhase::Configured).unwrap();
         let state = reconcile_and_persist_app_phase(&conn).unwrap();
-        assert_eq!(state.app_phase, AppPhase::ReadyToRun);
-    }
-
-    #[test]
-    fn migration_10_adds_approval_workflow_columns() {
-        let conn = open_memory();
-
-        let expected_columns = [
-            "analysis_metadata_json",
-            "approval_status",
-            "approved_at",
-            "manual_overrides_json",
-        ];
-
-        for column in expected_columns {
-            let exists: i64 = conn
-                .query_row(
-                    "SELECT COUNT(*) FROM pragma_table_info('table_config') WHERE name=?1",
-                    [column],
-                    |row| row.get(0),
-                )
-                .unwrap();
-            assert_eq!(exists, 1, "column '{column}' missing from table_config");
-        }
-    }
-
-    #[test]
-    fn migration_10_approval_status_check_constraint() {
-        let conn = open_memory();
-
-        // Insert workspace and dependencies for table_config
-        conn.execute(
-            "INSERT INTO workspaces(id, display_name, migration_repo_path, created_at) VALUES (?1, ?2, ?3, ?4)",
-            params!["ws-1", "Test Workspace", "/tmp/repo", "2026-01-01T00:00:00Z"],
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO items(id, workspace_id, display_name, item_type) VALUES (?1, ?2, ?3, ?4)",
-            params!["item-1", "ws-1", "TestWarehouse", "Warehouse"],
-        )
-        .unwrap();
-
-        // Valid values should succeed
-        for status in ["pending", "approved", "needs_review"] {
-            let st_id = format!("st-{}", status);
-            let table_name = format!("Table_{}", status);
-            conn.execute(
-                "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name) VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![&st_id, "ws-1", "item-1", "dbo", &table_name],
-            )
-            .unwrap();
-            let result = conn.execute(
-                "INSERT INTO table_config(selected_table_id, table_type, approval_status) VALUES (?1, ?2, ?3)",
-                params![&st_id, "fact", status],
-            );
-            assert!(result.is_ok(), "valid approval_status '{status}' should be accepted");
-        }
-
-        // Invalid value should fail
-        conn.execute(
-            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params!["st-invalid", "ws-1", "item-1", "dbo", "InvalidTable"],
-        )
-        .unwrap();
-        let result = conn.execute(
-            "INSERT INTO table_config(selected_table_id, table_type, approval_status) VALUES (?1, ?2, ?3)",
-            params!["st-invalid", "fact", "invalid_status"],
-        );
-        assert!(result.is_err(), "invalid approval_status should be rejected by CHECK constraint");
-    }
-
-    #[test]
-    fn migration_10_sets_default_approval_status_for_existing_rows() {
-        let conn = Connection::open_in_memory().expect("in-memory db");
-        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
-
-        // Apply migrations 1-9 only
-        conn.execute_batch(
-            "CREATE TABLE schema_version (
-               version    INTEGER PRIMARY KEY,
-               applied_at TEXT NOT NULL
-             );",
-        )
-        .unwrap();
-
-        for (version, sql) in &MIGRATIONS[..9] {
-            conn.execute_batch(sql).unwrap();
-            conn.execute(
-                "INSERT INTO schema_version(version, applied_at) VALUES (?1, datetime('now'))",
-                [version],
-            )
-            .unwrap();
-        }
-
-        // Insert test data before migration 10
-        conn.execute(
-            "INSERT INTO workspaces(id, display_name, migration_repo_path, created_at) VALUES (?1, ?2, ?3, ?4)",
-            params!["ws-1", "Test Workspace", "/tmp/repo", "2026-01-01T00:00:00Z"],
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO items(id, workspace_id, display_name, item_type) VALUES (?1, ?2, ?3, ?4)",
-            params!["item-1", "ws-1", "TestWarehouse", "Warehouse"],
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params!["st-1", "ws-1", "item-1", "dbo", "TestTable"],
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO table_config(selected_table_id, table_type) VALUES (?1, ?2)",
-            params!["st-1", "fact"],
-        )
-        .unwrap();
-
-        // Apply migration 10
-        conn.execute_batch(MIGRATIONS[9].1).unwrap();
-        conn.execute(
-            "INSERT INTO schema_version(version, applied_at) VALUES (?1, datetime('now'))",
-            [MIGRATIONS[9].0],
-        )
-        .unwrap();
-
-        // Verify default approval_status was set
-        let approval_status: String = conn
-            .query_row(
-                "SELECT approval_status FROM table_config WHERE selected_table_id = ?1",
-                ["st-1"],
-                |row| row.get(0),
-            )
-            .unwrap();
-        assert_eq!(
-            approval_status, "pending",
-            "existing rows should have approval_status set to 'pending'"
-        );
-    }
-
-    #[test]
-    fn migration_10_is_idempotent() {
-        let conn = Connection::open_in_memory().expect("in-memory db");
-        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
-
-        // Apply all migrations including 10
-        run_migrations(&conn).expect("first migration run failed");
-
-        // Insert test data
-        conn.execute(
-            "INSERT INTO workspaces(id, display_name, migration_repo_path, created_at) VALUES (?1, ?2, ?3, ?4)",
-            params!["ws-1", "Test Workspace", "/tmp/repo", "2026-01-01T00:00:00Z"],
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO items(id, workspace_id, display_name, item_type) VALUES (?1, ?2, ?3, ?4)",
-            params!["item-1", "ws-1", "TestWarehouse", "Warehouse"],
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params!["st-1", "ws-1", "item-1", "dbo", "TestTable"],
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO table_config(selected_table_id, table_type, approval_status) VALUES (?1, ?2, ?3)",
-            params!["st-1", "fact", "approved"],
-        )
-        .unwrap();
-
-        // Run migrations again - should be a no-op since version 10 is already recorded
-        run_migrations(&conn).expect("second migration run should succeed");
-
-        // Verify data integrity
-        let approval_status: String = conn
-            .query_row(
-                "SELECT approval_status FROM table_config WHERE selected_table_id = ?1",
-                ["st-1"],
-                |row| row.get(0),
-            )
-            .unwrap();
-        assert_eq!(
-            approval_status, "approved",
-            "existing data should be preserved after migration re-run"
-        );
-
-        // Verify schema_version still has exactly 11 entries
-        let version_count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM schema_version", [], |row| row.get(0))
-            .unwrap();
-        assert_eq!(version_count, 11, "schema_version should still have exactly 11 rows");
-    }
-
-    #[test]
-    fn table_config_approval_workflow_roundtrip() {
-        let conn = open_memory();
-
-        // Insert dependencies
-        conn.execute(
-            "INSERT INTO workspaces(id, display_name, migration_repo_path, created_at) VALUES (?1, ?2, ?3, ?4)",
-            params!["ws-1", "Test Workspace", "/tmp/repo", "2026-01-01T00:00:00Z"],
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO items(id, workspace_id, display_name, item_type) VALUES (?1, ?2, ?3, ?4)",
-            params!["item-1", "ws-1", "TestWarehouse", "Warehouse"],
-        )
-        .unwrap();
-        conn.execute(
-            "INSERT INTO selected_tables(id, workspace_id, warehouse_item_id, schema_name, table_name) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params!["st-1", "ws-1", "item-1", "dbo", "TestTable"],
-        )
-        .unwrap();
-
-        // Insert table_config with approval workflow data
-        let analysis_metadata = r#"{"confidence":0.95,"reasoning":"High confidence based on schema"}"#;
-        let manual_overrides = r#"{"table_type":"manual"}"#;
-        conn.execute(
-            "INSERT INTO table_config(selected_table_id, table_type, analysis_metadata_json, approval_status, approved_at, manual_overrides_json) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params!["st-1", "fact", analysis_metadata, "approved", "2026-01-15T10:30:00Z", manual_overrides],
-        )
-        .unwrap();
-
-        // Verify roundtrip
-        let (retrieved_analysis, retrieved_status, retrieved_approved_at, retrieved_overrides): (
-            Option<String>,
-            String,
-            Option<String>,
-            Option<String>,
-        ) = conn
-            .query_row(
-                "SELECT analysis_metadata_json, approval_status, approved_at, manual_overrides_json FROM table_config WHERE selected_table_id = ?1",
-                ["st-1"],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-            )
-            .unwrap();
-
-        assert_eq!(retrieved_analysis.as_deref(), Some(analysis_metadata));
-        assert_eq!(retrieved_status, "approved");
-        assert_eq!(retrieved_approved_at.as_deref(), Some("2026-01-15T10:30:00Z"));
-        assert_eq!(retrieved_overrides.as_deref(), Some(manual_overrides));
+        assert_eq!(state.app_phase, AppPhase::Configured);
     }
 }

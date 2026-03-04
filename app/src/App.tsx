@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { ThemeProvider } from 'next-themes';
 import IconNav from './components/icon-nav';
 import HomeSurface from './routes/home';
+import PlanSurface from './routes/plan';
+import MonitorSurface from './routes/monitor';
 import SettingsSurface from './routes/settings/index';
 import { Toaster } from './components/ui/sonner';
 import { useAuthStore } from './stores/auth-store';
@@ -12,7 +14,7 @@ import {
   type Surface,
   useWorkflowStore,
 } from './stores/workflow-store';
-import { appHydratePhase, workspaceGet } from './lib/tauri';
+import { appHydratePhase } from './lib/tauri';
 import { logger } from './lib/logger';
 
 function RootRedirect() {
@@ -29,7 +31,7 @@ function GuardedRoute({ surface, element }: { surface: Surface; element: ReactNo
   if (!appPhaseHydrated) {
     return (
       <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-        Loading workspace state...
+        Loading...
       </div>
     );
   }
@@ -43,8 +45,6 @@ function GuardedRoute({ surface, element }: { surface: Surface; element: ReactNo
 
 export default function App() {
   const loadUser = useAuthStore((s) => s.loadUser);
-  const setWorkspaceId = useWorkflowStore((s) => s.setWorkspaceId);
-  const clearWorkspaceId = useWorkflowStore((s) => s.clearWorkspaceId);
   const setAppPhaseState = useWorkflowStore((s) => s.setAppPhaseState);
   const setAppPhaseHydrated = useWorkflowStore((s) => s.setAppPhaseHydrated);
 
@@ -56,13 +56,8 @@ export default function App() {
     let mounted = true;
     async function bootstrap() {
       try {
-        const [workspace, phase] = await Promise.all([workspaceGet(), appHydratePhase()]);
+        const phase = await appHydratePhase();
         if (!mounted) return;
-        if (workspace?.id) {
-          setWorkspaceId(workspace.id);
-        } else {
-          clearWorkspaceId();
-        }
         setAppPhaseState(phase);
       } catch (err) {
         logger.error('app bootstrap failed', err);
@@ -75,7 +70,7 @@ export default function App() {
     return () => {
       mounted = false;
     };
-  }, [clearWorkspaceId, setAppPhaseHydrated, setAppPhaseState, setWorkspaceId]);
+  }, [setAppPhaseHydrated, setAppPhaseState]);
 
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
@@ -86,6 +81,8 @@ export default function App() {
             <Routes>
               <Route path="/" element={<RootRedirect />} />
               <Route path="/home" element={<GuardedRoute surface="home" element={<HomeSurface />} />} />
+              <Route path="/plan" element={<GuardedRoute surface="plan" element={<PlanSurface />} />} />
+              <Route path="/monitor" element={<GuardedRoute surface="monitor" element={<MonitorSurface />} />} />
               <Route path="/settings/*" element={<GuardedRoute surface="settings" element={<SettingsSurface />} />} />
             </Routes>
           </main>
