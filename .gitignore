@@ -27,8 +27,13 @@ playwright-artifacts/
 .claude/settings.local
 .claude/settings.local.json
 .claude/worktrees/
+.local/
 
 # Environment
 .env
 .env.*
 !.env.example
+
+# Python bytecode
+__pycache__/
+*.py[cod]

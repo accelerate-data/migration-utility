@@ -1,0 +1,37 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "."
+      ]
+    },
+    "sql_mcp": {
+      "command": "dab",
+      "args": [
+        "start",
+        "--mcp-stdio",
+        "-c",
+        ".claude/dab-config.json",
+        "role:anonymous"
+      ]
+    },
+    "dbt_mcp": {
+      "command": "uvx",
+      "args": [
+        "dbt-mcp"
+      ],
+      "env": {
+        "DBT_PROJECT_DIR": ".",
+        "DBT_PROFILES_DIR": ".dbt",
+        "DBT_PATH": ".claude/bin/dbt-docker.sh",
+        "DISABLE_SEMANTIC_LAYER": "false",
+        "DISABLE_DISCOVERY": "false",
+        "DISABLE_SQL": "false",
+        "DISABLE_ADMIN_API": "false"
+      }
+    }
+  }
+}
