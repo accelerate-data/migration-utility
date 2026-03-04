@@ -60,4 +60,3 @@ export const projectGet = (id: string) =>
 
 export const projectDelete = (id: string) =>
   invoke<void>('project_delete', { id });
-

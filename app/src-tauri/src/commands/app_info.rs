@@ -32,6 +32,7 @@ pub fn get_data_dir_path(data_dir: State<'_, DataDir>) -> Result<String, String>
         .ok_or_else(|| "Data dir path contains invalid UTF-8".to_string())
 }
 
+
 #[cfg(test)]
 mod tests {
     use std::sync::Mutex;

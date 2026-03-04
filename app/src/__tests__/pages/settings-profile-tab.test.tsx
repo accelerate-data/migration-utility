@@ -97,9 +97,11 @@ describe('ProfileTab', () => {
 
   it('renders log file path from backend', async () => {
     await renderTabReady();
+    expect(screen.getByTestId('path-log-file')).toHaveTextContent('/tmp/migration-utility.log');
   });
 
   it('renders data directory path from backend', async () => {
     await renderTabReady();
+    expect(screen.getByTestId('path-data-dir')).toHaveTextContent('/tmp/data');
   });
 });
