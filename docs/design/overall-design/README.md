@@ -93,7 +93,7 @@ Directory layout inside the repo:
 
 ### GH Actions Log
 
-Logs are not committed to the repo. At startup, the app pulls all available logs from the GitHub Actions API for the active project and stores them as untracked files in the local clone. Logs for any run not yet cached are fetched on demand when the user views them.
+Logs are not committed to the repo. They are stored as untracked files in the local clone. Logs for in-progress runs are fetched and cached during every consolidation (startup and Refresh). Logs for completed runs are fetched on demand when the user views them.
 
 | Purpose | Path |
 |---|---|
