@@ -8,25 +8,24 @@
 
 | Component | What | Tech |
 |-----------|------|------|
-| Setup UI | Scope selection + FDE approvals for scoping/profiling/planning + plan edit | Tauri + SQLite |
-| Orchestrator | Runs stage-gated batches (scoping -> profiling -> planning -> migration/testing) | Claude Agent SDK (Python) |
-| Sub-agents | Scoping, Profiler, Planner, Translation, Test Generator, Validation | Agent SDK `AgentDefinition` with scoped tools |
-| dbt interaction | Lineage, compiled SQL, model execution, validation queries | dbt-core-mcp (MCP server) |
-| Runtime | Headless execution, no UI timeout | GitHub Actions (minimal YAML) |
-| State | Stage progress, approvals, per-item outcomes, resumption | Structured batch JSON artifacts in repo (git-backed) |
+| Desktop app | Project management, FDE review, stage submission | Tauri v2 + React + SQLite |
+| Agents | Scope, Profile, Decompose, Plan, Generate Tests, Migrate | Claude Agent SDK, one GH Actions workflow per agent |
+| Source inspection | DacPac restore + T-SQL metadata queries | Docker SQL Server container |
+| Runtime | Headless agent execution via `workflow_dispatch` | GitHub Actions |
+| State | Local app state + stage artifacts | SQLite (local) + JSON in migration repo (git-backed) |
+| Source assets | DacPac storage and caching | Git LFS |
 
 ---
 
 ## Pre-Reqs
 
-1. Claude Agent SDK (Python) + Anthropic API key
-2. dbt-fabricspark adapter
-3. dbt-core-mcp — confirmed compatible with dbt-fabricspark and dbt Core 1.9+
-4. Fabric API service principal — workspace metadata, stored procedures, ADF pipelines, table schemas
+1. Docker Desktop — local SQL Server container for DacPac inspection
+2. GitHub account — OAuth with `repo` + `workflow` scopes
+3. Anthropic API key — stored as GitHub Secret
+4. DacPac export of the source SQL Server database
 5. One real customer domain with 10+ stored procedures (SQL-heavy majority)
-6. Dedicated F2 PAYG workspace with pause/resume
-7. Vibedata production repo template
-8. GitHub Actions runner with Fabric API access and `ANTHROPIC_API_KEY` secret
+6. Vibedata production repo template
+7. GitHub Actions runner with `ANTHROPIC_API_KEY` secret
 
 ---
 
@@ -34,8 +33,8 @@
 
 | Phase | What | Weeks |
 |-------|------|-------|
-| 0 | Foundation — validate stack, scaffold orchestrator, create mock stored procs + ADF pipelines, define batch JSON schemas | 0.5 |
-| 1 | MVP pipeline — scoping → profiling → planning → migration/testing → push (SQL-heavy only) | 3 |
+| 0 | Foundation — validate stack, scaffold Tauri app, DacPac inspection pipeline, define artifact JSON schemas | 0.5 |
+| 1 | MVP pipeline — Scope → Profile → Decompose → Plan → Generate Tests → Migrate (SQL-heavy only) | 3 |
 | 2 | Real customer domain end-to-end + Tauri setup UI + hardening | 1.5 |
 | **MVP** | **Full pipeline, SQL-heavy patterns** | **5** |
 | 3 | Pattern expansion | ongoing |
@@ -44,15 +43,15 @@
 
 | Week | Deliverable |
 |------|-------------|
-| 1 | Scoping + profiler agents — ADF pipeline scan, stored proc discovery, dependency graph, profile output with per-item evidence |
-| 2 | Planner agent + FDE approval loop — editable plan JSON + per-item approvals |
-| 3 | Migration/testing stage + validation + push to prod branch -> full gated pipeline end-to-end on mocks |
+| 1 | Scope + Profile agents — DacPac inspection, stored proc discovery, dependency graph, profile output with per-item evidence |
+| 2 | Decompose + Plan agents + FDE review loop — editable plan + per-item approvals |
+| 3 | Generate Tests + Migrate agents + validation + full gated pipeline end-to-end on mocks |
 
 ### Phase 2 Breakdown
 
 | Week | Deliverable |
 |------|-------------|
-| 4 | E-01, E-02 on real stored procs. Tauri setup UI (scope + scoping/profiling/planning approvals) |
+| 4 | E-01, E-02 on real stored procs. Tauri app polish (project management + stage review UX) |
 | 5 | E-03 session resumption. Error handling. Edge cases from real data |
 
 ### Phase 3: Pattern Expansion (ongoing)
@@ -92,15 +91,6 @@
 | N-06 | ML pipeline | Post-MVP |
 | N-07 | RDD operations | Post-MVP |
 
-### ADF Pipelines
-
-| ID | Scenario | Phase |
-|----|----------|-------|
-| P-01 | Linear: SP-A → SP-B → SP-C (sequential stored proc activities) | MVP |
-| P-02 | Parallel fan-out: SP-A, SP-B, SP-C → SP-D (wait dependency) | MVP |
-| P-03 | Conditional execution (If/Switch activity) | MVP |
-| P-04 | Parameterized pipeline (runtime parameters passed to stored procs) | MVP |
-
 ### Dependency Graphs
 
 | ID | Scenario |
@@ -139,8 +129,8 @@
 
 | ID | Scenario |
 |----|----------|
-| E-01 | 5 stored procs, all Migrate, linear ADF pipeline |
-| E-02 | 10 stored procs, mixed tiers, diamond ADF pipeline |
+| E-01 | 5 stored procs, all Migrate, linear dependency chain |
+| E-02 | 10 stored procs, mixed tiers, diamond dependency graph |
 | E-03 | Session interrupted at 40%, resumed |
 
 ---
@@ -149,9 +139,8 @@
 
 | Risk | Mitigation |
 |------|------------|
-| dbt-fabricspark instability | Validate Day 1 |
-| dbt-core-mcp incompatible with dbt-fabricspark or dbt <1.9 | Validate Day 1 — fallback: custom wrappers (+1 week) |
+| DacPac inspection gaps (missing metadata, unsupported object types) | Validate Day 1 with real DacPac; fall back to manual SQL extraction |
+| Docker Desktop availability on FDE machines | Document prerequisites; test on macOS + Windows |
 | Translation quality | Eval loop Week 2 with real stored procs |
-| Fabric API gaps for stored proc discovery | Week 1 — fall back to ADF pipeline JSON export/parse |
-| GitHub Actions cost | Self-hosted runner if needed |
+| GitHub Actions cost / concurrency limits | Self-hosted runner if needed; batch items per run |
 | Real stored procs diverge from mocks | Real stored procs by Week 4 |

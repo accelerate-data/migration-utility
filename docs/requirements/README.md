@@ -8,7 +8,7 @@
 
 Vibedata is built for greenfield. The world is brownfield.
 
-Customers arrive with existing silver and gold transformation logic — T-SQL stored procedures in Microsoft Fabric Warehouse, orchestrated by Azure Data Factory pipelines. Until those are on Vibedata standards (dbt models, unit tests, CI/CD, lineage), none of our agents can help them. The Migration Utility is what gets them there.
+Customers arrive with existing silver and gold transformation logic — T-SQL stored procedures in SQL Server databases. Until those are on Vibedata standards (dbt models, unit tests, CI/CD, lineage), none of our agents can help them. The Migration Utility is what gets them there.
 
 Without it, migration is a manual FDE engagement measured in weeks per domain. That pace caps how many customers can onboard and how quickly they see value from the platform.
 
@@ -16,56 +16,56 @@ Without it, migration is a manual FDE engagement measured in weeks per domain. T
 
 ## What It Does
 
-The utility migrates a Fabric Warehouse to Lakehouse following Vibedata standards — one domain at a time, ready for the FDE to merge into the production repo.
+The utility migrates SQL Server stored procedures to dbt models following Vibedata standards — one domain at a time, ready for the FDE to merge into the production repo.
 
-**Setup (Tauri desktop app).** The FDE works through a wizard on their laptop. State persists to local SQLite so sessions can span multiple days around domain owner conversations.
+**Setup (Tauri desktop app).** The FDE creates a project by uploading a DacPac and configuring the migration repo. State persists to local SQLite so sessions can span multiple days around domain owner conversations.
 
-**Execution (GitHub Actions + Claude Agent SDK).** Execution runs as gated batch stages: scoping, profiling, planning, and migration/testing. Each stage runs headless in GitHub Actions, writes structured JSON results, and pauses for FDE approval before the next stage.
+**Execution (GitHub Actions + Claude Agent SDK).** Execution runs as six gated stages: Scope, Profile, Decompose, Plan, Generate Tests, and Migrate. Each stage runs headless in GitHub Actions via `workflow_dispatch`, writes structured JSON artifacts to the migration repo, and pauses for FDE review before the next stage.
 
-When all Migrate-tier procedures pass, the utility pushes a branch to the production repo. The FDE opens a standard PR. UAT runs in CI via an ephemeral Fabric workspace; once signed off, merge completes the cutover.
+When all Migrate-tier procedures pass, the utility pushes a branch to the production repo. The FDE opens a standard PR. UAT runs in CI; once signed off, merge completes the cutover.
 
 ---
 
 ## FDE User Journey
 
-The FDE works through four surfaces in the Tauri app. Full screen-level detail is in [docs/design/ui-patterns/README.md](../design/ui-patterns/README.md).
+The FDE works through these surfaces in the Tauri app. Full screen-level detail is in [docs/design/ui-patterns/README.md](../design/ui-patterns/README.md).
 
 ### Surfaces
 
 | Surface | Purpose |
 |---------|---------|
-| **Home** | Status at a glance. Routes the FDE to the right next step. Three states: Setup required / Ready (wizard progress) / Active (pipeline running). |
-| **Scope** | Select in-scope tables and approve scoping candidates. Freely navigable before scope finalization; locked read-only after. |
-| **Monitor** | Trigger each batch stage and track per-item status/results. |
-| **Settings** | Connections (one-time) · Workspace (per-migration) · Reset · Usage (cost tracking). |
+| **Splash** | Prerequisite checks (Docker Desktop). Blocks until Docker is available. |
+| **Settings** | GitHub OAuth, migration repo path, local clone path. |
+| **Projects** | Create, select active, archive, delete projects. Each project is a DacPac + metadata. |
+| **Stage tabs** | Six tabs (Scope → Profile → Decompose → Plan → Generate Tests → Migrate). Each tab: table list, status filter, FDE review modal, Submit button. |
 
 ### Key journeys
 
-**First launch:** Home shows "Setup required". FDE goes to Settings → Connections (GitHub + Anthropic API key), then Settings → Workspace (Fabric URL, SP credentials, migration repo, working directory). Once both are configured, Home shows Ready.
+**First launch:** Splash screen checks Docker Desktop. After Docker is confirmed, the app checks GitHub auth. If not set up, the FDE logs in via OAuth and selects an empty migration repo.
 
-**Migration setup:** FDE opens Scope and selects domain tables. The utility traces each table back to one or more producing stored procedures (DEC-10) and surfaces scoping candidates for FDE confirmation (DEC-11).
+**Project creation:** FDE creates a project by entering a name, SQL Server version, DacPac path, SA password, and source metadata. The app pushes the DacPac to the migration repo via Git LFS and starts a local Docker SQL Server container.
 
-**Execution:** FDE opens Monitor and runs the stages in order:
+**Execution:** FDE works through the six stage tabs in order:
 
-1. Trigger scoping batch and approve results.
-2. Trigger profiling batch and approve results.
-3. Trigger planning batch and approve results.
-4. Trigger migration/testing batch.
-5. After tests pass, open PR for approval.
+1. Scope — select tables and submit to the analysis agent.
+2. Profile — review scope output, submit to the profiler agent.
+3. Decompose — review profile output, submit to the decomposer agent.
+4. Plan — review decompose output, submit to the planner agent.
+5. Generate Tests — review plan output (read-only), submit to the test generator agent.
+6. Migrate — review plan + test output (read-only), submit to the migrator agent.
 
-**Session resumption:** SQLite owns setup state; stage JSON artifacts in the migration repo own execution state. Both survive process restart. Home restores to the correct state on reopen (DEC-19).
+Each tab has a Refresh button that pulls the repo and re-consolidates status. FDE can edit agent output for stages 1–4 before submitting the next stage.
 
-**Reset:** Settings → Reset clears the migration repo branch, local working directory, scope selections, and workspace config. GitHub and Anthropic credentials are kept.
+**Session resumption:** SQLite owns local app state; JSON artifacts in the migration repo own execution state. Both survive process restart.
 
 ### UI constraints
 
 | Constraint | Requirement |
 |------------|-------------|
-| One migration at a time — Home shows one active migration, never a list | DEC-04 |
+| One active project at a time — the entire UI operates on the selected project | DEC-04 |
 | Table-first scope selection — stored procedure discovery is automatic | DEC-10 |
-| Workspace locked while a stage is running | DEC-19 |
-| Scope locked (read-only) after scoping approval | DEC-19 |
-| Next stage cannot run until current stage is FDE-approved | DEC-11, DEC-19 |
+| Stage tabs are funnel-gated — a table appears in tab N only if it succeeded in tab N-1 | DEC-19 |
+| FDE overrides on stages 1–4 mark the downstream stage dirty | DEC-11, DEC-19 |
 
 ---
 
@@ -73,11 +73,11 @@ The FDE works through four surfaces in the Tauri app. Full screen-level detail i
 
 ### Migration repo
 
-All utility work happens in an isolated migration repo — the production repo is never touched during migration. When all Migrate-tier procedures pass, the utility pushes a branch to the production repo (created fresh to Vibedata standards). The FDE opens a standard PR. The migration repo is scaffolding; it doesn't ship.
+One migration repo per installation, set by the user in Settings. All projects share a single repo. Agent output (JSON artifacts) is committed to the repo by GitHub Actions. DacPac files are stored via Git LFS. The production repo is never touched during migration — when all Migrate-tier procedures pass, the utility pushes a branch to the production repo. The FDE opens a standard PR.
 
 ### Stage artifacts and approvals
 
-Each stage produces structured batch JSON artifacts (input/output with `items[]` and `results[]`). These are the canonical execution contract and state for scoping, profiling, planning, and migration/testing. Markdown views can be generated from JSON for readability, but JSON remains source of truth.
+Each agent run produces an immutable JSON artifact committed to `{project-slug}/artifacts/{action}/{run_id}.json`. These are the canonical execution state for all six stages. FDE overrides are stored in local SQLite only — agent output in git is never modified. The effective input to the next agent is `COALESCE(fde_value, agent_value)`.
 
 ### Data sampling
 
@@ -89,7 +89,7 @@ Each agent-migrated model gets dbt unit tests and YAML fixtures generated as par
 
 ### UAT and data validation
 
-UAT is Vibedata's standard CI/CD — the utility doesn't own it. When the FDE opens the PR, CI provisions an ephemeral Fabric workspace and runs the full E2E pipeline against live production sources as a parallel run alongside the legacy pipelines. The domain owner signs off on the output comparison before merge.
+UAT is Vibedata's standard CI/CD — the utility doesn't own it. When the FDE opens the PR, CI runs the full E2E pipeline against production sources as a parallel run alongside the legacy pipelines. The domain owner signs off on the output comparison before merge.
 
 ---
 
