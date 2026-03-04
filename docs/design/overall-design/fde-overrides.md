@@ -8,7 +8,7 @@ schema and the editable field set per agent stage.
 ```sql
 CREATE TABLE fde_overrides (
   id                   INTEGER PRIMARY KEY,
-  project_id           INTEGER NOT NULL,  -- matches projects.id type; update if projects uses TEXT PK
+  project_id           TEXT NOT NULL,  -- UUID; references projects.id
   table_id             TEXT NOT NULL,
   stage                TEXT NOT NULL,
   field                TEXT NOT NULL,
