@@ -1285,8 +1285,8 @@ pub fn project_delete_full(
     // Step 4: Delete GitHub secret (best-effort).
     if let (Some(ref repo), Some(ref tok)) = (&repo_full_name, &token) {
         let secret_name = format!("SA_PASSWORD_{}", slug.replace('-', "_").to_uppercase());
-        if let Err(_) = run_cmd("gh", &["secret", "delete", &secret_name, "--repo", repo],
-                                None, &[("GITHUB_TOKEN", tok)]) {
+        if run_cmd("gh", &["secret", "delete", &secret_name, "--repo", repo],
+                                None, &[("GITHUB_TOKEN", tok)]).is_err() {
             // Do not log the error value — it may contain output from a command
             // that ran with a credential in its environment.
             log::warn!("[project_delete_full] delete GH secret {secret_name} (non-fatal): gh command failed");
