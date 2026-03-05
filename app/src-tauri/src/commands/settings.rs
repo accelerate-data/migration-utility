@@ -35,7 +35,7 @@ pub fn save_repo_settings(
     // Extract repo short name from "org/repo-name".
     let repo_name = full_name
         .split('/')
-        .last()
+        .next_back()
         .filter(|s| !s.is_empty())
         .ok_or_else(|| CommandError::Validation("Invalid repository name".into()))?
         .to_string();

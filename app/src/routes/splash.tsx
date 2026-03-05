@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Loader2, XCircle, AlertTriangle, ChevronDown } from 'lucide-react';
+import { CheckCircle2, Circle, Loader2, XCircle, AlertTriangle, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { appStartupSync, listenProjectInitStep } from '@/lib/tauri';
 import { GLOBAL_STEPS, PER_PROJECT_STEPS, INIT_STEP_LABEL } from '@/lib/types';
@@ -35,7 +35,7 @@ function projectSummaryStatus(steps: StepState[]): 'pending' | 'running' | 'ok' 
 
 function SummaryIcon({ status }: { status: ReturnType<typeof projectSummaryStatus> }) {
   if (status === 'error') return <XCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />;
-  if (status === 'warning') return <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-yellow-500" />;
+  if (status === 'warning') return <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />;
   if (status === 'ok') return (
     <CheckCircle2 className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--color-seafoam)' }} />
   );
@@ -43,7 +43,7 @@ function SummaryIcon({ status }: { status: ReturnType<typeof projectSummaryStatu
     <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" style={{ color: 'var(--color-pacific)' }} />
   );
   // pending
-  return <div className="h-3.5 w-3.5 shrink-0 rounded-full border border-border" />;
+  return <Circle className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />;
 }
 
 function StepRow({ step, status }: StepState) {
@@ -57,7 +57,7 @@ function StepRow({ step, status }: StepState) {
     <div className="flex items-start gap-2">
       <div className="mt-0.5 shrink-0">
         {isError && <XCircle className="h-3.5 w-3.5 text-destructive" />}
-        {isWarn && <AlertTriangle className="h-3.5 w-3.5 text-yellow-500" />}
+        {isWarn && <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />}
         {isOk && <CheckCircle2 className="h-3.5 w-3.5" style={{ color: 'var(--color-seafoam)' }} />}
         {isRunning && <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: 'var(--color-pacific)' }} />}
       </div>
@@ -67,7 +67,7 @@ function StepRow({ step, status }: StepState) {
           <span className="text-xs text-destructive break-all mt-0.5">{status.message}</span>
         )}
         {isWarn && status.kind === 'warning' && status.warnings.length > 0 && (
-          <span className="text-xs text-yellow-600 break-all mt-0.5">{status.warnings[0]}</span>
+          <span className="text-xs text-amber-600 dark:text-amber-400 break-all mt-0.5">{status.warnings[0]}</span>
         )}
       </div>
     </div>
@@ -85,7 +85,7 @@ function GlobalStepRow({ step, status }: StepState) {
     <div className="flex items-start gap-2.5">
       <div className="mt-0.5 shrink-0">
         {isError && <XCircle className="h-4 w-4 text-destructive" />}
-        {isWarn && <AlertTriangle className="h-4 w-4 text-yellow-500" />}
+        {isWarn && <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />}
         {isOk && <CheckCircle2 className="h-4 w-4" style={{ color: 'var(--color-seafoam)' }} />}
         {isRunning && <Loader2 className="h-4 w-4 animate-spin" style={{ color: 'var(--color-pacific)' }} />}
       </div>
@@ -95,7 +95,7 @@ function GlobalStepRow({ step, status }: StepState) {
           <span className="text-xs text-destructive break-all mt-0.5">{status.message}</span>
         )}
         {isWarn && status.kind === 'warning' && status.warnings.length > 0 && (
-          <span className="text-xs text-yellow-600 break-all mt-0.5">{status.warnings[0]}</span>
+          <span className="text-xs text-amber-600 dark:text-amber-400 break-all mt-0.5">{status.warnings[0]}</span>
         )}
       </div>
     </div>
@@ -225,7 +225,7 @@ export default function SplashScreen({ projects, activeProjectId, onSuccess, onC
   return (
     <div className="flex h-screen items-center justify-center bg-background">
       <div className="w-full max-w-sm flex flex-col gap-5 px-6">
-        <div>
+        <div className="animate-splash-title">
           <p className="text-base font-semibold text-foreground tracking-tight">
             {singleProject ? 'Initializing project' : 'Initializing projects'}
           </p>
@@ -236,23 +236,30 @@ export default function SplashScreen({ projects, activeProjectId, onSuccess, onC
 
         {/* Global steps — always visible */}
         <div className="flex flex-col gap-2.5">
-          {globalSteps.map((s) => (
-            <GlobalStepRow key={s.step} {...s} />
+          {globalSteps.map((s, i) => (
+            <div key={s.step} className="animate-splash-row" style={{ animationDelay: `${i * 60}ms` }}>
+              <GlobalStepRow {...s} />
+            </div>
           ))}
         </div>
 
         {/* Per-project rows — collapsed by default, auto-open on failure */}
         {projects.length > 0 && (
           <div className="flex flex-col gap-2">
-            {projects.map((project) => {
+            {projects.map((project, i) => {
               const steps = projectSteps[project.id] ?? makeSteps(PER_PROJECT_STEPS);
               return (
-                <ProjectRow
+                <div
                   key={project.id}
-                  project={project}
-                  steps={steps}
-                  forceExpanded={singleProject}
-                />
+                  className="animate-splash-row"
+                  style={{ animationDelay: `${(globalSteps.length + i) * 60}ms` }}
+                >
+                  <ProjectRow
+                    project={project}
+                    steps={steps}
+                    forceExpanded={singleProject}
+                  />
+                </div>
               );
             })}
           </div>

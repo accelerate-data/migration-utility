@@ -374,6 +374,7 @@ fn volume_name(slug: &str) -> String {
 
 /// Create a project: insert DB row, scaffold repo structure, push DacPac, create GH secret,
 /// and set as active. Caller must subsequently invoke `project_init` to start the SQL container.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub fn project_create_full(
     state: State<'_, DbState>,
@@ -843,7 +844,7 @@ async fn run_project_local_steps(
 
             match wait_result {
                 Err(e) => Err(e),
-                Ok(_) => run_cmd_async("sqlpackage", &sqlpackage_args, None, &[]).await.map(|out| out),
+                Ok(_) => run_cmd_async("sqlpackage", &sqlpackage_args, None, &[]).await,
             }
         }
     };
@@ -1158,7 +1159,7 @@ async fn wait_for_sql_server(
                                 .map(|l| {
                                     // Format: "2026-03-05 03:46:04.68 spid52s     ERROR: ..."
                                     // Split on "ERROR:" and take the part after it.
-                                    l.splitn(2, "ERROR:").nth(1).map(|s| s.trim().to_string())
+                                    l.split_once("ERROR:").map(|x| x.1.trim().to_string())
                                         .unwrap_or_else(|| l.trim().to_string())
                                 })
                                 .collect();
