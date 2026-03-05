@@ -46,8 +46,8 @@ export const githubListRepos = (query: string, limit = 10) =>
 export const getSettings = () =>
   invoke<AppSettingsPublic>('get_settings');
 
-export const saveRepoSettings = (fullName: string, cloneUrl: string, localPath: string) =>
-  invoke<void>('save_repo_settings', { fullName, cloneUrl, localPath });
+export const saveRepoSettings = (fullName: string, cloneUrl: string, parentFolder: string) =>
+  invoke<void>('save_repo_settings', { fullName, cloneUrl, parentFolder });
 
 export const githubCheckRepoEmpty = (fullName: string) =>
   invoke<boolean>('github_check_repo_empty', { fullName });
@@ -104,8 +104,8 @@ export const projectCreateFull = (
     extractionDatetime,
   });
 
-export const projectDetectDatabases = (name: string, saPassword: string, dacpacPath: string) =>
-  invoke<string[]>('project_detect_databases', { name, saPassword, dacpacPath });
+export const projectDetectDatabases = (dacpacPath: string) =>
+  invoke<string[]>('project_detect_databases', { dacpacPath });
 
 export const projectInit = (id: string) =>
   invoke<void>('project_init', { id });

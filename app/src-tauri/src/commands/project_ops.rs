@@ -1,6 +1,10 @@
 use std::path::Path;
 
 use rusqlite::params;
+
+/// sqlpackage publish profile embedded from `resources/exclusions.publish.xml`.
+/// Edit that file to add/remove exclusions, then rebuild to pick up the change.
+const PUBLISH_PROFILE_XML: &str = include_str!("../../resources/exclusions.publish.xml");
 use tauri::{Emitter, State};
 use uuid::Uuid;
 
@@ -9,28 +13,6 @@ use crate::db::DbState;
 use crate::types::{CommandError, InitStep, InitStepEvent, InitStepStatus, Project};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-/// Derives a container-safe slug from a project name without a DB collision
-/// check — used only for ephemeral naming during the detect phase.
-fn to_slug_simple(name: &str) -> String {
-    let lower = name.to_lowercase();
-    let mut slug = String::new();
-    let mut last_dash = true; // suppress leading dashes
-    for ch in lower.chars() {
-        if ch.is_alphanumeric() {
-            slug.push(ch);
-            last_dash = false;
-        } else if !last_dash {
-            slug.push('-');
-            last_dash = true;
-        }
-    }
-    // Trim trailing dash
-    if slug.ends_with('-') {
-        slug.pop();
-    }
-    if slug.is_empty() { "project".to_string() } else { slug }
-}
 
 fn emit_step(app: &tauri::AppHandle, step: InitStep, status: InitStepStatus) {
     let event = InitStepEvent {
@@ -43,7 +25,7 @@ fn emit_step(app: &tauri::AppHandle, step: InitStep, status: InitStepStatus) {
 }
 
 /// Run an external command, returning stdout on success or `CommandError::External` on failure.
-fn run_cmd(program: &str, args: &[&str], cwd: Option<&str>, envs: &[(&str, &str)]) -> Result<String, CommandError> {
+pub(crate) fn run_cmd(program: &str, args: &[&str], cwd: Option<&str>, envs: &[(&str, &str)]) -> Result<String, CommandError> {
     let mut cmd = std::process::Command::new(program);
     cmd.args(args);
     if let Some(dir) = cwd {
@@ -66,6 +48,7 @@ fn run_cmd(program: &str, args: &[&str], cwd: Option<&str>, envs: &[(&str, &str)
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
         let detail = if stderr.is_empty() { stdout } else { stderr };
+        log::error!("[run_cmd] '{}' exited {}: {}", program, output.status, detail);
         return Err(CommandError::External(format!(
             "'{program}' exited {}: {detail}",
             output.status
@@ -121,21 +104,14 @@ pub fn project_create_full(
     db_name: String,
     extraction_datetime: String,
 ) -> Result<Project, CommandError> {
-    log::info!("[project_create_full] name={} customer={} system={} db_name={}", name, customer, system, db_name);
+    log::info!("[project_create_full] name={} db_name={}", name, db_name);
 
-    // 1. Insert DB row.
-    let project = {
+    // 1. Validate settings before touching the DB — fail fast with no side effects.
+    let (local_clone_path, repo_full_name, token) = {
         let conn = state.conn().map_err(|e| {
             log::error!("[project_create_full] DB lock: {e}");
             CommandError::Database(e)
         })?;
-        insert_project_row(&conn, &name, &sa_password)?
-    };
-    log::debug!("[project_create_full] row inserted id={} slug={}", project.id, project.slug);
-
-    // 2. Read settings needed for git/GH operations.
-    let (local_clone_path, repo_full_name, token) = {
-        let conn = state.conn().map_err(CommandError::Database)?;
         let s = crate::db::read_settings(&conn).map_err(CommandError::Database)?;
         let lcp = s.local_clone_path.ok_or_else(|| {
             CommandError::Validation("Local clone path not configured in Settings".into())
@@ -151,94 +127,138 @@ pub fn project_create_full(
 
     if !Path::new(&local_clone_path).exists() {
         return Err(CommandError::Validation(format!(
-            "Local clone path '{local_clone_path}' does not exist — clone the migration repo first"
+            "Migration repository not found at '{local_clone_path}'. Go to Settings → Connections and click Save & Clone first."
         )));
     }
 
+    if !Path::new(&local_clone_path).join(".git").exists() {
+        return Err(CommandError::Validation(format!(
+            "'{local_clone_path}' is not a git repository. Go to Settings → Connections and click Save & Clone first."
+        )));
+    }
+
+    // 2. Insert DB row (needed for slug + id used by subsequent steps).
+    let project = {
+        let conn = state.conn().map_err(|e| {
+            log::error!("[project_create_full] DB lock: {e}");
+            CommandError::Database(e)
+        })?;
+        insert_project_row(&conn, &name, &sa_password)?
+    };
+    log::debug!("[project_create_full] row inserted id={} slug={}", project.id, project.slug);
+
+    // 3–9. Execute external steps. On any failure, rollback the DB row and clean up.
     let slug_dir = Path::new(&local_clone_path).join(&project.slug);
-    let slug_dir_str = slug_dir.to_string_lossy().to_string();
+    let external_result: Result<(), CommandError> = (|| {
+        let slug_dir_str = slug_dir.to_string_lossy().to_string();
 
-    // 3. Create project directory.
-    std::fs::create_dir_all(&slug_dir)?;
-    log::debug!("[project_create_full] created dir {slug_dir_str}");
+        // 3. Create project directory.
+        std::fs::create_dir_all(&slug_dir)?;
+        log::debug!("[project_create_full] created dir {slug_dir_str}");
 
-    // 4. Write metadata.json.
-    let metadata = serde_json::json!({
-        "id": project.id,
-        "slug": project.slug,
-        "name": project.name,
-        "createdAt": project.created_at,
-        "sqlServerVersion": sql_server_version,
-        "customer": customer,
-        "system": system,
-        "dbName": db_name,
-        "extractionDatetime": extraction_datetime,
-    });
-    std::fs::write(
-        slug_dir.join("metadata.json"),
-        serde_json::to_string_pretty(&metadata).unwrap(),
-    )?;
-    log::debug!("[project_create_full] wrote metadata.json");
+        // 4. Write metadata.json.
+        let metadata = serde_json::json!({
+            "id": project.id,
+            "slug": project.slug,
+            "name": project.name,
+            "createdAt": project.created_at,
+            "sqlServerVersion": sql_server_version,
+            "customer": customer,
+            "system": system,
+            "dbName": db_name,
+            "extractionDatetime": extraction_datetime,
+        });
+        std::fs::write(
+            slug_dir.join("metadata.json"),
+            serde_json::to_string_pretty(&metadata).unwrap(),
+        )?;
+        log::debug!("[project_create_full] wrote metadata.json");
 
-    // 5. Enable Git LFS (idempotent).
-    run_cmd("git", &["lfs", "install"], Some(&local_clone_path), &[])?;
+        // 5. Enable Git LFS globally — does not need a repo, run without cwd.
+        run_cmd("git", &["lfs", "install"], None, &[])
+            .map_err(|e| {
+                if e.to_string().contains("is not a git command") || e.to_string().contains("not found") {
+                    CommandError::Validation(
+                        "Git LFS is not installed. Install it and retry:\n\
+                         • macOS:   brew install git-lfs\n\
+                         • Linux:   apt install git-lfs  (or equivalent)\n\
+                         • Windows: winget install Git.LFS\n\
+                         Then run: git lfs install".into()
+                    )
+                } else {
+                    e
+                }
+            })?;
 
-    // 6. Copy DacPac into project dir.
-    let dacpac_src = Path::new(&dacpac_path);
-    let dacpac_filename = dacpac_src.file_name().ok_or_else(|| {
-        CommandError::Validation(format!("Invalid DacPac path: {dacpac_path}"))
-    })?;
-    let dacpac_dest = slug_dir.join(dacpac_filename);
-    std::fs::copy(dacpac_src, &dacpac_dest).map_err(|e| {
-        CommandError::Io(format!("Failed to copy DacPac: {e}"))
-    })?;
-    log::debug!("[project_create_full] copied DacPac to {}", dacpac_dest.display());
+        // 6. Copy DacPac into project dir.
+        let dacpac_src = Path::new(&dacpac_path);
+        let dacpac_filename = dacpac_src.file_name().ok_or_else(|| {
+            CommandError::Validation(format!("Invalid DacPac path: {dacpac_path}"))
+        })?;
+        let dacpac_dest = slug_dir.join(dacpac_filename);
+        std::fs::copy(dacpac_src, &dacpac_dest).map_err(|e| {
+            CommandError::Io(format!("Failed to copy DacPac: {e}"))
+        })?;
+        log::debug!("[project_create_full] copied DacPac to {}", dacpac_dest.display());
 
-    // 7. Track *.dacpac with LFS.
-    run_cmd(
-        "git",
-        &["lfs", "track", "*.dacpac"],
-        Some(&local_clone_path),
-        &[],
-    )?;
+        // 7. Track *.dacpac with LFS.
+        run_cmd("git", &["lfs", "track", "*.dacpac"], Some(&local_clone_path), &[])?;
 
-    // 8. Git add → commit → push.
-    run_cmd("git", &["add", &project.slug], Some(&local_clone_path), &[])?;
-    run_cmd(
-        "git",
-        &[
-            "-c", "user.name=Migration Utility",
-            "-c", "user.email=migration@vibedata.com",
-            "commit", "-m", &format!("feat: add project {}", project.slug),
-        ],
-        Some(&local_clone_path),
-        &[],
-    )?;
-    let auth_header = format!("AUTHORIZATION: bearer {token}");
-    run_cmd(
-        "git",
-        &["-c", &format!("http.extraheader={auth_header}"), "push"],
-        Some(&local_clone_path),
-        &[],
-    )?;
-    log::info!("[project_create_full] pushed project {} to repo", project.slug);
+        // 8. Git add → commit → push.
+        run_cmd("git", &["add", &project.slug], Some(&local_clone_path), &[])?;
+        run_cmd(
+            "git",
+            &[
+                "-c", "user.name=Migration Utility",
+                "-c", "user.email=migration@vibedata.com",
+                "commit", "-m", &format!("feat: add project {}", project.slug),
+            ],
+            Some(&local_clone_path),
+            &[],
+        )?;
+        let auth_header = format!("AUTHORIZATION: bearer {token}");
+        run_cmd(
+            "git",
+            &["-c", &format!("http.extraheader={auth_header}"), "push"],
+            Some(&local_clone_path),
+            &[],
+        )?;
+        log::info!("[project_create_full] pushed project {} to repo", project.slug);
 
-    // 9. Create GitHub secret SA_PASSWORD_{SLUG_UPPER}.
-    let secret_name = format!(
-        "SA_PASSWORD_{}",
-        project.slug.replace('-', "_").to_uppercase()
-    );
-    run_cmd(
-        "gh",
-        &[
-            "secret", "set", &secret_name,
-            "--repo", &repo_full_name,
-            "--body", &sa_password,
-        ],
-        None,
-        &[("GITHUB_TOKEN", &token)],
-    )?;
-    log::info!("[project_create_full] created GH secret {secret_name}");
+        // 9. Create GitHub secret SA_PASSWORD_{SLUG_UPPER}.
+        let secret_name = format!("SA_PASSWORD_{}", project.slug.replace('-', "_").to_uppercase());
+        run_cmd(
+            "gh",
+            &["secret", "set", &secret_name, "--repo", &repo_full_name, "--body", &sa_password],
+            None,
+            &[("GITHUB_TOKEN", &token)],
+        )?;
+        log::info!("[project_create_full] created GH secret {secret_name}");
+
+        Ok(())
+    })();
+
+    if let Err(ref e) = external_result {
+        log::error!("[project_create_full] step failed, rolling back id={}: {e}", project.id);
+        // Remove local directory if it was created.
+        if slug_dir.exists() {
+            if let Err(rm_e) = std::fs::remove_dir_all(&slug_dir) {
+                log::warn!("[project_create_full] cleanup dir failed (non-fatal): {rm_e}");
+            }
+        }
+        // Delete DB row so the project does not appear in the list.
+        match state.conn() {
+            Ok(conn) => {
+                if let Err(del_e) = conn.execute("DELETE FROM projects WHERE id = ?1", params![project.id]) {
+                    log::error!("[project_create_full] rollback DB delete failed: {del_e}");
+                } else {
+                    log::info!("[project_create_full] rolled back DB row id={}", project.id);
+                }
+            }
+            Err(lock_e) => log::error!("[project_create_full] rollback DB lock failed: {lock_e}"),
+        }
+        return Err(external_result.unwrap_err());
+    }
 
     // 10. Set as active project.
     {
@@ -395,20 +415,28 @@ pub async fn project_init(
             let conn_str = format!(
                 "Server=localhost,1433;Database={db_name};User Id=sa;Password={sa_password};TrustServerCertificate=True"
             );
-            let check_output = run_cmd(
-                "sqlpackage",
-                &[
-                    "/Action:Publish",
-                    &format!("/SourceFile:{}", dacpac.display()),
-                    &format!("/TargetConnectionString:{conn_str}"),
-                    // Full-Text Search is not installed in the Docker image.
-                    // Excluding FullTextCatalogs causes dependent FT indexes to be skipped too.
-                    "/p:ExcludeObjectTypes=FullTextCatalogs;FullTextStopLists",
-                ],
-                None,
-                &[],
-            );
-            check_output.map(|_| ())
+
+            // Write the embedded publish profile to a temp file so sqlpackage can read it.
+            // Edit `resources/exclusions.publish.xml` to adjust exclusions, then rebuild.
+            let profile_path = std::env::temp_dir().join("migration-utility-exclusions.publish.xml");
+            if let Err(e) = std::fs::write(&profile_path, PUBLISH_PROFILE_XML) {
+                log::warn!("[project_init] failed to write publish profile (will run without it): {e}");
+            }
+
+            let source_arg = format!("/SourceFile:{}", dacpac.display());
+            let conn_arg = format!("/TargetConnectionString:{conn_str}");
+            let profile_arg = format!("/pr:{}", profile_path.display());
+            let mut sqlpackage_args: Vec<&str> = vec![
+                "/Action:Publish",
+                &source_arg,
+                &conn_arg,
+            ];
+            if profile_path.exists() {
+                sqlpackage_args.push(&profile_arg);
+            }
+            log::debug!("[project_init] RestoreDacpac db_name={db_name} profile={}", profile_path.display());
+
+            run_cmd("sqlpackage", &sqlpackage_args, None, &[]).map(|_| ())
         }
     };
 
@@ -505,6 +533,9 @@ async fn wait_for_sql_server(
 
 /// Fully delete a project: Docker teardown, local dir removal, git cleanup,
 /// GH secret deletion, and DB row removal.
+///
+/// All external operations (Docker, git, GitHub) are best-effort — failures are
+/// logged as warnings but never block the DB cleanup. The DB row is always removed.
 #[tauri::command]
 pub fn project_delete_full(
     state: State<'_, DbState>,
@@ -512,7 +543,8 @@ pub fn project_delete_full(
 ) -> Result<(), CommandError> {
     log::info!("[project_delete_full] id={}", id);
 
-    // Load project + settings.
+    // Load project slug (required) and settings (optional — may not be configured
+    // for projects created before settings were set up).
     let (slug, local_clone_path, repo_full_name, token) = {
         let conn = state.conn().map_err(|e| {
             log::error!("[project_delete_full] DB lock: {e}");
@@ -525,22 +557,12 @@ pub fn project_delete_full(
                 |row| row.get(0),
             )
             .map_err(|e| match e {
-                rusqlite::Error::QueryReturnedNoRows => {
-                    CommandError::NotFound(format!("project {id}"))
-                }
+                rusqlite::Error::QueryReturnedNoRows => CommandError::NotFound(format!("project {id}")),
                 other => CommandError::from(other),
             })?;
         let s = crate::db::read_settings(&conn).map_err(CommandError::Database)?;
-        let lcp = s.local_clone_path.ok_or_else(|| {
-            CommandError::Validation("Local clone path not configured".into())
-        })?;
-        let repo = s.migration_repo_full_name.ok_or_else(|| {
-            CommandError::Validation("Migration repository not configured".into())
-        })?;
-        let tok = s.github_oauth_token.ok_or_else(|| {
-            CommandError::Validation("GitHub authentication required".into())
-        })?;
-        (slug, lcp, repo, tok)
+        // Settings are optional — missing values simply skip the corresponding cleanup step.
+        (slug, s.local_clone_path, s.migration_repo_full_name, s.github_oauth_token)
     };
 
     let container = container_name(&slug);
@@ -557,50 +579,53 @@ pub fn project_delete_full(
         }
     }
 
-    // Step 2: Delete local project directory.
-    let slug_dir = Path::new(&local_clone_path).join(&slug);
-    if slug_dir.exists() {
-        std::fs::remove_dir_all(&slug_dir).map_err(|e| {
-            CommandError::Io(format!("Failed to remove local dir {}: {e}", slug_dir.display()))
-        })?;
-        log::debug!("[project_delete_full] removed local dir {}", slug_dir.display());
+    // Step 2: Delete local project directory (best-effort).
+    if let Some(ref lcp) = local_clone_path {
+        let slug_dir = Path::new(lcp).join(&slug);
+        if slug_dir.exists() {
+            if let Err(e) = std::fs::remove_dir_all(&slug_dir) {
+                log::warn!("[project_delete_full] remove local dir {} (non-fatal): {e}", slug_dir.display());
+            } else {
+                log::debug!("[project_delete_full] removed local dir {}", slug_dir.display());
+            }
+        }
+    } else {
+        log::debug!("[project_delete_full] local_clone_path not configured, skipping local dir removal");
     }
 
-    // Step 3: Git rm + commit + push.
-    let auth_header = format!("AUTHORIZATION: bearer {token}");
-    run_cmd("git", &["rm", "-r", "--ignore-unmatch", &slug], Some(&local_clone_path), &[])?;
-    run_cmd(
-        "git",
-        &[
-            "-c", "user.name=Migration Utility",
-            "-c", "user.email=migration@vibedata.com",
-            "commit", "-m", &format!("chore: remove project {slug}"),
-        ],
-        Some(&local_clone_path),
-        &[],
-    )?;
-    run_cmd(
-        "git",
-        &["-c", &format!("http.extraheader={auth_header}"), "push"],
-        Some(&local_clone_path),
-        &[],
-    )?;
-    log::info!("[project_delete_full] removed {slug} from migration repo");
+    // Step 3: Git rm + commit + push (best-effort — repo may not exist or be set up).
+    if let (Some(ref lcp), Some(ref tok)) = (&local_clone_path, &token) {
+        let auth_header = format!("AUTHORIZATION: bearer {tok}");
+        let git_steps: &[(&[&str], &str)] = &[
+            (&["rm", "-r", "--ignore-unmatch", &slug], "git rm"),
+            (&["-c", "user.name=Migration Utility", "-c", "user.email=migration@vibedata.com",
+               "commit", "-m", &format!("chore: remove project {slug}")], "git commit"),
+            (&["-c", &format!("http.extraheader={auth_header}"), "push"], "git push"),
+        ];
+        for (args, label) in git_steps {
+            if let Err(e) = run_cmd("git", args, Some(lcp), &[]) {
+                log::warn!("[project_delete_full] {} (non-fatal): {e}", label);
+            }
+        }
+        log::debug!("[project_delete_full] git cleanup attempted for {slug}");
+    } else {
+        log::debug!("[project_delete_full] git not configured, skipping repo cleanup");
+    }
 
-    // Step 4: Delete GitHub secret.
-    let secret_name = format!(
-        "SA_PASSWORD_{}",
-        slug.replace('-', "_").to_uppercase()
-    );
-    run_cmd(
-        "gh",
-        &["secret", "delete", &secret_name, "--repo", &repo_full_name],
-        None,
-        &[("GITHUB_TOKEN", &token)],
-    )?;
-    log::info!("[project_delete_full] deleted GH secret {secret_name}");
+    // Step 4: Delete GitHub secret (best-effort).
+    if let (Some(ref repo), Some(ref tok)) = (&repo_full_name, &token) {
+        let secret_name = format!("SA_PASSWORD_{}", slug.replace('-', "_").to_uppercase());
+        if let Err(e) = run_cmd("gh", &["secret", "delete", &secret_name, "--repo", repo],
+                                None, &[("GITHUB_TOKEN", tok)]) {
+            log::warn!("[project_delete_full] delete GH secret {secret_name} (non-fatal): {e}");
+        } else {
+            log::debug!("[project_delete_full] deleted GH secret {secret_name}");
+        }
+    } else {
+        log::debug!("[project_delete_full] GitHub not configured, skipping secret deletion");
+    }
 
-    // Step 5: Delete DB row and clear active_project_id if needed.
+    // Step 5: Delete DB row and clear active_project_id — this must succeed.
     {
         let conn = state.conn().map_err(CommandError::Database)?;
         conn.execute("DELETE FROM projects WHERE id = ?1", params![id])
@@ -683,169 +708,35 @@ pub fn project_reset_local(
 
 // ── project_detect_databases ──────────────────────────────────────────────────
 
-/// Eagerly start the project's SQL Server container, restore the DacPac, and
-/// return all user database names from `sys.databases`.
-///
-/// The container is named `migration-{slug}` (derived from `name`) and stays
-/// running after this call. `project_init` detects the running container and
-/// skips the StartContainer and RestoreDacpac steps, making them idempotent.
-/// On error the container is stopped so port 1433 is freed.
-#[tauri::command]
-pub async fn project_detect_databases(
-    name: String,
-    sa_password: String,
-    dacpac_path: String,
-) -> Result<Vec<String>, CommandError> {
-    log::info!("[project_detect_databases] name={} dacpac_path={}", name, dacpac_path);
-    let slug = to_slug_simple(&name);
-    let container = container_name(&slug);
-    let result = detect_databases_inner(&slug, &container, &sa_password, &dacpac_path).await;
-    if let Err(ref e) = result {
-        log::error!("[project_detect_databases] failed, stopping container {container}: {e}");
-        if let Err(stop_err) = run_cmd("docker", &["stop", &container], None, &[]) {
-            log::warn!("[project_detect_databases] stop container failed (non-fatal): {stop_err}");
+/// Extract the source database name from a DacPac file by reading DacMetadata.xml.
+/// DacPac files are ZIP archives; DacMetadata.xml contains the `<Name>` element.
+fn dacpac_db_name(dacpac_path: &str) -> Result<String, CommandError> {
+    log::debug!("[dacpac_db_name] reading DacMetadata.xml from {dacpac_path}");
+    let xml = run_cmd("unzip", &["-p", dacpac_path, "DacMetadata.xml"], None, &[])
+        .map_err(|e| {
+            CommandError::External(format!("Failed to read DacPac metadata: {e}"))
+        })?;
+    // Parse <Name>...</Name> from the XML (DacMetadata.xml is simple and well-formed).
+    for line in xml.lines() {
+        let trimmed = line.trim();
+        if let Some(inner) = trimmed.strip_prefix("<Name>").and_then(|s| s.strip_suffix("</Name>")) {
+            if !inner.is_empty() {
+                log::debug!("[dacpac_db_name] db_name={inner}");
+                return Ok(inner.to_string());
+            }
         }
     }
-    result
+    Err(CommandError::External("<Name> not found in DacMetadata.xml — is this a valid DacPac?".into()))
 }
 
-async fn detect_databases_inner(
-    slug: &str,
-    container: &str,
-    sa_password: &str,
-    dacpac_path: &str,
-) -> Result<Vec<String>, CommandError> {
-
-    let volume = volume_name(slug);
-    log::debug!("[project_detect_databases] slug={} container={} volume={}", slug, container, volume);
-
-    // Step 1: Check Docker is available.
-    log::debug!("[project_detect_databases] step=docker_check");
-    run_cmd("docker", &["info"], None, &[]).map_err(|e| {
-        log::error!("[project_detect_databases] docker_check failed: {e}");
-        CommandError::External("Docker is not running — please start Docker Desktop".into())
-    })?;
-    log::debug!("[project_detect_databases] step=docker_check status=ok");
-
-    // Step 2: Create/start the container (idempotent).
-    let ps_out = run_cmd(
-        "docker",
-        &["ps", "-a", "--filter", &format!("name={container}"), "--format", "{{.Status}}"],
-        None,
-        &[],
-    )
-    .unwrap_or_default();
-    log::debug!("[project_detect_databases] step=container_status ps_out={:?}", ps_out);
-
-    if ps_out.to_lowercase().starts_with("up") {
-        log::debug!("[project_detect_databases] step=start_container status=already_running");
-    } else if ps_out.is_empty() {
-        log::debug!("[project_detect_databases] step=start_container action=create");
-        run_cmd(
-            "docker",
-            &[
-                "run", "-d",
-                "--platform", "linux/amd64",
-                "--name", container,
-                "-e", "ACCEPT_EULA=Y",
-                "-e", &format!("SA_PASSWORD={sa_password}"),
-                "-e", "MSSQL_PID=Developer",
-                "-p", "1433:1433",
-                "-v", &format!("{volume}:/var/opt/mssql"),
-                "mcr.microsoft.com/mssql/server:2022-latest",
-            ],
-            None,
-            &[],
-        ).map_err(|e| {
-            log::error!("[project_detect_databases] start_container create failed: {e}");
-            e
-        })?;
-        log::debug!("[project_detect_databases] step=start_container status=created");
-    } else {
-        log::debug!("[project_detect_databases] step=start_container action=start ps_out={:?}", ps_out);
-        run_cmd("docker", &["start", container], None, &[]).map_err(|e| {
-            log::error!("[project_detect_databases] start_container start failed: {e}");
-            e
-        })?;
-        log::debug!("[project_detect_databases] step=start_container status=started");
-    }
-
-    // Step 3: Wait for SQL Server to accept connections (retries up to 120 s).
-    log::debug!("[project_detect_databases] step=wait_for_sql_server");
-    wait_for_sql_server("localhost", 1433, &sa_password, 120).await.map_err(|e| {
-        log::error!("[project_detect_databases] wait_for_sql_server failed: {e}");
-        e
-    })?;
-    log::debug!("[project_detect_databases] step=wait_for_sql_server status=ok");
-
-    // Step 4: Restore the DacPac — DB name embedded in connection string.
-    // /TargetDatabaseName cannot be used alongside /TargetConnectionString.
-    let db_name = slug.replace('-', "_");
-    let conn_str_real = format!(
-        "Server=localhost,1433;Database={db_name};User Id=sa;Password={sa_password};TrustServerCertificate=True"
-    );
-    log::debug!("[project_detect_databases] step=restore_dacpac db_name={}", db_name);
-    run_cmd(
-        "sqlpackage",
-        &[
-            "/Action:Publish",
-            &format!("/SourceFile:{dacpac_path}"),
-            &format!("/TargetConnectionString:{conn_str_real}"),
-            // Full-Text Search is not installed in the Docker image.
-            // Excluding FullTextCatalogs causes dependent FT indexes to be skipped too.
-            "/p:ExcludeObjectTypes=FullTextCatalogs;FullTextStopLists",
-        ],
-        None,
-        &[],
-    ).map_err(|e| {
-        log::error!("[project_detect_databases] restore_dacpac failed: {e}");
-        e
-    })?;
-    log::debug!("[project_detect_databases] step=restore_dacpac status=ok db_name={}", db_name);
-
-    // Step 5: Query sys.databases for user databases (database_id > 4 excludes system DBs).
-    log::debug!("[project_detect_databases] step=query_databases");
-    use tokio_util::compat::TokioAsyncWriteCompatExt;
-    let tcp = tokio::net::TcpStream::connect("localhost:1433").await.map_err(|e| {
-        log::error!("[project_detect_databases] tcp_connect failed: {e}");
-        CommandError::External(format!("Cannot reach SQL Server: {e}"))
-    })?;
-    tcp.set_nodelay(true).ok();
-
-    let mut config = tiberius::Config::new();
-    config.host("localhost");
-    config.port(1433);
-    config.authentication(tiberius::AuthMethod::sql_server("sa", &sa_password));
-    config.trust_cert();
-
-    let mut client = tiberius::Client::connect(config, tcp.compat_write())
-        .await
-        .map_err(|e| {
-            log::error!("[project_detect_databases] tiberius_connect failed: {e}");
-            CommandError::External(format!("SQL Server connection failed: {e}"))
-        })?;
-
-    let rows = client
-        .simple_query("SELECT name FROM sys.databases WHERE database_id > 4 ORDER BY name")
-        .await
-        .map_err(|e| {
-            log::error!("[project_detect_databases] query failed: {e}");
-            CommandError::External(format!("sys.databases query failed: {e}"))
-        })?
-        .into_first_result()
-        .await
-        .map_err(|e| {
-            log::error!("[project_detect_databases] result collection failed: {e}");
-            CommandError::External(format!("sys.databases result failed: {e}"))
-        })?;
-
-    let databases: Vec<String> = rows
-        .iter()
-        .filter_map(|row| row.get::<&str, _>(0).map(|s| s.to_string()))
-        .collect();
-
-    log::info!("[project_detect_databases] found {} user databases: {:?}", databases.len(), databases);
-    Ok(databases)
+/// Parse the DacPac file and return the source database name.
+/// No Docker or sqlpackage is needed — the DacPac is a ZIP containing DacMetadata.xml.
+#[tauri::command]
+pub fn project_detect_databases(dacpac_path: String) -> Result<Vec<String>, CommandError> {
+    log::info!("[project_detect_databases] dacpac_path={}", dacpac_path);
+    let db_name = dacpac_db_name(&dacpac_path)?;
+    log::info!("[project_detect_databases] detected db_name={db_name}");
+    Ok(vec![db_name])
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
