@@ -765,6 +765,43 @@ async fn run_project_local_steps(
             "No .dacpac file found in {}", dacpac_dir.display()
         ))),
         Some(ref dacpac) => {
+            // Guard: detect an unhydrated Git LFS pointer (small text file beginning with
+            // "version https://git-lfs.github.com/spec/v1"). sqlpackage fails with
+            // "File contains corrupted data" when fed a pointer instead of the actual binary.
+            if is_lfs_pointer(dacpac) {
+                log::warn!("[run_project_local_steps] dacpac is an LFS pointer — attempting git lfs pull slug={slug}");
+                match run_cmd_async(
+                    "git",
+                    &["lfs", "pull", "--include", &format!("{}/artifacts/dacpac/", slug)],
+                    Some(local_clone_path),
+                    &[("GIT_TERMINAL_PROMPT", "0")],
+                )
+                .await
+                {
+                    Ok(_) => log::info!("[run_project_local_steps] git lfs pull succeeded slug={slug}"),
+                    Err(ref e) => {
+                        let msg = format!(
+                            "The .dacpac file is an unhydrated Git LFS pointer and 'git lfs pull' failed: {e}. \
+                             Ensure Git LFS is installed ('git lfs install') and the repo has LFS access."
+                        );
+                        log::error!("[run_project_local_steps] {msg}");
+                        emit_step(app, InitStep::RestoreDacpac, InitStepStatus::Error { message: msg.clone() }, pid.clone());
+                        return Err(CommandError::External(msg));
+                    }
+                }
+                // Re-check: if still a pointer after pull, fail with a clear message.
+                if is_lfs_pointer(dacpac) {
+                    let msg = format!(
+                        "The .dacpac file at '{}' is still an LFS pointer after 'git lfs pull'. \
+                         The binary object may not be available in LFS storage.",
+                        dacpac.display()
+                    );
+                    log::error!("[run_project_local_steps] {msg}");
+                    emit_step(app, InitStep::RestoreDacpac, InitStepStatus::Error { message: msg.clone() }, pid.clone());
+                    return Err(CommandError::External(msg));
+                }
+            }
+
             let effective_dacpac = match strip_dacpac_fulltext(dacpac) {
                 Ok(p) => p,
                 Err(e) => {
@@ -1025,6 +1062,15 @@ pub async fn app_startup_sync(
 }
 
 /// Find the first .dacpac file in a directory.
+/// Returns true if the file looks like an unhydrated Git LFS pointer.
+/// LFS pointers are plain-text files starting with "version https://git-lfs.github.com/spec/v1".
+fn is_lfs_pointer(path: &Path) -> bool {
+    let Ok(mut f) = std::fs::File::open(path) else { return false };
+    let mut buf = [0u8; 43];
+    let n = std::io::Read::read(&mut f, &mut buf).unwrap_or(0);
+    buf[..n].starts_with(b"version https://git-lfs.github.com/spec/v1")
+}
+
 fn find_dacpac(dir: &Path) -> Option<std::path::PathBuf> {
     std::fs::read_dir(dir).ok()?.flatten().find_map(|entry| {
         let path = entry.path();
