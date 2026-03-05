@@ -14,6 +14,12 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: mockInvoke,
 }));
 
+// Mock @tauri-apps/api/event (used by listenProjectInitStep)
+export const mockListen = vi.fn().mockResolvedValue(() => {});
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: mockListen,
+}));
+
 export const mockDialogOpen = vi.fn();
 vi.mock("@tauri-apps/plugin-dialog", () => ({
   open: mockDialogOpen,
@@ -49,6 +55,7 @@ export function mockInvokeCommands(
 
 export function resetTauriMocks(): void {
   mockInvoke.mockReset().mockImplementation(defaultInvokeImpl);
+  mockListen.mockReset().mockResolvedValue(() => {});
   mockDialogOpen.mockReset();
   mockOpenPath.mockReset().mockReturnValue(Promise.resolve());
 }
