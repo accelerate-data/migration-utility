@@ -53,14 +53,22 @@ stored in the file.
 
 ## Step 3: Add to Claude Code as an MCP server
 
-Add to `.mcp.json` in the repo root (project-scoped; add to `.gitignore` since it contains secrets):
+First, verify `toolbox` starts correctly from the repo root:
+
+```bash
+toolbox --stdio --tools-file orchestrator/mssql_mcp/tools.yaml
+# Should hang waiting for stdin input — that means it started correctly. Ctrl-C to exit.
+```
+
+If that works, add `.mcp.json` at the repo root (project-scoped; already in `.gitignore`).
+Use the **absolute path** to `tools.yaml` — Claude Code may not run the command from the repo root:
 
 ```json
 {
   "mcpServers": {
     "mssql": {
       "command": "toolbox",
-      "args": ["--stdio", "--tools-file", "orchestrator/mssql_mcp/tools.yaml"],
+      "args": ["--stdio", "--tools-file", "/absolute/path/to/repo/orchestrator/mssql_mcp/tools.yaml"],
       "env": {
         "MSSQL_HOST": "127.0.0.1",
         "MSSQL_PORT": "1433",
@@ -72,8 +80,7 @@ Add to `.mcp.json` in the repo root (project-scoped; add to `.gitignore` since i
 }
 ```
 
-The path in `--tools-file` is relative to the working directory where `toolbox` is invoked.
-Restart Claude Code. Confirm the `mssql-execute-sql` tool appears in the tool list.
+Restart Claude Code and run `/mcp` to confirm `mssql` is connected.
 
 ---
 
@@ -171,7 +178,8 @@ Layer 2.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `mssql-execute-sql` not in `/mcp` output | MCP server not registered or not restarted | Check `.mcp.json` exists at repo root, restart Claude Code |
+| `mssql-execute-sql` not in `/mcp` output | `.mcp.json` missing or Claude Code not restarted | Check `.mcp.json` exists at repo root, restart Claude Code |
+| "configured but not connected" in Claude | `toolbox` failed to start | Run `toolbox --stdio --tools-file <abs-path>` manually to see the error; check `which toolbox` |
 | Connection refused | SQL Server container not running | `docker ps`, start container |
 | Login failed for user 'sa' | Wrong `SA_PASSWORD` or SA login disabled | Check container env, `docker inspect` |
 | Empty results from `sys.sql_expression_dependencies` | Database restored but no procedures referencing target | Use a known procedure + table combo to sanity-check |
