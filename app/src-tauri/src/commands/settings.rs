@@ -76,9 +76,14 @@ pub fn save_repo_settings(
         };
 
         log::info!("[save_repo_settings] cloning into {}", clone_path);
-        run_cmd("git", &["clone", &auth_url, &clone_path], None, &[("GIT_TERMINAL_PROMPT", "0")]).map_err(|e| {
-            log::error!("[save_repo_settings] git clone failed: {}", e);
-            e
+        run_cmd("git", &["clone", &auth_url, &clone_path], None, &[("GIT_TERMINAL_PROMPT", "0")]).inspect_err(|e| {
+            // Redact token from error message before logging (git may echo the remote URL in stderr).
+            let safe_msg = if let Some(ref tok) = settings.github_oauth_token {
+                e.to_string().replace(tok.as_str(), "<token>")
+            } else {
+                e.to_string()
+            };
+            log::error!("[save_repo_settings] git clone failed: {}", safe_msg);
         })?;
 
     } else {

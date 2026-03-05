@@ -28,7 +28,7 @@ use crate::types::{CommandError, InitStep, InitStepEvent, InitStepStatus, Projec
 ///
 /// Validates the file is a `.dacpac` (contains `DacMetadata.xml`, not a
 /// `.bacpac`).  Returns the original path unchanged if nothing was stripped.
-fn strip_dacpac_fulltext(dacpac_path: &Path) -> Result<std::path::PathBuf, CommandError> {
+fn strip_dacpac_fulltext(dacpac_path: &Path, slug: &str) -> Result<std::path::PathBuf, CommandError> {
     use zip::write::SimpleFileOptions;
 
     // Validate extension.
@@ -103,7 +103,7 @@ fn strip_dacpac_fulltext(dacpac_path: &Path) -> Result<std::path::PathBuf, Comma
     let patched_origin = patch_origin_checksum(&origin_xml, &new_hash);
 
     // Build new ZIP to a temp file, copying every entry except model.xml / Origin.xml.
-    let tmp_path = std::env::temp_dir().join("migration-utility-stripped.dacpac");
+    let tmp_path = std::env::temp_dir().join(format!("migration-utility-stripped-{slug}.dacpac"));
     {
         let out_file = std::fs::File::create(&tmp_path).map_err(|e| {
             CommandError::Io(format!("Cannot create temp dacpac: {e}"))
@@ -803,7 +803,7 @@ async fn run_project_local_steps(
                 }
             }
 
-            let effective_dacpac = match strip_dacpac_fulltext(dacpac) {
+            let effective_dacpac = match strip_dacpac_fulltext(dacpac, slug) {
                 Ok(p) => p,
                 Err(e) => {
                     log::warn!("[run_project_local_steps] dacpac strip failed (using original): {e}");
@@ -1242,16 +1242,21 @@ pub fn project_delete_full(
     // Step 3: Git rm + commit + push (best-effort — repo may not exist or be set up).
     if let (Some(ref lcp), Some(ref _tok)) = (&local_clone_path, &token) {
         // Credentials are embedded in the remote URL from Settings → Apply clone.
-        let git_steps: &[(&[&str], &str)] = &[
-            (&["rm", "-r", "--ignore-unmatch", &slug], "git rm"),
-            (&["-c", "user.name=Migration Utility", "-c", "user.email=migration@vibedata.com",
-               "commit", "-m", &format!("chore: remove project {slug}")], "git commit"),
-            (&["push"], "git push"),
-        ];
-        for (args, label) in git_steps {
-            if let Err(e) = run_cmd("git", args, Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]) {
-                log::warn!("[project_delete_full] {} (non-fatal): {e}", label);
+        if let Err(e) = run_cmd("git", &["rm", "-r", "--ignore-unmatch", &slug], Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]) {
+            log::warn!("[project_delete_full] git rm (non-fatal): {e}");
+        }
+        // Only commit + push when the rm staged something (git diff --cached --quiet exits 1 if staged).
+        let has_staged = run_cmd("git", &["diff", "--cached", "--quiet"], Some(lcp), &[]).is_err();
+        if has_staged {
+            if let Err(e) = run_cmd("git", &["-c", "user.name=Migration Utility", "-c",
+                "user.email=migration@vibedata.com", "commit", "-m",
+                &format!("chore: remove project {slug}")], Some(lcp), &[]) {
+                log::warn!("[project_delete_full] git commit (non-fatal): {e}");
+            } else if let Err(e) = run_cmd("git", &["push"], Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]) {
+                log::warn!("[project_delete_full] git push (non-fatal): {e}");
             }
+        } else {
+            log::debug!("[project_delete_full] nothing staged after git rm, skipping commit/push");
         }
         log::debug!("[project_delete_full] git cleanup attempted for {slug}");
     } else {
