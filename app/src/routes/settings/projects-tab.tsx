@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, FolderOpen, Loader2, Plus, RefreshCw, Search, Trash2, X, XCircle } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import {
@@ -526,37 +527,30 @@ function ProjectRow({ id, name, slug, isActive, onRefresh }: ProjectRowProps) {
           <span className="text-xs text-muted-foreground font-mono">{slug}</span>
         </td>
 
-        {/* Status */}
+        {/* Active toggle */}
         <td className="py-2.5 border-b border-border">
-          {isActive ? (
-            <span
-              className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full"
-              style={{
-                color: 'var(--color-pacific)',
-                background: 'color-mix(in oklch, var(--color-pacific), transparent 85%)',
-              }}
-            >
-              Active
+          <div className="flex items-center gap-2">
+            {busy && !isActive ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: 'var(--color-pacific)' }} />
+            ) : (
+              <Switch
+                size="sm"
+                checked={isActive}
+                disabled={busy || isActive}
+                onCheckedChange={(checked) => { if (checked) void handleSelect(); }}
+                aria-label={isActive ? 'Active project' : 'Set as active project'}
+                data-testid={`project-select-${slug}`}
+              />
+            )}
+            <span className="text-xs text-muted-foreground">
+              {isActive ? 'Active' : 'Inactive'}
             </span>
-          ) : (
-            <span className="text-xs text-muted-foreground">Inactive</span>
-          )}
+          </div>
         </td>
 
         {/* Actions */}
         <td className="pr-4 py-2.5 border-b border-border">
           <div className="flex items-center gap-1 justify-end">
-            {!isActive && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSelect}
-                disabled={busy}
-                data-testid={`project-select-${slug}`}
-              >
-                {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Select'}
-              </Button>
-            )}
             {isActive && (
               <Button
                 variant="ghost"
@@ -704,7 +698,7 @@ export default function ProjectsTab() {
                   Slug
                 </th>
                 <th scope="col" className="py-1.5 text-left text-xs font-semibold text-muted-foreground border-b-2 border-border">
-                  Status
+                  Active
                 </th>
                 <th scope="col" className="pr-4 py-1.5 text-right text-xs font-semibold text-muted-foreground border-b-2 border-border">
                   Actions
