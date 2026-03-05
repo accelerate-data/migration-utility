@@ -81,9 +81,14 @@ pub fn save_repo_settings(
             e
         })?;
 
-        // Seed managed files into the freshly cloned repo.
-        // .gitignore: always overwrite so the managed version (no *.dacpac) wins.
-        // README.md: only write if absent so FDE edits are preserved.
+    } else {
+        log::info!("[save_repo_settings] repo already cloned at {}", clone_path);
+    }
+
+    // Seed managed files — runs whether the repo was just cloned or already existed.
+    // .gitignore: always overwrite so the managed version (no *.dacpac) wins.
+    // README.md: only write if absent so FDE edits are preserved.
+    if Path::new(&clone_path).join(".git").exists() {
         let cwd = clone_path.as_str();
         if let Err(e) = std::fs::write(Path::new(&clone_path).join(".gitignore"), GITIGNORE_TEMPLATE) {
             log::warn!("[save_repo_settings] failed to write .gitignore (non-fatal): {e}");
@@ -98,7 +103,7 @@ pub fn save_repo_settings(
                 let _ = run_cmd("git", &["add", "README.md"], Some(cwd), &[]);
             }
         }
-        // Commit + push anything staged above (non-fatal).
+        // Commit + push anything staged (non-fatal).
         let has_staged = run_cmd("git", &["diff", "--quiet", "--cached"], Some(cwd), &[]).is_err();
         if has_staged {
             let _ = run_cmd(
@@ -116,9 +121,9 @@ pub fn save_repo_settings(
             } else {
                 log::info!("[save_repo_settings] seeded .gitignore and README, pushed");
             }
+        } else {
+            log::info!("[save_repo_settings] seeded files already up to date, nothing to commit");
         }
-    } else {
-        log::info!("[save_repo_settings] repo already cloned at {}", clone_path);
     }
 
     // Persist settings with the derived clone path.
