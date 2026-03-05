@@ -10,6 +10,9 @@ use crate::types::{AppSettingsPublic, CommandError};
 /// Critically does NOT exclude *.dacpac — those are tracked via Git LFS.
 const GITIGNORE_TEMPLATE: &str = include_str!("../../resources/.gitignore-template");
 
+/// FDE-facing README seeded into freshly cloned migration repos.
+const README_TEMPLATE: &str = include_str!("../../resources/README-template.md");
+
 #[tauri::command]
 pub fn get_settings(state: State<'_, DbState>) -> Result<AppSettingsPublic, String> {
     log::info!("[get_settings]");
@@ -78,33 +81,40 @@ pub fn save_repo_settings(
             e
         })?;
 
-        // Seed a managed .gitignore that does NOT exclude *.dacpac.
-        // Overwrite any template-generated gitignore from GitHub.
-        let gitignore_path = Path::new(&clone_path).join(".gitignore");
-        if let Err(e) = std::fs::write(&gitignore_path, GITIGNORE_TEMPLATE) {
+        // Seed managed files into the freshly cloned repo.
+        // .gitignore: always overwrite so the managed version (no *.dacpac) wins.
+        // README.md: only write if absent so FDE edits are preserved.
+        let cwd = clone_path.as_str();
+        if let Err(e) = std::fs::write(Path::new(&clone_path).join(".gitignore"), GITIGNORE_TEMPLATE) {
             log::warn!("[save_repo_settings] failed to write .gitignore (non-fatal): {e}");
         } else {
-            // Commit and push if the content changed.
-            let cwd = clone_path.as_str();
-            let changed = run_cmd("git", &["diff", "--quiet", "--", ".gitignore"], Some(cwd), &[]).is_err()
-                || run_cmd("git", &["ls-files", "--error-unmatch", ".gitignore"], Some(cwd), &[]).is_err();
-            if changed {
-                let _ = run_cmd("git", &["add", ".gitignore"], Some(cwd), &[]);
-                let _ = run_cmd(
-                    "git",
-                    &[
-                        "-c", "user.name=Migration Utility",
-                        "-c", "user.email=migration@vibedata.com",
-                        "commit", "-m", "chore: seed managed .gitignore",
-                    ],
-                    Some(cwd),
-                    &[],
-                );
-                if let Err(e) = run_cmd("git", &["push"], Some(cwd), &[("GIT_TERMINAL_PROMPT", "0")]) {
-                    log::warn!("[save_repo_settings] failed to push .gitignore (non-fatal): {e}");
-                } else {
-                    log::info!("[save_repo_settings] seeded .gitignore and pushed");
-                }
+            let _ = run_cmd("git", &["add", ".gitignore"], Some(cwd), &[]);
+        }
+        let readme_path = Path::new(&clone_path).join("README.md");
+        if !readme_path.exists() {
+            if let Err(e) = std::fs::write(&readme_path, README_TEMPLATE) {
+                log::warn!("[save_repo_settings] failed to write README.md (non-fatal): {e}");
+            } else {
+                let _ = run_cmd("git", &["add", "README.md"], Some(cwd), &[]);
+            }
+        }
+        // Commit + push anything staged above (non-fatal).
+        let has_staged = run_cmd("git", &["diff", "--quiet", "--cached"], Some(cwd), &[]).is_err();
+        if has_staged {
+            let _ = run_cmd(
+                "git",
+                &[
+                    "-c", "user.name=Migration Utility",
+                    "-c", "user.email=migration@vibedata.com",
+                    "commit", "-m", "chore: seed managed .gitignore and README",
+                ],
+                Some(cwd),
+                &[],
+            );
+            if let Err(e) = run_cmd("git", &["push"], Some(cwd), &[("GIT_TERMINAL_PROMPT", "0")]) {
+                log::warn!("[save_repo_settings] failed to push seeded files (non-fatal): {e}");
+            } else {
+                log::info!("[save_repo_settings] seeded .gitignore and README, pushed");
             }
         }
     } else {
