@@ -60,7 +60,15 @@ toolbox --stdio --tools-file orchestrator/mssql_mcp/tools.yaml
 # Should hang waiting for stdin input — that means it started correctly. Ctrl-C to exit.
 ```
 
-If that works, add `.mcp.json` at the repo root (project-scoped; already in `.gitignore`):
+If that works, `.mcp.json` is already committed at the repo root with `SA_PASSWORD` left blank.
+Fill in your password locally and tell git to ignore the change so it is never accidentally committed:
+
+```bash
+# Edit .mcp.json and set SA_PASSWORD to your container password
+git update-index --skip-worktree .mcp.json
+```
+
+The committed file looks like:
 
 ```json
 {
@@ -71,8 +79,8 @@ If that works, add `.mcp.json` at the repo root (project-scoped; already in `.gi
       "env": {
         "MSSQL_HOST": "127.0.0.1",
         "MSSQL_PORT": "1433",
-        "MSSQL_DB": "your-database-name",
-        "SA_PASSWORD": "your-sa-password"
+        "MSSQL_DB": "WideWorldImportersDW",
+        "SA_PASSWORD": ""
       }
     }
   }
