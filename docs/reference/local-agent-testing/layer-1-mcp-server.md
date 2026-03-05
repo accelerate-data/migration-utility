@@ -36,29 +36,18 @@ toolbox --version
 
 ---
 
-## Step 2: Write `tools.yaml`
+## Step 2: Locate `tools.yaml`
 
-Create `~/.config/migration-utility/tools.yaml`:
+The canonical config is checked into the repo at `orchestrator/mssql_mcp/tools.yaml`.
+Use it directly — no need to create a copy.
 
-```yaml
-sources:
-  - kind: sources
-    name: sqlserver
-    type: mssql
-    host: 127.0.0.1
-    port: 1433
-    database: ${MSSQL_DB}
-    user: sa
-    password: ${SA_PASSWORD}
-
-tools:
-  - name: mssql-execute-sql
-    type: mssql-execute-sql
-    source: sqlserver
-    description: Execute a SQL query against the project SQL Server database.
+```text
+orchestrator/mssql_mcp/tools.yaml   ← single source of truth (local + GHCR image)
+orchestrator/mssql_mcp/Dockerfile   ← GHCR wrapper image (used by Layer 3)
 ```
 
-No secrets in the file — `${MSSQL_DB}` and `${SA_PASSWORD}` are substituted at runtime.
+The file uses `${ENV_NAME}` placeholders for all connection details. No secrets are
+stored in the file.
 
 ---
 
@@ -71,8 +60,10 @@ Add to `~/.claude.json` (or run `claude mcp add`):
   "mcpServers": {
     "mssql": {
       "command": "toolbox",
-      "args": ["--stdio", "--config", "/Users/hbanerjee/.config/migration-utility/tools.yaml"],
+      "args": ["--stdio", "--config", "/path/to/repo/orchestrator/mssql_mcp/tools.yaml"],
       "env": {
+        "MSSQL_HOST": "127.0.0.1",
+        "MSSQL_PORT": "1433",
         "MSSQL_DB": "your-database-name",
         "SA_PASSWORD": "your-sa-password"
       }
@@ -80,6 +71,9 @@ Add to `~/.claude.json` (or run `claude mcp add`):
   }
 }
 ```
+
+Replace `/path/to/repo` with the absolute path to your local clone. Restart Claude Code.
+Confirm the `mssql-execute-sql` tool appears in the tool list.
 
 Restart Claude Code. Confirm the `mssql-execute-sql` tool appears in the tool list.
 
