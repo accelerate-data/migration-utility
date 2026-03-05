@@ -880,12 +880,9 @@ pub async fn app_startup_sync(
             log::error!("[app_startup_sync] DB lock: {e}");
             CommandError::Database(e)
         })?;
-        let settings = crate::db::read_settings(&conn).map_err(CommandError::Database)?;
-        let lcp = settings.local_clone_path.ok_or_else(|| {
-            CommandError::Validation("Local clone path not configured in Settings".into())
-        })?;
-        let url = settings.migration_repo_clone_url.ok_or_else(|| {
-            CommandError::Validation("Migration repository not configured in Settings".into())
+        let settings = crate::db::read_settings(&conn).map_err(|e| {
+            log::error!("[app_startup_sync] read_settings failed: {e}");
+            CommandError::Database(e)
         })?;
 
         let mut stmt = conn
@@ -904,7 +901,9 @@ pub async fn app_startup_sync(
             .collect::<Result<_, rusqlite::Error>>()
             .map_err(CommandError::from)?;
 
-        (rows, lcp, url)
+        // Git settings are optional — projects may have been created without a repo
+        // configured, or the dacpacs already exist on disk from a previous sync.
+        (rows, settings.local_clone_path, settings.migration_repo_clone_url)
     };
 
     if rows.is_empty() {
@@ -916,25 +915,55 @@ pub async fn app_startup_sync(
 
     // ── Step 1: GitPull (global, once) ────────────────────────────────────────
     emit_step(&app, InitStep::GitPull, InitStepStatus::Running, None);
-    let git_result = if Path::new(&local_clone_path).join(".git").exists() {
-        log::debug!("[app_startup_sync] git pull in {local_clone_path}");
-        run_cmd_async("git", &["pull"], Some(&local_clone_path), &[("GIT_TERMINAL_PROMPT", "0")]).await
-    } else {
-        log::debug!("[app_startup_sync] git clone {clone_url} into {local_clone_path}");
-        run_cmd_async("git", &["clone", &clone_url, &local_clone_path], None, &[("GIT_TERMINAL_PROMPT", "0")]).await
-    };
-    match git_result {
-        Err(ref e) => {
-            let msg = e.to_string();
-            log::error!("[app_startup_sync] GitPull failed: {msg}");
-            emit_step(&app, InitStep::GitPull, InitStepStatus::Error { message: msg.clone() }, None);
-            return Err(CommandError::External(msg));
+    match (&local_clone_path, &clone_url) {
+        (None, _) => {
+            log::warn!("[app_startup_sync] local_clone_path not configured — skipping git pull");
+            emit_step(&app, InitStep::GitPull, InitStepStatus::Warning {
+                warnings: vec!["Git repo not configured in Settings → Connections. Skipping sync.".into()]
+            }, None);
         }
-        Ok(_) => {
-            if let Err(e) = run_cmd_async("git", &["lfs", "pull"], Some(&local_clone_path), &[("GIT_TERMINAL_PROMPT", "0")]).await {
-                log::warn!("[app_startup_sync] git lfs pull failed (non-fatal): {e}");
+        (Some(lcp), _) if Path::new(lcp).join(".git").exists() => {
+            // Repo already cloned — pull latest.
+            log::debug!("[app_startup_sync] git pull in {lcp}");
+            match run_cmd_async("git", &["pull"], Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]).await {
+                Err(ref e) => {
+                    let msg = e.to_string();
+                    log::error!("[app_startup_sync] GitPull failed: {msg}");
+                    emit_step(&app, InitStep::GitPull, InitStepStatus::Error { message: msg.clone() }, None);
+                    return Err(CommandError::External(msg));
+                }
+                Ok(_) => {
+                    if let Err(e) = run_cmd_async("git", &["lfs", "pull"], Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]).await {
+                        log::warn!("[app_startup_sync] git lfs pull failed (non-fatal): {e}");
+                    }
+                    emit_step(&app, InitStep::GitPull, InitStepStatus::Ok, None);
+                }
             }
-            emit_step(&app, InitStep::GitPull, InitStepStatus::Ok, None);
+        }
+        (Some(lcp), Some(url)) => {
+            // No .git yet — clone.
+            log::debug!("[app_startup_sync] git clone {url} into {lcp}");
+            match run_cmd_async("git", &["clone", url, lcp], None, &[("GIT_TERMINAL_PROMPT", "0")]).await {
+                Err(ref e) => {
+                    let msg = e.to_string();
+                    log::error!("[app_startup_sync] git clone failed: {msg}");
+                    emit_step(&app, InitStep::GitPull, InitStepStatus::Error { message: msg.clone() }, None);
+                    return Err(CommandError::External(msg));
+                }
+                Ok(_) => {
+                    if let Err(e) = run_cmd_async("git", &["lfs", "pull"], Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]).await {
+                        log::warn!("[app_startup_sync] git lfs pull (post-clone) failed (non-fatal): {e}");
+                    }
+                    emit_step(&app, InitStep::GitPull, InitStepStatus::Ok, None);
+                }
+            }
+        }
+        (Some(_lcp), None) => {
+            // Local dir exists but no clone URL — skip pull, use existing files.
+            log::warn!("[app_startup_sync] clone_url not configured — skipping git pull, using local files");
+            emit_step(&app, InitStep::GitPull, InitStepStatus::Warning {
+                warnings: vec!["Clone URL not configured — using existing local files.".into()]
+            }, None);
         }
     }
 
@@ -951,10 +980,13 @@ pub async fn app_startup_sync(
     }
 
     // ── Steps 3-5: Per-project, in parallel ───────────────────────────────────
+    // Use an empty string for local_clone_path when not configured; run_project_local_steps
+    // will emit a RestoreDacpac error if no .dacpac is found at that path.
+    let lcp_or_empty = local_clone_path.clone().unwrap_or_default();
     let mut join_set = tokio::task::JoinSet::new();
     for row in rows {
         let app_clone = app.clone();
-        let lcp = local_clone_path.clone();
+        let lcp = lcp_or_empty.clone();
         join_set.spawn(async move {
             run_project_local_steps(
                 &app_clone,
