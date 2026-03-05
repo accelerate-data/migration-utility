@@ -17,7 +17,7 @@ into executable files. The application merges planner output and FixtureManifest
 ```json
 {
   "schema_version": "",
-  "batch_id": "",
+  "run_id": "",
   "items": [
     {
       "item_id": "",
@@ -35,7 +35,7 @@ into executable files. The application merges planner output and FixtureManifest
 ```json
 {
   "schema_version": "1.0",
-  "batch_id": "uuid",
+  "run_id": "uuid",
   "items": [
     {
       "item_id": "dbo.fact_sales",
@@ -137,7 +137,7 @@ into executable files. The application merges planner output and FixtureManifest
 ```json
 {
   "schema_version": "",
-  "batch_id": "",
+  "run_id": "",
   "results": [
     {
       "item_id": "",
@@ -163,7 +163,7 @@ into executable files. The application merges planner output and FixtureManifest
 ```json
 {
   "schema_version": "1.0",
-  "batch_id": "uuid",
+  "run_id": "uuid",
   "results": [
     {
       "item_id": "dbo.fact_sales",

@@ -18,7 +18,7 @@ The test generator receives the planner output unchanged.
 ```json
 {
   "schema_version": "1.0",
-  "batch_id": "uuid",
+  "run_id": "uuid",
   "items": [
     {
       "item_id": "dbo.fact_sales",
@@ -112,7 +112,7 @@ The test generator receives the planner output unchanged.
 ```json
 {
   "schema_version": "1.0",
-  "batch_id": "uuid",
+  "run_id": "uuid",
   "results": [
     {
       "item_id": "dbo.fact_sales",

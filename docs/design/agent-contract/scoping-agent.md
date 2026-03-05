@@ -18,7 +18,7 @@ Given a target table, identify candidate writer procedures and select one writer
 ```json
 {
   "schema_version": "1.0",
-  "batch_id": "uuid",
+  "run_id": "uuid",
   "items": [
     {
       "item_id": "dbo.fact_sales",
@@ -110,7 +110,7 @@ Given a target table, identify candidate writer procedures and select one writer
 ```json
 {
   "schema_version": "",
-  "batch_id": "",
+  "run_id": "",
   "results": [
     {
       "item_id": "",
@@ -138,7 +138,7 @@ Given a target table, identify candidate writer procedures and select one writer
 ```json
 {
   "schema_version": "1.0",
-  "batch_id": "uuid",
+  "run_id": "uuid",
   "results": [
     {
       "item_id": "dbo.fact_sales",

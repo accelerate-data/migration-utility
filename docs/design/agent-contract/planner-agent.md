@@ -19,7 +19,7 @@ documentation.
 ```json
 {
   "schema_version": "",
-  "batch_id": "",
+  "run_id": "",
   "items": [
     {
       "item_id": "",
@@ -44,7 +44,7 @@ documentation.
 ```json
 {
   "schema_version": "1.0",
-  "batch_id": "uuid",
+  "run_id": "uuid",
   "items": [
     {
       "item_id": "dbo.fact_sales",
@@ -203,7 +203,7 @@ documentation.
 ```json
 {
   "schema_version": "",
-  "batch_id": "",
+  "run_id": "",
   "results": [
     {
       "item_id": "",
@@ -245,7 +245,7 @@ documentation.
 ```json
 {
   "schema_version": "1.0",
-  "batch_id": "uuid",
+  "run_id": "uuid",
   "results": [
     {
       "item_id": "dbo.fact_sales",
