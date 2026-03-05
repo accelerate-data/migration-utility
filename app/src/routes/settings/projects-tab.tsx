@@ -77,6 +77,13 @@ function InitProgress() {
   );
 }
 
+function toSlugPreview(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 // ── Create project dialog ─────────────────────────────────────────────────────
 
 interface CreateDialogProps {
@@ -200,6 +207,11 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
                 placeholder="e.g. Contoso Migration"
                 disabled={creating}
               />
+              {name.trim() && (
+                <p className="text-xs text-muted-foreground font-mono">
+                  slug: {toSlugPreview(name.trim())}
+                </p>
+              )}
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs font-medium text-muted-foreground">SQL Server version</Label>
