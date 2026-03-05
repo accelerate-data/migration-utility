@@ -422,10 +422,7 @@ pub async fn project_init(
     // ── Step 5: VerifyDb ──────────────────────────────────────────────────────
     emit_step(&app, InitStep::VerifyDb, InitStepStatus::Running);
 
-    // Wait briefly for SQL Server to be ready, then probe TCP.
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-
-    let verify_result = probe_sql_connection("localhost", 1433, &sa_password).await;
+    let verify_result = wait_for_sql_server("localhost", 1433, &sa_password, 120).await;
     match verify_result {
         Ok(_) => {
             emit_step(&app, InitStep::VerifyDb, InitStepStatus::Ok);
@@ -453,28 +450,52 @@ fn find_dacpac(dir: &Path) -> Option<std::path::PathBuf> {
     })
 }
 
-/// Attempt a TCP + TDS handshake to verify SQL Server is reachable.
-async fn probe_sql_connection(host: &str, port: u16, sa_password: &str) -> Result<(), CommandError> {
+/// Poll SQL Server until it accepts a TDS connection or the timeout expires.
+/// SQL Server can take 30–60 s to initialise after the container starts.
+async fn wait_for_sql_server(
+    host: &str,
+    port: u16,
+    sa_password: &str,
+    timeout_secs: u64,
+) -> Result<(), CommandError> {
     use tokio_util::compat::TokioAsyncWriteCompatExt;
 
     let addr = format!("{host}:{port}");
-    let tcp = tokio::net::TcpStream::connect(&addr).await.map_err(|e| {
-        CommandError::External(format!("Cannot reach SQL Server at {addr}: {e}"))
-    })?;
-    tcp.set_nodelay(true).ok();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout_secs);
+    let mut attempt = 0u32;
 
-    let mut config = tiberius::Config::new();
-    config.host(host);
-    config.port(port);
-    config.authentication(tiberius::AuthMethod::sql_server("sa", sa_password));
-    config.trust_cert();
+    loop {
+        attempt += 1;
+        log::debug!("[wait_for_sql_server] attempt={} addr={}", attempt, addr);
 
-    tiberius::Client::connect(config, tcp.compat_write())
-        .await
-        .map(|_| ())
-        .map_err(|e| {
-            CommandError::External(format!("SQL Server connection failed: {e}"))
-        })
+        let try_connect = async {
+            let tcp = tokio::net::TcpStream::connect(&addr).await?;
+            tcp.set_nodelay(true).ok();
+            let mut config = tiberius::Config::new();
+            config.host(host);
+            config.port(port);
+            config.authentication(tiberius::AuthMethod::sql_server("sa", sa_password));
+            config.trust_cert();
+            tiberius::Client::connect(config, tcp.compat_write()).await.map(|_| ())
+        };
+
+        match try_connect.await {
+            Ok(_) => {
+                log::debug!("[wait_for_sql_server] ready after {} attempt(s)", attempt);
+                return Ok(());
+            }
+            Err(e) => {
+                if std::time::Instant::now() >= deadline {
+                    log::error!("[wait_for_sql_server] timed out after {} attempt(s): {e}", attempt);
+                    return Err(CommandError::External(format!(
+                        "SQL Server did not become ready within {timeout_secs}s: {e}"
+                    )));
+                }
+                log::debug!("[wait_for_sql_server] not ready yet (attempt {attempt}): {e} — retrying in 5s");
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            }
+        }
+    }
 }
 
 // ── project_delete_full (VU-405) ──────────────────────────────────────────────
@@ -686,8 +707,7 @@ pub async fn project_detect_databases(
     })?;
     log::debug!("[project_detect_databases] step=docker_check status=ok");
 
-    // Step 2: Create/start the container (idempotent, same logic as project_init).
-    log::debug!("[project_detect_databases] step=container_status");
+    // Step 2: Create/start the container (idempotent).
     let ps_out = run_cmd(
         "docker",
         &["ps", "-a", "--filter", &format!("name={container}"), "--format", "{{.Status}}"],
@@ -695,7 +715,7 @@ pub async fn project_detect_databases(
         &[],
     )
     .unwrap_or_default();
-    log::debug!("[project_detect_databases] container_status ps_out={:?}", ps_out);
+    log::debug!("[project_detect_databases] step=container_status ps_out={:?}", ps_out);
 
     if ps_out.to_lowercase().starts_with("up") {
         log::debug!("[project_detect_databases] step=start_container status=already_running");
@@ -730,16 +750,21 @@ pub async fn project_detect_databases(
         log::debug!("[project_detect_databases] step=start_container status=started");
     }
 
-    // Step 3: Restore the DacPac — DB name embedded in connection string.
+    // Step 3: Wait for SQL Server to accept connections (retries up to 120 s).
+    log::debug!("[project_detect_databases] step=wait_for_sql_server");
+    wait_for_sql_server("localhost", 1433, &sa_password, 120).await.map_err(|e| {
+        log::error!("[project_detect_databases] wait_for_sql_server failed: {e}");
+        e
+    })?;
+    log::debug!("[project_detect_databases] step=wait_for_sql_server status=ok");
+
+    // Step 4: Restore the DacPac — DB name embedded in connection string.
     // /TargetDatabaseName cannot be used alongside /TargetConnectionString.
     let db_name = slug.replace('-', "_");
-    let conn_str_log = format!(
-        "Server=localhost,1433;Database={db_name};User Id=sa;Password=<redacted>;TrustServerCertificate=True"
-    );
-    log::debug!("[project_detect_databases] step=restore_dacpac db_name={} conn_str={}", db_name, conn_str_log);
     let conn_str_real = format!(
         "Server=localhost,1433;Database={db_name};User Id=sa;Password={sa_password};TrustServerCertificate=True"
     );
+    log::debug!("[project_detect_databases] step=restore_dacpac db_name={}", db_name);
     run_cmd(
         "sqlpackage",
         &[
@@ -754,16 +779,6 @@ pub async fn project_detect_databases(
         e
     })?;
     log::debug!("[project_detect_databases] step=restore_dacpac status=ok db_name={}", db_name);
-
-    // Step 4: Wait briefly, then probe connectivity.
-    log::debug!("[project_detect_databases] step=wait_and_probe sleeping 2s");
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-    log::debug!("[project_detect_databases] step=probe_connection");
-    probe_sql_connection("localhost", 1433, &sa_password).await.map_err(|e| {
-        log::error!("[project_detect_databases] probe_connection failed: {e}");
-        e
-    })?;
-    log::debug!("[project_detect_databases] step=probe_connection status=ok");
 
     // Step 5: Query sys.databases for user databases (database_id > 4 excludes system DBs).
     log::debug!("[project_detect_databases] step=query_databases");
@@ -786,7 +801,6 @@ pub async fn project_detect_databases(
             log::error!("[project_detect_databases] tiberius_connect failed: {e}");
             CommandError::External(format!("SQL Server connection failed: {e}"))
         })?;
-    log::debug!("[project_detect_databases] step=query_databases tiberius_connected");
 
     let rows = client
         .simple_query("SELECT name FROM sys.databases WHERE database_id > 4 ORDER BY name")
