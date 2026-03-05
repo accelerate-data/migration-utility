@@ -6,6 +6,10 @@ use crate::commands::project_ops::run_cmd;
 use crate::db::DbState;
 use crate::types::{AppSettingsPublic, CommandError};
 
+/// Managed .gitignore seeded into freshly cloned migration repos.
+/// Critically does NOT exclude *.dacpac — those are tracked via Git LFS.
+const GITIGNORE_TEMPLATE: &str = include_str!("../../resources/.gitignore-template");
+
 #[tauri::command]
 pub fn get_settings(state: State<'_, DbState>) -> Result<AppSettingsPublic, String> {
     log::info!("[get_settings]");
@@ -73,6 +77,36 @@ pub fn save_repo_settings(
             log::error!("[save_repo_settings] git clone failed: {}", e);
             e
         })?;
+
+        // Seed a managed .gitignore that does NOT exclude *.dacpac.
+        // Overwrite any template-generated gitignore from GitHub.
+        let gitignore_path = Path::new(&clone_path).join(".gitignore");
+        if let Err(e) = std::fs::write(&gitignore_path, GITIGNORE_TEMPLATE) {
+            log::warn!("[save_repo_settings] failed to write .gitignore (non-fatal): {e}");
+        } else {
+            // Commit and push if the content changed.
+            let cwd = clone_path.as_str();
+            let changed = run_cmd("git", &["diff", "--quiet", "--", ".gitignore"], Some(cwd), &[]).is_err()
+                || run_cmd("git", &["ls-files", "--error-unmatch", ".gitignore"], Some(cwd), &[]).is_err();
+            if changed {
+                let _ = run_cmd("git", &["add", ".gitignore"], Some(cwd), &[]);
+                let _ = run_cmd(
+                    "git",
+                    &[
+                        "-c", "user.name=Migration Utility",
+                        "-c", "user.email=migration@vibedata.com",
+                        "commit", "-m", "chore: seed managed .gitignore",
+                    ],
+                    Some(cwd),
+                    &[],
+                );
+                if let Err(e) = run_cmd("git", &["push"], Some(cwd), &[("GIT_TERMINAL_PROMPT", "0")]) {
+                    log::warn!("[save_repo_settings] failed to push .gitignore (non-fatal): {e}");
+                } else {
+                    log::info!("[save_repo_settings] seeded .gitignore and pushed");
+                }
+            }
+        }
     } else {
         log::info!("[save_repo_settings] repo already cloned at {}", clone_path);
     }
