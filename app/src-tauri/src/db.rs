@@ -27,6 +27,7 @@ impl DbState {
 const MIGRATIONS: &[(i64, &str)] = &[
     (1, include_str!("../migrations/001_initial_schema.sql")),
     (2, include_str!("../migrations/002_ensure_tables.sql")),
+    (3, include_str!("../migrations/003_add_project_port.sql")),
 ];
 
 pub fn open(path: &Path) -> Result<Connection, DbError> {

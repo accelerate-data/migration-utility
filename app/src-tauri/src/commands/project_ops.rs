@@ -330,17 +330,26 @@ pub(crate) fn run_cmd(program: &str, args: &[&str], cwd: Option<&str>, envs: &[(
 }
 
 /// Insert a project row and return the new Project. Extracts logic shared with project_create.
+/// Bind to port 0 to let the OS pick a free ephemeral port, then release it.
+/// There is a brief TOCTOU window but it is acceptable for local dev containers.
+fn find_free_port() -> Result<u16, CommandError> {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0")
+        .map_err(|e| CommandError::Io(format!("Failed to find a free port: {e}")))?;
+    Ok(listener.local_addr().unwrap().port())
+}
+
 fn insert_project_row(
     conn: &rusqlite::Connection,
     name: &str,
     sa_password: &str,
+    port: u16,
 ) -> Result<Project, CommandError> {
     let id = Uuid::new_v4().to_string();
     let slug = slugify(name, conn)?;
     let created_at = chrono::Utc::now().to_rfc3339();
     conn.execute(
-        "INSERT INTO projects(id, slug, name, sa_password, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![id, slug, name, sa_password, created_at],
+        "INSERT INTO projects(id, slug, name, sa_password, created_at, port) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![id, slug, name, sa_password, created_at, port],
     )
     .map_err(|e| {
         log::error!("[insert_project_row] insert failed: {e}");
@@ -411,11 +420,12 @@ pub fn project_create_full(
 
     // 2. Insert DB row (needed for slug + id used by subsequent steps).
     let project = {
+        let port = find_free_port()?;
         let conn = state.conn().map_err(|e| {
             log::error!("[project_create_full] DB lock: {e}");
             CommandError::Database(e)
         })?;
-        insert_project_row(&conn, &name, &sa_password)?
+        insert_project_row(&conn, &name, &sa_password, port)?
     };
     log::debug!("[project_create_full] row inserted id={} slug={}", project.id, project.slug);
 
@@ -555,17 +565,17 @@ pub async fn project_init(
     log::info!("[project_init] id={}", id);
 
     // Load project + settings before any async work.
-    let (slug, sa_password, local_clone_path, clone_url) = {
+    let (slug, sa_password, port, local_clone_path, clone_url) = {
         let conn = state.conn().map_err(|e| {
             log::error!("[project_init] DB lock: {e}");
             CommandError::Database(e)
         })?;
 
-        let (slug, sa_password) = conn
+        let (slug, sa_password, port) = conn
             .query_row(
-                "SELECT slug, sa_password FROM projects WHERE id = ?1",
+                "SELECT slug, sa_password, port FROM projects WHERE id = ?1",
                 params![id],
-                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, u16>(2)?)),
             )
             .map_err(|e| match e {
                 rusqlite::Error::QueryReturnedNoRows => {
@@ -581,7 +591,7 @@ pub async fn project_init(
         let url = settings.migration_repo_clone_url.ok_or_else(|| {
             CommandError::Validation("Migration repository not configured in Settings".into())
         })?;
-        (slug, sa_password, lcp, url)
+        (slug, sa_password, port, lcp, url)
     };
 
     let container = container_name(&slug);
@@ -653,7 +663,7 @@ pub async fn project_init(
                     "-e", "ACCEPT_EULA=Y",
                     "-e", &format!("SA_PASSWORD={sa_password}"),
                     "-e", "MSSQL_PID=Developer",
-                    "-p", "1433:1433",
+                    "-p", &format!("{port}:1433"),
                     "-v", &format!("{volume}:/var/opt/mssql"),
                     "mcr.microsoft.com/mssql/server:2022-latest",
                 ],
@@ -733,7 +743,7 @@ pub async fn project_init(
             // cannot be used alongside /TargetConnectionString.
             let db_name = slug.replace('-', "_");
             let conn_str = format!(
-                "Server=localhost,1433;Database={db_name};User Id=sa;Password={sa_password};TrustServerCertificate=True"
+                "Server=localhost,{port};Database={db_name};User Id=sa;Password={sa_password};TrustServerCertificate=True"
             );
 
             // Write the embedded publish profile to a temp file so sqlpackage can read it.
@@ -760,7 +770,7 @@ pub async fn project_init(
             // Wait for SQL Server to accept connections before running sqlpackage.
             // First-run image pull + SQL Server init can take 3-5 minutes.
             log::info!("[project_init] waiting for SQL Server to be ready (up to 300s)");
-            let wait_result = wait_for_sql_server("localhost", 1433, &sa_password, 300, Some(&container)).await
+            let wait_result = wait_for_sql_server("localhost", port, &sa_password, 300, Some(&container)).await
                 .map_err(|e| CommandError::External(format!("SQL Server did not become ready in time: {e}")));
 
             match wait_result {
@@ -1141,7 +1151,7 @@ mod tests {
     #[test]
     fn insert_project_row_roundtrip() {
         let conn = db::open_in_memory().unwrap();
-        let project = insert_project_row(&conn, "Test Project", "secret").unwrap();
+        let project = insert_project_row(&conn, "Test Project", "secret", 1434).unwrap();
         assert_eq!(project.name, "Test Project");
         assert_eq!(project.slug, "test-project");
         assert!(!project.id.is_empty());
@@ -1150,8 +1160,8 @@ mod tests {
     #[test]
     fn insert_project_row_slug_collision() {
         let conn = db::open_in_memory().unwrap();
-        let p1 = insert_project_row(&conn, "My Project", "secret").unwrap();
-        let p2 = insert_project_row(&conn, "My Project", "secret").unwrap();
+        let p1 = insert_project_row(&conn, "My Project", "secret", 1434).unwrap();
+        let p2 = insert_project_row(&conn, "My Project", "secret", 1434).unwrap();
         assert_eq!(p1.slug, "my-project");
         assert_ne!(p1.slug, p2.slug, "collision must produce unique slug");
     }
@@ -1159,7 +1169,7 @@ mod tests {
     #[test]
     fn project_create_full_sets_active_project() {
         let conn = db::open_in_memory().unwrap();
-        let p = insert_project_row(&conn, "Acme", "pw").unwrap();
+        let p = insert_project_row(&conn, "Acme", "pw", 1434).unwrap();
         // Simulate setting active
         let mut s = AppSettings::default();
         s.active_project_id = Some(p.id.clone());
@@ -1171,7 +1181,7 @@ mod tests {
     #[test]
     fn project_delete_clears_active_when_matches() {
         let conn = db::open_in_memory().unwrap();
-        let p = insert_project_row(&conn, "Alpha", "pw").unwrap();
+        let p = insert_project_row(&conn, "Alpha", "pw", 1434).unwrap();
         let mut s = AppSettings::default();
         s.active_project_id = Some(p.id.clone());
         db::write_settings(&conn, &s).unwrap();
@@ -1190,7 +1200,7 @@ mod tests {
     #[test]
     fn reset_does_not_affect_db_row() {
         let conn = db::open_in_memory().unwrap();
-        let p = insert_project_row(&conn, "Beta", "pw").unwrap();
+        let p = insert_project_row(&conn, "Beta", "pw", 1435).unwrap();
         // reset_local only touches filesystem/docker — DB row stays
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM projects WHERE id = ?1", params![p.id], |r| r.get(0))
