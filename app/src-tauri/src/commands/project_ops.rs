@@ -493,10 +493,13 @@ pub async fn project_init(
             // Wait for SQL Server to accept connections before running sqlpackage.
             // First-run image pull + SQL Server init can take 3-5 minutes.
             log::info!("[project_init] waiting for SQL Server to be ready (up to 300s)");
-            wait_for_sql_server("localhost", 1433, &sa_password, 300, Some(&container)).await
-                .map_err(|e| CommandError::External(format!("SQL Server did not become ready in time: {e}")))?;
+            let wait_result = wait_for_sql_server("localhost", 1433, &sa_password, 300, Some(&container)).await
+                .map_err(|e| CommandError::External(format!("SQL Server did not become ready in time: {e}")));
 
-            run_cmd_async("sqlpackage", &sqlpackage_args, None, &[]).await.map(|_| ())
+            match wait_result {
+                Err(e) => Err(e),
+                Ok(_) => run_cmd_async("sqlpackage", &sqlpackage_args, None, &[]).await.map(|_| ()),
+            }
         }
     };
 
