@@ -66,17 +66,20 @@ function InitProgress() {
       </div>
       {initSteps.map(({ step, status }) => {
         const label = INIT_STEP_LABEL[step as InitStep];
-        const icon = !status || status.kind === 'running'
-          ? <Loader2 className="h-4 w-4 animate-spin shrink-0" style={{ color: 'var(--color-pacific)' }} />
-          : status.kind === 'ok'
-            ? <CheckCircle2 className="h-4 w-4 shrink-0" style={{ color: 'var(--color-seafoam)' }} />
-            : <XCircle className="h-4 w-4 shrink-0 text-destructive" />;
+        const pending = !status;
+        const icon = pending
+          ? <span className="h-4 w-4 shrink-0 flex items-center justify-center"><span className="h-2 w-2 rounded-full bg-muted-foreground/30" /></span>
+          : status.kind === 'running'
+            ? <Loader2 className="h-4 w-4 animate-spin shrink-0" style={{ color: 'var(--color-pacific)' }} />
+            : status.kind === 'ok'
+              ? <CheckCircle2 className="h-4 w-4 shrink-0" style={{ color: 'var(--color-seafoam)' }} />
+              : <XCircle className="h-4 w-4 shrink-0 text-destructive" />;
 
         return (
           <div key={step} className="flex items-start gap-2">
             {icon}
             <div className="flex flex-col min-w-0">
-              <span className="text-sm text-foreground">{label}</span>
+              <span className={`text-sm ${pending ? 'text-muted-foreground' : 'text-foreground'}`}>{label}</span>
               {status?.kind === 'error' && (
                 <span className="text-xs text-destructive break-all">{status.message}</span>
               )}
