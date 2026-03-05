@@ -1,7 +1,8 @@
 # Layer 1: MCP Server
 
-Test the genai-toolbox MCP server in isolation against your local SQL Server.
-No Python, no agent code, no GH Actions.
+We are using the MCP Toolbox for databases which is an open source MCP server for databases.
+
+The goal of this phase is to test the MCP toolbox for databases in isolation against our local SQL Server.
 
 Back to [Local Agent Testing overview](README.md).
 
@@ -11,7 +12,7 @@ Back to [Local Agent Testing overview](README.md).
 
 Verify that:
 
-1. genai-toolbox connects to the local SQL Server container.
+1. toolbox connects to the local SQL Server container.
 2. The `mssql-execute-sql` tool executes arbitrary SQL correctly.
 3. The SQL catalog queries the scoping agent will use return the expected schema and rows.
 
@@ -22,7 +23,7 @@ Verify that:
 - Local SQL Server container running with a project database restored.
   See [Docker Setup](../setup-docker/README.md).
 - `SA_PASSWORD` for the container.
-- genai-toolbox binary installed (see below).
+- toolbox binary installed (see below).
 - Claude Code or Codex with MCP support.
 
 ---
@@ -30,65 +31,75 @@ Verify that:
 ## Step 1: Install genai-toolbox
 
 ```bash
-brew install googleapis/tap/genai-toolbox
+brew install mcp-toolbox
 toolbox --version
 ```
 
 ---
 
-## Step 2: Write `tools.yaml`
+## Step 2: Locate `tools.yaml`
 
-Create `~/.config/migration-utility/tools.yaml`:
+The canonical config is checked into the repo at `orchestrator/mssql_mcp/tools.yaml`.
 
-```yaml
-sources:
-  - kind: sources
-    name: sqlserver
-    type: mssql
-    host: 127.0.0.1
-    port: 1433
-    database: ${MSSQL_DB}
-    user: sa
-    password: ${SA_PASSWORD}
-
-tools:
-  - name: mssql-execute-sql
-    type: mssql-execute-sql
-    source: sqlserver
-    description: Execute a SQL query against the project SQL Server database.
+```text
+orchestrator/mssql_mcp/tools.yaml   ← single source of truth (local + GH Actions)
 ```
 
-No secrets in the file — `${MSSQL_DB}` and `${SA_PASSWORD}` are substituted at runtime.
+The file uses `${ENV_NAME}` placeholders for all connection details. No secrets are
+stored in the file.
 
 ---
 
 ## Step 3: Add to Claude Code as an MCP server
 
-Add to `~/.claude.json` (or run `claude mcp add`):
+First, verify `toolbox` starts correctly from the repo root:
+
+```bash
+toolbox --stdio --tools-file orchestrator/mssql_mcp/tools.yaml
+# Should hang waiting for stdin input — that means it started correctly. Ctrl-C to exit.
+```
+
+If that works, `.mcp.json` is already committed at the repo root with `SA_PASSWORD` left blank.
+Fill in your password locally — the pre-commit hook will block any commit that includes it:
+
+```bash
+# Activate the shared hooks (once per clone/worktree)
+git config core.hooksPath .githooks
+
+# Edit .mcp.json and set SA_PASSWORD to your container password
+```
+
+The committed file looks like:
 
 ```json
 {
   "mcpServers": {
     "mssql": {
       "command": "toolbox",
-      "args": ["--stdio", "--config", "/Users/hbanerjee/.config/migration-utility/tools.yaml"],
+      "args": ["--stdio", "--tools-file", "orchestrator/mssql_mcp/tools.yaml"],
       "env": {
-        "MSSQL_DB": "your-database-name",
-        "SA_PASSWORD": "your-sa-password"
+        "MSSQL_HOST": "127.0.0.1",
+        "MSSQL_PORT": "1433",
+        "MSSQL_DB": "WideWorldImportersDW",
+        "SA_PASSWORD": ""
       }
     }
   }
 }
 ```
 
-Restart Claude Code. Confirm the `mssql-execute-sql` tool appears in the tool list.
+Restart Claude Code and run `/mcp` to confirm `mssql` is connected.
 
 ---
 
 ## Step 4: Run validation queries
 
-Ask Claude Code to execute each query below. Confirm results match expectations before
-moving to Layer 2.
+For each query below, paste it into Claude Code with a prompt like:
+
+> Use `mssql-execute-sql` to run this query: `<paste query here>`
+
+Claude will call the tool and return results inline. Verify `/mcp` shows the `mssql` server
+connected before starting. Confirm results match expectations before moving to Layer 2.
 
 ### 4.1 Dependency metadata (DiscoverCandidates)
 
@@ -175,7 +186,8 @@ Layer 2.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `toolbox` tool not visible in Claude Code | MCP server not registered or not restarted | Re-add via `claude mcp add`, restart |
+| `mssql-execute-sql` not in `/mcp` output | `.mcp.json` missing or Claude Code not restarted | Check `.mcp.json` exists at repo root, restart Claude Code |
+| "configured but not connected" in Claude | `toolbox` failed to start | Run `toolbox --stdio --tools-file <abs-path>` manually to see the error; check `which toolbox` |
 | Connection refused | SQL Server container not running | `docker ps`, start container |
 | Login failed for user 'sa' | Wrong `SA_PASSWORD` or SA login disabled | Check container env, `docker inspect` |
 | Empty results from `sys.sql_expression_dependencies` | Database restored but no procedures referencing target | Use a known procedure + table combo to sanity-check |

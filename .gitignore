@@ -37,3 +37,5 @@ playwright-artifacts/
 # Python bytecode
 __pycache__/
 *.py[cod]
+
+.claude/.mcp.json
