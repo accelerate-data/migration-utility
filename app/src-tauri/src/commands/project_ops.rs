@@ -509,13 +509,32 @@ pub fn project_create_full(
         log::info!("[project_create_full] pushed project {} to repo", project.slug);
 
         // 9. Create GitHub secret SA_PASSWORD_{SLUG_UPPER}.
+        // Pass the password via stdin (not --body) to avoid it appearing in process args
+        // or being captured in error output that may be logged.
         let secret_name = format!("SA_PASSWORD_{}", project.slug.replace('-', "_").to_uppercase());
-        run_cmd(
-            "gh",
-            &["secret", "set", &secret_name, "--repo", &repo_full_name, "--body", &sa_password],
-            None,
-            &[("GITHUB_TOKEN", &token)],
-        )?;
+        {
+            use std::io::Write;
+            let mut child = std::process::Command::new("gh")
+                .args(["secret", "set", &secret_name, "--repo", &repo_full_name])
+                .env("GITHUB_TOKEN", &token)
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .map_err(|e| CommandError::External(format!("failed to run 'gh': {e}")))?;
+            if let Some(mut stdin) = child.stdin.take() {
+                stdin.write_all(sa_password.as_bytes())
+                    .map_err(|e| CommandError::External(format!("failed to write secret to gh stdin: {e}")))?;
+            }
+            let output = child.wait_with_output()
+                .map_err(|e| CommandError::External(format!("'gh secret set' wait failed: {e}")))?;
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                return Err(CommandError::External(format!(
+                    "'gh secret set' exited {}: {stderr}", output.status
+                )));
+            }
+        }
         log::info!("[project_create_full] created GH secret {secret_name}");
 
         Ok(())
@@ -1266,9 +1285,11 @@ pub fn project_delete_full(
     // Step 4: Delete GitHub secret (best-effort).
     if let (Some(ref repo), Some(ref tok)) = (&repo_full_name, &token) {
         let secret_name = format!("SA_PASSWORD_{}", slug.replace('-', "_").to_uppercase());
-        if let Err(e) = run_cmd("gh", &["secret", "delete", &secret_name, "--repo", repo],
+        if let Err(_) = run_cmd("gh", &["secret", "delete", &secret_name, "--repo", repo],
                                 None, &[("GITHUB_TOKEN", tok)]) {
-            log::warn!("[project_delete_full] delete GH secret {secret_name} (non-fatal): {e}");
+            // Do not log the error value — it may contain output from a command
+            // that ran with a credential in its environment.
+            log::warn!("[project_delete_full] delete GH secret {secret_name} (non-fatal): gh command failed");
         } else {
             log::debug!("[project_delete_full] deleted GH secret {secret_name}");
         }
