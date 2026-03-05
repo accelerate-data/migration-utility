@@ -599,16 +599,32 @@ async fn wait_for_sql_server(
                     .await
                     .unwrap_or_default();
                     if state != "running" && !state.is_empty() {
-                        let logs = run_cmd_async("docker", &["logs", "--tail", "30", ctr], None, &[])
+                        let raw_logs = run_cmd_async("docker", &["logs", "--tail", "50", ctr], None, &[])
                             .await
                             .unwrap_or_default();
-                        let msg = format!(
-                            "Container '{ctr}' exited unexpectedly (state: {state}). \
-                             Check the SA password meets SQL Server complexity requirements \
-                             (≥8 chars, uppercase + lowercase + digit + symbol).\nLogs:\n{logs}"
-                        );
-                        log::error!("[wait_for_sql_server] container exited: {msg}");
-                        return Err(CommandError::External(msg));
+                        log::error!("[wait_for_sql_server] container exited. Raw logs:\n{raw_logs}");
+
+                        // Extract only lines containing "ERROR:" for a concise user message.
+                        let error_lines: Vec<&str> = raw_logs
+                            .lines()
+                            .filter(|l| l.contains("ERROR:"))
+                            .collect();
+                        let detail = if error_lines.is_empty() {
+                            format!("Container exited (state: {state}). Check docker logs for '{ctr}'.")
+                        } else {
+                            // Strip the SQL Server log prefix (timestamp + spidNNs) to show just the message.
+                            let cleaned: Vec<String> = error_lines
+                                .iter()
+                                .map(|l| {
+                                    // Format: "2026-03-05 03:46:04.68 spid52s     ERROR: ..."
+                                    // Split on "ERROR:" and take the part after it.
+                                    l.splitn(2, "ERROR:").nth(1).map(|s| s.trim().to_string())
+                                        .unwrap_or_else(|| l.trim().to_string())
+                                })
+                                .collect();
+                            cleaned.join("\n")
+                        };
+                        return Err(CommandError::External(detail));
                     }
                 }
 
