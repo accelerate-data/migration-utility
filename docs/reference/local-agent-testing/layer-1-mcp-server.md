@@ -79,8 +79,12 @@ Restart Claude Code. Confirm the `mssql-execute-sql` tool appears in the tool li
 
 ## Step 4: Run validation queries
 
-Ask Claude Code to execute each query below. Confirm results match expectations before
-moving to Layer 2.
+For each query below, paste it into Claude Code with a prompt like:
+
+> Use `mssql-execute-sql` to run this query: `<paste query here>`
+
+Claude will call the tool and return results inline. Verify `/mcp` shows the `mssql` server
+connected before starting. Confirm results match expectations before moving to Layer 2.
 
 ### 4.1 Dependency metadata (DiscoverCandidates)
 
@@ -167,7 +171,7 @@ Layer 2.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `toolbox` tool not visible in Claude Code | MCP server not registered or not restarted | Re-add via `claude mcp add`, restart |
+| `mssql-execute-sql` not in `/mcp` output | MCP server not registered or not restarted | Check `.mcp.json` exists at repo root, restart Claude Code |
 | Connection refused | SQL Server container not running | `docker ps`, start container |
 | Login failed for user 'sa' | Wrong `SA_PASSWORD` or SA login disabled | Check container env, `docker inspect` |
 | Empty results from `sys.sql_expression_dependencies` | Database restored but no procedures referencing target | Use a known procedure + table combo to sanity-check |
