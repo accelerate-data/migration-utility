@@ -49,13 +49,10 @@ export async function runScopingAgent(
   const tmpDir = await mkdtemp(join(tmpdir(), "scoping-agent-"));
   const outputPath = join(tmpDir, "output.json");
 
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    SA_PASSWORD: process.env.SA_PASSWORD ?? "P@ssw0rd123",
-    MSSQL_HOST: process.env.MSSQL_HOST ?? "127.0.0.1",
-    MSSQL_PORT: process.env.MSSQL_PORT ?? "1433",
-    MSSQL_DB: "MigrationTest",
-  };
+  // Pass the shell environment as-is. The MCP server (toolbox) reads
+  // MSSQL_HOST, MSSQL_PORT, MSSQL_DB, and SA_PASSWORD from env.
+  // Set these in your shell before running tests (see tests/README.md).
+  const env: NodeJS.ProcessEnv = { ...process.env };
 
   await new Promise<void>((resolve, reject) => {
     const proc = spawn(

@@ -16,13 +16,15 @@ database and asserts on the output JSON.
 ```bash
 cd tests/
 npm install
-ANTHROPIC_API_KEY=your-key npm test
-```
 
-Override SQL Server connection if needed:
+export ANTHROPIC_API_KEY=your-api-key
+export SA_PASSWORD='P@ssw0rd123'
+export MSSQL_DB=MigrationTest
+# Optional — defaults come from plugin/.mcp.json
+# export MSSQL_HOST=127.0.0.1
+# export MSSQL_PORT=1433
 
-```bash
-SA_PASSWORD='P@ssw0rd123' MSSQL_HOST=127.0.0.1 MSSQL_PORT=1433 npm test
+npm test
 ```
 
 ## Scenarios
