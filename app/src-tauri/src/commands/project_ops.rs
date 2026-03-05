@@ -284,7 +284,7 @@ pub async fn project_init(
     log::info!("[project_init] id={}", id);
 
     // Load project + settings before any async work.
-    let (slug, sa_password, local_clone_path, clone_url, token) = {
+    let (slug, sa_password, local_clone_path, clone_url) = {
         let conn = state.conn().map_err(|e| {
             log::error!("[project_init] DB lock: {e}");
             CommandError::Database(e)
@@ -310,8 +310,7 @@ pub async fn project_init(
         let url = settings.migration_repo_clone_url.ok_or_else(|| {
             CommandError::Validation("Migration repository not configured in Settings".into())
         })?;
-        let tok = settings.github_oauth_token;
-        (slug, sa_password, lcp, url, tok)
+        (slug, sa_password, lcp, url)
     };
 
     let container = container_name(&slug);
@@ -319,22 +318,12 @@ pub async fn project_init(
 
     // ── Step 1: GitPull ───────────────────────────────────────────────────────
     emit_step(&app, InitStep::GitPull, InitStepStatus::Running);
-    let auth_header = token.as_deref().map(|t| format!("Authorization: Bearer {t}"));
-    let header_flag = auth_header.as_deref().map(|h| format!("http.extraheader={h}"));
     let git_result = if Path::new(&local_clone_path).join(".git").exists() {
         log::debug!("[project_init] git pull in {local_clone_path}");
-        let args: Vec<&str> = match header_flag.as_deref() {
-            Some(f) => vec!["-c", f, "pull"],
-            None    => vec!["pull"],
-        };
-        run_cmd("git", &args, Some(&local_clone_path), &[("GIT_TERMINAL_PROMPT", "0")])
+        run_cmd("git", &["pull"], Some(&local_clone_path), &[("GIT_TERMINAL_PROMPT", "0")])
     } else {
         log::debug!("[project_init] git clone {clone_url} into {local_clone_path}");
-        let args: Vec<&str> = match header_flag.as_deref() {
-            Some(f) => vec!["-c", f, "clone", &clone_url, &local_clone_path],
-            None    => vec!["clone", &clone_url, &local_clone_path],
-        };
-        run_cmd("git", &args, None, &[("GIT_TERMINAL_PROMPT", "0")])
+        run_cmd("git", &["clone", &clone_url, &local_clone_path], None, &[("GIT_TERMINAL_PROMPT", "0")])
     };
     match git_result {
         Ok(_) => emit_step(&app, InitStep::GitPull, InitStepStatus::Ok),
