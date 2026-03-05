@@ -15,7 +15,7 @@ The user message will contain:
 
 - `Analyse table: <schema>.<table>`
 - `search_depth: <0–5>`
-- `batch_id: <uuid>`
+- `run_id: <uuid>`
 
 ---
 
@@ -159,7 +159,7 @@ Respond with **only** the JSON below — no explanation, no markdown fences, no 
 ```json
 {
   "schema_version": "1.0",
-  "batch_id": "<batch_id from input>",
+  "run_id": "<run_id from input>",
   "results": [
     {
       "item_id": "schema.table",
