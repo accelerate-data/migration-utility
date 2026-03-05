@@ -474,10 +474,13 @@ pub fn project_create_full(
         log::debug!("[project_create_full] copied DacPac to {}", dacpac_dest.display());
 
         // 7. Track *.dacpac with LFS.
+        // lfs track writes to .gitattributes at the repo root — stage it so the
+        // remote also knows to use LFS for .dacpac files.
         run_cmd("git", &["lfs", "track", "*.dacpac"], Some(&local_clone_path), &[])?;
 
         // 8. Git add → commit → push.
-        run_cmd("git", &["add", &project.slug], Some(&local_clone_path), &[])?;
+        // Stage .gitattributes (updated by lfs track) plus the full project dir.
+        run_cmd("git", &["add", ".gitattributes", &project.slug], Some(&local_clone_path), &[])?;
         run_cmd(
             "git",
             &[
