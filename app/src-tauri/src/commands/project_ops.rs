@@ -216,7 +216,9 @@ pub fn project_create_full(
             Some(&local_clone_path),
             &[],
         )?;
-        let auth_header = format!("Authorization: Bearer {token}");
+        let auth_header = format!("Authorization: token {token}");
+        let token_preview = &token[..token.len().min(12)];
+        log::debug!("[project_create_full] git push with token prefix={}...", token_preview);
         run_cmd(
             "git",
             &["-c", &format!("http.extraheader={auth_header}"), "push"],
@@ -595,7 +597,9 @@ pub fn project_delete_full(
 
     // Step 3: Git rm + commit + push (best-effort — repo may not exist or be set up).
     if let (Some(ref lcp), Some(ref tok)) = (&local_clone_path, &token) {
-        let auth_header = format!("Authorization: Bearer {tok}");
+        let tok_preview = &tok[..tok.len().min(12)];
+        log::debug!("[project_delete_full] git push with token prefix={}...", tok_preview);
+        let auth_header = format!("Authorization: token {tok}");
         let push_args = ["-c", &format!("http.extraheader={auth_header}"), "push"];
         let git_steps: &[(&[&str], &str)] = &[
             (&["rm", "-r", "--ignore-unmatch", &slug], "git rm"),
