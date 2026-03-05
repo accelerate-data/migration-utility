@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "sqlserver": {
+      "command": "toolbox",
+      "args": ["--tools-file", "orchestrator/mssql_mcp/tools.yaml", "--stdio"]
+    }
+  }
+}
