@@ -7,4 +7,3 @@ Reference material and operational notes.
 - [Agent Instructions Governance](agent-instructions-governance/README.md)
 - [Docker Setup](setup-docker/README.md)
 - [Local Agent Testing](local-agent-testing/README.md)
-- [Local MCP Smoke Tests](mcp-local-smoke-tests/README.md)
