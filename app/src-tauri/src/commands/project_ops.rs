@@ -402,7 +402,8 @@ pub async fn project_init(
                     &format!("/SourceFile:{}", dacpac.display()),
                     &format!("/TargetConnectionString:{conn_str}"),
                     // Full-Text Search is not installed in the Docker image.
-                    "/p:ExcludeObjectTypes=FullTextCatalogs;FullTextIndexes;FullTextStopLists",
+                    // Excluding FullTextCatalogs causes dependent FT indexes to be skipped too.
+                    "/p:ExcludeObjectTypes=FullTextCatalogs;FullTextStopLists",
                 ],
                 None,
                 &[],
@@ -688,6 +689,7 @@ pub fn project_reset_local(
 /// The container is named `migration-{slug}` (derived from `name`) and stays
 /// running after this call. `project_init` detects the running container and
 /// skips the StartContainer and RestoreDacpac steps, making them idempotent.
+/// On error the container is stopped so port 1433 is freed.
 #[tauri::command]
 pub async fn project_detect_databases(
     name: String,
@@ -695,10 +697,26 @@ pub async fn project_detect_databases(
     dacpac_path: String,
 ) -> Result<Vec<String>, CommandError> {
     log::info!("[project_detect_databases] name={} dacpac_path={}", name, dacpac_path);
-
     let slug = to_slug_simple(&name);
     let container = container_name(&slug);
-    let volume = volume_name(&slug);
+    let result = detect_databases_inner(&slug, &container, &sa_password, &dacpac_path).await;
+    if let Err(ref e) = result {
+        log::error!("[project_detect_databases] failed, stopping container {container}: {e}");
+        if let Err(stop_err) = run_cmd("docker", &["stop", &container], None, &[]) {
+            log::warn!("[project_detect_databases] stop container failed (non-fatal): {stop_err}");
+        }
+    }
+    result
+}
+
+async fn detect_databases_inner(
+    slug: &str,
+    container: &str,
+    sa_password: &str,
+    dacpac_path: &str,
+) -> Result<Vec<String>, CommandError> {
+
+    let volume = volume_name(slug);
     log::debug!("[project_detect_databases] slug={} container={} volume={}", slug, container, volume);
 
     // Step 1: Check Docker is available.
@@ -728,7 +746,7 @@ pub async fn project_detect_databases(
             &[
                 "run", "-d",
                 "--platform", "linux/amd64",
-                "--name", &container,
+                "--name", container,
                 "-e", "ACCEPT_EULA=Y",
                 "-e", &format!("SA_PASSWORD={sa_password}"),
                 "-e", "MSSQL_PID=Developer",
@@ -745,7 +763,7 @@ pub async fn project_detect_databases(
         log::debug!("[project_detect_databases] step=start_container status=created");
     } else {
         log::debug!("[project_detect_databases] step=start_container action=start ps_out={:?}", ps_out);
-        run_cmd("docker", &["start", &container], None, &[]).map_err(|e| {
+        run_cmd("docker", &["start", container], None, &[]).map_err(|e| {
             log::error!("[project_detect_databases] start_container start failed: {e}");
             e
         })?;
@@ -774,7 +792,8 @@ pub async fn project_detect_databases(
             &format!("/SourceFile:{dacpac_path}"),
             &format!("/TargetConnectionString:{conn_str_real}"),
             // Full-Text Search is not installed in the Docker image.
-            "/p:ExcludeObjectTypes=FullTextCatalogs;FullTextIndexes;FullTextStopLists",
+            // Excluding FullTextCatalogs causes dependent FT indexes to be skipped too.
+            "/p:ExcludeObjectTypes=FullTextCatalogs;FullTextStopLists",
         ],
         None,
         &[],
