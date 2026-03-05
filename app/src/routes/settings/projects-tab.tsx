@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, FolderOpen, Loader2, Plus, RefreshCw, Search, Trash2, XCircle } from 'lucide-react';
+import { CheckCircle2, FolderOpen, Loader2, Plus, RefreshCw, Search, Trash2, X, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import {
@@ -47,12 +47,23 @@ import type { InitStep } from '@/lib/types';
 // ── Init progress ─────────────────────────────────────────────────────────────
 
 function InitProgress() {
-  const { initSteps, isInitRunning } = useProjectStore();
+  const { initSteps, isInitRunning, dismissInit } = useProjectStore();
   if (!isInitRunning && initSteps.length === 0) return null;
 
   return (
     <div className="rounded-lg border border-border bg-card p-4 flex flex-col gap-2">
-      <p className="text-sm font-semibold text-foreground">Initializing project…</p>
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-foreground">Initializing project…</p>
+        {!isInitRunning && (
+          <button
+            onClick={dismissInit}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Dismiss"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
       {initSteps.map(({ step, status }) => {
         const label = INIT_STEP_LABEL[step as InitStep];
         const icon = !status || status.kind === 'running'
@@ -84,6 +95,30 @@ function toSlugPreview(name: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+/** Today's date as a YYYY-MM-DD string in the local timezone. */
+function localTodayString(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/** Convert a local YYYY-MM-DD date string (midnight local) to a UTC ISO string for storage. */
+function localDateToUtc(localDate: string): string {
+  const [y, mo, d] = localDate.split('-').map(Number);
+  return new Date(y, mo - 1, d, 0, 0, 0, 0).toISOString();
+}
+
+/** Convert a stored UTC ISO string back to a local YYYY-MM-DD string for display. */
+export function utcToLocalDate(utcString: string): string {
+  const dt = new Date(utcString);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const d = String(dt.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 // ── Create project dialog ─────────────────────────────────────────────────────
 
 interface CreateDialogProps {
@@ -97,13 +132,12 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
   const [saPassword, setSaPassword] = useState('');
   const [dacpacPath, setDacpacPath] = useState('');
   const [sqlServerVersion, setSqlServerVersion] = useState('SQL Server 2022');
-  const [customer, setCustomer] = useState('');
-  const [system, setSystem] = useState('');
   const [dbName, setDbName] = useState('');
   const [detectedDbs, setDetectedDbs] = useState<string[]>([]);
   const [detecting, setDetecting] = useState(false);
   const [detectError, setDetectError] = useState('');
-  const [extractionDatetime, setExtractionDatetime] = useState('');
+  // Stored as local YYYY-MM-DD for the date input; converted to UTC on submit.
+  const [extractionDate, setExtractionDate] = useState(localTodayString);
   const [creating, setCreating] = useState(false);
   const { startInit, finishInit, applyInitStep, loadProjects } = useProjectStore();
   const unlistenRef = useRef<(() => void) | null>(null);
@@ -113,13 +147,11 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
     setSaPassword('');
     setDacpacPath('');
     setSqlServerVersion('SQL Server 2022');
-    setCustomer('');
-    setSystem('');
     setDbName('');
     setDetectedDbs([]);
     setDetecting(false);
     setDetectError('');
-    setExtractionDatetime('');
+    setExtractionDate(localTodayString());
   }
 
   async function handleDetect() {
@@ -128,8 +160,8 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
     setDetectedDbs([]);
     setDbName('');
     try {
-      logger.debug('projects-tab: detecting databases for', name);
-      const dbs = await projectDetectDatabases(name.trim(), saPassword, dacpacPath);
+      logger.debug('projects-tab: detecting databases', dacpacPath);
+      const dbs = await projectDetectDatabases(dacpacPath);
       setDetectedDbs(dbs);
       if (dbs.length === 1) setDbName(dbs[0]);
     } catch (err) {
@@ -145,12 +177,18 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
       filters: [{ name: 'DacPac', extensions: ['dacpac'] }],
       multiple: false,
     });
-    if (typeof selected === 'string') setDacpacPath(selected);
+    if (typeof selected === 'string') {
+      setDacpacPath(selected);
+      // Auto-detect when a file is picked.
+      setDetectedDbs([]);
+      setDbName('');
+      setDetectError('');
+    }
   }
 
   async function handleCreate() {
-    if (!name.trim() || !saPassword || !dacpacPath || !customer.trim() || !system.trim() || !dbName.trim() || !extractionDatetime) {
-      toast.error('All fields are required');
+    if (!name.trim() || !saPassword || !dacpacPath || !dbName.trim() || !extractionDate) {
+      toast.error('All fields are required', { duration: Infinity });
       return;
     }
     setCreating(true);
@@ -161,10 +199,10 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
         saPassword,
         dacpacPath,
         sqlServerVersion,
-        customer.trim(),
-        system.trim(),
+        '',
+        '',
         dbName.trim(),
-        extractionDatetime,
+        localDateToUtc(extractionDate),
       );
       toast.success(`Project "${project.name}" created`);
       await loadProjects();
@@ -179,7 +217,7 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
       toast.success('Project initialized successfully');
     } catch (err) {
       logger.error('projects-tab: create failed', err);
-      toast.error(tauriErrorMessage(err));
+      toast.error(tauriErrorMessage(err), { duration: Infinity });
       finishInit();
     } finally {
       setCreating(false);
@@ -187,6 +225,14 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
       unlistenRef.current = null;
     }
   }
+
+  // Auto-detect when dacpacPath is set (either via picker or typed).
+  useEffect(() => {
+    if (dacpacPath) {
+      void handleDetect();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dacpacPath]);
 
   const busy = detecting || creating;
 
@@ -197,13 +243,13 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
           <DialogTitle>New project</DialogTitle>
         </DialogHeader>
 
-        {/* Detecting overlay — blocks the form while Docker/DacPac restore runs */}
+        {/* Detecting overlay */}
         {detecting && (
           <div className="absolute inset-0 z-10 rounded-lg flex flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm">
             <Loader2 className="h-8 w-8 animate-spin" style={{ color: 'var(--color-pacific)' }} />
             <div className="text-center">
-              <p className="text-sm font-semibold text-foreground">Detecting databases…</p>
-              <p className="text-xs text-muted-foreground mt-1">Starting SQL Server and restoring DacPac.<br />This may take a minute.</p>
+              <p className="text-sm font-semibold text-foreground">Reading DacPac…</p>
+              <p className="text-xs text-muted-foreground mt-1">Extracting database name from metadata.</p>
             </div>
           </div>
         )}
@@ -259,7 +305,52 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
             </div>
           </div>
 
-          {/* Row 3: SA password */}
+          {/* Row 3: Database name (auto-detected from DacPac) */}
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">Database name</Label>
+            <div className="flex flex-col gap-1.5">
+              {detectedDbs.length === 0 ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDetect}
+                  disabled={busy || !dacpacPath}
+                  data-testid="project-detect-databases"
+                >
+                  <Search className="h-3.5 w-3.5 mr-1.5" />
+                  Detect from DacPac
+                </Button>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <Select value={dbName} onValueChange={setDbName} disabled={busy}>
+                    <SelectTrigger data-testid="project-dbname-select">
+                      <SelectValue placeholder="Select database…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {detectedDbs.map((db) => (
+                        <SelectItem key={db} value={db}>{db}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleDetect}
+                    disabled={busy}
+                    title="Re-detect from DacPac"
+                    data-testid="project-redetect-databases"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
+              {detectError && (
+                <p className="text-xs text-destructive break-all" data-testid="project-detect-error">{detectError}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Row 4: SA password */}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="proj-sa" className="text-xs font-medium text-muted-foreground">SA password</Label>
             <Input
@@ -272,85 +363,16 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
             />
           </div>
 
-          {/* Row 4: Customer + System */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="proj-customer" className="text-xs font-medium text-muted-foreground">Customer</Label>
-              <Input
-                id="proj-customer"
-                value={customer}
-                onChange={(e) => setCustomer(e.target.value)}
-                placeholder="e.g. Contoso"
-                disabled={busy}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="proj-system" className="text-xs font-medium text-muted-foreground">Source system</Label>
-              <Input
-                id="proj-system"
-                value={system}
-                onChange={(e) => setSystem(e.target.value)}
-                placeholder="e.g. ERP"
-                disabled={busy}
-              />
-            </div>
-          </div>
-
-          {/* Row 5: Database detection + Extraction date */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-xs font-medium text-muted-foreground">Database name</Label>
-              <div className="flex flex-col gap-1.5">
-                {detectedDbs.length === 0 ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleDetect}
-                    disabled={busy || !name.trim() || !saPassword || !dacpacPath}
-                    data-testid="project-detect-databases"
-                  >
-                    <Search className="h-3.5 w-3.5 mr-1.5" />
-                    Detect databases
-                  </Button>
-                ) : (
-                  <div className="flex items-center gap-1.5">
-                    <Select value={dbName} onValueChange={setDbName} disabled={busy}>
-                      <SelectTrigger data-testid="project-dbname-select">
-                        <SelectValue placeholder="Select database…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {detectedDbs.map((db) => (
-                          <SelectItem key={db} value={db}>{db}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={handleDetect}
-                      disabled={busy}
-                      title="Re-detect databases"
-                      data-testid="project-redetect-databases"
-                    >
-                      <RefreshCw className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                )}
-                {detectError && (
-                  <p className="text-xs text-destructive break-all" data-testid="project-detect-error">{detectError}</p>
-                )}
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="proj-extraction" className="text-xs font-medium text-muted-foreground">Extraction date</Label>
-              <Input
-                id="proj-extraction"
-                type="date"
-                value={extractionDatetime}
-                onChange={(e) => setExtractionDatetime(e.target.value)}
-                disabled={busy}
-              />
-            </div>
+          {/* Row 5: Extraction date */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="proj-extraction" className="text-xs font-medium text-muted-foreground">Extraction date</Label>
+            <Input
+              id="proj-extraction"
+              type="date"
+              value={extractionDate}
+              onChange={(e) => setExtractionDate(e.target.value)}
+              disabled={busy}
+            />
           </div>
         </div>
 
@@ -358,7 +380,11 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
           <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancel
           </Button>
-          <Button size="sm" onClick={handleCreate} disabled={busy || !name.trim() || !saPassword || !dacpacPath || !customer || !system || !dbName || !extractionDatetime}>
+          <Button
+            size="sm"
+            onClick={handleCreate}
+            disabled={busy || !name.trim() || !saPassword || !dacpacPath || !dbName || !extractionDate}
+          >
             {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
             {creating ? 'Creating…' : 'Create'}
           </Button>
@@ -397,7 +423,7 @@ function ProjectRow({ id, name, slug, isActive, onRefresh }: ProjectRowProps) {
       toast.success(`Switched to "${name}"`);
     } catch (err) {
       logger.error('projects-tab: switch failed', err);
-      toast.error(`Switch failed: ${tauriErrorMessage(err)}`);
+      toast.error(`Switch failed: ${tauriErrorMessage(err)}`, { duration: Infinity });
       finishInit();
     } finally {
       setBusy(false);
@@ -415,7 +441,7 @@ function ProjectRow({ id, name, slug, isActive, onRefresh }: ProjectRowProps) {
       onRefresh();
     } catch (err) {
       logger.error('projects-tab: delete failed', err);
-      toast.error(`Delete failed: ${tauriErrorMessage(err)}`);
+      toast.error(`Delete failed: ${tauriErrorMessage(err)}`, { duration: Infinity });
     } finally {
       setBusy(false);
     }
@@ -433,7 +459,7 @@ function ProjectRow({ id, name, slug, isActive, onRefresh }: ProjectRowProps) {
       toast.success(`"${name}" reset and reinitialized`);
     } catch (err) {
       logger.error('projects-tab: reset failed', err);
-      toast.error(`Reset failed: ${tauriErrorMessage(err)}`);
+      toast.error(`Reset failed: ${tauriErrorMessage(err)}`, { duration: Infinity });
       finishInit();
     } finally {
       setBusy(false);

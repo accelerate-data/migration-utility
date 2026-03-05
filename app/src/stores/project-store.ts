@@ -29,6 +29,7 @@ interface ProjectState {
   applyInitStep: (event: InitStepEvent) => void;
   startInit: () => void;
   finishInit: () => void;
+  dismissInit: () => void;
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -71,6 +72,8 @@ export const useProjectStore = create<ProjectState>()((set) => ({
     }),
 
   finishInit: () => set({ isInitRunning: false }),
+
+  dismissInit: () => set({ isInitRunning: false, initSteps: [] }),
 
   applyInitStep: (event: InitStepEvent) =>
     set((state) => ({
