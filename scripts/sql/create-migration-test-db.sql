@@ -31,7 +31,7 @@ GO
 -- ============================================================
 
 -- bronze.Product
-SELECT TOP 5000
+SELECT
     ProductID, Name AS ProductName, ProductNumber,
     MakeFlag, FinishedGoodsFlag, Color, SafetyStockLevel, ReorderPoint,
     StandardCost, ListPrice, Size, SizeUnitMeasureCode, WeightUnitMeasureCode,
@@ -42,41 +42,42 @@ INTO bronze.Product
 FROM AdventureWorks2022.Production.Product;
 GO
 
--- bronze.Person (subset of Person.Person needed for Customer join)
-SELECT TOP 5000
-    BusinessEntityID, PersonType, Title, FirstName, MiddleName, LastName,
-    Suffix, EmailPromotion, ModifiedDate
-INTO bronze.Person
-FROM AdventureWorks2022.Person.Person
-WHERE PersonType IN ('IN','SC');  -- Individual customers and store contacts
-GO
-
--- bronze.Customer
-SELECT TOP 5000
+-- bronze.Customer (all rows — anchor table for Person and Orders)
+SELECT
     CustomerID, PersonID, StoreID, TerritoryID, AccountNumber, ModifiedDate
 INTO bronze.Customer
 FROM AdventureWorks2022.Sales.Customer;
 GO
 
--- bronze.SalesOrderHeader (TOP 2000 for size)
-SELECT TOP 2000
+-- bronze.Person — only persons referenced by bronze.Customer (join-complete)
+SELECT
+    p.BusinessEntityID, p.PersonType, p.Title, p.FirstName, p.MiddleName, p.LastName,
+    p.Suffix, p.EmailPromotion, p.ModifiedDate
+INTO bronze.Person
+FROM AdventureWorks2022.Person.Person p
+WHERE p.BusinessEntityID IN (
+    SELECT PersonID FROM bronze.Customer WHERE PersonID IS NOT NULL
+);
+GO
+
+-- bronze.SalesOrderHeader (all rows)
+SELECT
     SalesOrderID, RevisionNumber, OrderDate, DueDate, ShipDate, Status,
     OnlineOrderFlag, SalesOrderNumber, PurchaseOrderNumber, AccountNumber,
     CustomerID, SalesPersonID, TerritoryID, BillToAddressID, ShipToAddressID,
     ShipMethodID, CreditCardID, SubTotal, TaxAmt, Freight, TotalDue,
     Comment, ModifiedDate
 INTO bronze.SalesOrderHeader
-FROM AdventureWorks2022.Sales.SalesOrderHeader
-ORDER BY SalesOrderID;
+FROM AdventureWorks2022.Sales.SalesOrderHeader;
 GO
 
--- bronze.SalesOrderDetail (join to TOP headers)
-SELECT d.SalesOrderID, d.SalesOrderDetailID, d.CarrierTrackingNumber,
-    d.OrderQty, d.ProductID, d.SpecialOfferID, d.UnitPrice,
-    d.UnitPriceDiscount, CAST(d.LineTotal AS money) AS LineTotal, d.ModifiedDate
+-- bronze.SalesOrderDetail (all rows — no filter needed, headers are complete)
+SELECT
+    SalesOrderID, SalesOrderDetailID, CarrierTrackingNumber,
+    OrderQty, ProductID, SpecialOfferID, UnitPrice,
+    UnitPriceDiscount, CAST(LineTotal AS money) AS LineTotal, ModifiedDate
 INTO bronze.SalesOrderDetail
-FROM AdventureWorks2022.Sales.SalesOrderDetail d
-WHERE d.SalesOrderID IN (SELECT SalesOrderID FROM bronze.SalesOrderHeader);
+FROM AdventureWorks2022.Sales.SalesOrderDetail;
 GO
 
 -- bronze.Employee
