@@ -216,12 +216,12 @@ pub fn project_create_full(
             Some(&local_clone_path),
             &[],
         )?;
-        let auth_header = format!("AUTHORIZATION: bearer {token}");
+        let auth_header = format!("Authorization: Bearer {token}");
         run_cmd(
             "git",
             &["-c", &format!("http.extraheader={auth_header}"), "push"],
             Some(&local_clone_path),
-            &[],
+            &[("GIT_TERMINAL_PROMPT", "0")],
         )?;
         log::info!("[project_create_full] pushed project {} to repo", project.slug);
 
@@ -320,10 +320,10 @@ pub async fn project_init(
     emit_step(&app, InitStep::GitPull, InitStepStatus::Running);
     let git_result = if Path::new(&local_clone_path).join(".git").exists() {
         log::debug!("[project_init] git pull in {local_clone_path}");
-        run_cmd("git", &["pull"], Some(&local_clone_path), &[])
+        run_cmd("git", &["pull"], Some(&local_clone_path), &[("GIT_TERMINAL_PROMPT", "0")])
     } else {
         log::debug!("[project_init] git clone {clone_url} into {local_clone_path}");
-        run_cmd("git", &["clone", &clone_url, &local_clone_path], None, &[])
+        run_cmd("git", &["clone", &clone_url, &local_clone_path], None, &[("GIT_TERMINAL_PROMPT", "0")])
     };
     match git_result {
         Ok(_) => emit_step(&app, InitStep::GitPull, InitStepStatus::Ok),
@@ -595,15 +595,16 @@ pub fn project_delete_full(
 
     // Step 3: Git rm + commit + push (best-effort — repo may not exist or be set up).
     if let (Some(ref lcp), Some(ref tok)) = (&local_clone_path, &token) {
-        let auth_header = format!("AUTHORIZATION: bearer {tok}");
+        let auth_header = format!("Authorization: Bearer {tok}");
+        let push_args = ["-c", &format!("http.extraheader={auth_header}"), "push"];
         let git_steps: &[(&[&str], &str)] = &[
             (&["rm", "-r", "--ignore-unmatch", &slug], "git rm"),
             (&["-c", "user.name=Migration Utility", "-c", "user.email=migration@vibedata.com",
                "commit", "-m", &format!("chore: remove project {slug}")], "git commit"),
-            (&["-c", &format!("http.extraheader={auth_header}"), "push"], "git push"),
+            (&push_args, "git push"),
         ];
         for (args, label) in git_steps {
-            if let Err(e) = run_cmd("git", args, Some(lcp), &[]) {
+            if let Err(e) = run_cmd("git", args, Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]) {
                 log::warn!("[project_delete_full] {} (non-fatal): {e}", label);
             }
         }
