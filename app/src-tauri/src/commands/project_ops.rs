@@ -104,6 +104,29 @@ fn volume_name(slug: &str) -> String {
     format!("migration-{slug}-data")
 }
 
+/// Stop any container currently bound to port 1433 that is NOT `skip_name`.
+/// Best-effort: logs warnings on failure, does not return an error.
+fn stop_container_on_port(skip_name: &str) {
+    let out = run_cmd(
+        "docker",
+        &["ps", "--filter", "publish=1433", "--format", "{{.Names}}"],
+        None,
+        &[],
+    )
+    .unwrap_or_default();
+
+    for name in out.lines() {
+        let name = name.trim();
+        if name.is_empty() || name == skip_name {
+            continue;
+        }
+        log::info!("[stop_container_on_port] stopping container {name} holding port 1433");
+        if let Err(e) = run_cmd("docker", &["stop", name], None, &[]) {
+            log::warn!("[stop_container_on_port] stop {name} failed (non-fatal): {e}");
+        }
+    }
+}
+
 // ── project_create_full (VU-403 absorbed into VU-404) ─────────────────────────
 
 /// Create a project: insert DB row, scaffold repo structure, push DacPac, create GH secret,
@@ -342,12 +365,14 @@ pub async fn project_init(
         log::debug!("[project_init] container {container} already running");
         Ok(())
     } else if ps_out.is_empty() {
-        // Container doesn't exist — create and start.
+        // Container doesn't exist — free port 1433 if needed, then create.
         log::debug!("[project_init] creating container {container}");
+        stop_container_on_port(&container);
         run_cmd(
             "docker",
             &[
                 "run", "-d",
+                "--platform", "linux/amd64",
                 "--name", &container,
                 "-e", "ACCEPT_EULA=Y",
                 "-e", &format!("SA_PASSWORD={sa_password}"),
@@ -361,8 +386,9 @@ pub async fn project_init(
         )
         .map(|_| ())
     } else {
-        // Container exists but stopped — start it.
+        // Container exists but stopped — free port 1433 if needed, then start.
         log::debug!("[project_init] starting stopped container {container}");
+        stop_container_on_port(&container);
         run_cmd("docker", &["start", &container], None, &[]).map(|_| ())
     };
 
@@ -699,10 +725,13 @@ pub async fn project_detect_databases(
         log::debug!("[project_detect_databases] step=start_container status=already_running");
     } else if ps_out.is_empty() {
         log::debug!("[project_detect_databases] step=start_container action=create");
+        // Free port 1433 if another migration container is holding it.
+        stop_container_on_port(&container);
         run_cmd(
             "docker",
             &[
                 "run", "-d",
+                "--platform", "linux/amd64",
                 "--name", &container,
                 "-e", "ACCEPT_EULA=Y",
                 "-e", &format!("SA_PASSWORD={sa_password}"),
@@ -720,6 +749,8 @@ pub async fn project_detect_databases(
         log::debug!("[project_detect_databases] step=start_container status=created");
     } else {
         log::debug!("[project_detect_databases] step=start_container action=start ps_out={:?}", ps_out);
+        // Free port 1433 if another migration container is holding it.
+        stop_container_on_port(&container);
         run_cmd("docker", &["start", &container], None, &[]).map_err(|e| {
             log::error!("[project_detect_databases] start_container start failed: {e}");
             e
