@@ -3,6 +3,11 @@ use tauri_plugin_log::{Target, TargetKind};
 const LOG_FILE_NAME: &str = "app";
 
 /// Build the log plugin with dual targets: log file + stderr.
+///
+/// The plugin level is set to Debug so that debug messages are not silently
+/// dropped by the plugin's own filter before reaching the file/stderr targets.
+/// Runtime log level is controlled by `set_log_level` via `log::set_max_level`.
+/// External crates are capped at Warn to avoid noise.
 pub fn build_log_plugin() -> tauri_plugin_log::Builder {
     tauri_plugin_log::Builder::new()
         .targets([
@@ -11,7 +16,13 @@ pub fn build_log_plugin() -> tauri_plugin_log::Builder {
             }),
             Target::new(TargetKind::Stderr),
         ])
-        .level(log::LevelFilter::Info)
+        .level(log::LevelFilter::Debug)
+        // Suppress noisy external crates at Warn — only our code gets debug.
+        .level_for("tiberius", log::LevelFilter::Warn)
+        .level_for("tokio", log::LevelFilter::Warn)
+        .level_for("reqwest", log::LevelFilter::Warn)
+        .level_for("hyper", log::LevelFilter::Warn)
+        .level_for("rustls", log::LevelFilter::Warn)
         .max_file_size(50_000_000)
 }
 
