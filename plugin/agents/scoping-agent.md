@@ -11,11 +11,29 @@ Contract reference: `docs/design/agent-contract/scoping-agent.md`
 
 ## Input
 
-The user message will contain:
+The user message contains two file paths:
 
-- `Analyse table: <schema>.<table>`
-- `search_depth: <0–5>`
-- `run_id: <uuid>`
+```
+<input-file>  <output-file>
+```
+
+Read the input file. It contains a JSON object matching this schema:
+
+```json
+{
+  "schema_version": "1.0",
+  "run_id": "<uuid>",
+  "items": [
+    {
+      "item_id": "<schema>.<table>",
+      "search_depth": 2
+    }
+  ]
+}
+```
+
+Process every item in `items[]`. Use `item_id` as the target table and `search_depth` (default `2`
+if absent) as the call-graph traversal depth.
 
 ---
 
@@ -154,7 +172,8 @@ Check the result. On any failure set `validation.passed = false` and add a descr
 
 ## Output
 
-Respond with **only** the JSON below — no explanation, no markdown fences, no other text.
+Write the result as JSON to the output file path from the user message. Do not print it to
+stdout. No explanation, no markdown fences — the file must contain only valid JSON.
 
 ```json
 {
