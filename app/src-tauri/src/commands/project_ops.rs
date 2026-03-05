@@ -491,8 +491,9 @@ pub async fn project_init(
             log::debug!("[project_init] RestoreDacpac db_name={db_name} profile={}", profile_path.display());
 
             // Wait for SQL Server to accept connections before running sqlpackage.
-            log::info!("[project_init] waiting for SQL Server to be ready (up to 120s)");
-            wait_for_sql_server("localhost", 1433, &sa_password, 120).await
+            // First-run image pull + SQL Server init can take 3-5 minutes.
+            log::info!("[project_init] waiting for SQL Server to be ready (up to 300s)");
+            wait_for_sql_server("localhost", 1433, &sa_password, 300).await
                 .map_err(|e| CommandError::External(format!("SQL Server did not become ready in time: {e}")))?;
 
             run_cmd_async("sqlpackage", &sqlpackage_args, None, &[]).await.map(|_| ())
@@ -557,7 +558,8 @@ async fn wait_for_sql_server(
 
     loop {
         attempt += 1;
-        log::debug!("[wait_for_sql_server] attempt={} addr={}", attempt, addr);
+        let elapsed = std::time::Instant::now().duration_since(deadline - std::time::Duration::from_secs(timeout_secs));
+        log::debug!("[wait_for_sql_server] attempt={} elapsed={}s addr={}", attempt, elapsed.as_secs(), addr);
 
         let try_connect = async {
             let tcp = tokio::net::TcpStream::connect(&addr).await?;
