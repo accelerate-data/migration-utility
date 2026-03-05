@@ -16,14 +16,27 @@ use crate::types::{CommandError, InitStep, InitStepEvent, InitStepStatus, Projec
 
 // ── DacPac full-text stripping ────────────────────────────────────────────────
 
-/// Strip `SqlFullTextIndex` and `SqlFullTextCatalog` elements from `model.xml`
-/// inside a .dacpac (which is a ZIP), recalculate the SHA-256 of the modified
-/// `model.xml`, update `Origin.xml`, and write a new .dacpac to a temp path.
+/// Strip full-text objects from a `.dacpac` file (which is a ZIP), recalculate
+/// the SHA-256 of the modified `model.xml`, update `Origin.xml`, and write a
+/// new `.dacpac` to a temp path.
 ///
-/// Returns the path of the stripped copy, or the original path if model.xml
-/// contained no full-text elements (no copy made).
+/// Stripped elements:
+/// - `SqlFullTextIndex`, `SqlFullTextCatalog` — FT schema objects
+/// - Any other element whose body contains FTS predicates (`FREETEXTTABLE`,
+///   `CONTAINSTABLE`, `FREETEXT(`, `CONTAINS(`) — e.g. stored procedures that
+///   would fail to compile without the FT index present
+///
+/// Validates the file is a `.dacpac` (contains `DacMetadata.xml`, not a
+/// `.bacpac`).  Returns the original path unchanged if nothing was stripped.
 fn strip_dacpac_fulltext(dacpac_path: &Path) -> Result<std::path::PathBuf, CommandError> {
     use zip::write::SimpleFileOptions;
+
+    // Validate extension.
+    if dacpac_path.extension().and_then(|e| e.to_str()) != Some("dacpac") {
+        return Err(CommandError::Validation(format!(
+            "'{}' is not a .dacpac file", dacpac_path.display()
+        )));
+    }
 
     let file = std::fs::File::open(dacpac_path).map_err(|e| {
         CommandError::Io(format!("Cannot open dacpac '{}': {e}", dacpac_path.display()))
@@ -31,6 +44,15 @@ fn strip_dacpac_fulltext(dacpac_path: &Path) -> Result<std::path::PathBuf, Comma
     let mut archive = zip::ZipArchive::new(file).map_err(|e| {
         CommandError::Io(format!("Not a valid dacpac ZIP: {e}"))
     })?;
+
+    // Validate it is a dacpac (has DacMetadata.xml) not a bacpac.
+    if archive.by_name("DacMetadata.xml").is_err() {
+        return Err(CommandError::Validation(
+            "File does not appear to be a .dacpac (missing DacMetadata.xml). \
+             A .bacpac (data export) is not supported — please provide a schema-only .dacpac."
+                .into(),
+        ));
+    }
 
     // Read model.xml.
     let model_xml = {
@@ -112,43 +134,104 @@ fn strip_dacpac_fulltext(dacpac_path: &Path) -> Result<std::path::PathBuf, Comma
     Ok(tmp_path)
 }
 
-/// Remove `<Element Type="SqlFullTextIndex" ...>` and `<Element Type="SqlFullTextCatalog" ...>`
-/// blocks, including all nested content, from model.xml text.
+/// Two-pass strip of full-text related elements from model.xml.
+///
+/// Pass 1: Collect all top-level `<Element>` blocks as (header_line, body_lines) pairs,
+///         plus any leading non-element lines (XML declaration, root tag, etc.).
+/// Pass 2: Drop any block where:
+///   - Type attribute is `SqlFullTextIndex` or `SqlFullTextCatalog`
+///   - OR: the block body contains FTS-only predicates (FREETEXTTABLE, CONTAINSTABLE,
+///     FREETEXT() — these fail to compile when no FT index exists)
+///
+/// Returns the reassembled XML string.
 fn strip_fulltext_elements(xml: &str) -> String {
-    let targets = ["SqlFullTextIndex", "SqlFullTextCatalog"];
-    let mut out = String::with_capacity(xml.len());
-    let mut depth: i32 = 0;     // nesting depth while inside a stripped block
-    let mut in_strip = false;
+    // FT object types to strip unconditionally.
+    const FT_TYPES: &[&str] = &["SqlFullTextIndex", "SqlFullTextCatalog"];
+    // FTS predicate substrings (case-insensitive) that indicate an element uses FTS.
+    // FREETEXTTABLE / CONTAINSTABLE are FTS-only functions; FREETEXT( / CONTAINS( are predicates.
+    const FT_PREDICATES: &[&str] = &["FREETEXTTABLE", "CONTAINSTABLE", "FREETEXT(", "CONTAINS("];
+
+    // ── Pass 1: split into segments ──────────────────────────────────────────
+    // A segment is either:
+    //   Preamble(lines) — everything before the first top-level <Element>
+    //   Block(lines)    — a complete top-level <Element>...</Element> block
+    enum Seg { Preamble(Vec<String>), Block(Vec<String>) }
+
+    let mut segments: Vec<Seg> = Vec::new();
+    let mut preamble: Vec<String> = Vec::new();
+    let mut block: Vec<String> = Vec::new();
+    let mut depth: i32 = 0;
+    let mut in_block = false;
 
     for line in xml.lines() {
         let trimmed = line.trim();
-
-        if !in_strip {
-            // Detect opening of a target element.
-            if targets.iter().any(|t| trimmed.contains(&format!("\"{}\"", t)))
-                && trimmed.starts_with("<Element")
-            {
-                in_strip = true;
+        if !in_block {
+            if trimmed.starts_with("<Element") {
+                in_block = true;
                 depth = if trimmed.ends_with("/>") { 0 } else { 1 };
+                block.push(line.to_string());
                 if depth == 0 {
-                    in_strip = false; // self-closing — skip line and stay out
+                    // Self-closing single-line element.
+                    segments.push(Seg::Block(std::mem::take(&mut block)));
+                    in_block = false;
                 }
-                continue;
+            } else {
+                preamble.push(line.to_string());
             }
-            out.push_str(line);
-            out.push('\n');
         } else {
-            // Track nesting depth within the stripped block.
+            block.push(line.to_string());
             if trimmed.starts_with("<Element") && !trimmed.ends_with("/>") {
                 depth += 1;
             } else if trimmed == "</Element>" {
                 depth -= 1;
                 if depth == 0 {
-                    in_strip = false;
+                    if !preamble.is_empty() {
+                        segments.push(Seg::Preamble(std::mem::take(&mut preamble)));
+                    }
+                    segments.push(Seg::Block(std::mem::take(&mut block)));
+                    in_block = false;
                 }
             }
-            // Skip this line.
         }
+    }
+    // Flush any trailing preamble (closing root tag, etc.).
+    if !preamble.is_empty() {
+        segments.push(Seg::Preamble(preamble));
+    }
+
+    // ── Pass 2: filter and reassemble ────────────────────────────────────────
+    let mut out = String::with_capacity(xml.len());
+    let mut stripped_count = 0usize;
+
+    for seg in segments {
+        match seg {
+            Seg::Preamble(lines) => {
+                for l in lines { out.push_str(&l); out.push('\n'); }
+            }
+            Seg::Block(lines) => {
+                let header = lines.first().map(|s| s.as_str()).unwrap_or("");
+                // Check if this block is an FT type.
+                let is_ft_type = FT_TYPES.iter().any(|t| header.contains(&format!("\"{t}\"")));
+                if is_ft_type {
+                    stripped_count += 1;
+                    log::debug!("[strip_fulltext_elements] stripping FT type: {}", header.trim());
+                    continue;
+                }
+                // Check if the body uses FTS predicates (case-insensitive).
+                let body_upper = lines.join("\n").to_uppercase();
+                let uses_fts = FT_PREDICATES.iter().any(|p| body_upper.contains(&p.to_uppercase()));
+                if uses_fts {
+                    stripped_count += 1;
+                    log::debug!("[strip_fulltext_elements] stripping FTS-using element: {}", header.trim());
+                    continue;
+                }
+                for l in &lines { out.push_str(l); out.push('\n'); }
+            }
+        }
+    }
+
+    if stripped_count > 0 {
+        log::info!("[strip_fulltext_elements] stripped {} element(s) containing full-text references", stripped_count);
     }
     out
 }
