@@ -1,7 +1,8 @@
 # Layer 1: MCP Server
 
-Test the genai-toolbox MCP server in isolation against your local SQL Server.
-No Python, no agent code, no GH Actions.
+We are using the MCP Toolbox for databases which is an open source MCP server for databases.
+
+The goal of this phase is to test the MCP toolbox for databases in isolation against our local SQL Server.
 
 Back to [Local Agent Testing overview](README.md).
 
@@ -11,7 +12,7 @@ Back to [Local Agent Testing overview](README.md).
 
 Verify that:
 
-1. genai-toolbox connects to the local SQL Server container.
+1. toolbox connects to the local SQL Server container.
 2. The `mssql-execute-sql` tool executes arbitrary SQL correctly.
 3. The SQL catalog queries the scoping agent will use return the expected schema and rows.
 
@@ -22,7 +23,7 @@ Verify that:
 - Local SQL Server container running with a project database restored.
   See [Docker Setup](../setup-docker/README.md).
 - `SA_PASSWORD` for the container.
-- genai-toolbox binary installed (see below).
+- toolbox binary installed (see below).
 - Claude Code or Codex with MCP support.
 
 ---
@@ -30,7 +31,7 @@ Verify that:
 ## Step 1: Install genai-toolbox
 
 ```bash
-brew install googleapis/tap/genai-toolbox
+brew install mcp-toolbox
 toolbox --version
 ```
 
@@ -39,7 +40,6 @@ toolbox --version
 ## Step 2: Locate `tools.yaml`
 
 The canonical config is checked into the repo at `orchestrator/mssql_mcp/tools.yaml`.
-Use it directly — no need to create a copy.
 
 ```text
 orchestrator/mssql_mcp/tools.yaml   ← single source of truth (local + GHCR image)
@@ -53,14 +53,14 @@ stored in the file.
 
 ## Step 3: Add to Claude Code as an MCP server
 
-Add to `~/.claude.json` (or run `claude mcp add`):
+Add to `.mcp.json` in the repo root (project-scoped; add to `.gitignore` since it contains secrets):
 
 ```json
 {
   "mcpServers": {
     "mssql": {
       "command": "toolbox",
-      "args": ["--stdio", "--config", "/path/to/repo/orchestrator/mssql_mcp/tools.yaml"],
+      "args": ["--stdio", "--tools-file", "orchestrator/mssql_mcp/tools.yaml"],
       "env": {
         "MSSQL_HOST": "127.0.0.1",
         "MSSQL_PORT": "1433",
@@ -72,9 +72,7 @@ Add to `~/.claude.json` (or run `claude mcp add`):
 }
 ```
 
-Replace `/path/to/repo` with the absolute path to your local clone. Restart Claude Code.
-Confirm the `mssql-execute-sql` tool appears in the tool list.
-
+The path in `--tools-file` is relative to the working directory where `toolbox` is invoked.
 Restart Claude Code. Confirm the `mssql-execute-sql` tool appears in the tool list.
 
 ---

@@ -37,3 +37,6 @@ playwright-artifacts/
 # Python bytecode
 __pycache__/
 *.py[cod]
+
+# Local MCP config (contains secrets)
+.mcp.json
