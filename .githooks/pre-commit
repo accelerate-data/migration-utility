@@ -1,5 +1,18 @@
 #!/bin/sh
-# Prevent committing SA_PASSWORD in .mcp.json
+# Prevent committing secrets: Anthropic API key or SA_PASSWORD in .mcp.json
+
+# Block Anthropic API keys
+ANT_KEY_PAT="sk-ant"; ANT_KEY_PAT="${ANT_KEY_PAT}-"
+if git diff --cached --name-only | xargs grep -l "$ANT_KEY_PAT" 2>/dev/null | grep -q .; then
+  echo "ERROR: Anthropic API key detected in staged files." >&2
+  echo "Remove the key before committing." >&2
+  git diff --cached --name-only | xargs grep -l "$ANT_KEY_PAT" 2>/dev/null | while read f; do
+    echo "  $f" >&2
+  done
+  exit 1
+fi
+
+# Block SA_PASSWORD in .mcp.json
 
 if git diff --cached --name-only | grep -q "^\.mcp\.json$"; then
   password=$(git show :0:.mcp.json \
