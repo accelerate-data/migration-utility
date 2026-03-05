@@ -493,7 +493,7 @@ pub async fn project_init(
             // Wait for SQL Server to accept connections before running sqlpackage.
             // First-run image pull + SQL Server init can take 3-5 minutes.
             log::info!("[project_init] waiting for SQL Server to be ready (up to 300s)");
-            wait_for_sql_server("localhost", 1433, &sa_password, 300).await
+            wait_for_sql_server("localhost", 1433, &sa_password, 300, Some(&container)).await
                 .map_err(|e| CommandError::External(format!("SQL Server did not become ready in time: {e}")))?;
 
             run_cmd_async("sqlpackage", &sqlpackage_args, None, &[]).await.map(|_| ())
@@ -514,7 +514,7 @@ pub async fn project_init(
     emit_step(&app, InitStep::VerifyDb, InitStepStatus::Running);
 
     // Quick final ping — SQL Server is already running at this point.
-    let verify_result = wait_for_sql_server("localhost", 1433, &sa_password, 10).await;
+    let verify_result = wait_for_sql_server("localhost", 1433, &sa_password, 10, Some(&container)).await;
     match verify_result {
         Ok(_) => {
             emit_step(&app, InitStep::VerifyDb, InitStepStatus::Ok);
@@ -544,11 +544,13 @@ fn find_dacpac(dir: &Path) -> Option<std::path::PathBuf> {
 
 /// Poll SQL Server until it accepts a TDS connection or the timeout expires.
 /// SQL Server can take 30–60 s to initialise after the container starts.
+/// Pass `container` to detect early container exits (e.g. bad SA password) and fail fast.
 async fn wait_for_sql_server(
     host: &str,
     port: u16,
     sa_password: &str,
     timeout_secs: u64,
+    container: Option<&str>,
 ) -> Result<(), CommandError> {
     use tokio_util::compat::TokioAsyncWriteCompatExt;
 
@@ -585,6 +587,31 @@ async fn wait_for_sql_server(
                     )));
                 }
                 log::debug!("[wait_for_sql_server] not ready yet (attempt {attempt}): {e} — retrying in 5s");
+
+                // Check if the container has exited — if so, fail fast with its logs.
+                if let Some(ctr) = container {
+                    let state = run_cmd_async(
+                        "docker",
+                        &["inspect", "--format", "{{.State.Status}}", ctr],
+                        None,
+                        &[],
+                    )
+                    .await
+                    .unwrap_or_default();
+                    if state != "running" && !state.is_empty() {
+                        let logs = run_cmd_async("docker", &["logs", "--tail", "30", ctr], None, &[])
+                            .await
+                            .unwrap_or_default();
+                        let msg = format!(
+                            "Container '{ctr}' exited unexpectedly (state: {state}). \
+                             Check the SA password meets SQL Server complexity requirements \
+                             (≥8 chars, uppercase + lowercase + digit + symbol).\nLogs:\n{logs}"
+                        );
+                        log::error!("[wait_for_sql_server] container exited: {msg}");
+                        return Err(CommandError::External(msg));
+                    }
+                }
+
                 tokio::time::sleep(std::time::Duration::from_secs(5)).await;
             }
         }
