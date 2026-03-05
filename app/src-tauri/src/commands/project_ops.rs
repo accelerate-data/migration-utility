@@ -389,10 +389,11 @@ pub async fn project_init(
             "No .dacpac file found in {}", slug_dir.display()
         ))),
         Some(ref dacpac) => {
-            // Check whether the target DB already exists to make this step idempotent.
+            // DB name is embedded in the connection string — /TargetDatabaseName
+            // cannot be used alongside /TargetConnectionString.
             let db_name = slug.replace('-', "_");
             let conn_str = format!(
-                "Server=localhost,1433;User Id=sa;Password={sa_password};TrustServerCertificate=True"
+                "Server=localhost,1433;Database={db_name};User Id=sa;Password={sa_password};TrustServerCertificate=True"
             );
             let check_output = run_cmd(
                 "sqlpackage",
@@ -400,7 +401,6 @@ pub async fn project_init(
                     "/Action:Publish",
                     &format!("/SourceFile:{}", dacpac.display()),
                     &format!("/TargetConnectionString:{conn_str}"),
-                    &format!("/TargetDatabaseName:{db_name}"),
                 ],
                 None,
                 &[],
@@ -730,14 +730,15 @@ pub async fn project_detect_databases(
         log::debug!("[project_detect_databases] step=start_container status=started");
     }
 
-    // Step 3: Restore the DacPac (idempotent — sqlpackage Publish creates or updates).
+    // Step 3: Restore the DacPac — DB name embedded in connection string.
+    // /TargetDatabaseName cannot be used alongside /TargetConnectionString.
     let db_name = slug.replace('-', "_");
-    let conn_str = format!(
-        "Server=localhost,1433;User Id=sa;Password=<redacted>;TrustServerCertificate=True"
+    let conn_str_log = format!(
+        "Server=localhost,1433;Database={db_name};User Id=sa;Password=<redacted>;TrustServerCertificate=True"
     );
-    log::debug!("[project_detect_databases] step=restore_dacpac db_name={} conn_str={}", db_name, conn_str);
+    log::debug!("[project_detect_databases] step=restore_dacpac db_name={} conn_str={}", db_name, conn_str_log);
     let conn_str_real = format!(
-        "Server=localhost,1433;User Id=sa;Password={sa_password};TrustServerCertificate=True"
+        "Server=localhost,1433;Database={db_name};User Id=sa;Password={sa_password};TrustServerCertificate=True"
     );
     run_cmd(
         "sqlpackage",
@@ -745,7 +746,6 @@ pub async fn project_detect_databases(
             "/Action:Publish",
             &format!("/SourceFile:{dacpac_path}"),
             &format!("/TargetConnectionString:{conn_str_real}"),
-            &format!("/TargetDatabaseName:{db_name}"),
         ],
         None,
         &[],
