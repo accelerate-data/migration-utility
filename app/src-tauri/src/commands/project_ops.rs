@@ -669,18 +669,23 @@ pub async fn project_detect_databases(
     sa_password: String,
     dacpac_path: String,
 ) -> Result<Vec<String>, CommandError> {
-    log::info!("[project_detect_databases] name={}", name);
+    log::info!("[project_detect_databases] name={} dacpac_path={}", name, dacpac_path);
 
     let slug = to_slug_simple(&name);
     let container = container_name(&slug);
     let volume = volume_name(&slug);
+    log::debug!("[project_detect_databases] slug={} container={} volume={}", slug, container, volume);
 
     // Step 1: Check Docker is available.
-    run_cmd("docker", &["info"], None, &[]).map_err(|_| {
+    log::debug!("[project_detect_databases] step=docker_check");
+    run_cmd("docker", &["info"], None, &[]).map_err(|e| {
+        log::error!("[project_detect_databases] docker_check failed: {e}");
         CommandError::External("Docker is not running — please start Docker Desktop".into())
     })?;
+    log::debug!("[project_detect_databases] step=docker_check status=ok");
 
     // Step 2: Create/start the container (idempotent, same logic as project_init).
+    log::debug!("[project_detect_databases] step=container_status");
     let ps_out = run_cmd(
         "docker",
         &["ps", "-a", "--filter", &format!("name={container}"), "--format", "{{.Status}}"],
@@ -688,11 +693,12 @@ pub async fn project_detect_databases(
         &[],
     )
     .unwrap_or_default();
+    log::debug!("[project_detect_databases] container_status ps_out={:?}", ps_out);
 
     if ps_out.to_lowercase().starts_with("up") {
-        log::debug!("[project_detect_databases] container {container} already running");
+        log::debug!("[project_detect_databases] step=start_container status=already_running");
     } else if ps_out.is_empty() {
-        log::debug!("[project_detect_databases] creating container {container}");
+        log::debug!("[project_detect_databases] step=start_container action=create");
         run_cmd(
             "docker",
             &[
@@ -707,15 +713,27 @@ pub async fn project_detect_databases(
             ],
             None,
             &[],
-        )?;
+        ).map_err(|e| {
+            log::error!("[project_detect_databases] start_container create failed: {e}");
+            e
+        })?;
+        log::debug!("[project_detect_databases] step=start_container status=created");
     } else {
-        log::debug!("[project_detect_databases] starting stopped container {container}");
-        run_cmd("docker", &["start", &container], None, &[])?;
+        log::debug!("[project_detect_databases] step=start_container action=start ps_out={:?}", ps_out);
+        run_cmd("docker", &["start", &container], None, &[]).map_err(|e| {
+            log::error!("[project_detect_databases] start_container start failed: {e}");
+            e
+        })?;
+        log::debug!("[project_detect_databases] step=start_container status=started");
     }
 
     // Step 3: Restore the DacPac (idempotent — sqlpackage Publish creates or updates).
     let db_name = slug.replace('-', "_");
     let conn_str = format!(
+        "Server=localhost,1433;User Id=sa;Password=<redacted>;TrustServerCertificate=True"
+    );
+    log::debug!("[project_detect_databases] step=restore_dacpac db_name={} conn_str={}", db_name, conn_str);
+    let conn_str_real = format!(
         "Server=localhost,1433;User Id=sa;Password={sa_password};TrustServerCertificate=True"
     );
     run_cmd(
@@ -723,21 +741,32 @@ pub async fn project_detect_databases(
         &[
             "/Action:Publish",
             &format!("/SourceFile:{dacpac_path}"),
-            &format!("/TargetConnectionString:{conn_str}"),
+            &format!("/TargetConnectionString:{conn_str_real}"),
             &format!("/TargetDatabaseName:{db_name}"),
         ],
         None,
         &[],
-    )?;
-    log::debug!("[project_detect_databases] DacPac restored as {db_name}");
+    ).map_err(|e| {
+        log::error!("[project_detect_databases] restore_dacpac failed: {e}");
+        e
+    })?;
+    log::debug!("[project_detect_databases] step=restore_dacpac status=ok db_name={}", db_name);
 
     // Step 4: Wait briefly, then probe connectivity.
+    log::debug!("[project_detect_databases] step=wait_and_probe sleeping 2s");
     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-    probe_sql_connection("localhost", 1433, &sa_password).await?;
+    log::debug!("[project_detect_databases] step=probe_connection");
+    probe_sql_connection("localhost", 1433, &sa_password).await.map_err(|e| {
+        log::error!("[project_detect_databases] probe_connection failed: {e}");
+        e
+    })?;
+    log::debug!("[project_detect_databases] step=probe_connection status=ok");
 
     // Step 5: Query sys.databases for user databases (database_id > 4 excludes system DBs).
+    log::debug!("[project_detect_databases] step=query_databases");
     use tokio_util::compat::TokioAsyncWriteCompatExt;
     let tcp = tokio::net::TcpStream::connect("localhost:1433").await.map_err(|e| {
+        log::error!("[project_detect_databases] tcp_connect failed: {e}");
         CommandError::External(format!("Cannot reach SQL Server: {e}"))
     })?;
     tcp.set_nodelay(true).ok();
@@ -750,15 +779,25 @@ pub async fn project_detect_databases(
 
     let mut client = tiberius::Client::connect(config, tcp.compat_write())
         .await
-        .map_err(|e| CommandError::External(format!("SQL Server connection failed: {e}")))?;
+        .map_err(|e| {
+            log::error!("[project_detect_databases] tiberius_connect failed: {e}");
+            CommandError::External(format!("SQL Server connection failed: {e}"))
+        })?;
+    log::debug!("[project_detect_databases] step=query_databases tiberius_connected");
 
     let rows = client
         .simple_query("SELECT name FROM sys.databases WHERE database_id > 4 ORDER BY name")
         .await
-        .map_err(|e| CommandError::External(format!("sys.databases query failed: {e}")))?
+        .map_err(|e| {
+            log::error!("[project_detect_databases] query failed: {e}");
+            CommandError::External(format!("sys.databases query failed: {e}"))
+        })?
         .into_first_result()
         .await
-        .map_err(|e| CommandError::External(format!("sys.databases result failed: {e}")))?;
+        .map_err(|e| {
+            log::error!("[project_detect_databases] result collection failed: {e}");
+            CommandError::External(format!("sys.databases result failed: {e}"))
+        })?;
 
     let databases: Vec<String> = rows
         .iter()

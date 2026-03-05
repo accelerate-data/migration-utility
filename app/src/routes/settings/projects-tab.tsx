@@ -38,7 +38,7 @@ const SQL_SERVER_VERSIONS = [
   { value: 'SQL Server 2014', label: 'SQL Server 2014 (12.x)' },
 ];
 import SettingsPanelShell from '@/components/settings/settings-panel-shell';
-import { projectCreateFull, projectDetectDatabases, projectDeleteFull, projectInit, projectResetLocal, listenProjectInitStep } from '@/lib/tauri';
+import { projectCreateFull, projectDetectDatabases, projectDeleteFull, projectInit, projectResetLocal, listenProjectInitStep, tauriErrorMessage } from '@/lib/tauri';
 import { INIT_STEP_LABEL } from '@/lib/types';
 import { logger } from '@/lib/logger';
 import { useProjectStore } from '@/stores/project-store';
@@ -134,7 +134,7 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
       if (dbs.length === 1) setDbName(dbs[0]);
     } catch (err) {
       logger.error('projects-tab: detect databases failed', err);
-      setDetectError(String(err));
+      setDetectError(tauriErrorMessage(err));
     } finally {
       setDetecting(false);
     }
@@ -179,7 +179,7 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
       toast.success('Project initialized successfully');
     } catch (err) {
       logger.error('projects-tab: create failed', err);
-      toast.error(String(err));
+      toast.error(tauriErrorMessage(err));
       finishInit();
     } finally {
       setCreating(false);
@@ -397,7 +397,7 @@ function ProjectRow({ id, name, slug, isActive, onRefresh }: ProjectRowProps) {
       toast.success(`Switched to "${name}"`);
     } catch (err) {
       logger.error('projects-tab: switch failed', err);
-      toast.error(`Switch failed: ${String(err)}`);
+      toast.error(`Switch failed: ${tauriErrorMessage(err)}`);
       finishInit();
     } finally {
       setBusy(false);
@@ -415,7 +415,7 @@ function ProjectRow({ id, name, slug, isActive, onRefresh }: ProjectRowProps) {
       onRefresh();
     } catch (err) {
       logger.error('projects-tab: delete failed', err);
-      toast.error(`Delete failed: ${String(err)}`);
+      toast.error(`Delete failed: ${tauriErrorMessage(err)}`);
     } finally {
       setBusy(false);
     }
@@ -433,7 +433,7 @@ function ProjectRow({ id, name, slug, isActive, onRefresh }: ProjectRowProps) {
       toast.success(`"${name}" reset and reinitialized`);
     } catch (err) {
       logger.error('projects-tab: reset failed', err);
-      toast.error(`Reset failed: ${String(err)}`);
+      toast.error(`Reset failed: ${tauriErrorMessage(err)}`);
       finishInit();
     } finally {
       setBusy(false);

@@ -1,5 +1,19 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+
+/**
+ * Extract a human-readable message from a Tauri command error.
+ * CommandError is serialized as { kind: string; message: string } —
+ * not as a plain string — so String(err) produces "[object Object]".
+ */
+export function tauriErrorMessage(err: unknown): string {
+  if (typeof err === 'string') return err;
+  if (err && typeof err === 'object') {
+    const e = err as Record<string, unknown>;
+    if (typeof e.message === 'string') return e.message;
+  }
+  return String(err);
+}
 import type {
   AppSettingsPublic,
   DeviceFlowResponse,
