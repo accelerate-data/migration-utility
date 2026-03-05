@@ -25,6 +25,35 @@ fn emit_step(app: &tauri::AppHandle, step: InitStep, status: InitStepStatus) {
 }
 
 /// Run an external command, returning stdout on success or `CommandError::External` on failure.
+/// Async version of `run_cmd` using `tokio::process::Command`.
+/// Use this inside `async` Tauri commands so blocking I/O does not starve
+/// the Tokio runtime and Tauri event delivery between steps.
+pub(crate) async fn run_cmd_async(program: &str, args: &[&str], cwd: Option<&str>, envs: &[(&str, &str)]) -> Result<String, CommandError> {
+    let mut cmd = tokio::process::Command::new(program);
+    cmd.args(args);
+    if let Some(dir) = cwd {
+        cmd.current_dir(dir);
+    }
+    for (k, v) in envs {
+        cmd.env(k, v);
+    }
+    let output = cmd.output().await.map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            CommandError::External(format!("'{program}' not found in PATH — please install it"))
+        } else {
+            CommandError::External(format!("failed to run '{program}': {e}"))
+        }
+    })?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let detail = if stderr.is_empty() { stdout } else { stderr };
+        log::error!("[run_cmd_async] '{}' exited {}: {}", program, output.status, detail);
+        return Err(CommandError::External(format!("'{program}' exited {}: {detail}", output.status)));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
 pub(crate) fn run_cmd(program: &str, args: &[&str], cwd: Option<&str>, envs: &[(&str, &str)]) -> Result<String, CommandError> {
     let mut cmd = std::process::Command::new(program);
     cmd.args(args);
@@ -315,10 +344,10 @@ pub async fn project_init(
     emit_step(&app, InitStep::GitPull, InitStepStatus::Running);
     let git_result = if Path::new(&local_clone_path).join(".git").exists() {
         log::debug!("[project_init] git pull in {local_clone_path}");
-        run_cmd("git", &["pull"], Some(&local_clone_path), &[("GIT_TERMINAL_PROMPT", "0")])
+        run_cmd_async("git", &["pull"], Some(&local_clone_path), &[("GIT_TERMINAL_PROMPT", "0")]).await
     } else {
         log::debug!("[project_init] git clone {clone_url} into {local_clone_path}");
-        run_cmd("git", &["clone", &clone_url, &local_clone_path], None, &[("GIT_TERMINAL_PROMPT", "0")])
+        run_cmd_async("git", &["clone", &clone_url, &local_clone_path], None, &[("GIT_TERMINAL_PROMPT", "0")]).await
     };
     match git_result {
         Ok(_) => emit_step(&app, InitStep::GitPull, InitStepStatus::Ok),
@@ -332,7 +361,7 @@ pub async fn project_init(
 
     // ── Step 2: DockerCheck ───────────────────────────────────────────────────
     emit_step(&app, InitStep::DockerCheck, InitStepStatus::Running);
-    match run_cmd("docker", &["info"], None, &[]) {
+    match run_cmd_async("docker", &["info"], None, &[]).await {
         Ok(_) => emit_step(&app, InitStep::DockerCheck, InitStepStatus::Ok),
         Err(ref e) => {
             let msg = format!("Docker is not running or not installed — please start Docker Desktop. Detail: {e}");
@@ -346,12 +375,13 @@ pub async fn project_init(
     emit_step(&app, InitStep::StartContainer, InitStepStatus::Running);
 
     // Check if container already exists and is running.
-    let ps_out = run_cmd(
+    let ps_out = run_cmd_async(
         "docker",
         &["ps", "-a", "--filter", &format!("name={container}"), "--format", "{{.Status}}"],
         None,
         &[],
     )
+    .await
     .unwrap_or_default();
 
     let container_result = if ps_out.to_lowercase().starts_with("up") {
@@ -360,7 +390,7 @@ pub async fn project_init(
     } else if ps_out.is_empty() {
         // Container doesn't exist — create and start.
         log::debug!("[project_init] creating container {container}");
-        run_cmd(
+        run_cmd_async(
             "docker",
             &[
                 "run", "-d",
@@ -376,11 +406,12 @@ pub async fn project_init(
             None,
             &[],
         )
+        .await
         .map(|_| ())
     } else {
         // Container exists but stopped — start it.
         log::debug!("[project_init] starting stopped container {container}");
-        run_cmd("docker", &["start", &container], None, &[]).map(|_| ())
+        run_cmd_async("docker", &["start", &container], None, &[]).await.map(|_| ())
     };
 
     match container_result {
@@ -431,7 +462,12 @@ pub async fn project_init(
             }
             log::debug!("[project_init] RestoreDacpac db_name={db_name} profile={}", profile_path.display());
 
-            run_cmd("sqlpackage", &sqlpackage_args, None, &[]).map(|_| ())
+            // Wait for SQL Server to accept connections before running sqlpackage.
+            log::info!("[project_init] waiting for SQL Server to be ready (up to 120s)");
+            wait_for_sql_server("localhost", 1433, &sa_password, 120).await
+                .map_err(|e| CommandError::External(format!("SQL Server did not become ready in time: {e}")))?;
+
+            run_cmd_async("sqlpackage", &sqlpackage_args, None, &[]).await.map(|_| ())
         }
     };
 
@@ -448,7 +484,8 @@ pub async fn project_init(
     // ── Step 5: VerifyDb ──────────────────────────────────────────────────────
     emit_step(&app, InitStep::VerifyDb, InitStepStatus::Running);
 
-    let verify_result = wait_for_sql_server("localhost", 1433, &sa_password, 120).await;
+    // Quick final ping — SQL Server is already running at this point.
+    let verify_result = wait_for_sql_server("localhost", 1433, &sa_password, 10).await;
     match verify_result {
         Ok(_) => {
             emit_step(&app, InitStep::VerifyDb, InitStepStatus::Ok);

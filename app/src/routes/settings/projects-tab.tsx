@@ -212,6 +212,9 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
 
       startInit();
       unlistenRef.current = await listenProjectInitStep((ev) => applyInitStep(ev));
+      // Yield one tick to ensure the listener is fully registered before the
+      // Rust command starts emitting events.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
       await projectInit(project.id);
       finishInit();
       toast.success('Project initialized successfully');
