@@ -1,7 +1,6 @@
 sources:
-  - kind: sources
-    name: sqlserver
-    type: mssql
+  sqlserver:
+    kind: mssql
     host: ${MSSQL_HOST}
     port: ${MSSQL_PORT}
     database: ${MSSQL_DB}
@@ -9,11 +8,17 @@ sources:
     password: ${SA_PASSWORD}
 
 tools:
-  - name: mssql-execute-sql
-    type: mssql-execute-sql
+  mssql-execute-sql:
+    kind: mssql-sql
     source: sqlserver
     description: >
       Execute a SQL query against the project SQL Server database.
       Supports arbitrary T-SQL including system catalog queries
       (sys.sql_expression_dependencies, sys.sql_modules,
       INFORMATION_SCHEMA.ROUTINES).
+    statement: |
+      {{.sql}}
+    templateParameters:
+      - name: sql
+        type: string
+        description: T-SQL statement to execute
