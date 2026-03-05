@@ -13,6 +13,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import SettingsPanelShell from '@/components/settings/settings-panel-shell';
@@ -22,7 +29,7 @@ import { logger } from '@/lib/logger';
 import { useProjectStore } from '@/stores/project-store';
 import type { InitStep } from '@/lib/types';
 
-// ── Init progress row ─────────────────────────────────────────────────────────
+// ── Init progress ─────────────────────────────────────────────────────────────
 
 function InitProgress() {
   const { initSteps, isInitRunning } = useProjectStore();
@@ -55,20 +62,27 @@ function InitProgress() {
   );
 }
 
-// ── Create project form ───────────────────────────────────────────────────────
+// ── Create project dialog ─────────────────────────────────────────────────────
 
-interface CreateFormProps {
+interface CreateDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onCreated: () => void;
 }
 
-function CreateProjectForm({ onCreated }: CreateFormProps) {
-  const [open, setOpen] = useState(false);
+function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProps) {
   const [name, setName] = useState('');
   const [saPassword, setSaPassword] = useState('');
   const [dacpacPath, setDacpacPath] = useState('');
   const [creating, setCreating] = useState(false);
   const { startInit, finishInit, applyInitStep, loadProjects } = useProjectStore();
   const unlistenRef = useRef<(() => void) | null>(null);
+
+  function reset() {
+    setName('');
+    setSaPassword('');
+    setDacpacPath('');
+  }
 
   async function pickDacpac() {
     const selected = await openDialog({
@@ -89,13 +103,10 @@ function CreateProjectForm({ onCreated }: CreateFormProps) {
       const project = await projectCreateFull(name.trim(), saPassword, dacpacPath);
       toast.success(`Project "${project.name}" created`);
       await loadProjects();
-      setOpen(false);
-      setName('');
-      setSaPassword('');
-      setDacpacPath('');
+      onOpenChange(false);
+      reset();
       onCreated();
 
-      // Start init
       startInit();
       unlistenRef.current = await listenProjectInitStep((ev) => applyInitStep(ev));
       await projectInit(project.id);
@@ -112,69 +123,66 @@ function CreateProjectForm({ onCreated }: CreateFormProps) {
     }
   }
 
-  if (!open) {
-    return (
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="gap-1.5">
-        <Plus className="h-3.5 w-3.5" />
-        New project
-      </Button>
-    );
-  }
-
   return (
-    <div className="rounded-lg border border-border bg-card p-4 flex flex-col gap-3">
-      <p className="text-sm font-semibold text-foreground">New project</p>
+    <Dialog open={open} onOpenChange={(v) => { if (!creating) { onOpenChange(v); if (!v) reset(); } }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>New project</DialogTitle>
+        </DialogHeader>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="proj-name" className="text-xs font-medium text-muted-foreground">Name</Label>
-        <Input
-          id="proj-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Contoso Migration"
-          disabled={creating}
-        />
-      </div>
+        <div className="flex flex-col gap-4 py-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="proj-name" className="text-xs font-medium text-muted-foreground">Name</Label>
+            <Input
+              id="proj-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Contoso Migration"
+              disabled={creating}
+            />
+          </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="proj-sa" className="text-xs font-medium text-muted-foreground">SA password</Label>
-        <Input
-          id="proj-sa"
-          type="password"
-          value={saPassword}
-          onChange={(e) => setSaPassword(e.target.value)}
-          placeholder="Strong SQL Server SA password"
-          disabled={creating}
-        />
-      </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="proj-sa" className="text-xs font-medium text-muted-foreground">SA password</Label>
+            <Input
+              id="proj-sa"
+              type="password"
+              value={saPassword}
+              onChange={(e) => setSaPassword(e.target.value)}
+              placeholder="Strong SQL Server SA password"
+              disabled={creating}
+            />
+          </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label className="text-xs font-medium text-muted-foreground">DacPac file</Label>
-        <div className="flex items-center gap-2">
-          <Input
-            value={dacpacPath}
-            readOnly
-            placeholder="Select a .dacpac file…"
-            className="cursor-pointer"
-            onClick={pickDacpac}
-            disabled={creating}
-          />
-          <Button variant="outline" size="icon" onClick={pickDacpac} disabled={creating}>
-            <FolderOpen className="h-4 w-4" />
-          </Button>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">DacPac file</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                value={dacpacPath}
+                readOnly
+                placeholder="Select a .dacpac file…"
+                className="cursor-pointer"
+                onClick={pickDacpac}
+                disabled={creating}
+              />
+              <Button variant="outline" size="icon" onClick={pickDacpac} disabled={creating}>
+                <FolderOpen className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div className="flex gap-2 justify-end">
-        <Button variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={creating}>
-          Cancel
-        </Button>
-        <Button size="sm" onClick={handleCreate} disabled={creating || !name || !saPassword || !dacpacPath}>
-          {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
-          {creating ? 'Creating…' : 'Create'}
-        </Button>
-      </div>
-    </div>
+        <DialogFooter>
+          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} disabled={creating}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={handleCreate} disabled={creating || !name || !saPassword || !dacpacPath}>
+            {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+            {creating ? 'Creating…' : 'Create'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -254,56 +262,84 @@ function ProjectRow({ id, name, slug, isActive, onRefresh }: ProjectRowProps) {
 
   return (
     <>
-      <div
-        className="flex items-center gap-3 rounded-lg border px-4 py-3 bg-card transition-colors duration-150"
-        style={isActive ? { borderColor: 'var(--color-pacific)' } : undefined}
+      <tr
+        className="group hover:bg-muted/40 transition-colors duration-150"
         data-testid={`project-row-${slug}`}
       >
-        {/* Active indicator */}
-        <div className="w-2 h-2 rounded-full shrink-0"
-          style={{ background: isActive ? 'var(--color-pacific)' : 'var(--color-border, #e5e7eb)' }} />
+        {/* Active indicator + name */}
+        <td className="pl-4 py-2.5 border-b border-border">
+          <div className="flex items-center gap-2.5">
+            <div
+              className="w-1.5 h-1.5 rounded-full shrink-0"
+              style={{ background: isActive ? 'var(--color-pacific)' : 'var(--color-border, #e5e7eb)' }}
+            />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground truncate">{name}</p>
+            </div>
+          </div>
+        </td>
 
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-foreground truncate">{name}</p>
-          <p className="text-xs text-muted-foreground font-mono truncate">{slug}</p>
-        </div>
+        {/* Slug */}
+        <td className="py-2.5 border-b border-border">
+          <span className="text-xs text-muted-foreground font-mono">{slug}</span>
+        </td>
 
-        <div className="flex items-center gap-1.5 shrink-0">
-          {!isActive && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSelect}
-              disabled={busy}
-              data-testid={`project-select-${slug}`}
+        {/* Status */}
+        <td className="py-2.5 border-b border-border">
+          {isActive ? (
+            <span
+              className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full"
+              style={{
+                color: 'var(--color-pacific)',
+                background: 'color-mix(in oklch, var(--color-pacific), transparent 85%)',
+              }}
             >
-              {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Select'}
-            </Button>
+              Active
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">Inactive</span>
           )}
-          {isActive && (
+        </td>
+
+        {/* Actions */}
+        <td className="pr-4 py-2.5 border-b border-border">
+          <div className="flex items-center gap-1 justify-end">
+            {!isActive && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSelect}
+                disabled={busy}
+                data-testid={`project-select-${slug}`}
+              >
+                {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Select'}
+              </Button>
+            )}
+            {isActive && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setResetOpen(true)}
+                disabled={busy}
+                title="Reset local state"
+                data-testid={`project-reset-${slug}`}
+              >
+                <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setResetOpen(true)}
+              onClick={() => setDeleteOpen(true)}
               disabled={busy}
-              title="Reset local state"
-              data-testid={`project-reset-${slug}`}
+              title="Delete project"
+              data-testid={`project-delete-${slug}`}
             >
-              <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+              <Trash2 className="h-3.5 w-3.5 text-destructive" />
             </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setDeleteOpen(true)}
-            disabled={busy}
-            title="Delete project"
-            data-testid={`project-delete-${slug}`}
-          >
-            <Trash2 className="h-3.5 w-3.5 text-destructive" />
-          </Button>
-        </div>
-      </div>
+          </div>
+        </td>
+      </tr>
 
       {/* Delete confirmation */}
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
@@ -375,6 +411,7 @@ function ProjectRow({ id, name, slug, isActive, onRefresh }: ProjectRowProps) {
 
 export default function ProjectsTab() {
   const { projects, activeProject, isLoading, loadProjects } = useProjectStore();
+  const [createOpen, setCreateOpen] = useState(false);
 
   useEffect(() => {
     void loadProjects();
@@ -390,7 +427,10 @@ export default function ProjectsTab() {
               Manage migration projects. One project is active at a time.
             </p>
           </div>
-          <CreateProjectForm onCreated={loadProjects} />
+          <Button variant="outline" size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5">
+            <Plus className="h-3.5 w-3.5" />
+            New project
+          </Button>
         </div>
 
         <InitProgress />
@@ -412,20 +452,44 @@ export default function ProjectsTab() {
         )}
 
         {!isLoading && projects.length > 0 && (
-          <div className="flex flex-col gap-2" data-testid="project-list">
-            {projects.map((p) => (
-              <ProjectRow
-                key={p.id}
-                id={p.id}
-                name={p.name}
-                slug={p.slug}
-                isActive={activeProject?.id === p.id}
-                onRefresh={loadProjects}
-              />
-            ))}
-          </div>
+          <table className="w-full table-auto border-separate border-spacing-0" data-testid="project-list">
+            <thead>
+              <tr>
+                <th scope="col" className="pl-4 py-1.5 text-left text-xs font-semibold text-muted-foreground border-b-2 border-border">
+                  Name
+                </th>
+                <th scope="col" className="py-1.5 text-left text-xs font-semibold text-muted-foreground border-b-2 border-border">
+                  Slug
+                </th>
+                <th scope="col" className="py-1.5 text-left text-xs font-semibold text-muted-foreground border-b-2 border-border">
+                  Status
+                </th>
+                <th scope="col" className="pr-4 py-1.5 text-right text-xs font-semibold text-muted-foreground border-b-2 border-border">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {projects.map((p) => (
+                <ProjectRow
+                  key={p.id}
+                  id={p.id}
+                  name={p.name}
+                  slug={p.slug}
+                  isActive={activeProject?.id === p.id}
+                  onRefresh={loadProjects}
+                />
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
+
+      <CreateProjectDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={loadProjects}
+      />
     </SettingsPanelShell>
   );
 }
