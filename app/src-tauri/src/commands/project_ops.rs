@@ -374,55 +374,83 @@ pub async fn project_init(
     // ── Step 3: StartContainer ────────────────────────────────────────────────
     emit_step(&app, InitStep::StartContainer, InitStepStatus::Running);
 
-    // Check if container already exists and is running.
-    let ps_out = run_cmd_async(
+    // Use `docker inspect` for exact container state (ps --filter does substring matching).
+    let inspect_state = run_cmd_async(
         "docker",
-        &["ps", "-a", "--filter", &format!("name={container}"), "--format", "{{.Status}}"],
+        &["inspect", "--format", "{{.State.Status}}", &container],
         None,
         &[],
     )
     .await
     .unwrap_or_default();
+    log::debug!("[project_init] container {container} inspect state='{inspect_state}'");
 
-    let container_result = if ps_out.to_lowercase().starts_with("up") {
-        log::debug!("[project_init] container {container} already running");
-        Ok(())
-    } else if ps_out.is_empty() {
-        // Container doesn't exist — create and start.
-        log::debug!("[project_init] creating container {container}");
-        run_cmd_async(
+    if inspect_state != "running" {
+        if inspect_state.is_empty() {
+            // Container doesn't exist — create it.
+            log::info!("[project_init] creating container {container}");
+            run_cmd_async(
+                "docker",
+                &[
+                    "run", "-d",
+                    "--platform", "linux/amd64",
+                    "--name", &container,
+                    "-e", "ACCEPT_EULA=Y",
+                    "-e", &format!("SA_PASSWORD={sa_password}"),
+                    "-e", "MSSQL_PID=Developer",
+                    "-p", "1433:1433",
+                    "-v", &format!("{volume}:/var/opt/mssql"),
+                    "mcr.microsoft.com/mssql/server:2022-latest",
+                ],
+                None,
+                &[],
+            )
+            .await
+            .map_err(|e| {
+                let logs = std::process::Command::new("docker")
+                    .args(["logs", "--tail", "20", &container])
+                    .output()
+                    .map(|o| String::from_utf8_lossy(&o.stderr).trim().to_string())
+                    .unwrap_or_default();
+                let detail = if logs.is_empty() { e.to_string() } else { format!("{e}\nContainer logs:\n{logs}") };
+                log::error!("[project_init] docker run failed: {detail}");
+                CommandError::External(detail)
+            })?;
+        } else {
+            // Container exists but not running — start it.
+            log::info!("[project_init] starting stopped container {container} (was: {inspect_state})");
+            run_cmd_async("docker", &["start", &container], None, &[]).await.map_err(|e| {
+                log::error!("[project_init] docker start failed: {e}");
+                e
+            })?;
+        }
+
+        // Brief pause then verify container is actually running.
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        let post_state = run_cmd_async(
             "docker",
-            &[
-                "run", "-d",
-                "--platform", "linux/amd64",
-                "--name", &container,
-                "-e", "ACCEPT_EULA=Y",
-                "-e", &format!("SA_PASSWORD={sa_password}"),
-                "-e", "MSSQL_PID=Developer",
-                "-p", "1433:1433",
-                "-v", &format!("{volume}:/var/opt/mssql"),
-                "mcr.microsoft.com/mssql/server:2022-latest",
-            ],
+            &["inspect", "--format", "{{.State.Status}}", &container],
             None,
             &[],
         )
         .await
-        .map(|_| ())
-    } else {
-        // Container exists but stopped — start it.
-        log::debug!("[project_init] starting stopped container {container}");
-        run_cmd_async("docker", &["start", &container], None, &[]).await.map(|_| ())
-    };
+        .unwrap_or_default();
+        log::info!("[project_init] container {container} post-start state='{post_state}'");
 
-    match container_result {
-        Ok(_) => emit_step(&app, InitStep::StartContainer, InitStepStatus::Ok),
-        Err(ref e) => {
-            let msg = e.to_string();
-            log::error!("[project_init] StartContainer failed: {msg}");
+        if post_state != "running" {
+            let logs = run_cmd_async("docker", &["logs", "--tail", "30", &container], None, &[])
+                .await
+                .unwrap_or_default();
+            let msg = format!("Container '{container}' failed to start (state: {post_state}).\nDocker logs:\n{logs}");
+            log::error!("[project_init] StartContainer verify failed: {msg}");
             emit_step(&app, InitStep::StartContainer, InitStepStatus::Error { message: msg.clone() });
             return Err(CommandError::External(msg));
         }
+    } else {
+        log::debug!("[project_init] container {container} already running");
     }
+
+    emit_step(&app, InitStep::StartContainer, InitStepStatus::Ok);
 
     // ── Step 4: RestoreDacpac ─────────────────────────────────────────────────
     emit_step(&app, InitStep::RestoreDacpac, InitStepStatus::Running);
