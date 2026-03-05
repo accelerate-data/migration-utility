@@ -593,12 +593,20 @@ pub async fn project_init(
         run_cmd_async("git", &["clone", &clone_url, &local_clone_path], None, &[("GIT_TERMINAL_PROMPT", "0")]).await
     };
     match git_result {
-        Ok(_) => emit_step(&app, InitStep::GitPull, InitStepStatus::Ok),
         Err(ref e) => {
             let msg = e.to_string();
             log::error!("[project_init] GitPull failed: {msg}");
             emit_step(&app, InitStep::GitPull, InitStepStatus::Error { message: msg.clone() });
             return Err(CommandError::External(msg));
+        }
+        Ok(_) => {
+            // Pull LFS objects (e.g. .dacpac) after the tree is synced.
+            // git lfs pull is a no-op if LFS is not installed or there are no pointers.
+            log::debug!("[project_init] git lfs pull in {local_clone_path}");
+            if let Err(e) = run_cmd_async("git", &["lfs", "pull"], Some(&local_clone_path), &[("GIT_TERMINAL_PROMPT", "0")]).await {
+                log::warn!("[project_init] git lfs pull failed (non-fatal): {e}");
+            }
+            emit_step(&app, InitStep::GitPull, InitStepStatus::Ok);
         }
     }
 
