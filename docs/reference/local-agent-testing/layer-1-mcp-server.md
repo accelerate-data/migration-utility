@@ -42,8 +42,7 @@ toolbox --version
 The canonical config is checked into the repo at `orchestrator/mssql_mcp/tools.yaml`.
 
 ```text
-orchestrator/mssql_mcp/tools.yaml   ← single source of truth (local + GHCR image)
-orchestrator/mssql_mcp/Dockerfile   ← GHCR wrapper image (used by Layer 3)
+orchestrator/mssql_mcp/tools.yaml   ← single source of truth (local + GH Actions)
 ```
 
 The file uses `${ENV_NAME}` placeholders for all connection details. No secrets are
