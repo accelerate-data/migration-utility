@@ -8,6 +8,8 @@ database and asserts on the output JSON.
 
 - `aw-sql` Docker container running with `MigrationTest` database loaded
   (see [Test Database Image](../docs/reference/test-db-image/README.md))
+- Shell env configured for the MCP server (same vars used when running the agent manually):
+  `SA_PASSWORD`, `MSSQL_DB`, `MSSQL_HOST`, `MSSQL_PORT` — these are read by `plugin/.mcp.json`
 - `ANTHROPIC_API_KEY` exported in your shell
 - `claude` CLI on PATH
 
@@ -16,16 +18,17 @@ database and asserts on the output JSON.
 ```bash
 cd tests/
 npm install
-
 export ANTHROPIC_API_KEY=your-api-key
-export SA_PASSWORD='P@ssw0rd123'
-export MSSQL_DB=MigrationTest
-# Optional — defaults come from plugin/.mcp.json
-# export MSSQL_HOST=127.0.0.1
-# export MSSQL_PORT=1433
-
 npm test
 ```
+
+The invocation matches the overall-design local dev command exactly — the test spawns:
+
+```bash
+claude --plugin-path plugin/ --agent scoping-agent <input.json> <output.json>
+```
+
+Shell env is inherited by the subprocess. `plugin/.mcp.json` handles MCP server config.
 
 ## Scenarios
 
