@@ -480,7 +480,9 @@ pub fn project_create_full(
 
         // 8. Git add → commit → push.
         // Stage .gitattributes (updated by lfs track) plus the full project dir.
-        run_cmd("git", &["add", ".gitattributes", &project.slug], Some(&local_clone_path), &[])?;
+        // --force is required because the repo's .gitignore contains *.dacpac
+        // (an SSDT convention); we need to override it for our LFS-tracked file.
+        run_cmd("git", &["add", "--force", ".gitattributes", &project.slug], Some(&local_clone_path), &[])?;
         run_cmd(
             "git",
             &[
