@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, FolderOpen, Loader2, Plus, RefreshCw, Search, Trash2, X, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, FolderOpen, Loader2, Plus, RefreshCw, Search, Trash2, X, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import {
@@ -73,7 +73,9 @@ function InitProgress() {
             ? <Loader2 className="h-4 w-4 animate-spin shrink-0" style={{ color: 'var(--color-pacific)' }} />
             : status.kind === 'ok'
               ? <CheckCircle2 className="h-4 w-4 shrink-0" style={{ color: 'var(--color-seafoam)' }} />
-              : <XCircle className="h-4 w-4 shrink-0 text-destructive" />;
+              : status.kind === 'warning'
+                ? <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+                : <XCircle className="h-4 w-4 shrink-0 text-destructive" />;
 
         return (
           <div key={step} className="flex items-start gap-2">
@@ -82,6 +84,13 @@ function InitProgress() {
               <span className={`text-sm ${pending ? 'text-muted-foreground' : 'text-foreground'}`}>{label}</span>
               {status?.kind === 'error' && (
                 <span className="text-xs text-destructive break-all">{status.message}</span>
+              )}
+              {status?.kind === 'warning' && status.warnings.length > 0 && (
+                <ul className="mt-0.5 flex flex-col gap-0.5">
+                  {status.warnings.map((w, i) => (
+                    <li key={i} className="text-xs text-amber-600 break-all">{w}</li>
+                  ))}
+                </ul>
               )}
             </div>
           </div>

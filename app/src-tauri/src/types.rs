@@ -148,6 +148,8 @@ pub enum InitStep {
 pub enum InitStepStatus {
     Running,
     Ok,
+    /// Completed successfully but with non-fatal warnings (e.g. sqlpackage verification warnings).
+    Warning { warnings: Vec<String> },
     Error { message: String },
 }
 

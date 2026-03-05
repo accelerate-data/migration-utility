@@ -57,6 +57,7 @@ export type InitStep =
 export type InitStepStatus =
   | { kind: 'running' }
   | { kind: 'ok' }
+  | { kind: 'warning'; warnings: string[] }
   | { kind: 'error'; message: string };
 
 export interface InitStepEvent {

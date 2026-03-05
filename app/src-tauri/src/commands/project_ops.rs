@@ -737,6 +737,7 @@ pub async fn project_init(
                 "/Action:Publish",
                 &source_arg,
                 &conn_arg,
+                "/p:TreatVerificationErrorsAsWarnings=true",
             ];
             if profile_path.exists() {
                 sqlpackage_args.push(&profile_arg);
@@ -751,13 +752,29 @@ pub async fn project_init(
 
             match wait_result {
                 Err(e) => Err(e),
-                Ok(_) => run_cmd_async("sqlpackage", &sqlpackage_args, None, &[]).await.map(|_| ()),
+                Ok(_) => run_cmd_async("sqlpackage", &sqlpackage_args, None, &[]).await.map(|out| out),
             }
         }
     };
 
     match restore_result {
-        Ok(_) => emit_step(&app, InitStep::RestoreDacpac, InitStepStatus::Ok),
+        Ok(ref output) => {
+            // Extract warning lines from sqlpackage stdout for display.
+            let warnings: Vec<String> = output
+                .lines()
+                .filter(|l| {
+                    let u = l.to_uppercase();
+                    u.contains("WARNING") || u.contains("*** WARNING") || u.contains("SQL7")
+                })
+                .map(|l| l.trim().to_string())
+                .collect();
+            if warnings.is_empty() {
+                emit_step(&app, InitStep::RestoreDacpac, InitStepStatus::Ok);
+            } else {
+                log::warn!("[project_init] RestoreDacpac completed with {} warning(s)", warnings.len());
+                emit_step(&app, InitStep::RestoreDacpac, InitStepStatus::Warning { warnings });
+            }
+        }
         Err(ref e) => {
             let msg = e.to_string();
             log::error!("[project_init] RestoreDacpac failed: {msg}");
