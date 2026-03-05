@@ -22,6 +22,21 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+const SQL_SERVER_VERSIONS = [
+  { value: 'SQL Server 2022', label: 'SQL Server 2022 (16.x)' },
+  { value: 'SQL Server 2019', label: 'SQL Server 2019 (15.x)' },
+  { value: 'SQL Server 2017', label: 'SQL Server 2017 (14.x)' },
+  { value: 'SQL Server 2016', label: 'SQL Server 2016 (13.x)' },
+  { value: 'SQL Server 2014', label: 'SQL Server 2014 (12.x)' },
+];
 import SettingsPanelShell from '@/components/settings/settings-panel-shell';
 import { projectCreateFull, projectDeleteFull, projectInit, projectResetLocal, listenProjectInitStep } from '@/lib/tauri';
 import { INIT_STEP_LABEL } from '@/lib/types';
@@ -74,6 +89,11 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
   const [name, setName] = useState('');
   const [saPassword, setSaPassword] = useState('');
   const [dacpacPath, setDacpacPath] = useState('');
+  const [sqlServerVersion, setSqlServerVersion] = useState('SQL Server 2022');
+  const [customer, setCustomer] = useState('');
+  const [system, setSystem] = useState('');
+  const [dbName, setDbName] = useState('');
+  const [extractionDatetime, setExtractionDatetime] = useState('');
   const [creating, setCreating] = useState(false);
   const { startInit, finishInit, applyInitStep, loadProjects } = useProjectStore();
   const unlistenRef = useRef<(() => void) | null>(null);
@@ -82,6 +102,11 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
     setName('');
     setSaPassword('');
     setDacpacPath('');
+    setSqlServerVersion('SQL Server 2022');
+    setCustomer('');
+    setSystem('');
+    setDbName('');
+    setExtractionDatetime('');
   }
 
   async function pickDacpac() {
@@ -93,14 +118,23 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
   }
 
   async function handleCreate() {
-    if (!name.trim() || !saPassword || !dacpacPath) {
-      toast.error('Name, SA password, and DacPac file are required');
+    if (!name.trim() || !saPassword || !dacpacPath || !customer.trim() || !system.trim() || !dbName.trim() || !extractionDatetime) {
+      toast.error('All fields are required');
       return;
     }
     setCreating(true);
     try {
       logger.debug('projects-tab: creating project', name);
-      const project = await projectCreateFull(name.trim(), saPassword, dacpacPath);
+      const project = await projectCreateFull(
+        name.trim(),
+        saPassword,
+        dacpacPath,
+        sqlServerVersion,
+        customer.trim(),
+        system.trim(),
+        dbName.trim(),
+        extractionDatetime,
+      );
       toast.success(`Project "${project.name}" created`);
       await loadProjects();
       onOpenChange(false);
@@ -125,23 +159,88 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!creating) { onOpenChange(v); if (!v) reset(); } }}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>New project</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col gap-4 py-2">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="proj-name" className="text-xs font-medium text-muted-foreground">Name</Label>
-            <Input
-              id="proj-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Contoso Migration"
-              disabled={creating}
-            />
+          {/* Row 1: Name + SQL Server version */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="proj-name" className="text-xs font-medium text-muted-foreground">Project name</Label>
+              <Input
+                id="proj-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Contoso Migration"
+                disabled={creating}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-medium text-muted-foreground">SQL Server version</Label>
+              <Select value={sqlServerVersion} onValueChange={setSqlServerVersion} disabled={creating}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SQL_SERVER_VERSIONS.map((v) => (
+                    <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
+          {/* Row 2: Customer + System */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="proj-customer" className="text-xs font-medium text-muted-foreground">Customer</Label>
+              <Input
+                id="proj-customer"
+                value={customer}
+                onChange={(e) => setCustomer(e.target.value)}
+                placeholder="e.g. Contoso"
+                disabled={creating}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="proj-system" className="text-xs font-medium text-muted-foreground">Source system</Label>
+              <Input
+                id="proj-system"
+                value={system}
+                onChange={(e) => setSystem(e.target.value)}
+                placeholder="e.g. ERP"
+                disabled={creating}
+              />
+            </div>
+          </div>
+
+          {/* Row 3: DB name + Extraction datetime */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="proj-dbname" className="text-xs font-medium text-muted-foreground">Database name</Label>
+              <Input
+                id="proj-dbname"
+                value={dbName}
+                onChange={(e) => setDbName(e.target.value)}
+                placeholder="e.g. ContosoFabricDW"
+                disabled={creating}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="proj-extraction" className="text-xs font-medium text-muted-foreground">Extraction date</Label>
+              <Input
+                id="proj-extraction"
+                type="date"
+                value={extractionDatetime}
+                onChange={(e) => setExtractionDatetime(e.target.value)}
+                disabled={creating}
+              />
+            </div>
+          </div>
+
+          {/* Row 4: SA password */}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="proj-sa" className="text-xs font-medium text-muted-foreground">SA password</Label>
             <Input
@@ -154,6 +253,7 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
             />
           </div>
 
+          {/* Row 5: DacPac file */}
           <div className="flex flex-col gap-1.5">
             <Label className="text-xs font-medium text-muted-foreground">DacPac file</Label>
             <div className="flex items-center gap-2">
@@ -176,7 +276,7 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
           <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} disabled={creating}>
             Cancel
           </Button>
-          <Button size="sm" onClick={handleCreate} disabled={creating || !name || !saPassword || !dacpacPath}>
+          <Button size="sm" onClick={handleCreate} disabled={creating || !name || !saPassword || !dacpacPath || !customer || !system || !dbName || !extractionDatetime}>
             {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
             {creating ? 'Creating…' : 'Create'}
           </Button>

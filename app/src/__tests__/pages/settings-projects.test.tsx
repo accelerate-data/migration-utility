@@ -111,9 +111,13 @@ describe('ProjectsTab — create project form', () => {
     renderTab();
     await waitFor(() => screen.getByRole('button', { name: /new project/i }));
     await user.click(screen.getByRole('button', { name: /new project/i }));
-    expect(screen.getByLabelText(/name/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/project name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/sa password/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/select a .dacpac file/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/customer/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/source system/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/database name/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/extraction date/i)).toBeInTheDocument();
   });
 
   it('Create button is disabled when fields are empty', async () => {
@@ -137,15 +141,15 @@ describe('ProjectsTab — create project form', () => {
     expect(mockDialogOpen).toHaveBeenCalled();
   });
 
-  it('Cancel collapses the form', async () => {
+  it('Cancel closes the dialog', async () => {
     const user = userEvent.setup();
     stubProjects([], null);
     renderTab();
     await waitFor(() => screen.getByRole('button', { name: /new project/i }));
     await user.click(screen.getByRole('button', { name: /new project/i }));
-    expect(screen.getByLabelText(/name/i)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /cancel/i }));
-    expect(screen.queryByLabelText(/name/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/project name/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+    expect(screen.queryByLabelText(/project name/i)).not.toBeInTheDocument();
   });
 });
 

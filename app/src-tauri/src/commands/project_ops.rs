@@ -92,8 +92,13 @@ pub fn project_create_full(
     name: String,
     sa_password: String,
     dacpac_path: String,
+    sql_server_version: String,
+    customer: String,
+    system: String,
+    db_name: String,
+    extraction_datetime: String,
 ) -> Result<Project, CommandError> {
-    log::info!("[project_create_full] name={}", name);
+    log::info!("[project_create_full] name={} customer={} system={} db_name={}", name, customer, system, db_name);
 
     // 1. Insert DB row.
     let project = {
@@ -140,6 +145,11 @@ pub fn project_create_full(
         "slug": project.slug,
         "name": project.name,
         "createdAt": project.created_at,
+        "sqlServerVersion": sql_server_version,
+        "customer": customer,
+        "system": system,
+        "dbName": db_name,
+        "extractionDatetime": extraction_datetime,
     });
     std::fs::write(
         slug_dir.join("metadata.json"),

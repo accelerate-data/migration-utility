@@ -69,8 +69,26 @@ export const projectSetActive = (id: string) =>
 export const projectGetActive = () =>
   invoke<Project | null>('project_get_active');
 
-export const projectCreateFull = (name: string, saPassword: string, dacpacPath: string) =>
-  invoke<Project>('project_create_full', { name, saPassword, dacpacPath });
+export const projectCreateFull = (
+  name: string,
+  saPassword: string,
+  dacpacPath: string,
+  sqlServerVersion: string,
+  customer: string,
+  system: string,
+  dbName: string,
+  extractionDatetime: string,
+) =>
+  invoke<Project>('project_create_full', {
+    name,
+    saPassword,
+    dacpacPath,
+    sqlServerVersion,
+    customer,
+    system,
+    dbName,
+    extractionDatetime,
+  });
 
 export const projectInit = (id: string) =>
   invoke<void>('project_init', { id });
