@@ -104,6 +104,16 @@ function localTodayString(): string {
   return `${y}-${m}-${d}`;
 }
 
+/**
+ * SQL Server requires passwords to meet complexity policy:
+ * ≥8 chars, characters from ≥3 of: uppercase, lowercase, digit, symbol.
+ */
+function isSqlServerPasswordValid(pw: string): boolean {
+  if (pw.length < 8) return false;
+  const sets = [/[A-Z]/, /[a-z]/, /[0-9]/, /[^A-Za-z0-9]/];
+  return sets.filter((re) => re.test(pw)).length >= 3;
+}
+
 /** Convert a local YYYY-MM-DD date string (midnight local) to a UTC ISO string for storage. */
 function localDateToUtc(localDate: string): string {
   const [y, mo, d] = localDate.split('-').map(Number);
@@ -189,6 +199,10 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
   async function handleCreate() {
     if (!name.trim() || !saPassword || !dacpacPath || !dbName.trim() || !extractionDate) {
       toast.error('All fields are required', { duration: Infinity });
+      return;
+    }
+    if (!isSqlServerPasswordValid(saPassword)) {
+      toast.error('SA password does not meet SQL Server complexity requirements', { duration: Infinity });
       return;
     }
     setCreating(true);
@@ -364,6 +378,11 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
               placeholder="Strong SQL Server SA password"
               disabled={busy}
             />
+            {saPassword && !isSqlServerPasswordValid(saPassword) && (
+              <p className="text-xs text-destructive">
+                Must be ≥8 chars with uppercase, lowercase, digit, and symbol (SQL Server policy).
+              </p>
+            )}
           </div>
 
           {/* Row 5: Extraction date */}
@@ -386,7 +405,7 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
           <Button
             size="sm"
             onClick={handleCreate}
-            disabled={busy || !name.trim() || !saPassword || !dacpacPath || !dbName || !extractionDate}
+            disabled={busy || !name.trim() || !saPassword || !isSqlServerPasswordValid(saPassword) || !dacpacPath || !dbName || !extractionDate}
           >
             {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
             {creating ? 'Creating…' : 'Create'}
