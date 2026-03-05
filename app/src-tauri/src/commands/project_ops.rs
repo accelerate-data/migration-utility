@@ -639,6 +639,23 @@ pub async fn project_init(
     // ── Step 3: StartContainer ────────────────────────────────────────────────
     emit_step(&app, InitStep::StartContainer, InitStepStatus::Running);
 
+    // Stop any OTHER running migration-* containers before starting this one.
+    // Resources are conserved and only the active project's container runs at a time.
+    // Non-fatal: a failed stop doesn't block the current project from starting.
+    if let Ok(running) = run_cmd_async(
+        "docker",
+        &["ps", "--filter", "name=migration-", "--format", "{{.Names}}"],
+        None,
+        &[],
+    ).await {
+        for name in running.lines().map(str::trim).filter(|n| !n.is_empty() && *n != container.as_str()) {
+            log::info!("[project_init] stopping inactive container {name}");
+            if let Err(e) = run_cmd_async("docker", &["stop", name], None, &[]).await {
+                log::warn!("[project_init] failed to stop container {name} (non-fatal): {e}");
+            }
+        }
+    }
+
     // Use `docker inspect` for exact container state (ps --filter does substring matching).
     let inspect_state = run_cmd_async(
         "docker",
