@@ -216,15 +216,8 @@ pub fn project_create_full(
             Some(&local_clone_path),
             &[],
         )?;
-        let auth_header = format!("Authorization: token {token}");
-        let token_preview = &token[..token.len().min(12)];
-        log::debug!("[project_create_full] git push with token prefix={}...", token_preview);
-        run_cmd(
-            "git",
-            &["-c", &format!("http.extraheader={auth_header}"), "push"],
-            Some(&local_clone_path),
-            &[("GIT_TERMINAL_PROMPT", "0")],
-        )?;
+        // Credentials are embedded in the remote URL from Settings → Apply clone.
+        run_cmd("git", &["push"], Some(&local_clone_path), &[("GIT_TERMINAL_PROMPT", "0")])?;
         log::info!("[project_create_full] pushed project {} to repo", project.slug);
 
         // 9. Create GitHub secret SA_PASSWORD_{SLUG_UPPER}.
@@ -596,16 +589,13 @@ pub fn project_delete_full(
     }
 
     // Step 3: Git rm + commit + push (best-effort — repo may not exist or be set up).
-    if let (Some(ref lcp), Some(ref tok)) = (&local_clone_path, &token) {
-        let tok_preview = &tok[..tok.len().min(12)];
-        log::debug!("[project_delete_full] git push with token prefix={}...", tok_preview);
-        let auth_header = format!("Authorization: token {tok}");
-        let push_args = ["-c", &format!("http.extraheader={auth_header}"), "push"];
+    if let (Some(ref lcp), Some(ref _tok)) = (&local_clone_path, &token) {
+        // Credentials are embedded in the remote URL from Settings → Apply clone.
         let git_steps: &[(&[&str], &str)] = &[
             (&["rm", "-r", "--ignore-unmatch", &slug], "git rm"),
             (&["-c", "user.name=Migration Utility", "-c", "user.email=migration@vibedata.com",
                "commit", "-m", &format!("chore: remove project {slug}")], "git commit"),
-            (&push_args, "git push"),
+            (&["push"], "git push"),
         ];
         for (args, label) in git_steps {
             if let Err(e) = run_cmd("git", args, Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]) {
