@@ -3,6 +3,7 @@ import { Routes, Route, useLocation, useNavigate } from 'react-router';
 import { cn } from '@/lib/utils';
 import ConnectionsTab from './connections-tab';
 import ProfileTab from './profile-tab';
+import ProjectsTab from './projects-tab';
 
 interface SubTab {
   label: string;
@@ -11,8 +12,9 @@ interface SubTab {
 }
 
 const TABS: SubTab[] = [
-  { label: 'Setup',   path: '/settings',         testId: 'settings-tab-setup' },
-  { label: 'Profile', path: '/settings/profile', testId: 'settings-tab-profile' },
+  { label: 'Setup',    path: '/settings',          testId: 'settings-tab-setup' },
+  { label: 'Projects', path: '/settings/projects', testId: 'settings-tab-projects' },
+  { label: 'Profile',  path: '/settings/profile',  testId: 'settings-tab-profile' },
 ];
 
 export default function SettingsSurface() {
@@ -106,6 +108,7 @@ export default function SettingsSurface() {
       >
         <Routes>
           <Route index element={<ConnectionsTab />} />
+          <Route path="projects" element={<ProjectsTab />} />
           <Route path="profile" element={<ProfileTab />} />
         </Routes>
       </div>

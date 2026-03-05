@@ -1,10 +1,12 @@
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import type {
   AppSettingsPublic,
   DeviceFlowResponse,
   GitHubAuthResult,
   GitHubRepo,
   GitHubUser,
+  InitStepEvent,
   Project,
 } from './types';
 
@@ -60,3 +62,25 @@ export const projectGet = (id: string) =>
 
 export const projectDelete = (id: string) =>
   invoke<void>('project_delete', { id });
+
+export const projectSetActive = (id: string) =>
+  invoke<void>('project_set_active', { id });
+
+export const projectGetActive = () =>
+  invoke<Project | null>('project_get_active');
+
+export const projectCreateFull = (name: string, saPassword: string, dacpacPath: string) =>
+  invoke<Project>('project_create_full', { name, saPassword, dacpacPath });
+
+export const projectInit = (id: string) =>
+  invoke<void>('project_init', { id });
+
+export const projectDeleteFull = (id: string) =>
+  invoke<void>('project_delete_full', { id });
+
+export const projectResetLocal = (id: string) =>
+  invoke<void>('project_reset_local', { id });
+
+/** Subscribe to init step events. Returns an unlisten function. */
+export const listenProjectInitStep = (handler: (event: InitStepEvent) => void) =>
+  listen<InitStepEvent>('project:init:step', (e) => handler(e.payload));

@@ -22,6 +22,8 @@ pub struct AppSettings {
     pub migration_repo_clone_url: Option<String>,
     #[serde(default)]
     pub local_clone_path: Option<String>,
+    #[serde(default)]
+    pub active_project_id: Option<String>,
 }
 
 impl std::fmt::Debug for AppSettings {
@@ -48,6 +50,7 @@ pub struct AppSettingsPublic {
     pub migration_repo_full_name: Option<String>,
     pub migration_repo_clone_url: Option<String>,
     pub local_clone_path: Option<String>,
+    pub active_project_id: Option<String>,
 }
 
 impl From<AppSettings> for AppSettingsPublic {
@@ -61,6 +64,7 @@ impl From<AppSettings> for AppSettingsPublic {
             migration_repo_full_name: s.migration_repo_full_name,
             migration_repo_clone_url: s.migration_repo_clone_url,
             local_clone_path: s.local_clone_path,
+            active_project_id: s.active_project_id,
         }
     }
 }
@@ -127,6 +131,33 @@ pub struct Project {
     pub created_at: String,
 }
 
+// ── Init orchestrator types ───────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum InitStep {
+    GitPull,
+    DockerCheck,
+    StartContainer,
+    RestoreDacpac,
+    VerifyDb,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+pub enum InitStepStatus {
+    Running,
+    Ok,
+    Error { message: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InitStepEvent {
+    pub step: InitStep,
+    pub status: InitStepStatus,
+}
+
 // ── Error type ────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Error, Serialize)]
@@ -138,11 +169,10 @@ pub enum CommandError {
     NotFound(String),
     #[error("io error: {0}")]
     Io(String),
-    #[error("git error: {0}")]
-    #[allow(dead_code)]
-    Git(String),
     #[error("validation error: {0}")]
     Validation(String),
+    #[error("external command error: {0}")]
+    External(String),
 }
 
 impl From<rusqlite::Error> for CommandError {

@@ -111,8 +111,75 @@ pub fn project_delete(
     Ok(())
 }
 
+#[tauri::command]
+pub fn project_set_active(
+    state: State<'_, DbState>,
+    id: String,
+) -> Result<(), CommandError> {
+    log::info!("[project_set_active] id={}", id);
+    let conn = state.conn().map_err(|e| {
+        log::error!("[project_set_active] DB lock: {}", e);
+        CommandError::Database(e)
+    })?;
+
+    // Verify project exists
+    let exists: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM projects WHERE id = ?1",
+        params![id],
+        |row| row.get(0),
+    )?;
+    if !exists {
+        return Err(CommandError::NotFound(format!("project {id}")));
+    }
+
+    let mut settings = crate::db::read_settings(&conn).map_err(CommandError::Database)?;
+    settings.active_project_id = Some(id.clone());
+    crate::db::write_settings(&conn, &settings).map_err(CommandError::Database)?;
+    log::info!("[project_set_active] active project set to id={}", id);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn project_get_active(
+    state: State<'_, DbState>,
+) -> Result<Option<Project>, CommandError> {
+    log::info!("[project_get_active]");
+    let conn = state.conn().map_err(|e| {
+        log::error!("[project_get_active] DB lock: {}", e);
+        CommandError::Database(e)
+    })?;
+
+    let settings = crate::db::read_settings(&conn).map_err(CommandError::Database)?;
+    let Some(id) = settings.active_project_id else {
+        return Ok(None);
+    };
+
+    match conn.query_row(
+        "SELECT id, slug, name, created_at FROM projects WHERE id = ?1",
+        params![id],
+        |row| {
+            Ok(Project {
+                id: row.get(0)?,
+                slug: row.get(1)?,
+                name: row.get(2)?,
+                created_at: row.get(3)?,
+            })
+        },
+    ) {
+        Ok(p) => Ok(Some(p)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => {
+            // active_project_id points to a deleted project — clear it
+            let mut s = crate::db::read_settings(&conn).map_err(CommandError::Database)?;
+            s.active_project_id = None;
+            crate::db::write_settings(&conn, &s).map_err(CommandError::Database)?;
+            Ok(None)
+        }
+        Err(e) => Err(CommandError::from(e)),
+    }
+}
+
 /// Generate a kebab-case slug from name, appending a short suffix on collision.
-fn slugify(name: &str, conn: &rusqlite::Connection) -> Result<String, CommandError> {
+pub(crate) fn slugify(name: &str, conn: &rusqlite::Connection) -> Result<String, CommandError> {
     let base = name
         .to_lowercase()
         .chars()
