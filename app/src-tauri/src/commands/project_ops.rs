@@ -401,6 +401,8 @@ pub async fn project_init(
                     "/Action:Publish",
                     &format!("/SourceFile:{}", dacpac.display()),
                     &format!("/TargetConnectionString:{conn_str}"),
+                    // Full-Text Search is not installed in the Docker image.
+                    "/p:ExcludeObjectTypes=FullTextCatalogs;FullTextIndexes;FullTextStopLists",
                 ],
                 None,
                 &[],
@@ -771,6 +773,8 @@ pub async fn project_detect_databases(
             "/Action:Publish",
             &format!("/SourceFile:{dacpac_path}"),
             &format!("/TargetConnectionString:{conn_str_real}"),
+            // Full-Text Search is not installed in the Docker image.
+            "/p:ExcludeObjectTypes=FullTextCatalogs;FullTextIndexes;FullTextStopLists",
         ],
         None,
         &[],
