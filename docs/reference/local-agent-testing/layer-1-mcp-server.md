@@ -1,0 +1,181 @@
+# Layer 1: MCP Server
+
+Test the genai-toolbox MCP server in isolation against your local SQL Server.
+No Python, no agent code, no GH Actions.
+
+Back to [Local Agent Testing overview](README.md).
+
+---
+
+## Goal
+
+Verify that:
+
+1. genai-toolbox connects to the local SQL Server container.
+2. The `mssql-execute-sql` tool executes arbitrary SQL correctly.
+3. The SQL catalog queries the scoping agent will use return the expected schema and rows.
+
+---
+
+## Prerequisites
+
+- Local SQL Server container running with a project database restored.
+  See [Docker Setup](../setup-docker/README.md).
+- `SA_PASSWORD` for the container.
+- genai-toolbox binary installed (see below).
+- Claude Code or Codex with MCP support.
+
+---
+
+## Step 1: Install genai-toolbox
+
+```bash
+brew install googleapis/tap/genai-toolbox
+toolbox --version
+```
+
+---
+
+## Step 2: Write `tools.yaml`
+
+Create `~/.config/migration-utility/tools.yaml`:
+
+```yaml
+sources:
+  - kind: sources
+    name: sqlserver
+    type: mssql
+    host: 127.0.0.1
+    port: 1433
+    database: ${MSSQL_DB}
+    user: sa
+    password: ${SA_PASSWORD}
+
+tools:
+  - name: mssql-execute-sql
+    type: mssql-execute-sql
+    source: sqlserver
+    description: Execute a SQL query against the project SQL Server database.
+```
+
+No secrets in the file — `${MSSQL_DB}` and `${SA_PASSWORD}` are substituted at runtime.
+
+---
+
+## Step 3: Add to Claude Code as an MCP server
+
+Add to `~/.claude.json` (or run `claude mcp add`):
+
+```json
+{
+  "mcpServers": {
+    "mssql": {
+      "command": "toolbox",
+      "args": ["--stdio", "--config", "/Users/hbanerjee/.config/migration-utility/tools.yaml"],
+      "env": {
+        "MSSQL_DB": "your-database-name",
+        "SA_PASSWORD": "your-sa-password"
+      }
+    }
+  }
+}
+```
+
+Restart Claude Code. Confirm the `mssql-execute-sql` tool appears in the tool list.
+
+---
+
+## Step 4: Run validation queries
+
+Ask Claude Code to execute each query below. Confirm results match expectations before
+moving to Layer 2.
+
+### 4.1 Dependency metadata (DiscoverCandidates)
+
+Finds procedures that reference a target table via SQL Server dependency metadata.
+
+```sql
+SELECT
+    OBJECT_SCHEMA_NAME(referencing_id)  AS proc_schema,
+    OBJECT_NAME(referencing_id)         AS proc_name,
+    OBJECT_SCHEMA_NAME(referenced_id)   AS table_schema,
+    OBJECT_NAME(referenced_id)          AS table_name
+FROM sys.sql_expression_dependencies
+WHERE referenced_entity_name = 'your_target_table'
+  AND OBJECTPROPERTY(referencing_id, 'IsProcedure') = 1;
+```
+
+Expected: rows for each stored procedure that references the table. Empty result means
+no metadata-visible references (dynamic SQL or `TRUNCATE`-only writers may still exist).
+
+### 4.2 Procedure body retrieval (ResolveCallGraph / DetectWriteOperations)
+
+Fetches the full T-SQL body of a candidate procedure for AST parsing.
+
+```sql
+SELECT
+    OBJECT_SCHEMA_NAME(o.object_id) AS schema_name,
+    o.name                          AS proc_name,
+    m.definition
+FROM sys.sql_modules m
+JOIN sys.objects o ON o.object_id = m.object_id
+WHERE o.type = 'P'
+  AND o.name = 'your_procedure_name';
+```
+
+Expected: one row with `definition` containing the full CREATE PROCEDURE body.
+
+### 4.3 All procedures in database (baseline discovery)
+
+```sql
+SELECT
+    ROUTINE_SCHEMA,
+    ROUTINE_NAME,
+    CREATED,
+    LAST_ALTERED
+FROM INFORMATION_SCHEMA.ROUTINES
+WHERE ROUTINE_TYPE = 'PROCEDURE'
+ORDER BY ROUTINE_SCHEMA, ROUTINE_NAME;
+```
+
+Expected: full list of stored procedures in the database.
+
+### 4.4 Cross-database reference detection
+
+Verifies the agent can detect out-of-scope cross-database references.
+
+```sql
+SELECT DISTINCT
+    OBJECT_NAME(referencing_id)         AS proc_name,
+    referenced_database_name
+FROM sys.sql_expression_dependencies
+WHERE referenced_database_name IS NOT NULL
+  AND OBJECTPROPERTY(referencing_id, 'IsProcedure') = 1;
+```
+
+Expected: any procedures with cross-database references. These should produce
+`status: error` with code `ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE` in the agent output.
+
+---
+
+## Step 5: Confirm and record results
+
+For each query above, note:
+
+- Does it return rows? If not, explain why (empty database, no procedures, etc.).
+- Are the column names and types what the agent contract expects?
+- Any permission errors from the `sa` account?
+
+Document any deviations in a comment on the Layer 1 Linear issue before proceeding to
+Layer 2.
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `toolbox` tool not visible in Claude Code | MCP server not registered or not restarted | Re-add via `claude mcp add`, restart |
+| Connection refused | SQL Server container not running | `docker ps`, start container |
+| Login failed for user 'sa' | Wrong `SA_PASSWORD` or SA login disabled | Check container env, `docker inspect` |
+| Empty results from `sys.sql_expression_dependencies` | Database restored but no procedures referencing target | Use a known procedure + table combo to sanity-check |
