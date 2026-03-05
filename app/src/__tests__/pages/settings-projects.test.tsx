@@ -113,11 +113,11 @@ describe('ProjectsTab — create project form', () => {
     await waitFor(() => screen.getByRole('button', { name: /new project/i }));
     await user.click(screen.getByRole('button', { name: /new project/i }));
     expect(screen.getByLabelText(/project name/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/sa password/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/select a .dacpac file/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/customer/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/source system/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /detect databases/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/sa password/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/customer/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/source system/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /detect from dacpac/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/extraction date/i)).toBeInTheDocument();
   });
 
@@ -142,59 +142,45 @@ describe('ProjectsTab — create project form', () => {
     expect(mockDialogOpen).toHaveBeenCalled();
   });
 
-  it('Detect databases button is disabled until name, password, and dacpac are filled', async () => {
+  it('Detect button is disabled until a DacPac file is selected', async () => {
     const user = userEvent.setup();
     stubProjects([], null);
     renderTab();
     await waitFor(() => screen.getByRole('button', { name: /new project/i }));
     await user.click(screen.getByRole('button', { name: /new project/i }));
-    expect(screen.getByTestId('project-detect-databases')).toBeDisabled();
-
-    // Fill project name only — still disabled
-    await user.type(screen.getByLabelText(/project name/i), 'My Project');
+    // No dacpac yet — disabled (name + password do not affect the detect button)
     expect(screen.getByTestId('project-detect-databases')).toBeDisabled();
   });
 
-  it('Detect databases populates a Select dropdown', async () => {
+  it('Detect auto-runs when DacPac is picked and populates a Select dropdown', async () => {
     const user = userEvent.setup();
     stubProjects([], null);
     renderTab();
     await waitFor(() => screen.getByRole('button', { name: /new project/i }));
     await user.click(screen.getByRole('button', { name: /new project/i }));
 
-    // Fill required fields
-    await user.type(screen.getByLabelText(/project name/i), 'My Project');
-    await user.type(screen.getByLabelText(/sa password/i), 'Pass1234!');
-    // Simulate dacpac path via mock
+    // Pick a dacpac — auto-detect fires immediately
     mockDialogOpen.mockResolvedValue('/path/to/schema.dacpac');
     await user.click(screen.getByPlaceholderText(/select a .dacpac file/i));
-
-    await waitFor(() => expect(screen.getByTestId('project-detect-databases')).not.toBeDisabled());
-    await user.click(screen.getByTestId('project-detect-databases'));
 
     await waitFor(() => {
       expect(screen.getByTestId('project-dbname-select')).toBeInTheDocument();
     });
   });
 
-  it('Detect databases shows error on failure', async () => {
+  it('Detect shows error when DacPac detection fails', async () => {
     const user = userEvent.setup();
     mockInvokeCommands({
       project_list: [],
       project_get_active: null,
-      project_detect_databases: new Error('Docker not running'),
+      project_detect_databases: new Error('Invalid DacPac file'),
     });
     renderTab();
     await waitFor(() => screen.getByRole('button', { name: /new project/i }));
     await user.click(screen.getByRole('button', { name: /new project/i }));
 
-    await user.type(screen.getByLabelText(/project name/i), 'My Project');
-    await user.type(screen.getByLabelText(/sa password/i), 'Pass1234!');
-    mockDialogOpen.mockResolvedValue('/path/to/schema.dacpac');
+    mockDialogOpen.mockResolvedValue('/path/to/bad.dacpac');
     await user.click(screen.getByPlaceholderText(/select a .dacpac file/i));
-
-    await waitFor(() => expect(screen.getByTestId('project-detect-databases')).not.toBeDisabled());
-    await user.click(screen.getByTestId('project-detect-databases'));
 
     await waitFor(() => {
       expect(screen.getByTestId('project-detect-error')).toBeInTheDocument();
