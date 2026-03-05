@@ -60,10 +60,10 @@ pub fn save_repo_settings(
             CommandError::Io(e.to_string())
         })?;
 
-        // Inject OAuth token into the HTTPS clone URL for authentication.
-        // GitHub expects https://oauth2:{token}@github.com/... (token as password).
+        // Inject token into the HTTPS clone URL. GitHub accepts the token directly
+        // as the username (with an empty password) for HTTPS git operations.
         let auth_url = if let Some(ref tok) = settings.github_oauth_token {
-            clone_url.replacen("https://", &format!("https://oauth2:{}@", tok), 1)
+            clone_url.replacen("https://", &format!("https://{}@", tok), 1)
         } else {
             clone_url.clone()
         };
