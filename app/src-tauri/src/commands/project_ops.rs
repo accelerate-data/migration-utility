@@ -421,14 +421,13 @@ pub fn project_create_full(
 
     // 3–9. Execute external steps. On any failure, rollback the DB row and clean up.
     let slug_dir = Path::new(&local_clone_path).join(&project.slug);
+    let dacpac_dir = slug_dir.join("artifacts").join("dacpac");
     let external_result: Result<(), CommandError> = (|| {
-        let slug_dir_str = slug_dir.to_string_lossy().to_string();
+        // 3. Create artifacts/dacpac/ directory structure.
+        std::fs::create_dir_all(&dacpac_dir)?;
+        log::debug!("[project_create_full] created dir {}", dacpac_dir.display());
 
-        // 3. Create project directory.
-        std::fs::create_dir_all(&slug_dir)?;
-        log::debug!("[project_create_full] created dir {slug_dir_str}");
-
-        // 4. Write metadata.json.
+        // 4. Write metadata.json into artifacts/dacpac/.
         let metadata = serde_json::json!({
             "id": project.id,
             "slug": project.slug,
@@ -441,7 +440,7 @@ pub fn project_create_full(
             "extractionDatetime": extraction_datetime,
         });
         std::fs::write(
-            slug_dir.join("metadata.json"),
+            dacpac_dir.join("metadata.json"),
             serde_json::to_string_pretty(&metadata).unwrap(),
         )?;
         log::debug!("[project_create_full] wrote metadata.json");
@@ -462,12 +461,12 @@ pub fn project_create_full(
                 }
             })?;
 
-        // 6. Copy DacPac into project dir.
+        // 6. Copy DacPac into artifacts/dacpac/.
         let dacpac_src = Path::new(&dacpac_path);
         let dacpac_filename = dacpac_src.file_name().ok_or_else(|| {
             CommandError::Validation(format!("Invalid DacPac path: {dacpac_path}"))
         })?;
-        let dacpac_dest = slug_dir.join(dacpac_filename);
+        let dacpac_dest = dacpac_dir.join(dacpac_filename);
         std::fs::copy(dacpac_src, &dacpac_dest).map_err(|e| {
             CommandError::Io(format!("Failed to copy DacPac: {e}"))
         })?;
@@ -712,11 +711,12 @@ pub async fn project_init(
     emit_step(&app, InitStep::RestoreDacpac, InitStepStatus::Running);
 
     let slug_dir = Path::new(&local_clone_path).join(&slug);
-    let dacpac_path = find_dacpac(&slug_dir);
+    let dacpac_dir = slug_dir.join("artifacts").join("dacpac");
+    let dacpac_path = find_dacpac(&dacpac_dir);
 
     let restore_result = match dacpac_path {
         None => Err(CommandError::External(format!(
-            "No .dacpac file found in {}", slug_dir.display()
+            "No .dacpac file found in {}", dacpac_dir.display()
         ))),
         Some(ref dacpac) => {
             // Strip SqlFullTextIndex / SqlFullTextCatalog from model.xml — the SQL Server
