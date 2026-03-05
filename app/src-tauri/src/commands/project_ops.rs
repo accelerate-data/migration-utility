@@ -257,10 +257,11 @@ fn patch_origin_checksum(origin: &str, new_hex: &str) -> String {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-fn emit_step(app: &tauri::AppHandle, step: InitStep, status: InitStepStatus) {
+fn emit_step(app: &tauri::AppHandle, step: InitStep, status: InitStepStatus, project_id: Option<String>) {
     let event = InitStepEvent {
         step,
         status,
+        project_id,
     };
     if let Err(e) = app.emit("project:init:step", event) {
         log::warn!("[emit_step] failed to emit: {e}");
@@ -594,11 +595,8 @@ pub async fn project_init(
         (slug, sa_password, port, lcp, url)
     };
 
-    let container = container_name(&slug);
-    let volume = volume_name(&slug);
-
     // ── Step 1: GitPull ───────────────────────────────────────────────────────
-    emit_step(&app, InitStep::GitPull, InitStepStatus::Running);
+    emit_step(&app, InitStep::GitPull, InitStepStatus::Running, Some(id.clone()));
     let git_result = if Path::new(&local_clone_path).join(".git").exists() {
         log::debug!("[project_init] git pull in {local_clone_path}");
         run_cmd_async("git", &["pull"], Some(&local_clone_path), &[("GIT_TERMINAL_PROMPT", "0")]).await
@@ -610,7 +608,7 @@ pub async fn project_init(
         Err(ref e) => {
             let msg = e.to_string();
             log::error!("[project_init] GitPull failed: {msg}");
-            emit_step(&app, InitStep::GitPull, InitStepStatus::Error { message: msg.clone() });
+            emit_step(&app, InitStep::GitPull, InitStepStatus::Error { message: msg.clone() }, Some(id.clone()));
             return Err(CommandError::External(msg));
         }
         Ok(_) => {
@@ -620,38 +618,59 @@ pub async fn project_init(
             if let Err(e) = run_cmd_async("git", &["lfs", "pull"], Some(&local_clone_path), &[("GIT_TERMINAL_PROMPT", "0")]).await {
                 log::warn!("[project_init] git lfs pull failed (non-fatal): {e}");
             }
-            emit_step(&app, InitStep::GitPull, InitStepStatus::Ok);
+            emit_step(&app, InitStep::GitPull, InitStepStatus::Ok, Some(id.clone()));
         }
     }
 
     // ── Step 2: DockerCheck ───────────────────────────────────────────────────
-    emit_step(&app, InitStep::DockerCheck, InitStepStatus::Running);
+    emit_step(&app, InitStep::DockerCheck, InitStepStatus::Running, Some(id.clone()));
     match run_cmd_async("docker", &["info"], None, &[]).await {
-        Ok(_) => emit_step(&app, InitStep::DockerCheck, InitStepStatus::Ok),
+        Ok(_) => emit_step(&app, InitStep::DockerCheck, InitStepStatus::Ok, Some(id.clone())),
         Err(ref e) => {
             let msg = format!("Docker is not running or not installed — please start Docker Desktop. Detail: {e}");
             log::error!("[project_init] DockerCheck failed: {msg}");
-            emit_step(&app, InitStep::DockerCheck, InitStepStatus::Error { message: msg.clone() });
+            emit_step(&app, InitStep::DockerCheck, InitStepStatus::Error { message: msg.clone() }, Some(id.clone()));
             return Err(CommandError::External(msg));
         }
     }
 
-    // ── Step 3: StartContainer ────────────────────────────────────────────────
-    emit_step(&app, InitStep::StartContainer, InitStepStatus::Running);
+    // ── Steps 3-5: per-project (stop others first on single-project switch) ───
+    run_project_local_steps(&app, &id, &slug, &sa_password, port, &local_clone_path, true).await
+}
 
-    // Stop any OTHER running migration-* containers before starting this one.
-    // Resources are conserved and only the active project's container runs at a time.
-    // Non-fatal: a failed stop doesn't block the current project from starting.
-    if let Ok(running) = run_cmd_async(
-        "docker",
-        &["ps", "--filter", "name=migration-", "--format", "{{.Names}}"],
-        None,
-        &[],
-    ).await {
-        for name in running.lines().map(str::trim).filter(|n| !n.is_empty() && *n != container.as_str()) {
-            log::info!("[project_init] stopping inactive container {name}");
-            if let Err(e) = run_cmd_async("docker", &["stop", name], None, &[]).await {
-                log::warn!("[project_init] failed to stop container {name} (non-fatal): {e}");
+/// Run steps 3-5 (StartContainer → RestoreDacpac → VerifyDb) for a single project.
+///
+/// Called both from `project_init` (single-project switch, `stop_others = true`) and
+/// from `app_startup_sync` (parallel startup, `stop_others = false`).
+async fn run_project_local_steps(
+    app: &tauri::AppHandle,
+    id: &str,
+    slug: &str,
+    sa_password: &str,
+    port: u16,
+    local_clone_path: &str,
+    stop_others: bool,
+) -> Result<(), CommandError> {
+    let container = container_name(slug);
+    let volume = volume_name(slug);
+    let pid = Some(id.to_string());
+
+    // ── Step 3: StartContainer ────────────────────────────────────────────────
+    emit_step(app, InitStep::StartContainer, InitStepStatus::Running, pid.clone());
+
+    // Stop any OTHER running migration-* containers (only for single-project switch).
+    if stop_others {
+        if let Ok(running) = run_cmd_async(
+            "docker",
+            &["ps", "--filter", "name=migration-", "--format", "{{.Names}}"],
+            None,
+            &[],
+        ).await {
+            for name in running.lines().map(str::trim).filter(|n| !n.is_empty() && *n != container.as_str()) {
+                log::info!("[run_project_local_steps] stopping inactive container {name}");
+                if let Err(e) = run_cmd_async("docker", &["stop", name], None, &[]).await {
+                    log::warn!("[run_project_local_steps] failed to stop container {name} (non-fatal): {e}");
+                }
             }
         }
     }
@@ -665,12 +684,12 @@ pub async fn project_init(
     )
     .await
     .unwrap_or_default();
-    log::debug!("[project_init] container {container} inspect state='{inspect_state}'");
+    log::debug!("[run_project_local_steps] container {container} inspect state='{inspect_state}'");
 
     if inspect_state != "running" {
         if inspect_state.is_empty() {
             // Container doesn't exist — create it.
-            log::info!("[project_init] creating container {container}");
+            log::info!("[run_project_local_steps] creating container {container}");
             run_cmd_async(
                 "docker",
                 &[
@@ -695,14 +714,14 @@ pub async fn project_init(
                     .map(|o| String::from_utf8_lossy(&o.stderr).trim().to_string())
                     .unwrap_or_default();
                 let detail = if logs.is_empty() { e.to_string() } else { format!("{e}\nContainer logs:\n{logs}") };
-                log::error!("[project_init] docker run failed: {detail}");
+                log::error!("[run_project_local_steps] docker run failed: {detail}");
                 CommandError::External(detail)
             })?;
         } else {
             // Container exists but not running — start it.
-            log::info!("[project_init] starting stopped container {container} (was: {inspect_state})");
+            log::info!("[run_project_local_steps] starting stopped container {container} (was: {inspect_state})");
             run_cmd_async("docker", &["start", &container], None, &[]).await.map_err(|e| {
-                log::error!("[project_init] docker start failed: {e}");
+                log::error!("[run_project_local_steps] docker start failed: {e}");
                 e
             })?;
         }
@@ -717,27 +736,27 @@ pub async fn project_init(
         )
         .await
         .unwrap_or_default();
-        log::info!("[project_init] container {container} post-start state='{post_state}'");
+        log::info!("[run_project_local_steps] container {container} post-start state='{post_state}'");
 
         if post_state != "running" {
             let logs = run_cmd_async("docker", &["logs", "--tail", "30", &container], None, &[])
                 .await
                 .unwrap_or_default();
             let msg = format!("Container '{container}' failed to start (state: {post_state}).\nDocker logs:\n{logs}");
-            log::error!("[project_init] StartContainer verify failed: {msg}");
-            emit_step(&app, InitStep::StartContainer, InitStepStatus::Error { message: msg.clone() });
+            log::error!("[run_project_local_steps] StartContainer verify failed: {msg}");
+            emit_step(app, InitStep::StartContainer, InitStepStatus::Error { message: msg.clone() }, pid.clone());
             return Err(CommandError::External(msg));
         }
     } else {
-        log::debug!("[project_init] container {container} already running");
+        log::debug!("[run_project_local_steps] container {container} already running");
     }
 
-    emit_step(&app, InitStep::StartContainer, InitStepStatus::Ok);
+    emit_step(app, InitStep::StartContainer, InitStepStatus::Ok, pid.clone());
 
     // ── Step 4: RestoreDacpac ─────────────────────────────────────────────────
-    emit_step(&app, InitStep::RestoreDacpac, InitStepStatus::Running);
+    emit_step(app, InitStep::RestoreDacpac, InitStepStatus::Running, pid.clone());
 
-    let slug_dir = Path::new(&local_clone_path).join(&slug);
+    let slug_dir = Path::new(local_clone_path).join(slug);
     let dacpac_dir = slug_dir.join("artifacts").join("dacpac");
     let dacpac_path = find_dacpac(&dacpac_dir);
 
@@ -746,28 +765,25 @@ pub async fn project_init(
             "No .dacpac file found in {}", dacpac_dir.display()
         ))),
         Some(ref dacpac) => {
-            // Strip SqlFullTextIndex / SqlFullTextCatalog from model.xml — the SQL Server
-            // Docker image does not include Full-Text Search.
             let effective_dacpac = match strip_dacpac_fulltext(dacpac) {
                 Ok(p) => p,
                 Err(e) => {
-                    log::warn!("[project_init] dacpac strip failed (using original): {e}");
+                    log::warn!("[run_project_local_steps] dacpac strip failed (using original): {e}");
                     dacpac.clone()
                 }
             };
 
-            // DB name is embedded in the connection string — /TargetDatabaseName
-            // cannot be used alongside /TargetConnectionString.
             let db_name = slug.replace('-', "_");
             let conn_str = format!(
                 "Server=localhost,{port};Database={db_name};User Id=sa;Password={sa_password};TrustServerCertificate=True"
             );
 
-            // Write the embedded publish profile to a temp file so sqlpackage can read it.
-            // Edit `resources/exclusions.publish.xml` to adjust exclusions, then rebuild.
-            let profile_path = std::env::temp_dir().join("migration-utility-exclusions.publish.xml");
+            // Write the embedded publish profile to a per-project temp path to avoid
+            // collisions when multiple projects run in parallel.
+            let profile_path = std::env::temp_dir()
+                .join(format!("migration-utility-exclusions-{slug}.publish.xml"));
             if let Err(e) = std::fs::write(&profile_path, PUBLISH_PROFILE_XML) {
-                log::warn!("[project_init] failed to write publish profile (will run without it): {e}");
+                log::warn!("[run_project_local_steps] failed to write publish profile (will run without it): {e}");
             }
 
             let source_arg = format!("/SourceFile:{}", effective_dacpac.display());
@@ -782,12 +798,10 @@ pub async fn project_init(
             if profile_path.exists() {
                 sqlpackage_args.push(&profile_arg);
             }
-            log::debug!("[project_init] RestoreDacpac db_name={db_name} profile={}", profile_path.display());
+            log::debug!("[run_project_local_steps] RestoreDacpac slug={slug} db={db_name}");
 
-            // Wait for SQL Server to accept connections before running sqlpackage.
-            // First-run image pull + SQL Server init can take 3-5 minutes.
-            log::info!("[project_init] waiting for SQL Server to be ready (up to 300s)");
-            let wait_result = wait_for_sql_server("localhost", port, &sa_password, 300, Some(&container)).await
+            log::info!("[run_project_local_steps] waiting for SQL Server to be ready (up to 300s) slug={slug}");
+            let wait_result = wait_for_sql_server("localhost", port, sa_password, 300, Some(&container)).await
                 .map_err(|e| CommandError::External(format!("SQL Server did not become ready in time: {e}")));
 
             match wait_result {
@@ -799,7 +813,6 @@ pub async fn project_init(
 
     match restore_result {
         Ok(ref output) => {
-            // Extract warning lines from sqlpackage stdout for display.
             let warnings: Vec<String> = output
                 .lines()
                 .filter(|l| {
@@ -809,37 +822,173 @@ pub async fn project_init(
                 .map(|l| l.trim().to_string())
                 .collect();
             if warnings.is_empty() {
-                emit_step(&app, InitStep::RestoreDacpac, InitStepStatus::Ok);
+                emit_step(app, InitStep::RestoreDacpac, InitStepStatus::Ok, pid.clone());
             } else {
-                log::warn!("[project_init] RestoreDacpac completed with {} warning(s)", warnings.len());
-                emit_step(&app, InitStep::RestoreDacpac, InitStepStatus::Warning { warnings });
+                log::warn!("[run_project_local_steps] RestoreDacpac completed with {} warning(s) slug={slug}", warnings.len());
+                emit_step(app, InitStep::RestoreDacpac, InitStepStatus::Warning { warnings }, pid.clone());
             }
         }
         Err(ref e) => {
             let msg = e.to_string();
-            log::error!("[project_init] RestoreDacpac failed: {msg}");
-            emit_step(&app, InitStep::RestoreDacpac, InitStepStatus::Error { message: msg.clone() });
+            log::error!("[run_project_local_steps] RestoreDacpac failed slug={slug}: {msg}");
+            emit_step(app, InitStep::RestoreDacpac, InitStepStatus::Error { message: msg.clone() }, pid.clone());
             return Err(CommandError::External(msg));
         }
     }
 
     // ── Step 5: VerifyDb ──────────────────────────────────────────────────────
-    emit_step(&app, InitStep::VerifyDb, InitStepStatus::Running);
+    emit_step(app, InitStep::VerifyDb, InitStepStatus::Running, pid.clone());
 
-    // Quick final ping — SQL Server is already running at this point.
-    let verify_result = wait_for_sql_server("localhost", 1433, &sa_password, 10, Some(&container)).await;
+    let verify_result = wait_for_sql_server("localhost", port, sa_password, 10, Some(&container)).await;
     match verify_result {
         Ok(_) => {
-            emit_step(&app, InitStep::VerifyDb, InitStepStatus::Ok);
-            log::info!("[project_init] initialization complete for id={}", id);
+            emit_step(app, InitStep::VerifyDb, InitStepStatus::Ok, pid.clone());
+            log::info!("[run_project_local_steps] initialization complete slug={slug}");
             Ok(())
         }
         Err(ref e) => {
             let msg = e.to_string();
-            log::error!("[project_init] VerifyDb failed: {msg}");
-            emit_step(&app, InitStep::VerifyDb, InitStepStatus::Error { message: msg.clone() });
+            log::error!("[run_project_local_steps] VerifyDb failed slug={slug}: {msg}");
+            emit_step(app, InitStep::VerifyDb, InitStepStatus::Error { message: msg.clone() }, pid);
             Err(CommandError::External(msg))
         }
+    }
+}
+
+/// Startup sync: git pull + docker check once, then initialize all projects in parallel.
+///
+/// Call this on app startup instead of `project_init` to avoid redundant git/docker work
+/// when multiple projects exist. Each project's container/dacpac steps run concurrently
+/// on their own Tokio tasks.
+#[tauri::command]
+pub async fn app_startup_sync(
+    app: tauri::AppHandle,
+    state: State<'_, DbState>,
+) -> Result<(), CommandError> {
+    log::info!("[app_startup_sync] starting multi-project startup sync");
+
+    // Read all project data + settings under the mutex before spawning async tasks.
+    struct ProjectRow {
+        id: String,
+        slug: String,
+        sa_password: String,
+        port: u16,
+    }
+
+    let (rows, local_clone_path, clone_url) = {
+        let conn = state.conn().map_err(|e| {
+            log::error!("[app_startup_sync] DB lock: {e}");
+            CommandError::Database(e)
+        })?;
+        let settings = crate::db::read_settings(&conn).map_err(CommandError::Database)?;
+        let lcp = settings.local_clone_path.ok_or_else(|| {
+            CommandError::Validation("Local clone path not configured in Settings".into())
+        })?;
+        let url = settings.migration_repo_clone_url.ok_or_else(|| {
+            CommandError::Validation("Migration repository not configured in Settings".into())
+        })?;
+
+        let mut stmt = conn
+            .prepare("SELECT id, slug, sa_password, port FROM projects ORDER BY created_at")
+            .map_err(CommandError::from)?;
+        let rows: Vec<ProjectRow> = stmt
+            .query_map([], |row| {
+                Ok(ProjectRow {
+                    id: row.get(0)?,
+                    slug: row.get(1)?,
+                    sa_password: row.get(2)?,
+                    port: row.get(3)?,
+                })
+            })
+            .map_err(CommandError::from)?
+            .collect::<Result<_, rusqlite::Error>>()
+            .map_err(CommandError::from)?;
+
+        (rows, lcp, url)
+    };
+
+    if rows.is_empty() {
+        log::info!("[app_startup_sync] no projects configured, nothing to sync");
+        return Ok(());
+    }
+
+    log::info!("[app_startup_sync] syncing {} project(s)", rows.len());
+
+    // ── Step 1: GitPull (global, once) ────────────────────────────────────────
+    emit_step(&app, InitStep::GitPull, InitStepStatus::Running, None);
+    let git_result = if Path::new(&local_clone_path).join(".git").exists() {
+        log::debug!("[app_startup_sync] git pull in {local_clone_path}");
+        run_cmd_async("git", &["pull"], Some(&local_clone_path), &[("GIT_TERMINAL_PROMPT", "0")]).await
+    } else {
+        log::debug!("[app_startup_sync] git clone {clone_url} into {local_clone_path}");
+        run_cmd_async("git", &["clone", &clone_url, &local_clone_path], None, &[("GIT_TERMINAL_PROMPT", "0")]).await
+    };
+    match git_result {
+        Err(ref e) => {
+            let msg = e.to_string();
+            log::error!("[app_startup_sync] GitPull failed: {msg}");
+            emit_step(&app, InitStep::GitPull, InitStepStatus::Error { message: msg.clone() }, None);
+            return Err(CommandError::External(msg));
+        }
+        Ok(_) => {
+            if let Err(e) = run_cmd_async("git", &["lfs", "pull"], Some(&local_clone_path), &[("GIT_TERMINAL_PROMPT", "0")]).await {
+                log::warn!("[app_startup_sync] git lfs pull failed (non-fatal): {e}");
+            }
+            emit_step(&app, InitStep::GitPull, InitStepStatus::Ok, None);
+        }
+    }
+
+    // ── Step 2: DockerCheck (global, once) ────────────────────────────────────
+    emit_step(&app, InitStep::DockerCheck, InitStepStatus::Running, None);
+    match run_cmd_async("docker", &["info"], None, &[]).await {
+        Ok(_) => emit_step(&app, InitStep::DockerCheck, InitStepStatus::Ok, None),
+        Err(ref e) => {
+            let msg = format!("Docker is not running or not installed — please start Docker Desktop. Detail: {e}");
+            log::error!("[app_startup_sync] DockerCheck failed: {msg}");
+            emit_step(&app, InitStep::DockerCheck, InitStepStatus::Error { message: msg.clone() }, None);
+            return Err(CommandError::External(msg));
+        }
+    }
+
+    // ── Steps 3-5: Per-project, in parallel ───────────────────────────────────
+    let mut join_set = tokio::task::JoinSet::new();
+    for row in rows {
+        let app_clone = app.clone();
+        let lcp = local_clone_path.clone();
+        join_set.spawn(async move {
+            run_project_local_steps(
+                &app_clone,
+                &row.id,
+                &row.slug,
+                &row.sa_password,
+                row.port,
+                &lcp,
+                false, // startup: start all containers, don't stop siblings
+            )
+            .await
+        });
+    }
+
+    let mut errors: Vec<String> = Vec::new();
+    while let Some(result) = join_set.join_next().await {
+        match result {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => {
+                log::error!("[app_startup_sync] project local steps failed: {e}");
+                errors.push(e.to_string());
+            }
+            Err(e) => {
+                log::error!("[app_startup_sync] task panicked: {e}");
+                errors.push(format!("task panicked: {e}"));
+            }
+        }
+    }
+
+    if errors.is_empty() {
+        log::info!("[app_startup_sync] all projects synced successfully");
+        Ok(())
+    } else {
+        Err(CommandError::External(errors.join("; ")))
     }
 }
 

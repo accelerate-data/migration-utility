@@ -58,6 +58,7 @@ pub fn run() {
             commands::project_ops::project_create_full,
             commands::project_ops::project_detect_databases,
             commands::project_ops::project_init,
+            commands::project_ops::app_startup_sync,
             commands::project_ops::project_delete_full,
             commands::project_ops::project_reset_local,
         ])

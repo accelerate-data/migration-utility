@@ -63,7 +63,12 @@ export type InitStepStatus =
 export interface InitStepEvent {
   step: InitStep;
   status: InitStepStatus;
+  /** Absent for global steps (gitPull, dockerCheck); present for per-project steps. */
+  projectId?: string;
 }
+
+export const GLOBAL_STEPS: InitStep[] = ['gitPull', 'dockerCheck'];
+export const PER_PROJECT_STEPS: InitStep[] = ['startContainer', 'restoreDacpac', 'verifyDb'];
 
 export const INIT_STEPS: InitStep[] = [
   'gitPull',

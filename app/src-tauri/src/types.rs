@@ -158,6 +158,8 @@ pub enum InitStepStatus {
 pub struct InitStepEvent {
     pub step: InitStep,
     pub status: InitStepStatus,
+    /// Present for per-project steps; absent for global steps (GitPull, DockerCheck).
+    pub project_id: Option<String>,
 }
 
 // ── Error type ────────────────────────────────────────────────────────────────

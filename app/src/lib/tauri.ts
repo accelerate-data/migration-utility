@@ -110,6 +110,9 @@ export const projectDetectDatabases = (dacpacPath: string) =>
 export const projectInit = (id: string) =>
   invoke<void>('project_init', { id });
 
+export const appStartupSync = () =>
+  invoke<void>('app_startup_sync');
+
 export const projectDeleteFull = (id: string) =>
   invoke<void>('project_delete_full', { id });
 

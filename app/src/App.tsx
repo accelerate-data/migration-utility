@@ -40,12 +40,12 @@ export default function App() {
   }
 
   if (showSplash) {
-    const active = useProjectStore.getState().activeProject!;
+    const { activeProject, projects } = useProjectStore.getState();
     return (
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <SplashScreen
-          projectId={active.id}
-          projectName={active.name}
+          projects={projects}
+          activeProjectId={activeProject!.id}
           onSuccess={() => setShowSplash(false)}
           onCancel={() => {
             useProjectStore.getState().clearActive();
