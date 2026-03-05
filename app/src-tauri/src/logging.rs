@@ -17,12 +17,12 @@ pub fn build_log_plugin() -> tauri_plugin_log::Builder {
             Target::new(TargetKind::Stderr),
         ])
         .level(log::LevelFilter::Debug)
-        // Suppress noisy external crates at Warn — only our code gets debug.
-        .level_for("tiberius", log::LevelFilter::Warn)
-        .level_for("tokio", log::LevelFilter::Warn)
-        .level_for("reqwest", log::LevelFilter::Warn)
-        .level_for("hyper", log::LevelFilter::Warn)
-        .level_for("rustls", log::LevelFilter::Warn)
+        // Cap external crates at Info — only our code gets debug.
+        .level_for("tiberius", log::LevelFilter::Info)
+        .level_for("tokio", log::LevelFilter::Info)
+        .level_for("reqwest", log::LevelFilter::Info)
+        .level_for("hyper", log::LevelFilter::Info)
+        .level_for("rustls", log::LevelFilter::Info)
         .max_file_size(50_000_000)
 }
 
