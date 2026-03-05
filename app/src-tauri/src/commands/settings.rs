@@ -61,14 +61,15 @@ pub fn save_repo_settings(
         })?;
 
         // Inject OAuth token into the HTTPS clone URL for authentication.
+        // GitHub expects https://oauth2:{token}@github.com/... (token as password).
         let auth_url = if let Some(ref tok) = settings.github_oauth_token {
-            clone_url.replacen("https://", &format!("https://{}@", tok), 1)
+            clone_url.replacen("https://", &format!("https://oauth2:{}@", tok), 1)
         } else {
             clone_url.clone()
         };
 
         log::info!("[save_repo_settings] cloning into {}", clone_path);
-        run_cmd("git", &["clone", &auth_url, &clone_path], None, &[]).map_err(|e| {
+        run_cmd("git", &["clone", &auth_url, &clone_path], None, &[("GIT_TERMINAL_PROMPT", "0")]).map_err(|e| {
             log::error!("[save_repo_settings] git clone failed: {}", e);
             e
         })?;
