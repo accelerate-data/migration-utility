@@ -30,6 +30,7 @@ function stubProjects(projects: Project[], active: Project | null) {
     project_get_active: active,
     project_set_active: undefined,
     project_create_full: PROJECT_A,
+    project_detect_databases: ['AlphaDB', 'BetaDB'],
     project_init: undefined,
     project_delete_full: undefined,
     project_reset_local: undefined,
@@ -116,7 +117,7 @@ describe('ProjectsTab — create project form', () => {
     expect(screen.getByPlaceholderText(/select a .dacpac file/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/customer/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/source system/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/database name/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /detect databases/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/extraction date/i)).toBeInTheDocument();
   });
 
@@ -139,6 +140,65 @@ describe('ProjectsTab — create project form', () => {
     // Click the dacpac input which also triggers pickDacpac
     await user.click(screen.getByPlaceholderText(/select a .dacpac file/i));
     expect(mockDialogOpen).toHaveBeenCalled();
+  });
+
+  it('Detect databases button is disabled until name, password, and dacpac are filled', async () => {
+    const user = userEvent.setup();
+    stubProjects([], null);
+    renderTab();
+    await waitFor(() => screen.getByRole('button', { name: /new project/i }));
+    await user.click(screen.getByRole('button', { name: /new project/i }));
+    expect(screen.getByTestId('project-detect-databases')).toBeDisabled();
+
+    // Fill project name only — still disabled
+    await user.type(screen.getByLabelText(/project name/i), 'My Project');
+    expect(screen.getByTestId('project-detect-databases')).toBeDisabled();
+  });
+
+  it('Detect databases populates a Select dropdown', async () => {
+    const user = userEvent.setup();
+    stubProjects([], null);
+    renderTab();
+    await waitFor(() => screen.getByRole('button', { name: /new project/i }));
+    await user.click(screen.getByRole('button', { name: /new project/i }));
+
+    // Fill required fields
+    await user.type(screen.getByLabelText(/project name/i), 'My Project');
+    await user.type(screen.getByLabelText(/sa password/i), 'Pass1234!');
+    // Simulate dacpac path via mock
+    mockDialogOpen.mockResolvedValue('/path/to/schema.dacpac');
+    await user.click(screen.getByPlaceholderText(/select a .dacpac file/i));
+
+    await waitFor(() => expect(screen.getByTestId('project-detect-databases')).not.toBeDisabled());
+    await user.click(screen.getByTestId('project-detect-databases'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('project-dbname-select')).toBeInTheDocument();
+    });
+  });
+
+  it('Detect databases shows error on failure', async () => {
+    const user = userEvent.setup();
+    mockInvokeCommands({
+      project_list: [],
+      project_get_active: null,
+      project_detect_databases: new Error('Docker not running'),
+    });
+    renderTab();
+    await waitFor(() => screen.getByRole('button', { name: /new project/i }));
+    await user.click(screen.getByRole('button', { name: /new project/i }));
+
+    await user.type(screen.getByLabelText(/project name/i), 'My Project');
+    await user.type(screen.getByLabelText(/sa password/i), 'Pass1234!');
+    mockDialogOpen.mockResolvedValue('/path/to/schema.dacpac');
+    await user.click(screen.getByPlaceholderText(/select a .dacpac file/i));
+
+    await waitFor(() => expect(screen.getByTestId('project-detect-databases')).not.toBeDisabled());
+    await user.click(screen.getByTestId('project-detect-databases'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('project-detect-error')).toBeInTheDocument();
+    });
   });
 
   it('Cancel closes the dialog', async () => {

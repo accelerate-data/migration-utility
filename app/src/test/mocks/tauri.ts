@@ -43,12 +43,16 @@ export function mockInvokeCommand(
   });
 }
 
-// Helper to configure multiple command responses
+// Helper to configure multiple command responses.
+// Pass an Error instance as a value to simulate a rejected command.
 export function mockInvokeCommands(
   commands: Record<string, unknown>
 ): void {
   mockInvoke.mockImplementation((cmd: string) => {
-    if (cmd in commands) return Promise.resolve(commands[cmd]);
+    if (cmd in commands) {
+      const val = commands[cmd];
+      return val instanceof Error ? Promise.reject(val) : Promise.resolve(val);
+    }
     return Promise.reject(new Error(`Unmocked command: ${cmd}`));
   });
 }

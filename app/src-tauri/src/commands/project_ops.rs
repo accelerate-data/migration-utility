@@ -10,6 +10,28 @@ use crate::types::{CommandError, InitStep, InitStepEvent, InitStepStatus, Projec
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/// Derives a container-safe slug from a project name without a DB collision
+/// check — used only for ephemeral naming during the detect phase.
+fn to_slug_simple(name: &str) -> String {
+    let lower = name.to_lowercase();
+    let mut slug = String::new();
+    let mut last_dash = true; // suppress leading dashes
+    for ch in lower.chars() {
+        if ch.is_alphanumeric() {
+            slug.push(ch);
+            last_dash = false;
+        } else if !last_dash {
+            slug.push('-');
+            last_dash = true;
+        }
+    }
+    // Trim trailing dash
+    if slug.ends_with('-') {
+        slug.pop();
+    }
+    if slug.is_empty() { "project".to_string() } else { slug }
+}
+
 fn emit_step(app: &tauri::AppHandle, step: InitStep, status: InitStepStatus) {
     let event = InitStepEvent {
         step,
@@ -631,6 +653,120 @@ pub fn project_reset_local(
 
     log::info!("[project_reset_local] local state cleared for id={} slug={}", id, slug);
     Ok(())
+}
+
+// ── project_detect_databases ──────────────────────────────────────────────────
+
+/// Eagerly start the project's SQL Server container, restore the DacPac, and
+/// return all user database names from `sys.databases`.
+///
+/// The container is named `migration-{slug}` (derived from `name`) and stays
+/// running after this call. `project_init` detects the running container and
+/// skips the StartContainer and RestoreDacpac steps, making them idempotent.
+#[tauri::command]
+pub async fn project_detect_databases(
+    name: String,
+    sa_password: String,
+    dacpac_path: String,
+) -> Result<Vec<String>, CommandError> {
+    log::info!("[project_detect_databases] name={}", name);
+
+    let slug = to_slug_simple(&name);
+    let container = container_name(&slug);
+    let volume = volume_name(&slug);
+
+    // Step 1: Check Docker is available.
+    run_cmd("docker", &["info"], None, &[]).map_err(|_| {
+        CommandError::External("Docker is not running — please start Docker Desktop".into())
+    })?;
+
+    // Step 2: Create/start the container (idempotent, same logic as project_init).
+    let ps_out = run_cmd(
+        "docker",
+        &["ps", "-a", "--filter", &format!("name={container}"), "--format", "{{.Status}}"],
+        None,
+        &[],
+    )
+    .unwrap_or_default();
+
+    if ps_out.to_lowercase().starts_with("up") {
+        log::debug!("[project_detect_databases] container {container} already running");
+    } else if ps_out.is_empty() {
+        log::debug!("[project_detect_databases] creating container {container}");
+        run_cmd(
+            "docker",
+            &[
+                "run", "-d",
+                "--name", &container,
+                "-e", "ACCEPT_EULA=Y",
+                "-e", &format!("SA_PASSWORD={sa_password}"),
+                "-e", "MSSQL_PID=Developer",
+                "-p", "1433:1433",
+                "-v", &format!("{volume}:/var/opt/mssql"),
+                "mcr.microsoft.com/mssql/server:2022-latest",
+            ],
+            None,
+            &[],
+        )?;
+    } else {
+        log::debug!("[project_detect_databases] starting stopped container {container}");
+        run_cmd("docker", &["start", &container], None, &[])?;
+    }
+
+    // Step 3: Restore the DacPac (idempotent — sqlpackage Publish creates or updates).
+    let db_name = slug.replace('-', "_");
+    let conn_str = format!(
+        "Server=localhost,1433;User Id=sa;Password={sa_password};TrustServerCertificate=True"
+    );
+    run_cmd(
+        "sqlpackage",
+        &[
+            "/Action:Publish",
+            &format!("/SourceFile:{dacpac_path}"),
+            &format!("/TargetConnectionString:{conn_str}"),
+            &format!("/TargetDatabaseName:{db_name}"),
+        ],
+        None,
+        &[],
+    )?;
+    log::debug!("[project_detect_databases] DacPac restored as {db_name}");
+
+    // Step 4: Wait briefly, then probe connectivity.
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    probe_sql_connection("localhost", 1433, &sa_password).await?;
+
+    // Step 5: Query sys.databases for user databases (database_id > 4 excludes system DBs).
+    use tokio_util::compat::TokioAsyncWriteCompatExt;
+    let tcp = tokio::net::TcpStream::connect("localhost:1433").await.map_err(|e| {
+        CommandError::External(format!("Cannot reach SQL Server: {e}"))
+    })?;
+    tcp.set_nodelay(true).ok();
+
+    let mut config = tiberius::Config::new();
+    config.host("localhost");
+    config.port(1433);
+    config.authentication(tiberius::AuthMethod::sql_server("sa", &sa_password));
+    config.trust_cert();
+
+    let mut client = tiberius::Client::connect(config, tcp.compat_write())
+        .await
+        .map_err(|e| CommandError::External(format!("SQL Server connection failed: {e}")))?;
+
+    let rows = client
+        .simple_query("SELECT name FROM sys.databases WHERE database_id > 4 ORDER BY name")
+        .await
+        .map_err(|e| CommandError::External(format!("sys.databases query failed: {e}")))?
+        .into_first_result()
+        .await
+        .map_err(|e| CommandError::External(format!("sys.databases result failed: {e}")))?;
+
+    let databases: Vec<String> = rows
+        .iter()
+        .filter_map(|row| row.get::<&str, _>(0).map(|s| s.to_string()))
+        .collect();
+
+    log::info!("[project_detect_databases] found {} user databases: {:?}", databases.len(), databases);
+    Ok(databases)
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

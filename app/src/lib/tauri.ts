@@ -90,6 +90,9 @@ export const projectCreateFull = (
     extractionDatetime,
   });
 
+export const projectDetectDatabases = (name: string, saPassword: string, dacpacPath: string) =>
+  invoke<string[]>('project_detect_databases', { name, saPassword, dacpacPath });
+
 export const projectInit = (id: string) =>
   invoke<void>('project_init', { id });
 

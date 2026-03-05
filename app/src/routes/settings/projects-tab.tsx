@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, FolderOpen, Loader2, Plus, RefreshCw, Trash2, XCircle } from 'lucide-react';
+import { CheckCircle2, FolderOpen, Loader2, Plus, RefreshCw, Search, Trash2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import {
@@ -38,7 +38,7 @@ const SQL_SERVER_VERSIONS = [
   { value: 'SQL Server 2014', label: 'SQL Server 2014 (12.x)' },
 ];
 import SettingsPanelShell from '@/components/settings/settings-panel-shell';
-import { projectCreateFull, projectDeleteFull, projectInit, projectResetLocal, listenProjectInitStep } from '@/lib/tauri';
+import { projectCreateFull, projectDetectDatabases, projectDeleteFull, projectInit, projectResetLocal, listenProjectInitStep } from '@/lib/tauri';
 import { INIT_STEP_LABEL } from '@/lib/types';
 import { logger } from '@/lib/logger';
 import { useProjectStore } from '@/stores/project-store';
@@ -93,6 +93,9 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
   const [customer, setCustomer] = useState('');
   const [system, setSystem] = useState('');
   const [dbName, setDbName] = useState('');
+  const [detectedDbs, setDetectedDbs] = useState<string[]>([]);
+  const [detecting, setDetecting] = useState(false);
+  const [detectError, setDetectError] = useState('');
   const [extractionDatetime, setExtractionDatetime] = useState('');
   const [creating, setCreating] = useState(false);
   const { startInit, finishInit, applyInitStep, loadProjects } = useProjectStore();
@@ -106,7 +109,28 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
     setCustomer('');
     setSystem('');
     setDbName('');
+    setDetectedDbs([]);
+    setDetecting(false);
+    setDetectError('');
     setExtractionDatetime('');
+  }
+
+  async function handleDetect() {
+    setDetecting(true);
+    setDetectError('');
+    setDetectedDbs([]);
+    setDbName('');
+    try {
+      logger.debug('projects-tab: detecting databases for', name);
+      const dbs = await projectDetectDatabases(name.trim(), saPassword, dacpacPath);
+      setDetectedDbs(dbs);
+      if (dbs.length === 1) setDbName(dbs[0]);
+    } catch (err) {
+      logger.error('projects-tab: detect databases failed', err);
+      setDetectError(String(err));
+    } finally {
+      setDetecting(false);
+    }
   }
 
   async function pickDacpac() {
@@ -216,17 +240,54 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
             </div>
           </div>
 
-          {/* Row 3: DB name + Extraction datetime */}
+          {/* Row 3: Database detection + Extraction datetime */}
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="proj-dbname" className="text-xs font-medium text-muted-foreground">Database name</Label>
-              <Input
-                id="proj-dbname"
-                value={dbName}
-                onChange={(e) => setDbName(e.target.value)}
-                placeholder="e.g. ContosoFabricDW"
-                disabled={creating}
-              />
+              <Label className="text-xs font-medium text-muted-foreground">Database name</Label>
+              <div className="flex flex-col gap-1.5">
+                {detectedDbs.length === 0 ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDetect}
+                    disabled={detecting || creating || !name.trim() || !saPassword || !dacpacPath}
+                    data-testid="project-detect-databases"
+                  >
+                    {detecting
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                      : <Search className="h-3.5 w-3.5 mr-1.5" />}
+                    {detecting ? 'Detecting…' : 'Detect databases'}
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <Select value={dbName} onValueChange={setDbName} disabled={creating}>
+                      <SelectTrigger data-testid="project-dbname-select">
+                        <SelectValue placeholder="Select database…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {detectedDbs.map((db) => (
+                          <SelectItem key={db} value={db}>{db}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleDetect}
+                      disabled={detecting || creating}
+                      title="Re-detect databases"
+                      data-testid="project-redetect-databases"
+                    >
+                      {detecting
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        : <RefreshCw className="h-3.5 w-3.5" />}
+                    </Button>
+                  </div>
+                )}
+                {detectError && (
+                  <p className="text-xs text-destructive break-all" data-testid="project-detect-error">{detectError}</p>
+                )}
+              </div>
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="proj-extraction" className="text-xs font-medium text-muted-foreground">Extraction date</Label>
@@ -276,7 +337,7 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
           <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} disabled={creating}>
             Cancel
           </Button>
-          <Button size="sm" onClick={handleCreate} disabled={creating || !name || !saPassword || !dacpacPath || !customer || !system || !dbName || !extractionDatetime}>
+          <Button size="sm" onClick={handleCreate} disabled={creating || !name.trim() || !saPassword || !dacpacPath || !customer || !system || !dbName || !extractionDatetime}>
             {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
             {creating ? 'Creating…' : 'Create'}
           </Button>
