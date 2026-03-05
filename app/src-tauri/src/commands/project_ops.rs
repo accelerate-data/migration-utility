@@ -1,6 +1,8 @@
+use std::io::{Read as IoRead, Write as IoWrite};
 use std::path::Path;
 
 use rusqlite::params;
+use sha2::{Digest, Sha256};
 
 /// sqlpackage publish profile embedded from `resources/exclusions.publish.xml`.
 /// Edit that file to add/remove exclusions, then rebuild to pick up the change.
@@ -11,6 +13,164 @@ use uuid::Uuid;
 use crate::commands::project::slugify;
 use crate::db::DbState;
 use crate::types::{CommandError, InitStep, InitStepEvent, InitStepStatus, Project};
+
+// ── DacPac full-text stripping ────────────────────────────────────────────────
+
+/// Strip `SqlFullTextIndex` and `SqlFullTextCatalog` elements from `model.xml`
+/// inside a .dacpac (which is a ZIP), recalculate the SHA-256 of the modified
+/// `model.xml`, update `Origin.xml`, and write a new .dacpac to a temp path.
+///
+/// Returns the path of the stripped copy, or the original path if model.xml
+/// contained no full-text elements (no copy made).
+fn strip_dacpac_fulltext(dacpac_path: &Path) -> Result<std::path::PathBuf, CommandError> {
+    use zip::write::SimpleFileOptions;
+
+    let file = std::fs::File::open(dacpac_path).map_err(|e| {
+        CommandError::Io(format!("Cannot open dacpac '{}': {e}", dacpac_path.display()))
+    })?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| {
+        CommandError::Io(format!("Not a valid dacpac ZIP: {e}"))
+    })?;
+
+    // Read model.xml.
+    let model_xml = {
+        let mut entry = archive.by_name("model.xml").map_err(|_| {
+            CommandError::Io("dacpac does not contain model.xml".into())
+        })?;
+        let mut buf = String::new();
+        entry.read_to_string(&mut buf).map_err(|e| CommandError::Io(e.to_string()))?;
+        buf
+    };
+
+    // Strip full-text elements using line-based depth tracking.
+    // Each element block looks like:
+    //   <Element Type="SqlFullTextIndex" ...>
+    //     ... (possibly nested <Element> tags)
+    //   </Element>
+    let stripped = strip_fulltext_elements(&model_xml);
+
+    if stripped == model_xml {
+        log::debug!("[strip_dacpac_fulltext] no full-text elements found, skipping copy");
+        return Ok(dacpac_path.to_path_buf());
+    }
+
+    let removed = model_xml.len() - stripped.len();
+    log::info!(
+        "[strip_dacpac_fulltext] stripped {}B of full-text XML from model.xml",
+        removed
+    );
+
+    // Compute new SHA-256 of stripped model.xml.
+    let new_hash = {
+        let mut hasher = Sha256::new();
+        hasher.update(stripped.as_bytes());
+        hex::encode(hasher.finalize()).to_uppercase()
+    };
+
+    // Read and patch Origin.xml (replace the model.xml checksum line).
+    let origin_xml = {
+        let mut entry = archive.by_name("Origin.xml").map_err(|_| {
+            CommandError::Io("dacpac does not contain Origin.xml".into())
+        })?;
+        let mut buf = String::new();
+        entry.read_to_string(&mut buf).map_err(|e| CommandError::Io(e.to_string()))?;
+        buf
+    };
+
+    // Origin.xml checksum line: <Checksum Uri="/model.xml">HEXHEX...</Checksum>
+    let patched_origin = patch_origin_checksum(&origin_xml, &new_hash);
+
+    // Build new ZIP to a temp file, copying every entry except model.xml / Origin.xml.
+    let tmp_path = std::env::temp_dir().join("migration-utility-stripped.dacpac");
+    {
+        let out_file = std::fs::File::create(&tmp_path).map_err(|e| {
+            CommandError::Io(format!("Cannot create temp dacpac: {e}"))
+        })?;
+        let mut writer = zip::ZipWriter::new(out_file);
+        let opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+
+        for i in 0..archive.len() {
+            let mut entry = archive.by_index(i).map_err(|e| CommandError::Io(e.to_string()))?;
+            let name = entry.name().to_string();
+            if name == "model.xml" {
+                writer.start_file(&name, opts).map_err(|e| CommandError::Io(e.to_string()))?;
+                writer.write_all(stripped.as_bytes()).map_err(|e| CommandError::Io(e.to_string()))?;
+            } else if name == "Origin.xml" {
+                writer.start_file(&name, opts).map_err(|e| CommandError::Io(e.to_string()))?;
+                writer.write_all(patched_origin.as_bytes()).map_err(|e| CommandError::Io(e.to_string()))?;
+            } else {
+                let mut buf = Vec::new();
+                entry.read_to_end(&mut buf).map_err(|e| CommandError::Io(e.to_string()))?;
+                writer.start_file(&name, opts).map_err(|e| CommandError::Io(e.to_string()))?;
+                writer.write_all(&buf).map_err(|e| CommandError::Io(e.to_string()))?;
+            }
+        }
+        writer.finish().map_err(|e| CommandError::Io(e.to_string()))?;
+    }
+
+    log::info!("[strip_dacpac_fulltext] wrote stripped dacpac to {}", tmp_path.display());
+    Ok(tmp_path)
+}
+
+/// Remove `<Element Type="SqlFullTextIndex" ...>` and `<Element Type="SqlFullTextCatalog" ...>`
+/// blocks, including all nested content, from model.xml text.
+fn strip_fulltext_elements(xml: &str) -> String {
+    let targets = ["SqlFullTextIndex", "SqlFullTextCatalog"];
+    let mut out = String::with_capacity(xml.len());
+    let mut depth: i32 = 0;     // nesting depth while inside a stripped block
+    let mut in_strip = false;
+
+    for line in xml.lines() {
+        let trimmed = line.trim();
+
+        if !in_strip {
+            // Detect opening of a target element.
+            if targets.iter().any(|t| trimmed.contains(&format!("\"{}\"", t)))
+                && trimmed.starts_with("<Element")
+            {
+                in_strip = true;
+                depth = if trimmed.ends_with("/>") { 0 } else { 1 };
+                if depth == 0 {
+                    in_strip = false; // self-closing — skip line and stay out
+                }
+                continue;
+            }
+            out.push_str(line);
+            out.push('\n');
+        } else {
+            // Track nesting depth within the stripped block.
+            if trimmed.starts_with("<Element") && !trimmed.ends_with("/>") {
+                depth += 1;
+            } else if trimmed == "</Element>" {
+                depth -= 1;
+                if depth == 0 {
+                    in_strip = false;
+                }
+            }
+            // Skip this line.
+        }
+    }
+    out
+}
+
+/// Replace the SHA-256 hex value in the `<Checksum Uri="/model.xml">` line of Origin.xml.
+fn patch_origin_checksum(origin: &str, new_hex: &str) -> String {
+    let mut out = String::with_capacity(origin.len());
+    for line in origin.lines() {
+        if line.contains("Uri=\"/model.xml\"") {
+            // Replace everything between > and </Checksum>.
+            if let (Some(open), Some(close)) = (line.find('>'), line.find("</Checksum>")) {
+                let before = &line[..=open];
+                let after = &line[close..];
+                out.push_str(&format!("{before}{new_hex}{after}\n"));
+                continue;
+            }
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    out
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -463,6 +623,16 @@ pub async fn project_init(
             "No .dacpac file found in {}", slug_dir.display()
         ))),
         Some(ref dacpac) => {
+            // Strip SqlFullTextIndex / SqlFullTextCatalog from model.xml — the SQL Server
+            // Docker image does not include Full-Text Search.
+            let effective_dacpac = match strip_dacpac_fulltext(dacpac) {
+                Ok(p) => p,
+                Err(e) => {
+                    log::warn!("[project_init] dacpac strip failed (using original): {e}");
+                    dacpac.clone()
+                }
+            };
+
             // DB name is embedded in the connection string — /TargetDatabaseName
             // cannot be used alongside /TargetConnectionString.
             let db_name = slug.replace('-', "_");
@@ -477,7 +647,7 @@ pub async fn project_init(
                 log::warn!("[project_init] failed to write publish profile (will run without it): {e}");
             }
 
-            let source_arg = format!("/SourceFile:{}", dacpac.display());
+            let source_arg = format!("/SourceFile:{}", effective_dacpac.display());
             let conn_arg = format!("/TargetConnectionString:{conn_str}");
             let profile_arg = format!("/pr:{}", profile_path.display());
             let mut sqlpackage_args: Vec<&str> = vec![
