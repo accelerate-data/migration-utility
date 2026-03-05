@@ -111,8 +111,6 @@ Lifecycle:
 | Project init | `docker run --env SA_PASSWORD=... -p 1433:1433 -d mcr.microsoft.com/mssql/server` |
 | Project delete | `docker stop {container}` + `docker rm {container}` |
 
-If port 1433 is already bound, the app surfaces a clear error and asks the user to free the port before retrying.
-
 ---
 
 ## DacPac Caching in GitHub Actions
@@ -157,28 +155,32 @@ The app records in local SQLite (`agent_runs` table):
 
 ### Agent Plugin
 
-Agents run as Claude Code plugins. The plugin lives at `orchestrator/migration-helper/`:
+Agents run as Claude Code plugins. The plugin lives at `plugin/`:
 
 ```text
 orchestrator/
   mssql_mcp/
     tools.yaml                   # genai-toolbox MCP server config (shared)
-  migration-helper/              # Claude Code plugin
-    CLAUDE.md                    # shared migration domain context
-    .mcp.json                    # stdio toolbox config for local dev
-    agents/
-      scoping-agent.md           # six-step writer discovery pipeline
-      profiler-agent.md
-      decomposer-agent.md
-      planner-agent.md
-      test-generator-agent.md
-      migrator-agent.md
+
+plugin/
+  CLAUDE.md                      # shared migration domain context
+  .mcp.json                      # stdio toolbox config for local dev
+  agents/
+    scoping-agent.md
+    profiler-agent.md
+    decomposer-agent.md
+    planner-agent.md
+    test-generator-agent.md
+    migrator-agent.md
+  .claude/
+    rules/
+      source-sql-server.md
 ```
 
 **Local dev:**
 
 ```bash
-claude --plugin-path orchestrator/migration-helper \
+claude --plugin-path plugin/ \
   --agent scoping-agent \
   {project-slug}/artifacts/scoping-agent/{run_id}.input.json \
   {project-slug}/artifacts/scoping-agent/{run_id}.json
@@ -195,7 +197,7 @@ claude --plugin-path orchestrator/migration-helper \
 5. Run agent:
 
    ```bash
-   claude --plugin-path orchestrator/migration-helper \
+   claude --plugin-path plugin/ \
      --agent {action} \
      {project-slug}/artifacts/{action}/{run_id}.input.json \
      {project-slug}/artifacts/{action}/{run_id}.json

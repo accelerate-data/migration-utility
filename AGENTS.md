@@ -24,13 +24,11 @@ Adapter files must not duplicate canonical policy unless they are adding agent-s
 | Styling | Tailwind CSS 4, shadcn/ui |
 | State | Zustand |
 | Icons | Lucide React |
-| Agent sidecar | Node.js + TypeScript + `@anthropic-ai/claude-agent-sdk` |
 | Database | SQLite (`rusqlite` bundled) |
 | Rust errors | `thiserror` |
-| Orchestrator | Python + Claude Agent SDK (`uv` for deps) |
-| dbt integration | dbt-core-mcp (MCP server) |
-| Runtime | GitHub Actions (headless execution, session resumption) |
-| Execution state | `plan.md` in migration repo (git-backed) |
+| Agent runtime | Claude Code CLI (`claude --plugin-path plugin/ --agent <name>`) |
+| MCP server | genai-toolbox (HTTP mode on GH Actions, stdio locally) |
+| Runtime | GitHub Actions (headless execution) |
 
 **Source scope:** Fabric Warehouse (T-SQL stored procedures via ADF pipelines). Lakehouse/Spark is post-MVP.
 
@@ -45,7 +43,8 @@ Use this map before reasoning about implementation location:
 - `app/src/__tests__/` and `app/sidecar/__tests__/` — unit/integration tests only.
 - `docs/` — documentation and design/reference material only; do not treat as executable source unless explicitly asked.
 - `scripts/` — developer/automation scripts.
-- `orchestrator/` — Python orchestration runtime + tests.
+- `orchestrator/mssql_mcp/` — genai-toolbox MCP server config (`tools.yaml`).
+- `plugin/` — Claude Code plugin: `CLAUDE.md`, `.mcp.json`, `agents/*.md`, `.claude/rules/`.
 
 ## Dev Commands
 
@@ -60,11 +59,6 @@ cargo test --manifest-path app/src-tauri/Cargo.toml db # module filter
 
 # Sidecar tests (run from app/sidecar/)
 npx vitest run
-
-# Python orchestrator (run from orchestrator/)
-cd orchestrator && uv sync
-uv run pytest                  # All tests
-uv run pytest tests/unit       # Unit tests only
 ```
 
 ## Testing
@@ -78,12 +72,6 @@ uv run pytest tests/unit       # Unit tests only
 3. New UI interaction → component test
 4. New page or major flow → E2E test (happy path)
 5. Bug fix → regression test
-
-**Python orchestrator/agents:**
-
-1. New agent tool or orchestration logic → pytest unit test
-2. New `plan.md` parsing/state logic → pytest unit test
-3. Bug fix → regression test
 
 Purely cosmetic changes or simple wiring don't require tests. If unclear, ask the user.
 
@@ -108,7 +96,6 @@ Determine what you changed, then pick the right runner:
 | Frontend component / page | `npm run test:integration` + E2E tag from `app/tests/TEST_MANIFEST.md` |
 | Rust command | `cargo test <module>` + E2E tag from `app/tests/TEST_MANIFEST.md` |
 | Node sidecar (`app/sidecar/`) | `cd app/sidecar && npx vitest run` |
-| Python orchestrator / agents | `cd orchestrator && uv run pytest <module>` |
 | Unsure | all of the above |
 
 Run `npx tsc --noEmit` from `app/` first — catches type errors in files you didn't directly touch.
@@ -174,5 +161,4 @@ Every new feature must include logging. Canonical logging conventions and log-le
 
 ## Gotchas
 
-- **Agent SDK has no team tools:** The Claude Agent SDK (Python) does NOT support TeamCreate, TaskCreate, or SendMessage. Use the `Task` tool for sub-agents. Multiple `Task` calls in the same turn run in parallel.
 - **Parallel worktrees:** `npm run dev` auto-assigns a free port — safe to run multiple Tauri instances simultaneously.
