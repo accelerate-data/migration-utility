@@ -54,6 +54,9 @@ All contracts are batch-only. Single-table UI execution is a degenerate batch wi
 - Scoping and profiling produce machine-readable outputs with per-item status and errors.
 - FDE approval is the decision gate between profiler candidates and planner/migrator execution.
 - Validation findings should be surfaced as structured warnings/errors.
+- Scope stage submission contract:
+  - submission payload includes `items[]` where each element carries an `item_id`.
+  - submission payload includes `search_depth`; default is `2` when not explicitly provided.
 
 ## Diagnostics Schema
 

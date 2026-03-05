@@ -88,7 +88,7 @@ Directory layout inside the repo:
 
 ## SQL Server Credentials
 
-User enters the SA password at project creation. Stored in local SQLite (`projects` table) and pushed to GitHub Secrets (`SA_PASSWORD_{PROJECT_SLUG}`) via the GitHub API at project creation time.
+User enters the SA password at project creation. Stored in local SQLite (`projects` table) and pushed to GitHub Secrets (`SA_PASSWORD_<SLUG_UPPER>`) via the GitHub API at project creation time.
 
 ---
 
@@ -193,7 +193,7 @@ The app records in local SQLite (`agent_runs` table):
    - `tool_version` — migration utility version
    - `dacpac_sha256` — computed by the app
 6. App pushes DacPac + `metadata.json` to LFS.
-7. App stores SA password in SQLite and pushes it to GitHub Secrets (`SA_PASSWORD_{PROJECT_SLUG}`).
+7. App stores SA password in SQLite and pushes it to GitHub Secrets (`SA_PASSWORD_<SLUG_UPPER>`).
 8. Project is set as the active project.
 9. Project initialization runs (see below).
 
@@ -220,7 +220,7 @@ Deletes:
 - `{project-slug}/` directory from the migration repo on GitHub (including all artifacts and runs).
 - Local clone of that project's data.
 - All SQLite rows for the project.
-- The `SA_PASSWORD_{PROJECT_SLUG}` GitHub Secret.
+- The `SA_PASSWORD_<SLUG_UPPER>` GitHub Secret.
 
 Confirmation dialog required. Destructive and irreversible.
 
