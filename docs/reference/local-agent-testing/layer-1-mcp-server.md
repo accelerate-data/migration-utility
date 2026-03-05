@@ -60,11 +60,13 @@ toolbox --stdio --tools-file orchestrator/mssql_mcp/tools.yaml
 ```
 
 If that works, `.mcp.json` is already committed at the repo root with `SA_PASSWORD` left blank.
-Fill in your password locally and tell git to ignore the change so it is never accidentally committed:
+Fill in your password locally — the pre-commit hook will block any commit that includes it:
 
 ```bash
+# Activate the shared hooks (once per clone/worktree)
+git config core.hooksPath .githooks
+
 # Edit .mcp.json and set SA_PASSWORD to your container password
-git update-index --skip-worktree .mcp.json
 ```
 
 The committed file looks like:

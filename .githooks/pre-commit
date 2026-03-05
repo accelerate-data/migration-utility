@@ -1,0 +1,13 @@
+#!/bin/sh
+# Prevent committing SA_PASSWORD in .mcp.json
+
+if git diff --cached --name-only | grep -q "^\.mcp\.json$"; then
+  password=$(git show :0:.mcp.json \
+    | python3 -c "import json,sys; d=json.load(sys.stdin); \
+      print(d.get('mcpServers',{}).get('mssql',{}).get('env',{}).get('SA_PASSWORD',''))" \
+    2>/dev/null)
+  if [ -n "$password" ]; then
+    echo "ERROR: SA_PASSWORD is set in .mcp.json — clear it before committing."
+    exit 1
+  fi
+fi
