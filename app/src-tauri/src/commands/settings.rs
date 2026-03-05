@@ -1,7 +1,7 @@
 use tauri::State;
 
 use crate::db::DbState;
-use crate::types::{AppPhaseState, AppSettingsPublic};
+use crate::types::AppSettingsPublic;
 
 #[tauri::command]
 pub fn get_settings(state: State<'_, DbState>) -> Result<AppSettingsPublic, String> {
@@ -14,173 +14,39 @@ pub fn get_settings(state: State<'_, DbState>) -> Result<AppSettingsPublic, Stri
 }
 
 #[tauri::command]
-pub fn save_anthropic_api_key(
+pub fn save_repo_settings(
     state: State<'_, DbState>,
-    api_key: Option<String>,
+    full_name: String,
+    clone_url: String,
+    local_path: String,
 ) -> Result<(), String> {
-    log::info!("[save_anthropic_api_key]");
+    log::info!(
+        "[save_repo_settings] repo={} local_path={}",
+        full_name,
+        local_path
+    );
     let conn = state.conn().map_err(|e| {
-        log::error!("[save_anthropic_api_key] Failed to acquire DB lock: {}", e);
+        log::error!("[save_repo_settings] Failed to acquire DB lock: {}", e);
         e
     })?;
     let mut settings = crate::db::read_settings(&conn).map_err(|e| {
-        log::error!("[save_anthropic_api_key] read_settings failed: {}", e);
+        log::error!("[save_repo_settings] read_settings failed: {}", e);
         e
     })?;
-    settings.anthropic_api_key = api_key;
+    settings.migration_repo_full_name = Some(full_name);
+    settings.migration_repo_clone_url = Some(clone_url);
+    settings.local_clone_path = Some(local_path);
     crate::db::write_settings(&conn, &settings).map_err(|e| {
-        log::error!("[save_anthropic_api_key] write_settings failed: {}", e);
+        log::error!("[save_repo_settings] write_settings failed: {}", e);
         e
     })?;
     Ok(())
-}
-
-#[tauri::command]
-pub fn app_hydrate_phase(state: State<'_, DbState>) -> Result<AppPhaseState, String> {
-    log::info!("[app_hydrate_phase]");
-    let conn = state.conn().map_err(|e| {
-        log::error!("[app_hydrate_phase] Failed to acquire DB lock: {}", e);
-        e
-    })?;
-    crate::db::reconcile_and_persist_app_phase(&conn)
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct ModelInfo {
-    pub id: String,
-    pub display_name: String,
-}
-
-#[derive(serde::Deserialize)]
-struct ModelsApiResponse {
-    data: Vec<ModelsApiItem>,
-}
-
-#[derive(serde::Deserialize)]
-struct ModelsApiItem {
-    id: String,
-    display_name: String,
-}
-
-/// Fetch models available for the given API key from the Anthropic API.
-/// Returns models sorted as returned by the API (newest first).
-#[tauri::command]
-pub async fn list_models(api_key: String) -> Result<Vec<ModelInfo>, String> {
-    log::info!("[list_models]");
-    let client = reqwest::Client::new();
-    let resp = client
-        .get("https://api.anthropic.com/v1/models")
-        .header("x-api-key", &api_key)
-        .header("anthropic-version", "2023-06-01")
-        .send()
-        .await
-        .map_err(|e| {
-            log::error!("[list_models] request failed: {}", e);
-            format!("Request failed: {e}")
-        })?;
-    if !resp.status().is_success() {
-        log::error!("[list_models] API error: {}", resp.status());
-        return Err(format!("API error: {}", resp.status()));
-    }
-    let body: ModelsApiResponse = resp.json().await.map_err(|e| {
-        log::error!("[list_models] parse error: {}", e);
-        format!("Parse error: {e}")
-    })?;
-    let models = body
-        .data
-        .into_iter()
-        .filter(|m| m.id.starts_with("claude-"))
-        .map(|m| ModelInfo { id: m.id, display_name: m.display_name })
-        .collect();
-    Ok(models)
-}
-
-#[tauri::command]
-pub fn save_agent_settings(
-    state: State<'_, DbState>,
-    preferred_model: Option<String>,
-    effort: Option<String>,
-) -> Result<(), String> {
-    log::info!(
-        "[save_agent_settings] model={:?} effort={:?}",
-        preferred_model,
-        effort,
-    );
-    let conn = state.conn().map_err(|e| {
-        log::error!("[save_agent_settings] Failed to acquire DB lock: {}", e);
-        e
-    })?;
-    let mut settings = crate::db::read_settings(&conn)?;
-    settings.preferred_model = preferred_model;
-    settings.effort = effort;
-    crate::db::write_settings(&conn, &settings)?;
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn test_api_key(api_key: String) -> Result<bool, String> {
-    log::info!("[test_api_key]");
-    let client = reqwest::Client::new();
-    let resp = client
-        .post("https://api.anthropic.com/v1/messages")
-        .header("x-api-key", &api_key)
-        .header("anthropic-version", "2023-06-01")
-        .header("content-type", "application/json")
-        .body(
-            serde_json::json!({
-                "model": "claude-haiku-4-5",
-                "max_tokens": 1,
-                "messages": [{"role": "user", "content": "hi"}]
-            })
-            .to_string(),
-        )
-        .send()
-        .await
-        .map_err(|e| {
-            log::error!("[test_api_key] network error: {}", e);
-            "Network error while validating API key".to_string()
-        })?;
-
-    let status = resp.status().as_u16();
-    match status {
-        400 | 401 => Err("Invalid API key".to_string()),
-        403 => Err("API key is disabled".to_string()),
-        _ if resp.status().is_success() => Ok(true),
-        _ => Err("Failed to validate API key".to_string()),
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::db;
     use crate::types::AppSettings;
-
-    #[test]
-    fn settings_roundtrip_persists_anthropic_key() {
-        let conn = db::open_in_memory().unwrap();
-        let settings = AppSettings {
-            anthropic_api_key: Some("sk-ant-test".to_string()),
-            ..AppSettings::default()
-        };
-        db::write_settings(&conn, &settings).unwrap();
-        let read = db::read_settings(&conn).unwrap();
-        assert_eq!(read.anthropic_api_key.as_deref(), Some("sk-ant-test"));
-    }
-
-    #[test]
-    fn agent_settings_roundtrip_persists_model_and_effort() {
-        let conn = db::open_in_memory().unwrap();
-        let settings = AppSettings {
-            preferred_model: Some("claude-haiku-4-5-20251001".to_string()),
-            effort: Some("low".to_string()),
-            ..AppSettings::default()
-        };
-        db::write_settings(&conn, &settings).unwrap();
-        let read = db::read_settings(&conn).unwrap();
-        assert_eq!(read.preferred_model.as_deref(), Some("claude-haiku-4-5-20251001"));
-        assert_eq!(read.effort.as_deref(), Some("low"));
-    }
 
     #[test]
     fn log_level_roundtrip_persists_and_deserializes() {

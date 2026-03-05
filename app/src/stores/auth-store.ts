@@ -1,8 +1,7 @@
 import { create } from 'zustand';
 import type { GitHubUser } from '@/lib/types';
-import { appHydratePhase, githubGetUser, githubLogout } from '@/lib/tauri';
+import { githubGetUser, githubLogout } from '@/lib/tauri';
 import { logger } from '@/lib/logger';
-import { useWorkflowStore } from '@/stores/workflow-store';
 
 interface AuthState {
   user: GitHubUser | null;
@@ -37,13 +36,6 @@ export const useAuthStore = create<AuthState>((set) => ({
       });
     } catch {
       set({ isLoading: false, lastCheckedAt: new Date().toISOString() });
-    } finally {
-      try {
-        const phase = await appHydratePhase();
-        useWorkflowStore.getState().setAppPhaseState(phase);
-      } catch (error) {
-        logger.error('app phase hydrate failed after loadUser', error);
-      }
     }
   },
 
@@ -53,22 +45,12 @@ export const useAuthStore = create<AuthState>((set) => ({
       isLoggedIn: user !== null,
       lastCheckedAt: new Date().toISOString(),
     });
-    void (async () => {
-      try {
-        const phase = await appHydratePhase();
-        useWorkflowStore.getState().setAppPhaseState(phase);
-      } catch (error) {
-        logger.error('app phase hydrate failed after setUser', error);
-      }
-    })();
   },
 
   logout: async () => {
     try {
       await githubLogout();
       set({ user: null, isLoggedIn: false, lastCheckedAt: new Date().toISOString() });
-      const phase = await appHydratePhase();
-      useWorkflowStore.getState().setAppPhaseState(phase);
       logger.info('github: signed out');
     } catch (error) {
       logger.error('github: logout failed', error);

@@ -237,6 +237,7 @@ pub async fn github_list_repos(
         .filter_map(|repo| {
             let id = repo["id"].as_i64()?;
             let full_name = repo["full_name"].as_str()?.to_string();
+            let clone_url = repo["clone_url"].as_str()?.to_string();
             let private = repo["private"].as_bool().unwrap_or(false);
             if !query_lc.is_empty() && !full_name.to_lowercase().contains(&query_lc) {
                 return None;
@@ -244,6 +245,7 @@ pub async fn github_list_repos(
             Some(GitHubRepo {
                 id,
                 full_name,
+                clone_url,
                 private,
             })
         })
@@ -251,6 +253,102 @@ pub async fn github_list_repos(
         .collect::<Vec<_>>();
 
     Ok(repos)
+}
+
+/// Check whether a GitHub repo is suitable as a migration target.
+/// Returns true if the repo has no directories at its root (project folders).
+/// A repo with only top-level files (e.g. a README) is still considered suitable.
+#[tauri::command]
+pub async fn github_check_repo_empty(
+    state: State<'_, DbState>,
+    full_name: String,
+) -> Result<bool, String> {
+    log::info!("[github_check_repo_empty] repo={}", full_name);
+    let token = {
+        let conn = state.conn()?;
+        let settings = crate::db::read_settings(&conn)?;
+        settings
+            .github_oauth_token
+            .ok_or_else(|| "GitHub is not connected".to_string())?
+    };
+
+    let client = reqwest::Client::new();
+
+    // First check branches. A 409 means the repo has no git history at all — definitely usable.
+    let branches_resp = client
+        .get(format!("https://api.github.com/repos/{}/branches", full_name))
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Accept", "application/vnd.github+json")
+        .header("User-Agent", "MigrationUtility")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .send()
+        .await
+        .map_err(|e| {
+            let msg = format!("Failed to check repo branches: {e}");
+            log::error!("[github_check_repo_empty] {msg}");
+            msg
+        })?;
+
+    let branches_status = branches_resp.status();
+    if branches_status.as_u16() == 409 {
+        log::info!("[github_check_repo_empty] repo={} status=no_git_history (409)", full_name);
+        return Ok(true);
+    }
+    if !branches_status.is_success() {
+        let body: serde_json::Value = branches_resp.json().await.unwrap_or_default();
+        let msg = format!(
+            "GitHub API error ({}): {}",
+            branches_status,
+            body["message"].as_str().unwrap_or("unknown")
+        );
+        log::error!("[github_check_repo_empty] {msg}");
+        return Err(msg);
+    }
+
+    // Repo has at least one branch. Check root contents for any directory (project folder).
+    let contents_resp = client
+        .get(format!("https://api.github.com/repos/{}/contents/", full_name))
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Accept", "application/vnd.github+json")
+        .header("User-Agent", "MigrationUtility")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .send()
+        .await
+        .map_err(|e| {
+            let msg = format!("Failed to check repo contents: {e}");
+            log::error!("[github_check_repo_empty] {msg}");
+            msg
+        })?;
+
+    let contents_status = contents_resp.status();
+    if contents_status.as_u16() == 404 {
+        // No contents found — repo is usable.
+        log::info!("[github_check_repo_empty] repo={} status=no_contents", full_name);
+        return Ok(true);
+    }
+    if !contents_status.is_success() {
+        let body: serde_json::Value = contents_resp.json().await.unwrap_or_default();
+        let msg = format!(
+            "GitHub API error checking contents ({}): {}",
+            contents_status,
+            body["message"].as_str().unwrap_or("unknown")
+        );
+        log::error!("[github_check_repo_empty] {msg}");
+        return Err(msg);
+    }
+
+    let contents: serde_json::Value = contents_resp.json().await.map_err(|e| e.to_string())?;
+    let has_project_folder = contents
+        .as_array()
+        .map(|items| items.iter().any(|item| item["type"].as_str() == Some("dir")))
+        .unwrap_or(false);
+
+    log::info!(
+        "[github_check_repo_empty] repo={} has_project_folder={}",
+        full_name,
+        has_project_folder
+    );
+    Ok(!has_project_folder)
 }
 
 #[cfg(test)]

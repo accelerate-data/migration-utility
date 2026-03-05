@@ -4,17 +4,17 @@ import { MemoryRouter, Routes, Route } from 'react-router';
 import SettingsSurface from '../../routes/settings';
 
 describe('SettingsSurface tabs', () => {
-  it('does not render reset tab', () => {
+  it('renders Setup and Profile tabs', () => {
     render(
-      <MemoryRouter initialEntries={['/settings/workspace']}>
+      <MemoryRouter initialEntries={['/settings']}>
         <Routes>
           <Route path="/settings/*" element={<SettingsSurface />} />
         </Routes>
       </MemoryRouter>,
     );
 
-    expect(screen.queryByTestId('settings-tab-reset')).not.toBeInTheDocument();
-    expect(screen.getByTestId('settings-tab-connections')).toBeInTheDocument();
-    expect(screen.getByTestId('settings-tab-workspace')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-tab-setup')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-tab-profile')).toBeInTheDocument();
+    expect(screen.queryByTestId('settings-tab-usage')).not.toBeInTheDocument();
   });
 });

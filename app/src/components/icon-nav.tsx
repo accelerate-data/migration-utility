@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from 'react-router';
 import { House, Settings, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { isSurfaceEnabledForPhase, type Surface, useWorkflowStore } from '@/stores/workflow-store';
+import { type Surface, useWorkflowStore } from '@/stores/workflow-store';
 import { BRAND_ASSETS } from '@/lib/branding';
 
 interface NavItem {
@@ -20,10 +20,9 @@ const BOTTOM_ITEMS: NavItem[] = [
   { surface: 'settings', path: '/settings', icon: Settings, label: 'Settings', testId: 'nav-settings' },
 ];
 
-function NavButton({ item, isActive, disabled, onClick }: {
+function NavButton({ item, isActive, onClick }: {
   item: NavItem;
   isActive: boolean;
-  disabled: boolean;
   onClick: () => void;
 }) {
   const Icon = item.icon;
@@ -36,13 +35,11 @@ function NavButton({ item, isActive, disabled, onClick }: {
       title={item.label}
       aria-label={item.label}
       aria-current={isActive ? 'page' : undefined}
-      disabled={disabled}
       onClick={onClick}
       className={cn(
         'group relative w-9 h-9 rounded-lg flex items-center justify-center transition-colors duration-150',
         'outline-none focus-visible:ring-2 focus-visible:ring-white/40',
         isActive ? 'text-white' : 'text-white/40 hover:text-white/70',
-        disabled && 'opacity-40 cursor-not-allowed pointer-events-none',
       )}
       style={isActive ? { backgroundColor: 'var(--icon-nav-active-bg)' } : undefined}
       onMouseEnter={(e) => {
@@ -75,17 +72,14 @@ function NavButton({ item, isActive, disabled, onClick }: {
 export default function IconNav() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const { setCurrentSurface, appPhase } = useWorkflowStore();
+  const setCurrentSurface = useWorkflowStore((s) => s.setCurrentSurface);
 
   function isActive(item: NavItem): boolean {
-    // /scope/* and /settings/* should match their sub-routes
-    if (item.path === '/scope') return pathname === '/scope' || pathname.startsWith('/scope/');
     if (item.path === '/settings') return pathname === '/settings' || pathname.startsWith('/settings/');
     return pathname === item.path;
   }
 
   function handleClick(item: NavItem) {
-    if (!isSurfaceEnabledForPhase(item.surface, appPhase)) return;
     setCurrentSurface(item.surface);
     navigate(item.path);
   }
@@ -117,7 +111,6 @@ export default function IconNav() {
           key={item.surface}
           item={item}
           isActive={isActive(item)}
-          disabled={!isSurfaceEnabledForPhase(item.surface, appPhase)}
           onClick={() => handleClick(item)}
         />
       ))}
@@ -131,7 +124,6 @@ export default function IconNav() {
           key={item.surface}
           item={item}
           isActive={isActive(item)}
-          disabled={!isSurfaceEnabledForPhase(item.surface, appPhase)}
           onClick={() => handleClick(item)}
         />
       ))}

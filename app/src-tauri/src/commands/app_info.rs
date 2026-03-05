@@ -1,7 +1,6 @@
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 use crate::db::DbState;
-use crate::DataDir;
 
 /// Set the global log level for Rust backend and also persist it to AppSettings.
 #[tauri::command]
@@ -23,14 +22,16 @@ pub fn get_log_file_path(app: AppHandle) -> Result<String, String> {
 
 /// Return the app local data directory path (where the SQLite database and workspace live).
 #[tauri::command]
-pub fn get_data_dir_path(data_dir: State<'_, DataDir>) -> Result<String, String> {
+pub fn get_data_dir_path(app: AppHandle) -> Result<String, String> {
     log::info!("[get_data_dir_path]");
-    data_dir
-        .0
+    app.path()
+        .app_data_dir()
+        .map_err(|e| format!("cannot resolve app data dir: {e}"))?
         .to_str()
-        .map(|s| s.to_string())
+        .map(|s: &str| s.to_string())
         .ok_or_else(|| "Data dir path contains invalid UTF-8".to_string())
 }
+
 
 #[cfg(test)]
 mod tests {

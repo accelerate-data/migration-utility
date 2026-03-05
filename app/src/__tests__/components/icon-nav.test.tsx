@@ -21,12 +21,10 @@ describe('IconNav', () => {
     useWorkflowStore.setState((s) => ({
       ...s,
       currentSurface: 'home',
-      appPhase: 'scope_editable',
-      appPhaseHydrated: true,
     }));
   });
 
-  it('renders home and settings nav items', () => {
+  it('renders nav items', () => {
     render(
       <MemoryRouter initialEntries={['/home']}>
         <IconNav />
@@ -50,16 +48,6 @@ describe('IconNav', () => {
     expect(screen.getByTestId('nav-settings').getAttribute('data-active')).toBe('false');
   });
 
-  it('navigates to /home on home click', () => {
-    render(
-      <MemoryRouter initialEntries={['/home']}>
-        <IconNav />
-      </MemoryRouter>,
-    );
-    fireEvent.click(screen.getByTestId('nav-home'));
-    expect(mockNavigate).toHaveBeenCalledWith('/home');
-  });
-
   it('navigates to /settings on settings click', () => {
     render(
       <MemoryRouter initialEntries={['/home']}>
@@ -68,6 +56,16 @@ describe('IconNav', () => {
     );
     fireEvent.click(screen.getByTestId('nav-settings'));
     expect(mockNavigate).toHaveBeenCalledWith('/settings');
+  });
+
+  it('updates currentSurface in store on click', () => {
+    render(
+      <MemoryRouter initialEntries={['/home']}>
+        <IconNav />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByTestId('nav-settings'));
+    expect(useWorkflowStore.getState().currentSurface).toBe('settings');
   });
 
   it('exposes accessible nav and icon button names', () => {
