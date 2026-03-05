@@ -188,12 +188,25 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
     }
   }
 
+  const busy = detecting || creating;
+
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!creating) { onOpenChange(v); if (!v) reset(); } }}>
+    <Dialog open={open} onOpenChange={(v) => { if (!busy) { onOpenChange(v); if (!v) reset(); } }}>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>New project</DialogTitle>
         </DialogHeader>
+
+        {/* Detecting overlay — blocks the form while Docker/DacPac restore runs */}
+        {detecting && (
+          <div className="absolute inset-0 z-10 rounded-lg flex flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm">
+            <Loader2 className="h-8 w-8 animate-spin" style={{ color: 'var(--color-pacific)' }} />
+            <div className="text-center">
+              <p className="text-sm font-semibold text-foreground">Detecting databases…</p>
+              <p className="text-xs text-muted-foreground mt-1">Starting SQL Server and restoring DacPac.<br />This may take a minute.</p>
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-col gap-4 py-2">
           {/* Row 1: Name + SQL Server version */}
@@ -205,7 +218,7 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Contoso Migration"
-                disabled={creating}
+                disabled={busy}
               />
               {name.trim() && (
                 <p className="text-xs text-muted-foreground font-mono">
@@ -215,7 +228,7 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs font-medium text-muted-foreground">SQL Server version</Label>
-              <Select value={sqlServerVersion} onValueChange={setSqlServerVersion} disabled={creating}>
+              <Select value={sqlServerVersion} onValueChange={setSqlServerVersion} disabled={busy}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -228,7 +241,38 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
             </div>
           </div>
 
-          {/* Row 2: Customer + System */}
+          {/* Row 2: DacPac file */}
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">DacPac file</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                value={dacpacPath}
+                readOnly
+                placeholder="Select a .dacpac file…"
+                className="cursor-pointer"
+                onClick={pickDacpac}
+                disabled={busy}
+              />
+              <Button variant="outline" size="icon" onClick={pickDacpac} disabled={busy}>
+                <FolderOpen className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Row 3: SA password */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="proj-sa" className="text-xs font-medium text-muted-foreground">SA password</Label>
+            <Input
+              id="proj-sa"
+              type="password"
+              value={saPassword}
+              onChange={(e) => setSaPassword(e.target.value)}
+              placeholder="Strong SQL Server SA password"
+              disabled={busy}
+            />
+          </div>
+
+          {/* Row 4: Customer + System */}
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="proj-customer" className="text-xs font-medium text-muted-foreground">Customer</Label>
@@ -237,7 +281,7 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
                 value={customer}
                 onChange={(e) => setCustomer(e.target.value)}
                 placeholder="e.g. Contoso"
-                disabled={creating}
+                disabled={busy}
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -247,12 +291,12 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
                 value={system}
                 onChange={(e) => setSystem(e.target.value)}
                 placeholder="e.g. ERP"
-                disabled={creating}
+                disabled={busy}
               />
             </div>
           </div>
 
-          {/* Row 3: Database detection + Extraction datetime */}
+          {/* Row 5: Database detection + Extraction date */}
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs font-medium text-muted-foreground">Database name</Label>
@@ -262,17 +306,15 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
                     variant="outline"
                     size="sm"
                     onClick={handleDetect}
-                    disabled={detecting || creating || !name.trim() || !saPassword || !dacpacPath}
+                    disabled={busy || !name.trim() || !saPassword || !dacpacPath}
                     data-testid="project-detect-databases"
                   >
-                    {detecting
-                      ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                      : <Search className="h-3.5 w-3.5 mr-1.5" />}
-                    {detecting ? 'Detecting…' : 'Detect databases'}
+                    <Search className="h-3.5 w-3.5 mr-1.5" />
+                    Detect databases
                   </Button>
                 ) : (
                   <div className="flex items-center gap-1.5">
-                    <Select value={dbName} onValueChange={setDbName} disabled={creating}>
+                    <Select value={dbName} onValueChange={setDbName} disabled={busy}>
                       <SelectTrigger data-testid="project-dbname-select">
                         <SelectValue placeholder="Select database…" />
                       </SelectTrigger>
@@ -286,13 +328,11 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
                       variant="ghost"
                       size="icon"
                       onClick={handleDetect}
-                      disabled={detecting || creating}
+                      disabled={busy}
                       title="Re-detect databases"
                       data-testid="project-redetect-databases"
                     >
-                      {detecting
-                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        : <RefreshCw className="h-3.5 w-3.5" />}
+                      <RefreshCw className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 )}
@@ -308,48 +348,17 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
                 type="date"
                 value={extractionDatetime}
                 onChange={(e) => setExtractionDatetime(e.target.value)}
-                disabled={creating}
+                disabled={busy}
               />
-            </div>
-          </div>
-
-          {/* Row 4: SA password */}
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="proj-sa" className="text-xs font-medium text-muted-foreground">SA password</Label>
-            <Input
-              id="proj-sa"
-              type="password"
-              value={saPassword}
-              onChange={(e) => setSaPassword(e.target.value)}
-              placeholder="Strong SQL Server SA password"
-              disabled={creating}
-            />
-          </div>
-
-          {/* Row 5: DacPac file */}
-          <div className="flex flex-col gap-1.5">
-            <Label className="text-xs font-medium text-muted-foreground">DacPac file</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                value={dacpacPath}
-                readOnly
-                placeholder="Select a .dacpac file…"
-                className="cursor-pointer"
-                onClick={pickDacpac}
-                disabled={creating}
-              />
-              <Button variant="outline" size="icon" onClick={pickDacpac} disabled={creating}>
-                <FolderOpen className="h-4 w-4" />
-              </Button>
             </div>
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} disabled={creating}>
+          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancel
           </Button>
-          <Button size="sm" onClick={handleCreate} disabled={creating || !name.trim() || !saPassword || !dacpacPath || !customer || !system || !dbName || !extractionDatetime}>
+          <Button size="sm" onClick={handleCreate} disabled={busy || !name.trim() || !saPassword || !dacpacPath || !customer || !system || !dbName || !extractionDatetime}>
             {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
             {creating ? 'Creating…' : 'Create'}
           </Button>
