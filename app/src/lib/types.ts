@@ -34,6 +34,7 @@ export interface AppSettingsPublic {
   migrationRepoFullName: string | null;
   migrationRepoCloneUrl: string | null;
   localClonePath: string | null;
+  activeProjectId: string | null;
 }
 
 /** A migration project (safe to return to frontend — sa_password omitted). */
@@ -43,4 +44,45 @@ export interface Project {
   name: string;
   createdAt: string;
 }
+
+// ── Init orchestrator types ───────────────────────────────────────────────────
+
+export type InitStep =
+  | 'gitPull'
+  | 'dockerCheck'
+  | 'startContainer'
+  | 'restoreDacpac'
+  | 'verifyDb';
+
+export type InitStepStatus =
+  | { kind: 'running' }
+  | { kind: 'ok' }
+  | { kind: 'warning'; warnings: string[] }
+  | { kind: 'error'; message: string };
+
+export interface InitStepEvent {
+  step: InitStep;
+  status: InitStepStatus;
+  /** Absent for global steps (gitPull, dockerCheck); present for per-project steps. */
+  projectId?: string;
+}
+
+export const GLOBAL_STEPS: InitStep[] = ['gitPull', 'dockerCheck'];
+export const PER_PROJECT_STEPS: InitStep[] = ['startContainer', 'restoreDacpac', 'verifyDb'];
+
+export const INIT_STEPS: InitStep[] = [
+  'gitPull',
+  'dockerCheck',
+  'startContainer',
+  'restoreDacpac',
+  'verifyDb',
+];
+
+export const INIT_STEP_LABEL: Record<InitStep, string> = {
+  gitPull: 'Sync repository',
+  dockerCheck: 'Check Docker',
+  startContainer: 'Start SQL container',
+  restoreDacpac: 'Restore database',
+  verifyDb: 'Verify connectivity',
+};
 

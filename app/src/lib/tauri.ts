@@ -1,10 +1,26 @@
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+
+/**
+ * Extract a human-readable message from a Tauri command error.
+ * CommandError is serialized as { kind: string; message: string } —
+ * not as a plain string — so String(err) produces "[object Object]".
+ */
+export function tauriErrorMessage(err: unknown): string {
+  if (typeof err === 'string') return err;
+  if (err && typeof err === 'object') {
+    const e = err as Record<string, unknown>;
+    if (typeof e.message === 'string') return e.message;
+  }
+  return String(err);
+}
 import type {
   AppSettingsPublic,
   DeviceFlowResponse,
   GitHubAuthResult,
   GitHubRepo,
   GitHubUser,
+  InitStepEvent,
   Project,
 } from './types';
 
@@ -30,8 +46,8 @@ export const githubListRepos = (query: string, limit = 10) =>
 export const getSettings = () =>
   invoke<AppSettingsPublic>('get_settings');
 
-export const saveRepoSettings = (fullName: string, cloneUrl: string, localPath: string) =>
-  invoke<void>('save_repo_settings', { fullName, cloneUrl, localPath });
+export const saveRepoSettings = (fullName: string, cloneUrl: string, parentFolder: string) =>
+  invoke<void>('save_repo_settings', { fullName, cloneUrl, parentFolder });
 
 export const githubCheckRepoEmpty = (fullName: string) =>
   invoke<boolean>('github_check_repo_empty', { fullName });
@@ -60,3 +76,49 @@ export const projectGet = (id: string) =>
 
 export const projectDelete = (id: string) =>
   invoke<void>('project_delete', { id });
+
+export const projectSetActive = (id: string) =>
+  invoke<void>('project_set_active', { id });
+
+export const projectGetActive = () =>
+  invoke<Project | null>('project_get_active');
+
+export const projectCreateFull = (
+  name: string,
+  saPassword: string,
+  dacpacPath: string,
+  sqlServerVersion: string,
+  customer: string,
+  system: string,
+  dbName: string,
+  extractionDatetime: string,
+) =>
+  invoke<Project>('project_create_full', {
+    name,
+    saPassword,
+    dacpacPath,
+    sqlServerVersion,
+    customer,
+    system,
+    dbName,
+    extractionDatetime,
+  });
+
+export const projectDetectDatabases = (dacpacPath: string) =>
+  invoke<string[]>('project_detect_databases', { dacpacPath });
+
+export const projectInit = (id: string) =>
+  invoke<void>('project_init', { id });
+
+export const appStartupSync = () =>
+  invoke<void>('app_startup_sync');
+
+export const projectDeleteFull = (id: string) =>
+  invoke<void>('project_delete_full', { id });
+
+export const projectResetLocal = (id: string) =>
+  invoke<void>('project_reset_local', { id });
+
+/** Subscribe to init step events. Returns an unlisten function. */
+export const listenProjectInitStep = (handler: (event: InitStepEvent) => void) =>
+  listen<InitStepEvent>('project:init:step', (e) => handler(e.payload));

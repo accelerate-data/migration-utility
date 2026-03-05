@@ -14,6 +14,12 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: mockInvoke,
 }));
 
+// Mock @tauri-apps/api/event (used by listenProjectInitStep)
+export const mockListen = vi.fn().mockResolvedValue(() => {});
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: mockListen,
+}));
+
 export const mockDialogOpen = vi.fn();
 vi.mock("@tauri-apps/plugin-dialog", () => ({
   open: mockDialogOpen,
@@ -37,18 +43,23 @@ export function mockInvokeCommand(
   });
 }
 
-// Helper to configure multiple command responses
+// Helper to configure multiple command responses.
+// Pass an Error instance as a value to simulate a rejected command.
 export function mockInvokeCommands(
   commands: Record<string, unknown>
 ): void {
   mockInvoke.mockImplementation((cmd: string) => {
-    if (cmd in commands) return Promise.resolve(commands[cmd]);
+    if (cmd in commands) {
+      const val = commands[cmd];
+      return val instanceof Error ? Promise.reject(val) : Promise.resolve(val);
+    }
     return Promise.reject(new Error(`Unmocked command: ${cmd}`));
   });
 }
 
 export function resetTauriMocks(): void {
   mockInvoke.mockReset().mockImplementation(defaultInvokeImpl);
+  mockListen.mockReset().mockResolvedValue(() => {});
   mockDialogOpen.mockReset();
   mockOpenPath.mockReset().mockReturnValue(Promise.resolve());
 }

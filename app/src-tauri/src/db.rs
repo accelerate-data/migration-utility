@@ -27,6 +27,7 @@ impl DbState {
 const MIGRATIONS: &[(i64, &str)] = &[
     (1, include_str!("../migrations/001_initial_schema.sql")),
     (2, include_str!("../migrations/002_ensure_tables.sql")),
+    (3, include_str!("../migrations/003_add_project_port.sql")),
 ];
 
 pub fn open(path: &Path) -> Result<Connection, DbError> {
@@ -37,6 +38,7 @@ pub fn open(path: &Path) -> Result<Connection, DbError> {
     let conn = Connection::open(path)?;
     conn.execute_batch("PRAGMA foreign_keys = ON;")?;
     run_migrations(&conn)?;
+    repair_schema(&conn)?;
     Ok(conn)
 }
 
@@ -45,7 +47,29 @@ pub(crate) fn open_in_memory() -> Result<Connection, DbError> {
     let conn = Connection::open_in_memory()?;
     conn.execute_batch("PRAGMA foreign_keys = ON;")?;
     run_migrations(&conn)?;
+    repair_schema(&conn)?;
     Ok(conn)
+}
+
+/// Best-effort column repairs run after migrations.
+///
+/// Handles edge cases where a migration was skipped (e.g. schema_version was
+/// already marked applied on a DB that predates the column, or the migration
+/// ran against a different DB file). Safe to call on every startup.
+fn repair_schema(conn: &Connection) -> Result<(), DbError> {
+    // projects.port — added by migration 003; may be absent on older DB files.
+    let has_port: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM pragma_table_info('projects') WHERE name='port'",
+        [],
+        |row| row.get(0),
+    )?;
+    if !has_port {
+        log::warn!("repair_schema: projects.port missing — adding column (DEFAULT 1433)");
+        conn.execute_batch(
+            "ALTER TABLE projects ADD COLUMN port INTEGER NOT NULL DEFAULT 1433;",
+        )?;
+    }
+    Ok(())
 }
 
 fn run_migrations(conn: &Connection) -> Result<(), DbError> {

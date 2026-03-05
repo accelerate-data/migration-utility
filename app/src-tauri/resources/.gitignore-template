@@ -1,0 +1,21 @@
+# Migration Utility — managed .gitignore
+# Do NOT add *.dacpac here — dacpac files are intentionally tracked via Git LFS.
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.suo
+*.user
+
+# SQL Server build artifacts (not our project dacpacs)
+bin/
+obj/
+*.dbmdl
+*.sqlcmdvars
+
+# Publish profiles (environment-specific, keep local)
+*.publish.xml

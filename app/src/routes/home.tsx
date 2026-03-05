@@ -1,6 +1,10 @@
+import { useProjectStore } from '@/stores/project-store';
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
 export default function HomeSurface() {
+  const activeProject = useProjectStore((s) => s.activeProject);
+
   return (
     <div className="h-full flex flex-col">
       <div className="flex-1 overflow-auto">
@@ -13,7 +17,12 @@ export default function HomeSurface() {
                 Active Migration
               </p>
               <div className="rounded-lg border border-border bg-card p-4 flex flex-col gap-3">
-                <p className="text-sm font-semibold">—</p>
+                <p className="text-sm font-semibold">
+                  {activeProject ? activeProject.name : '—'}
+                </p>
+                {activeProject && (
+                  <p className="text-xs text-muted-foreground font-mono">{activeProject.slug}</p>
+                )}
                 <div className="flex items-center gap-3">
                   <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden" />
                   <span className="text-sm text-muted-foreground shrink-0">— / — procedures</span>

@@ -57,12 +57,17 @@ export default function ConnectionsTab() {
         homeDir().then((h) => {
           setHomeDirPath(h);
           if (s.localClonePath) {
-            setLocalPath(prettyPath(s.localClonePath, h));
+            // Derive parent folder from stored clone path (strip last component).
+            const parent = s.localClonePath.replace(/\/[^/]+\/?$/, '') || s.localClonePath;
+            setLocalPath(prettyPath(parent, h));
           } else {
             setLocalPath('~');
           }
         }).catch(() => {
-          if (s.localClonePath) setLocalPath(s.localClonePath);
+          if (s.localClonePath) {
+            const parent = s.localClonePath.replace(/\/[^/]+\/?$/, '') || s.localClonePath;
+            setLocalPath(parent);
+          }
         });
       })
       .catch((err) => logger.warn('connections: failed to load repo settings', err));
@@ -120,7 +125,7 @@ export default function ConnectionsTab() {
   }
 
   async function handleBrowseLocalPath() {
-    const selected = await openDialog({ directory: true, multiple: false, title: 'Select local clone directory' });
+    const selected = await openDialog({ directory: true, multiple: false, title: 'Select parent folder for migration repo' });
     if (typeof selected === 'string') setLocalPath(prettyPath(selected, homeDirPath));
   }
 
@@ -129,15 +134,21 @@ export default function ConnectionsTab() {
     setSaving(true);
     try {
       await saveRepoSettings(selectedRepo.fullName, selectedRepo.cloneUrl, expandPath(localPath.trim(), homeDirPath));
-      toast.success('Repository settings saved');
+      toast.success('Repository cloned and settings saved');
       logger.info('settings: repo settings saved repo=%s', selectedRepo.fullName);
     } catch (err) {
       logger.error('save_repo_settings failed', err);
-      toast.error('Failed to save repository settings');
+      const msg = err && typeof err === 'object' && 'message' in err ? (err as { message: string }).message : String(err);
+      toast.error(`Failed to save repository settings: ${msg}`, { duration: Infinity });
     } finally {
       setSaving(false);
     }
   }
+
+  const repoShortName = selectedRepo?.fullName.split('/').pop() ?? '';
+  const clonePreview = selectedRepo && localPath.trim()
+    ? `${expandPath(localPath.trim(), homeDirPath)}/${repoShortName}`
+    : null;
 
   const githubStatus = isAuthLoading ? 'Checking' : isLoggedIn && user ? 'Connected' : 'Not connected';
   const canSave = selectedRepo !== null && repoEmptyStatus === 'empty' && localPath.trim().length > 0;
@@ -277,15 +288,15 @@ export default function ConnectionsTab() {
               )}
             </div>
 
-            {/* Local clone path */}
+            {/* Local parent folder */}
             <div className="flex flex-col gap-1.5">
-              <Label className="text-xs font-medium text-muted-foreground">Local clone path</Label>
+              <Label className="text-xs font-medium text-muted-foreground">Parent folder</Label>
               <div className="flex gap-2">
                 <Input
                   data-testid="input-local-clone-path"
                   value={localPath}
                   onChange={(e) => setLocalPath(e.target.value)}
-                  placeholder="~/migration-repo"
+                  placeholder="~/src"
                   className="font-mono text-sm flex-1"
                 />
                 <Button
@@ -299,9 +310,15 @@ export default function ConnectionsTab() {
                   <FolderOpen className="size-3.5" />
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                The app will clone the remote repo here at project initialization.
-              </p>
+              {clonePreview ? (
+                <p className="text-xs text-muted-foreground font-mono">
+                  Will clone to: {clonePreview}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  The migration repo will be cloned into a subfolder here.
+                </p>
+              )}
             </div>
 
             {/* Save */}
@@ -312,7 +329,7 @@ export default function ConnectionsTab() {
                 disabled={!canSave || saving}
               >
                 {saving && <Loader2 className="size-3.5 animate-spin" />}
-                Save
+                {saving ? 'Applying…' : 'Apply'}
               </Button>
             </div>
 
