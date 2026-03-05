@@ -60,15 +60,14 @@ toolbox --stdio --tools-file orchestrator/mssql_mcp/tools.yaml
 # Should hang waiting for stdin input — that means it started correctly. Ctrl-C to exit.
 ```
 
-If that works, add `.mcp.json` at the repo root (project-scoped; already in `.gitignore`).
-Use the **absolute path** to `tools.yaml` — Claude Code may not run the command from the repo root:
+If that works, add `.mcp.json` at the repo root (project-scoped; already in `.gitignore`):
 
 ```json
 {
   "mcpServers": {
     "mssql": {
       "command": "toolbox",
-      "args": ["--stdio", "--tools-file", "/absolute/path/to/repo/orchestrator/mssql_mcp/tools.yaml"],
+      "args": ["--stdio", "--tools-file", "orchestrator/mssql_mcp/tools.yaml"],
       "env": {
         "MSSQL_HOST": "127.0.0.1",
         "MSSQL_PORT": "1433",
