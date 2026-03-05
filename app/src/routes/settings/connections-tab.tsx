@@ -329,7 +329,7 @@ export default function ConnectionsTab() {
                 disabled={!canSave || saving}
               >
                 {saving && <Loader2 className="size-3.5 animate-spin" />}
-                {saving ? 'Cloning…' : 'Save & Clone'}
+                {saving ? 'Applying…' : 'Apply'}
               </Button>
             </div>
 
