@@ -1044,10 +1044,31 @@ async fn run_project_ddl_steps(
         }
         Err(ref e) => {
             let msg = e.to_string();
-            // metadata.json absent means this is a legacy project created before DDL extraction
-            // was introduced. Skip gracefully — user must re-create the project to get DDL.
             if !metadata_path.exists() {
-                log::warn!("[run_project_ddl_steps] metadata.json absent for slug={slug} — skipping DDL steps (legacy project)");
+                // Check for legacy projects: DacPac stored at artifacts/dacpac/ (old path).
+                let old_dacpac_dir = slug_dir.join("artifacts").join("dacpac");
+                if old_dacpac_dir.exists() && technology == "sql_server" {
+                    log::info!("[run_project_ddl_steps] legacy dacpac project detected slug={slug} — migrating");
+                    emit_step(app, InitStep::DdlCheck, InitStepStatus::Warning {
+                        warnings: vec!["Legacy project — migrating from old DacPac location.".into()],
+                    }, pid.clone());
+                    emit_step(app, InitStep::DdlExtract, InitStepStatus::Running, pid.clone());
+                    match migrate_legacy_dacpac(slug, &slug_dir, &source_dir, &ddl_dir, local_clone_path) {
+                        Ok(()) => {
+                            log::info!("[run_project_ddl_steps] legacy migration complete slug={slug}");
+                            emit_step(app, InitStep::DdlExtract, InitStepStatus::Ok, pid);
+                            return Ok(());
+                        }
+                        Err(e) => {
+                            let msg = e.to_string();
+                            log::error!("[run_project_ddl_steps] legacy migration failed slug={slug}: {msg}");
+                            emit_step(app, InitStep::DdlExtract, InitStepStatus::Error { message: msg.clone() }, pid);
+                            return Err(CommandError::External(msg));
+                        }
+                    }
+                }
+                // No legacy DacPac found — skip gracefully.
+                log::warn!("[run_project_ddl_steps] metadata.json absent and no legacy DacPac for slug={slug} — skipping");
                 emit_step(app, InitStep::DdlCheck, InitStepStatus::Warning {
                     warnings: vec!["Project was created before DDL extraction. Re-create the project to enable DDL sync.".into()],
                 }, pid.clone());
@@ -1123,6 +1144,95 @@ async fn run_project_ddl_steps(
             Err(CommandError::External(msg))
         }
     }
+}
+
+/// Migrate a legacy project whose DacPac lives at `artifacts/dacpac/` to the new layout:
+/// copy DacPac → `artifacts/source/`, write new `metadata.json`, extract DDL to `artifacts/ddl/`,
+/// then commit and push.
+fn migrate_legacy_dacpac(
+    slug: &str,
+    slug_dir: &Path,
+    source_dir: &Path,
+    ddl_dir: &Path,
+    local_clone_path: &str,
+) -> Result<(), CommandError> {
+    let old_dacpac_dir = slug_dir.join("artifacts").join("dacpac");
+    let old_metadata_path = old_dacpac_dir.join("metadata.json");
+
+    // Find the .dacpac file in the old directory.
+    let dacpac_path = std::fs::read_dir(&old_dacpac_dir)
+        .map_err(|e| CommandError::Io(format!("Cannot read legacy dacpac dir: {e}")))?
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .find(|p| p.extension().and_then(|e| e.to_str()) == Some("dacpac"))
+        .ok_or_else(|| CommandError::Validation(
+            format!("No .dacpac file found in legacy directory {}", old_dacpac_dir.display()),
+        ))?;
+
+    // Read old metadata for field preservation.
+    let old_meta: serde_json::Value = if old_metadata_path.exists() {
+        let s = std::fs::read_to_string(&old_metadata_path)
+            .map_err(|e| CommandError::Io(format!("Cannot read legacy metadata.json: {e}")))?;
+        serde_json::from_str(&s)
+            .map_err(|e| CommandError::Io(format!("Cannot parse legacy metadata.json: {e}")))?
+    } else {
+        serde_json::json!({})
+    };
+
+    std::fs::create_dir_all(source_dir)?;
+    std::fs::create_dir_all(ddl_dir)?;
+
+    let filename = dacpac_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| CommandError::Validation("Invalid DacPac filename".into()))?;
+
+    let source_dest = source_dir.join(filename);
+    std::fs::copy(&dacpac_path, &source_dest)
+        .map_err(|e| CommandError::Io(format!("Failed to copy DacPac to artifacts/source/: {e}")))?;
+    log::debug!("[migrate_legacy_dacpac] copied DacPac to {}", source_dest.display());
+
+    let sha256 = compute_file_sha256(&source_dest)?;
+
+    // Write new metadata.json compatible with check_ddl_stale.
+    std::fs::write(
+        source_dir.join("metadata.json"),
+        serde_json::to_string_pretty(&serde_json::json!({
+            "id":                  old_meta.get("id").and_then(|v| v.as_str()).unwrap_or(""),
+            "slug":                slug,
+            "name":                old_meta.get("name").and_then(|v| v.as_str()).unwrap_or(""),
+            "technology":          "sql_server",
+            "createdAt":           old_meta.get("createdAt").and_then(|v| v.as_str()).unwrap_or(""),
+            "dbName":              old_meta.get("dbName").and_then(|v| v.as_str()).unwrap_or(""),
+            "extractionDatetime":  old_meta.get("extractionDatetime").and_then(|v| v.as_str()).unwrap_or(""),
+            "sourceFilename":      filename,
+            "sourceSha256":        sha256,
+        }))
+        .unwrap(),
+    )?;
+    log::debug!("[migrate_legacy_dacpac] wrote new metadata.json slug={slug}");
+
+    extract_ddl_from_dacpac(&source_dest, ddl_dir)?;
+    log::info!("[migrate_legacy_dacpac] DDL extracted slug={slug}");
+
+    // Commit and push the migrated files.
+    run_cmd("git", &["lfs", "install"], None, &[])?;
+    run_cmd("git", &["lfs", "track", "*.dacpac"], Some(local_clone_path), &[])?;
+    run_cmd("git", &["add", "--force", ".gitattributes", slug], Some(local_clone_path), &[])?;
+    run_cmd(
+        "git",
+        &[
+            "-c", "user.name=Migration Utility",
+            "-c", "user.email=migration@vibedata.com",
+            "commit", "-m", &format!("migrate: {slug} — DDL extraction from legacy DacPac"),
+        ],
+        Some(local_clone_path),
+        &[],
+    )?;
+    run_cmd("git", &["push"], Some(local_clone_path), &[])?;
+    log::info!("[migrate_legacy_dacpac] committed and pushed slug={slug}");
+
+    Ok(())
 }
 
 /// Returns `Ok(false)` if DDL is current, `Ok(true)` if stale/missing, `Err` if check itself fails.
