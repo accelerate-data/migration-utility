@@ -30,20 +30,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-
-const SQL_SERVER_VERSIONS = [
-  { value: 'SQL Server 2022', label: 'SQL Server 2022 (16.x)' },
-  { value: 'SQL Server 2019', label: 'SQL Server 2019 (15.x)' },
-  { value: 'SQL Server 2017', label: 'SQL Server 2017 (14.x)' },
-  { value: 'SQL Server 2016', label: 'SQL Server 2016 (13.x)' },
-  { value: 'SQL Server 2014', label: 'SQL Server 2014 (12.x)' },
-];
 import SettingsPanelShell from '@/components/settings/settings-panel-shell';
 import { projectCreateFull, projectDetectDatabases, projectDeleteFull, projectInit, projectResetLocal, listenProjectInitStep, tauriErrorMessage } from '@/lib/tauri';
-import { INIT_STEP_LABEL } from '@/lib/types';
+import { INIT_STEP_LABEL, TECHNOLOGY_LABEL } from '@/lib/types';
+import type { InitStep, Technology } from '@/lib/types';
 import { logger } from '@/lib/logger';
 import { useProjectStore } from '@/stores/project-store';
-import type { InitStep } from '@/lib/types';
+
+const TECHNOLOGIES: { value: Technology; label: string }[] = [
+  { value: 'sql_server', label: TECHNOLOGY_LABEL['sql_server'] },
+  { value: 'fabric_warehouse', label: TECHNOLOGY_LABEL['fabric_warehouse'] },
+  { value: 'fabric_lakehouse', label: TECHNOLOGY_LABEL['fabric_lakehouse'] },
+  { value: 'snowflake', label: TECHNOLOGY_LABEL['snowflake'] },
+];
 
 // ── Init progress ─────────────────────────────────────────────────────────────
 
@@ -117,16 +116,6 @@ function localTodayString(): string {
   return `${y}-${m}-${d}`;
 }
 
-/**
- * SQL Server requires passwords to meet complexity policy:
- * ≥8 chars, characters from ≥3 of: uppercase, lowercase, digit, symbol.
- */
-function isSqlServerPasswordValid(pw: string): boolean {
-  if (pw.length < 8) return false;
-  const sets = [/[A-Z]/, /[a-z]/, /[0-9]/, /[^A-Za-z0-9]/];
-  return sets.filter((re) => re.test(pw)).length >= 3;
-}
-
 /** Convert a local YYYY-MM-DD date string (midnight local) to a UTC ISO string for storage. */
 function localDateToUtc(localDate: string): string {
   const [y, mo, d] = localDate.split('-').map(Number);
@@ -152,24 +141,23 @@ interface CreateDialogProps {
 
 function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProps) {
   const [name, setName] = useState('');
-  const [saPassword, setSaPassword] = useState('');
-  const [dacpacPath, setDacpacPath] = useState('');
-  const [sqlServerVersion, setSqlServerVersion] = useState('SQL Server 2022');
+  const [technology, setTechnology] = useState<Technology>('sql_server');
+  const [sourcePath, setSourcePath] = useState('');
   const [dbName, setDbName] = useState('');
   const [detectedDbs, setDetectedDbs] = useState<string[]>([]);
   const [detecting, setDetecting] = useState(false);
   const [detectError, setDetectError] = useState('');
-  // Stored as local YYYY-MM-DD for the date input; converted to UTC on submit.
   const [extractionDate, setExtractionDate] = useState(localTodayString);
   const [creating, setCreating] = useState(false);
   const { startInit, finishInit, applyInitStep, loadProjects } = useProjectStore();
   const unlistenRef = useRef<(() => void) | null>(null);
 
+  const isSqlServer = technology === 'sql_server';
+
   function reset() {
     setName('');
-    setSaPassword('');
-    setDacpacPath('');
-    setSqlServerVersion('SQL Server 2022');
+    setTechnology('sql_server');
+    setSourcePath('');
     setDbName('');
     setDetectedDbs([]);
     setDetecting(false);
@@ -178,13 +166,14 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
   }
 
   async function handleDetect() {
+    if (!sourcePath) return;
     setDetecting(true);
     setDetectError('');
     setDetectedDbs([]);
     setDbName('');
     try {
-      logger.debug('projects-tab: detecting databases', dacpacPath);
-      const dbs = await projectDetectDatabases(dacpacPath);
+      logger.debug('projects-tab: detecting databases', sourcePath);
+      const dbs = await projectDetectDatabases(sourcePath);
       setDetectedDbs(dbs);
       if (dbs.length === 1) setDbName(dbs[0]);
     } catch (err) {
@@ -195,14 +184,13 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
     }
   }
 
-  async function pickDacpac() {
-    const selected = await openDialog({
-      filters: [{ name: 'DacPac', extensions: ['dacpac'] }],
-      multiple: false,
-    });
+  async function pickSourceFile() {
+    const filters = isSqlServer
+      ? [{ name: 'DacPac', extensions: ['dacpac'] }]
+      : [{ name: 'DDL Archive', extensions: ['zip'] }];
+    const selected = await openDialog({ filters, multiple: false });
     if (typeof selected === 'string') {
-      setDacpacPath(selected);
-      // Auto-detect when a file is picked.
+      setSourcePath(selected);
       setDetectedDbs([]);
       setDbName('');
       setDetectError('');
@@ -210,24 +198,17 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
   }
 
   async function handleCreate() {
-    if (!name.trim() || !saPassword || !dacpacPath || !dbName.trim() || !extractionDate) {
+    if (!name.trim() || !sourcePath || !dbName.trim() || !extractionDate) {
       toast.error('All fields are required', { duration: Infinity });
-      return;
-    }
-    if (!isSqlServerPasswordValid(saPassword)) {
-      toast.error('SA password does not meet SQL Server complexity requirements', { duration: Infinity });
       return;
     }
     setCreating(true);
     try {
-      logger.debug('projects-tab: creating project', name);
+      logger.debug('projects-tab: creating project', name, technology);
       const project = await projectCreateFull(
         name.trim(),
-        saPassword,
-        dacpacPath,
-        sqlServerVersion,
-        '',
-        '',
+        technology,
+        sourcePath,
         dbName.trim(),
         localDateToUtc(extractionDate),
       );
@@ -239,8 +220,7 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
 
       startInit();
       unlistenRef.current = await listenProjectInitStep((ev) => applyInitStep(ev));
-      // Yield one tick to ensure the listener is fully registered before the
-      // Rust command starts emitting events.
+      // Yield one tick to ensure the listener is fully registered before events start.
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
       await projectInit(project.id);
       finishInit();
@@ -256,15 +236,24 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
     }
   }
 
-  // Auto-detect when dacpacPath is set (either via picker or typed).
+  // Auto-detect DB name when a DacPac is selected (SQL Server only).
   useEffect(() => {
-    if (dacpacPath) {
+    if (sourcePath && isSqlServer) {
       void handleDetect();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dacpacPath]);
+  }, [sourcePath]);
+
+  // Clear source path when technology changes (different file type).
+  useEffect(() => {
+    setSourcePath('');
+    setDetectedDbs([]);
+    setDbName('');
+    setDetectError('');
+  }, [technology]);
 
   const busy = detecting || creating;
+  const canCreate = !!name.trim() && !!sourcePath && !!dbName.trim() && !!extractionDate && !busy;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!busy) { onOpenChange(v); if (!v) reset(); } }}>
@@ -273,7 +262,6 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
           <DialogTitle>New project</DialogTitle>
         </DialogHeader>
 
-        {/* Detecting overlay */}
         {detecting && (
           <div className="absolute inset-0 z-10 rounded-lg flex flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm">
             <Loader2 className="h-8 w-8 animate-spin" style={{ color: 'var(--color-pacific)' }} />
@@ -285,7 +273,7 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
         )}
 
         <div className="flex flex-col gap-4 py-2">
-          {/* Row 1: Name + SQL Server version */}
+          {/* Row 1: Name + Technology */}
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="proj-name" className="text-xs font-medium text-muted-foreground">Project name</Label>
@@ -303,54 +291,64 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
               )}
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label className="text-xs font-medium text-muted-foreground">SQL Server version</Label>
-              <Select value={sqlServerVersion} onValueChange={setSqlServerVersion} disabled={busy}>
-                <SelectTrigger>
+              <Label className="text-xs font-medium text-muted-foreground">Technology</Label>
+              <Select value={technology} onValueChange={(v) => setTechnology(v as Technology)} disabled={busy}>
+                <SelectTrigger data-testid="project-technology-select">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {SQL_SERVER_VERSIONS.map((v) => (
-                    <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
+                  {TECHNOLOGIES.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          {/* Row 2: DacPac file */}
+          {/* Row 2: Source file */}
           <div className="flex flex-col gap-1.5">
-            <Label className="text-xs font-medium text-muted-foreground">DacPac file</Label>
+            <Label className="text-xs font-medium text-muted-foreground">
+              {isSqlServer ? 'DacPac file' : 'DDL archive (.zip)'}
+            </Label>
             <div className="flex items-center gap-2">
               <Input
-                value={dacpacPath}
+                value={sourcePath}
                 readOnly
-                placeholder="Select a .dacpac file…"
+                placeholder={isSqlServer ? 'Select a .dacpac file…' : 'Select a .zip archive…'}
                 className="cursor-pointer"
-                onClick={pickDacpac}
+                onClick={pickSourceFile}
                 disabled={busy}
               />
-              <Button variant="outline" size="icon" onClick={pickDacpac} disabled={busy}>
+              <Button variant="outline" size="icon" onClick={pickSourceFile} disabled={busy}>
                 <FolderOpen className="h-4 w-4" />
               </Button>
             </div>
           </div>
 
-          {/* Row 3: Database name (auto-detected from DacPac) */}
+          {/* Row 3: Database name */}
           <div className="flex flex-col gap-1.5">
             <Label className="text-xs font-medium text-muted-foreground">Database name</Label>
             <div className="flex flex-col gap-1.5">
-              {detectedDbs.length === 0 ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDetect}
-                  disabled={busy || !dacpacPath}
-                  data-testid="project-detect-databases"
-                >
-                  <Search className="h-3.5 w-3.5 mr-1.5" />
-                  Detect from DacPac
-                </Button>
-              ) : (
+              {isSqlServer && detectedDbs.length === 0 ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={dbName}
+                    onChange={(e) => setDbName(e.target.value)}
+                    placeholder="e.g. Contoso_DW"
+                    disabled={busy}
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleDetect}
+                    disabled={busy || !sourcePath}
+                    title="Detect from DacPac"
+                    data-testid="project-detect-databases"
+                  >
+                    <Search className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : isSqlServer ? (
                 <div className="flex items-center gap-1.5">
                   <Select value={dbName} onValueChange={setDbName} disabled={busy}>
                     <SelectTrigger data-testid="project-dbname-select">
@@ -373,6 +371,13 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
                     <RefreshCw className="h-3.5 w-3.5" />
                   </Button>
                 </div>
+              ) : (
+                <Input
+                  value={dbName}
+                  onChange={(e) => setDbName(e.target.value)}
+                  placeholder="e.g. Contoso_DW"
+                  disabled={busy}
+                />
               )}
               {detectError && (
                 <p className="text-xs text-destructive break-all" data-testid="project-detect-error">{detectError}</p>
@@ -380,25 +385,7 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
             </div>
           </div>
 
-          {/* Row 4: SA password */}
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="proj-sa" className="text-xs font-medium text-muted-foreground">SA password</Label>
-            <Input
-              id="proj-sa"
-              type="password"
-              value={saPassword}
-              onChange={(e) => setSaPassword(e.target.value)}
-              placeholder="Strong SQL Server SA password"
-              disabled={busy}
-            />
-            {saPassword && !isSqlServerPasswordValid(saPassword) && (
-              <p className="text-xs text-destructive">
-                Must be ≥8 chars with uppercase, lowercase, digit, and symbol (SQL Server policy).
-              </p>
-            )}
-          </div>
-
-          {/* Row 5: Extraction date */}
+          {/* Row 4: Extraction date */}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="proj-extraction" className="text-xs font-medium text-muted-foreground">Extraction date</Label>
             <Input
@@ -415,11 +402,7 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
           <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancel
           </Button>
-          <Button
-            size="sm"
-            onClick={handleCreate}
-            disabled={busy || !name.trim() || !saPassword || !isSqlServerPasswordValid(saPassword) || !dacpacPath || !dbName || !extractionDate}
-          >
+          <Button size="sm" onClick={handleCreate} disabled={!canCreate}>
             {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
             {creating ? 'Creating…' : 'Create'}
           </Button>
@@ -435,11 +418,12 @@ interface ProjectRowProps {
   id: string;
   name: string;
   slug: string;
+  technology: string;
   isActive: boolean;
   onRefresh: () => void;
 }
 
-function ProjectRow({ id, name, slug, isActive, onRefresh }: ProjectRowProps) {
+function ProjectRow({ id, name, slug, technology, isActive, onRefresh }: ProjectRowProps) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -527,6 +511,14 @@ function ProjectRow({ id, name, slug, isActive, onRefresh }: ProjectRowProps) {
           <span className="text-xs text-muted-foreground font-mono">{slug}</span>
         </td>
 
+        {/* Technology */}
+        <td className="py-2.5 border-b border-border">
+          <span className="text-xs font-medium px-2 py-0.5 rounded-full"
+            style={{ background: 'color-mix(in oklch, var(--color-pacific), transparent 85%)', color: 'var(--color-pacific)' }}>
+            {TECHNOLOGY_LABEL[technology as keyof typeof TECHNOLOGY_LABEL] ?? technology}
+          </span>
+        </td>
+
         {/* Active toggle */}
         <td className="py-2.5 border-b border-border">
           <div className="flex items-center gap-2">
@@ -586,8 +578,7 @@ function ProjectRow({ id, name, slug, isActive, onRefresh }: ProjectRowProps) {
               This will permanently remove:
               <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
                 <li>The <code>{slug}/</code> directory from the migration repository</li>
-                <li>The local project directory and SQL container data</li>
-                <li>The <code>SA_PASSWORD_{slug.replace(/-/g, '_').toUpperCase()}</code> GitHub secret</li>
+                <li>The local project directory</li>
               </ul>
               <span className="block mt-2 font-medium text-destructive">
                 This action cannot be undone.
@@ -615,13 +606,12 @@ function ProjectRow({ id, name, slug, isActive, onRefresh }: ProjectRowProps) {
             <AlertDialogDescription>
               <span className="block font-medium mb-1">Will be removed locally:</span>
               <ul className="list-disc list-inside space-y-1 text-sm">
-                <li>Local project directory (restored from git on reinit)</li>
-                <li>SQL Server Docker container and its data volume</li>
+                <li>Local project directory (DDL files will be re-extracted from source on reinit)</li>
               </ul>
               <span className="block font-medium mt-2 mb-1">Will be kept:</span>
               <ul className="list-disc list-inside space-y-1 text-sm">
-                <li>GitHub repository artifacts, DacPac, and metadata</li>
-                <li>Project record and SA secret</li>
+                <li>GitHub repository artifacts, source binary, and metadata</li>
+                <li>Project record in database</li>
               </ul>
               <span className="block mt-2 text-sm text-muted-foreground">
                 The project will be reinitialized immediately after reset.
@@ -698,6 +688,9 @@ export default function ProjectsTab() {
                   Slug
                 </th>
                 <th scope="col" className="py-1.5 text-left text-xs font-semibold text-muted-foreground border-b-2 border-border">
+                  Technology
+                </th>
+                <th scope="col" className="py-1.5 text-left text-xs font-semibold text-muted-foreground border-b-2 border-border">
                   Active
                 </th>
                 <th scope="col" className="pr-4 py-1.5 text-right text-xs font-semibold text-muted-foreground border-b-2 border-border">
@@ -712,6 +705,7 @@ export default function ProjectsTab() {
                   id={p.id}
                   name={p.name}
                   slug={p.slug}
+                  technology={p.technology}
                   isActive={activeProject?.id === p.id}
                   onRefresh={loadProjects}
                 />

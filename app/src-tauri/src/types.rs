@@ -121,13 +121,26 @@ pub enum GitHubAuthResult {
 
 // ── Domain types ──────────────────────────────────────────────────────────────
 
-/// A migration project. `sa_password` is never returned to the frontend.
+/// Source technology for a migration project.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Technology {
+    SqlServer,
+    FabricWarehouse,
+    FabricLakehouse,
+    Snowflake,
+}
+
+
+/// A migration project.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Project {
     pub id: String,
     pub slug: String,
     pub name: String,
+    pub technology: String,
     pub created_at: String,
 }
 
@@ -136,11 +149,10 @@ pub struct Project {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum InitStep {
+    DotnetCheck,
     GitPull,
-    DockerCheck,
-    StartContainer,
-    RestoreDacpac,
-    VerifyDb,
+    DdlCheck,
+    DdlExtract,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,7 +160,7 @@ pub enum InitStep {
 pub enum InitStepStatus {
     Running,
     Ok,
-    /// Completed successfully but with non-fatal warnings (e.g. sqlpackage verification warnings).
+    /// Completed successfully but with non-fatal warnings.
     Warning { warnings: Vec<String> },
     Error { message: String },
 }
@@ -158,7 +170,7 @@ pub enum InitStepStatus {
 pub struct InitStepEvent {
     pub step: InitStep,
     pub status: InitStepStatus,
-    /// Present for per-project steps; absent for global steps (GitPull, DockerCheck).
+    /// Present for per-project steps; absent for global steps (GitPull).
     pub project_id: Option<String>,
 }
 
