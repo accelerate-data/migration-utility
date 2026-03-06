@@ -1,259 +1,15 @@
-use std::io::{Read as IoRead, Write as IoWrite};
+use std::io::Read as IoRead;
 use std::path::Path;
 
 use rusqlite::params;
 use sha2::{Digest, Sha256};
 
-/// sqlpackage publish profile embedded from `resources/exclusions.publish.xml`.
-/// Edit that file to add/remove exclusions, then rebuild to pick up the change.
-const PUBLISH_PROFILE_XML: &str = include_str!("../../resources/exclusions.publish.xml");
 use tauri::{Emitter, State};
 use uuid::Uuid;
 
 use crate::commands::project::slugify;
 use crate::db::DbState;
 use crate::types::{CommandError, InitStep, InitStepEvent, InitStepStatus, Project};
-
-// ── DacPac full-text stripping ────────────────────────────────────────────────
-
-/// Strip full-text objects from a `.dacpac` file (which is a ZIP), recalculate
-/// the SHA-256 of the modified `model.xml`, update `Origin.xml`, and write a
-/// new `.dacpac` to a temp path.
-///
-/// Stripped elements:
-/// - `SqlFullTextIndex`, `SqlFullTextCatalog` — FT schema objects
-/// - Any other element whose body contains FTS predicates (`FREETEXTTABLE`,
-///   `CONTAINSTABLE`, `FREETEXT(`, `CONTAINS(`) — e.g. stored procedures that
-///   would fail to compile without the FT index present
-///
-/// Validates the file is a `.dacpac` (contains `DacMetadata.xml`, not a
-/// `.bacpac`).  Returns the original path unchanged if nothing was stripped.
-fn strip_dacpac_fulltext(dacpac_path: &Path, slug: &str) -> Result<std::path::PathBuf, CommandError> {
-    use zip::write::SimpleFileOptions;
-
-    // Validate extension.
-    if dacpac_path.extension().and_then(|e| e.to_str()) != Some("dacpac") {
-        return Err(CommandError::Validation(format!(
-            "'{}' is not a .dacpac file", dacpac_path.display()
-        )));
-    }
-
-    let file = std::fs::File::open(dacpac_path).map_err(|e| {
-        CommandError::Io(format!("Cannot open dacpac '{}': {e}", dacpac_path.display()))
-    })?;
-    let mut archive = zip::ZipArchive::new(file).map_err(|e| {
-        CommandError::Io(format!("Not a valid dacpac ZIP: {e}"))
-    })?;
-
-    // Validate it is a dacpac (has DacMetadata.xml) not a bacpac.
-    if archive.by_name("DacMetadata.xml").is_err() {
-        return Err(CommandError::Validation(
-            "File does not appear to be a .dacpac (missing DacMetadata.xml). \
-             A .bacpac (data export) is not supported — please provide a schema-only .dacpac."
-                .into(),
-        ));
-    }
-
-    // Read model.xml.
-    let model_xml = {
-        let mut entry = archive.by_name("model.xml").map_err(|_| {
-            CommandError::Io("dacpac does not contain model.xml".into())
-        })?;
-        let mut buf = String::new();
-        entry.read_to_string(&mut buf).map_err(|e| CommandError::Io(e.to_string()))?;
-        buf
-    };
-
-    // Strip full-text elements using line-based depth tracking.
-    // Each element block looks like:
-    //   <Element Type="SqlFullTextIndex" ...>
-    //     ... (possibly nested <Element> tags)
-    //   </Element>
-    let stripped = strip_fulltext_elements(&model_xml);
-
-    if stripped == model_xml {
-        log::debug!("[strip_dacpac_fulltext] no full-text elements found, skipping copy");
-        return Ok(dacpac_path.to_path_buf());
-    }
-
-    let removed = model_xml.len() - stripped.len();
-    log::info!(
-        "[strip_dacpac_fulltext] stripped {}B of full-text XML from model.xml",
-        removed
-    );
-
-    // Compute new SHA-256 of stripped model.xml.
-    let new_hash = {
-        let mut hasher = Sha256::new();
-        hasher.update(stripped.as_bytes());
-        hex::encode(hasher.finalize()).to_uppercase()
-    };
-
-    // Read and patch Origin.xml (replace the model.xml checksum line).
-    let origin_xml = {
-        let mut entry = archive.by_name("Origin.xml").map_err(|_| {
-            CommandError::Io("dacpac does not contain Origin.xml".into())
-        })?;
-        let mut buf = String::new();
-        entry.read_to_string(&mut buf).map_err(|e| CommandError::Io(e.to_string()))?;
-        buf
-    };
-
-    // Origin.xml checksum line: <Checksum Uri="/model.xml">HEXHEX...</Checksum>
-    let patched_origin = patch_origin_checksum(&origin_xml, &new_hash);
-
-    // Build new ZIP to a temp file, copying every entry except model.xml / Origin.xml.
-    let tmp_path = std::env::temp_dir().join(format!("migration-utility-stripped-{slug}.dacpac"));
-    {
-        let out_file = std::fs::File::create(&tmp_path).map_err(|e| {
-            CommandError::Io(format!("Cannot create temp dacpac: {e}"))
-        })?;
-        let mut writer = zip::ZipWriter::new(out_file);
-        let opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
-
-        for i in 0..archive.len() {
-            let mut entry = archive.by_index(i).map_err(|e| CommandError::Io(e.to_string()))?;
-            let name = entry.name().to_string();
-            if name == "model.xml" {
-                writer.start_file(&name, opts).map_err(|e| CommandError::Io(e.to_string()))?;
-                writer.write_all(stripped.as_bytes()).map_err(|e| CommandError::Io(e.to_string()))?;
-            } else if name == "Origin.xml" {
-                writer.start_file(&name, opts).map_err(|e| CommandError::Io(e.to_string()))?;
-                writer.write_all(patched_origin.as_bytes()).map_err(|e| CommandError::Io(e.to_string()))?;
-            } else {
-                let mut buf = Vec::new();
-                entry.read_to_end(&mut buf).map_err(|e| CommandError::Io(e.to_string()))?;
-                writer.start_file(&name, opts).map_err(|e| CommandError::Io(e.to_string()))?;
-                writer.write_all(&buf).map_err(|e| CommandError::Io(e.to_string()))?;
-            }
-        }
-        writer.finish().map_err(|e| CommandError::Io(e.to_string()))?;
-    }
-
-    log::info!("[strip_dacpac_fulltext] wrote stripped dacpac to {}", tmp_path.display());
-    Ok(tmp_path)
-}
-
-/// Two-pass strip of full-text related elements from model.xml.
-///
-/// Pass 1: Collect all top-level `<Element>` blocks as (header_line, body_lines) pairs,
-///         plus any leading non-element lines (XML declaration, root tag, etc.).
-/// Pass 2: Drop any block where:
-///   - Type attribute is `SqlFullTextIndex` or `SqlFullTextCatalog`
-///   - OR: the block body contains FTS-only predicates (FREETEXTTABLE, CONTAINSTABLE,
-///     FREETEXT() — these fail to compile when no FT index exists)
-///
-/// Returns the reassembled XML string.
-fn strip_fulltext_elements(xml: &str) -> String {
-    // FT object types to strip unconditionally.
-    const FT_TYPES: &[&str] = &["SqlFullTextIndex", "SqlFullTextCatalog"];
-    // FTS predicate substrings (case-insensitive) that indicate an element uses FTS.
-    // FREETEXTTABLE / CONTAINSTABLE are FTS-only functions; FREETEXT( / CONTAINS( are predicates.
-    const FT_PREDICATES: &[&str] = &["FREETEXTTABLE", "CONTAINSTABLE", "FREETEXT(", "CONTAINS("];
-
-    // ── Pass 1: split into segments ──────────────────────────────────────────
-    // A segment is either:
-    //   Preamble(lines) — everything before the first top-level <Element>
-    //   Block(lines)    — a complete top-level <Element>...</Element> block
-    enum Seg { Preamble(Vec<String>), Block(Vec<String>) }
-
-    let mut segments: Vec<Seg> = Vec::new();
-    let mut preamble: Vec<String> = Vec::new();
-    let mut block: Vec<String> = Vec::new();
-    let mut depth: i32 = 0;
-    let mut in_block = false;
-
-    for line in xml.lines() {
-        let trimmed = line.trim();
-        if !in_block {
-            if trimmed.starts_with("<Element") {
-                in_block = true;
-                depth = if trimmed.ends_with("/>") { 0 } else { 1 };
-                block.push(line.to_string());
-                if depth == 0 {
-                    // Self-closing single-line element.
-                    segments.push(Seg::Block(std::mem::take(&mut block)));
-                    in_block = false;
-                }
-            } else {
-                preamble.push(line.to_string());
-            }
-        } else {
-            block.push(line.to_string());
-            if trimmed.starts_with("<Element") && !trimmed.ends_with("/>") {
-                depth += 1;
-            } else if trimmed == "</Element>" {
-                depth -= 1;
-                if depth == 0 {
-                    if !preamble.is_empty() {
-                        segments.push(Seg::Preamble(std::mem::take(&mut preamble)));
-                    }
-                    segments.push(Seg::Block(std::mem::take(&mut block)));
-                    in_block = false;
-                }
-            }
-        }
-    }
-    // Flush any trailing preamble (closing root tag, etc.).
-    if !preamble.is_empty() {
-        segments.push(Seg::Preamble(preamble));
-    }
-
-    // ── Pass 2: filter and reassemble ────────────────────────────────────────
-    let mut out = String::with_capacity(xml.len());
-    let mut stripped_count = 0usize;
-
-    for seg in segments {
-        match seg {
-            Seg::Preamble(lines) => {
-                for l in lines { out.push_str(&l); out.push('\n'); }
-            }
-            Seg::Block(lines) => {
-                let header = lines.first().map(|s| s.as_str()).unwrap_or("");
-                // Check if this block is an FT type.
-                let is_ft_type = FT_TYPES.iter().any(|t| header.contains(&format!("\"{t}\"")));
-                if is_ft_type {
-                    stripped_count += 1;
-                    log::debug!("[strip_fulltext_elements] stripping FT type: {}", header.trim());
-                    continue;
-                }
-                // Check if the body uses FTS predicates (case-insensitive).
-                let body_upper = lines.join("\n").to_uppercase();
-                let uses_fts = FT_PREDICATES.iter().any(|p| body_upper.contains(&p.to_uppercase()));
-                if uses_fts {
-                    stripped_count += 1;
-                    log::debug!("[strip_fulltext_elements] stripping FTS-using element: {}", header.trim());
-                    continue;
-                }
-                for l in &lines { out.push_str(l); out.push('\n'); }
-            }
-        }
-    }
-
-    if stripped_count > 0 {
-        log::info!("[strip_fulltext_elements] stripped {} element(s) containing full-text references", stripped_count);
-    }
-    out
-}
-
-/// Replace the SHA-256 hex value in the `<Checksum Uri="/model.xml">` line of Origin.xml.
-fn patch_origin_checksum(origin: &str, new_hex: &str) -> String {
-    let mut out = String::with_capacity(origin.len());
-    for line in origin.lines() {
-        if line.contains("Uri=\"/model.xml\"") {
-            // Replace everything between > and </Checksum>.
-            if let (Some(open), Some(close)) = (line.find('>'), line.find("</Checksum>")) {
-                let before = &line[..=open];
-                let after = &line[close..];
-                out.push_str(&format!("{before}{new_hex}{after}\n"));
-                continue;
-            }
-        }
-        out.push_str(line);
-        out.push('\n');
-    }
-    out
-}
 
 // ── DDL extraction ────────────────────────────────────────────────────────────
 
@@ -272,329 +28,63 @@ fn compute_file_sha256(path: &Path) -> Result<String, CommandError> {
     Ok(hex::encode(hasher.finalize()))
 }
 
-/// Decode common XML entities in a BodyScript value.
-fn decode_xml_entities(s: &str) -> String {
-    s.replace("&amp;", "&")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&apos;", "'")
-}
-
-/// Extract the value of the `Name` XML attribute from an Element opening tag.
-/// e.g. `<Element Type="SqlProcedure" Name="[dbo].[MyProc]">` → `[dbo].[MyProc]`
-fn extract_element_name(header: &str) -> String {
-    if let Some(after) = header.find("Name=\"") {
-        let start = after + 6;
-        let rest = &header[start..];
-        if let Some(end) = rest.find('"') {
-            return rest[..end].to_string();
-        }
+/// Resolve the path to the `dacpac-extract` sidecar binary.
+///
+/// Search order:
+/// 1. `DACPAC_EXTRACT_BIN` env var (test / CI override).
+/// 2. Next to the current executable (Tauri dev + production bundle).
+/// 3. `src-tauri/binaries/` relative to the crate manifest (dev fallback via
+///    `CARGO_MANIFEST_DIR`, embedded at compile time).
+fn dacpac_extract_bin() -> std::path::PathBuf {
+    if let Ok(p) = std::env::var("DACPAC_EXTRACT_BIN") {
+        return std::path::PathBuf::from(p);
     }
-    String::new()
-}
-
-/// Strip the three-part DacPac qualified name `[schema].[table].[column]` down to just
-/// the last bracket-quoted segment.
-fn last_bracket_name(qualified: &str) -> String {
-    qualified
-        .rsplitn(2, ']')
-        .nth(1)
-        .and_then(|s| s.rfind('[').map(|i| s[i + 1..].to_string()))
-        .unwrap_or_else(|| qualified.to_string())
-}
-
-/// Extract the `BodyScript` property value from the lines of a top-level Element block.
-/// Returns `None` if the element has no BodyScript property.
-fn extract_body_script(lines: &[String]) -> Option<String> {
-    let mut in_body_script = false;
-    let mut in_value = false;
-    let mut value_lines: Vec<String> = Vec::new();
-
-    for line in lines {
-        let trimmed = line.trim();
-        if !in_body_script {
-            if trimmed.contains("Name=\"BodyScript\"") {
-                in_body_script = true;
-            }
-            continue;
-        }
-        // Inside the BodyScript property, look for <Value>
-        if !in_value {
-            if trimmed.starts_with("<Value>") {
-                if trimmed.ends_with("</Value>") {
-                    // Single-line value
-                    let content = &trimmed[7..trimmed.len() - 8];
-                    return Some(decode_xml_entities(content));
-                }
-                in_value = true;
-                let rest = trimmed.strip_prefix("<Value>").unwrap_or(trimmed);
-                if !rest.is_empty() {
-                    value_lines.push(rest.to_string());
-                }
-            }
-        } else if trimmed == "</Value>" {
-            return Some(decode_xml_entities(&value_lines.join("\n")));
-        } else if trimmed.ends_with("</Value>") {
-            let without_tag = &trimmed[..trimmed.len() - 8];
-            value_lines.push(without_tag.to_string());
-            return Some(decode_xml_entities(&value_lines.join("\n")));
-        } else {
-            value_lines.push(line.to_string());
-        }
-    }
-    None
-}
-
-/// Parse the table name and columns from a SqlTable Element block.
-/// Returns (table_name, create_table_sql).
-fn reconstruct_create_table(lines: &[String]) -> Option<String> {
-    let header = lines.first()?;
-    let table_qualified = extract_element_name(header);
-    if table_qualified.is_empty() {
-        return None;
-    }
-    // table_qualified looks like [schema].[name] — format as schema.name for the CREATE TABLE.
-    let table_name = table_qualified
-        .trim_matches(|c| c == '[' || c == ']')
-        .replace("].[", ".");
-
-    // Collect column definitions from SqlColumn sub-elements.
-    struct ColumnDef {
-        name: String,
-        sql_type: String,
-        nullable: bool,
-        is_identity: bool,
-    }
-    let mut columns: Vec<ColumnDef> = Vec::new();
-    let mut in_column = false;
-    let mut col_name = String::new();
-    let mut col_type = String::new();
-    let mut col_len: Option<String> = None;
-    let mut col_nullable = true;
-    let mut col_identity = false;
-    let mut col_depth: i32 = 0;
-
-    for line in lines.iter().skip(1) {
-        let trimmed = line.trim();
-        if !in_column {
-            if trimmed.starts_with("<Element Type=\"SqlColumn\"") {
-                in_column = true;
-                col_depth = if trimmed.ends_with("/>") { 0 } else { 1 };
-                let qualified = extract_element_name(trimmed);
-                col_name = last_bracket_name(&qualified);
-                col_type.clear();
-                col_len = None;
-                col_nullable = true;
-                col_identity = false;
-            }
-        } else {
-            if trimmed.starts_with("<Element") && !trimmed.ends_with("/>") {
-                col_depth += 1;
-            } else if trimmed == "</Element>" {
-                col_depth -= 1;
-                if col_depth == 0 {
-                    if !col_name.is_empty() && !col_type.is_empty() {
-                        let type_spec = match col_len {
-                            Some(ref l) if l == "max" || l == "-1" => format!("{col_type}(max)"),
-                            Some(ref l) => format!("{col_type}({l})"),
-                            None => col_type.clone(),
-                        };
-                        let null_clause = if col_nullable { "" } else { " NOT NULL" };
-                        let identity_clause = if col_identity { " IDENTITY(1,1)" } else { "" };
-                        columns.push(ColumnDef {
-                            name: col_name.clone(),
-                            sql_type: format!("{type_spec}{identity_clause}"),
-                            nullable: col_nullable,
-                            is_identity: col_identity,
-                        });
-                        // silence unused field warning
-                        let _ = (columns.last().map(|c| c.nullable), columns.last().map(|c| c.is_identity));
-                        let _ = null_clause;
-                    }
-                    in_column = false;
-                    continue;
-                }
-            }
-            // Extract IsNullable
-            if trimmed.contains("Name=\"IsNullable\"") && trimmed.contains("<Value>False</Value>") {
-                col_nullable = false;
-            }
-            // Extract IsIdentity
-            if trimmed.contains("Name=\"IsIdentity\"") && trimmed.contains("<Value>True</Value>") {
-                col_identity = true;
-            }
-            // Extract type from <References ExternalSource="BuiltIns" Name="typename" />
-            if trimmed.contains("ExternalSource=\"BuiltIns\"") {
-                if let Some(n_start) = trimmed.find("Name=\"") {
-                    let rest = &trimmed[n_start + 6..];
-                    if let Some(n_end) = rest.find('"') {
-                        col_type = rest[..n_end].to_string();
-                    }
-                }
-            }
-            // Extract length/max from <Value>N</Value> inside TypeSpecifier (after type is set)
-            if !col_type.is_empty() && col_len.is_none() {
-                if let Some(inner) = trimmed.strip_prefix("<Value>").and_then(|s| s.strip_suffix("</Value>")) {
-                    if !inner.is_empty() {
-                        let n: i64 = inner.parse().unwrap_or(-2);
-                        if n == -1 {
-                            col_len = Some("max".into());
-                        } else if n > 0 {
-                            col_len = Some(inner.to_string());
-                        }
-                    }
-                }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let candidate = dir.join("dacpac-extract");
+            if candidate.exists() {
+                return candidate;
             }
         }
     }
-
-    if columns.is_empty() {
-        return Some(format!("-- TABLE {table_name} (no column definitions found)\n"));
-    }
-
-    let mut sql = format!("CREATE TABLE {table_name} (\n");
-    for (i, col) in columns.iter().enumerate() {
-        let null_clause = if col.nullable { "" } else { " NOT NULL" };
-        let comma = if i < columns.len() - 1 { "," } else { "" };
-        sql.push_str(&format!("    [{name}] {type_spec}{null}{comma}\n",
-            name = col.name,
-            type_spec = col.sql_type,
-            null = null_clause,
-        ));
-    }
-    sql.push_str(");\nGO\n");
-    Some(sql)
+    // Dev fallback: binaries/ next to Cargo.toml (CARGO_MANIFEST_DIR is compile-time).
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("binaries")
+        .join("dacpac-extract")
 }
 
-/// Extract DDL from a `.dacpac` file (ZIP with model.xml) into `ddl_dir`.
+/// Extract DDL from a `.dacpac` file via the `dacpac-extract` DacFx sidecar.
 /// Writes `procedures.sql`, `views.sql`, `functions.sql`, `tables.sql` to `ddl_dir`.
 pub(crate) fn extract_ddl_from_dacpac(dacpac_path: &Path, ddl_dir: &Path) -> Result<(), CommandError> {
-    log::info!("[extract_ddl_from_dacpac] extracting from {} → {}", dacpac_path.display(), ddl_dir.display());
-
-    let file = std::fs::File::open(dacpac_path)
-        .map_err(|e| CommandError::Io(format!("Cannot open dacpac: {e}")))?;
-    let mut archive = zip::ZipArchive::new(file)
-        .map_err(|e| CommandError::Io(format!("Not a valid dacpac ZIP: {e}")))?;
-
-    let model_xml = {
-        let mut entry = archive.by_name("model.xml")
-            .map_err(|_| CommandError::Io("dacpac does not contain model.xml".into()))?;
-        let mut buf = String::new();
-        entry.read_to_string(&mut buf).map_err(|e| CommandError::Io(e.to_string()))?;
-        buf
-    };
-
-    // Split model.xml into top-level Element segments (reuse the strip_fulltext approach).
-    let mut procedures: Vec<String> = Vec::new();
-    let mut views: Vec<String> = Vec::new();
-    let mut functions: Vec<String> = Vec::new();
-    let mut tables: Vec<String> = Vec::new();
-
-    let mut block: Vec<String> = Vec::new();
-    let mut depth: i32 = 0;
-    let mut in_block = false;
-
-    for line in model_xml.lines() {
-        let trimmed = line.trim();
-        if !in_block {
-            if trimmed.starts_with("<Element") {
-                in_block = true;
-                depth = if trimmed.ends_with("/>") { 0 } else { 1 };
-                block.push(line.to_string());
-                if depth == 0 {
-                    process_element_block(&block, &mut procedures, &mut views, &mut functions, &mut tables);
-                    block.clear();
-                    in_block = false;
-                }
-            }
-        } else {
-            block.push(line.to_string());
-            if trimmed.starts_with("<Element") && !trimmed.ends_with("/>") {
-                depth += 1;
-            } else if trimmed == "</Element>" {
-                depth -= 1;
-                if depth == 0 {
-                    process_element_block(&block, &mut procedures, &mut views, &mut functions, &mut tables);
-                    block.clear();
-                    in_block = false;
-                }
-            }
-        }
-    }
+    log::info!("[extract_ddl_from_dacpac] extracting via DacFx sidecar: {} → {}",
+        dacpac_path.display(), ddl_dir.display());
 
     std::fs::create_dir_all(ddl_dir)
         .map_err(|e| CommandError::Io(format!("Cannot create DDL dir: {e}")))?;
 
-    let header = |title: &str| format!("-- {title}\n-- Generated by Migration Utility from DacPac source\n\n");
+    let bin = dacpac_extract_bin();
+    if !bin.exists() {
+        return Err(CommandError::External(format!(
+            "dacpac-extract sidecar not found at '{}'. \
+             Run scripts/build-dacpac-extract.sh to build it.",
+            bin.display()
+        )));
+    }
 
-    write_ddl_file(ddl_dir.join("procedures.sql"), &header("Stored Procedures"), &procedures)?;
-    write_ddl_file(ddl_dir.join("views.sql"), &header("Views"), &views)?;
-    write_ddl_file(ddl_dir.join("functions.sql"), &header("Functions"), &functions)?;
-    write_ddl_file(ddl_dir.join("tables.sql"), &header("Tables"), &tables)?;
+    let output = std::process::Command::new(&bin)
+        .arg(dacpac_path)
+        .arg(ddl_dir)
+        .output()
+        .map_err(|e| CommandError::External(format!("Failed to launch dacpac-extract: {e}")))?;
 
-    log::info!(
-        "[extract_ddl_from_dacpac] extracted: {} procedures, {} views, {} functions, {} tables",
-        procedures.len(), views.len(), functions.len(), tables.len()
-    );
-    Ok(())
-}
-
-fn process_element_block(
-    block: &[String],
-    procedures: &mut Vec<String>,
-    views: &mut Vec<String>,
-    functions: &mut Vec<String>,
-    tables: &mut Vec<String>,
-) {
-    let header = match block.first() { Some(h) => h.trim(), None => return };
-
-    // Extract element type.
-    let el_type = if let Some(after) = header.find("Type=\"") {
-        let start = after + 6;
-        let rest = &header[start..];
-        rest[..rest.find('"').unwrap_or(rest.len())].to_string()
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if output.status.success() {
+        log::info!("[extract_ddl_from_dacpac] sidecar: {}", stderr.trim());
+        Ok(())
     } else {
-        return;
-    };
-
-    match el_type.as_str() {
-        "SqlProcedure" => {
-            if let Some(body) = extract_body_script(block) {
-                let sep = format!("\n-- {}\n", extract_element_name(header));
-                procedures.push(format!("{sep}{body}\nGO\n"));
-            }
-        }
-        "SqlView" => {
-            if let Some(body) = extract_body_script(block) {
-                let sep = format!("\n-- {}\n", extract_element_name(header));
-                views.push(format!("{sep}{body}\nGO\n"));
-            }
-        }
-        "SqlScalarFunction" | "SqlTableValuedFunction" | "SqlInlineTableValuedFunction" => {
-            if let Some(body) = extract_body_script(block) {
-                let sep = format!("\n-- {}\n", extract_element_name(header));
-                functions.push(format!("{sep}{body}\nGO\n"));
-            }
-        }
-        "SqlTable" => {
-            if let Some(ddl) = reconstruct_create_table(block) {
-                tables.push(ddl);
-            }
-        }
-        _ => {}
+        log::error!("[extract_ddl_from_dacpac] sidecar failed: {stderr}");
+        Err(CommandError::External(format!("dacpac-extract failed: {stderr}")))
     }
-}
-
-fn write_ddl_file(path: std::path::PathBuf, header: &str, blocks: &[String]) -> Result<(), CommandError> {
-    use std::io::Write;
-    let mut f = std::fs::File::create(&path)
-        .map_err(|e| CommandError::Io(format!("Cannot create '{}': {e}", path.display())))?;
-    f.write_all(header.as_bytes()).map_err(|e| CommandError::Io(e.to_string()))?;
-    for block in blocks {
-        f.write_all(block.as_bytes()).map_err(|e| CommandError::Io(e.to_string()))?;
-    }
-    Ok(())
 }
 
 /// Extract DDL from a `.zip` source file (Fabric Warehouse, Snowflake, etc.) into `ddl_dir`.
@@ -656,6 +146,17 @@ pub(crate) fn extract_ddl_from_zip(zip_path: &Path, ddl_dir: &Path) -> Result<()
         by_type["tables"].len(), by_type["other"].len()
     );
     Ok(())
+}
+
+/// Write a DDL output file: header + joined content blocks.
+fn write_ddl_file(path: impl AsRef<Path>, header: &str, blocks: &[String]) -> Result<(), CommandError> {
+    let mut content = String::with_capacity(header.len() + blocks.iter().map(|b| b.len()).sum::<usize>());
+    content.push_str(header);
+    for block in blocks {
+        content.push_str(block);
+    }
+    std::fs::write(&path, content)
+        .map_err(|e| CommandError::Io(format!("Cannot write {}: {e}", path.as_ref().display())))
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -752,25 +253,6 @@ fn insert_project_row(
     })?;
     Ok(Project { id, slug, name: name.to_string(), technology: technology.to_string(), created_at })
 }
-
-/// Bind to port 0 to let the OS pick a free ephemeral port, then release it.
-/// Kept for Docker-based test generator flows.
-fn find_free_port() -> Result<u16, CommandError> {
-    let listener = std::net::TcpListener::bind("127.0.0.1:0")
-        .map_err(|e| CommandError::Io(format!("Failed to find a free port: {e}")))?;
-    Ok(listener.local_addr().unwrap().port())
-}
-
-/// Docker container name for a project slug.
-fn container_name(slug: &str) -> String {
-    format!("migration-{slug}")
-}
-
-/// Named Docker volume for a project.
-fn volume_name(slug: &str) -> String {
-    format!("migration-{slug}-data")
-}
-
 
 // ── project_create_full ────────────────────────────────────────────────────────
 
@@ -1420,119 +902,6 @@ pub async fn app_startup_sync(
     }
 }
 
-/// Find the first .dacpac file in a directory.
-/// Returns true if the file looks like an unhydrated Git LFS pointer.
-/// LFS pointers are plain-text files starting with "version https://git-lfs.github.com/spec/v1".
-fn is_lfs_pointer(path: &Path) -> bool {
-    let Ok(mut f) = std::fs::File::open(path) else { return false };
-    let mut buf = [0u8; 43];
-    let n = std::io::Read::read(&mut f, &mut buf).unwrap_or(0);
-    buf[..n].starts_with(b"version https://git-lfs.github.com/spec/v1")
-}
-
-fn find_dacpac(dir: &Path) -> Option<std::path::PathBuf> {
-    std::fs::read_dir(dir).ok()?.flatten().find_map(|entry| {
-        let path = entry.path();
-        if path.extension().and_then(|e| e.to_str()) == Some("dacpac") {
-            Some(path)
-        } else {
-            None
-        }
-    })
-}
-
-/// Poll SQL Server until it accepts a TDS connection or the timeout expires.
-/// SQL Server can take 30–60 s to initialise after the container starts.
-/// Pass `container` to detect early container exits (e.g. bad SA password) and fail fast.
-async fn wait_for_sql_server(
-    host: &str,
-    port: u16,
-    sa_password: &str,
-    timeout_secs: u64,
-    container: Option<&str>,
-) -> Result<(), CommandError> {
-    use tokio_util::compat::TokioAsyncWriteCompatExt;
-
-    let addr = format!("{host}:{port}");
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(timeout_secs);
-    let mut attempt = 0u32;
-
-    loop {
-        attempt += 1;
-        let elapsed = std::time::Instant::now().duration_since(deadline - std::time::Duration::from_secs(timeout_secs));
-        log::debug!("[wait_for_sql_server] attempt={} elapsed={}s addr={}", attempt, elapsed.as_secs(), addr);
-
-        let try_connect = async {
-            let tcp = tokio::net::TcpStream::connect(&addr).await?;
-            tcp.set_nodelay(true).ok();
-            let mut config = tiberius::Config::new();
-            config.host(host);
-            config.port(port);
-            config.authentication(tiberius::AuthMethod::sql_server("sa", sa_password));
-            config.trust_cert();
-            tiberius::Client::connect(config, tcp.compat_write()).await.map(|_| ())
-        };
-
-        match try_connect.await {
-            Ok(_) => {
-                log::debug!("[wait_for_sql_server] ready after {} attempt(s)", attempt);
-                return Ok(());
-            }
-            Err(e) => {
-                if std::time::Instant::now() >= deadline {
-                    log::error!("[wait_for_sql_server] timed out after {} attempt(s): {e}", attempt);
-                    return Err(CommandError::External(format!(
-                        "SQL Server did not become ready within {timeout_secs}s: {e}"
-                    )));
-                }
-                log::debug!("[wait_for_sql_server] not ready yet (attempt {attempt}): {e} — retrying in 5s");
-
-                // Check if the container has exited — if so, fail fast with its logs.
-                if let Some(ctr) = container {
-                    let state = run_cmd_async(
-                        "docker",
-                        &["inspect", "--format", "{{.State.Status}}", ctr],
-                        None,
-                        &[],
-                    )
-                    .await
-                    .unwrap_or_default();
-                    if state != "running" && !state.is_empty() {
-                        let raw_logs = run_cmd_async("docker", &["logs", "--tail", "50", ctr], None, &[])
-                            .await
-                            .unwrap_or_default();
-                        log::error!("[wait_for_sql_server] container exited. Raw logs:\n{raw_logs}");
-
-                        // Extract only lines containing "ERROR:" for a concise user message.
-                        let error_lines: Vec<&str> = raw_logs
-                            .lines()
-                            .filter(|l| l.contains("ERROR:"))
-                            .collect();
-                        let detail = if error_lines.is_empty() {
-                            format!("Container exited (state: {state}). Check docker logs for '{ctr}'.")
-                        } else {
-                            // Strip the SQL Server log prefix (timestamp + spidNNs) to show just the message.
-                            let cleaned: Vec<String> = error_lines
-                                .iter()
-                                .map(|l| {
-                                    // Format: "2026-03-05 03:46:04.68 spid52s     ERROR: ..."
-                                    // Split on "ERROR:" and take the part after it.
-                                    l.split_once("ERROR:").map(|x| x.1.trim().to_string())
-                                        .unwrap_or_else(|| l.trim().to_string())
-                                })
-                                .collect();
-                            cleaned.join("\n")
-                        };
-                        return Err(CommandError::External(detail));
-                    }
-                }
-
-                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-            }
-        }
-    }
-}
-
 // ── project_delete_full ───────────────────────────────────────────────────────
 
 /// Fully delete a project: remove local dir, git cleanup, and DB row removal.
@@ -1793,31 +1162,4 @@ mod tests {
         assert!(!has_port, "port column must be removed by migration 004");
     }
 
-    #[test]
-    fn extract_body_script_single_line() {
-        let lines: Vec<String> = vec![
-            r#"<Element Type="SqlProcedure" Name="[dbo].[MyProc]">"#.into(),
-            r#"  <Property Name="BodyScript">"#.into(),
-            r#"    <Value>CREATE PROCEDURE [dbo].[MyProc] AS BEGIN SELECT 1 END</Value>"#.into(),
-            r#"  </Property>"#.into(),
-            r#"</Element>"#.into(),
-        ];
-        let result = extract_body_script(&lines);
-        assert!(result.is_some());
-        assert!(result.unwrap().contains("CREATE PROCEDURE"));
-    }
-
-    #[test]
-    fn extract_body_script_xml_entities() {
-        let lines: Vec<String> = vec![
-            r#"<Element Type="SqlView" Name="[dbo].[V]">"#.into(),
-            r#"  <Property Name="BodyScript">"#.into(),
-            r#"    <Value>CREATE VIEW [dbo].[V] AS SELECT 1 &gt; 0</Value>"#.into(),
-            r#"  </Property>"#.into(),
-            r#"</Element>"#.into(),
-        ];
-        let result = extract_body_script(&lines);
-        assert!(result.is_some());
-        assert!(result.unwrap().contains("1 > 0"), "XML entities must be decoded");
-    }
 }

@@ -27,6 +27,9 @@
     "active": true,
     "targets": "all",
     "resources": [],
+    "externalBin": [
+      "binaries/dacpac-extract"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
