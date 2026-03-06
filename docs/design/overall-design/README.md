@@ -164,14 +164,14 @@ No live database connection. No credentials required. Used in stdio mode for loc
 
 Source-specific. Used only by the test-generator-agent to execute procedures against a live database and capture ground-truth output for unit test fixtures.
 
-| Technology | MCP | Infrastructure |
+| Technology | MCP | Execution model |
 |---|---|---|
-| `sql_server` | `orchestrator/mssql_mcp/` | Docker + SQL Server container (GH Actions) |
-| `fabric_warehouse` | `orchestrator/fabric_mcp/` (future) | T-SQL cloud endpoint |
-| `fabric_lakehouse` | `orchestrator/fabric_mcp/` (future) | Spark SQL |
-| `snowflake` | `orchestrator/snowflake_mcp/` (future) | SQL cloud connection |
+| `sql_server` | `orchestrator/mssql_mcp/` | Docker container launched in GH Actions; DB restored from source file; procs executed locally |
+| `fabric_warehouse` | `orchestrator/fabric_mcp/` (future) | Remote access to live Fabric Warehouse T-SQL endpoint |
+| `fabric_lakehouse` | `orchestrator/fabric_mcp/` (future) | Remote access to live Fabric Lakehouse via Spark SQL |
+| `snowflake` | `orchestrator/snowflake_mcp/` (future) | Remote access to live Snowflake SQL endpoint |
 
-The `technology` field in `metadata.json` determines which live MCP is started for test generation. Docker is only required for `sql_server` test generation.
+The `technology` field in `metadata.json` determines which live MCP is started for test generation. `sql_server` is self-contained in GH Actions. All other technologies require remote credentials and outbound network access from the GH Actions runner.
 
 ---
 
@@ -274,7 +274,7 @@ claude --plugin-dir plugin/ \
 5. Install Claude Code CLI.
 6. Run test generator agent (steps 4–8 above).
 
-> ⚠️ Open question: test generator workflow for `fabric_warehouse`, `fabric_lakehouse`, `snowflake` — connection settings and live MCP not yet designed. `fabric_lakehouse` uses Spark SQL for execution.
+> ⚠️ Open question: connection settings schema and live MCP design for `fabric_warehouse`, `fabric_lakehouse`, `snowflake` — remote credential storage and GH Actions secret injection not yet designed.
 
 ---
 
