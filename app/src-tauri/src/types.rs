@@ -132,26 +132,6 @@ pub enum Technology {
     Snowflake,
 }
 
-impl Technology {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Technology::SqlServer => "sql_server",
-            Technology::FabricWarehouse => "fabric_warehouse",
-            Technology::FabricLakehouse => "fabric_lakehouse",
-            Technology::Snowflake => "snowflake",
-        }
-    }
-
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s {
-            "sql_server" => Some(Technology::SqlServer),
-            "fabric_warehouse" => Some(Technology::FabricWarehouse),
-            "fabric_lakehouse" => Some(Technology::FabricLakehouse),
-            "snowflake" => Some(Technology::Snowflake),
-            _ => None,
-        }
-    }
-}
 
 /// A migration project.
 #[derive(Debug, Serialize, Deserialize)]
