@@ -1044,6 +1044,18 @@ async fn run_project_ddl_steps(
         }
         Err(ref e) => {
             let msg = e.to_string();
+            // metadata.json absent means this is a legacy project created before DDL extraction
+            // was introduced. Skip gracefully — user must re-create the project to get DDL.
+            if !metadata_path.exists() {
+                log::warn!("[run_project_ddl_steps] metadata.json absent for slug={slug} — skipping DDL steps (legacy project)");
+                emit_step(app, InitStep::DdlCheck, InitStepStatus::Warning {
+                    warnings: vec!["Project was created before DDL extraction. Re-create the project to enable DDL sync.".into()],
+                }, pid.clone());
+                emit_step(app, InitStep::DdlExtract, InitStepStatus::Warning {
+                    warnings: vec!["Skipped — no source file available.".into()],
+                }, pid);
+                return Ok(());
+            }
             log::error!("[run_project_ddl_steps] DdlCheck failed slug={slug}: {msg}");
             emit_step(app, InitStep::DdlCheck, InitStepStatus::Error { message: msg.clone() }, pid.clone());
             return Err(CommandError::External(msg));
