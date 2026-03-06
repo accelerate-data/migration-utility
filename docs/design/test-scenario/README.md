@@ -2,83 +2,40 @@
 
 ## Decision
 
-Use the existing `WideWorldImporters` (OLTP) and `WideWorldImportersDW` schemas as the test corpus.
+Use `AdventureWorks2022` (OLTP) as bronze source data and a hand-authored `MigrationTest` database
+with `bronze` and `silver` schemas as the shared test corpus for all agent integration tests.
 
-- Treat `WideWorldImportersDW.Integration.*_Staging` as Bronze.
-- Treat `WideWorldImportersDW.Dimension.*` and `WideWorldImportersDW.Fact.*` as Silver.
-- Reuse existing `Integration.MigrateStaged*Data` procedures as the canonical staging-to-silver implementation.
-- Build the missing Bronze load orchestration by running `Get*Updates` extraction logic and loading results into staging.
+- Bronze tables are copied from `AdventureWorks2022` using `SELECT TOP … INTO` to keep size
+  manageable.
+- Silver tables and stored procedures are authored explicitly to cover the MoSCoW scoping-agent
+  scenarios — they are not derived from an existing DW schema.
 
-This keeps scenario design grounded in real SQL Server ETL logic and avoids synthetic table design.
+This approach gives full control over scenario coverage without the complexity of reverse-engineering
+an existing DW's ETL layer.
 
-## Scope
+Previous design considered `WideWorldImporters`/`WideWorldImportersDW` as the corpus; that
+approach was dropped because the existing procedures did not map cleanly to the required scoping
+scenarios without significant modification.
 
-Cover all current DW dimensions and facts that are loaded by `MigrateStaged*Data`.
+## Scenario Coverage
 
-### Dimensions
+Each silver table targets exactly one scoping-agent scenario. See the reference doc for the full
+scenario table and instructions to publish or pull the pre-built image:
+[Test Database Image](../../reference/test-db-image/README.md)
 
-- `Dimension.Date`
-- `Dimension.City`
-- `Dimension.Customer`
-- `Dimension.Employee`
-- `Dimension.[Payment Method]`
-- `Dimension.[Stock Item]`
-- `Dimension.Supplier`
-- `Dimension.[Transaction Type]`
+| Silver table | Scoping scenario | Expected status |
+|---|---|---|
+| `silver.DimProduct` | Direct MERGE writer | `resolved` |
+| `silver.DimCustomer` | Two writers (Full + Delta) | `ambiguous_multi_writer` |
+| `silver.FactInternetSales` | Orchestrator calls staging proc | `resolved` (call graph) |
+| `silver.DimGeography` | No loader proc | `no_writer_found` |
+| `silver.DimCurrency` | All writes via `sp_executesql` | `partial` |
+| `silver.DimEmployee` | Callee references `[OtherDB]` | `error` (cross-db) |
+| `silver.DimPromotion` | Writes through updateable view | `resolved` (writer-through-view) |
+| `silver.DimSalesTerritory` | Indexed view as target | `resolved` (MV-as-target) |
 
-### Facts
+## Source Files
 
-- `Fact.Movement`
-- `Fact.[Order]`
-- `Fact.Purchase`
-- `Fact.Sale`
-- `Fact.[Stock Holding]`
-- `Fact.[Transaction]`
-
-## Load Patterns Covered By Existing Procedures
-
-### Dimension patterns
-
-- SCD Type 2 (close current row and insert new row version):
-  - `MigrateStagedCityData`
-  - `MigrateStagedCustomerData`
-  - `MigrateStagedEmployeeData`
-  - `MigrateStagedPaymentMethodData`
-  - `MigrateStagedStockItemData`
-  - `MigrateStagedSupplierData`
-  - `MigrateStagedTransactionTypeData`
-
-### Fact patterns
-
-- Incremental upsert with `MERGE`:
-  - `MigrateStagedMovementData`
-- Partial replace with `DELETE + INSERT`:
-  - `MigrateStagedOrderData`
-  - `MigrateStagedPurchaseData`
-  - `MigrateStagedSaleData`
-- Full refresh with `TRUNCATE + INSERT`:
-  - `MigrateStagedStockHoldingData`
-- Append insert:
-  - `MigrateStagedTransactionData`
-
-### Shared behavior
-
-- Dimension key resolution from natural IDs using lookup subqueries.
-- Lineage and cutoff bookkeeping via `Integration.Lineage` and `Integration.[ETL Cutoff]`.
-
-## Execution Design
-
-1. Extract from OLTP (`WideWorldImporters`) using `Get*Updates` logic.
-2. Load extracted rows into matching DW staging table (`Integration.*_Staging`).
-3. Execute corresponding `MigrateStaged*Data` procedure.
-4. Validate dimension/fact outputs and lineage/cutoff updates.
-
-## Open Questions
-
-The following scenario types are not represented by current `MigrateStaged*Data` procedures and need explicit product decisions:
-
-1. Dimension Type 1 `MERGE` overwrite behavior.
-2. Temp-table based transformations (`#temp`) in staging-to-silver procedures.
-3. Dynamic SQL translation (`EXEC`/`sp_executesql`) in staging-to-silver procedures.
-4. Cross-database references in migration scenarios.
-5. Cursor-based row-by-row transformation procedures.
+- Schema + procedures: `scripts/sql/create-migration-test-db.sql`
+- Per-scenario input fixtures: `scripts/sql/test-fixtures/`
+- Publish helper: `scripts/publish-test-db-image.sh`
