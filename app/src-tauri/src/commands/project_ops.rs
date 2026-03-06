@@ -819,6 +819,38 @@ pub async fn app_startup_sync(
 
     log::info!("[app_startup_sync] syncing {} project(s)", rows.len());
 
+    // ── Step 0: .NET runtime check (global, once) ─────────────────────────────
+    let has_sql_server = rows.iter().any(|r| r.technology == "sql_server");
+    emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Running, None);
+    match std::process::Command::new("dotnet").arg("--version").output() {
+        Ok(out) if out.status.success() => {
+            let ver = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            let major: u32 = ver.split('.').next().and_then(|s| s.parse().ok()).unwrap_or(0);
+            if major >= 8 {
+                log::info!("[app_startup_sync] dotnet runtime ok: {ver}");
+                emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Ok, None);
+            } else {
+                let msg = format!(".NET 8+ required, found {ver}. Install from https://dot.net");
+                log::error!("[app_startup_sync] dotnet version too old: {ver}");
+                emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Error { message: msg.clone() }, None);
+                return Err(CommandError::External(msg));
+            }
+        }
+        Ok(_) | Err(_) => {
+            if has_sql_server {
+                let msg = ".NET 8 runtime not found. Install from https://dot.net to use SQL Server projects.".to_string();
+                log::error!("[app_startup_sync] dotnet not found and SQL Server projects present");
+                emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Error { message: msg.clone() }, None);
+                return Err(CommandError::External(msg));
+            } else {
+                log::warn!("[app_startup_sync] dotnet not found (no SQL Server projects — non-fatal)");
+                emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Warning {
+                    warnings: vec!["Install .NET 8 runtime to support SQL Server projects.".into()],
+                }, None);
+            }
+        }
+    }
+
     // ── Step 1: GitPull (global, once) ────────────────────────────────────────
     emit_step(&app, InitStep::GitPull, InitStepStatus::Running, None);
     match (&local_clone_path, &clone_url) {

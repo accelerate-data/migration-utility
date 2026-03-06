@@ -61,7 +61,7 @@ export interface Project {
 
 // ── Init orchestrator types ───────────────────────────────────────────────────
 
-export type InitStep = 'gitPull' | 'ddlCheck' | 'ddlExtract';
+export type InitStep = 'dotnetCheck' | 'gitPull' | 'ddlCheck' | 'ddlExtract';
 
 export type InitStepStatus =
   | { kind: 'running' }
@@ -72,16 +72,17 @@ export type InitStepStatus =
 export interface InitStepEvent {
   step: InitStep;
   status: InitStepStatus;
-  /** Absent for global step (gitPull); present for per-project steps. */
+  /** Absent for global steps; present for per-project steps. */
   projectId?: string;
 }
 
-export const GLOBAL_STEPS: InitStep[] = ['gitPull'];
+export const GLOBAL_STEPS: InitStep[] = ['dotnetCheck', 'gitPull'];
 export const PER_PROJECT_STEPS: InitStep[] = ['ddlCheck', 'ddlExtract'];
 
-export const INIT_STEPS: InitStep[] = ['gitPull', 'ddlCheck', 'ddlExtract'];
+export const INIT_STEPS: InitStep[] = ['dotnetCheck', 'gitPull', 'ddlCheck', 'ddlExtract'];
 
 export const INIT_STEP_LABEL: Record<InitStep, string> = {
+  dotnetCheck: 'Check .NET runtime',
   gitPull: 'Sync repository',
   ddlCheck: 'Check DDL',
   ddlExtract: 'Extract DDL',

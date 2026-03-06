@@ -169,6 +169,7 @@ pub struct Project {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum InitStep {
+    DotnetCheck,
     GitPull,
     DdlCheck,
     DdlExtract,
