@@ -1147,8 +1147,8 @@ async fn run_project_ddl_steps(
 }
 
 /// Migrate a legacy project whose DacPac lives at `artifacts/dacpac/` to the new layout:
-/// copy DacPac → `artifacts/source/`, write new `metadata.json`, extract DDL to `artifacts/ddl/`,
-/// then commit and push.
+/// move DacPac → `artifacts/source/`, remove old `artifacts/dacpac/`, write new `metadata.json`,
+/// extract DDL to `artifacts/ddl/`, then commit and push.
 fn migrate_legacy_dacpac(
     slug: &str,
     slug_dir: &Path,
@@ -1189,10 +1189,15 @@ fn migrate_legacy_dacpac(
 
     let source_dest = source_dir.join(filename);
     std::fs::copy(&dacpac_path, &source_dest)
-        .map_err(|e| CommandError::Io(format!("Failed to copy DacPac to artifacts/source/: {e}")))?;
+        .map_err(|e| CommandError::Io(format!("Failed to move DacPac to artifacts/source/: {e}")))?;
     log::debug!("[migrate_legacy_dacpac] copied DacPac to {}", source_dest.display());
 
     let sha256 = compute_file_sha256(&source_dest)?;
+
+    // Remove old artifacts/dacpac/ directory now that the file is safely in source/.
+    std::fs::remove_dir_all(&old_dacpac_dir)
+        .map_err(|e| CommandError::Io(format!("Failed to remove legacy artifacts/dacpac/: {e}")))?;
+    log::debug!("[migrate_legacy_dacpac] removed legacy artifacts/dacpac/ slug={slug}");
 
     // Write new metadata.json compatible with check_ddl_stale.
     std::fs::write(
