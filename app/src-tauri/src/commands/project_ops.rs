@@ -505,6 +505,32 @@ async fn run_project_ddl_steps(
     let source_dir = slug_dir.join("artifacts").join("source");
     let ddl_dir = slug_dir.join("artifacts").join("ddl");
 
+    // ── Cleanup: remove legacy artifacts/dacpac/ if source/ already exists ───
+    let old_dacpac_dir = slug_dir.join("artifacts").join("dacpac");
+    if source_dir.join("metadata.json").exists() && old_dacpac_dir.exists() {
+        log::info!("[run_project_ddl_steps] removing stale artifacts/dacpac/ for slug={slug}");
+        if let Err(e) = std::fs::remove_dir_all(&old_dacpac_dir) {
+            log::warn!("[run_project_ddl_steps] could not remove artifacts/dacpac/: {e}");
+        } else {
+            // Stage and commit the removal.
+            let _ = run_cmd("git", &["rm", "-rf", "--cached",
+                &format!("{slug}/artifacts/dacpac")], Some(local_clone_path), &[]);
+            let _ = run_cmd("git", &["add", "--all", slug], Some(local_clone_path), &[]);
+            let has_staged = run_cmd(
+                "git", &["diff", "--cached", "--quiet"], Some(local_clone_path), &[]
+            ).is_err();
+            if has_staged {
+                let _ = run_cmd("git", &[
+                    "-c", "user.name=Migration Utility",
+                    "-c", "user.email=migration@vibedata.com",
+                    "commit", "-m", &format!("chore: remove legacy artifacts/dacpac/ for {slug}"),
+                ], Some(local_clone_path), &[]);
+                let _ = run_cmd("git", &["push"], Some(local_clone_path),
+                    &[("GIT_TERMINAL_PROMPT", "0")]);
+            }
+        }
+    }
+
     // ── Step 2: DdlCheck ─────────────────────────────────────────────────────
     emit_step(app, InitStep::DdlCheck, InitStepStatus::Running, pid.clone());
 
@@ -760,12 +786,22 @@ fn check_ddl_stale(
         return Ok(true);
     }
 
-    // Check that at least one DDL file exists.
-    let has_ddl = ["procedures.sql", "views.sql", "functions.sql", "tables.sql"]
-        .iter()
-        .any(|f| ddl_dir.join(f).exists());
+    // Check that at least one DDL file exists and contains real content
+    // (not the "no column definitions found" stub from the old XML parser).
+    let ddl_files = ["procedures.sql", "views.sql", "functions.sql", "tables.sql"];
+    let has_ddl = ddl_files.iter().any(|f| ddl_dir.join(f).exists());
     if !has_ddl {
         log::warn!("[check_ddl_stale] no DDL files found in '{}' — DDL stale", ddl_dir.display());
+        return Ok(true);
+    }
+    let has_stub = ddl_files.iter().any(|f| {
+        let path = ddl_dir.join(f);
+        std::fs::read_to_string(&path)
+            .map(|s| s.contains("no column definitions found"))
+            .unwrap_or(false)
+    });
+    if has_stub {
+        log::warn!("[check_ddl_stale] DDL contains stub content from old XML parser — re-extracting");
         return Ok(true);
     }
 
