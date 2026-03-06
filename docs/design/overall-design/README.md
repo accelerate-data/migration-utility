@@ -8,7 +8,7 @@ End-to-end design for the Migration Utility: a Tauri desktop app that drives a G
 |---|---|---|---|
 | SQL Server | `sql_server` | `.dacpac` | Docker + SQL Server container (GH Actions) |
 | Fabric Warehouse | `fabric_warehouse` | `.zip` (DDL export) | T-SQL cloud endpoint |
-| Fabric Lakehouse | `fabric_lakehouse` | `.zip` (DDL export) | Spark SQL |
+| Fabric Lakehouse | `fabric_lakehouse` | `.zip` (DDL export) | ⚠️ Open question — Spark/Delta, no stored proc execution model |
 | Snowflake | `snowflake` | `.zip` (DDL export) | SQL cloud connection |
 
 ---
@@ -164,14 +164,14 @@ No live database connection. No credentials required. Used in stdio mode for loc
 
 Source-specific. Used only by the test-generator-agent to execute procedures against a live database and capture ground-truth output for unit test fixtures.
 
-| Technology | MCP | Execution model |
+| Technology | MCP | Infrastructure |
 |---|---|---|
-| `sql_server` | `orchestrator/mssql_mcp/` | Docker container launched in GH Actions; DB restored from source file; procs executed locally |
-| `fabric_warehouse` | `orchestrator/fabric_mcp/` (future) | Remote access to live Fabric Warehouse T-SQL endpoint |
-| `fabric_lakehouse` | `orchestrator/fabric_mcp/` (future) | Remote access to live Fabric Lakehouse via Spark SQL |
-| `snowflake` | `orchestrator/snowflake_mcp/` (future) | Remote access to live Snowflake SQL endpoint |
+| `sql_server` | `orchestrator/mssql_mcp/` | Docker + SQL Server container (GH Actions) |
+| `fabric_warehouse` | `orchestrator/fabric_mcp/` (future) | T-SQL cloud endpoint |
+| `fabric_lakehouse` | ⚠️ Open question | Spark/Delta — no stored proc execution model |
+| `snowflake` | `orchestrator/snowflake_mcp/` (future) | SQL cloud connection |
 
-The `technology` field in `metadata.json` determines which live MCP is started for test generation. `sql_server` is self-contained in GH Actions. All other technologies require remote credentials and outbound network access from the GH Actions runner.
+The `technology` field in `metadata.json` determines which live MCP is started for test generation. Docker is only required for `sql_server` test generation.
 
 ---
 
@@ -274,7 +274,7 @@ claude --plugin-dir plugin/ \
 5. Install Claude Code CLI.
 6. Run test generator agent (steps 4–8 above).
 
-> ⚠️ Open question: connection settings schema and live MCP design for `fabric_warehouse`, `fabric_lakehouse`, `snowflake` — remote credential storage and GH Actions secret injection not yet designed.
+> ⚠️ Open question: test generator workflow for `fabric_warehouse`, `fabric_lakehouse`, `snowflake` — connection settings and live MCP not yet designed.
 
 ---
 
