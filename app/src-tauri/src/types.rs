@@ -121,13 +121,46 @@ pub enum GitHubAuthResult {
 
 // ── Domain types ──────────────────────────────────────────────────────────────
 
-/// A migration project. `sa_password` is never returned to the frontend.
+/// Source technology for a migration project.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Technology {
+    SqlServer,
+    FabricWarehouse,
+    FabricLakehouse,
+    Snowflake,
+}
+
+impl Technology {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Technology::SqlServer => "sql_server",
+            Technology::FabricWarehouse => "fabric_warehouse",
+            Technology::FabricLakehouse => "fabric_lakehouse",
+            Technology::Snowflake => "snowflake",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "sql_server" => Some(Technology::SqlServer),
+            "fabric_warehouse" => Some(Technology::FabricWarehouse),
+            "fabric_lakehouse" => Some(Technology::FabricLakehouse),
+            "snowflake" => Some(Technology::Snowflake),
+            _ => None,
+        }
+    }
+}
+
+/// A migration project.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Project {
     pub id: String,
     pub slug: String,
     pub name: String,
+    pub technology: String,
     pub created_at: String,
 }
 
@@ -137,10 +170,8 @@ pub struct Project {
 #[serde(rename_all = "camelCase")]
 pub enum InitStep {
     GitPull,
-    DockerCheck,
-    StartContainer,
-    RestoreDacpac,
-    VerifyDb,
+    DdlCheck,
+    DdlExtract,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,7 +179,7 @@ pub enum InitStep {
 pub enum InitStepStatus {
     Running,
     Ok,
-    /// Completed successfully but with non-fatal warnings (e.g. sqlpackage verification warnings).
+    /// Completed successfully but with non-fatal warnings.
     Warning { warnings: Vec<String> },
     Error { message: String },
 }
@@ -158,7 +189,7 @@ pub enum InitStepStatus {
 pub struct InitStepEvent {
     pub step: InitStep,
     pub status: InitStepStatus,
-    /// Present for per-project steps; absent for global steps (GitPull, DockerCheck).
+    /// Present for per-project steps; absent for global steps (GitPull).
     pub project_id: Option<String>,
 }
 
