@@ -67,6 +67,9 @@ jobs:
           mkdir -p app/sidecar/dist
           echo "{}" > app/sidecar/dist/placeholder.json
 
+      - name: Stub dacpac-extract binary for Tauri resource validation
+        run: touch app/src-tauri/binaries/dacpac-extract-x86_64-unknown-linux-gnu
+
       - name: Cargo test
         working-directory: app/src-tauri
         run: cargo test

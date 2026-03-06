@@ -37,22 +37,31 @@ export interface AppSettingsPublic {
   activeProjectId: string | null;
 }
 
-/** A migration project (safe to return to frontend — sa_password omitted). */
+export type Technology =
+  | 'sql_server'
+  | 'fabric_warehouse'
+  | 'fabric_lakehouse'
+  | 'snowflake';
+
+export const TECHNOLOGY_LABEL: Record<Technology, string> = {
+  sql_server: 'SQL Server',
+  fabric_warehouse: 'Fabric Warehouse',
+  fabric_lakehouse: 'Fabric Lakehouse',
+  snowflake: 'Snowflake',
+};
+
+/** A migration project. */
 export interface Project {
   id: string;
   slug: string;
   name: string;
+  technology: string;
   createdAt: string;
 }
 
 // ── Init orchestrator types ───────────────────────────────────────────────────
 
-export type InitStep =
-  | 'gitPull'
-  | 'dockerCheck'
-  | 'startContainer'
-  | 'restoreDacpac'
-  | 'verifyDb';
+export type InitStep = 'dotnetCheck' | 'gitPull' | 'ddlCheck' | 'ddlExtract';
 
 export type InitStepStatus =
   | { kind: 'running' }
@@ -63,26 +72,19 @@ export type InitStepStatus =
 export interface InitStepEvent {
   step: InitStep;
   status: InitStepStatus;
-  /** Absent for global steps (gitPull, dockerCheck); present for per-project steps. */
+  /** Absent for global steps; present for per-project steps. */
   projectId?: string;
 }
 
-export const GLOBAL_STEPS: InitStep[] = ['gitPull', 'dockerCheck'];
-export const PER_PROJECT_STEPS: InitStep[] = ['startContainer', 'restoreDacpac', 'verifyDb'];
+export const GLOBAL_STEPS: InitStep[] = ['dotnetCheck', 'gitPull'];
+export const PER_PROJECT_STEPS: InitStep[] = ['ddlCheck', 'ddlExtract'];
 
-export const INIT_STEPS: InitStep[] = [
-  'gitPull',
-  'dockerCheck',
-  'startContainer',
-  'restoreDacpac',
-  'verifyDb',
-];
+export const INIT_STEPS: InitStep[] = ['dotnetCheck', 'gitPull', 'ddlCheck', 'ddlExtract'];
 
 export const INIT_STEP_LABEL: Record<InitStep, string> = {
+  dotnetCheck: 'Check .NET runtime',
   gitPull: 'Sync repository',
-  dockerCheck: 'Check Docker',
-  startContainer: 'Start SQL container',
-  restoreDacpac: 'Restore database',
-  verifyDb: 'Verify connectivity',
+  ddlCheck: 'Check DDL',
+  ddlExtract: 'Extract DDL',
 };
 

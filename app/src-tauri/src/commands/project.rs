@@ -9,9 +9,9 @@ use crate::types::{CommandError, Project};
 pub fn project_create(
     state: State<'_, DbState>,
     name: String,
-    sa_password: String,
+    technology: String,
 ) -> Result<Project, CommandError> {
-    log::info!("[project_create] name={}", name);
+    log::info!("[project_create] name={} technology={}", name, technology);
     let conn = state.conn().map_err(|e| {
         log::error!("[project_create] DB lock: {}", e);
         CommandError::Database(e)
@@ -22,8 +22,8 @@ pub fn project_create(
     let created_at = chrono::Utc::now().to_rfc3339();
 
     conn.execute(
-        "INSERT INTO projects(id, slug, name, sa_password, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![id, slug, name, sa_password, created_at],
+        "INSERT INTO projects(id, slug, name, technology, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![id, slug, name, technology, created_at],
     )
     .map_err(|e| {
         log::error!("[project_create] insert failed: {}", e);
@@ -31,7 +31,7 @@ pub fn project_create(
     })?;
 
     log::info!("[project_create] created id={} slug={}", id, slug);
-    Ok(Project { id, slug, name, created_at })
+    Ok(Project { id, slug, name, technology, created_at })
 }
 
 #[tauri::command]
@@ -43,7 +43,7 @@ pub fn project_list(state: State<'_, DbState>) -> Result<Vec<Project>, CommandEr
     })?;
 
     let mut stmt = conn.prepare(
-        "SELECT id, slug, name, created_at FROM projects ORDER BY created_at DESC",
+        "SELECT id, slug, name, technology, created_at FROM projects ORDER BY created_at DESC",
     )?;
     let projects = stmt
         .query_map([], |row| {
@@ -51,7 +51,8 @@ pub fn project_list(state: State<'_, DbState>) -> Result<Vec<Project>, CommandEr
                 id: row.get(0)?,
                 slug: row.get(1)?,
                 name: row.get(2)?,
-                created_at: row.get(3)?,
+                technology: row.get(3)?,
+                created_at: row.get(4)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -71,14 +72,15 @@ pub fn project_get(
     })?;
 
     conn.query_row(
-        "SELECT id, slug, name, created_at FROM projects WHERE id = ?1",
+        "SELECT id, slug, name, technology, created_at FROM projects WHERE id = ?1",
         params![id],
         |row| {
             Ok(Project {
                 id: row.get(0)?,
                 slug: row.get(1)?,
                 name: row.get(2)?,
-                created_at: row.get(3)?,
+                technology: row.get(3)?,
+                created_at: row.get(4)?,
             })
         },
     )
@@ -155,14 +157,15 @@ pub fn project_get_active(
     };
 
     match conn.query_row(
-        "SELECT id, slug, name, created_at FROM projects WHERE id = ?1",
+        "SELECT id, slug, name, technology, created_at FROM projects WHERE id = ?1",
         params![id],
         |row| {
             Ok(Project {
                 id: row.get(0)?,
                 slug: row.get(1)?,
                 name: row.get(2)?,
-                created_at: row.get(3)?,
+                technology: row.get(3)?,
+                created_at: row.get(4)?,
             })
         },
     ) {
@@ -220,13 +223,13 @@ mod tests {
     fn project_create_and_list_roundtrip() {
         let conn = db::open_in_memory().unwrap();
         conn.execute(
-            "INSERT INTO projects(id, slug, name, sa_password, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params!["proj-1", "my-project", "My Project", "secret", "2026-01-01T00:00:00Z"],
+            "INSERT INTO projects(id, slug, name, technology, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params!["proj-1", "my-project", "My Project", "sql_server", "2026-01-01T00:00:00Z"],
         )
         .unwrap();
 
         let mut stmt = conn
-            .prepare("SELECT id, slug, name, created_at FROM projects")
+            .prepare("SELECT id, slug, name, technology, created_at FROM projects")
             .unwrap();
         let projects: Vec<Project> = stmt
             .query_map([], |row| {
@@ -234,7 +237,8 @@ mod tests {
                     id: row.get(0)?,
                     slug: row.get(1)?,
                     name: row.get(2)?,
-                    created_at: row.get(3)?,
+                    technology: row.get(3)?,
+                    created_at: row.get(4)?,
                 })
             })
             .unwrap()
@@ -244,6 +248,7 @@ mod tests {
         assert_eq!(projects.len(), 1);
         assert_eq!(projects[0].name, "My Project");
         assert_eq!(projects[0].slug, "my-project");
+        assert_eq!(projects[0].technology, "sql_server");
     }
 
 }

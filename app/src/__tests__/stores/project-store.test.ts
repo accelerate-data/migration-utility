@@ -3,8 +3,8 @@ import { useProjectStore } from '@/stores/project-store';
 import { mockInvokeCommands, resetTauriMocks } from '../../test/mocks/tauri';
 import type { Project } from '@/lib/types';
 
-const P1: Project = { id: 'p1', slug: 'alpha', name: 'Alpha', createdAt: '2024-01-01' };
-const P2: Project = { id: 'p2', slug: 'beta', name: 'Beta', createdAt: '2024-01-02' };
+const P1: Project = { id: 'p1', slug: 'alpha', name: 'Alpha', technology: 'sql_server', createdAt: '2024-01-01' };
+const P2: Project = { id: 'p2', slug: 'beta', name: 'Beta', technology: 'fabric_warehouse', createdAt: '2024-01-02' };
 
 beforeEach(() => {
   resetTauriMocks();
@@ -77,21 +77,21 @@ describe('useProjectStore — init lifecycle', () => {
 
   it('applyInitStep updates matching step status', () => {
     useProjectStore.getState().startInit();
-    useProjectStore.getState().applyInitStep({ step: 'dockerCheck', status: { kind: 'ok' } });
-    const step = useProjectStore.getState().initSteps.find((s) => s.step === 'dockerCheck');
+    useProjectStore.getState().applyInitStep({ step: 'ddlCheck', status: { kind: 'ok' } });
+    const step = useProjectStore.getState().initSteps.find((s) => s.step === 'ddlCheck');
     expect(step?.status?.kind).toBe('ok');
   });
 
   it('applyInitStep error stores message', () => {
     useProjectStore.getState().startInit();
     useProjectStore.getState().applyInitStep({
-      step: 'startContainer',
-      status: { kind: 'error', message: 'port in use' },
+      step: 'ddlExtract',
+      status: { kind: 'error', message: 'extraction failed' },
     });
-    const step = useProjectStore.getState().initSteps.find((s) => s.step === 'startContainer');
+    const step = useProjectStore.getState().initSteps.find((s) => s.step === 'ddlExtract');
     expect(step?.status?.kind).toBe('error');
     if (step?.status?.kind === 'error') {
-      expect(step.status.message).toBe('port in use');
+      expect(step.status.message).toBe('extraction failed');
     }
   });
 

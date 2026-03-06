@@ -28,6 +28,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (1, include_str!("../migrations/001_initial_schema.sql")),
     (2, include_str!("../migrations/002_ensure_tables.sql")),
     (3, include_str!("../migrations/003_add_project_port.sql")),
+    (4, include_str!("../migrations/004_technology_schema.sql")),
 ];
 
 pub fn open(path: &Path) -> Result<Connection, DbError> {
@@ -57,16 +58,16 @@ pub(crate) fn open_in_memory() -> Result<Connection, DbError> {
 /// already marked applied on a DB that predates the column, or the migration
 /// ran against a different DB file). Safe to call on every startup.
 fn repair_schema(conn: &Connection) -> Result<(), DbError> {
-    // projects.port — added by migration 003; may be absent on older DB files.
-    let has_port: bool = conn.query_row(
-        "SELECT COUNT(*) > 0 FROM pragma_table_info('projects') WHERE name='port'",
+    // projects.technology — added by migration 004; may be absent on older DB files.
+    let has_technology: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM pragma_table_info('projects') WHERE name='technology'",
         [],
         |row| row.get(0),
     )?;
-    if !has_port {
-        log::warn!("repair_schema: projects.port missing — adding column (DEFAULT 1433)");
+    if !has_technology {
+        log::warn!("repair_schema: projects.technology missing — adding column (DEFAULT 'sql_server')");
         conn.execute_batch(
-            "ALTER TABLE projects ADD COLUMN port INTEGER NOT NULL DEFAULT 1433;",
+            "ALTER TABLE projects ADD COLUMN technology TEXT NOT NULL DEFAULT 'sql_server';",
         )?;
     }
     Ok(())
