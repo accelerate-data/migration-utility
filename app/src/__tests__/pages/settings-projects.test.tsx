@@ -11,8 +11,8 @@ import {
 } from '../../test/mocks/tauri';
 import type { Project } from '@/lib/types';
 
-const PROJECT_A: Project = { id: 'p1', slug: 'alpha', name: 'Alpha', createdAt: '2024-01-01' };
-const PROJECT_B: Project = { id: 'p2', slug: 'beta', name: 'Beta', createdAt: '2024-01-02' };
+const PROJECT_A: Project = { id: 'p1', slug: 'alpha', name: 'Alpha', technology: 'sql_server', createdAt: '2024-01-01' };
+const PROJECT_B: Project = { id: 'p2', slug: 'beta', name: 'Beta', technology: 'fabric_warehouse', createdAt: '2024-01-02' };
 
 function renderTab() {
   return render(
@@ -85,11 +85,11 @@ describe('ProjectsTab — project list', () => {
     });
   });
 
-  it('active project row has a Select button absent, reset button present', async () => {
+  it('active project row has toggle disabled and reset button present', async () => {
     stubProjects([PROJECT_A], PROJECT_A);
     renderTab();
     await waitFor(() => {
-      expect(screen.queryByTestId('project-select-alpha')).not.toBeInTheDocument();
+      expect(screen.getByTestId('project-select-alpha')).toBeDisabled();
       expect(screen.getByTestId('project-reset-alpha')).toBeInTheDocument();
     });
   });
@@ -113,11 +113,10 @@ describe('ProjectsTab — create project form', () => {
     await waitFor(() => screen.getByRole('button', { name: /new project/i }));
     await user.click(screen.getByRole('button', { name: /new project/i }));
     expect(screen.getByLabelText(/project name/i)).toBeInTheDocument();
+    expect(screen.getByTestId('project-technology-select')).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/select a .dacpac file/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/sa password/i)).toBeInTheDocument();
-    expect(screen.queryByLabelText(/customer/i)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/source system/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /detect from dacpac/i })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/sa password/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId('project-detect-databases')).toBeInTheDocument();
     expect(screen.getByLabelText(/extraction date/i)).toBeInTheDocument();
   });
 
@@ -316,7 +315,7 @@ describe('ProjectsTab — init progress', () => {
     useProjectStore.getState().startInit();
     await waitFor(() => {
       expect(screen.getByText('Sync repository')).toBeInTheDocument();
-      expect(screen.getByText('Check Docker')).toBeInTheDocument();
+      expect(screen.getByText('Check DDL')).toBeInTheDocument();
     });
   });
 
@@ -326,7 +325,7 @@ describe('ProjectsTab — init progress', () => {
     await waitFor(() => screen.getByText('No projects yet.'));
     useProjectStore.getState().startInit();
     useProjectStore.getState().applyInitStep({
-      step: 'dockerCheck',
+      step: 'ddlCheck',
       status: { kind: 'error', message: 'Docker not running' },
     });
     await waitFor(() => {
