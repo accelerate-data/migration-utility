@@ -1,8 +1,15 @@
 # Overall Design
 
-End-to-end design for the Migration Utility: a Tauri desktop app that drives a GitHub Actions pipeline migrating Microsoft Fabric Warehouse stored procedures to dbt models on Vibedata's platform.
+End-to-end design for the Migration Utility: a Tauri desktop app that drives a GitHub Actions pipeline migrating stored procedures to dbt models on Vibedata's platform.
 
-Currently Supports: SQL Server.
+## Supported Sources
+
+| Technology | `technology` value | Import format | Test generator access |
+|---|---|---|---|
+| SQL Server | `sql_server` | `.dacpac` | Docker + SQL Server container (GH Actions) |
+| Fabric Warehouse | `fabric_warehouse` | `.zip` (DDL export) | T-SQL cloud endpoint |
+| Fabric Lakehouse | `fabric_lakehouse` | `.zip` (DDL export) | ⚠️ Open question — Spark/Delta, no stored proc execution model |
+| Snowflake | `snowflake` | `.zip` (DDL export) | SQL cloud connection |
 
 ---
 
@@ -10,13 +17,11 @@ Currently Supports: SQL Server.
 
 The user must have the following before launching the app:
 
-1. **Docker Desktop** — manages a local SQL Server container for DacPac inspection.
-2. **GitHub account** — migration repo lives here; agent runs execute as GitHub Actions. The app forces login if not set.
+1. **GitHub account** — migration repo lives here; agent runs execute as GitHub Actions. The app forces login if not set.
 
-These checks are done at startup:
+This check is done at startup:
 
-1. The app checks Docker at startup via a splash screen. If not present, ask the user to install and click retry. The app will not proceed past the splash screen until Docker is set up. Clicking cancel closes the app gracefully.
-2. GitHub is checked on the main app startup (after the splash screen closes). If not set up, force the user to log in and select an empty migration repo. The app does a startup check to see if the local clone matches remote and pulls if not.
+1. GitHub is checked on the main app startup (after the splash screen closes). If not set up, force the user to log in and select an empty migration repo. The app does a startup check to see if the local clone matches remote and pulls if not.
 
 ---
 
@@ -30,8 +35,8 @@ Desktop App (Tauri)
           │  workflow_dispatch (GitHub API, OAuth token)
           ▼
   GitHub Actions runner
-    ├── Restores DacPac → SQL Server Docker container (cached)
-    └── Runs agent → commits output JSON to migration repo
+    ├── Reads DDL from repo → runs agent (scoping, profiling, decomposing, planning, migrating)
+    └── Connects to source database via MCP → runs test generator agent
 ```
 
 All agent execution happens in GitHub Actions. The desktop app is the control plane: it submits runs and syncs artifacts.
@@ -62,9 +67,15 @@ Directory layout inside the repo:
 ```text
 {project-slug}/
   artifacts/
-    dacpac/
-      {dacpac-filename}          # stored via Git LFS
+    source/
+      {source-filename}          # stored via Git LFS (dacpac or zip)
       metadata.json              # auto-generated at project creation
+    ddl/
+      tables.sql                 # CREATE TABLE statements
+      procedures.sql             # CREATE PROCEDURE bodies
+      views.sql
+      functions.sql
+      indexes.sql                # CREATE INDEX + ALTER TABLE constraints
     {action}/
       {run_id}.input.json        # agent input built and committed by the app before dispatch
       {run_id}.json              # agent output, immutable, committed by GH Actions
@@ -72,7 +83,7 @@ Directory layout inside the repo:
 
 `{action}` is one of: `scoping-agent`, `profiler-agent`, `decomposer-agent`, `planner-agent`, `test-generator-agent`, `migrator-agent`.
 
-**Git LFS:** The app enables LFS on the repo via GitHub API at project creation before the first DacPac push. No manual setup required.
+**Git LFS:** The app enables LFS on the repo via GitHub API at project creation before the first source file push. No manual setup required.
 
 **Local clone:** The user provides a local path in Settings (e.g. `~/migration-utility`). The app clones the migration repo to this path at project initialization.
 
@@ -87,9 +98,9 @@ Directory layout inside the repo:
 
 ---
 
-## SQL Server Credentials
+## Connection Settings
 
-User enters the SA password at project creation. Stored in local SQLite (`projects` table) and pushed to GitHub Secrets (`SA_PASSWORD_<SLUG_UPPER>`) via the GitHub API at project creation time.
+> ⚠️ Open question: connection settings schema per technology. SQL Server requires an SA password or connection string. Fabric requires OAuth/service principal. Snowflake requires key-pair/OAuth. The credential shape differs per technology. Connection settings are only needed for the test-generator-agent stage.
 
 ---
 
@@ -99,29 +110,68 @@ Only one instance of the app may run at a time. This is implemented using `tauri
 
 ---
 
-## Docker Management
+## DDL Extraction
 
-The app manages the local SQL Server container via Docker CLI (`docker` subprocess from Rust via `std::process::Command`).
+The app translates the source file into structured DDL files at project creation and keeps them consistent on subsequent startups.
 
-Lifecycle:
+### SQL Server (DacPac)
 
-| Event | Docker CLI call |
-|---|---|
-| Startup check | `docker info` |
-| Project init | `docker run --env SA_PASSWORD=... -p 1433:1433 -d mcr.microsoft.com/mssql/server` |
-| Project delete | `docker stop {container}` + `docker rm {container}` |
+A bundled .NET 8 sidecar (`dacpac-extractor`) uses `Microsoft.SqlServer.DacFx` to unpack the DacPac and script all objects. Invoked by the Tauri app as a subprocess:
+
+```bash
+dacpac-extractor {source-file} {output-dir}
+```
+
+Outputs: `tables.sql`, `procedures.sql`, `views.sql`, `functions.sql`, `indexes.sql`.
+
+The sidecar is built for macOS arm64/x86\_64 and Windows x86\_64 and bundled in the Tauri app bundle.
+
+### Other sources (zip)
+
+The app unzips the archive and normalizes the contents into the same `ddl/` structure directly in Rust.
+
+### Consistency check (splash screen)
+
+Runs at startup (if a project is set) and on active project change, before unblocking the UI:
+
+1. `git pull` the migration repo (or clone if absent).
+2. Pull source binary from LFS if not already local.
+3. Check: does `artifacts/ddl/` exist and does `source_sha256` in `metadata.json` match the hash of the local source file?
+   - No → extract DDL → commit `artifacts/ddl/` to repo.
+   - Yes → nothing to do.
+
+If any step fails, the app surfaces a blocking error with a Retry button.
 
 ---
 
-## DacPac Caching in GitHub Actions
+## MCP Servers
 
-Each GH Actions run needs SQL Server with the project database restored. Full DacPac restores can take 5–15 minutes and are unacceptable on every run.
+Two MCP roles serve agents at different stages.
 
-**LFS caching:** The `.git/lfs` object directory is cached in GH Actions keyed on the SHA256 hash of the DacPac file. Avoids re-downloading from GitHub LFS on every run.
+### DDL file MCP (`orchestrator/ddl_mcp/`)
 
-**Restore caching:** After the first restore, the MDF/LDF files are cached via `actions/cache` keyed on the DacPac SHA256 hash. Subsequent runs attach the cached files directly, skipping restore.
+Source-agnostic. Used by scoping, profiling, decomposing, planning, and migrating agents. Tools read from `artifacts/ddl/`:
 
-Cache invalidation is automatic: when the DacPac changes (hash changes), both cache entries miss and the full restore runs once to rebuild them.
+- `get_procedure_body(name)`
+- `get_table_schema(name)`
+- `list_procedures()`
+- `list_tables()`
+- `get_dependencies(table_name)`
+
+No live database connection. No credentials required. Used in stdio mode for local plugin dev and HTTP mode in GH Actions.
+
+### Live execution MCP (test generator only)
+
+Source-specific. Used only by the test-generator-agent to execute procedures against a live database and capture ground-truth output for unit test fixtures.
+
+| Technology | MCP | Infrastructure |
+|---|---|---|
+| `sql_server` | `orchestrator/mssql_mcp/` | Docker + SQL Server container (GH Actions) |
+| `fabric_warehouse` | `orchestrator/fabric_mcp/` (future) | T-SQL cloud endpoint |
+| `fabric_lakehouse` | ⚠️ Open question | Spark/Delta — no stored proc execution model |
+| `snowflake` | `orchestrator/snowflake_mcp/` (future) | SQL cloud connection |
+
+The `technology` field in `metadata.json` determines which live MCP is started for test generation. Docker is only required for `sql_server` test generation.
 
 ---
 
@@ -159,12 +209,18 @@ Agents run as Claude Code plugins. The plugin lives at `plugin/`:
 
 ```text
 orchestrator/
+  ddl_mcp/
+    tools.yaml                   # DDL file reader tools (all agents except test generator)
   mssql_mcp/
-    tools.yaml                   # genai-toolbox MCP server config (shared)
+    tools.yaml                   # SQL Server live execution (test generator, sql_server projects)
+  fabric_mcp/                    # future
+    tools.yaml
+  snowflake_mcp/                 # future
+    tools.yaml
 
 plugin/
   CLAUDE.md                      # shared migration domain context
-  .mcp.json                      # stdio toolbox config for local dev
+  .mcp.json                      # stdio MCP config for local dev
   agents/
     scoping-agent.md
     profiler-agent.md
@@ -180,33 +236,45 @@ plugin/
 **Local dev:**
 
 ```bash
-claude --plugin-path plugin/ \
+claude --plugin-dir plugin/ \
   --agent scoping-agent \
   {project-slug}/artifacts/scoping-agent/{run_id}.input.json \
   {project-slug}/artifacts/scoping-agent/{run_id}.json
 ```
 
-**GH Actions:** Same invocation with `MSSQL_MCP_URL=http://localhost:5000/mcp` set.
+**GH Actions:** Same invocation with `DDL_MCP_URL=http://localhost:5000/mcp` set (or the appropriate live MCP URL for the test generator).
 
 ### Workflow Execution (GH Actions Runner)
 
+**All agents except test generator:**
+
 1. Clone the migration repo.
-2. Restore the SQL Server DB from MDF/LDF cache, or full DacPac restore on cache miss.
-3. Install genai-toolbox binary; start in HTTP mode on `localhost:5000` with `orchestrator/mssql_mcp/tools.yaml`.
-4. Install Claude Code CLI.
-5. Run agent:
+2. Install genai-toolbox binary; start DDL file MCP in HTTP mode on `localhost:5000` with `orchestrator/ddl_mcp/tools.yaml`.
+3. Install Claude Code CLI.
+4. Run agent:
 
    ```bash
-   claude --plugin-path plugin/ \
+   claude --plugin-dir plugin/ \
      --agent {action} \
      {project-slug}/artifacts/{action}/{run_id}.input.json \
      {project-slug}/artifacts/{action}/{run_id}.json
    ```
 
-6. Create branch `run/{run_id}`.
-7. Commit output JSON to `{project-slug}/artifacts/{action}/{run_id}.json` on that branch.
-8. Merge `run/{run_id}` into `main` (no conflicts — each run touches a unique file path).
-9. Delete the `run/{run_id}` branch.
+5. Create branch `run/{run_id}`.
+6. Commit output JSON to `{project-slug}/artifacts/{action}/{run_id}.json` on that branch.
+7. Merge `run/{run_id}` into `main` (no conflicts — each run touches a unique file path).
+8. Delete the `run/{run_id}` branch.
+
+**Test generator agent (`sql_server`):**
+
+1. Clone the migration repo.
+2. Pull source file from LFS.
+3. Start SQL Server Docker container; restore database from source file (MDF/LDF cache keyed on `source_sha256`).
+4. Install genai-toolbox binary; start live execution MCP in HTTP mode on `localhost:5000` with `orchestrator/mssql_mcp/tools.yaml`.
+5. Install Claude Code CLI.
+6. Run test generator agent (steps 4–8 above).
+
+> ⚠️ Open question: test generator workflow for `fabric_warehouse`, `fabric_lakehouse`, `snowflake` — connection settings and live MCP not yet designed.
 
 ---
 
@@ -219,26 +287,28 @@ claude --plugin-path plugin/ \
 | `id` | TEXT (UUID) | Generated by the app at creation time |
 | `slug` | TEXT | Kebab-case of project name, unique |
 | `name` | TEXT | User-entered |
-| `sa_password` | TEXT | Stored locally; also pushed to GitHub Secrets |
+| `technology` | TEXT | One of `sql_server`, `fabric_warehouse`, `fabric_lakehouse`, `snowflake` |
 | `created_at` | TEXT | ISO 8601 UTC |
 
 ### Create Project
 
-1. User enters: project name, SQL Server version, local DacPac path, SA password, customer, system, db name, extraction datetime.
-2. App generates project UUID (`id`) and slug (kebab-case, unique).
-3. App creates the folder structure in the migration repo on GitHub.
-4. App enables Git LFS on the repo if not already enabled.
-5. App generates `metadata.json`:
-   - `customer` - user-entered
+1. User selects technology and enters: project name, customer, system, db name, extraction datetime.
+2. User uploads source file: `.dacpac` for `sql_server`; `.zip` for all other technologies.
+3. App generates project UUID (`id`) and slug (kebab-case, unique).
+4. App creates the folder structure in the migration repo on GitHub.
+5. App enables Git LFS on the repo if not already enabled.
+6. App generates `metadata.json`:
+   - `technology` — user-selected
+   - `customer` — user-entered
    - `system` — user-entered
    - `db_name` — user-entered
    - `extraction_datetime` — user-entered
    - `tool_version` — migration utility version
-   - `dacpac_sha256` — computed by the app
-6. App pushes DacPac + `metadata.json` to LFS.
-7. App stores SA password in SQLite and pushes it to GitHub Secrets (`SA_PASSWORD_<SLUG_UPPER>`).
-8. Project is set as the active project.
-9. Project initialization runs (see below).
+   - `source_filename` — original uploaded filename
+   - `source_sha256` — computed by the app
+7. App pushes source binary + `metadata.json` to LFS.
+8. App extracts DDL from source file → commits `artifacts/ddl/` to repo.
+9. Project is set as the active project.
 
 ### Select Active Project
 
@@ -246,13 +316,11 @@ The entire UI operates on one project at a time. The user changes the active pro
 
 ### Project Initialization
 
-Runs at startup (if a project is set) and on active project change:
+Runs at startup (if a project is set) and on active project change. This is the splash screen consistency check described in [DDL Extraction](#ddl-extraction):
 
 1. `git pull` the migration repo (or clone if not cloned).
-2. Check Docker is running.
-3. Start the SQL Server container for this project if not already running.
-4. Restore DacPac if the container DB is not already present.
-5. Verify DB connectivity.
+2. Pull source binary from LFS if not already local.
+3. Check DDL consistency: if `artifacts/ddl/` is missing or `source_sha256` does not match → re-extract DDL → commit.
 
 If any step fails, the app surfaces a blocking error with a Retry button.
 
@@ -263,7 +331,6 @@ Deletes:
 - `{project-slug}/` directory from the migration repo on GitHub (including all artifacts and runs).
 - Local clone of that project's data.
 - All SQLite rows for the project.
-- The `SA_PASSWORD_<SLUG_UPPER>` GitHub Secret.
 
 Confirmation dialog required. Destructive and irreversible.
 
