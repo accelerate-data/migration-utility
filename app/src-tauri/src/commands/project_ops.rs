@@ -464,6 +464,32 @@ pub async fn project_init(
         (slug, technology, lcp, url)
     };
 
+    // ── Step 0: .NET runtime check ────────────────────────────────────────────
+    emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Running, Some(id.clone()));
+    match std::process::Command::new("dotnet").arg("--version").output() {
+        Ok(out) if out.status.success() => {
+            let ver = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            let major: u32 = ver.split('.').next().and_then(|s| s.parse().ok()).unwrap_or(0);
+            if major >= 8 {
+                emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Ok, Some(id.clone()));
+            } else {
+                let msg = format!(".NET 8+ required, found {ver}. Install from https://dot.net");
+                emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Error { message: msg.clone() }, Some(id.clone()));
+                return Err(CommandError::External(msg));
+            }
+        }
+        Ok(_) | Err(_) if technology == "sql_server" => {
+            let msg = ".NET 8 runtime not found. Install from https://dot.net to use SQL Server projects.".to_string();
+            emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Error { message: msg.clone() }, Some(id.clone()));
+            return Err(CommandError::External(msg));
+        }
+        Ok(_) | Err(_) => {
+            emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Warning {
+                warnings: vec!["Install .NET 8 runtime to support SQL Server projects.".into()],
+            }, Some(id.clone()));
+        }
+    }
+
     // ── Step 1: GitPull ───────────────────────────────────────────────────────
     emit_step(&app, InitStep::GitPull, InitStepStatus::Running, Some(id.clone()));
     let git_result = if Path::new(&local_clone_path).join(".git").exists() {
@@ -542,6 +568,7 @@ async fn run_project_ddl_steps(
         Ok(false) => {
             log::info!("[run_project_ddl_steps] DDL is current slug={slug}");
             emit_step(app, InitStep::DdlCheck, InitStepStatus::Ok, pid.clone());
+            emit_step(app, InitStep::DdlExtract, InitStepStatus::Ok, pid);
             return Ok(());
         }
         Ok(true) => {
