@@ -6,8 +6,7 @@
     <AssemblyName>dacpac-extract</AssemblyName>
     <RootNamespace>DacpacExtract</RootNamespace>
     <PublishSingleFile>true</PublishSingleFile>
-    <SelfContained>true</SelfContained>
-    <PublishTrimmed>false</PublishTrimmed>
+    <SelfContained>false</SelfContained>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.SqlServer.DacFx" Version="162.3.566" />

@@ -24,9 +24,8 @@ echo "Building dacpac-extract for $RID → binaries/dacpac-extract-$TARGET"
 dotnet publish "$PROJECT" \
   -c Release \
   -r "$RID" \
-  --self-contained \
+  --no-self-contained \
   -p:PublishSingleFile=true \
-  -p:PublishTrimmed=false \
   -o "$REPO_ROOT/app/dacpac-extract/bin/Release/net8.0/$RID/publish"
 
 SRC="$REPO_ROOT/app/dacpac-extract/bin/Release/net8.0/$RID/publish/dacpac-extract"
