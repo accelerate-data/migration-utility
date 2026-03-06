@@ -65,8 +65,8 @@ export const getDataDirPath = () =>
 
 // ── Projects ──────────────────────────────────────────────────────────────────
 
-export const projectCreate = (name: string, saPassword: string) =>
-  invoke<Project>('project_create', { name, saPassword });
+export const projectCreate = (name: string, technology: string) =>
+  invoke<Project>('project_create', { name, technology });
 
 export const projectList = () =>
   invoke<Project[]>('project_list');
@@ -85,25 +85,20 @@ export const projectGetActive = () =>
 
 export const projectCreateFull = (
   name: string,
-  saPassword: string,
-  dacpacPath: string,
-  sqlServerVersion: string,
-  customer: string,
-  system: string,
+  technology: string,
+  sourcePath: string,
   dbName: string,
   extractionDatetime: string,
 ) =>
   invoke<Project>('project_create_full', {
     name,
-    saPassword,
-    dacpacPath,
-    sqlServerVersion,
-    customer,
-    system,
+    technology,
+    sourcePath,
     dbName,
     extractionDatetime,
   });
 
+/** Only applicable for SQL Server / DacPac projects. */
 export const projectDetectDatabases = (dacpacPath: string) =>
   invoke<string[]>('project_detect_databases', { dacpacPath });
 
