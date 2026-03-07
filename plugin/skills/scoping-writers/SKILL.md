@@ -16,7 +16,9 @@ Reference content for the Scoping Agent. Load the section relevant to the curren
 
 ## T-SQL sources (SQL Server, Fabric Warehouse)
 
+- **DiscoverCandidates**: [reference/tsql/discover-candidates.md](reference/tsql/discover-candidates.md)
+- **ResolveCallGraph**: [reference/tsql/resolve-call-graph.md](reference/tsql/resolve-call-graph.md)
 - **Write detection**: [reference/tsql/write-detection.md](reference/tsql/write-detection.md)
-- **Call graph patterns**: [reference/tsql/call-graph.md](reference/tsql/call-graph.md)
 - **Confidence scoring**: [reference/tsql/scoring.md](reference/tsql/scoring.md)
+- **Call graph patterns**: [reference/tsql/call-graph.md](reference/tsql/call-graph.md)
 - **Cross-database patterns**: [reference/tsql/cross-db.md](reference/tsql/cross-db.md)
