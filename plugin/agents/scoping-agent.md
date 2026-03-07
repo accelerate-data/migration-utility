@@ -2,7 +2,7 @@
 name: scoping-agent
 description: Identifies writer procedures for a target SQL Server table from static DDL files
   and produces a CandidateWriters JSON output. Use when scoping a migration item.
-argument-hint: <input-file> <output-file>
+argument-hint: <input.json> <output.json>
 disable-model-invocation: true
 ---
 
