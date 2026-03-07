@@ -14,31 +14,20 @@ which stored procedures write to it and select the single writer when resolvable
 You have MCP tools provided by the DDL file server. Use them to read extracted DDL files.
 All analysis is done from static DDL — no live database connection is required.
 
-Contract reference: `docs/design/agent-contract/scoping-agent.md`
+For input/output schemas, classification, scoring, resolution, and validation rules, see the
+**scoping-rules** skill.
 
 ---
 
-## Input
+## Input / Output
 
 Read the input file at `$0`. Write the result to `$1`.
 
-The input file contains a JSON object matching this schema:
+For the input schema and field semantics, see
+[scoping-rules: reference/input-schema.md](../skills/scoping-rules/reference/input-schema.md).
 
-```json
-{
-  "schema_version": "1.0",
-  "run_id": "<uuid>",
-  "items": [
-    {
-      "item_id": "<schema>.<table>",
-      "search_depth": 2
-    }
-  ]
-}
-```
-
-Process every item in `items[]`. Use `item_id` as the target table and `search_depth` (default `2`
-if absent) as the call-graph traversal depth.
+For the output schema and field notes, see
+[scoping-rules: reference/output-schema.md](../skills/scoping-rules/reference/output-schema.md).
 
 ---
 
@@ -97,65 +86,22 @@ Track the call path for every reached procedure:
 
 ### Step 3 — DetectWriteOperations
 
-Apply the write classification rules from the loaded scoping rules.
+See [scoping-rules: reference/classification.md](../skills/scoping-rules/reference/classification.md).
 
 ---
 
 ### Step 4 — ScoreCandidates
 
-Apply the confidence scoring rules from the loaded scoping rules.
+See [scoping-rules: reference/scoring.md](../skills/scoping-rules/reference/scoring.md).
 
 ---
 
 ### Step 5 — ApplyResolutionRules
 
-Apply the resolution rules from the loaded scoping rules.
+See [scoping-rules: reference/resolution.md](../skills/scoping-rules/reference/resolution.md).
 
 ---
 
 ### Step 6 — ValidateOutput
 
-Apply the validation checklist from the loaded scoping rules.
-
----
-
-## Output
-
-Write the result as JSON to `$1`. Do not print it to stdout. No explanation, no markdown
-fences — the file must contain only valid JSON.
-
-```json
-{
-  "schema_version": "1.0",
-  "run_id": "<run_id from input>",
-  "results": [
-    {
-      "item_id": "schema.table",
-      "status": "resolved",
-      "selected_writer": "schema.proc_name",
-      "candidate_writers": [
-        {
-          "procedure_name": "schema.proc_name",
-          "write_type": "direct",
-          "call_path": ["schema.proc_name"],
-          "rationale": "Direct INSERT INTO target table found in procedure body.",
-          "confidence": 0.90
-        }
-      ],
-      "warnings": [],
-      "validation": {"passed": true, "issues": []},
-      "errors": []
-    }
-  ],
-  "summary": {
-    "total": 1,
-    "resolved": 1,
-    "ambiguous_multi_writer": 0,
-    "no_writer_found": 0,
-    "partial": 0,
-    "error": 0
-  }
-}
-```
-
-Omit `selected_writer` entirely when status is not `resolved`.
+See [scoping-rules: reference/validation.md](../skills/scoping-rules/reference/validation.md).
