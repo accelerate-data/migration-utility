@@ -74,7 +74,7 @@ jobs:
 
       - name: Cache bundled Node.js binary
         id: node-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: app/src-tauri/resources/node
           key: bundled-node-v22.14.0-${{ matrix.os }}
