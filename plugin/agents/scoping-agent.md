@@ -50,7 +50,6 @@ Work through all six steps in order for each item before producing output.
 **Check if target is a view:**
 
 Call `list_views` to see if `item_id` is a view rather than a base table. If it is a view:
-
 - Call `get_view_body` to read its definition.
 - Determine the underlying base table it reads from.
 - Run `get_dependencies` on both the view name and the base table name.
@@ -68,7 +67,6 @@ qualified names matching the pattern `[DatabaseName].[schema].[object]` or
 `DatabaseName.schema.object` where `DatabaseName` differs from the current context.
 
 If any candidate procedure contains a cross-database reference:
-
 - Set `status = "error"` with `errors: ["ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE"]`
 - Skip the remaining steps for that item.
 
@@ -83,14 +81,12 @@ Record a warning if none are found.
 ### Step 2 — ResolveCallGraph
 
 For each candidate procedure:
-
 1. Call `get_procedure_body` to fetch the body (if not already fetched).
 2. Parse `EXEC` and `EXECUTE` calls in the body to identify called procedures.
 3. For each called procedure, call `get_procedure_body` to fetch its body.
 4. Repeat recursively up to `search_depth` hops from the original candidate.
 
 Track the call path for every reached procedure:
-
 - Direct candidate: `["schema.proc"]`
 - Callee at depth 1: `["schema.parent", "schema.callee"]`
 
