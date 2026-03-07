@@ -2,7 +2,7 @@
   "mcpServers": {
     "ddl": {
       "command": "uv",
-      "args": ["run", "./ddl_mcp/server.py"]
+      "args": ["run", "${CLAUDE_PLUGIN_ROOT}/ddl_mcp/server.py"]
     }
   }
 }

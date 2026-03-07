@@ -2,8 +2,18 @@
 name: scoping-agent
 description: Identifies writer procedures for a target SQL Server table from static DDL files
   and produces a CandidateWriters JSON output. Use when scoping a migration item.
-argument-hint: <input.json> <output.json>
-disable-model-invocation: true
+model: claude-sonnet-4-6
+maxTurns: 30
+tools:
+  - ddl:list_tables
+  - ddl:get_table_schema
+  - ddl:list_procedures
+  - ddl:get_procedure_body
+  - ddl:get_dependencies
+  - ddl:list_views
+  - ddl:get_view_body
+skills:
+  - scoping-writers
 ---
 
 # Scoping Agent
@@ -23,11 +33,9 @@ For input/output schemas, classification, scoring, resolution, and validation ru
 
 Read the input file at `$0`. Write the result to `$1`.
 
-For the input schema and field semantics, see
-[scoping-writers: reference/input-schema.md](../skills/scoping-writers/reference/input-schema.md).
+For the input schema and field semantics, see the **scoping-writers** skill, Input Schema section.
 
-For the output schema and field notes, see
-[scoping-writers: reference/output-schema.md](../skills/scoping-writers/reference/output-schema.md).
+For the output schema and field notes, see the **scoping-writers** skill, Output Schema section.
 
 ---
 
@@ -42,6 +50,7 @@ Work through all six steps in order for each item before producing output.
 **Check if target is a view:**
 
 Call `list_views` to see if `item_id` is a view rather than a base table. If it is a view:
+
 - Call `get_view_body` to read its definition.
 - Determine the underlying base table it reads from.
 - Run `get_dependencies` on both the view name and the base table name.
@@ -59,6 +68,7 @@ qualified names matching the pattern `[DatabaseName].[schema].[object]` or
 `DatabaseName.schema.object` where `DatabaseName` differs from the current context.
 
 If any candidate procedure contains a cross-database reference:
+
 - Set `status = "error"` with `errors: ["ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE"]`
 - Skip the remaining steps for that item.
 
@@ -73,12 +83,14 @@ Record a warning if none are found.
 ### Step 2 — ResolveCallGraph
 
 For each candidate procedure:
+
 1. Call `get_procedure_body` to fetch the body (if not already fetched).
 2. Parse `EXEC` and `EXECUTE` calls in the body to identify called procedures.
 3. For each called procedure, call `get_procedure_body` to fetch its body.
 4. Repeat recursively up to `search_depth` hops from the original candidate.
 
 Track the call path for every reached procedure:
+
 - Direct candidate: `["schema.proc"]`
 - Callee at depth 1: `["schema.parent", "schema.callee"]`
 
@@ -86,22 +98,22 @@ Track the call path for every reached procedure:
 
 ### Step 3 — DetectWriteOperations
 
-See [scoping-writers: reference/classification.md](../skills/scoping-writers/reference/classification.md).
+See the **scoping-writers** skill, Write Classification section.
 
 ---
 
 ### Step 4 — ScoreCandidates
 
-See [scoping-writers: reference/scoring.md](../skills/scoping-writers/reference/scoring.md).
+See the **scoping-writers** skill, Confidence Scoring section.
 
 ---
 
 ### Step 5 — ApplyResolutionRules
 
-See [scoping-writers: reference/resolution.md](../skills/scoping-writers/reference/resolution.md).
+See the **scoping-writers** skill, Resolution Rules section.
 
 ---
 
 ### Step 6 — ValidateOutput
 
-See [scoping-writers: reference/validation.md](../skills/scoping-writers/reference/validation.md).
+See the **scoping-writers** skill, Validation Checklist section.
