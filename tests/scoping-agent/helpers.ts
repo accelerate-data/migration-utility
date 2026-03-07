@@ -102,6 +102,7 @@ export function runScopingAgent(
       ],
       {
         env: { ...process.env },
+        input: "",
         timeout: 110_000,
         encoding: "utf8",
       }
