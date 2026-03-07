@@ -92,12 +92,13 @@ export function runScopingAgent(
     execFileSync(
       "claude",
       [
+        "-p",
+        "--dangerously-skip-permissions",
         "--plugin-dir",
         PLUGIN_PATH,
         "--agent",
         "scoping-agent",
-        inputFile,
-        outputFile,
+        `${inputFile} ${outputFile}`,
       ],
       {
         env: { ...process.env },
