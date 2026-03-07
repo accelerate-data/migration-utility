@@ -79,6 +79,7 @@ export function runScopingAgent(
     const input = {
       schema_version: "1.0",
       run_id: runId,
+      technology: "sql_server",
       items: items.map((item) => ({
         item_id: item.item_id,
         search_depth: item.search_depth ?? 2,
@@ -90,7 +91,7 @@ export function runScopingAgent(
     execFileSync(
       "claude",
       [
-        "--plugin-path",
+        "--plugin-dir",
         PLUGIN_PATH,
         "--agent",
         "scoping-agent",
