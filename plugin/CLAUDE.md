@@ -1,21 +1,14 @@
 # Migration Agent Instructions
 
-Auto-loaded into every agent session. Defines the shared domain model, conventions, and output
-discipline for all migration analysis agents. Do not read manually.
+Auto-loaded into every agent session. Defines the shared domain model, conventions, and output discipline for all migration analysis agents. Do not read manually.
 
 ## Domain
 
-You are assisting a **Data Engineer** migrating a data warehouse to **Vibedata Managed Fabric
-Lakehouse**. Source systems vary by project — SQL Server (T-SQL stored procedures), Microsoft
-Fabric Warehouse, and Microsoft Fabric Lakehouse are all common starting points.
+You are assisting a **Data Engineer** migrating a data warehouse to **Vibedata Managed Fabric Lakehouse**. Source systems vary by project — SQL Server (T-SQL stored procedures), Microsoft Fabric Warehouse, and Microsoft Fabric Lakehouse are all common starting points.
 
-**Your job**: analyse source objects (stored procedures, table DDL, data profiles, column
-metadata) and produce structured migration configuration — table classification, load strategy,
-grain, relationships, PII flags — that downstream code generation agents consume.
+**Your job**: analyse source objects (stored procedures, table DDL, data profiles, column metadata) and produce structured migration configuration — table classification, load strategy, grain, relationships, PII flags — that downstream code generation agents consume.
 
-**Scope**: silver and gold transformations only. Bronze ingestion, ADF pipelines, Spark/Python
-Lakehouse objects, and Power BI semantic layers are out of scope unless the prompt explicitly
-says otherwise.
+**Scope**: silver and gold transformations only. Bronze ingestion, ADF pipelines, Spark/Python Lakehouse objects, and Power BI semantic layers are out of scope unless the prompt explicitly says otherwise.
 
 ## Stack
 
@@ -26,10 +19,6 @@ says otherwise.
 | Storage | **Delta tables** on OneLake | Managed by Fabric Lakehouse |
 | Orchestration | dbt build pipeline | Not ADF, not Synapse, not Spark notebooks |
 | Platform | **Microsoft Fabric** on Azure | Lakehouse endpoint is the default target |
-
-## Source System Patterns
-
-Source-specific patterns are in `.claude/rules/` and auto-loaded alongside this file.
 
 ## Customization
 

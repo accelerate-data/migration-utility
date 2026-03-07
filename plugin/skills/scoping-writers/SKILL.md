@@ -1,9 +1,6 @@
 ---
 name: scoping-writers
-description: Scoping agent rules covering input/output contract, write classification,
-  confidence scoring, resolution precedence, and output validation. Load when running
-  as the scoping agent or when detecting writer procedures, scoring candidates, or
-  resolving CandidateWriters output.
+description: Scoping agent rules covering input/output contract, write classification, confidence scoring, resolution precedence, and output validation. Load when running as the scoping agent or when detecting writer procedures, scoring candidates, or resolving CandidateWriters output.
 user-invocable: false
 ---
 
@@ -86,8 +83,7 @@ Write only valid JSON to the output file. No markdown fences, no explanation.
 
 ## Write Classification
 
-Perform **structural analysis** on each procedure body — understand the code, not just
-keyword scanning. Detect writes to the target table and any view that maps to it.
+Perform **structural analysis** on each procedure body — understand the code, not just keyword scanning. Detect writes to the target table and any view that maps to it.
 
 | Statement | Classification |
 |---|---|
@@ -99,8 +95,7 @@ keyword scanning. Detect writes to the target table and any view that maps to it
 | Calls a procedure confirmed to write to target | `indirect` |
 | No write to target | `read_only` |
 
-Flag dynamic SQL patterns: `EXEC(@sql)`, `sp_executesql @stmt`, string-built table names.
-These reduce confidence but do not disqualify.
+Flag dynamic SQL patterns: `EXEC(@sql)`, `sp_executesql @stmt`, string-built table names. These reduce confidence but do not disqualify.
 
 ---
 
