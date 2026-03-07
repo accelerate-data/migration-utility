@@ -2,7 +2,7 @@
   "mcpServers": {
     "ddl": {
       "command": "uv",
-      "args": ["run", "../orchestrator/ddl_mcp/server.py"]
+      "args": ["run", "./ddl_mcp/server.py"]
     }
   }
 }
