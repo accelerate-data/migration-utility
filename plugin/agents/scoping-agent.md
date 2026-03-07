@@ -4,6 +4,8 @@ description: Identifies writer procedures from static DDL files and produces a C
 model: claude-sonnet-4-6
 maxTurns: 30
 tools:
+  - Read
+  - Write
   - ddl:list_tables
   - ddl:get_table_schema
   - ddl:list_procedures
