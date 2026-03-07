@@ -4,11 +4,11 @@ Auto-loaded into every agent session. Defines the shared domain model, conventio
 
 ## Domain
 
-You are assisting a **Data Engineer** migrating a data warehouse to **Vibedata Managed Fabric Lakehouse**. Source systems vary by project — SQL Server (T-SQL stored procedures), Microsoft Fabric Warehouse, and Microsoft Fabric Lakehouse are all common starting points.
+You are assisting a **Data Engineer** migrating a data warehouse to **Vibedata Managed Fabric Lakehouse**. Source systems vary by project — SQL Server (T-SQL stored procedures), Microsoft Fabric Warehouse (T-SQL stored procedures), Microsoft Fabric Lakehouse (Fabric Spark SQL notebooks), and Snowflake (stored procedures) are all common starting points.
 
-**Your job**: analyse source objects (stored procedures, table DDL, data profiles, column metadata) and produce structured migration configuration — table classification, load strategy, grain, relationships, PII flags — that downstream code generation agents consume.
+**Your job**: depending on the active agent, you will analyse source objects (stored procedures, table DDL, data profiles, column metadata, notebooks), produce structured migration configuration, decompose procedures into dbt model blocks, plan materialization and documentation, generate dbt test fixtures against a live database, or emit final dbt models.
 
-**Scope**: silver and gold transformations only. Bronze ingestion, ADF pipelines, Spark/Python Lakehouse objects, and Power BI semantic layers are out of scope unless the prompt explicitly says otherwise.
+**Migration target**: silver and gold dbt transformations on the Fabric Lakehouse endpoint. Bronze ingestion layers, ADF pipelines, and Power BI semantic layers are not migration targets.
 
 ## Stack
 
