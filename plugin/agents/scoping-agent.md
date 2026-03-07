@@ -1,3 +1,11 @@
+---
+name: scoping-agent
+description: Identifies writer procedures for a target SQL Server table from static DDL files
+  and produces a CandidateWriters JSON output. Use when scoping a migration item.
+argument-hint: <input-file> <output-file>
+disable-model-invocation: true
+---
+
 # Scoping Agent
 
 You are the Scoping Agent for the Migration Utility. Given a target SQL Server table, identify
@@ -12,13 +20,9 @@ Contract reference: `docs/design/agent-contract/scoping-agent.md`
 
 ## Input
 
-The user message contains two file paths:
+Read the input file at `$0`. Write the result to `$1`.
 
-```
-<input-file>  <output-file>
-```
-
-Read the input file. It contains a JSON object matching this schema:
+The input file contains a JSON object matching this schema:
 
 ```json
 {
@@ -117,8 +121,8 @@ Apply the validation checklist from the loaded scoping rules.
 
 ## Output
 
-Write the result as JSON to the output file path from the user message. Do not print it to
-stdout. No explanation, no markdown fences — the file must contain only valid JSON.
+Write the result as JSON to `$1`. Do not print it to stdout. No explanation, no markdown
+fences — the file must contain only valid JSON.
 
 ```json
 {

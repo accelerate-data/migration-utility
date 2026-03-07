@@ -94,7 +94,8 @@ export function runScopingAgent(
         PLUGIN_PATH,
         "--agent",
         "scoping-agent",
-        `${inputFile} ${outputFile}`,
+        inputFile,
+        outputFile,
       ],
       {
         env: {
