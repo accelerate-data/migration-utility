@@ -1,5 +1,5 @@
 ---
-name: scoping-rules
+name: scoping-writers
 description: Scoping agent rules covering input/output contract, write classification,
   confidence scoring, resolution precedence, and output validation. Load when running
   as the scoping agent or when detecting writer procedures, scoring candidates, or
@@ -7,7 +7,7 @@ description: Scoping agent rules covering input/output contract, write classific
 user-invocable: false
 ---
 
-# Scoping Rules
+# Scoping Writers
 
 Rules and contract for the Scoping Agent. Load reference files as needed:
 

@@ -15,7 +15,7 @@ You have MCP tools provided by the DDL file server. Use them to read extracted D
 All analysis is done from static DDL — no live database connection is required.
 
 For input/output schemas, classification, scoring, resolution, and validation rules, see the
-**scoping-rules** skill.
+**scoping-writers** skill.
 
 ---
 
@@ -24,10 +24,10 @@ For input/output schemas, classification, scoring, resolution, and validation ru
 Read the input file at `$0`. Write the result to `$1`.
 
 For the input schema and field semantics, see
-[scoping-rules: reference/input-schema.md](../skills/scoping-rules/reference/input-schema.md).
+[scoping-writers: reference/input-schema.md](../skills/scoping-writers/reference/input-schema.md).
 
 For the output schema and field notes, see
-[scoping-rules: reference/output-schema.md](../skills/scoping-rules/reference/output-schema.md).
+[scoping-writers: reference/output-schema.md](../skills/scoping-writers/reference/output-schema.md).
 
 ---
 
@@ -86,22 +86,22 @@ Track the call path for every reached procedure:
 
 ### Step 3 — DetectWriteOperations
 
-See [scoping-rules: reference/classification.md](../skills/scoping-rules/reference/classification.md).
+See [scoping-writers: reference/classification.md](../skills/scoping-writers/reference/classification.md).
 
 ---
 
 ### Step 4 — ScoreCandidates
 
-See [scoping-rules: reference/scoring.md](../skills/scoping-rules/reference/scoring.md).
+See [scoping-writers: reference/scoring.md](../skills/scoping-writers/reference/scoring.md).
 
 ---
 
 ### Step 5 — ApplyResolutionRules
 
-See [scoping-rules: reference/resolution.md](../skills/scoping-rules/reference/resolution.md).
+See [scoping-writers: reference/resolution.md](../skills/scoping-writers/reference/resolution.md).
 
 ---
 
 ### Step 6 — ValidateOutput
 
-See [scoping-rules: reference/validation.md](../skills/scoping-rules/reference/validation.md).
+See [scoping-writers: reference/validation.md](../skills/scoping-writers/reference/validation.md).
