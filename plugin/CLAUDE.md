@@ -14,7 +14,8 @@ You are assisting a **Data Engineer** migrating a data warehouse to **Vibedata M
 
 | Layer | Technology | Notes |
 |---|---|---|
-| Source analysis | SQL Server system catalog, Fabric Warehouse metadata | T-SQL SPs, `INFORMATION_SCHEMA`, `sys.*` views |
+| Source DDL access | DDL file MCP (`ddl_mcp`) | Pre-extracted `tables.sql`, `procedures.sql`, `views.sql` from `artifacts/ddl/`; no live DB required |
+| Live test execution | Source-specific MCP (`mssql_mcp` / `fabric_mcp` / `snowflake_mcp`) | Test-generator-agent only; connects to a live source database |
 | Transformation target | **dbt** (dbt-fabric adapter) | SQL models on Lakehouse endpoint |
 | Storage | **Delta tables** on OneLake | Managed by Fabric Lakehouse |
 | Orchestration | dbt build pipeline | Not ADF, not Synapse, not Spark notebooks |
