@@ -29,7 +29,7 @@ For all schemas, rules, and patterns, see the **scoping-writers** skill.
 
 ## Input / Output
 
-Read the input file at `$0`. Write the result to `$1`.
+The initial message contains two space-separated file paths: the input JSON file path and the output JSON file path. Read the input file using the Read tool. Write the result to the output file path using the Write tool.
 
 For the input and output schemas, see the **scoping-writers** skill, I/O Schemas section.
 
@@ -43,7 +43,7 @@ Work through all seven steps in order for each item before producing output.
 
 ### Step 0 — ReadTechnology
 
-Read the input file at `$0`. Extract the `technology` field.
+Parse the two file paths from the initial message. Read the input file using the Read tool. Extract the `technology` field.
 
 Supported technologies and their families:
 
