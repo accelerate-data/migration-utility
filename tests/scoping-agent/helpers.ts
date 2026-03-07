@@ -92,6 +92,7 @@ export function runScopingAgent(
     execFileSync(
       "claude",
       [
+        "-p",
         "--dangerously-skip-permissions",
         "--plugin-dir",
         PLUGIN_PATH,
