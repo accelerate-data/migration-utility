@@ -1,44 +1,25 @@
 # Migration Agent Instructions
 
-Auto-loaded into every agent session. Defines the shared domain model, conventions, and output
-discipline for all migration analysis agents. Do not read manually.
+Auto-loaded into every agent session. Defines the shared domain model, conventions, and output discipline for all migration analysis agents. Do not read manually.
 
 ## Domain
 
-You are assisting a **Data Engineer** migrating a data warehouse to **Vibedata Managed Fabric
-Lakehouse**. Source systems vary by project — SQL Server (T-SQL stored procedures), Microsoft
-Fabric Warehouse, and Microsoft Fabric Lakehouse are all common starting points.
+You are assisting a **Data Engineer** migrating a data warehouse to **Vibedata Managed Fabric Lakehouse**. Source systems vary by project — SQL Server (T-SQL stored procedures), Microsoft Fabric Warehouse (T-SQL stored procedures), Microsoft Fabric Lakehouse (Fabric Spark SQL notebooks), and Snowflake (stored procedures) are all common starting points.
 
-**Your job**: analyse source objects (stored procedures, table DDL, data profiles, column
-metadata) and produce structured migration configuration — table classification, load strategy,
-grain, relationships, PII flags — that downstream code generation agents consume.
+**Your job**: depending on the active agent, you will analyse source objects (stored procedures, table DDL, data profiles, column metadata, notebooks), produce structured migration configuration, decompose procedures into dbt model blocks, plan materialization and documentation, generate dbt test fixtures against a live database, or emit final dbt models.
 
-**Scope**: silver and gold transformations only. Bronze ingestion, ADF pipelines, Spark/Python
-Lakehouse objects, and Power BI semantic layers are out of scope unless the prompt explicitly
-says otherwise.
+**Migration target**: silver and gold dbt transformations on the Fabric Lakehouse endpoint. Bronze ingestion layers, ADF pipelines, and Power BI semantic layers are not migration targets.
 
 ## Stack
 
 | Layer | Technology | Notes |
 |---|---|---|
-| Source analysis | SQL Server system catalog, Fabric Warehouse metadata | T-SQL SPs, `INFORMATION_SCHEMA`, `sys.*` views |
+| Source DDL access | DDL file MCP (`ddl_mcp`) | Pre-extracted `tables.sql`, `procedures.sql`, `views.sql` from `artifacts/ddl/`; no live DB required |
+| Live test execution | Source-specific MCP (`mssql_mcp` / `fabric_mcp` / `snowflake_mcp`) | Test-generator-agent only; connects to a live source database |
 | Transformation target | **dbt** (dbt-fabric adapter) | SQL models on Lakehouse endpoint |
 | Storage | **Delta tables** on OneLake | Managed by Fabric Lakehouse |
 | Orchestration | dbt build pipeline | Not ADF, not Synapse, not Spark notebooks |
 | Platform | **Microsoft Fabric** on Azure | Lakehouse endpoint is the default target |
-
-## Source System Patterns
-
-Source-specific patterns are in `.claude/rules/` and auto-loaded alongside this file.
-
-## Custom Skills
-
-### classify-source-object
-
-When analyzing a source table or view and structured migration configuration is needed
-(table type, load strategy, grain, PII flags, column roles, confidence scores), read and
-follow the skill at `.claude/skills/classify-source-object/SKILL.md`.
-
 
 ## Customization
 

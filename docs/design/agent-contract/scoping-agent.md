@@ -19,6 +19,8 @@ Given a target table, identify candidate writer procedures and select one writer
 {
   "schema_version": "1.0",
   "run_id": "uuid",
+  "technology": "sql_server",
+  "ddl_path": "/absolute/path/to/artifacts/ddl",
   "items": [
     {
       "item_id": "dbo.fact_sales",
@@ -30,6 +32,8 @@ Given a target table, identify candidate writer procedures and select one writer
 
 ## Input Semantics
 
+- `technology` — source technology family; determines which analysis patterns to apply.
+- `ddl_path` — absolute path to the DDL artifacts directory. Passed to every MCP tool call; no `DDL_PATH` environment variable required.
 - `search_depth` is the maximum call-graph traversal depth from discovered candidate procedures.
 - Units: procedure-call hops (`0` = candidate procedure body only, `1` = direct callees, etc.).
 - Valid range: integer `0..5`.
