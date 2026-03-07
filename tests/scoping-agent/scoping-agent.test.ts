@@ -68,7 +68,7 @@ describe("scoping agent — error: cross-database reference", () => {
 
     const result = output.results[0];
     expect(result.status).toBe("error");
-    expect(result.errors).toContain("ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE");
+    expect(result.errors.some((e) => e.code === "ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE")).toBe(true);
     expect(result.selected_writer).toBeUndefined();
     expect(result.validation.passed).toBe(true);
 
@@ -95,7 +95,7 @@ describe("scoping agent — writer through view", () => {
 
     // Agent should note the view in warnings or rationale
     const hasViewNote =
-      result.warnings.some((w) => w.toLowerCase().includes("view")) ||
+      result.warnings.some((w) => w.message.toLowerCase().includes("view")) ||
       writer!.rationale.toLowerCase().includes("view");
     expect(hasViewNote).toBe(true);
   });
@@ -178,7 +178,7 @@ describe("scoping agent — target is a view", () => {
 
     // Agent should flag the view in warnings
     const hasViewWarning = result.warnings.some((w) =>
-      w.toLowerCase().includes("view")
+      w.message.toLowerCase().includes("view")
     );
     expect(hasViewWarning).toBe(true);
 

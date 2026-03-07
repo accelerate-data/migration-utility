@@ -20,6 +20,14 @@ export interface ScopingInput {
   search_depth?: number;
 }
 
+export interface Diagnostic {
+  code: string;
+  message: string;
+  field?: string;
+  severity: "error" | "warning";
+  details?: Record<string, unknown>;
+}
+
 export interface CandidateWriter {
   procedure_name: string;
   write_type: "direct" | "indirect" | "read_only";
@@ -38,9 +46,9 @@ export interface ScopingResult {
     | "error";
   selected_writer?: string;
   candidate_writers: CandidateWriter[];
-  warnings: string[];
-  validation: { passed: boolean; issues: string[] };
-  errors: string[];
+  warnings: Diagnostic[];
+  validation: { passed: boolean; issues: Diagnostic[] };
+  errors: Diagnostic[];
 }
 
 export interface ScopingOutput {
@@ -103,7 +111,7 @@ export function runScopingAgent(
       {
         env: { ...process.env },
         input: "",
-        timeout: 110_000,
+        timeout: 180_000,
         encoding: "utf8",
       }
     );
