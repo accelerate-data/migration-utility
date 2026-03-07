@@ -1,6 +1,6 @@
 ---
 name: scoping-agent
-description: Identifies writer procedures for T-SQL sources (SQL Server, Fabric Warehouse) from static DDL files and produces a CandidateWriters JSON output. Use when scoping a migration item.
+description: Identifies writer procedures from static DDL files and produces a CandidateWriters JSON output. Use when scoping a migration item.
 model: claude-sonnet-4-6
 maxTurns: 30
 tools:
@@ -43,9 +43,16 @@ Work through all seven steps in order for each item before producing output.
 
 Read the input file at `$0`. Extract the `technology` field.
 
-Supported T-SQL technologies: `sql_server`, `fabric_warehouse`.
+Supported technologies and their families:
+
+| `technology` | Family |
+|---|---|
+| `sql_server` | T-SQL |
+| `fabric_warehouse` | T-SQL |
 
 If `technology` is absent or not in the supported list, set every item's status to `error` with error code `ANALYSIS_UNSUPPORTED_TECHNOLOGY` and write output immediately without proceeding further.
+
+Note the technology family. Subsequent steps reference skill sections by this family name (for example, "T-SQL Call Graph Patterns" for a T-SQL run).
 
 ---
 
@@ -66,7 +73,7 @@ Call `get_dependencies(table_name: <item_id>)`. This returns all procedures whos
 
 **Cross-database reference check:**
 
-For each candidate procedure, call `get_procedure_body` and scan for cross-database references using the patterns in the **scoping-writers** skill, T-SQL Cross-Database Patterns section.
+For each candidate procedure, call `get_procedure_body` and scan for cross-database references using the patterns in the **scoping-writers** skill, Cross-Database Patterns section for the technology family from Step 0.
 
 If any candidate procedure contains a cross-database reference, apply both of the following:
 
@@ -84,23 +91,23 @@ If `get_dependencies` returns `(none)`, try `list_procedures` and spot-check bod
 For each candidate procedure, follow these steps:
 
 1. Call `get_procedure_body` to fetch the body (if not already fetched).
-2. Identify procedure calls using the call syntax in the **scoping-writers** skill, T-SQL Call Graph Patterns section.
+2. Identify procedure calls using the call syntax in the **scoping-writers** skill, Call Graph Patterns section for the technology family from Step 0.
 3. For each called procedure, call `get_procedure_body` to fetch its body.
 4. Repeat recursively up to `search_depth` hops from the original candidate.
 
-Track the call path for every reached procedure using the format in the **scoping-writers** skill, T-SQL Call Graph Patterns section.
+Track the call path for every reached procedure using the format in the **scoping-writers** skill, Call Graph Patterns section for the technology family from Step 0.
 
 ---
 
 ### Step 3 — DetectWriteOperations
 
-See the **scoping-writers** skill, T-SQL Write Detection section.
+See the Write Detection section for the technology family from Step 0 in the **scoping-writers** skill.
 
 ---
 
 ### Step 4 — ScoreCandidates
 
-See the **scoping-writers** skill, T-SQL Confidence Scoring section.
+See the Confidence Scoring section for the technology family from Step 0 in the **scoping-writers** skill.
 
 ---
 
