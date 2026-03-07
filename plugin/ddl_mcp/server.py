@@ -8,9 +8,13 @@ Reads DDL files extracted by the dacpac-extract sidecar and exposes them
 as MCP tools for use by all analysis agents (scoping, profiling, etc.).
 
 Usage (stdio mode):
-    DDL_PATH=/path/to/project/artifacts/ddl uv run server.py
+    uv run server.py
 
-DDL_PATH must point to a directory containing:
+DDL path resolution order (first wins):
+    1. `ddl_path` parameter passed in the tool call arguments
+    2. `DDL_PATH` environment variable
+
+The resolved path must point to a directory containing:
     tables.sql      CREATE TABLE statements, GO-separated
     procedures.sql  CREATE PROCEDURE statements, GO-separated
     views.sql       CREATE VIEW statements, GO-separated (optional)
@@ -28,19 +32,29 @@ from mcp import types
 
 server = Server("ddl-mcp")
 
+_DDL_PATH_SCHEMA = {
+    "ddl_path": {
+        "type": "string",
+        "description": (
+            "Absolute path to the DDL artifacts directory. "
+            "Overrides the DDL_PATH environment variable when provided."
+        ),
+    }
+}
+
 
 # ── Path helpers ──────────────────────────────────────────────────────────────
 
-def _ddl_path() -> Path:
-    raw = os.environ.get("DDL_PATH", "").strip()
+def _ddl_path(override: str | None = None) -> Path:
+    raw = (override or os.environ.get("DDL_PATH", "")).strip()
     if not raw:
         raise ValueError(
-            "DDL_PATH environment variable is not set. "
-            "Set it to the artifacts/ddl/ directory of the target project."
+            "DDL path is not set. Pass ddl_path in tool arguments or set the "
+            "DDL_PATH environment variable."
         )
     p = Path(raw)
     if not p.exists():
-        raise FileNotFoundError(f"DDL_PATH does not exist: {p}")
+        raise FileNotFoundError(f"DDL path does not exist: {p}")
     return p
 
 
@@ -96,7 +110,7 @@ async def list_tools() -> list[types.Tool]:
             description=(
                 "List all table names (schema.name) available in tables.sql."
             ),
-            inputSchema={"type": "object", "properties": {}},
+            inputSchema={"type": "object", "properties": {**_DDL_PATH_SCHEMA}},
         ),
         types.Tool(
             name="get_table_schema",
@@ -107,7 +121,8 @@ async def list_tools() -> list[types.Tool]:
                     "name": {
                         "type": "string",
                         "description": "Schema-qualified name, e.g. silver.DimProduct",
-                    }
+                    },
+                    **_DDL_PATH_SCHEMA,
                 },
                 "required": ["name"],
             },
@@ -117,7 +132,7 @@ async def list_tools() -> list[types.Tool]:
             description=(
                 "List all stored procedure names (schema.name) in procedures.sql."
             ),
-            inputSchema={"type": "object", "properties": {}},
+            inputSchema={"type": "object", "properties": {**_DDL_PATH_SCHEMA}},
         ),
         types.Tool(
             name="get_procedure_body",
@@ -128,7 +143,8 @@ async def list_tools() -> list[types.Tool]:
                     "name": {
                         "type": "string",
                         "description": "Schema-qualified name, e.g. silver.usp_load_DimProduct",
-                    }
+                    },
+                    **_DDL_PATH_SCHEMA,
                 },
                 "required": ["name"],
             },
@@ -146,7 +162,8 @@ async def list_tools() -> list[types.Tool]:
                     "table_name": {
                         "type": "string",
                         "description": "Schema-qualified table name, e.g. silver.DimProduct",
-                    }
+                    },
+                    **_DDL_PATH_SCHEMA,
                 },
                 "required": ["table_name"],
             },
@@ -157,7 +174,7 @@ async def list_tools() -> list[types.Tool]:
                 "List all view names (schema.name) available in views.sql. "
                 "Returns '(none)' when views.sql is absent."
             ),
-            inputSchema={"type": "object", "properties": {}},
+            inputSchema={"type": "object", "properties": {**_DDL_PATH_SCHEMA}},
         ),
         types.Tool(
             name="get_view_body",
@@ -168,7 +185,8 @@ async def list_tools() -> list[types.Tool]:
                     "name": {
                         "type": "string",
                         "description": "Schema-qualified name, e.g. silver.vw_DimDate",
-                    }
+                    },
+                    **_DDL_PATH_SCHEMA,
                 },
                 "required": ["name"],
             },
@@ -178,7 +196,7 @@ async def list_tools() -> list[types.Tool]:
 
 @server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
-    ddl_path = _ddl_path()
+    ddl_path = _ddl_path(arguments.get("ddl_path"))
 
     if name == "list_tables":
         tables = _load_file(ddl_path, "tables.sql")

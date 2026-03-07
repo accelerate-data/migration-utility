@@ -80,6 +80,7 @@ export function runScopingAgent(
       schema_version: "1.0",
       run_id: runId,
       technology: "sql_server",
+      ddl_path: fixtureDir,
       items: items.map((item) => ({
         item_id: item.item_id,
         search_depth: item.search_depth ?? 2,
@@ -99,10 +100,7 @@ export function runScopingAgent(
         outputFile,
       ],
       {
-        env: {
-          ...process.env,
-          DDL_PATH: fixtureDir,
-        },
+        env: { ...process.env },
         timeout: 110_000,
         encoding: "utf8",
       }

@@ -2,20 +2,20 @@
 
 ## Check if target is a view
 
-Call `list_views` to see if `item_id` is a view rather than a base table. If it is a view, perform all of the following:
+Call `list_views(ddl_path: <ddl_path>)` to see if `item_id` is a view rather than a base table. If it is a view, perform all of the following:
 
-- Call `get_view_body` to read its definition.
+- Call `get_view_body(name: <item_id>, ddl_path: <ddl_path>)` to read its definition.
 - Determine the underlying base table it reads from.
-- Run `get_dependencies` on both the view name and the base table name.
+- Run `get_dependencies` on both the view name and the base table name, passing `ddl_path` each time.
 - Note in warnings that the target is a view and show the base table.
 
 ## Find candidate procedures
 
-Call `get_dependencies(table_name: <item_id>)`. This returns all procedures whose bodies reference the target table. These are the initial candidate set.
+Call `get_dependencies(table_name: <item_id>, ddl_path: <ddl_path>)`. This returns all procedures whose bodies reference the target table. These are the initial candidate set.
 
 ## Cross-database reference check
 
-For each candidate procedure, call `get_procedure_body` and scan for cross-database references using the patterns in [cross-db.md](cross-db.md).
+For each candidate procedure, call `get_procedure_body(name: <proc>, ddl_path: <ddl_path>)` and scan for cross-database references using the patterns in [cross-db.md](cross-db.md).
 
 If any candidate procedure contains a cross-database reference, apply both of the following:
 

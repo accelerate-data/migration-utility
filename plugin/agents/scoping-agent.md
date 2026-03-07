@@ -43,7 +43,7 @@ Work through all seven steps in order for each item before producing output.
 
 ### Step 0 — ReadTechnology
 
-Parse the two file paths from the initial message. Read the input file using the Read tool. Extract the `technology` field.
+Parse the two file paths from the initial message. Read the input file using the Read tool. Extract the `technology` and `ddl_path` fields. Store `ddl_path` — it must be passed as a parameter to every DDL MCP tool call in subsequent steps.
 
 Supported technologies and their families:
 
