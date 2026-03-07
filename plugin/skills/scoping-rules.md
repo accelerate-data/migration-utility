@@ -1,3 +1,11 @@
+---
+name: scoping-rules
+description: Scoping agent rules for write classification, confidence scoring, resolution
+  precedence, and output validation. Load when running as the scoping agent, when detecting
+  writer procedures, scoring candidates, or resolving CandidateWriters output.
+user-invocable: false
+---
+
 # Scoping Rules
 
 Classification, scoring, resolution, and validation rules for the Scoping Agent.

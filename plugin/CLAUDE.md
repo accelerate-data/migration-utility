@@ -31,11 +31,6 @@ says otherwise.
 
 Source-specific patterns are in `.claude/rules/` and auto-loaded alongside this file.
 
-## Agent Rules
-
-When running as the **scoping agent**, load and apply @skills/scoping-rules.md for write
-classification, confidence scoring, resolution rules, and validation checklist.
-
 ## Custom Skills
 
 ### classify-source-object
