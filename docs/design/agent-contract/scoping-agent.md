@@ -1,6 +1,6 @@
 # Scoping Agent Contract
 
-The scoping agent maps a target table to one or more candidate writer procedures in SQL Server.
+The scoping agent maps a target table to one or more candidate writer procedures for T-SQL sources (SQL Server, Fabric Warehouse).
 It is the prerequisite step for profiler input.
 
 ## Philosophy and Boundary
@@ -32,7 +32,7 @@ Given a target table, identify candidate writer procedures and select one writer
 
 ## Input Semantics
 
-- `technology` — source technology family; determines which analysis patterns to apply.
+- `technology` — source technology family; determines which analysis patterns to apply. Valid values: `sql_server`, `fabric_warehouse`, `fabric_lakehouse`, `snowflake`. The agent emits `ANALYSIS_UNSUPPORTED_TECHNOLOGY` for unsupported values.
 - `ddl_path` — absolute path to the DDL artifacts directory. Passed to every MCP tool call; no `DDL_PATH` environment variable required.
 - `search_depth` is the maximum call-graph traversal depth from discovered candidate procedures.
 - Units: procedure-call hops (`0` = candidate procedure body only, `1` = direct callees, etc.).
