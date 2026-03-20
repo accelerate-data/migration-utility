@@ -24,7 +24,7 @@ tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-rusqlite = { version = "0.38", features = ["bundled"] }
+rusqlite = { version = "0.39", features = ["bundled"] }
 reqwest = { version = "0.13", features = ["json", "form", "query"] }
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["compat"] }
