@@ -22,7 +22,7 @@ pub fn build_log_plugin() -> tauri_plugin_log::Builder {
         .level_for("tokio", log::LevelFilter::Info)
         .level_for("reqwest", log::LevelFilter::Info)
         .level_for("hyper", log::LevelFilter::Info)
-        .level_for("rustls", log::LevelFilter::Info)
+        .level_for("native_tls", log::LevelFilter::Info)
         .max_file_size(50_000_000)
 }
 
