@@ -1008,7 +1008,7 @@ pub fn project_delete_full(
 ) -> Result<(), CommandError> {
     log::info!("[project_delete_full] id={}", id);
 
-    let (slug, local_clone_path, token) = {
+    let (slug, local_clone_path, has_token) = {
         let conn = state.conn().map_err(|e| {
             log::error!("[project_delete_full] DB lock: {e}");
             CommandError::Database(e)
@@ -1024,7 +1024,7 @@ pub fn project_delete_full(
                 other => CommandError::from(other),
             })?;
         let s = crate::db::read_settings(&conn).map_err(CommandError::Database)?;
-        (slug, s.local_clone_path, s.github_oauth_token)
+        (slug, s.local_clone_path, s.github_oauth_token.is_some())
     };
 
     // Step 1: Delete local project directory (best-effort).
@@ -1040,20 +1040,22 @@ pub fn project_delete_full(
     }
 
     // Step 2: Git rm + commit + push (best-effort).
-    if let (Some(ref lcp), Some(ref _tok)) = (&local_clone_path, &token) {
-        if let Err(e) = run_cmd("git", &["rm", "-r", "--ignore-unmatch", &slug], Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]) {
-            log::warn!("[project_delete_full] git rm (non-fatal): {e}");
-        }
-        let has_staged = run_cmd("git", &["diff", "--cached", "--quiet"], Some(lcp), &[]).is_err();
-        if has_staged {
-            if let Err(e) = run_cmd("git", &[
-                "-c", "user.name=Migration Utility",
-                "-c", "user.email=migration@vibedata.com",
-                "commit", "-m", &format!("chore: remove project {slug}"),
-            ], Some(lcp), &[]) {
-                log::warn!("[project_delete_full] git commit (non-fatal): {e}");
-            } else if let Err(e) = run_cmd("git", &["push"], Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]) {
-                log::warn!("[project_delete_full] git push (non-fatal): {e}");
+    if let Some(ref lcp) = local_clone_path {
+        if has_token {
+            if let Err(e) = run_cmd("git", &["rm", "-r", "--ignore-unmatch", &slug], Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]) {
+                log::warn!("[project_delete_full] git rm (non-fatal): {e}");
+            }
+            let has_staged = run_cmd("git", &["diff", "--cached", "--quiet"], Some(lcp), &[]).is_err();
+            if has_staged {
+                if let Err(e) = run_cmd("git", &[
+                    "-c", "user.name=Migration Utility",
+                    "-c", "user.email=migration@vibedata.com",
+                    "commit", "-m", &format!("chore: remove project {slug}"),
+                ], Some(lcp), &[]) {
+                    log::warn!("[project_delete_full] git commit (non-fatal): {e}");
+                } else if let Err(e) = run_cmd("git", &["push"], Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]) {
+                    log::warn!("[project_delete_full] git push (non-fatal): {e}");
+                }
             }
         }
     }
