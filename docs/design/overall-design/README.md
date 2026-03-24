@@ -148,7 +148,7 @@ If any step fails, the app surfaces a blocking error with a Retry button.
 
 Two MCP roles serve agents at different stages.
 
-### DDL file MCP (`orchestrator/ddl_mcp/`)
+### DDL file MCP (`agent-sources/plugins/ad-migration/ddl_mcp/`)
 
 Source-agnostic. Used by scoping, profiling, decomposing, planning, and migrating agents. Tools read from `artifacts/ddl/`:
 
@@ -166,10 +166,10 @@ Source-specific. Used only by the test-generator-agent to execute procedures aga
 
 | Technology | MCP | Execution model |
 |---|---|---|
-| `sql_server` | `orchestrator/mssql_mcp/` | Docker container launched in GH Actions; DB restored from source file; procs executed locally |
-| `fabric_warehouse` | `orchestrator/fabric_mcp/` (future) | Remote access to live Fabric Warehouse T-SQL endpoint |
-| `fabric_lakehouse` | `orchestrator/fabric_mcp/` (future) | Remote access to live Fabric Lakehouse via Spark SQL |
-| `snowflake` | `orchestrator/snowflake_mcp/` (future) | Remote access to live Snowflake SQL endpoint |
+| `sql_server` | `agent-sources/plugins/ad-migration/mssql_mcp/` | Docker container launched in GH Actions; DB restored from source file; procs executed locally |
+| `fabric_warehouse` | `agent-sources/plugins/ad-migration/fabric_mcp/` (future) | Remote access to live Fabric Warehouse T-SQL endpoint |
+| `fabric_lakehouse` | `agent-sources/plugins/ad-migration/fabric_mcp/` (future) | Remote access to live Fabric Lakehouse via Spark SQL |
+| `snowflake` | `agent-sources/plugins/ad-migration/snowflake_mcp/` (future) | Remote access to live Snowflake SQL endpoint |
 
 The `technology` field in `metadata.json` determines which live MCP is started for test generation. `sql_server` is self-contained in GH Actions. All other technologies require remote credentials and outbound network access from the GH Actions runner.
 
@@ -205,22 +205,16 @@ The app records in local SQLite (`agent_runs` table):
 
 ### Agent Plugin
 
-Agents run as Claude Code plugins. The plugin lives at `plugin/`:
+Agents run as Claude Code plugins. The plugin lives at `agent-sources/plugins/ad-migration/`:
 
 ```text
-orchestrator/
-  ddl_mcp/
-    tools.yaml                   # DDL file reader tools (all agents except test generator)
-  mssql_mcp/
-    tools.yaml                   # SQL Server live execution (test generator, sql_server projects)
-  fabric_mcp/                    # future
-    tools.yaml
-  snowflake_mcp/                 # future
-    tools.yaml
-
-plugin/
+agent-sources/plugins/ad-migration/
   CLAUDE.md                      # shared migration domain context
   .mcp.json                      # stdio MCP config for local dev
+  ddl_mcp/
+    server.py                    # DDL file reader tools (all agents except test generator)
+  mssql_mcp/
+    tools.yaml                   # SQL Server live execution (test generator, sql_server projects)
   agents/
     scoping-agent.md
     profiler-agent.md
@@ -228,15 +222,15 @@ plugin/
     planner-agent.md
     test-generator-agent.md
     migrator-agent.md
+  skills/
   .claude/
     rules/
-      source-sql-server.md
 ```
 
 **Local dev:**
 
 ```bash
-claude --plugin-dir plugin/ \
+claude --plugin-dir agent-sources/plugins/ad-migration/ \
   --agent scoping-agent \
   {project-slug}/artifacts/scoping-agent/{run_id}.input.json \
   {project-slug}/artifacts/scoping-agent/{run_id}.json
@@ -249,12 +243,12 @@ claude --plugin-dir plugin/ \
 **All agents except test generator:**
 
 1. Clone the migration repo.
-2. Install genai-toolbox binary; start DDL file MCP in HTTP mode on `localhost:5000` with `orchestrator/ddl_mcp/tools.yaml`.
+2. Install genai-toolbox binary; start DDL file MCP in HTTP mode on `localhost:5000` with `agent-sources/plugins/ad-migration/ddl_mcp/tools.yaml`.
 3. Install Claude Code CLI.
 4. Run agent:
 
    ```bash
-   claude --plugin-dir plugin/ \
+   claude --plugin-dir agent-sources/plugins/ad-migration/ \
      --agent {action} \
      {project-slug}/artifacts/{action}/{run_id}.input.json \
      {project-slug}/artifacts/{action}/{run_id}.json
@@ -270,7 +264,7 @@ claude --plugin-dir plugin/ \
 1. Clone the migration repo.
 2. Pull source file from LFS.
 3. Start SQL Server Docker container; restore database from source file (MDF/LDF cache keyed on `source_sha256`).
-4. Install genai-toolbox binary; start live execution MCP in HTTP mode on `localhost:5000` with `orchestrator/mssql_mcp/tools.yaml`.
+4. Install genai-toolbox binary; start live execution MCP in HTTP mode on `localhost:5000` with `agent-sources/plugins/ad-migration/mssql_mcp/tools.yaml`.
 5. Install Claude Code CLI.
 6. Run test generator agent (steps 4–8 above).
 

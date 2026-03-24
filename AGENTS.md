@@ -43,8 +43,7 @@ Use this map before reasoning about implementation location:
 - `app/src/__tests__/` and `app/sidecar/__tests__/` — unit/integration tests only.
 - `docs/` — documentation and design/reference material only; do not treat as executable source unless explicitly asked.
 - `scripts/` — developer/automation scripts.
-- `orchestrator/mssql_mcp/` — genai-toolbox MCP server config (`tools.yaml`).
-- `plugin/` — Claude Code plugin: `CLAUDE.md`, `.mcp.json`, `agents/*.md`, `.claude/rules/`.
+- `agent-sources/` — Claude Code plugin sources (each plugin self-contained with agents, MCP configs, rules).
 
 ## Dev Commands
 

@@ -39,10 +39,10 @@ toolbox --version
 
 ## Step 2: Locate `tools.yaml`
 
-The canonical config is checked into the repo at `orchestrator/mssql_mcp/tools.yaml`.
+The canonical config is checked into the repo at `agent-sources/plugins/ad-migration/mssql_mcp/tools.yaml`.
 
 ```text
-orchestrator/mssql_mcp/tools.yaml   ← single source of truth (local + GH Actions)
+agent-sources/plugins/ad-migration/mssql_mcp/tools.yaml   ← single source of truth (local + GH Actions)
 ```
 
 The file uses `${ENV_NAME}` placeholders for all connection details. No secrets are
@@ -55,40 +55,19 @@ stored in the file.
 First, verify `toolbox` starts correctly from the repo root:
 
 ```bash
-toolbox --stdio --tools-file orchestrator/mssql_mcp/tools.yaml
+toolbox --stdio --tools-file agent-sources/plugins/ad-migration/mssql_mcp/tools.yaml
 # Should hang waiting for stdin input — that means it started correctly. Ctrl-C to exit.
 ```
 
-If that works, `.mcp.json` is already committed at the repo root with `SA_PASSWORD` left blank.
-Fill in your password locally — the pre-commit hook will block any commit that includes it:
+If that works, the MCP config lives in the plugin at `agent-sources/plugins/ad-migration/.mcp.json`.
+Fill in your password locally — the pre-commit hook will block any commit that includes secrets:
 
 ```bash
 # Activate the shared hooks (once per clone/worktree)
 git config core.hooksPath .githooks
-
-# Edit .mcp.json and set SA_PASSWORD to your container password
 ```
 
-The committed file looks like:
-
-```json
-{
-  "mcpServers": {
-    "mssql": {
-      "command": "toolbox",
-      "args": ["--stdio", "--tools-file", "orchestrator/mssql_mcp/tools.yaml"],
-      "env": {
-        "MSSQL_HOST": "127.0.0.1",
-        "MSSQL_PORT": "1433",
-        "MSSQL_DB": "WideWorldImportersDW",
-        "SA_PASSWORD": ""
-      }
-    }
-  }
-}
-```
-
-Restart Claude Code and run `/mcp` to confirm `mssql` is connected.
+When running the plugin locally, Claude Code picks up the MCP servers from the plugin's `.mcp.json`.
 
 ---
 
