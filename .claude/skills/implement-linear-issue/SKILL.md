@@ -10,56 +10,85 @@ description: |
 
 Implement a Linear issue end-to-end and produce a review-ready PR.
 
-## Codex Execution Mode
+See `../../rules/codex-execution-policy.md` for execution mode.
 
-See `../../rules/codex-execution-policy.md`.
+## Flow Overview
 
-## Tool Contract
+```text
+User mentions issue
+  │
+  1) Setup ──► fetch issue, status guard, worktree
+  │
+  2) Planning ──► draft plan, post to Linear, get user approval
+  │
+  3) Implementation
+  │    ├─ XS/S isolated ──► single-agent fast path
+  │    └─ M+ or multi-component ──► parallel work streams
+  │
+  4) Branch Sync ──► rebase onto origin/main
+  │
+  5) Quality Gates ──► tests, logging, brand, review, docs
+  │
+  6) Completion ──► update Linear, create/update PR, move to In Review
+```
+
+Every run posts a plan to Linear before coding, and posts implementation notes to Linear after coding.
+
+---
+
+## 1) Tool Contract
 
 Use these exact tools/commands:
 
-- Linear: `mcp__linear__get_issue`, `mcp__linear__list_issues`, `mcp__linear__save_issue`, `mcp__linear__create_comment`
-- GitHub CLI: `gh pr create`, `gh pr edit`, `gh pr view`, `gh pr checks`
-- Git: `git worktree`, `git status`, `git add`, `git commit`, `git push`
+| Tool / Command | Purpose |
+|---|---|
+| `mcp__linear__get_issue` | fetch issue details |
+| `mcp__linear__list_issues` | dedupe, child discovery |
+| `mcp__linear__save_issue` | status transitions, AC updates, description updates |
+| `mcp__linear__save_comment` | plan comment, implementation notes |
+| `mcp__linear__list_comments` | check for existing plan |
+| `gh pr create`, `gh pr edit`, `gh pr view`, `gh pr checks` | PR lifecycle |
+| `git worktree`, `git status`, `git add`, `git commit`, `git push` | version control |
 
-Required fields:
+Required fields for `save_issue`: `id`, `state`; include `assignee: "me"` when moving to active work.
 
-- Status transition via `save_issue`: `id`, `state`; include `assignee: "me"` when moving to active work.
-- PR validation: `gh pr view --json url,number,body,state,headRefName,baseRefName,statusCheckRollup`
+**Fallback:** if a required tool fails after one retry, stop and report the exact failed step.
 
-Fallback behavior:
+---
 
-- If a required Linear/GitHub operation fails after one retry, stop and report the exact failed step and command.
+## 2) Core Rules
 
-## Required Checks Policy
+### Idempotency
 
-Before moving issue to `In Review`, inspect required checks for the base branch.
+- Do not duplicate plan or implementation comments if equivalent already exists.
+- Do not reopen `Done/Cancelled/Duplicate` issues.
+- If PR already exists for branch, update it instead of creating a new one.
+- If worktree already exists on the correct branch, reuse it.
 
-- If required checks exist: ensure PR state/checks satisfy them.
-- If required checks list is empty: continue, but post explicit risk comments on PR and Linear stating no required checks are enforced.
+### Output hygiene
 
-## Idempotency Rules
+- Write PR bodies and long comments to temp markdown files; use `--body-file`.
+- Never inline long command output into PR body, Linear description, or comments.
 
-- Re-runs must be safe:
-  - Do not duplicate plan or implementation notes comments if an equivalent note already exists.
-  - Do not reopen `Done/Cancelled/Duplicate` issues.
-  - If PR already exists for branch, update it instead of creating a new one.
-  - If worktree already exists on the correct branch, reuse it.
-
-## Output Hygiene
-
-- Always write PR bodies/long comments to temp markdown files and use `--body-file`.
-- Never inline long command outputs into PR body, Linear description, or comments.
-
-## Autonomy
+### Autonomy
 
 Do not ask permission for non-destructive work. Only confirm with user:
 
-- Implementation plan for non-trivial scope
+- Plan approval (always required — see Planning section)
 - Scope changes discovered during implementation
 - Final status before moving to review
 
-## Setup
+### Linear update rules
+
+- **Rewrite, don't append.** The Implementation Updates section is a living snapshot, not an audit log.
+- **Never remove acceptance criteria.** Check them off or add new ones.
+- **Preserve the original issue description.** Append the Implementation Updates section below it.
+- **Coding agents** check off their ACs on Linear after tests pass.
+- **Coordinator** owns the Implementation Updates section (prevents race conditions).
+
+---
+
+## 3) Setup
 
 1. Fetch issue via `mcp__linear__get_issue`.
 2. Check child issues via `mcp__linear__list_issues(parentId=issue.id)`.
@@ -68,68 +97,140 @@ Do not ask permission for non-destructive work. Only confirm with user:
    - `Todo`: assign to me + move to `In Progress`.
    - `In Progress`: continue (assign to me if missing).
    - `In Review`: move back to `In Progress`.
-4. Create or reuse worktree at `../worktrees/<branchName>`. If creating a new worktree, run
-   `./scripts/link-worktree-db.sh <worktree-path>` immediately after `git worktree add`.
-5. Fetch comments via `mcp__linear__list_comments`. If a comment containing `## Implementation Plan` exists, load it as the active plan and skip to executing it.
+4. Create or reuse worktree at `../worktrees/<branchName>`. If creating new, run `./scripts/link-worktree-db.sh <worktree-path>` immediately after `git worktree add`.
+5. Fetch comments via `mcp__linear__list_comments`. If a comment containing `## Implementation Plan` exists, load it as the active plan and skip to getting user approval (or resume execution if already approved).
 
-## Approach Selection
+---
 
-- XS/S + isolated changes: implement directly.
-- M+ or multi-component: create a short plan, then execute with parallelism where useful.
-- User can always override.
-- After selecting approach, post a plan comment before writing any code (see Plan Comment).
+## 4) Planning (required for all issues)
 
-## Plan Comment (required)
+Planning is required for every issue, regardless of size. The depth scales with complexity, but the plan-post-approve cycle is always followed.
 
-Before writing any code:
+### Step 1 — Draft the plan
 
-1. Check comments already fetched in Setup for an existing `## Implementation Plan`.
-2. If found: load it as the active plan — do not repost. Inspect `git log` and working tree to determine what is already done, then continue from the first unfinished step.
-3. If not found: generate a plan and post it via `mcp__linear__create_comment`:
+**For XS/S (isolated changes):**
 
 ```md
 ## Implementation Plan
 
 ### Approach
-...
+[1-2 sentences: what will change and why]
 
 ### Files
 - `path/to/file` — what to create or change
 
+### Test Strategy
+- Update/remove/add: [which test files]
+- Run: [which test commands]
+
 ### Notes
-- Key decisions, constraints, or risks
+- [Key decisions or constraints, if any]
 ```
 
-## Branch Sync (required)
+**For M+ (multi-component):**
 
-Before running Quality Gates, rebase the working branch onto `origin/main`.
+```md
+## Implementation Plan
+
+### Approach
+[Summary of the approach]
+
+### Work Streams
+1. **[Stream name]** — [what it does], owns AC: [list]
+   - Dependencies: [or "none"]
+2. **[Stream name]** — ...
+
+### AC Mapping
+- [ ] AC 1 → Stream 1
+- [ ] AC 2 → Stream 2
+[Flag any ACs not covered by a stream]
+
+### Test Strategy
+Per stream:
+- **Update**: existing test files that need changes
+- **Remove**: tests that become redundant
+- **Add**: new test files for new behavior
+- **Run**: full set of tests after implementation
+
+### Risk Notes
+- [Shared files, potential conflicts between streams]
+
+### Logging Plan
+- [New Rust commands needing `info!`/`error!`, frontend actions needing `console.*`]
+```
+
+### Step 2 — Post to Linear
+
+Post the plan as a comment via `mcp__linear__save_comment`. Enter plan mode and present the plan to the user for approval.
+
+### Step 3 — User approval
+
+Wait for user approval before writing any code. If the user rejects the plan:
+
+1. Revise based on feedback.
+2. Present 2-3 alternative approaches with trade-offs if the direction changed.
+3. If the chosen approach changes requirements or ACs, update the Linear issue via `mcp__linear__save_issue` before re-posting.
+4. Re-post revised plan to Linear and re-enter plan mode.
+
+---
+
+## 5) Implementation
+
+### XS/S fast path
+
+When ALL are true: estimate is XS or S (1-2 points), changes are isolated to one area. User can override in either direction.
+
+- Implement directly (single agent).
+- Handle tests and logging inline.
+- Run `cd app && npx tsc --noEmit` before committing.
+- Only the **code reviewed** and **final validation** quality gates apply.
+- Code review and PR creation are never skipped.
+
+### M+ or multi-component
+
+Execute the approved plan. Use parallelism where work streams are independent.
+
+Team lead rules for each work stream:
+
+- **Test deliberately.** Read existing tests first. Update broken tests, remove redundant ones, add tests only for new behavior.
+- Commit + push before reporting (conventional commit format).
+- Check off owned ACs on Linear after tests pass.
+- Report: what completed, tests updated/added/removed, ACs addressed, blockers.
+- Max 2 retries per stream before escalating to user. Pause dependent streams if a blocking failure occurs.
+
+---
+
+## 6) Branch Sync (required)
+
+Before running quality gates, rebase onto `origin/main`.
 
 1. Fetch latest `origin/main`.
 2. Rebase current branch onto `origin/main`.
-3. Resolve conflicts when mechanical; escalate to user when semantic judgment is required.
+3. Resolve conflicts when mechanical; escalate to user when semantic.
 4. Push with `--force-with-lease` if history changed.
 
-## Quality Gates
+---
+
+## 7) Quality Gates
 
 ```text
-Quality Gates:
 - [ ] Tests written
 - [ ] Tests passing
 - [ ] Logging compliant
 - [ ] Brand compliant
-- [ ] Code simplified (optional for large diffs)
+- [ ] Code simplified (large diffs only)
 - [ ] Code reviewed
 - [ ] Docs updated
 - [ ] Final validation
 ```
+
+For XS/S fast path, only **code reviewed** and **final validation** are required — the single agent handles the rest inline.
 
 ### Tests written
 
 Add targeted tests for changed behavior only. Update/remove obsolete tests.
 
 ### Tests passing
-
-Run:
 
 1. `cd app && npx tsc --noEmit`
 2. Test commands based on changed areas per repo guidelines.
@@ -144,12 +245,15 @@ Run the repo's off-brand color grep check for changed frontend files.
 
 ### Code simplified (optional)
 
-- Optional by default.
-- Required only when diff is large (roughly >5 files or >300 LOC) or readability is clearly degraded.
+Required only when diff is large (roughly >5 files or >300 LOC) or readability is clearly degraded.
 
 ### Code reviewed
 
-Run a focused code review pass (directly or via sub-agent).
+Run a focused code review pass. Fix cycle rules:
+
+- **High/medium severity**: must fix.
+- **Low severity**: fix if straightforward, otherwise note.
+- **Max 2 review cycles**, then proceed with remaining low-severity notes.
 
 ### Docs updated
 
@@ -159,35 +263,67 @@ Update docs only where behavior/commands/conventions changed.
 
 Run final relevant tests after fixes/review.
 
-## Completion
+---
 
-1. Verify checklist coverage against issue description:
-   - Evaluate every issue checkbox under Scope / Requirements / AC / Test Notes.
-   - Check only items that are demonstrably implemented in code/tests.
-   - Leave unverifiable or partial items unchecked.
-2. Sync Linear checklist state:
-   - Update issue description checkboxes (`[ ]`/`[X]`) via `mcp__linear__save_issue`.
-   - Add one concise Linear comment with evidence for each newly checked item (file/test refs).
-3. Create/update PR:
-   - Use `gh pr create/edit --body-file <tmp.md>`.
-   - PR body must include `Fixes <issue-id>` lines for primary issue and any included child issues.
-4. Harden PR link:
-   - Run `gh pr view --json ...` and verify PR exists, is open, and `Fixes <issue-id>` entries are present.
-5. Generate concise implementation notes from:
-   - `git log --oneline main..HEAD`
-   - `git diff --stat main...HEAD`
-6. Post implementation notes to Linear.
-7. Branch protection awareness:
-   - Read required checks state; enforce policy above.
-8. Move issue(s) to `In Review`.
-9. Report PR URL, worktree path, recommended test mode, and manual test steps.
-10. Do not remove worktree in implement flow.
+## 8) Completion
 
-## Error Recovery
+### Update Linear with implementation results
+
+Post an implementation notes comment to Linear via `mcp__linear__save_comment` covering:
+
+- **Status**: Ready for Review
+- **Branch** and **PR** URL
+- **What was done**: brief list of completed work
+- **Tests**: what was tested and results
+
+Update the issue description's Implementation Updates section via `mcp__linear__save_issue`.
+
+### Verify AC coverage
+
+- Evaluate every issue checkbox (Scope / Requirements / AC / Test Notes).
+- Check only items demonstrably implemented in code/tests.
+- Leave unverifiable or partial items unchecked.
+- Update checkboxes on Linear via `mcp__linear__save_issue`.
+- Add one concise comment with evidence for each newly checked item.
+
+### Create or update PR
+
+- Use `gh pr create` or `gh pr edit` with `--body-file <tmp.md>`.
+- PR body format: see [`references/git-and-pr.md`](references/git-and-pr.md).
+- PR body must include `Fixes <issue-id>` lines for primary and child issues.
+- Verify with `gh pr view --json url,number,body,state,headRefName,baseRefName,statusCheckRollup`.
+
+### Branch protection
+
+- Inspect required checks for the base branch.
+- If required checks exist: ensure PR state/checks satisfy them.
+- If none: post risk comments on PR and Linear stating no required checks.
+
+### Move to In Review
+
+Move issue(s) to `In Review` via `mcp__linear__save_issue`.
+
+### Report
+
+Return: PR URL, worktree path, recommended test mode (see [`references/test-mode.md`](references/test-mode.md)), and manual test steps.
+
+Do not remove the worktree — the user tests manually on it.
+
+---
+
+## 9) Error Recovery
 
 | Situation | Action |
-| --- | --- |
+|---|---|
 | Worktree exists on wrong branch | Remove and recreate |
 | Linear API fails | Retry once, then stop with details |
 | Tests fail after 3 attempts | Escalate with failure details |
 | ACs remain unmet | Keep `In Progress` and report gaps |
+| Plan rejected twice | Ask user for explicit direction |
+
+---
+
+## References
+
+- [`references/git-and-pr.md`](references/git-and-pr.md) — PR body template, test plan guidelines, worktree rules
+- [`references/test-mode.md`](references/test-mode.md) — mock vs full mode decision rule
