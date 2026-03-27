@@ -1,28 +1,20 @@
 # SP → dbt Migration Plugin
 
-Design for the `migrate-table` Claude Code plugin: a set of Python skills that automate
-the full stored-procedure-to-dbt workflow — discover, scope, assess, migrate, test-gen,
-and validate — all working from local DDL files with no live database required.
+Design for the `migrate-table` Claude Code plugin: a set of Python skills that automate the full stored-procedure-to-dbt workflow — discover, scope, assess, migrate, test-gen, and validate — all working from local DDL files with no live database required.
 
 ---
 
 ## Problem
 
-The existing agent pipeline (scoping-agent → profiler-agent → … → migrator-agent) is
-LLM-driven end-to-end. For the migration steps that are deterministic — finding which
-procedures write to a table, checking whether a procedure can be converted, transpiling
-SQL — an LLM adds latency, cost, and non-determinism with no quality benefit.
+The existing agent pipeline (scoping-agent → profiler-agent → … → migrator-agent) is LLM-driven end-to-end. For the migration steps that are deterministic — finding which procedures write to a table, checking whether a procedure can be converted, transpiling SQL — an LLM adds latency, cost, and non-determinism with no quality benefit.
 
-This plugin provides deterministic Python tools (using sqlglot) for those steps.
-Claude orchestrates them and handles the judgment calls: reviewing transpile output,
-approving generated tests, and fixing gaps the tools cannot handle.
+This plugin provides deterministic Python tools (using sqlglot) for those steps. Claude orchestrates them and handles the judgment calls: reviewing transpile output, approving generated tests, and fixing gaps the tools cannot handle.
 
 ---
 
 ## Scope
 
-**In scope:** T-SQL stored procedures → dbt Spark SQL models (Fabric Lakehouse target).
-Snowflake source dialect is a planned extension (VU-826/827 area), not MVP.
+**In scope:** T-SQL stored procedures → dbt Spark SQL models (Fabric Lakehouse target). Snowflake source dialect is a planned extension, not MVP.
 
 **Out of scope:** bronze ingestion, ADF pipelines, Power BI, Fabric Lakehouse notebooks.
 
@@ -44,10 +36,9 @@ agent-sources/plugins/ad-migration/
 │   └── migrate-table/       ← new command (orchestrator)
 └── ddl_mcp/
     └── server.py            ← enhanced in-place
-```text
+```
 
-Each skill is a `SKILL.md` + a standalone Python script. The script outputs JSON to
-stdout. Claude runs the script via Bash, reads the JSON, and decides next steps.
+Each skill is a `SKILL.md` + a standalone Python script. The script outputs JSON to stdout. Claude runs the script via Bash, reads the JSON, and decides next steps.
 
 ---
 
@@ -62,11 +53,9 @@ All skills import from `shared/`. Nothing in `shared/` is skill-specific.
 | `shared/name_resolver.py` | Normalize FQN: strip brackets, lowercase, apply default schema |
 | `shared/dialect.py` | `SqlDialect` protocol + registry keyed by string name |
 
-**Why Pydantic:** built-in JSON serialization, validation, and schema generation. All
-inter-skill data flows as JSON — tools do not share Python objects.
+**Why Pydantic:** built-in JSON serialization, validation, and schema generation. All inter-skill data flows as JSON — tools do not share Python objects.
 
-**Why sqlglot:** best T-SQL coverage of any Python library; built-in transpiler for
-T-SQL → Spark SQL; same library serves parsing, analysis, and generation.
+**Why sqlglot:** best T-SQL coverage of any Python library; built-in transpiler for T-SQL → Spark SQL; same library serves parsing, analysis, and generation.
 
 ---
 
@@ -76,7 +65,7 @@ Each skill script is invoked as:
 
 ```bash
 python <skill>.py [flags] 2>/dev/null
-```text
+```
 
 - **stdout:** always valid JSON (one object, not JSONL)
 - **stderr:** human-readable progress/warnings (not parsed by orchestrator)
@@ -93,7 +82,7 @@ Input:  --ddl-path PATH  --dialect tsql
 Output (list):  { "objects": ["dbo.Foo", "dbo.Bar"] }
 Output (show):  { "name": "dbo.Foo", "raw_ddl": "...", "columns": [...] }
 Output (refs):  { "name": "dbo.Foo", "referenced_by": ["dbo.usp_Load", ...] }
-```text
+```
 
 ### scope
 
@@ -116,7 +105,7 @@ Output: {
     { "procedure": "dbo.usp_Cross", "code": "ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE", "message": "..." }
   ]
 }
-```text
+```
 
 Confidence scoring rules (from `scoring.md`, implemented in code — not prompt):
 
@@ -143,7 +132,7 @@ Output: {
     { "severity": "BLOCKED|WARNING", "code": "DYNAMIC_SQL", "message": "...", "line": 42 }
   ]
 }
-```text
+```
 
 Rules (deterministic AST visitor — not LLM):
 
@@ -168,7 +157,7 @@ Output: {
   "transpile_warnings": [...],
   "materialization_hint": "incremental|table|view"
 }
-```text
+```
 
 Generation steps (in order):
 
@@ -180,8 +169,7 @@ Generation steps (in order):
 6. Wrap: leading comment block → `{{ config(materialized=...) }}` → CTEs → final SELECT
 7. Write `.sql` to output directory
 
-Runs only if `assess` status is not `Unsupported`. If called on an unsupported procedure,
-exits with code 1 and no file written.
+Runs only if `assess` status is not `Unsupported`. If called on an unsupported procedure, exits with code 1 and no file written.
 
 ### test-gen
 
@@ -194,7 +182,7 @@ Output: {
     { "column": "customer_id", "test": "not_null", "reason": "used in JOIN predicate" }
   ]
 }
-```text
+```
 
 Test inference rules (AST-based):
 
@@ -217,7 +205,7 @@ Output: {
   "column_mismatches": [],
   "sample_diffs": []
 }
-```text
+```
 
 Execution:
 
@@ -232,10 +220,9 @@ If `mssql_mcp` is not configured: returns `{ "status": "skipped" }`, exit 0.
 
 ## `migrate-table` Command
 
-The orchestrator. Defined entirely in `commands/migrate-table/SKILL.md`.
-No Python implementation — Claude follows the instructions.
+The orchestrator. Defined entirely in `commands/migrate-table/SKILL.md`. No Python implementation — Claude follows the instructions.
 
-**Interactive flow (7 steps):**
+**Interactive flow:**
 
 ```text
 1. discover  → list tables → user picks one
@@ -244,7 +231,7 @@ No Python implementation — Claude follows the instructions.
 4. migrate   → generate dbt SQL → user approves before file write
 5. test-gen  → generate schema.yml → user approves before file write
 6. validate  → compare outputs (skipped if no live DB)
-```text
+```
 
 **Gate rules:**
 
@@ -256,8 +243,7 @@ No Python implementation — Claude follows the instructions.
 | test-gen | Always — show schema.yml before writing to disk |
 | validate | None — result shown, no gate |
 
-**`--non-interactive` mode (GHA):** skips all gates. Stops at first `Unsupported`
-procedure with exit 1. Used by the GHA workflow.
+**`--non-interactive` mode (GHA):** skips all gates, stops at first `Unsupported` procedure with exit 1.
 
 ---
 
@@ -272,10 +258,7 @@ In-place upgrade of `ddl_mcp/server.py`. All existing tool names and signatures 
 | `list_functions` | New tool — lists all functions from `functions.sql` |
 | `get_function_body` | New tool — returns DDL for a named function |
 
-Reuses `shared/loader.py` and `shared/name_resolver.py`.
-
-**Backward compatibility:** existing callers that only use the raw DDL string field are
-unaffected. New fields are additive.
+Reuses `shared/loader.py` and `shared/name_resolver.py`. Existing callers that only use the raw DDL string field are unaffected — new fields are additive.
 
 ---
 
@@ -292,8 +275,7 @@ The new skills and the existing LLM agents are **complementary, not competing**.
 | Test gen | `test-generator-agent` (LLM + live DB) | `test_gen.py` (AST inference, no live DB) |
 | Validate | none | `validate.py` (result set diff) |
 
-The new skills are the first path: fast, cheap, deterministic, works with local files.
-The LLM agents are the fallback for edge cases the tools cannot handle.
+The new skills are the fast, cheap, deterministic first path. The LLM agents are the fallback for edge cases the tools cannot handle.
 
 ---
 
@@ -304,13 +286,13 @@ The LLM agents are the fallback for edge cases the tools cannot handle.
 | Issue | What | Why first |
 |---|---|---|
 | VU-732 | Shared library | All skills import from here; nothing else can be built without it |
-| VU-751 | Enhanced ddl_mcp | Early upgrade means the existing scoping-agent gets better references immediately; also unblocks discover |
+| VU-751 | Enhanced ddl_mcp | Early upgrade improves the existing scoping-agent immediately and unblocks discover |
 
 **Exit criteria:** `from shared import ir, loader, dialect` works. `ddl_mcp` tests pass.
 
 ---
 
-### Wave 2 — Discover + Scope (core intelligence, run in parallel)
+### Wave 2 — Discover + Scope (parallel)
 
 These two skills are independent of each other and can be built simultaneously.
 
@@ -323,13 +305,11 @@ These two skills are independent of each other and can be built simultaneously.
 | VU-737 | scope SKILL.md | VU-736 |
 | VU-738 | scope tests | VU-736 |
 
-**Exit criteria:** `python discover.py list --type tables --ddl-path artifacts/ddl/` returns
-JSON. `python scope.py --table dbo.FactSales --ddl-path artifacts/ddl/` returns writers
-with correct confidence scores against a known fixture.
+**Exit criteria:** `python discover.py list --type tables --ddl-path artifacts/ddl/` returns JSON. `python scope.py --table dbo.FactSales --ddl-path artifacts/ddl/` returns writers with correct confidence scores against a known fixture.
 
 ---
 
-### Wave 3 — Assess (gate before migration)
+### Wave 3 — Assess
 
 | Issue | What | Depends on |
 |---|---|---|
@@ -337,25 +317,23 @@ with correct confidence scores against a known fixture.
 | VU-740 | assess SKILL.md | VU-739 |
 | VU-741 | assess tests | VU-739 |
 
-**Exit criteria:** assess correctly classifies a clean procedure as Supported, a procedure
-with dynamic SQL as Unsupported, and a procedure with NOLOCK as Partial.
+**Exit criteria:** assess correctly classifies a clean procedure as Supported, a procedure with dynamic SQL as Unsupported, and a procedure with NOLOCK as Partial.
 
 ---
 
-### Wave 4 — Migrate (core output)
+### Wave 4 — Migrate
 
 | Issue | What | Depends on |
 |---|---|---|
-| VU-742 | migrate.py | VU-732, VU-739 (assess must pass before migrate runs) |
+| VU-742 | migrate.py | VU-732, VU-739 |
 | VU-743 | migrate SKILL.md | VU-742 |
 | VU-744 | migrate tests | VU-742 |
 
-**Exit criteria:** `python migrate.py --proc proc.sql --output out/` produces a valid
-`.sql` dbt model. Snapshot tests pass for all fixture procedures.
+**Exit criteria:** `python migrate.py --proc proc.sql --output out/` produces a valid `.sql` dbt model. Snapshot tests pass for all fixture procedures.
 
 ---
 
-### Wave 5 — Test-Gen + Validate (run in parallel)
+### Wave 5 — Test-Gen + Validate (parallel)
 
 These two skills are independent of each other.
 
@@ -368,20 +346,18 @@ These two skills are independent of each other.
 | VU-749 | validate SKILL.md | VU-748 |
 | VU-750 | validate tests | VU-748 |
 
-**Exit criteria:** `test_gen.py` emits correct `schema.yml` for fixtures. `validate.py`
-comparison logic passes all unit tests without a live DB.
+**Exit criteria:** `test_gen.py` emits correct `schema.yml` for fixtures. `validate.py` comparison logic passes all unit tests without a live DB.
 
 ---
 
-### Wave 6 — Orchestrator + GHA (integration)
+### Wave 6 — Orchestrator + GHA
 
 | Issue | What | Depends on |
 |---|---|---|
 | VU-752 | migrate-table SKILL.md | All skills complete |
 | VU-753 | GHA workflow | VU-752 |
 
-**Exit criteria:** running `migrate-table` interactively against a real DDL directory
-completes the full 6-step flow. GHA workflow triggers successfully and commits a dbt model.
+**Exit criteria:** running `migrate-table` interactively against a real DDL directory completes the full 6-step flow. GHA workflow triggers successfully and commits a dbt model.
 
 ---
 
@@ -401,30 +377,21 @@ VU-732 (shared lib)
   │           │
   │           └── VU-748 (validate.py) ─── VU-749 (SKILL) ─── VU-750 (tests)
   │
-VU-751 (enhanced ddl_mcp) [independent of shared lib, uses it]
+VU-751 (enhanced ddl_mcp) [parallel to shared lib]
 
 All skills → VU-752 (migrate-table SKILL.md) → VU-753 (GHA workflow)
-```text
+```
 
 ---
 
 ## Key Decisions
 
-**sqlglot over sqlparser-rs:** Engine is decoupled from Tauri. Python is the right
-language for this pipeline — it runs in GHA natively, the existing `ddl_mcp` is Python,
-and sqlglot's T-SQL transpiler is more complete than any Rust equivalent.
+**sqlglot over sqlparser-rs:** The engine is decoupled from Tauri. Python runs in GHA natively, the existing `ddl_mcp` is Python, and sqlglot's T-SQL transpiler is more complete than any Rust equivalent.
 
-**Deterministic tools, not LLM prompts:** Scoping, assessment, and SQL transpilation have
-deterministic correct answers. Using an LLM for these adds cost and variance. Claude's role
-is judgment (reviewing output, handling transpile gaps, approving tests) — not computation.
+**Deterministic tools, not LLM prompts:** Scoping, assessment, and SQL transpilation have deterministic correct answers. Using an LLM for these adds cost and variance. Claude's role is judgment — reviewing output, handling transpile gaps, approving tests — not computation.
 
-**Each skill is a standalone script:** Scripts are independently testable, independently
-runnable from the command line, and can be upgraded without touching the orchestrator.
-The orchestrator is a SKILL.md — plain text — so it can be updated without touching Python.
+**Each skill is a standalone script:** Scripts are independently testable and runnable from the command line without touching the orchestrator. The orchestrator is a SKILL.md (plain text) and can be updated without touching Python.
 
-**Validate is optional:** Not every migration has a live DB available. `validate.py`
-exits cleanly with `status: skipped` when `mssql_mcp` is absent. The skill is designed
-to add confidence when connectivity exists, not to block migration when it does not.
+**Validate is optional:** Not every migration has a live DB available. `validate.py` exits cleanly with `status: skipped` when `mssql_mcp` is absent. The skill adds confidence when connectivity exists; it does not block migration when it does not.
 
-**`ddl_mcp` upgraded in-place:** The MCP serves LLM agents via the MCP protocol. The
-skills use `shared/loader.py` directly. Both consume the same DDL files. No duplication.
+**`ddl_mcp` upgraded in-place:** The MCP serves LLM agents via the MCP protocol. The skills use `shared/loader.py` directly. Both consume the same DDL files. No duplication.
