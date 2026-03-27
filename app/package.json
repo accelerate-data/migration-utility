@@ -52,7 +52,7 @@
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.1",
     "@vitest/ui": "^4.0.18",
-    "fast-check": "^4.5.3",
+    "fast-check": "^4.6.0",
     "jsdom": "^28.1.0",
     "tailwindcss": "^4.2.1",
     "typescript": "~5.9.3",
