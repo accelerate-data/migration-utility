@@ -10,7 +10,7 @@ description: |
 
 Implement a Linear issue end-to-end and produce a review-ready PR.
 
-See `../../rules/codex-execution-policy.md` for execution mode.
+**Execution mode:** Always enter plan mode before any implementation. Draft the plan, call `EnterPlanMode`, wait for user approval, post the approved plan to Linear, then implement. Never write code, create worktrees, or commit before the user approves the plan.
 
 ## Flow Overview
 
@@ -19,7 +19,7 @@ User mentions issue
   │
   1) Setup ──► fetch issue, status guard, worktree
   │
-  2) Planning ──► draft plan, post to Linear, get user approval
+  2) Planning ──► draft plan → EnterPlanMode → user approves → post to Linear
   │
   3) Implementation
   │    ├─ XS/S isolated ──► single-agent fast path
@@ -32,7 +32,7 @@ User mentions issue
   6) Completion ──► update Linear, create/update PR, move to In Review
 ```
 
-Every run posts a plan to Linear before coding, and posts implementation notes to Linear after coding.
+Every run enters plan mode before coding, posts the approved plan to Linear, and posts implementation notes to Linear after coding.
 
 ---
 
@@ -42,6 +42,7 @@ Use these exact tools/commands:
 
 | Tool / Command | Purpose |
 |---|---|
+| `EnterPlanMode` | present plan to user and block execution until approved |
 | `mcp__linear__get_issue` | fetch issue details |
 | `mcp__linear__list_issues` | dedupe, child discovery |
 | `mcp__linear__save_issue` | status transitions, AC updates, description updates |
@@ -159,18 +160,20 @@ Per stream:
 - [New Rust commands needing `info!`/`error!`, frontend actions needing `console.*`]
 ```
 
-### Step 2 — Post to Linear
+### Step 2 — Enter plan mode
 
-Post the plan as a comment via `mcp__linear__save_comment`. Enter plan mode and present the plan to the user for approval.
+Call `EnterPlanMode`. Present the drafted plan to the user. Do not post to Linear yet — execution blocks here until the user approves.
 
-### Step 3 — User approval
+### Step 3 — Post approved plan to Linear
 
-Wait for user approval before writing any code. If the user rejects the plan:
+After the user approves, post the plan as a comment via `mcp__linear__save_comment`. Then proceed to Implementation.
+
+If the user rejects the plan, do not post to Linear. Instead:
 
 1. Revise based on feedback.
 2. Present 2-3 alternative approaches with trade-offs if the direction changed.
-3. If the chosen approach changes requirements or ACs, update the Linear issue via `mcp__linear__save_issue` before re-posting.
-4. Re-post revised plan to Linear and re-enter plan mode.
+3. If the chosen approach changes requirements or ACs, update the Linear issue via `mcp__linear__save_issue`.
+4. Re-enter plan mode with the revised plan. Only post to Linear after the user approves.
 
 ---
 
