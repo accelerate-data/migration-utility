@@ -2,6 +2,8 @@
 
 The test generator agent produces branch-covering dbt unit test fixtures for a stored procedure migration. It extracts all conditional branches from the proc, generates synthetic input data that exercises each branch, captures the actual proc output as ground truth, and emits `unit_tests:` YAML blocks for the migrator to incorporate into the model schema file.
 
+This contract is for the **batch GHA pipeline** only. For the interactive single-table path, `test_gen.py` (part of the `migrate-table` plugin) produces dbt schema tests from AST inference with no live DB required — see [SP → dbt Migration Plugin](../sp-to-dbt-plugin/README.md). The full ground-truth harness below applies when a live source DB connection is available (batch path).
+
 See [docs/design/unit-test-strategy/](../unit-test-strategy/) for design rationale, tooling decisions, and the full harness design including the branch manifest schema.
 
 ## Philosophy and Boundary

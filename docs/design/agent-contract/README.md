@@ -1,6 +1,8 @@
 # Agent Contract
 
-Contracts for multi-agent ETL migration from SQL Server stored procedures to dbt models.
+Contracts for the **batch GHA pipeline**: multi-agent ETL migration from SQL Server stored procedures to dbt models. These contracts govern the six LLM agents that run in GitHub Actions and whose outputs the desktop app displays and routes.
+
+For the complementary interactive single-table path, see [SP → dbt Migration Plugin](../sp-to-dbt-plugin/README.md). The plugin's Python skills (`scope.py`, `assess.py`, `migrate.py`, `test_gen.py`) implement the deterministic parts of the pipeline below; the batch agents delegate to these skills where applicable and handle the judgment-heavy steps.
 
 All contracts are batch-only. Single-table UI execution is a degenerate batch with one `items[]` element.
 
@@ -35,7 +37,7 @@ All contracts are batch-only. Single-table UI execution is a degenerate batch wi
 - [Profiler Agent](profiler-agent.md) - required input and output schema for candidate generation. See [What to Profile and Why](what-to-profile-and-why.md) for rationale and detection options per field.
 - [Decomposer Agent](decomposer-agent.md) - required input and output schema for SQL decomposition and model split-point proposals.
 - [Planner Agent](planner-agent.md) - required input and output schema for design manifest generation.
-- [Test Generator Agent](test-generator-agent.md) - required input and output schema for branch-covering fixture generation. See [Unit Test Strategy](../unit-test-strategy/) for design rationale and harness details.
+- [Test Generator Agent](test-generator-agent.md) - required input and output schema for branch-covering fixture generation. See [Unit Test Strategy](../unit-test-strategy/) for the original design rationale and harness details (batch path only; for the interactive path `test_gen.py` uses AST-based inference without a live DB).
 - [Migrator Agent](migrator-agent.md) - required input and output schema for dbt artifact generation.
 
 ## Contract Boundary

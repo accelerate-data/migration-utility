@@ -1,5 +1,7 @@
 # Unit Test Strategy: Test Data Generation for Proc-to-dbt Migration
 
+> **Superseded.** The four-stage LLM pipeline described here assumed a live SQL Server connection and a full agent orchestration stack. The current approach uses `test_gen.py` — a standalone Python skill that infers dbt tests directly from the procedure AST with no live database required. See [SP → dbt Migration Plugin](../sp-to-dbt-plugin/README.md) for the current design. This document is retained as a reference for the original research.
+
 ## Decision
 
 Build a **four-stage LLM-assisted pipeline** that goes from T-SQL stored procedure source to branch-covering dbt unit test fixtures. No off-the-shelf tool does this end-to-end — the individual pieces exist and compose well. The expected output for each fixture is captured by running the actual proc against the synthetic inputs (not LLM-generated), eliminating hallucination on the hardest part.

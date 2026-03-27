@@ -153,10 +153,12 @@ Two MCP roles serve agents at different stages.
 Source-agnostic. Used by scoping, profiling, decomposing, planning, and migrating agents. Tools read from `artifacts/ddl/`:
 
 - `get_procedure_body(name)`
-- `get_table_schema(name)`
+- `get_table_schema(name)` — returns structured JSON with column list in addition to raw DDL
 - `list_procedures()`
 - `list_tables()`
-- `get_dependencies(table_name)`
+- `list_functions()` — lists all functions from `functions.sql`
+- `get_function_body(name)` — returns DDL for a named function
+- `get_dependencies(table_name)` — sqlglot AST walk (eliminates false positives from string literals and comments in prior text-grep implementation)
 
 No live database connection. No credentials required. Used in stdio mode for local plugin dev and HTTP mode in GH Actions.
 
@@ -172,6 +174,21 @@ Source-specific. Used only by the test-generator-agent to execute procedures aga
 | `snowflake` | `agent-sources/plugins/ad-migration/snowflake_mcp/` (future) | Remote access to live Snowflake SQL endpoint |
 
 The `technology` field in `metadata.json` determines which live MCP is started for test generation. `sql_server` is self-contained in GH Actions. All other technologies require remote credentials and outbound network access from the GH Actions runner.
+
+---
+
+## Interactive Migration (`migrate-table`)
+
+The `migrate-table` command is a Claude Code plugin command for single-table interactive migration — separate from the GHA batch pipeline. It uses deterministic Python skills backed by sqlglot rather than LLM agents for the computational steps (scoping, assessment, transpilation), keeping Claude in the loop only for review and judgment calls.
+
+The two paths are complementary:
+
+| Path | When to use | Tools |
+|---|---|---|
+| `migrate-table` plugin command | Interactive, one-table-at-a-time; no live DB required; fast local iteration | Python skills (discover, scope, assess, migrate, test-gen, validate) |
+| GHA batch pipeline | Production batch migration; full FDE review workflow; CI/CD integration | LLM agents (scoping, profiler, decomposer, planner, test-generator, migrator) |
+
+See [SP → dbt Migration Plugin](../sp-to-dbt-plugin/README.md) for the full skill contracts and implementation plan.
 
 ---
 
@@ -222,7 +239,16 @@ agent-sources/plugins/ad-migration/
     planner-agent.md
     test-generator-agent.md
     migrator-agent.md
+  shared/                        # shared Python library (ir, loader, name_resolver, dialect)
   skills/
+    discover/                    # list/inspect DDL objects (AST-based)
+    scope/                       # find procedure writers + confidence scoring
+    assess/                      # classify procedure compatibility (Supported/Partial/Unsupported)
+    migrate/                     # transpile T-SQL → dbt Spark SQL (sqlglot)
+    test-gen/                    # infer dbt schema tests from AST
+    validate/                    # compare proc output vs dbt model output
+  commands/
+    migrate-table/               # orchestrator SKILL.md — interactive single-table migration
   .claude/
     rules/
 ```
