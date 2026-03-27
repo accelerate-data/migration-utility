@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "linear": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://mcp.linear.app/mcp"]
+    },
+    "mssql": {
+      "command": "toolbox",
+      "args": [
+        "--tools-file",
+        ".claude/mcp/tools.yaml",
+        "--stdio"
+      ],
+      "env": {
+        "_comment": "Set SA_PASSWORD in your environment before running: export SA_PASSWORD=your_password",
+        "MSSQL_HOST": "127.0.0.1",
+        "MSSQL_PORT": "1433",
+        "MSSQL_DB": "AdventureWorks2022"
+      }
+    }
+  }
+}

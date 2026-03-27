@@ -1,0 +1,24 @@
+sources:
+  sqlserver:
+    kind: mssql
+    host: ${MSSQL_HOST}
+    port: ${MSSQL_PORT}
+    database: ${MSSQL_DB}
+    user: sa
+    password: ${SA_PASSWORD}
+
+tools:
+  mssql-execute-sql:
+    kind: mssql-sql
+    source: sqlserver
+    description: >
+      Execute a SQL query against the local Docker SQL Server.
+      Supports arbitrary T-SQL including system catalog queries
+      (sys.sql_expression_dependencies, sys.sql_modules,
+      INFORMATION_SCHEMA.ROUTINES, INFORMATION_SCHEMA.TABLES, INFORMATION_SCHEMA.COLUMNS).
+    statement: |
+      {{.sql}}
+    templateParameters:
+      - name: sql
+        type: string
+        description: T-SQL statement to execute
