@@ -23,6 +23,7 @@ Use `docs/design/` for architecture and implementation design details.
 - [Branding](branding/README.md)
 - [Agent Contract](agent-contract/README.md) — structured agent output contracts and FDE review requirements
 - [Unit Test Strategy](unit-test-strategy/README.md) — synthetic vs real data for proc-to-dbt behavioral equivalence testing
+- [SP → dbt Migration Plugin](sp-to-dbt-plugin/README.md) — skill architecture, per-skill contracts, and implementation wave plan
 
 ## What Goes In `references`
 
