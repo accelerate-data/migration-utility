@@ -73,12 +73,12 @@ Scoring signals (computed deterministically, not by LLM):
 
 | Signal | Effect |
 |---|---|
-| Direct write (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, `TRUNCATE`) | base 0.90 |
+| Direct write evidence (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, `TRUNCATE`) | base 0.90 |
 | Indirect write (callee is a confirmed direct writer) | base 0.75 |
-| Shorter call path (per hop shorter than the deepest path) | +0.02 |
-| Multiple independent write paths | +0.05 |
-| Dynamic SQL alongside static write evidence | −0.20 |
-| Dynamic SQL only — no static write statement found | cap at 0.45 |
+| Shorter call path (per hop shorter than the deepest path in the candidate set) | +0.02 |
+| Multiple independent paths all show write evidence | +0.05 |
+| Dynamic SQL present alongside static write evidence (`EXEC(@sql)`, `sp_executesql`) | −0.20 |
+| Only dynamic SQL evidence — no static write statement found | cap at 0.45 |
 
 ## Escalation rule
 
