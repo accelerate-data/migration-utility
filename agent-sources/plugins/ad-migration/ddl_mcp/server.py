@@ -1,6 +1,12 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["mcp>=1.0"]
+# dependencies = [
+#   "mcp>=1.0",
+#   "shared",
+# ]
+#
+# [tool.uv.sources]
+# shared = { path = "../shared" }
 # ///
 """DDL file MCP server.
 
@@ -22,13 +28,16 @@ The resolved path must point to a directory containing:
 """
 
 import asyncio
+import json
 import os
-import re
 from pathlib import Path
 
+import sqlglot.expressions as exp
+from mcp import types
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp import types
+from shared.loader import DdlCatalog, DdlEntry, DdlParseError, extract_refs, load_directory
+from shared.name_resolver import normalize
 
 server = Server("ddl-mcp")
 
@@ -58,46 +67,40 @@ def _ddl_path(override: str | None = None) -> Path:
     return p
 
 
-# ── SQL file parsing ──────────────────────────────────────────────────────────
-
-def _split_blocks(sql: str) -> list[str]:
-    """Split a SQL file into GO-delimited object blocks."""
-    blocks = re.split(r"\nGO\b", sql, flags=re.IGNORECASE)
-    return [b.strip() for b in blocks if b.strip()]
+def _catalog(ddl_path: Path) -> DdlCatalog:
+    return load_directory(ddl_path, dialect="tsql")
 
 
-_NAME_RE = re.compile(
-    r"CREATE\s+(?:OR\s+ALTER\s+)?"
-    r"(?:TABLE|PROCEDURE|VIEW|FUNCTION)\s+"
-    r"\[?(\w+)\]?\.\[?(\w+)\]?",
-    re.IGNORECASE,
-)
+# ── Column metadata ───────────────────────────────────────────────────────────
 
+def _parse_columns(entry: DdlEntry) -> list[dict]:
+    """Parse column metadata from a CREATE TABLE AST entry.
 
-def _extract_name(block: str) -> str | None:
-    m = _NAME_RE.search(block)
-    if m:
-        return f"{m.group(1)}.{m.group(2)}"
-    return None
-
-
-def _load_file(ddl_path: Path, filename: str) -> dict[str, str]:
-    """Return a lowercased-name → body mapping for objects in a DDL file."""
-    f = ddl_path / filename
-    if not f.exists():
-        return {}
-    blocks = _split_blocks(f.read_text(encoding="utf-8"))
-    result: dict[str, str] = {}
-    for block in blocks:
-        name = _extract_name(block)
-        if name:
-            result[name.lower()] = block
-    return result
-
-
-def _normalise(name: str) -> str:
-    """Lower-case and strip square brackets for map lookup."""
-    return name.lower().replace("[", "").replace("]", "")
+    sqlglot represents both NULL and NOT NULL as NotNullColumnConstraint —
+    distinguished by the allow_null arg (True = NULL, False/absent = NOT NULL).
+    """
+    if entry.ast is None:
+        return []
+    cols = []
+    for col_def in entry.ast.find_all(exp.ColumnDef):
+        is_pk = False
+        is_not_null = False
+        for constraint in col_def.constraints:
+            kind = constraint.kind
+            if isinstance(kind, exp.PrimaryKeyColumnConstraint):
+                is_pk = True
+            elif isinstance(kind, exp.NotNullColumnConstraint):
+                # allow_null=True means the keyword is NULL (explicitly nullable)
+                # allow_null absent/False means NOT NULL
+                if not kind.args.get("allow_null", False):
+                    is_not_null = True
+        cols.append({
+            "name": col_def.name,
+            "type": col_def.kind.sql(dialect="tsql") if col_def.kind else "UNKNOWN",
+            "nullable": not (is_not_null or is_pk),
+            "is_pk": is_pk,
+        })
+    return cols
 
 
 # ── Tool handlers ─────────────────────────────────────────────────────────────
@@ -114,7 +117,11 @@ async def list_tools() -> list[types.Tool]:
         ),
         types.Tool(
             name="get_table_schema",
-            description="Return the CREATE TABLE DDL for a specific table.",
+            description=(
+                "Return CREATE TABLE DDL and parsed column metadata as JSON. "
+                "Response fields: ddl (raw DDL string), columns (list of "
+                "{name, type, nullable, is_pk})."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -152,7 +159,10 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(
             name="get_dependencies",
             description=(
-                "Find all stored procedures whose body references the given table. "
+                "Find all stored procedures whose body contains an AST-level reference "
+                "to the given table (reads or writes). Uses sqlglot AST analysis — "
+                "procedures whose bodies cannot be parsed (EXEC, MERGE, complex IF/ELSE) "
+                "are excluded from results. "
                 "Returns a newline-separated list of schema-qualified procedure names, "
                 "or '(none)' if no references are found."
             ),
@@ -191,63 +201,90 @@ async def list_tools() -> list[types.Tool]:
                 "required": ["name"],
             },
         ),
+        types.Tool(
+            name="list_functions",
+            description=(
+                "List all function names (schema.name) available in functions.sql. "
+                "Returns '(none)' when functions.sql is absent."
+            ),
+            inputSchema={"type": "object", "properties": {**_DDL_PATH_SCHEMA}},
+        ),
+        types.Tool(
+            name="get_function_body",
+            description="Return the CREATE FUNCTION DDL for a specific function.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Schema-qualified name, e.g. dbo.fnGetDate",
+                    },
+                    **_DDL_PATH_SCHEMA,
+                },
+                "required": ["name"],
+            },
+        ),
     ]
 
 
 @server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
     ddl_path = _ddl_path(arguments.get("ddl_path"))
+    catalog = _catalog(ddl_path)
 
     if name == "list_tables":
-        tables = _load_file(ddl_path, "tables.sql")
-        return [types.TextContent(type="text", text="\n".join(sorted(tables)) or "(none)")]
+        return [types.TextContent(type="text", text="\n".join(sorted(catalog.tables)) or "(none)")]
 
     if name == "get_table_schema":
-        tables = _load_file(ddl_path, "tables.sql")
-        key = _normalise(arguments["name"])
-        block = tables.get(key)
-        if not block:
+        entry = catalog.get_table(arguments["name"])
+        if not entry:
             return [types.TextContent(type="text", text=f"Table not found: {arguments['name']}")]
-        return [types.TextContent(type="text", text=block)]
+        return [types.TextContent(type="text", text=json.dumps({
+            "ddl": entry.raw_ddl,
+            "columns": _parse_columns(entry),
+        }))]
 
     if name == "list_procedures":
-        procs = _load_file(ddl_path, "procedures.sql")
-        return [types.TextContent(type="text", text="\n".join(sorted(procs)) or "(none)")]
+        return [types.TextContent(type="text", text="\n".join(sorted(catalog.procedures)) or "(none)")]
 
     if name == "get_procedure_body":
-        procs = _load_file(ddl_path, "procedures.sql")
-        key = _normalise(arguments["name"])
-        block = procs.get(key)
-        if not block:
+        entry = catalog.get_procedure(arguments["name"])
+        if not entry:
             return [types.TextContent(type="text", text=f"Procedure not found: {arguments['name']}")]
-        return [types.TextContent(type="text", text=block)]
+        return [types.TextContent(type="text", text=entry.raw_ddl)]
 
     if name == "get_dependencies":
-        procs = _load_file(ddl_path, "procedures.sql")
-        raw_name = arguments["table_name"]
-        # match both bare name and schema-qualified name
-        bare = _normalise(raw_name).split(".")[-1]
-        matches = [
-            proc_name
-            for proc_name, body in procs.items()
-            if bare in body.lower()
-        ]
+        target = normalize(arguments["table_name"])
+        matches = []
+        for proc_name, entry in catalog.procedures.items():
+            try:
+                refs = extract_refs(entry)
+                if target in refs.reads_from or target in refs.writes_to:
+                    matches.append(proc_name)
+            except DdlParseError:
+                pass  # cannot determine refs for EXEC/MERGE/complex IF-ELSE bodies
         return [types.TextContent(
             type="text",
             text="\n".join(sorted(matches)) if matches else "(none)",
         )]
 
     if name == "list_views":
-        views = _load_file(ddl_path, "views.sql")
-        return [types.TextContent(type="text", text="\n".join(sorted(views)) or "(none)")]
+        return [types.TextContent(type="text", text="\n".join(sorted(catalog.views)) or "(none)")]
 
     if name == "get_view_body":
-        views = _load_file(ddl_path, "views.sql")
-        key = _normalise(arguments["name"])
-        block = views.get(key)
-        if not block:
+        entry = catalog.get_view(arguments["name"])
+        if not entry:
             return [types.TextContent(type="text", text=f"View not found: {arguments['name']}")]
-        return [types.TextContent(type="text", text=block)]
+        return [types.TextContent(type="text", text=entry.raw_ddl)]
+
+    if name == "list_functions":
+        return [types.TextContent(type="text", text="\n".join(sorted(catalog.functions)) or "(none)")]
+
+    if name == "get_function_body":
+        entry = catalog.get_function(arguments["name"])
+        if not entry:
+            return [types.TextContent(type="text", text=f"Function not found: {arguments['name']}")]
+        return [types.TextContent(type="text", text=entry.raw_ddl)]
 
     return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
 
