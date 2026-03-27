@@ -266,8 +266,13 @@ def scope_writers(
                 refs = extract_refs(entry)
                 if target_fqn in refs.writes_to:
                     ast_writes = ["INSERT"]  # AST detected at least one write; ops below refine
-            except Exception:
-                pass  # fall through to regex layer
+            except Exception as exc:  # noqa: BLE001
+                print(
+                    f"scope: event=ast_extract_refs operation=extract_refs"
+                    f" procedure={proc_name} status=failure error={exc!r};"
+                    " falling back to regex layer",
+                    file=sys.stderr,
+                )
 
         # Layer 2: regex write detection (always run to detect ops + parse-error procs)
         regex_ops = _detect_writes_regex(raw, target_fqn)
@@ -279,7 +284,9 @@ def scope_writers(
             direct_writers[proc_name] = all_ops
 
         print(
-            f"scope: scanned '{proc_name}': ops={all_ops} dynamic={proc_name in dynamic_procs}",
+            f"scope: event=proc_scan operation=detect_writes"
+            f" procedure={proc_name} ops={all_ops}"
+            f" dynamic={proc_name in dynamic_procs}",
             file=sys.stderr,
         )
 
