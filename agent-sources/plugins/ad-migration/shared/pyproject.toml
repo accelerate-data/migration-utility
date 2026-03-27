@@ -10,6 +10,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+export = ["pyodbc>=5.0"]
 
 [build-system]
 requires = ["hatchling"]

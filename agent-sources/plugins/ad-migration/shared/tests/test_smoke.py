@@ -6,6 +6,10 @@ Covers:
 - IR JSON round-trip
 - name_resolver normalization
 - loader: GO-split + DdlCatalog population
+- loader: DdlParseError on Command fallback
+- loader: extract_refs AST-only extraction
+- loader: index_directory + catalog.json
+- loader: load_catalog round-trip
 - dialect: protocol compliance + registry lookup
 """
 
@@ -16,6 +20,9 @@ import tempfile
 from pathlib import Path
 
 import pytest
+
+# Path to the fixture DDL directory (no live DB needed)
+_FIXTURES_DDL = Path(__file__).parent / "fixtures" / "ddl"
 
 
 # ── Import smoke ──────────────────────────────────────────────────────────────
@@ -289,3 +296,236 @@ def test_register_dialect() -> None:
 
     register_dialect(DummyDialect())
     assert get_dialect("dummy").name == "dummy"
+
+
+# ── DdlParseError — Command fallback ─────────────────────────────────────────
+
+def test_parse_block_raises_for_if_else() -> None:
+    """Proc with IF/ELSE BEGIN/END falls back to Command → DdlParseError."""
+    from shared.loader import DdlParseError, _parse_block
+
+    sql = """CREATE PROCEDURE [dbo].[usp_complex]
+    @Mode INT = 0
+AS
+BEGIN
+    IF @Mode = 1
+    BEGIN
+        INSERT INTO silver.T (a) SELECT b FROM bronze.S
+    END
+    ELSE
+    BEGIN
+        UPDATE silver.T SET a = 'x' WHERE 1=0
+    END
+END"""
+    with pytest.raises(DdlParseError, match="Command"):
+        _parse_block(sql, dialect="tsql")
+
+
+def test_parse_block_raises_for_multiple_statements() -> None:
+    """Multiple DML statements in proc body fall back to Command → DdlParseError."""
+    from shared.loader import DdlParseError, _parse_block
+
+    sql = """CREATE PROCEDURE [dbo].[usp_multi]
+AS
+BEGIN
+    INSERT INTO silver.T1 (a) SELECT b FROM bronze.S1
+    INSERT INTO silver.T2 (c) SELECT d FROM bronze.S2
+END"""
+    with pytest.raises(DdlParseError, match="Command"):
+        _parse_block(sql, dialect="tsql")
+
+
+def test_load_directory_records_parse_errors() -> None:
+    """Procs that fall back to top-level Command have parse_error set and ast=None.
+
+    Note: procs with internal Command nodes (EXEC, TRUNCATE in body) still parse
+    as Create at this level — their errors surface in extract_refs / index_directory.
+    """
+    from shared.loader import load_directory
+
+    catalog = load_directory(_FIXTURES_DDL)
+
+    # usp_nested_if_else has IF/ELSE → whole proc falls back to Command
+    entry = catalog.procedures.get("dbo.usp_nested_if_else")
+    assert entry is not None
+    assert entry.parse_error is not None, "Expected parse_error for usp_nested_if_else"
+    assert entry.raw_ddl, "raw_ddl must be preserved even on parse failure"
+    assert entry.ast is None
+
+
+def test_load_directory_simple_proc_parses_ok() -> None:
+    """usp_simple_insert has no complex control flow — should parse without error."""
+    from shared.loader import load_directory
+
+    catalog = load_directory(_FIXTURES_DDL)
+    entry = catalog.procedures.get("dbo.usp_simple_insert")
+    assert entry is not None
+    assert entry.parse_error is None
+    assert entry.ast is not None
+
+
+# ── extract_refs ──────────────────────────────────────────────────────────────
+
+def test_extract_refs_simple_insert() -> None:
+    """Single INSERT+SELECT — writes_to and reads_from extracted from AST."""
+    from shared.loader import extract_refs, load_directory
+
+    catalog = load_directory(_FIXTURES_DDL)
+    entry = catalog.procedures["dbo.usp_simple_insert"]
+    refs = extract_refs(entry)
+
+    assert "silver.dimproduct" in refs.writes_to
+    assert "bronze.product" in refs.reads_from
+    assert refs.calls == []
+
+
+def test_extract_refs_raises_for_parse_failed_entry() -> None:
+    """extract_refs raises DdlParseError when ast is None."""
+    from shared.loader import DdlEntry, DdlParseError, extract_refs
+
+    entry = DdlEntry(raw_ddl="CREATE PROCEDURE ...", ast=None, parse_error="some error")
+    with pytest.raises(DdlParseError):
+        extract_refs(entry)
+
+
+def test_extract_refs_raises_for_internal_command() -> None:
+    """Procs with internal Command nodes (EXEC, TRUNCATE) raise DdlParseError."""
+    from shared.loader import DdlParseError, _parse_block, extract_refs, DdlEntry
+
+    # usp_orchestrator (EXEC) parses as Create but has internal Command
+    sql = """CREATE PROCEDURE [dbo].[usp_orchestrator]
+AS
+BEGIN
+    EXEC dbo.usp_simple_insert
+END"""
+    ast = _parse_block(sql, dialect="tsql")  # does NOT raise — top-level is Create
+    entry = DdlEntry(raw_ddl=sql, ast=ast)
+    with pytest.raises(DdlParseError, match="Command"):
+        extract_refs(entry)
+
+
+def test_extract_refs_excludes_cross_db_reads() -> None:
+    """Cross-DB tables (catalog!='' → 3-part name) are excluded from reads_from."""
+    from shared.loader import extract_refs, load_directory
+
+    catalog = load_directory(_FIXTURES_DDL)
+    entry = catalog.procedures.get("dbo.usp_cross_db")
+    assert entry is not None
+    assert entry.parse_error is None  # single INSERT, no complex control flow
+
+    refs = extract_refs(entry)
+    assert "silver.dimproduct" in refs.writes_to
+    # OtherDB reference must NOT appear
+    for ref in refs.reads_from:
+        assert "otherdb" not in ref.lower(), f"Cross-DB ref leaked into reads_from: {ref}"
+
+
+# ── index_directory + catalog.json ───────────────────────────────────────────
+
+def test_index_directory_creates_structure() -> None:
+    """index_directory creates subdirs and catalog.json."""
+    from shared.loader import index_directory
+
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "index"
+        index_directory(_FIXTURES_DDL, out)
+
+        assert (out / "catalog.json").exists()
+        assert (out / "tables").is_dir()
+        assert (out / "procedures").is_dir()
+        assert (out / "views").is_dir()
+
+
+def test_index_directory_per_object_files() -> None:
+    """Each DDL object gets its own .sql file in the appropriate subdir."""
+    from shared.loader import index_directory
+
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "index"
+        index_directory(_FIXTURES_DDL, out)
+
+        assert (out / "tables" / "silver.dimproduct.sql").exists()
+        assert (out / "tables" / "bronze.product.sql").exists()
+        assert (out / "procedures" / "dbo.usp_simple_insert.sql").exists()
+        assert (out / "procedures" / "dbo.usp_nested_if_else.sql").exists()
+        assert (out / "views" / "silver.vw_dimproduct.sql").exists()
+
+
+def test_catalog_json_content() -> None:
+    """catalog.json has correct refs for simple proc and parse_error for complex ones."""
+    from shared.loader import index_directory
+
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "index"
+        index_directory(_FIXTURES_DDL, out)
+
+        doc = json.loads((out / "catalog.json").read_text())
+
+    assert doc["schema_version"] == "1.0"
+    assert "objects" in doc
+
+    # Simple proc: refs present, no error
+    simple = doc["objects"].get("dbo.usp_simple_insert")
+    assert simple is not None
+    assert simple["parse_error"] is None
+    assert "silver.dimproduct" in simple["writes_to"]
+    assert "bronze.product" in simple["reads_from"]
+
+    # Complex proc: parse_error set, refs empty
+    complex_proc = doc["objects"].get("dbo.usp_nested_if_else")
+    assert complex_proc is not None
+    assert complex_proc["parse_error"] is not None
+    assert complex_proc["writes_to"] == []
+
+    # Cross-DB proc: no error, cross-DB ref excluded
+    cross = doc["objects"].get("dbo.usp_cross_db")
+    assert cross is not None
+    assert cross["parse_error"] is None
+    for ref in cross.get("reads_from", []):
+        assert "otherdb" not in ref.lower()
+
+
+# ── load_catalog round-trip ───────────────────────────────────────────────────
+
+def test_load_catalog_round_trip() -> None:
+    """load_catalog restores DdlCatalog entries from an indexed directory."""
+    from shared.loader import index_directory, load_catalog
+
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "index"
+        index_directory(_FIXTURES_DDL, out)
+        catalog = load_catalog(out)
+
+    assert "silver.dimproduct" in catalog.tables
+    assert "dbo.usp_simple_insert" in catalog.procedures
+    assert "silver.vw_dimproduct" in catalog.views
+
+    # Raw DDL is populated from per-file SQL
+    entry = catalog.procedures["dbo.usp_simple_insert"]
+    assert "usp_simple_insert" in entry.raw_ddl
+
+    # AST is not re-parsed (None in load_catalog)
+    assert entry.ast is None
+
+
+def test_load_catalog_preserves_parse_errors() -> None:
+    """load_catalog preserves parse_error field from catalog.json."""
+    from shared.loader import index_directory, load_catalog
+
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "index"
+        index_directory(_FIXTURES_DDL, out)
+        catalog = load_catalog(out)
+
+    failed = [
+        name for name, entry in catalog.procedures.items()
+        if entry.parse_error is not None
+    ]
+    assert len(failed) >= 2
+
+
+def test_load_catalog_not_found() -> None:
+    from shared.loader import load_catalog
+
+    with pytest.raises(FileNotFoundError):
+        load_catalog("/nonexistent/dir")
