@@ -70,6 +70,10 @@ Output shape:
 }
 ```
 
+## Workflow
+
+Follow the step sequence in [`rules/workflow.md`](rules/workflow.md) for the invoke → evaluate confidence → escalate suspected → handle cross-DB → report flow.
+
 ## Confidence thresholds
 
 Each writer entry has a `confidence` score in [0.0, 1.0] and a derived `status`:

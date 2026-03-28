@@ -35,6 +35,10 @@ Before starting, verify:
 
 3. **Pre-flight check** — check whether the output folder already exists and contains `.sql` files. If it does, tell the user and ask for confirmation before overwriting. Do not proceed without explicit confirmation.
 
+## Workflow
+
+Follow the step sequence in [`rules/workflow.md`](rules/workflow.md) for the full pre-flight → select database → select schemas → export → report flow.
+
 ## Step 1 — Select database
 
 List user databases on the server:
