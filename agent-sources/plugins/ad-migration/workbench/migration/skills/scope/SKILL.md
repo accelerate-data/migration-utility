@@ -38,7 +38,7 @@ Output shape:
   "table": "dbo.FactSales",
   "writers": [
     {
-      "procedure": "dbo.usp_LoadFactSales",
+      "procedure_name": "dbo.usp_LoadFactSales",
       "write_type": "direct",
       "write_operations": ["INSERT", "MERGE"],
       "call_path": ["dbo.usp_LoadFactSales"],
@@ -46,7 +46,7 @@ Output shape:
       "status": "confirmed"
     },
     {
-      "procedure": "dbo.usp_StageLoad",
+      "procedure_name": "dbo.usp_StageLoad",
       "write_type": "indirect",
       "write_operations": ["INSERT"],
       "call_path": ["dbo.usp_LoadFactSales"],

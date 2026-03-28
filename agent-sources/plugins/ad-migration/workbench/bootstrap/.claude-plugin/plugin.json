@@ -2,5 +2,6 @@
   "name": "bootstrap",
   "description": "Prerequisite setup and initialization wizard for the ad-migration workbench.",
   "version": "1.0.0",
-  "author": { "name": "Accelerate Data", "url": "https://github.com/accelerate-data" }
+  "author": { "name": "Accelerate Data", "url": "https://github.com/accelerate-data" },
+  "repository": "https://github.com/accelerate-data/migration-utility"
 }
