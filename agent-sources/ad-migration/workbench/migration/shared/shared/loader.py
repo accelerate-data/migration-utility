@@ -7,16 +7,21 @@ Any .sql file in the directory is loaded.  Object types (table, procedure,
 view, function) are auto-detected from CREATE statements — filenames are not
 significant.  A single file may contain a mix of object types.
 
+Two-tier analysis
+-----------------
+Procedure bodies are parsed with a single sqlglot pass.  Statements that
+sqlglot can fully parse produce deterministic refs (writes_to, reads_from,
+write_operations).  Statements wrapped in T-SQL control flow (IF/ELSE,
+TRY/CATCH, BEGIN/END) or containing EXEC/dynamic SQL are flagged via
+``needs_llm=True`` on the returned ``ObjectRefs``, signalling that the LLM
+should read the raw DDL to complete analysis.
+
 Parse errors
 ------------
 `_parse_block` raises `DdlParseError` when sqlglot cannot produce a structured
 AST (falls back to a raw `Command` node).  `_load_file` catches this per-block
 and stores the entry with `ast=None` and `parse_error` populated — the
 remaining blocks in the file continue loading.  No silent fallback is used.
-
-`extract_refs` raises `DdlParseError` when called on an entry whose AST is
-absent *or* whose body contains internal `Command` nodes (partially unparsed
-statements).  No regex fallback is used.
 """
 
 from __future__ import annotations
@@ -113,7 +118,7 @@ class ObjectRefs:
     writes_to: list[str] = field(default_factory=list)
     reads_from: list[str] = field(default_factory=list)
     calls: list[str] = field(default_factory=list)
-    has_exec: bool = False
+    needs_llm: bool = False
     write_operations: dict[str, list[str]] = field(default_factory=dict)
     statements: list[dict[str, str]] = field(default_factory=list)
 
@@ -217,147 +222,36 @@ _BODY_RE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 
-_CMD_CONTROL_FLOW_RE = re.compile(
-    r"^\s*(?:BEGIN\s+TRY|END\s+TRY|BEGIN\s+CATCH|END\s+CATCH"
-    r"|BEGIN|END|ELSE"
-    r"|WHILE\b[^\n;]*"
-    r"|IF\b[^\n;]*"
-    r")\s*",
-    re.IGNORECASE,
-)
+def _parse_body_statements(raw_ddl: str, dialect: str = "tsql") -> tuple[list[Any], bool]:
+    """Parse procedure body with a single sqlglot pass.
 
-_MAX_PARSE_DEPTH = 5
-
-
-def _extract_sql_from_command(cmd: exp.Command) -> str | None:
-    """Extract SQL text from a Command node, stripping control flow prefixes.
-
-    Command nodes contain unparsed text where sqlglot gave up. The text
-    often starts with BEGIN/END/ELSE/IF/WHILE — strip those to reveal
-    the DML underneath, then return it for re-parsing.
-
-    Returns None if no SQL can be extracted (the Command is pure control flow).
-    """
-    text = cmd.sql()
-    prev = None
-    while text != prev:
-        prev = text
-        text = _CMD_CONTROL_FLOW_RE.sub("", text, count=1)
-    text = text.strip()
-    return text if text else None
-
-
-def _recursive_parse(sql: str, dialect: str, depth: int = 0) -> list[Any]:
-    """Parse SQL text, recursively re-parsing Command nodes.
-
-    sqlglot cannot parse T-SQL control flow (IF, BEGIN/END, ELSE, WHILE,
-    TRY/CATCH) and produces Command nodes for those blocks. This function
-    extracts the SQL text from Command nodes, strips the control flow
-    prefix, and re-parses — recovering the DML statements inside nested
-    blocks.
-    """
-    if depth > _MAX_PARSE_DEPTH:
-        return []
-    stmts = sqlglot.parse(sql, dialect=dialect, error_level=sqlglot.ErrorLevel.WARN)
-    results: list[Any] = []
-    for s in stmts:
-        if s is None:
-            continue
-        if isinstance(s, exp.Command):
-            inner_sql = _extract_sql_from_command(s)
-            if not inner_sql or inner_sql == s.sql():
-                continue
-            results.extend(_recursive_parse(inner_sql, dialect, depth + 1))
-        elif isinstance(s, exp.If):
-            # sqlglot parses IF conditions but loses the body statements.
-            # Re-parse the full IF text with control flow stripped.
-            if_sql = _extract_sql_from_command(
-                exp.Command(this=s.sql())
-            )
-            if if_sql:
-                results.extend(_recursive_parse(if_sql, dialect, depth + 1))
-        else:
-            results.append(s)
-    return results
-
-
-_STRIP_CONTROL_FLOW_RE = re.compile(
-    r"""
-      \bIF\s+(?:NOT\s+)?EXISTS\s*\([^)]*\)\s*(?:BEGIN\b)?\s*  # IF [NOT] EXISTS (...) [BEGIN]
-    | \bIF\b[^;]*?\bBEGIN\b                                    # IF <condition> BEGIN
-    | \bIF\b\s+@@\w+\s*[<>=!]+\s*\S+\s*                       # IF @@var = value
-    | \bWHILE\s+(?:NOT\s+)?EXISTS\s*\([^)]*\)\s*(?:BEGIN\b)?\s*  # WHILE [NOT] EXISTS (...) [BEGIN]
-    | \bWHILE\b[^;]*?\bBEGIN\b                                 # WHILE <condition> BEGIN
-    | \bELSE\s+BEGIN\b                                          # ELSE BEGIN
-    | \bELSE\b                                                  # ELSE
-    | \bBEGIN\s+TRY\b                                           # BEGIN TRY
-    | \bEND\s+TRY\b                                             # END TRY
-    | \bBEGIN\s+CATCH\b                                          # BEGIN CATCH
-    | \bEND\s+CATCH\b                                            # END CATCH
-    | \bBEGIN\b                                                  # standalone BEGIN
-    | \bEND\b\s*;?                                               # standalone END
-    """,
-    re.IGNORECASE | re.VERBOSE,
-)
-
-
-def _parse_body_statements(raw_ddl: str, dialect: str = "tsql") -> list[Any]:
-    """Extract the procedure/function body and parse each statement individually.
-
-    Uses a two-pass strategy:
-    1. Recursive parse: preserves structure, re-parses Command nodes by
-       stripping control flow prefixes.
-    2. Fallback: strips all control flow from the raw body and parses the
-       remaining DML — catches statements that sqlglot drops inside
-       IF <condition> BEGIN...END blocks.
-
-    The union of both passes gives maximum coverage.
-
-    Returns an empty list if no AS BEGIN...END block is found.
+    Returns (statements, needs_llm):
+      - statements: successfully parsed AST nodes (partial — may miss
+        control-flow-wrapped DML)
+      - needs_llm: True if any statement was unparseable (Command/If nodes
+        found), signalling that the LLM should read the raw DDL
     """
     m = _BODY_RE.search(raw_ddl)
     if not m:
-        return []
+        return [], False
     body = m.group(1).strip()
     if not body:
-        return []
+        return [], False
 
-    # Pass 1: recursive Command re-parsing
-    pass1 = _recursive_parse(body, dialect)
-
-    # Pass 2: strip all control flow, parse flat DML
-    stripped = _STRIP_CONTROL_FLOW_RE.sub("", body).strip()
-    pass2 = [
-        s for s in sqlglot.parse(stripped, dialect=dialect, error_level=sqlglot.ErrorLevel.WARN)
-        if s is not None and not isinstance(s, exp.Command)
-    ] if stripped else []
-
-    # Merge: use pass1 as base, add any statements from pass2 not already found
-    return _merge_statement_lists(pass1, pass2)
-
-
-def _stmt_key(s: Any) -> str | None:
-    """Return a dedup key for a statement, or None if it can't be serialized."""
-    try:
-        return s.sql()
-    except (ValueError, TypeError):
-        return None
-
-
-def _merge_statement_lists(primary: list[Any], secondary: list[Any]) -> list[Any]:
-    """Merge two statement lists, deduplicating by SQL text."""
-    seen: set[str] = set()
-    for s in primary:
-        key = _stmt_key(s)
-        if key:
-            seen.add(key)
-    merged = list(primary)
-    for s in secondary:
-        key = _stmt_key(s)
-        if key and key not in seen:
-            merged.append(s)
-            seen.add(key)
-    return merged
+    stmts = sqlglot.parse(body, dialect=dialect, error_level=sqlglot.ErrorLevel.WARN)
+    parsed: list[Any] = []
+    needs_llm = False
+    for s in stmts:
+        if s is None:
+            continue
+        if isinstance(s, (exp.Command, exp.If)):
+            needs_llm = True
+            # Keep the node so tests can inspect its text, but don't
+            # feed it into ref collection (Command/If are not walkable).
+            parsed.append(s)
+        else:
+            parsed.append(s)
+    return parsed, needs_llm
 
 
 # Node type → operation name, used for write_operations mapping
@@ -487,8 +381,9 @@ def extract_refs(entry: DdlEntry) -> ObjectRefs:
 
     For tables and other CREATE statements: walks the original AST directly.
 
-    Sets has_exec=True if the raw DDL contains EXEC/EXECUTE statements,
-    signalling that the proc requires Claude-assisted analysis.
+    Sets needs_llm=True when the procedure contains unparseable control
+    flow (Command/If nodes) or EXEC/dynamic SQL — signalling that the
+    LLM should read the raw DDL to complete analysis.
 
     Raises:
         DdlParseError: if the entry has no AST and no raw_ddl to fall back on.
@@ -496,11 +391,10 @@ def extract_refs(entry: DdlEntry) -> ObjectRefs:
     has_exec = bool(_EXEC_RE.search(entry.raw_ddl))
 
     # For entries with AS BEGIN...END bodies, parse the body statements
-    body_stmts = _parse_body_statements(entry.raw_ddl)
+    body_stmts, body_needs_llm = _parse_body_statements(entry.raw_ddl)
     if body_stmts:
         refs = _collect_refs_from_statements(body_stmts)
-        refs.has_exec = has_exec
-        # Add EXEC statements that were discarded during recursive parsing
+        refs.needs_llm = body_needs_llm or has_exec
         if has_exec:
             _add_exec_statements(entry.raw_ddl, refs)
         return refs
@@ -510,7 +404,7 @@ def extract_refs(entry: DdlEntry) -> ObjectRefs:
         raise DdlParseError("Cannot extract refs: DDL block failed to parse (ast is None)")
 
     refs = _collect_refs_from_statements([entry.ast])
-    refs.has_exec = has_exec
+    refs.needs_llm = has_exec
     if has_exec:
         _add_exec_statements(entry.raw_ddl, refs)
     return refs

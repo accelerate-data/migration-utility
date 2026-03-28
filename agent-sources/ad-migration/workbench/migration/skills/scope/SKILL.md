@@ -51,8 +51,12 @@ Invocation examples are in [`rules/workflow.md`](rules/workflow.md).
       "code": "ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE",
       "message": "Procedure references a cross-database name."
     }
-  ]
+  ],
+  "llm_required": ["dbo.usp_ConditionalLoad"]
 }
+```
+
+`llm_required` is present when procedures with unparseable control flow or EXEC/dynamic SQL are found. These procs need LLM analysis — see the workflow for handling.
 ```
 
 ## Workflow
@@ -79,10 +83,10 @@ Scoring signals (computed deterministically):
 
 ## Relationship with discover
 
-Run `discover show` on a proc *before* running scope to check `has_exec`:
+When scope returns procs in `llm_required`, run `discover show` on each to get `raw_ddl` and `statements`. Read the procedure body, identify writes/reads/calls, and produce a writer entry with `analysis: "claude_assisted"` and a confidence score reflecting your certainty.
 
-- **`has_exec: false`** → scope handles it deterministically. Use the scope output directly.
-- **`has_exec: true`** → the proc contains EXEC calls. Scope may return empty writers or `PARSE_FAILED` errors for this proc. Read `raw_ddl` from discover show to follow the call graph manually.
+- **`needs_llm: false`** → scope handled it deterministically. Use the scope output directly.
+- **`needs_llm: true`** → the proc has unparseable control flow or EXEC. Scope placed it in `llm_required`. Read `raw_ddl` from discover show to complete the analysis.
 
 ## Escalation rule
 
@@ -107,4 +111,4 @@ Inspecting procedure body to verify whether it writes to dbo.FactSales...
 | Code | Meaning | Action |
 |---|---|---|
 | `ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE` | Proc references a cross-database name (3+ part) | Exclude from migration plan. Cross-database writes need a separate pipeline. |
-| `PARSE_FAILED` | Proc contains EXEC or dynamic SQL that sqlglot cannot parse | Read `raw_ddl` via discover show. For static EXEC, follow the call graph. For dynamic SQL, flag for manual review. |
+| `PARSE_FAILED` | Entire CREATE PROCEDURE block failed to parse (block-level failure) | Read `raw_ddl` via discover show. Analyse manually — same as `llm_required` procs. |

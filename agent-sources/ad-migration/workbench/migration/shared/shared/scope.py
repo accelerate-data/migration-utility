@@ -9,9 +9,10 @@ Exit codes:
     1 — domain failure
     2 — IO / parse error
 
-All write detection uses sqlglot AST analysis.  Procedures that cannot be
-fully parsed (including those with EXEC / dynamic SQL) are reported as
-PARSE_FAILED errors — no regex fallback is used.
+Deterministic write detection uses sqlglot AST analysis.  Procedures that
+need LLM assistance (unparseable control flow or EXEC/dynamic SQL) are
+collected in ``llm_required`` — the calling agent reads their raw DDL and
+reasons about writes/reads.  No regex fallback is used.
 """
 
 from __future__ import annotations
@@ -56,22 +57,12 @@ class ScopeResult:
     table: str
     writers: list[WriterEntry]
     errors: list[ErrorEntry]
+    llm_required: list[str] | None = None
 
 
 # ---------------------------------------------------------------------------
 # AST analysis helpers
 # ---------------------------------------------------------------------------
-
-def _detect_writes_ast(entry: DdlEntry, target_fqn: str) -> list[str]:
-    """Return write operation names targeting *target_fqn*.
-
-    Uses extract_refs().write_operations which already maps each write
-    target to its operation names via body statement parsing.
-
-    Raises DdlParseError if the entry cannot be analysed.
-    """
-    refs = extract_refs(entry)
-    return refs.write_operations.get(target_fqn, [])
 
 
 def _has_cross_db_ref(entry: DdlEntry) -> bool:
@@ -125,8 +116,9 @@ def scope_writers(
     """
     errors: list[ErrorEntry] = []
     excluded: set[str] = set()
+    llm_required: list[str] = []
 
-    # Phase 1: scan all procs — cross-db check, then AST write detection
+    # Phase 1: scan all procs — cross-db check, needs_llm check, then AST write detection
     direct_writers: dict[str, list[str]] = {}
 
     for proc_name, entry in catalog_procs.items():
@@ -143,9 +135,9 @@ def scope_writers(
             excluded.add(proc_name)
             continue
 
-        # AST write detection — no regex fallback
+        # Check needs_llm before deterministic write detection
         try:
-            ops = _detect_writes_ast(entry, target_fqn)
+            refs = extract_refs(entry)
         except DdlParseError as exc:
             errors.append(ErrorEntry(
                 procedure=proc_name,
@@ -159,6 +151,19 @@ def scope_writers(
                 file=sys.stderr,
             )
             continue
+
+        if refs.needs_llm:
+            llm_required.append(proc_name)
+            excluded.add(proc_name)
+            print(
+                f"scope: event=proc_scan operation=detect_writes"
+                f" procedure={proc_name} status=needs_llm",
+                file=sys.stderr,
+            )
+            continue
+
+        # Deterministic AST write detection
+        ops = refs.write_operations.get(target_fqn, [])
 
         if ops:
             direct_writers[proc_name] = ops
@@ -274,6 +279,7 @@ def scope_writers(
         table=target_fqn,
         writers=writer_results,
         errors=errors,
+        llm_required=llm_required if llm_required else None,
     )
 
 
@@ -308,7 +314,7 @@ def main(
 
     result = scope_writers(catalog.procedures, target_fqn, depth=depth)
 
-    output = {
+    output: dict[str, Any] = {
         "table": result.table,
         "writers": [
             {
@@ -330,6 +336,8 @@ def main(
             for e in result.errors
         ],
     }
+    if result.llm_required:
+        output["llm_required"] = result.llm_required
 
     print(json.dumps(output, indent=2))
 

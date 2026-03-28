@@ -95,6 +95,7 @@ The agent's role is batch orchestration: read the input, invoke the scope skill 
     {
       "item_id": "",
       "status": "",
+      "analysis": "",
       "selected_writer": "",
       "candidate_writers": []
       "warnings": [],
@@ -113,6 +114,8 @@ The agent's role is batch orchestration: read the input, invoke the scope skill 
 }
 ```
 
+**`analysis` field:** `"deterministic"` when all candidates came from AST analysis (high trust); `"claude_assisted"` when any candidate required LLM reasoning (control flow, EXEC, dynamic SQL). Present on both per-item and per-candidate levels.
+
 **Example**
 
 ```json
@@ -123,6 +126,7 @@ The agent's role is batch orchestration: read the input, invoke the scope skill 
     {
       "item_id": "dbo.fact_sales",
       "status": "resolved|ambiguous_multi_writer|no_writer_found|partial|error",
+      "analysis": "deterministic|claude_assisted",
       "selected_writer": "dbo.usp_load_fact_sales",
       "candidate_writers": [
         {
@@ -130,7 +134,8 @@ The agent's role is batch orchestration: read the input, invoke the scope skill 
           "write_type": "direct|indirect|read_only",
           "call_path": ["dbo.usp_load_fact_sales"],
           "rationale": "Direct write operation detected in procedure body.",
-          "confidence": 0.98
+          "confidence": 0.98,
+          "analysis": "deterministic"
         }
       ],
       "warnings": [],

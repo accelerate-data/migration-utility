@@ -56,10 +56,10 @@ For procedures, `show` returns a `classification` field that tells the agent the
 
 | `classification` | Meaning | Action |
 |---|---|---|
-| `deterministic` | sqlglot parsed everything | Use `refs` and `write_operations` directly |
-| `claude_assisted` | EXEC or unparseable syntax | Read `raw_ddl` to follow call graph |
+| `deterministic` | sqlglot parsed everything in a single pass, no EXEC | Use `refs` and `write_operations` directly — high trust |
+| `claude_assisted` | Unparseable control flow (IF/ELSE, TRY/CATCH) or EXEC/dynamic SQL | `refs` may be partial. Read `raw_ddl` and `statements` to complete the analysis — identify writes, reads, EXEC targets, and dynamic SQL |
 
-The `classification` is derived from `has_exec` and `parse_error`. The `show` output for procedures includes:
+The `classification` is derived from `needs_llm` and `parse_error`. The `show` output for procedures includes:
 
 - `refs.writes_to` — list of target table FQNs
 - `refs.reads_from` — list of source table FQNs

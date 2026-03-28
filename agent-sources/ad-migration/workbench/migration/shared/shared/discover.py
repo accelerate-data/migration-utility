@@ -173,7 +173,7 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
     if type_label == "table":
         columns = _extract_columns(entry)
 
-    has_exec = False
+    needs_llm = False
     classification: str | None = None
 
     statements: list[dict] | None = None
@@ -187,13 +187,14 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
                 "writes_to": obj_refs.writes_to,
                 "write_operations": obj_refs.write_operations,
             }
-            has_exec = obj_refs.has_exec
+            needs_llm = obj_refs.needs_llm
             statements = obj_refs.statements
         except DdlParseError as exc:
             parse_error = str(exc)
             refs_dict = None
+            needs_llm = True
 
-        if has_exec or parse_error:
+        if needs_llm or parse_error:
             classification = "claude_assisted"
         else:
             classification = "deterministic"
@@ -217,7 +218,7 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
         "params": params,
         "refs": refs_dict,
         "statements": statements,
-        "has_exec": has_exec,
+        "needs_llm": needs_llm,
         "classification": classification,
         "parse_error": parse_error,
     }
