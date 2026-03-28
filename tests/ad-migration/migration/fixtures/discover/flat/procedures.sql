@@ -126,6 +126,34 @@ BEGIN
     );
 END
 GO
+-- Sequential WITH blocks: second WITH reads table populated by first WITH
+CREATE PROCEDURE [dbo].[usp_SequentialWith]
+AS
+BEGIN
+    SET NOCOUNT ON;
+    WITH base_products AS (
+        SELECT ProductID, ProductName
+        FROM bronze.Product
+        WHERE ProductName IS NOT NULL
+    )
+    INSERT INTO [silver].[DimProduct] (ProductAlternateKey, EnglishProductName)
+    SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM base_products;
+
+    WITH enriched AS (
+        SELECT p.ProductAlternateKey, p.EnglishProductName, c.ConfigValue AS Category
+        FROM [silver].[DimProduct] p
+        JOIN dbo.Config c ON c.ConfigKey = 'default_category'
+    ),
+    ranked AS (
+        SELECT ProductAlternateKey, EnglishProductName, Category,
+               ROW_NUMBER() OVER (ORDER BY ProductAlternateKey) AS rn
+        FROM enriched
+    )
+    INSERT INTO dbo.Config (ConfigKey, ConfigValue)
+    SELECT 'product_' + ProductAlternateKey, EnglishProductName
+    FROM ranked WHERE rn <= 5;
+END
+GO
 -- Proc that mentions 'silver.DimProduct' only in a string literal / comment
 -- This proc must NOT appear in refs results for silver.dimproduct (no real reference)
 CREATE PROCEDURE [dbo].[usp_LogMessage]

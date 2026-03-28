@@ -61,6 +61,13 @@ def test_cte():
     assert "bronze.product" in reads
 
 
+def test_sequential_with_blocks():
+    writes, reads = _refs_from_fixture("dbo.usp_sequentialwith")
+    assert "silver.dimproduct" in writes
+    assert "dbo.config" in writes
+    assert "bronze.product" in reads
+
+
 def test_multi_level_cte():
     writes, reads = _refs_from_fixture("dbo.usp_loadwithmulticte")
     assert "silver.dimproduct" in writes

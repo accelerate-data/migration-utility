@@ -214,6 +214,13 @@ def test_show_correlated_subquery_refs() -> None:
     assert "bronze.product" in result["refs"]["reads_from"]
 
 
+def test_show_sequential_with_refs() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_SequentialWith", "tsql")
+    assert "silver.dimproduct" in result["refs"]["writes_to"]
+    assert "dbo.config" in result["refs"]["writes_to"]
+    assert "bronze.product" in result["refs"]["reads_from"]
+
+
 def test_refs_finds_all_writer_procs() -> None:
     result = discover.run_refs(_FLAT_FIXTURES, "silver.DimProduct", "tsql")
     rb = result["referenced_by"]
@@ -226,4 +233,5 @@ def test_refs_finds_all_writer_procs() -> None:
     assert "dbo.usp_conditionalmerge" in rb
     assert "dbo.usp_trycatchload" in rb
     assert "dbo.usp_correlatedsubquery" in rb
+    assert "dbo.usp_sequentialwith" in rb
     assert "dbo.usp_logmessage" not in rb
