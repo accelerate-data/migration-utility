@@ -308,7 +308,7 @@ Move issue(s) to `In Review` via `mcp__linear__save_issue`.
 
 ### Report
 
-Return: PR URL, worktree path, recommended test mode (see [`references/test-mode.md`](references/test-mode.md)), and manual test steps.
+Return: PR URL, worktree path, and manual test steps.
 
 Do not remove the worktree — the user tests manually on it.
 
@@ -329,4 +329,3 @@ Do not remove the worktree — the user tests manually on it.
 ## References
 
 - [`references/git-and-pr.md`](references/git-and-pr.md) — PR body template, test plan guidelines, worktree rules
-- [`references/test-mode.md`](references/test-mode.md) — mock vs full mode decision rule
