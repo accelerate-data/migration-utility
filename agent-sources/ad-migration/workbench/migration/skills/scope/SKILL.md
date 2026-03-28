@@ -6,17 +6,21 @@ description: >
   "identify the writer for [table]", or needs to determine which stored procedure
   is responsible for loading a specific target table.
 user-invocable: false
+argument-hint: "[ddl-path] [table-name]"
 ---
 
 # Scope
 
 Instructions for using `scope` to identify procedures that write to a target table.
 
-## DDL path
+## Arguments
 
-Before running `scope`, ask the user for the path to the directory containing
-their `.sql` files.  Do not assume `./artifacts/ddl` or any other default —
-the user chooses where their DDL lives.
+Parse `$ARGUMENTS`:
+
+- `ddl-path` (required): path to the directory containing `.sql` files
+- `table-name` (required): fully-qualified target table (e.g. `dbo.FactSales`)
+
+If either is missing from `$ARGUMENTS`, ask the user before proceeding. Do not assume `./artifacts/ddl` or any other default — the user chooses where their DDL lives.
 
 ## Invoking scope
 

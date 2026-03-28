@@ -125,6 +125,22 @@ The app saves state to SQLite continuously. If you close it mid-setup (between c
 
 ---
 
+## Development
+
+### Loading plugins
+
+To run Claude Code with all migration plugins loaded:
+
+```bash
+claude --plugin-dir ./agent-sources/ad-migration/workbench/bootstrap \
+       --plugin-dir ./agent-sources/ad-migration/workbench/migration \
+       --plugin-dir ./agent-sources/ad-migration/workbench/test-generation
+```
+
+See [agent-sources/ad-migration/README.md](agent-sources/ad-migration/README.md) for plugin prerequisites, skills, MCP servers, and environment variables.
+
+---
+
 ## License
 
 [Elastic License 2.0](LICENSE) — free to use, not available as a managed service.

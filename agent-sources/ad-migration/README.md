@@ -47,15 +47,25 @@ DDL structure for migration to dbt on Vibedata Managed Fabric Lakehouse.
 | Structured DDL parsing (columns, AST dependencies) | `ddl` MCP (`ddl:list_tables`, `ddl:get_procedure_body`, etc.) |
 | Remote SQL Server queries | `mssql` MCP (`mssql:mssql-execute-sql`) |
 
+## Loading Plugins
+
+To run Claude Code with all ad-migration plugins loaded:
+
+```bash
+claude --plugin-dir ./agent-sources/ad-migration/workbench/bootstrap \
+       --plugin-dir ./agent-sources/ad-migration/workbench/migration \
+       --plugin-dir ./agent-sources/ad-migration/workbench/test-generation
+```
+
 ## Running Skills Manually
 
 ```bash
 # List all tables in a DDL directory
-uv run --project agent-sources/plugins/ad-migration/shared discover \
+uv run --project agent-sources/ad-migration/workbench/migration/shared discover \
   --ddl-path ./artifacts/ddl --type tables
 
 # Find writer procedures for a target table
-uv run --project agent-sources/plugins/ad-migration/shared scope \
+uv run --project agent-sources/ad-migration/workbench/migration/shared scope \
   --ddl-path ./artifacts/ddl --table dbo.FactSales
 ```
 

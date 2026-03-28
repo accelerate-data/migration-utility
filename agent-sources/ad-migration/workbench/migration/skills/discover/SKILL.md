@@ -1,24 +1,23 @@
 ---
 name: discover
 description: >
-  This skill should be used when the user asks to "list tables", "list procedures",
-  "list views", "list functions", "show me the DDL for X", "inspect object X",
-  "what references Y", or wants to explore the structure of a DDL export directory.
-  Use for any object inspection or reference tracing against a local DDL snapshot.
-user-invocable: false
+  This skill should be used when the user asks to "list tables", "list procedures", "list views", "list functions", "show me the DDL for X", "inspect object X","what references Y", or wants to explore the structure of a DDL export directory. Use for any object inspection or reference tracing against a local DDL snapshot.
+argument-hint: "[ddl-path] [subcommand] [options]"
 ---
 
 # Discover
 
 Instructions for using `discover` to explore a DDL artifact directory.
 
-## DDL path
+## Arguments
 
-Before running any subcommand, ask the user for the path to the directory
-containing their `.sql` files.  Do not assume `./artifacts/ddl` or any other
-default — the user chooses where their DDL lives.  The directory may contain
-any number of `.sql` files with any names; object types are auto-detected
-from `CREATE` statements inside.
+Parse `$ARGUMENTS`:
+
+- `ddl-path` (required): path to the directory containing `.sql` files
+- `subcommand` (optional): `list`, `show`, or `refs` — defaults to `list` if omitted
+- remaining tokens: options for the subcommand (e.g. `--type tables`, `--name dbo.X`)
+
+If `ddl-path` is missing from `$ARGUMENTS`, ask the user for it before proceeding. Do not assume `./artifacts/ddl` or any other default. The directory may contain any number of `.sql` files with any names; object types are auto-detected from `CREATE` statements inside.
 
 ## Invoking discover
 
@@ -112,8 +111,7 @@ Views (1):
 
 ## Handling parse errors
 
-If `discover` exits with code 2, a DDL block in the directory could not be
-parsed by sqlglot (e.g. procedures with `IF/ELSE`, `MERGE`, or multiple
+If `discover` exits with code 2, a DDL block in the directory could not be parsed by sqlglot (e.g. procedures with `IF/ELSE`, `MERGE`, or multiple
 statements).  The error message names the specific object that failed.
 
 Tell the user which object failed and ask them to either:
@@ -121,5 +119,4 @@ Tell the user which object failed and ask them to either:
 1. Remove or isolate the unparseable object into a separate directory.
 2. Simplify the DDL so sqlglot can parse it.
 
-Do not silently skip unparseable objects — the loader treats parse failures
-as hard errors.
+Do not silently skip unparseable objects — the loader treats parse failures as hard errors.
