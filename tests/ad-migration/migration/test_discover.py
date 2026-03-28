@@ -305,6 +305,30 @@ def test_show_deterministic_no_exec() -> None:
     assert result["has_exec"] is False
     assert result["classification"] == "deterministic"
     assert "INSERT" in result["refs"]["write_operations"]["silver.dimproduct"]
+    # statements should have migrate and skip actions, no claude
+    actions = {s["action"] for s in result["statements"]}
+    assert "migrate" in actions
+    assert "claude" not in actions
+
+
+def test_show_exec_has_claude_statement() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecSimple", "tsql")
+    assert result["classification"] == "claude_assisted"
+    claude_stmts = [s for s in result["statements"] if s["action"] == "claude"]
+    assert len(claude_stmts) >= 1
+    assert "EXEC" in claude_stmts[0]["sql"]
+
+
+def test_show_statements_truncate_is_skip() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_TruncateOnly", "tsql")
+    actions = [s["action"] for s in result["statements"]]
+    assert "skip" in actions
+    assert "migrate" not in actions
+
+
+def test_show_statements_table_has_none() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "silver.DimProduct", "tsql")
+    assert result["statements"] is None
 
 
 def test_refs_finds_all_writer_procs() -> None:

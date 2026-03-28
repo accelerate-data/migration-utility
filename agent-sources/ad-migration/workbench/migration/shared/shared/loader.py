@@ -74,6 +74,38 @@ class DdlParseError(Exception):
 _EXEC_RE = re.compile(r"\b(?:EXEC|EXECUTE)\b", re.IGNORECASE)
 
 
+_MIGRATE_TYPES = (exp.Insert, exp.Update, exp.Delete, exp.Merge)
+_SKIP_TYPES = (exp.TruncateTable, exp.Drop)
+
+
+def classify_statement(stmt: Any) -> str:
+    """Classify a parsed statement as migrate, skip, or claude.
+
+    - migrate: core DML that becomes the dbt model (INSERT, UPDATE, DELETE, MERGE, SELECT INTO)
+    - skip: operational DDL or session config (SET, TRUNCATE, DROP/CREATE INDEX, DECLARE)
+    - claude: EXEC/dynamic SQL that needs Claude to resolve
+    """
+    if stmt is None:
+        return "skip"
+    if isinstance(stmt, exp.Command):
+        return "claude"
+    if isinstance(stmt, _MIGRATE_TYPES):
+        return "migrate"
+    if isinstance(stmt, exp.Select) and stmt.args.get("into"):
+        return "migrate"
+    if isinstance(stmt, _SKIP_TYPES):
+        return "skip"
+    if isinstance(stmt, exp.Set):
+        return "skip"
+    if isinstance(stmt, exp.Create):
+        # CREATE PROCEDURE/VIEW/FUNCTION = migrate; CREATE INDEX/PARTITION = skip
+        kind = stmt.args.get("kind", "")
+        if kind and kind.upper() in ("PROCEDURE", "VIEW", "FUNCTION"):
+            return "migrate"
+        return "skip"
+    return "skip"
+
+
 @dataclass
 class ObjectRefs:
     """References extracted from a DDL entry's AST."""
@@ -83,6 +115,7 @@ class ObjectRefs:
     calls: list[str] = field(default_factory=list)
     has_exec: bool = False
     write_operations: dict[str, list[str]] = field(default_factory=dict)
+    statements: list[dict[str, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -343,6 +376,7 @@ def _collect_refs_from_statements(statements: list[Any]) -> ObjectRefs:
     writes_to: set[str] = set()
     reads_from: set[str] = set()
     write_ops: dict[str, list[str]] = {}
+    stmt_list: list[dict[str, str]] = []
 
     def _add_write(fqn: str, op: str) -> None:
         writes_to.add(fqn)
@@ -352,6 +386,18 @@ def _collect_refs_from_statements(statements: list[Any]) -> ObjectRefs:
             write_ops[fqn].append(op)
 
     for stmt in statements:
+        # Classify and record every statement
+        action = classify_statement(stmt)
+        try:
+            sql_text = stmt.sql(dialect="tsql")[:200] if stmt else ""
+        except (ValueError, TypeError):
+            sql_text = str(stmt)[:200] if stmt else ""
+        stmt_list.append({
+            "type": type(stmt).__name__ if stmt else "None",
+            "action": action,
+            "sql": sql_text,
+        })
+
         if stmt is None or isinstance(stmt, exp.Command):
             continue
 
@@ -411,7 +457,25 @@ def _collect_refs_from_statements(statements: list[Any]) -> ObjectRefs:
         reads_from=sorted(reads_from - writes_to),
         calls=[],
         write_operations=write_ops,
+        statements=stmt_list,
     )
+
+
+_EXEC_LINE_RE = re.compile(
+    r"^\s*(?:EXEC(?:UTE)?)\b\s*(.+?);\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _add_exec_statements(raw_ddl: str, refs: ObjectRefs) -> None:
+    """Scan raw DDL for EXEC statements and add them to refs.statements."""
+    for m in _EXEC_LINE_RE.finditer(raw_ddl):
+        exec_text = f"EXEC {m.group(1).strip()}"
+        refs.statements.append({
+            "type": "Command",
+            "action": "claude",
+            "sql": exec_text[:200],
+        })
 
 
 def extract_refs(entry: DdlEntry) -> ObjectRefs:
@@ -436,6 +500,9 @@ def extract_refs(entry: DdlEntry) -> ObjectRefs:
     if body_stmts:
         refs = _collect_refs_from_statements(body_stmts)
         refs.has_exec = has_exec
+        # Add EXEC statements that were discarded during recursive parsing
+        if has_exec:
+            _add_exec_statements(entry.raw_ddl, refs)
         return refs
 
     # Fallback: walk the original AST (tables, simple views without BEGIN/END)
@@ -444,6 +511,8 @@ def extract_refs(entry: DdlEntry) -> ObjectRefs:
 
     refs = _collect_refs_from_statements([entry.ast])
     refs.has_exec = has_exec
+    if has_exec:
+        _add_exec_statements(entry.raw_ddl, refs)
     return refs
 
 

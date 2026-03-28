@@ -176,6 +176,8 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
     has_exec = False
     classification: str | None = None
 
+    statements: list[dict] | None = None
+
     if type_label == "procedure":
         params = _extract_params(entry)
         try:
@@ -186,6 +188,7 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
                 "write_operations": obj_refs.write_operations,
             }
             has_exec = obj_refs.has_exec
+            statements = obj_refs.statements
         except DdlParseError as exc:
             parse_error = str(exc)
             refs_dict = None
@@ -213,6 +216,7 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
         "columns": columns,
         "params": params,
         "refs": refs_dict,
+        "statements": statements,
         "has_exec": has_exec,
         "classification": classification,
         "parse_error": parse_error,

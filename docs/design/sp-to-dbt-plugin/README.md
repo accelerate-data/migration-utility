@@ -137,29 +137,17 @@ Confidence scoring rules (from `scoring.md`, implemented in code):
 
 Status: `confirmed` if confidence ≥ 0.70, else `suspected`.
 
-### assess
+### Statement classification (replaces assess)
 
-```text
-Input:  --proc PATH  --dialect tsql
+`discover show` for procedures now returns a `statements` array that classifies each body statement:
 
-Output: {
-  "procedure": "dbo.usp_Load",
-  "status": "Supported|Partial|Unsupported",
-  "findings": [
-    { "severity": "BLOCKED|WARNING", "code": "DYNAMIC_SQL", "message": "...", "line": 42 }
-  ]
-}
-```
+| Action | Statement types | Meaning |
+|---|---|---|
+| `migrate` | INSERT, UPDATE, DELETE, MERGE, SELECT INTO | Core transformation → becomes the dbt model |
+| `skip` | SET, TRUNCATE, DROP INDEX, CREATE INDEX/PARTITION, DECLARE | Operational overhead → handled by dbt materialization or ignored |
+| `claude` | EXEC, sp_executesql, dynamic SQL | Needs Claude to follow call graph or resolve runtime SQL |
 
-Rules (deterministic AST visitor):
-
-| Category | Constructs |
-|---|---|
-| Clean (no finding) | SELECT, all JOINs, CTEs, WHERE, GROUP BY, HAVING, CASE, window functions, scalar subqueries, CAST, COALESCE |
-| WARNING | Read-only `#temp` refs, `@table_variable`, STRING_AGG/STUFF/FOR XML PATH, TOP N, NOLOCK hints |
-| BLOCKED | EXEC/sp_executesql, cursors, WHILE/IF+DML, body INSERT/UPDATE/DELETE, RAISERROR/THROW, TRY/CATCH, OPENROWSET, four-part linked-server names |
-
-`status` = worst finding severity: any BLOCKED → Unsupported, any WARNING → Partial, else Supported.
+This replaces the separate `assess` skill. The `classification` field (`deterministic` or `claude_assisted`) gives the top-level verdict; the `statements` array gives the per-statement breakdown.
 
 ### migrate
 
@@ -242,12 +230,12 @@ The orchestrator. Defined in `commands/migrate-table/SKILL.md`. No Python — Cl
 **Interactive flow:**
 
 ```text
-1. discover  → list tables → user picks one
-2. scope     → find writers → user confirms which procedure to migrate
-3. assess    → classify procedure → user approves if Partial/Unsupported
-4. migrate   → generate dbt SQL → user approves before file write
-5. test-gen  → generate schema.yml → user approves before file write
-6. validate  → compare outputs (skipped if no live DB)
+1. discover     → list tables → user picks one
+2. scope        → find writers → user confirms which procedure to migrate
+3. discover show → statement breakdown → user reviews migrate/skip/claude
+4. migrate      → generate dbt SQL → user approves before file write
+5. test-gen     → generate schema.yml → user approves before file write
+6. validate     → compare outputs (skipped if no live DB)
 ```
 
 **Gate rules:**
@@ -255,7 +243,7 @@ The orchestrator. Defined in `commands/migrate-table/SKILL.md`. No Python — Cl
 | After step | Gate |
 |---|---|
 | scope | Always — show writer list, user picks procedure |
-| assess | If Partial/Unsupported — require explicit approval |
+| discover show | If `claude_assisted` — require explicit approval before proceeding |
 | migrate | Always — show generated model before writing to disk |
 | test-gen | Always — show schema.yml before writing to disk |
 | validate | None — result shown, no gate |
@@ -288,19 +276,7 @@ The orchestrator. Defined in `commands/migrate-table/SKILL.md`. No Python — Cl
 
 ---
 
-### Wave 3 — Assess
-
-| Issue | What | Depends on |
-|---|---|---|
-| VU-739 | assess.py | VU-732 |
-| VU-740 | assess SKILL.md | VU-739 |
-| VU-741 | assess tests | VU-739 |
-
-**Exit criteria:** assess correctly classifies a clean procedure as Supported, a procedure with dynamic SQL as Unsupported, and a procedure with NOLOCK as Partial.
-
----
-
-### Wave 4 — Migrate
+### Wave 3 — Migrate
 
 | Issue | What | Depends on |
 |---|---|---|
@@ -312,7 +288,7 @@ The orchestrator. Defined in `commands/migrate-table/SKILL.md`. No Python — Cl
 
 ---
 
-### Wave 5 — Test-Gen + Validate (parallel)
+### Wave 4 — Test-Gen + Validate (parallel)
 
 | Issue | What | Depends on |
 |---|---|---|
@@ -327,7 +303,7 @@ The orchestrator. Defined in `commands/migrate-table/SKILL.md`. No Python — Cl
 
 ---
 
-### Wave 6 — Orchestrator + GHA
+### Wave 5 — Orchestrator + GHA
 
 | Issue | What | Depends on |
 |---|---|---|
@@ -344,18 +320,17 @@ The orchestrator. Defined in `commands/migrate-table/SKILL.md`. No Python — Cl
 VU-732 (shared lib) ✅
   ├── VU-733 (discover.py) ✅ ── VU-734 (SKILL) ✅ ── VU-735 (tests) ✅
   │
-  ├── VU-736 (scope.py) ─────── VU-737 (SKILL) ✅ ── VU-738 (tests) ✅
+  ├── VU-736 (scope.py) ✅ ──── VU-737 (SKILL) ✅ ── VU-738 (tests) ✅
   │
-  ├── VU-739 (assess.py) ────── VU-740 (SKILL) ───── VU-741 (tests)
+  ├── VU-742 (migrate.py) ──── VU-743 (SKILL) ───── VU-744 (tests)
   │     │
-  │     └── VU-742 (migrate.py) ── VU-743 (SKILL) ── VU-744 (tests)
-  │           │
-  │           ├── VU-745 (test_gen.py) ── VU-746 (SKILL) ── VU-747 (tests)
-  │           │
-  │           └── VU-748 (validate.py) ── VU-749 (SKILL) ── VU-750 (tests)
+  │     ├── VU-745 (test_gen.py) ── VU-746 (SKILL) ── VU-747 (tests)
+  │     │
+  │     └── VU-748 (validate.py) ── VU-749 (SKILL) ── VU-750 (tests)
   │
 VU-751 (ddl_mcp) ✅
 
+assess cancelled — statement classification built into discover show.
 All skills → VU-752 (migrate-table SKILL.md) → VU-753 (GHA workflow)
 ```
 

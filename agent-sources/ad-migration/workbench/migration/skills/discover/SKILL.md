@@ -59,13 +59,20 @@ For procedures, `show` returns a `classification` field that tells the agent the
 | `deterministic` | sqlglot parsed everything | Use `refs` and `write_operations` directly |
 | `claude_assisted` | EXEC or unparseable syntax | Read `raw_ddl` to follow call graph |
 
-The `classification` is derived from `has_exec` and `parse_error`. The `refs` object for procedures includes:
+The `classification` is derived from `has_exec` and `parse_error`. The `show` output for procedures includes:
 
-- `writes_to` — list of target table FQNs
-- `reads_from` — list of source table FQNs
-- `write_operations` — map of target FQN → operation names (e.g. `{"silver.dimcustomer": ["TRUNCATE", "INSERT"]}`)
+- `refs.writes_to` — list of target table FQNs
+- `refs.reads_from` — list of source table FQNs
+- `refs.write_operations` — map of target FQN → operation names (e.g. `{"silver.dimcustomer": ["TRUNCATE", "INSERT"]}`)
+- `statements` — per-statement breakdown with action classification:
 
-See `docs/design/tsql-parse-classification/README.md` for the exhaustive list of deterministic vs Claude-assisted patterns.
+| Action | Statement types | Meaning |
+|---|---|---|
+| `migrate` | INSERT, UPDATE, DELETE, MERGE, SELECT INTO | Core transformation → becomes the dbt model |
+| `skip` | SET, TRUNCATE, DROP INDEX, CREATE INDEX/PARTITION | Operational overhead → dbt handles or ignores |
+| `claude` | EXEC, sp_executesql, dynamic SQL | Needs Claude to follow call graph |
+
+See `docs/design/tsql-parse-classification/README.md` for the exhaustive pattern list.
 
 ## Handling parse errors
 
