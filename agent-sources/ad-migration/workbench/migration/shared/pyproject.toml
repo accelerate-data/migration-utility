@@ -21,7 +21,6 @@ packages = ["shared"]
 
 [project.scripts]
 discover = "shared.discover:app"
-scope = "shared.scope:app"
 
 [tool.pytest.ini_options]
 testpaths = ["../../../../../tests/ad-migration/migration"]

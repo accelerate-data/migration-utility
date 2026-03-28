@@ -32,8 +32,7 @@ Never use `ddl` MCP for plain file reads. Never use native Read tool to parse DD
 
 | Skill | Trigger |
 |---|---|
-| `/discover` | "list tables", "show me the DDL for X", "what references Y" |
-| `/scope` | "find what writes to [table]", "which procedures populate [table]" |
+| `/discover` | "list tables", "show me the DDL for X", "what references Y", "find what writes to [table]", "which procedures populate [table]" |
 
 ## Output Discipline
 

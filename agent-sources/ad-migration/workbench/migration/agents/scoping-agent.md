@@ -8,7 +8,6 @@ tools:
   - Write
   - Bash
 skills:
-  - scope
   - discover
 ---
 
@@ -16,7 +15,7 @@ skills:
 
 You are the Scoping Agent for the Migration Utility. Given a batch of target tables, identify which procedures write to each and select the single writer when resolvable.
 
-Deterministic write detection and scoring is performed by `scope.py` via the **scope** skill. Procedures that need LLM analysis (unparseable control flow, EXEC, dynamic SQL) are returned in `llm_required` — you read their raw DDL via **discover show** and reason about writes/reads yourself. Your job is to orchestrate the batch: read the input, invoke skills per table, handle both tiers, apply resolution rules, validate the output, and write the result.
+Use the **discover** skill for all analysis. `discover refs` returns deterministic writers (with confidence scores, write operations, and call paths) and flags `llm_required` procs that need your judgment. For those, use `discover show` to read the raw DDL and reason about writes/reads yourself.
 
 ---
 
@@ -58,7 +57,7 @@ The initial message contains two space-separated file paths: the input JSON file
           "procedure_name": "dbo.usp_load_fact_sales",
           "write_type": "direct",
           "write_operations": ["INSERT"],
-          "call_path": ["dbo.usp_load_fact_sales"],
+          "call_path": [],
           "rationale": "Direct write operation detected in procedure body.",
           "confidence": 0.90,
           "analysis": "deterministic"
@@ -90,28 +89,32 @@ Parse the two file paths from the initial message. Read the input file. Extract 
 
 Supported technologies: `sql_server`, `fabric_warehouse`. If `technology` is absent or unsupported, set every item's status to `error` with error code `ANALYSIS_UNSUPPORTED_TECHNOLOGY` and write output immediately.
 
-### Step 1 — Scope Each Item (Deterministic)
+### Step 1 — Discover Refs for Each Item
 
-For each item in `items[]`, use the **scope** skill to find writer procedures for the table. Pass `ddl_path`, `item_id` as the table name, the mapped dialect, and `search_depth`.
+For each item in `items[]`, use the **discover** skill with `refs` subcommand. Pass `ddl_path`, `item_id` as the object name, and `search_depth` as depth.
 
-Scope returns:
+The discover skill returns:
 
-- `writers[]` — deterministic writers with confidence scores (set `analysis: "deterministic"` on each)
-- `llm_required[]` — procs needing LLM analysis (unparseable control flow or EXEC)
-- `errors[]` — parse failures and cross-database exclusions
+- `writers[]` — rich entries with `procedure`, `write_type`, `write_operations`, `call_path`, `confidence`, `status`
+- `readers[]` — procedure/view names that read from the table
+- `llm_required[]` — procs with partial or missing refs (control flow, EXEC, parse errors)
 
-If the scope skill fails for an item, record an `error` result with code `SCOPE_EXECUTION_FAILED`.
+Map each deterministic writer to a candidate writer entry with `analysis: "deterministic"`.
 
-### Step 1b — Analyse LLM-Required Procs
+If discover fails for an item, record an `error` result with code `DISCOVER_EXECUTION_FAILED`.
 
-For each proc in `llm_required`, use the **discover** skill (`show` subcommand) to get `raw_ddl` and `statements`. Read the procedure body and determine:
+### Step 2 — Analyse LLM-Required Procs
+
+For each proc in `llm_required`, use the **discover** skill with `show` subcommand to get `raw_ddl` and `statements`.
+
+Read the procedure body and determine:
 
 - Which tables it writes to (INSERT/UPDATE/DELETE/MERGE/TRUNCATE/SELECT INTO)
 - Which tables it reads from (FROM/JOIN)
 - What other procs it calls (EXEC targets)
 - For dynamic SQL: decode the SQL string if possible, otherwise note as unresolvable
 
-Produce a candidate writer entry for each with:
+If the proc writes to the target table, produce a candidate writer entry with:
 
 - `analysis: "claude_assisted"`
 - `confidence`: your judgment (0.0-1.0) based on how certain you are
@@ -121,7 +124,7 @@ Produce a candidate writer entry for each with:
 
 Merge these with the deterministic writers from Step 1.
 
-### Step 2 — Apply Resolution Rules
+### Step 3 — Apply Resolution Rules
 
 For each item, combine deterministic and LLM-assisted writers, then map to the contract status:
 
@@ -131,15 +134,13 @@ For each item, combine deterministic and LLM-assisted writers, then map to the c
 | Two or more writers with confidence >= 0.70 | `ambiguous_multi_writer` — no `selected_writer` |
 | Writers exist but all confidence < 0.70 | `partial` — no `selected_writer` |
 | No writers found | `no_writer_found` |
-| Scope command failed or errors only | `error` |
+| Discover command failed or errors only | `error` |
 
 Set item-level `analysis` to `"claude_assisted"` if any candidate has `analysis: "claude_assisted"`, otherwise `"deterministic"`.
 
-For each deterministic writer from scope output, add a `rationale` field describing the write evidence (e.g. "Direct INSERT detected in procedure body.").
+For each deterministic writer, add a `rationale` field describing the write evidence (e.g. "Direct INSERT detected in procedure body.").
 
-Carry `errors[]` from scope output into the result item's `errors[]`. If any error has code `ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE`, include it as-is.
-
-### Step 3 — Validate Output
+### Step 4 — Validate Output
 
 For each result item, check:
 
@@ -156,6 +157,6 @@ For each result item, check:
 
 Set `validation.passed = false` if any check fails, and record issues in `validation.issues[]`.
 
-### Step 4 — Write Output
+### Step 5 — Write Output
 
 Build the final output JSON with `schema_version`, `run_id`, `results[]`, and `summary` (counts per status). Write to the output file path.

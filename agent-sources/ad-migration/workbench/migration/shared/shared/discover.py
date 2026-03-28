@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import sys
+from collections import deque
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -224,62 +225,195 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
     }
 
 
-def run_refs(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
+def _compute_confidence(
+    write_type: str,
+    call_path_len: int,
+    max_path_len: int,
+    multiple_paths: bool,
+) -> float:
+    """Compute confidence score for a writer entry.
+
+    Scoring rules:
+      - Direct write base: 0.90
+      - Indirect write base: 0.75
+      - Shorter call path: +0.02 per hop saved vs deepest
+      - Multiple independent paths: +0.05
+    """
+    base = 0.90 if write_type == "direct" else 0.75
+    score = base + (max_path_len - call_path_len) * 0.02
+    if multiple_paths:
+        score += 0.05
+    return max(0.0, min(1.0, score))
+
+
+def run_refs(
+    ddl_path: Path, name: str, dialect: str, depth: int = 3,
+) -> dict[str, Any]:
     """Return the refs subcommand result dict.
 
-    Splits callers into readers, writers, and llm_required (procs whose
-    refs are partial or unknown — the LLM should read their raw_ddl).
+    Finds all procedures/views that reference the target object, split
+    into readers and writers.  Writers include both direct writers (AST
+    detected) and indirect writers (via BFS call-graph traversal up to
+    *depth* hops).  Each writer entry carries write_type, call_path,
+    write_operations, confidence, and status.
+
+    Procs with partial or missing refs (needs_llm / parse_error) are
+    collected in llm_required for the LLM to complete.
     """
     catalog = _load(ddl_path, dialect)
     target = normalize(name)
 
+    # ── Phase 1: scan all procs/views for direct refs ────────────────────
     readers: list[str] = []
-    writers: list[str] = []
+    direct_writers: dict[str, list[str]] = {}  # proc_name → write_operations
     llm_required: list[str] = []
+    excluded: set[str] = set()
+
+    # Cache extract_refs results to avoid double-parsing
+    refs_cache: dict[str, Any] = {}
 
     for bucket_name in ("procedures", "views"):
         bucket: dict[str, DdlEntry] = getattr(catalog, bucket_name)
         for caller_name, entry in bucket.items():
             if entry.parse_error is not None:
-                # Block-level parse failure — LLM must read raw DDL
                 llm_required.append(caller_name)
+                excluded.add(caller_name)
                 continue
             try:
                 obj_refs = extract_refs(entry)
+                refs_cache[caller_name] = obj_refs
             except DdlParseError as exc:
                 print(
                     f"discover: skipping {caller_name} (extract_refs error: {str(exc)[:60]})",
                     file=sys.stderr,
                 )
                 llm_required.append(caller_name)
+                excluded.add(caller_name)
                 continue
 
             if obj_refs.needs_llm:
-                # Partial refs — check what single-pass captured, but also
-                # flag for LLM to complete the analysis
-                is_reader = target in obj_refs.reads_from
-                is_writer = target in obj_refs.writes_to
-                if is_reader:
+                # Check partial refs but always flag for LLM
+                if target in obj_refs.reads_from:
                     readers.append(caller_name)
-                if is_writer:
-                    writers.append(caller_name)
-                # Always flag — partial refs may have missed this target
+                if target in obj_refs.writes_to:
+                    direct_writers[caller_name] = obj_refs.write_operations.get(target, [])
                 llm_required.append(caller_name)
+                excluded.add(caller_name)
                 continue
 
-            # Deterministic — full refs available
+            # Deterministic — full refs
             if target in obj_refs.reads_from:
                 readers.append(caller_name)
-            if target in obj_refs.writes_to:
-                writers.append(caller_name)
+            ops = obj_refs.write_operations.get(target, [])
+            if ops:
+                direct_writers[caller_name] = ops
 
+    # ── Phase 2: build call graph (procedures only) ──────────────────────
+    callee_map: dict[str, list[str]] = {}
+    proc_names = set(catalog.procedures.keys())
+    for proc_name, obj_refs in refs_cache.items():
+        if proc_name in excluded:
+            continue
+        callees = [c for c in obj_refs.calls if c in proc_names]
+        if callees:
+            callee_map[proc_name] = callees
+
+    # ── Phase 3: BFS for indirect writers ────────────────────────────────
+    writer_entries: list[dict[str, Any]] = []
+    added_procs: set[str] = set()
+
+    for proc_name, ops in direct_writers.items():
+        writer_entries.append({
+            "procedure": proc_name,
+            "write_type": "direct",
+            "write_operations": ops,
+            "call_path": [],
+            "confidence": 0.0,
+            "status": "",
+        })
+        added_procs.add(proc_name)
+
+    for start_proc in proc_names:
+        if start_proc in added_procs or start_proc in excluded:
+            continue
+
+        visited: set[str] = {start_proc}
+        queue: deque[tuple[str, list[str]]] = deque([(start_proc, [])])
+        found_paths: list[list[str]] = []
+
+        while queue:
+            current, path = queue.popleft()
+            if len(path) >= depth:
+                continue
+            for callee in callee_map.get(current, []):
+                if callee in direct_writers and callee not in excluded:
+                    found_paths.append(path + [callee])
+                elif callee not in visited:
+                    visited.add(callee)
+                    queue.append((callee, path + [callee]))
+
+        if found_paths:
+            best_path = min(found_paths, key=len)
+            writer_entries.append({
+                "procedure": start_proc,
+                "write_type": "indirect",
+                "write_operations": [],
+                "call_path": list(best_path),
+                "confidence": 0.0,
+                "status": "",
+            })
+            added_procs.add(start_proc)
+
+    # ── Phase 4: confidence scoring ──────────────────────────────────────
+    max_path_len = max(
+        (len(w["call_path"]) for w in writer_entries),
+        default=0,
+    )
+
+    # Count multiple paths for indirect writers
+    indirect_multi: dict[str, int] = {}
+    for start_proc in proc_names:
+        if start_proc in direct_writers or start_proc in excluded:
+            continue
+        if start_proc not in added_procs:
+            continue
+        visited2: set[str] = {start_proc}
+        queue2: deque[tuple[str, list[str]]] = deque([(start_proc, [])])
+        path_count = 0
+        while queue2:
+            current, path = queue2.popleft()
+            if len(path) >= depth:
+                continue
+            for callee in callee_map.get(current, []):
+                if callee in direct_writers and callee not in excluded:
+                    path_count += 1
+                elif callee not in visited2:
+                    visited2.add(callee)
+                    queue2.append((callee, path + [callee]))
+        indirect_multi[start_proc] = path_count
+
+    for w in writer_entries:
+        multiple = (
+            indirect_multi.get(w["procedure"], 0) > 1
+            if w["write_type"] == "indirect"
+            else False
+        )
+        w["confidence"] = round(_compute_confidence(
+            write_type=w["write_type"],
+            call_path_len=len(w["call_path"]),
+            max_path_len=max_path_len,
+            multiple_paths=multiple,
+        ), 4)
+        w["status"] = "confirmed" if w["confidence"] >= 0.70 else "suspected"
+
+    # ── Build result ─────────────────────────────────────────────────────
     result: dict[str, Any] = {
         "name": target,
         "readers": sorted(readers),
-        "writers": sorted(writers),
+        "writers": sorted(writer_entries, key=lambda w: w["procedure"]),
     }
     if llm_required:
-        result["llm_required"] = sorted(llm_required)
+        result["llm_required"] = sorted(set(llm_required))
     return result
 
 
@@ -321,10 +455,11 @@ def refs(
     ddl_path: Path = typer.Option(..., help="Path to DDL directory"),
     name: str = typer.Option(..., help="Fully-qualified object name (schema.Name)"),
     dialect: str = typer.Option("tsql", help="sqlglot dialect"),
+    depth: int = typer.Option(3, help="Maximum call-graph depth for indirect writers"),
 ) -> None:
     """Find all procedures/views that reference a given object."""
     try:
-        result = run_refs(ddl_path, name, dialect)
+        result = run_refs(ddl_path, name, dialect, depth=depth)
     except (FileNotFoundError, DdlParseError) as exc:
         print(f"discover: {exc}", file=sys.stderr)
         raise typer.Exit(code=2) from exc

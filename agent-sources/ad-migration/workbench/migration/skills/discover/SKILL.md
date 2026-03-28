@@ -1,7 +1,7 @@
 ---
 name: discover
 description: >
-  This skill should be used when the user asks to "list tables", "list procedures", "list views", "list functions", "show me the DDL for X", "inspect object X","what references Y", or wants to explore the structure of a DDL export directory. Use for any object inspection or reference tracing against a local DDL snapshot.
+  This skill should be used when the user asks to "list tables", "list procedures", "list views", "list functions", "show me the DDL for X", "inspect object X", "what references Y", "find what writes to [table]", "which procedures populate [table]", or wants to explore the structure of a DDL export directory. Use for any object inspection, reference tracing, or writer discovery against a local DDL snapshot.
 user-invocable: true
 argument-hint: "[ddl-path] [subcommand] [options]"
 ---
@@ -34,13 +34,14 @@ If `ddl-path` is missing from `$ARGUMENTS`, ask the user for it before proceedin
 | `--name` | yes | fully-qualified object name (e.g. `dbo.FactSales`, `[silver].[DimProduct]`) |
 | `--dialect` | no | sqlglot dialect (default: `tsql`) |
 
-**refs** — find all procedures/views that reference an object:
+**refs** — find all procedures/views that reference an object (readers, writers with confidence, indirect writers via call graph):
 
 | Option | Required | Values |
 |---|---|---|
 | `--ddl-path` | yes | path to DDL directory |
 | `--name` | yes | fully-qualified object name |
 | `--dialect` | no | sqlglot dialect (default: `tsql`) |
+| `--depth` | no | max call-graph depth for indirect writers (default: `3`) |
 
 If no subcommand is specified in `$ARGUMENTS`, default to `list`.
 

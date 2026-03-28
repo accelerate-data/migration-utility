@@ -123,14 +123,26 @@ def test_show_not_found():
 # ── refs ─────────────────────────────────────────────────────────────────────
 
 
+def _writer_names(result: dict) -> list[str]:
+    """Extract procedure names from writer entries."""
+    return [w["procedure"] for w in result["writers"]]
+
+
 def test_refs_dimcustomer_writers():
     result = run_refs(FIXTURES, "silver.DimCustomer", "tsql")
     assert result["name"] == "silver.dimcustomer"
-    # Deterministic writers
-    assert "silver.usp_load_dimcustomer" in result["writers"]
-    assert "silver.usp_load_with_cte" in result["writers"]
-    assert "silver.usp_load_with_case" in result["writers"]
-    assert "silver.usp_load_with_multi_cte" in result["writers"]
+    names = _writer_names(result)
+    # Deterministic direct writers
+    assert "silver.usp_load_dimcustomer" in names
+    assert "silver.usp_load_with_cte" in names
+    assert "silver.usp_load_with_case" in names
+    assert "silver.usp_load_with_multi_cte" in names
+    # Check rich writer entry structure
+    entry = next(w for w in result["writers"] if w["procedure"] == "silver.usp_load_dimcustomer")
+    assert entry["write_type"] == "direct"
+    assert "TRUNCATE" in entry["write_operations"] or "INSERT" in entry["write_operations"]
+    assert entry["confidence"] >= 0.70
+    assert entry["status"] == "confirmed"
     # usp_conditional_load and usp_try_catch_load have needs_llm — flagged
     assert "silver.usp_conditional_load" in result["llm_required"]
     # usp_full_reload: block-level parse_error — also in llm_required
@@ -145,8 +157,12 @@ def test_refs_dimcustomer_readers():
 
 def test_refs_factsales_writers_and_view():
     result = run_refs(FIXTURES, "silver.FactSales", "tsql")
-    assert "silver.usp_load_factsales" in result["writers"]
+    names = _writer_names(result)
+    assert "silver.usp_load_factsales" in names
     assert "silver.vw_customersales" in result["readers"]
+    # Check MERGE operation on the writer
+    entry = next(w for w in result["writers"] if w["procedure"] == "silver.usp_load_factsales")
+    assert "MERGE" in entry["write_operations"]
 
 
 def test_refs_bronze_customer_readers():
