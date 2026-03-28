@@ -401,9 +401,9 @@ END"""
         _parse_block(sql, dialect="tsql")
 
 
-def test_load_directory_raises_on_parse_error() -> None:
-    """Procs that fall back to top-level Command raise DdlParseError — load aborts."""
-    from shared.loader import DdlParseError, load_directory
+def test_load_directory_stores_parse_error_per_block() -> None:
+    """Procs that fall back to Command are stored with parse_error, not skipped."""
+    from shared.loader import load_directory
 
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp)
@@ -420,8 +420,10 @@ def test_load_directory_raises_on_parse_error() -> None:
             "GO\n",
             encoding="utf-8",
         )
-        with pytest.raises(DdlParseError, match="Command"):
-            load_directory(p)
+        catalog = load_directory(p)
+        entry = catalog.procedures.get("dbo.usp_bad")
+        assert entry is not None
+        assert entry.parse_error is not None
 
 
 def test_load_directory_simple_proc_parses_ok() -> None:
@@ -459,20 +461,22 @@ def test_extract_refs_raises_for_parse_failed_entry() -> None:
         extract_refs(entry)
 
 
-def test_extract_refs_raises_for_internal_command() -> None:
-    """Procs with internal Command nodes (EXEC, TRUNCATE) raise DdlParseError."""
-    from shared.loader import DdlParseError, _parse_block, extract_refs, DdlEntry
+def test_extract_refs_handles_internal_command() -> None:
+    """Procs with internal Command nodes (EXEC) are handled via body parsing."""
+    from shared.loader import _parse_block, extract_refs, DdlEntry
 
-    # usp_orchestrator (EXEC) parses as Create but has internal Command
     sql = """CREATE PROCEDURE [dbo].[usp_orchestrator]
 AS
 BEGIN
     EXEC dbo.usp_simple_insert
 END"""
-    ast = _parse_block(sql, dialect="tsql")  # does NOT raise — top-level is Create
+    ast = _parse_block(sql, dialect="tsql")
     entry = DdlEntry(raw_ddl=sql, ast=ast)
-    with pytest.raises(DdlParseError, match="Command"):
-        extract_refs(entry)
+    # extract_refs no longer raises — it falls through to body parsing
+    # EXEC produces a Command that gets skipped (no DML to extract)
+    refs = extract_refs(entry)
+    assert refs.writes_to == []
+    assert refs.reads_from == []
 
 
 def test_extract_refs_excludes_cross_db_reads() -> None:
@@ -550,15 +554,21 @@ def test_catalog_json_content() -> None:
         assert "otherdb" not in ref.lower()
 
 
-def test_index_directory_raises_on_unparseable() -> None:
-    """index_directory raises DdlParseError when DDL contains unparseable blocks."""
-    from shared.loader import DdlParseError, index_directory
+def test_index_directory_stores_unparseable_with_error() -> None:
+    """index_directory stores unparseable blocks with parse_error in catalog.json."""
+    import json
+    from shared.loader import index_directory
 
     _FIXTURES_UNPARSEABLE = Path(__file__).parent / "fixtures" / "ddl_unparseable"
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "index"
-        with pytest.raises(DdlParseError):
-            index_directory(_FIXTURES_UNPARSEABLE, out)
+        index_directory(_FIXTURES_UNPARSEABLE, out)
+        catalog_doc = json.loads((out / "catalog.json").read_text())
+        has_error = any(
+            obj.get("parse_error") is not None
+            for obj in catalog_doc["objects"].values()
+        )
+        assert has_error
 
 
 # ── load_catalog round-trip ───────────────────────────────────────────────────
@@ -584,13 +594,18 @@ def test_load_catalog_round_trip() -> None:
     assert entry.ast is None
 
 
-def test_load_directory_raises_on_unparseable() -> None:
-    """load_directory raises DdlParseError for dirs with unparseable DDL blocks."""
-    from shared.loader import DdlParseError, load_directory
+def test_load_directory_stores_unparseable_with_error() -> None:
+    """load_directory stores unparseable DDL blocks with parse_error, does not raise."""
+    from shared.loader import load_directory
 
     _FIXTURES_UNPARSEABLE = Path(__file__).parent / "fixtures" / "ddl_unparseable"
-    with pytest.raises(DdlParseError):
-        load_directory(_FIXTURES_UNPARSEABLE)
+    catalog = load_directory(_FIXTURES_UNPARSEABLE)
+    has_error = any(
+        e.parse_error is not None
+        for bucket in [catalog.procedures, catalog.tables, catalog.views, catalog.functions]
+        for e in bucket.values()
+    )
+    assert has_error
 
 
 def test_load_catalog_not_found() -> None:

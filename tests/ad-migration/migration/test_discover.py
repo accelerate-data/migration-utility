@@ -38,9 +38,16 @@ def test_list_flat_tables() -> None:
 def test_list_flat_procedures() -> None:
     result = discover.run_list(_FLAT_FIXTURES, discover.ObjectType.procedures, "tsql")
     objects = result["objects"]
-    assert len(objects) == 2
     assert "dbo.usp_loaddimproduct" in objects
     assert "dbo.usp_logmessage" in objects
+    assert "dbo.usp_mergedimproduct" in objects
+    assert "dbo.usp_loadwithcte" in objects
+    assert "dbo.usp_loadwithmulticte" in objects
+    assert "dbo.usp_loadwithcase" in objects
+    assert "dbo.usp_loadwithleftjoin" in objects
+    assert "dbo.usp_conditionalmerge" in objects
+    assert "dbo.usp_trycatchload" in objects
+    assert "dbo.usp_correlatedsubquery" in objects
 
 
 # ── test_list_flat_missing_optional ───────────────────────────────────────
@@ -74,13 +81,16 @@ def test_list_indexed_same_as_flat() -> None:
     assert flat_result["objects"] == indexed_result["objects"]
 
 
-# ── test_list_unparseable_raises ──────────────────────────────────────────
+# ── test_list_unparseable_stored_with_error ──────────────────────────────
 
 
-def test_list_unparseable_raises() -> None:
-    """Loading a dir with unparseable DDL raises DdlParseError."""
-    with pytest.raises(DdlParseError, match="Command"):
-        discover.run_list(_UNPARSEABLE_FIXTURES, discover.ObjectType.procedures, "tsql")
+def test_list_unparseable_stored_with_error() -> None:
+    """Unparseable DDL blocks are stored with parse_error, not skipped."""
+    from shared.loader import load_directory
+
+    result = load_directory(_UNPARSEABLE_FIXTURES)
+    has_error = any(e.parse_error is not None for e in result.procedures.values())
+    assert has_error
 
 
 # ── test_show_table_columns ───────────────────────────────────────────────
@@ -103,13 +113,16 @@ def test_show_table_columns() -> None:
         assert "sql_type" in col
 
 
-# ── test_show_unparseable_raises ──────────────────────────────────────────
+# ── test_show_unparseable_has_parse_error ─────────────────────────────────
 
 
-def test_show_unparseable_raises() -> None:
-    """show on a dir with unparseable DDL raises DdlParseError."""
-    with pytest.raises(DdlParseError, match="Command"):
-        discover.run_show(_UNPARSEABLE_FIXTURES, "dbo.usp_ConditionalLoad", "tsql")
+def test_show_unparseable_has_parse_error() -> None:
+    """show on a proc with unparseable DDL returns non-null parse_error."""
+    from shared.loader import load_directory
+
+    catalog = load_directory(_UNPARSEABLE_FIXTURES)
+    errored = [name for name, e in catalog.procedures.items() if e.parse_error]
+    assert len(errored) > 0
 
 
 # ── test_refs_ast_bracket_notation ────────────────────────────────────────
@@ -135,11 +148,11 @@ def test_refs_no_false_positive_string_literal() -> None:
     assert "dbo.usp_logmessage" not in referenced_by
 
 
-# ── test_discover_cli_exits_on_parse_error ──────────────────────────────
+# ── test_discover_cli_list_succeeds_with_unparseable ─────────────────────
 
 
-def test_discover_cli_exits_on_parse_error() -> None:
-    """discover CLI list command exits code 2 when DDL is unparseable."""
+def test_discover_cli_list_succeeds_with_unparseable() -> None:
+    """discover CLI list succeeds even with unparseable blocks (stored with error)."""
     from typer.testing import CliRunner
 
     runner = CliRunner()
@@ -147,4 +160,70 @@ def test_discover_cli_exits_on_parse_error() -> None:
         discover.app,
         ["list", "--ddl-path", str(_UNPARSEABLE_FIXTURES), "--type", "procedures"],
     )
-    assert result.exit_code == 2
+    assert result.exit_code == 0
+
+
+# ── New pattern tests ────────────────────────────────────────────────────
+
+
+def test_show_merge_proc_refs() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_MergeDimProduct", "tsql")
+    assert "silver.dimproduct" in result["refs"]["writes_to"]
+    assert "bronze.product" in result["refs"]["reads_from"]
+
+
+def test_show_cte_proc_refs() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadWithCTE", "tsql")
+    assert "silver.dimproduct" in result["refs"]["writes_to"]
+    assert "bronze.product" in result["refs"]["reads_from"]
+
+
+def test_show_multi_cte_proc_refs() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadWithMultiCTE", "tsql")
+    assert "silver.dimproduct" in result["refs"]["writes_to"]
+    assert "bronze.product" in result["refs"]["reads_from"]
+
+
+def test_show_case_when_proc_refs() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadWithCase", "tsql")
+    assert "silver.dimproduct" in result["refs"]["writes_to"]
+    assert "bronze.product" in result["refs"]["reads_from"]
+
+
+def test_show_left_join_proc_refs() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadWithLeftJoin", "tsql")
+    assert "silver.dimproduct" in result["refs"]["writes_to"]
+    assert "bronze.product" in result["refs"]["reads_from"]
+
+
+def test_show_if_else_proc_refs() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ConditionalMerge", "tsql")
+    assert "silver.dimproduct" in result["refs"]["writes_to"]
+    assert "bronze.product" in result["refs"]["reads_from"]
+
+
+def test_show_try_catch_proc_refs() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_TryCatchLoad", "tsql")
+    assert "silver.dimproduct" in result["refs"]["writes_to"]
+    assert "bronze.product" in result["refs"]["reads_from"]
+
+
+def test_show_correlated_subquery_refs() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_CorrelatedSubquery", "tsql")
+    assert "silver.dimproduct" in result["refs"]["writes_to"]
+    assert "bronze.product" in result["refs"]["reads_from"]
+
+
+def test_refs_finds_all_writer_procs() -> None:
+    result = discover.run_refs(_FLAT_FIXTURES, "silver.DimProduct", "tsql")
+    rb = result["referenced_by"]
+    assert "dbo.usp_loaddimproduct" in rb
+    assert "dbo.usp_mergedimproduct" in rb
+    assert "dbo.usp_loadwithcte" in rb
+    assert "dbo.usp_loadwithmulticte" in rb
+    assert "dbo.usp_loadwithcase" in rb
+    assert "dbo.usp_loadwithleftjoin" in rb
+    assert "dbo.usp_conditionalmerge" in rb
+    assert "dbo.usp_trycatchload" in rb
+    assert "dbo.usp_correlatedsubquery" in rb
+    assert "dbo.usp_logmessage" not in rb

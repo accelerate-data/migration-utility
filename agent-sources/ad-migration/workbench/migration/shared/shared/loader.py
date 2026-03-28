@@ -10,8 +10,9 @@ significant.  A single file may contain a mix of object types.
 Parse errors
 ------------
 `_parse_block` raises `DdlParseError` when sqlglot cannot produce a structured
-AST (falls back to a raw `Command` node).  This error propagates — callers
-must handle it or let it abort the load.  No silent fallback is used.
+AST (falls back to a raw `Command` node).  `_load_file` catches this per-block
+and stores the entry with `ast=None` and `parse_error` populated — the
+remaining blocks in the file continue loading.  No silent fallback is used.
 
 `extract_refs` raises `DdlParseError` when called on an entry whose AST is
 absent *or* whose body contains internal `Command` nodes (partially unparsed
@@ -173,72 +174,237 @@ def _table_fqn(table: exp.Table) -> str:
     return normalize(f"{table.db}.{table.name}")
 
 
-def extract_refs(entry: DdlEntry) -> ObjectRefs:
-    """Extract write/read/call references from a DDL entry using AST only.
+_BODY_RE = re.compile(
+    r"\bAS\s+BEGIN\b(.*)\bEND\s*;?\s*$",
+    re.IGNORECASE | re.DOTALL,
+)
 
-    Raises:
-        DdlParseError: if the entry has no AST (parse failed) or if the body
-            contains internal Command nodes (partially unparsed statements).
-            No regex fallback is used — callers must handle partial failures.
+_CMD_CONTROL_FLOW_RE = re.compile(
+    r"^\s*(?:BEGIN\s+TRY|END\s+TRY|BEGIN\s+CATCH|END\s+CATCH"
+    r"|BEGIN|END|ELSE"
+    r"|WHILE\b[^\n;]*"
+    r"|IF\b[^\n;]*"
+    r")\s*",
+    re.IGNORECASE,
+)
+
+_MAX_PARSE_DEPTH = 5
+
+
+def _extract_sql_from_command(cmd: exp.Command) -> str | None:
+    """Extract SQL text from a Command node, stripping control flow prefixes.
+
+    Command nodes contain unparsed text where sqlglot gave up. The text
+    often starts with BEGIN/END/ELSE/IF/WHILE — strip those to reveal
+    the DML underneath, then return it for re-parsing.
+
+    Returns None if no SQL can be extracted (the Command is pure control flow).
     """
-    if entry.ast is None:
-        raise DdlParseError("Cannot extract refs: DDL block failed to parse (ast is None)")
+    text = cmd.sql()
+    prev = None
+    while text != prev:
+        prev = text
+        text = _CMD_CONTROL_FLOW_RE.sub("", text, count=1)
+    text = text.strip()
+    return text if text else None
 
-    internal_commands = list(entry.ast.find_all(exp.Command))
-    if internal_commands:
-        sample = str(internal_commands[0])[:80]
-        raise DdlParseError(
-            f"Cannot extract refs: body contains unparsed statement(s) "
-            f"(sqlglot Command node): {sample!r}"
-        )
 
+def _recursive_parse(sql: str, dialect: str, depth: int = 0) -> list[Any]:
+    """Parse SQL text, recursively re-parsing Command nodes.
+
+    sqlglot cannot parse T-SQL control flow (IF, BEGIN/END, ELSE, WHILE,
+    TRY/CATCH) and produces Command nodes for those blocks. This function
+    extracts the SQL text from Command nodes, strips the control flow
+    prefix, and re-parses — recovering the DML statements inside nested
+    blocks.
+    """
+    if depth > _MAX_PARSE_DEPTH:
+        return []
+    stmts = sqlglot.parse(sql, dialect=dialect, error_level=sqlglot.ErrorLevel.WARN)
+    results: list[Any] = []
+    for s in stmts:
+        if s is None:
+            continue
+        if isinstance(s, exp.Command):
+            inner_sql = _extract_sql_from_command(s)
+            if not inner_sql or inner_sql == s.sql():
+                continue
+            results.extend(_recursive_parse(inner_sql, dialect, depth + 1))
+        elif isinstance(s, exp.If):
+            # sqlglot parses IF conditions but loses the body statements.
+            # Re-parse the full IF text with control flow stripped.
+            if_sql = _extract_sql_from_command(
+                exp.Command(this=s.sql())
+            )
+            if if_sql:
+                results.extend(_recursive_parse(if_sql, dialect, depth + 1))
+        else:
+            results.append(s)
+    return results
+
+
+_STRIP_CONTROL_FLOW_RE = re.compile(
+    r"""
+      \bIF\s+(?:NOT\s+)?EXISTS\s*\([^)]*\)\s*(?:BEGIN\b)?\s*  # IF [NOT] EXISTS (...) [BEGIN]
+    | \bIF\b[^;]*?\bBEGIN\b                                    # IF <condition> BEGIN
+    | \bIF\b\s+@@\w+\s*[<>=!]+\s*\S+\s*                       # IF @@var = value
+    | \bWHILE\s+(?:NOT\s+)?EXISTS\s*\([^)]*\)\s*(?:BEGIN\b)?\s*  # WHILE [NOT] EXISTS (...) [BEGIN]
+    | \bWHILE\b[^;]*?\bBEGIN\b                                 # WHILE <condition> BEGIN
+    | \bELSE\s+BEGIN\b                                          # ELSE BEGIN
+    | \bELSE\b                                                  # ELSE
+    | \bBEGIN\s+TRY\b                                           # BEGIN TRY
+    | \bEND\s+TRY\b                                             # END TRY
+    | \bBEGIN\s+CATCH\b                                          # BEGIN CATCH
+    | \bEND\s+CATCH\b                                            # END CATCH
+    | \bBEGIN\b                                                  # standalone BEGIN
+    | \bEND\b\s*;?                                               # standalone END
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
+def _parse_body_statements(raw_ddl: str, dialect: str = "tsql") -> list[Any]:
+    """Extract the procedure/function body and parse each statement individually.
+
+    Uses a two-pass strategy:
+    1. Recursive parse: preserves structure, re-parses Command nodes by
+       stripping control flow prefixes.
+    2. Fallback: strips all control flow from the raw body and parses the
+       remaining DML — catches statements that sqlglot drops inside
+       IF <condition> BEGIN...END blocks.
+
+    The union of both passes gives maximum coverage.
+
+    Returns an empty list if no AS BEGIN...END block is found.
+    """
+    m = _BODY_RE.search(raw_ddl)
+    if not m:
+        return []
+    body = m.group(1).strip()
+    if not body:
+        return []
+
+    # Pass 1: recursive Command re-parsing
+    pass1 = _recursive_parse(body, dialect)
+
+    # Pass 2: strip all control flow, parse flat DML
+    stripped = _STRIP_CONTROL_FLOW_RE.sub("", body).strip()
+    pass2 = [
+        s for s in sqlglot.parse(stripped, dialect=dialect, error_level=sqlglot.ErrorLevel.WARN)
+        if s is not None and not isinstance(s, exp.Command)
+    ] if stripped else []
+
+    # Merge: use pass1 as base, add any statements from pass2 not already found
+    return _merge_statement_lists(pass1, pass2)
+
+
+def _stmt_key(s: Any) -> str | None:
+    """Return a dedup key for a statement, or None if it can't be serialized."""
+    try:
+        return s.sql()
+    except (ValueError, TypeError):
+        return None
+
+
+def _merge_statement_lists(primary: list[Any], secondary: list[Any]) -> list[Any]:
+    """Merge two statement lists, deduplicating by SQL text."""
+    seen: set[str] = set()
+    for s in primary:
+        key = _stmt_key(s)
+        if key:
+            seen.add(key)
+    merged = list(primary)
+    for s in secondary:
+        key = _stmt_key(s)
+        if key and key not in seen:
+            merged.append(s)
+            seen.add(key)
+    return merged
+
+
+def _collect_refs_from_statements(statements: list[Any]) -> ObjectRefs:
+    """Walk a list of parsed statements and collect write/read references."""
     writes_to: set[str] = set()
     reads_from: set[str] = set()
 
-    # writes_to: INSERT targets
-    for node in entry.ast.find_all(exp.Insert):
-        target = node.find(exp.Table)
-        if target and _is_real_table(target):
-            writes_to.add(_table_fqn(target))
+    for stmt in statements:
+        if stmt is None or isinstance(stmt, exp.Command):
+            continue
 
-    # writes_to: UPDATE targets
-    for node in entry.ast.find_all(exp.Update):
-        target = node.find(exp.Table)
-        if target and _is_real_table(target):
-            writes_to.add(_table_fqn(target))
+        # writes_to: INSERT targets
+        for node in stmt.find_all(exp.Insert):
+            target = node.find(exp.Table)
+            if target and _is_real_table(target):
+                writes_to.add(_table_fqn(target))
 
-    # writes_to: DELETE targets
-    for node in entry.ast.find_all(exp.Delete):
-        target = node.find(exp.Table)
-        if target and _is_real_table(target):
-            writes_to.add(_table_fqn(target))
+        # writes_to: UPDATE targets
+        for node in stmt.find_all(exp.Update):
+            target = node.find(exp.Table)
+            if target and _is_real_table(target):
+                writes_to.add(_table_fqn(target))
 
-    # writes_to: MERGE targets
-    for node in entry.ast.find_all(exp.Merge):
-        target = node.find(exp.Table)
-        if target and _is_real_table(target):
-            writes_to.add(_table_fqn(target))
+        # writes_to: DELETE targets (use node.this — node.find(Table) may
+        # return a TOP pseudo-table from DELETE TOP (N) syntax)
+        for node in stmt.find_all(exp.Delete):
+            target = node.this
+            if isinstance(target, exp.Table) and _is_real_table(target):
+                writes_to.add(_table_fqn(target))
 
-    # reads_from: FROM and JOIN sources (exclude write targets)
-    for node in entry.ast.find_all(exp.From):
-        table = node.find(exp.Table)
-        if table and _is_real_table(table):
-            reads_from.add(_table_fqn(table))
+        # writes_to: MERGE targets + reads_from: MERGE USING sources
+        for node in stmt.find_all(exp.Merge):
+            target = node.find(exp.Table)
+            if target and _is_real_table(target):
+                writes_to.add(_table_fqn(target))
+            using = node.args.get("using")
+            if isinstance(using, exp.Table) and _is_real_table(using):
+                reads_from.add(_table_fqn(using))
 
-    for node in entry.ast.find_all(exp.Join):
-        table = node.find(exp.Table)
-        if table and _is_real_table(table):
-            reads_from.add(_table_fqn(table))
+        # writes_to: TRUNCATE targets
+        for node in stmt.find_all(exp.TruncateTable):
+            target = node.find(exp.Table)
+            if target and _is_real_table(target):
+                writes_to.add(_table_fqn(target))
 
-    # calls: EXEC targets — sqlglot EXEC always produces an internal Command,
-    # so calls cannot be extracted via AST. This is a known limitation; callers
-    # that need call-graph analysis must handle parse_error entries separately.
+        # reads_from: FROM and JOIN sources
+        for node in stmt.find_all(exp.From):
+            table = node.find(exp.Table)
+            if table and _is_real_table(table):
+                reads_from.add(_table_fqn(table))
+
+        for node in stmt.find_all(exp.Join):
+            table = node.find(exp.Table)
+            if table and _is_real_table(table):
+                reads_from.add(_table_fqn(table))
 
     return ObjectRefs(
         writes_to=sorted(writes_to),
         reads_from=sorted(reads_from - writes_to),
         calls=[],
     )
+
+
+def extract_refs(entry: DdlEntry) -> ObjectRefs:
+    """Extract write/read/call references from a DDL entry.
+
+    For procedures, views, and functions: extracts the body between
+    AS BEGIN...END and parses each statement individually, since sqlglot's
+    CREATE PROCEDURE AST only captures the first body statement.
+
+    For tables and other CREATE statements: walks the original AST directly.
+
+    Raises:
+        DdlParseError: if the entry has no AST and no raw_ddl to fall back on.
+    """
+    # For entries with AS BEGIN...END bodies, parse the body statements
+    body_stmts = _parse_body_statements(entry.raw_ddl)
+    if body_stmts:
+        return _collect_refs_from_statements(body_stmts)
+
+    # Fallback: walk the original AST (tables, simple views without BEGIN/END)
+    if entry.ast is None:
+        raise DdlParseError("Cannot extract refs: DDL block failed to parse (ast is None)")
+
+    return _collect_refs_from_statements([entry.ast])
 
 
 # ── Directory loading ─────────────────────────────────────────────────────────
@@ -259,8 +425,12 @@ def _load_file(path: Path, catalog: DdlCatalog, dialect: str = "tsql") -> None:
             print(f"loader: could not determine type for '{raw_name}' in {path.name}", file=sys.stderr)
             continue
         key = normalize(raw_name)
-        ast = _parse_block(block, dialect=dialect)
-        getattr(catalog, bucket_name)[key] = DdlEntry(raw_ddl=block, ast=ast)
+        try:
+            ast = _parse_block(block, dialect=dialect)
+            getattr(catalog, bucket_name)[key] = DdlEntry(raw_ddl=block, ast=ast)
+        except DdlParseError as exc:
+            print(f"loader: parse failed for '{raw_name}', storing with error: {exc}", file=sys.stderr)
+            getattr(catalog, bucket_name)[key] = DdlEntry(raw_ddl=block, ast=None, parse_error=str(exc))
 
 
 def load_directory(ddl_path: Path | str, dialect: str = "tsql") -> DdlCatalog:
@@ -276,7 +446,6 @@ def load_directory(ddl_path: Path | str, dialect: str = "tsql") -> DdlCatalog:
 
     Raises:
         FileNotFoundError: if ddl_path does not exist.
-        DdlParseError: if any DDL block fails to parse.
     """
     path = Path(ddl_path)
     if not path.exists():
