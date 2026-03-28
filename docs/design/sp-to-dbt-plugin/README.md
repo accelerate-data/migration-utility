@@ -21,8 +21,10 @@ agent-sources/ad-migration/               ← marketplace package
 ├── .claude-plugin/marketplace.json
 ├── CLAUDE.md                              ← shared domain context
 └── workbench/
-    ├── bootstrap/                         ← plugin: init + setup
-    │   └── commands/init-ad-migration.md
+    ├── bootstrap/                         ← plugin: init + setup + DDL extraction
+    │   ├── commands/init-ad-migration.md
+    │   └── skills/
+    │       └── setup-ddl/                ← DDL extraction from live SQL Server
     ├── migration/                         ← plugin: analysis + migration pipeline
     │   ├── CLAUDE.md
     │   ├── .mcp.json
@@ -34,7 +36,6 @@ agent-sources/ad-migration/               ← marketplace package
     │   ├── skills/
     │   │   ├── discover/                  ← SKILL.md + rules/
     │   │   ├── scope/                     ← SKILL.md + rules/
-    │   │   ├── setup-ddl/                 ← DDL extraction from live SQL Server
     │   │   ├── assess/                    ← not yet implemented
     │   │   ├── migrate/                   ← not yet implemented
     │   │   ├── test-gen/                  ← not yet implemented
@@ -89,7 +90,11 @@ Input:  --ddl-path PATH  --dialect tsql
         --name dbo.MyTable                         (show|refs only)
 
 Output (list):  { "objects": ["dbo.Foo", "dbo.Bar"] }
-Output (show):  { "name": "dbo.Foo", "raw_ddl": "...", "columns": [...] }
+Output (show):  { "name": "...", "type": "procedure", "raw_ddl": "...",
+                  "refs": { "writes_to": [...], "reads_from": [...],
+                            "write_operations": {"target": ["INSERT"]} },
+                  "has_exec": false, "classification": "deterministic",
+                  "parse_error": null }
 Output (refs):  { "name": "dbo.Foo", "referenced_by": ["dbo.usp_Load", ...] }
 ```
 
@@ -125,12 +130,10 @@ Confidence scoring rules (from `scoring.md`, implemented in code):
 
 | Signal | Effect |
 |---|---|
-| Direct write (INSERT/UPDATE/DELETE/MERGE/TRUNCATE) | base 0.90 |
+| Direct write (INSERT/UPDATE/DELETE/MERGE/TRUNCATE/SELECT_INTO) | base 0.90 |
 | Indirect write (callee is a confirmed direct writer) | base 0.75 |
 | Shorter call path (per hop) | +0.02 |
 | Multiple independent write paths | +0.05 |
-| Dynamic SQL alongside static evidence | −0.20 |
-| Dynamic SQL only | cap at 0.45 |
 
 Status: `confirmed` if confidence ≥ 0.70, else `suspected`.
 
@@ -279,11 +282,9 @@ The orchestrator. Defined in `commands/migrate-table/SKILL.md`. No Python — Cl
 | VU-733 | discover.py | Done — functional with CLI (list/show/refs) |
 | VU-734 | discover SKILL.md | Done |
 | VU-735 | discover tests | Done |
-| VU-736 | scope.py | Needs AST-only rewrite (currently uses regex fallback) |
+| VU-736 | scope.py | Done — AST-only rewrite complete, uses `extract_refs().write_operations` |
 | VU-737 | scope SKILL.md | Done |
-| VU-738 | scope tests | Done — 8 fixture scenarios |
-
-**Remaining:** rewrite `scope.py` write detection and call-graph resolution to use sqlglot AST only. Remove all regex patterns.
+| VU-738 | scope tests | Done — 11 fixture scenarios |
 
 ---
 

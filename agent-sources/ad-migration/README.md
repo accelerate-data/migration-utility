@@ -10,11 +10,18 @@ Analyse Microsoft SQL Server and Fabric Warehouse stored procedures and extract 
 
 ## Skills
 
-| Skill | Invocable | Trigger |
-|---|---|---|
-| `discover` | No (reference) | Loaded when exploring a DDL directory |
-| `scope` | No (reference) | Loaded when finding writer procedures |
-| `setup-ddl` | Yes | "set up DDL", "extract DDL from SQL Server", "populate artifacts/ddl" |
+### Bootstrap plugin
+
+| Skill | Trigger |
+|---|---|
+| `/setup-ddl` | "set up DDL", "extract DDL from SQL Server", "populate artifacts/ddl" |
+
+### Migration plugin
+
+| Skill | Trigger |
+|---|---|
+| `/discover` | "list tables", "show me the DDL for X", "what references Y" |
+| `/scope` | "find what writes to [table]", "which procedures populate [table]" |
 
 ## Agents
 
@@ -29,7 +36,7 @@ Analyse Microsoft SQL Server and Fabric Warehouse stored procedures and extract 
 | `ddl` | Structured DDL parsing from local files | uv |
 | `mssql` | Live SQL Server query execution | `toolbox` binary, env vars |
 
-## Environment Variables (setup-ddl only)
+## Environment Variables (setup-ddl / bootstrap only)
 
 | Variable | Description |
 |---|---|

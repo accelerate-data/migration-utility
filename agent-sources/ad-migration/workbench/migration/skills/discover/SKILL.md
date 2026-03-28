@@ -2,6 +2,7 @@
 name: discover
 description: >
   This skill should be used when the user asks to "list tables", "list procedures", "list views", "list functions", "show me the DDL for X", "inspect object X","what references Y", or wants to explore the structure of a DDL export directory. Use for any object inspection or reference tracing against a local DDL snapshot.
+user-invocable: true
 argument-hint: "[ddl-path] [subcommand] [options]"
 ---
 

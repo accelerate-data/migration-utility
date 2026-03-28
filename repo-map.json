@@ -155,7 +155,7 @@
     },
     "migration_skills": {
       "path": "agent-sources/ad-migration/workbench/migration/skills/",
-      "description": "Skill definitions: discover/ (DDL exploration), scope/ (writer detection), setup-ddl/ (DDL export from live DB)."
+      "description": "Skill definitions: discover/ (DDL exploration), scope/ (writer detection). setup-ddl moved to bootstrap."
     },
     "migration_agents": {
       "path": "agent-sources/ad-migration/workbench/migration/agents/",

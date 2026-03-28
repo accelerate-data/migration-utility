@@ -1,6 +1,6 @@
 {
   "name": "migration",
-  "description": "DDL analysis and migration pipeline: scoping, discovery, and DDL extraction for Fabric Warehouse to dbt.",
+  "description": "DDL analysis and migration pipeline: scoping and discovery for Fabric Warehouse to dbt.",
   "version": "1.0.0",
   "license": "Elastic-2.0",
   "author": { "name": "Accelerate Data", "url": "https://github.com/accelerate-data" },

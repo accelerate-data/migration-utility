@@ -2,6 +2,7 @@
 name: scope
 description: >
   This skill should be used when the user asks to "find what writes to [table]", "which procedures populate [table]", "scope out writers for [table]", "identify the writer for [table]", or needs to determine which stored procedure is responsible for loading a specific target table.
+user-invocable: true
 argument-hint: "[ddl-path] [table-name]"
 ---
 
