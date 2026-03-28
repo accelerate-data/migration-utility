@@ -62,3 +62,48 @@ Group entries in `referenced_by` by caller type before displaying:
 - **Views** — DDL begins with `CREATE VIEW`
 
 Note that `refs` reports a reference relationship only. Use the `scope` skill to determine which callers actually perform write operations.
+
+## Presenting show results
+
+When displaying `show` output for a procedure, always include:
+
+1. **Classification** — Deterministic or Claude-assisted (from parse classification table in SKILL.md)
+2. **Data flow** — `reads_from` and `writes_to` from the `refs` field
+3. **Call graph** — visual tree showing the proc and its read/write targets
+4. **Logic summary** — brief description of what the proc does (from reading `raw_ddl`)
+
+Example for a deterministic proc:
+
+```text
+Classification: Deterministic
+
+Call Graph
+
+  dbo.usp_load_DimCustomer  (direct writer)
+    ├── reads: bronze.Customer
+    ├── reads: bronze.Person
+    └── writes: silver.DimCustomer  (TRUNCATE + INSERT)
+
+Logic Summary
+  1. TRUNCATE TABLE silver.DimCustomer
+  2. INSERT INTO silver.DimCustomer from JOIN of bronze.Customer and bronze.Person
+```
+
+Example for a Claude-assisted proc (EXEC orchestrator):
+
+```text
+Classification: Claude-assisted (EXEC detected)
+
+Call Graph
+
+  dbo.usp_load_FactSales  (orchestrator, no direct DML)
+    └── EXEC dbo.usp_stage_FactSales  (leaf, truncate + INSERT)
+          ├── reads: bronze.SalesOrderHeader
+          ├── reads: bronze.SalesOrderDetail
+          └── writes: silver.FactSales
+
+Logic Summary
+  1. Calls usp_stage_FactSales via EXEC — orchestrator with no direct writes
+```
+
+Use the same call graph format for both paths so output is consistent regardless of classification.
