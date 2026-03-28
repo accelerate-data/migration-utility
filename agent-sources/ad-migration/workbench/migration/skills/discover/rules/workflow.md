@@ -1,85 +1,89 @@
 # discover Workflow
 
-Step sequence for the `discover` skill: list → show → refs.
+Three subcommands: `list`, `show`, `refs`. The user may invoke any subcommand directly via `$ARGUMENTS` or navigate through them interactively. Use the `ddl-path` from `$ARGUMENTS` for all commands — never hardcode a path.
 
-## Step 1 — list
+## list
 
-Run `discover list` to enumerate objects in the DDL artifact directory:
+Enumerate objects in the DDL directory:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover list \
-  --ddl-path ./artifacts/ddl --type <type>
+  --ddl-path <ddl-path> --type <type>
 ```
 
 Valid `--type` values: `tables`, `procedures`, `views`, `functions`.
 
-Present the results as a numbered list and prompt the user to choose an object:
+Present the results as a numbered list:
 
 ```text
 Found 5 tables:
   1. dbo.DimCustomer
   2. dbo.DimProduct
-  ...
-Which table would you like to explore?
+  3. dbo.DimDate
+  4. silver.FactSales
+  5. silver.FactReturns
+
+Which object would you like to inspect?
 ```
 
-Wait for the user's selection before proceeding to Step 2.
+If the user selects an object, proceed to `show`. If they ask what references an object, proceed to `refs`.
 
-## Step 2 — show
+## show
 
-Run `discover show` to inspect the selected object:
+Inspect a single object:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover show \
-  --ddl-path ./artifacts/ddl --name <fqn>
+  --ddl-path <ddl-path> --name <fqn>
 ```
 
-Display the object's DDL and column list to the user.
+The output contains `type`, `raw_ddl`, `columns`, `params`, `refs`, and `parse_error`. Present differently based on the object type:
 
-If the output contains a `parse_error` field, surface a warning before continuing:
+### Tables
+
+Show the column list:
 
 ```text
-Warning: <fqn> could not be fully parsed.
-  Reason: <parse_error value>
+silver.DimCustomer (table, 3 columns)
 
-Raw DDL is available for manual inspection. Proceeding.
+  CustomerKey   BIGINT       NOT NULL
+  FirstName     NVARCHAR(50) NULL
+  Region        NVARCHAR(50) NULL
 ```
 
-Do not abort the workflow on parse errors — continue to the next step.
+### Views
 
-## Step 3 — refs
+Show the refs (what it reads from) and the view definition:
 
-Run `discover refs` when the user asks what references the selected object:
+```text
+silver.vw_CustomerSales (view)
 
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover refs \
-  --ddl-path ./artifacts/ddl --name <fqn>
+  Reads from: silver.DimCustomer, silver.FactSales
+
+  Definition:
+    SELECT c.FirstName, SUM(f.Amount) AS TotalSales
+    FROM silver.DimCustomer c
+    JOIN silver.FactSales f ON c.CustomerKey = f.CustomerKey
+    GROUP BY c.FirstName
 ```
 
-Group entries in `referenced_by` by caller type before displaying:
+### Procedures
 
-- **Procedures** — DDL begins with `CREATE PROCEDURE` or `CREATE PROC`
-- **Views** — DDL begins with `CREATE VIEW`
+Always include classification, call graph, and logic summary.
 
-Note that `refs` reports a reference relationship only. Use the `scope` skill to determine which callers actually perform write operations.
+Check `parse_error` and `refs` to determine classification (see parse classification table in SKILL.md):
 
-## Presenting show results
+- `parse_error` is null and `refs` populated → **Deterministic**
+- `parse_error` is set → **Claude-assisted**
 
-When displaying `show` output for a procedure, always include:
-
-1. **Classification** — Deterministic or Claude-assisted (from parse classification table in SKILL.md)
-2. **Data flow** — `reads_from` and `writes_to` from the `refs` field
-3. **Call graph** — visual tree showing the proc and its read/write targets
-4. **Logic summary** — brief description of what the proc does (from reading `raw_ddl`)
-
-Example for a deterministic proc:
+**Deterministic example:**
 
 ```text
 Classification: Deterministic
 
 Call Graph
 
-  dbo.usp_load_DimCustomer  (direct writer)
+  silver.usp_load_DimCustomer  (direct writer)
     ├── reads: bronze.Customer
     ├── reads: bronze.Person
     └── writes: silver.DimCustomer  (TRUNCATE + INSERT)
@@ -87,23 +91,53 @@ Call Graph
 Logic Summary
   1. TRUNCATE TABLE silver.DimCustomer
   2. INSERT INTO silver.DimCustomer from JOIN of bronze.Customer and bronze.Person
+  3. Computes DateFirstPurchase via OUTER APPLY on bronze.SalesOrderHeader
 ```
 
-Example for a Claude-assisted proc (EXEC orchestrator):
+**Claude-assisted example (EXEC orchestrator):**
 
 ```text
 Classification: Claude-assisted (EXEC detected)
+Parse error: Cannot extract refs: body contains unparsed statement(s)
 
 Call Graph
 
-  dbo.usp_load_FactSales  (orchestrator, no direct DML)
-    └── EXEC dbo.usp_stage_FactSales  (leaf, truncate + INSERT)
+  silver.usp_load_FactSales  (orchestrator, no direct DML)
+    └── EXEC silver.usp_stage_FactSales  (leaf, truncate + INSERT)
           ├── reads: bronze.SalesOrderHeader
           ├── reads: bronze.SalesOrderDetail
-          └── writes: silver.FactSales
+          └── writes: silver.FactInternetSales
 
 Logic Summary
   1. Calls usp_stage_FactSales via EXEC — orchestrator with no direct writes
 ```
 
-Use the same call graph format for both paths so output is consistent regardless of classification.
+For Claude-assisted procs, read the `raw_ddl` to determine what the EXEC calls do. If the called proc exists in the same DDL directory, run `show` on it to get its refs and build the call graph from that.
+
+Use the same call graph format for both paths.
+
+## refs
+
+Find what references an object:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover refs \
+  --ddl-path <ddl-path> --name <fqn>
+```
+
+The output contains `referenced_by` — a list of procedure and view names that reference the target object. Present grouped by type:
+
+```text
+silver.FactSales is referenced by:
+
+  Procedures (2):
+    - silver.usp_load_FactSales
+    - silver.usp_archive_FactSales
+
+  Views (1):
+    - silver.vw_SalesSummary
+```
+
+To determine the type of each caller, run `show` on it and check the `type` field.
+
+Note that `refs` reports reference relationships only — a caller appearing here means it mentions the target object, not necessarily that it writes to it. Use the `scope` skill to determine which callers actually perform write operations.
