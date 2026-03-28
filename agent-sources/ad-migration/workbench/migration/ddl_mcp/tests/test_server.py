@@ -170,26 +170,17 @@ def test_get_dependencies_ast_excludes_comment_only(ddl_dir: Path) -> None:
     assert "silver.usp_comment_only" not in matches
 
 
-def test_get_dependencies_skips_parse_error_procs(ddl_dir: Path) -> None:
-    """Procedures with parse errors (EXEC bodies) are skipped without raising."""
+def test_get_dependencies_exec_procs_need_llm(ddl_dir: Path) -> None:
+    """Procedures with EXEC return needs_llm=True instead of raising."""
     catalog = load_directory(ddl_dir)
-    from shared.loader import DdlParseError, extract_refs
+    from shared.loader import extract_refs
     from shared.name_resolver import normalize
 
-    target = normalize("silver.DimProduct")
-    matches = []
-    errors = 0
-    for proc_name, entry in catalog.procedures.items():
-        try:
-            refs = extract_refs(entry)
-            if target in refs.reads_from or target in refs.writes_to:
-                matches.append(proc_name)
-        except DdlParseError:
-            errors += 1
-
-    # usp_exec raises DdlParseError — counted but not crashed
-    assert errors >= 1
-    assert "silver.usp_exec" not in matches
+    exec_proc = normalize("silver.usp_exec")
+    entry = catalog.procedures.get(exec_proc)
+    assert entry is not None
+    refs = extract_refs(entry)
+    assert refs.needs_llm is True
 
 
 # ── get_table_schema — structured JSON ───────────────────────────────────────
