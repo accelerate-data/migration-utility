@@ -50,17 +50,13 @@ Do not proceed to migration steps until every `suspected` entry has a decision.
 
 ## Step 4 — Handle cross-DB errors
 
-When `errors[]` contains an entry with
-`"code": "ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE"`:
+When `errors[]` contains an entry with `"code": "ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE"`:
 
 1. Surface the affected procedure name to the user.
 2. Mark it as out-of-scope for this migration.
 3. Exclude it from the migration plan.
-4. Note that cross-database writes may require a separate data pipeline
-   migration outside this workflow.
+4. Note that cross-database writes may require a separate data pipeline migration outside this workflow.
 
 ## Step 5 — Report
 
-Present the final writer list with procedure name, status, confidence score,
-and write operations. Distinguish `confirmed` from any manually-confirmed
-`suspected` entries. Note any excluded out-of-scope procedures.
+Present the final writer list with procedure name, status, confidence score, and write operations. Distinguish `confirmed` from any manually-confirmed `suspected` entries. Note any excluded out-of-scope procedures.

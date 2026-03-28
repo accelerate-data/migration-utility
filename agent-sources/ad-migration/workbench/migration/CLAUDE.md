@@ -1,12 +1,10 @@
 # ad-migration Plugin Instructions
 
-Auto-loaded when this plugin is active. Defines domain context, tool usage rules,
-and skill invocation patterns for all agents operating within this plugin.
+Auto-loaded when this plugin is active. Defines domain context, tool usage rules, and skill invocation patterns for all agents operating within this plugin.
 
 ## Domain
 
-You are analysing **Microsoft SQL Server** or **Fabric Warehouse** stored procedures
-to support migration to dbt models on the Vibedata Managed Fabric Lakehouse.
+You are analysing **Microsoft SQL Server** or **Fabric Warehouse** stored procedures to support migration to dbt models on the Vibedata Managed Fabric Lakehouse.
 
 Source objects: T-SQL stored procedures, table DDL, views, functions.
 Migration target: silver and gold dbt transformations only. Bronze, ADF pipelines,
@@ -26,8 +24,7 @@ Never use `ddl` MCP for plain file reads. Never use native Read tool to parse DD
 
 ### discover (reference skill — do not invoke directly)
 
-Loaded automatically when exploring a DDL directory. Provides instructions for
-using the `discover` CLI to list, inspect, and trace references between DDL objects.
+Loaded automatically when exploring a DDL directory. Provides instructions for using the `discover` CLI to list, inspect, and trace references between DDL objects.
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover list \
@@ -36,8 +33,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover list \
 
 ### scope (reference skill — do not invoke directly)
 
-Loaded automatically when identifying writer procedures. Provides instructions for
-using the `scope` CLI to find which procedures write to a target table.
+Loaded automatically when identifying writer procedures. Provides instructions for using the `scope` CLI to find which procedures write to a target table.
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" scope \

@@ -2,16 +2,9 @@
 
 ## Executive Summary
 
-No single approach reliably answers "who writes this table?" for T-SQL stored
-procedures. The recommended strategy combines **catalog views** (fast, cheap,
-catches ~70-80% of static writes) with **static T-SQL parsing via sqlglot**
-(catches MERGE, SELECT INTO, and multi-statement patterns the catalog misses)
-and **ADF pipeline metadata** (maps orchestration → proc → table). Runtime DMVs
-and commercial lineage tools are useful supplements but not primary.
+No single approach reliably answers "who writes this table?" for T-SQL stored procedures. The recommended strategy combines **catalog views** (fast, cheap, catches ~70-80% of static writes) with **static T-SQL parsing via sqlglot** (catches MERGE, SELECT INTO, and multi-statement patterns the catalog misses) and **ADF pipeline metadata** (maps orchestration → proc → table). Runtime DMVs and commercial lineage tools are useful supplements but not primary.
 
-**Dynamic SQL remains the universal blind spot.** Every static approach misses
-`EXEC(@sql)` / `sp_executesql` writes. Only runtime tracing or code-text search
-can catch these.
+**Dynamic SQL remains the universal blind spot.** Every static approach misses `EXEC(@sql)` / `sp_executesql` writes. Only runtime tracing or code-text search can catch these.
 
 ---
 
@@ -71,10 +64,8 @@ WHERE definition LIKE '%INSERT%INTO%TargetTable%'
 
 ### What the Catalog Views Provide
 
-- `is_updated = 1`: Proc UPDATEs or INSERTs into the table (column-level
-  granularity available for UPDATE targets)
-- `is_insert_all = 1`: Proc uses INSERT without explicit column list
-  (SQL Server 2016+)
+- `is_updated = 1`: Proc UPDATEs or INSERTs into the table (column-level granularity available for UPDATE targets)
+- `is_insert_all = 1`: Proc uses INSERT without explicit column list (SQL Server 2016+)
 - `is_selected = 1`: Proc reads from the table
 - Cross-database references: `referenced_database_name` populated for 3/4-part names
 - Cross-server references: `referenced_server_name` populated for 4-part names
@@ -92,8 +83,7 @@ WHERE definition LIKE '%INSERT%INTO%TargetTable%'
 
 ### Verdict
 
-Best **first pass** — cheap, fast, built-in, catches the majority of static
-writes. Must be supplemented for dynamic SQL and synonyms.
+Best **first pass** — cheap, fast, built-in, catches the majority of static writes. Must be supplemented for dynamic SQL and synonyms.
 
 ---
 
@@ -101,9 +91,7 @@ writes. Must be supplemented for dynamic SQL and synonyms.
 
 ### Approach
 
-Extract proc definitions from `sys.sql_modules.definition`, then parse T-SQL
-to extract write-target tables from INSERT INTO, UPDATE, MERGE INTO, SELECT
-INTO, DELETE FROM, and TRUNCATE TABLE statements.
+Extract proc definitions from `sys.sql_modules.definition`, then parse T-SQL to extract write-target tables from INSERT INTO, UPDATE, MERGE INTO, SELECT INTO, DELETE FROM, and TRUNCATE TABLE statements.
 
 ### Available Parsers
 
@@ -182,9 +170,7 @@ def extract_write_targets(proc_text: str) -> list[tuple[str, str]]:
 
 ### Verdict
 
-**Best complement to catalog views.** sqlglot with the `tsql` dialect provides
-AST-level accuracy for static SQL. Combined with catalog views, covers ~85-90%
-of write targets. Dynamic SQL remains the gap.
+**Best complement to catalog views.** sqlglot with the `tsql` dialect provides AST-level accuracy for static SQL. Combined with catalog views, covers ~85-90% of write targets. Dynamic SQL remains the gap.
 
 ---
 
@@ -192,14 +178,11 @@ of write targets. Dynamic SQL remains the gap.
 
 ### What ADF Provides
 
-ADF pipeline definitions are JSON files (ARM templates or Git-exported JSON)
-that describe:
+ADF pipeline definitions are JSON files (ARM templates or Git-exported JSON) that describe:
 
 - **Pipeline** → contains **Activities**
-- **Stored Procedure Activity** → references `storedProcedureName` + linked
-  service (i.e., which SQL Server instance)
-- **Copy Activity** → references `source` dataset + `sink` dataset (which may
-  be tables)
+- **Stored Procedure Activity** → references `storedProcedureName` + linked service (i.e., which SQL Server instance)
+- **Copy Activity** → references `source` dataset + `sink` dataset (which may be tables)
 - **Lookup Activity** → references a query or stored procedure
 - **Execute Pipeline Activity** → invokes another pipeline (orchestration nesting)
 
@@ -235,8 +218,7 @@ def extract_proc_calls(pipeline_json: dict) -> list[dict]:
 ### Microsoft Purview Integration
 
 - Purview can ingest ADF pipeline runs and build lineage graphs
-- **Limitation**: Purview lineage is limited to **table and view sources/sinks
-  in Copy Activities** — it does NOT trace inside stored procedure logic
+- **Limitation**: Purview lineage is limited to **table and view sources/sinks in Copy Activities** — it does NOT trace inside stored procedure logic
 - Stored procedure lineage requires the "Lineage extraction" toggle in Purview
   scan config (Azure SQL DB only, not on-prem SQL Server)
 
@@ -252,9 +234,7 @@ def extract_proc_calls(pipeline_json: dict) -> list[dict]:
 
 ### Verdict
 
-Essential for **mapping the execution graph** (pipeline → proc → table) but
-does NOT answer what a proc writes to. Must be combined with catalog views or
-parsing to complete the picture.
+Essential for **mapping the execution graph** (pipeline → proc → table) but does NOT answer what a proc writes to. Must be combined with catalog views or parsing to complete the picture.
 
 ---
 
@@ -355,10 +335,7 @@ ORDER BY qsrs.last_execution_time DESC;
 
 ### Verdict
 
-**Best approach for catching dynamic SQL** and validating static analysis
-results. Query Store is the most practical (persists across restarts, low
-overhead). Use as **validation layer** rather than primary discovery — you need
-the procs to actually execute during your monitoring window.
+**Best approach for catching dynamic SQL** and validating static analysis results. Query Store is the most practical (persists across restarts, low overhead). Use as **validation layer** rather than primary discovery — you need the procs to actually execute during your monitoring window.
 
 ---
 
@@ -397,11 +374,7 @@ the procs to actually execute during your monitoring window.
 
 ### Verdict
 
-Commercial tools (especially Manta) provide the most complete out-of-box
-lineage but are **expensive and overkill for a migration utility** that only
-needs to answer "who writes this table?" for a bounded set of procs. The
-open-source ecosystem has **no production-ready SQL Server stored procedure
-lineage tool**. Better to build a targeted solution using approaches 1+2+3.
+Commercial tools (especially Manta) provide the most complete out-of-box lineage but are **expensive and overkill for a migration utility** that only needs to answer "who writes this table?" for a bounded set of procs. The open-source ecosystem has **no production-ready SQL Server stored procedure lineage tool**. Better to build a targeted solution using approaches 1+2+3.
 
 ---
 
@@ -432,17 +405,11 @@ Layer 4: Query Store text search (validation)
 
 ### Key Implementation Decisions
 
-1. **Use sqlglot (Python, MIT)** as the parser — it has a dedicated T-SQL
-   dialect, handles MERGE, and is actively maintained.
-2. **Resolve synonyms** by joining `sys.synonyms` on `base_object_name` after
-   initial discovery.
-3. **Resolve views** by recursively querying `sys.sql_expression_dependencies`
-   for view → base table mapping.
-4. **Flag dynamic SQL** procs by detecting `EXEC(` and `sp_executesql` patterns
-   in proc text — mark these as "needs manual review" or "needs runtime
-   validation."
-5. **ADF parsing** provides the orchestration context (which pipeline triggers
-   which proc) — essential for migration ordering.
+1. **Use sqlglot (Python, MIT)** as the parser — it has a dedicated T-SQL dialect, handles MERGE, and is actively maintained.
+2. **Resolve synonyms** by joining `sys.synonyms` on `base_object_name` after initial discovery.
+3. **Resolve views** by recursively querying `sys.sql_expression_dependencies` for view → base table mapping.
+4. **Flag dynamic SQL** procs by detecting `EXEC(` and `sp_executesql` patterns in proc text — mark these as "needs manual review" or "needs runtime validation."
+5. **ADF parsing** provides the orchestration context (which pipeline triggers which proc) — essential for migration ordering.
 
 ---
 

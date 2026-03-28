@@ -1,8 +1,6 @@
 # Migrator Agent Contract
 
-The migrator agent consumes planner output and test generator fixtures, then generates dbt project artifacts.
-Migrator is responsible for querying direct source metadata via tools and converting planning output
-into executable files. The application merges planner output and FixtureManifest per `item_id` before routing to the migrator.
+The migrator agent consumes planner output and test generator fixtures, then generates dbt project artifacts. Migrator is responsible for querying direct source metadata via tools and converting planning output into executable files. The application merges planner output and FixtureManifest per `item_id` before routing to the migrator.
 
 ## Philosophy and Boundary
 

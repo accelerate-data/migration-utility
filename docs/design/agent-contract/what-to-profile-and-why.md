@@ -1,7 +1,6 @@
 # What to Profile and Why
 
-Reference for the profiler agent's seven candidate fields: why each is needed for a
-stored-procedure-to-dbt migration, and the ranked options for deriving it.
+Reference for the profiler agent's seven candidate fields: why each is needed for a stored-procedure-to-dbt migration, and the ranked options for deriving it.
 
 ## Necessity Summary
 

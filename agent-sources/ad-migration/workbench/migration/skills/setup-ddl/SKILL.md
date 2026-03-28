@@ -1,27 +1,19 @@
 ---
 name: setup-ddl
 description: >
-  This skill should be used when the user asks to "set up DDL", "extract DDL from
-  SQL Server", "populate artifacts/ddl", "connect to the remote database and get DDL",
-  "pull DDL from the source database", or wants to initialise the local DDL artifact
-  directory from a live SQL Server before running discovery or scoping.
-user-invocable: true
+  This skill should be used when the user asks to "set up DDL", "extract DDL from SQL Server", "populate artifacts/ddl", "connect to the remote database and get DDL", "pull DDL from the source database", or wants to initialise the local DDL artifact directory from a live SQL Server before running discovery or scoping.
 argument-hint: "(no arguments — set MSSQL_HOST, MSSQL_PORT, MSSQL_DB, SA_PASSWORD before invoking)"
 ---
 
 # Setup DDL
 
-Extract DDL from a live SQL Server and write local artifact files that the `ddl`
-MCP server and `discover`/`scope` tools can read.
+Extract DDL from a live SQL Server and write local artifact files that the `ddl` MCP server and `discover`/`scope` tools can read.
 
 ## Prerequisites
 
 Before starting, verify:
 
-1. **`toolbox` binary is on PATH** — run `toolbox --version`. If not found, direct
-   the user to install genai-toolbox from
-   `https://github.com/googleapis/genai-toolbox/releases` and add it to PATH.
-   Stop here if not installed.
+1. **`toolbox` binary is on PATH** — run `toolbox --version`. If not found, direct the user to install genai-toolbox from `https://github.com/googleapis/genai-toolbox/releases` and add it to PATH. Stop here if not installed.
 
 2. **Environment variables are set** — the `mssql` MCP server reads these at startup:
 
@@ -32,12 +24,9 @@ Before starting, verify:
    | `MSSQL_DB` | Database name | `AdventureWorksDW` |
    | `SA_PASSWORD` | SQL login password | _(from env)_ |
 
-   Confirm each is set before proceeding. If any are missing, tell the user which
-   ones are needed and stop.
+   Confirm each is set before proceeding. If any are missing, tell the user which ones are needed and stop.
 
-3. **Pre-flight check** — check whether `artifacts/ddl/` already exists and contains
-   `.sql` files. If it does, tell the user and ask for confirmation before overwriting.
-   Do not proceed without explicit confirmation.
+3. **Pre-flight check** — check whether `artifacts/ddl/` already exists and contains `.sql` files. If it does, tell the user and ask for confirmation before overwriting. Do not proceed without explicit confirmation.
 
 ## Step 1 — Export procedures, views, and functions
 
@@ -90,13 +79,11 @@ with `\nGO\n` and append a final `\nGO\n`. Write using the native Write tool:
 - Views → `artifacts/ddl/views.sql`
 - Functions → `artifacts/ddl/functions.sql`
 
-If a result set is empty, skip the file (the loader auto-detects object types
-from whatever .sql files are present).
+If a result set is empty, skip the file (the loader auto-detects object types from whatever .sql files are present).
 
 ## Step 2 — Export tables
 
-Tables have no single-statement DDL from `OBJECT_DEFINITION()` — reconstruct
-`CREATE TABLE` statements from the system catalog.
+Tables have no single-statement DDL from `OBJECT_DEFINITION()` — reconstruct `CREATE TABLE` statements from the system catalog.
 
 Run via `mssql:mssql-execute-sql`:
 
@@ -126,8 +113,7 @@ WHERE t.is_ms_shipped = 0
 ORDER BY schema_name, table_name, c.column_id
 ```
 
-Group rows by `(schema_name, table_name)`. For each table, build a
-`CREATE TABLE [schema].[table] (...)` statement using these type formatting rules:
+Group rows by `(schema_name, table_name)`. For each table, build a `CREATE TABLE [schema].[table] (...)` statement using these type formatting rules:
 
 | Type | Format |
 |---|---|
@@ -160,15 +146,11 @@ DDL extraction complete → artifacts/ddl/
   functions.sql  : N functions
 ```
 
-Tell the user they can now run `discover` or `scope` skills, or invoke the
-`scoping-agent` against `artifacts/ddl/`.
+Tell the user they can now run `discover` or `scope` skills, or invoke the `scoping-agent` against `artifacts/ddl/`.
 
 ## Constraints
 
-- Use `mssql:mssql-execute-sql` for all SQL Server queries — never use native tools
-  to connect to the database directly.
+- Use `mssql:mssql-execute-sql` for all SQL Server queries — never use native tools to connect to the database directly.
 - Use native Write tool for all local file writes — never route file output through MCP.
-- The `{{.sql}}` parameter in the `mssql` MCP tool accepts arbitrary T-SQL. This is
-  intentional for the controlled migration context. Do not pass user-supplied raw SQL
-  strings through it without review.
+- The `{{.sql}}` parameter in the `mssql` MCP tool accepts arbitrary T-SQL. This is intentional for the controlled migration context. Do not pass user-supplied raw SQL strings through it without review.
 - Do not log `SA_PASSWORD` or any connection string values.

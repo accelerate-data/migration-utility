@@ -1,7 +1,6 @@
 # ad-migration — Claude Code Plugin
 
-Analyse Microsoft SQL Server and Fabric Warehouse stored procedures and extract
-DDL structure for migration to dbt on Vibedata Managed Fabric Lakehouse.
+Analyse Microsoft SQL Server and Fabric Warehouse stored procedures and extract DDL structure for migration to dbt on Vibedata Managed Fabric Lakehouse.
 
 ## Prerequisites
 

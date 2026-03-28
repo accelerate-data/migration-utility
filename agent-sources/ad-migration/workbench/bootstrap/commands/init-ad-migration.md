@@ -5,8 +5,7 @@ description: Checks that uv, Python 3.11+, shared package deps, ddl_mcp server, 
 
 # Initialize ad-migration plugin
 
-Verify and set up all prerequisites before using `discover`, `scope`, `/setup-ddl`,
-or the `scoping-agent`.
+Verify and set up all prerequisites before using `discover`, `scope`, `/setup-ddl`, or the `scoping-agent`.
 
 ## Step 1: Gather evidence
 
@@ -19,8 +18,7 @@ Run all checks **silently** — do NOT install or change anything yet.
 5. `toolbox --version` — is the genai-toolbox binary installed?
 6. Check whether each of the four MSSQL environment variables is set (non-empty): `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD`. Do not print their values.
 
-If `CLAUDE_PLUGIN_ROOT` is not set, stop immediately and tell the user to load the
-plugin with `claude --plugin-dir <path-to-ad-migration>` before running this command.
+If `CLAUDE_PLUGIN_ROOT` is not set, stop immediately and tell the user to load the plugin with `claude --plugin-dir <path-to-ad-migration>` before running this command.
 
 ## Step 2: Present plan
 
@@ -47,9 +45,7 @@ Actions needed:
   4. Check ddl_mcp output   (if ddl_mcp fails after sync)
 ```
 
-`toolbox` and the MSSQL credentials are marked `—` (not `✗`) when missing — they
-are optional for DDL file mode but required for `/setup-ddl` and any live-database
-skill. They will not block setup of the core tools.
+`toolbox` and the MSSQL credentials are marked `—` (not `✗`) when missing — they are optional for DDL file mode but required for `/setup-ddl` and any live-database skill. They will not block setup of the core tools.
 
 If any MSSQL variable is unset, tell the user to export them in their shell before
 running `claude`, for example:
@@ -61,11 +57,9 @@ export MSSQL_DB=AdventureWorksDW
 export SA_PASSWORD=<your-password>
 ```
 
-These values are passed to the `mssql` MCP server at startup via environment
-inheritance — they must be set in the shell before launching `claude`, not after.
+These values are passed to the `mssql` MCP server at startup via environment inheritance — they must be set in the shell before launching `claude`, not after.
 
-If everything is already set up, say so and skip to Step 4. Otherwise, ask the user
-to confirm before proceeding.
+If everything is already set up, say so and skip to Step 4. Otherwise, ask the user to confirm before proceeding.
 
 ## Step 3: Execute
 
@@ -77,12 +71,9 @@ Only after the user confirms, run the needed actions:
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-After installing, re-run `uv --version` to confirm. Tell the user to restart their
-shell if the command is not found after install.
+After installing, re-run `uv --version` to confirm. Tell the user to restart their shell if the command is not found after install.
 
-**Python missing**: cannot auto-install. Tell the user to install Python 3.11+ from
-`https://python.org/downloads` and re-run `/init-ad-migration` after installing.
-Stop here for this check — do not proceed to shared deps without Python.
+**Python missing**: cannot auto-install. Tell the user to install Python 3.11+ from `https://python.org/downloads` and re-run `/init-ad-migration` after installing. Stop here for this check — do not proceed to shared deps without Python.
 
 **Sync shared deps** (if not synced):
 
@@ -93,19 +84,12 @@ uv sync --project "${CLAUDE_PLUGIN_ROOT}/../migration/shared"
 **ddl_mcp fails** (after shared sync): re-run the ddl_mcp check. If it still fails,
 show the error output to the user and tell them to check their Python environment.
 
-**toolbox missing** (if the user asks how to install it):
-Direct the user to `https://github.com/googleapis/genai-toolbox/releases` to download
-the binary for their platform and add it to PATH. Do not attempt to install it
-automatically.
+**toolbox missing** (if the user asks how to install it): Direct the user to `https://github.com/googleapis/genai-toolbox/releases` to download the binary for their platform and add it to PATH. Do not attempt to install it automatically.
 
 ## Step 4: Report
 
 Re-run the same 6 checks and show the updated status table. Tell the user:
 
-- **All required deps OK, credentials set, toolbox installed**: ready to use
-  `discover`, `scope`, `scoping-agent`, and `/setup-ddl`.
-- **toolbox missing or credentials unset**: DDL file mode (`discover`, `scope`,
-  `scoping-agent`) is fully available. Live-database skills (`/setup-ddl`) require
-  both `toolbox` and all four MSSQL env vars — export them in the shell before
-  launching `claude`, then install `toolbox` from the genai-toolbox releases page.
+- **All required deps OK, credentials set, toolbox installed**: ready to use `discover`, `scope`, `scoping-agent`, and `/setup-ddl`.
+- **toolbox missing or credentials unset**: DDL file mode (`discover`, `scope`, `scoping-agent`) is fully available. Live-database skills (`/setup-ddl`) require both `toolbox` and all four MSSQL env vars — export them in the shell before launching `claude`, then install `toolbox` from the genai-toolbox releases page.
 - **Anything still failing**: which step to fix next before continuing.

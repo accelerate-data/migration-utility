@@ -1,7 +1,6 @@
 # FDE Overrides Design
 
-FDE edits are stored in a local SQLite `fde_overrides` table. This document defines the
-schema and the editable field set per agent stage.
+FDE edits are stored in a local SQLite `fde_overrides` table. This document defines the schema and the editable field set per agent stage.
 
 ## Table Schema
 

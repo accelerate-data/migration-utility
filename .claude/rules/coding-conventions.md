@@ -44,6 +44,8 @@ All `.md` files must pass `markdownlint` before committing. Config is at `.markd
 markdownlint <file-or-dir>
 ```
 
+Never hard-wrap prose at 80 characters (or any fixed column). Let each sentence or clause flow as a single long line — editors and renderers handle wrapping. Hard wraps only inside code blocks or tables where alignment matters.
+
 ## Error Handling
 
 - Validate at system boundaries: Fabric API responses, ADF JSON parsing, dbt-core-mcp tool results, plan.md reads

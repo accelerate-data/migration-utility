@@ -1,8 +1,6 @@
 # Planner Agent Contract
 
-The planner agent consumes approved migration inputs and returns a design manifest for migrator
-execution. Planner output is final planning intent: materialization, test plan, and
-documentation.
+The planner agent consumes approved migration inputs and returns a design manifest for migrator execution. Planner output is final planning intent: materialization, test plan, and documentation.
 
 ## Philosophy and Boundary
 

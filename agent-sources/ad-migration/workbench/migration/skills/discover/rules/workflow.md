@@ -36,8 +36,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover show \
 
 Display the object's DDL and column list to the user.
 
-If the output contains a `parse_error` field, surface a warning before
-continuing:
+If the output contains a `parse_error` field, surface a warning before continuing:
 
 ```text
 Warning: <fqn> could not be fully parsed.
@@ -62,5 +61,4 @@ Group entries in `referenced_by` by caller type before displaying:
 - **Procedures** — DDL begins with `CREATE PROCEDURE` or `CREATE PROC`
 - **Views** — DDL begins with `CREATE VIEW`
 
-Note that `refs` reports a reference relationship only. Use the `scope` skill
-to determine which callers actually perform write operations.
+Note that `refs` reports a reference relationship only. Use the `scope` skill to determine which callers actually perform write operations.
