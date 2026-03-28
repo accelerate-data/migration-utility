@@ -19,44 +19,31 @@ If `ddl-path` is missing from `$ARGUMENTS`, ask the user for it before proceedin
 
 **list** — enumerate objects by type:
 
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover list \
-  --ddl-path <path> --type <tables|procedures|views|functions>
-```
-
 | Option | Required | Values |
 |---|---|---|
 | `--ddl-path` | yes | path to DDL directory |
 | `--type` | yes | `tables`, `procedures`, `views`, `functions` |
-| `--dialect` | no | sqlglot dialect (default: `tsql`, ignored for current scope) |
+| `--dialect` | no | sqlglot dialect (default: `tsql`) |
 
 **show** — inspect a single object (columns, refs, raw DDL):
-
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover show \
-  --ddl-path <path> --name <schema.ObjectName>
-```
 
 | Option | Required | Values |
 |---|---|---|
 | `--ddl-path` | yes | path to DDL directory |
 | `--name` | yes | fully-qualified object name (e.g. `dbo.FactSales`, `[silver].[DimProduct]`) |
-| `--dialect` | no | sqlglot dialect (default: `tsql`, ignored for current scope) |
+| `--dialect` | no | sqlglot dialect (default: `tsql`) |
 
 **refs** — find all procedures/views that reference an object:
-
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover refs \
-  --ddl-path <path> --name <schema.ObjectName>
-```
 
 | Option | Required | Values |
 |---|---|---|
 | `--ddl-path` | yes | path to DDL directory |
 | `--name` | yes | fully-qualified object name |
-| `--dialect` | no | sqlglot dialect (default: `tsql`, ignored for current scope) |
+| `--dialect` | no | sqlglot dialect (default: `tsql`) |
 
 If no subcommand is specified in `$ARGUMENTS`, default to `list`.
+
+Invocation examples are in [`rules/workflow.md`](rules/workflow.md).
 
 ## Workflow
 
