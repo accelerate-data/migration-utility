@@ -331,6 +331,74 @@ def test_show_statements_table_has_none() -> None:
     assert result["statements"] is None
 
 
+# ── Dependency resolution tests ─────────────────────────────────────────
+
+
+def test_show_dependencies_resolves_view_to_tables() -> None:
+    """dependencies.tables includes base tables behind views."""
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadFromView", "tsql")
+    deps = result["dependencies"]
+    assert deps is not None
+    # View silver.vw_ProductCatalog reads from silver.DimProduct and bronze.Product
+    assert "silver.dimproduct" in deps["tables"]
+    assert "bronze.product" in deps["tables"]
+    assert "silver.vw_productcatalog" in deps["views"]
+
+
+def test_show_dependencies_resolves_function_to_tables() -> None:
+    """dependencies.tables includes tables read by functions."""
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadWithFunction", "tsql")
+    deps = result["dependencies"]
+    assert deps is not None
+    assert "bronze.product" in deps["tables"]
+    assert "bronze.geography" in deps["tables"]
+    assert "dbo.fn_getregion" in deps["functions"]
+
+
+def test_show_dependencies_direct_table_reads() -> None:
+    """dependencies.tables includes direct table reads (no resolution needed)."""
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadDimProduct", "tsql")
+    deps = result["dependencies"]
+    assert deps is not None
+    assert "bronze.product" in deps["tables"]
+    assert deps["views"] == []
+    assert deps["functions"] == []
+
+
+def test_show_dependencies_none_for_tables() -> None:
+    """dependencies is None for table objects."""
+    result = discover.run_show(_FLAT_FIXTURES, "silver.DimProduct", "tsql")
+    assert result["dependencies"] is None
+
+
+def test_show_dependencies_view_has_dependencies() -> None:
+    """Views also have resolved dependencies."""
+    result = discover.run_show(_FLAT_FIXTURES, "silver.vw_ProductCatalog", "tsql")
+    deps = result["dependencies"]
+    assert deps is not None
+    assert "silver.dimproduct" in deps["tables"]
+    assert "bronze.product" in deps["tables"]
+
+
+def test_show_dependencies_function_has_dependencies() -> None:
+    """Functions also have resolved dependencies."""
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.fn_GetRegion", "tsql")
+    deps = result["dependencies"]
+    assert deps is not None
+    assert "bronze.geography" in deps["tables"]
+
+
+def test_show_dependencies_empty_on_parse_error() -> None:
+    """dependencies is empty (not None) when proc has parse_error but extract_refs succeeds."""
+    result = discover.run_show(_UNPARSEABLE_FIXTURES, "dbo.usp_Bad", "tsql")
+    assert result["parse_error"] is not None
+    deps = result["dependencies"]
+    assert deps is not None
+    assert deps["tables"] == []
+    assert deps["views"] == []
+    assert deps["functions"] == []
+
+
 def test_refs_finds_all_writer_procs() -> None:
     result = discover.run_refs(_FLAT_FIXTURES, "silver.DimProduct", "tsql")
     rb = result["referenced_by"]

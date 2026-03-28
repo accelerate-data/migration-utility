@@ -33,6 +33,7 @@ from shared.loader import (  # noqa: E402
     DdlCatalog,
     DdlEntry,
     DdlParseError,
+    ObjectRefs,
     extract_refs,
     load_catalog,
     load_directory,
@@ -93,6 +94,77 @@ def _find_entry(
         if norm in bucket:
             return norm, type_label, bucket[norm]
     return None
+
+
+# ── Transitive dependency resolution ─────────────────────────────────────────
+
+
+def _resolve_dependencies(
+    obj_refs: ObjectRefs, catalog: DdlCatalog,
+) -> dict[str, list[str]]:
+    """Resolve transitive dependencies through views and functions to base tables.
+
+    Walks reads_from and uses_functions, recursing into views and functions
+    to find the underlying base tables.  Uses a visited set for cycle safety.
+    Objects not found in the catalog are assumed to be external tables.
+    """
+    tables: set[str] = set()
+    views: set[str] = set()
+    functions: set[str] = set()
+    visited: set[str] = set()
+
+    queue: deque[str] = deque(obj_refs.reads_from + obj_refs.uses_functions)
+
+    while queue:
+        fqn = queue.popleft()
+        if fqn in visited:
+            continue
+        visited.add(fqn)
+
+        found = _find_entry(catalog, fqn)
+        if found is None:
+            tables.add(fqn)
+            continue
+
+        _, type_label, entry = found
+
+        if type_label == "table":
+            tables.add(fqn)
+        elif type_label == "view":
+            views.add(fqn)
+            try:
+                view_refs = extract_refs(entry)
+                for ref in view_refs.reads_from:
+                    if ref not in visited:
+                        queue.append(ref)
+            except DdlParseError as exc:
+                print(
+                    f"discover: cannot resolve view {fqn}: {str(exc)[:60]}",
+                    file=sys.stderr,
+                )
+        elif type_label == "function":
+            functions.add(fqn)
+            try:
+                func_refs = extract_refs(entry)
+                for ref in func_refs.reads_from:
+                    if ref not in visited:
+                        queue.append(ref)
+                for ref in func_refs.uses_functions:
+                    if ref not in visited:
+                        queue.append(ref)
+            except DdlParseError as exc:
+                print(
+                    f"discover: cannot resolve function {fqn}: {str(exc)[:60]}",
+                    file=sys.stderr,
+                )
+        elif type_label == "procedure":
+            tables.add(fqn)
+
+    return {
+        "tables": sorted(tables),
+        "views": sorted(views),
+        "functions": sorted(functions),
+    }
 
 
 # ── Column / param extraction from AST ───────────────────────────────────────
@@ -169,6 +241,7 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
     columns: list[dict] = []
     params: list[dict] = []
     refs_dict: dict | None = None
+    dependencies: dict[str, list[str]] | None = None
     parse_error: str | None = entry.parse_error
 
     if type_label == "table":
@@ -191,6 +264,7 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
             }
             needs_llm = obj_refs.needs_llm
             statements = obj_refs.statements
+            dependencies = _resolve_dependencies(obj_refs, catalog)
         except DdlParseError as exc:
             parse_error = str(exc)
             refs_dict = None
@@ -208,6 +282,7 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
                 "reads_from": obj_refs.reads_from,
                 "writes_to": obj_refs.writes_to,
             }
+            dependencies = _resolve_dependencies(obj_refs, catalog)
         except DdlParseError as exc:
             parse_error = str(exc)
             refs_dict = None
@@ -219,6 +294,7 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
         "columns": columns,
         "params": params,
         "refs": refs_dict,
+        "dependencies": dependencies,
         "statements": statements,
         "needs_llm": needs_llm,
         "classification": classification,

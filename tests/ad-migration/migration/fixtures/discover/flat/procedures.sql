@@ -328,3 +328,19 @@ BEGIN
     SELECT 'last_run', CONVERT(NVARCHAR(50), GETDATE(), 120)
 END
 GO
+-- Proc reading from a view (for transitive dependency resolution testing)
+CREATE PROCEDURE [dbo].[usp_LoadFromView]
+AS BEGIN
+    INSERT INTO silver.DimProduct (ProductAlternateKey, EnglishProductName)
+    SELECT ProductAlternateKey, EnglishProductName
+    FROM silver.vw_ProductCatalog
+END
+GO
+-- Proc using a scalar function (for transitive dependency resolution testing)
+CREATE PROCEDURE [dbo].[usp_LoadWithFunction]
+AS BEGIN
+    INSERT INTO silver.DimProduct (ProductAlternateKey, EnglishProductName)
+    SELECT ProductAlternateKey, dbo.fn_GetRegion(GeographyId)
+    FROM bronze.Product
+END
+GO

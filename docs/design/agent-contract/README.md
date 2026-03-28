@@ -22,9 +22,18 @@ All contracts are batch-only. Single-table UI execution is a degenerate batch wi
 - Non-actionable items (for example `ambiguous_multi_writer`, `partial`, `no_writer_found`, `error`)
   are handled by the application, either by manual resolution or by removing the table from scope.
 
+## Invocation Paths
+
+Agents and interactive users share the same Python CLI (`discover`) but consume its output differently:
+
+- **Agent path:** `uv run discover <subcommand>` via Bash — returns structured JSON to stdout for programmatic parsing.
+- **Interactive path:** `/discover` skill — the skill workflow formats JSON output into human-readable text.
+
+Agent definitions must not declare `skills:` for discover. Use `uv run` commands directly.
+
 ## Flow
 
-1. Scoping: analysis agent maps target table to writer procedure candidate(s) and selects writer when resolvable.
+1. Scoping: analysis agent maps target table to writer procedure candidate(s), selects writer when resolvable, and enriches the selected writer with `reads_from` (tables/views it reads from) for downstream wave planning.
 2. Profiling: profiler agent proposes candidate migration decisions for FDE approval.
 3. Decomposition: decomposer agent segments selected writer SQL into reusable logical blocks and split points.
 4. Planning: planner agent consumes approved answers + approved decomposition, then produces materialization, tests, and documentation intent.
