@@ -125,19 +125,23 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover refs \
   --ddl-path <ddl-path> --name <fqn>
 ```
 
-The output contains `referenced_by` — a list of procedure and view names that reference the target object. Present grouped by type:
+The output splits callers into `readers` (FROM/JOIN), `writers` (INSERT/UPDATE/DELETE/MERGE/TRUNCATE/SELECT INTO), and optionally `llm_required` (procs with partial or missing refs due to control flow or EXEC).
+
+Present grouped:
 
 ```text
-silver.FactSales is referenced by:
+silver.FactSales references:
 
-  Procedures (2):
-    - silver.usp_load_FactSales
-    - silver.usp_archive_FactSales
+  Writers (1):
+    - silver.usp_load_FactSales  (deterministic)
 
-  Views (1):
-    - silver.vw_SalesSummary
+  Readers (1):
+    - silver.vw_SalesSummary  (deterministic)
+
+  LLM required (1):
+    - silver.usp_conditional_loader  (needs_llm — IF/ELSE control flow)
 ```
 
-To determine the type of each caller, run `show` on it and check the `type` field.
+### Completing LLM-required refs
 
-Note that `refs` reports reference relationships only — a caller appearing here means it mentions the target object, not necessarily that it writes to it. Use the `scope` skill to determine which callers actually perform write operations.
+For each proc in `llm_required`, run `discover show` to get its `raw_ddl` and `statements`. Read the procedure body, identify whether it reads from or writes to the target, and report your finding alongside the deterministic results. This ensures the caller gets a complete picture without needing a separate scope pass.

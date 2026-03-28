@@ -225,33 +225,62 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
 
 
 def run_refs(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
-    """Return the refs subcommand result dict."""
+    """Return the refs subcommand result dict.
+
+    Splits callers into readers, writers, and llm_required (procs whose
+    refs are partial or unknown — the LLM should read their raw_ddl).
+    """
     catalog = _load(ddl_path, dialect)
     target = normalize(name)
 
-    # Iterate all procs and views, check if they reference target
-    referenced_by: list[str] = []
+    readers: list[str] = []
+    writers: list[str] = []
+    llm_required: list[str] = []
+
     for bucket_name in ("procedures", "views"):
         bucket: dict[str, DdlEntry] = getattr(catalog, bucket_name)
         for caller_name, entry in bucket.items():
             if entry.parse_error is not None:
-                print(
-                    f"discover: skipping {caller_name} (parse_error: {entry.parse_error[:60]})",
-                    file=sys.stderr,
-                )
+                # Block-level parse failure — LLM must read raw DDL
+                llm_required.append(caller_name)
                 continue
             try:
                 obj_refs = extract_refs(entry)
-                all_refs = set(obj_refs.reads_from) | set(obj_refs.writes_to)
-                if target in all_refs:
-                    referenced_by.append(caller_name)
             except DdlParseError as exc:
                 print(
                     f"discover: skipping {caller_name} (extract_refs error: {str(exc)[:60]})",
                     file=sys.stderr,
                 )
+                llm_required.append(caller_name)
+                continue
 
-    return {"name": target, "referenced_by": sorted(referenced_by)}
+            if obj_refs.needs_llm:
+                # Partial refs — check what single-pass captured, but also
+                # flag for LLM to complete the analysis
+                is_reader = target in obj_refs.reads_from
+                is_writer = target in obj_refs.writes_to
+                if is_reader:
+                    readers.append(caller_name)
+                if is_writer:
+                    writers.append(caller_name)
+                # Always flag — partial refs may have missed this target
+                llm_required.append(caller_name)
+                continue
+
+            # Deterministic — full refs available
+            if target in obj_refs.reads_from:
+                readers.append(caller_name)
+            if target in obj_refs.writes_to:
+                writers.append(caller_name)
+
+    result: dict[str, Any] = {
+        "name": target,
+        "readers": sorted(readers),
+        "writers": sorted(writers),
+    }
+    if llm_required:
+        result["llm_required"] = sorted(llm_required)
+    return result
 
 
 # ── CLI commands ──────────────────────────────────────────────────────────────

@@ -126,27 +126,39 @@ def test_show_not_found():
 def test_refs_dimcustomer_writers():
     result = run_refs(FIXTURES, "silver.DimCustomer", "tsql")
     assert result["name"] == "silver.dimcustomer"
-    assert "silver.usp_load_dimcustomer" in result["referenced_by"]
-    assert "silver.usp_load_with_cte" in result["referenced_by"]
-    # usp_conditional_load: writes inside IF/ELSE — not captured by single-pass
-    # usp_full_reload: block-level parse_error — skipped by run_refs
-    # Both are handled by LLM when processing claude_assisted procs.
+    # Deterministic writers
+    assert "silver.usp_load_dimcustomer" in result["writers"]
+    assert "silver.usp_load_with_cte" in result["writers"]
+    assert "silver.usp_load_with_case" in result["writers"]
+    assert "silver.usp_load_with_multi_cte" in result["writers"]
+    # usp_conditional_load and usp_try_catch_load have needs_llm — flagged
+    assert "silver.usp_conditional_load" in result["llm_required"]
+    # usp_full_reload: block-level parse_error — also in llm_required
+    assert "silver.usp_full_reload" in result["llm_required"]
+
+
+def test_refs_dimcustomer_readers():
+    result = run_refs(FIXTURES, "silver.DimCustomer", "tsql")
+    # The view reads from DimCustomer
+    assert "silver.vw_customersales" in result["readers"]
 
 
 def test_refs_factsales_writers_and_view():
     result = run_refs(FIXTURES, "silver.FactSales", "tsql")
-    assert "silver.usp_load_factsales" in result["referenced_by"]
-    assert "silver.vw_customersales" in result["referenced_by"]
+    assert "silver.usp_load_factsales" in result["writers"]
+    assert "silver.vw_customersales" in result["readers"]
 
 
 def test_refs_bronze_customer_readers():
     result = run_refs(FIXTURES, "bronze.Customer", "tsql")
-    assert "silver.usp_load_dimcustomer" in result["referenced_by"]
-    assert "silver.usp_load_with_cte" in result["referenced_by"]
-    # usp_conditional_load reads bronze.Customer inside IF/ELSE — not
-    # captured by single-pass. LLM handles this for claude_assisted procs.
+    assert "silver.usp_load_dimcustomer" in result["readers"]
+    assert "silver.usp_load_with_cte" in result["readers"]
+    # usp_conditional_load reads bronze.Customer inside IF/ELSE — partial,
+    # flagged in llm_required for LLM to complete
+    assert "silver.usp_conditional_load" in result["llm_required"]
 
 
 def test_refs_unknown_object():
     result = run_refs(FIXTURES, "silver.DoesNotExist", "tsql")
-    assert result["referenced_by"] == []
+    assert result["readers"] == []
+    assert result["writers"] == []
