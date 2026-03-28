@@ -260,7 +260,7 @@ Run a focused code review pass. Fix cycle rules:
 
 ### Docs updated
 
-Update docs only where behavior/commands/conventions changed.
+Update docs only where behavior/commands/conventions changed. If files were added, removed, or renamed in structural directories (see `AGENTS.md` → Maintenance Rules), update `repo-map.json` in the same commit.
 
 ### Final validation
 

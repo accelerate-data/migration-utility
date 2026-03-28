@@ -16,6 +16,53 @@ permissions:
   contents: read
 
 jobs:
+  repo-map-audit:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check for structural changes requiring repo-map.json update
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+
+          STRUCTURAL_DIRS=(
+            "app/src-tauri/src/commands/"
+            "app/src/stores/"
+            "app/src/routes/"
+            "app/src/components/"
+            "app/src/lib/"
+            "app/src/hooks/"
+            "agent-sources/ad-migration/workbench/migration/skills/"
+            "agent-sources/ad-migration/workbench/migration/agents/"
+            "agent-sources/ad-migration/workbench/migration/shared/shared/"
+            "tests/ad-migration/"
+          )
+
+          structural_changed=false
+          for dir in "${STRUCTURAL_DIRS[@]}"; do
+            if git diff --name-only --diff-filter=ADR "$BASE_SHA" "$HEAD_SHA" -- "$dir" | grep -q .; then
+              structural_changed=true
+              echo "Structural change detected in $dir"
+            fi
+          done
+
+          if [ "$structural_changed" = true ]; then
+            if git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- repo-map.json | grep -q .; then
+              echo "repo-map.json was updated — audit passed."
+            else
+              echo "::error::Structural files were added, removed, or renamed but repo-map.json was not updated."
+              echo "Update repo-map.json to reflect the current codebase. See AGENTS.md for details."
+              exit 1
+            fi
+          else
+            echo "No structural changes detected — audit passed."
+          fi
+
   frontend:
     runs-on: ubuntu-latest
     steps:

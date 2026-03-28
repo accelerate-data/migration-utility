@@ -32,32 +32,19 @@ Adapter files must not duplicate canonical policy unless they are adding agent-s
 
 **Source scope:** Fabric Warehouse (T-SQL stored procedures via ADF pipelines). Lakehouse/Spark is post-MVP.
 
-## Repository Folder Map
+**Agent startup context:** Read `repo-map.json` before starting any non-trivial task — it has structure, entrypoints, modules, and commands.
 
-Use this map before reasoning about implementation location:
+## Repository Structure
 
-- `app/src/` — frontend runtime code (React/TypeScript surfaces, components, stores, hooks).
-- `app/src-tauri/src/` — Rust backend runtime code (Tauri commands, DB, logging, startup wiring).
-- `app/sidecar/` — Node/TypeScript sidecar runtime code.
-- `app/e2e/` — Playwright E2E tests only.
-- `app/src/__tests__/` and `app/sidecar/__tests__/` — unit/integration tests only.
-- `docs/` — documentation and design/reference material only; do not treat as executable source unless explicitly asked.
-- `scripts/` — developer/automation scripts.
-- `agent-sources/` — Claude Code plugin sources (each plugin self-contained with agents, MCP configs, rules).
+**Key directories, modules, entrypoints, and commands:** See `repo-map.json`. Read it before exploring code — skip repo-wide rediscovery if it covers the task.
 
 ## Dev Commands
 
+See `repo-map.json` → `commands` for the full command reference. Quick start:
+
 ```bash
-# Tauri app (run from app/)
-npm run dev                    # Dev mode (hot reload)
-npm run build                  # Production build
-
-# Rust tests
-cargo test --manifest-path app/src-tauri/Cargo.toml   # all Rust tests
-cargo test --manifest-path app/src-tauri/Cargo.toml db # module filter
-
-# Sidecar tests (run from app/sidecar/)
-npx vitest run
+cd app && npm run dev          # Dev mode (hot reload)
+cd app && npm run build        # Production build
 ```
 
 ## Testing
@@ -135,6 +122,15 @@ Protocol and sidecar-specific constraints live in `.claude/rules/agent-sidecar.m
 ### Error handling
 
 See `.claude/rules/coding-conventions.md` for canonical error-handling policy.
+
+## Maintenance Rules
+
+| Artifact | Update when |
+|---|---|
+| `AGENTS.md` | A fact is durable, non-obvious, and won't be obvious from code |
+| `repo-map.json` | File added/removed/renamed in `commands/`, `stores/`, `routes/`, `components/`, `lib/`, `skills/`, `agents/` -- entrypoint, module, or package structure changes |
+
+Update stale entries in the same commit that introduced the structural change.
 
 ## Issue Management
 

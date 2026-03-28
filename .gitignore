@@ -31,8 +31,11 @@ playwright-artifacts/
 .env.*
 !.env.example
 
-# Python bytecode
+# Python
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.venv/
+*.egg-info/
 
 .claude/.mcp.json
