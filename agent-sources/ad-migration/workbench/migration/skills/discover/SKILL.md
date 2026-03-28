@@ -11,13 +11,31 @@ Instructions for using `discover` to explore a DDL artifact directory.
 
 ## Arguments
 
-Parse `$ARGUMENTS`:
+Parse `$ARGUMENTS` for `ddl-path` and optionally a subcommand with its options.
 
-- `ddl-path` (required): path to the directory containing `.sql` files
-- `subcommand` (optional): `list`, `show`, or `refs` — defaults to `list` if omitted
-- remaining tokens: options for the subcommand (e.g. `--type tables`, `--name dbo.X`)
+If `ddl-path` is missing from `$ARGUMENTS`, ask the user for it before proceeding. Do not assume any default path.
 
-If `ddl-path` is missing from `$ARGUMENTS`, ask the user for it before proceeding. Do not assume `./artifacts/ddl` or any other default. The directory may contain any number of `.sql` files with any names; object types are auto-detected from `CREATE` statements inside.
+### Subcommands
+
+**list** — enumerate objects by type:
+
+```text
+discover list --ddl-path <path> --type <tables|procedures|views|functions>
+```
+
+**show** — inspect a single object (columns, refs, raw DDL):
+
+```text
+discover show --ddl-path <path> --name <schema.ObjectName>
+```
+
+**refs** — find all procedures/views that reference an object:
+
+```text
+discover refs --ddl-path <path> --name <schema.ObjectName>
+```
+
+If no subcommand is specified in `$ARGUMENTS`, default to `list`.
 
 ## Workflow
 
