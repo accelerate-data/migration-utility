@@ -22,23 +22,47 @@ This plugin provides deterministic Python tools (using sqlglot) for those steps.
 
 ## Where It Lives
 
+`ad-migration` is a Claude Code marketplace package. The `workbench/` directory contains three independent plugins, each with its own `CLAUDE.md`, `.mcp.json`, and skill set. The marketplace manifest (`marketplace.json`) registers all three.
+
 ```text
-agent-sources/plugins/ad-migration/
-├── shared/                  ← shared Python library (new)
-├── skills/
-│   ├── discover/            ← new skill
-│   ├── scope/               ← new skill
-│   ├── assess/              ← new skill
-│   ├── migrate/             ← new skill
-│   ├── test-gen/            ← new skill
-│   └── validate/            ← new skill
-├── commands/
-│   └── migrate-table/       ← new command (orchestrator)
-└── ddl_mcp/
-    └── server.py            ← enhanced in-place
+agent-sources/ad-migration/               ← marketplace package
+├── .claude-plugin/marketplace.json        ← registers plugins below
+├── CLAUDE.md                              ← shared domain context
+└── workbench/                             ← plugin suite
+    ├── bootstrap/                         ← plugin: init + setup
+    │   └── commands/init-ad-migration.md
+    ├── migration/                         ← plugin: analysis + migration pipeline
+    │   ├── CLAUDE.md
+    │   ├── .mcp.json
+    │   ├── shared/                        ← shared Python library
+    │   │   └── shared/
+    │   │       ├── ir.py, loader.py, name_resolver.py, dialect.py
+    │   │       ├── discover.py            ← deterministic skill script
+    │   │       └── scope.py               ← deterministic skill script
+    │   ├── skills/
+    │   │   ├── discover/                  ← SKILL.md for discover
+    │   │   ├── scope/                     ← SKILL.md for scope
+    │   │   ├── scoping-writers/           ← reference docs for scoping algorithm
+    │   │   ├── setup-ddl/                 ← DDL extraction from live SQL Server
+    │   │   ├── assess/                    ← new skill (not yet implemented)
+    │   │   ├── migrate/                   ← new skill (not yet implemented)
+    │   │   ├── test-gen/                  ← new skill (not yet implemented)
+    │   │   └── validate/                  ← new skill (not yet implemented)
+    │   ├── commands/
+    │   │   └── migrate-table/             ← orchestrator (not yet implemented)
+    │   ├── agents/
+    │   │   └── scoping-agent.md           ← LLM agent (superseded by scope.py)
+    │   ├── ddl_mcp/
+    │   │   └── server.py                  ← DDL file MCP server
+    │   └── mssql_mcp/
+    │       └── tools.yaml                 ← live SQL Server MCP config
+    └── test-generation/                   ← plugin: dbt test generation (placeholder)
+        └── CLAUDE.md
 ```
 
-Each skill is a `SKILL.md` + a standalone Python script. The script outputs JSON to stdout. Claude runs the script via Bash, reads the JSON, and decides next steps.
+Tests live outside the plugin at `tests/ad-migration/migration/`.
+
+Each skill has a `SKILL.md` (Claude instructions) + a Python script in `shared/shared/`. The script outputs JSON to stdout. Claude runs it via `uv run`, reads the JSON, and decides next steps.
 
 ---
 

@@ -222,31 +222,38 @@ The app records in local SQLite (`agent_runs` table):
 
 ### Agent Plugin
 
-Agents run as Claude Code plugins. The plugin lives at `agent-sources/plugins/ad-migration/`:
+`ad-migration` is a Claude Code marketplace package containing three plugins under `workbench/`. The `migration` plugin handles all analysis and migration skills:
 
 ```text
-agent-sources/plugins/ad-migration/
-  CLAUDE.md                      # shared migration domain context
-  .mcp.json                      # stdio MCP config for local dev
-  discover.py                    # deterministic skill: list/inspect DDL objects (AST-based)
-  scope.py                       # deterministic skill: find procedure writers + confidence scoring
-  ddl_mcp/
-    server.py                    # DDL file reader tools (MCP protocol)
-  mssql_mcp/
-    tools.yaml                   # SQL Server live execution (test generator, sql_server projects)
-  shared/                        # shared Python library (ir, loader, name_resolver, dialect)
-  skills/
-    discover/                    # SKILL.md for discover
-    scope/                       # SKILL.md for scope
-    assess/                      # classify procedure compatibility (Supported/Partial/Unsupported)
-    migrate/                     # transpile T-SQL → dbt Spark SQL (sqlglot)
-    test-gen/                    # infer dbt schema tests from AST
-    validate/                    # compare proc output vs dbt model output
-  commands/
-    migrate-table/               # orchestrator SKILL.md — interactive single-table migration
-  .claude/
-    rules/
+agent-sources/ad-migration/                # marketplace package
+  .claude-plugin/marketplace.json          # registers all plugins
+  CLAUDE.md                                # shared domain context
+  workbench/
+    bootstrap/                             # plugin: init + setup wizard
+    migration/                             # plugin: analysis + migration pipeline
+      CLAUDE.md
+      .mcp.json                            # stdio MCP config for local dev
+      shared/shared/
+        ir.py, loader.py, name_resolver.py, dialect.py
+        discover.py                        # deterministic skill: list/inspect DDL objects
+        scope.py                           # deterministic skill: find writers + scoring
+      skills/
+        discover/                          # SKILL.md for discover
+        scope/                             # SKILL.md for scope
+        scoping-writers/                   # reference docs for scoping algorithm
+        setup-ddl/                         # DDL extraction from live SQL Server
+        assess/                            # (not yet implemented)
+        migrate/                           # (not yet implemented)
+        test-gen/                          # (not yet implemented)
+        validate/                          # (not yet implemented)
+      commands/
+        migrate-table/                     # orchestrator (not yet implemented)
+      ddl_mcp/server.py                    # DDL file MCP server
+      mssql_mcp/tools.yaml                 # live SQL Server MCP config
+    test-generation/                       # plugin: dbt test generation (placeholder)
 ```
+
+Tests live at `tests/ad-migration/migration/`.
 
 **Local dev:**
 
