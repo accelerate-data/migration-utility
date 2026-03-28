@@ -24,4 +24,4 @@ discover = "shared.discover:app"
 scope = "shared.scope:app"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["../../../../../tests/ad-migration/migration"]

@@ -12,6 +12,14 @@ user-invocable: false
 
 Instructions for using `discover` to explore a DDL artifact directory.
 
+## DDL path
+
+Before running any subcommand, ask the user for the path to the directory
+containing their `.sql` files.  Do not assume `./artifacts/ddl` or any other
+default — the user chooses where their DDL lives.  The directory may contain
+any number of `.sql` files with any names; object types are auto-detected
+from `CREATE` statements inside.
+
 ## Invoking discover
 
 `discover` has three subcommands: `list`, `show`, and `refs`. All subcommands require `--ddl-path`.
@@ -104,28 +112,14 @@ Views (1):
 
 ## Handling parse errors
 
-When `show` output contains a `parse_error` field, the object could not be fully parsed by sqlglot:
+If `discover` exits with code 2, a DDL block in the directory could not be
+parsed by sqlglot (e.g. procedures with `IF/ELSE`, `MERGE`, or multiple
+statements).  The error message names the specific object that failed.
 
-1. Surface a warning to the user: "Warning: this object could not be fully parsed — DDL analysis may be incomplete."
-2. Show the `raw_ddl` field so the user can inspect the source manually.
-3. Do not abort the workflow — continue to the next step.
+Tell the user which object failed and ask them to either:
 
-Example output with parse error:
+1. Remove or isolate the unparseable object into a separate directory.
+2. Simplify the DDL so sqlglot can parse it.
 
-```json
-{
-  "name": "dbo.usp_LegacyLoad",
-  "raw_ddl": "CREATE PROCEDURE dbo.usp_LegacyLoad AS ...",
-  "columns": [],
-  "parse_error": "Unsupported syntax at line 42: OPTION (RECOMPILE)"
-}
-```
-
-Display format:
-
-```text
-Warning: dbo.usp_LegacyLoad could not be fully parsed.
-  Reason: Unsupported syntax at line 42: OPTION (RECOMPILE)
-
-Raw DDL is available for manual inspection. Proceeding.
-```
+Do not silently skip unparseable objects — the loader treats parse failures
+as hard errors.

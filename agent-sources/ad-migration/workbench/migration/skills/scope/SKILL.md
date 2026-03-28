@@ -12,6 +12,12 @@ user-invocable: false
 
 Instructions for using `scope` to identify procedures that write to a target table.
 
+## DDL path
+
+Before running `scope`, ask the user for the path to the directory containing
+their `.sql` files.  Do not assume `./artifacts/ddl` or any other default —
+the user chooses where their DDL lives.
+
 ## Invoking scope
 
 ```bash

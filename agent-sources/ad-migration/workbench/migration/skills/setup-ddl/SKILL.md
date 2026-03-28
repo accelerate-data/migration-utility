@@ -90,8 +90,8 @@ with `\nGO\n` and append a final `\nGO\n`. Write using the native Write tool:
 - Views → `artifacts/ddl/views.sql`
 - Functions → `artifacts/ddl/functions.sql`
 
-If a result set is empty, write an empty file (not missing — the `ddl` MCP server
-expects all four files to exist).
+If a result set is empty, skip the file (the loader auto-detects object types
+from whatever .sql files are present).
 
 ## Step 2 — Export tables
 

@@ -14,8 +14,8 @@ Run all checks **silently** — do NOT install or change anything yet.
 
 1. `uv --version` — is uv installed?
 2. `python3 --version` — is Python ≥ 3.11?
-3. `uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" python3 -c "import pydantic, sqlglot, typer"` — are shared package deps synced?
-4. `uv run "${CLAUDE_PLUGIN_ROOT}/ddl_mcp/server.py" --help` — does the DDL MCP server start cleanly?
+3. `uv run --project "${CLAUDE_PLUGIN_ROOT}/../migration/shared" python3 -c "import pydantic, sqlglot, typer"` — are shared package deps synced?
+4. `uv run "${CLAUDE_PLUGIN_ROOT}/../migration/ddl_mcp/server.py" --help` — does the DDL MCP server start cleanly?
 5. `toolbox --version` — is the genai-toolbox binary installed?
 6. Check whether each of the four MSSQL environment variables is set (non-empty): `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD`. Do not print their values.
 
@@ -87,7 +87,7 @@ Stop here for this check — do not proceed to shared deps without Python.
 **Sync shared deps** (if not synced):
 
 ```bash
-uv sync --project "${CLAUDE_PLUGIN_ROOT}/shared"
+uv sync --project "${CLAUDE_PLUGIN_ROOT}/../migration/shared"
 ```
 
 **ddl_mcp fails** (after shared sync): re-run the ddl_mcp check. If it still fails,
