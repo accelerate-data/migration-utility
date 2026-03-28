@@ -174,6 +174,7 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
         columns = _extract_columns(entry)
 
     has_exec = False
+    classification: str | None = None
 
     if type_label == "procedure":
         params = _extract_params(entry)
@@ -182,11 +183,17 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
             refs_dict = {
                 "reads_from": obj_refs.reads_from,
                 "writes_to": obj_refs.writes_to,
+                "write_operations": obj_refs.write_operations,
             }
             has_exec = obj_refs.has_exec
         except DdlParseError as exc:
             parse_error = str(exc)
             refs_dict = None
+
+        if has_exec or parse_error:
+            classification = "claude_assisted"
+        else:
+            classification = "deterministic"
 
     elif type_label in ("view", "function"):
         try:
@@ -207,6 +214,7 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
         "params": params,
         "refs": refs_dict,
         "has_exec": has_exec,
+        "classification": classification,
         "parse_error": parse_error,
     }
 

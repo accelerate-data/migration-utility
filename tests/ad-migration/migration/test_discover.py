@@ -174,6 +174,8 @@ def test_show_merge_proc_refs() -> None:
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_MergeDimProduct", "tsql")
     assert "silver.dimproduct" in result["refs"]["writes_to"]
     assert "bronze.product" in result["refs"]["reads_from"]
+    assert "MERGE" in result["refs"]["write_operations"]["silver.dimproduct"]
+    assert result["classification"] == "deterministic"
 
 
 def test_show_cte_proc_refs() -> None:
@@ -244,12 +246,14 @@ def test_show_delete_top_refs() -> None:
 def test_show_truncate_only_refs() -> None:
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_TruncateOnly", "tsql")
     assert "silver.dimproduct" in result["refs"]["writes_to"]
+    assert "TRUNCATE" in result["refs"]["write_operations"]["silver.dimproduct"]
 
 
 def test_show_select_into_refs() -> None:
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_SelectInto", "tsql")
     assert "silver.dimproduct_staging" in result["refs"]["writes_to"]
     assert "bronze.product" in result["refs"]["reads_from"]
+    assert "SELECT_INTO" in result["refs"]["write_operations"]["silver.dimproduct_staging"]
 
 
 def test_show_right_join_refs() -> None:
@@ -285,6 +289,7 @@ def test_show_nested_control_flow_refs() -> None:
 def test_show_exec_simple_has_exec() -> None:
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecSimple", "tsql")
     assert result["has_exec"] is True
+    assert result["classification"] == "claude_assisted"
     assert result["refs"]["writes_to"] == []
     assert result["refs"]["reads_from"] == []
 
@@ -292,11 +297,14 @@ def test_show_exec_simple_has_exec() -> None:
 def test_show_exec_dynamic_has_exec() -> None:
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecDynamic", "tsql")
     assert result["has_exec"] is True
+    assert result["classification"] == "claude_assisted"
 
 
 def test_show_deterministic_no_exec() -> None:
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadDimProduct", "tsql")
     assert result["has_exec"] is False
+    assert result["classification"] == "deterministic"
+    assert "INSERT" in result["refs"]["write_operations"]["silver.dimproduct"]
 
 
 def test_refs_finds_all_writer_procs() -> None:

@@ -82,6 +82,7 @@ class ObjectRefs:
     reads_from: list[str] = field(default_factory=list)
     calls: list[str] = field(default_factory=list)
     has_exec: bool = False
+    write_operations: dict[str, list[str]] = field(default_factory=dict)
 
 
 @dataclass
@@ -326,10 +327,29 @@ def _merge_statement_lists(primary: list[Any], secondary: list[Any]) -> list[Any
     return merged
 
 
+# Node type → operation name, used for write_operations mapping
+_WRITE_NODE_TYPES: list[tuple[type, str]] = [
+    (exp.Insert, "INSERT"),
+    (exp.Update, "UPDATE"),
+    (exp.Delete, "DELETE"),
+    (exp.Merge, "MERGE"),
+    (exp.TruncateTable, "TRUNCATE"),
+    (exp.Into, "SELECT_INTO"),
+]
+
+
 def _collect_refs_from_statements(statements: list[Any]) -> ObjectRefs:
     """Walk a list of parsed statements and collect write/read references."""
     writes_to: set[str] = set()
     reads_from: set[str] = set()
+    write_ops: dict[str, list[str]] = {}
+
+    def _add_write(fqn: str, op: str) -> None:
+        writes_to.add(fqn)
+        if fqn not in write_ops:
+            write_ops[fqn] = []
+        if op not in write_ops[fqn]:
+            write_ops[fqn].append(op)
 
     for stmt in statements:
         if stmt is None or isinstance(stmt, exp.Command):
@@ -339,26 +359,26 @@ def _collect_refs_from_statements(statements: list[Any]) -> ObjectRefs:
         for node in stmt.find_all(exp.Insert):
             target = node.find(exp.Table)
             if target and _is_real_table(target):
-                writes_to.add(_table_fqn(target))
+                _add_write(_table_fqn(target), "INSERT")
 
         # writes_to: UPDATE targets
         for node in stmt.find_all(exp.Update):
             target = node.find(exp.Table)
             if target and _is_real_table(target):
-                writes_to.add(_table_fqn(target))
+                _add_write(_table_fqn(target), "UPDATE")
 
         # writes_to: DELETE targets (use node.this — node.find(Table) may
         # return a TOP pseudo-table from DELETE TOP (N) syntax)
         for node in stmt.find_all(exp.Delete):
             target = node.this
             if isinstance(target, exp.Table) and _is_real_table(target):
-                writes_to.add(_table_fqn(target))
+                _add_write(_table_fqn(target), "DELETE")
 
         # writes_to: MERGE targets + reads_from: MERGE USING sources
         for node in stmt.find_all(exp.Merge):
             target = node.find(exp.Table)
             if target and _is_real_table(target):
-                writes_to.add(_table_fqn(target))
+                _add_write(_table_fqn(target), "MERGE")
             using = node.args.get("using")
             if isinstance(using, exp.Table) and _is_real_table(using):
                 reads_from.add(_table_fqn(using))
@@ -367,13 +387,13 @@ def _collect_refs_from_statements(statements: list[Any]) -> ObjectRefs:
         for node in stmt.find_all(exp.TruncateTable):
             target = node.find(exp.Table)
             if target and _is_real_table(target):
-                writes_to.add(_table_fqn(target))
+                _add_write(_table_fqn(target), "TRUNCATE")
 
         # writes_to: SELECT INTO targets
         for node in stmt.find_all(exp.Into):
             target = node.find(exp.Table)
             if target and _is_real_table(target):
-                writes_to.add(_table_fqn(target))
+                _add_write(_table_fqn(target), "SELECT_INTO")
 
         # reads_from: FROM and JOIN sources
         for node in stmt.find_all(exp.From):
@@ -390,6 +410,7 @@ def _collect_refs_from_statements(statements: list[Any]) -> ObjectRefs:
         writes_to=sorted(writes_to),
         reads_from=sorted(reads_from - writes_to),
         calls=[],
+        write_operations=write_ops,
     )
 
 

@@ -7,7 +7,7 @@ argument-hint: "[ddl-path] [table-name]"
 
 # Scope
 
-Instructions for using `scope` to identify procedures that write to a target table.
+Identify stored procedures that write to a target table. Used by the scoping-agent for batch processing. For individual proc analysis, `discover show` provides the same data (`refs`, `write_operations`, `classification`).
 
 ## Arguments
 
@@ -16,28 +16,20 @@ Parse `$ARGUMENTS`:
 - `ddl-path` (required): path to the directory containing `.sql` files
 - `table-name` (required): fully-qualified target table (e.g. `dbo.FactSales`)
 
-If either is missing from `$ARGUMENTS`, ask the user before proceeding. Do not assume `./artifacts/ddl` or any other default — the user chooses where their DDL lives.
+If either is missing from `$ARGUMENTS`, ask the user before proceeding. Do not assume any default path.
 
-## Invoking scope
+### Options
 
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" scope \
-  --ddl-path ./artifacts/ddl \
-  --table dbo.FactSales \
-  --dialect tsql \
-  --depth 3
-```
-
-Flag defaults:
-
-| Flag | Default | Description |
+| Option | Required | Values |
 |---|---|---|
-| `--ddl-path` | _(required)_ | Path to the DDL artifact directory |
-| `--table` | _(required)_ | Fully-qualified target table name |
-| `--dialect` | `tsql` | SQL dialect of the source procedures |
-| `--depth` | `3` | Maximum call-graph depth to traverse |
+| `--ddl-path` | yes | path to DDL directory |
+| `--table` | yes | fully-qualified target table name |
+| `--dialect` | no | sqlglot dialect (default: `tsql`) |
+| `--depth` | no | maximum call-graph depth (default: `3`) |
 
-Output shape:
+Invocation examples are in [`rules/workflow.md`](rules/workflow.md).
+
+### Output shape
 
 ```json
 {
@@ -46,25 +38,17 @@ Output shape:
     {
       "procedure_name": "dbo.usp_LoadFactSales",
       "write_type": "direct",
-      "write_operations": ["INSERT", "MERGE"],
+      "write_operations": ["TRUNCATE", "INSERT"],
       "call_path": ["dbo.usp_LoadFactSales"],
       "confidence": 0.90,
       "status": "confirmed"
-    },
-    {
-      "procedure_name": "dbo.usp_StageLoad",
-      "write_type": "indirect",
-      "write_operations": ["INSERT"],
-      "call_path": ["dbo.usp_LoadFactSales"],
-      "confidence": 0.65,
-      "status": "suspected"
     }
   ],
   "errors": [
     {
       "procedure": "dbo.usp_CrossDbSync",
       "code": "ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE",
-      "message": "Procedure references a table in a different database."
+      "message": "Procedure references a cross-database name."
     }
   ]
 }
@@ -72,81 +56,54 @@ Output shape:
 
 ## Workflow
 
-Follow the step sequence in [`rules/workflow.md`](rules/workflow.md) for the invoke → evaluate confidence → escalate suspected → handle cross-DB → report flow.
+Follow the step sequence in [`rules/workflow.md`](rules/workflow.md).
 
-## Confidence thresholds
+## Confidence scoring
 
 Each writer entry has a `confidence` score in [0.0, 1.0] and a derived `status`:
 
 | Status | Condition | Action |
 |---|---|---|
-| `confirmed` | confidence ≥ 0.70 | Proceed — treat this procedure as a definite writer |
-| `suspected` | confidence < 0.70 | Do not proceed automatically — escalate |
+| `confirmed` | confidence ≥ 0.70 | Treat as a definite writer |
+| `suspected` | confidence < 0.70 | Escalate — do not proceed automatically |
 
-Scoring signals (computed deterministically, not by LLM):
+Scoring signals (computed deterministically):
 
 | Signal | Effect |
 |---|---|
-| Direct write evidence (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, `TRUNCATE`) | base 0.90 |
+| Direct write evidence (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, `TRUNCATE`, `SELECT_INTO`) | base 0.90 |
 | Indirect write (callee is a confirmed direct writer) | base 0.75 |
-| Shorter call path (per hop shorter than the deepest path in the candidate set) | +0.02 |
-| Multiple independent paths all show write evidence | +0.05 |
-| Dynamic SQL present alongside static write evidence (`EXEC(@sql)`, `sp_executesql`) | −0.20 |
-| Only dynamic SQL evidence — no static write statement found | cap at 0.45 |
+| Shorter call path (per hop shorter than deepest path in candidate set) | +0.02 |
+| Multiple independent paths with write evidence | +0.05 |
+
+## Relationship with discover
+
+Run `discover show` on a proc *before* running scope to check `has_exec`:
+
+- **`has_exec: false`** → scope handles it deterministically. Use the scope output directly.
+- **`has_exec: true`** → the proc contains EXEC calls. Scope may return empty writers or `PARSE_FAILED` errors for this proc. Read `raw_ddl` from discover show to follow the call graph manually.
 
 ## Escalation rule
 
-When a writer entry has `"status": "suspected"`, do not include it in the migration plan automatically. Instead:
+When a writer has `"status": "suspected"`:
 
-1. Read the procedure body using the `show` subcommand of `discover`:
+1. Run `discover show` on the procedure to get its `raw_ddl` and `refs`.
+2. Read the procedure body to determine whether it actually writes to the target table.
+3. Confirm or reject:
+   - **Confirmed:** include in the migration plan.
+   - **Rejected:** exclude and note the reason.
+4. Do not proceed to migration steps until every `suspected` entry has a decision.
 
-   ```bash
-   uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover show --ddl-path ./artifacts/ddl --name dbo.usp_StageLoad
-   ```
-
-   Alternatively, locate and read the raw DDL file directly.
-
-2. Manually inspect the procedure body to determine whether it actually writes to the target table.
-
-3. Based on inspection, confirm or reject the procedure:
-   - **Confirmed:** include it in the migration plan and proceed.
-   - **Rejected:** exclude it and note the reason for the user.
-
-4. Only proceed to migration steps after a decision is made for every `suspected` entry.
-
-Present the escalation to the user before inspecting, so they are aware a manual check is required:
+Present to the user before inspecting:
 
 ```text
 dbo.usp_StageLoad has confidence 0.65 (suspected).
 Inspecting procedure body to verify whether it writes to dbo.FactSales...
 ```
 
-## Cross-DB error entries
+## Error codes
 
-When `errors[]` contains an entry with `"code": "ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE"`:
-
-1. Surface the affected procedure name to the user.
-2. Mark it as out-of-scope for this migration.
-3. Do not include it in the migration plan.
-4. Note that cross-database writes may require a separate data pipeline migration outside this workflow.
-
-Example display:
-
-```text
-Out-of-scope procedure detected:
-  dbo.usp_CrossDbSync — references a table in a different database.
-  This procedure is excluded from the migration plan.
-  Cross-database writes may need a separate data pipeline migration.
-```
-
-## EXEC / dynamic SQL entries
-
-When `errors[]` contains an entry with `"code": "PARSE_FAILED"`, the procedure contains EXEC or dynamic SQL that sqlglot cannot parse statically. These procs are typically orchestrators that call other procs via EXEC, or use `sp_executesql` / `EXEC (@sql)` for dynamic queries.
-
-For `PARSE_FAILED` entries:
-
-1. Read the procedure body using `discover show` to get the `raw_ddl`.
-2. Inspect the EXEC statements to determine what they call or execute.
-3. For static EXEC calls (`EXEC dbo.usp_OtherProc`), follow the call graph by running scope on the called proc's write targets.
-4. For dynamic SQL (`EXEC (@sql)`, `sp_executesql @var`), flag the proc as requiring manual review — the SQL is constructed at runtime and cannot be determined from static analysis.
-5. Report findings to the user with the proc name, EXEC pattern, and whether the call target could be resolved.
+| Code | Meaning | Action |
+|---|---|---|
+| `ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE` | Proc references a cross-database name (3+ part) | Exclude from migration plan. Cross-database writes need a separate pipeline. |
+| `PARSE_FAILED` | Proc contains EXEC or dynamic SQL that sqlglot cannot parse | Read `raw_ddl` via discover show. For static EXEC, follow the call graph. For dynamic SQL, flag for manual review. |

@@ -51,19 +51,20 @@ Follow the step sequence in [`rules/workflow.md`](rules/workflow.md) for the `li
 
 ## Parse classification
 
-When `show` returns results for a procedure, check `has_exec`, `parse_error`, and `refs` to determine the analysis path:
+For procedures, `show` returns a `classification` field that tells the agent the analysis path:
 
-| `has_exec` | `parse_error` | Path | Action |
-|---|---|---|---|
-| `true` | any | **Claude-assisted** | Proc contains EXEC — read `raw_ddl` to follow call graph |
-| `false` | `null` | **Deterministic** | sqlglot handled everything — report refs directly |
-| `false` | set | **Claude-assisted** | Proc has unparseable syntax — read `raw_ddl` for manual analysis |
+| `classification` | Meaning | Action |
+|---|---|---|
+| `deterministic` | sqlglot parsed everything | Use `refs` and `write_operations` directly |
+| `claude_assisted` | EXEC or unparseable syntax | Read `raw_ddl` to follow call graph |
 
-The `has_exec` flag is the primary signal. Any proc with EXEC/EXECUTE in its body is Claude-assisted regardless of `parse_error` or refs — even if the proc also has deterministic DML alongside the EXEC.
+The `classification` is derived from `has_exec` and `parse_error`. The `refs` object for procedures includes:
 
-The following T-SQL patterns are fully deterministic: INSERT, UPDATE, DELETE, DELETE TOP, TRUNCATE, MERGE, SELECT INTO, CTE, multi-level CTE, CASE WHEN, LEFT/RIGHT JOIN, subqueries, correlated subqueries, window functions, IF/ELSE, BEGIN TRY/CATCH, and WHILE loops.
+- `writes_to` — list of target table FQNs
+- `reads_from` — list of source table FQNs
+- `write_operations` — map of target FQN → operation names (e.g. `{"silver.dimcustomer": ["TRUNCATE", "INSERT"]}`)
 
-The following patterns require Claude: all EXEC variants (static proc calls, dynamic SQL, sp_executesql). See `docs/design/tsql-parse-classification/README.md` for the exhaustive list.
+See `docs/design/tsql-parse-classification/README.md` for the exhaustive list of deterministic vs Claude-assisted patterns.
 
 ## Handling parse errors
 
