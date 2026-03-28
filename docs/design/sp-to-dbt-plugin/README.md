@@ -34,7 +34,6 @@ agent-sources/ad-migration/               ← marketplace package
     │   ├── skills/
     │   │   ├── discover/                  ← SKILL.md + rules/
     │   │   ├── scope/                     ← SKILL.md + rules/
-    │   │   ├── scoping-writers/           ← reference docs for scoping algorithm
     │   │   ├── setup-ddl/                 ← DDL extraction from live SQL Server
     │   │   ├── assess/                    ← not yet implemented
     │   │   ├── migrate/                   ← not yet implemented

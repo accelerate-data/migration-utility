@@ -41,39 +41,11 @@ Given a target table, identify candidate writer procedures and select one writer
 
 ## Discovery Strategy
 
-> **Deterministic execution only.** `scope.py` uses sqlglot AST analysis for write detection and call-graph resolution — no regex, no LLM. Procedures that cannot be parsed are reported as `PARSE_FAILED` errors. Output conforms to this contract.
->
-> The confidence scoring rules below are codified deterministically in `scope.py`.
+> **Deterministic execution only.** The scoping agent delegates to the `scope` skill, which invokes `scope.py` per table. `scope.py` uses sqlglot AST analysis for write detection, call-graph resolution, and confidence scoring — no regex, no LLM. Procedures that cannot be parsed are reported as `PARSE_FAILED` errors.
 
-### 1. DiscoverCandidates
+The agent's role is batch orchestration: read the input, invoke the scope skill per item, apply resolution rules, validate, and write the output.
 
-- Use `ddl_mcp.get_dependencies(table_name)` to find procedures that reference the target table via sqlglot AST walk over local DDL files.
-- Note: static DDL analysis can miss `TRUNCATE`-only writers and dynamic SQL writers.
-
-### 2. ResolveCallGraph
-
-- Parse procedure bodies and extract `EXEC` calls.
-- Build bounded call graph up to `search_depth`.
-- Output: expanded candidate set + call paths.
-
-### 3. DetectWriteOperations
-
-- Parse each candidate procedure (AST, not regex).
-- Detect writes to target table:
-  - `INSERT`, `UPDATE`, `DELETE`, `MERGE`, `TRUNCATE`
-- Classify `write_type`:
-  - `direct`, `indirect`, `read_only`.
-
-### 4. ScoreCandidates
-
-- Rank writer candidates by confidence using deterministic rules.
-- Deterministic scoring signals:
-  - direct write evidence (`INSERT|UPDATE|DELETE|MERGE|TRUNCATE`) increases confidence.
-  - shorter call-path distance increases confidence.
-  - repeated write evidence across independent paths increases confidence.
-  - dynamic SQL patterns (`EXEC(@sql)`, `sp_executesql`) decrease confidence.
-
-### 5. ApplyResolutionRules
+### Resolution Rules
 
 - Return one of: `resolved`, `ambiguous_multi_writer`, `partial`, `no_writer_found`, `error`.
 - Status rules:
@@ -86,7 +58,7 @@ Given a target table, identify candidate writer procedures and select one writer
     `ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE`.
   - `error`: execution/parsing/runtime failure prevented completion.
 
-### 6. ValidateOutput
+### Validation
 
 - Run internal consistency/contract checks on the output item (for example selected writer
   consistency and required fields).
