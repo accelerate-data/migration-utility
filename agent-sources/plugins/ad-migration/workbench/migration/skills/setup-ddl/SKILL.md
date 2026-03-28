@@ -6,6 +6,7 @@ description: >
   "pull DDL from the source database", or wants to initialise the local DDL artifact
   directory from a live SQL Server before running discovery or scoping.
 user-invocable: true
+argument-hint: "(no arguments — set MSSQL_HOST, MSSQL_PORT, MSSQL_DB, SA_PASSWORD before invoking)"
 ---
 
 # Setup DDL
