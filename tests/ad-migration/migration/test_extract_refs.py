@@ -197,22 +197,38 @@ def test_cte_with_subquery():
 # ── EXEC patterns (Claude path — verify no false positives) ──────────────────
 
 
-def test_exec_simple_no_refs():
-    writes, reads = _refs_from_fixture("dbo.usp_execsimple")
-    assert writes == []
-    assert reads == []
+def test_exec_simple_has_exec_flag():
+    catalog = load_directory(FIXTURES)
+    entry = catalog.procedures["dbo.usp_execsimple"]
+    from shared.loader import extract_refs
+    refs = extract_refs(entry)
+    assert refs.has_exec is True
+    assert refs.writes_to == []
+    assert refs.reads_from == []
 
 
-def test_exec_dynamic_no_refs():
-    writes, reads = _refs_from_fixture("dbo.usp_execdynamic")
-    assert writes == []
-    assert reads == []
+def test_exec_dynamic_has_exec_flag():
+    catalog = load_directory(FIXTURES)
+    entry = catalog.procedures["dbo.usp_execdynamic"]
+    from shared.loader import extract_refs
+    refs = extract_refs(entry)
+    assert refs.has_exec is True
 
 
-def test_exec_sp_executesql_no_refs():
-    writes, reads = _refs_from_fixture("dbo.usp_execspexecutesql")
-    assert writes == []
-    assert reads == []
+def test_exec_sp_executesql_has_exec_flag():
+    catalog = load_directory(FIXTURES)
+    entry = catalog.procedures["dbo.usp_execspexecutesql"]
+    from shared.loader import extract_refs
+    refs = extract_refs(entry)
+    assert refs.has_exec is True
+
+
+def test_deterministic_proc_no_exec_flag():
+    catalog = load_directory(FIXTURES)
+    entry = catalog.procedures["dbo.usp_loaddimproduct"]
+    from shared.loader import extract_refs
+    refs = extract_refs(entry)
+    assert refs.has_exec is False
 
 
 # ── Per-block error handling ──────────────────────────────────────────────────

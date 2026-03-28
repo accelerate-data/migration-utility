@@ -173,30 +173,31 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
     if type_label == "table":
         columns = _extract_columns(entry)
 
-    elif type_label == "procedure":
+    has_exec = False
+
+    if type_label == "procedure":
         params = _extract_params(entry)
-        if entry.ast is not None:
-            try:
-                obj_refs = extract_refs(entry)
-                refs_dict = {
-                    "reads_from": obj_refs.reads_from,
-                    "writes_to": obj_refs.writes_to,
-                }
-            except DdlParseError as exc:
-                parse_error = str(exc)
-                refs_dict = None
+        try:
+            obj_refs = extract_refs(entry)
+            refs_dict = {
+                "reads_from": obj_refs.reads_from,
+                "writes_to": obj_refs.writes_to,
+            }
+            has_exec = obj_refs.has_exec
+        except DdlParseError as exc:
+            parse_error = str(exc)
+            refs_dict = None
 
     elif type_label in ("view", "function"):
-        if entry.ast is not None:
-            try:
-                obj_refs = extract_refs(entry)
-                refs_dict = {
-                    "reads_from": obj_refs.reads_from,
-                    "writes_to": obj_refs.writes_to,
-                }
-            except DdlParseError as exc:
-                parse_error = str(exc)
-                refs_dict = None
+        try:
+            obj_refs = extract_refs(entry)
+            refs_dict = {
+                "reads_from": obj_refs.reads_from,
+                "writes_to": obj_refs.writes_to,
+            }
+        except DdlParseError as exc:
+            parse_error = str(exc)
+            refs_dict = None
 
     return {
         "name": norm,
@@ -205,6 +206,7 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
         "columns": columns,
         "params": params,
         "refs": refs_dict,
+        "has_exec": has_exec,
         "parse_error": parse_error,
     }
 

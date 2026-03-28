@@ -71,6 +71,9 @@ class DdlParseError(Exception):
 # ── Data structures ───────────────────────────────────────────────────────────
 
 
+_EXEC_RE = re.compile(r"\b(?:EXEC|EXECUTE)\b", re.IGNORECASE)
+
+
 @dataclass
 class ObjectRefs:
     """References extracted from a DDL entry's AST."""
@@ -78,6 +81,7 @@ class ObjectRefs:
     writes_to: list[str] = field(default_factory=list)
     reads_from: list[str] = field(default_factory=list)
     calls: list[str] = field(default_factory=list)
+    has_exec: bool = False
 
 
 @dataclass
@@ -398,19 +402,28 @@ def extract_refs(entry: DdlEntry) -> ObjectRefs:
 
     For tables and other CREATE statements: walks the original AST directly.
 
+    Sets has_exec=True if the raw DDL contains EXEC/EXECUTE statements,
+    signalling that the proc requires Claude-assisted analysis.
+
     Raises:
         DdlParseError: if the entry has no AST and no raw_ddl to fall back on.
     """
+    has_exec = bool(_EXEC_RE.search(entry.raw_ddl))
+
     # For entries with AS BEGIN...END bodies, parse the body statements
     body_stmts = _parse_body_statements(entry.raw_ddl)
     if body_stmts:
-        return _collect_refs_from_statements(body_stmts)
+        refs = _collect_refs_from_statements(body_stmts)
+        refs.has_exec = has_exec
+        return refs
 
     # Fallback: walk the original AST (tables, simple views without BEGIN/END)
     if entry.ast is None:
         raise DdlParseError("Cannot extract refs: DDL block failed to parse (ast is None)")
 
-    return _collect_refs_from_statements([entry.ast])
+    refs = _collect_refs_from_statements([entry.ast])
+    refs.has_exec = has_exec
+    return refs
 
 
 # ── Directory loading ─────────────────────────────────────────────────────────

@@ -25,15 +25,15 @@ Follow the step sequence in [`rules/workflow.md`](rules/workflow.md) for the `li
 
 ## Parse classification
 
-When `show` returns results for a procedure, check the `parse_error` and `refs` fields to determine the analysis path:
+When `show` returns results for a procedure, check `has_exec`, `parse_error`, and `refs` to determine the analysis path:
 
-| `parse_error` | `refs` | Path | Action |
+| `has_exec` | `parse_error` | Path | Action |
 |---|---|---|---|
-| `null` | populated `writes_to`/`reads_from` | **Deterministic** | sqlglot handled everything — no Claude needed |
-| `null` | empty `writes_to` and `reads_from` | **Deterministic** | Proc has no DML (e.g. only SET statements) |
-| set (non-null) | empty or partial | **Claude-assisted** | Proc contains EXEC or dynamic SQL that sqlglot cannot parse |
+| `true` | any | **Claude-assisted** | Proc contains EXEC — read `raw_ddl` to follow call graph |
+| `false` | `null` | **Deterministic** | sqlglot handled everything — report refs directly |
+| `false` | set | **Claude-assisted** | Proc has unparseable syntax — read `raw_ddl` for manual analysis |
 
-For deterministic procs, report the refs directly. For Claude-assisted procs, tell the user the proc requires manual analysis and show the `parse_error` reason.
+The `has_exec` flag is the primary signal. Any proc with EXEC/EXECUTE in its body is Claude-assisted regardless of `parse_error` or refs — even if the proc also has deterministic DML alongside the EXEC.
 
 The following T-SQL patterns are fully deterministic: INSERT, UPDATE, DELETE, DELETE TOP, TRUNCATE, MERGE, SELECT INTO, CTE, multi-level CTE, CASE WHEN, LEFT/RIGHT JOIN, subqueries, correlated subqueries, window functions, IF/ELSE, BEGIN TRY/CATCH, and WHILE loops.
 

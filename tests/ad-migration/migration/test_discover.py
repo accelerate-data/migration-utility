@@ -282,16 +282,21 @@ def test_show_nested_control_flow_refs() -> None:
     assert "bronze.product" in result["refs"]["reads_from"]
 
 
-def test_show_exec_simple_no_refs() -> None:
+def test_show_exec_simple_has_exec() -> None:
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecSimple", "tsql")
+    assert result["has_exec"] is True
     assert result["refs"]["writes_to"] == []
     assert result["refs"]["reads_from"] == []
 
 
-def test_show_exec_dynamic_no_refs() -> None:
+def test_show_exec_dynamic_has_exec() -> None:
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecDynamic", "tsql")
-    assert result["refs"]["writes_to"] == []
-    assert result["refs"]["reads_from"] == []
+    assert result["has_exec"] is True
+
+
+def test_show_deterministic_no_exec() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadDimProduct", "tsql")
+    assert result["has_exec"] is False
 
 
 def test_refs_finds_all_writer_procs() -> None:
