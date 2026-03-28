@@ -10,16 +10,16 @@ user-invocable: false
 
 # Discover
 
-Instructions for using `discover.py` to explore a DDL artifact directory.
+Instructions for using `discover` to explore a DDL artifact directory.
 
-## Invoking discover.py
+## Invoking discover
 
-`discover.py` has three subcommands: `list`, `show`, and `refs`. All subcommands require `--ddl-path`.
+`discover` has three subcommands: `list`, `show`, and `refs`. All subcommands require `--ddl-path`.
 
 ### list — enumerate objects in the DDL directory
 
 ```bash
-python discover.py list --ddl-path ./artifacts/ddl --type tables
+uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover list --ddl-path ./artifacts/ddl --type tables
 ```
 
 Valid values for `--type`: `tables`, `procedures`, `views`, `functions`.
@@ -33,7 +33,7 @@ Output shape:
 ### show — inspect a single object
 
 ```bash
-python discover.py show --ddl-path ./artifacts/ddl --name dbo.FactSales
+uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover show --ddl-path ./artifacts/ddl --name dbo.FactSales
 ```
 
 Output shape:
@@ -51,7 +51,7 @@ Output shape:
 ### refs — find what references an object
 
 ```bash
-python discover.py refs --ddl-path ./artifacts/ddl --name dbo.FactSales
+uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover refs --ddl-path ./artifacts/ddl --name dbo.FactSales
 ```
 
 Output shape:

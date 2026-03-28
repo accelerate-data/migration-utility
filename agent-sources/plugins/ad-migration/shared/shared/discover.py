@@ -28,13 +28,6 @@ from typing import Any
 import sqlglot.expressions as exp
 import typer
 
-# Plugin root is one directory above this script; add shared/ to sys.path so the
-# shared package is importable when running without editable install.
-_PLUGIN_ROOT = Path(__file__).parent
-_SHARED_ROOT = _PLUGIN_ROOT / "shared"
-if str(_SHARED_ROOT) not in sys.path:
-    sys.path.insert(0, str(_SHARED_ROOT))
-
 from shared.loader import (  # noqa: E402
     DdlCatalog,
     DdlEntry,

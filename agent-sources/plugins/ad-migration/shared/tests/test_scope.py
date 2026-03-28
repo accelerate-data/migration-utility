@@ -15,19 +15,7 @@ from pathlib import Path
 
 import pytest
 
-# Add plugin root (agent-sources/plugins/ad-migration/) to sys.path so that
-# `import scope` resolves to scope.py, and `from shared.loader import ...`
-# resolves from the shared/ package inside the same plugin directory.
-_PLUGIN_ROOT = Path(__file__).parent.parent.parent
-if str(_PLUGIN_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PLUGIN_ROOT))
-# Also ensure the shared package itself is importable via the installed editable path,
-# but the plugin root takes precedence for scope.py.
-_SHARED_ROOT = Path(__file__).parent.parent.parent / "shared"
-if str(_SHARED_ROOT) not in sys.path:
-    sys.path.insert(1, str(_SHARED_ROOT))
-
-from scope import scope_writers, _normalize  # noqa: E402
+from shared.scope import scope_writers, _normalize  # noqa: E402
 
 FIXTURES = Path(__file__).parent / "fixtures" / "scope"
 

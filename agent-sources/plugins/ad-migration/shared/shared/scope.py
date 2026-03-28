@@ -407,10 +407,10 @@ def scope_writers(
         indirect_multi[start_proc] = path_count
 
     for entry in writer_results:
-        has_dyn = entry.procedure in dynamic_procs
+        has_dyn = entry.procedure_name in dynamic_procs
         has_static = bool(entry.write_operations) or entry.write_type == "direct"
         multiple = (
-            indirect_multi.get(entry.procedure, 0) > 1
+            indirect_multi.get(entry.procedure_name, 0) > 1
             if entry.write_type == "indirect"
             else False
         )
@@ -447,16 +447,7 @@ def main(
     depth: int = typer.Option(3, help="Maximum call-graph traversal depth"),
 ) -> None:
     """Find stored procedures that write to a target table."""
-    try:
-        # Import here so the module is usable without modifying sys.path at import time
-        sys.path.insert(0, str(Path(__file__).parent / "shared"))
-        from shared.loader import load_directory
-    except ImportError as exc:
-        print(
-            json.dumps({"error": f"Failed to import shared library: {exc}"}),
-            file=sys.stdout,
-        )
-        raise typer.Exit(2)
+    from shared.loader import load_directory
 
     try:
         catalog = load_directory(ddl_path, dialect=dialect)

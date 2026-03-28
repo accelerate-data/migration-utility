@@ -10,12 +10,12 @@ user-invocable: false
 
 # Scope
 
-Instructions for using `scope.py` to identify procedures that write to a target table.
+Instructions for using `scope` to identify procedures that write to a target table.
 
-## Invoking scope.py
+## Invoking scope
 
 ```bash
-python scope.py \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" scope \
   --ddl-path ./artifacts/ddl \
   --table dbo.FactSales \
   --dialect tsql \
@@ -88,10 +88,10 @@ Scoring signals (computed deterministically, not by LLM):
 
 When a writer entry has `"status": "suspected"`, do not include it in the migration plan automatically. Instead:
 
-1. Read the procedure body using the `show` subcommand of `discover.py`:
+1. Read the procedure body using the `show` subcommand of `discover`:
 
    ```bash
-   python discover.py show --ddl-path ./artifacts/ddl --name dbo.usp_StageLoad
+   uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover show --ddl-path ./artifacts/ddl --name dbo.usp_StageLoad
    ```
 
    Alternatively, locate and read the raw DDL file directly.

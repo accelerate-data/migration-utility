@@ -29,17 +29,12 @@ import pytest
 
 _TESTS_DIR = Path(__file__).parent
 _SHARED_DIR = _TESTS_DIR.parent
-_PLUGIN_ROOT = _SHARED_DIR.parent
 
 # Make shared importable (editable install covers this in CI; direct pytest run needs it)
 if str(_SHARED_DIR) not in sys.path:
     sys.path.insert(0, str(_SHARED_DIR))
 
-# Make discover.py importable
-if str(_PLUGIN_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PLUGIN_ROOT))
-
-import discover  # noqa: E402
+from shared import discover  # noqa: E402
 
 _FLAT_FIXTURES = _TESTS_DIR / "fixtures" / "discover" / "flat"
 

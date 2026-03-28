@@ -19,5 +19,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["shared"]
 
+[project.scripts]
+discover = "shared.discover:app"
+scope = "shared.scope:app"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
