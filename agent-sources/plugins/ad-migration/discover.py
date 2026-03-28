@@ -249,7 +249,7 @@ def run_refs(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
 # ── CLI commands ──────────────────────────────────────────────────────────────
 
 
-@app.command()
+@app.command(name="list")
 def list_objects(
     ddl_path: Path = typer.Option(..., help="Path to DDL directory"),
     type: ObjectType = typer.Option(..., help="Object type to list"),

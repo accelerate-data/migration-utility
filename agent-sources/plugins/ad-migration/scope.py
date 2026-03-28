@@ -80,7 +80,7 @@ _EXEC_CALL_RE = re.compile(
 
 @dataclass
 class WriterEntry:
-    procedure: str
+    procedure_name: str
     write_type: str  # "direct" | "indirect"
     write_operations: list[str]
     call_path: list[str]
@@ -313,10 +313,10 @@ def scope_writers(
     for proc_name, ops in direct_writers.items():
         has_dyn = proc_name in dynamic_procs
         writer_results.append(WriterEntry(
-            procedure=proc_name,
+            procedure_name=proc_name,
             write_type="direct",
             write_operations=ops,
-            call_path=[],
+            call_path=[proc_name],
             confidence=0.0,  # placeholder; computed after all writers found
             status="",
         ))
@@ -359,7 +359,7 @@ def scope_writers(
             call_path = best_path  # [intermediate..., direct_writer]
 
             writer_results.append(WriterEntry(
-                procedure=start_proc,
+                procedure_name=start_proc,
                 write_type="indirect",
                 write_operations=[],
                 call_path=[p for p in call_path],
@@ -482,7 +482,7 @@ def main(
         "table": result.table,
         "writers": [
             {
-                "procedure": w.procedure,
+                "procedure_name": w.procedure_name,
                 "write_type": w.write_type,
                 "write_operations": w.write_operations,
                 "call_path": w.call_path,

@@ -60,8 +60,9 @@ def test_direct_insert_confirmed() -> None:
 
     assert len(result.writers) == 1, f"Expected 1 writer, got: {result.writers}"
     writer = result.writers[0]
-    assert writer.procedure == "dbo.usp_direct_insert"
+    assert writer.procedure_name == "dbo.usp_direct_insert"
     assert writer.write_type == "direct"
+    assert writer.call_path == ["dbo.usp_direct_insert"]
     assert writer.status == "confirmed"
     assert abs(writer.confidence - 0.90) < 0.001, f"Expected confidence 0.90, got {writer.confidence}"
 
@@ -98,10 +99,10 @@ def test_indirect_one_hop() -> None:
 
     # usp_caller should be an indirect writer
     caller = next(
-        (w for w in result.writers if "caller" in w.procedure), None
+        (w for w in result.writers if "caller" in w.procedure_name), None
     )
     assert caller is not None, (
-        f"Expected usp_caller as indirect writer; writers={[w.procedure for w in result.writers]}"
+        f"Expected usp_caller as indirect writer; writers={[w.procedure_name for w in result.writers]}"
     )
     assert caller.write_type == "indirect"
     assert abs(caller.confidence - 0.75) < 0.001, (
@@ -122,10 +123,10 @@ def test_indirect_two_hop() -> None:
     result = scope_writers(procs, TARGET_FQN)
 
     outer = next(
-        (w for w in result.writers if "outer" in w.procedure), None
+        (w for w in result.writers if "outer" in w.procedure_name), None
     )
     assert outer is not None, (
-        f"Expected usp_outer as indirect writer; writers={[w.procedure for w in result.writers]}"
+        f"Expected usp_outer as indirect writer; writers={[w.procedure_name for w in result.writers]}"
     )
     assert outer.write_type == "indirect"
     assert len(outer.call_path) == 2, (

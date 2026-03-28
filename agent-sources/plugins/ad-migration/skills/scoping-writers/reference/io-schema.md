@@ -19,7 +19,7 @@
 
 ### Field semantics
 
-- `technology` — source technology; determines which skill patterns to apply. Values: `sql_server`, `fabric_warehouse`, `fabric_lakehouse`, `snowflake`
+- `technology` — source technology; determines which skill patterns to apply. Values: `sql_server`, `fabric_warehouse`
 - `ddl_path` — absolute path to the DDL artifacts directory; passed to every MCP tool call so the server does not need a `DDL_PATH` environment variable
 - `item_id` — schema-qualified target table or view name
 - `search_depth` — maximum call-graph traversal depth (integer `0..5`, default `2`)
