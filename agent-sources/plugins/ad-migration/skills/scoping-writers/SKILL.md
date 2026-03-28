@@ -4,6 +4,8 @@ description: Reference content for the Scoping Agent — I/O schemas, resolution
 user-invocable: false
 ---
 
+> **Note:** `scope.py` and the scoping agent implement the same algorithm independently. `scope.py` is a standalone CLI for local use; the scoping agent uses DDL MCP tools and follows this skill's reference docs. Keep both in sync when the algorithm changes.
+
 # Scoping Writers
 
 Reference content for the Scoping Agent. Load the section relevant to the current step.

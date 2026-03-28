@@ -1,3 +1,7 @@
+# NOT IMPLEMENTED — Live SQL Server MCP server is not yet wired up.
+# The tools.yaml schema is defined here for reference.
+# See VU-757 for the genai-toolbox integration that will activate this.
+
 sources:
   sqlserver:
     kind: mssql

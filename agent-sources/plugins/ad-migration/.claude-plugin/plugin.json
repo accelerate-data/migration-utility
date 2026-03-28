@@ -1,5 +1,12 @@
 {
   "name": "migration-agent",
   "version": "1.0.0",
-  "description": "Migration analysis agents and skills for Fabric Warehouse to dbt Lakehouse migration."
+  "description": "Migration analysis agents and skills for Fabric Warehouse to dbt Lakehouse migration.",
+  "license": "Elastic-2.0",
+  "licenseFile": "LICENSE",
+  "author": {
+    "name": "Accelerate Data",
+    "url": "https://github.com/accelerate-data"
+  },
+  "repository": "https://github.com/accelerate-data/migration-utility"
 }

@@ -1,6 +1,10 @@
 ---
 name: scope
-description: Instructions for using scope.py to find which stored procedures write to a target table, interpret confidence scores, and handle escalation and cross-database errors. Load when identifying writer procedures for a migration target.
+description: >
+  This skill should be used when the user asks to "find what writes to [table]",
+  "which procedures populate [table]", "scope out writers for [table]",
+  "identify the writer for [table]", or needs to determine which stored procedure
+  is responsible for loading a specific target table.
 user-invocable: false
 ---
 
@@ -37,7 +41,7 @@ Output shape:
       "procedure": "dbo.usp_LoadFactSales",
       "write_type": "direct",
       "write_operations": ["INSERT", "MERGE"],
-      "call_path": [],
+      "call_path": ["dbo.usp_LoadFactSales"],
       "confidence": 0.90,
       "status": "confirmed"
     },
