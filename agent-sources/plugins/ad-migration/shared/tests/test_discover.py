@@ -12,9 +12,9 @@ Covers all VU-735 acceptance criteria:
 8.  test_refs_ast_bracket_notation      — refs finds bracket-notation proc reference
 9.  test_refs_no_false_positive         — string-literal mention NOT returned by refs
 
-Tests import discover.py core functions directly (not via subprocess) to keep
-execution fast and test coverage clear.  sys.path manipulation mirrors what
-discover.py does at import time.
+Tests import shared.discover core functions directly (not via subprocess) to keep
+execution fast and test coverage clear.  sys.path insertion ensures shared is
+importable when running pytest without a prior editable install.
 """
 
 from __future__ import annotations
