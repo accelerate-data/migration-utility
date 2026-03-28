@@ -1,0 +1,7 @@
+CREATE FUNCTION silver.fn_format_name(@FirstName NVARCHAR(50))
+RETURNS NVARCHAR(100)
+AS
+BEGIN
+    RETURN UPPER(@FirstName);
+END;
+GO

@@ -118,6 +118,7 @@ class ObjectRefs:
     writes_to: list[str] = field(default_factory=list)
     reads_from: list[str] = field(default_factory=list)
     calls: list[str] = field(default_factory=list)
+    uses_functions: list[str] = field(default_factory=list)
     needs_llm: bool = False
     write_operations: dict[str, list[str]] = field(default_factory=dict)
     statements: list[dict[str, str]] = field(default_factory=list)
@@ -266,9 +267,10 @@ _WRITE_NODE_TYPES: list[tuple[type, str]] = [
 
 
 def _collect_refs_from_statements(statements: list[Any]) -> ObjectRefs:
-    """Walk a list of parsed statements and collect write/read references."""
+    """Walk a list of parsed statements and collect write/read/function references."""
     writes_to: set[str] = set()
     reads_from: set[str] = set()
+    uses_functions: set[str] = set()
     write_ops: dict[str, list[str]] = {}
     stmt_list: list[dict[str, str]] = []
 
@@ -346,10 +348,21 @@ def _collect_refs_from_statements(statements: list[Any]) -> ObjectRefs:
             if table and _is_real_table(table):
                 reads_from.add(_table_fqn(table))
 
+        # uses_functions: schema-qualified function calls (Dot → Anonymous)
+        for node in stmt.find_all(exp.Dot):
+            left = node.args.get("this")
+            right = node.args.get("expression")
+            if isinstance(right, exp.Anonymous) and left is not None:
+                schema = left.sql(dialect="tsql").strip()
+                func_name = right.name
+                if schema and func_name:
+                    uses_functions.add(normalize(f"{schema}.{func_name}"))
+
     return ObjectRefs(
         writes_to=sorted(writes_to),
         reads_from=sorted(reads_from - writes_to),
         calls=[],
+        uses_functions=sorted(uses_functions),
         write_operations=write_ops,
         statements=stmt_list,
     )

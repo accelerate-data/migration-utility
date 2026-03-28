@@ -187,6 +187,7 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
                 "reads_from": obj_refs.reads_from,
                 "writes_to": obj_refs.writes_to,
                 "write_operations": obj_refs.write_operations,
+                "uses_functions": obj_refs.uses_functions,
             }
             needs_llm = obj_refs.needs_llm
             statements = obj_refs.statements
@@ -263,6 +264,16 @@ def run_refs(
     catalog = _load(ddl_path, dialect)
     target = normalize(name)
 
+    # refs is for tables, views, and functions — not procedures
+    found = _find_entry(catalog, name)
+    if found is not None:
+        _, type_label, _ = found
+        if type_label == "procedure":
+            return {
+                "name": target,
+                "error": "refs is not supported for procedures. Use 'show' to inspect a procedure's reads, writes, and function usage.",
+            }
+
     # ── Phase 1: scan all procs/views for direct refs ────────────────────
     readers: list[str] = []
     direct_writers: dict[str, list[str]] = {}  # proc_name → write_operations
@@ -297,12 +308,16 @@ def run_refs(
                     readers.append(caller_name)
                 if target in obj_refs.writes_to:
                     direct_writers[caller_name] = obj_refs.write_operations.get(target, [])
+                if target in obj_refs.uses_functions:
+                    readers.append(caller_name)
                 llm_required.append(caller_name)
                 excluded.add(caller_name)
                 continue
 
             # Deterministic — full refs
             if target in obj_refs.reads_from:
+                readers.append(caller_name)
+            if target in obj_refs.uses_functions:
                 readers.append(caller_name)
             ops = obj_refs.write_operations.get(target, [])
             if ops:
@@ -409,7 +424,7 @@ def run_refs(
     # ── Build result ─────────────────────────────────────────────────────
     result: dict[str, Any] = {
         "name": target,
-        "readers": sorted(readers),
+        "readers": sorted(set(readers)),
         "writers": sorted(writer_entries, key=lambda w: w["procedure"]),
     }
     if llm_required:

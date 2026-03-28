@@ -41,9 +41,9 @@ def test_list_views():
     assert "silver.vw_customersales" in result["objects"]
 
 
-def test_list_functions_empty():
+def test_list_functions():
     result = run_list(FIXTURES, ObjectType.functions, "tsql")
-    assert result["objects"] == []
+    assert "silver.fn_format_name" in result["objects"]
 
 
 # ── show ─────────────────────────────────────────────────────────────────────
@@ -178,3 +178,22 @@ def test_refs_unknown_object():
     result = run_refs(FIXTURES, "silver.DoesNotExist", "tsql")
     assert result["readers"] == []
     assert result["writers"] == []
+
+
+# ── function tracking ───────────────────────────────────────────────────────
+
+
+def test_show_proc_uses_functions():
+    result = run_show(FIXTURES, "silver.usp_load_formatted", "tsql")
+    assert result["type"] == "procedure"
+    assert "silver.fn_format_name" in result["refs"]["uses_functions"]
+
+
+def test_refs_function_finds_callers():
+    result = run_refs(FIXTURES, "silver.fn_format_name", "tsql")
+    assert "silver.usp_load_formatted" in result["readers"]
+
+
+def test_refs_rejects_procedure():
+    result = run_refs(FIXTURES, "silver.usp_load_dimcustomer", "tsql")
+    assert "error" in result

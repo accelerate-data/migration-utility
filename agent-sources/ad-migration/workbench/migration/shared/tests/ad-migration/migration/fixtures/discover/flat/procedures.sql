@@ -148,3 +148,13 @@ BEGIN
     CREATE INDEX IX_DimCustomer_Name ON silver.DimCustomer (FirstName);
 END;
 GO
+
+-- Uses a function
+CREATE PROCEDURE silver.usp_load_formatted
+AS
+BEGIN
+    INSERT INTO silver.DimCustomer (CustomerKey, FirstName)
+    SELECT CustomerKey, silver.fn_format_name(FirstName)
+    FROM bronze.Customer;
+END;
+GO
