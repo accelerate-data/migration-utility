@@ -3,22 +3,19 @@
 Reads a directory containing GO-delimited SQL files and builds a DdlCatalog
 mapping normalized names to raw DDL blocks and parsed sqlglot ASTs.
 
-Expected directory layout:
-    tables.sql      CREATE TABLE statements, GO-separated
-    procedures.sql  CREATE PROCEDURE statements, GO-separated
-    views.sql       CREATE VIEW statements, GO-separated (optional)
-    functions.sql   CREATE FUNCTION statements, GO-separated (optional)
+Any .sql file in the directory is loaded.  Object types (table, procedure,
+view, function) are auto-detected from CREATE statements — filenames are not
+significant.  A single file may contain a mix of object types.
 
 Parse errors
 ------------
 `_parse_block` raises `DdlParseError` when sqlglot cannot produce a structured
-AST (falls back to a raw `Command` node).  `load_directory` catches these
-per-block, records the error in `DdlEntry.parse_error`, and continues.
+AST (falls back to a raw `Command` node).  This error propagates — callers
+must handle it or let it abort the load.  No silent fallback is used.
 
 `extract_refs` raises `DdlParseError` when called on an entry whose AST is
 absent *or* whose body contains internal `Command` nodes (partially unparsed
-statements).  Callers — including `index_directory` — catch this and record
-`parse_error` in the catalog output.  No regex fallback is used.
+statements).  No regex fallback is used.
 """
 
 from __future__ import annotations
@@ -247,49 +244,48 @@ def extract_refs(entry: DdlEntry) -> ObjectRefs:
 # ── Directory loading ─────────────────────────────────────────────────────────
 
 
-def _load_file(path: Path, dialect: str = "tsql") -> dict[str, DdlEntry]:
+def _load_file(path: Path, catalog: DdlCatalog, dialect: str = "tsql") -> None:
+    """Parse a .sql file and route each block into the correct catalog bucket."""
     if not path.exists():
-        return {}
+        return
     blocks = _split_blocks(path.read_text(encoding="utf-8"))
-    result: dict[str, DdlEntry] = {}
     for block in blocks:
         raw_name = _extract_name(block)
         if not raw_name:
             print(f"loader: could not extract name from block in {path.name}", file=sys.stderr)
             continue
+        bucket_name = _extract_type_bucket(block)
+        if not bucket_name:
+            print(f"loader: could not determine type for '{raw_name}' in {path.name}", file=sys.stderr)
+            continue
         key = normalize(raw_name)
-        try:
-            ast = _parse_block(block, dialect=dialect)
-            result[key] = DdlEntry(raw_ddl=block, ast=ast)
-        except DdlParseError as exc:
-            print(f"loader: parse error for '{key}' in {path.name}: {exc}", file=sys.stderr)
-            result[key] = DdlEntry(raw_ddl=block, ast=None, parse_error=str(exc))
-    return result
+        ast = _parse_block(block, dialect=dialect)
+        getattr(catalog, bucket_name)[key] = DdlEntry(raw_ddl=block, ast=ast)
 
 
 def load_directory(ddl_path: Path | str, dialect: str = "tsql") -> DdlCatalog:
-    """Read a DDL artifacts directory and return a populated DdlCatalog.
+    """Read all .sql files in a DDL directory and return a populated DdlCatalog.
 
-    Parse errors are surfaced via DdlEntry.parse_error — loading continues
-    for all remaining objects.
+    Object types are auto-detected from CREATE statements — filenames are not
+    significant.  Any .sql file may contain any mix of tables, procedures,
+    views, and functions separated by GO delimiters.
 
     Args:
-        ddl_path: Path to directory containing tables.sql, procedures.sql, etc.
+        ddl_path: Path to directory containing .sql files.
         dialect:  sqlglot dialect for parsing (default: "tsql").
 
     Raises:
         FileNotFoundError: if ddl_path does not exist.
+        DdlParseError: if any DDL block fails to parse.
     """
     path = Path(ddl_path)
     if not path.exists():
         raise FileNotFoundError(f"DDL path does not exist: {path}")
 
-    return DdlCatalog(
-        tables=_load_file(path / "tables.sql", dialect=dialect),
-        procedures=_load_file(path / "procedures.sql", dialect=dialect),
-        views=_load_file(path / "views.sql", dialect=dialect),
-        functions=_load_file(path / "functions.sql", dialect=dialect),
-    )
+    catalog = DdlCatalog()
+    for sql_file in sorted(path.glob("*.sql")):
+        _load_file(sql_file, catalog, dialect=dialect)
+    return catalog
 
 
 # ── On-disk index ─────────────────────────────────────────────────────────────

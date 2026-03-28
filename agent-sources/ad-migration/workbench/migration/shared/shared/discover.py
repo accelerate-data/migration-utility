@@ -251,8 +251,8 @@ def list_objects(
     """List all objects of a given type in a DDL directory."""
     try:
         result = run_list(ddl_path, type, dialect)
-    except FileNotFoundError as exc:
-        print(f"discover: IO error: {exc}", file=sys.stderr)
+    except (FileNotFoundError, DdlParseError) as exc:
+        print(f"discover: {exc}", file=sys.stderr)
         raise typer.Exit(code=2) from exc
     _emit(result)
 
@@ -266,8 +266,8 @@ def show(
     """Show details for a single named DDL object."""
     try:
         result = run_show(ddl_path, name, dialect)
-    except FileNotFoundError as exc:
-        print(f"discover: IO error: {exc}", file=sys.stderr)
+    except (FileNotFoundError, DdlParseError) as exc:
+        print(f"discover: {exc}", file=sys.stderr)
         raise typer.Exit(code=2) from exc
     _emit(result)
 
@@ -281,8 +281,8 @@ def refs(
     """Find all procedures/views that reference a given object."""
     try:
         result = run_refs(ddl_path, name, dialect)
-    except FileNotFoundError as exc:
-        print(f"discover: IO error: {exc}", file=sys.stderr)
+    except (FileNotFoundError, DdlParseError) as exc:
+        print(f"discover: {exc}", file=sys.stderr)
         raise typer.Exit(code=2) from exc
     _emit(result)
 

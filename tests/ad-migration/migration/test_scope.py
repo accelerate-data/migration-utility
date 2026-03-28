@@ -3,19 +3,16 @@
 Each test loads a fixture SQL file, creates a temporary DDL directory
 (with the fixture content as procedures.sql), runs scope_writers(), and
 asserts the expected output.
-
-sys.path is pre-configured so scope.py (in the plugin root) is importable.
 """
 
 from __future__ import annotations
 
-import sys
 import tempfile
 from pathlib import Path
 
 import pytest
 
-from shared.scope import scope_writers, _normalize  # noqa: E402
+from shared.scope import scope_writers, _normalize
 
 FIXTURES = Path(__file__).parent / "fixtures" / "scope"
 
@@ -128,17 +125,11 @@ def test_indirect_two_hop() -> None:
 
 
 def test_dynamic_with_static_penalty() -> None:
-    """dynamic_with_static.sql: confidence = 0.90 - 0.20 = 0.70."""
-    procs = _load_catalog_procs(FIXTURES / "dynamic_with_static.sql")
-    result = scope_writers(procs, TARGET_FQN)
+    """dynamic_with_static.sql has INSERT+EXEC (multiple statements) → DdlParseError."""
+    from shared.loader import DdlParseError
 
-    assert len(result.writers) >= 1
-    writer = result.writers[0]
-    assert writer.write_type == "direct"
-    expected_confidence = 0.90 - 0.20  # = 0.70
-    assert abs(writer.confidence - expected_confidence) < 0.001, (
-        f"Expected confidence {expected_confidence}, got {writer.confidence}"
-    )
+    with pytest.raises(DdlParseError, match="Command"):
+        _load_catalog_procs(FIXTURES / "dynamic_with_static.sql")
 
 
 # ---------------------------------------------------------------------------

@@ -7,23 +7,6 @@ BEGIN
     SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product
 END
 GO
--- Proc with IF/ELSE: falls back to top-level Command → parse_error set
--- Expected: parse_error non-null, params/refs empty
-CREATE PROCEDURE [dbo].[usp_ConditionalLoad]
-    @Mode INT = 0
-AS
-BEGIN
-    IF @Mode = 1
-    BEGIN
-        INSERT INTO [silver].[DimProduct] (ProductAlternateKey)
-        SELECT CAST(ProductID AS NVARCHAR(25)) FROM bronze.Product
-    END
-    ELSE
-    BEGIN
-        UPDATE [silver].[DimProduct] SET EnglishProductName = 'Unknown' WHERE ProductKey = 0
-    END
-END
-GO
 -- Proc that mentions 'silver.DimProduct' only in a string literal / comment
 -- This proc must NOT appear in refs results for silver.dimproduct (no real reference)
 CREATE PROCEDURE [dbo].[usp_LogMessage]

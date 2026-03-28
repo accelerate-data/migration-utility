@@ -20,11 +20,9 @@ DDL path resolution order (first wins):
     1. `ddl_path` parameter passed in the tool call arguments
     2. `DDL_PATH` environment variable
 
-The resolved path must point to a directory containing:
-    tables.sql      CREATE TABLE statements, GO-separated
-    procedures.sql  CREATE PROCEDURE statements, GO-separated
-    views.sql       CREATE VIEW statements, GO-separated (optional)
-    functions.sql   CREATE FUNCTION statements, GO-separated (optional)
+The resolved path must point to a directory containing one or more .sql files
+with GO-delimited CREATE statements.  Object types (table, procedure, view,
+function) are auto-detected from the DDL — filenames are not significant.
 """
 
 import asyncio
@@ -111,7 +109,7 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(
             name="list_tables",
             description=(
-                "List all table names (schema.name) available in tables.sql."
+                "List all table names (schema.name) found in the DDL directory."
             ),
             inputSchema={"type": "object", "properties": {**_DDL_PATH_SCHEMA}},
         ),
@@ -137,7 +135,7 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(
             name="list_procedures",
             description=(
-                "List all stored procedure names (schema.name) in procedures.sql."
+                "List all stored procedure names (schema.name) found in the DDL directory."
             ),
             inputSchema={"type": "object", "properties": {**_DDL_PATH_SCHEMA}},
         ),
@@ -181,8 +179,8 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(
             name="list_views",
             description=(
-                "List all view names (schema.name) available in views.sql. "
-                "Returns '(none)' when views.sql is absent."
+                "List all view names (schema.name) found in the DDL directory. "
+                "Returns '(none)' when no views are found."
             ),
             inputSchema={"type": "object", "properties": {**_DDL_PATH_SCHEMA}},
         ),
@@ -204,8 +202,8 @@ async def list_tools() -> list[types.Tool]:
         types.Tool(
             name="list_functions",
             description=(
-                "List all function names (schema.name) available in functions.sql. "
-                "Returns '(none)' when functions.sql is absent."
+                "List all function names (schema.name) found in the DDL directory. "
+                "Returns '(none)' when no functions are found."
             ),
             inputSchema={"type": "object", "properties": {**_DDL_PATH_SCHEMA}},
         ),

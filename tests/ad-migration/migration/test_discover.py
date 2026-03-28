@@ -6,37 +6,31 @@ Covers all VU-735 acceptance criteria:
 2.  test_list_flat_procedures           — flat dir, correct procedure count
 3.  test_list_flat_missing_optional     — dir with only tables.sql; views list empty
 4.  test_list_indexed_same_as_flat      — indexed dir returns same objects
-5.  test_list_unparseable_skipped       — parse-error proc included by FQN, no abort
+5.  test_list_unparseable_raises        — unparseable DDL raises DdlParseError
 6.  test_show_table_columns             — show on table → columns from AST
-7.  test_show_procedure_parse_error     — show on IF/ELSE proc → parse_error set, lists empty
+7.  test_show_unparseable_raises        — show on dir with IF/ELSE proc → DdlParseError
 8.  test_refs_ast_bracket_notation      — refs finds bracket-notation proc reference
 9.  test_refs_no_false_positive         — string-literal mention NOT returned by refs
+10. test_discover_cli_exits_on_parse_error — CLI exits code 2 on unparseable DDL
 
 Tests import shared.discover core functions directly (not via subprocess) to keep
-execution fast and test coverage clear.  sys.path insertion ensures shared is
-importable when running pytest without a prior editable install.
+execution fast and test coverage clear.  Run via uv to ensure shared is
+importable: uv run --project <shared> pytest tests/ad-migration/migration/
 """
 
 from __future__ import annotations
 
-import sys
 import tempfile
 from pathlib import Path
 
 import pytest
 
-# ── Path setup ────────────────────────────────────────────────────────────────
+from shared import discover
+from shared.loader import DdlParseError
 
 _TESTS_DIR = Path(__file__).parent
-_SHARED_DIR = _TESTS_DIR.parent
-
-# Make shared importable (editable install covers this in CI; direct pytest run needs it)
-if str(_SHARED_DIR) not in sys.path:
-    sys.path.insert(0, str(_SHARED_DIR))
-
-from shared import discover  # noqa: E402
-
 _FLAT_FIXTURES = _TESTS_DIR / "fixtures" / "discover" / "flat"
+_UNPARSEABLE_FIXTURES = _TESTS_DIR / "fixtures" / "discover" / "unparseable"
 
 
 # ── 1: test_list_flat_tables ──────────────────────────────────────────────────
@@ -57,10 +51,8 @@ def test_list_flat_tables() -> None:
 def test_list_flat_procedures() -> None:
     result = discover.run_list(_FLAT_FIXTURES, discover.ObjectType.procedures, "tsql")
     objects = result["objects"]
-    # Three procs defined in fixtures/discover/flat/procedures.sql
-    assert len(objects) == 3
+    assert len(objects) == 2
     assert "dbo.usp_loaddimproduct" in objects
-    assert "dbo.usp_conditionalload" in objects
     assert "dbo.usp_logmessage" in objects
 
 
@@ -95,17 +87,13 @@ def test_list_indexed_same_as_flat() -> None:
     assert flat_result["objects"] == indexed_result["objects"]
 
 
-# ── 5: test_list_unparseable_skipped ─────────────────────────────────────────
+# ── 5: test_list_unparseable_raises ──────────────────────────────────────────
 
 
-def test_list_unparseable_skipped() -> None:
-    """Parse-error procs are still listed by FQN; load does not abort."""
-    result = discover.run_list(_FLAT_FIXTURES, discover.ObjectType.procedures, "tsql")
-    objects = result["objects"]
-    # usp_conditionalload has IF/ELSE → parse_error, but must still appear in list
-    assert "dbo.usp_conditionalload" in objects
-    # usp_loaddimproduct parses fine and must also appear
-    assert "dbo.usp_loaddimproduct" in objects
+def test_list_unparseable_raises() -> None:
+    """Loading a dir with unparseable DDL raises DdlParseError."""
+    with pytest.raises(DdlParseError, match="Command"):
+        discover.run_list(_UNPARSEABLE_FIXTURES, discover.ObjectType.procedures, "tsql")
 
 
 # ── 6: test_show_table_columns ───────────────────────────────────────────────
@@ -128,17 +116,13 @@ def test_show_table_columns() -> None:
         assert "sql_type" in col
 
 
-# ── 7: test_show_procedure_parse_error ───────────────────────────────────────
+# ── 7: test_show_unparseable_raises ──────────────────────────────────────────
 
 
-def test_show_procedure_parse_error() -> None:
-    """show on IF/ELSE proc → parse_error set, params and refs are empty/null."""
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ConditionalLoad", "tsql")
-    assert result["type"] == "procedure"
-    assert result["parse_error"] is not None
-    assert result["params"] == []
-    # refs should be None (cannot be extracted when parse failed)
-    assert result["refs"] is None
+def test_show_unparseable_raises() -> None:
+    """show on a dir with unparseable DDL raises DdlParseError."""
+    with pytest.raises(DdlParseError, match="Command"):
+        discover.run_show(_UNPARSEABLE_FIXTURES, "dbo.usp_ConditionalLoad", "tsql")
 
 
 # ── 8: test_refs_ast_bracket_notation ────────────────────────────────────────
@@ -162,3 +146,18 @@ def test_refs_no_false_positive_string_literal() -> None:
     referenced_by = result["referenced_by"]
     # usp_logmessage only mentions silver.DimProduct in a comment, not in DML
     assert "dbo.usp_logmessage" not in referenced_by
+
+
+# ── 10: test_discover_cli_exits_on_parse_error ──────────────────────────────
+
+
+def test_discover_cli_exits_on_parse_error() -> None:
+    """discover CLI list command exits code 2 when DDL is unparseable."""
+    from typer.testing import CliRunner
+
+    runner = CliRunner()
+    result = runner.invoke(
+        discover.app,
+        ["list", "--ddl-path", str(_UNPARSEABLE_FIXTURES), "--type", "procedures"],
+    )
+    assert result.exit_code == 2

@@ -207,14 +207,80 @@ def test_load_directory_ast_parsed() -> None:
     assert entry.raw_ddl
 
 
-def test_load_directory_missing_optional_files() -> None:
-    """views.sql and functions.sql are optional — missing files yield empty dicts."""
+def test_load_directory_mixed_types_single_file() -> None:
+    """A single .sql file with tables and procedures routes to correct buckets."""
+    from shared.loader import load_directory
+
+    mixed = (
+        "CREATE TABLE [silver].[DimProduct] (\n"
+        "    ProductKey INT NOT NULL\n"
+        ")\n"
+        "GO\n"
+        "CREATE PROCEDURE [dbo].[usp_LoadDimProduct]\n"
+        "AS\n"
+        "BEGIN\n"
+        "    INSERT INTO [silver].[DimProduct] (ProductKey)\n"
+        "    SELECT ProductKey FROM bronze.Product\n"
+        "END\n"
+        "GO\n"
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        p = Path(tmp)
+        (p / "everything.sql").write_text(mixed, encoding="utf-8")
+        catalog = load_directory(p)
+
+    assert "silver.dimproduct" in catalog.tables
+    assert "dbo.usp_loaddimproduct" in catalog.procedures
+    assert catalog.views == {}
+
+
+def test_load_directory_arbitrary_filenames() -> None:
+    """Filenames don't matter — objects are detected from CREATE statements."""
+    from shared.loader import load_directory
+
+    with tempfile.TemporaryDirectory() as tmp:
+        p = Path(tmp)
+        (p / "my_custom_tables.sql").write_text(
+            "CREATE TABLE dbo.Foo (Id INT NOT NULL)\nGO\n", encoding="utf-8"
+        )
+        (p / "some_procs.sql").write_text(
+            "CREATE PROCEDURE dbo.usp_Bar\nAS\nBEGIN\n"
+            "    INSERT INTO dbo.Foo (Id) SELECT 1\nEND\nGO\n",
+            encoding="utf-8",
+        )
+        catalog = load_directory(p)
+
+    assert "dbo.foo" in catalog.tables
+    assert "dbo.usp_bar" in catalog.procedures
+
+
+def test_load_directory_multiple_files_same_type() -> None:
+    """Objects of the same type spread across multiple files are all loaded."""
+    from shared.loader import load_directory
+
+    with tempfile.TemporaryDirectory() as tmp:
+        p = Path(tmp)
+        (p / "batch_a.sql").write_text(
+            "CREATE TABLE dbo.Alpha (Id INT)\nGO\n", encoding="utf-8"
+        )
+        (p / "batch_b.sql").write_text(
+            "CREATE TABLE dbo.Beta (Id INT)\nGO\n", encoding="utf-8"
+        )
+        catalog = load_directory(p)
+
+    assert "dbo.alpha" in catalog.tables
+    assert "dbo.beta" in catalog.tables
+
+
+def test_load_directory_empty_dir() -> None:
+    """Empty directory yields empty catalog."""
     from shared.loader import load_directory
 
     with tempfile.TemporaryDirectory() as tmp:
         catalog = load_directory(Path(tmp))
 
     assert catalog.tables == {}
+    assert catalog.procedures == {}
     assert catalog.views == {}
     assert catalog.functions == {}
 
@@ -335,22 +401,27 @@ END"""
         _parse_block(sql, dialect="tsql")
 
 
-def test_load_directory_records_parse_errors() -> None:
-    """Procs that fall back to top-level Command have parse_error set and ast=None.
+def test_load_directory_raises_on_parse_error() -> None:
+    """Procs that fall back to top-level Command raise DdlParseError — load aborts."""
+    from shared.loader import DdlParseError, load_directory
 
-    Note: procs with internal Command nodes (EXEC, TRUNCATE in body) still parse
-    as Create at this level — their errors surface in extract_refs / index_directory.
-    """
-    from shared.loader import load_directory
-
-    catalog = load_directory(_FIXTURES_DDL)
-
-    # usp_nested_if_else has IF/ELSE → whole proc falls back to Command
-    entry = catalog.procedures.get("dbo.usp_nested_if_else")
-    assert entry is not None
-    assert entry.parse_error is not None, "Expected parse_error for usp_nested_if_else"
-    assert entry.raw_ddl, "raw_ddl must be preserved even on parse failure"
-    assert entry.ast is None
+    with tempfile.TemporaryDirectory() as tmp:
+        p = Path(tmp)
+        (p / "procedures.sql").write_text(
+            "CREATE PROCEDURE [dbo].[usp_bad]\n"
+            "    @Mode INT = 0\n"
+            "AS\n"
+            "BEGIN\n"
+            "    IF @Mode = 1\n"
+            "    BEGIN\n"
+            "        INSERT INTO silver.T (a) SELECT b FROM bronze.S\n"
+            "    END\n"
+            "END\n"
+            "GO\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(DdlParseError, match="Command"):
+            load_directory(p)
 
 
 def test_load_directory_simple_proc_parses_ok() -> None:
@@ -447,12 +518,12 @@ def test_index_directory_per_object_files() -> None:
         assert (out / "tables" / "silver.dimproduct.sql").exists()
         assert (out / "tables" / "bronze.product.sql").exists()
         assert (out / "procedures" / "dbo.usp_simple_insert.sql").exists()
-        assert (out / "procedures" / "dbo.usp_nested_if_else.sql").exists()
+        assert (out / "procedures" / "dbo.usp_cross_db.sql").exists()
         assert (out / "views" / "silver.vw_dimproduct.sql").exists()
 
 
 def test_catalog_json_content() -> None:
-    """catalog.json has correct refs for simple proc and parse_error for complex ones."""
+    """catalog.json has correct refs for parseable procs."""
     from shared.loader import index_directory
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -471,18 +542,23 @@ def test_catalog_json_content() -> None:
     assert "silver.dimproduct" in simple["writes_to"]
     assert "bronze.product" in simple["reads_from"]
 
-    # Complex proc: parse_error set, refs empty
-    complex_proc = doc["objects"].get("dbo.usp_nested_if_else")
-    assert complex_proc is not None
-    assert complex_proc["parse_error"] is not None
-    assert complex_proc["writes_to"] == []
-
     # Cross-DB proc: no error, cross-DB ref excluded
     cross = doc["objects"].get("dbo.usp_cross_db")
     assert cross is not None
     assert cross["parse_error"] is None
     for ref in cross.get("reads_from", []):
         assert "otherdb" not in ref.lower()
+
+
+def test_index_directory_raises_on_unparseable() -> None:
+    """index_directory raises DdlParseError when DDL contains unparseable blocks."""
+    from shared.loader import DdlParseError, index_directory
+
+    _FIXTURES_UNPARSEABLE = Path(__file__).parent / "fixtures" / "ddl_unparseable"
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "index"
+        with pytest.raises(DdlParseError):
+            index_directory(_FIXTURES_UNPARSEABLE, out)
 
 
 # ── load_catalog round-trip ───────────────────────────────────────────────────
@@ -508,20 +584,13 @@ def test_load_catalog_round_trip() -> None:
     assert entry.ast is None
 
 
-def test_load_catalog_preserves_parse_errors() -> None:
-    """load_catalog preserves parse_error field from catalog.json."""
-    from shared.loader import index_directory, load_catalog
+def test_load_directory_raises_on_unparseable() -> None:
+    """load_directory raises DdlParseError for dirs with unparseable DDL blocks."""
+    from shared.loader import DdlParseError, load_directory
 
-    with tempfile.TemporaryDirectory() as tmp:
-        out = Path(tmp) / "index"
-        index_directory(_FIXTURES_DDL, out)
-        catalog = load_catalog(out)
-
-    failed = [
-        name for name, entry in catalog.procedures.items()
-        if entry.parse_error is not None
-    ]
-    assert len(failed) >= 2
+    _FIXTURES_UNPARSEABLE = Path(__file__).parent / "fixtures" / "ddl_unparseable"
+    with pytest.raises(DdlParseError):
+        load_directory(_FIXTURES_UNPARSEABLE)
 
 
 def test_load_catalog_not_found() -> None:
