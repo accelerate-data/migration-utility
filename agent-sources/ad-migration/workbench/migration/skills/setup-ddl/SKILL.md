@@ -2,12 +2,20 @@
 name: setup-ddl
 description: >
   This skill should be used when the user asks to "set up DDL", "extract DDL from SQL Server", "populate artifacts/ddl", "connect to the remote database and get DDL", "pull DDL from the source database", or wants to initialise the local DDL artifact directory from a live SQL Server before running discovery or scoping.
-argument-hint: "(no arguments — set MSSQL_HOST, MSSQL_PORT, MSSQL_DB, SA_PASSWORD before invoking)"
+argument-hint: "[output-folder]"
 ---
 
 # Setup DDL
 
 Extract DDL from a live SQL Server and write local artifact files that the `ddl` MCP server and `discover`/`scope` tools can read.
+
+## Arguments
+
+Parse `$ARGUMENTS`:
+
+- `output-folder` (required): path where `.sql` files will be written (e.g. `./artifacts/ddl`)
+
+If `output-folder` is missing from `$ARGUMENTS`, stop immediately and tell the user to provide it. Do not assume any default path.
 
 ## Prerequisites
 
@@ -21,17 +29,46 @@ Before starting, verify:
    |---|---|---|
    | `MSSQL_HOST` | SQL Server hostname or IP | `localhost` |
    | `MSSQL_PORT` | SQL Server port | `1433` |
-   | `MSSQL_DB` | Database name | `AdventureWorksDW` |
    | `SA_PASSWORD` | SQL login password | _(from env)_ |
 
-   Confirm each is set before proceeding. If any are missing, tell the user which ones are needed and stop.
+   `MSSQL_DB` is not required at this stage — the skill selects the database interactively. Confirm `MSSQL_HOST`, `MSSQL_PORT`, and `SA_PASSWORD` are set. If any are missing, tell the user and stop.
 
-3. **Pre-flight check** — check whether `artifacts/ddl/` already exists and contains `.sql` files. If it does, tell the user and ask for confirmation before overwriting. Do not proceed without explicit confirmation.
+3. **Pre-flight check** — check whether the output folder already exists and contains `.sql` files. If it does, tell the user and ask for confirmation before overwriting. Do not proceed without explicit confirmation.
 
-## Step 1 — Export procedures, views, and functions
+## Step 1 — Select database
 
-Run the following query via `mssql:mssql-execute-sql` for each object type.
-The query returns one row per object with its full DDL from `OBJECT_DEFINITION()`.
+List user databases on the server:
+
+```sql
+SELECT name FROM sys.databases WHERE database_id > 4 ORDER BY name
+```
+
+Present the list with a `0. None — exit` option. If the user picks `None`, stop immediately with no further action. Once a database is selected, run `USE [<database>]` before all subsequent queries to set the database context.
+
+## Step 2 — Select schemas
+
+List non-system schemas with object counts so the user can see what each schema contains:
+
+```sql
+SELECT
+    s.name AS schema_name,
+    SUM(CASE WHEN o.type = 'U'  THEN 1 ELSE 0 END) AS tables,
+    SUM(CASE WHEN o.type = 'P'  THEN 1 ELSE 0 END) AS procedures,
+    SUM(CASE WHEN o.type = 'V'  THEN 1 ELSE 0 END) AS views,
+    SUM(CASE WHEN o.type IN ('FN', 'IF', 'TF') THEN 1 ELSE 0 END) AS functions
+FROM sys.schemas s
+JOIN sys.objects o ON o.schema_id = s.schema_id AND o.is_ms_shipped = 0
+WHERE s.schema_id NOT IN (2, 3, 4)
+  AND s.name NOT IN ('sys', 'INFORMATION_SCHEMA', 'guest')
+GROUP BY s.name
+ORDER BY s.name
+```
+
+Present the results with an `all` option to select every schema. Ask the user to pick `all`, one, or more schemas. If `all` is selected, do not add a schema filter to subsequent queries. Store the selected schemas for filtering in subsequent steps.
+
+## Step 3 — Export procedures, views, and functions
+
+Run the following query via `mssql:mssql-execute-sql` for each object type, filtered to the selected schemas.
 
 **Procedures:**
 
@@ -43,6 +80,7 @@ SELECT
 FROM sys.objects o
 WHERE o.type = 'P'
   AND o.is_ms_shipped = 0
+  AND SCHEMA_NAME(o.schema_id) IN (<selected-schemas>)
 ORDER BY schema_name, object_name
 ```
 
@@ -56,6 +94,7 @@ SELECT
 FROM sys.objects o
 WHERE o.type = 'V'
   AND o.is_ms_shipped = 0
+  AND SCHEMA_NAME(o.schema_id) IN (<selected-schemas>)
 ORDER BY schema_name, object_name
 ```
 
@@ -69,19 +108,19 @@ SELECT
 FROM sys.objects o
 WHERE o.type IN ('FN', 'IF', 'TF')
   AND o.is_ms_shipped = 0
+  AND SCHEMA_NAME(o.schema_id) IN (<selected-schemas>)
 ORDER BY schema_name, object_name
 ```
 
-For each result set, assemble a GO-delimited file: join each non-null `definition`
-with `\nGO\n` and append a final `\nGO\n`. Write using the native Write tool:
+For each result set, assemble a GO-delimited file: join each non-null `definition` with `\nGO\n` and append a final `\nGO\n`. Write using the native Write tool:
 
-- Procedures → `artifacts/ddl/procedures.sql`
-- Views → `artifacts/ddl/views.sql`
-- Functions → `artifacts/ddl/functions.sql`
+- Procedures → `<output-folder>/procedures.sql`
+- Views → `<output-folder>/views.sql`
+- Functions → `<output-folder>/functions.sql`
 
 If a result set is empty, skip the file (the loader auto-detects object types from whatever .sql files are present).
 
-## Step 2 — Export tables
+## Step 4 — Export tables
 
 Tables have no single-statement DDL from `OBJECT_DEFINITION()` — reconstruct `CREATE TABLE` statements from the system catalog.
 
@@ -110,6 +149,7 @@ LEFT JOIN sys.identity_columns ic
     ON ic.object_id = c.object_id
     AND ic.column_id = c.column_id
 WHERE t.is_ms_shipped = 0
+  AND SCHEMA_NAME(t.schema_id) IN (<selected-schemas>)
 ORDER BY schema_name, table_name, c.column_id
 ```
 
@@ -131,14 +171,16 @@ For each column:
 Assemble columns separated by `,\n`. Wrap in `CREATE TABLE [schema].[table] (\n...\n)`.
 Join all tables with `\nGO\n` and append a final `\nGO\n`.
 
-Write to `artifacts/ddl/tables.sql` using the native Write tool.
+Write to `<output-folder>/tables.sql` using the native Write tool.
 
-## Step 3 — Confirm
+## Step 5 — Confirm
 
-After all four files are written, report a summary:
+After all files are written, report a summary:
 
 ```text
-DDL extraction complete → artifacts/ddl/
+DDL extraction complete → <output-folder>/
+Database: <database>
+Schemas:  <selected-schemas>
 
   tables.sql     : N tables
   procedures.sql : N procedures
@@ -146,7 +188,7 @@ DDL extraction complete → artifacts/ddl/
   functions.sql  : N functions
 ```
 
-Tell the user they can now run `discover` or `scope` skills, or invoke the `scoping-agent` against `artifacts/ddl/`.
+Tell the user they can now run `discover` or `scope` skills, or invoke the `scoping-agent` against the output folder.
 
 ## Constraints
 
