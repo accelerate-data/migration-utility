@@ -1,4 +1,4 @@
-"""Tests for scope.py — VU-736 / VU-738.
+"""Tests for scope.py — writer detection and confidence scoring.
 
 Each test loads a fixture SQL file, creates a temporary DDL directory
 (with the fixture content as procedures.sql), runs scope_writers(), and
@@ -120,7 +120,7 @@ def test_indirect_two_hop() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 5: dynamic SQL with static write → penalty applied
+# Test 5: dynamic SQL with static write → unparseable (multiple statements)
 # ---------------------------------------------------------------------------
 
 

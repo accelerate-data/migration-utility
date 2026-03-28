@@ -1,18 +1,5 @@
 """Tests for discover.py — DDL object catalog CLI.
 
-Covers all VU-735 acceptance criteria:
-
-1.  test_list_flat_tables               — flat dir, correct table count + FQNs
-2.  test_list_flat_procedures           — flat dir, correct procedure count
-3.  test_list_flat_missing_optional     — dir with only tables.sql; views list empty
-4.  test_list_indexed_same_as_flat      — indexed dir returns same objects
-5.  test_list_unparseable_raises        — unparseable DDL raises DdlParseError
-6.  test_show_table_columns             — show on table → columns from AST
-7.  test_show_unparseable_raises        — show on dir with IF/ELSE proc → DdlParseError
-8.  test_refs_ast_bracket_notation      — refs finds bracket-notation proc reference
-9.  test_refs_no_false_positive         — string-literal mention NOT returned by refs
-10. test_discover_cli_exits_on_parse_error — CLI exits code 2 on unparseable DDL
-
 Tests import shared.discover core functions directly (not via subprocess) to keep
 execution fast and test coverage clear.  Run via uv to ensure shared is
 importable: uv run --project <shared> pytest tests/ad-migration/migration/
@@ -33,7 +20,7 @@ _FLAT_FIXTURES = _TESTS_DIR / "fixtures" / "discover" / "flat"
 _UNPARSEABLE_FIXTURES = _TESTS_DIR / "fixtures" / "discover" / "unparseable"
 
 
-# ── 1: test_list_flat_tables ──────────────────────────────────────────────────
+# ── test_list_flat_tables ──────────────────────────────────────────────────
 
 
 def test_list_flat_tables() -> None:
@@ -45,7 +32,7 @@ def test_list_flat_tables() -> None:
     assert "dbo.config" in objects
 
 
-# ── 2: test_list_flat_procedures ─────────────────────────────────────────────
+# ── test_list_flat_procedures ─────────────────────────────────────────────
 
 
 def test_list_flat_procedures() -> None:
@@ -56,7 +43,7 @@ def test_list_flat_procedures() -> None:
     assert "dbo.usp_logmessage" in objects
 
 
-# ── 3: test_list_flat_missing_optional ───────────────────────────────────────
+# ── test_list_flat_missing_optional ───────────────────────────────────────
 
 
 def test_list_flat_missing_optional() -> None:
@@ -70,7 +57,7 @@ def test_list_flat_missing_optional() -> None:
     assert result["objects"] == []
 
 
-# ── 4: test_list_indexed_same_as_flat ────────────────────────────────────────
+# ── test_list_indexed_same_as_flat ────────────────────────────────────────
 
 
 def test_list_indexed_same_as_flat() -> None:
@@ -87,7 +74,7 @@ def test_list_indexed_same_as_flat() -> None:
     assert flat_result["objects"] == indexed_result["objects"]
 
 
-# ── 5: test_list_unparseable_raises ──────────────────────────────────────────
+# ── test_list_unparseable_raises ──────────────────────────────────────────
 
 
 def test_list_unparseable_raises() -> None:
@@ -96,7 +83,7 @@ def test_list_unparseable_raises() -> None:
         discover.run_list(_UNPARSEABLE_FIXTURES, discover.ObjectType.procedures, "tsql")
 
 
-# ── 6: test_show_table_columns ───────────────────────────────────────────────
+# ── test_show_table_columns ───────────────────────────────────────────────
 
 
 def test_show_table_columns() -> None:
@@ -116,7 +103,7 @@ def test_show_table_columns() -> None:
         assert "sql_type" in col
 
 
-# ── 7: test_show_unparseable_raises ──────────────────────────────────────────
+# ── test_show_unparseable_raises ──────────────────────────────────────────
 
 
 def test_show_unparseable_raises() -> None:
@@ -125,7 +112,7 @@ def test_show_unparseable_raises() -> None:
         discover.run_show(_UNPARSEABLE_FIXTURES, "dbo.usp_ConditionalLoad", "tsql")
 
 
-# ── 8: test_refs_ast_bracket_notation ────────────────────────────────────────
+# ── test_refs_ast_bracket_notation ────────────────────────────────────────
 
 
 def test_refs_ast_bracket_notation() -> None:
@@ -137,7 +124,7 @@ def test_refs_ast_bracket_notation() -> None:
     assert "dbo.usp_loaddimproduct" in referenced_by
 
 
-# ── 9: test_refs_no_false_positive ───────────────────────────────────────────
+# ── test_refs_no_false_positive ───────────────────────────────────────────
 
 
 def test_refs_no_false_positive_string_literal() -> None:
@@ -148,7 +135,7 @@ def test_refs_no_false_positive_string_literal() -> None:
     assert "dbo.usp_logmessage" not in referenced_by
 
 
-# ── 10: test_discover_cli_exits_on_parse_error ──────────────────────────────
+# ── test_discover_cli_exits_on_parse_error ──────────────────────────────
 
 
 def test_discover_cli_exits_on_parse_error() -> None:
