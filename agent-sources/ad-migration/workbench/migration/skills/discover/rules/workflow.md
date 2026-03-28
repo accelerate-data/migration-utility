@@ -71,10 +71,10 @@ silver.vw_CustomerSales (view)
 
 Always include classification, call graph, and logic summary.
 
-Check `parse_error` and `refs` to determine classification (see parse classification table in SKILL.md):
+Check `needs_llm` and `classification` to determine the analysis tier (see parse classification table in SKILL.md):
 
-- `parse_error` is null and `refs` populated → **Deterministic**
-- `parse_error` is set → **Claude-assisted**
+- `needs_llm: false` → **Deterministic** — refs are complete, use directly
+- `needs_llm: true` → **Claude-assisted** — refs may be partial (control flow or EXEC not captured by single-pass)
 
 **Deterministic example:**
 
@@ -112,7 +112,7 @@ Logic Summary
   1. Calls usp_stage_FactSales via EXEC — orchestrator with no direct writes
 ```
 
-For Claude-assisted procs, read the `raw_ddl` to determine what the EXEC calls do. If the called proc exists in the same DDL directory, run `show` on it to get its refs and build the call graph from that.
+For Claude-assisted procs, read the `raw_ddl` and `statements` to complete the analysis. Identify writes, reads, and calls that single-pass parsing missed (inside IF/ELSE, TRY/CATCH, or EXEC). If a called proc exists in the same DDL directory, run `show` on it to get its refs and build the call graph from that.
 
 Use the same call graph format for both paths.
 
