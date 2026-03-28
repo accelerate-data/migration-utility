@@ -17,6 +17,7 @@ Run all checks **silently** — do NOT install or change anything yet.
 3. `uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" python3 -c "import pydantic, sqlglot, typer"` — are shared package deps synced?
 4. `uv run "${CLAUDE_PLUGIN_ROOT}/ddl_mcp/server.py" --help` — does the DDL MCP server start cleanly?
 5. `toolbox --version` — is the genai-toolbox binary installed?
+6. Check whether each of the four MSSQL environment variables is set (non-empty): `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD`. Do not print their values.
 
 If `CLAUDE_PLUGIN_ROOT` is not set, stop immediately and tell the user to load the
 plugin with `claude --plugin-path <path-to-ad-migration>` before running this command.
@@ -33,6 +34,12 @@ Plugin status:
   ddl_mcp:     ✓ starts             /  ✗ fails
   toolbox:     ✓ installed (x.y.z)  /  — not found (optional)
 
+  SQL Server credentials (required for /setup-ddl and live-DB skills):
+  MSSQL_HOST:  ✓ set  /  — not set
+  MSSQL_PORT:  ✓ set  /  — not set
+  MSSQL_DB:    ✓ set  /  — not set
+  SA_PASSWORD: ✓ set  /  — not set
+
 Actions needed:
   1. Install uv             (if missing)
   2. Install Python 3.11+   (if missing — manual step, see below)
@@ -40,8 +47,22 @@ Actions needed:
   4. Check ddl_mcp output   (if ddl_mcp fails after sync)
 ```
 
-`toolbox` is marked `—` (not `✗`) when missing — it is optional for DDL file mode
-but required for `/setup-ddl` and any live-database skill. It will not block setup.
+`toolbox` and the MSSQL credentials are marked `—` (not `✗`) when missing — they
+are optional for DDL file mode but required for `/setup-ddl` and any live-database
+skill. They will not block setup of the core tools.
+
+If any MSSQL variable is unset, tell the user to export them in their shell before
+running `claude`, for example:
+
+```bash
+export MSSQL_HOST=localhost
+export MSSQL_PORT=1433
+export MSSQL_DB=AdventureWorksDW
+export SA_PASSWORD=<your-password>
+```
+
+These values are passed to the `mssql` MCP server at startup via environment
+inheritance — they must be set in the shell before launching `claude`, not after.
 
 If everything is already set up, say so and skip to Step 4. Otherwise, ask the user
 to confirm before proceeding.
@@ -79,11 +100,12 @@ automatically.
 
 ## Step 4: Report
 
-Re-run the same 5 checks and show the updated status table. Tell the user:
+Re-run the same 6 checks and show the updated status table. Tell the user:
 
-- **All required deps OK**: ready to use `discover`, `scope`, the `scoping-agent`,
-  or `/setup-ddl` (if toolbox is also installed).
-- **toolbox missing**: DDL file mode (`discover`, `scope`, `scoping-agent`) is fully
-  available. Live-database skills (`/setup-ddl`) require `toolbox` — install it from
-  the genai-toolbox releases page when needed.
+- **All required deps OK, credentials set, toolbox installed**: ready to use
+  `discover`, `scope`, `scoping-agent`, and `/setup-ddl`.
+- **toolbox missing or credentials unset**: DDL file mode (`discover`, `scope`,
+  `scoping-agent`) is fully available. Live-database skills (`/setup-ddl`) require
+  both `toolbox` and all four MSSQL env vars — export them in the shell before
+  launching `claude`, then install `toolbox` from the genai-toolbox releases page.
 - **Anything still failing**: which step to fix next before continuing.
