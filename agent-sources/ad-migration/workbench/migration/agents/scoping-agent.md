@@ -85,28 +85,13 @@ The initial message contains two space-separated file paths: the input JSON file
 
 Parse the two file paths from the initial message. Read the input file. Extract `run_id`, `technology`, `ddl_path`, and `items[]`.
 
-Map `technology` to dialect:
-
-| `technology` | `--dialect` |
-|---|---|
-| `sql_server` | `tsql` |
-| `fabric_warehouse` | `tsql` |
-
-If `technology` is absent or unsupported, set every item's status to `error` with error code `ANALYSIS_UNSUPPORTED_TECHNOLOGY` and write output immediately.
+Supported technologies: `sql_server`, `fabric_warehouse`. If `technology` is absent or unsupported, set every item's status to `error` with error code `ANALYSIS_UNSUPPORTED_TECHNOLOGY` and write output immediately.
 
 ### Step 1 — Scope Each Item
 
-For each item in `items[]`, invoke the **scope** skill:
+For each item in `items[]`, use the **scope** skill to find writer procedures for the table. Pass `ddl_path`, `item_id` as the table name, the mapped dialect, and `search_depth`.
 
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" scope \
-  --ddl-path <ddl_path> \
-  --table <item_id> \
-  --dialect <dialect> \
-  --depth <search_depth>
-```
-
-Capture the JSON output. If the command exits with a non-zero code, record an `error` result for that item with code `SCOPE_EXECUTION_FAILED` and the stderr message.
+If the scope skill fails for an item, record an `error` result with code `SCOPE_EXECUTION_FAILED`.
 
 ### Step 2 — Apply Resolution Rules
 
