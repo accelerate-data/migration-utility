@@ -144,51 +144,9 @@ If any step fails, the app surfaces a blocking error with a Retry button.
 
 ---
 
-## MCP Servers
-
-Two MCP roles serve agents at different stages.
-
-### DDL file MCP (`agent-sources/plugins/ad-migration/ddl_mcp/`)
-
-Source-agnostic. Used by scoping, profiling, decomposing, planning, and migrating agents. Tools read from `artifacts/ddl/`:
-
-- `get_procedure_body(name)`
-- `get_table_schema(name)` — returns structured JSON with column list in addition to raw DDL
-- `list_procedures()`
-- `list_tables()`
-- `list_functions()` — lists all functions from `functions.sql`
-- `get_function_body(name)` — returns DDL for a named function
-- `get_dependencies(table_name)` — sqlglot AST walk (eliminates false positives from string literals and comments in prior text-grep implementation)
-
-No live database connection. No credentials required. Used in stdio mode for local plugin dev and HTTP mode in GH Actions.
-
-### Live execution MCP (test generator only)
-
-Source-specific. Used only by the test-generator-agent to execute procedures against a live database and capture ground-truth output for unit test fixtures.
-
-| Technology | MCP | Execution model |
-|---|---|---|
-| `sql_server` | `agent-sources/plugins/ad-migration/mssql_mcp/` | Docker container launched in GH Actions; DB restored from source file; procs executed locally |
-| `fabric_warehouse` | `agent-sources/plugins/ad-migration/fabric_mcp/` (future) | Remote access to live Fabric Warehouse T-SQL endpoint |
-| `fabric_lakehouse` | `agent-sources/plugins/ad-migration/fabric_mcp/` (future) | Remote access to live Fabric Lakehouse via Spark SQL |
-| `snowflake` | `agent-sources/plugins/ad-migration/snowflake_mcp/` (future) | Remote access to live Snowflake SQL endpoint |
-
-The `technology` field in `metadata.json` determines which live MCP is started for test generation. `sql_server` is self-contained in GH Actions. All other technologies require remote credentials and outbound network access from the GH Actions runner.
-
----
-
 ## Interactive Migration (`migrate-table`)
 
-The `migrate-table` command is a Claude Code plugin command for single-table interactive migration — separate from the GHA batch pipeline. It uses deterministic Python skills backed by sqlglot rather than LLM agents for the computational steps (scoping, assessment, transpilation), keeping Claude in the loop only for review and judgment calls.
-
-The two paths share the same deterministic Python skills:
-
-| Path | When to use | Tools |
-|---|---|---|
-| `migrate-table` plugin command | Interactive, one-table-at-a-time; no live DB required; fast local iteration | Python skills (discover, scope, assess, migrate, test-gen, validate) |
-| GHA batch pipeline | Production batch migration; full FDE review workflow; CI/CD integration | Same Python skills, orchestrated headlessly |
-
-See [SP → dbt Migration Plugin](../sp-to-dbt-plugin/README.md) for the full skill contracts and implementation plan.
+Single-table interactive migration via Claude Code plugin — separate from the GHA batch pipeline. Both paths share the same deterministic Python skills. See [SP → dbt Migration Plugin](../sp-to-dbt-plugin/README.md) for skill contracts, shared library, and implementation plan.
 
 ---
 
@@ -222,66 +180,16 @@ The app records in local SQLite (`agent_runs` table):
 
 ### Agent Plugin
 
-`ad-migration` is a Claude Code marketplace package containing three plugins under `workbench/`. The `migration` plugin handles all analysis and migration skills:
-
-```text
-agent-sources/ad-migration/                # marketplace package
-  .claude-plugin/marketplace.json          # registers all plugins
-  CLAUDE.md                                # shared domain context
-  workbench/
-    bootstrap/                             # plugin: init + setup wizard
-    migration/                             # plugin: analysis + migration pipeline
-      CLAUDE.md
-      .mcp.json                            # stdio MCP config for local dev
-      shared/shared/
-        ir.py, loader.py, name_resolver.py, dialect.py
-        discover.py                        # deterministic skill: list/inspect DDL objects
-        scope.py                           # deterministic skill: find writers + scoring
-      skills/
-        discover/                          # SKILL.md for discover
-        scope/                             # SKILL.md for scope
-        scoping-writers/                   # reference docs for scoping algorithm
-        setup-ddl/                         # DDL extraction from live SQL Server
-        assess/                            # (not yet implemented)
-        migrate/                           # (not yet implemented)
-        test-gen/                          # (not yet implemented)
-        validate/                          # (not yet implemented)
-      commands/
-        migrate-table/                     # orchestrator (not yet implemented)
-      ddl_mcp/server.py                    # DDL file MCP server
-      mssql_mcp/tools.yaml                 # live SQL Server MCP config
-    test-generation/                       # plugin: dbt test generation (placeholder)
-```
-
-Tests live at `tests/ad-migration/migration/`.
-
-**Local dev:**
-
-```bash
-claude --plugin-dir agent-sources/plugins/ad-migration/ \
-  --agent scoping-agent \
-  {project-slug}/artifacts/scoping-agent/{run_id}.input.json \
-  {project-slug}/artifacts/scoping-agent/{run_id}.json
-```
-
-**GH Actions:** Same invocation with `DDL_MCP_URL=http://localhost:5000/mcp` set (or the appropriate live MCP URL for the test generator).
+`ad-migration` is a Claude Code marketplace package containing three plugins under `workbench/`. Plugin structure, skill contracts, and local dev setup: [SP → dbt Migration Plugin](../sp-to-dbt-plugin/README.md).
 
 ### Workflow Execution (GH Actions Runner)
 
 **All agents except test generator:**
 
 1. Clone the migration repo.
-2. Install genai-toolbox binary; start DDL file MCP in HTTP mode on `localhost:5000` with `agent-sources/plugins/ad-migration/ddl_mcp/tools.yaml`.
+2. Install genai-toolbox binary; start DDL file MCP in HTTP mode on `localhost:5000`.
 3. Install Claude Code CLI.
-4. Run agent:
-
-   ```bash
-   claude --plugin-dir agent-sources/plugins/ad-migration/ \
-     --agent {action} \
-     {project-slug}/artifacts/{action}/{run_id}.input.json \
-     {project-slug}/artifacts/{action}/{run_id}.json
-   ```
-
+4. Run agent via the `ad-migration` plugin (see [SP → dbt Migration Plugin](../sp-to-dbt-plugin/README.md) for invocation details).
 5. Create branch `run/{run_id}`.
 6. Commit output JSON to `{project-slug}/artifacts/{action}/{run_id}.json` on that branch.
 7. Merge `run/{run_id}` into `main` (no conflicts — each run touches a unique file path).
@@ -292,11 +200,9 @@ claude --plugin-dir agent-sources/plugins/ad-migration/ \
 1. Clone the migration repo.
 2. Pull source file from LFS.
 3. Start SQL Server Docker container; restore database from source file (MDF/LDF cache keyed on `source_sha256`).
-4. Install genai-toolbox binary; start live execution MCP in HTTP mode on `localhost:5000` with `agent-sources/plugins/ad-migration/mssql_mcp/tools.yaml`.
+4. Install genai-toolbox binary; start live execution MCP in HTTP mode on `localhost:5000`.
 5. Install Claude Code CLI.
 6. Run test generator agent (steps 4–8 above).
-
-> ⚠️ Open question: connection settings schema and live MCP design for `fabric_warehouse`, `fabric_lakehouse`, `snowflake` — remote credential storage and GH Actions secret injection not yet designed.
 
 ---
 
