@@ -20,7 +20,7 @@ Run all checks **silently** — do NOT install or change anything yet.
 6. Check whether each of the four MSSQL environment variables is set (non-empty): `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD`. Do not print their values.
 
 If `CLAUDE_PLUGIN_ROOT` is not set, stop immediately and tell the user to load the
-plugin with `claude --plugin-path <path-to-ad-migration>` before running this command.
+plugin with `claude --plugin-dir <path-to-ad-migration>` before running this command.
 
 ## Step 2: Present plan
 
