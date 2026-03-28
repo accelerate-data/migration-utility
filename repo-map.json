@@ -163,7 +163,7 @@
     },
     "tests_migration": {
       "path": "tests/ad-migration/migration/",
-      "description": "Python pytest suite: test_discover.py (10 tests), test_scope.py (8 tests), test_smoke.py (47 tests). Fixtures: ddl/, ddl_unparseable/, discover/flat/, discover/unparseable/, scope/ (8 scenario SQL files)."
+      "description": "Python pytest suite: test_discover.py (10 tests), test_scope.py (11 tests), test_smoke.py (47 tests). Fixtures: ddl/, ddl_unparseable/, discover/flat/, discover/unparseable/, scope/ (11 scenario SQL files)."
     },
     "tests_scoping_agent": {
       "path": "tests/ad-migration/scoping-agent/",
