@@ -45,11 +45,12 @@ Use these exact tools:
 | `mcp__linear__list_projects` | project resolution |
 | `mcp__linear__get_project` | full project details |
 | `mcp__linear__list_milestones` | milestone discovery for resolved project |
+| `mcp__linear__list_cycles` | cycle discovery for the resolved team |
 | `mcp__linear__list_issue_labels` | label selection |
 | `mcp__linear__save_issue` | create/update issue(s) |
 | `mcp__linear__save_comment` | optional rationale notes on parent |
 
-Required fields for `save_issue`: `team`, `title`. Include `description`, `project`, `labels`, `estimate`, `assignee: "me"` when available.
+Required fields for `save_issue`: `team`, `title`. Include `description`, `project`, `labels`, `estimate`, `milestone`, `cycle`, `assignee: "me"` when available.
 
 **Fallback:** if a required tool fails after one retry, stop and report. Do not fabricate IDs, labels, or project names.
 
@@ -63,9 +64,10 @@ Required fields for `save_issue`: `team`, `title`. Include `description`, `proje
 4. **Idempotency:** re-runs must not duplicate issues. Reuse an open near-duplicate when appropriate.
 5. **Acceptance criteria** use Markdown checkboxes (`- [ ] ...`).
 6. **Project resolution:** derive from user input or issue context. Never hardcode a project name.
-7. **Milestone resolution:** from the resolved project only. If no clear match, ask the user.
-8. **Decomposition by feature slice only.** No frontend/backend/API splits. Each child must be an integrated, end-to-end testable outcome.
-9. **Multi-platform rule:** distinct source or target platforms always decompose into separate children (one per platform).
+7. **Milestone resolution:** from the resolved project only. If no clear match, ask the user. Never create an issue without a milestone.
+8. **Cycle resolution:** from the resolved team. Default to the active cycle if one exists. If ambiguous or none exists, ask the user. Never create an issue without a cycle unless the user explicitly confirms there is none to assign.
+9. **Decomposition by feature slice only.** No frontend/backend/API splits. Each child must be an integrated, end-to-end testable outcome.
+10. **Multi-platform rule:** distinct source or target platforms always decompose into separate children (one per platform).
 
 ---
 
@@ -123,9 +125,16 @@ These procedures are used by multiple paths. Each path references them by name.
 
 1. Resolve the target project from explicit user input, parent issue context, or team defaults via `list_projects`/`get_project`.
 2. Fetch milestones for that project with `list_milestones`.
-3. If exactly one milestone maps to the feature intent, include it in the draft.
-4. If ambiguous, ask the user before `save_issue`.
+3. If exactly one milestone clearly maps to the feature intent, include it in the draft.
+4. If ambiguous or no clear match, ask the user before `save_issue`. Do not create an issue without a milestone.
 5. Never pick a milestone from a different project.
+
+### Cycle Resolution
+
+1. Fetch active and upcoming cycles for the resolved team with `list_cycles`.
+2. If there is a current active cycle, default to it.
+3. If multiple cycles are plausible (e.g. the work spans cycles or no active cycle exists), ask the user which cycle to assign.
+4. Do not create an issue without a cycle assignment. If no cycle exists at all, note this explicitly and ask the user to confirm before proceeding without one.
 
 ---
 
@@ -168,10 +177,11 @@ Write requirements for the chosen approach. Apply estimate table. If estimate > 
 
 1. Run **Dedupe Check**.
 2. Run **Project and Milestone Resolution**.
-3. Draft title, estimate, project, milestone, labels, description (Issue Description Schema).
-4. Confirm draft with user. Max 2 refinement rounds, then proceed with best assumptions.
-5. Create with `save_issue` (`assignee: "me"` when allowed).
-6. Return issue ID + URL.
+3. Run **Cycle Resolution**.
+4. Draft title, estimate, project, milestone, cycle, labels, description (Issue Description Schema).
+5. Confirm draft with user. Max 2 refinement rounds, then proceed with best assumptions.
+6. Create with `save_issue` (`assignee: "me"` when allowed).
+7. Return issue ID + URL.
 
 ---
 
@@ -198,10 +208,11 @@ Use the sub-agent's internal scope signal. Apply estimate table.
 
 1. Run **Dedupe Check**.
 2. Run **Project and Milestone Resolution**.
-3. Draft title, estimate, project, milestone, labels (`bug`), description (Issue Description Schema).
-4. Confirm draft with user.
-5. Create with `save_issue` (`assignee: "me"` when allowed).
-6. Return issue ID + URL.
+3. Run **Cycle Resolution**.
+4. Draft title, estimate, project, milestone, cycle, labels (`bug`), description (Issue Description Schema).
+5. Confirm draft with user.
+6. Create with `save_issue` (`assignee: "me"` when allowed).
+7. Return issue ID + URL.
 
 ---
 
@@ -228,11 +239,13 @@ Present the parent + children plan to the user. Show title, estimate, milestone,
 ### Step 4 — Create
 
 1. Run **Dedupe Check** for each child.
-2. Create the parent issue (if new) with `save_issue`.
-3. Create children with `save_issue`, setting the `parent` field to the parent issue ID. Include AC-group mapping in each child's description.
-4. Update the parent description to list child issue IDs and their AC-group mapping.
-5. Optionally add a rationale comment on the parent with `save_comment`.
-6. Return all issue IDs + URLs.
+2. Run **Project and Milestone Resolution** (once, applies to all children).
+3. Run **Cycle Resolution** (once, applies to all children).
+4. Create the parent issue (if new) with `save_issue`, including milestone and cycle.
+5. Create children with `save_issue`, setting `parent`, `milestone`, and `cycle`. Include AC-group mapping in each child's description.
+6. Update the parent description to list child issue IDs and their AC-group mapping.
+7. Optionally add a rationale comment on the parent with `save_comment`.
+8. Return all issue IDs + URLs.
 
 ---
 
