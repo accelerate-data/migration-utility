@@ -1,0 +1,24 @@
+{
+  "name": "ad-migration-workbench",
+  "owner": {
+    "name": "Accelerate Data",
+    "email": "hb@acceleratedata.ai"
+  },
+  "plugins": [
+    {
+      "name": "bootstrap",
+      "source": "./workbench/bootstrap",
+      "description": "Prerequisite setup and initialization wizard for the ad-migration workbench."
+    },
+    {
+      "name": "migration",
+      "source": "./workbench/migration",
+      "description": "DDL analysis and migration pipeline: scoping, discovery, and DDL extraction for Fabric Warehouse to dbt."
+    },
+    {
+      "name": "test-generation",
+      "source": "./workbench/test-generation",
+      "description": "Test generation for migrated dbt models (not yet implemented)."
+    }
+  ]
+}

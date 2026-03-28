@@ -1,5 +1,0 @@
-{
-  "name": "migration-agent",
-  "version": "1.0.0",
-  "description": "Migration analysis agents and skills for Fabric Warehouse to dbt Lakehouse migration."
-}
