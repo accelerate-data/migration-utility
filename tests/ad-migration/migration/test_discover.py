@@ -26,9 +26,13 @@ _UNPARSEABLE_FIXTURES = _TESTS_DIR / "fixtures" / "discover" / "unparseable"
 def test_list_flat_tables() -> None:
     result = discover.run_list(_FLAT_FIXTURES, discover.ObjectType.tables, "tsql")
     objects = result["objects"]
-    assert len(objects) == 3
     assert "silver.dimproduct" in objects
     assert "bronze.product" in objects
+    assert "bronze.customer" in objects
+    assert "bronze.sales" in objects
+    assert "bronze.salesorder" in objects
+    assert "bronze.geography" in objects
+    assert "bronze.runcontrol" in objects
     assert "dbo.config" in objects
 
 
