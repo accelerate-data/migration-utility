@@ -181,12 +181,12 @@ The `technology` field in `metadata.json` determines which live MCP is started f
 
 The `migrate-table` command is a Claude Code plugin command for single-table interactive migration — separate from the GHA batch pipeline. It uses deterministic Python skills backed by sqlglot rather than LLM agents for the computational steps (scoping, assessment, transpilation), keeping Claude in the loop only for review and judgment calls.
 
-The two paths are complementary:
+The two paths share the same deterministic Python skills:
 
 | Path | When to use | Tools |
 |---|---|---|
 | `migrate-table` plugin command | Interactive, one-table-at-a-time; no live DB required; fast local iteration | Python skills (discover, scope, assess, migrate, test-gen, validate) |
-| GHA batch pipeline | Production batch migration; full FDE review workflow; CI/CD integration | LLM agents (scoping, profiler, decomposer, planner, test-generator, migrator) |
+| GHA batch pipeline | Production batch migration; full FDE review workflow; CI/CD integration | Same Python skills, orchestrated headlessly |
 
 See [SP → dbt Migration Plugin](../sp-to-dbt-plugin/README.md) for the full skill contracts and implementation plan.
 
@@ -228,21 +228,16 @@ Agents run as Claude Code plugins. The plugin lives at `agent-sources/plugins/ad
 agent-sources/plugins/ad-migration/
   CLAUDE.md                      # shared migration domain context
   .mcp.json                      # stdio MCP config for local dev
+  discover.py                    # deterministic skill: list/inspect DDL objects (AST-based)
+  scope.py                       # deterministic skill: find procedure writers + confidence scoring
   ddl_mcp/
-    server.py                    # DDL file reader tools (all agents except test generator)
+    server.py                    # DDL file reader tools (MCP protocol)
   mssql_mcp/
     tools.yaml                   # SQL Server live execution (test generator, sql_server projects)
-  agents/
-    scoping-agent.md
-    profiler-agent.md
-    decomposer-agent.md
-    planner-agent.md
-    test-generator-agent.md
-    migrator-agent.md
   shared/                        # shared Python library (ir, loader, name_resolver, dialect)
   skills/
-    discover/                    # list/inspect DDL objects (AST-based)
-    scope/                       # find procedure writers + confidence scoring
+    discover/                    # SKILL.md for discover
+    scope/                       # SKILL.md for scope
     assess/                      # classify procedure compatibility (Supported/Partial/Unsupported)
     migrate/                     # transpile T-SQL → dbt Spark SQL (sqlglot)
     test-gen/                    # infer dbt schema tests from AST

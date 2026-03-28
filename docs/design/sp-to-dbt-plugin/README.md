@@ -102,10 +102,15 @@ Output: {
     }
   ],
   "errors": [
-    { "procedure": "dbo.usp_Cross", "code": "ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE", "message": "..." }
+    { "procedure": "dbo.usp_Cross", "code": "ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE", "message": "..." },
+    { "procedure": "dbo.usp_Complex", "code": "PARSE_FAILED", "message": "..." }
   ]
 }
 ```
+
+All write detection and call-graph resolution use sqlglot AST analysis. Procedures that cannot be parsed are reported as `PARSE_FAILED` in the errors array — no regex fallback.
+
+This output is an intermediate format. Resolution logic (resolved / ambiguous / no_writer / etc.) lives in the `migrate-table` orchestrator, not in `scope.py`. The scoping-agent contract's `CandidateWriters` schema is the batch pipeline output format; the skill output is deliberately simpler to keep skills stateless and composable.
 
 Confidence scoring rules (from `scoring.md`, implemented in code — not prompt):
 
@@ -247,16 +252,16 @@ The orchestrator. Defined entirely in `commands/migrate-table/SKILL.md`. No Pyth
 
 ---
 
-## Enhanced `ddl_mcp`
+## Enhanced `ddl_mcp` (done — VU-751 ✅)
 
-In-place upgrade of `ddl_mcp/server.py`. All existing tool names and signatures preserved.
+These upgrades are already shipped in `ddl_mcp/server.py`. No further changes needed for the plugin.
 
-| Tool | Change |
+| Tool | Status |
 |---|---|
-| `get_dependencies` | Text grep → sqlglot AST walk (eliminates false positives from string literals and comments) |
-| `get_table_schema` | Returns structured JSON with column list in addition to raw DDL text |
-| `list_functions` | New tool — lists all functions from `functions.sql` |
-| `get_function_body` | New tool — returns DDL for a named function |
+| `get_dependencies` | ✅ Uses sqlglot AST walk via `extract_refs()` |
+| `get_table_schema` | ✅ Returns structured JSON with column list + raw DDL |
+| `list_functions` | ✅ Lists all functions from `functions.sql` |
+| `get_function_body` | ✅ Returns DDL for a named function |
 
 Reuses `shared/loader.py` and `shared/name_resolver.py`. Existing callers that only use the raw DDL string field are unaffected — new fields are additive.
 
@@ -264,18 +269,31 @@ Reuses `shared/loader.py` and `shared/name_resolver.py`. Existing callers that o
 
 ## Relation to Existing Agent Pipeline
 
-The new skills and the existing LLM agents are **complementary, not competing**.
+The deterministic skills **replace** the LLM agents for all computational steps.
 
-| Stage | Existing agent | New skill |
+| Stage | Previous approach | New skill |
 |---|---|---|
 | Discover | `ddl_mcp` (text grep) | `discover.py` (semantic AST) |
-| Scope | `scoping-agent` (LLM) | `scope.py` (deterministic) |
-| Assess | none | `assess.py` (deterministic) |
+| Scope | `scoping-agent` (LLM) | `scope.py` (deterministic AST) |
+| Assess | none | `assess.py` (deterministic AST) |
 | Migrate | `migrator-agent` (LLM) | `migrate.py` (sqlglot transpile) + Claude review |
 | Test gen | `test-generator-agent` (LLM + live DB) | `test_gen.py` (AST inference, no live DB) |
 | Validate | none | `validate.py` (result set diff) |
 
-The new skills are the fast, cheap, deterministic first path. The LLM agents are the fallback for edge cases the tools cannot handle.
+The new skills replace the LLM agents for all computational steps. Claude orchestrates the skills via `migrate-table` and handles judgment calls (reviewing output, approving tests, fixing gaps).
+
+### Relationship to VU-414 (Implement Scoping Agent)
+
+VU-414 defined a four-layer LLM agent pipeline for scoping. This plugin supersedes that approach entirely — there is no LLM agent path for scoping.
+
+| VU-414 layer | Original plan | New plan |
+|---|---|---|
+| Layer 1 — MCP Server (VU-417 ✅) | genai-toolbox + SQL catalog queries | Unchanged — already done |
+| Layer 2 — Agent (VU-418, VU-421) | Claude Code plugin (LLM scoping agent) | Replaced by deterministic `scope.py` (VU-736) |
+| Layer 3 — GH Action (VU-415) | Workflow runs LLM agent | Workflow runs `scope.py` |
+| Layer 4 — Integration (VU-419) | End-to-end with LLM agent | End-to-end with `scope.py`; validates deterministic output |
+
+VU-736 (scope.py, AST-only) is now a dependency of VU-414 Layer 2. VU-418 (LLM scoping agent plugin) is superseded.
 
 ---
 
@@ -286,9 +304,9 @@ The new skills are the fast, cheap, deterministic first path. The LLM agents are
 | Issue | What | Why first |
 |---|---|---|
 | VU-732 | Shared library | All skills import from here; nothing else can be built without it |
-| VU-751 | Enhanced ddl_mcp | Early upgrade improves the existing scoping-agent immediately and unblocks discover |
+| VU-751 ✅ | Enhanced ddl_mcp | Already shipped — AST-based `get_dependencies`, structured column JSON, function tools |
 
-**Exit criteria:** `from shared import ir, loader, dialect` works. `ddl_mcp` tests pass.
+**Exit criteria:** `from shared import ir, loader, dialect` works. ~~`ddl_mcp` tests pass.~~ Done.
 
 ---
 
@@ -377,7 +395,7 @@ VU-732 (shared lib)
   │           │
   │           └── VU-748 (validate.py) ─── VU-749 (SKILL) ─── VU-750 (tests)
   │
-VU-751 (enhanced ddl_mcp) [parallel to shared lib]
+VU-751 (enhanced ddl_mcp) ✅
 
 All skills → VU-752 (migrate-table SKILL.md) → VU-753 (GHA workflow)
 ```

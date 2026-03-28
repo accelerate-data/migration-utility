@@ -41,7 +41,9 @@ Given a target table, identify candidate writer procedures and select one writer
 
 ## Discovery Strategy
 
-> **Note:** The scoping agent runs against local DDL files via `ddl_mcp` (no live database connection). It cannot query `sys.*` catalog views at runtime. Use `get_dependencies(table_name)` from `ddl_mcp` for initial candidate discovery — this tool uses sqlglot AST walk over the local DDL files and is the same engine as `scope.py`. The confidence scoring rules below are codified deterministically in `scope.py`; the batch agent uses them as LLM reasoning guidelines and may delegate to `scope.py` when available.
+> **Deterministic execution only.** `scope.py` uses sqlglot AST analysis for write detection and call-graph resolution — no regex, no LLM. Procedures that cannot be parsed are reported as `PARSE_FAILED` errors. Output conforms to this contract.
+>
+> The confidence scoring rules below are codified deterministically in `scope.py`.
 
 ### 1. DiscoverCandidates
 

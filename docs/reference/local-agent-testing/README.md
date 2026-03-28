@@ -14,23 +14,23 @@ Design references:
 ## Layers
 
 ```text
-Layer 1 — MCP server          genai-toolbox + local SQL Server
-           ↓ validates           SQL catalog queries return correct data
-Layer 2 — Python agent         Claude Agent SDK + Layer 1 toolbox running locally
-           ↓ validates           Agent logic, six-step pipeline, output contract
-Layer 3 — GH Action            Workflow YAML mechanics, stub agent step
-           ↓ validates           Cache, DB restore, branch/rebase/commit/push
-Layer 4 — Integration          Real DacPac project, real agent, real GH Action run
-           ↓ validates           Full end-to-end
+Layer 1 — MCP server              genai-toolbox + local SQL Server
+           ↓ validates               SQL catalog queries return correct data
+Layer 2 — Deterministic skills     Python scripts (scope.py, discover.py, etc.) + DDL fixtures
+           ↓ validates               AST analysis, confidence scoring, output contracts
+Layer 3 — GH Action               Workflow YAML mechanics, stub skill step
+           ↓ validates               Cache, DB restore, branch/rebase/commit/push
+Layer 4 — Integration             Real DacPac project, real skills, real GH Action run
+           ↓ validates               Full end-to-end
 ```
 
 ### What each layer does NOT test
 
 | Layer | Explicitly out of scope |
 |---|---|
-| 1 | Agent reasoning, Python SDK, GH Actions |
-| 2 | GH Actions workflow mechanics, DacPac restore |
-| 3 | Agent reasoning, API calls, real SQL Server catalog |
+| 1 | Skills, GH Actions |
+| 2 | GH Actions, DacPac restore |
+| 3 | Skill logic, real SQL Server catalog |
 | 4 | Nothing — this is the full system |
 
 ---
@@ -49,11 +49,11 @@ Layer 4 — Integration          Real DacPac project, real agent, real GH Action
 Do not skip ahead. Each layer catches a class of bugs the next layer cannot easily diagnose.
 
 1. **[Layer 1 — MCP Server](layer-1-mcp-server.md)**
-   Validate the SQL catalog queries interactively before writing any agent code.
-2. **Layer 2 — Python Agent** *(doc coming)*
-   Implement and iterate on agent logic cheaply against a local toolbox instance.
+   Validate the SQL catalog queries interactively before writing any skill code.
+2. **Layer 2 — Deterministic Skills** *(doc coming)*
+   Test Python skills (`scope.py`, `discover.py`, etc.) against DDL fixtures. No LLM, no API key needed.
 3. **Layer 3 — GH Action** *(doc coming)*
-   Wire the workflow once the agent output format is stable; stub the agent step.
+   Wire the workflow once the skill output format is stable; stub the skill step.
 4. **Layer 4 — Integration** *(doc coming)*
    Trigger a real run end-to-end.
 
@@ -65,5 +65,5 @@ Do not skip ahead. Each layer catches a class of bugs the next layer cannot easi
 |---|---|---|
 | SQL Server | Docker container (local) | Desktop app / manual `docker run` |
 | MCP server | googleapis/genai-toolbox | `toolbox` binary (Layer 1–2) / GHCR service container (Layer 3–4) |
-| Agent | Python + Claude Agent SDK | `uv run python -m scoping_agent` |
+| Deterministic skills | Python + sqlglot | `uv run python scope.py ...` (Layer 2) |
 | Workflow | GitHub Actions | `act` (Layer 3) / real GH runner (Layer 4) |
