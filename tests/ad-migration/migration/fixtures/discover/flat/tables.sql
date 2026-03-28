@@ -36,6 +36,11 @@ CREATE TABLE bronze.RunControl (
     IsActive BIT NOT NULL
 )
 GO
+CREATE TABLE silver.DimProduct_Staging (
+    ProductID INT NOT NULL,
+    ProductName NVARCHAR(50) NULL
+)
+GO
 CREATE TABLE dbo.Config (
     ConfigKey NVARCHAR(100) NOT NULL PRIMARY KEY,
     ConfigValue NVARCHAR(500) NULL

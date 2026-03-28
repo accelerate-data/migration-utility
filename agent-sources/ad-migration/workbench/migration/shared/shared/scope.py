@@ -26,7 +26,7 @@ from typing import Any
 import sqlglot.expressions as exp
 import typer
 
-from shared.loader import DdlEntry, DdlParseError, extract_refs
+from shared.loader import DdlEntry, DdlParseError, extract_refs, _parse_body_statements
 from shared.name_resolver import normalize
 
 # ---------------------------------------------------------------------------
@@ -68,28 +68,40 @@ _WRITE_NODE_MAP: list[tuple[type, str]] = [
     (exp.Update, "UPDATE"),
     (exp.Delete, "DELETE"),
     (exp.Merge, "MERGE"),
+    (exp.TruncateTable, "TRUNCATE"),
+    (exp.Into, "SELECT_INTO"),
 ]
 
 
 def _detect_writes_ast(entry: DdlEntry, target_fqn: str) -> list[str]:
     """Return write operation names (INSERT, UPDATE, …) targeting *target_fqn*.
 
-    Uses sqlglot AST only.  Raises DdlParseError if the entry cannot be
-    analysed (no AST or internal Command nodes).
+    Parses the procedure body statements (not the original CREATE AST) to
+    find all DML operations that write to the target table.
+
+    Raises DdlParseError if the entry cannot be analysed.
     """
     refs = extract_refs(entry)  # raises DdlParseError on failure
 
     if target_fqn not in refs.writes_to:
         return []
 
+    # Walk body statements, not entry.ast (which only has the first statement)
+    body_stmts = _parse_body_statements(entry.raw_ddl)
     ops: list[str] = []
-    for node_type, op_name in _WRITE_NODE_MAP:
-        for node in entry.ast.find_all(node_type):
-            tbl = node.find(exp.Table)
-            if tbl and tbl.db and not tbl.catalog:
-                fqn = normalize(f"{tbl.db}.{tbl.name}")
-                if fqn == target_fqn and op_name not in ops:
-                    ops.append(op_name)
+    for stmt in body_stmts:
+        if stmt is None:
+            continue
+        for node_type, op_name in _WRITE_NODE_MAP:
+            for node in stmt.find_all(node_type):
+                if node_type == exp.Delete:
+                    tbl = node.this
+                else:
+                    tbl = node.find(exp.Table)
+                if isinstance(tbl, exp.Table) and tbl.db and not tbl.catalog:
+                    fqn = normalize(f"{tbl.db}.{tbl.name}")
+                    if fqn == target_fqn and op_name not in ops:
+                        ops.append(op_name)
     return ops
 
 

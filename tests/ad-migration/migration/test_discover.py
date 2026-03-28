@@ -225,9 +225,79 @@ def test_show_sequential_with_refs() -> None:
     assert "bronze.product" in result["refs"]["reads_from"]
 
 
+def test_show_update_refs() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_SimpleUpdate", "tsql")
+    assert "silver.dimproduct" in result["refs"]["writes_to"]
+    assert "bronze.product" in result["refs"]["reads_from"]
+
+
+def test_show_delete_refs() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_SimpleDelete", "tsql")
+    assert "silver.dimproduct" in result["refs"]["writes_to"]
+
+
+def test_show_delete_top_refs() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_DeleteTop", "tsql")
+    assert "silver.dimproduct" in result["refs"]["writes_to"]
+
+
+def test_show_truncate_only_refs() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_TruncateOnly", "tsql")
+    assert "silver.dimproduct" in result["refs"]["writes_to"]
+
+
+def test_show_select_into_refs() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_SelectInto", "tsql")
+    assert "silver.dimproduct_staging" in result["refs"]["writes_to"]
+    assert "bronze.product" in result["refs"]["reads_from"]
+
+
+def test_show_right_join_refs() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_RightOuterJoin", "tsql")
+    assert "silver.dimproduct" in result["refs"]["writes_to"]
+    assert "bronze.product" in result["refs"]["reads_from"]
+
+
+def test_show_subquery_refs() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_SubqueryInWhere", "tsql")
+    assert "silver.dimproduct" in result["refs"]["writes_to"]
+    assert "bronze.product" in result["refs"]["reads_from"]
+
+
+def test_show_window_function_refs() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_WindowFunction", "tsql")
+    assert "silver.dimproduct" in result["refs"]["writes_to"]
+    assert "bronze.product" in result["refs"]["reads_from"]
+
+
+def test_show_while_loop_refs() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_WhileLoop", "tsql")
+    assert "bronze.product" in result["refs"]["writes_to"]
+    assert "dbo.config" in result["refs"]["writes_to"]
+
+
+def test_show_nested_control_flow_refs() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_NestedControlFlow", "tsql")
+    assert "silver.dimproduct" in result["refs"]["writes_to"]
+    assert "bronze.product" in result["refs"]["reads_from"]
+
+
+def test_show_exec_simple_no_refs() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecSimple", "tsql")
+    assert result["refs"]["writes_to"] == []
+    assert result["refs"]["reads_from"] == []
+
+
+def test_show_exec_dynamic_no_refs() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecDynamic", "tsql")
+    assert result["refs"]["writes_to"] == []
+    assert result["refs"]["reads_from"] == []
+
+
 def test_refs_finds_all_writer_procs() -> None:
     result = discover.run_refs(_FLAT_FIXTURES, "silver.DimProduct", "tsql")
     rb = result["referenced_by"]
+    # Deterministic writers
     assert "dbo.usp_loaddimproduct" in rb
     assert "dbo.usp_mergedimproduct" in rb
     assert "dbo.usp_loadwithcte" in rb
@@ -238,4 +308,17 @@ def test_refs_finds_all_writer_procs() -> None:
     assert "dbo.usp_trycatchload" in rb
     assert "dbo.usp_correlatedsubquery" in rb
     assert "dbo.usp_sequentialwith" in rb
+    assert "dbo.usp_simpleupdate" in rb
+    assert "dbo.usp_simpledelete" in rb
+    assert "dbo.usp_deletetop" in rb
+    assert "dbo.usp_truncateonly" in rb
+    assert "dbo.usp_rightouterjoin" in rb
+    assert "dbo.usp_subqueryinwhere" in rb
+    assert "dbo.usp_windowfunction" in rb
+    assert "dbo.usp_nestedcontrolflow" in rb
+    # EXEC procs should NOT appear (no deterministic refs to DimProduct)
+    assert "dbo.usp_execsimple" not in rb
+    assert "dbo.usp_execdynamic" not in rb
+    assert "dbo.usp_execspexecutesql" not in rb
+    # Comment-only mention should NOT appear
     assert "dbo.usp_logmessage" not in rb

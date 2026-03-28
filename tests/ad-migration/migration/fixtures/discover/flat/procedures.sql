@@ -154,6 +154,169 @@ BEGIN
     FROM ranked WHERE rn <= 5;
 END
 GO
+-- UPDATE with JOIN
+CREATE PROCEDURE [dbo].[usp_SimpleUpdate]
+AS
+BEGIN
+    UPDATE [silver].[DimProduct]
+    SET EnglishProductName = p.ProductName
+    FROM [silver].[DimProduct] d
+    JOIN bronze.Product p ON d.ProductAlternateKey = CAST(p.ProductID AS NVARCHAR(25));
+END
+GO
+-- DELETE with WHERE
+CREATE PROCEDURE [dbo].[usp_SimpleDelete]
+AS
+BEGIN
+    DELETE FROM [silver].[DimProduct]
+    WHERE ProductAlternateKey IS NULL;
+END
+GO
+-- DELETE TOP
+CREATE PROCEDURE [dbo].[usp_DeleteTop]
+AS
+BEGIN
+    DELETE TOP (500) FROM [silver].[DimProduct]
+    WHERE ProductKey < 0;
+END
+GO
+-- TRUNCATE only
+CREATE PROCEDURE [dbo].[usp_TruncateOnly]
+AS
+BEGIN
+    TRUNCATE TABLE [silver].[DimProduct];
+END
+GO
+-- SELECT INTO
+CREATE PROCEDURE [dbo].[usp_SelectInto]
+AS
+BEGIN
+    SELECT ProductID, ProductName
+    INTO silver.DimProduct_Staging
+    FROM bronze.Product
+    WHERE ProductName IS NOT NULL;
+END
+GO
+-- RIGHT OUTER JOIN
+CREATE PROCEDURE [dbo].[usp_RightOuterJoin]
+AS
+BEGIN
+    INSERT INTO [silver].[DimProduct] (ProductAlternateKey, EnglishProductName)
+    SELECT CAST(p.ProductID AS NVARCHAR(25)), COALESCE(c.ConfigValue, p.ProductName)
+    FROM dbo.Config c
+    RIGHT OUTER JOIN bronze.Product p ON c.ConfigKey = CAST(p.ProductID AS NVARCHAR(100));
+END
+GO
+-- Subquery in WHERE
+CREATE PROCEDURE [dbo].[usp_SubqueryInWhere]
+AS
+BEGIN
+    INSERT INTO [silver].[DimProduct] (ProductAlternateKey, EnglishProductName)
+    SELECT CAST(ProductID AS NVARCHAR(25)), ProductName
+    FROM bronze.Product
+    WHERE ProductID > (SELECT AVG(ProductID) FROM bronze.Product);
+END
+GO
+-- Window function
+CREATE PROCEDURE [dbo].[usp_WindowFunction]
+AS
+BEGIN
+    INSERT INTO [silver].[DimProduct] (ProductAlternateKey, EnglishProductName)
+    SELECT CAST(ProductID AS NVARCHAR(25)), ProductName
+    FROM (
+        SELECT ProductID, ProductName,
+               ROW_NUMBER() OVER (ORDER BY ProductID DESC) AS rn,
+               COUNT(*) OVER () AS total
+        FROM bronze.Product
+    ) ranked
+    WHERE rn <= 10;
+END
+GO
+-- WHILE loop with DML
+CREATE PROCEDURE [dbo].[usp_WhileLoop]
+AS
+BEGIN
+    SET NOCOUNT ON;
+    WHILE EXISTS (SELECT 1 FROM bronze.Product WHERE ProductName IS NULL)
+    BEGIN
+        DELETE TOP (100) FROM bronze.Product WHERE ProductName IS NULL;
+        INSERT INTO dbo.Config (ConfigKey, ConfigValue) SELECT 'cleanup_run', GETDATE();
+    END
+END
+GO
+-- Nested control flow: IF inside TRY/CATCH
+CREATE PROCEDURE [dbo].[usp_NestedControlFlow]
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        IF EXISTS (SELECT 1 FROM dbo.Config WHERE ConfigKey = 'full_reload')
+        BEGIN
+            TRUNCATE TABLE [silver].[DimProduct];
+            INSERT INTO [silver].[DimProduct] (ProductAlternateKey, EnglishProductName)
+            SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product;
+        END
+        ELSE
+        BEGIN
+            MERGE INTO [silver].[DimProduct] AS tgt
+            USING bronze.Product AS src ON tgt.ProductAlternateKey = CAST(src.ProductID AS NVARCHAR(25))
+            WHEN MATCHED THEN UPDATE SET tgt.EnglishProductName = src.ProductName
+            WHEN NOT MATCHED THEN INSERT (ProductAlternateKey, EnglishProductName)
+                VALUES (CAST(src.ProductID AS NVARCHAR(25)), src.ProductName);
+        END
+    END TRY
+    BEGIN CATCH
+        INSERT INTO dbo.Config (ConfigKey, ConfigValue) SELECT 'error', ERROR_MESSAGE();
+    END CATCH
+END
+GO
+-- EXEC simple proc call
+CREATE PROCEDURE [dbo].[usp_ExecSimple]
+AS
+BEGIN
+    EXEC dbo.usp_LoadDimProduct;
+END
+GO
+-- EXEC bracketed
+CREATE PROCEDURE [dbo].[usp_ExecBracketed]
+AS
+BEGIN
+    EXEC [dbo].[usp_LoadDimProduct];
+END
+GO
+-- EXEC with params
+CREATE PROCEDURE [dbo].[usp_ExecWithParams]
+AS
+BEGIN
+    EXEC dbo.usp_LoadDimProduct @Mode = 1, @Force = 0;
+END
+GO
+-- EXEC with return value
+CREATE PROCEDURE [dbo].[usp_ExecWithReturn]
+AS
+BEGIN
+    DECLARE @rc INT;
+    EXEC @rc = dbo.usp_LoadDimProduct;
+END
+GO
+-- EXEC dynamic SQL
+CREATE PROCEDURE [dbo].[usp_ExecDynamic]
+AS
+BEGIN
+    DECLARE @sql NVARCHAR(MAX);
+    SET @sql = N'INSERT INTO [silver].[DimProduct] (ProductAlternateKey) SELECT CAST(ProductID AS NVARCHAR(25)) FROM bronze.Product';
+    EXEC (@sql);
+END
+GO
+-- EXEC sp_executesql
+CREATE PROCEDURE [dbo].[usp_ExecSpExecutesql]
+AS
+BEGIN
+    DECLARE @sql NVARCHAR(MAX);
+    SET @sql = N'INSERT INTO [silver].[DimProduct] (ProductAlternateKey) SELECT CAST(ProductID AS NVARCHAR(25)) FROM bronze.Product WHERE ProductID > @minId';
+    EXEC sp_executesql @sql, N'@minId INT', @minId = 100;
+END
+GO
 -- Proc that mentions 'silver.DimProduct' only in a string literal / comment
 -- This proc must NOT appear in refs results for silver.dimproduct (no real reference)
 CREATE PROCEDURE [dbo].[usp_LogMessage]

@@ -134,3 +134,15 @@ Out-of-scope procedure detected:
   This procedure is excluded from the migration plan.
   Cross-database writes may need a separate data pipeline migration.
 ```
+
+## EXEC / dynamic SQL entries
+
+When `errors[]` contains an entry with `"code": "PARSE_FAILED"`, the procedure contains EXEC or dynamic SQL that sqlglot cannot parse statically. These procs are typically orchestrators that call other procs via EXEC, or use `sp_executesql` / `EXEC (@sql)` for dynamic queries.
+
+For `PARSE_FAILED` entries:
+
+1. Read the procedure body using `discover show` to get the `raw_ddl`.
+2. Inspect the EXEC statements to determine what they call or execute.
+3. For static EXEC calls (`EXEC dbo.usp_OtherProc`), follow the call graph by running scope on the called proc's write targets.
+4. For dynamic SQL (`EXEC (@sql)`, `sp_executesql @var`), flag the proc as requiring manual review — the SQL is constructed at runtime and cannot be determined from static analysis.
+5. Report findings to the user with the proc name, EXEC pattern, and whether the call target could be resolved.

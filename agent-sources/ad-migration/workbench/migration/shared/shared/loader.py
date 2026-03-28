@@ -365,6 +365,12 @@ def _collect_refs_from_statements(statements: list[Any]) -> ObjectRefs:
             if target and _is_real_table(target):
                 writes_to.add(_table_fqn(target))
 
+        # writes_to: SELECT INTO targets
+        for node in stmt.find_all(exp.Into):
+            target = node.find(exp.Table)
+            if target and _is_real_table(target):
+                writes_to.add(_table_fqn(target))
+
         # reads_from: FROM and JOIN sources
         for node in stmt.find_all(exp.From):
             table = node.find(exp.Table)

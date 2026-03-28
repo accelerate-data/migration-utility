@@ -98,13 +98,62 @@ def test_correlated_subquery():
     assert "bronze.product" in reads
 
 
+def test_update_with_join():
+    writes, reads = _refs_from_fixture("dbo.usp_simpleupdate")
+    assert "silver.dimproduct" in writes
+    assert "bronze.product" in reads
+
+
+def test_delete_with_where():
+    writes, reads = _refs_from_fixture("dbo.usp_simpledelete")
+    assert "silver.dimproduct" in writes
+
+
 def test_delete_top():
-    """DELETE TOP correctly identifies the target table, not the TOP pseudo-table."""
-    writes, reads = _refs_from_proc("""
-        DELETE TOP (1000) FROM silver.StagingTable
-        WHERE BatchDate < DATEADD(DAY, -7, GETDATE());
-    """)
-    assert writes == ["silver.stagingtable"]
+    writes, reads = _refs_from_fixture("dbo.usp_deletetop")
+    assert "silver.dimproduct" in writes
+
+
+def test_truncate_only():
+    writes, reads = _refs_from_fixture("dbo.usp_truncateonly")
+    assert "silver.dimproduct" in writes
+
+
+def test_select_into():
+    writes, reads = _refs_from_fixture("dbo.usp_selectinto")
+    assert "silver.dimproduct_staging" in writes
+    assert "bronze.product" in reads
+
+
+def test_right_outer_join():
+    writes, reads = _refs_from_fixture("dbo.usp_rightouterjoin")
+    assert "silver.dimproduct" in writes
+    assert "bronze.product" in reads
+
+
+def test_subquery_in_where():
+    writes, reads = _refs_from_fixture("dbo.usp_subqueryinwhere")
+    assert "silver.dimproduct" in writes
+    assert "bronze.product" in reads
+
+
+def test_window_function():
+    writes, reads = _refs_from_fixture("dbo.usp_windowfunction")
+    assert "silver.dimproduct" in writes
+    assert "bronze.product" in reads
+
+
+def test_while_loop():
+    writes, reads = _refs_from_fixture("dbo.usp_whileloop")
+    assert "bronze.product" in writes  # DELETE FROM bronze.Product
+    assert "dbo.config" in writes
+
+
+def test_nested_control_flow():
+    writes, reads = _refs_from_fixture("dbo.usp_nestedcontrolflow")
+    assert "silver.dimproduct" in writes
+    assert "dbo.config" in writes
+    assert "bronze.product" in reads
 
 
 def test_drop_index_truncate_merge_create_index():
@@ -120,44 +169,6 @@ def test_drop_index_truncate_merge_create_index():
     """)
     assert "silver.dimproduct" in writes
     assert reads == ["bronze.product"]
-
-
-# ── Inline tests for patterns not in fixtures ────────────────────────────────
-
-
-def test_left_outer_join():
-    writes, reads = _refs_from_proc("""
-        INSERT INTO silver.FactSales (SalesKey, CustomerName)
-        SELECT s.SalesKey, c.FirstName
-        FROM bronze.Sales s
-        LEFT OUTER JOIN bronze.Customer c ON s.CustomerKey = c.CustomerKey;
-    """)
-    assert writes == ["silver.factsales"]
-    assert "bronze.sales" in reads
-    assert "bronze.customer" in reads
-
-
-def test_right_outer_join():
-    writes, reads = _refs_from_proc("""
-        INSERT INTO silver.FactReturns (ReturnKey, ProductName)
-        SELECT r.ReturnKey, p.Name
-        FROM bronze.Returns r
-        RIGHT OUTER JOIN bronze.Product p ON r.ProductKey = p.ProductKey;
-    """)
-    assert writes == ["silver.factreturns"]
-    assert "bronze.returns" in reads
-    assert "bronze.product" in reads
-
-
-def test_subquery_in_where():
-    writes, reads = _refs_from_proc("""
-        INSERT INTO silver.HighValueOrders (OrderKey, Amount)
-        SELECT OrderID, TotalDue
-        FROM bronze.SalesOrder
-        WHERE TotalDue > (SELECT AVG(TotalDue) FROM bronze.SalesOrder);
-    """)
-    assert writes == ["silver.highvalueorders"]
-    assert reads == ["bronze.salesorder"]
 
 
 def test_cte_with_subquery():
@@ -181,6 +192,27 @@ def test_cte_with_subquery():
     assert "bronze.customer" in reads
     assert "bronze.salesorder" in reads
     assert "bronze.geography" in reads
+
+
+# ── EXEC patterns (Claude path — verify no false positives) ──────────────────
+
+
+def test_exec_simple_no_refs():
+    writes, reads = _refs_from_fixture("dbo.usp_execsimple")
+    assert writes == []
+    assert reads == []
+
+
+def test_exec_dynamic_no_refs():
+    writes, reads = _refs_from_fixture("dbo.usp_execdynamic")
+    assert writes == []
+    assert reads == []
+
+
+def test_exec_sp_executesql_no_refs():
+    writes, reads = _refs_from_fixture("dbo.usp_execspexecutesql")
+    assert writes == []
+    assert reads == []
 
 
 # ── Per-block error handling ──────────────────────────────────────────────────

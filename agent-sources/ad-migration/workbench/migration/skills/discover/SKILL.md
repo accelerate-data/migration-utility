@@ -109,14 +109,24 @@ Views (1):
   - dbo.vw_SalesSummary
 ```
 
+## Parse classification
+
+When `show` returns results for a procedure, check the `parse_error` and `refs` fields to determine the analysis path:
+
+| `parse_error` | `refs` | Path | Action |
+|---|---|---|---|
+| `null` | populated `writes_to`/`reads_from` | **Deterministic** | sqlglot handled everything — no Claude needed |
+| `null` | empty `writes_to` and `reads_from` | **Deterministic** | Proc has no DML (e.g. only SET statements) |
+| set (non-null) | empty or partial | **Claude-assisted** | Proc contains EXEC or dynamic SQL that sqlglot cannot parse |
+
+For deterministic procs, report the refs directly. For Claude-assisted procs, tell the user the proc requires manual analysis and show the `parse_error` reason.
+
+The following T-SQL patterns are fully deterministic: INSERT, UPDATE, DELETE, DELETE TOP, TRUNCATE, MERGE, SELECT INTO, CTE, multi-level CTE, CASE WHEN, LEFT/RIGHT JOIN, subqueries, correlated subqueries, window functions, IF/ELSE, BEGIN TRY/CATCH, and WHILE loops.
+
+The following patterns require Claude: all EXEC variants (static proc calls, dynamic SQL, sp_executesql). See `docs/design/tsql-parse-classification/README.md` for the exhaustive list.
+
 ## Handling parse errors
 
-If `discover` exits with code 2, a DDL block in the directory could not be parsed by sqlglot (e.g. procedures with `IF/ELSE`, `MERGE`, or multiple
-statements).  The error message names the specific object that failed.
+Procedures with `parse_error` set are still loaded — they are not skipped. Their `raw_ddl` is preserved and can be read for manual inspection or passed to Claude. The `parse_error` field explains why sqlglot could not fully parse the procedure.
 
-Tell the user which object failed and ask them to either:
-
-1. Remove or isolate the unparseable object into a separate directory.
-2. Simplify the DDL so sqlglot can parse it.
-
-Do not silently skip unparseable objects — the loader treats parse failures as hard errors.
+If `discover` exits with code 2, the directory itself could not be read (missing path, IO error). Individual proc parse failures do not cause exit code 2 — they are stored with `parse_error` and the remaining procs continue loading.
