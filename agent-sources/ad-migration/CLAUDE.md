@@ -49,13 +49,6 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" scope \
 Triggered when the user asks to populate `artifacts/ddl/` from a live SQL Server.
 Uses `mssql` MCP for queries and native Write tool for local file output.
 
-## Dual Implementation Note
-
-`scope.py` (CLI) and the `scoping-agent` implement the same writer-detection algorithm
-independently. `scope.py` is for local CLI use; the scoping agent uses DDL MCP tools
-and follows the `scoping-writers` skill reference docs. When the algorithm changes,
-update both.
-
 ## Output Discipline
 
 - All agent output is written to the file path specified in the input JSON

@@ -155,11 +155,11 @@
     },
     "migration_skills": {
       "path": "agent-sources/ad-migration/workbench/migration/skills/",
-      "description": "Skill definitions: discover/ (DDL exploration), scope/ (writer detection), scoping-writers/ (agent-based scoping), setup-ddl/ (DDL export from live DB)."
+      "description": "Skill definitions: discover/ (DDL exploration), scope/ (writer detection), setup-ddl/ (DDL export from live DB)."
     },
     "migration_agents": {
       "path": "agent-sources/ad-migration/workbench/migration/agents/",
-      "description": "Agent definitions: scoping-agent.md (procedure writer detection using DDL MCP tools)."
+      "description": "Agent definitions: scoping-agent.md (procedure writer detection via scope skill)."
     },
     "tests_migration": {
       "path": "tests/ad-migration/migration/",

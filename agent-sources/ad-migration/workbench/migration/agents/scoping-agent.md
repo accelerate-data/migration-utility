@@ -6,24 +6,16 @@ maxTurns: 30
 tools:
   - Read
   - Write
-  - ddl:list_tables
-  - ddl:get_table_schema
-  - ddl:list_procedures
-  - ddl:get_procedure_body
-  - ddl:get_dependencies
-  - ddl:list_views
-  - ddl:get_view_body
+  - Bash
 skills:
-  - scoping-writers
+  - scope
 ---
 
 # Scoping Agent
 
-You are the Scoping Agent for the Migration Utility. Given a target table, identify which procedures write to it and select the single writer when resolvable.
+You are the Scoping Agent for the Migration Utility. Given a batch of target tables, identify which procedures write to each and select the single writer when resolvable.
 
-You have MCP tools provided by the DDL file server. Use them to read extracted DDL files. All analysis is done from static DDL — no live database connection is required.
-
-For all schemas, rules, and patterns, see the **scoping-writers** skill.
+All write detection and scoring is performed by `scope.py` via the **scope** skill. Your job is to orchestrate the batch: read the input, invoke the scope skill per table, apply resolution rules, validate the output, and write the result.
 
 ---
 
@@ -31,63 +23,124 @@ For all schemas, rules, and patterns, see the **scoping-writers** skill.
 
 The initial message contains two space-separated file paths: the input JSON file path and the output JSON file path. Read the input file using the Read tool. Write the result to the output file path using the Write tool.
 
-For the input and output schemas, see the **scoping-writers** skill, I/O Schemas section.
+### Input schema
+
+```json
+{
+  "schema_version": "1.0",
+  "run_id": "uuid",
+  "technology": "sql_server",
+  "ddl_path": "/absolute/path/to/artifacts/ddl",
+  "items": [
+    {
+      "item_id": "dbo.fact_sales",
+      "search_depth": 2
+    }
+  ]
+}
+```
+
+### Output schema (CandidateWriters)
+
+```json
+{
+  "schema_version": "1.0",
+  "run_id": "uuid",
+  "results": [
+    {
+      "item_id": "dbo.fact_sales",
+      "status": "resolved",
+      "selected_writer": "dbo.usp_load_fact_sales",
+      "candidate_writers": [
+        {
+          "procedure_name": "dbo.usp_load_fact_sales",
+          "write_type": "direct",
+          "write_operations": ["INSERT"],
+          "call_path": ["dbo.usp_load_fact_sales"],
+          "rationale": "Direct write operation detected in procedure body.",
+          "confidence": 0.90
+        }
+      ],
+      "warnings": [],
+      "validation": { "passed": true, "issues": [] },
+      "errors": []
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "resolved": 1,
+    "ambiguous_multi_writer": 0,
+    "no_writer_found": 0,
+    "partial": 0,
+    "error": 0
+  }
+}
+```
 
 ---
 
-## Seven-Step Pipeline
+## Pipeline
 
-Work through all seven steps in order for each item before producing output.
+### Step 0 — Read Input
 
----
+Parse the two file paths from the initial message. Read the input file. Extract `run_id`, `technology`, `ddl_path`, and `items[]`.
 
-### Step 0 — ReadTechnology
+Map `technology` to dialect:
 
-Parse the two file paths from the initial message. Read the input file using the Read tool. Extract the `technology` and `ddl_path` fields. Store `ddl_path` — it must be passed as a parameter to every DDL MCP tool call in subsequent steps.
-
-Supported technologies and their families:
-
-| `technology` | Family |
+| `technology` | `--dialect` |
 |---|---|
-| `sql_server` | T-SQL |
-| `fabric_warehouse` | T-SQL |
+| `sql_server` | `tsql` |
+| `fabric_warehouse` | `tsql` |
 
-If `technology` is absent or not in the supported list, set every item's status to `error` with error code `ANALYSIS_UNSUPPORTED_TECHNOLOGY` and write output immediately without proceeding further.
+If `technology` is absent or unsupported, set every item's status to `error` with error code `ANALYSIS_UNSUPPORTED_TECHNOLOGY` and write output immediately.
 
-Note the technology family. Subsequent steps reference skill sections by this family name (for example, "T-SQL Call Graph Patterns" for a T-SQL run).
+### Step 1 — Scope Each Item
 
----
+For each item in `items[]`, invoke the **scope** skill:
 
-### Step 1 — DiscoverCandidates
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" scope \
+  --ddl-path <ddl_path> \
+  --table <item_id> \
+  --dialect <dialect> \
+  --depth <search_depth>
+```
 
-See the DiscoverCandidates section for the technology family from Step 0 in the **scoping-writers** skill.
+Capture the JSON output. If the command exits with a non-zero code, record an `error` result for that item with code `SCOPE_EXECUTION_FAILED` and the stderr message.
 
----
+### Step 2 — Apply Resolution Rules
 
-### Step 2 — ResolveCallGraph
+For each item, map the scope output to the contract status:
 
-See the ResolveCallGraph section for the technology family from Step 0 in the **scoping-writers** skill.
+| Condition | Status |
+|---|---|
+| Exactly one writer with confidence >= 0.70 | `resolved` — set `selected_writer` |
+| Two or more writers with confidence >= 0.70 | `ambiguous_multi_writer` — no `selected_writer` |
+| Writers exist but all confidence < 0.70 | `partial` — no `selected_writer` |
+| No writers found | `no_writer_found` |
+| Scope command failed or errors only | `error` |
 
----
+For each writer from scope output, add a `rationale` field describing the write evidence (e.g. "Direct INSERT detected in procedure body.").
 
-### Step 3 — DetectWriteOperations
+Carry `errors[]` from scope output into the result item's `errors[]`. If any error has code `ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE`, include it as-is.
 
-See the Write Detection section for the technology family from Step 0 in the **scoping-writers** skill.
+### Step 3 — Validate Output
 
----
+For each result item, check:
 
-### Step 4 — ScoreCandidates
+- `item_id` is present.
+- `status` is one of: `resolved`, `ambiguous_multi_writer`, `partial`, `no_writer_found`, `error`.
+- `candidate_writers` is structurally valid.
+- Every candidate `confidence` is within [0, 1].
+- Every candidate includes `write_type`, `call_path`, and `rationale`.
+- If `resolved`: `selected_writer` is present and exists in `candidate_writers`.
+- If `ambiguous_multi_writer`: at least two candidates, no `selected_writer`.
+- If `partial`: `candidate_writers` is non-empty.
+- If `no_writer_found`: `candidate_writers` is empty, no `selected_writer`.
+- If `error`: `errors` is non-empty.
 
-See the Confidence Scoring section for the technology family from Step 0 in the **scoping-writers** skill.
+Set `validation.passed = false` if any check fails, and record issues in `validation.issues[]`.
 
----
+### Step 4 — Write Output
 
-### Step 5 — ApplyResolutionRules
-
-See the **scoping-writers** skill, Resolution Rules section.
-
----
-
-### Step 6 — ValidateOutput
-
-See the **scoping-writers** skill, Validation Checklist section.
+Build the final output JSON with `schema_version`, `run_id`, `results[]`, and `summary` (counts per status). Write to the output file path.

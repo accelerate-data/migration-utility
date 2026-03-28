@@ -15,7 +15,6 @@ DDL structure for migration to dbt on Vibedata Managed Fabric Lakehouse.
 |---|---|---|
 | `discover` | No (reference) | Loaded when exploring a DDL directory |
 | `scope` | No (reference) | Loaded when finding writer procedures |
-| `scoping-writers` | No (reference) | Loaded by the scoping agent |
 | `setup-ddl` | Yes | "set up DDL", "extract DDL from SQL Server", "populate artifacts/ddl" |
 
 ## Agents
