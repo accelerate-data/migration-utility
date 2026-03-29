@@ -82,3 +82,22 @@ Non-obvious cross-field checks:
 Set `validation.passed = false` and populate `validation.issues[]` on failure.
 
 Write the final JSON (schema_version, run_id, results[], summary) to the output file path.
+
+### Step 5 — Persist Resolved Statements to Catalog
+
+After writing scoping output, persist resolved statements for each `resolved` item to `catalog/procedures/<selected_writer>.json`.
+
+For each resolved item:
+
+1. If `discover show` returned `classification: deterministic` — all statements already have `action: migrate|skip`. Write them with `source: "ast"`.
+
+2. If `discover show` returned `classification: claude_assisted` — the LLM analysis in Step 2 resolved all `claude` actions to `migrate` or `skip`. Write them with `source: "llm"`.
+
+Run:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover write-statements \
+  --ddl-path <ddl_path> --name <selected_writer> --statements '<json>'
+```
+
+No `claude` actions are persisted — all must be resolved before writing.
