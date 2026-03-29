@@ -58,7 +58,10 @@ def _empty_referenced_by() -> dict[str, dict[str, list[dict[str, Any]]]]:
 
 
 def _setup_select_into(tmp_path: Path) -> Path:
-    """Set up a DDL directory with a proc that does SELECT INTO."""
+    """Set up a DDL directory with a proc that does SELECT INTO.
+
+    Returns the root path (tmp_path) — load_directory resolves ddl/ internally.
+    """
     ddl_dir = tmp_path / "ddl"
     ddl_dir.mkdir()
 

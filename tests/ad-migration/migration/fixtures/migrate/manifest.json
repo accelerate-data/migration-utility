@@ -1,0 +1,7 @@
+{
+  "technology": "sql_server",
+  "dialect": "tsql",
+  "database": "TestDB",
+  "extracted_at": "2026-03-29T00:00:00Z",
+  "schemas": ["dbo", "silver", "bronze"]
+}

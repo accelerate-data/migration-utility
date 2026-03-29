@@ -1,0 +1,35 @@
+{
+  "schema": "dbo",
+  "name": "usp_load_dim_customer",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "DimCustomer",
+          "is_selected": false,
+          "is_updated": true,
+          "is_insert_all": false
+        },
+        {
+          "schema": "bronze",
+          "name": "Customer",
+          "is_selected": true,
+          "is_updated": false
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": { "in_scope": [], "out_of_scope": [] },
+    "functions": { "in_scope": [], "out_of_scope": [] },
+    "procedures": { "in_scope": [], "out_of_scope": [] }
+  },
+  "statements": [
+    {
+      "type": "Merge",
+      "action": "migrate",
+      "source": "ast",
+      "sql": "MERGE INTO [silver].[DimCustomer] AS tgt USING [bronze].[Customer] AS src ON tgt.customer_sk = src.CustomerID WHEN MATCHED THEN UPDATE WHEN NOT MATCHED THEN INSERT"
+    }
+  ]
+}
