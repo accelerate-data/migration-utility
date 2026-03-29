@@ -331,6 +331,7 @@ The orchestrator. Defined in `commands/migrate-table/SKILL.md`. No Python — Cl
 | VU-742 | migrate.py | VU-732, VU-773 |
 | VU-743 | migrate SKILL.md | VU-742 |
 | VU-744 | migrate tests | VU-742 |
+| VU-777 | migrator-agent.md | VU-742 |
 
 **Exit criteria:** `profile.py` returns catalog signals + proc body + columns as structured JSON. `migrate.py` consumes profile answers and produces a valid `.sql` dbt model. Snapshot tests pass for all fixture procedures.
 
@@ -376,6 +377,7 @@ VU-732 (shared lib) ✅
   │                        └── VU-776 (profiler-agent.md)
   │
   ├── VU-742 (migrate.py) ──── VU-743 (SKILL) ───── VU-744 (tests)
+  │                        └── VU-777 (migrator-agent.md)
   │     │
   │     ├── VU-745 (test_gen.py) ── VU-746 (SKILL) ── VU-747 (tests)
   │     │
