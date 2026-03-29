@@ -68,23 +68,21 @@ GROUP BY s.name
 ORDER BY s.name
 ```
 
-**1c.** Present the combined results in a single `AskUserQuestion` formatted as a tree:
+**1c.** Present the combined results in a single `AskUserQuestion` prompt, allowing the user to select one database and one or more schemas. For example:
 
 ```text
-Available databases and schemas:
-
-1. AdventureWorks
-   a. dbo             — 42 tables, 10 procedures, 5 views, 3 functions
-   b. HumanResources  — 12 tables, 4 procedures, 2 views, 1 function
-   c. Sales           — 18 tables, 8 procedures, 3 views, 0 functions
-2. Northwind
-   a. dbo             — 8 tables, 0 procedures, 0 views, 0 functions
-
-Pick a database (number) and schemas (letters, or "all"):
-e.g. "1 a,c" or "1 all" or "None" to exit
+Available databases and schemas: 
+Database: [database1]
+  Schemas:
+    [ ] dbo (10 tables, 5 procs, 2 views, 3 functions)
+    [ ] sales (20 tables, 15 procs, 5 views, 10 functions)
+    [ ] hr (5 tables, 2 procs, 0 views, 1 function)
+Database: [database2]
+  Schemas:
+    [ ] dbo (8 tables, 3 procs, 1 view, 2 functions)
+    [ ] finance (12 tables, 10 procs, 4 views, 6 functions)
 ```
-
-If the user picks `None`, stop immediately with no further action. Otherwise parse the response to extract the selected database and schemas. If `all` is selected, do not add a schema filter to subsequent queries. Run `USE [<database>]` to set the database context for all subsequent queries. Store the selected schemas for filtering in subsequent steps.
+The user selects one database and one or more schemas to extract. Store these selections for the next steps.
 
 ## Step 2 — Extraction preview + confirm
 
