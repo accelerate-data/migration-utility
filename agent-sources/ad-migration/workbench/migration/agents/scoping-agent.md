@@ -54,8 +54,14 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover show \
 
 From the output, extract:
 
-- `refs` — the writer's read/write targets (dependencies for downstream wave planning)
-- `classification` — if `claude_assisted`, add to `warnings[]`: `{ "code": "LLM_ANALYSIS_REQUIRED", "message": "Proc contains dynamic SQL or complex control flow — references may be incomplete.", "severity": "warning" }`
+- `refs` — the writer's read/write targets (assemble into `dependencies: { tables, views, functions }`)
+- `classification` — determines the enrichment path:
+
+**`deterministic`**: `refs` and `statements` are complete. Use directly.
+
+**`claude_assisted`**: Read `raw_ddl` from the show output. Analyse the proc body to determine `reads_from`, `writes_to`, and classify each statement as `migrate` or `skip`. Populate `llm_analysis` on the candidate with your findings. Add `LLM_ANALYSIS_REQUIRED` warning.
+
+The `llm_analysis` field preserves your analysis so downstream agents (profiler, decomposer) don't re-read the same proc body.
 
 ### Step 3 — Apply Resolution Rules
 

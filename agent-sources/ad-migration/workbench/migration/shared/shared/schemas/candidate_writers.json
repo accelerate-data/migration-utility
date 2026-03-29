@@ -16,17 +16,12 @@
   "$defs": {
     "scope_result": {
       "type": "object",
-      "required": ["item_id", "status", "analysis", "candidate_writers", "warnings", "validation", "errors"],
+      "required": ["item_id", "status", "candidate_writers", "warnings", "validation", "errors"],
       "properties": {
         "item_id": { "type": "string" },
         "status": {
           "type": "string",
-          "enum": ["resolved", "ambiguous_multi_writer", "partial", "no_writer_found", "error"]
-        },
-        "analysis": {
-          "type": "string",
-          "enum": ["deterministic", "claude_assisted"],
-          "description": "deterministic when all candidates came from AST analysis; claude_assisted when any candidate required LLM reasoning."
+          "enum": ["resolved", "ambiguous_multi_writer", "no_writer_found", "error"]
         },
         "selected_writer": { "type": "string", "description": "Present only when status is resolved." },
         "candidate_writers": {
@@ -46,49 +41,63 @@
     },
     "candidate_writer": {
       "type": "object",
-      "required": ["procedure_name", "write_type", "call_path", "rationale", "confidence", "analysis"],
+      "required": ["procedure_name", "rationale"],
       "properties": {
         "procedure_name": { "type": "string" },
-        "write_type": {
-          "type": "string",
-          "enum": ["direct", "indirect", "read_only"]
-        },
-        "write_operations": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "DML operations detected (INSERT, UPDATE, DELETE, MERGE, TRUNCATE, etc.)."
-        },
-        "call_path": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Procedure call chain from candidate to the target table write."
-        },
         "dependencies": {
           "type": "object",
-          "description": "Transitively resolved base tables, views, and functions the writer depends on. Populated on selected writer for resolved items.",
+          "description": "Read/write targets from discover show refs. Populated for resolved items.",
           "properties": {
             "tables": { "type": "array", "items": { "type": "string" } },
             "views": { "type": "array", "items": { "type": "string" } },
             "functions": { "type": "array", "items": { "type": "string" } }
           }
         },
-        "rationale": { "type": "string" },
-        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
-        "analysis": {
+        "rationale": {
           "type": "string",
-          "enum": ["deterministic", "claude_assisted"]
+          "description": "Why this procedure was identified as a writer."
+        },
+        "llm_analysis": {
+          "type": "object",
+          "description": "Present when classification is claude_assisted. The scoping agent read raw_ddl and determined refs that the catalog could not resolve. Consumed by downstream agents to avoid re-analysing the same proc.",
+          "properties": {
+            "reads_from": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Tables/views the proc reads from, as determined by LLM."
+            },
+            "writes_to": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Tables the proc writes to, as determined by LLM."
+            },
+            "statements": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "action": { "type": "string", "enum": ["migrate", "skip"] },
+                  "sql": { "type": "string" }
+                }
+              },
+              "description": "Statement-level classification produced by the LLM."
+            },
+            "rationale": {
+              "type": "string",
+              "description": "LLM reasoning for the analysis — what it found in the raw_ddl."
+            }
+          }
         }
       }
     },
     "scope_summary": {
       "type": "object",
-      "required": ["total", "resolved", "ambiguous_multi_writer", "no_writer_found", "partial", "error"],
+      "required": ["total", "resolved", "ambiguous_multi_writer", "no_writer_found", "error"],
       "properties": {
         "total": { "type": "integer", "minimum": 0 },
         "resolved": { "type": "integer", "minimum": 0 },
         "ambiguous_multi_writer": { "type": "integer", "minimum": 0 },
         "no_writer_found": { "type": "integer", "minimum": 0 },
-        "partial": { "type": "integer", "minimum": 0 },
         "error": { "type": "integer", "minimum": 0 }
       }
     }
