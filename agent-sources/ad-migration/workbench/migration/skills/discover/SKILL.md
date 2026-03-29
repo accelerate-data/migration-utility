@@ -110,14 +110,19 @@ silver.vw_CustomerSales (view)
 
 ### Procedures
 
-Always present a call graph and logic summary.
-
 Check `classification` first, then fall back to `statements`:
 
 1. If `classification` is `deterministic` and `statements` is populated — use `refs` and `statements` directly
 2. If `classification` is `claude_assisted` or `statements` is null — read `raw_ddl` and analyse the proc body yourself
 
-Both paths produce the same output for the user:
+Always present a call graph and logic summary. Tag each statement in the logic summary as `migrate` or `skip`:
+
+| Action | Meaning |
+|---|---|
+| `migrate` | Core transformation (INSERT, UPDATE, DELETE, MERGE, SELECT INTO) — becomes the dbt model |
+| `skip` | Operational overhead (SET, TRUNCATE, DROP/CREATE INDEX) — dbt handles or ignores |
+
+For deterministic procs, the `statements` array has these pre-classified. For claude_assisted procs, read `raw_ddl` and classify each statement yourself. See [`references/tsql-parse-classification.md`](references/tsql-parse-classification.md) for guidance.
 
 ```text
 Call Graph
@@ -128,23 +133,10 @@ Call Graph
     └── writes: silver.DimCustomer
 
 Logic Summary
-  1. TRUNCATE TABLE silver.DimCustomer
-  2. INSERT INTO silver.DimCustomer from JOIN of bronze.Customer and bronze.Person
-  3. Computes DateFirstPurchase via OUTER APPLY on bronze.SalesOrderHeader
+  1. [skip]    TRUNCATE TABLE silver.DimCustomer
+  2. [migrate] INSERT INTO silver.DimCustomer from JOIN of bronze.Customer and bronze.Person
+  3. [migrate] Computes DateFirstPurchase via OUTER APPLY on bronze.SalesOrderHeader
 ```
-
-#### Statement actions
-
-Each statement in a proc body is either:
-
-| Action | Meaning |
-|---|---|
-| `migrate` | Core transformation (INSERT, UPDATE, DELETE, MERGE, SELECT INTO) — becomes the dbt model |
-| `skip` | Operational overhead (SET, TRUNCATE, DROP/CREATE INDEX) — dbt handles or ignores |
-
-For deterministic procs, the `statements` array has these pre-classified. For claude_assisted procs, read `raw_ddl` and classify each statement yourself.
-
-See [`references/tsql-parse-classification.md`](references/tsql-parse-classification.md) for the exhaustive pattern list.
 
 ## refs
 
