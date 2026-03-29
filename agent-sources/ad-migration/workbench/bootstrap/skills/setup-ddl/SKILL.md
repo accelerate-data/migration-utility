@@ -13,7 +13,7 @@ Extract DDL from a live SQL Server and write local artifact files that the `ddl`
 
 Parse `$ARGUMENTS`:
 
-- `output-folder` (required): path where `.sql` files will be written (e.g. `./artifacts/ddl`)
+- `output-folder` (required): root artifacts path (e.g. `./artifacts`). DDL `.sql` files go into `<output-folder>/ddl/`, catalog JSON into `<output-folder>/catalog/`, and `manifest.json` at the root.
 
 If `output-folder` is missing from `$ARGUMENTS`, default to the current working directory. Use `AskUserQuestion` to show the user the resolved path and get confirmation before proceeding.
 
@@ -33,7 +33,7 @@ Before starting, verify:
 
    `MSSQL_DB` is not required at this stage — the skill selects the database interactively. Confirm `MSSQL_HOST`, `MSSQL_PORT`, and `SA_PASSWORD` are set. If any are missing, tell the user and stop.
 
-3. **Pre-flight check** — check whether the output folder already exists and contains `.sql` files. If it does, tell the user and ask for confirmation before overwriting. Do not proceed without explicit confirmation.
+3. **Pre-flight check** — check whether `<output-folder>/ddl/` already exists and contains `.sql` files. If it does, tell the user and ask for confirmation before overwriting. Do not proceed without explicit confirmation.
 
 ## Workflow
 
@@ -115,6 +115,7 @@ Schemas: <selected-schemas>
     Identity cols:   N columns
     CDC-tracked:     N tables
 
+  DDL files will be written to:     <output-folder>/ddl/
   Catalog files will be written to: <output-folder>/catalog/
   Reference data from sys.dm_sql_referenced_entities will be extracted
   for all procedures, views, and functions.
@@ -168,11 +169,11 @@ Save the result to `<output-folder>/.staging/procedures.json`, then:
 ```bash
 uv run --project <shared-path> setup-ddl assemble-modules \
   --input <output-folder>/.staging/procedures.json \
-  --output-folder <output-folder> \
+  --output-folder <output-folder>/ddl \
   --type procedures
 ```
 
-Repeat for **views** (change `o.type = 'P'` to `o.type = 'V'`, save as `views.json`, `--type views`) and **functions** (change to `o.type IN ('FN', 'IF', 'TF')`, save as `functions.json`, `--type functions`).
+Repeat for **views** (change `o.type = 'P'` to `o.type = 'V'`, save as `views.json`, `--type views`) and **functions** (change to `o.type IN ('FN', 'IF', 'TF')`, save as `functions.json`, `--type functions`). All use `--output-folder <output-folder>/ddl`.
 
 If a query returns no results, skip the staging file and CLI call for that type.
 
@@ -212,7 +213,7 @@ Save the result to `<output-folder>/.staging/table_columns.json`, then:
 ```bash
 uv run --project <shared-path> setup-ddl assemble-tables \
   --input <output-folder>/.staging/table_columns.json \
-  --output-folder <output-folder>
+  --output-folder <output-folder>/ddl
 ```
 
 ## Step 7 — Extract catalog signals and references
@@ -424,7 +425,9 @@ The tool outputs JSON with counts: `{"tables": N, "procedures": N, "views": N, "
 Run the catalog enrichment script to fill catalog-query gaps:
 
 ```bash
-uv run --project <shared-path> catalog-enrich --ddl-path <output-folder>
+uv run --project <shared-path> catalog-enrich \
+  --ddl-path <output-folder>/ddl \
+  --catalog-root <output-folder>
 ```
 
 This augments catalog files with AST-derived references for:
@@ -444,17 +447,19 @@ DDL extraction complete → <output-folder>/
 Database: <database>
 Schemas:  <selected-schemas>
 
-  DDL files:
+  DDL files (ddl/):
     tables.sql     : N tables
     procedures.sql : N procedures
     views.sql      : N views
     functions.sql  : N functions
 
-  Catalog files:
-    catalog/tables/     : N files
-    catalog/procedures/ : N files
-    catalog/views/      : N files
-    catalog/functions/  : N files
+  Catalog files (catalog/):
+    tables/     : N files
+    procedures/ : N files
+    views/      : N files
+    functions/  : N files
+
+  manifest.json at <output-folder>/manifest.json
 ```
 
 Tell the user they can now run `discover` or the `scoping-agent` against the output folder. The `discover refs` command will automatically use catalog data for instant writer identification.
