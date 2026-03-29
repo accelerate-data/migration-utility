@@ -289,6 +289,70 @@ _WRITE_NODE_TYPES: list[tuple[type, str]] = [
 ]
 
 
+def _collect_write_refs(
+    stmt: Any, add_write: callable, reads_from: set[str],
+) -> None:
+    """Extract write targets (INSERT/UPDATE/DELETE/MERGE/TRUNCATE/SELECT INTO) from a statement."""
+    for node in stmt.find_all(exp.Insert):
+        target = node.find(exp.Table)
+        if target and _is_real_table(target):
+            add_write(_table_fqn(target), "INSERT")
+
+    for node in stmt.find_all(exp.Update):
+        target = node.find(exp.Table)
+        if target and _is_real_table(target):
+            add_write(_table_fqn(target), "UPDATE")
+
+    # DELETE: use node.this — node.find(Table) may return a TOP pseudo-table
+    for node in stmt.find_all(exp.Delete):
+        target = node.this
+        if isinstance(target, exp.Table) and _is_real_table(target):
+            add_write(_table_fqn(target), "DELETE")
+
+    for node in stmt.find_all(exp.Merge):
+        target = node.find(exp.Table)
+        if target and _is_real_table(target):
+            add_write(_table_fqn(target), "MERGE")
+        using = node.args.get("using")
+        if isinstance(using, exp.Table) and _is_real_table(using):
+            reads_from.add(_table_fqn(using))
+
+    for node in stmt.find_all(exp.TruncateTable):
+        target = node.find(exp.Table)
+        if target and _is_real_table(target):
+            add_write(_table_fqn(target), "TRUNCATE")
+
+    for node in stmt.find_all(exp.Into):
+        target = node.find(exp.Table)
+        if target and _is_real_table(target):
+            add_write(_table_fqn(target), "SELECT_INTO")
+
+
+def _collect_read_refs(stmt: Any, reads_from: set[str]) -> None:
+    """Extract read sources (FROM/JOIN) from a statement."""
+    for node in stmt.find_all(exp.From):
+        table = node.find(exp.Table)
+        if table and _is_real_table(table):
+            reads_from.add(_table_fqn(table))
+
+    for node in stmt.find_all(exp.Join):
+        table = node.find(exp.Table)
+        if table and _is_real_table(table):
+            reads_from.add(_table_fqn(table))
+
+
+def _collect_function_refs(stmt: Any, uses_functions: set[str], dialect: str) -> None:
+    """Extract schema-qualified function calls (Dot → Anonymous) from a statement."""
+    for node in stmt.find_all(exp.Dot):
+        left = node.args.get("this")
+        right = node.args.get("expression")
+        if isinstance(right, exp.Anonymous) and left is not None:
+            schema = left.sql(dialect=dialect).strip()
+            func_name = right.name
+            if schema and func_name:
+                uses_functions.add(normalize(f"{schema}.{func_name}"))
+
+
 def _collect_refs_from_statements(statements: list[Any], dialect: str = "tsql") -> ObjectRefs:
     """Walk a list of parsed statements and collect write/read/function references."""
     writes_to: set[str] = set()
@@ -305,7 +369,6 @@ def _collect_refs_from_statements(statements: list[Any], dialect: str = "tsql") 
             write_ops[fqn].append(op)
 
     for stmt in statements:
-        # Classify and record every statement
         action = classify_statement(stmt)
         try:
             sql_text = stmt.sql(dialect=dialect)[:200] if stmt else ""
@@ -320,66 +383,9 @@ def _collect_refs_from_statements(statements: list[Any], dialect: str = "tsql") 
         if stmt is None or isinstance(stmt, exp.Command):
             continue
 
-        # writes_to: INSERT targets
-        for node in stmt.find_all(exp.Insert):
-            target = node.find(exp.Table)
-            if target and _is_real_table(target):
-                _add_write(_table_fqn(target), "INSERT")
-
-        # writes_to: UPDATE targets
-        for node in stmt.find_all(exp.Update):
-            target = node.find(exp.Table)
-            if target and _is_real_table(target):
-                _add_write(_table_fqn(target), "UPDATE")
-
-        # writes_to: DELETE targets (use node.this — node.find(Table) may
-        # return a TOP pseudo-table from DELETE TOP (N) syntax)
-        for node in stmt.find_all(exp.Delete):
-            target = node.this
-            if isinstance(target, exp.Table) and _is_real_table(target):
-                _add_write(_table_fqn(target), "DELETE")
-
-        # writes_to: MERGE targets + reads_from: MERGE USING sources
-        for node in stmt.find_all(exp.Merge):
-            target = node.find(exp.Table)
-            if target and _is_real_table(target):
-                _add_write(_table_fqn(target), "MERGE")
-            using = node.args.get("using")
-            if isinstance(using, exp.Table) and _is_real_table(using):
-                reads_from.add(_table_fqn(using))
-
-        # writes_to: TRUNCATE targets
-        for node in stmt.find_all(exp.TruncateTable):
-            target = node.find(exp.Table)
-            if target and _is_real_table(target):
-                _add_write(_table_fqn(target), "TRUNCATE")
-
-        # writes_to: SELECT INTO targets
-        for node in stmt.find_all(exp.Into):
-            target = node.find(exp.Table)
-            if target and _is_real_table(target):
-                _add_write(_table_fqn(target), "SELECT_INTO")
-
-        # reads_from: FROM and JOIN sources
-        for node in stmt.find_all(exp.From):
-            table = node.find(exp.Table)
-            if table and _is_real_table(table):
-                reads_from.add(_table_fqn(table))
-
-        for node in stmt.find_all(exp.Join):
-            table = node.find(exp.Table)
-            if table and _is_real_table(table):
-                reads_from.add(_table_fqn(table))
-
-        # uses_functions: schema-qualified function calls (Dot → Anonymous)
-        for node in stmt.find_all(exp.Dot):
-            left = node.args.get("this")
-            right = node.args.get("expression")
-            if isinstance(right, exp.Anonymous) and left is not None:
-                schema = left.sql(dialect=dialect).strip()
-                func_name = right.name
-                if schema and func_name:
-                    uses_functions.add(normalize(f"{schema}.{func_name}"))
+        _collect_write_refs(stmt, _add_write, reads_from)
+        _collect_read_refs(stmt, reads_from)
+        _collect_function_refs(stmt, uses_functions, dialect)
 
     return ObjectRefs(
         writes_to=sorted(writes_to),
@@ -511,38 +517,13 @@ def load_directory(ddl_path: Path | str, dialect: str = "tsql") -> DdlCatalog:
 # ── On-disk index ─────────────────────────────────────────────────────────────
 
 
-def index_directory(
-    ddl_path: Path | str,
-    output_dir: Path | str,
-    dialect: str = "tsql",
-) -> None:
-    """Split a DDL directory into per-object files and write a catalog.json.
+def _write_per_object_files(
+    catalog: DdlCatalog, out: Path,
+) -> dict[str, dict]:
+    """Write per-object .sql files and extract refs for catalog.json.
 
-    Creates:
-        output_dir/tables/         one .sql file per table
-        output_dir/procedures/     one .sql file per procedure
-        output_dir/views/          one .sql file per view
-        output_dir/functions/      one .sql file per function
-        output_dir/catalog.json    reference graph
-
-    Objects that fail to parse still get their .sql file written (raw DDL
-    preserved) but appear with writes_to/reads_from/calls=[] and a non-null
-    parse_error in catalog.json.
-
-    Args:
-        ddl_path:   Source DDL artifacts directory.
-        output_dir: Destination directory (created if absent).
-        dialect:    sqlglot dialect for parsing (default: "tsql").
-
-    Raises:
-        FileNotFoundError: if ddl_path does not exist.
+    Returns ``{name: {type, file, writes_to, reads_from, calls, parse_error}}``.
     """
-    _manifest = _read_manifest(Path(ddl_path))
-    dialect = _manifest["dialect"]
-    catalog = load_directory(ddl_path, dialect=dialect)
-    out = Path(output_dir)
-    out.mkdir(parents=True, exist_ok=True)
-
     bucket_map = {
         "tables": catalog.tables,
         "procedures": catalog.procedures,
@@ -551,7 +532,6 @@ def index_directory(
     }
 
     objects: dict[str, dict] = {}
-
     for bucket, entries in bucket_map.items():
         if not entries:
             continue
@@ -561,9 +541,7 @@ def index_directory(
             file_name = f"{name}.sql"
             (bucket_dir / file_name).write_text(entry.raw_ddl, encoding="utf-8")
 
-            # Determine singular type label for catalog
-            type_label = bucket.rstrip("s")  # "procedures" → "procedure"
-
+            type_label = bucket.rstrip("s")
             refs_dict: dict = {"writes_to": [], "reads_from": [], "calls": []}
             parse_error: str | None = entry.parse_error
             if parse_error is None:
@@ -583,6 +561,29 @@ def index_directory(
                 **refs_dict,
                 "parse_error": parse_error,
             }
+    return objects
+
+
+def index_directory(
+    ddl_path: Path | str,
+    output_dir: Path | str,
+    dialect: str = "tsql",
+) -> None:
+    """Split a DDL directory into per-object files and write a catalog.json.
+
+    Creates per-type subdirectories with individual .sql files and a
+    ``catalog.json`` reference graph index.
+
+    Raises:
+        FileNotFoundError: if ddl_path does not exist.
+    """
+    _manifest = _read_manifest(Path(ddl_path))
+    dialect = _manifest["dialect"]
+    catalog = load_directory(ddl_path, dialect=dialect)
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    objects = _write_per_object_files(catalog, out)
 
     catalog_doc = {
         "schema_version": _CATALOG_SCHEMA_VERSION,
