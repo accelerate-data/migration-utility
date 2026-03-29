@@ -42,26 +42,14 @@ For each item in `items[]`, run:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover refs \
-  --ddl-path <ddl_path> --name <item_id> --depth <search_depth>
+  --ddl-path <ddl_path> --name <item_id>
 ```
 
-Check the `source` field in the output:
+Writers are procs/views with `is_updated=true`. Binary facts from catalog, no confidence scoring. Set `analysis: "deterministic"`, `confidence: 1.0` on each candidate.
 
-**`source: "catalog"`** — writers are procs/views with `is_updated=true`. Binary facts, no confidence scoring. Set `analysis: "deterministic"`, `confidence: 1.0` on each candidate.
+If discover fails (exit code 1 or 2), record `error` with code `DISCOVER_EXECUTION_FAILED`.
 
-**`source: "ast"`** — writers carry `write_type`, `write_operations`, `call_path`, `confidence`. Map deterministic writers with `analysis: "deterministic"`. `llm_required[]` procs need Step 2.
-
-If discover fails, record `error` with code `DISCOVER_EXECUTION_FAILED`.
-
-### Step 2 — Analyse LLM-Required Procs (AST only)
-
-Skip on catalog path.
-
-For each proc in `llm_required[]`, run `discover show` and read `raw_ddl` and `statements`. Determine whether it writes to the target table. If it does, produce a candidate with `analysis: "claude_assisted"`. Set `result.analysis: "claude_assisted"` for the item.
-
-### Step 3 — Apply Resolution Rules
-
-**Catalog path:**
+### Step 2 — Apply Resolution Rules
 
 | Condition | Status |
 |---|---|
@@ -70,31 +58,19 @@ For each proc in `llm_required[]`, run `discover show` and read `raw_ddl` and `s
 | No writers | `no_writer_found` |
 | Discover failed | `error` |
 
-**AST fallback path:**
-
-| Condition | Status |
-|---|---|
-| One writer with confidence >= 0.70 | `resolved` — set `selected_writer` |
-| Two or more writers with confidence >= 0.70 | `ambiguous_multi_writer` |
-| Writers exist but all confidence < 0.70 | `partial` |
-| No writers | `no_writer_found` |
-| Discover failed | `error` |
-
-**LLM-required warnings (catalog path):** For each candidate, read `<ddl_path>/catalog/procedures/<writer>.json`. If `needs_llm: true`, add to `warnings[]`:
+**LLM-required warnings:** For each candidate, read `<ddl_path>/catalog/procedures/<writer>.json`. If `needs_llm: true`, add to `warnings[]`:
 
 ```json
 { "code": "LLM_ANALYSIS_REQUIRED", "message": "Proc contains dynamic SQL or complex control flow — catalog references may be incomplete.", "severity": "warning" }
 ```
 
-### Step 4 — Enrich Selected Writer with `dependencies`
+### Step 3 — Enrich Selected Writer with `dependencies`
 
 For `resolved` items only:
 
-**Catalog path:** Read `<ddl_path>/catalog/procedures/<writer>.json` and assemble `dependencies: { tables, views, functions }` from the `references` section.
+Read `<ddl_path>/catalog/procedures/<writer>.json` and assemble `dependencies: { tables, views, functions }` from the `references` section.
 
-**AST path:** Run `discover show` on the selected writer and extract `dependencies` from the JSON output.
-
-### Step 5 — Validate and Write Output
+### Step 4 — Validate and Write Output
 
 Non-obvious cross-field checks:
 

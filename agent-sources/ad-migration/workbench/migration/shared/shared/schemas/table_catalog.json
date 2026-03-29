@@ -23,11 +23,10 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["constraint_name", "columns", "type"],
+        "required": ["constraint_name", "columns"],
         "properties": {
           "constraint_name": { "type": "string" },
-          "columns": { "type": "array", "items": { "type": "string" } },
-          "type": { "type": "string", "enum": ["PRIMARY KEY", "UNIQUE"] }
+          "columns": { "type": "array", "items": { "type": "string" } }
         }
       }
     },
@@ -46,12 +45,13 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["column", "references_schema", "references_table", "references_column"],
+        "required": ["constraint_name", "columns", "referenced_schema", "referenced_table", "referenced_columns"],
         "properties": {
-          "column": { "type": "string" },
-          "references_schema": { "type": "string" },
-          "references_table": { "type": "string" },
-          "references_column": { "type": "string" }
+          "constraint_name": { "type": "string" },
+          "columns": { "type": "array", "items": { "type": "string" } },
+          "referenced_schema": { "type": "string" },
+          "referenced_table": { "type": "string" },
+          "referenced_columns": { "type": "array", "items": { "type": "string" } }
         }
       }
     },
@@ -112,12 +112,11 @@
     "reference_groups": {
       "type": "object",
       "description": "Inbound references grouped by object type. Each type splits into in_scope and out_of_scope.",
-      "required": ["procedures", "views", "functions", "triggers"],
+      "required": ["procedures", "views", "functions"],
       "properties": {
         "procedures": { "$ref": "common.json#/$defs/scoped_ref_list" },
         "views": { "$ref": "common.json#/$defs/scoped_ref_list" },
-        "functions": { "$ref": "common.json#/$defs/scoped_ref_list" },
-        "triggers": { "$ref": "common.json#/$defs/scoped_ref_list" }
+        "functions": { "$ref": "common.json#/$defs/scoped_ref_list" }
       }
     },
     "profile_section": {

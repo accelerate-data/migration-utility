@@ -455,9 +455,9 @@ def flip_references(
     result: dict[str, dict[str, dict[str, list[dict[str, Any]]]]] = {}
 
     for referencing_fqn, refs in proc_refs.items():
-        # Parse referencing_fqn back to schema.name
+        # Parse referencing_fqn back to schema.name (use last two parts)
         parts = referencing_fqn.split(".")
-        ref_schema = parts[0] if len(parts) >= 2 else "dbo"
+        ref_schema = parts[-2] if len(parts) >= 2 else "dbo"
         ref_name = parts[-1]
 
         for table_entry in refs.get("tables", {}).get("in_scope", []):
