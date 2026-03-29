@@ -2,6 +2,7 @@ use std::path::Path;
 
 use tauri::State;
 
+use crate::commands::git_ops::clone_if_needed;
 use crate::commands::process::run_cmd;
 use crate::db::DbState;
 use crate::types::{AppSettingsPublic, CommandError};
@@ -12,39 +13,6 @@ const GITIGNORE_TEMPLATE: &str = include_str!("../../resources/.gitignore-templa
 
 /// FDE-facing README seeded into freshly cloned migration repos.
 const README_TEMPLATE: &str = include_str!("../../resources/README-template.md");
-
-/// Clone the migration repo into `clone_path` if it hasn't been cloned yet (no `.git`
-/// directory present). Creates the parent directory if needed. The `auth_url` should
-/// already contain the embedded token.
-fn clone_if_needed(
-    clone_path: &str,
-    auth_url: &str,
-    github_oauth_token: Option<&str>,
-) -> Result<(), CommandError> {
-    if Path::new(clone_path).join(".git").exists() {
-        log::info!("[clone_if_needed] repo already cloned at {}", clone_path);
-        return Ok(());
-    }
-
-    let parent = clone_path.rsplit_once('/').map(|(p, _)| p).unwrap_or(clone_path);
-    std::fs::create_dir_all(parent).map_err(|e| {
-        log::error!("[clone_if_needed] create_dir_all '{}' failed: {}", parent, e);
-        CommandError::Io(e.to_string())
-    })?;
-
-    log::info!("[clone_if_needed] cloning into {}", clone_path);
-    run_cmd("git", &["clone", auth_url, clone_path], None, &[("GIT_TERMINAL_PROMPT", "0")]).inspect_err(|e| {
-        // Redact token from error message before logging (git may echo the remote URL in stderr).
-        let safe_msg = if let Some(tok) = github_oauth_token {
-            e.to_string().replace(tok, "<token>")
-        } else {
-            e.to_string()
-        };
-        log::error!("[clone_if_needed] git clone failed: {}", safe_msg);
-    })?;
-
-    Ok(())
-}
 
 /// Seed managed files (.gitignore, README.md) into a cloned migration repo. Commits
 /// and pushes if anything was staged. Non-fatal on write/push errors.

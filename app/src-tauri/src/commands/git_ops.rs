@@ -1,8 +1,42 @@
 // Git operation helpers — shared utilities for git commands used across
 // project_ops, settings, and future modules.
 
+use std::path::Path;
+
 use crate::commands::process::run_cmd;
 use crate::types::CommandError;
+
+/// Clone the migration repo into `clone_path` if it hasn't been cloned yet (no `.git`
+/// directory present). Creates the parent directory if needed. The `auth_url` should
+/// already contain the embedded token.
+pub(crate) fn clone_if_needed(
+    clone_path: &str,
+    auth_url: &str,
+    github_oauth_token: Option<&str>,
+) -> Result<(), CommandError> {
+    if Path::new(clone_path).join(".git").exists() {
+        log::info!("[clone_if_needed] repo already cloned at {}", clone_path);
+        return Ok(());
+    }
+
+    let parent = clone_path.rsplit_once('/').map(|(p, _)| p).unwrap_or(clone_path);
+    std::fs::create_dir_all(parent).map_err(|e| {
+        log::error!("[clone_if_needed] create_dir_all '{}' failed: {}", parent, e);
+        CommandError::Io(e.to_string())
+    })?;
+
+    log::info!("[clone_if_needed] cloning into {}", clone_path);
+    run_cmd("git", &["clone", auth_url, clone_path], None, &[("GIT_TERMINAL_PROMPT", "0")]).inspect_err(|e| {
+        let safe_msg = if let Some(tok) = github_oauth_token {
+            e.to_string().replace(tok, "<token>")
+        } else {
+            e.to_string()
+        };
+        log::error!("[clone_if_needed] git clone failed: {}", safe_msg);
+    })?;
+
+    Ok(())
+}
 
 /// Stage files, commit with a message, and push.
 /// Skips commit+push if nothing is staged after `git add`.
