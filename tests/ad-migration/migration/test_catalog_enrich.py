@@ -58,7 +58,10 @@ def _empty_referenced_by() -> dict[str, dict[str, list[dict[str, Any]]]]:
 
 
 def _setup_select_into(tmp_path: Path) -> Path:
-    """Set up a DDL directory with a proc that does SELECT INTO."""
+    """Set up a DDL directory with a proc that does SELECT INTO.
+
+    Returns the root path (tmp_path) — load_directory resolves ddl/ internally.
+    """
     ddl = tmp_path / "ddl"
     ddl.mkdir()
 
@@ -92,17 +95,17 @@ GO
         "is_selected": True,
         "is_updated": False,
     })
-    _write_catalog_json(ddl, "procedures", "dbo.usp_create_snapshot", {
+    _write_catalog_json(tmp_path, "procedures", "dbo.usp_create_snapshot", {
         "references": proc_refs,
     })
 
     # Table catalog: silver.Snapshot exists but has no referenced_by for the proc
-    _write_catalog_json(ddl, "tables", "silver.snapshot", {
+    _write_catalog_json(tmp_path, "tables", "silver.snapshot", {
         "primary_keys": [],
         "referenced_by": _empty_referenced_by(),
     })
 
-    return ddl
+    return tmp_path
 
 
 def _setup_exec_chain(tmp_path: Path) -> Path:
@@ -153,7 +156,7 @@ GO
         "is_selected": True,
         "is_updated": False,
     })
-    _write_catalog_json(ddl, "procedures", "dbo.usp_load_data", {
+    _write_catalog_json(tmp_path, "procedures", "dbo.usp_load_data", {
         "references": proc_b_refs,
     })
 
@@ -165,7 +168,7 @@ GO
         "is_selected": False,
         "is_updated": False,
     })
-    _write_catalog_json(ddl, "procedures", "dbo.usp_orchestrator", {
+    _write_catalog_json(tmp_path, "procedures", "dbo.usp_orchestrator", {
         "references": proc_a_refs,
     })
 
@@ -177,12 +180,12 @@ GO
         "is_selected": False,
         "is_updated": True,
     })
-    _write_catalog_json(ddl, "tables", "silver.target", {
+    _write_catalog_json(tmp_path, "tables", "silver.target", {
         "primary_keys": [],
         "referenced_by": table_ref_by,
     })
 
-    return ddl
+    return tmp_path
 
 
 def _setup_catalog_query_only(tmp_path: Path) -> Path:
@@ -227,11 +230,11 @@ GO
         "is_selected": True,
         "is_updated": False,
     })
-    _write_catalog_json(ddl, "procedures", "dbo.usp_simple_insert", {
+    _write_catalog_json(tmp_path, "procedures", "dbo.usp_simple_insert", {
         "references": proc_refs,
     })
 
-    return ddl
+    return tmp_path
 
 
 def _setup_dynamic_sql(tmp_path: Path) -> Path:
@@ -262,11 +265,11 @@ GO
 """)
 
     # DMF has nothing for this proc (dynamic SQL is invisible)
-    _write_catalog_json(ddl, "procedures", "dbo.usp_dynamic", {
+    _write_catalog_json(tmp_path, "procedures", "dbo.usp_dynamic", {
         "references": _empty_references(),
     })
 
-    return ddl
+    return tmp_path
 
 
 # ── Tests ───────────────────────────────────────────────────────────────────

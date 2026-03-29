@@ -61,7 +61,8 @@ def test_list_flat_missing_optional() -> None:
     """Directory with only tables.sql — views list returns empty without error."""
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp)
-        (p / "tables.sql").write_text(
+        (p / "ddl").mkdir()
+        (p / "ddl" / "tables.sql").write_text(
             "CREATE TABLE dbo.SomeTable (Id INT)\nGO\n", encoding="utf-8"
         )
         # Minimal catalog dir to satisfy mandatory check
@@ -203,7 +204,8 @@ def test_show_errors_without_catalog() -> None:
 
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp)
-        (p / "procedures.sql").write_text(
+        (p / "ddl").mkdir()
+        (p / "ddl" / "procedures.sql").write_text(
             "CREATE PROCEDURE dbo.usp_Test AS BEGIN SELECT 1 END\nGO\n",
             encoding="utf-8",
         )
@@ -251,7 +253,8 @@ def test_refs_errors_without_catalog() -> None:
 
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp)
-        (p / "tables.sql").write_text(
+        (p / "ddl").mkdir()
+        (p / "ddl" / "tables.sql").write_text(
             "CREATE TABLE dbo.T (Id INT)\nGO\n", encoding="utf-8",
         )
         with pytest.raises(Exit):

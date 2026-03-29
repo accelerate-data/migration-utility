@@ -19,7 +19,7 @@ Adapter files must not duplicate canonical policy unless they are adding agent-s
 
 | Layer | Technology |
 |---|---|
-| Agent runtime | Claude Code CLI (`claude --plugin-path plugin/ --agent <name>`) |
+| Agent runtime | Claude Code CLI (`claude --plugin-dir plugin/ --agent <name>`) |
 | MCP server | genai-toolbox (HTTP mode on GH Actions, stdio locally) |
 | Runtime | GitHub Actions (headless execution) |
 
