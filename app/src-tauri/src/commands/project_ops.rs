@@ -276,21 +276,6 @@ fn prepare_project(
     Ok(Project { id, slug, name: name.to_string(), technology: tech.to_string(), created_at })
 }
 
-/// Insert a pre-prepared project row into the DB.
-fn insert_project_row(
-    conn: &rusqlite::Connection,
-    project: &Project,
-) -> Result<(), CommandError> {
-    conn.execute(
-        "INSERT INTO projects(id, slug, name, technology, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![project.id, project.slug, project.name, project.technology, project.created_at],
-    )
-    .map_err(|e| {
-        log::error!("[insert_project_row] insert failed: {e}");
-        CommandError::from(e)
-    })?;
-    Ok(())
-}
 
 // ── project_create_full ────────────────────────────────────────────────────────
 
@@ -339,7 +324,7 @@ pub fn project_create_full(
         let conn = state.conn().inspect_err(|e| {
             log::error!("[project_create_full] DB lock: {e}");
         })?;
-        insert_project_row(&conn, &project)?;
+        crate::db::insert_project(&conn, &project)?;
         log::debug!("[project_create_full] row inserted id={} slug={}", project.id, project.slug);
     }
 
@@ -899,12 +884,12 @@ mod tests {
     /// Helper: prepare + insert a project in tests.
     fn create_test_project(conn: &rusqlite::Connection, name: &str, technology: &str) -> Project {
         let p = prepare_project(conn, name, technology).unwrap();
-        insert_project_row(conn, &p).unwrap();
+        db::insert_project(conn, &p).unwrap();
         p
     }
 
     #[test]
-    fn insert_project_row_roundtrip() {
+    fn insert_project_roundtrip() {
         let conn = db::open_in_memory().unwrap();
         let project = create_test_project(&conn, "Test Project", "sql_server");
         assert_eq!(project.name, "Test Project");
@@ -914,7 +899,7 @@ mod tests {
     }
 
     #[test]
-    fn insert_project_row_slug_collision() {
+    fn insert_project_slug_collision() {
         let conn = db::open_in_memory().unwrap();
         let p1 = create_test_project(&conn, "My Project", "sql_server");
         let p2 = create_test_project(&conn, "My Project", "fabric_warehouse");
@@ -923,7 +908,7 @@ mod tests {
     }
 
     #[test]
-    fn insert_project_row_technology_variants() {
+    fn insert_project_technology_variants() {
         let conn = db::open_in_memory().unwrap();
         for tech in &["sql_server", "fabric_warehouse", "fabric_lakehouse", "snowflake"] {
             let p = create_test_project(&conn, tech, tech);

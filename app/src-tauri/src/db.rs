@@ -1,9 +1,9 @@
 use std::{path::Path, sync::Mutex};
 
-use rusqlite::Connection;
+use rusqlite::{params, Connection};
 use thiserror::Error;
 
-use crate::types::{AppSettings, CommandError};
+use crate::types::{AppSettings, CommandError, Project};
 
 #[derive(Debug, Error)]
 pub enum DbError {
@@ -130,6 +130,70 @@ pub fn write_settings(conn: &Connection, settings: &AppSettings) -> Result<(), C
     Ok(())
 }
 
+// ── Project repository helpers ───────────────────────────────────────────────
+
+fn row_to_project(row: &rusqlite::Row<'_>) -> rusqlite::Result<Project> {
+    Ok(Project {
+        id: row.get(0)?,
+        slug: row.get(1)?,
+        name: row.get(2)?,
+        technology: row.get(3)?,
+        created_at: row.get(4)?,
+    })
+}
+
+const PROJECT_COLUMNS: &str = "id, slug, name, technology, created_at";
+
+pub fn insert_project(conn: &Connection, project: &Project) -> Result<(), CommandError> {
+    conn.execute(
+        "INSERT INTO projects(id, slug, name, technology, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![project.id, project.slug, project.name, project.technology, project.created_at],
+    )
+    .map_err(|e| {
+        log::error!("[db::insert_project] insert failed: {e}");
+        CommandError::from(e)
+    })?;
+    Ok(())
+}
+
+pub fn get_project(conn: &Connection, id: &str) -> Result<Project, CommandError> {
+    conn.query_row(
+        &format!("SELECT {PROJECT_COLUMNS} FROM projects WHERE id = ?1"),
+        params![id],
+        row_to_project,
+    )
+    .map_err(|e| match e {
+        rusqlite::Error::QueryReturnedNoRows => CommandError::NotFound(format!("project {id}")),
+        other => CommandError::from(other),
+    })
+}
+
+pub fn list_projects(conn: &Connection) -> Result<Vec<Project>, CommandError> {
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {PROJECT_COLUMNS} FROM projects ORDER BY created_at DESC"
+    ))?;
+    let projects = stmt
+        .query_map([], row_to_project)?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(projects)
+}
+
+pub fn delete_project(conn: &Connection, id: &str) -> Result<(), CommandError> {
+    let rows = conn.execute("DELETE FROM projects WHERE id = ?1", params![id])?;
+    if rows == 0 {
+        return Err(CommandError::NotFound(format!("project {id}")));
+    }
+    Ok(())
+}
+
+pub fn project_exists(conn: &Connection, id: &str) -> Result<bool, CommandError> {
+    let exists: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM projects WHERE id = ?1",
+        params![id],
+        |row| row.get(0),
+    )?;
+    Ok(exists)
+}
 
 #[cfg(test)]
 mod tests {
@@ -157,6 +221,36 @@ mod tests {
                 .expect("query failed");
             assert_eq!(count, 1, "table '{table}' missing");
         }
+    }
+
+    #[test]
+    fn project_repository_roundtrip() {
+        let conn = open_memory();
+        let project = Project {
+            id: "test-1".into(),
+            slug: "my-project".into(),
+            name: "My Project".into(),
+            technology: "sql_server".into(),
+            created_at: "2026-01-01T00:00:00Z".into(),
+        };
+        insert_project(&conn, &project).unwrap();
+
+        let fetched = get_project(&conn, "test-1").unwrap();
+        assert_eq!(fetched.name, "My Project");
+        assert_eq!(fetched.technology, "sql_server");
+
+        let all = list_projects(&conn).unwrap();
+        assert_eq!(all.len(), 1);
+
+        assert!(project_exists(&conn, "test-1").unwrap());
+        assert!(!project_exists(&conn, "nonexistent").unwrap());
+
+        delete_project(&conn, "test-1").unwrap();
+        assert!(list_projects(&conn).unwrap().is_empty());
+
+        // NotFound on missing
+        assert!(get_project(&conn, "test-1").is_err());
+        assert!(delete_project(&conn, "test-1").is_err());
     }
 
     #[test]
