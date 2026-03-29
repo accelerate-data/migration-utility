@@ -3,7 +3,7 @@ use std::{path::Path, sync::Mutex};
 use rusqlite::Connection;
 use thiserror::Error;
 
-use crate::types::AppSettings;
+use crate::types::{AppSettings, CommandError};
 
 #[derive(Debug, Error)]
 pub enum DbError {
@@ -17,10 +17,10 @@ pub struct DbState(pub Mutex<Connection>);
 
 impl DbState {
     /// Acquire the database connection, mapping a poisoned mutex to a recoverable error.
-    pub fn conn(&self) -> Result<std::sync::MutexGuard<'_, Connection>, String> {
+    pub fn conn(&self) -> Result<std::sync::MutexGuard<'_, Connection>, CommandError> {
         self.0
             .lock()
-            .map_err(|e| format!("DB lock poisoned: {e}"))
+            .map_err(|e| CommandError::Database(format!("DB lock poisoned: {e}")))
     }
 }
 
@@ -104,28 +104,28 @@ fn run_migrations(conn: &Connection) -> Result<(), DbError> {
 
 /// Read the persisted app settings from the settings table.
 /// Returns defaults if no row exists yet.
-pub fn read_settings(conn: &Connection) -> Result<AppSettings, String> {
+pub fn read_settings(conn: &Connection) -> Result<AppSettings, CommandError> {
     let mut stmt = conn
-        .prepare("SELECT value FROM settings WHERE key = ?1")
-        .map_err(|e| e.to_string())?;
+        .prepare("SELECT value FROM settings WHERE key = ?1")?;
 
     let result: Result<String, _> = stmt.query_row(["app_settings"], |row| row.get(0));
 
     match result {
-        Ok(json) => serde_json::from_str(&json).map_err(|e| e.to_string()),
+        Ok(json) => serde_json::from_str(&json)
+            .map_err(|e| CommandError::Database(format!("settings JSON parse error: {e}"))),
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(AppSettings::default()),
-        Err(e) => Err(e.to_string()),
+        Err(e) => Err(CommandError::from(e)),
     }
 }
 
 /// Write app settings to the settings table.
-pub fn write_settings(conn: &Connection, settings: &AppSettings) -> Result<(), String> {
-    let json = serde_json::to_string(settings).map_err(|e| e.to_string())?;
+pub fn write_settings(conn: &Connection, settings: &AppSettings) -> Result<(), CommandError> {
+    let json = serde_json::to_string(settings)
+        .map_err(|e| CommandError::Database(format!("settings JSON serialize error: {e}")))?;
     conn.execute(
         "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
         ["app_settings", &json],
-    )
-    .map_err(|e| e.to_string())?;
+    )?;
     Ok(())
 }
 

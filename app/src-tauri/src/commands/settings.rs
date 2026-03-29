@@ -14,11 +14,10 @@ const GITIGNORE_TEMPLATE: &str = include_str!("../../resources/.gitignore-templa
 const README_TEMPLATE: &str = include_str!("../../resources/README-template.md");
 
 #[tauri::command]
-pub fn get_settings(state: State<'_, DbState>) -> Result<AppSettingsPublic, String> {
+pub fn get_settings(state: State<'_, DbState>) -> Result<AppSettingsPublic, CommandError> {
     log::info!("[get_settings]");
-    let conn = state.conn().map_err(|e| {
+    let conn = state.conn().inspect_err(|e| {
         log::error!("[get_settings] Failed to acquire DB lock: {}", e);
-        e
     })?;
     crate::db::read_settings(&conn).map(AppSettingsPublic::from)
 }
@@ -50,14 +49,12 @@ pub fn save_repo_settings(
         clone_path
     );
 
-    let conn = state.conn().map_err(|e| {
+    let conn = state.conn().inspect_err(|e| {
         log::error!("[save_repo_settings] Failed to acquire DB lock: {}", e);
-        CommandError::Database(e)
     })?;
 
-    let settings = crate::db::read_settings(&conn).map_err(|e| {
+    let settings = crate::db::read_settings(&conn).inspect_err(|e| {
         log::error!("[save_repo_settings] read_settings failed: {}", e);
-        CommandError::Database(e)
     })?;
 
     // Clone if not already present; skip if .git already exists.
@@ -137,9 +134,8 @@ pub fn save_repo_settings(
     updated.migration_repo_clone_url = Some(clone_url);
     updated.local_clone_path = Some(clone_path);
 
-    crate::db::write_settings(&conn, &updated).map_err(|e| {
+    crate::db::write_settings(&conn, &updated).inspect_err(|e| {
         log::error!("[save_repo_settings] write_settings failed: {}", e);
-        CommandError::Database(e)
     })?;
 
     Ok(())

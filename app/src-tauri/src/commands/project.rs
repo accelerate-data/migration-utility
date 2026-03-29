@@ -12,9 +12,8 @@ pub fn project_create(
     technology: String,
 ) -> Result<Project, CommandError> {
     log::info!("[project_create] name={} technology={}", name, technology);
-    let conn = state.conn().map_err(|e| {
+    let conn = state.conn().inspect_err(|e| {
         log::error!("[project_create] DB lock: {}", e);
-        CommandError::Database(e)
     })?;
 
     let id = Uuid::new_v4().to_string();
@@ -37,9 +36,8 @@ pub fn project_create(
 #[tauri::command]
 pub fn project_list(state: State<'_, DbState>) -> Result<Vec<Project>, CommandError> {
     log::info!("[project_list]");
-    let conn = state.conn().map_err(|e| {
+    let conn = state.conn().inspect_err(|e| {
         log::error!("[project_list] DB lock: {}", e);
-        CommandError::Database(e)
     })?;
 
     let mut stmt = conn.prepare(
@@ -66,9 +64,8 @@ pub fn project_get(
     id: String,
 ) -> Result<Project, CommandError> {
     log::info!("[project_get] id={}", id);
-    let conn = state.conn().map_err(|e| {
+    let conn = state.conn().inspect_err(|e| {
         log::error!("[project_get] DB lock: {}", e);
-        CommandError::Database(e)
     })?;
 
     conn.query_row(
@@ -96,9 +93,8 @@ pub fn project_delete(
     id: String,
 ) -> Result<(), CommandError> {
     log::info!("[project_delete] id={}", id);
-    let conn = state.conn().map_err(|e| {
+    let conn = state.conn().inspect_err(|e| {
         log::error!("[project_delete] DB lock: {}", e);
-        CommandError::Database(e)
     })?;
 
     let rows = conn.execute("DELETE FROM projects WHERE id = ?1", params![id])
@@ -119,9 +115,8 @@ pub fn project_set_active(
     id: String,
 ) -> Result<(), CommandError> {
     log::info!("[project_set_active] id={}", id);
-    let conn = state.conn().map_err(|e| {
+    let conn = state.conn().inspect_err(|e| {
         log::error!("[project_set_active] DB lock: {}", e);
-        CommandError::Database(e)
     })?;
 
     // Verify project exists
@@ -134,9 +129,9 @@ pub fn project_set_active(
         return Err(CommandError::NotFound(format!("project {id}")));
     }
 
-    let mut settings = crate::db::read_settings(&conn).map_err(CommandError::Database)?;
+    let mut settings = crate::db::read_settings(&conn)?;
     settings.active_project_id = Some(id.clone());
-    crate::db::write_settings(&conn, &settings).map_err(CommandError::Database)?;
+    crate::db::write_settings(&conn, &settings)?;
     log::info!("[project_set_active] active project set to id={}", id);
     Ok(())
 }
@@ -146,12 +141,11 @@ pub fn project_get_active(
     state: State<'_, DbState>,
 ) -> Result<Option<Project>, CommandError> {
     log::info!("[project_get_active]");
-    let conn = state.conn().map_err(|e| {
+    let conn = state.conn().inspect_err(|e| {
         log::error!("[project_get_active] DB lock: {}", e);
-        CommandError::Database(e)
     })?;
 
-    let settings = crate::db::read_settings(&conn).map_err(CommandError::Database)?;
+    let settings = crate::db::read_settings(&conn)?;
     let Some(id) = settings.active_project_id else {
         return Ok(None);
     };
@@ -172,9 +166,9 @@ pub fn project_get_active(
         Ok(p) => Ok(Some(p)),
         Err(rusqlite::Error::QueryReturnedNoRows) => {
             // active_project_id points to a deleted project — clear it
-            let mut s = crate::db::read_settings(&conn).map_err(CommandError::Database)?;
+            let mut s = crate::db::read_settings(&conn)?;
             s.active_project_id = None;
-            crate::db::write_settings(&conn, &s).map_err(CommandError::Database)?;
+            crate::db::write_settings(&conn, &s)?;
             Ok(None)
         }
         Err(e) => Err(CommandError::from(e)),

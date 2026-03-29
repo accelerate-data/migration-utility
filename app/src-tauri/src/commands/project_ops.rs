@@ -281,11 +281,10 @@ pub fn project_create_full(
 
     // 1. Validate settings — fail fast with no side effects.
     let (local_clone_path, _token) = {
-        let conn = state.conn().map_err(|e| {
+        let conn = state.conn().inspect_err(|e| {
             log::error!("[project_create_full] DB lock: {e}");
-            CommandError::Database(e)
         })?;
-        let s = crate::db::read_settings(&conn).map_err(CommandError::Database)?;
+        let s = crate::db::read_settings(&conn)?;
         let lcp = s.local_clone_path.ok_or_else(|| {
             CommandError::Validation("Local clone path not configured in Settings".into())
         })?;
@@ -308,9 +307,8 @@ pub fn project_create_full(
 
     // 2. Prepare project identity (id, slug) — checks slug collisions but does NOT insert yet.
     let project = {
-        let conn = state.conn().map_err(|e| {
+        let conn = state.conn().inspect_err(|e| {
             log::error!("[project_create_full] DB lock: {e}");
-            CommandError::Database(e)
         })?;
         prepare_project(&conn, &name, &technology)?
     };
@@ -418,9 +416,8 @@ pub fn project_create_full(
 
     // 9. Insert DB row now that external steps succeeded — crash-safe ordering.
     {
-        let conn = state.conn().map_err(|e| {
+        let conn = state.conn().inspect_err(|e| {
             log::error!("[project_create_full] DB lock: {e}");
-            CommandError::Database(e)
         })?;
         insert_project_row(&conn, &project)?;
         log::debug!("[project_create_full] row inserted id={} slug={}", project.id, project.slug);
@@ -428,10 +425,10 @@ pub fn project_create_full(
 
     // 10. Set as active project.
     {
-        let conn = state.conn().map_err(CommandError::Database)?;
-        let mut settings = crate::db::read_settings(&conn).map_err(CommandError::Database)?;
+        let conn = state.conn()?;
+        let mut settings = crate::db::read_settings(&conn)?;
         settings.active_project_id = Some(project.id.clone());
-        crate::db::write_settings(&conn, &settings).map_err(CommandError::Database)?;
+        crate::db::write_settings(&conn, &settings)?;
     }
     log::info!("[project_create_full] done id={} slug={}", project.id, project.slug);
     Ok(project)
@@ -450,9 +447,8 @@ pub async fn project_init(
     log::info!("[project_init] id={}", id);
 
     let (slug, technology, local_clone_path, clone_url) = {
-        let conn = state.conn().map_err(|e| {
+        let conn = state.conn().inspect_err(|e| {
             log::error!("[project_init] DB lock: {e}");
-            CommandError::Database(e)
         })?;
         let (slug, technology) = conn
             .query_row(
@@ -464,7 +460,7 @@ pub async fn project_init(
                 rusqlite::Error::QueryReturnedNoRows => CommandError::NotFound(format!("project {id}")),
                 other => CommandError::from(other),
             })?;
-        let settings = crate::db::read_settings(&conn).map_err(CommandError::Database)?;
+        let settings = crate::db::read_settings(&conn)?;
         let lcp = settings.local_clone_path.ok_or_else(|| {
             CommandError::Validation("Local clone path not configured in Settings".into())
         })?;
@@ -860,13 +856,11 @@ pub async fn app_startup_sync(
     }
 
     let (rows, local_clone_path, clone_url) = {
-        let conn = state.conn().map_err(|e| {
+        let conn = state.conn().inspect_err(|e| {
             log::error!("[app_startup_sync] DB lock: {e}");
-            CommandError::Database(e)
         })?;
-        let settings = crate::db::read_settings(&conn).map_err(|e| {
+        let settings = crate::db::read_settings(&conn).inspect_err(|e| {
             log::error!("[app_startup_sync] read_settings failed: {e}");
-            CommandError::Database(e)
         })?;
         let mut stmt = conn
             .prepare("SELECT id, slug, technology FROM projects ORDER BY created_at")
@@ -1019,9 +1013,8 @@ pub fn project_delete_full(
     log::info!("[project_delete_full] id={}", id);
 
     let (slug, local_clone_path, has_token) = {
-        let conn = state.conn().map_err(|e| {
+        let conn = state.conn().inspect_err(|e| {
             log::error!("[project_delete_full] DB lock: {e}");
-            CommandError::Database(e)
         })?;
         let slug: String = conn
             .query_row(
@@ -1033,7 +1026,7 @@ pub fn project_delete_full(
                 rusqlite::Error::QueryReturnedNoRows => CommandError::NotFound(format!("project {id}")),
                 other => CommandError::from(other),
             })?;
-        let s = crate::db::read_settings(&conn).map_err(CommandError::Database)?;
+        let s = crate::db::read_settings(&conn)?;
         (slug, s.local_clone_path, s.github_oauth_token.is_some())
     };
 
@@ -1072,16 +1065,16 @@ pub fn project_delete_full(
 
     // Step 3: Delete DB row and clear active_project_id.
     {
-        let conn = state.conn().map_err(CommandError::Database)?;
+        let conn = state.conn()?;
         conn.execute("DELETE FROM projects WHERE id = ?1", params![id])
             .map_err(|e| {
                 log::error!("[project_delete_full] DB delete failed: {e}");
                 CommandError::from(e)
             })?;
-        let mut s = crate::db::read_settings(&conn).map_err(CommandError::Database)?;
+        let mut s = crate::db::read_settings(&conn)?;
         if s.active_project_id.as_deref() == Some(&id) {
             s.active_project_id = None;
-            crate::db::write_settings(&conn, &s).map_err(CommandError::Database)?;
+            crate::db::write_settings(&conn, &s)?;
             log::debug!("[project_delete_full] cleared active_project_id");
         }
     }
@@ -1101,9 +1094,8 @@ pub fn project_reset_local(
     log::info!("[project_reset_local] id={}", id);
 
     let (slug, local_clone_path) = {
-        let conn = state.conn().map_err(|e| {
+        let conn = state.conn().inspect_err(|e| {
             log::error!("[project_reset_local] DB lock: {e}");
-            CommandError::Database(e)
         })?;
         let slug: String = conn
             .query_row(
@@ -1115,7 +1107,7 @@ pub fn project_reset_local(
                 rusqlite::Error::QueryReturnedNoRows => CommandError::NotFound(format!("project {id}")),
                 other => CommandError::from(other),
             })?;
-        let s = crate::db::read_settings(&conn).map_err(CommandError::Database)?;
+        let s = crate::db::read_settings(&conn)?;
         let lcp = s.local_clone_path.ok_or_else(|| {
             CommandError::Validation("Local clone path not configured".into())
         })?;

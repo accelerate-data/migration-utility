@@ -30,7 +30,7 @@ pub fn run() {
                         logging::set_log_level(level);
                     }
                 }
-                Err(e) => {
+                Err(ref e) => {
                     log::warn!("startup: failed to read settings for log level restore: {}", e);
                 }
             }
