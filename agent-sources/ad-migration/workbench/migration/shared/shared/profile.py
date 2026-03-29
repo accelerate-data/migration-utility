@@ -27,6 +27,7 @@ from shared.catalog import (
     load_table_catalog,
 )
 from shared.loader import (
+    CatalogNotFoundError,
     DdlParseError,
     load_ddl,
 )
@@ -72,6 +73,36 @@ def _emit(data: Any) -> None:
 # ── Context assembly (importable for testing) ────────────────────────────────
 
 
+def _extract_catalog_signals(table_cat: dict[str, Any]) -> dict[str, Any]:
+    """Pull the six catalog signal categories from a table catalog dict."""
+    return {
+        "primary_keys": table_cat.get("primary_keys", []),
+        "foreign_keys": table_cat.get("foreign_keys", []),
+        "auto_increment_columns": table_cat.get("auto_increment_columns", []),
+        "unique_indexes": table_cat.get("unique_indexes", []),
+        "change_capture": table_cat.get("change_capture"),
+        "sensitivity_classifications": table_cat.get("sensitivity_classifications", []),
+    }
+
+
+def _build_related_procedures(
+    ddl_path: Path, ddl_catalog: Any, writer_references: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Load catalog + DDL body for each procedure in the writer's in_scope refs."""
+    related: list[dict[str, Any]] = []
+    proc_refs = writer_references.get("procedures", {})
+    for ref_proc in proc_refs.get("in_scope", []):
+        ref_fqn = normalize(f"{ref_proc['schema']}.{ref_proc['name']}")
+        ref_cat = load_proc_catalog(ddl_path, ref_fqn)
+        ref_entry = ddl_catalog.get_procedure(ref_fqn)
+        ref_body = ref_entry.raw_ddl if ref_entry else ""
+        entry: dict[str, Any] = {"procedure": ref_fqn, "proc_body": ref_body}
+        if ref_cat is not None:
+            entry["references"] = ref_cat.get("references", {})
+        related.append(entry)
+    return related
+
+
 def run_context(ddl_path: Path, table: str, writer: str) -> dict[str, Any]:
     """Assemble profiling context for a table + writer pair.
 
@@ -86,15 +117,7 @@ def run_context(ddl_path: Path, table: str, writer: str) -> dict[str, Any]:
         logger.error("event=context_failed operation=load_table_catalog table=%s reason=no_catalog_file", table_norm)
         raise typer.Exit(code=1)
 
-    # Extract catalog signals
-    catalog_signals: dict[str, Any] = {
-        "primary_keys": table_cat.get("primary_keys", []),
-        "foreign_keys": table_cat.get("foreign_keys", []),
-        "auto_increment_columns": table_cat.get("auto_increment_columns", []),
-        "unique_indexes": table_cat.get("unique_indexes", []),
-        "change_capture": table_cat.get("change_capture"),
-        "sensitivity_classifications": table_cat.get("sensitivity_classifications", []),
-    }
+    catalog_signals = _extract_catalog_signals(table_cat)
 
     # Load writer procedure catalog
     proc_cat = load_proc_catalog(ddl_path, writer_norm)
@@ -111,25 +134,7 @@ def run_context(ddl_path: Path, table: str, writer: str) -> dict[str, Any]:
     if not proc_body:
         logger.warning("event=context_warning operation=load_proc_body table=%s writer=%s reason=no_ddl_body", table_norm, writer_norm)
 
-    # Load column list from DDL (table entry)
-    table_columns: list[dict[str, Any]] = table_cat.get("columns", [])
-
-    # Build related procedures from writer references
-    related_procedures: list[dict[str, Any]] = []
-    proc_refs = writer_references.get("procedures", {})
-    in_scope_procs = proc_refs.get("in_scope", [])
-    for ref_proc in in_scope_procs:
-        ref_fqn = normalize(f"{ref_proc['schema']}.{ref_proc['name']}")
-        ref_cat = load_proc_catalog(ddl_path, ref_fqn)
-        ref_entry = ddl_catalog.get_procedure(ref_fqn)
-        ref_body = ref_entry.raw_ddl if ref_entry else ""
-        related: dict[str, Any] = {
-            "procedure": ref_fqn,
-            "proc_body": ref_body,
-        }
-        if ref_cat is not None:
-            related["references"] = ref_cat.get("references", {})
-        related_procedures.append(related)
+    related_procedures = _build_related_procedures(ddl_path, ddl_catalog, writer_references)
 
     logger.info("event=context_assembled table=%s writer=%s related_count=%d", table_norm, writer_norm, len(related_procedures))
     return {
@@ -138,7 +143,7 @@ def run_context(ddl_path: Path, table: str, writer: str) -> dict[str, Any]:
         "catalog_signals": catalog_signals,
         "writer_references": writer_references,
         "proc_body": proc_body,
-        "columns": table_columns,
+        "columns": table_cat.get("columns", []),
         "related_procedures": related_procedures,
     }
 
@@ -281,7 +286,7 @@ def context(
     """Assemble profiling context for a table + writer pair."""
     try:
         result = run_context(ddl_path, table, writer)
-    except (FileNotFoundError, DdlParseError) as exc:
+    except (FileNotFoundError, DdlParseError, CatalogNotFoundError) as exc:
         logger.error("event=context_failed table=%s writer=%s error=%s", table, writer, exc)
         raise typer.Exit(code=2) from exc
     _emit(result)

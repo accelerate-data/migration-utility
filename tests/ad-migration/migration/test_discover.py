@@ -61,8 +61,9 @@ def test_list_flat_missing_optional() -> None:
     """Directory with only tables.sql — views list returns empty without error."""
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp)
-        (p / "ddl").mkdir()
-        (p / "ddl" / "tables.sql").write_text(
+        ddl_dir = p / "ddl"
+        ddl_dir.mkdir()
+        (ddl_dir / "tables.sql").write_text(
             "CREATE TABLE dbo.SomeTable (Id INT)\nGO\n", encoding="utf-8"
         )
         # Minimal catalog dir to satisfy mandatory check
@@ -200,12 +201,13 @@ def test_show_errors_without_catalog() -> None:
     """show errors when no catalog/ directory exists."""
     import tempfile
 
-    from click.exceptions import Exit
+    from typer import Exit
 
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp)
-        (p / "ddl").mkdir()
-        (p / "ddl" / "procedures.sql").write_text(
+        ddl_dir = p / "ddl"
+        ddl_dir.mkdir()
+        (ddl_dir / "procedures.sql").write_text(
             "CREATE PROCEDURE dbo.usp_Test AS BEGIN SELECT 1 END\nGO\n",
             encoding="utf-8",
         )
@@ -249,12 +251,13 @@ def test_refs_catalog_no_confidence() -> None:
 
 def test_refs_errors_without_catalog() -> None:
     """refs raises Exit when no catalog/ directory exists."""
-    from click.exceptions import Exit
+    from typer import Exit
 
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp)
-        (p / "ddl").mkdir()
-        (p / "ddl" / "tables.sql").write_text(
+        ddl_dir = p / "ddl"
+        ddl_dir.mkdir()
+        (ddl_dir / "tables.sql").write_text(
             "CREATE TABLE dbo.T (Id INT)\nGO\n", encoding="utf-8",
         )
         with pytest.raises(Exit):

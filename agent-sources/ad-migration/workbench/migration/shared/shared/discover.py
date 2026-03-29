@@ -26,8 +26,6 @@ from typing import Any
 
 import typer
 
-logger = logging.getLogger(__name__)
-
 from shared.catalog import (
     has_catalog,
     load_proc_catalog,
@@ -36,6 +34,7 @@ from shared.catalog import (
     load_function_catalog,
 )
 from shared.loader import (
+    CatalogNotFoundError,
     DdlCatalog,
     DdlEntry,
     DdlParseError,
@@ -43,6 +42,8 @@ from shared.loader import (
     load_ddl,
 )
 from shared.name_resolver import normalize
+
+logger = logging.getLogger(__name__)
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
@@ -62,7 +63,10 @@ def _load(ddl_path: Path) -> tuple[DdlCatalog, str]:
 
     Requires a catalog/ directory (from setup-ddl). Errors if missing.
     """
-    return load_ddl(ddl_path)
+    try:
+        return load_ddl(ddl_path)
+    except CatalogNotFoundError:
+        raise typer.Exit(code=2)
 
 
 def _emit(data: Any) -> None:
@@ -113,6 +117,7 @@ def _show_table(ddl_path: Path, norm: str) -> dict[str, Any]:
     table_cat = load_table_catalog(ddl_path, norm)
     if table_cat is None:
         _catalog_error("table", norm)
+        assert False, "unreachable"  # _catalog_error always raises
     return {"columns": table_cat.get("columns", [])}
 
 
@@ -123,6 +128,7 @@ def _show_procedure(
     proc_cat = load_proc_catalog(ddl_path, norm)
     if proc_cat is None:
         _catalog_error("procedure", norm)
+        assert False, "unreachable"  # _catalog_error always raises
 
     params = proc_cat.get("params", [])
 
@@ -176,6 +182,7 @@ def _show_view_or_function(
     obj_cat = cat_loader(ddl_path, norm)
     if obj_cat is None:
         _catalog_error(type_label, norm)
+        assert False, "unreachable"  # _catalog_error always raises
 
     cat_refs = obj_cat.get("references", {})
     tables_in_scope = cat_refs.get("tables", {}).get("in_scope", [])
