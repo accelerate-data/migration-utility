@@ -234,8 +234,9 @@ pub(crate) fn run_cmd(program: &str, args: &[&str], cwd: Option<&str>, envs: &[(
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-/// Insert a project row and return the new Project.
-fn insert_project_row(
+/// Prepare a Project struct (id, slug, timestamps) without inserting into the DB.
+/// Requires a connection only for slug collision checks.
+fn prepare_project(
     conn: &rusqlite::Connection,
     name: &str,
     technology: &str,
@@ -243,15 +244,23 @@ fn insert_project_row(
     let id = Uuid::new_v4().to_string();
     let slug = slugify(name, conn)?;
     let created_at = chrono::Utc::now().to_rfc3339();
+    Ok(Project { id, slug, name: name.to_string(), technology: technology.to_string(), created_at })
+}
+
+/// Insert a pre-prepared project row into the DB.
+fn insert_project_row(
+    conn: &rusqlite::Connection,
+    project: &Project,
+) -> Result<(), CommandError> {
     conn.execute(
         "INSERT INTO projects(id, slug, name, technology, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![id, slug, name, technology, created_at],
+        params![project.id, project.slug, project.name, project.technology, project.created_at],
     )
     .map_err(|e| {
         log::error!("[insert_project_row] insert failed: {e}");
         CommandError::from(e)
     })?;
-    Ok(Project { id, slug, name: name.to_string(), technology: technology.to_string(), created_at })
+    Ok(())
 }
 
 // ── project_create_full ────────────────────────────────────────────────────────
@@ -297,17 +306,17 @@ pub fn project_create_full(
         )));
     }
 
-    // 2. Insert DB row.
+    // 2. Prepare project identity (id, slug) — checks slug collisions but does NOT insert yet.
     let project = {
         let conn = state.conn().map_err(|e| {
             log::error!("[project_create_full] DB lock: {e}");
             CommandError::Database(e)
         })?;
-        insert_project_row(&conn, &name, &technology)?
+        prepare_project(&conn, &name, &technology)?
     };
-    log::debug!("[project_create_full] row inserted id={} slug={}", project.id, project.slug);
+    log::debug!("[project_create_full] prepared id={} slug={}", project.id, project.slug);
 
-    // 3–8. Execute external steps. On failure, rollback DB row and local dir.
+    // 3–8. Execute external steps. On failure, clean up local dir only (no DB row to rollback).
     let slug_dir = Path::new(&local_clone_path).join(&project.slug);
     let artifacts_dir = slug_dir.join("artifacts");
     let source_dir = artifacts_dir.join("source");
@@ -397,26 +406,27 @@ pub fn project_create_full(
     })();
 
     if let Err(ref e) = external_result {
-        log::error!("[project_create_full] step failed, rolling back id={}: {e}", project.id);
+        log::error!("[project_create_full] external steps failed: {e}");
+        // Clean up local dir only — no DB row was inserted.
         if slug_dir.exists() {
             if let Err(rm_e) = std::fs::remove_dir_all(&slug_dir) {
                 log::warn!("[project_create_full] cleanup dir failed (non-fatal): {rm_e}");
             }
         }
-        match state.conn() {
-            Ok(conn) => {
-                if let Err(del_e) = conn.execute("DELETE FROM projects WHERE id = ?1", params![project.id]) {
-                    log::error!("[project_create_full] rollback DB delete failed: {del_e}");
-                } else {
-                    log::info!("[project_create_full] rolled back DB row id={}", project.id);
-                }
-            }
-            Err(lock_e) => log::error!("[project_create_full] rollback DB lock failed: {lock_e}"),
-        }
         return Err(external_result.unwrap_err());
     }
 
-    // 9. Set as active project.
+    // 9. Insert DB row now that external steps succeeded — crash-safe ordering.
+    {
+        let conn = state.conn().map_err(|e| {
+            log::error!("[project_create_full] DB lock: {e}");
+            CommandError::Database(e)
+        })?;
+        insert_project_row(&conn, &project)?;
+        log::debug!("[project_create_full] row inserted id={} slug={}", project.id, project.slug);
+    }
+
+    // 10. Set as active project.
     {
         let conn = state.conn().map_err(CommandError::Database)?;
         let mut settings = crate::db::read_settings(&conn).map_err(CommandError::Database)?;
@@ -1171,10 +1181,17 @@ mod tests {
     use crate::db;
     use crate::types::AppSettings;
 
+    /// Helper: prepare + insert a project in tests.
+    fn create_test_project(conn: &rusqlite::Connection, name: &str, technology: &str) -> Project {
+        let p = prepare_project(conn, name, technology).unwrap();
+        insert_project_row(conn, &p).unwrap();
+        p
+    }
+
     #[test]
     fn insert_project_row_roundtrip() {
         let conn = db::open_in_memory().unwrap();
-        let project = insert_project_row(&conn, "Test Project", "sql_server").unwrap();
+        let project = create_test_project(&conn, "Test Project", "sql_server");
         assert_eq!(project.name, "Test Project");
         assert_eq!(project.slug, "test-project");
         assert_eq!(project.technology, "sql_server");
@@ -1184,8 +1201,8 @@ mod tests {
     #[test]
     fn insert_project_row_slug_collision() {
         let conn = db::open_in_memory().unwrap();
-        let p1 = insert_project_row(&conn, "My Project", "sql_server").unwrap();
-        let p2 = insert_project_row(&conn, "My Project", "fabric_warehouse").unwrap();
+        let p1 = create_test_project(&conn, "My Project", "sql_server");
+        let p2 = create_test_project(&conn, "My Project", "fabric_warehouse");
         assert_eq!(p1.slug, "my-project");
         assert_ne!(p1.slug, p2.slug, "collision must produce unique slug");
     }
@@ -1194,15 +1211,25 @@ mod tests {
     fn insert_project_row_technology_variants() {
         let conn = db::open_in_memory().unwrap();
         for tech in &["sql_server", "fabric_warehouse", "fabric_lakehouse", "snowflake"] {
-            let p = insert_project_row(&conn, tech, tech).unwrap();
+            let p = create_test_project(&conn, tech, tech);
             assert_eq!(p.technology, *tech);
         }
     }
 
     #[test]
+    fn prepare_project_does_not_insert() {
+        let conn = db::open_in_memory().unwrap();
+        let p = prepare_project(&conn, "Ghost", "sql_server").unwrap();
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM projects WHERE id = ?1", params![p.id], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 0, "prepare_project must not insert a DB row");
+    }
+
+    #[test]
     fn project_sets_active() {
         let conn = db::open_in_memory().unwrap();
-        let p = insert_project_row(&conn, "Acme", "sql_server").unwrap();
+        let p = create_test_project(&conn, "Acme", "sql_server");
         let mut s = AppSettings::default();
         s.active_project_id = Some(p.id.clone());
         db::write_settings(&conn, &s).unwrap();
@@ -1213,7 +1240,7 @@ mod tests {
     #[test]
     fn project_delete_clears_active_when_matches() {
         let conn = db::open_in_memory().unwrap();
-        let p = insert_project_row(&conn, "Alpha", "sql_server").unwrap();
+        let p = create_test_project(&conn, "Alpha", "sql_server");
         let mut s = AppSettings::default();
         s.active_project_id = Some(p.id.clone());
         db::write_settings(&conn, &s).unwrap();
@@ -1231,7 +1258,7 @@ mod tests {
     #[test]
     fn reset_does_not_affect_db_row() {
         let conn = db::open_in_memory().unwrap();
-        let p = insert_project_row(&conn, "Beta", "snowflake").unwrap();
+        let p = create_test_project(&conn, "Beta", "snowflake");
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM projects WHERE id = ?1", params![p.id], |r| r.get(0))
             .unwrap();
