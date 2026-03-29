@@ -560,7 +560,7 @@ def main(
     counts["functions"] = _export_modules(conn, "FN,IF,TF", output / "functions.sql")
 
     if catalog:
-        from shared.catalog import write_catalog_files
+        from shared.catalog_dmf import write_catalog_files
         from shared.name_resolver import normalize
 
         typer.echo("Extracting table columns ...", err=True)

@@ -15,10 +15,10 @@ from shared.catalog import (
     load_view_catalog,
     process_dmf_results,
     scan_routing_flags,
-    write_catalog_files,
     write_object_catalog,
     write_table_catalog,
 )
+from shared.catalog_dmf import write_catalog_files
 
 FIXTURES = Path(__file__).parent / "fixtures" / "catalog"
 
