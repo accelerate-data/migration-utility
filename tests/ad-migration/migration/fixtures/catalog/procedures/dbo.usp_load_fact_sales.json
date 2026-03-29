@@ -1,0 +1,26 @@
+{
+  "references": {
+    "tables": [
+      {
+        "schema": "silver",
+        "name": "FactSales",
+        "is_selected": false,
+        "is_updated": true,
+        "is_insert_all": false,
+        "columns": [
+          { "name": "sale_id", "is_selected": true, "is_updated": false },
+          { "name": "amount", "is_selected": false, "is_updated": true }
+        ]
+      },
+      {
+        "schema": "bronze",
+        "name": "SalesRaw",
+        "is_selected": true,
+        "is_updated": false
+      }
+    ],
+    "views": [],
+    "functions": [],
+    "procedures": []
+  }
+}
