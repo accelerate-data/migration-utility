@@ -239,13 +239,34 @@ def run_show(ddl_path: Path, name: str) -> dict[str, Any]:
 
 
 def _run_refs_from_catalog(ddl_path: Path, target: str) -> dict[str, Any]:
-    """Build refs result from catalog JSON files."""
-    table_cat = load_table_catalog(ddl_path, target)
-    if table_cat is None:
-        print(f"discover: no catalog found for {target} — run setup-ddl first", file=sys.stderr)
-        raise typer.Exit(code=1)
+    """Build refs result from catalog JSON files.
 
-    ref_by = table_cat.get("referenced_by", {})
+    Looks up tables, views, and functions — any object that can be
+    referenced by a procedure, view, or function.
+    """
+    _loaders: list[tuple[str, Any]] = [
+        ("table", load_table_catalog),
+        ("view", load_view_catalog),
+        ("function", load_function_catalog),
+    ]
+    cat: dict[str, Any] | None = None
+    object_type = "object"
+    for type_label, loader in _loaders:
+        cat = loader(ddl_path, target)
+        if cat is not None:
+            object_type = type_label
+            break
+
+    if cat is None:
+        return {
+            "name": target,
+            "source": "catalog",
+            "readers": [],
+            "writers": [],
+            "error": f"no catalog file for {target} — it may not exist in the extracted schemas",
+        }
+
+    ref_by = cat.get("referenced_by", {})
     readers: list[str] = []
     writers: list[dict[str, Any]] = []
 
@@ -268,6 +289,7 @@ def _run_refs_from_catalog(ddl_path: Path, target: str) -> dict[str, Any]:
 
     return {
         "name": target,
+        "type": object_type,
         "source": "catalog",
         "readers": sorted(set(readers)),
         "writers": sorted(writers, key=lambda w: w["procedure"]),
@@ -284,6 +306,16 @@ def run_refs(ddl_path: Path, name: str) -> dict[str, Any]:
         print(f"discover: no catalog/ directory in {ddl_path} — run setup-ddl first", file=sys.stderr)
         raise typer.Exit(code=2)
     target = normalize(name)
+
+    catalog, _ = _load(ddl_path)
+    found = _find_entry(catalog, name)
+    if found is not None:
+        _, type_label, _ = found
+        if type_label == "procedure":
+            return {
+                "error": f"{target} is a procedure — refs only works for tables, views, and functions. Use 'show {name}' to see what this procedure reads/writes.",
+            }
+
     result = _run_refs_from_catalog(ddl_path, target)
     print(f"discover: refs from catalog for {target}", file=sys.stderr)
     return result
