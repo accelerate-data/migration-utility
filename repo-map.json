@@ -93,8 +93,7 @@
     "rust_lib": "app/src-tauri/src/lib.rs",
     "dacpac_sidecar": "app/dacpac-extract/Program.cs",
     "ddl_mcp_server": "agent-sources/ad-migration/workbench/migration/ddl_mcp/server.py",
-    "discover_cli": "agent-sources/ad-migration/workbench/migration/shared/shared/discover.py",
-    "scope_cli": "agent-sources/ad-migration/workbench/migration/shared/shared/scope.py"
+    "discover_cli": "agent-sources/ad-migration/workbench/migration/shared/shared/discover.py"
   },
   "modules": {
     "frontend_components": {
@@ -143,7 +142,7 @@
     },
     "shared_python": {
       "path": "agent-sources/ad-migration/workbench/migration/shared/shared/",
-      "description": "Python library for DDL analysis. Modules: loader.py (DDL parsing, auto-detect types from .sql files), discover.py (list/show/refs CLI), scope.py (writer detection CLI), ir.py (intermediate representation), dialect.py (sqlglot dialect registry), name_resolver.py (FQN normalization), export_ddl.py (SQL Server DDL export)."
+      "description": "Python library for DDL analysis. Modules: loader.py (DDL parsing, auto-detect types from .sql files), discover.py (list/show/refs CLI), catalog.py (per-object catalog JSON file I/O), ir.py (intermediate representation), dialect.py (sqlglot dialect registry), name_resolver.py (FQN normalization), export_ddl.py (SQL Server DDL export with --catalog flag)."
     },
     "ddl_mcp": {
       "path": "agent-sources/ad-migration/workbench/migration/ddl_mcp/",
@@ -163,7 +162,7 @@
     },
     "tests_migration": {
       "path": "tests/ad-migration/migration/",
-      "description": "Python pytest suite: test_discover.py (10 tests), test_scope.py (11 tests), test_smoke.py (47 tests). Fixtures: ddl/, ddl_unparseable/, discover/flat/, discover/unparseable/, scope/ (11 scenario SQL files)."
+      "description": "Python pytest suite: test_discover.py, test_catalog.py, test_smoke.py. Fixtures: ddl/, ddl_unparseable/, discover/flat/, discover/unparseable/, catalog/ (table and procedure JSON fixtures)."
     },
     "tests_scoping_agent": {
       "path": "tests/ad-migration/scoping-agent/",

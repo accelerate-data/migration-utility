@@ -64,8 +64,10 @@ All skills import from `shared/`. Nothing in `shared/` is skill-specific.
 |---|---|
 | `ir.py` | Pydantic IR types: `Procedure`, `ProcParam`, `SelectModel`, `CteNode`, `TableRef`, `ColumnRef` |
 | `loader.py` | Parse a DDL directory → `DdlCatalog` (GO-split + `sqlglot.parse_one`) |
+| `catalog.py` | Per-object catalog JSON file I/O: read/write `catalog/` files, DMF result processing, reference flipping |
 | `name_resolver.py` | Normalize FQN: strip brackets, lowercase, apply default schema |
 | `dialect.py` | `SqlDialect` protocol + registry keyed by string name |
+| `export_ddl.py` | DDL + catalog extraction from live SQL Server via pyodbc (`--catalog` flag) |
 | `profile.py` | Assemble profiling context from catalog files + DDL (no live DB, no LLM) |
 
 ---
@@ -94,40 +96,21 @@ Output (list):  { "objects": ["dbo.Foo", "dbo.Bar"] }
 Output (show):  { "name": "...", "type": "procedure", "raw_ddl": "...",
                   "refs": { "writes_to": [...], "reads_from": [...],
                             "write_operations": {"target": ["INSERT"]} },
-                  "has_exec": false, "classification": "deterministic",
+                  "needs_llm": false, "classification": "deterministic",
                   "parse_error": null }
-Output (refs):  { "name": "dbo.Foo", "referenced_by": ["dbo.usp_Load", ...] }
+Output (refs, catalog):  { "name": "dbo.Foo", "source": "catalog",
+                  "readers": [...], "writers": [{"procedure": "...",
+                  "write_type": "direct", "is_updated": true}] }
+Output (refs, AST fallback):  { "name": "dbo.Foo", "source": "ast",
+                  "readers": [...], "writers": [{"procedure": "...",
+                  "write_type": "direct", "confidence": 0.90, "status": "confirmed"}] }
 ```
 
-### scope
+### scope (via scoping agent)
 
-```text
-Input:  --ddl-path PATH  --table dbo.FactSales  --dialect tsql  --depth 3
+Writer discovery is handled by the scoping agent (`scoping-agent.md`), not a standalone `scope.py` CLI. The agent calls `discover refs` (catalog-first, AST fallback) and `discover show` (for LLM-required procs), then applies resolution rules to produce a `CandidateWriters` JSON output.
 
-Output: {
-  "table": "dbo.FactSales",
-  "writers": [
-    {
-      "procedure": "dbo.usp_Load",
-      "write_type": "direct|indirect",
-      "write_operations": ["INSERT", "MERGE"],
-      "call_path": [],
-      "confidence": 0.90,
-      "status": "confirmed|suspected"
-    }
-  ],
-  "errors": [
-    { "procedure": "dbo.usp_Cross", "code": "ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE", "message": "..." },
-    { "procedure": "dbo.usp_Complex", "code": "PARSE_FAILED", "message": "..." }
-  ]
-}
-```
-
-All write detection and call-graph resolution use sqlglot AST analysis. Procedures that cannot be parsed are reported as `PARSE_FAILED` — no regex fallback.
-
-This is an intermediate format. Resolution logic (resolved / ambiguous / no_writer / etc.) lives in the `migrate-table` orchestrator, not in `scope.py`.
-
-Confidence scoring rules (from `scoring.md`, implemented in code):
+When catalog files exist (from `setup-ddl`), writers are binary facts from `sys.dm_sql_referenced_entities` — no confidence scoring, no BFS. When catalog is absent, the AST fallback path uses confidence scoring:
 
 | Signal | Effect |
 |---|---|
@@ -136,7 +119,9 @@ Confidence scoring rules (from `scoring.md`, implemented in code):
 | Shorter call path (per hop) | +0.02 |
 | Multiple independent write paths | +0.05 |
 
-Status: `confirmed` if confidence ≥ 0.70, else `suspected`.
+Resolution: `resolved` (1 writer), `ambiguous_multi_writer` (2+), `no_writer_found` (0), `error`.
+
+**Known limitation:** Procs that write only via dynamic SQL (`EXEC(@sql)`, `sp_executesql`) will not appear in catalog `referenced_by`. These require LLM analysis.
 
 ### profile
 
@@ -325,12 +310,15 @@ The orchestrator. Defined in `commands/migrate-table/SKILL.md`. No Python — Cl
 
 | Issue | What | Status |
 |---|---|---|
-| VU-733 | discover.py | Done — functional with CLI (list/show/refs) |
+| VU-733 | discover.py | Done — list/show/refs with catalog-first + AST fallback |
 | VU-734 | discover SKILL.md | Done |
 | VU-735 | discover tests | Done |
-| VU-736 | scope.py | Done — AST-only rewrite complete, uses `extract_refs().write_operations` |
-| VU-737 | scope SKILL.md | Done |
-| VU-738 | scope tests | Done — 11 fixture scenarios |
+| VU-736 | scope.py | Cancelled — scoping handled by scoping agent + discover refs |
+| VU-737 | scope SKILL.md | Cancelled |
+| VU-738 | scope tests | Cancelled |
+| VU-766 | catalog extraction | Done — catalog.py, setup-ddl + export_ddl extensions |
+| VU-767 | discover refactor | Done — catalog-first refs/show |
+| VU-768 | scoping contract update | Done — simplified for catalog-based writers |
 
 ---
 
@@ -380,8 +368,10 @@ The orchestrator. Defined in `commands/migrate-table/SKILL.md`. No Python — Cl
 ```text
 VU-732 (shared lib) ✅
   ├── VU-733 (discover.py) ✅ ── VU-734 (SKILL) ✅ ── VU-735 (tests) ✅
+  │     │
+  │     └── VU-766 (catalog.py) ✅ ── VU-767 (catalog-first refs) ✅ ── VU-768 (scoping contract) ✅
   │
-  ├── VU-736 (scope.py) ✅ ──── VU-737 (SKILL) ✅ ── VU-738 (tests) ✅
+  ├── VU-736 (scope.py) ✗ cancelled — scoping agent + discover refs handles this
   │
   ├── TBD (profile.py) ──────── TBD (SKILL) ──────── TBD (tests)
   │
@@ -394,6 +384,7 @@ VU-732 (shared lib) ✅
 VU-751 (ddl_mcp) ✅
 
 assess cancelled — statement classification built into discover show.
+scope.py cancelled — scoping handled by scoping-agent.md calling discover refs + show.
 profile.py collects catalog signals; LLM inference is done by the agent (batch) or Claude (interactive).
 All skills → VU-752 (migrate-table SKILL.md) → VU-753 (GHA workflow)
 ```
