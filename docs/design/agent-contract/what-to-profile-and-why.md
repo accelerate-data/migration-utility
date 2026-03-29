@@ -7,14 +7,17 @@ Reference for the profiler agent. This document serves two purposes:
 
 ## Profiling Pipeline
 
+The `/profile` skill runs the full pipeline for one table:
+
 | Step | Nature | What it does |
 |---|---|---|
-| 1. Collect catalog signals | Deterministic | Query `sys.*` for declared PKs, FKs, identity columns, CDC metadata, sensitivity classifications. These are facts — they override all inference. |
-| 2. LLM profiling | LLM | Given proc body + catalog signals + this document as context, infer classification, keys, watermarks, FKs, and PII candidates in one pass. |
-| 3. Sampled profiling | Deterministic | SQL-based tiebreaker for low-confidence candidates only (uniqueness, orphan rate, monotonicity, PII value patterns). |
-| 4. Validate output | Deterministic | Structural consistency checks on the JSON output. |
+| 1. Context assembly | Deterministic | `profile.py` reads catalog files + DDL, cherry-picks relevant signals, outputs context JSON. |
+| 2. LLM profiling | LLM | Claude reasons over context JSON + this document, produces classification, keys, watermarks, FKs, PII. |
+| 3. Catalog update | Deterministic | Skill writes `profile` section back into `catalog/tables/<table>.json`. |
 
-**Key principle:** Catalog signals are facts the LLM must not contradict. Everything else — proc body interpretation, naming patterns, column heuristics — is inference the LLM handles directly using the reference tables below.
+All catalog signals (PKs, FKs, identity, CDC, sensitivity, read/write references) are pre-captured by setup-ddl (VU-766). No live database access at profiling time. No sampled data profiling.
+
+**Key principle:** Catalog signals are facts, not candidates. If the catalog declares a PK, that's the PK — the LLM does not re-infer it. The LLM fills in what the catalog doesn't answer: classification, natural keys, watermarks, FK types, PII actions.
 
 ## Necessity Summary
 
@@ -29,19 +32,22 @@ Reference for the profiler agent. This document serves two purposes:
 
 ---
 
-## Catalog Signals (Deterministic — Step 1)
+## Catalog Signals (Pre-captured by setup-ddl)
 
-Query these `sys.*` views before the LLM step. Pass results as structured context.
+These are already in `catalog/tables/<table>.json` from setup-ddl (VU-766). `profile.py` reads and includes them in the context JSON.
 
-| Source | What it provides |
+| Catalog field | What it provides |
 |---|---|
-| `sys.indexes` + `sys.key_constraints` + `sys.index_columns` | Declared PKs and unique indexes |
-| `sys.identity_columns` | Definitive surrogate key signal |
-| `sys.foreign_keys` + `sys.foreign_key_columns` | Declared FK relationships |
-| `sys.sensitivity_classifications` | PII labels (SQL Server 2019+, often unpopulated) |
-| `sys.tables.is_tracked_by_cdc`, `sys.change_tracking_tables` | CDC/change tracking metadata |
+| `primary_keys` | Declared PKs and unique constraints — **fact, not candidate** |
+| `identity_columns` | Definitive surrogate key signal — **fact** |
+| `foreign_keys` | Declared FK relationships — **fact** (LLM classifies `fk_type`) |
+| `sensitivity_classifications` | PII labels (often empty) — **fact when present** |
+| `cdc_enabled` / `change_tracking_enabled` | Informs incremental strategy |
+| `referenced_by` | Which procs/views/functions reference this table, with `is_selected`/`is_updated` per column |
 
-Declared catalog facts are highest-priority evidence. The LLM must treat them as ground truth.
+Additionally, `catalog/procedures/<writer>.json` provides `references` — all tables the writer proc touches, with column-level `is_selected`/`is_updated` flags.
+
+The LLM must treat catalog facts as ground truth and not contradict them.
 
 ---
 
@@ -73,14 +79,6 @@ Declared catalog facts are highest-priority evidence. The LLM must treat them as
 | Surrogate PK (`_sk`) + separate natural key column | Dimension (SCD1 or SCD2) |
 | FK columns (`_sk`) + numeric measure columns | Fact table |
 
-### Sampled Tiebreakers (Step 3, only if LLM confidence is low)
-
-| Metric | Query | Signal |
-|---|---|---|
-| Row growth rate | Compare `COUNT(*)` across daily snapshots | Steady growth → `fact_transaction`; batch step → `fact_periodic_snapshot` |
-| Versions per business key | `AVG(COUNT(*)) GROUP BY business_key` | Average > 1.2 → `dim_scd2` |
-| NULL milestone dates | `SUM(CASE WHEN step2_date IS NULL ...)` | Partial NULLs → `fact_accumulating_snapshot` |
-
 ---
 
 ## LLM Reference: Q2 — Primary Key Candidate
@@ -93,13 +91,6 @@ Declared catalog facts are highest-priority evidence. The LLM must treat them as
 |---|---|
 | MERGE ON clause in proc code | Business key / table grain — the strongest code-level signal. Fabric Warehouse schemas often omit declared constraints, making this the primary fallback. |
 | UPDATE / DELETE `WHERE col = @param` in proc | Single-row lookup key |
-
-### Sampled Tiebreakers (Step 3)
-
-| Check | Notes |
-|---|---|
-| `COUNT(*) = COUNT(DISTINCT col)` | Undeclared single-column PK candidates |
-| `COUNT(*) = COUNT(DISTINCT CONCAT(col_a, col_b))` | Undeclared composite PK candidates |
 
 ---
 
@@ -114,12 +105,6 @@ Declared catalog facts are highest-priority evidence. The LLM must treat them as
 | Reader proc JOIN analysis | Use `sys.dm_sql_referencing_entities` on the target table to find procs that read it; parse their JOIN conditions. Multiple independent reader procs joining on the same column is very high confidence. Surfaces role-playing dimensions (two columns both joining `dim_date`) and degenerate dimensions (columns used in WHERE/GROUP BY but never joined to a dimension). |
 | Writer proc JOIN analysis | Writer JOINs staging to dimension tables to resolve surrogate keys before inserting — confirms the relationship but in the less direct write direction. |
 | Naming-convention patterns | Strip `_sk`/`_id` suffix; check if stem matches a known dimension table name. `date_key`/`date_sk` → `dim_date` is high confidence; `<name>_id` in a fact table is medium. |
-
-### Sampled Tiebreakers (Step 3)
-
-| Check | Notes |
-|---|---|
-| LEFT JOIN orphan count | `orphan_count = 0` → strong FK candidate; `> 5%` → probably not FK. Use `TABLESAMPLE` on large tables. |
 
 ### FK Type Resolution
 
@@ -143,13 +128,6 @@ Declared catalog facts are highest-priority evidence. The LLM must treat them as
 | Column name suffix: `_sk` / `_guid` → surrogate; `_code` / `_number` / `_num` → natural | Reliable in well-named Kimball schemas |
 | MERGE ON uses a different column from the INSERT's PK column | Classic pattern: MERGE ON `customer_id` (natural); INSERT populates `customer_sk` (surrogate) |
 
-### Sampled Tiebreakers (Step 3)
-
-| Check | Notes |
-|---|---|
-| Value pattern: sequential integers / GUIDs → surrogate; business codes → natural | 100-row sample |
-| 1:1 cardinality with row count + INT/BIGINT type | Strongly suggests surrogate |
-
 **Note:** The MERGE ON clause simultaneously answers Q2, Q4, and partially Q3. When a MERGE is present, analyze it first.
 
 ---
@@ -165,12 +143,6 @@ Declared catalog facts are highest-priority evidence. The LLM must treat them as
 | WHERE clause in proc body | `WHERE load_date > @last_run` / `BETWEEN @start AND @end` — nearly definitive |
 | Column name patterns | `modified_at`, `updated_at`, `load_date`, `etl_date`, `batch_date`, abbreviations (`_dt`, `_ts`, `_dttm`). Must be datetime type, not varchar. |
 | CDC / CT metadata | `sys.tables.is_tracked_by_cdc`, `sys.change_tracking_tables` — informs strategy, does not identify the watermark column |
-
-### Sampled Tiebreakers (Step 3)
-
-| Check | Notes |
-|---|---|
-| Monotonicity + null rate + recency of MAX value | Use `TABLESAMPLE` only when multiple candidates exist |
 
 ### dbt Strategy Mapping
 
@@ -193,12 +165,6 @@ Declared catalog facts are highest-priority evidence. The LLM must treat them as
 |---|---|
 | Column name patterns | `email`, `ssn`, `dob`, `phone`, `mobile`, `address`, `zip`, `postal_code`, `credit_card`, `card_number`, `passport`, `national_id`, `ip_address`, `birth_date`, `first_name`, `last_name`, `full_name`. Case-insensitive, fuzzy match. |
 | Column type + context | VARCHAR/NVARCHAR columns with PII-suggestive names deserve higher scrutiny |
-
-### Sampled Tiebreakers (Step 3)
-
-| Check | Notes |
-|---|---|
-| Value sampling with regex/NLP patterns (e.g. Presidio) | Sample up to 100 distinct non-null values per candidate column to confirm or refute PII classification |
 
 ### Suggested Actions
 

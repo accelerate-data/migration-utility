@@ -66,7 +66,7 @@ All skills import from `shared/`. Nothing in `shared/` is skill-specific.
 | `loader.py` | Parse a DDL directory → `DdlCatalog` (GO-split + `sqlglot.parse_one`) |
 | `name_resolver.py` | Normalize FQN: strip brackets, lowercase, apply default schema |
 | `dialect.py` | `SqlDialect` protocol + registry keyed by string name |
-| `profile.py` | Collect catalog signals for profiling (PKs, FKs, identity cols, CDC metadata) |
+| `profile.py` | Assemble profiling context from catalog files + DDL (no live DB, no LLM) |
 
 ---
 
@@ -140,36 +140,58 @@ Status: `confirmed` if confidence ≥ 0.70, else `suspected`.
 
 ### profile
 
+Two subcommands: `context` (assemble LLM input) and `write` (merge results into catalog file).
+
+#### `profile context`
+
 ```text
-Input:  --ddl-path PATH  --table dbo.FactSales  --writer dbo.usp_Load
-        --dialect tsql
+Input:  context --ddl-path PATH  --table dbo.FactSales
+        --writer dbo.usp_Load  --dialect tsql
 
 Output: {
   "table": "dbo.FactSales",
   "writer": "dbo.usp_Load",
-  "catalog_signals": {
-    "primary_keys": [],
-    "foreign_keys": [],
-    "identity_columns": [],
+  "catalog": {
+    "primary_keys": [...],
+    "foreign_keys": [...],
+    "identity_columns": [...],
     "cdc_enabled": false,
-    "sensitivity_classifications": []
+    "sensitivity_classifications": [],
+    "referenced_by": { "procedures": [...], "views": [...] }
+  },
+  "writer_references": {
+    "tables": [
+      { "schema": "dbo", "name": "FactSales", "is_updated": true,
+        "columns": [{ "name": "sale_id", "is_selected": true, "is_updated": false }] }
+    ]
   },
   "proc_body": "CREATE PROCEDURE ...",
-  "columns": [
-    { "name": "sale_id", "sql_type": "BIGINT" }
-  ],
+  "columns": [{ "name": "sale_id", "sql_type": "BIGINT" }],
   "related_procedures": []
 }
 ```
 
-`profile.py` collects **deterministic catalog signals only** — declared PKs, FKs, identity columns, CDC metadata, sensitivity classifications. It also bundles the proc body, column list, and related procedure bodies for downstream consumption.
+Reads pre-captured catalog files + DDL, cherry-picks relevant signals, outputs a single JSON payload. No LLM calls, no file writes, no live database access.
 
-The LLM profiling step (classification, key inference, watermark detection, PII) happens **outside** `profile.py`:
+#### `profile write`
 
-- **Batch path:** The profiler agent reads `profile.py` output and runs LLM inference per the [Profiler Agent Contract](../agent-contract/profiler-agent.md).
-- **Interactive path:** Claude reads the JSON output, applies the reference tables from [What to Profile and Why](../agent-contract/what-to-profile-and-why.md), and presents candidates for user approval.
+```text
+Input:  write --ddl-path PATH  --table dbo.FactSales
+        --profile '{"status":"ok","writer":"dbo.usp_Load",...}'
 
-When `mssql_mcp` is available, `profile.py` queries `sys.*` views directly. When only `ddl_mcp` is available (offline mode), it extracts what it can from static DDL files (column lists, proc bodies) and marks catalog-only fields as `unavailable`.
+Output: { "written": "catalog/tables/dbo.FactSales.json", "status": "ok" }
+```
+
+Reads existing catalog file, validates the profile JSON (required fields, allowed enum values), merges the `profile` section, writes back atomically. Exit codes: `0` = success, `1` = validation failure, `2` = IO error.
+
+#### Shared between both paths
+
+Both the interactive skill and the batch agent share `profile.py` subcommands. Each has its own LLM reasoning instructions between `context` and `write`:
+
+- **Interactive (`/profile` skill):** `context` → Claude reasons over context + [What to Profile and Why](../agent-contract/what-to-profile-and-why.md) → present for approval → `write`.
+- **Batch (profiler agent):** `context` per table → agent reasons with batch-tuned prompting (no approval gates, skip-and-continue) → `write` per table → aggregate summary. See [Profiler Agent Contract](../agent-contract/profiler-agent.md).
+
+The LLM reasoning is the same six questions in both paths. The difference is orchestration: interactive stops for approval, batch continues and reports at the end.
 
 ### Statement classification (replaces assess)
 

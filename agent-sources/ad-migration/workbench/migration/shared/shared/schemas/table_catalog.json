@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TableCatalog",
+  "description": "Per-table catalog file produced by setup-ddl. Contains catalog signals and inbound references.",
+  "type": "object",
+  "required": ["table", "primary_keys", "unique_indexes", "foreign_keys", "identity_columns", "cdc_enabled", "change_tracking_enabled", "sensitivity_classifications", "referenced_by"],
+  "properties": {
+    "table": {
+      "type": "string",
+      "description": "Fully qualified table name: <schema>.<table>"
+    },
+    "primary_keys": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["constraint_name", "columns", "type"],
+        "properties": {
+          "constraint_name": { "type": "string" },
+          "columns": { "type": "array", "items": { "type": "string" } },
+          "type": { "type": "string", "enum": ["PRIMARY KEY", "UNIQUE"] }
+        }
+      }
+    },
+    "unique_indexes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["index_name", "columns"],
+        "properties": {
+          "index_name": { "type": "string" },
+          "columns": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "foreign_keys": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["column", "references_schema", "references_table", "references_column"],
+        "properties": {
+          "column": { "type": "string" },
+          "references_schema": { "type": "string" },
+          "references_table": { "type": "string" },
+          "references_column": { "type": "string" }
+        }
+      }
+    },
+    "identity_columns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["column", "seed", "increment"],
+        "properties": {
+          "column": { "type": "string" },
+          "seed": { "type": "integer" },
+          "increment": { "type": "integer" }
+        }
+      }
+    },
+    "cdc_enabled": { "type": "boolean" },
+    "change_tracking_enabled": { "type": "boolean" },
+    "sensitivity_classifications": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["column", "label", "information_type"],
+        "properties": {
+          "column": { "type": "string" },
+          "label": { "type": "string" },
+          "information_type": { "type": "string" }
+        }
+      }
+    },
+    "referenced_by": { "$ref": "#/$defs/reference_groups" },
+    "profile": {
+      "description": "Written by the /profile skill or profiler agent. Not present after setup-ddl, only after profiling.",
+      "$ref": "#/$defs/profile_section"
+    }
+  },
+  "$defs": {
+    "reference_groups": {
+      "type": "object",
+      "description": "Inbound references grouped by object type. Each type splits into in_scope and out_of_scope.",
+      "required": ["procedures", "views", "functions", "triggers"],
+      "properties": {
+        "procedures": { "$ref": "#/$defs/scoped_ref_list" },
+        "views": { "$ref": "#/$defs/scoped_ref_list" },
+        "functions": { "$ref": "#/$defs/scoped_ref_list" },
+        "triggers": { "$ref": "#/$defs/scoped_ref_list" }
+      }
+    },
+    "scoped_ref_list": {
+      "type": "object",
+      "required": ["in_scope", "out_of_scope"],
+      "properties": {
+        "in_scope": { "type": "array", "items": { "$ref": "#/$defs/in_scope_ref" } },
+        "out_of_scope": { "type": "array", "items": { "$ref": "#/$defs/out_of_scope_ref" } }
+      }
+    },
+    "in_scope_ref": {
+      "type": "object",
+      "required": ["schema", "name"],
+      "properties": {
+        "schema": { "type": "string" },
+        "name": { "type": "string" },
+        "is_selected": { "type": "boolean" },
+        "is_updated": { "type": "boolean" },
+        "is_insert_all": { "type": "boolean" },
+        "is_schema_bound": { "type": "boolean" },
+        "is_caller_dependent": { "type": "boolean" },
+        "is_ambiguous": { "type": "boolean" },
+        "detection": { "type": "string", "enum": ["dmf", "ast_scan"] },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string" },
+              "is_selected": { "type": "boolean" },
+              "is_updated": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "out_of_scope_ref": {
+      "type": "object",
+      "required": ["schema", "name", "reason"],
+      "properties": {
+        "schema": { "type": "string" },
+        "name": { "type": "string" },
+        "database": { "type": "string" },
+        "server": { "type": ["string", "null"] },
+        "reason": { "type": "string" }
+      }
+    },
+    "profile_section": {
+      "type": "object",
+      "required": ["status", "writer"],
+      "properties": {
+        "status": { "type": "string", "enum": ["ok", "partial", "error"] },
+        "writer": { "type": "string" },
+        "classification": {
+          "type": "object",
+          "properties": {
+            "resolved_kind": {
+              "type": "string",
+              "enum": ["dim_non_scd", "dim_scd1", "dim_scd2", "dim_junk", "fact_transaction", "fact_periodic_snapshot", "fact_accumulating_snapshot", "fact_aggregate"]
+            },
+            "rationale": { "type": "string" },
+            "source": { "type": "string", "enum": ["catalog", "llm", "catalog+llm"] }
+          }
+        },
+        "primary_key": {
+          "type": "object",
+          "properties": {
+            "columns": { "type": "array", "items": { "type": "string" } },
+            "primary_key_type": { "type": "string", "enum": ["surrogate", "natural", "composite", "unknown"] },
+            "source": { "type": "string", "enum": ["catalog", "llm", "catalog+llm"] }
+          }
+        },
+        "natural_key": {
+          "type": "object",
+          "properties": {
+            "columns": { "type": "array", "items": { "type": "string" } },
+            "rationale": { "type": "string" },
+            "source": { "type": "string", "enum": ["catalog", "llm", "catalog+llm"] }
+          }
+        },
+        "watermark": {
+          "type": "object",
+          "properties": {
+            "column": { "type": "string" },
+            "rationale": { "type": "string" },
+            "source": { "type": "string", "enum": ["catalog", "llm", "catalog+llm"] }
+          }
+        },
+        "foreign_keys": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "column": { "type": "string" },
+              "references_source_relation": { "type": "string" },
+              "references_column": { "type": "string" },
+              "fk_type": { "type": "string", "enum": ["standard", "role_playing", "degenerate"] },
+              "source": { "type": "string", "enum": ["catalog", "llm", "catalog+llm"] }
+            }
+          }
+        },
+        "pii_actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "column": { "type": "string" },
+              "entity": { "type": "string" },
+              "suggested_action": { "type": "string", "enum": ["mask", "drop", "tokenize", "keep"] },
+              "source": { "type": "string", "enum": ["catalog", "llm", "catalog+llm"] }
+            }
+          }
+        },
+        "warnings": { "type": "array" },
+        "errors": { "type": "array" }
+      }
+    }
+  }
+}

@@ -1,14 +1,16 @@
 # Profiler Agent Contract
 
-The profiler agent proposes migration candidates for FDE review.
-It should output only inferred candidates that require judgment, not direct facts planner can fetch via tools.
+The profiler agent produces migration profile candidates for each table in a batch. It runs `profile.py` for context assembly, applies LLM reasoning to answer the six profiling questions, and writes results into each table's catalog file.
+
+For the interactive single-table path, see the `/profile` skill in [SP → dbt Migration Plugin](../sp-to-dbt-plugin/README.md). Both paths share `profile.py` for deterministic context assembly; the LLM reasoning is replicated with context-appropriate prompting (batch: no approval gates, structured output, skip-and-continue on errors; interactive: present for approval, stop on ambiguity).
 
 ## Philosophy and Boundary
 
-- Profiler is for candidate generation, not metadata transport.
-- Planner retrieves direct facts (schema, constraints, object metadata) using tools.
-- FDE approves profiler candidates before planner consumes them.
-- Avoid duplicate derivation: if planner can fetch a fact reliably, profiler should not include it.
+- All catalog signals are pre-captured by setup-ddl (VU-766) in `catalog/` files. The agent never queries the live database.
+- Proc bodies are in DDL files from setup-ddl. No `sys.sql_modules` access needed.
+- `profile.py` (shared) has two subcommands: `context` (assemble LLM input) and `write` (merge profile into catalog file). The agent does LLM reasoning between the two.
+- FDE approves profile results before planner consumes them.
+- No sampled data profiling — live DB is unavailable at migration time.
 
 ## Required Input
 
@@ -16,137 +18,184 @@ It should output only inferred candidates that require judgment, not direct fact
 {
   "schema_version": "1.0",
   "run_id": "uuid",
+  "ddl_path": "/path/to/artifacts/ddl",
   "items": [
     {
       "item_id": "dbo.fact_sales",
-      "selected_writer": "dbo.usp_load_fact_sales",
-      "related_procedure_depth": 1
+      "selected_writer": "dbo.usp_load_fact_sales"
     }
   ]
 }
 ```
 
-## Input Semantics
+No `related_procedure_depth` — related procedure context is pre-captured in catalog files.
 
-- `related_procedure_depth` controls supporting procedure expansion around `selected_writer`.
-- Units: procedure-call hops (`0` = selected writer only, `1` = direct related procedures).
-- Valid range: integer `0..2`.
-- Default: `1`.
+## Agent Pipeline
 
-## Profiling Pipeline
+For each item in `items[]`:
 
-The profiler uses a 4-step pipeline: deterministic catalog collection, LLM inference, sampled tiebreaking, and output validation. See [What to Profile and Why](what-to-profile-and-why.md) for the full reference tables the LLM uses.
+### 1. AssembleContext (Deterministic — `profile.py context`)
 
-### 1. CollectCatalogSignals (Deterministic)
+Run `uv run profile context --table <item_id> --writer <selected_writer> --ddl-path <ddl_path> --dialect tsql`.
 
-Collect declared facts from `sys.*` catalog views. These are ground truth — the LLM must not contradict them.
+`profile.py context` reads:
 
-The batch agent queries `sys.*` directly via `mssql_mcp`. The interactive path uses `profile.py` (shared skill) which collects the same signals from `ddl_mcp` or `mssql_mcp` and returns them as structured JSON.
+- `catalog/tables/<table>.json` — catalog signals (PKs, FKs, identity, CDC, sensitivity) + `referenced_by` with `is_selected`/`is_updated` flags
+- `catalog/procedures/<writer>.json` — `references` with column-level read/write flags
+- `procedures.sql` — writer proc body
+- `tables.sql` — column list
+- Related procedure catalog files and bodies where referenced
 
-Catalog sources:
+Outputs a single context JSON to stdout. See [SP → dbt Migration Plugin](../sp-to-dbt-plugin/README.md) for the full output schema.
 
-| Source | What it provides |
-|---|---|
-| `sys.indexes` + `sys.key_constraints` + `sys.index_columns` | Declared PKs and unique indexes |
-| `sys.identity_columns` | Definitive surrogate key signal |
-| `sys.foreign_keys` + `sys.foreign_key_columns` | Declared FK relationships |
-| `sys.sensitivity_classifications` | PII labels (SQL Server 2019+, often unpopulated) |
-| `sys.tables.is_tracked_by_cdc`, `sys.change_tracking_tables` | CDC/change tracking metadata |
+### 2. ProfileWithLLM
 
-Also load:
+Using the context JSON and the reference tables from [What to Profile and Why](what-to-profile-and-why.md), answer the six profiling questions.
 
-- Selected writer SQL from `sys.sql_modules`.
-- Bounded related procedure set for supporting evidence (writer + related readers/writers based on `related_procedure_depth`).
+**Catalog facts are answers, not candidates.** If the catalog declares a PK, that is the PK. If the catalog has declared FKs, those are confirmed FKs. The LLM fills in what the catalog doesn't answer.
 
-### 2. LLMProfiling
+#### Q1 — Classification
 
-Given catalog signals + proc body + column list + the reference tables from [What to Profile and Why](what-to-profile-and-why.md), infer all six candidate categories in one pass:
+Read the writer proc body. Match write patterns against the classification table in `what-to-profile-and-why.md`:
 
-- `candidate_classifications` (required) — model type
-- `candidate_primary_keys` (required) — PK columns
-- `candidate_natural_keys` (conditional) — business keys
-- `candidate_watermarks` (required) — incremental load columns
-- `candidate_foreign_keys` (nice-to-have) — FK relationships with type
-- `candidate_pii_actions` (nice-to-have) — PII masking/tokenization recommendations
+- Identify the dominant DML pattern (INSERT-only, MERGE, TRUNCATE+INSERT, etc.)
+- Check column shape signals (SCD columns, milestone dates, snapshot dates, flag columns)
+- Use `writer_references` to confirm which tables are read vs written
+- Produce `resolved_kind` from the allowed classification kinds
 
-Rules:
+#### Q2 — Primary Key
 
-- Catalog facts override all inference. If `sys.key_constraints` declares a PK, the LLM must include it as the top candidate.
-- Add provenance per candidate: `signal_sources` (`catalog|llm|sampled_profile`) and `evidence_refs` (stable references to source evidence).
-- Return top `3` candidates per category, sorted by confidence descending. Include additional tied candidates when confidence delta is `<= 0.05`.
-- Mark candidates as low-confidence when the LLM is uncertain — these are routed to step 3.
+Check catalog `primary_keys` first — if declared, that is the answer (`source: "catalog"`).
 
-### 3. SampledProfiling (Deterministic — Tiebreaker Only)
+If no declared PK:
 
-Run SQL-based checks only for candidates the LLM flags as low-confidence. Do not run full table scans.
+- Look for MERGE ON clause in proc body — strongest code-level signal
+- Look for UPDATE/DELETE WHERE col = @param — single-row lookup key
+- Use `identity_columns` from catalog as surrogate signal
 
-| Check | When to run |
-|---|---|
-| Uniqueness: `COUNT(*) = COUNT(DISTINCT col)` | Low-confidence PK candidates |
-| Composite uniqueness: `COUNT(*) = COUNT(DISTINCT CONCAT(col_a, col_b))` | Low-confidence composite PK candidates |
-| Orphan rate: LEFT JOIN orphan count | Low-confidence FK candidates |
-| Monotonicity + null rate + MAX recency | Low-confidence watermark candidates |
-| Value sampling with regex/NLP patterns (e.g. Presidio) | Low-confidence PII candidates |
+#### Q3 — Foreign Keys
 
-Use `TABLESAMPLE` on large tables. Update candidate confidence scores based on results.
+Check catalog `foreign_keys` first — if declared, those are confirmed (`source: "catalog"`). Classify `fk_type` (standard/role_playing/degenerate) using proc JOIN patterns.
 
-### 4. ValidateOutput
+If no declared FKs:
 
-Run internal consistency checks on output items.
+- Use `writer_references` column-level `is_selected` flags to see which dimension tables the writer JOINs
+- Use `referenced_by` to see which reader procs join on which columns — multiple independent readers joining on the same column is high confidence
+- Apply naming-convention patterns (`_sk`/`_id` suffix → dimension table stem match)
 
-Thresholds:
+#### Q4 — Natural Key vs Surrogate Key
 
-- usable candidate: `confidence >= 0.75`
-- low-confidence candidate: `confidence < 0.75`
-- near-tie: confidence delta between top candidates `<= 0.05`
+Check catalog `identity_columns` — if present, the PK is surrogate (`source: "catalog"`).
 
-Set item `status`:
+If no identity column:
 
-- `ok` when required categories have usable candidates (`candidate_classifications`, `candidate_primary_keys`, `candidate_watermarks`).
-- `partial` when one or more required categories remain unresolved or only low-confidence candidates exist.
-- `candidate_natural_keys` may be empty and still `ok` when `candidate_primary_keys[*].primary_key_type == "surrogate"` and all required categories are resolved.
-- `error` on runtime failures.
+- Look for `NEWID()` / `NEWSEQUENTIALID()` / `NEXT VALUE FOR` in proc body
+- Check column name patterns (`_sk`/`_guid` → surrogate; `_code`/`_number` → natural)
+- MERGE ON clause using different column from INSERT PK → classic surrogate pattern
 
-Validation checklist:
+#### Q5 — Watermark
 
-- `item_id` is present.
-- `status` is one of: `ok|partial|error`.
-- candidate arrays are structurally valid.
-- every candidate `confidence` is within `[0,1]`.
-- every candidate has `rationale` as an array of strings.
-- every candidate has `signal_sources` and `evidence_refs`.
-- if `status == "ok"`: required candidate categories are present.
-- if `status == "partial"`: `validation.issues` includes missing required categories.
-- if `status == "error"`: `errors` is non-empty.
-- `validation.passed` is `false` when any validation issue exists.
-- summary counts match item-level statuses.
+- Look for WHERE clause filtering in proc body (`WHERE col > @last_run`, `BETWEEN @start AND @end`)
+- Check column name patterns (`modified_at`, `load_date`, `_dt`, `_ts`)
+- Use `cdc_enabled` / `change_tracking_enabled` from catalog to inform strategy (does not identify the column)
 
-## Output Schema (TableProfile)
+#### Q6 — PII Actions
+
+Check catalog `sensitivity_classifications` first — if populated, those are confirmed (`source: "catalog"`).
+
+For remaining columns:
+
+- Match column names against PII patterns (email, ssn, phone, address, etc.)
+- Consider column type + context (VARCHAR/NVARCHAR with PII-suggestive names)
+- Assign suggested action: `mask` (default), `drop`, `tokenize`, `keep`
+
+### 3. WriteCatalogFile (Deterministic — `profile.py write`)
+
+Run `uv run profile write --table <item_id> --ddl-path <ddl_path> --profile '<json>'`.
+
+The `write` subcommand:
+
+1. Reads existing `catalog/tables/<item_id>.json`
+2. Validates the profile JSON structure (required fields, allowed enum values)
+3. Merges the `profile` section into the catalog file
+4. Writes back atomically
+5. Outputs confirmation JSON to stdout
+
+The agent passes the LLM-produced profile as a JSON string argument. Python handles all file I/O and validation — the agent never writes files directly.
+
+Profile section schema:
 
 ```json
 {
-  "schema_version": "",
-  "run_id": "",
-  "results": [
-    {
-      "item_id": "",
-      "status": "",
-      "candidate_classifications": [],
-      "candidate_primary_keys": [],
-      "candidate_natural_keys": [],
-      "candidate_foreign_keys": [],
-      "candidate_watermarks": [],
-      "candidate_pii_actions": [],
-      "warnings": [],
-      "validation": {},
-      "errors": []
-    }
-  ],
-  "summary": {}
+  "profile": {
+    "status": "ok|partial|error",
+    "writer": "dbo.usp_load_fact_sales",
+    "classification": {
+      "resolved_kind": "fact_transaction",
+      "rationale": "Pure INSERT with no UPDATE or DELETE in writer proc.",
+      "source": "llm"
+    },
+    "primary_key": {
+      "columns": ["sale_id"],
+      "primary_key_type": "surrogate",
+      "source": "catalog"
+    },
+    "natural_key": {
+      "columns": ["order_id", "line_number"],
+      "rationale": "MERGE ON clause uses these columns as business key.",
+      "source": "llm"
+    },
+    "watermark": {
+      "column": "load_date",
+      "rationale": "WHERE load_date > @last_run in writer proc.",
+      "source": "llm"
+    },
+    "foreign_keys": [
+      {
+        "column": "customer_sk",
+        "references_source_relation": "dbo.dim_customer",
+        "references_column": "customer_sk",
+        "fk_type": "standard",
+        "source": "catalog+llm"
+      }
+    ],
+    "pii_actions": [
+      {
+        "column": "customer_email",
+        "entity": "email",
+        "suggested_action": "mask",
+        "source": "llm"
+      }
+    ],
+    "warnings": [],
+    "errors": []
+  }
 }
 ```
 
-**Example**
+### 4. HandleErrors
+
+- If `profile.py` fails: set `status: "error"`, record in `errors[]`, continue to next item.
+- If LLM cannot answer a required question (classification, primary_key, watermark): set `status: "partial"`, record which questions are unresolved in `warnings[]`, continue to next item.
+- Do not stop the batch on individual item failures.
+
+## `source` Field Semantics
+
+- `"catalog"` — fact from setup-ddl catalog data. Not inferred.
+- `"llm"` — inferred by LLM from proc body / column patterns / reference tables.
+- `"catalog+llm"` — catalog provided the base fact (e.g. declared FK), LLM added classification (e.g. `fk_type`).
+
+## `status` Field
+
+- `ok` — required questions answered (classification, primary_key, watermark).
+- `partial` — one or more required questions unanswered.
+- `error` — runtime failure prevented profiling.
+
+`natural_key` may be empty and still `ok` when `primary_key_type == "surrogate"`.
+
+## Batch Output
+
+After processing all items, the agent assembles a summary:
 
 ```json
 {
@@ -156,72 +205,7 @@ Validation checklist:
     {
       "item_id": "dbo.fact_sales",
       "status": "ok",
-      "candidate_classifications": [
-        {
-          "resolved_kind": "fact_transaction",
-          "confidence": 0.88,
-          "rationale": ["Pure INSERT with no UPDATE or DELETE in writer proc."],
-          "signal_sources": ["llm"],
-          "evidence_refs": ["proc:dbo.usp_load_fact_sales:insert_block"]
-        }
-      ],
-      "candidate_primary_keys": [
-        {
-          "columns": ["sale_id"],
-          "primary_key_type": "surrogate",
-          "confidence": 0.97,
-          "rationale": ["Declared PK constraint in catalog."],
-          "signal_sources": ["catalog"],
-          "evidence_refs": ["sys.key_constraints:pk_fact_sales"]
-        }
-      ],
-      "candidate_natural_keys": [
-        {
-          "columns": ["order_id", "line_number"],
-          "confidence": 0.78,
-          "rationale": ["MERGE ON clause uses these columns as business key."],
-          "signal_sources": ["llm"],
-          "evidence_refs": ["proc:merge_on:order_id_line_number"]
-        }
-      ],
-      "candidate_foreign_keys": [
-        {
-          "column": "customer_sk",
-          "references_source_relation": "dbo.dim_customer",
-          "references_column": "customer_sk",
-          "fk_type": "standard",
-          "confidence": 0.9,
-          "rationale": ["Writer JOIN to dim_customer on customer_sk."],
-          "signal_sources": ["llm"],
-          "evidence_refs": ["proc:writer_join:customer_sk=dim_customer.customer_sk"]
-        }
-      ],
-      "candidate_watermarks": [
-        {
-          "column": "load_date",
-          "confidence": 0.94,
-          "rationale": ["WHERE load_date > @last_run in writer proc."],
-          "signal_sources": ["llm"],
-          "evidence_refs": ["proc:where:load_date>@last_run"]
-        }
-      ],
-      "candidate_pii_actions": [
-        {
-          "column": "customer_email",
-          "entity": "email",
-          "suggested_action": "mask",
-          "confidence": 0.93,
-          "rationale": ["Column name matches PII pattern."],
-          "signal_sources": ["llm"],
-          "evidence_refs": ["pii:name_pattern:email"]
-        }
-      ],
-      "warnings": [],
-      "validation": {
-        "passed": true,
-        "issues": []
-      },
-      "errors": []
+      "catalog_path": "catalog/tables/dbo.fact_sales.json"
     }
   ],
   "summary": {
@@ -233,9 +217,11 @@ Validation checklist:
 }
 ```
 
+The actual profile data lives in the catalog file, not duplicated in the batch output.
+
 ## Classification Kinds
 
-`candidate_classifications[*].resolved_kind` must be one of:
+`profile.classification.resolved_kind` must be one of:
 
 - `dim_non_scd`
 - `dim_scd1`
@@ -248,7 +234,7 @@ Validation checklist:
 
 ## Foreign Key Types
 
-`candidate_foreign_keys[*].fk_type` must be one of:
+`profile.foreign_keys[*].fk_type` must be one of:
 
 - `standard`
 - `role_playing`
@@ -256,7 +242,7 @@ Validation checklist:
 
 ## Suggested PII Actions
 
-`candidate_pii_actions[*].suggested_action` must be one of:
+`profile.pii_actions[*].suggested_action` must be one of:
 
 - `mask`
 - `drop`
@@ -265,18 +251,17 @@ Validation checklist:
 
 ## Namespace Rules
 
-- `candidate_foreign_keys[*].references_source_relation` and `candidate_foreign_keys[*].references_column` are source-side SQL Server identifiers.
+- `profile.foreign_keys[*].references_source_relation` and `references_column` are source-side SQL Server identifiers.
 - Profiler must not emit dbt `ref()` names. Namespace translation is planner/migrator scope.
 
 ## What Profiler Must Not Output
 
-- Direct metadata planner can fetch reliably (for example target schema definitions).
 - Final dbt SQL or Jinja model content.
-- Final materialization/test decisions.
+- Final materialization/test decisions (planner's job).
 
-`validation.issues[]`, `warnings[]`, and `errors[]` use the shared diagnostics schema in `docs/design/agent-contract/README.md`.
+`warnings[]` and `errors[]` use the shared diagnostics schema in `docs/design/agent-contract/README.md`.
 
 ## Handoff
 
 - Decomposer consumes `item_id` and `selected_writer` from application-routed inputs.
-- Planner consumes selected profiler answers after FDE approval.
+- Planner consumes approved profile answers from `catalog/tables/<table>.json` → `profile` section.
