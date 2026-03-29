@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Circle, Loader2, XCircle, AlertTriangle, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StepRow } from '@/components/step-progress';
-import type { StepState } from '@/components/step-progress';
+import type { StepState } from '@/stores/project-store';
+import { useProjectStore } from '@/stores/project-store';
 import { appStartupSync, listenProjectInitStep } from '@/lib/tauri';
-import { GLOBAL_STEPS, PER_PROJECT_STEPS, INIT_STEP_LABEL } from '@/lib/types';
+import { PER_PROJECT_STEPS, INIT_STEP_LABEL } from '@/lib/types';
 import { logger } from '@/lib/logger';
 import type { InitStep, Project } from '@/lib/types';
 
@@ -120,12 +121,11 @@ function ProjectRow({
 }
 
 export default function SplashScreen({ projects, activeProjectId, onSuccess, onCancel }: SplashProps) {
-  const [globalSteps, setGlobalSteps] = useState<StepState[]>(makeSteps(GLOBAL_STEPS));
-  const [projectSteps, setProjectSteps] = useState<Record<string, StepState[]>>(
-    Object.fromEntries(projects.map((p) => [p.id, makeSteps(PER_PROJECT_STEPS)]))
-  );
-  const [isRunning, setIsRunning] = useState(false);
-  const [hasFailed, setHasFailed] = useState(false);
+  const globalSteps = useProjectStore((s) => s.startupGlobalSteps);
+  const projectSteps = useProjectStore((s) => s.startupProjectSteps);
+  const isRunning = useProjectStore((s) => s.isStartupRunning);
+  const hasFailed = useProjectStore((s) => s.startupFailed);
+  const { startStartup, applyStartupStep, finishStartup, failStartup } = useProjectStore.getState();
 
   const unlistenRef = useRef<(() => void) | null>(null);
   const hasStarted = useRef(false);
@@ -142,38 +142,20 @@ export default function SplashScreen({ projects, activeProjectId, onSuccess, onC
   }, []);
 
   async function runInit() {
-    setIsRunning(true);
-    setHasFailed(false);
-    setGlobalSteps(makeSteps(GLOBAL_STEPS));
-    setProjectSteps(Object.fromEntries(projects.map((p) => [p.id, makeSteps(PER_PROJECT_STEPS)])));
+    startStartup(projects);
 
     try {
       unlistenRef.current = await listenProjectInitStep((ev) => {
-        if (ev.projectId) {
-          setProjectSteps((prev) => {
-            const existing = prev[ev.projectId!] ?? makeSteps(PER_PROJECT_STEPS);
-            return {
-              ...prev,
-              [ev.projectId!]: existing.map((s) =>
-                s.step === ev.step ? { ...s, status: ev.status } : s
-              ),
-            };
-          });
-        } else {
-          setGlobalSteps((prev) =>
-            prev.map((s) => (s.step === ev.step ? { ...s, status: ev.status } : s))
-          );
-        }
+        applyStartupStep(ev);
       });
 
       await appStartupSync();
-      setIsRunning(false);
+      finishStartup();
       logger.debug('splash: startup sync complete');
       onSuccess();
     } catch (err) {
       logger.error('splash: startup sync failed', err);
-      setIsRunning(false);
-      setHasFailed(true);
+      failStartup();
     } finally {
       unlistenRef.current?.();
       unlistenRef.current = null;

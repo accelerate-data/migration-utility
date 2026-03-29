@@ -14,6 +14,10 @@ beforeEach(() => {
     isLoading: false,
     initSteps: [],
     isInitRunning: false,
+    startupGlobalSteps: [],
+    startupProjectSteps: {},
+    isStartupRunning: false,
+    startupFailed: false,
   });
 });
 
@@ -43,10 +47,8 @@ describe('useProjectStore — loadProjects', () => {
 
 describe('useProjectStore — setActive', () => {
   it('updates activeProject after set', async () => {
-    mockInvokeCommands({
-      project_set_active: undefined,
-      project_list: [P1, P2],
-    });
+    mockInvokeCommands({ project_set_active: undefined });
+    useProjectStore.setState({ projects: [P1, P2] });
     await useProjectStore.getState().setActive('p1');
     expect(useProjectStore.getState().activeProject?.id).toBe('p1');
   });
