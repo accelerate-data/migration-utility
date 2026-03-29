@@ -232,6 +232,8 @@ def _make_ref_entry(
     is_selected: bool = False,
     is_updated: bool = False,
     is_insert_all: bool = False,
+    is_caller_dependent: bool = False,
+    is_ambiguous: bool = False,
     columns: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Build a single reference entry dict."""
@@ -243,6 +245,10 @@ def _make_ref_entry(
     }
     if is_insert_all:
         entry["is_insert_all"] = is_insert_all
+    if is_caller_dependent:
+        entry["is_caller_dependent"] = True
+    if is_ambiguous:
+        entry["is_ambiguous"] = True
     if columns:
         entry["columns"] = columns
     return entry
@@ -359,6 +365,8 @@ def process_dmf_results(
                     "is_selected": False,
                     "is_updated": False,
                     "is_insert_all": False,
+                    "is_caller_dependent": False,
+                    "is_ambiguous": False,
                     "columns": {},
                 })
             grouped[referencing_fqn][entity_key] = entry_data
@@ -370,6 +378,8 @@ def process_dmf_results(
             entry["is_selected"] = entry["is_selected"] or bool(row.get("is_selected"))
             entry["is_updated"] = entry["is_updated"] or bool(row.get("is_updated"))
             entry["is_insert_all"] = entry["is_insert_all"] or bool(row.get("is_insert_all"))
+            entry["is_caller_dependent"] = entry["is_caller_dependent"] or bool(row.get("is_caller_dependent"))
+            entry["is_ambiguous"] = entry["is_ambiguous"] or bool(row.get("is_ambiguous"))
 
             # Column-level detail
             if minor_name:
@@ -411,6 +421,8 @@ def process_dmf_results(
                     is_selected=entity_data["is_selected"],
                     is_updated=entity_data["is_updated"],
                     is_insert_all=entity_data["is_insert_all"],
+                    is_caller_dependent=entity_data["is_caller_dependent"],
+                    is_ambiguous=entity_data["is_ambiguous"],
                     columns=columns if columns else None,
                 )
                 refs[b]["in_scope"].append(ref_entry)
@@ -464,6 +476,8 @@ def flip_references(
                 is_selected=table_entry.get("is_selected", False),
                 is_updated=table_entry.get("is_updated", False),
                 is_insert_all=table_entry.get("is_insert_all", False),
+                is_caller_dependent=table_entry.get("is_caller_dependent", False),
+                is_ambiguous=table_entry.get("is_ambiguous", False),
                 columns=table_entry.get("columns"),
             )
             result[table_fqn][referencing_type]["in_scope"].append(flipped_entry)

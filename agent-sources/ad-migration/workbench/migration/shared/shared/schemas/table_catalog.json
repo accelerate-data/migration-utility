@@ -3,11 +3,21 @@
   "title": "TableCatalog",
   "description": "Per-table catalog file produced by setup-ddl. Contains catalog signals and inbound references.",
   "type": "object",
-  "required": ["table", "primary_keys", "unique_indexes", "foreign_keys", "auto_increment_columns", "referenced_by"],
+  "required": ["primary_keys", "unique_indexes", "foreign_keys", "auto_increment_columns", "referenced_by"],
   "properties": {
-    "table": {
-      "type": "string",
-      "description": "Fully qualified table name: <schema>.<table>"
+    "columns": {
+      "type": "array",
+      "description": "Column definitions from sys.columns. Populated by export_ddl.",
+      "items": {
+        "type": "object",
+        "required": ["name", "sql_type", "is_nullable", "is_identity"],
+        "properties": {
+          "name": { "type": "string" },
+          "sql_type": { "type": "string", "description": "Formatted SQL type, e.g. NVARCHAR(50), BIGINT" },
+          "is_nullable": { "type": "boolean" },
+          "is_identity": { "type": "boolean" }
+        }
+      }
     },
     "primary_keys": {
       "type": "array",
