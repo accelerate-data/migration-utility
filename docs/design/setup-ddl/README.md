@@ -166,6 +166,30 @@ Every known object gets a catalog file. The `referenced_by` on a table is popula
 
 ---
 
+## Flags: `has_dynamic_sql` vs `needs_llm`
+
+These two flags are set at different stages and mean different things.
+
+**`has_dynamic_sql`** is written into the catalog file by `export_ddl.py` during extraction (Step 6). It is set by a regex scan over the raw proc body — it fires on `EXEC(@var)` and `sp_executesql` patterns only. It means: the catalog `references` for this proc are incomplete because some write targets are runtime strings that cannot be resolved offline.
+
+**`needs_llm`** is set by `discover show` at query time (not stored in the catalog). It is set by two independent checks in `extract_refs`:
+
+1. Any `EXEC`/`EXECUTE` anywhere in the body — both static (`EXEC schema.usp_other`) and dynamic (`EXEC(@sql)`). Static EXEC calls are resolved by the scoping agent via the call graph, but sqlglot alone cannot determine what the called proc does.
+2. Unparseable control flow from sqlglot — TRY/CATCH blocks, WHILE loops, and complex IF/ELSE that sqlglot emits as opaque `Command` or `If` nodes.
+
+The relationship:
+
+| Scenario | `has_dynamic_sql` (catalog) | `needs_llm` (discover show) |
+|---|---|---|
+| `EXEC(@sql)` / `sp_executesql` | ✓ | ✓ |
+| Static `EXEC schema.usp_other` | — | ✓ |
+| TRY/CATCH or WHILE block | — | ✓ |
+| Pure DML (INSERT/UPDATE/MERGE) | — | — |
+
+`has_dynamic_sql` is the narrow flag: write targets are unresolvable even with LLM + raw DDL. `needs_llm` is the broader flag: statement-level analysis (migrate/skip/claude classification) requires LLM because sqlglot alone isn't sufficient.
+
+---
+
 ## Known limitations
 
 **Dynamic SQL is invisible offline.** `sys.dm_sql_referenced_entities` resolves references at definition time. `EXEC(@sql)` and `sp_executesql` with a string variable are unknowable without runtime capture (Query Store, Extended Events). These procs will have `has_dynamic_sql: true` in their catalog file. The tables they write to will have empty or incomplete `referenced_by`.
