@@ -16,7 +16,7 @@ Design references:
 ```text
 Layer 1 — MCP server              genai-toolbox + local SQL Server
            ↓ validates               SQL catalog queries return correct data
-Layer 2 — Deterministic skills     Python scripts (scope.py, discover.py, etc.) + DDL fixtures
+Layer 2 — Deterministic skills     Python scripts (discover.py, discover.py, etc.) + DDL fixtures
            ↓ validates               AST analysis, confidence scoring, output contracts
 Layer 3 — GH Action               Workflow YAML mechanics, stub skill step
            ↓ validates               Cache, DB restore, branch/rebase/commit/push
@@ -51,7 +51,7 @@ Do not skip ahead. Each layer catches a class of bugs the next layer cannot easi
 1. **[Layer 1 — MCP Server](layer-1-mcp-server.md)**
    Validate the SQL catalog queries interactively before writing any skill code.
 2. **Layer 2 — Deterministic Skills** *(doc coming)*
-   Test Python skills (`scope.py`, `discover.py`, etc.) against DDL fixtures. No LLM, no API key needed.
+   Test Python skills (`discover.py`, `discover.py`, etc.) against DDL fixtures. No LLM, no API key needed.
 3. **Layer 3 — GH Action** *(doc coming)*
    Wire the workflow once the skill output format is stable; stub the skill step.
 4. **Layer 4 — Integration** *(doc coming)*
@@ -65,5 +65,5 @@ Do not skip ahead. Each layer catches a class of bugs the next layer cannot easi
 |---|---|---|
 | SQL Server | Docker container (local) | Desktop app / manual `docker run` |
 | MCP server | googleapis/genai-toolbox | `toolbox` binary (Layer 1–2) / GHCR service container (Layer 3–4) |
-| Deterministic skills | Python + sqlglot | `uv run python scope.py ...` (Layer 2) |
+| Deterministic skills | Python + sqlglot | `uv run python discover.py ...` (Layer 2) |
 | Workflow | GitHub Actions | `act` (Layer 3) / real GH runner (Layer 4) |

@@ -32,7 +32,7 @@ agent-sources/ad-migration/               ← marketplace package
     │   │   └── shared/
     │   │       ├── ir.py, loader.py, name_resolver.py, dialect.py
     │   │       ├── discover.py            ← skill script
-    │   │       └── scope.py               ← skill script
+    │   │       └── catalog.py             ← catalog JSON file I/O
     │   ├── skills/
     │   │   ├── discover/                  ← SKILL.md + rules/
     │   │   ├── scope/                     ← SKILL.md + rules/
