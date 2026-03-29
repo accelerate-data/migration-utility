@@ -1,13 +1,8 @@
 {
-  "generated_at": "2026-03-29T07:00:00Z",
+  "generated_at": "2026-03-29T15:20:00Z",
   "repo_root": "migration-utility",
-  "primary_languages": ["TypeScript", "TSX", "Rust", "Python", "Markdown"],
+  "primary_languages": ["TypeScript", "Python", "Markdown"],
   "package_managers": [
-    {
-      "name": "npm",
-      "lockfile": "app/package-lock.json",
-      "manifest": "app/package.json"
-    },
     {
       "name": "npm (tests)",
       "lockfile": "tests/package-lock.json",
@@ -19,27 +14,12 @@
       "manifest": "docs/package.json"
     },
     {
-      "name": "cargo",
-      "lockfile": "app/src-tauri/Cargo.lock",
-      "manifest": "app/src-tauri/Cargo.toml"
-    },
-    {
       "name": "uv (shared)",
       "lockfile": "agent-sources/ad-migration/workbench/migration/shared/uv.lock",
       "manifest": "agent-sources/ad-migration/workbench/migration/shared/pyproject.toml"
     }
   ],
   "build_systems": [
-    {
-      "name": "Tauri 2",
-      "config_files": ["app/src-tauri/tauri.conf.json", "app/src-tauri/Cargo.toml"],
-      "notes": "Bundles frontend (Vite), Rust backend, and dacpac-extract sidecar. Identifier: com.vibedata.migration-utility. externalBin: binaries/dacpac-extract."
-    },
-    {
-      "name": "Vite",
-      "config_files": ["app/vite.config.ts", "app/tsconfig.json"],
-      "notes": "React + Tailwind plugin. Path alias @/ → ./src/."
-    },
     {
       "name": "GitHub Actions",
       "config_files": [
@@ -48,10 +28,9 @@
         ".github/workflows/claude.yml",
         ".github/workflows/codeql.yml",
         ".github/workflows/dependabot-automerge.yml",
-        ".github/workflows/docs.yml",
-        ".github/workflows/release.yml"
+        ".github/workflows/docs.yml"
       ],
-      "notes": "ci.yml: frontend (Node 22, tsc, vitest) + Rust (cargo test, clippy). docs.yml: VitePress deploy. release.yml: multi-platform Tauri build."
+      "notes": "ci.yml: repo-map audit on PRs. docs.yml: VitePress deploy."
     }
   ],
   "test_frameworks": [
@@ -61,26 +40,11 @@
       "scope": "Scoping-agent integration tests (tests/ad-migration/scoping-agent/)"
     },
     {
-      "name": "Playwright",
-      "config_files": ["app/playwright.config.ts"],
-      "scope": "E2E tests in app/e2e/"
-    },
-    {
-      "name": "cargo test",
-      "scope": "Rust backend unit tests in app/src-tauri/src/"
-    },
-    {
       "name": "pytest",
       "scope": "Python DDL analysis tests in tests/ad-migration/migration/. Run via: cd agent-sources/ad-migration/workbench/migration/shared && uv run pytest"
     }
   ],
   "applications": [
-    {
-      "name": "Migration Utility Desktop",
-      "type": "Tauri v2 desktop app",
-      "description": "Migrates Fabric Warehouse stored procedures to dbt models on Vibedata's platform. React frontend + Rust backend + dacpac-extract sidecar.",
-      "identifier": "com.vibedata.migration-utility"
-    },
     {
       "name": "ad-migration plugin",
       "type": "Claude Code plugin (marketplace)",
@@ -88,47 +52,11 @@
     }
   ],
   "entrypoints": {
-    "frontend": "app/src/main.tsx",
-    "rust_backend": "app/src-tauri/src/main.rs",
-    "rust_lib": "app/src-tauri/src/lib.rs",
-    "dacpac_sidecar": "app/dacpac-extract/Program.cs",
     "ddl_mcp_server": "agent-sources/ad-migration/workbench/migration/ddl_mcp/server.py",
     "discover_cli": "agent-sources/ad-migration/workbench/migration/shared/shared/discover.py",
     "catalog_enrich_cli": "agent-sources/ad-migration/workbench/migration/shared/shared/catalog_enrich.py"
   },
   "modules": {
-    "frontend_components": {
-      "path": "app/src/components/",
-      "description": "Reusable UI components. Files: github-login-dialog.tsx, icon-nav.tsx, step-progress.tsx. Sub-directories: settings/ (create-project-dialog, project-row, project-delete-dialog, project-reset-dialog, repo-selector, settings-panel-shell), ui/ (shadcn/ui primitives). Hooks: hooks/use-project-init.ts."
-    },
-    "frontend_routes": {
-      "path": "app/src/routes/",
-      "description": "Page-level route components: home.tsx, splash.tsx, settings/ directory (index.tsx, connections-tab.tsx, profile-tab.tsx, projects-tab.tsx)."
-    },
-    "frontend_stores": {
-      "path": "app/src/stores/",
-      "description": "Zustand state stores: auth-store, project-store, settings-store."
-    },
-    "frontend_lib": {
-      "path": "app/src/lib/",
-      "description": "Utilities and shared types: branding.ts, date-utils.ts, logger.ts, path-utils.ts, tauri.ts (typed Tauri command wrappers), types.ts, utils.ts."
-    },
-    "frontend_tests": {
-      "path": "app/src/__tests__/",
-      "description": "Frontend unit/integration tests mirroring src/ structure."
-    },
-    "rust_commands": {
-      "path": "app/src-tauri/src/commands/",
-      "description": "Tauri command handlers: app_info.rs, ddl.rs, git_ops.rs, github_auth.rs, process.rs, project.rs, project_ops.rs, settings.rs. mod.rs re-exports."
-    },
-    "rust_db": {
-      "path": "app/src-tauri/src/db.rs",
-      "description": "SQLite schema, migration runner, query helpers, and project repository layer (insert/get/list/delete). Migrations in app/src-tauri/migrations/ (4 numbered SQL files)."
-    },
-    "rust_support": {
-      "path": "app/src-tauri/src/",
-      "description": "Top-level Rust modules: lib.rs (Tauri setup), main.rs (entry), db.rs (database), logging.rs (structured logging), types.rs (shared Rust types)."
-    },
     "plugin_marketplace": {
       "path": "agent-sources/ad-migration/.claude-plugin/marketplace.json",
       "description": "Plugin marketplace manifest defining 3 sub-plugins: bootstrap, migration, test-generation. Each plugin has a 'source' key pointing to its workbench directory."
@@ -173,13 +101,9 @@
       "path": "tests/ad-migration/scoping-agent/",
       "description": "TypeScript vitest suite: scoping-agent.test.ts. Fixtures: 8 scenario directories (ambiguous-multi-writer, call-graph, error-cross-db, no-writer-found, partial, resolved, target-is-view, writer-through-view)."
     },
-    "e2e_tests": {
-      "path": "app/e2e/",
-      "description": "Playwright E2E tests. Sub-directories: helpers/, home/, settings/, workspace/."
-    },
     "scripts": {
       "path": "scripts/",
-      "description": "Developer scripts: build-dacpac-extract.sh, link-worktree-db.sh, publish-test-db-image.sh, restore-dw-samples.sh, sql/ (test DB creation scripts and JSON fixtures)."
+      "description": "Developer scripts: link-worktree-db.sh, publish-test-db-image.sh, restore-dw-samples.sh, sql/ (test DB creation scripts and JSON fixtures)."
     },
     "docs": {
       "path": "docs/",
@@ -187,31 +111,16 @@
     }
   },
   "key_directories": {
-    "app/src/": "Frontend React/TypeScript runtime (components, routes, stores, lib, styles, tests)",
-    "app/src-tauri/src/": "Rust backend runtime (Tauri commands, DB, logging, types)",
-    "app/src-tauri/migrations/": "SQLite schema migrations (4 numbered SQL files)",
-    "app/e2e/": "Playwright E2E tests",
-    "app/dacpac-extract/": "C# sidecar for DACPAC extraction (bundled as externalBin)",
     "agent-sources/ad-migration/": "Claude Code plugin marketplace (bootstrap + migration + test-generation sub-plugins)",
     "agent-sources/ad-migration/workbench/migration/shared/": "Python DDL analysis library (uv project, sqlglot-based)",
     "agent-sources/ad-migration/workbench/migration/shared/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
     "tests/ad-migration/migration/": "Python pytest tests for shared library (discover, catalog, catalog_enrich, extract_refs, integration)",
     "tests/ad-migration/scoping-agent/": "TypeScript vitest tests for scoping agent",
     "docs/design/": "Architecture decision records and design specs",
-    ".claude/rules/": "Shared agent rules (8 policy files: coding-conventions, db-schema-change, frontend-design, git-workflow, logging-policy, rust-backend, agent-sidecar, codex-execution-policy)",
-    ".claude/skills/": "Workflow playbooks for Claude Code CLI skills (6 skills)"
+    ".claude/rules/": "Shared agent rules (4 policy files: coding-conventions, git-workflow, logging-policy, codex-execution-policy)",
+    ".claude/skills/": "Workflow playbooks for Claude Code CLI skills (5 skills)"
   },
   "commands": {
-    "dev": "cd app && npm run dev",
-    "build": "cd app && npm run build",
-    "typecheck": "cd app && npx tsc --noEmit",
-    "cargo_check": "cargo check --manifest-path app/src-tauri/Cargo.toml",
-    "test_rust": "cargo test --manifest-path app/src-tauri/Cargo.toml",
-    "test_rust_db": "cargo test --manifest-path app/src-tauri/Cargo.toml db",
-    "test_rust_source_sql": "cargo test --manifest-path app/src-tauri/Cargo.toml source_sql",
-    "test_frontend_unit": "cd app && npm run test:unit",
-    "test_frontend_integration": "cd app && npm run test:integration",
-    "test_e2e": "cd app && npx playwright test",
     "test_migration_python": "cd agent-sources/ad-migration/workbench/migration/shared && uv run pytest",
     "test_migration_python_integration": "cd agent-sources/ad-migration/workbench/migration/shared && uv run pytest -m integration",
     "test_scoping_agent": "cd tests && npx vitest run",
@@ -219,30 +128,23 @@
   },
   "conventions": {
     "typescript_files": "kebab-case (scope-selector.tsx, candidacy-table.tsx)",
-    "react_components": "PascalCase (ScopeSelector, CandidacyTable)",
     "functions_vars_ts": "camelCase (getStoredProcs, artifactTier)",
     "constants": "UPPER_SNAKE_CASE (MAX_TABLE_ROWS)",
     "python_files": "snake_case (candidacy_agent.py, plan_parser.py)",
     "python_classes": "PascalCase (CandidacyAgent, PlanState)",
     "python_functions": "snake_case (get_stored_procs, artifact_tier)",
-    "rust": "Standard Rust conventions, clippy enforced. Every Tauri command logs info! on entry, error! on failure.",
     "commits": "Granular — one concern per commit. Stage specific files (git add <file>, not git add .).",
     "pr_title": "VU-XXX: short description",
     "pr_body": "Fixes VU-XXX"
   },
   "key_references": {
     "coding_conventions": ".claude/rules/coding-conventions.md",
-    "frontend_rules": ".claude/rules/frontend-design.md",
-    "rust_rules": ".claude/rules/rust-backend.md",
-    "sidecar_rules": ".claude/rules/agent-sidecar.md",
-    "db_change_protocol": ".claude/rules/db-schema-change.md",
     "logging_policy": ".claude/rules/logging-policy.md",
     "git_workflow": ".claude/rules/git-workflow.md",
     "design_docs": "docs/design/README.md"
   },
   "notes_for_agents": {
     "startup": "Read this file before exploring code. It is the primary startup context for structure, entrypoints, modules, and commands.",
-    "db_location": "Database is at Tauri app_data_dir()/migration-utility.db. macOS: ~/Library/Application Support/com.vibedata.migration-utility/migration-utility.db",
     "plugin_loading": "Load the ad-migration plugin with: claude --plugin-path agent-sources/ad-migration. CLAUDE_PLUGIN_ROOT points to the active sub-plugin root (e.g. workbench/bootstrap/ or workbench/migration/).",
     "ddl_filenames": "The loader auto-detects object types from CREATE statements — .sql filenames are not significant. Any directory of .sql files works.",
     "catalog_mandatory": "discover.py requires catalog/ files from setup-ddl. Errors if catalog is missing. No AST fallback.",

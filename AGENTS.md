@@ -1,6 +1,6 @@
 # Migration Utility
 
-Tauri desktop app + headless GitHub Actions pipeline that migrates Microsoft Fabric Warehouse stored procedures to dbt models on Vibedata's platform. Targets silver and gold transformations only (bronze is out of scope).
+Claude Code plugin + batch CLI pipeline that migrates Microsoft Fabric Warehouse stored procedures to dbt models on Vibedata's platform. Targets silver and gold transformations only (bronze is out of scope).
 
 **Maintenance rule:** This file contains architecture, conventions, and guidelines — not product details. Do not add counts, feature descriptions, or any fact that can be discovered by reading code. If it will go stale when the code changes, it doesn't belong here — point to the source file instead.
 
@@ -19,13 +19,6 @@ Adapter files must not duplicate canonical policy unless they are adding agent-s
 
 | Layer | Technology |
 |---|---|
-| Desktop framework | Tauri v2 |
-| Frontend | React 19, TypeScript strict, Vite |
-| Styling | Tailwind CSS 4, shadcn/ui |
-| State | Zustand |
-| Icons | Lucide React |
-| Database | SQLite (`rusqlite` bundled) |
-| Rust errors | `thiserror` |
 | Agent runtime | Claude Code CLI (`claude --plugin-path plugin/ --agent <name>`) |
 | MCP server | genai-toolbox (HTTP mode on GH Actions, stdio locally) |
 | Runtime | GitHub Actions (headless execution) |
@@ -40,24 +33,15 @@ Adapter files must not duplicate canonical policy unless they are adding agent-s
 
 ## Dev Commands
 
-See `repo-map.json` → `commands` for the full command reference. Quick start:
-
-```bash
-cd app && npm run dev          # Dev mode (hot reload)
-cd app && npm run build        # Production build
-```
+See `repo-map.json` → `commands` for the full command reference.
 
 ## Testing
 
 ### When to write tests
 
-**Tauri app:**
-
-1. New Rust command with testable logic → `#[cfg(test)]` tests
-2. New state logic (store actions, derived state) → store unit tests (once stores exist)
-3. New UI interaction → component test
-4. New page or major flow → E2E test (happy path)
-5. Bug fix → regression test
+1. New Python module or function with testable logic → pytest tests
+2. New agent skill or command → integration test
+3. Bug fix → regression test
 
 Purely cosmetic changes or simple wiring don't require tests. If unclear, ask the user.
 
@@ -76,15 +60,10 @@ Determine what you changed, then pick the right runner:
 
 | What changed | Tests to run |
 |---|---|
-| Rust command or `db.rs` | `cargo test --manifest-path app/src-tauri/Cargo.toml <module>` |
-| SQL query-pack files (`app/src-tauri/sql/source/**`) or `source_sql.rs` | `cargo test --manifest-path app/src-tauri/Cargo.toml source_sql` and `cargo test --manifest-path app/src-tauri/Cargo.toml source_sql -- --ignored` (requires local SQL Server per `docs/reference/setup-docker/README.md`) |
-| Frontend store / hook | `npm run test:unit` |
-| Frontend component / page | `npm run test:integration` + E2E tag from `app/tests/TEST_MANIFEST.md` |
-| Rust command | `cargo test <module>` + E2E tag from `app/tests/TEST_MANIFEST.md` |
-| Node sidecar (`app/sidecar/`) | `cd app/sidecar && npx vitest run` |
+| Python shared library | `cd agent-sources/ad-migration/workbench/migration/shared && uv run pytest` |
+| Python integration (Docker SQL Server) | `cd agent-sources/ad-migration/workbench/migration/shared && uv run pytest -m integration` |
+| Scoping agent | `cd tests && npx vitest run` |
 | Unsure | all of the above |
-
-Run `npx tsc --noEmit` from `app/` first — catches type errors in files you didn't directly touch.
 
 When a change depends on local infrastructure (for example SQL Server-backed ignored tests), document in the PR which commands were run and which were not run.
 
@@ -102,22 +81,7 @@ sentence beats a paragraph. Avoid restating what the code already makes obvious.
 - Granular commits: one concern per commit, run tests before each
 - Stage specific files — use `git add <file>` not `git add .`
 - All `.md` files must pass `markdownlint` before committing (`markdownlint <file>`)
-- Verify before committing: `cd app && npx tsc --noEmit` + `cargo check --manifest-path app/src-tauri/Cargo.toml`
 - Canonical naming and error-handling conventions live in `.claude/rules/coding-conventions.md`
-
-### Frontend (`app/src/`)
-
-For AD brand rules, component constraints, and state indicator conventions, see:
-
-- `.claude/rules/frontend-design.md`
-
-### Rust backend (`app/src-tauri/`)
-
-Command conventions, error types, and Rust-specific testing guidance live in `.claude/rules/rust-backend.md`.
-
-### Sidecar (`app/sidecar/`)
-
-Protocol and sidecar-specific constraints live in `.claude/rules/agent-sidecar.md`.
 
 ### Error handling
 
@@ -145,14 +109,9 @@ Use these repo-local skills when requests match:
 - `.claude/skills/create-linear-issue/SKILL.md` — create/log/file a Linear issue, bug, feature, or ticket decomposition
 - `.claude/skills/implement-linear-issue/SKILL.md` — implement/fix/work on a Linear issue (e.g. `VU-123`)
 - `.claude/skills/close-linear-issue/SKILL.md` — close/complete/ship/merge a Linear issue
-- `.claude/skills/tauri/SKILL.md` — Tauri-specific implementation or debugging
 - `.claude/skills/shadcn-ui/SKILL.md` — shadcn/ui component work
 - `.claude/skills/explaining-code/SKILL.md` — explain code with diagrams/teaching-style breakdowns
 
 ## Logging
 
 Every new feature must include logging. Canonical logging conventions and log-level guidance live in `.claude/rules/logging-policy.md`.
-
-## Gotchas
-
-- **Parallel worktrees:** `npm run dev` auto-assigns a free port — safe to run multiple Tauri instances simultaneously.

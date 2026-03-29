@@ -1,15 +1,13 @@
 # Logging Policy
 
-This policy defines required logging behavior across frontend, Rust backend, sidecar, and Python orchestration code.
+This policy defines required logging behavior across plugin and Python orchestration code.
 
 ## Scope
 
 Applies to:
 
-- `app/src/**` (frontend)
-- `app/src-tauri/**` (Rust backend)
-- `app/sidecar/**` (Node/TypeScript sidecar)
-- Python orchestration/agent code when present in this repo
+- Python orchestration/agent code in this repo
+- TypeScript plugin/test code when present
 
 ## Level Usage
 
@@ -53,17 +51,12 @@ Recommended fields:
 
 Examples:
 
-- Rust: `info!("event=workspace_apply operation=clone_repo run_id={} status=success", run_id)`
 - Python: `logger.info("event=plan_update operation=serialize run_id=%s status=success", run_id)`
-- Frontend: `console.log("event=navigate operation=open_monitor run_id=%s", runId)`
 
 ## Correlation IDs
 
 Every multi-step operation must carry a correlation identifier and include it in logs:
 
-- frontend: include `runId`/`requestId` in significant logs
-- Rust commands: log request/run IDs where available
-- sidecar: include request `id` on protocol events
 - Python agents: include model/work item/run IDs
 
 ## Log Injection Prevention
@@ -85,7 +78,4 @@ For changes that add or modify logging:
 
 ## Language-Specific Notes
 
-- Rust: `info!` on command entry, `error!` on failure, `debug!` for intermediate steps
-- Frontend: `console.log` for significant actions, `console.warn` for recoverable anomalies, `console.error` for failures
-- Sidecar: log to `stderr` only; `stdout` is reserved for JSONL protocol
 - Python: use module loggers via `logging.getLogger(__name__)`
