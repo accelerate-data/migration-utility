@@ -324,10 +324,11 @@ The orchestrator. Defined in `commands/migrate-table/SKILL.md`. No Python — Cl
 
 | Issue | What | Depends on |
 |---|---|---|
-| TBD | profile.py | VU-732 (shared lib), VU-733 (discover) |
-| TBD | profile SKILL.md | profile.py |
-| TBD | profile tests | profile.py |
-| VU-742 | migrate.py | VU-732, profile.py |
+| VU-773 | profile.py | VU-732 (shared lib), VU-733 (discover) |
+| VU-774 | profile SKILL.md | VU-773 |
+| VU-775 | profile tests | VU-773 |
+| VU-776 | profiler-agent.md | VU-773 |
+| VU-742 | migrate.py | VU-732, VU-773 |
 | VU-743 | migrate SKILL.md | VU-742 |
 | VU-744 | migrate tests | VU-742 |
 
@@ -371,7 +372,8 @@ VU-732 (shared lib) ✅
   │
   ├── VU-736 (scope.py) ✗ cancelled — scoping agent + discover refs handles this
   │
-  ├── TBD (profile.py) ──────── TBD (SKILL) ──────── TBD (tests)
+  ├── VU-773 (profile.py) ──── VU-774 (SKILL) ──── VU-775 (tests)
+  │                        └── VU-776 (profiler-agent.md)
   │
   ├── VU-742 (migrate.py) ──── VU-743 (SKILL) ───── VU-744 (tests)
   │     │
@@ -381,9 +383,9 @@ VU-732 (shared lib) ✅
   │
 VU-751 (ddl_mcp) ✅
 
-assess cancelled — statement classification built into discover show.
-scope.py cancelled — scoping handled by scoping-agent.md calling discover refs + show.
-profile.py collects catalog signals; LLM inference is done by the agent (batch) or Claude (interactive).
+VU-739/740/741 (assess) cancelled — statement classification built into discover show.
+VU-736/737/738 (scope.py) cancelled — scoping handled by scoping-agent.md calling discover refs + show.
+VU-773 (profile.py) collects catalog signals; LLM inference is done by VU-776 (agent, batch) or VU-774 (skill, interactive).
 All skills → VU-752 (migrate-table SKILL.md) → VU-753 (GHA workflow)
 ```
 
