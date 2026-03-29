@@ -52,25 +52,35 @@ pub(crate) fn open_in_memory() -> Result<Connection, DbError> {
     Ok(conn)
 }
 
-/// Best-effort column repairs run after migrations on every startup.
-///
-/// Handles edge cases where a migration was skipped (e.g. schema_version was
-/// already marked applied on a DB that predates the column, or the migration
-/// ran against a different DB file). No-ops silently when columns already exist.
-/// Keep this function until all pre-004 developer databases have been updated.
+/// Best-effort column repairs for databases where migration 004 was marked
+/// applied but the schema change didn't take effect (e.g. schema_version was
+/// already marked on a DB that predates the column). Gated: skips entirely
+/// once migration 004 is confirmed applied with the column present.
 fn repair_schema(conn: &Connection) -> Result<(), DbError> {
-    // projects.technology — added by migration 004; may be absent on older DB files.
+    let migration_004_applied: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM schema_version WHERE version = 4",
+        [],
+        |row| row.get(0),
+    ).unwrap_or(false);
+
+    if !migration_004_applied {
+        log::info!("repair_schema: migration 004 not yet applied, skipping (will be handled by migrations)");
+        return Ok(());
+    }
+
     let has_technology: bool = conn.query_row(
         "SELECT COUNT(*) > 0 FROM pragma_table_info('projects') WHERE name='technology'",
         [],
         |row| row.get(0),
     )?;
-    if !has_technology {
-        log::warn!("repair_schema: projects.technology missing — adding column (DEFAULT 'sql_server')");
-        conn.execute_batch(
-            "ALTER TABLE projects ADD COLUMN technology TEXT NOT NULL DEFAULT 'sql_server';",
-        )?;
+    if has_technology {
+        return Ok(());
     }
+
+    log::warn!("repair_schema: projects.technology missing despite migration 004 — adding column (DEFAULT 'sql_server')");
+    conn.execute_batch(
+        "ALTER TABLE projects ADD COLUMN technology TEXT NOT NULL DEFAULT 'sql_server';",
+    )?;
     Ok(())
 }
 
