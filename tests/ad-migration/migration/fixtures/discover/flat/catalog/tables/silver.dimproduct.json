@@ -1,0 +1,42 @@
+{
+  "columns": [
+    {
+      "name": "ProductKey",
+      "sql_type": "INTEGER",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "ProductAlternateKey",
+      "sql_type": "NVARCHAR(25)",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "EnglishProductName",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": true,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  }
+}

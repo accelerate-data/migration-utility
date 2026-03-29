@@ -176,6 +176,7 @@ def write_table_catalog(
     """Write a table catalog file.  Returns the written path."""
     fqn = normalize(table_fqn)
     defaults: dict[str, Any] = {
+        "columns": [],
         "primary_keys": [],
         "unique_indexes": [],
         "foreign_keys": [],
@@ -205,10 +206,13 @@ def write_object_catalog(
     *,
     needs_llm: bool = False,
     needs_enrich: bool = False,
+    params: list[dict[str, Any]] | None = None,
 ) -> Path:
     """Write a proc/view/function catalog file.  Returns the written path."""
     norm = normalize(fqn)
     data: dict[str, Any] = {"references": references}
+    if params is not None:
+        data["params"] = params
     if needs_llm:
         data["needs_llm"] = True
     if needs_enrich:
@@ -481,21 +485,25 @@ def write_catalog_files(
     object_types: dict[str, str] | None = None,
     routing_flags: dict[str, dict[str, bool]] | None = None,
     database: str = "",
+    proc_params: dict[str, list[dict[str, Any]]] | None = None,
 ) -> dict[str, int]:
     """Process raw extraction data and write all catalog JSON files.
 
     *table_signals* maps ``table_fqn`` → catalog signal dict (PKs, FKs, etc.).
+    Includes ``columns`` list when provided by export_ddl.
     *proc_dmf_rows*, *view_dmf_rows*, *func_dmf_rows* are raw DMF result rows.
     *object_types* resolves ambiguous OBJECT_OR_COLUMN references.
     *routing_flags* maps ``fqn`` → ``{"needs_llm": bool, "needs_enrich": bool}``
     from the body scan pass.
     *database* is the current database name, used to classify cross-database
     references as out-of-scope.
+    *proc_params* maps ``fqn`` → list of parameter dicts from ``sys.parameters``.
 
     Returns counts: ``{tables: N, procedures: N, views: N, functions: N}``.
     """
     counts = {"tables": 0, "procedures": 0, "views": 0, "functions": 0}
     rflags = routing_flags or {}
+    pparams = proc_params or {}
 
     # Process DMF results per object type
     proc_refs = process_dmf_results(proc_dmf_rows, object_types, database=database)
@@ -510,7 +518,7 @@ def write_catalog_files(
 
     # Write proc/view/function catalog files
     for fqn, refs in proc_refs.items():
-        write_object_catalog(ddl_path, "procedures", fqn, refs, **_flags(fqn))
+        write_object_catalog(ddl_path, "procedures", fqn, refs, **_flags(fqn), params=pparams.get(fqn))
         counts["procedures"] += 1
 
     for fqn, refs in view_refs.items():
@@ -524,7 +532,7 @@ def write_catalog_files(
     # Write empty catalog files for objects that had no DMF refs
     for fqn, bucket in (object_types or {}).items():
         if bucket == "procedures" and fqn not in proc_refs:
-            write_object_catalog(ddl_path, "procedures", fqn, _empty_refs(), **_flags(fqn))
+            write_object_catalog(ddl_path, "procedures", fqn, _empty_refs(), **_flags(fqn), params=pparams.get(fqn))
             counts["procedures"] += 1
         elif bucket == "views" and fqn not in view_refs:
             write_object_catalog(ddl_path, "views", fqn, _empty_refs(), **_flags(fqn))

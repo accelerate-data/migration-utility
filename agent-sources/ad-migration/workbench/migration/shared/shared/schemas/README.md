@@ -25,8 +25,8 @@ Per-object catalog files produced by `setup-ddl` and consumed by `discover`, `pr
 | Schema | Object type | Key fields |
 |---|---|---|
 | [manifest.json](manifest.json) | Extraction manifest | technology, dialect, source_database, extracted_schemas, extracted_at |
-| [table_catalog.json](table_catalog.json) | Table | PKs, FKs, auto_increment_columns, change_capture (opt), sensitivity (opt), `referenced_by`, `profile` |
-| [procedure_catalog.json](procedure_catalog.json) | Procedure | `references`, `referenced_by` |
+| [table_catalog.json](table_catalog.json) | Table | `columns`, PKs, FKs, auto_increment_columns, change_capture (opt), sensitivity (opt), `referenced_by`, `profile` |
+| [procedure_catalog.json](procedure_catalog.json) | Procedure | `params`, `references`, `referenced_by`, `needs_llm`, `needs_enrich` |
 | [view_catalog.json](view_catalog.json) | View | `references`, `referenced_by` |
 | [function_catalog.json](function_catalog.json) | Function | `references`, `referenced_by` |
 
@@ -77,6 +77,16 @@ Every `references` and `referenced_by` group splits entries into:
 
 - `in_scope` -- object is within the extracted schemas. Full metadata available.
 - `out_of_scope` -- cross-database or cross-server reference. Only name/database/reason captured.
+
+## discover CLI output schemas
+
+Structured JSON output from the `discover` CLI subcommands, consumed by skills and agents.
+
+| Schema | Subcommand | Notes |
+|---|---|---|
+| [discover_list_output.json](discover_list_output.json) | `discover list` | `{objects: [string]}` |
+| [discover_show_output.json](discover_show_output.json) | `discover show` | columns, params, refs (from catalog), statements (AST, deterministic only), classification |
+| [discover_refs_output.json](discover_refs_output.json) | `discover refs` | readers, writers with `is_updated`/`is_selected` from catalog. No confidence scoring. |
 
 ## Agent input schemas
 

@@ -64,6 +64,15 @@ def test_list_flat_missing_optional() -> None:
         (p / "tables.sql").write_text(
             "CREATE TABLE dbo.SomeTable (Id INT)\nGO\n", encoding="utf-8"
         )
+        # Minimal catalog dir to satisfy mandatory check
+        (p / "catalog" / "tables").mkdir(parents=True)
+        (p / "catalog" / "tables" / "dbo.sometable.json").write_text(
+            '{"columns":[],"primary_keys":[],"unique_indexes":[],"foreign_keys":[],'
+            '"auto_increment_columns":[],"change_capture":null,"sensitivity_classifications":[],'
+            '"referenced_by":{"procedures":{"in_scope":[],"out_of_scope":[]},'
+            '"views":{"in_scope":[],"out_of_scope":[]},"functions":{"in_scope":[],"out_of_scope":[]}}}',
+            encoding="utf-8",
+        )
         result = discover.run_list(p, discover.ObjectType.views)
     assert result["objects"] == []
 
@@ -73,11 +82,15 @@ def test_list_flat_missing_optional() -> None:
 
 def test_list_indexed_same_as_flat() -> None:
     """Indexed dir returns same object names as flat dir."""
+    import shutil
+
     from shared.loader import index_directory
 
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "indexed"
         index_directory(_FLAT_FIXTURES, out)
+        # Copy catalog/ from flat fixtures so indexed dir also has catalog
+        shutil.copytree(_FLAT_FIXTURES / "catalog", out / "catalog")
 
         flat_result = discover.run_list(_FLAT_FIXTURES, discover.ObjectType.tables)
         indexed_result = discover.run_list(out, discover.ObjectType.tables)
@@ -157,24 +170,23 @@ def test_show_deterministic_no_llm() -> None:
     assert "claude" not in actions
 
 
-def test_show_exec_simple_needs_llm() -> None:
+def test_show_static_exec_is_deterministic() -> None:
+    """Static EXEC procs have needs_llm=false — catalog-enrich resolves them."""
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecSimple")
-    assert result["needs_llm"] is True
-    assert result["classification"] == "claude_assisted"
-
-
-def test_show_exec_dynamic_needs_llm() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecDynamic")
-    assert result["needs_llm"] is True
-    assert result["classification"] == "claude_assisted"
-
-
-def test_show_exec_has_claude_statement() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecSimple")
-    assert result["classification"] == "claude_assisted"
+    assert result["needs_llm"] is False
+    assert result["classification"] == "deterministic"
+    # Statements still show EXEC as 'claude' action
     claude_stmts = [s for s in result["statements"] if s["action"] == "claude"]
     assert len(claude_stmts) >= 1
     assert "EXEC" in claude_stmts[0]["sql"]
+
+
+def test_show_dynamic_exec_needs_llm() -> None:
+    """Dynamic EXEC(@var) procs have needs_llm=true — LLM must analyse."""
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecDynamic")
+    assert result["needs_llm"] is True
+    assert result["classification"] == "claude_assisted"
+    assert result["statements"] is None
 
 
 def test_show_statements_truncate_is_skip() -> None:
@@ -189,10 +201,20 @@ def test_show_statements_table_has_none() -> None:
     assert result["statements"] is None
 
 
-def test_show_no_refs_without_catalog() -> None:
-    """show on a proc without catalog files returns None for refs."""
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadDimProduct")
-    assert result["refs"] is None
+def test_show_errors_without_catalog() -> None:
+    """show errors when no catalog/ directory exists."""
+    import tempfile
+
+    from click.exceptions import Exit
+
+    with tempfile.TemporaryDirectory() as tmp:
+        p = Path(tmp)
+        (p / "procedures.sql").write_text(
+            "CREATE PROCEDURE dbo.usp_Test AS BEGIN SELECT 1 END\nGO\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(Exit):
+            discover.run_show(p, "dbo.usp_Test")
 
 
 # ── Catalog-first refs tests ────────────────────────────────────────────
@@ -230,8 +252,13 @@ def test_refs_catalog_no_confidence() -> None:
 
 
 def test_refs_errors_without_catalog() -> None:
-    """refs raises Exit(1) when no catalog files exist."""
+    """refs raises Exit when no catalog/ directory exists."""
     from click.exceptions import Exit
 
-    with pytest.raises(Exit):
-        discover.run_refs(_FLAT_FIXTURES, "silver.DimProduct")
+    with tempfile.TemporaryDirectory() as tmp:
+        p = Path(tmp)
+        (p / "tables.sql").write_text(
+            "CREATE TABLE dbo.T (Id INT)\nGO\n", encoding="utf-8",
+        )
+        with pytest.raises(Exit):
+            discover.run_refs(p, "dbo.T")

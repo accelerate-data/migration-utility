@@ -2,6 +2,8 @@
 
 Three subcommands: `list`, `show`, `refs`. The user may invoke any subcommand directly via `$ARGUMENTS` or navigate through them interactively. Use the `ddl-path` from `$ARGUMENTS` for all commands — never hardcode a path.
 
+Requires catalog files from `setup-ddl`. If the catalog is missing, `discover` will error and tell the user to run `setup-ddl` first.
+
 ## list
 
 Enumerate objects in the DDL directory:
@@ -37,11 +39,11 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover show \
   --ddl-path <ddl-path> --name <fqn>
 ```
 
-The output contains `type`, `raw_ddl`, `columns`, `params`, `refs`, and `parse_error`. Present differently based on the object type:
+The output contains `type`, `raw_ddl`, `columns`, `params`, `refs`, `statements`, `needs_llm`, `classification`, and `parse_error`. Present differently based on the object type:
 
 ### Tables
 
-Show the column list:
+Show the column list (from catalog):
 
 ```text
 silver.DimCustomer (table, 3 columns)
@@ -73,8 +75,8 @@ Always include classification, call graph, and logic summary.
 
 Check `needs_llm` and `classification` to determine the analysis tier (see parse classification table in SKILL.md):
 
-- `needs_llm: false` → **Deterministic** — refs are complete, use directly
-- `needs_llm: true` → **Claude-assisted** — refs may be partial (control flow or EXEC not captured by single-pass)
+- `needs_llm: false` → **Deterministic** — refs are complete (from catalog + enrichment), statements available
+- `needs_llm: true` → **Claude-assisted** — refs may be partial, statements are null. Read `raw_ddl` directly.
 
 **Deterministic example:**
 
@@ -86,7 +88,7 @@ Call Graph
   silver.usp_load_DimCustomer  (direct writer)
     ├── reads: bronze.Customer
     ├── reads: bronze.Person
-    └── writes: silver.DimCustomer  (TRUNCATE + INSERT)
+    └── writes: silver.DimCustomer  (UPDATE + INSERT)
 
 Logic Summary
   1. TRUNCATE TABLE silver.DimCustomer
@@ -94,54 +96,46 @@ Logic Summary
   3. Computes DateFirstPurchase via OUTER APPLY on bronze.SalesOrderHeader
 ```
 
-**Claude-assisted example (EXEC orchestrator):**
+**Claude-assisted example (dynamic SQL):**
 
 ```text
-Classification: Claude-assisted (EXEC detected)
-Parse error: Cannot extract refs: body contains unparsed statement(s)
+Classification: Claude-assisted (needs_llm)
+Statements: not available — read raw_ddl below
 
-Call Graph
-
-  silver.usp_load_FactSales  (orchestrator, no direct DML)
-    └── EXEC silver.usp_stage_FactSales  (leaf, truncate + INSERT)
-          ├── reads: bronze.SalesOrderHeader
-          ├── reads: bronze.SalesOrderDetail
-          └── writes: silver.FactInternetSales
-
-Logic Summary
-  1. Calls usp_stage_FactSales via EXEC — orchestrator with no direct writes
+  raw_ddl:
+    CREATE PROCEDURE silver.usp_load_FactSales
+    AS BEGIN
+      DECLARE @sql NVARCHAR(MAX) = ...
+      EXEC(@sql)
+    END
 ```
 
-For Claude-assisted procs, read the `raw_ddl` and `statements` to complete the analysis. Identify writes, reads, and calls that single-pass parsing missed (inside IF/ELSE, TRY/CATCH, or EXEC). If a called proc exists in the same DDL directory, run `show` on it to get its refs and build the call graph from that.
+For Claude-assisted procs, read the `raw_ddl` to complete the analysis. Identify writes, reads, and calls that the catalog could not resolve (dynamic SQL, complex control flow).
 
 Use the same call graph format for both paths.
 
 ## refs
 
-Find what references an object:
+Find what references an object (from catalog data):
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover refs \
   --ddl-path <ddl-path> --name <fqn>
 ```
 
-The output splits callers into `readers` (FROM/JOIN), `writers` (INSERT/UPDATE/DELETE/MERGE/TRUNCATE/SELECT INTO), and optionally `llm_required` (procs with partial or missing refs due to control flow or EXEC).
+The output splits callers into `readers` (is_selected only) and `writers` (is_updated). Data comes from `catalog/tables/<table>.json` → `referenced_by`. No AST parsing, no BFS, no confidence scoring — writers are facts from `sys.dm_sql_referenced_entities`.
 
 Present grouped:
 
 ```text
-silver.FactSales references:
+silver.FactSales references (from catalog):
 
   Writers (1):
-    - silver.usp_load_FactSales  (deterministic)
+    - dbo.usp_load_FactSales  (is_updated)
 
-  Readers (1):
-    - silver.vw_SalesSummary  (deterministic)
-
-  LLM required (1):
-    - silver.usp_conditional_loader  (needs_llm — IF/ELSE control flow)
+  Readers (2):
+    - dbo.usp_read_fact_sales  (is_selected)
+    - dbo.vw_sales_summary  (is_selected)
 ```
 
-### Completing LLM-required refs
-
-For each proc in `llm_required`, run `discover show` to get its `raw_ddl` and `statements`. Read the procedure body, identify whether it reads from or writes to the target, and report your finding alongside the deterministic results. This ensures the caller gets a complete picture without needing a separate scope pass.
+**Known limitation:** Procs that write only via dynamic SQL (`EXEC(@sql)`, `sp_executesql`) will not appear in catalog `referenced_by`. This is an inherent limitation of `sys.dm_sql_referenced_entities` — it resolves references at definition time, not runtime. These procs require LLM analysis via `discover show`.

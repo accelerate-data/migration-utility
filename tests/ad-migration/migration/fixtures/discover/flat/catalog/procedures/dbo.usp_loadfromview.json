@@ -1,0 +1,35 @@
+{
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "vw_productcatalog",
+          "is_selected": true,
+          "is_updated": false
+        },
+        {
+          "schema": "silver",
+          "name": "dimproduct",
+          "is_selected": false,
+          "is_updated": true,
+          "is_insert_all": true
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "params": []
+}

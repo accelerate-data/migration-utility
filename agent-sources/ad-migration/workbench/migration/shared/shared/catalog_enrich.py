@@ -181,6 +181,9 @@ def enrich_catalog(ddl_path: Path, dialect: str = "tsql") -> dict[str, Any]:
         if proc_cat and proc_cat.get("needs_llm"):
             logger.debug("event=enrich_skip proc=%s reason=needs_llm", proc_fqn)
             continue
+        if proc_cat and not proc_cat.get("needs_enrich", True):
+            logger.debug("event=enrich_skip proc=%s reason=already_enriched", proc_fqn)
+            continue
 
         try:
             refs = extract_refs(entry)

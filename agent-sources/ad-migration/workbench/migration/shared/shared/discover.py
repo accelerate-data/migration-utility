@@ -1,4 +1,4 @@
-"""discover.py — DDL object catalog and semantic reference finder.
+"""discover.py — DDL object catalog reader.
 
 Standalone CLI with three subcommands:
 
@@ -6,14 +6,13 @@ Standalone CLI with three subcommands:
     show   Show details (columns/params/refs) for a single named object.
     refs   Find all procedures/views that reference a given object.
 
-Auto-detects flat vs indexed format: if catalog.json exists in --ddl-path,
-uses load_catalog(); otherwise uses load_directory().
+Requires catalog files from setup-ddl. Errors if catalog is missing.
 
 All JSON output goes to stdout; warnings/progress go to stderr.
 
 Exit codes:
     0  success
-    1  domain failure (object not found, etc.)
+    1  domain failure (object not found, no catalog file, etc.)
     2  IO or parse error
 """
 
@@ -25,16 +24,16 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-import sqlglot.expressions as exp
 import typer
 
 from shared.catalog import (
+    has_catalog,
     load_proc_catalog,
     load_table_catalog,
     load_view_catalog,
     load_function_catalog,
 )
-from shared.loader import (  # noqa: E402
+from shared.loader import (
     DdlCatalog,
     DdlEntry,
     DdlParseError,
@@ -43,7 +42,7 @@ from shared.loader import (  # noqa: E402
     load_catalog,
     load_directory,
 )
-from shared.name_resolver import normalize  # noqa: E402
+from shared.name_resolver import normalize
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
@@ -59,18 +58,18 @@ class ObjectType(str, Enum):
 
 
 def _load(ddl_path: Path) -> tuple[DdlCatalog, str]:
-    """Load a DdlCatalog from flat or indexed directory.
+    """Load a DdlCatalog and dialect from a DDL directory.
 
-    Returns (catalog, dialect) where dialect is read from manifest.json
-    (default: tsql).
+    Requires a catalog/ directory (from setup-ddl). Errors if missing.
     """
     manifest = _read_manifest(ddl_path)
     dialect = manifest["dialect"]
+    if not has_catalog(ddl_path):
+        print(f"discover: no catalog/ directory in {ddl_path} — run setup-ddl first", file=sys.stderr)
+        raise typer.Exit(code=2)
     catalog_json = ddl_path / "catalog.json"
     if catalog_json.exists():
-        print(f"discover: loading indexed catalog from {ddl_path}", file=sys.stderr)
         return load_catalog(ddl_path), dialect
-    print(f"discover: loading flat directory from {ddl_path}", file=sys.stderr)
     return load_directory(ddl_path, dialect=dialect), dialect
 
 
@@ -84,12 +83,9 @@ def _bucket(catalog: DdlCatalog, object_type: ObjectType) -> dict[str, DdlEntry]
 
 
 def _find_entry(
-    catalog: DdlCatalog, name: str
+    catalog: DdlCatalog, name: str,
 ) -> tuple[str, str, DdlEntry] | None:
-    """Find an entry by normalized name across all buckets.
-
-    Returns (normalized_name, type_label, entry) or None.
-    """
+    """Find an entry by normalized name across all buckets."""
     norm = normalize(name)
     for type_label, bucket_name in [
         ("table", "tables"),
@@ -103,50 +99,13 @@ def _find_entry(
     return None
 
 
-# ── Column / param extraction from AST ───────────────────────────────────────
-
-
-def _extract_columns(entry: DdlEntry, dialect: str = "tsql") -> list[dict[str, str]]:
-    """Walk ColumnDef nodes in the AST and return column definitions.
-
-    Returns an empty list if the AST is None or no ColumnDef nodes are found.
-    """
-    if entry.ast is None:
-        return []
-    columns: list[dict[str, str]] = []
-    for col_def in entry.ast.find_all(exp.ColumnDef):
-        col_name = col_def.name
-        dtype_node = col_def.args.get("kind")
-        sql_type = dtype_node.sql(dialect=dialect) if dtype_node is not None else ""
-        columns.append({"name": col_name, "sql_type": sql_type})
-    return columns
-
-
-def _extract_params(entry: DdlEntry, dialect: str = "tsql") -> list[dict[str, Any]]:
-    """Extract procedure parameters from the AST.
-
-    Walks ParameterizedTypedef / Parameter nodes attached to the Create node.
-    Returns an empty list if the AST is None or no params are found.
-    """
-    if entry.ast is None:
-        return []
-    params: list[dict[str, Any]] = []
-    for param in entry.ast.find_all(exp.Parameter):
-        param_name = param.name
-        dtype_node = param.args.get("kind")
-        sql_type = dtype_node.sql(dialect=dialect) if dtype_node is not None else ""
-        default_node = param.args.get("default")
-        default_val = default_node.sql(dialect=dialect) if default_node is not None else None
-        is_output = bool(param.args.get("output"))
-        params.append(
-            {
-                "name": param_name,
-                "sql_type": sql_type,
-                "default": default_val,
-                "is_output": is_output,
-            }
-        )
-    return params
+def _catalog_error(type_label: str, norm: str) -> None:
+    """Print error and raise Exit(1) for missing catalog file."""
+    print(
+        f"discover: no catalog file for {type_label} {norm} — run setup-ddl first",
+        file=sys.stderr,
+    )
+    raise typer.Exit(code=1)
 
 
 # ── Core logic (importable for testing) ───────────────────────────────────────
@@ -163,9 +122,10 @@ def run_list(ddl_path: Path, object_type: ObjectType) -> dict[str, Any]:
 def run_show(ddl_path: Path, name: str) -> dict[str, Any]:
     """Return the show subcommand result dict.
 
-    Raises SystemExit(1) if the object is not found.
+    Reads all metadata from catalog files. AST parsing is only used for
+    statement breakdown on deterministic (needs_llm=false) procedures.
     """
-    catalog, dialect = _load(ddl_path)
+    catalog, _ = _load(ddl_path)
     found = _find_entry(catalog, name)
     if found is None:
         norm = normalize(name)
@@ -178,67 +138,76 @@ def run_show(ddl_path: Path, name: str) -> dict[str, Any]:
     params: list[dict] = []
     refs_dict: dict | None = None
     parse_error: str | None = entry.parse_error
-
-    if type_label == "table":
-        columns = _extract_columns(entry, dialect=dialect)
-
     needs_llm = False
     classification: str | None = None
     statements: list[dict] | None = None
 
-    if type_label == "procedure":
-        params = _extract_params(entry, dialect=dialect)
+    if type_label == "table":
+        table_cat = load_table_catalog(ddl_path, norm)
+        if table_cat is None:
+            _catalog_error(type_label, norm)
+        columns = table_cat.get("columns", [])
 
-        # Read reference data from catalog
+    elif type_label == "procedure":
         proc_cat = load_proc_catalog(ddl_path, norm)
-        if proc_cat is not None:
-            cat_refs = proc_cat.get("references", {})
-            tables_in_scope = cat_refs.get("tables", {}).get("in_scope", [])
-            reads = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_selected")]
-            writes = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_updated")]
-            write_ops: dict[str, list[str]] = {}
-            for t in tables_in_scope:
-                if t.get("is_updated"):
-                    tfqn = normalize(f"{t['schema']}.{t['name']}")
-                    ops = ["UPDATE"]
-                    if t.get("is_insert_all"):
-                        ops.append("INSERT")
-                    write_ops[tfqn] = ops
-            funcs = [normalize(f"{f['schema']}.{f['name']}") for f in cat_refs.get("functions", {}).get("in_scope", [])]
-            refs_dict = {
-                "reads_from": sorted(set(reads)),
-                "writes_to": sorted(set(writes)),
-                "write_operations": write_ops,
-                "uses_functions": sorted(set(funcs)),
-            }
-            print(f"discover: show refs from catalog for {norm}", file=sys.stderr)
+        if proc_cat is None:
+            _catalog_error(type_label, norm)
 
-        # Always AST-parse for statements, needs_llm, classification
-        try:
-            obj_refs_for_stmts = extract_refs(entry)
-            needs_llm = obj_refs_for_stmts.needs_llm
-            statements = obj_refs_for_stmts.statements
-        except DdlParseError:
-            needs_llm = True
+        # Params from catalog
+        params = proc_cat.get("params", [])
+
+        # Refs from catalog
+        cat_refs = proc_cat.get("references", {})
+        tables_in_scope = cat_refs.get("tables", {}).get("in_scope", [])
+        reads = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_selected")]
+        writes = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_updated")]
+        write_ops: dict[str, list[str]] = {}
+        for t in tables_in_scope:
+            if t.get("is_updated"):
+                tfqn = normalize(f"{t['schema']}.{t['name']}")
+                ops = []
+                if t.get("is_updated"):
+                    ops.append("UPDATE")
+                if t.get("is_insert_all"):
+                    ops.append("INSERT")
+                write_ops[tfqn] = ops
+        funcs = [normalize(f"{f['schema']}.{f['name']}") for f in cat_refs.get("functions", {}).get("in_scope", [])]
+        refs_dict = {
+            "reads_from": sorted(set(reads)),
+            "writes_to": sorted(set(writes)),
+            "write_operations": write_ops,
+            "uses_functions": sorted(set(funcs)),
+        }
+
+        # needs_llm from catalog — trust the body scan + enrichment pipeline
+        needs_llm = proc_cat.get("needs_llm", False)
 
         if needs_llm or parse_error:
             classification = "claude_assisted"
+            statements = None
         else:
+            # Deterministic per catalog — AST-parse for statement breakdown
+            try:
+                obj_refs_for_stmts = extract_refs(entry)
+                statements = obj_refs_for_stmts.statements
+            except DdlParseError:
+                statements = None
             classification = "deterministic"
 
     elif type_label in ("view", "function"):
         cat_loader = load_view_catalog if type_label == "view" else load_function_catalog
         obj_cat = cat_loader(ddl_path, norm)
-        if obj_cat is not None:
-            cat_refs = obj_cat.get("references", {})
-            tables_in_scope = cat_refs.get("tables", {}).get("in_scope", [])
-            reads = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_selected")]
-            writes = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_updated")]
-            refs_dict = {
-                "reads_from": sorted(set(reads)),
-                "writes_to": sorted(set(writes)),
-            }
-            print(f"discover: show refs from catalog for {norm}", file=sys.stderr)
+        if obj_cat is None:
+            _catalog_error(type_label, norm)
+
+        cat_refs = obj_cat.get("references", {})
+        tables_in_scope = cat_refs.get("tables", {}).get("in_scope", [])
+        reads = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_selected")]
+        writes = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_updated")]
+        refs_dict = {
+            "reads_from": sorted(set(reads)),
+            "writes_to": sorted(set(writes)),
+        }
 
     return {
         "name": norm,
@@ -255,7 +224,7 @@ def run_show(ddl_path: Path, name: str) -> dict[str, Any]:
 
 
 def _run_refs_from_catalog(ddl_path: Path, target: str) -> dict[str, Any]:
-    """Build refs result from catalog JSON files (no AST, no BFS, no confidence)."""
+    """Build refs result from catalog JSON files."""
     table_cat = load_table_catalog(ddl_path, target)
     if table_cat is None:
         print(f"discover: no catalog found for {target} — run setup-ddl first", file=sys.stderr)
@@ -293,11 +262,12 @@ def _run_refs_from_catalog(ddl_path: Path, target: str) -> dict[str, Any]:
 def run_refs(ddl_path: Path, name: str) -> dict[str, Any]:
     """Return the refs subcommand result dict.
 
-    Reads ``catalog/tables/<name>.json`` → ``referenced_by`` for instant
-    writer identification. No AST, no BFS, no confidence scoring.
-
-    Requires catalog files from setup-ddl.
+    Reads catalog/tables/<name>.json -> referenced_by for instant
+    writer identification. Requires catalog files from setup-ddl.
     """
+    if not has_catalog(ddl_path):
+        print(f"discover: no catalog/ directory in {ddl_path} — run setup-ddl first", file=sys.stderr)
+        raise typer.Exit(code=2)
     target = normalize(name)
     result = _run_refs_from_catalog(ddl_path, target)
     print(f"discover: refs from catalog for {target}", file=sys.stderr)

@@ -32,13 +32,12 @@ If `ddl-path` is missing from `$ARGUMENTS`, ask the user for it before proceedin
 | `--ddl-path` | yes | path to DDL directory |
 | `--name` | yes | fully-qualified object name (e.g. `dbo.FactSales`, `[silver].[DimProduct]`) |
 
-**refs** — find all procedures/views that reference an object (readers, writers with confidence, indirect writers via call graph):
+**refs** — find all procedures/views that reference an object (readers, writers from catalog):
 
 | Option | Required | Values |
 |---|---|---|
 | `--ddl-path` | yes | path to DDL directory |
 | `--name` | yes | fully-qualified object name |
-| `--depth` | no | max call-graph depth for indirect writers (default: `3`) |
 
 If no subcommand is specified in `$ARGUMENTS`, default to `list`.
 

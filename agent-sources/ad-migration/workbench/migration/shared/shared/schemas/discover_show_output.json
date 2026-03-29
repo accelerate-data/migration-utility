@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DiscoverShowOutput",
+  "description": "Output of 'discover show'. Emitted to stdout as a single JSON line. Reads all metadata from catalog files; AST parsing only for statement breakdown on deterministic procedures.",
+  "type": "object",
+  "required": ["name", "type", "raw_ddl", "columns", "params", "refs", "statements", "needs_llm", "classification", "parse_error"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Normalized fully-qualified name: schema.name (lowercase, no brackets)."
+    },
+    "type": {
+      "type": "string",
+      "enum": ["table", "procedure", "view", "function"]
+    },
+    "raw_ddl": {
+      "type": "string",
+      "description": "Raw DDL text as extracted from the .sql file."
+    },
+    "columns": {
+      "type": "array",
+      "description": "Column definitions from catalog. Populated for tables; empty for other types.",
+      "items": { "$ref": "#/$defs/column_def" }
+    },
+    "params": {
+      "type": "array",
+      "description": "Procedure parameters from catalog. Populated for procedures; empty for other types.",
+      "items": { "$ref": "#/$defs/param_def" }
+    },
+    "refs": {
+      "description": "References from catalog. null if catalog file has no references section.",
+      "oneOf": [
+        { "$ref": "#/$defs/proc_refs" },
+        { "$ref": "#/$defs/basic_refs" },
+        { "type": "null" }
+      ]
+    },
+    "statements": {
+      "description": "Per-statement breakdown with action classification. Only populated for deterministic procedures (needs_llm=false); null otherwise.",
+      "oneOf": [
+        {
+          "type": "array",
+          "items": { "$ref": "#/$defs/statement_entry" }
+        },
+        { "type": "null" }
+      ]
+    },
+    "needs_llm": {
+      "type": "boolean",
+      "description": "True when the catalog body scan detected dynamic SQL, TRY/CATCH, WHILE, or IF/ELSE. Read from catalog, not AST."
+    },
+    "classification": {
+      "type": ["string", "null"],
+      "enum": ["deterministic", "claude_assisted", null],
+      "description": "deterministic: catalog + enrichment resolved all refs. claude_assisted: needs_llm or parse_error. null for non-procedure types."
+    },
+    "parse_error": {
+      "type": ["string", "null"],
+      "description": "Error message if sqlglot could not parse the body; null otherwise."
+    }
+  },
+  "$defs": {
+    "column_def": {
+      "type": "object",
+      "required": ["name", "sql_type"],
+      "properties": {
+        "name": { "type": "string" },
+        "sql_type": { "type": "string", "description": "SQL type string, e.g. NVARCHAR(50), BIGINT." },
+        "is_nullable": { "type": "boolean" },
+        "is_identity": { "type": "boolean" }
+      }
+    },
+    "param_def": {
+      "type": "object",
+      "required": ["name", "sql_type"],
+      "properties": {
+        "name": { "type": "string", "description": "Parameter name including @, e.g. @CustomerId." },
+        "sql_type": { "type": "string" },
+        "is_output": { "type": "boolean" },
+        "has_default": { "type": "boolean" }
+      }
+    },
+    "proc_refs": {
+      "type": "object",
+      "description": "Reference extraction result for procedures (from catalog).",
+      "required": ["reads_from", "writes_to", "write_operations", "uses_functions"],
+      "properties": {
+        "reads_from": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Normalized FQNs of tables/views read by this procedure (is_selected=true)."
+        },
+        "writes_to": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Normalized FQNs of tables written by this procedure (is_updated=true)."
+        },
+        "write_operations": {
+          "type": "object",
+          "description": "Map of target FQN to detected DML operations from catalog flags.",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "uses_functions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Normalized FQNs of scalar/table-valued functions called."
+        }
+      }
+    },
+    "basic_refs": {
+      "type": "object",
+      "description": "Reference extraction result for views and functions (no write tracking).",
+      "required": ["reads_from", "writes_to"],
+      "properties": {
+        "reads_from": { "type": "array", "items": { "type": "string" } },
+        "writes_to": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "statement_entry": {
+      "type": "object",
+      "required": ["type", "action", "sql"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "sqlglot AST node class name, e.g. Insert, Update, Command."
+        },
+        "action": {
+          "type": "string",
+          "enum": ["migrate", "skip", "claude"],
+          "description": "migrate: core DML that becomes the dbt model. skip: operational overhead dbt ignores. claude: needs LLM to follow call graph."
+        },
+        "sql": {
+          "type": "string",
+          "description": "SQL text of the statement (truncated to 200 chars)."
+        }
+      }
+    }
+  }
+}

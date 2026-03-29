@@ -146,6 +146,107 @@ def _export_tables(conn, output_path: Path) -> int:
     return len(blocks)
 
 
+def _extract_table_columns(conn) -> dict[str, list[dict]]:
+    """Extract column definitions for all tables.
+
+    Returns {normalized_fqn: [{name, sql_type, is_nullable, is_identity}]}.
+    Reuses the same sys.columns query as _export_tables.
+    """
+    from shared.name_resolver import normalize
+
+    sql = """
+        SELECT
+            SCHEMA_NAME(t.schema_id) AS schema_name,
+            t.name AS table_name,
+            c.name AS column_name,
+            c.column_id,
+            tp.name AS type_name,
+            c.max_length,
+            c.precision,
+            c.scale,
+            c.is_nullable,
+            c.is_identity
+        FROM sys.tables t
+        JOIN sys.columns c ON c.object_id = t.object_id
+        JOIN sys.types tp ON tp.user_type_id = c.user_type_id
+        WHERE t.is_ms_shipped = 0
+        ORDER BY schema_name, table_name, c.column_id
+    """
+    cursor = conn.cursor()
+    cursor.execute(sql)
+
+    def _format_type(row) -> str:
+        type_name = row.type_name.upper()
+        if type_name in ("NVARCHAR", "VARCHAR", "NCHAR", "CHAR", "BINARY", "VARBINARY"):
+            length = "MAX" if row.max_length == -1 else str(row.max_length // (2 if type_name.startswith("N") else 1))
+            return f"{type_name}({length})"
+        if type_name in ("DECIMAL", "NUMERIC"):
+            return f"{type_name}({row.precision},{row.scale})"
+        return type_name
+
+    result: dict[str, list[dict]] = {}
+    for row in cursor.fetchall():
+        fqn = normalize(f"{row.schema_name}.{row.table_name}")
+        if fqn not in result:
+            result[fqn] = []
+        result[fqn].append({
+            "name": row.column_name,
+            "sql_type": _format_type(row),
+            "is_nullable": bool(row.is_nullable),
+            "is_identity": bool(row.is_identity),
+        })
+    return result
+
+
+def _extract_proc_params(conn) -> dict[str, list[dict]]:
+    """Extract procedure parameter definitions.
+
+    Returns {normalized_fqn: [{name, sql_type, is_output, has_default}]}.
+    """
+    from shared.name_resolver import normalize
+
+    sql = """
+        SELECT
+            SCHEMA_NAME(o.schema_id) AS schema_name,
+            o.name AS proc_name,
+            p.name AS param_name,
+            TYPE_NAME(p.user_type_id) AS type_name,
+            p.max_length,
+            p.precision,
+            p.scale,
+            p.is_output,
+            p.has_default_value
+        FROM sys.parameters p
+        JOIN sys.objects o ON o.object_id = p.object_id
+        WHERE o.type = 'P' AND o.is_ms_shipped = 0 AND p.parameter_id > 0
+        ORDER BY schema_name, proc_name, p.parameter_id
+    """
+    cursor = conn.cursor()
+    cursor.execute(sql)
+
+    def _format_type(row) -> str:
+        type_name = row.type_name.upper()
+        if type_name in ("NVARCHAR", "VARCHAR", "NCHAR", "CHAR", "BINARY", "VARBINARY"):
+            length = "MAX" if row.max_length == -1 else str(row.max_length // (2 if type_name.startswith("N") else 1))
+            return f"{type_name}({length})"
+        if type_name in ("DECIMAL", "NUMERIC"):
+            return f"{type_name}({row.precision},{row.scale})"
+        return type_name
+
+    result: dict[str, list[dict]] = {}
+    for row in cursor.fetchall():
+        fqn = normalize(f"{row.schema_name}.{row.proc_name}")
+        if fqn not in result:
+            result[fqn] = []
+        result[fqn].append({
+            "name": row.param_name,
+            "sql_type": _format_type(row),
+            "is_output": bool(row.is_output),
+            "has_default": bool(row.has_default_value),
+        })
+    return result
+
+
 def _extract_table_signals(conn) -> dict[str, dict]:
     """Extract catalog signals for all tables: PKs, unique indexes, FKs, identity, CDC, change tracking, sensitivity."""
     from shared.name_resolver import normalize
@@ -457,8 +558,22 @@ def main(
         from shared.catalog import write_catalog_files
         from shared.name_resolver import normalize
 
+        typer.echo("Extracting table columns ...", err=True)
+        table_columns = _extract_table_columns(conn)
+        typer.echo(f"  {sum(len(v) for v in table_columns.values())} columns across {len(table_columns)} tables", err=True)
+
+        typer.echo("Extracting procedure parameters ...", err=True)
+        proc_params = _extract_proc_params(conn)
+        typer.echo(f"  {sum(len(v) for v in proc_params.values())} params across {len(proc_params)} procedures", err=True)
+
         typer.echo("Extracting catalog signals ...", err=True)
         table_signals = _extract_table_signals(conn)
+        # Merge columns into table_signals
+        for fqn, cols in table_columns.items():
+            if fqn not in table_signals:
+                table_signals[fqn] = {}
+            table_signals[fqn]["columns"] = cols
+
         object_type_map = _build_object_type_map(conn)
 
         typer.echo("Scanning proc bodies for routing flags ...", err=True)
@@ -488,6 +603,7 @@ def main(
             routing_flags=rflags,
             database=database,
             object_types=object_type_map,
+            proc_params=proc_params,
         )
         typer.echo(f"\nCatalog files written:", err=True)
         for kind, count in cat_counts.items():
