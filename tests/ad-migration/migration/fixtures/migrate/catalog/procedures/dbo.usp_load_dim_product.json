@@ -1,0 +1,35 @@
+{
+  "schema": "dbo",
+  "name": "usp_load_dim_product",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "DimProduct",
+          "is_selected": false,
+          "is_updated": true,
+          "is_insert_all": true
+        },
+        {
+          "schema": "bronze",
+          "name": "Product",
+          "is_selected": true,
+          "is_updated": false
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": { "in_scope": [], "out_of_scope": [] },
+    "functions": { "in_scope": [], "out_of_scope": [] },
+    "procedures": { "in_scope": [], "out_of_scope": [] }
+  },
+  "statements": [
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "source": "ast",
+      "sql": "INSERT INTO [silver].[DimProduct] (product_name, category) SELECT ProductName, Category FROM [bronze].[Product]"
+    }
+  ]
+}
