@@ -153,11 +153,11 @@ Migration Guidance
 
 ### Persisting Resolved Statements
 
-After reviewing statements with the user, persist resolved statements to catalog:
+After presenting the procedure, persist resolved statements to catalog so downstream stages (profiler, migrator) can read them.
 
 **For deterministic procedures** (`classification: deterministic`, no `claude` actions in statements):
 
-Run directly:
+All statements are already classified by the AST. Persist immediately after presenting Migration Guidance — no additional user confirmation needed:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover write-statements \
