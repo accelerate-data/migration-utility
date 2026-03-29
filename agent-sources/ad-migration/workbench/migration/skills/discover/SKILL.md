@@ -110,7 +110,7 @@ silver.vw_CustomerSales (view)
 
 ### Procedures
 
-Always present: classification, call graph, and logic summary — same format regardless of classification.
+Always present classification, call graph, and logic summary. 
 
 | `classification` | Data available |
 |---|---|
@@ -135,17 +135,19 @@ Logic Summary
   3. Computes DateFirstPurchase via OUTER APPLY on bronze.SalesOrderHeader
 ```
 
-For `claude_assisted` procs, read `raw_ddl` to identify the writes, reads, and calls that the catalog could not resolve, then present the same call graph + logic summary format.
+For `claude_assisted` procs, read `raw_ddl` to identify the writes, reads, and calls that could not be resolved via the deterministic path and present in the same call graph + logic summary format.
 
-### Statement actions (deterministic procs only)
+### Statement actions
 
-The `statements` array classifies each statement in the proc body:
+Classify each statement in the proc body as one of:
 
-| Action | Statement types | Meaning |
-|---|---|---|
-| `migrate` | INSERT, UPDATE, DELETE, MERGE, SELECT INTO | Core transformation — becomes the dbt model |
-| `skip` | SET, TRUNCATE, DROP INDEX, CREATE INDEX/PARTITION | Operational overhead — dbt handles or ignores |
-| `claude` | EXEC, sp_executesql, dynamic SQL | Needs Claude to follow call graph |
+| Action | Meaning |
+|---|---|
+| `migrate` | Core transformation (INSERT, UPDATE, DELETE, MERGE, SELECT INTO) — becomes the dbt model |
+| `skip` | Operational overhead (SET, TRUNCATE, DROP/CREATE INDEX) — dbt handles or ignores |
+| `claude` | Needs LLM analysis (EXEC, sp_executesql, dynamic SQL) — follow the call graph |
+
+For deterministic procs, the `statements` array is pre-classified. For claude_assisted procs, classify statements yourself from `raw_ddl`.
 
 See [`references/tsql-parse-classification.md`](references/tsql-parse-classification.md) for the exhaustive pattern list.
 
