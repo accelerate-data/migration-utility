@@ -151,9 +151,9 @@ Migration Guidance
   3. [migrate] Computes DateFirstPurchase via OUTER APPLY on bronze.SalesOrderHeader
 ```
 
-### Persisting Resolved Statements
+#### Persisting Resolved Statements
 
-After presenting the procedure, persist resolved statements to catalog so downstream stages (profiler, migrator) can read them.
+After presenting the procedure, persist resolved statements to catalog. 
 
 **For deterministic procedures** (`classification: deterministic`, no `claude` actions in statements):
 
