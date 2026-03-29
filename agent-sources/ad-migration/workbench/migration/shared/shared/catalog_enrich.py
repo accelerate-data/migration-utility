@@ -116,22 +116,22 @@ def _make_ast_ref_entry(
     }
 
 
-from shared.catalog import _empty_scoped
+from shared.catalog import empty_scoped
 
 
 def _ensure_references(data: dict[str, Any]) -> dict[str, Any]:
     """Ensure a proc catalog dict has a full references structure."""
     if "references" not in data:
         data["references"] = {
-            "tables": _empty_scoped(),
-            "views": _empty_scoped(),
-            "functions": _empty_scoped(),
-            "procedures": _empty_scoped(),
+            "tables": empty_scoped(),
+            "views": empty_scoped(),
+            "functions": empty_scoped(),
+            "procedures": empty_scoped(),
         }
     refs = data["references"]
     for bucket in ("tables", "views", "functions", "procedures"):
         if bucket not in refs:
-            refs[bucket] = _empty_scoped()
+            refs[bucket] = empty_scoped()
         if "in_scope" not in refs[bucket]:
             refs[bucket]["in_scope"] = []
         if "out_of_scope" not in refs[bucket]:
@@ -143,14 +143,14 @@ def _ensure_referenced_by(data: dict[str, Any]) -> dict[str, Any]:
     """Ensure a table catalog dict has a full referenced_by structure."""
     if "referenced_by" not in data:
         data["referenced_by"] = {
-            "procedures": _empty_scoped(),
-            "views": _empty_scoped(),
-            "functions": _empty_scoped(),
+            "procedures": empty_scoped(),
+            "views": empty_scoped(),
+            "functions": empty_scoped(),
         }
     ref_by = data["referenced_by"]
     for bucket in ("procedures", "views", "functions"):
         if bucket not in ref_by:
-            ref_by[bucket] = _empty_scoped()
+            ref_by[bucket] = empty_scoped()
         if "in_scope" not in ref_by[bucket]:
             ref_by[bucket]["in_scope"] = []
         if "out_of_scope" not in ref_by[bucket]:

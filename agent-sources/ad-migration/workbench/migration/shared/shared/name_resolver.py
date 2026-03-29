@@ -35,3 +35,17 @@ def normalize(name: str, default_schema: str = "dbo") -> str:
     if len(parts) >= 2:
         return f"{parts[-2]}.{parts[-1]}"
     return f"{default_schema}.{parts[-1]}"
+
+
+def fqn_parts(fqn: str) -> tuple[str, str]:
+    """Split a normalized FQN into (schema, name).
+
+    >>> fqn_parts("silver.dimcustomer")
+    ('silver', 'dimcustomer')
+    >>> fqn_parts("dimcustomer")
+    ('dbo', 'dimcustomer')
+    """
+    parts = fqn.split(".")
+    if len(parts) >= 2:
+        return parts[-2], parts[-1]
+    return "dbo", parts[-1]

@@ -37,7 +37,9 @@ Before starting, verify:
 
 ## Workflow
 
-Follow the step sequence in [`rules/workflow.md`](rules/workflow.md) for the full pre-flight → select database → select schemas → export → report flow.
+Follow the step sequence below. Steps 1–3 are interactive (agent + MCP). Steps 4–8 use deterministic Python CLI tools — the agent saves MCP query results to `<output-folder>/.staging/` as JSON files, then calls the CLI tool to process them.
+
+`<shared-path>` refers to `${CLAUDE_PLUGIN_ROOT}/../migration/shared`.
 
 ## Step 1 — Select database
 
@@ -70,116 +72,9 @@ ORDER BY s.name
 
 Use `AskUserQuestion` (with `multiSelect: true`) to present the results with an `all` option. If `all` is selected, do not add a schema filter to subsequent queries. Store the selected schemas for filtering in subsequent steps.
 
-## Step 3 — Export procedures, views, and functions
+## Step 3 — Extraction preview + confirm
 
-Run the following query via `mssql:mssql-execute-sql` for each object type, filtered to the selected schemas.
-
-**Procedures:**
-
-```sql
-SELECT
-    SCHEMA_NAME(o.schema_id) AS schema_name,
-    o.name AS object_name,
-    OBJECT_DEFINITION(o.object_id) AS definition
-FROM sys.objects o
-WHERE o.type = 'P'
-  AND o.is_ms_shipped = 0
-  AND SCHEMA_NAME(o.schema_id) IN (<selected-schemas>)
-ORDER BY schema_name, object_name
-```
-
-**Views:**
-
-```sql
-SELECT
-    SCHEMA_NAME(o.schema_id) AS schema_name,
-    o.name AS object_name,
-    OBJECT_DEFINITION(o.object_id) AS definition
-FROM sys.objects o
-WHERE o.type = 'V'
-  AND o.is_ms_shipped = 0
-  AND SCHEMA_NAME(o.schema_id) IN (<selected-schemas>)
-ORDER BY schema_name, object_name
-```
-
-**Functions (scalar, inline table-valued, multi-statement table-valued):**
-
-```sql
-SELECT
-    SCHEMA_NAME(o.schema_id) AS schema_name,
-    o.name AS object_name,
-    OBJECT_DEFINITION(o.object_id) AS definition
-FROM sys.objects o
-WHERE o.type IN ('FN', 'IF', 'TF')
-  AND o.is_ms_shipped = 0
-  AND SCHEMA_NAME(o.schema_id) IN (<selected-schemas>)
-ORDER BY schema_name, object_name
-```
-
-For each result set, assemble a GO-delimited file: join each non-null `definition` with `\nGO\n` and append a final `\nGO\n`. Write using the native Write tool:
-
-- Procedures → `<output-folder>/procedures.sql`
-- Views → `<output-folder>/views.sql`
-- Functions → `<output-folder>/functions.sql`
-
-If a result set is empty, skip the file (the loader auto-detects object types from whatever .sql files are present).
-
-## Step 4 — Export tables
-
-Tables have no single-statement DDL from `OBJECT_DEFINITION()` — reconstruct `CREATE TABLE` statements from the system catalog.
-
-Run via `mssql:mssql-execute-sql`:
-
-```sql
-SELECT
-    SCHEMA_NAME(t.schema_id)  AS schema_name,
-    t.name                    AS table_name,
-    c.name                    AS column_name,
-    c.column_id,
-    tp.name                   AS type_name,
-    c.max_length,
-    c.precision,
-    c.scale,
-    c.is_nullable,
-    c.is_identity,
-    ic.seed_value,
-    ic.increment_value
-FROM sys.tables t
-JOIN sys.columns c
-    ON c.object_id = t.object_id
-JOIN sys.types tp
-    ON tp.user_type_id = c.user_type_id
-LEFT JOIN sys.identity_columns ic
-    ON ic.object_id = c.object_id
-    AND ic.column_id = c.column_id
-WHERE t.is_ms_shipped = 0
-  AND SCHEMA_NAME(t.schema_id) IN (<selected-schemas>)
-ORDER BY schema_name, table_name, c.column_id
-```
-
-Group rows by `(schema_name, table_name)`. For each table, build a `CREATE TABLE [schema].[table] (...)` statement using these type formatting rules:
-
-| Type | Format |
-|---|---|
-| NVARCHAR, VARCHAR, NCHAR, CHAR | `TYPE(MAX)` if max_length = -1; else `TYPE(length)` where length = max_length / 2 for N-types |
-| BINARY, VARBINARY | `TYPE(MAX)` if max_length = -1; else `TYPE(max_length)` |
-| DECIMAL, NUMERIC | `TYPE(precision, scale)` |
-| FLOAT, REAL | `TYPE` (no size) |
-| All others | `TYPE` (no size) |
-
-For each column:
-
-- Add `IDENTITY(seed, increment)` if `is_identity = 1`
-- Add `NOT NULL` if `is_nullable = 0`, else `NULL`
-
-Assemble columns separated by `,\n`. Wrap in `CREATE TABLE [schema].[table] (\n...\n)`.
-Join all tables with `\nGO\n` and append a final `\nGO\n`.
-
-Write to `<output-folder>/tables.sql` using the native Write tool.
-
-## Step 5 — Extraction preview
-
-Before writing any files, run count queries and present a summary so the user knows what will be extracted:
+Run count queries and present a summary so the user knows what will be extracted **before any files are written**:
 
 ```sql
 SELECT
@@ -227,13 +122,126 @@ Schemas: <selected-schemas>
 
 Use `AskUserQuestion` to get confirmation before extraction proceeds. If they decline, stop immediately — no files are written.
 
-## Step 6 — Extract catalog signals
+## Step 4 — Write manifest
 
-After user confirmation, extract catalog signals for all tables in the selected schemas. These are written as per-table JSON files under `<output-folder>/catalog/tables/`.
+After user confirmation, write the manifest first (it only depends on database/schema selection):
 
-Run the following queries via `mssql:mssql-execute-sql`:
+```bash
+uv run --project <shared-path> setup-ddl write-manifest \
+  --output-folder <output-folder> \
+  --technology sql_server \
+  --database <database> \
+  --schemas <comma-separated-schemas>
+```
 
-**Primary keys and unique indexes:**
+For Fabric Warehouse sources, use `--technology fabric_warehouse` instead.
+
+Technology-to-dialect mapping:
+
+| Technology | Dialect | Delimiter |
+|---|---|---|
+| `sql_server` | `tsql` | `GO` |
+| `fabric_warehouse` | `tsql` | `GO` |
+| `fabric_lakehouse` | `spark` | `;` |
+| `snowflake` | `snowflake` | `;` |
+
+## Step 5 — Export procedures, views, and functions
+
+For each object type, run the query via `mssql:mssql-execute-sql`, save the result as JSON, then call the CLI tool.
+
+**Procedures:**
+
+```sql
+SELECT
+    SCHEMA_NAME(o.schema_id) AS schema_name,
+    o.name AS object_name,
+    OBJECT_DEFINITION(o.object_id) AS definition
+FROM sys.objects o
+WHERE o.type = 'P'
+  AND o.is_ms_shipped = 0
+  AND SCHEMA_NAME(o.schema_id) IN (<selected-schemas>)
+ORDER BY schema_name, object_name
+```
+
+Save the result to `<output-folder>/.staging/procedures.json`, then:
+
+```bash
+uv run --project <shared-path> setup-ddl assemble-modules \
+  --input <output-folder>/.staging/procedures.json \
+  --output-folder <output-folder> \
+  --type procedures
+```
+
+Repeat for **views** (change `o.type = 'P'` to `o.type = 'V'`, save as `views.json`, `--type views`) and **functions** (change to `o.type IN ('FN', 'IF', 'TF')`, save as `functions.json`, `--type functions`).
+
+If a query returns no results, skip the staging file and CLI call for that type.
+
+## Step 6 — Export tables
+
+Run via `mssql:mssql-execute-sql`:
+
+```sql
+SELECT
+    SCHEMA_NAME(t.schema_id)  AS schema_name,
+    t.name                    AS table_name,
+    c.name                    AS column_name,
+    c.column_id,
+    tp.name                   AS type_name,
+    c.max_length,
+    c.precision,
+    c.scale,
+    c.is_nullable,
+    c.is_identity,
+    ic.seed_value,
+    ic.increment_value
+FROM sys.tables t
+JOIN sys.columns c
+    ON c.object_id = t.object_id
+JOIN sys.types tp
+    ON tp.user_type_id = c.user_type_id
+LEFT JOIN sys.identity_columns ic
+    ON ic.object_id = c.object_id
+    AND ic.column_id = c.column_id
+WHERE t.is_ms_shipped = 0
+  AND SCHEMA_NAME(t.schema_id) IN (<selected-schemas>)
+ORDER BY schema_name, table_name, c.column_id
+```
+
+Save the result to `<output-folder>/.staging/table_columns.json`, then:
+
+```bash
+uv run --project <shared-path> setup-ddl assemble-tables \
+  --input <output-folder>/.staging/table_columns.json \
+  --output-folder <output-folder>
+```
+
+## Step 7 — Extract catalog signals and references
+
+Run all catalog queries via `mssql:mssql-execute-sql` and save each result to the staging directory. The CLI tool reads these files and writes all catalog JSON files in one pass.
+
+### Staging files to create
+
+Save each MCP query result as a JSON file in `<output-folder>/.staging/`:
+
+| Staging file | Query |
+|---|---|
+| `table_columns.json` | Same result from Step 6 (already saved) |
+| `pk_unique.json` | PKs and unique indexes (see query below) |
+| `foreign_keys.json` | Foreign keys (see query below) |
+| `identity_columns.json` | Identity columns (see query below) |
+| `cdc.json` | CDC-tracked tables (see query below) |
+| `change_tracking.json` | Change tracking tables (graceful, see query below) |
+| `sensitivity.json` | Sensitivity classifications (graceful, see query below) |
+| `object_types.json` | Object type map (see query below) |
+| `definitions.json` | All proc/view/function definitions for routing flag scan (see query below) |
+| `proc_params.json` | Procedure parameters (see query below) |
+| `proc_dmf.json` | DMF refs for procedures (see query below) |
+| `view_dmf.json` | DMF refs for views (see query below) |
+| `func_dmf.json` | DMF refs for functions (see query below) |
+
+### Catalog signal queries
+
+**Primary keys and unique indexes** → `pk_unique.json`:
 
 ```sql
 SELECT
@@ -248,7 +256,7 @@ WHERE t.is_ms_shipped = 0 AND SCHEMA_NAME(t.schema_id) IN (<selected-schemas>)
 ORDER BY schema_name, table_name, i.index_id, ic.key_ordinal
 ```
 
-**Foreign keys:**
+**Foreign keys** → `foreign_keys.json`:
 
 ```sql
 SELECT
@@ -265,7 +273,7 @@ WHERE t.is_ms_shipped = 0 AND SCHEMA_NAME(t.schema_id) IN (<selected-schemas>)
 ORDER BY schema_name, table_name, fk.name, fkc.constraint_column_id
 ```
 
-**Identity columns:**
+**Identity columns** → `identity_columns.json`:
 
 ```sql
 SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name, c.name AS column_name
@@ -274,7 +282,7 @@ JOIN sys.tables t ON t.object_id = c.object_id
 WHERE t.is_ms_shipped = 0 AND SCHEMA_NAME(t.schema_id) IN (<selected-schemas>)
 ```
 
-**CDC:**
+**CDC** → `cdc.json`:
 
 ```sql
 SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name
@@ -283,7 +291,7 @@ WHERE t.is_ms_shipped = 0 AND t.is_tracked_by_cdc = 1
   AND SCHEMA_NAME(t.schema_id) IN (<selected-schemas>)
 ```
 
-**Change tracking** (graceful — may not exist):
+**Change tracking** (graceful) → `change_tracking.json`:
 
 ```sql
 BEGIN TRY
@@ -296,7 +304,7 @@ BEGIN CATCH
 END CATCH
 ```
 
-**Sensitivity classifications** (graceful — requires SQL Server 2019+):
+**Sensitivity classifications** (graceful) → `sensitivity.json`:
 
 ```sql
 BEGIN TRY
@@ -310,26 +318,49 @@ BEGIN CATCH
 END CATCH
 ```
 
-For each table, assemble a JSON file at `<output-folder>/catalog/tables/<schema>.<table>.json` containing:
+**Object type map** → `object_types.json`:
 
-```json
-{
-  "primary_keys": [{"constraint_name": "PK_...", "columns": ["col1", "col2"]}],
-  "unique_indexes": [{"index_name": "IX_...", "columns": ["col1"]}],
-  "foreign_keys": [{"constraint_name": "FK_...", "columns": ["col"], "referenced_schema": "dbo", "referenced_table": "T2", "referenced_columns": ["col"]}],
-  "auto_increment_columns": [{"column": "col1", "mechanism": "identity"}],
-  "change_capture": null,
-  "sensitivity_classifications": []
-}
+```sql
+SELECT SCHEMA_NAME(o.schema_id) AS schema_name, o.name, o.type
+FROM sys.objects o
+WHERE o.is_ms_shipped = 0
+  AND o.type IN ('U', 'V', 'P', 'FN', 'IF', 'TF')
+  AND SCHEMA_NAME(o.schema_id) IN (<selected-schemas>)
 ```
 
-The `referenced_by` section is populated later in Step 7 after DMF extraction.
+**All definitions** (for routing flag scan) → `definitions.json`:
 
-## Step 7 — Extract references via DMF
+```sql
+SELECT SCHEMA_NAME(o.schema_id) AS schema_name, o.name AS object_name,
+       OBJECT_DEFINITION(o.object_id) AS definition
+FROM sys.objects o
+WHERE o.type IN ('P', 'V', 'FN', 'IF', 'TF') AND o.is_ms_shipped = 0
+  AND SCHEMA_NAME(o.schema_id) IN (<selected-schemas>)
+```
 
-Call `sys.dm_sql_referenced_entities` for all procedures, views, and functions. Use a server-side cursor to batch all calls into one result set per object type. This avoids hundreds of individual MCP calls.
+**Procedure parameters** → `proc_params.json`:
 
-Run the following for **procedures** (repeat the same pattern for views and functions, changing the type filter):
+```sql
+SELECT
+    SCHEMA_NAME(o.schema_id) AS schema_name,
+    o.name AS proc_name,
+    p.name AS param_name,
+    TYPE_NAME(p.user_type_id) AS type_name,
+    p.max_length,
+    p.precision,
+    p.scale,
+    p.is_output,
+    p.has_default_value
+FROM sys.parameters p
+JOIN sys.objects o ON o.object_id = p.object_id
+WHERE o.type = 'P' AND o.is_ms_shipped = 0 AND p.parameter_id > 0
+  AND SCHEMA_NAME(o.schema_id) IN (<selected-schemas>)
+ORDER BY schema_name, proc_name, p.parameter_id
+```
+
+### DMF reference queries
+
+Use server-side cursors to batch all `sys.dm_sql_referenced_entities` calls into one result set per object type. Run for **procedures** → `proc_dmf.json`:
 
 ```sql
 DECLARE @result TABLE (
@@ -372,69 +403,39 @@ CLOSE cur; DEALLOCATE cur;
 SELECT * FROM @result;
 ```
 
-For views, change `o.type = 'P'` to `o.type = 'V'`. For functions, change to `o.type IN ('FN', 'IF', 'TF')`.
+For **views** → `view_dmf.json`: change `o.type = 'P'` to `o.type = 'V'`.
+For **functions** → `func_dmf.json`: change to `o.type IN ('FN', 'IF', 'TF')`.
 
-Process the results as follows:
+### Run the CLI tool
 
-1. **Group by referencing object.** For each proc/view/function, collect all referenced entities with their `is_selected`/`is_updated`/`is_insert_all` flags and column-level detail (`referenced_minor_name`).
+Once all staging files are saved:
 
-2. **Classify referenced objects** by `referenced_class_desc`: `USER_TABLE` → tables, `VIEW` → views, `SQL_SCALAR_FUNCTION`/`SQL_TABLE_VALUED_FUNCTION`/`SQL_INLINE_TABLE_VALUED_FUNCTION` → functions, `SQL_STORED_PROCEDURE` → procedures. Default `OBJECT_OR_COLUMN` to tables.
-
-3. **Write per-object catalog files:**
-   - `catalog/procedures/<schema>.<proc>.json` with `references: {tables: [...], views: [...], functions: [...], procedures: [...]}`
-   - `catalog/views/<schema>.<view>.json` with `references: {tables: [...], views: [...], functions: [...]}`
-   - `catalog/functions/<schema>.<function>.json` with `references: {tables: [...], views: [...], functions: [...]}`
-
-4. **Flip references** for table files: for each table referenced by a proc/view/function, add the referencing object to the table's `referenced_by` section in its catalog JSON file. Carry over `is_updated`/`is_selected`/`is_insert_all` and column-level detail.
-
-Reference entry structure per proc/view/function file:
-
-```json
-{
-  "references": {
-    "tables": [
-      {
-        "schema": "HumanResources",
-        "name": "Employee",
-        "is_selected": false,
-        "is_updated": true,
-        "is_insert_all": false,
-        "columns": [
-          {"name": "BusinessEntityID", "is_selected": true, "is_updated": false}
-        ]
-      }
-    ],
-    "views": [],
-    "functions": [],
-    "procedures": [{"schema": "dbo", "name": "uspLogError", "is_selected": false, "is_updated": false}]
-  }
-}
+```bash
+uv run --project <shared-path> setup-ddl write-catalog \
+  --staging-dir <output-folder>/.staging \
+  --output-folder <output-folder> \
+  --database <database>
 ```
 
-Flipped `referenced_by` structure per table file:
+The tool outputs JSON with counts: `{"tables": N, "procedures": N, "views": N, "functions": N}`.
 
-```json
-{
-  "referenced_by": {
-    "procedures": [
-      {
-        "schema": "dbo",
-        "name": "usp_load_fact_sales",
-        "is_selected": false,
-        "is_updated": true,
-        "is_insert_all": false,
-        "columns": [
-          {"name": "sale_id", "is_selected": true, "is_updated": false}
-        ]
-      }
-    ],
-    "views": [],
-    "functions": []
-  }
-}
+## Step 8 — AST enrichment
+
+Run the catalog enrichment script to fill catalog-query gaps:
+
+```bash
+uv run --project <shared-path> catalog-enrich --ddl-path <output-folder>
 ```
 
-## Step 8 — Confirm
+This augments catalog files with AST-derived references for:
+
+- CTAS / SELECT INTO targets (catalog queries miss new table creation)
+- TRUNCATE targets
+- Indirect writers through EXEC call chains
+
+Entries added carry `"detection": "ast_scan"` to distinguish from catalog-query-sourced data. Dynamic SQL (`EXEC(@sql)`, `sp_executesql`) remains unresolvable offline.
+
+## Step 9 — Report
 
 After all files are written, report a summary:
 
@@ -460,51 +461,9 @@ Tell the user they can now run `discover` or the `scoping-agent` against the out
 
 **Known limitation:** Procs that write only via dynamic SQL (`EXEC(@sql)`, `sp_executesql`) will not appear in catalog `referenced_by`. This is an inherent offline limitation of `sys.dm_sql_referenced_entities` — it resolves references at definition time, not runtime. These procs require LLM analysis via `discover show`.
 
-## Step 9 — Write extraction manifest
-
-Write a `manifest.json` to the output folder root. This file tells downstream tools (loader, discover, agents) which technology and sqlglot dialect to use, removing hardcoded tsql assumptions.
-
-```json
-{
-  "schema_version": "1.0",
-  "technology": "<technology>",
-  "dialect": "<dialect>",
-  "source_database": "<database>",
-  "extracted_schemas": ["<schema1>", "<schema2>"],
-  "extracted_at": "<ISO 8601 timestamp>"
-}
-```
-
-Technology-to-dialect mapping:
-
-| Technology | Dialect | Delimiter |
-|---|---|---|
-| `sql_server` | `tsql` | `GO` |
-| `fabric_warehouse` | `tsql` | `GO` |
-| `fabric_lakehouse` | `spark` | `;` |
-| `snowflake` | `snowflake` | `;` |
-
-For this skill (SQL Server / Fabric Warehouse extraction), always write `"technology": "sql_server"` and `"dialect": "tsql"` (or `"fabric_warehouse"` if the user specified Fabric Warehouse as the source). The manifest schema is at `shared/shared/schemas/manifest.json`.
-
-## Step 10 — AST enrichment
-
-Run the catalog enrichment script to fill catalog-query gaps:
-
-```bash
-uv run --project <shared-path> catalog-enrich --ddl-path <output-folder>
-```
-
-This augments catalog files with AST-derived references for:
-
-- CTAS / SELECT INTO targets (catalog queries miss new table creation)
-- TRUNCATE targets
-- Indirect writers through EXEC call chains
-
-Entries added carry `"detection": "ast_scan"` to distinguish from catalog-query-sourced data. Dynamic SQL (`EXEC(@sql)`, `sp_executesql`) remains unresolvable offline.
-
 ## Constraints
 
 - Use `mssql:mssql-execute-sql` for all SQL Server queries — never use native tools to connect to the database directly.
-- Use native Write tool for all local file writes — never route file output through MCP.
+- Use the `setup-ddl` CLI tool for all data processing and file writing — never generate or run ad-hoc scripts, and never process query results inline. The agent's role is to run SQL via MCP, save results to `.staging/`, and call the CLI tool.
 - The `{{.sql}}` parameter in the `mssql` MCP tool accepts arbitrary T-SQL. This is intentional for the controlled migration context. Do not pass user-supplied raw SQL strings through it without review.
 - Do not log `SA_PASSWORD` or any connection string values.

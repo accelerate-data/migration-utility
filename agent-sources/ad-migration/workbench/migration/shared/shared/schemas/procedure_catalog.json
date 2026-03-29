@@ -3,8 +3,10 @@
   "title": "ProcedureCatalog",
   "description": "Per-procedure catalog file produced by setup-ddl. Contains outbound references and inbound callers.",
   "type": "object",
-  "required": ["references"],
+  "required": ["schema", "name", "references"],
   "properties": {
+    "schema": { "type": "string", "description": "Schema name, e.g. silver" },
+    "name": { "type": "string", "description": "Object name, e.g. usp_load_DimCustomer" },
     "params": {
       "type": "array",
       "description": "Procedure parameters from sys.parameters. Populated by export_ddl.",

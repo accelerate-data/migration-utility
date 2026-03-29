@@ -3,8 +3,10 @@
   "title": "TableCatalog",
   "description": "Per-table catalog file produced by setup-ddl. Contains catalog signals and inbound references.",
   "type": "object",
-  "required": ["primary_keys", "unique_indexes", "foreign_keys", "auto_increment_columns", "referenced_by"],
+  "required": ["schema", "name", "primary_keys", "unique_indexes", "foreign_keys", "auto_increment_columns", "referenced_by"],
   "properties": {
+    "schema": { "type": "string", "description": "Schema name, e.g. silver" },
+    "name": { "type": "string", "description": "Object name, e.g. DimCustomer" },
     "columns": {
       "type": "array",
       "description": "Column definitions from sys.columns. Populated by export_ddl.",

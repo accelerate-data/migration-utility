@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from shared.catalog import (
-    _empty_scoped,
+    empty_scoped,
     process_dmf_results,
     write_object_catalog,
     write_table_catalog,
@@ -35,8 +35,8 @@ def _write_object_catalogs(
     Returns count of files written.
     """
     def _empty_refs() -> dict[str, dict[str, list[dict[str, Any]]]]:
-        return {"tables": _empty_scoped(), "views": _empty_scoped(),
-                "functions": _empty_scoped(), "procedures": _empty_scoped()}
+        return {"tables": empty_scoped(), "views": empty_scoped(),
+                "functions": empty_scoped(), "procedures": empty_scoped()}
 
     count = 0
     for fqn, refs in dmf_refs.items():
@@ -65,7 +65,7 @@ def _build_table_referenced_by(
         for table_fqn, ref_by in flipped.items():
             if table_fqn not in table_referenced_by:
                 table_referenced_by[table_fqn] = {
-                    "procedures": _empty_scoped(), "views": _empty_scoped(), "functions": _empty_scoped(),
+                    "procedures": empty_scoped(), "views": empty_scoped(), "functions": empty_scoped(),
                 }
             for bucket_name in ("procedures", "views", "functions"):
                 table_referenced_by[table_fqn][bucket_name]["in_scope"].extend(

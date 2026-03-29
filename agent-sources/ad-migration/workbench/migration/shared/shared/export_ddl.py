@@ -22,6 +22,8 @@ from pathlib import Path
 
 import typer
 
+from shared.sql_types import format_sql_type
+
 app = typer.Typer(add_completion=False)
 
 
@@ -122,17 +124,7 @@ def _export_tables(conn, output_path: Path) -> int:
         tables.setdefault(key, []).append(row)
 
     def _col_def(row) -> str:
-        type_name = row.type_name.upper()
-        if type_name in ("NVARCHAR", "VARCHAR", "NCHAR", "CHAR", "BINARY", "VARBINARY"):
-            length = "MAX" if row.max_length == -1 else str(row.max_length // (2 if type_name.startswith("N") else 1))
-            type_str = f"{type_name}({length})"
-        elif type_name in ("DECIMAL", "NUMERIC"):
-            type_str = f"{type_name}({row.precision},{row.scale})"
-        elif type_name in ("FLOAT", "REAL"):
-            type_str = type_name
-        else:
-            type_str = type_name
-
+        type_str = format_sql_type(row.type_name, row.max_length, row.precision, row.scale)
         identity = f" IDENTITY({row.seed_value},{row.increment_value})" if row.is_identity else ""
         nullable = " NOT NULL" if not row.is_nullable else " NULL"
         return f"    [{row.column_name}] {type_str}{identity}{nullable}"
@@ -175,15 +167,6 @@ def _extract_table_columns(conn) -> dict[str, list[dict]]:
     cursor = conn.cursor()
     cursor.execute(sql)
 
-    def _format_type(row) -> str:
-        type_name = row.type_name.upper()
-        if type_name in ("NVARCHAR", "VARCHAR", "NCHAR", "CHAR", "BINARY", "VARBINARY"):
-            length = "MAX" if row.max_length == -1 else str(row.max_length // (2 if type_name.startswith("N") else 1))
-            return f"{type_name}({length})"
-        if type_name in ("DECIMAL", "NUMERIC"):
-            return f"{type_name}({row.precision},{row.scale})"
-        return type_name
-
     result: dict[str, list[dict]] = {}
     for row in cursor.fetchall():
         fqn = normalize(f"{row.schema_name}.{row.table_name}")
@@ -191,7 +174,7 @@ def _extract_table_columns(conn) -> dict[str, list[dict]]:
             result[fqn] = []
         result[fqn].append({
             "name": row.column_name,
-            "sql_type": _format_type(row),
+            "sql_type": format_sql_type(row.type_name, row.max_length, row.precision, row.scale),
             "is_nullable": bool(row.is_nullable),
             "is_identity": bool(row.is_identity),
         })
@@ -224,15 +207,6 @@ def _extract_proc_params(conn) -> dict[str, list[dict]]:
     cursor = conn.cursor()
     cursor.execute(sql)
 
-    def _format_type(row) -> str:
-        type_name = row.type_name.upper()
-        if type_name in ("NVARCHAR", "VARCHAR", "NCHAR", "CHAR", "BINARY", "VARBINARY"):
-            length = "MAX" if row.max_length == -1 else str(row.max_length // (2 if type_name.startswith("N") else 1))
-            return f"{type_name}({length})"
-        if type_name in ("DECIMAL", "NUMERIC"):
-            return f"{type_name}({row.precision},{row.scale})"
-        return type_name
-
     result: dict[str, list[dict]] = {}
     for row in cursor.fetchall():
         fqn = normalize(f"{row.schema_name}.{row.proc_name}")
@@ -240,7 +214,7 @@ def _extract_proc_params(conn) -> dict[str, list[dict]]:
             result[fqn] = []
         result[fqn].append({
             "name": row.param_name,
-            "sql_type": _format_type(row),
+            "sql_type": format_sql_type(row.type_name, row.max_length, row.precision, row.scale),
             "is_output": bool(row.is_output),
             "has_default": bool(row.has_default_value),
         })

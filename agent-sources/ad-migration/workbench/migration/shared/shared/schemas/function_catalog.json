@@ -3,12 +3,10 @@
   "title": "FunctionCatalog",
   "description": "Per-function catalog file produced by setup-ddl. Contains outbound references and inbound dependents.",
   "type": "object",
-  "required": ["function", "references", "referenced_by"],
+  "required": ["schema", "name", "references", "referenced_by"],
   "properties": {
-    "function": {
-      "type": "string",
-      "description": "Fully qualified function name: <schema>.<function>"
-    },
+    "schema": { "type": "string", "description": "Schema name, e.g. dbo" },
+    "name": { "type": "string", "description": "Object name, e.g. fn_GetTotal" },
     "references": {
       "type": "object",
       "description": "Outbound: what this function depends on.",
