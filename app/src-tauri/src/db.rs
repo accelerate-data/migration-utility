@@ -139,6 +139,7 @@ mod tests {
         let conn = Connection::open_in_memory().expect("in-memory db");
         conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
         run_migrations(&conn).expect("migrations failed");
+        repair_schema(&conn).expect("repair_schema failed");
         conn
     }
 

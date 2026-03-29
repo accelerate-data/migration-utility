@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { GitHubLoginDialog } from '@/components/github-login-dialog';
 import SettingsPanelShell from '@/components/settings/settings-panel-shell';
-import { getSettings, githubCheckRepoEmpty, githubListRepos, saveRepoSettings } from '@/lib/tauri';
+import { githubCheckRepoEmpty, githubListRepos, saveRepoSettings } from '@/lib/tauri';
+import { useSettingsStore } from '@/stores/settings-store';
 import { logger } from '@/lib/logger';
 import type { GitHubRepo } from '@/lib/types';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
@@ -19,6 +20,7 @@ import { prettyPath, expandPath } from '@/lib/path-utils';
 
 export default function ConnectionsTab() {
   const { user, isLoggedIn, isLoading: isAuthLoading, lastCheckedAt, loadUser, logout } = useAuthStore();
+  const { migrationRepoFullName, migrationRepoCloneUrl, localClonePath: storedClonePath, loadSettings } = useSettingsStore();
   const [loginDialogOpen, setLoginDialogOpen] = useState(false);
 
   // ── Repo selector state ──────────────────────────────────────────────────────
@@ -38,40 +40,36 @@ export default function ConnectionsTab() {
 
   useEffect(() => {
     loadUser();
-  }, [loadUser]);
+    void loadSettings();
+  }, [loadUser, loadSettings]);
 
-  // Load persisted repo settings
+  // Hydrate local UI state from settings store once loaded
   useEffect(() => {
-    getSettings()
-      .then((s) => {
-        if (s.migrationRepoFullName && s.migrationRepoCloneUrl) {
-          setSelectedRepo({
-            id: 0,
-            fullName: s.migrationRepoFullName,
-            cloneUrl: s.migrationRepoCloneUrl,
-            private: false,
-          });
-          setRepoQuery(s.migrationRepoFullName);
-          setRepoEmptyStatus('empty'); // assume previously validated
-        }
-        homeDir().then((h) => {
-          setHomeDirPath(h);
-          if (s.localClonePath) {
-            // Derive parent folder from stored clone path (strip last component).
-            const parent = s.localClonePath.replace(/\/[^/]+\/?$/, '') || s.localClonePath;
-            setLocalPath(prettyPath(parent, h));
-          } else {
-            setLocalPath('~');
-          }
-        }).catch(() => {
-          if (s.localClonePath) {
-            const parent = s.localClonePath.replace(/\/[^/]+\/?$/, '') || s.localClonePath;
-            setLocalPath(parent);
-          }
-        });
-      })
-      .catch((err) => logger.warn('connections: failed to load repo settings', err));
-  }, []);
+    if (migrationRepoFullName && migrationRepoCloneUrl) {
+      setSelectedRepo({
+        id: 0,
+        fullName: migrationRepoFullName,
+        cloneUrl: migrationRepoCloneUrl,
+        private: false,
+      });
+      setRepoQuery(migrationRepoFullName);
+      setRepoEmptyStatus('empty'); // assume previously validated
+    }
+    homeDir().then((h) => {
+      setHomeDirPath(h);
+      if (storedClonePath) {
+        const parent = storedClonePath.replace(/\/[^/]+\/?$/, '') || storedClonePath;
+        setLocalPath(prettyPath(parent, h));
+      } else {
+        setLocalPath('~');
+      }
+    }).catch(() => {
+      if (storedClonePath) {
+        const parent = storedClonePath.replace(/\/[^/]+\/?$/, '') || storedClonePath;
+        setLocalPath(parent);
+      }
+    });
+  }, [migrationRepoFullName, migrationRepoCloneUrl, storedClonePath]);
 
   // Pre-fetch repo list as soon as the user is logged in
   useEffect(() => {
@@ -134,6 +132,7 @@ export default function ConnectionsTab() {
     setSaving(true);
     try {
       await saveRepoSettings(selectedRepo.fullName, selectedRepo.cloneUrl, expandPath(localPath.trim(), homeDirPath));
+      await loadSettings();
       toast.success('Repository cloned and settings saved');
       logger.info('settings: repo settings saved repo=%s', selectedRepo.fullName);
     } catch (err) {

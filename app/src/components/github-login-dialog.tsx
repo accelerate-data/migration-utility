@@ -88,7 +88,7 @@ export function GitHubLoginDialog({ open, onOpenChange }: GitHubLoginDialogProps
         setState((prev) => (prev.step === 'code' ? { ...prev, copied: false } : prev));
       }, 2000);
     } catch {
-      // Clipboard API may fail in some contexts
+      logger.warn('github: clipboard write failed — user must copy manually');
     }
   };
 

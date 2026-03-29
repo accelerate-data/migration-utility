@@ -19,16 +19,20 @@ use crate::types::{CommandError, InitStep, InitStepEvent, InitStepStatus, Projec
 fn validate_create_settings(
     state: &State<'_, DbState>,
 ) -> Result<(String, String), CommandError> {
-    let conn = state.conn().inspect_err(|e| {
-        log::error!("[validate_create_settings] DB lock: {e}");
-    })?;
-    let s = crate::db::read_settings(&conn)?;
-    let lcp = s.local_clone_path.ok_or_else(|| {
-        CommandError::Validation("Local clone path not configured in Settings".into())
-    })?;
-    let tok = s.github_oauth_token.ok_or_else(|| {
-        CommandError::Validation("GitHub authentication required".into())
-    })?;
+    let (lcp, tok) = {
+        let conn = state.conn().inspect_err(|e| {
+            log::error!("[validate_create_settings] DB lock: {e}");
+        })?;
+        let s = crate::db::read_settings(&conn)?;
+        let lcp = s.local_clone_path.ok_or_else(|| {
+            CommandError::Validation("Local clone path not configured in Settings".into())
+        })?;
+        let tok = s.github_oauth_token.ok_or_else(|| {
+            CommandError::Validation("GitHub authentication required".into())
+        })?;
+        (lcp, tok)
+        // conn guard drops here — before filesystem checks
+    };
 
     if !Path::new(&lcp).exists() {
         return Err(CommandError::Validation(format!(
@@ -90,7 +94,8 @@ fn setup_project_artifacts(
     });
     std::fs::write(
         source_dir.join("metadata.json"),
-        serde_json::to_string_pretty(&metadata).unwrap(),
+        serde_json::to_string_pretty(&metadata)
+            .map_err(|e| CommandError::Io(format!("JSON serialize error: {e}")))?,
     )?;
     log::debug!("[setup_project_artifacts] wrote metadata.json");
 
@@ -164,12 +169,22 @@ fn cleanup_legacy_dacpac_dir(
     }
 }
 
+/// Inject the GitHub OAuth token into an HTTPS clone URL so that git operations
+/// against private repos succeed. Returns the original URL if no token is provided.
+fn inject_token_into_url(url: &str, token: Option<&str>) -> String {
+    match token {
+        Some(tok) if !tok.is_empty() => url.replacen("https://", &format!("https://{}@", tok), 1),
+        _ => url.to_string(),
+    }
+}
+
 /// Perform the git pull (or clone) step during startup, emitting events. Returns
 /// `Ok(())` on success or if the clone path / URL are not configured (warning only).
 async fn startup_git_pull(
     app: &tauri::AppHandle,
     local_clone_path: &Option<String>,
     clone_url: &Option<String>,
+    github_token: Option<&str>,
 ) -> Result<(), CommandError> {
     emit_step(app, InitStep::GitPull, InitStepStatus::Running, None);
     match (local_clone_path, clone_url) {
@@ -179,34 +194,29 @@ async fn startup_git_pull(
                 warnings: vec!["Git repo not configured in Settings → Connections. Skipping sync.".into()],
             }, None);
         }
-        (Some(lcp), _) if Path::new(lcp).join(".git").exists() => {
-            match run_cmd_async("git", &["pull"], Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]).await {
+        (Some(lcp), Some(url)) => {
+            match git_pull_or_clone(lcp, url, github_token).await {
                 Err(ref e) => {
                     let msg = e.to_string();
                     log::error!("[startup_git_pull] GitPull failed: {msg}");
                     emit_step(app, InitStep::GitPull, InitStepStatus::Error { message: msg.clone() }, None);
                     return Err(CommandError::External(msg));
                 }
-                Ok(_) => {
-                    if let Err(e) = run_cmd_async("git", &["lfs", "pull"], Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]).await {
-                        log::warn!("[startup_git_pull] git lfs pull failed (non-fatal): {e}");
-                    }
+                Ok(()) => {
                     emit_step(app, InitStep::GitPull, InitStepStatus::Ok, None);
                 }
             }
         }
-        (Some(lcp), Some(url)) => {
-            match run_cmd_async("git", &["clone", url, lcp], None, &[("GIT_TERMINAL_PROMPT", "0")]).await {
+        (Some(lcp), None) if Path::new(lcp).join(".git").exists() => {
+            // No clone URL but local .git exists — pull only.
+            match git_pull_or_clone(lcp, "", github_token).await {
                 Err(ref e) => {
                     let msg = e.to_string();
-                    log::error!("[startup_git_pull] git clone failed: {msg}");
+                    log::error!("[startup_git_pull] GitPull failed: {msg}");
                     emit_step(app, InitStep::GitPull, InitStepStatus::Error { message: msg.clone() }, None);
                     return Err(CommandError::External(msg));
                 }
-                Ok(_) => {
-                    if let Err(e) = run_cmd_async("git", &["lfs", "pull"], Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]).await {
-                        log::warn!("[startup_git_pull] git lfs pull (post-clone) failed (non-fatal): {e}");
-                    }
+                Ok(()) => {
                     emit_step(app, InitStep::GitPull, InitStepStatus::Ok, None);
                 }
             }
@@ -217,6 +227,25 @@ async fn startup_git_pull(
                 warnings: vec!["Clone URL not configured — using existing local files.".into()],
             }, None);
         }
+    }
+    Ok(())
+}
+
+/// Shared git pull-or-clone + LFS pull helper. Returns `Ok(())` on success.
+/// Callers are responsible for emitting step events and error mapping.
+async fn git_pull_or_clone(
+    local_clone_path: &str,
+    clone_url: &str,
+    github_token: Option<&str>,
+) -> Result<(), CommandError> {
+    if Path::new(local_clone_path).join(".git").exists() {
+        run_cmd_async("git", &["pull"], Some(local_clone_path), &[("GIT_TERMINAL_PROMPT", "0")]).await?;
+    } else {
+        let auth_url = inject_token_into_url(clone_url, github_token);
+        run_cmd_async("git", &["clone", &auth_url, local_clone_path], None, &[("GIT_TERMINAL_PROMPT", "0")]).await?;
+    }
+    if let Err(e) = run_cmd_async("git", &["lfs", "pull"], Some(local_clone_path), &[("GIT_TERMINAL_PROMPT", "0")]).await {
+        log::warn!("[git_pull_or_clone] git lfs pull failed (non-fatal): {e}");
     }
     Ok(())
 }
@@ -337,7 +366,7 @@ pub async fn project_init(
 ) -> Result<(), CommandError> {
     log::info!("[project_init] id={}", id);
 
-    let (slug, technology, local_clone_path, clone_url) = {
+    let (slug, technology, local_clone_path, clone_url, github_token) = {
         let conn = state.conn().inspect_err(|e| {
             log::error!("[project_init] DB lock: {e}");
         })?;
@@ -358,7 +387,7 @@ pub async fn project_init(
         let url = settings.migration_repo_clone_url.ok_or_else(|| {
             CommandError::Validation("Migration repository not configured in Settings".into())
         })?;
-        (slug, technology, lcp, url)
+        (slug, technology, lcp, url, settings.github_oauth_token)
     };
 
     // ── Step 0: .NET runtime check ────────────────────────────────────────────
@@ -380,23 +409,14 @@ pub async fn project_init(
 
     // ── Step 1: GitPull ───────────────────────────────────────────────────────
     emit_step(&app, InitStep::GitPull, InitStepStatus::Running, Some(id.clone()));
-    let git_result = if Path::new(&local_clone_path).join(".git").exists() {
-        run_cmd_async("git", &["pull"], Some(&local_clone_path), &[("GIT_TERMINAL_PROMPT", "0")]).await
-    } else {
-        run_cmd_async("git", &["clone", &clone_url, &local_clone_path], None, &[("GIT_TERMINAL_PROMPT", "0")]).await
-    };
-    match git_result {
+    match git_pull_or_clone(&local_clone_path, &clone_url, github_token.as_deref()).await {
         Err(ref e) => {
             let msg = e.to_string();
             log::error!("[project_init] GitPull failed: {msg}");
             emit_step(&app, InitStep::GitPull, InitStepStatus::Error { message: msg.clone() }, Some(id.clone()));
             return Err(CommandError::External(msg));
         }
-        Ok(_) => {
-            log::debug!("[project_init] git lfs pull in {local_clone_path}");
-            if let Err(e) = run_cmd_async("git", &["lfs", "pull"], Some(&local_clone_path), &[("GIT_TERMINAL_PROMPT", "0")]).await {
-                log::warn!("[project_init] git lfs pull failed (non-fatal): {e}");
-            }
+        Ok(()) => {
             emit_step(&app, InitStep::GitPull, InitStepStatus::Ok, Some(id.clone()));
         }
     }
@@ -603,7 +623,7 @@ fn migrate_legacy_dacpac(
             "sourceFilename":      filename,
             "sourceSha256":        sha256,
         }))
-        .unwrap(),
+        .map_err(|e| CommandError::Io(format!("JSON serialize error: {e}")))?,
     )?;
     log::debug!("[migrate_legacy_dacpac] wrote new metadata.json slug={slug}");
 
@@ -638,7 +658,7 @@ pub async fn app_startup_sync(
         technology: String,
     }
 
-    let (rows, local_clone_path, clone_url) = {
+    let (rows, local_clone_path, clone_url, github_token) = {
         let conn = state.conn().inspect_err(|e| {
             log::error!("[app_startup_sync] DB lock: {e}");
         })?;
@@ -659,7 +679,7 @@ pub async fn app_startup_sync(
             .map_err(CommandError::from)?
             .collect::<Result<_, rusqlite::Error>>()
             .map_err(CommandError::from)?;
-        (rows, settings.local_clone_path, settings.migration_repo_clone_url)
+        (rows, settings.local_clone_path, settings.migration_repo_clone_url, settings.github_oauth_token)
     };
 
     if rows.is_empty() {
@@ -691,10 +711,17 @@ pub async fn app_startup_sync(
     }
 
     // ── Step 1: GitPull (global, once) ────────────────────────────────────────
-    startup_git_pull(&app, &local_clone_path, &clone_url).await?;
+    startup_git_pull(&app, &local_clone_path, &clone_url, github_token.as_deref()).await?;
 
     // ── Steps 2-3: DDL check per project, in parallel ─────────────────────────
-    let lcp = local_clone_path.clone().unwrap_or_default();
+    let Some(lcp) = local_clone_path else {
+        log::warn!("[app_startup_sync] local_clone_path not configured — skipping DDL steps");
+        return Ok(());
+    };
+    if lcp.is_empty() {
+        log::warn!("[app_startup_sync] local_clone_path is empty — skipping DDL steps");
+        return Ok(());
+    }
     let mut join_set = tokio::task::JoinSet::new();
     for row in rows {
         let app_clone = app.clone();

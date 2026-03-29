@@ -181,10 +181,8 @@ export default function SplashScreen({ projects, activeProjectId, onSuccess, onC
   }
 
   async function handleRetry() {
-    hasStarted.current = false;
     unlistenRef.current?.();
     unlistenRef.current = null;
-    hasStarted.current = true;
     await runInit();
   }
 

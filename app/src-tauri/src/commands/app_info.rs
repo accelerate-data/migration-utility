@@ -6,8 +6,11 @@ use crate::types::CommandError;
 /// Set the global log level for Rust backend and also persist it to AppSettings.
 #[tauri::command]
 pub fn set_log_level(state: State<'_, DbState>, level: String) -> Result<(), CommandError> {
+    log::info!("[set_log_level] level={}", level);
     crate::logging::set_log_level(&level);
-    let conn = state.conn()?;
+    let conn = state.conn().inspect_err(|e| {
+        log::error!("[set_log_level] DB lock: {e}");
+    })?;
     let mut settings = crate::db::read_settings(&conn)?;
     settings.log_level = Some(level);
     crate::db::write_settings(&conn, &settings)?;

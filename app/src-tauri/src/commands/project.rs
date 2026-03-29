@@ -6,34 +6,6 @@ use crate::db::DbState;
 use crate::types::{CommandError, Project};
 
 #[tauri::command]
-pub fn project_create(
-    state: State<'_, DbState>,
-    name: String,
-    technology: String,
-) -> Result<Project, CommandError> {
-    log::info!("[project_create] name={} technology={}", name, technology);
-    let conn = state.conn().inspect_err(|e| {
-        log::error!("[project_create] DB lock: {}", e);
-    })?;
-
-    let id = Uuid::new_v4().to_string();
-    let slug = slugify(&name, &conn)?;
-    let created_at = chrono::Utc::now().to_rfc3339();
-
-    conn.execute(
-        "INSERT INTO projects(id, slug, name, technology, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![id, slug, name, technology, created_at],
-    )
-    .map_err(|e| {
-        log::error!("[project_create] insert failed: {}", e);
-        CommandError::from(e)
-    })?;
-
-    log::info!("[project_create] created id={} slug={}", id, slug);
-    Ok(Project { id, slug, name, technology, created_at })
-}
-
-#[tauri::command]
 pub fn project_list(state: State<'_, DbState>) -> Result<Vec<Project>, CommandError> {
     log::info!("[project_list]");
     let conn = state.conn().inspect_err(|e| {

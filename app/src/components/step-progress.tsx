@@ -65,17 +65,19 @@ interface StepProgressProps {
   steps: StepState[];
   isRunning: boolean;
   onDismiss: () => void;
+  title?: string;
 }
 
-export default function StepProgress({ steps, isRunning, onDismiss }: StepProgressProps) {
+export default function StepProgress({ steps, isRunning, onDismiss, title = 'Initializing project...' }: StepProgressProps) {
   if (!isRunning && steps.length === 0) return null;
 
   return (
     <div className="rounded-lg border border-border bg-card p-4 flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-foreground">Initializing project...</p>
+        <p className="text-sm font-semibold text-foreground">{title}</p>
         {!isRunning && (
           <button
+            type="button"
             onClick={onDismiss}
             className="text-muted-foreground hover:text-foreground transition-colors"
             aria-label="Dismiss"

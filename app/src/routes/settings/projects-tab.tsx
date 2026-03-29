@@ -7,8 +7,6 @@ import CreateProjectDialog from '@/components/settings/create-project-dialog';
 import ProjectRow from '@/components/settings/project-row';
 import { useProjectStore } from '@/stores/project-store';
 
-export { utcToLocalDate } from '@/lib/date-utils';
-
 export default function ProjectsTab() {
   const { projects, activeProject, isLoading, loadProjects, initSteps, isInitRunning, dismissInit } = useProjectStore();
   const [createOpen, setCreateOpen] = useState(false);

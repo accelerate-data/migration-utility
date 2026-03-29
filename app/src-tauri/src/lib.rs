@@ -49,7 +49,6 @@ pub fn run() {
             commands::github_auth::github_logout,
             commands::github_auth::github_list_repos,
             commands::github_auth::github_check_repo_empty,
-            commands::project::project_create,
             commands::project::project_list,
             commands::project::project_get,
             commands::project::project_delete,
