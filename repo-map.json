@@ -99,7 +99,7 @@
   "modules": {
     "frontend_components": {
       "path": "app/src/components/",
-      "description": "Reusable UI components. Files: github-login-dialog.tsx, icon-nav.tsx. Sub-directories: settings/ (settings panel sections), ui/ (shadcn/ui primitives)."
+      "description": "Reusable UI components. Files: github-login-dialog.tsx, icon-nav.tsx, step-progress.tsx. Sub-directories: settings/ (create-project-dialog, project-row, project-delete-dialog, project-reset-dialog, repo-selector), ui/ (shadcn/ui primitives). Hooks: hooks/use-project-init.ts."
     },
     "frontend_routes": {
       "path": "app/src/routes/",
@@ -107,7 +107,7 @@
     },
     "frontend_stores": {
       "path": "app/src/stores/",
-      "description": "Zustand state stores: auth-store, project-store, workflow-store."
+      "description": "Zustand state stores: auth-store, project-store, settings-store."
     },
     "frontend_lib": {
       "path": "app/src/lib/",
@@ -119,11 +119,11 @@
     },
     "rust_commands": {
       "path": "app/src-tauri/src/commands/",
-      "description": "Tauri command handlers: app_info.rs, github_auth.rs, project.rs, project_ops.rs, settings.rs. mod.rs re-exports."
+      "description": "Tauri command handlers: app_info.rs, ddl.rs, git_ops.rs, github_auth.rs, process.rs, project.rs, project_ops.rs, settings.rs. mod.rs re-exports."
     },
     "rust_db": {
       "path": "app/src-tauri/src/db.rs",
-      "description": "SQLite schema, migration runner, and query helpers. Migrations in app/src-tauri/migrations/ (4 numbered SQL files)."
+      "description": "SQLite schema, migration runner, query helpers, and project repository layer (insert/get/list/delete). Migrations in app/src-tauri/migrations/ (4 numbered SQL files)."
     },
     "rust_support": {
       "path": "app/src-tauri/src/",
