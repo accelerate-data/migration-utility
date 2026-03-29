@@ -1,16 +1,6 @@
 import { useState } from 'react';
 import { Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { projectDeleteFull, projectResetLocal, tauriErrorMessage } from '@/lib/tauri';
@@ -18,6 +8,8 @@ import { TECHNOLOGY_LABEL } from '@/lib/types';
 import { logger } from '@/lib/logger';
 import { useProjectInit } from '@/hooks/use-project-init';
 import { useProjectStore } from '@/stores/project-store';
+import ProjectDeleteDialog from './project-delete-dialog';
+import ProjectResetDialog from './project-reset-dialog';
 
 interface ProjectRowProps {
   id: string;
@@ -162,66 +154,20 @@ export default function ProjectRow({ id, name, slug, technology, isActive, onRef
         </td>
       </tr>
 
-      {/* Delete confirmation */}
-      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete "{name}"?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently remove:
-              <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
-                <li>The <code>{slug}/</code> directory from the migration repository</li>
-                <li>The local project directory</li>
-              </ul>
-              <span className="block mt-2 font-medium text-destructive">
-                This action cannot be undone.
-              </span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              data-testid={`project-delete-confirm-${slug}`}
-            >
-              Delete permanently
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Reset confirmation */}
-      <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Reset local state for "{name}"?</AlertDialogTitle>
-            <AlertDialogDescription>
-              <span className="block font-medium mb-1">Will be removed locally:</span>
-              <ul className="list-disc list-inside space-y-1 text-sm">
-                <li>Local project directory (DDL files will be re-extracted from source on reinit)</li>
-              </ul>
-              <span className="block font-medium mt-2 mb-1">Will be kept:</span>
-              <ul className="list-disc list-inside space-y-1 text-sm">
-                <li>GitHub repository artifacts, source binary, and metadata</li>
-                <li>Project record in database</li>
-              </ul>
-              <span className="block mt-2 text-sm text-muted-foreground">
-                The project will be reinitialized immediately after reset.
-              </span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleReset}
-              data-testid={`project-reset-confirm-${slug}`}
-            >
-              Reset and reinitialize
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ProjectDeleteDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        name={name}
+        slug={slug}
+        onConfirm={handleDelete}
+      />
+      <ProjectResetDialog
+        open={resetOpen}
+        onOpenChange={setResetOpen}
+        name={name}
+        slug={slug}
+        onConfirm={handleReset}
+      />
     </>
   );
 }
