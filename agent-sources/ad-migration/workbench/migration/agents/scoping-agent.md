@@ -45,20 +45,22 @@ If discover fails (exit code 1 or 2), record `error` with code `DISCOVER_EXECUTI
 
 ### Step 2 — Enrich Each Candidate
 
-For each candidate writer, run:
+For each candidate writer:
 
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover show \
-  --ddl-path <ddl_path> --name <writer>
-```
+1. Run `discover show --ddl-path <ddl_path> --name <writer>`.
 
-From the output, extract `refs`, `classification`, and `raw_ddl`.
+2. Extract `refs` from the output. For every ref that is a view, function, or procedure (not a base table), run `discover show` on it and follow the chain until you reach base tables. Assemble the fully resolved `dependencies: { tables, views, functions }` on the candidate.
 
-**Resolve dependencies to base tables (both paths):** For every ref that is a view, function, or procedure — run `discover show` on it and follow the chain until you reach base tables. This applies to both deterministic and claude_assisted procs. Assemble the fully resolved `dependencies: { tables, views, functions }`.
+3. Check `classification`:
+   - `deterministic` — no further action needed.
+   - `claude_assisted` — read `raw_ddl` and analyse the proc body:
+     - Identify `reads_from` and `writes_to`.
+     - Classify each statement as `migrate` or `skip`.
+     - If the proc calls other procs (EXEC), run `discover show` on each and follow recursively.
+     - Populate `llm_analysis` on the candidate with `reads_from`, `writes_to`, `statements`, and `rationale`.
+     - Add `LLM_ANALYSIS_REQUIRED` warning.
 
-**Additional enrichment for `claude_assisted`:** Read `raw_ddl` from the show output. Analyse the proc body to determine `reads_from`, `writes_to`, and classify each statement as `migrate` or `skip`. Populate `llm_analysis` on the candidate with your findings. Add `LLM_ANALYSIS_REQUIRED` warning.
-
-The `llm_analysis` field preserves your analysis so downstream agents (profiler, decomposer) don't re-read the same proc body.
+The `llm_analysis` field preserves your analysis so downstream agents don't re-read the same proc.
 
 ### Step 3 — Apply Resolution Rules
 
