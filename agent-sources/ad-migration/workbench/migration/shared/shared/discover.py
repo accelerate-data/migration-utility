@@ -119,6 +119,88 @@ def run_list(ddl_path: Path, object_type: ObjectType) -> dict[str, Any]:
     return {"objects": objects}
 
 
+def _show_table(ddl_path: Path, norm: str) -> dict[str, Any]:
+    """Build show fields for a table object."""
+    table_cat = load_table_catalog(ddl_path, norm)
+    if table_cat is None:
+        _catalog_error("table", norm)
+    return {"columns": table_cat.get("columns", [])}
+
+
+def _show_procedure(
+    ddl_path: Path, norm: str, entry: DdlEntry,
+) -> dict[str, Any]:
+    """Build show fields for a procedure object."""
+    proc_cat = load_proc_catalog(ddl_path, norm)
+    if proc_cat is None:
+        _catalog_error("procedure", norm)
+
+    params = proc_cat.get("params", [])
+
+    cat_refs = proc_cat.get("references", {})
+    tables_in_scope = cat_refs.get("tables", {}).get("in_scope", [])
+    reads = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_selected")]
+    writes = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_updated")]
+    write_ops: dict[str, list[str]] = {}
+    for t in tables_in_scope:
+        if t.get("is_updated"):
+            tfqn = normalize(f"{t['schema']}.{t['name']}")
+            ops = ["WRITE"]
+            if t.get("is_insert_all"):
+                ops.append("INSERT")
+            write_ops[tfqn] = ops
+    funcs = [normalize(f"{f['schema']}.{f['name']}") for f in cat_refs.get("functions", {}).get("in_scope", [])]
+    refs_dict = {
+        "reads_from": sorted(set(reads)),
+        "writes_to": sorted(set(writes)),
+        "write_operations": write_ops,
+        "uses_functions": sorted(set(funcs)),
+    }
+
+    needs_llm = proc_cat.get("needs_llm", False)
+    parse_error = entry.parse_error
+
+    if needs_llm or parse_error:
+        classification = "claude_assisted"
+        statements = None
+    else:
+        try:
+            obj_refs_for_stmts = extract_refs(entry)
+            statements = obj_refs_for_stmts.statements
+        except DdlParseError:
+            statements = None
+        classification = "deterministic"
+
+    return {
+        "params": params,
+        "refs": refs_dict,
+        "needs_llm": needs_llm,
+        "classification": classification,
+        "statements": statements,
+    }
+
+
+def _show_view_or_function(
+    ddl_path: Path, norm: str, type_label: str,
+) -> dict[str, Any]:
+    """Build show fields for a view or function object."""
+    cat_loader = load_view_catalog if type_label == "view" else load_function_catalog
+    obj_cat = cat_loader(ddl_path, norm)
+    if obj_cat is None:
+        _catalog_error(type_label, norm)
+
+    cat_refs = obj_cat.get("references", {})
+    tables_in_scope = cat_refs.get("tables", {}).get("in_scope", [])
+    reads = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_selected")]
+    writes = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_updated")]
+    return {
+        "refs": {
+            "reads_from": sorted(set(reads)),
+            "writes_to": sorted(set(writes)),
+        },
+    }
+
+
 def run_show(ddl_path: Path, name: str) -> dict[str, Any]:
     """Return the show subcommand result dict.
 
@@ -134,90 +216,27 @@ def run_show(ddl_path: Path, name: str) -> dict[str, Any]:
 
     norm, type_label, entry = found
 
-    columns: list[dict] = []
-    params: list[dict] = []
-    refs_dict: dict | None = None
-    parse_error: str | None = entry.parse_error
-    needs_llm = False
-    classification: str | None = None
-    statements: list[dict] | None = None
-
     if type_label == "table":
-        table_cat = load_table_catalog(ddl_path, norm)
-        if table_cat is None:
-            _catalog_error(type_label, norm)
-        columns = table_cat.get("columns", [])
-
+        extra = _show_table(ddl_path, norm)
     elif type_label == "procedure":
-        proc_cat = load_proc_catalog(ddl_path, norm)
-        if proc_cat is None:
-            _catalog_error(type_label, norm)
-
-        # Params from catalog
-        params = proc_cat.get("params", [])
-
-        # Refs from catalog
-        cat_refs = proc_cat.get("references", {})
-        tables_in_scope = cat_refs.get("tables", {}).get("in_scope", [])
-        reads = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_selected")]
-        writes = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_updated")]
-        write_ops: dict[str, list[str]] = {}
-        for t in tables_in_scope:
-            if t.get("is_updated"):
-                tfqn = normalize(f"{t['schema']}.{t['name']}")
-                ops = ["WRITE"]
-                if t.get("is_insert_all"):
-                    ops.append("INSERT")
-                write_ops[tfqn] = ops
-        funcs = [normalize(f"{f['schema']}.{f['name']}") for f in cat_refs.get("functions", {}).get("in_scope", [])]
-        refs_dict = {
-            "reads_from": sorted(set(reads)),
-            "writes_to": sorted(set(writes)),
-            "write_operations": write_ops,
-            "uses_functions": sorted(set(funcs)),
-        }
-
-        # needs_llm from catalog — trust the body scan + enrichment pipeline
-        needs_llm = proc_cat.get("needs_llm", False)
-
-        if needs_llm or parse_error:
-            classification = "claude_assisted"
-            statements = None
-        else:
-            # Deterministic per catalog — AST-parse for statement breakdown
-            try:
-                obj_refs_for_stmts = extract_refs(entry)
-                statements = obj_refs_for_stmts.statements
-            except DdlParseError:
-                statements = None
-            classification = "deterministic"
-
+        extra = _show_procedure(ddl_path, norm, entry)
     elif type_label in ("view", "function"):
-        cat_loader = load_view_catalog if type_label == "view" else load_function_catalog
-        obj_cat = cat_loader(ddl_path, norm)
-        if obj_cat is None:
-            _catalog_error(type_label, norm)
-
-        cat_refs = obj_cat.get("references", {})
-        tables_in_scope = cat_refs.get("tables", {}).get("in_scope", [])
-        reads = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_selected")]
-        writes = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_updated")]
-        refs_dict = {
-            "reads_from": sorted(set(reads)),
-            "writes_to": sorted(set(writes)),
-        }
+        extra = _show_view_or_function(ddl_path, norm, type_label)
+    else:
+        extra = {}
 
     return {
         "name": norm,
         "type": type_label,
         "raw_ddl": entry.raw_ddl,
-        "columns": columns,
-        "params": params,
-        "refs": refs_dict,
-        "statements": statements,
-        "needs_llm": needs_llm,
-        "classification": classification,
-        "parse_error": parse_error,
+        "columns": [],
+        "params": [],
+        "refs": None,
+        "statements": None,
+        "needs_llm": False,
+        "classification": None,
+        "parse_error": entry.parse_error,
+        **extra,
     }
 
 
