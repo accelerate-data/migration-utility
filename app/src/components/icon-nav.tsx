@@ -1,11 +1,9 @@
 import { useLocation, useNavigate } from 'react-router';
 import { House, Settings, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { type Surface, useWorkflowStore } from '@/stores/workflow-store';
 import { BRAND_ASSETS } from '@/lib/branding';
 
 interface NavItem {
-  surface: Surface;
   path: string;
   icon: LucideIcon;
   label: string;
@@ -13,11 +11,11 @@ interface NavItem {
 }
 
 const TOP_ITEMS: NavItem[] = [
-  { surface: 'home', path: '/home', icon: House, label: 'Home', testId: 'nav-home' },
+  { path: '/home', icon: House, label: 'Home', testId: 'nav-home' },
 ];
 
 const BOTTOM_ITEMS: NavItem[] = [
-  { surface: 'settings', path: '/settings', icon: Settings, label: 'Settings', testId: 'nav-settings' },
+  { path: '/settings', icon: Settings, label: 'Settings', testId: 'nav-settings' },
 ];
 
 function NavButton({ item, isActive, onClick }: {
@@ -72,7 +70,6 @@ function NavButton({ item, isActive, onClick }: {
 export default function IconNav() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const setCurrentSurface = useWorkflowStore((s) => s.setCurrentSurface);
 
   function isActive(item: NavItem): boolean {
     if (item.path === '/settings') return pathname === '/settings' || pathname.startsWith('/settings/');
@@ -80,7 +77,6 @@ export default function IconNav() {
   }
 
   function handleClick(item: NavItem) {
-    setCurrentSurface(item.surface);
     navigate(item.path);
   }
 
@@ -108,7 +104,7 @@ export default function IconNav() {
       {/* Top nav items */}
       {TOP_ITEMS.map((item) => (
         <NavButton
-          key={item.surface}
+          key={item.path}
           item={item}
           isActive={isActive(item)}
           onClick={() => handleClick(item)}
@@ -121,7 +117,7 @@ export default function IconNav() {
       {/* Bottom nav items */}
       {BOTTOM_ITEMS.map((item) => (
         <NavButton
-          key={item.surface}
+          key={item.path}
           item={item}
           isActive={isActive(item)}
           onClick={() => handleClick(item)}

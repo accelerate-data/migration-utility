@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import IconNav from '@/components/icon-nav';
-import { useWorkflowStore } from '@/stores/workflow-store';
 
 const mockNavigate = vi.fn();
 vi.mock('react-router', async () => {
@@ -18,10 +17,6 @@ vi.mock('react-router', async () => {
 describe('IconNav', () => {
   beforeEach(() => {
     mockNavigate.mockReset();
-    useWorkflowStore.setState((s) => ({
-      ...s,
-      currentSurface: 'home',
-    }));
   });
 
   it('renders nav items', () => {
@@ -56,16 +51,6 @@ describe('IconNav', () => {
     );
     fireEvent.click(screen.getByTestId('nav-settings'));
     expect(mockNavigate).toHaveBeenCalledWith('/settings');
-  });
-
-  it('updates currentSurface in store on click', () => {
-    render(
-      <MemoryRouter initialEntries={['/home']}>
-        <IconNav />
-      </MemoryRouter>,
-    );
-    fireEvent.click(screen.getByTestId('nav-settings'));
-    expect(useWorkflowStore.getState().currentSurface).toBe('settings');
   });
 
   it('exposes accessible nav and icon button names', () => {

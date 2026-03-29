@@ -32,7 +32,7 @@ async function seedWorkspaceState(page: Page) {
             migrationStatus: 'idle',
             scopeStepStatus: {},
             scopeStepSavedAt: {},
-            currentSurface: 'settings',
+
             currentScopeStep: 'scope',
             selectedTableIds: [],
           },

@@ -13,6 +13,9 @@ import { logger } from './lib/logger';
 export default function App() {
   const loadUser = useAuthStore((s) => s.loadUser);
   const { loadProjects } = useProjectStore();
+  const activeProject = useProjectStore((s) => s.activeProject);
+  const projects = useProjectStore((s) => s.projects);
+  const clearActive = useProjectStore((s) => s.clearActive);
 
   // null = not yet determined, true = show splash, false = show app
   const [showSplash, setShowSplash] = useState<boolean | null>(null);
@@ -40,7 +43,6 @@ export default function App() {
   }
 
   if (showSplash) {
-    const { activeProject, projects } = useProjectStore.getState();
     return (
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <SplashScreen
@@ -48,7 +50,7 @@ export default function App() {
           activeProjectId={activeProject!.id}
           onSuccess={() => setShowSplash(false)}
           onCancel={() => {
-            useProjectStore.getState().clearActive();
+            clearActive();
             setShowSplash(false);
           }}
         />
