@@ -213,12 +213,13 @@ class TestEdgeCases:
     def test_dynamic_sql_flagged(self, catalog_output):
         cat = _load_proc_catalog(catalog_output, "test_catalog.usp_dynamic_sql")
         assert cat is not None
-        assert cat.get("has_dynamic_sql") is True
+        assert cat.get("needs_llm") is True
 
-    def test_sp_executesql_flagged(self, catalog_output):
+    def test_sp_executesql_not_flagged(self, catalog_output):
+        # sp_executesql is resolved by DMF — no needs_llm
         cat = _load_proc_catalog(catalog_output, "test_catalog.usp_sp_executesql")
         assert cat is not None
-        assert cat.get("has_dynamic_sql") is True
+        assert cat.get("needs_llm") is not True
 
     def test_empty_proc_no_refs(self, catalog_output):
         cat = _load_proc_catalog(catalog_output, "test_catalog.usp_empty")
@@ -233,3 +234,72 @@ class TestEdgeCases:
         views = cat["referenced_by"]["views"]["in_scope"]
         names = {v["name"] for v in views}
         assert "vw_schema_bound" in names
+
+
+# -- Routing Flags ------------------------------------------------------------
+
+class TestRoutingFlags:
+    """Verify needs_llm and needs_enrich are set correctly on proc catalog files."""
+
+    # needs_llm: false, needs_enrich: false — pure DML, nothing to enrich
+    def test_pure_dml_no_flags(self, catalog_output):
+        cat = _load_proc_catalog(catalog_output, "test_catalog.usp_insert_writer")
+        assert cat is not None
+        assert cat.get("needs_llm") is not True
+        assert cat.get("needs_enrich") is not True
+
+    # needs_llm: true — EXEC(@sql)
+    def test_exec_dynamic_needs_llm(self, catalog_output):
+        cat = _load_proc_catalog(catalog_output, "test_catalog.usp_dynamic_sql")
+        assert cat is not None
+        assert cat.get("needs_llm") is True
+        assert cat.get("needs_enrich") is not True
+
+    # needs_llm: true — TRY/CATCH block
+    def test_try_catch_needs_llm(self, catalog_output):
+        cat = _load_proc_catalog(catalog_output, "test_catalog.usp_try_catch")
+        assert cat is not None
+        assert cat.get("needs_llm") is True
+        assert cat.get("needs_enrich") is not True
+
+    # needs_llm: true — WHILE loop
+    def test_while_loop_needs_llm(self, catalog_output):
+        cat = _load_proc_catalog(catalog_output, "test_catalog.usp_while_loop")
+        assert cat is not None
+        assert cat.get("needs_llm") is True
+        assert cat.get("needs_enrich") is not True
+
+    # needs_llm: true — IF/ELSE with DML
+    def test_if_else_needs_llm(self, catalog_output):
+        cat = _load_proc_catalog(catalog_output, "test_catalog.usp_if_else")
+        assert cat is not None
+        assert cat.get("needs_llm") is True
+        assert cat.get("needs_enrich") is not True
+
+    # needs_enrich: true — SELECT INTO (DMF misses the target)
+    def test_select_into_needs_enrich(self, catalog_output):
+        cat = _load_proc_catalog(catalog_output, "test_catalog.usp_select_into")
+        assert cat is not None
+        assert cat.get("needs_llm") is not True
+        assert cat.get("needs_enrich") is True
+
+    # needs_enrich: true — TRUNCATE + INSERT
+    def test_truncate_needs_enrich(self, catalog_output):
+        cat = _load_proc_catalog(catalog_output, "test_catalog.usp_truncate_insert")
+        assert cat is not None
+        assert cat.get("needs_llm") is not True
+        assert cat.get("needs_enrich") is True
+
+    # needs_enrich: true — static EXEC chain
+    def test_static_exec_chain_needs_enrich(self, catalog_output):
+        cat = _load_proc_catalog(catalog_output, "test_catalog.usp_indirect_hop1")
+        assert cat is not None
+        assert cat.get("needs_llm") is not True
+        assert cat.get("needs_enrich") is True
+
+    # sp_executesql — DMF handles it, no flags
+    def test_sp_executesql_no_flags(self, catalog_output):
+        cat = _load_proc_catalog(catalog_output, "test_catalog.usp_sp_executesql")
+        assert cat is not None
+        assert cat.get("needs_llm") is not True
+        assert cat.get("needs_enrich") is not True

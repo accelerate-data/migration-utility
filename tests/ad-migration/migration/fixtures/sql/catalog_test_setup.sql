@@ -23,6 +23,9 @@ DROP PROCEDURE IF EXISTS test_catalog.usp_multi_table;
 DROP PROCEDURE IF EXISTS test_catalog.usp_column_detail;
 DROP PROCEDURE IF EXISTS test_catalog.usp_select_into;
 DROP PROCEDURE IF EXISTS test_catalog.usp_truncate_insert;
+DROP PROCEDURE IF EXISTS test_catalog.usp_try_catch;
+DROP PROCEDURE IF EXISTS test_catalog.usp_while_loop;
+DROP PROCEDURE IF EXISTS test_catalog.usp_if_else;
 DROP PROCEDURE IF EXISTS test_catalog.usp_dynamic_sql;
 DROP PROCEDURE IF EXISTS test_catalog.usp_sp_executesql;
 DROP PROCEDURE IF EXISTS test_catalog.usp_cross_db;
@@ -220,6 +223,40 @@ CREATE PROCEDURE test_catalog.usp_sp_executesql AS
 BEGIN
     DECLARE @sql NVARCHAR(MAX) = N'INSERT INTO test_catalog.target_indirect(id, val) VALUES(1, ''x'')';
     EXEC sp_executesql @sql;
+END;
+GO
+
+-- needs_llm: TRY/CATCH with DML inside
+CREATE PROCEDURE test_catalog.usp_try_catch AS
+BEGIN
+    BEGIN TRY
+        INSERT INTO test_catalog.target_insert(val, modified_dt) VALUES('x', GETDATE());
+    END TRY
+    BEGIN CATCH
+        PRINT ERROR_MESSAGE();
+    END CATCH;
+END;
+GO
+
+-- needs_llm: WHILE loop with DML inside
+CREATE PROCEDURE test_catalog.usp_while_loop AS
+BEGIN
+    DECLARE @i INT = 0;
+    WHILE @i < 3
+    BEGIN
+        INSERT INTO test_catalog.target_insert(val, modified_dt) VALUES('x', GETDATE());
+        SET @i = @i + 1;
+    END;
+END;
+GO
+
+-- needs_llm: IF/ELSE with DML in both branches
+CREATE PROCEDURE test_catalog.usp_if_else AS
+BEGIN
+    IF EXISTS (SELECT 1 FROM test_catalog.target_readonly)
+        INSERT INTO test_catalog.target_insert(val, modified_dt) VALUES('y', GETDATE());
+    ELSE
+        INSERT INTO test_catalog.target_insert(val, modified_dt) VALUES('n', GETDATE());
 END;
 GO
 
