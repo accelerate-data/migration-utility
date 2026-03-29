@@ -19,12 +19,14 @@ Exit codes:
 from __future__ import annotations
 
 import json
-import sys
+import logging
 from enum import Enum
 from pathlib import Path
 from typing import Any
 
 import typer
+
+logger = logging.getLogger(__name__)
 
 from shared.catalog import (
     has_catalog,
@@ -37,10 +39,8 @@ from shared.loader import (
     DdlCatalog,
     DdlEntry,
     DdlParseError,
-    _read_manifest,
     extract_refs,
-    load_catalog,
-    load_directory,
+    load_ddl,
 )
 from shared.name_resolver import normalize
 
@@ -62,15 +62,7 @@ def _load(ddl_path: Path) -> tuple[DdlCatalog, str]:
 
     Requires a catalog/ directory (from setup-ddl). Errors if missing.
     """
-    manifest = _read_manifest(ddl_path)
-    dialect = manifest["dialect"]
-    if not has_catalog(ddl_path):
-        print(f"discover: no catalog/ directory in {ddl_path} — run setup-ddl first", file=sys.stderr)
-        raise typer.Exit(code=2)
-    catalog_json = ddl_path / "catalog.json"
-    if catalog_json.exists():
-        return load_catalog(ddl_path), dialect
-    return load_directory(ddl_path, dialect=dialect), dialect
+    return load_ddl(ddl_path)
 
 
 def _emit(data: Any) -> None:
@@ -100,11 +92,8 @@ def _find_entry(
 
 
 def _catalog_error(type_label: str, norm: str) -> None:
-    """Print error and raise Exit(1) for missing catalog file."""
-    print(
-        f"discover: no catalog file for {type_label} {norm} — run setup-ddl first",
-        file=sys.stderr,
-    )
+    """Log error and raise Exit(1) for missing catalog file."""
+    logger.error("event=catalog_missing type=%s name=%s", type_label, norm)
     raise typer.Exit(code=1)
 
 
@@ -210,7 +199,7 @@ def run_show(ddl_path: Path, name: str) -> dict[str, Any]:
     found = _find_entry(catalog, name)
     if found is None:
         norm = normalize(name)
-        print(f"discover: object not found: {norm}", file=sys.stderr)
+        logger.error("event=show_failed name=%s reason=not_found", norm)
         raise typer.Exit(code=1)
 
     norm, type_label, entry = found
@@ -303,7 +292,7 @@ def run_refs(ddl_path: Path, name: str) -> dict[str, Any]:
     writer identification. Requires catalog files from setup-ddl.
     """
     if not has_catalog(ddl_path):
-        print(f"discover: no catalog/ directory in {ddl_path} — run setup-ddl first", file=sys.stderr)
+        logger.error("event=refs_failed ddl_path=%s reason=no_catalog_directory", ddl_path)
         raise typer.Exit(code=2)
     target = normalize(name)
 
@@ -317,7 +306,7 @@ def run_refs(ddl_path: Path, name: str) -> dict[str, Any]:
             }
 
     result = _run_refs_from_catalog(ddl_path, target)
-    print(f"discover: refs from catalog for {target}", file=sys.stderr)
+    logger.info("event=refs_complete target=%s source=catalog", target)
     return result
 
 
@@ -333,7 +322,7 @@ def list_objects(
     try:
         result = run_list(ddl_path, type)
     except (FileNotFoundError, DdlParseError) as exc:
-        print(f"discover: {exc}", file=sys.stderr)
+        logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=2) from exc
     _emit(result)
 
@@ -347,7 +336,7 @@ def show(
     try:
         result = run_show(ddl_path, name)
     except (FileNotFoundError, DdlParseError) as exc:
-        print(f"discover: {exc}", file=sys.stderr)
+        logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=2) from exc
     _emit(result)
 
@@ -361,7 +350,7 @@ def refs(
     try:
         result = run_refs(ddl_path, name)
     except (FileNotFoundError, DdlParseError) as exc:
-        print(f"discover: {exc}", file=sys.stderr)
+        logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=2) from exc
     _emit(result)
 

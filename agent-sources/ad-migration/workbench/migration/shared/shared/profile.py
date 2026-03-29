@@ -16,25 +16,23 @@ Exit codes:
 from __future__ import annotations
 
 import json
-import sys
+import logging
 from pathlib import Path
 from typing import Any
 
 import typer
 
 from shared.catalog import (
-    has_catalog,
     load_proc_catalog,
     load_table_catalog,
 )
 from shared.loader import (
-    DdlCatalog,
     DdlParseError,
-    _read_manifest,
-    load_catalog,
-    load_directory,
+    load_ddl,
 )
 from shared.name_resolver import normalize
+
+logger = logging.getLogger(__name__)
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
@@ -66,22 +64,9 @@ PK_TYPES = frozenset({"surrogate", "natural", "composite", "unknown"})
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
-def _load_ddl(ddl_path: Path) -> tuple[DdlCatalog, str]:
-    """Load a DdlCatalog and dialect from a DDL directory."""
-    manifest = _read_manifest(ddl_path)
-    dialect = manifest["dialect"]
-    if not has_catalog(ddl_path):
-        print(f"profile: no catalog/ directory in {ddl_path} -- run setup-ddl first", file=sys.stderr)
-        raise typer.Exit(code=2)
-    catalog_json = ddl_path / "catalog.json"
-    if catalog_json.exists():
-        return load_catalog(ddl_path), dialect
-    return load_directory(ddl_path, dialect=dialect), dialect
-
-
 def _emit(data: Any) -> None:
     """Write JSON to stdout."""
-    print(json.dumps(data, ensure_ascii=False, indent=2))
+    print(json.dumps(data, ensure_ascii=False))
 
 
 # ── Context assembly (importable for testing) ────────────────────────────────
@@ -98,7 +83,7 @@ def run_context(ddl_path: Path, table: str, writer: str) -> dict[str, Any]:
     # Load table catalog
     table_cat = load_table_catalog(ddl_path, table_norm)
     if table_cat is None:
-        print(f"profile: no catalog file for table {table_norm}", file=sys.stderr)
+        logger.error("event=context_failed operation=load_table_catalog table=%s reason=no_catalog_file", table_norm)
         raise typer.Exit(code=1)
 
     # Extract catalog signals
@@ -114,17 +99,17 @@ def run_context(ddl_path: Path, table: str, writer: str) -> dict[str, Any]:
     # Load writer procedure catalog
     proc_cat = load_proc_catalog(ddl_path, writer_norm)
     if proc_cat is None:
-        print(f"profile: no catalog file for procedure {writer_norm}", file=sys.stderr)
+        logger.error("event=context_failed operation=load_proc_catalog table=%s writer=%s reason=no_catalog_file", table_norm, writer_norm)
         raise typer.Exit(code=1)
 
     writer_references = proc_cat.get("references", {})
 
     # Load proc body from DDL files
-    ddl_catalog, _ = _load_ddl(ddl_path)
+    ddl_catalog, _ = load_ddl(ddl_path)
     proc_entry = ddl_catalog.get_procedure(writer_norm)
     proc_body = proc_entry.raw_ddl if proc_entry else ""
     if not proc_body:
-        print(f"profile: no DDL body found for procedure {writer_norm}", file=sys.stderr)
+        logger.warning("event=context_warning operation=load_proc_body table=%s writer=%s reason=no_ddl_body", table_norm, writer_norm)
 
     # Load column list from DDL (table entry)
     table_columns: list[dict[str, Any]] = table_cat.get("columns", [])
@@ -146,6 +131,7 @@ def run_context(ddl_path: Path, table: str, writer: str) -> dict[str, Any]:
             related["references"] = ref_cat.get("references", {})
         related_procedures.append(related)
 
+    logger.info("event=context_assembled table=%s writer=%s related_count=%d", table_norm, writer_norm, len(related_procedures))
     return {
         "table": table_norm,
         "writer": writer_norm,
@@ -243,20 +229,20 @@ def run_write(ddl_path: Path, table: str, profile_json: dict[str, Any]) -> dict[
     errors = _validate_profile(profile_json)
     if errors:
         error_result = {"ok": False, "errors": errors}
-        print(f"profile: validation failed: {errors}", file=sys.stderr)
+        logger.error("event=write_failed operation=validate table=%s error_count=%d", table_norm, len(errors))
         _emit(error_result)
         raise typer.Exit(code=1)
 
     # Load existing catalog file
     catalog_path = ddl_path / "catalog" / "tables" / f"{table_norm}.json"
     if not catalog_path.exists():
-        print(f"profile: catalog file not found: {catalog_path}", file=sys.stderr)
+        logger.error("event=write_failed operation=read_catalog table=%s reason=file_not_found", table_norm)
         raise typer.Exit(code=2)
 
     try:
         existing = json.loads(catalog_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
-        print(f"profile: failed to read catalog file: {exc}", file=sys.stderr)
+        logger.error("event=write_failed operation=read_catalog table=%s error=%s", table_norm, exc)
         raise typer.Exit(code=2) from exc
 
     # Merge profile section
@@ -271,9 +257,11 @@ def run_write(ddl_path: Path, table: str, profile_json: dict[str, Any]) -> dict[
         )
         tmp_path.replace(catalog_path)
     except OSError as exc:
-        print(f"profile: failed to write catalog file: {exc}", file=sys.stderr)
+        tmp_path.unlink(missing_ok=True)
+        logger.error("event=write_failed operation=atomic_write table=%s error=%s", table_norm, exc)
         raise typer.Exit(code=2) from exc
 
+    logger.info("event=write_complete table=%s catalog_path=%s", table_norm, catalog_path)
     return {
         "ok": True,
         "table": table_norm,
@@ -294,7 +282,7 @@ def context(
     try:
         result = run_context(ddl_path, table, writer)
     except (FileNotFoundError, DdlParseError) as exc:
-        print(f"profile: {exc}", file=sys.stderr)
+        logger.error("event=context_failed table=%s writer=%s error=%s", table, writer, exc)
         raise typer.Exit(code=2) from exc
     _emit(result)
 
@@ -309,13 +297,13 @@ def write(
     try:
         profile_data = json.loads(profile)
     except json.JSONDecodeError as exc:
-        print(f"profile: invalid JSON: {exc}", file=sys.stderr)
+        logger.error("event=write_failed operation=parse_json table=%s error=%s", table, exc)
         raise typer.Exit(code=2) from exc
 
     try:
         result = run_write(ddl_path, table, profile_data)
     except (FileNotFoundError, OSError) as exc:
-        print(f"profile: {exc}", file=sys.stderr)
+        logger.error("event=write_failed table=%s error=%s", table, exc)
         raise typer.Exit(code=2) from exc
     _emit(result)
 

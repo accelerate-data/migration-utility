@@ -50,7 +50,7 @@ _DELIMITER_MAP: dict[str, re.Pattern[str]] = {
 }
 
 
-def _read_manifest(ddl_path: Path) -> dict[str, str]:
+def read_manifest(ddl_path: Path) -> dict[str, str]:
     """Read manifest.json from ddl_path if present. Returns dialect, defaulting to tsql."""
     manifest_file = Path(ddl_path) / "manifest.json"
     if manifest_file.exists():
@@ -508,7 +508,7 @@ def load_directory(ddl_path: Path | str, dialect: str = "tsql") -> DdlCatalog:
     if not ddl_dir.is_dir():
         raise FileNotFoundError(f"ddl/ subdirectory does not exist: {ddl_dir}")
 
-    _manifest = _read_manifest(path)
+    _manifest = read_manifest(path)
     dialect = _manifest["dialect"]
     delimiter_re = _DELIMITER_MAP.get(dialect, _GO_RE)
 
@@ -581,7 +581,7 @@ def index_directory(
     Raises:
         FileNotFoundError: if ddl_path does not exist.
     """
-    _manifest = _read_manifest(Path(ddl_path))
+    _manifest = read_manifest(Path(ddl_path))
     dialect = _manifest["dialect"]
     catalog = load_directory(ddl_path, dialect=dialect)
     out = Path(output_dir)
@@ -599,6 +599,27 @@ def index_directory(
         json.dumps(catalog_doc, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
+
+
+def load_ddl(ddl_path: Path) -> tuple[DdlCatalog, str]:
+    """Load a DdlCatalog and dialect from a DDL directory.
+
+    Requires a catalog/ directory (from setup-ddl). Raises typer.Exit(2) if
+    missing. Prefers pre-built catalog.json when available, falls back to
+    parsing .sql files directly.
+    """
+    import typer
+
+    manifest = read_manifest(ddl_path)
+    dialect = manifest["dialect"]
+    catalog_dir = ddl_path / "catalog"
+    if not catalog_dir.is_dir() or not any(catalog_dir.rglob("*.json")):
+        print(f"loader: no catalog/ directory in {ddl_path} -- run setup-ddl first", file=sys.stderr)
+        raise typer.Exit(code=2)
+    catalog_json = ddl_path / "catalog.json"
+    if catalog_json.exists():
+        return load_catalog(ddl_path), dialect
+    return load_directory(ddl_path, dialect=dialect), dialect
 
 
 def load_catalog(output_dir: Path | str) -> DdlCatalog:
