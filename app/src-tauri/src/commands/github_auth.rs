@@ -277,6 +277,34 @@ pub async fn github_list_repos(
     Ok(repos)
 }
 
+/// Send a GET request via an authenticated GitHub API client.
+/// Returns the response on success. Maps network errors to `CommandError::External`
+/// with the provided `context` label for logging.
+async fn github_api_get(
+    client: &reqwest::Client,
+    url: &str,
+    context: &str,
+) -> Result<reqwest::Response, CommandError> {
+    client.get(url).send().await.map_err(|e| {
+        log::error!("[{context}] GET {url} failed: {e}");
+        CommandError::External(format!("{context}: {e}"))
+    })
+}
+
+/// Parse a non-success GitHub API response into a `CommandError`.
+async fn github_api_error(resp: reqwest::Response, context: &str) -> CommandError {
+    let status = resp.status();
+    let body: serde_json::Value = resp.json().await.unwrap_or_default();
+    let msg = format!(
+        "{} ({}): {}",
+        context,
+        status,
+        body["message"].as_str().unwrap_or("unknown")
+    );
+    log::error!("[github_check_repo_empty] {msg}");
+    CommandError::External(msg)
+}
+
 /// Check whether a GitHub repo is suitable as a migration target.
 /// Returns true if the repo has no directories at its root (project folders).
 /// A repo with only top-level files (e.g. a README) is still considered suitable.
@@ -297,14 +325,8 @@ pub async fn github_check_repo_empty(
     let client = github_authenticated_client(&token);
 
     // First check branches. A 409 means the repo has no git history at all — definitely usable.
-    let branches_resp = client
-        .get(format!("https://api.github.com/repos/{}/branches", full_name))
-        .send()
-        .await
-        .map_err(|e| {
-            log::error!("[github_check_repo_empty] Failed to check repo branches: {e}");
-            CommandError::External(format!("Failed to check repo branches: {e}"))
-        })?;
+    let branches_url = format!("https://api.github.com/repos/{full_name}/branches");
+    let branches_resp = github_api_get(&client, &branches_url, "github_check_repo_empty").await?;
 
     let branches_status = branches_resp.status();
     if branches_status.as_u16() == 409 {
@@ -312,41 +334,20 @@ pub async fn github_check_repo_empty(
         return Ok(true);
     }
     if !branches_status.is_success() {
-        let body: serde_json::Value = branches_resp.json().await.unwrap_or_default();
-        let msg = format!(
-            "GitHub API error ({}): {}",
-            branches_status,
-            body["message"].as_str().unwrap_or("unknown")
-        );
-        log::error!("[github_check_repo_empty] {msg}");
-        return Err(CommandError::External(msg));
+        return Err(github_api_error(branches_resp, "GitHub API error checking branches").await);
     }
 
     // Repo has at least one branch. Check root contents for any directory (project folder).
-    let contents_resp = client
-        .get(format!("https://api.github.com/repos/{}/contents/", full_name))
-        .send()
-        .await
-        .map_err(|e| {
-            log::error!("[github_check_repo_empty] Failed to check repo contents: {e}");
-            CommandError::External(format!("Failed to check repo contents: {e}"))
-        })?;
+    let contents_url = format!("https://api.github.com/repos/{full_name}/contents/");
+    let contents_resp = github_api_get(&client, &contents_url, "github_check_repo_empty").await?;
 
     let contents_status = contents_resp.status();
     if contents_status.as_u16() == 404 {
-        // No contents found — repo is usable.
         log::info!("[github_check_repo_empty] repo={} status=no_contents", full_name);
         return Ok(true);
     }
     if !contents_status.is_success() {
-        let body: serde_json::Value = contents_resp.json().await.unwrap_or_default();
-        let msg = format!(
-            "GitHub API error checking contents ({}): {}",
-            contents_status,
-            body["message"].as_str().unwrap_or("unknown")
-        );
-        log::error!("[github_check_repo_empty] {msg}");
-        return Err(CommandError::External(msg));
+        return Err(github_api_error(contents_resp, "GitHub API error checking contents").await);
     }
 
     let contents: serde_json::Value = contents_resp.json().await.map_err(|e| {
