@@ -1,0 +1,60 @@
+{
+  "primary_keys": [
+    {
+      "constraint_name": "PK_FactSales",
+      "columns": ["sale_id"]
+    }
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [
+    {
+      "constraint_name": "FK_FactSales_DimCustomer",
+      "columns": ["customer_key"],
+      "referenced_schema": "silver",
+      "referenced_table": "DimCustomer",
+      "referenced_columns": ["customer_key"]
+    }
+  ],
+  "auto_increment_columns": [{"column": "sale_id", "mechanism": "identity"}],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "dbo",
+          "name": "usp_load_fact_sales",
+          "is_selected": false,
+          "is_updated": true,
+          "is_insert_all": false,
+          "columns": [
+            { "name": "sale_id", "is_selected": true, "is_updated": false },
+            { "name": "amount", "is_selected": false, "is_updated": true }
+          ]
+        },
+        {
+          "schema": "dbo",
+          "name": "usp_read_fact_sales",
+          "is_selected": true,
+          "is_updated": false
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [
+        {
+          "schema": "dbo",
+          "name": "vw_sales_summary",
+          "is_selected": true,
+          "is_updated": false
+        }
+      ],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  }
+}

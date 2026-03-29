@@ -2,7 +2,7 @@
 
 Contracts for the **batch GHA pipeline**: multi-agent ETL migration from SQL Server stored procedures to dbt models. These contracts govern the six LLM agents that run in GitHub Actions and whose outputs the desktop app displays and routes.
 
-For the complementary interactive single-table path, see [SP → dbt Migration Plugin](../sp-to-dbt-plugin/README.md). The plugin's Python skills (`discover.py`, `scope.py`, `migrate.py`, `test_gen.py`) implement the deterministic parts of the pipeline below; the batch agents delegate to these skills where applicable and handle the judgment-heavy steps.
+For the complementary interactive single-table path, see [SP → dbt Migration Plugin](../sp-to-dbt-plugin/README.md). The plugin's Python skills (`discover.py`, `catalog.py`, `migrate.py`, `test_gen.py`) implement the deterministic parts of the pipeline below; the batch agents delegate to these skills where applicable and handle the judgment-heavy steps.
 
 All contracts are batch-only. Single-table UI execution is a degenerate batch with one `items[]` element.
 
@@ -33,7 +33,7 @@ Agent definitions must not declare `skills:` for discover. Use `uv run` commands
 
 ## Flow
 
-1. Scoping: analysis agent maps target table to writer procedure candidate(s), selects writer when resolvable, and enriches the selected writer with `reads_from` (tables/views it reads from) for downstream wave planning.
+1. Scoping: analysis agent calls `discover refs` per table for catalog-based writer identification (`is_updated=true`), calls `discover show` per candidate for statement analysis and dependency resolution, selects writer when resolvable, and enriches the selected writer with resolved `dependencies` for downstream wave planning.
 2. Profiling: profiler agent runs `profile.py` per table for context assembly, applies LLM reasoning to answer the six profiling questions, and writes results into each table's catalog JSON. Shares `profile.py` with the interactive `/profile` skill; LLM reasoning is replicated with batch-appropriate prompting. FDE approves before downstream consumption.
 3. Decomposition: decomposer agent segments selected writer SQL into reusable logical blocks and split points.
 4. Planning: planner agent consumes approved answers + approved decomposition, then produces materialization, tests, and documentation intent.

@@ -24,7 +24,7 @@ _UNPARSEABLE_FIXTURES = _TESTS_DIR / "fixtures" / "discover" / "unparseable"
 
 
 def test_list_flat_tables() -> None:
-    result = discover.run_list(_FLAT_FIXTURES, discover.ObjectType.tables, "tsql")
+    result = discover.run_list(_FLAT_FIXTURES, discover.ObjectType.tables)
     objects = result["objects"]
     assert "silver.dimproduct" in objects
     assert "bronze.product" in objects
@@ -40,7 +40,7 @@ def test_list_flat_tables() -> None:
 
 
 def test_list_flat_procedures() -> None:
-    result = discover.run_list(_FLAT_FIXTURES, discover.ObjectType.procedures, "tsql")
+    result = discover.run_list(_FLAT_FIXTURES, discover.ObjectType.procedures)
     objects = result["objects"]
     assert "dbo.usp_loaddimproduct" in objects
     assert "dbo.usp_logmessage" in objects
@@ -64,7 +64,16 @@ def test_list_flat_missing_optional() -> None:
         (p / "tables.sql").write_text(
             "CREATE TABLE dbo.SomeTable (Id INT)\nGO\n", encoding="utf-8"
         )
-        result = discover.run_list(p, discover.ObjectType.views, "tsql")
+        # Minimal catalog dir to satisfy mandatory check
+        (p / "catalog" / "tables").mkdir(parents=True)
+        (p / "catalog" / "tables" / "dbo.sometable.json").write_text(
+            '{"columns":[],"primary_keys":[],"unique_indexes":[],"foreign_keys":[],'
+            '"auto_increment_columns":[],"change_capture":null,"sensitivity_classifications":[],'
+            '"referenced_by":{"procedures":{"in_scope":[],"out_of_scope":[]},'
+            '"views":{"in_scope":[],"out_of_scope":[]},"functions":{"in_scope":[],"out_of_scope":[]}}}',
+            encoding="utf-8",
+        )
+        result = discover.run_list(p, discover.ObjectType.views)
     assert result["objects"] == []
 
 
@@ -73,14 +82,18 @@ def test_list_flat_missing_optional() -> None:
 
 def test_list_indexed_same_as_flat() -> None:
     """Indexed dir returns same object names as flat dir."""
+    import shutil
+
     from shared.loader import index_directory
 
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "indexed"
         index_directory(_FLAT_FIXTURES, out)
+        # Copy catalog/ from flat fixtures so indexed dir also has catalog
+        shutil.copytree(_FLAT_FIXTURES / "catalog", out / "catalog")
 
-        flat_result = discover.run_list(_FLAT_FIXTURES, discover.ObjectType.tables, "tsql")
-        indexed_result = discover.run_list(out, discover.ObjectType.tables, "tsql")
+        flat_result = discover.run_list(_FLAT_FIXTURES, discover.ObjectType.tables)
+        indexed_result = discover.run_list(out, discover.ObjectType.tables)
 
     assert flat_result["objects"] == indexed_result["objects"]
 
@@ -102,7 +115,7 @@ def test_list_unparseable_stored_with_error() -> None:
 
 def test_show_table_columns() -> None:
     """show on a table returns columns list populated from AST."""
-    result = discover.run_show(_FLAT_FIXTURES, "silver.DimProduct", "tsql")
+    result = discover.run_show(_FLAT_FIXTURES, "silver.DimProduct")
     assert result["type"] == "table"
     assert result["parse_error"] is None
     columns = result["columns"]
@@ -129,29 +142,6 @@ def test_show_unparseable_has_parse_error() -> None:
     assert len(errored) > 0
 
 
-# ── test_refs_ast_bracket_notation ────────────────────────────────────────
-
-
-def test_refs_ast_bracket_notation() -> None:
-    """refs for silver.DimProduct finds proc that uses [silver].[DimProduct] bracket notation."""
-    result = discover.run_refs(_FLAT_FIXTURES, "silver.DimProduct", "tsql")
-    assert result["name"] == "silver.dimproduct"
-    referenced_by = result["referenced_by"]
-    # usp_loaddimproduct uses [silver].[DimProduct] — must be found via AST
-    assert "dbo.usp_loaddimproduct" in referenced_by
-
-
-# ── test_refs_no_false_positive ───────────────────────────────────────────
-
-
-def test_refs_no_false_positive_string_literal() -> None:
-    """Proc that mentions 'silver.DimProduct' only in a comment is NOT returned by refs."""
-    result = discover.run_refs(_FLAT_FIXTURES, "silver.DimProduct", "tsql")
-    referenced_by = result["referenced_by"]
-    # usp_logmessage only mentions silver.DimProduct in a comment, not in DML
-    assert "dbo.usp_logmessage" not in referenced_by
-
-
 # ── test_discover_cli_list_succeeds_with_unparseable ─────────────────────
 
 
@@ -167,263 +157,102 @@ def test_discover_cli_list_succeeds_with_unparseable() -> None:
     assert result.exit_code == 0
 
 
-# ── New pattern tests ────────────────────────────────────────────────────
+# ── show: statement analysis (no catalog needed) ─────────────────────────
 
 
-def test_show_merge_proc_refs() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_MergeDimProduct", "tsql")
-    assert "silver.dimproduct" in result["refs"]["writes_to"]
-    assert "bronze.product" in result["refs"]["reads_from"]
-    assert "MERGE" in result["refs"]["write_operations"]["silver.dimproduct"]
+def test_show_deterministic_has_statements() -> None:
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadDimProduct")
     assert result["classification"] == "deterministic"
-
-
-def test_show_cte_proc_refs() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadWithCTE", "tsql")
-    assert "silver.dimproduct" in result["refs"]["writes_to"]
-    assert "bronze.product" in result["refs"]["reads_from"]
-
-
-def test_show_multi_cte_proc_refs() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadWithMultiCTE", "tsql")
-    assert "silver.dimproduct" in result["refs"]["writes_to"]
-    assert "bronze.product" in result["refs"]["reads_from"]
-
-
-def test_show_case_when_proc_refs() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadWithCase", "tsql")
-    assert "silver.dimproduct" in result["refs"]["writes_to"]
-    assert "bronze.product" in result["refs"]["reads_from"]
-
-
-def test_show_left_join_proc_refs() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadWithLeftJoin", "tsql")
-    assert "silver.dimproduct" in result["refs"]["writes_to"]
-    assert "bronze.product" in result["refs"]["reads_from"]
-
-
-def test_show_if_else_proc_refs() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ConditionalMerge", "tsql")
-    assert "silver.dimproduct" in result["refs"]["writes_to"]
-    assert "bronze.product" in result["refs"]["reads_from"]
-
-
-def test_show_try_catch_proc_refs() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_TryCatchLoad", "tsql")
-    assert "silver.dimproduct" in result["refs"]["writes_to"]
-    assert "bronze.product" in result["refs"]["reads_from"]
-
-
-def test_show_correlated_subquery_refs() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_CorrelatedSubquery", "tsql")
-    assert "silver.dimproduct" in result["refs"]["writes_to"]
-    assert "bronze.product" in result["refs"]["reads_from"]
-
-
-def test_show_sequential_with_refs() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_SequentialWith", "tsql")
-    assert "silver.dimproduct" in result["refs"]["writes_to"]
-    assert "dbo.config" in result["refs"]["writes_to"]
-    assert "bronze.product" in result["refs"]["reads_from"]
-
-
-def test_show_update_refs() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_SimpleUpdate", "tsql")
-    assert "silver.dimproduct" in result["refs"]["writes_to"]
-    assert "bronze.product" in result["refs"]["reads_from"]
-
-
-def test_show_delete_refs() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_SimpleDelete", "tsql")
-    assert "silver.dimproduct" in result["refs"]["writes_to"]
-
-
-def test_show_delete_top_refs() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_DeleteTop", "tsql")
-    assert "silver.dimproduct" in result["refs"]["writes_to"]
-
-
-def test_show_truncate_only_refs() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_TruncateOnly", "tsql")
-    assert "silver.dimproduct" in result["refs"]["writes_to"]
-    assert "TRUNCATE" in result["refs"]["write_operations"]["silver.dimproduct"]
-
-
-def test_show_select_into_refs() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_SelectInto", "tsql")
-    assert "silver.dimproduct_staging" in result["refs"]["writes_to"]
-    assert "bronze.product" in result["refs"]["reads_from"]
-    assert "SELECT_INTO" in result["refs"]["write_operations"]["silver.dimproduct_staging"]
-
-
-def test_show_right_join_refs() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_RightOuterJoin", "tsql")
-    assert "silver.dimproduct" in result["refs"]["writes_to"]
-    assert "bronze.product" in result["refs"]["reads_from"]
-
-
-def test_show_subquery_refs() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_SubqueryInWhere", "tsql")
-    assert "silver.dimproduct" in result["refs"]["writes_to"]
-    assert "bronze.product" in result["refs"]["reads_from"]
-
-
-def test_show_window_function_refs() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_WindowFunction", "tsql")
-    assert "silver.dimproduct" in result["refs"]["writes_to"]
-    assert "bronze.product" in result["refs"]["reads_from"]
-
-
-def test_show_while_loop_refs() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_WhileLoop", "tsql")
-    assert "bronze.product" in result["refs"]["writes_to"]
-    assert "dbo.config" in result["refs"]["writes_to"]
-
-
-def test_show_nested_control_flow_refs() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_NestedControlFlow", "tsql")
-    assert "silver.dimproduct" in result["refs"]["writes_to"]
-    assert "bronze.product" in result["refs"]["reads_from"]
-
-
-def test_show_exec_simple_has_exec() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecSimple", "tsql")
-    assert result["has_exec"] is True
-    assert result["classification"] == "claude_assisted"
-    assert result["refs"]["writes_to"] == []
-    assert result["refs"]["reads_from"] == []
-
-
-def test_show_exec_dynamic_has_exec() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecDynamic", "tsql")
-    assert result["has_exec"] is True
-    assert result["classification"] == "claude_assisted"
-
-
-def test_show_deterministic_no_exec() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadDimProduct", "tsql")
-    assert result["has_exec"] is False
-    assert result["classification"] == "deterministic"
-    assert "INSERT" in result["refs"]["write_operations"]["silver.dimproduct"]
-    # statements should have migrate and skip actions, no claude
+    assert result["statements"] is not None
     actions = {s["action"] for s in result["statements"]}
     assert "migrate" in actions
-    assert "claude" not in actions
 
 
-def test_show_exec_has_claude_statement() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecSimple", "tsql")
+def test_show_static_exec_is_deterministic() -> None:
+    """Static EXEC procs are deterministic — catalog-enrich resolves them."""
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecSimple")
+    assert result["classification"] == "deterministic"
+    assert result["statements"] is not None
+
+
+def test_show_dynamic_exec_is_claude_assisted() -> None:
+    """Dynamic EXEC(@var) procs are claude_assisted — LLM reads raw_ddl."""
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecDynamic")
     assert result["classification"] == "claude_assisted"
-    claude_stmts = [s for s in result["statements"] if s["action"] == "claude"]
-    assert len(claude_stmts) >= 1
-    assert "EXEC" in claude_stmts[0]["sql"]
+    assert result["statements"] is None
+    assert "needs_llm" not in result
 
 
 def test_show_statements_truncate_is_skip() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_TruncateOnly", "tsql")
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_TruncateOnly")
     actions = [s["action"] for s in result["statements"]]
     assert "skip" in actions
     assert "migrate" not in actions
 
 
 def test_show_statements_table_has_none() -> None:
-    result = discover.run_show(_FLAT_FIXTURES, "silver.DimProduct", "tsql")
+    result = discover.run_show(_FLAT_FIXTURES, "silver.DimProduct")
     assert result["statements"] is None
 
 
-# ── Dependency resolution tests ─────────────────────────────────────────
+def test_show_errors_without_catalog() -> None:
+    """show errors when no catalog/ directory exists."""
+    import tempfile
+
+    from click.exceptions import Exit
+
+    with tempfile.TemporaryDirectory() as tmp:
+        p = Path(tmp)
+        (p / "procedures.sql").write_text(
+            "CREATE PROCEDURE dbo.usp_Test AS BEGIN SELECT 1 END\nGO\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(Exit):
+            discover.run_show(p, "dbo.usp_Test")
 
 
-def test_show_dependencies_resolves_view_to_tables() -> None:
-    """dependencies.tables includes base tables behind views."""
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadFromView", "tsql")
-    deps = result["dependencies"]
-    assert deps is not None
-    # View silver.vw_ProductCatalog reads from silver.DimProduct and bronze.Product
-    assert "silver.dimproduct" in deps["tables"]
-    assert "bronze.product" in deps["tables"]
-    assert "silver.vw_productcatalog" in deps["views"]
+# ── Catalog-first refs tests ────────────────────────────────────────────
 
 
-def test_show_dependencies_resolves_function_to_tables() -> None:
-    """dependencies.tables includes tables read by functions."""
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadWithFunction", "tsql")
-    deps = result["dependencies"]
-    assert deps is not None
-    assert "bronze.product" in deps["tables"]
-    assert "bronze.geography" in deps["tables"]
-    assert "dbo.fn_getregion" in deps["functions"]
+_CATALOG_FIXTURES = _TESTS_DIR / "fixtures" / "catalog"
 
 
-def test_show_dependencies_direct_table_reads() -> None:
-    """dependencies.tables includes direct table reads (no resolution needed)."""
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadDimProduct", "tsql")
-    deps = result["dependencies"]
-    assert deps is not None
-    assert "bronze.product" in deps["tables"]
-    assert deps["views"] == []
-    assert deps["functions"] == []
+def test_refs_catalog_finds_writers() -> None:
+    """refs uses catalog data when catalog/tables/*.json exists."""
+    result = discover.run_refs(_CATALOG_FIXTURES.parent, "silver.FactSales")
+    assert result["source"] == "catalog"
+    writer_names = [w["procedure"] for w in result["writers"]]
+    assert "dbo.usp_load_fact_sales" in writer_names
+    # Writer has is_updated flag
+    writer = next(w for w in result["writers"] if w["procedure"] == "dbo.usp_load_fact_sales")
+    assert writer["is_updated"] is True
 
 
-def test_show_dependencies_none_for_tables() -> None:
-    """dependencies is None for table objects."""
-    result = discover.run_show(_FLAT_FIXTURES, "silver.DimProduct", "tsql")
-    assert result["dependencies"] is None
+def test_refs_catalog_finds_readers() -> None:
+    """refs catalog path correctly identifies readers (is_selected only)."""
+    result = discover.run_refs(_CATALOG_FIXTURES.parent, "silver.FactSales")
+    assert result["source"] == "catalog"
+    assert "dbo.usp_read_fact_sales" in result["readers"]
+    assert "dbo.vw_sales_summary" in result["readers"]
 
 
-def test_show_dependencies_view_has_dependencies() -> None:
-    """Views also have resolved dependencies."""
-    result = discover.run_show(_FLAT_FIXTURES, "silver.vw_ProductCatalog", "tsql")
-    deps = result["dependencies"]
-    assert deps is not None
-    assert "silver.dimproduct" in deps["tables"]
-    assert "bronze.product" in deps["tables"]
+def test_refs_catalog_no_confidence() -> None:
+    """Catalog-path refs output has no confidence or status fields."""
+    result = discover.run_refs(_CATALOG_FIXTURES.parent, "silver.FactSales")
+    assert result["source"] == "catalog"
+    for w in result["writers"]:
+        assert "confidence" not in w
+        assert "status" not in w
 
 
-def test_show_dependencies_function_has_dependencies() -> None:
-    """Functions also have resolved dependencies."""
-    result = discover.run_show(_FLAT_FIXTURES, "dbo.fn_GetRegion", "tsql")
-    deps = result["dependencies"]
-    assert deps is not None
-    assert "bronze.geography" in deps["tables"]
+def test_refs_errors_without_catalog() -> None:
+    """refs raises Exit when no catalog/ directory exists."""
+    from click.exceptions import Exit
 
-
-def test_show_dependencies_empty_on_parse_error() -> None:
-    """dependencies is empty (not None) when proc has parse_error but extract_refs succeeds."""
-    result = discover.run_show(_UNPARSEABLE_FIXTURES, "dbo.usp_Bad", "tsql")
-    assert result["parse_error"] is not None
-    deps = result["dependencies"]
-    assert deps is not None
-    assert deps["tables"] == []
-    assert deps["views"] == []
-    assert deps["functions"] == []
-
-
-def test_refs_finds_all_writer_procs() -> None:
-    result = discover.run_refs(_FLAT_FIXTURES, "silver.DimProduct", "tsql")
-    rb = result["referenced_by"]
-    # Deterministic writers
-    assert "dbo.usp_loaddimproduct" in rb
-    assert "dbo.usp_mergedimproduct" in rb
-    assert "dbo.usp_loadwithcte" in rb
-    assert "dbo.usp_loadwithmulticte" in rb
-    assert "dbo.usp_loadwithcase" in rb
-    assert "dbo.usp_loadwithleftjoin" in rb
-    assert "dbo.usp_conditionalmerge" in rb
-    assert "dbo.usp_trycatchload" in rb
-    assert "dbo.usp_correlatedsubquery" in rb
-    assert "dbo.usp_sequentialwith" in rb
-    assert "dbo.usp_simpleupdate" in rb
-    assert "dbo.usp_simpledelete" in rb
-    assert "dbo.usp_deletetop" in rb
-    assert "dbo.usp_truncateonly" in rb
-    assert "dbo.usp_rightouterjoin" in rb
-    assert "dbo.usp_subqueryinwhere" in rb
-    assert "dbo.usp_windowfunction" in rb
-    assert "dbo.usp_nestedcontrolflow" in rb
-    # EXEC procs should NOT appear (no deterministic refs to DimProduct)
-    assert "dbo.usp_execsimple" not in rb
-    assert "dbo.usp_execdynamic" not in rb
-    assert "dbo.usp_execspexecutesql" not in rb
-    # Comment-only mention should NOT appear
-    assert "dbo.usp_logmessage" not in rb
+    with tempfile.TemporaryDirectory() as tmp:
+        p = Path(tmp)
+        (p / "tables.sql").write_text(
+            "CREATE TABLE dbo.T (Id INT)\nGO\n", encoding="utf-8",
+        )
+        with pytest.raises(Exit):
+            discover.run_refs(p, "dbo.T")

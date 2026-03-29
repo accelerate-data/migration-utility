@@ -177,7 +177,264 @@ Join all tables with `\nGO\n` and append a final `\nGO\n`.
 
 Write to `<output-folder>/tables.sql` using the native Write tool.
 
-## Step 5 — Confirm
+## Step 5 — Extraction preview
+
+Before writing any files, run count queries and present a summary so the user knows what will be extracted:
+
+```sql
+SELECT
+    SUM(CASE WHEN o.type = 'U'  THEN 1 ELSE 0 END) AS tables,
+    SUM(CASE WHEN o.type = 'P'  THEN 1 ELSE 0 END) AS procedures,
+    SUM(CASE WHEN o.type = 'V'  THEN 1 ELSE 0 END) AS views,
+    SUM(CASE WHEN o.type IN ('FN', 'IF', 'TF') THEN 1 ELSE 0 END) AS functions
+FROM sys.objects o
+WHERE o.is_ms_shipped = 0
+  AND SCHEMA_NAME(o.schema_id) IN (<selected-schemas>)
+```
+
+Also check catalog signal availability:
+
+```sql
+SELECT
+    (SELECT COUNT(*) FROM sys.key_constraints WHERE type = 'PK') AS pk_count,
+    (SELECT COUNT(*) FROM sys.foreign_keys) AS fk_count,
+    (SELECT COUNT(*) FROM sys.identity_columns) AS identity_count,
+    (SELECT COUNT(*) FROM sys.tables WHERE is_tracked_by_cdc = 1) AS cdc_count
+```
+
+Present as a clear summary table:
+
+```text
+Extraction preview for [database]
+Schemas: <selected-schemas>
+
+  Object counts:
+    Tables:     N
+    Procedures: N
+    Views:      N
+    Functions:  N
+
+  Catalog signals available:
+    Primary keys:    N constraints
+    Foreign keys:    N constraints
+    Identity cols:   N columns
+    CDC-tracked:     N tables
+
+  Catalog files will be written to: <output-folder>/catalog/
+  Reference data from sys.dm_sql_referenced_entities will be extracted
+  for all procedures, views, and functions.
+```
+
+The user must confirm before extraction proceeds. If they decline, stop immediately — no files are written.
+
+## Step 6 — Extract catalog signals
+
+After user confirmation, extract catalog signals for all tables in the selected schemas. These are written as per-table JSON files under `<output-folder>/catalog/tables/`.
+
+Run the following queries via `mssql:mssql-execute-sql`:
+
+**Primary keys and unique indexes:**
+
+```sql
+SELECT
+    SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name,
+    i.name AS index_name, i.is_unique, i.is_primary_key,
+    c.name AS column_name, ic.key_ordinal
+FROM sys.tables t
+JOIN sys.indexes i ON i.object_id = t.object_id AND (i.is_primary_key = 1 OR (i.is_unique = 1 AND i.is_primary_key = 0))
+JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+WHERE t.is_ms_shipped = 0 AND SCHEMA_NAME(t.schema_id) IN (<selected-schemas>)
+ORDER BY schema_name, table_name, i.index_id, ic.key_ordinal
+```
+
+**Foreign keys:**
+
+```sql
+SELECT
+    SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name,
+    fk.name AS constraint_name,
+    COL_NAME(fkc.parent_object_id, fkc.parent_column_id) AS column_name,
+    SCHEMA_NAME(rt.schema_id) AS ref_schema, rt.name AS ref_table,
+    COL_NAME(fkc.referenced_object_id, fkc.referenced_column_id) AS ref_column
+FROM sys.foreign_keys fk
+JOIN sys.tables t ON t.object_id = fk.parent_object_id
+JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
+JOIN sys.tables rt ON rt.object_id = fk.referenced_object_id
+WHERE t.is_ms_shipped = 0 AND SCHEMA_NAME(t.schema_id) IN (<selected-schemas>)
+ORDER BY schema_name, table_name, fk.name, fkc.constraint_column_id
+```
+
+**Identity columns:**
+
+```sql
+SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name, c.name AS column_name
+FROM sys.identity_columns c
+JOIN sys.tables t ON t.object_id = c.object_id
+WHERE t.is_ms_shipped = 0 AND SCHEMA_NAME(t.schema_id) IN (<selected-schemas>)
+```
+
+**CDC:**
+
+```sql
+SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name
+FROM sys.tables t
+WHERE t.is_ms_shipped = 0 AND t.is_tracked_by_cdc = 1
+  AND SCHEMA_NAME(t.schema_id) IN (<selected-schemas>)
+```
+
+**Change tracking** (graceful — may not exist):
+
+```sql
+BEGIN TRY
+    SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name
+    FROM sys.change_tracking_tables ct
+    JOIN sys.tables t ON t.object_id = ct.object_id
+    WHERE SCHEMA_NAME(t.schema_id) IN (<selected-schemas>)
+END TRY
+BEGIN CATCH
+END CATCH
+```
+
+**Sensitivity classifications** (graceful — requires SQL Server 2019+):
+
+```sql
+BEGIN TRY
+    SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name,
+           sc.label, sc.information_type, COL_NAME(sc.major_id, sc.minor_id) AS column_name
+    FROM sys.sensitivity_classifications sc
+    JOIN sys.tables t ON t.object_id = sc.major_id
+    WHERE t.is_ms_shipped = 0 AND SCHEMA_NAME(t.schema_id) IN (<selected-schemas>)
+END TRY
+BEGIN CATCH
+END CATCH
+```
+
+For each table, assemble a JSON file at `<output-folder>/catalog/tables/<schema>.<table>.json` containing:
+
+```json
+{
+  "primary_keys": [{"constraint_name": "PK_...", "columns": ["col1", "col2"]}],
+  "unique_indexes": [{"index_name": "IX_...", "columns": ["col1"]}],
+  "foreign_keys": [{"constraint_name": "FK_...", "columns": ["col"], "referenced_schema": "dbo", "referenced_table": "T2", "referenced_columns": ["col"]}],
+  "auto_increment_columns": [{"column": "col1", "mechanism": "identity"}],
+  "change_capture": null,
+  "sensitivity_classifications": []
+}
+```
+
+The `referenced_by` section is populated later in Step 7 after DMF extraction.
+
+## Step 7 — Extract references via DMF
+
+Call `sys.dm_sql_referenced_entities` for all procedures, views, and functions. Use a server-side cursor to batch all calls into one result set per object type. This avoids hundreds of individual MCP calls.
+
+Run the following for **procedures** (repeat the same pattern for views and functions, changing the type filter):
+
+```sql
+DECLARE @result TABLE (
+    referencing_schema NVARCHAR(128), referencing_name NVARCHAR(128),
+    referenced_schema NVARCHAR(128), referenced_entity NVARCHAR(128),
+    referenced_minor_name NVARCHAR(128), referenced_class_desc NVARCHAR(60),
+    is_selected BIT, is_updated BIT, is_select_all BIT,
+    is_insert_all BIT, is_all_columns_found BIT,
+    is_caller_dependent BIT, is_ambiguous BIT
+);
+DECLARE @schema NVARCHAR(128), @name NVARCHAR(128);
+DECLARE cur CURSOR LOCAL FAST_FORWARD FOR
+    SELECT SCHEMA_NAME(o.schema_id), o.name FROM sys.objects o
+    WHERE o.type = 'P' AND o.is_ms_shipped = 0
+      AND SCHEMA_NAME(o.schema_id) IN (<selected-schemas>);
+OPEN cur;
+FETCH NEXT FROM cur INTO @schema, @name;
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    BEGIN TRY
+        INSERT INTO @result
+        SELECT @schema, @name,
+            ISNULL(ref.referenced_schema_name, ''),
+            ISNULL(ref.referenced_entity_name, ''),
+            ISNULL(ref.referenced_minor_name, ''),
+            ISNULL(ref.referenced_class_desc, ''),
+            ISNULL(ref.is_selected, 0), ISNULL(ref.is_updated, 0),
+            ISNULL(ref.is_select_all, 0), ISNULL(ref.is_insert_all, 0),
+            ISNULL(ref.is_all_columns_found, 0),
+            ISNULL(ref.is_caller_dependent, 0), ISNULL(ref.is_ambiguous, 0)
+        FROM sys.dm_sql_referenced_entities(
+            QUOTENAME(@schema) + '.' + QUOTENAME(@name), 'OBJECT'
+        ) ref;
+    END TRY
+    BEGIN CATCH
+    END CATCH
+    FETCH NEXT FROM cur INTO @schema, @name;
+END;
+CLOSE cur; DEALLOCATE cur;
+SELECT * FROM @result;
+```
+
+For views, change `o.type = 'P'` to `o.type = 'V'`. For functions, change to `o.type IN ('FN', 'IF', 'TF')`.
+
+Process the results as follows:
+
+1. **Group by referencing object.** For each proc/view/function, collect all referenced entities with their `is_selected`/`is_updated`/`is_insert_all` flags and column-level detail (`referenced_minor_name`).
+
+2. **Classify referenced objects** by `referenced_class_desc`: `USER_TABLE` → tables, `VIEW` → views, `SQL_SCALAR_FUNCTION`/`SQL_TABLE_VALUED_FUNCTION`/`SQL_INLINE_TABLE_VALUED_FUNCTION` → functions, `SQL_STORED_PROCEDURE` → procedures. Default `OBJECT_OR_COLUMN` to tables.
+
+3. **Write per-object catalog files:**
+   - `catalog/procedures/<schema>.<proc>.json` with `references: {tables: [...], views: [...], functions: [...], procedures: [...]}`
+   - `catalog/views/<schema>.<view>.json` with `references: {tables: [...], views: [...], functions: [...]}`
+   - `catalog/functions/<schema>.<function>.json` with `references: {tables: [...], views: [...], functions: [...]}`
+
+4. **Flip references** for table files: for each table referenced by a proc/view/function, add the referencing object to the table's `referenced_by` section in its catalog JSON file. Carry over `is_updated`/`is_selected`/`is_insert_all` and column-level detail.
+
+Reference entry structure per proc/view/function file:
+
+```json
+{
+  "references": {
+    "tables": [
+      {
+        "schema": "HumanResources",
+        "name": "Employee",
+        "is_selected": false,
+        "is_updated": true,
+        "is_insert_all": false,
+        "columns": [
+          {"name": "BusinessEntityID", "is_selected": true, "is_updated": false}
+        ]
+      }
+    ],
+    "views": [],
+    "functions": [],
+    "procedures": [{"schema": "dbo", "name": "uspLogError", "is_selected": false, "is_updated": false}]
+  }
+}
+```
+
+Flipped `referenced_by` structure per table file:
+
+```json
+{
+  "referenced_by": {
+    "procedures": [
+      {
+        "schema": "dbo",
+        "name": "usp_load_fact_sales",
+        "is_selected": false,
+        "is_updated": true,
+        "is_insert_all": false,
+        "columns": [
+          {"name": "sale_id", "is_selected": true, "is_updated": false}
+        ]
+      }
+    ],
+    "views": [],
+    "functions": []
+  }
+}
+```
+
+## Step 8 — Confirm
 
 After all files are written, report a summary:
 
@@ -186,13 +443,64 @@ DDL extraction complete → <output-folder>/
 Database: <database>
 Schemas:  <selected-schemas>
 
-  tables.sql     : N tables
-  procedures.sql : N procedures
-  views.sql      : N views
-  functions.sql  : N functions
+  DDL files:
+    tables.sql     : N tables
+    procedures.sql : N procedures
+    views.sql      : N views
+    functions.sql  : N functions
+
+  Catalog files:
+    catalog/tables/     : N files
+    catalog/procedures/ : N files
+    catalog/views/      : N files
+    catalog/functions/  : N files
 ```
 
-Tell the user they can now run `discover` or `scope` skills, or invoke the `scoping-agent` against the output folder.
+Tell the user they can now run `discover` or the `scoping-agent` against the output folder. The `discover refs` command will automatically use catalog data for instant writer identification.
+
+**Known limitation:** Procs that write only via dynamic SQL (`EXEC(@sql)`, `sp_executesql`) will not appear in catalog `referenced_by`. This is an inherent offline limitation of `sys.dm_sql_referenced_entities` — it resolves references at definition time, not runtime. These procs require LLM analysis via `discover show`.
+
+## Step 9 — Write extraction manifest
+
+Write a `manifest.json` to the output folder root. This file tells downstream tools (loader, discover, agents) which technology and sqlglot dialect to use, removing hardcoded tsql assumptions.
+
+```json
+{
+  "schema_version": "1.0",
+  "technology": "<technology>",
+  "dialect": "<dialect>",
+  "source_database": "<database>",
+  "extracted_schemas": ["<schema1>", "<schema2>"],
+  "extracted_at": "<ISO 8601 timestamp>"
+}
+```
+
+Technology-to-dialect mapping:
+
+| Technology | Dialect | Delimiter |
+|---|---|---|
+| `sql_server` | `tsql` | `GO` |
+| `fabric_warehouse` | `tsql` | `GO` |
+| `fabric_lakehouse` | `spark` | `;` |
+| `snowflake` | `snowflake` | `;` |
+
+For this skill (SQL Server / Fabric Warehouse extraction), always write `"technology": "sql_server"` and `"dialect": "tsql"` (or `"fabric_warehouse"` if the user specified Fabric Warehouse as the source). The manifest schema is at `shared/shared/schemas/manifest.json`.
+
+## Step 10 — AST enrichment
+
+Run the catalog enrichment script to fill catalog-query gaps:
+
+```bash
+uv run --project <shared-path> catalog-enrich --ddl-path <output-folder>
+```
+
+This augments catalog files with AST-derived references for:
+
+- CTAS / SELECT INTO targets (catalog queries miss new table creation)
+- TRUNCATE targets
+- Indirect writers through EXEC call chains
+
+Entries added carry `"detection": "ast_scan"` to distinguish from catalog-query-sourced data. Dynamic SQL (`EXEC(@sql)`, `sp_executesql`) remains unresolvable offline.
 
 ## Constraints
 

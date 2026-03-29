@@ -14,6 +14,7 @@ The Decomposer agent takes a selected writer stored procedure and produces SQL d
 {
   "schema_version": "1.0",
   "run_id": "uuid",
+  "ddl_path": "/absolute/path/to/artifacts/ddl",
   "items": [
     {
       "item_id": "dbo.fact_sales",
@@ -27,7 +28,7 @@ The Decomposer agent takes a selected writer stored procedure and produces SQL d
 
 ### 1. LoadWriterSql
 
-- Load selected writer SQL from `sys.sql_modules`.
+- Load selected writer SQL from DDL files via `discover show --ddl-path <ddl_path> --name <writer>`. The proc body is already extracted by setup-ddl — no live database access is needed.
 - Optionally load directly related procedures for context when unresolved references are detected.
 - Unresolved-reference triggers:
   - unresolved `EXEC/EXECUTE` target in selected writer body.

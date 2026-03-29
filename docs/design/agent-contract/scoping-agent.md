@@ -42,19 +42,17 @@ Given a target table, identify candidate writer procedures and select one writer
 
 ## Discovery Strategy
 
-> **Two-tier analysis.** The scoping agent calls `uv run discover refs` per table for deterministic AST-based writer detection and call-graph resolution. Procedures that need LLM assistance (control flow, EXEC, dynamic SQL) are flagged in `llm_required` — the agent calls `discover show` on those and reasons about writes/reads from the raw DDL. No regex fallback is used.
+> **Catalog-first analysis.** The scoping agent calls `uv run discover refs` per table for catalog-based writer identification. Catalog files (from `setup-ddl`) carry `is_updated`/`is_selected` flags from `sys.dm_sql_referenced_entities` — writers are procs with `is_updated=true`. The agent then calls `discover show` on each candidate writer for statement-level analysis and dependency resolution. Procs flagged `needs_llm: true` in their catalog file (EXEC(@var), TRY/CATCH, WHILE, IF) require LLM reasoning from the raw DDL.
 
-The agent's role is batch orchestration: read the input, run `discover refs` per item, analyse LLM-required procs via `discover show`, apply resolution rules, enrich selected writers with `reads_from`, validate, and write the output.
+The agent's role is batch orchestration: read the input, run `discover refs` per item, run `discover show` per candidate writer for statement analysis and dependency resolution, apply resolution rules, validate, and write the output.
 
 ### Resolution Rules
 
-- Return one of: `resolved`, `ambiguous_multi_writer`, `partial`, `no_writer_found`, `error`.
+- Return one of: `resolved`, `ambiguous_multi_writer`, `no_writer_found`, `error`.
 - Status rules:
-  - `resolved`: exactly one high-confidence candidate with direct or well-supported indirect evidence.
-  - `ambiguous_multi_writer`: two or more high-confidence candidates remain after scoring.
-  - `partial`: at least one candidate exists, but evidence is incomplete/low-confidence
-    (for example only dynamic SQL evidence or unresolved call paths).
-  - `no_writer_found`: no candidates found.
+  - `resolved`: exactly one writer proc has `is_updated=true` in catalog.
+  - `ambiguous_multi_writer`: two or more procs have `is_updated=true`.
+  - `no_writer_found`: no proc has `is_updated=true`.
   - cross-database reference detected: return `error` with issue code
     `ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE`.
   - `error`: execution/parsing/runtime failure prevented completion.
@@ -63,8 +61,8 @@ The agent's role is batch orchestration: read the input, run `discover refs` per
 
 For each `resolved` item, the agent populates `dependencies` on the selected writer's candidate entry. This contains the transitively resolved base tables, views, and functions the writer procedure depends on. Views and functions are resolved down to their underlying base tables. The data is obtained from:
 
-- `discover show` on the selected writer → `dependencies` field (deterministic candidates — resolution is automatic)
-- Agent judgment + `discover show` lookups on referenced objects (LLM-assisted candidates)
+- `discover show` on the selected writer → `refs` field, then recursive `discover show` on referenced views/functions/procedures to resolve down to base tables
+- Agent judgment + `discover show` lookups on referenced objects for `needs_llm: true` candidates
 
 This field is consumed by downstream wave planning to build inter-table dependency graphs without re-analysing source DDL.
 
@@ -75,9 +73,8 @@ This field is consumed by downstream wave planning to build inter-table dependen
   Runtime failures must be reported in `errors`.
 - Validation checklist:
   - `item_id` is present.
-  - `status` is one of: `resolved|ambiguous_multi_writer|partial|no_writer_found|error`.
+  - `status` is one of: `resolved|ambiguous_multi_writer|no_writer_found|error`.
   - `candidate_writers` is structurally valid.
-  - every candidate `confidence` is within `[0,1]`.
   - every candidate includes `write_type`, `call_path`, and `rationale`.
   - if `status == "resolved"`:
     - `selected_writer` is present
@@ -86,8 +83,6 @@ This field is consumed by downstream wave planning to build inter-table dependen
   - if `status == "ambiguous_multi_writer"`:
     - at least two candidates are present
     - `selected_writer` is absent
-  - if `status == "partial"`:
-    - `candidate_writers` is non-empty
   - if `status == "no_writer_found"`:
     - `candidate_writers` is empty
     - `selected_writer` is absent
@@ -106,11 +101,10 @@ This field is consumed by downstream wave planning to build inter-table dependen
     {
       "item_id": "",
       "status": "",
-      "analysis": "",
       "selected_writer": "",
-      "candidate_writers": []
+      "candidate_writers": [],
       "warnings": [],
-      "validation": {..}
+      "validation": {},
       "errors": []
     }
   ],
@@ -119,13 +113,10 @@ This field is consumed by downstream wave planning to build inter-table dependen
     "resolved": 0,
     "ambiguous_multi_writer": 0,
     "no_writer_found": 0,
-    "partial": 0,
     "error": 0
   }
 }
 ```
-
-**`analysis` field:** `"deterministic"` when all candidates came from AST analysis (high trust); `"claude_assisted"` when any candidate required LLM reasoning (control flow, EXEC, dynamic SQL). Present on both per-item and per-candidate levels.
 
 **Example**
 
@@ -136,13 +127,12 @@ This field is consumed by downstream wave planning to build inter-table dependen
   "results": [
     {
       "item_id": "dbo.fact_sales",
-      "status": "resolved|ambiguous_multi_writer|no_writer_found|partial|error",
-      "analysis": "deterministic|claude_assisted",
+      "status": "resolved|ambiguous_multi_writer|no_writer_found|error",
       "selected_writer": "dbo.usp_load_fact_sales",
       "candidate_writers": [
         {
           "procedure_name": "dbo.usp_load_fact_sales",
-          "write_type": "direct|indirect|read_only",
+          "write_type": "direct",
           "write_operations": ["INSERT"],
           "call_path": ["dbo.usp_load_fact_sales"],
           "dependencies": {
@@ -150,9 +140,8 @@ This field is consumed by downstream wave planning to build inter-table dependen
             "views": [],
             "functions": []
           },
-          "rationale": "Direct write operation detected in procedure body.",
-          "confidence": 0.98,
-          "analysis": "deterministic"
+          "rationale": "Catalog referenced_by shows is_updated=true for this procedure.",
+          "llm_analysis": null
         }
       ],
       "warnings": [],
@@ -169,10 +158,9 @@ This field is consumed by downstream wave planning to build inter-table dependen
 
 ## Resolution Rules
 
-- `resolved`: exactly one high-confidence writer exists.
-- `ambiguous_multi_writer`: multiple high-confidence writers exist.
-- `partial`: candidates exist but evidence is incomplete/insufficient for deterministic selection.
-- `no_writer_found`: no writer candidate found.
+- `resolved`: exactly one writer proc has `is_updated=true` in catalog.
+- `ambiguous_multi_writer`: two or more procs have `is_updated=true`.
+- `no_writer_found`: no proc has `is_updated=true` for the target table.
 - `error`: analysis execution failed for the table.
 
 ## Known Limitations
@@ -180,7 +168,7 @@ This field is consumed by downstream wave planning to build inter-table dependen
 - Dynamic SQL (`sp_executesql`, `EXEC(@sql)`) may hide dependencies from metadata.
 - Synonyms/views may mask base-table writers.
 - `TRUNCATE`-only writers may be missed by dependency metadata and require body-parse detection.
-- `dependencies` for LLM-assisted candidates depends on agent judgment from reading raw DDL combined with `discover show` lookups — accuracy varies with procedure complexity.
+- `dependencies` for `needs_llm: true` candidates depends on agent judgment from reading raw DDL combined with `discover show` lookups — accuracy varies with procedure complexity.
 
 ## Assumptions
 

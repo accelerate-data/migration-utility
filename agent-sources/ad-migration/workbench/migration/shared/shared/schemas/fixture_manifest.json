@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FixtureManifest",
+  "description": "Output contract for the test generator agent. Contains per-item branch-covering unit test fixtures.",
+  "type": "object",
+  "required": ["schema_version", "run_id", "results", "summary"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "run_id": { "type": "string", "format": "uuid" },
+    "results": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/fixture_result" }
+    },
+    "summary": { "$ref": "common.json#/$defs/summary_section" }
+  },
+  "$defs": {
+    "fixture_result": {
+      "type": "object",
+      "required": ["item_id", "status", "coverage", "unit_tests", "warnings", "validation", "errors"],
+      "properties": {
+        "item_id": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["ok", "partial", "error"]
+        },
+        "coverage": {
+          "type": "string",
+          "enum": ["complete", "partial"]
+        },
+        "unit_tests": {
+          "type": "array",
+          "items": { "$ref": "migrator_input.json#/$defs/unit_test" }
+        },
+        "cobertura_xml_path": {
+          "type": "string",
+          "description": "Path to Cobertura XML coverage report. Present when status is not error."
+        },
+        "branch_manifest": {
+          "type": "object",
+          "properties": {
+            "branches": { "type": "array" }
+          }
+        },
+        "uncovered_branches": {
+          "type": "array",
+          "description": "Empty when coverage is complete; non-empty when coverage is partial."
+        },
+        "warnings": {
+          "type": "array",
+          "items": { "$ref": "common.json#/$defs/diagnostics_entry" }
+        },
+        "validation": { "$ref": "common.json#/$defs/validation_section" },
+        "errors": {
+          "type": "array",
+          "items": { "$ref": "common.json#/$defs/diagnostics_entry" }
+        }
+      }
+    }
+  }
+}

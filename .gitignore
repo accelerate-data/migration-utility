@@ -17,6 +17,7 @@ workflow-state.md
 test-results/
 playwright-report/
 playwright-artifacts/
+tests/output/
 
 # IDE and tool directories
 .vscode/

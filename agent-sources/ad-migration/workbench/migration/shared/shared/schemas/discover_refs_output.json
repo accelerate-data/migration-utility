@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DiscoverRefsOutput",
+  "description": "Output of 'discover refs'. Reads from catalog/tables/<name>.json referenced_by. No AST parsing, no BFS, no confidence scoring.",
+  "type": "object",
+  "required": ["name", "source", "readers", "writers"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Normalized FQN of the target object."
+    },
+    "source": {
+      "type": "string",
+      "const": "catalog",
+      "description": "Always 'catalog' — data comes from setup-ddl catalog files."
+    },
+    "readers": {
+      "type": "array",
+      "description": "Normalized FQNs of procedures/views that SELECT from the target (is_selected=true, is_updated=false).",
+      "items": { "type": "string" }
+    },
+    "writers": {
+      "type": "array",
+      "description": "Procedures/views that write to the target (is_updated=true).",
+      "items": { "$ref": "#/$defs/writer_entry" }
+    }
+  },
+  "$defs": {
+    "writer_entry": {
+      "type": "object",
+      "required": ["procedure", "write_type", "is_updated"],
+      "properties": {
+        "procedure": {
+          "type": "string",
+          "description": "Normalized FQN of the writing procedure/view."
+        },
+        "write_type": {
+          "type": "string",
+          "const": "direct",
+          "description": "Always 'direct' — catalog reports direct references only."
+        },
+        "is_updated": {
+          "type": "boolean",
+          "const": true,
+          "description": "Always true for writers."
+        },
+        "is_selected": {
+          "type": "boolean",
+          "description": "True if the writer also reads from the target."
+        },
+        "is_insert_all": {
+          "type": "boolean",
+          "description": "True if the writer uses INSERT with all columns."
+        }
+      }
+    }
+  }
+}

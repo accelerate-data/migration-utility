@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PlannerInput",
+  "description": "Input contract for the planner agent. Consumes approved profiling answers and decomposition per item.",
+  "type": "object",
+  "required": ["schema_version", "run_id", "items"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "run_id": { "type": "string", "format": "uuid" },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["item_id", "answers", "decomposition"],
+        "properties": {
+          "item_id": { "type": "string", "description": "Fully qualified table name: <schema>.<table>." },
+          "answers": { "$ref": "#/$defs/answers" },
+          "decomposition": { "$ref": "#/$defs/decomposition" }
+        }
+      },
+      "minItems": 1
+    }
+  },
+  "$defs": {
+    "answers": {
+      "type": "object",
+      "required": ["writer", "classification", "primary_key", "primary_key_type"],
+      "properties": {
+        "writer": { "type": "string" },
+        "classification": {
+          "type": "string",
+          "enum": ["dim_non_scd", "dim_scd1", "dim_scd2", "dim_junk", "fact_transaction", "fact_periodic_snapshot", "fact_accumulating_snapshot", "fact_aggregate"]
+        },
+        "primary_key": { "type": "array", "items": { "type": "string" } },
+        "primary_key_type": { "type": "string", "enum": ["surrogate", "natural", "composite", "unknown"] },
+        "natural_key": { "type": "array", "items": { "type": "string" } },
+        "foreign_keys": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["column", "references_source_relation", "references_column", "fk_type"],
+            "properties": {
+              "column": { "type": "string" },
+              "references_source_relation": { "type": "string" },
+              "references_column": { "type": "string" },
+              "fk_type": { "type": "string", "enum": ["standard", "role_playing", "degenerate"] }
+            }
+          }
+        },
+        "watermark": { "type": ["string", "null"] },
+        "pii_actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["column", "action"],
+            "properties": {
+              "column": { "type": "string" },
+              "action": { "type": "string", "enum": ["mask", "drop", "tokenize", "keep"] }
+            }
+          }
+        }
+      }
+    },
+    "decomposition": {
+      "type": "object",
+      "required": ["segmented_logical_blocks", "candidate_model_split_points"],
+      "properties": {
+        "segmented_logical_blocks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/logical_block" }
+        },
+        "candidate_model_split_points": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/split_point" }
+        }
+      }
+    },
+    "logical_block": {
+      "type": "object",
+      "required": ["block_id", "purpose", "rationale", "source_sql_ref"],
+      "properties": {
+        "block_id": { "type": "string" },
+        "purpose": { "type": "string" },
+        "rationale": { "type": "array", "items": { "type": "string" } },
+        "source_sql_ref": { "$ref": "#/$defs/source_sql_ref" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "split_point": {
+      "type": "object",
+      "required": ["split_after_block_id", "proposed_model_name", "rationale"],
+      "properties": {
+        "split_after_block_id": { "type": "string" },
+        "proposed_model_name": { "type": "string" },
+        "rationale": { "type": "array", "items": { "type": "string" } },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "source_sql_ref": {
+      "type": "object",
+      "required": ["statement_indices"],
+      "properties": {
+        "statement_indices": { "type": "array", "items": { "type": "integer", "minimum": 0 } },
+        "line_span": {
+          "type": "object",
+          "required": ["start", "end"],
+          "properties": {
+            "start": { "type": "integer" },
+            "end": { "type": "integer" }
+          }
+        }
+      }
+    }
+  }
+}

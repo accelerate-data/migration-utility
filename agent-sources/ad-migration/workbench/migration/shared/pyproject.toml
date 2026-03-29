@@ -20,6 +20,7 @@ build-backend = "hatchling.build"
 packages = ["shared"]
 
 [project.scripts]
+catalog-enrich = "shared.catalog_enrich:app"
 discover = "shared.discover:app"
 
 [tool.pytest.ini_options]

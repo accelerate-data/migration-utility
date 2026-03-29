@@ -3,21 +3,30 @@
   "title": "TableCatalog",
   "description": "Per-table catalog file produced by setup-ddl. Contains catalog signals and inbound references.",
   "type": "object",
-  "required": ["table", "primary_keys", "unique_indexes", "foreign_keys", "identity_columns", "cdc_enabled", "change_tracking_enabled", "sensitivity_classifications", "referenced_by"],
+  "required": ["primary_keys", "unique_indexes", "foreign_keys", "auto_increment_columns", "referenced_by"],
   "properties": {
-    "table": {
-      "type": "string",
-      "description": "Fully qualified table name: <schema>.<table>"
+    "columns": {
+      "type": "array",
+      "description": "Column definitions from sys.columns. Populated by export_ddl.",
+      "items": {
+        "type": "object",
+        "required": ["name", "sql_type", "is_nullable", "is_identity"],
+        "properties": {
+          "name": { "type": "string" },
+          "sql_type": { "type": "string", "description": "Formatted SQL type, e.g. NVARCHAR(50), BIGINT" },
+          "is_nullable": { "type": "boolean" },
+          "is_identity": { "type": "boolean" }
+        }
+      }
     },
     "primary_keys": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["constraint_name", "columns", "type"],
+        "required": ["constraint_name", "columns"],
         "properties": {
           "constraint_name": { "type": "string" },
-          "columns": { "type": "array", "items": { "type": "string" } },
-          "type": { "type": "string", "enum": ["PRIMARY KEY", "UNIQUE"] }
+          "columns": { "type": "array", "items": { "type": "string" } }
         }
       }
     },
@@ -36,29 +45,46 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["column", "references_schema", "references_table", "references_column"],
+        "required": ["constraint_name", "columns", "referenced_schema", "referenced_table", "referenced_columns"],
         "properties": {
-          "column": { "type": "string" },
-          "references_schema": { "type": "string" },
-          "references_table": { "type": "string" },
-          "references_column": { "type": "string" }
+          "constraint_name": { "type": "string" },
+          "columns": { "type": "array", "items": { "type": "string" } },
+          "referenced_schema": { "type": "string" },
+          "referenced_table": { "type": "string" },
+          "referenced_columns": { "type": "array", "items": { "type": "string" } }
         }
       }
     },
-    "identity_columns": {
+    "auto_increment_columns": {
       "type": "array",
+      "description": "Columns with automatic sequence generation. Normalized from identity (SQL Server), autoincrement (Snowflake), or generated always (Spark).",
       "items": {
         "type": "object",
-        "required": ["column", "seed", "increment"],
+        "required": ["column"],
         "properties": {
           "column": { "type": "string" },
           "seed": { "type": "integer" },
-          "increment": { "type": "integer" }
+          "increment": { "type": "integer" },
+          "mechanism": {
+            "type": "string",
+            "enum": ["identity", "autoincrement", "sequence", "generated_always"],
+            "description": "Source mechanism. Informational only — downstream agents use presence/absence, not mechanism."
+          }
         }
       }
     },
-    "cdc_enabled": { "type": "boolean" },
-    "change_tracking_enabled": { "type": "boolean" },
+    "change_capture": {
+      "type": "object",
+      "description": "Change-tracking metadata. Optional — absent means not detected or not applicable.",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "mechanism": {
+          "type": "string",
+          "enum": ["cdc", "change_tracking", "stream", "change_data_feed"],
+          "description": "Source mechanism: cdc/change_tracking (SQL Server), stream (Snowflake), change_data_feed (Delta/Spark)."
+        }
+      }
+    },
     "sensitivity_classifications": {
       "type": "array",
       "items": {
@@ -71,6 +97,11 @@
         }
       }
     },
+    "technology_metadata": {
+      "type": "object",
+      "description": "Technology-specific metadata with no cross-platform equivalent. Keyed by technology name. Downstream agents may inspect but must not require.",
+      "additionalProperties": true
+    },
     "referenced_by": { "$ref": "#/$defs/reference_groups" },
     "profile": {
       "description": "Written by the /profile skill or profiler agent. Not present after setup-ddl, only after profiling.",
@@ -81,58 +112,11 @@
     "reference_groups": {
       "type": "object",
       "description": "Inbound references grouped by object type. Each type splits into in_scope and out_of_scope.",
-      "required": ["procedures", "views", "functions", "triggers"],
+      "required": ["procedures", "views", "functions"],
       "properties": {
-        "procedures": { "$ref": "#/$defs/scoped_ref_list" },
-        "views": { "$ref": "#/$defs/scoped_ref_list" },
-        "functions": { "$ref": "#/$defs/scoped_ref_list" },
-        "triggers": { "$ref": "#/$defs/scoped_ref_list" }
-      }
-    },
-    "scoped_ref_list": {
-      "type": "object",
-      "required": ["in_scope", "out_of_scope"],
-      "properties": {
-        "in_scope": { "type": "array", "items": { "$ref": "#/$defs/in_scope_ref" } },
-        "out_of_scope": { "type": "array", "items": { "$ref": "#/$defs/out_of_scope_ref" } }
-      }
-    },
-    "in_scope_ref": {
-      "type": "object",
-      "required": ["schema", "name"],
-      "properties": {
-        "schema": { "type": "string" },
-        "name": { "type": "string" },
-        "is_selected": { "type": "boolean" },
-        "is_updated": { "type": "boolean" },
-        "is_insert_all": { "type": "boolean" },
-        "is_schema_bound": { "type": "boolean" },
-        "is_caller_dependent": { "type": "boolean" },
-        "is_ambiguous": { "type": "boolean" },
-        "detection": { "type": "string", "enum": ["dmf", "ast_scan"] },
-        "columns": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["name"],
-            "properties": {
-              "name": { "type": "string" },
-              "is_selected": { "type": "boolean" },
-              "is_updated": { "type": "boolean" }
-            }
-          }
-        }
-      }
-    },
-    "out_of_scope_ref": {
-      "type": "object",
-      "required": ["schema", "name", "reason"],
-      "properties": {
-        "schema": { "type": "string" },
-        "name": { "type": "string" },
-        "database": { "type": "string" },
-        "server": { "type": ["string", "null"] },
-        "reason": { "type": "string" }
+        "procedures": { "$ref": "common.json#/$defs/scoped_ref_list" },
+        "views": { "$ref": "common.json#/$defs/scoped_ref_list" },
+        "functions": { "$ref": "common.json#/$defs/scoped_ref_list" }
       }
     },
     "profile_section": {
@@ -201,8 +185,8 @@
             }
           }
         },
-        "warnings": { "type": "array" },
-        "errors": { "type": "array" }
+        "warnings": { "type": "array", "items": { "$ref": "common.json#/$defs/diagnostics_entry" } },
+        "errors": { "type": "array", "items": { "$ref": "common.json#/$defs/diagnostics_entry" } }
       }
     }
   }

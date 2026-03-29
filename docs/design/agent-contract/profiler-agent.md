@@ -71,7 +71,7 @@ If no declared PK:
 
 - Look for MERGE ON clause in proc body — strongest code-level signal
 - Look for UPDATE/DELETE WHERE col = @param — single-row lookup key
-- Use `identity_columns` from catalog as surrogate signal
+- Use `auto_increment_columns` from catalog as surrogate signal
 
 #### Q3 — Foreign Keys
 
@@ -85,7 +85,7 @@ If no declared FKs:
 
 #### Q4 — Natural Key vs Surrogate Key
 
-Check catalog `identity_columns` — if present, the PK is surrogate (`source: "catalog"`).
+Check catalog `auto_increment_columns` — if present, the PK is surrogate (`source: "catalog"`).
 
 If no identity column:
 
@@ -97,7 +97,7 @@ If no identity column:
 
 - Look for WHERE clause filtering in proc body (`WHERE col > @last_run`, `BETWEEN @start AND @end`)
 - Check column name patterns (`modified_at`, `load_date`, `_dt`, `_ts`)
-- Use `cdc_enabled` / `change_tracking_enabled` from catalog to inform strategy (does not identify the column)
+- Use `change_capture` from catalog to inform strategy (does not identify the column)
 
 #### Q6 — PII Actions
 
