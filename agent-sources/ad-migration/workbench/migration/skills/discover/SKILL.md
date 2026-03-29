@@ -45,11 +45,11 @@ If `ddl-path` is missing from `$ARGUMENTS`, ask the user for it before proceedin
 
 If no subcommand is specified in `$ARGUMENTS`, default to `list`.
 
-Invocation examples are in [`rules/workflow.md`](rules/workflow.md).
+Invocation examples are in [`references/workflow.md`](references/workflow.md).
 
 ## Workflow
 
-Follow the step sequence in [`rules/workflow.md`](rules/workflow.md) for the `list → show → refs` flow, including how to present results and interpret output.
+Follow the step sequence in [`references/workflow.md`](references/workflow.md) for the `list → show → refs` flow, including how to present results and interpret output.
 
 ## Parse classification
 
@@ -73,7 +73,7 @@ The `classification` is derived from `needs_llm` and `parse_error`. The `show` o
 | `skip` | SET, TRUNCATE, DROP INDEX, CREATE INDEX/PARTITION | Operational overhead → dbt handles or ignores |
 | `claude` | EXEC, sp_executesql, dynamic SQL | Needs Claude to follow call graph |
 
-See `docs/design/tsql-parse-classification/README.md` for the exhaustive pattern list.
+See [`references/tsql-parse-classification.md`](references/tsql-parse-classification.md) for the exhaustive pattern list.
 
 ## Handling parse errors
 
