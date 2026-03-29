@@ -42,7 +42,7 @@ const INITIAL_STATE = {
   isInitRunning: false,
 };
 
-export const useProjectStore = create<ProjectState>()((set) => ({
+export const useProjectStore = create<ProjectState>()((set, get) => ({
   ...INITIAL_STATE,
 
   loadProjects: async () => {
@@ -58,9 +58,8 @@ export const useProjectStore = create<ProjectState>()((set) => ({
 
   setActive: async (id: string) => {
     await projectSetActive(id);
-    const projects = await projectList();
-    const activeProject = projects.find((p) => p.id === id) ?? null;
-    set({ projects, activeProject });
+    const activeProject = get().projects.find((p) => p.id === id) ?? null;
+    set({ activeProject });
   },
 
   clearActive: () => set({ activeProject: null }),

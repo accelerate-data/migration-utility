@@ -144,10 +144,7 @@ export default function ConnectionsTab() {
     }
   }
 
-  const repoShortName = selectedRepo?.fullName.split('/').pop() ?? '';
-  const clonePreview = selectedRepo && localPath.trim()
-    ? `${expandPath(localPath.trim(), homeDirPath)}/${repoShortName}`
-    : null;
+  const clonePreview = storedClonePath ?? null;
 
   const githubStatus = isAuthLoading ? 'Checking' : isLoggedIn && user ? 'Connected' : 'Not connected';
   const canSave = selectedRepo !== null && repoEmptyStatus === 'empty' && localPath.trim().length > 0;

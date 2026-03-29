@@ -55,7 +55,7 @@ export interface Project {
   id: string;
   slug: string;
   name: string;
-  technology: string;
+  technology: Technology;
   createdAt: string;
 }
 

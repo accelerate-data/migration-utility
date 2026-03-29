@@ -54,6 +54,7 @@ pub fn run() {
             commands::project::project_delete,
             commands::project::project_set_active,
             commands::project::project_get_active,
+            commands::project::project_slug_preview,
             commands::project_ops::project_create_full,
             commands::project_ops::project_detect_databases,
             commands::project_ops::project_init,

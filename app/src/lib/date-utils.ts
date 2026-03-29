@@ -1,10 +1,3 @@
-export function toSlugPreview(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
 /** Today's date as a YYYY-MM-DD string in the local timezone. */
 export function localTodayString(): string {
   const now = new Date();

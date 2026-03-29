@@ -8,6 +8,7 @@ import type {
   GitHubUser,
   InitStepEvent,
   Project,
+  Technology,
 } from './types';
 
 /**
@@ -80,9 +81,12 @@ export const projectSetActive = (id: string) =>
 export const projectGetActive = () =>
   invoke<Project | null>('project_get_active');
 
+export const projectSlugPreview = (name: string) =>
+  invoke<string>('project_slug_preview', { name });
+
 export const projectCreateFull = (
   name: string,
-  technology: string,
+  technology: Technology,
   sourcePath: string,
   dbName: string,
   extractionDatetime: string,

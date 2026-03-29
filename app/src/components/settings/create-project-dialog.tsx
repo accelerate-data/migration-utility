@@ -19,13 +19,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { projectCreateFull, projectDetectDatabases, tauriErrorMessage } from '@/lib/tauri';
+import { projectCreateFull, projectDetectDatabases, projectSlugPreview, tauriErrorMessage } from '@/lib/tauri';
 import { TECHNOLOGY_LABEL } from '@/lib/types';
 import type { Technology } from '@/lib/types';
 import { logger } from '@/lib/logger';
 import { useProjectInit } from '@/hooks/use-project-init';
 import { useProjectStore } from '@/stores/project-store';
-import { toSlugPreview, localTodayString, localDateToUtc } from '@/lib/date-utils';
+import { localTodayString, localDateToUtc } from '@/lib/date-utils';
 
 const TECHNOLOGIES: { value: Technology; label: string }[] = [
   { value: 'sql_server', label: TECHNOLOGY_LABEL['sql_server'] },
@@ -49,6 +49,7 @@ export default function CreateProjectDialog({ open, onOpenChange, onCreated }: C
   const [detecting, setDetecting] = useState(false);
   const [detectError, setDetectError] = useState('');
   const [extractionDate, setExtractionDate] = useState(localTodayString);
+  const [slugPreview, setSlugPreview] = useState('');
   const [creating, setCreating] = useState(false);
   const { loadProjects } = useProjectStore();
   const { runInit } = useProjectInit();
@@ -137,6 +138,17 @@ export default function CreateProjectDialog({ open, onOpenChange, onCreated }: C
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourcePath]);
 
+  // Fetch slug preview from backend when name changes.
+  useEffect(() => {
+    const trimmed = name.trim();
+    if (!trimmed) { setSlugPreview(''); return; }
+    let cancelled = false;
+    projectSlugPreview(trimmed)
+      .then((slug) => { if (!cancelled) setSlugPreview(slug); })
+      .catch(() => { if (!cancelled) setSlugPreview(''); });
+    return () => { cancelled = true; };
+  }, [name]);
+
   // Clear source path when technology changes (different file type).
   useEffect(() => {
     setSourcePath('');
@@ -177,9 +189,9 @@ export default function CreateProjectDialog({ open, onOpenChange, onCreated }: C
                 placeholder="e.g. Contoso Migration"
                 disabled={busy}
               />
-              {name.trim() && (
+              {slugPreview && (
                 <p className="text-xs text-muted-foreground font-mono">
-                  slug: {toSlugPreview(name.trim())}
+                  slug: {slugPreview}
                 </p>
               )}
             </div>
