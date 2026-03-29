@@ -22,7 +22,7 @@ pub fn set_log_level(state: State<'_, DbState>, level: String) -> Result<(), Com
 pub fn get_log_file_path(app: AppHandle) -> Result<String, CommandError> {
     log::info!("[get_log_file_path]");
     crate::logging::get_log_file_path(&app)
-        .map_err(|e| CommandError::Io(e))
+        .map_err(CommandError::Io)
 }
 
 /// Return the app local data directory path (where the SQLite database and workspace live).
