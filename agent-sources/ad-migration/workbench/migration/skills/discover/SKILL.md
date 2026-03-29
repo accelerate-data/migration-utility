@@ -12,7 +12,7 @@ Explore a DDL artifact directory. Requires catalog files from `setup-ddl` — er
 
 ## Arguments
 
-Parse `$ARGUMENTS` for `ddl-path` and optionally a subcommand with its options. If `ddl-path` is missing, ask the user for it. Do not assume any default path. If no subcommand is specified, default to `list`.
+Parse `$ARGUMENTS` for `ddl-path` and optionally a subcommand with its options. If `ddl-path` is missing, default to the current working directory. Use `AskUserQuestion` to show the user the resolved path and get confirmation before proceeding. If no subcommand is specified, default to `list`.
 
 ### Subcommands
 

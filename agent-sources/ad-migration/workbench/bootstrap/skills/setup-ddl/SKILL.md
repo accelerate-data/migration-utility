@@ -15,7 +15,7 @@ Parse `$ARGUMENTS`:
 
 - `output-folder` (required): path where `.sql` files will be written (e.g. `./artifacts/ddl`)
 
-If `output-folder` is missing from `$ARGUMENTS`, stop immediately and tell the user to provide it. Do not assume any default path.
+If `output-folder` is missing from `$ARGUMENTS`, default to the current working directory. Use `AskUserQuestion` to show the user the resolved path and get confirmation before proceeding.
 
 ## Prerequisites
 
@@ -47,7 +47,7 @@ List user databases on the server:
 SELECT name FROM sys.databases WHERE database_id > 4 ORDER BY name
 ```
 
-Present the list with a `0. None — exit` option. If the user picks `None`, stop immediately with no further action. Once a database is selected, run `USE [<database>]` before all subsequent queries to set the database context.
+Use `AskUserQuestion` to present the list with a `None — exit` option. If the user picks `None`, stop immediately with no further action. Once a database is selected, run `USE [<database>]` before all subsequent queries to set the database context.
 
 ## Step 2 — Select schemas
 
@@ -68,7 +68,7 @@ GROUP BY s.name
 ORDER BY s.name
 ```
 
-Present the results with an `all` option to select every schema. Ask the user to pick `all`, one, or more schemas. If `all` is selected, do not add a schema filter to subsequent queries. Store the selected schemas for filtering in subsequent steps.
+Use `AskUserQuestion` (with `multiSelect: true`) to present the results with an `all` option. If `all` is selected, do not add a schema filter to subsequent queries. Store the selected schemas for filtering in subsequent steps.
 
 ## Step 3 — Export procedures, views, and functions
 
@@ -225,7 +225,7 @@ Schemas: <selected-schemas>
   for all procedures, views, and functions.
 ```
 
-The user must confirm before extraction proceeds. If they decline, stop immediately — no files are written.
+Use `AskUserQuestion` to get confirmation before extraction proceeds. If they decline, stop immediately — no files are written.
 
 ## Step 6 — Extract catalog signals
 
