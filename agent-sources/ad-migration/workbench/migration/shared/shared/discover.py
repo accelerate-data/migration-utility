@@ -29,6 +29,13 @@ from typing import Any
 import sqlglot.expressions as exp
 import typer
 
+from shared.catalog import (
+    has_catalog,
+    load_proc_catalog,
+    load_table_catalog,
+    load_view_catalog,
+    load_function_catalog,
+)
 from shared.loader import (  # noqa: E402
     DdlCatalog,
     DdlEntry,
@@ -254,20 +261,54 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
 
     if type_label == "procedure":
         params = _extract_params(entry)
-        try:
-            obj_refs = extract_refs(entry)
+
+        # Try catalog for reference data
+        proc_cat = load_proc_catalog(ddl_path, norm)
+        if proc_cat is not None:
+            cat_refs = proc_cat.get("references", {})
+            reads = [normalize(f"{t['schema']}.{t['name']}") for t in cat_refs.get("tables", []) if t.get("is_selected")]
+            writes = [normalize(f"{t['schema']}.{t['name']}") for t in cat_refs.get("tables", []) if t.get("is_updated")]
+            write_ops: dict[str, list[str]] = {}
+            for t in cat_refs.get("tables", []):
+                if t.get("is_updated"):
+                    tfqn = normalize(f"{t['schema']}.{t['name']}")
+                    ops = []
+                    if t.get("is_updated"):
+                        ops.append("UPDATE")
+                    if t.get("is_insert_all"):
+                        ops.append("INSERT")
+                    write_ops[tfqn] = ops
+            funcs = [normalize(f"{f['schema']}.{f['name']}") for f in cat_refs.get("functions", [])]
             refs_dict = {
-                "reads_from": obj_refs.reads_from,
-                "writes_to": obj_refs.writes_to,
-                "write_operations": obj_refs.write_operations,
-                "uses_functions": obj_refs.uses_functions,
+                "reads_from": sorted(set(reads)),
+                "writes_to": sorted(set(writes)),
+                "write_operations": write_ops,
+                "uses_functions": sorted(set(funcs)),
             }
-            needs_llm = obj_refs.needs_llm
-            statements = obj_refs.statements
-            dependencies = _resolve_dependencies(obj_refs, catalog)
-        except DdlParseError as exc:
-            parse_error = str(exc)
-            refs_dict = None
+            print(f"discover: show refs from catalog for {norm}", file=sys.stderr)
+        else:
+            # Fallback to AST-based reference extraction
+            try:
+                obj_refs = extract_refs(entry)
+                refs_dict = {
+                    "reads_from": obj_refs.reads_from,
+                    "writes_to": obj_refs.writes_to,
+                    "write_operations": obj_refs.write_operations,
+                    "uses_functions": obj_refs.uses_functions,
+                }
+                dependencies = _resolve_dependencies(obj_refs, catalog)
+            except DdlParseError as exc:
+                parse_error = str(exc)
+                refs_dict = None
+
+        # Always AST-parse for statements, needs_llm, classification
+        try:
+            obj_refs_for_stmts = extract_refs(entry)
+            needs_llm = obj_refs_for_stmts.needs_llm
+            statements = obj_refs_for_stmts.statements
+            if dependencies is None and proc_cat is None:
+                dependencies = _resolve_dependencies(obj_refs_for_stmts, catalog)
+        except DdlParseError:
             needs_llm = True
 
         if needs_llm or parse_error:
@@ -276,16 +317,29 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
             classification = "deterministic"
 
     elif type_label in ("view", "function"):
-        try:
-            obj_refs = extract_refs(entry)
+        # Try catalog for reference data
+        cat_loader = load_view_catalog if type_label == "view" else load_function_catalog
+        obj_cat = cat_loader(ddl_path, norm)
+        if obj_cat is not None:
+            cat_refs = obj_cat.get("references", {})
+            reads = [normalize(f"{t['schema']}.{t['name']}") for t in cat_refs.get("tables", []) if t.get("is_selected")]
+            writes = [normalize(f"{t['schema']}.{t['name']}") for t in cat_refs.get("tables", []) if t.get("is_updated")]
             refs_dict = {
-                "reads_from": obj_refs.reads_from,
-                "writes_to": obj_refs.writes_to,
+                "reads_from": sorted(set(reads)),
+                "writes_to": sorted(set(writes)),
             }
-            dependencies = _resolve_dependencies(obj_refs, catalog)
-        except DdlParseError as exc:
-            parse_error = str(exc)
-            refs_dict = None
+            print(f"discover: show refs from catalog for {norm}", file=sys.stderr)
+        else:
+            try:
+                obj_refs = extract_refs(entry)
+                refs_dict = {
+                    "reads_from": obj_refs.reads_from,
+                    "writes_to": obj_refs.writes_to,
+                }
+                dependencies = _resolve_dependencies(obj_refs, catalog)
+            except DdlParseError as exc:
+                parse_error = str(exc)
+                refs_dict = None
 
     return {
         "name": norm,
@@ -323,25 +377,75 @@ def _compute_confidence(
     return max(0.0, min(1.0, score))
 
 
+def _run_refs_from_catalog(ddl_path: Path, target: str) -> dict[str, Any]:
+    """Build refs result from catalog JSON files (no AST, no BFS, no confidence)."""
+    table_cat = load_table_catalog(ddl_path, target)
+    if table_cat is None:
+        return {}  # signal: no catalog available
+
+    ref_by = table_cat.get("referenced_by", {})
+    readers: list[str] = []
+    writers: list[dict[str, Any]] = []
+
+    for bucket_type in ("procedures", "views", "functions"):
+        for entry in ref_by.get(bucket_type, []):
+            fqn = normalize(f"{entry['schema']}.{entry['name']}")
+            is_updated = entry.get("is_updated", False)
+            is_selected = entry.get("is_selected", False)
+
+            if is_updated:
+                writers.append({
+                    "procedure": fqn,
+                    "write_type": "direct",
+                    "is_updated": True,
+                    "is_selected": is_selected,
+                    "is_insert_all": entry.get("is_insert_all", False),
+                })
+            if is_selected and not is_updated:
+                readers.append(fqn)
+
+    return {
+        "name": target,
+        "source": "catalog",
+        "readers": sorted(set(readers)),
+        "writers": sorted(writers, key=lambda w: w["procedure"]),
+    }
+
+
 def run_refs(
     ddl_path: Path, name: str, dialect: str, depth: int = 3,
 ) -> dict[str, Any]:
     """Return the refs subcommand result dict.
 
-    Finds all procedures/views that reference the target object, split
-    into readers and writers.  Writers include both direct writers (AST
-    detected) and indirect writers (via BFS call-graph traversal up to
-    *depth* hops).  Each writer entry carries write_type, call_path,
-    write_operations, confidence, and status.
+    Tries catalog-first: if ``catalog/tables/<name>.json`` exists, reads
+    ``referenced_by`` for instant writer identification (no AST, no BFS,
+    no confidence scoring).
 
-    Procs with partial or missing refs (needs_llm / parse_error) are
-    collected in llm_required for the LLM to complete.
+    Falls back to full AST scan with BFS call-graph traversal and
+    confidence scoring when catalog files are absent.
     """
-    catalog = _load(ddl_path, dialect)
     target = normalize(name)
 
+    # Try catalog-first path
+    if has_catalog(ddl_path):
+        catalog_result = _run_refs_from_catalog(ddl_path, target)
+        if catalog_result:
+            print(f"discover: refs from catalog for {target}", file=sys.stderr)
+            return catalog_result
+
+    # Fall back to AST-based approach
+    print(f"discover: refs from AST scan for {target}", file=sys.stderr)
+    return _run_refs_from_ast(ddl_path, target, dialect, depth)
+
+
+def _run_refs_from_ast(
+    ddl_path: Path, target: str, dialect: str, depth: int,
+) -> dict[str, Any]:
+    """Full AST-based refs with BFS call-graph and confidence scoring (fallback)."""
+    catalog = _load(ddl_path, dialect)
+
     # refs is for tables, views, and functions — not procedures
-    found = _find_entry(catalog, name)
+    found = _find_entry(catalog, target)
     if found is not None:
         _, type_label, _ = found
         if type_label == "procedure":
@@ -500,6 +604,7 @@ def run_refs(
     # ── Build result ─────────────────────────────────────────────────────
     result: dict[str, Any] = {
         "name": target,
+        "source": "ast",
         "readers": sorted(set(readers)),
         "writers": sorted(writer_entries, key=lambda w: w["procedure"]),
     }
