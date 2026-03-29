@@ -30,7 +30,7 @@ from shared.loader import (
     extract_refs,
     load_directory,
 )
-from shared.name_resolver import normalize
+from shared.name_resolver import fqn_parts, normalize
 
 logger = logging.getLogger(__name__)
 
@@ -91,14 +91,6 @@ def _proc_in_scope(
     return False
 
 
-def _fqn_parts(fqn: str) -> tuple[str, str]:
-    """Split a normalized FQN into (schema, name)."""
-    parts = fqn.split(".")
-    if len(parts) >= 2:
-        return parts[-2], parts[-1]
-    return "dbo", parts[-1]
-
-
 def _make_ast_ref_entry(
     schema: str,
     name: str,
@@ -116,7 +108,7 @@ def _make_ast_ref_entry(
     }
 
 
-from shared.catalog import empty_scoped
+from shared.dmf_processing import empty_scoped
 
 
 def _ensure_references(data: dict[str, Any]) -> dict[str, Any]:
@@ -253,7 +245,7 @@ def _augment_proc_catalogs(
 
         for table_fqn in sorted(direct_writers.get(proc_fqn, set())):
             if not _table_in_scope(tables_in_scope, table_fqn):
-                schema, name = _fqn_parts(table_fqn)
+                schema, name = fqn_parts(table_fqn)
                 tables_in_scope.append(_make_ast_ref_entry(schema, name, is_updated=True))
                 proc_modified = True
                 entries_added += 1
@@ -261,7 +253,7 @@ def _augment_proc_catalogs(
 
         for table_fqn in sorted(indirect_writers.get(proc_fqn, set())):
             if not _table_in_scope(tables_in_scope, table_fqn):
-                schema, name = _fqn_parts(table_fqn)
+                schema, name = fqn_parts(table_fqn)
                 tables_in_scope.append(_make_ast_ref_entry(schema, name, is_updated=True))
                 proc_modified = True
                 entries_added += 1
@@ -304,7 +296,7 @@ def _flip_to_table_catalogs(
             table_data = _ensure_referenced_by(table_data)
 
             procs_in_scope = table_data["referenced_by"]["procedures"]["in_scope"]
-            proc_schema, proc_name = _fqn_parts(proc_fqn)
+            proc_schema, proc_name = fqn_parts(proc_fqn)
 
             if not _proc_in_scope(procs_in_scope, proc_fqn):
                 procs_in_scope.append(_make_ast_ref_entry(proc_schema, proc_name, is_updated=True))

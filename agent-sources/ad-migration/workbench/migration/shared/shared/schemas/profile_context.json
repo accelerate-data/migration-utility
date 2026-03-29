@@ -102,10 +102,10 @@
       "description": "Column list for the target table from tables.sql.",
       "items": {
         "type": "object",
-        "required": ["name", "data_type"],
+        "required": ["name", "sql_type"],
         "properties": {
           "name": { "type": "string" },
-          "data_type": { "type": "string" },
+          "sql_type": { "type": "string" },
           "is_nullable": { "type": "boolean" },
           "max_length": { "type": "integer" },
           "precision": { "type": "integer" },

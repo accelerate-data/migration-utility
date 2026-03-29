@@ -2,15 +2,12 @@
 
 Covers:
 - Module imports
-- Key type instantiation
-- IR JSON round-trip
 - name_resolver normalization
 - loader: GO-split + DdlCatalog population
 - loader: DdlParseError on Command fallback
 - loader: extract_refs AST-only extraction
 - loader: index_directory + catalog.json
 - loader: load_catalog round-trip
-- dialect: protocol compliance + registry lookup
 """
 
 from __future__ import annotations
@@ -27,105 +24,12 @@ _FIXTURES_DDL = Path(__file__).parent / "fixtures" / "ddl"
 
 # ── Import smoke ──────────────────────────────────────────────────────────────
 
-def test_import_ir() -> None:
-    from shared import ir  # noqa: F401
-
-
 def test_import_loader() -> None:
     from shared import loader  # noqa: F401
 
 
-def test_import_dialect() -> None:
-    from shared import dialect  # noqa: F401
-
-
 def test_import_name_resolver() -> None:
     from shared import name_resolver  # noqa: F401
-
-
-# ── IR types ──────────────────────────────────────────────────────────────────
-
-def test_table_ref_fqn() -> None:
-    from shared.ir import TableRef
-
-    ref = TableRef(schema_name="silver", table_name="DimProduct")
-    assert ref.fqn == "silver.DimProduct"
-
-
-def test_column_ref() -> None:
-    from shared.ir import ColumnRef, TableRef
-
-    col = ColumnRef(column_name="ProductKey", table_ref=TableRef(schema_name="silver", table_name="DimProduct"))
-    assert col.column_name == "ProductKey"
-    assert col.table_ref is not None
-
-
-def test_proc_param() -> None:
-    from shared.ir import ProcParam
-
-    p = ProcParam(name="@StartDate", sql_type="DATE", default_value="'2020-01-01'")
-    assert p.name == "@StartDate"
-    assert not p.is_output
-
-
-def test_cte_node() -> None:
-    from shared.ir import CteNode
-
-    cte = CteNode(name="base", select_sql="SELECT 1 AS x")
-    assert cte.name == "base"
-
-
-def test_select_model() -> None:
-    from shared.ir import CteNode, SelectModel
-
-    model = SelectModel(
-        ctes=[CteNode(name="base", select_sql="SELECT 1 AS x")],
-        final_select="SELECT * FROM base",
-    )
-    assert len(model.ctes) == 1
-
-
-def test_procedure() -> None:
-    from shared.ir import Procedure, ProcParam
-
-    proc = Procedure(
-        schema_name="dbo",
-        procedure_name="usp_LoadDimProduct",
-        params=[ProcParam(name="@BatchDate", sql_type="DATE")],
-        body_sql="SELECT 1",
-        source_file="procedures.sql",
-    )
-    assert proc.fqn == "dbo.usp_LoadDimProduct"
-
-
-# ── IR JSON round-trip ────────────────────────────────────────────────────────
-
-def test_procedure_json_roundtrip() -> None:
-    from shared.ir import Procedure, ProcParam
-
-    proc = Procedure(
-        schema_name="dbo",
-        procedure_name="usp_Test",
-        params=[ProcParam(name="@Id", sql_type="INT", default_value="0")],
-        body_sql="SELECT @Id AS id",
-    )
-    raw = proc.model_dump_json()
-    data = json.loads(raw)
-    restored = Procedure.model_validate(data)
-    assert restored.fqn == proc.fqn
-    assert restored.params[0].name == "@Id"
-
-
-def test_select_model_json_roundtrip() -> None:
-    from shared.ir import CteNode, SelectModel
-
-    model = SelectModel(
-        ctes=[CteNode(name="src", select_sql="SELECT id FROM raw")],
-        final_select="SELECT * FROM src",
-    )
-    raw = model.model_dump_json()
-    restored = SelectModel.model_validate(json.loads(raw))
-    assert restored.ctes[0].name == "src"
 
 
 # ── name_resolver ─────────────────────────────────────────────────────────────
@@ -169,13 +73,21 @@ GO
 """
 
 
+def _make_ddl_dir(tmp: str, files: dict[str, str]) -> Path:
+    """Create a temp dir with a ddl/ subdirectory containing the given SQL files."""
+    p = Path(tmp)
+    ddl_dir = p / "ddl"
+    ddl_dir.mkdir(parents=True, exist_ok=True)
+    for name, content in files.items():
+        (ddl_dir / name).write_text(content, encoding="utf-8")
+    return p
+
+
 def test_load_directory_tables() -> None:
     from shared.loader import load_directory
 
     with tempfile.TemporaryDirectory() as tmp:
-        p = Path(tmp)
-        (p / "ddl").mkdir()
-        (p / "ddl" / "tables.sql").write_text(_TABLES_SQL, encoding="utf-8")
+        p = _make_ddl_dir(tmp, {"tables.sql": _TABLES_SQL})
         catalog = load_directory(p)
 
     assert "silver.dimproduct" in catalog.tables
@@ -186,9 +98,7 @@ def test_load_directory_procedures() -> None:
     from shared.loader import load_directory
 
     with tempfile.TemporaryDirectory() as tmp:
-        p = Path(tmp)
-        (p / "ddl").mkdir()
-        (p / "ddl" / "procedures.sql").write_text(_PROCEDURES_SQL, encoding="utf-8")
+        p = _make_ddl_dir(tmp, {"procedures.sql": _PROCEDURES_SQL})
         catalog = load_directory(p)
 
     assert "dbo.usp_loaddimproduct" in catalog.procedures
@@ -200,9 +110,7 @@ def test_load_directory_ast_parsed() -> None:
     from shared.loader import load_directory
 
     with tempfile.TemporaryDirectory() as tmp:
-        p = Path(tmp)
-        (p / "ddl").mkdir()
-        (p / "ddl" / "tables.sql").write_text(_TABLES_SQL, encoding="utf-8")
+        p = _make_ddl_dir(tmp, {"tables.sql": _TABLES_SQL})
         catalog = load_directory(p)
 
     entry = catalog.tables["silver.dimproduct"]
@@ -228,9 +136,7 @@ def test_load_directory_mixed_types_single_file() -> None:
         "GO\n"
     )
     with tempfile.TemporaryDirectory() as tmp:
-        p = Path(tmp)
-        (p / "ddl").mkdir()
-        (p / "ddl" / "everything.sql").write_text(mixed, encoding="utf-8")
+        p = _make_ddl_dir(tmp, {"everything.sql": mixed})
         catalog = load_directory(p)
 
     assert "silver.dimproduct" in catalog.tables
@@ -243,16 +149,13 @@ def test_load_directory_arbitrary_filenames() -> None:
     from shared.loader import load_directory
 
     with tempfile.TemporaryDirectory() as tmp:
-        p = Path(tmp)
-        (p / "ddl").mkdir()
-        (p / "ddl" / "my_custom_tables.sql").write_text(
-            "CREATE TABLE dbo.Foo (Id INT NOT NULL)\nGO\n", encoding="utf-8"
-        )
-        (p / "ddl" / "some_procs.sql").write_text(
-            "CREATE PROCEDURE dbo.usp_Bar\nAS\nBEGIN\n"
-            "    INSERT INTO dbo.Foo (Id) SELECT 1\nEND\nGO\n",
-            encoding="utf-8",
-        )
+        p = _make_ddl_dir(tmp, {
+            "my_custom_tables.sql": "CREATE TABLE dbo.Foo (Id INT NOT NULL)\nGO\n",
+            "some_procs.sql": (
+                "CREATE PROCEDURE dbo.usp_Bar\nAS\nBEGIN\n"
+                "    INSERT INTO dbo.Foo (Id) SELECT 1\nEND\nGO\n"
+            ),
+        })
         catalog = load_directory(p)
 
     assert "dbo.foo" in catalog.tables
@@ -264,14 +167,10 @@ def test_load_directory_multiple_files_same_type() -> None:
     from shared.loader import load_directory
 
     with tempfile.TemporaryDirectory() as tmp:
-        p = Path(tmp)
-        (p / "ddl").mkdir()
-        (p / "ddl" / "batch_a.sql").write_text(
-            "CREATE TABLE dbo.Alpha (Id INT)\nGO\n", encoding="utf-8"
-        )
-        (p / "ddl" / "batch_b.sql").write_text(
-            "CREATE TABLE dbo.Beta (Id INT)\nGO\n", encoding="utf-8"
-        )
+        p = _make_ddl_dir(tmp, {
+            "batch_a.sql": "CREATE TABLE dbo.Alpha (Id INT)\nGO\n",
+            "batch_b.sql": "CREATE TABLE dbo.Beta (Id INT)\nGO\n",
+        })
         catalog = load_directory(p)
 
     assert "dbo.alpha" in catalog.tables
@@ -283,8 +182,8 @@ def test_load_directory_empty_dir() -> None:
     from shared.loader import load_directory
 
     with tempfile.TemporaryDirectory() as tmp:
-        (Path(tmp) / "ddl").mkdir()
-        catalog = load_directory(Path(tmp))
+        p = _make_ddl_dir(tmp, {})
+        catalog = load_directory(p)
 
     assert catalog.tables == {}
     assert catalog.procedures == {}
@@ -303,73 +202,12 @@ def test_catalog_get_helpers() -> None:
     from shared.loader import load_directory
 
     with tempfile.TemporaryDirectory() as tmp:
-        p = Path(tmp)
-        (p / "ddl").mkdir()
-        (p / "ddl" / "tables.sql").write_text(_TABLES_SQL, encoding="utf-8")
+        p = _make_ddl_dir(tmp, {"tables.sql": _TABLES_SQL})
         catalog = load_directory(p)
 
     assert catalog.get_table("[silver].[DimProduct]") is not None
     assert catalog.get_table("silver.DimProduct") is not None
     assert catalog.get_table("silver.NonExistent") is None
-
-
-# ── dialect ───────────────────────────────────────────────────────────────────
-
-def test_get_dialect_tsql() -> None:
-    from shared.dialect import SqlDialect, get_dialect
-
-    d = get_dialect("tsql")
-    assert d.name == "tsql"
-    assert isinstance(d, SqlDialect)
-
-
-def test_get_dialect_spark() -> None:
-    from shared.dialect import get_dialect
-
-    d = get_dialect("spark")
-    assert d.name == "spark"
-
-
-def test_get_dialect_unknown() -> None:
-    from shared.dialect import get_dialect
-
-    with pytest.raises(KeyError):
-        get_dialect("unknown_dialect")
-
-
-def test_tsql_parse() -> None:
-    from shared.dialect import get_dialect
-
-    d = get_dialect("tsql")
-    ast = d.parse("SELECT ProductKey FROM silver.DimProduct WHERE ProductKey = 1")
-    assert ast is not None
-
-
-def test_tsql_transpile_to_spark() -> None:
-    from shared.dialect import get_dialect
-
-    tsql = get_dialect("tsql")
-    spark = get_dialect("spark")
-    result = tsql.transpile_to("SELECT TOP 10 ProductKey FROM silver.DimProduct", spark)
-    assert "ProductKey" in result
-
-
-def test_register_dialect() -> None:
-    from shared.dialect import SqlDialect, get_dialect, register_dialect
-
-    class DummyDialect:
-        @property
-        def name(self) -> str:
-            return "dummy"
-
-        def parse(self, sql: str):
-            return None
-
-        def transpile_to(self, sql: str, target: SqlDialect) -> str:
-            return sql
-
-    register_dialect(DummyDialect())
-    assert get_dialect("dummy").name == "dummy"
 
 
 # ── DdlParseError — Command fallback ─────────────────────────────────────────
@@ -414,21 +252,20 @@ def test_load_directory_stores_parse_error_per_block() -> None:
     from shared.loader import load_directory
 
     with tempfile.TemporaryDirectory() as tmp:
-        p = Path(tmp)
-        (p / "ddl").mkdir()
-        (p / "ddl" / "procedures.sql").write_text(
-            "CREATE PROCEDURE [dbo].[usp_bad]\n"
-            "    @Mode INT = 0\n"
-            "AS\n"
-            "BEGIN\n"
-            "    IF @Mode = 1\n"
-            "    BEGIN\n"
-            "        INSERT INTO silver.T (a) SELECT b FROM bronze.S\n"
-            "    END\n"
-            "END\n"
-            "GO\n",
-            encoding="utf-8",
-        )
+        p = _make_ddl_dir(tmp, {
+            "procedures.sql": (
+                "CREATE PROCEDURE [dbo].[usp_bad]\n"
+                "    @Mode INT = 0\n"
+                "AS\n"
+                "BEGIN\n"
+                "    IF @Mode = 1\n"
+                "    BEGIN\n"
+                "        INSERT INTO silver.T (a) SELECT b FROM bronze.S\n"
+                "    END\n"
+                "END\n"
+                "GO\n"
+            ),
+        })
         catalog = load_directory(p)
         entry = catalog.procedures.get("dbo.usp_bad")
         assert entry is not None

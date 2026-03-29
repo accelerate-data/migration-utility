@@ -7,16 +7,18 @@ import tempfile
 from pathlib import Path
 
 from shared.catalog import (
-    flip_references,
     has_catalog,
     load_function_catalog,
     load_proc_catalog,
     load_table_catalog,
     load_view_catalog,
-    process_dmf_results,
     scan_routing_flags,
     write_object_catalog,
     write_table_catalog,
+)
+from shared.dmf_processing import (
+    flip_references,
+    process_dmf_results,
 )
 from shared.catalog_dmf import write_catalog_files
 

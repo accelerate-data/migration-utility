@@ -248,8 +248,9 @@ def test_parse_error_does_not_abort_file(tmp_path):
         "    SOME TOTALLY INVALID SQL THAT CANNOT PARSE;\n"
         "END;\nGO\n"
     )
-    (tmp_path / "ddl").mkdir()
-    (tmp_path / "ddl" / "procedures.sql").write_text(sql)
+    ddl_dir = tmp_path / "ddl"
+    ddl_dir.mkdir()
+    (ddl_dir / "procedures.sql").write_text(sql)
     catalog = load_directory(tmp_path)
     assert "silver.usp_good" in catalog.procedures
     assert "silver.usp_bad" in catalog.procedures

@@ -9,7 +9,7 @@
     "name": { "type": "string", "description": "Object name, e.g. DimCustomer" },
     "columns": {
       "type": "array",
-      "description": "Column definitions from sys.columns. Populated by export_ddl.",
+      "description": "Column definitions from sys.columns.",
       "items": {
         "type": "object",
         "required": ["name", "sql_type", "is_nullable", "is_identity"],

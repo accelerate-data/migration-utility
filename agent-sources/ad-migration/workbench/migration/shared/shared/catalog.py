@@ -1,7 +1,7 @@
 """Catalog JSON file I/O for per-object metadata extracted from sys.* views.
 
-Reads and writes the ``catalog/`` subdirectory that setup-ddl and export_ddl
-produce alongside the flat ``.sql`` DDL files.  Each object gets its own JSON
+Reads and writes the ``catalog/`` subdirectory that setup-ddl
+produces alongside the flat ``.sql`` DDL files.  Each object gets its own JSON
 file keyed by normalized ``schema.name``.
 
 Layout::
@@ -25,11 +25,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from shared.dmf_processing import (  # noqa: F401 — re-export for backward compat
-    empty_scoped,
-    flip_references,
-    process_dmf_results,
-)
+from shared.dmf_processing import empty_scoped
 from shared.name_resolver import fqn_parts, normalize
 
 # ── Routing flag patterns ────────────────────────────────────────────────────
@@ -219,7 +215,4 @@ def write_object_catalog(
     p = _object_path(ddl_path, object_type, norm)
     _write_json(p, data)
     return p
-
-
-
 

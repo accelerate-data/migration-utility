@@ -72,7 +72,7 @@
     },
     "shared_python": {
       "path": "agent-sources/ad-migration/workbench/migration/shared/shared/",
-      "description": "Python library for DDL analysis. Modules: loader.py (DDL parsing, sqlglot AST, GO-delimited block splitting), discover.py (catalog-mandatory list/show/refs CLI), catalog.py (catalog JSON I/O, routing flags, DMF row processing, flip_references), catalog_dmf.py (write_catalog_files orchestration), catalog_enrich.py (offline AST enrichment CLI — BFS call graph, SELECT INTO/TRUNCATE detection), export_ddl.py (SQL Server DDL export with --catalog flag, table signals, DMF extraction), setup_ddl.py (DDL setup orchestration), migrate.py (migration context assembly + dbt artifact writer CLI), dmf_processing.py (DMF row processing helpers), sql_types.py (SQL type mappings), ir.py (intermediate representation), dialect.py (sqlglot dialect registry), name_resolver.py (FQN normalization)."
+      "description": "Python library for DDL analysis. Modules: loader.py (DDL parsing, sqlglot AST, GO-delimited block splitting), discover.py (catalog-mandatory list/show/refs CLI), catalog.py (catalog JSON I/O, routing flags, DMF row processing, flip_references), catalog_dmf.py (write_catalog_files orchestration), catalog_enrich.py (offline AST enrichment CLI — BFS call graph, SELECT INTO/TRUNCATE detection), export_ddl.py (SQL Server DDL export with --catalog flag, table signals, DMF extraction), setup_ddl.py (DDL setup orchestration), migrate.py (migration context assembly + dbt artifact writer CLI), profile.py (profiling context assembly + write-back CLI), dmf_processing.py (DMF row processing helpers), sql_types.py (SQL type mappings), ir.py (intermediate representation), dialect.py (sqlglot dialect registry), name_resolver.py (FQN normalization)."
     },
     "shared_schemas": {
       "path": "agent-sources/ad-migration/workbench/migration/shared/shared/schemas/",
@@ -88,11 +88,11 @@
     },
     "migration_skills": {
       "path": "agent-sources/ad-migration/workbench/migration/skills/",
-      "description": "Skill definitions: discover/ (DDL exploration — list/show/refs from catalog), migrate/ (dbt model generation from stored procedures). setup-ddl is in the bootstrap sub-plugin."
+      "description": "Skill definitions: discover/ (DDL exploration — list/show/refs from catalog), migrate/ (dbt model generation from stored procedures), profile/ (interactive single-table profiling with approval gates). setup-ddl is in the bootstrap sub-plugin."
     },
     "migration_agents": {
       "path": "agent-sources/ad-migration/workbench/migration/agents/",
-      "description": "Agent definitions: scoping-agent.md (catalog-based writer detection via discover refs), migrator-agent.md (batch dbt model generation from stored procedures)."
+      "description": "Agent definitions: scoping-agent.md (catalog-based writer detection via discover refs), migrator-agent.md (batch dbt model generation from stored procedures), profiler-agent.md (batch profiling — context assembly, LLM reasoning, catalog write-back)."
     },
     "migration_commands": {
       "path": "agent-sources/ad-migration/workbench/migration/commands/",
@@ -100,7 +100,7 @@
     },
     "tests_migration": {
       "path": "tests/ad-migration/migration/",
-      "description": "Python pytest suite: test_discover.py, test_catalog.py, test_catalog_enrich.py, test_extract_refs.py, test_integration_catalog.py, test_smoke.py, test_migrate.py. Fixtures: ddl/, ddl_unparseable/, discover/flat/ (with catalog/ subdirectory), discover/unparseable/, catalog/ (table and procedure JSON fixtures), migrate/ (DDL, catalog with profiles/statements, dbt project fixture), sql/ (Docker SQL Server setup scripts)."
+      "description": "Python pytest suite: test_discover.py, test_catalog.py, test_catalog_enrich.py, test_extract_refs.py, test_integration_catalog.py, test_smoke.py, test_migrate.py, test_profile.py. Fixtures: ddl/, ddl_unparseable/, discover/flat/ (with catalog/ subdirectory), discover/unparseable/, catalog/ (table and procedure JSON fixtures), migrate/ (DDL, catalog with profiles/statements, dbt project fixture), profile/ (profiling context and write fixtures), sql/ (Docker SQL Server setup scripts)."
     },
     "tests_scoping_agent": {
       "path": "tests/ad-migration/scoping-agent/",

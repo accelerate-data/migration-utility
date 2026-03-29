@@ -23,6 +23,7 @@ packages = ["shared"]
 catalog-enrich = "shared.catalog_enrich:app"
 discover = "shared.discover:app"
 migrate = "shared.migrate:app"
+profile = "shared.profile:app"
 setup-ddl = "shared.setup_ddl:app"
 
 [tool.pytest.ini_options]

@@ -34,7 +34,7 @@ import sqlglot.expressions as exp
 from mcp import types
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from shared.loader import DdlCatalog, DdlEntry, DdlParseError, extract_refs, load_directory
+from shared.loader import DdlCatalog, DdlEntry, DdlParseError, extract_refs, load_directory, read_manifest
 from shared.name_resolver import normalize
 
 server = Server("ddl-mcp")
@@ -66,7 +66,8 @@ def _ddl_path(override: str | None = None) -> Path:
 
 
 def _catalog(ddl_path: Path) -> DdlCatalog:
-    return load_directory(ddl_path, dialect="tsql")
+    manifest = read_manifest(ddl_path)
+    return load_directory(ddl_path, dialect=manifest["dialect"])
 
 
 # ── Column metadata ───────────────────────────────────────────────────────────

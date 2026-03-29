@@ -1,0 +1,25 @@
+{
+  "schema": "dbo",
+  "name": "usp_helper_log",
+  "params": [
+    { "name": "@message", "sql_type": "NVARCHAR(500)", "is_output": false, "has_default": false }
+  ],
+  "references": {
+    "tables": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  }
+}
