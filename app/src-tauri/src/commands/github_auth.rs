@@ -3,18 +3,49 @@ use tauri::State;
 use crate::db::DbState;
 use crate::types::{CommandError, DeviceFlowResponse, GitHubAuthResult, GitHubRepo, GitHubUser};
 
-const GITHUB_CLIENT_ID: &str = "Ov23lioPbQz4gAFxEfhM";
+/// Return the GitHub OAuth App client ID, allowing an env-var override for
+/// testing or alternative deployments.
+fn github_client_id() -> String {
+    std::env::var("GITHUB_CLIENT_ID").unwrap_or_else(|_| "Ov23lioPbQz4gAFxEfhM".to_string())
+}
+
+/// Build a `reqwest::Client` pre-configured with GitHub API authentication
+/// headers (Bearer token, Accept, User-Agent, API version).
+fn github_authenticated_client(token: &str) -> reqwest::Client {
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        "Authorization",
+        reqwest::header::HeaderValue::from_str(&format!("Bearer {}", token)).unwrap(),
+    );
+    headers.insert(
+        "Accept",
+        reqwest::header::HeaderValue::from_static("application/vnd.github+json"),
+    );
+    headers.insert(
+        "User-Agent",
+        reqwest::header::HeaderValue::from_static("MigrationUtility"),
+    );
+    headers.insert(
+        "X-GitHub-Api-Version",
+        reqwest::header::HeaderValue::from_static("2022-11-28"),
+    );
+    reqwest::Client::builder()
+        .default_headers(headers)
+        .build()
+        .unwrap()
+}
 
 /// Start the GitHub Device Flow by requesting a device code.
 #[tauri::command]
 pub async fn github_start_device_flow() -> Result<DeviceFlowResponse, CommandError> {
     log::info!("[github_start_device_flow] starting device flow");
     let client = reqwest::Client::new();
+    let client_id = github_client_id();
 
     let response = client
         .post("https://github.com/login/device/code")
         .header("Accept", "application/json")
-        .form(&[("client_id", GITHUB_CLIENT_ID), ("scope", "repo,read:user")])
+        .form(&[("client_id", client_id.as_str()), ("scope", "repo,read:user")])
         .send()
         .await
         .map_err(|e| {
@@ -74,12 +105,13 @@ pub async fn github_poll_for_token(
 ) -> Result<GitHubAuthResult, CommandError> {
     log::info!("[github_poll_for_token] polling for token");
     let client = reqwest::Client::new();
+    let client_id = github_client_id();
 
     let response = client
         .post("https://github.com/login/oauth/access_token")
         .header("Accept", "application/json")
         .form(&[
-            ("client_id", GITHUB_CLIENT_ID),
+            ("client_id", client_id.as_str()),
             ("device_code", device_code.as_str()),
             ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
         ])
@@ -115,7 +147,8 @@ pub async fn github_poll_for_token(
         .ok_or_else(|| CommandError::External("Missing access_token in response".into()))?
         .to_string();
 
-    let user = fetch_github_user(&client, &access_token)
+    let auth_client = github_authenticated_client(&access_token);
+    let user = fetch_github_user(&auth_client)
         .await
         .map_err(|e| {
             log::error!("[github_poll_for_token] failed to fetch user profile: {e}");
@@ -189,7 +222,7 @@ pub async fn github_list_repos(
             .ok_or_else(|| CommandError::Validation("GitHub is not connected".into()))?
     };
 
-    let client = reqwest::Client::new();
+    let client = github_authenticated_client(&token);
     let response = client
         .get("https://api.github.com/user/repos")
         .query(&[
@@ -197,10 +230,6 @@ pub async fn github_list_repos(
             ("sort", "updated"),
             ("affiliation", "owner,collaborator,organization_member"),
         ])
-        .header("Authorization", format!("Bearer {}", token))
-        .header("Accept", "application/vnd.github+json")
-        .header("User-Agent", "MigrationUtility")
-        .header("X-GitHub-Api-Version", "2022-11-28")
         .send()
         .await
         .map_err(|e| {
@@ -265,15 +294,11 @@ pub async fn github_check_repo_empty(
             .ok_or_else(|| CommandError::Validation("GitHub is not connected".into()))?
     };
 
-    let client = reqwest::Client::new();
+    let client = github_authenticated_client(&token);
 
     // First check branches. A 409 means the repo has no git history at all — definitely usable.
     let branches_resp = client
         .get(format!("https://api.github.com/repos/{}/branches", full_name))
-        .header("Authorization", format!("Bearer {}", token))
-        .header("Accept", "application/vnd.github+json")
-        .header("User-Agent", "MigrationUtility")
-        .header("X-GitHub-Api-Version", "2022-11-28")
         .send()
         .await
         .map_err(|e| {
@@ -300,10 +325,6 @@ pub async fn github_check_repo_empty(
     // Repo has at least one branch. Check root contents for any directory (project folder).
     let contents_resp = client
         .get(format!("https://api.github.com/repos/{}/contents/", full_name))
-        .header("Authorization", format!("Bearer {}", token))
-        .header("Accept", "application/vnd.github+json")
-        .header("User-Agent", "MigrationUtility")
-        .header("X-GitHub-Api-Version", "2022-11-28")
         .send()
         .await
         .map_err(|e| {
@@ -448,13 +469,9 @@ mod tests {
     }
 }
 
-async fn fetch_github_user(client: &reqwest::Client, token: &str) -> Result<GitHubUser, CommandError> {
+async fn fetch_github_user(client: &reqwest::Client) -> Result<GitHubUser, CommandError> {
     let response = client
         .get("https://api.github.com/user")
-        .header("Authorization", format!("Bearer {}", token))
-        .header("Accept", "application/vnd.github+json")
-        .header("User-Agent", "MigrationUtility")
-        .header("X-GitHub-Api-Version", "2022-11-28")
         .send()
         .await
         .map_err(|e| {

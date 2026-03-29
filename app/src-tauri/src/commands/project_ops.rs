@@ -6,6 +6,7 @@ use tauri::{Emitter, State};
 use uuid::Uuid;
 
 use crate::commands::ddl::{check_ddl_stale, compute_file_sha256, dacpac_db_name, extract_ddl_from_dacpac, extract_ddl_from_zip};
+use crate::commands::git_ops::{check_dotnet_runtime, git_commit_and_push, DotnetStatus};
 use crate::commands::process::{run_cmd, run_cmd_async};
 use crate::commands::project::slugify;
 use crate::db::DbState;
@@ -176,18 +177,12 @@ pub fn project_create_full(
         run_cmd("git", &["lfs", "track", lfs_pattern], Some(&local_clone_path), &[])?;
 
         // --force because the repo's .gitignore may contain *.dacpac.
-        run_cmd("git", &["add", "--force", ".gitattributes", &project.slug], Some(&local_clone_path), &[])?;
-        run_cmd(
-            "git",
-            &[
-                "-c", "user.name=Migration Utility",
-                "-c", "user.email=migration@vibedata.com",
-                "commit", "-m", &format!("feat: add project {}", project.slug),
-            ],
-            Some(&local_clone_path),
-            &[],
+        git_commit_and_push(
+            &local_clone_path,
+            &format!("feat: add project {}", project.slug),
+            &[".gitattributes", &project.slug],
+            true,
         )?;
-        run_cmd("git", &["push"], Some(&local_clone_path), &[("GIT_TERMINAL_PROMPT", "0")])?;
         log::info!("[project_create_full] pushed project {} to repo", project.slug);
 
         Ok(())
@@ -262,27 +257,18 @@ pub async fn project_init(
 
     // ── Step 0: .NET runtime check ────────────────────────────────────────────
     emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Running, Some(id.clone()));
-    match std::process::Command::new("dotnet").arg("--version").output() {
-        Ok(out) if out.status.success() => {
-            let ver = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            let major: u32 = ver.split('.').next().and_then(|s| s.parse().ok()).unwrap_or(0);
-            if major >= 8 {
-                emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Ok, Some(id.clone()));
-            } else {
-                let msg = format!(".NET 8+ required, found {ver}. Install from https://dot.net");
-                emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Error { message: msg.clone() }, Some(id.clone()));
-                return Err(CommandError::External(msg));
-            }
+    match check_dotnet_runtime(technology == "sql_server") {
+        DotnetStatus::Ok(_ver) => {
+            emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Ok, Some(id.clone()));
         }
-        Ok(_) | Err(_) if technology == "sql_server" => {
-            let msg = ".NET 8 runtime not found. Install from https://dot.net to use SQL Server projects.".to_string();
+        DotnetStatus::Warning(msg) => {
+            emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Warning {
+                warnings: vec![msg],
+            }, Some(id.clone()));
+        }
+        DotnetStatus::Error(msg) => {
             emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Error { message: msg.clone() }, Some(id.clone()));
             return Err(CommandError::External(msg));
-        }
-        Ok(_) | Err(_) => {
-            emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Warning {
-                warnings: vec!["Install .NET 8 runtime to support SQL Server projects.".into()],
-            }, Some(id.clone()));
         }
     }
 
@@ -337,19 +323,12 @@ async fn run_project_ddl_steps(
             // Stage and commit the removal.
             let _ = run_cmd("git", &["rm", "-rf", "--cached",
                 &format!("{slug}/artifacts/dacpac")], Some(local_clone_path), &[]);
-            let _ = run_cmd("git", &["add", "--all", slug], Some(local_clone_path), &[]);
-            let has_staged = run_cmd(
-                "git", &["diff", "--cached", "--quiet"], Some(local_clone_path), &[]
-            ).is_err();
-            if has_staged {
-                let _ = run_cmd("git", &[
-                    "-c", "user.name=Migration Utility",
-                    "-c", "user.email=migration@vibedata.com",
-                    "commit", "-m", &format!("chore: remove legacy artifacts/dacpac/ for {slug}"),
-                ], Some(local_clone_path), &[]);
-                let _ = run_cmd("git", &["push"], Some(local_clone_path),
-                    &[("GIT_TERMINAL_PROMPT", "0")]);
-            }
+            let _ = git_commit_and_push(
+                local_clone_path,
+                &format!("chore: remove legacy artifacts/dacpac/ for {slug}"),
+                &[slug],
+                false,
+            );
         }
     }
 
@@ -443,22 +422,12 @@ async fn run_project_ddl_steps(
         }?;
 
         // Commit and push updated DDL.
-        let lcp = local_clone_path;
-        run_cmd("git", &["add", slug], Some(lcp), &[])?;
-        let has_staged = run_cmd("git", &["diff", "--cached", "--quiet"], Some(lcp), &[]).is_err();
-        if has_staged {
-            run_cmd(
-                "git",
-                &[
-                    "-c", "user.name=Migration Utility",
-                    "-c", "user.email=migration@vibedata.com",
-                    "commit", "-m", &format!("chore: refresh DDL for {slug}"),
-                ],
-                Some(lcp),
-                &[],
-            )?;
-            run_cmd("git", &["push"], Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")])?;
-        }
+        git_commit_and_push(
+            local_clone_path,
+            &format!("chore: refresh DDL for {slug}"),
+            &[slug],
+            false,
+        )?;
         Ok(())
     })();
 
@@ -554,18 +523,12 @@ fn migrate_legacy_dacpac(
     // Commit and push the migrated files.
     run_cmd("git", &["lfs", "install"], None, &[])?;
     run_cmd("git", &["lfs", "track", "*.dacpac"], Some(local_clone_path), &[])?;
-    run_cmd("git", &["add", "--force", ".gitattributes", slug], Some(local_clone_path), &[])?;
-    run_cmd(
-        "git",
-        &[
-            "-c", "user.name=Migration Utility",
-            "-c", "user.email=migration@vibedata.com",
-            "commit", "-m", &format!("migrate: {slug} — DDL extraction from legacy DacPac"),
-        ],
-        Some(local_clone_path),
-        &[],
+    git_commit_and_push(
+        local_clone_path,
+        &format!("migrate: {slug} — DDL extraction from legacy DacPac"),
+        &[".gitattributes", slug],
+        true,
     )?;
-    run_cmd("git", &["push"], Some(local_clone_path), &[])?;
     log::info!("[migrate_legacy_dacpac] committed and pushed slug={slug}");
 
     Ok(())
@@ -619,32 +582,21 @@ pub async fn app_startup_sync(
     // ── Step 0: .NET runtime check (global, once) ─────────────────────────────
     let has_sql_server = rows.iter().any(|r| r.technology == "sql_server");
     emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Running, None);
-    match std::process::Command::new("dotnet").arg("--version").output() {
-        Ok(out) if out.status.success() => {
-            let ver = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            let major: u32 = ver.split('.').next().and_then(|s| s.parse().ok()).unwrap_or(0);
-            if major >= 8 {
-                log::info!("[app_startup_sync] dotnet runtime ok: {ver}");
-                emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Ok, None);
-            } else {
-                let msg = format!(".NET 8+ required, found {ver}. Install from https://dot.net");
-                log::error!("[app_startup_sync] dotnet version too old: {ver}");
-                emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Error { message: msg.clone() }, None);
-                return Err(CommandError::External(msg));
-            }
+    match check_dotnet_runtime(has_sql_server) {
+        DotnetStatus::Ok(ver) => {
+            log::info!("[app_startup_sync] dotnet runtime ok: {ver}");
+            emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Ok, None);
         }
-        Ok(_) | Err(_) => {
-            if has_sql_server {
-                let msg = ".NET 8 runtime not found. Install from https://dot.net to use SQL Server projects.".to_string();
-                log::error!("[app_startup_sync] dotnet not found and SQL Server projects present");
-                emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Error { message: msg.clone() }, None);
-                return Err(CommandError::External(msg));
-            } else {
-                log::warn!("[app_startup_sync] dotnet not found (no SQL Server projects — non-fatal)");
-                emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Warning {
-                    warnings: vec!["Install .NET 8 runtime to support SQL Server projects.".into()],
-                }, None);
-            }
+        DotnetStatus::Warning(msg) => {
+            log::warn!("[app_startup_sync] {msg}");
+            emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Warning {
+                warnings: vec![msg],
+            }, None);
+        }
+        DotnetStatus::Error(msg) => {
+            log::error!("[app_startup_sync] {msg}");
+            emit_step(&app, InitStep::DotnetCheck, InitStepStatus::Error { message: msg.clone() }, None);
+            return Err(CommandError::External(msg));
         }
     }
 
@@ -778,17 +730,14 @@ pub fn project_delete_full(
             if let Err(e) = run_cmd("git", &["rm", "-r", "--ignore-unmatch", &slug], Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]) {
                 log::warn!("[project_delete_full] git rm (non-fatal): {e}");
             }
-            let has_staged = run_cmd("git", &["diff", "--cached", "--quiet"], Some(lcp), &[]).is_err();
-            if has_staged {
-                if let Err(e) = run_cmd("git", &[
-                    "-c", "user.name=Migration Utility",
-                    "-c", "user.email=migration@vibedata.com",
-                    "commit", "-m", &format!("chore: remove project {slug}"),
-                ], Some(lcp), &[]) {
-                    log::warn!("[project_delete_full] git commit (non-fatal): {e}");
-                } else if let Err(e) = run_cmd("git", &["push"], Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]) {
-                    log::warn!("[project_delete_full] git push (non-fatal): {e}");
-                }
+            // git rm already stages; pass empty paths so git_commit_and_push only checks + commits + pushes.
+            if let Err(e) = git_commit_and_push(
+                lcp,
+                &format!("chore: remove project {slug}"),
+                &[],
+                false,
+            ) {
+                log::warn!("[project_delete_full] git commit/push (non-fatal): {e}");
             }
         }
     }

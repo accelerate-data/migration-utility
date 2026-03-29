@@ -79,6 +79,22 @@ pub(crate) fn extract_ddl_from_dacpac(dacpac_path: &Path, ddl_dir: &Path) -> Res
     }
 }
 
+/// Classify a SQL file path from a ZIP entry into a DDL bucket.
+/// The returned value is one of: `"procedures"`, `"views"`, `"functions"`, `"tables"`, or `"other"`.
+pub(crate) fn classify_zip_entry(name: &str) -> &'static str {
+    if name.contains("procedure") || name.contains("proc") || name.contains("/sp/") {
+        "procedures"
+    } else if name.contains("view") || name.contains("/vw/") {
+        "views"
+    } else if name.contains("function") || name.contains("/fn/") || name.contains("/udf/") {
+        "functions"
+    } else if name.contains("table") || name.contains("/tbl/") {
+        "tables"
+    } else {
+        "other"
+    }
+}
+
 /// Extract DDL from a `.zip` source file (Fabric Warehouse, Snowflake, etc.) into `ddl_dir`.
 /// The ZIP is expected to contain `.sql` files; they are organized by name pattern into
 /// the canonical DDL output files, or written to `other.sql` if unclassified.
@@ -110,17 +126,7 @@ pub(crate) fn extract_ddl_from_zip(zip_path: &Path, ddl_dir: &Path) -> Result<()
         let mut content = String::new();
         entry.read_to_string(&mut content).map_err(|e| CommandError::Io(format!("ZIP entry read error: {e}")))?;
 
-        let bucket = if name.contains("procedure") || name.contains("proc") || name.contains("/sp/") {
-            "procedures"
-        } else if name.contains("view") || name.contains("/vw/") {
-            "views"
-        } else if name.contains("function") || name.contains("/fn/") || name.contains("/udf/") {
-            "functions"
-        } else if name.contains("table") || name.contains("/tbl/") {
-            "tables"
-        } else {
-            "other"
-        };
+        let bucket = classify_zip_entry(&name);
 
         by_type.entry(bucket).or_default().push(format!("-- {}\n{}\nGO\n\n", entry.name(), content));
     }
@@ -243,6 +249,38 @@ pub(crate) fn dacpac_db_name(dacpac_path: &str) -> Result<String, CommandError> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn classify_zip_entry_procedures() {
+        assert_eq!(classify_zip_entry("dbo/stored_procedure/usp_load.sql"), "procedures");
+        assert_eq!(classify_zip_entry("schema/proc/my_proc.sql"), "procedures");
+        assert_eq!(classify_zip_entry("warehouse/sp/load_data.sql"), "procedures");
+    }
+
+    #[test]
+    fn classify_zip_entry_views() {
+        assert_eq!(classify_zip_entry("dbo/view/v_customers.sql"), "views");
+        assert_eq!(classify_zip_entry("schema/vw/active_users.sql"), "views");
+    }
+
+    #[test]
+    fn classify_zip_entry_functions() {
+        assert_eq!(classify_zip_entry("dbo/function/fn_calc.sql"), "functions");
+        assert_eq!(classify_zip_entry("schema/fn/get_total.sql"), "functions");
+        assert_eq!(classify_zip_entry("schema/udf/format_date.sql"), "functions");
+    }
+
+    #[test]
+    fn classify_zip_entry_tables() {
+        assert_eq!(classify_zip_entry("dbo/table/customers.sql"), "tables");
+        assert_eq!(classify_zip_entry("schema/tbl/orders.sql"), "tables");
+    }
+
+    #[test]
+    fn classify_zip_entry_other() {
+        assert_eq!(classify_zip_entry("scripts/seed_data.sql"), "other");
+        assert_eq!(classify_zip_entry("migrations/001.sql"), "other");
+    }
 
     #[test]
     fn dacpac_db_name_extracts_name_from_zip() {
