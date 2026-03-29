@@ -158,23 +158,16 @@ def _ensure_referenced_by(data: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
-def enrich_catalog(ddl_path: Path, dialect: str = "tsql") -> dict[str, Any]:
-    """Enrich catalog files with AST-derived references.
+def _scan_ast_refs(
+    ddl_path: Path, ddl_catalog: DdlCatalog,
+) -> tuple[dict[str, ObjectRefs], dict[str, list[str]]]:
+    """Extract AST refs and EXEC calls for eligible procedures.
 
-    Returns summary: {"tables_augmented": N, "procedures_augmented": N, "entries_added": N}
+    Skips procs with ``needs_llm: true`` or ``needs_enrich: false``.
+    Returns ``(ast_refs, ast_calls)``.
     """
-    ddl_path = Path(ddl_path)
-
-    if not has_catalog(ddl_path):
-        logger.warning("event=enrich_catalog status=skip reason=no_catalog path=%s", ddl_path)
-        return {"tables_augmented": 0, "procedures_augmented": 0, "entries_added": 0}
-
-    # Phase 1: Load DDL catalog and extract AST refs for eligible procedures.
-    # Skip procs marked needs_llm — sqlglot cannot parse them; discover show handles them.
-    ddl_catalog = load_directory(ddl_path, dialect=dialect)
-
-    ast_refs: dict[str, ObjectRefs] = {}  # proc_fqn → ObjectRefs
-    ast_calls: dict[str, list[str]] = {}  # proc_fqn → list of called proc FQNs
+    ast_refs: dict[str, ObjectRefs] = {}
+    ast_calls: dict[str, list[str]] = {}
 
     for proc_fqn, entry in ddl_catalog.procedures.items():
         proc_cat = load_proc_catalog(ddl_path, proc_fqn)
@@ -192,24 +185,27 @@ def enrich_catalog(ddl_path: Path, dialect: str = "tsql") -> dict[str, Any]:
             logger.debug("event=enrich_skip proc=%s reason=parse_error error=%s", proc_fqn, exc)
             continue
 
-        # Extract EXEC calls to other procedures
         calls = _extract_calls(entry.raw_ddl)
-        # Filter to only known procedures
-        known_calls = [c for c in calls if c in ddl_catalog.procedures]
-        ast_calls[proc_fqn] = known_calls
+        ast_calls[proc_fqn] = [c for c in calls if c in ddl_catalog.procedures]
 
-    # Phase 2: Build direct writer map from AST
-    # proc_fqn → set of table FQNs it writes to (per AST)
+    return ast_refs, ast_calls
+
+
+def _build_writer_maps(
+    ast_refs: dict[str, ObjectRefs],
+    ast_calls: dict[str, list[str]],
+) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
+    """Build direct and BFS-indirect writer maps.
+
+    Returns ``(direct_writers, indirect_writers)`` where each maps
+    ``proc_fqn → set[table_fqn]``.
+    """
     direct_writers: dict[str, set[str]] = {}
     for proc_fqn, refs in ast_refs.items():
         if refs.writes_to:
             direct_writers[proc_fqn] = set(refs.writes_to)
 
-    # Phase 3: BFS for indirect writers through call chains
-    # For each proc, traverse its call graph to find tables written
-    # by callees (directly or transitively).
-    indirect_writers: dict[str, set[str]] = {}  # proc_fqn → set of table FQNs
-
+    indirect_writers: dict[str, set[str]] = {}
     for proc_fqn in ast_refs:
         visited: set[str] = {proc_fqn}
         queue: deque[str] = deque(ast_calls.get(proc_fqn, []))
@@ -220,82 +216,77 @@ def enrich_catalog(ddl_path: Path, dialect: str = "tsql") -> dict[str, Any]:
             if callee in visited:
                 continue
             visited.add(callee)
-
-            # Add callee's direct writes
             if callee in direct_writers:
                 indirect_tables.update(direct_writers[callee])
-
-            # Continue BFS through callee's calls
             for next_callee in ast_calls.get(callee, []):
                 if next_callee not in visited:
                     queue.append(next_callee)
 
-        # Only keep tables NOT already directly written by this proc
-        own_writes = direct_writers.get(proc_fqn, set())
-        new_indirect = indirect_tables - own_writes
+        new_indirect = indirect_tables - direct_writers.get(proc_fqn, set())
         if new_indirect:
             indirect_writers[proc_fqn] = new_indirect
 
-    # Phase 4: Compare AST findings with existing catalog and augment
-    tables_augmented: set[str] = set()
+    return direct_writers, indirect_writers
+
+
+def _augment_proc_catalogs(
+    ddl_path: Path,
+    direct_writers: dict[str, set[str]],
+    indirect_writers: dict[str, set[str]],
+) -> tuple[set[str], int]:
+    """Write AST-discovered refs into proc catalog files.
+
+    Returns ``(procedures_augmented, entries_added)``.
+    """
     procedures_augmented: set[str] = set()
     entries_added = 0
-
-    # Load all existing proc catalogs, augment, and write back
     all_writer_procs = set(direct_writers.keys()) | set(indirect_writers.keys())
 
     for proc_fqn in sorted(all_writer_procs):
         proc_data = load_proc_catalog(ddl_path, proc_fqn)
         if proc_data is None:
-            # No catalog file for this proc — create one with AST refs
             proc_data = {}
         proc_data = _ensure_references(proc_data)
 
         tables_in_scope = proc_data["references"]["tables"]["in_scope"]
         proc_modified = False
 
-        # Check direct writes from AST
         for table_fqn in sorted(direct_writers.get(proc_fqn, set())):
             if not _table_in_scope(tables_in_scope, table_fqn):
                 schema, name = _fqn_parts(table_fqn)
-                tables_in_scope.append(_make_ast_ref_entry(
-                    schema, name, is_updated=True,
-                ))
+                tables_in_scope.append(_make_ast_ref_entry(schema, name, is_updated=True))
                 proc_modified = True
                 entries_added += 1
-                logger.info(
-                    "event=enrich_add_direct proc=%s table=%s detection=ast_scan",
-                    proc_fqn, table_fqn,
-                )
+                logger.info("event=enrich_add_direct proc=%s table=%s detection=ast_scan", proc_fqn, table_fqn)
 
-        # Check indirect writes from BFS
         for table_fqn in sorted(indirect_writers.get(proc_fqn, set())):
             if not _table_in_scope(tables_in_scope, table_fqn):
                 schema, name = _fqn_parts(table_fqn)
-                tables_in_scope.append(_make_ast_ref_entry(
-                    schema, name, is_updated=True,
-                ))
+                tables_in_scope.append(_make_ast_ref_entry(schema, name, is_updated=True))
                 proc_modified = True
                 entries_added += 1
-                logger.info(
-                    "event=enrich_add_indirect proc=%s table=%s detection=ast_scan",
-                    proc_fqn, table_fqn,
-                )
+                logger.info("event=enrich_add_indirect proc=%s table=%s detection=ast_scan", proc_fqn, table_fqn)
 
         if proc_modified:
             procedures_augmented.add(proc_fqn)
-            # Sort in_scope for deterministic output
-            tables_in_scope.sort(
-                key=lambda e: f"{e['schema']}.{e['name']}".lower(),
-            )
+            tables_in_scope.sort(key=lambda e: f"{e['schema']}.{e['name']}".lower())
             write_object_catalog(
-                ddl_path, "procedures", proc_fqn,
-                proc_data["references"],
-                needs_llm=proc_data.get("needs_llm", False),
-                needs_enrich=False,  # enrichment complete
+                ddl_path, "procedures", proc_fqn, proc_data["references"],
+                needs_llm=proc_data.get("needs_llm", False), needs_enrich=False,
             )
 
-    # Phase 5: Flip — update table catalogs with new referenced_by entries
+    return procedures_augmented, entries_added
+
+
+def _flip_to_table_catalogs(
+    ddl_path: Path, procedures_augmented: set[str],
+) -> set[str]:
+    """Update table catalogs with reverse references from augmented procs.
+
+    Returns set of table FQNs that were augmented.
+    """
+    tables_augmented: set[str] = set()
+
     for proc_fqn in sorted(procedures_augmented):
         proc_data = load_proc_catalog(ddl_path, proc_fqn)
         if proc_data is None:
@@ -309,7 +300,6 @@ def enrich_catalog(ddl_path: Path, dialect: str = "tsql") -> dict[str, Any]:
             table_fqn = normalize(f"{table_entry['schema']}.{table_entry['name']}")
             table_data = load_table_catalog(ddl_path, table_fqn)
             if table_data is None:
-                # Create a minimal table catalog entry
                 table_data = {}
             table_data = _ensure_referenced_by(table_data)
 
@@ -317,17 +307,33 @@ def enrich_catalog(ddl_path: Path, dialect: str = "tsql") -> dict[str, Any]:
             proc_schema, proc_name = _fqn_parts(proc_fqn)
 
             if not _proc_in_scope(procs_in_scope, proc_fqn):
-                procs_in_scope.append(_make_ast_ref_entry(
-                    proc_schema, proc_name, is_updated=True,
-                ))
-                procs_in_scope.sort(
-                    key=lambda e: f"{e['schema']}.{e['name']}".lower(),
-                )
+                procs_in_scope.append(_make_ast_ref_entry(proc_schema, proc_name, is_updated=True))
+                procs_in_scope.sort(key=lambda e: f"{e['schema']}.{e['name']}".lower())
                 tables_augmented.add(table_fqn)
 
-            # Write table catalog — preserve existing signals
             ref_by = table_data.pop("referenced_by", None)
             write_table_catalog(ddl_path, table_fqn, table_data, ref_by)
+
+    return tables_augmented
+
+
+def enrich_catalog(ddl_path: Path, dialect: str = "tsql") -> dict[str, Any]:
+    """Enrich catalog files with AST-derived references.
+
+    Returns summary: {"tables_augmented": N, "procedures_augmented": N, "entries_added": N}
+    """
+    ddl_path = Path(ddl_path)
+
+    if not has_catalog(ddl_path):
+        logger.warning("event=enrich_catalog status=skip reason=no_catalog path=%s", ddl_path)
+        return {"tables_augmented": 0, "procedures_augmented": 0, "entries_added": 0}
+
+    ddl_catalog = load_directory(ddl_path, dialect=dialect)
+
+    ast_refs, ast_calls = _scan_ast_refs(ddl_path, ddl_catalog)
+    direct_writers, indirect_writers = _build_writer_maps(ast_refs, ast_calls)
+    procedures_augmented, entries_added = _augment_proc_catalogs(ddl_path, direct_writers, indirect_writers)
+    tables_augmented = _flip_to_table_catalogs(ddl_path, procedures_augmented)
 
     summary = {
         "tables_augmented": len(tables_augmented),

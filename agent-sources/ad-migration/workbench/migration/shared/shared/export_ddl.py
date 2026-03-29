@@ -247,23 +247,27 @@ def _extract_proc_params(conn) -> dict[str, list[dict]]:
     return result
 
 
-def _extract_table_signals(conn) -> dict[str, dict]:
-    """Extract catalog signals for all tables: PKs, unique indexes, FKs, identity, CDC, change tracking, sensitivity."""
+def _ensure_table_skeleton(signals: dict[str, dict], fqn: str) -> dict:
+    """Ensure signals[fqn] has all default keys. Returns the entry."""
+    if fqn not in signals:
+        signals[fqn] = {
+            "primary_keys": [], "unique_indexes": [], "foreign_keys": [],
+            "auto_increment_columns": [], "change_capture": None,
+            "sensitivity_classifications": [],
+        }
+    return signals[fqn]
+
+
+def _extract_pks_and_unique_indexes(conn, signals: dict[str, dict]) -> None:
+    """Query sys.indexes + sys.index_columns for PKs and unique indexes."""
     from shared.name_resolver import normalize
 
-    signals: dict[str, dict] = {}
-
-    # PKs and unique indexes
     cursor = conn.cursor()
     cursor.execute("""
         SELECT
-            SCHEMA_NAME(t.schema_id) AS schema_name,
-            t.name AS table_name,
-            i.name AS index_name,
-            i.is_unique,
-            i.is_primary_key,
-            c.name AS column_name,
-            ic.key_ordinal
+            SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name,
+            i.name AS index_name, i.is_unique, i.is_primary_key,
+            c.name AS column_name, ic.key_ordinal
         FROM sys.tables t
         JOIN sys.indexes i ON i.object_id = t.object_id AND (i.is_primary_key = 1 OR (i.is_unique = 1 AND i.is_primary_key = 0))
         JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id
@@ -272,14 +276,7 @@ def _extract_table_signals(conn) -> dict[str, dict]:
         ORDER BY schema_name, table_name, i.index_id, ic.key_ordinal
     """)
     for row in cursor.fetchall():
-        fqn = normalize(f"{row.schema_name}.{row.table_name}")
-        if fqn not in signals:
-            signals[fqn] = {
-                "primary_keys": [], "unique_indexes": [], "foreign_keys": [],
-                "auto_increment_columns": [], "change_capture": None,
-                "sensitivity_classifications": [],
-            }
-        sig = signals[fqn]
+        sig = _ensure_table_skeleton(signals, normalize(f"{row.schema_name}.{row.table_name}"))
         if row.is_primary_key:
             existing = next((pk for pk in sig["primary_keys"] if pk["constraint_name"] == row.index_name), None)
             if existing is None:
@@ -293,15 +290,18 @@ def _extract_table_signals(conn) -> dict[str, dict]:
             else:
                 existing["columns"].append(row.column_name)
 
-    # Foreign keys
+
+def _extract_foreign_keys(conn, signals: dict[str, dict]) -> None:
+    """Query sys.foreign_keys + sys.foreign_key_columns."""
+    from shared.name_resolver import normalize
+
+    cursor = conn.cursor()
     cursor.execute("""
         SELECT
-            SCHEMA_NAME(t.schema_id) AS schema_name,
-            t.name AS table_name,
+            SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name,
             fk.name AS constraint_name,
             COL_NAME(fkc.parent_object_id, fkc.parent_column_id) AS column_name,
-            SCHEMA_NAME(rt.schema_id) AS ref_schema,
-            rt.name AS ref_table,
+            SCHEMA_NAME(rt.schema_id) AS ref_schema, rt.name AS ref_table,
             COL_NAME(fkc.referenced_object_id, fkc.referenced_column_id) AS ref_column
         FROM sys.foreign_keys fk
         JOIN sys.tables t ON t.object_id = fk.parent_object_id
@@ -311,54 +311,47 @@ def _extract_table_signals(conn) -> dict[str, dict]:
         ORDER BY schema_name, table_name, fk.name, fkc.constraint_column_id
     """)
     for row in cursor.fetchall():
-        fqn = normalize(f"{row.schema_name}.{row.table_name}")
-        if fqn not in signals:
-            signals[fqn] = {
-                "primary_keys": [], "unique_indexes": [], "foreign_keys": [],
-                "auto_increment_columns": [], "change_capture": None,
-                "sensitivity_classifications": [],
-            }
-        sig = signals[fqn]
+        sig = _ensure_table_skeleton(signals, normalize(f"{row.schema_name}.{row.table_name}"))
         existing = next((f for f in sig["foreign_keys"] if f["constraint_name"] == row.constraint_name), None)
         if existing is None:
             sig["foreign_keys"].append({
-                "constraint_name": row.constraint_name,
-                "columns": [row.column_name],
-                "referenced_schema": row.ref_schema,
-                "referenced_table": row.ref_table,
+                "constraint_name": row.constraint_name, "columns": [row.column_name],
+                "referenced_schema": row.ref_schema, "referenced_table": row.ref_table,
                 "referenced_columns": [row.ref_column],
             })
         else:
             existing["columns"].append(row.column_name)
             existing["referenced_columns"].append(row.ref_column)
 
-    # Identity columns
+
+def _extract_identity_columns(conn, signals: dict[str, dict]) -> None:
+    """Query sys.identity_columns."""
+    from shared.name_resolver import normalize
+
+    cursor = conn.cursor()
     cursor.execute("""
-        SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name, c.name AS column_name,
-               CAST(c.seed_value AS BIGINT) AS seed_value,
+        SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name,
+               c.name AS column_name, CAST(c.seed_value AS BIGINT) AS seed_value,
                CAST(c.increment_value AS BIGINT) AS increment_value
         FROM sys.identity_columns c
         JOIN sys.tables t ON t.object_id = c.object_id
         WHERE t.is_ms_shipped = 0
     """)
     for row in cursor.fetchall():
-        fqn = normalize(f"{row.schema_name}.{row.table_name}")
-        if fqn not in signals:
-            signals[fqn] = {
-                "primary_keys": [], "unique_indexes": [], "foreign_keys": [],
-                "auto_increment_columns": [], "change_capture": None,
-                "sensitivity_classifications": [],
-            }
-        signals[fqn]["auto_increment_columns"].append({
-            "column": row.column_name,
-            "mechanism": "identity",
-            "seed": row.seed_value,
-            "increment": row.increment_value,
+        sig = _ensure_table_skeleton(signals, normalize(f"{row.schema_name}.{row.table_name}"))
+        sig["auto_increment_columns"].append({
+            "column": row.column_name, "mechanism": "identity",
+            "seed": row.seed_value, "increment": row.increment_value,
         })
 
-    # CDC
+
+def _extract_change_capture(conn, signals: dict[str, dict]) -> None:
+    """Query CDC and change tracking tables (graceful)."""
+    from shared.name_resolver import normalize
+
+    cursor = conn.cursor()
     cursor.execute("""
-        SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name, t.is_tracked_by_cdc
+        SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name
         FROM sys.tables t WHERE t.is_ms_shipped = 0 AND t.is_tracked_by_cdc = 1
     """)
     for row in cursor.fetchall():
@@ -366,7 +359,6 @@ def _extract_table_signals(conn) -> dict[str, dict]:
         if fqn in signals:
             signals[fqn]["change_capture"] = {"enabled": True, "mechanism": "cdc"}
 
-    # Change tracking (graceful)
     try:
         cursor.execute("""
             SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name
@@ -378,10 +370,15 @@ def _extract_table_signals(conn) -> dict[str, dict]:
             if fqn in signals:
                 signals[fqn]["change_capture"] = {"enabled": True, "mechanism": "change_tracking"}
     except Exception:
-        pass  # change tracking not available
+        pass
 
-    # Sensitivity classifications (graceful)
+
+def _extract_sensitivity(conn, signals: dict[str, dict]) -> None:
+    """Query sys.sensitivity_classifications (graceful — requires SQL Server 2019+)."""
+    from shared.name_resolver import normalize
+
     try:
+        cursor = conn.cursor()
         cursor.execute("""
             SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name,
                    sc.label, sc.information_type, COL_NAME(sc.major_id, sc.minor_id) AS column_name
@@ -393,13 +390,21 @@ def _extract_table_signals(conn) -> dict[str, dict]:
             fqn = normalize(f"{row.schema_name}.{row.table_name}")
             if fqn in signals:
                 signals[fqn]["sensitivity_classifications"].append({
-                    "column": row.column_name,
-                    "label": row.label,
+                    "column": row.column_name, "label": row.label,
                     "information_type": row.information_type,
                 })
     except Exception:
-        pass  # sensitivity classifications not available (requires SQL Server 2019+)
+        pass
 
+
+def _extract_table_signals(conn) -> dict[str, dict]:
+    """Extract catalog signals for all tables: PKs, unique indexes, FKs, identity, CDC, change tracking, sensitivity."""
+    signals: dict[str, dict] = {}
+    _extract_pks_and_unique_indexes(conn, signals)
+    _extract_foreign_keys(conn, signals)
+    _extract_identity_columns(conn, signals)
+    _extract_change_capture(conn, signals)
+    _extract_sensitivity(conn, signals)
     return signals
 
 
