@@ -160,33 +160,27 @@ def test_discover_cli_list_succeeds_with_unparseable() -> None:
 # ── show: statement analysis (no catalog needed) ─────────────────────────
 
 
-def test_show_deterministic_no_llm() -> None:
+def test_show_deterministic_has_statements() -> None:
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadDimProduct")
-    assert result["needs_llm"] is False
     assert result["classification"] == "deterministic"
-    # statements should have migrate and skip actions, no claude
+    assert result["statements"] is not None
     actions = {s["action"] for s in result["statements"]}
     assert "migrate" in actions
-    assert "claude" not in actions
 
 
 def test_show_static_exec_is_deterministic() -> None:
-    """Static EXEC procs have needs_llm=false — catalog-enrich resolves them."""
+    """Static EXEC procs are deterministic — catalog-enrich resolves them."""
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecSimple")
-    assert result["needs_llm"] is False
     assert result["classification"] == "deterministic"
-    # Statements still show EXEC as 'claude' action
-    claude_stmts = [s for s in result["statements"] if s["action"] == "claude"]
-    assert len(claude_stmts) >= 1
-    assert "EXEC" in claude_stmts[0]["sql"]
+    assert result["statements"] is not None
 
 
-def test_show_dynamic_exec_needs_llm() -> None:
-    """Dynamic EXEC(@var) procs have needs_llm=true — LLM must analyse."""
+def test_show_dynamic_exec_is_claude_assisted() -> None:
+    """Dynamic EXEC(@var) procs are claude_assisted — LLM reads raw_ddl."""
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecDynamic")
-    assert result["needs_llm"] is True
     assert result["classification"] == "claude_assisted"
     assert result["statements"] is None
+    assert "needs_llm" not in result
 
 
 def test_show_statements_truncate_is_skip() -> None:

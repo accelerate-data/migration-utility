@@ -110,24 +110,22 @@ silver.vw_CustomerSales (view)
 
 ### Procedures
 
-Always present classification, call graph, and logic summary. 
+Always present a call graph and logic summary.
 
-| `classification` | Data available |
-|---|---|
-| `deterministic` | `refs`, `write_operations`, `statements` — build call graph from structured data |
-| `claude_assisted` | `refs` (may be partial), `statements` is null — read `raw_ddl` to build call graph |
+Check `classification` first, then fall back to `statements`:
+
+1. If `classification` is `deterministic` and `statements` is populated — use `refs` and `statements` directly
+2. If `classification` is `claude_assisted` or `statements` is null — read `raw_ddl` and analyse the proc body yourself
 
 Both paths produce the same output for the user:
 
 ```text
-Classification: Deterministic
-
 Call Graph
 
   silver.usp_load_DimCustomer  (direct writer)
     ├── reads: bronze.Customer
     ├── reads: bronze.Person
-    └── writes: silver.DimCustomer  (WRITE + INSERT)
+    └── writes: silver.DimCustomer
 
 Logic Summary
   1. TRUNCATE TABLE silver.DimCustomer
@@ -135,9 +133,7 @@ Logic Summary
   3. Computes DateFirstPurchase via OUTER APPLY on bronze.SalesOrderHeader
 ```
 
-For `claude_assisted` procs, read `raw_ddl` to identify the writes, reads, and calls that could not be resolved via the deterministic path and present in the same call graph + logic summary format.
-
-### Statement actions
+#### Statement actions
 
 Each statement in a proc body is either:
 

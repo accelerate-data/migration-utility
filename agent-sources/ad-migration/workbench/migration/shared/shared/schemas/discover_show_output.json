@@ -3,7 +3,7 @@
   "title": "DiscoverShowOutput",
   "description": "Output of 'discover show'. Emitted to stdout as a single JSON line. Reads all metadata from catalog files; AST parsing only for statement breakdown on deterministic procedures.",
   "type": "object",
-  "required": ["name", "type", "raw_ddl", "columns", "params", "refs", "statements", "needs_llm", "classification", "parse_error"],
+  "required": ["name", "type", "raw_ddl", "columns", "params", "refs", "statements", "classification", "parse_error"],
   "properties": {
     "name": {
       "type": "string",
@@ -36,7 +36,7 @@
       ]
     },
     "statements": {
-      "description": "Per-statement breakdown with action classification. Only populated for deterministic procedures (needs_llm=false); null otherwise.",
+      "description": "Per-statement breakdown with action classification. Populated for deterministic procedures; null for claude_assisted or non-procedures.",
       "oneOf": [
         {
           "type": "array",
@@ -45,14 +45,10 @@
         { "type": "null" }
       ]
     },
-    "needs_llm": {
-      "type": "boolean",
-      "description": "True when the catalog body scan detected dynamic SQL, TRY/CATCH, WHILE, or IF/ELSE. Read from catalog, not AST."
-    },
     "classification": {
       "type": ["string", "null"],
       "enum": ["deterministic", "claude_assisted", null],
-      "description": "deterministic: catalog + enrichment resolved all refs. claude_assisted: needs_llm or parse_error. null for non-procedure types."
+      "description": "deterministic: refs and statements are complete. claude_assisted: statements is null, read raw_ddl. null for non-procedure types."
     },
     "parse_error": {
       "type": ["string", "null"],

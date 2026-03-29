@@ -174,7 +174,6 @@ def _show_procedure(
     return {
         "params": params,
         "refs": refs_dict,
-        "needs_llm": needs_llm,
         "classification": classification,
         "statements": statements,
     }
@@ -233,7 +232,6 @@ def run_show(ddl_path: Path, name: str) -> dict[str, Any]:
         "params": [],
         "refs": None,
         "statements": None,
-        "needs_llm": False,
         "classification": None,
         "parse_error": entry.parse_error,
         **extra,
