@@ -171,13 +171,19 @@ def enrich_catalog(ddl_path: Path, dialect: str = "tsql") -> dict[str, Any]:
         logger.warning("event=enrich_catalog status=skip reason=no_catalog path=%s", ddl_path)
         return {"tables_augmented": 0, "procedures_augmented": 0, "entries_added": 0}
 
-    # Phase 1: Load DDL catalog and extract AST refs for all procedures
+    # Phase 1: Load DDL catalog and extract AST refs for eligible procedures.
+    # Skip procs marked needs_llm — sqlglot cannot parse them; discover show handles them.
     ddl_catalog = load_directory(ddl_path, dialect=dialect)
 
     ast_refs: dict[str, ObjectRefs] = {}  # proc_fqn → ObjectRefs
     ast_calls: dict[str, list[str]] = {}  # proc_fqn → list of called proc FQNs
 
     for proc_fqn, entry in ddl_catalog.procedures.items():
+        proc_cat = load_proc_catalog(ddl_path, proc_fqn)
+        if proc_cat and proc_cat.get("needs_llm"):
+            logger.debug("event=enrich_skip proc=%s reason=needs_llm", proc_fqn)
+            continue
+
         try:
             refs = extract_refs(entry)
             ast_refs[proc_fqn] = refs
@@ -288,7 +294,8 @@ def enrich_catalog(ddl_path: Path, dialect: str = "tsql") -> dict[str, Any]:
             write_object_catalog(
                 ddl_path, "procedures", proc_fqn,
                 proc_data["references"],
-                dynamic_sql=proc_data.get("has_dynamic_sql", False),
+                needs_llm=proc_data.get("needs_llm", False),
+                needs_enrich=False,  # enrichment complete
             )
 
     # Phase 5: Flip — update table catalogs with new referenced_by entries

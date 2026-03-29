@@ -80,10 +80,10 @@ For each proc in `llm_required[]`, run `discover show` and read `raw_ddl` and `s
 | No writers | `no_writer_found` |
 | Discover failed | `error` |
 
-**Dynamic SQL warnings (catalog path):** For each candidate, read `<ddl_path>/catalog/procedures/<writer>.json`. If `has_dynamic_sql: true`, add to `warnings[]`:
+**LLM-required warnings (catalog path):** For each candidate, read `<ddl_path>/catalog/procedures/<writer>.json`. If `needs_llm: true`, add to `warnings[]`:
 
 ```json
-{ "code": "DYNAMIC_SQL_PRESENT", "message": "Proc contains EXEC/sp_executesql — catalog may not capture all writes.", "severity": "warning" }
+{ "code": "LLM_ANALYSIS_REQUIRED", "message": "Proc contains dynamic SQL or complex control flow — catalog references may be incomplete.", "severity": "warning" }
 ```
 
 ### Step 4 — Enrich Selected Writer with `dependencies`

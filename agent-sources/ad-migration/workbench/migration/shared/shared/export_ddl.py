@@ -396,15 +396,16 @@ def _build_object_type_map(conn) -> dict[str, str]:
     return result
 
 
-def _scan_dynamic_sql(conn) -> dict[str, bool]:
-    """Scan all proc/view/function bodies for EXEC(@var) or sp_executesql patterns.
+def _scan_routing_flags(conn) -> dict[str, dict[str, bool]]:
+    """Scan all proc/view/function bodies for routing flags.
 
-    Returns {normalized_fqn: True} for objects containing dynamic SQL.
+    Returns {normalized_fqn: {"needs_llm": bool, "needs_enrich": bool}}.
+    Only includes objects where at least one flag is True.
     """
-    from shared.catalog import has_dynamic_sql as _check
+    from shared.catalog import scan_routing_flags as _check
     from shared.name_resolver import normalize
 
-    flags: dict[str, bool] = {}
+    flags: dict[str, dict[str, bool]] = {}
     cursor = conn.cursor()
     cursor.execute("""
         SELECT SCHEMA_NAME(o.schema_id) AS schema_name, o.name AS object_name,
@@ -415,8 +416,9 @@ def _scan_dynamic_sql(conn) -> dict[str, bool]:
     for row in cursor.fetchall():
         if row.definition:
             fqn = normalize(f"{row.schema_name}.{row.object_name}")
-            if _check(row.definition):
-                flags[fqn] = True
+            result = _check(row.definition)
+            if result["needs_llm"] or result["needs_enrich"]:
+                flags[fqn] = result
     return flags
 
 
@@ -452,7 +454,6 @@ def main(
     counts["functions"] = _export_modules(conn, "FN,IF,TF", output / "functions.sql")
 
     if catalog:
-        from shared.catalog import has_dynamic_sql as _has_dyn_sql
         from shared.catalog import write_catalog_files
         from shared.name_resolver import normalize
 
@@ -460,10 +461,11 @@ def main(
         table_signals = _extract_table_signals(conn)
         object_type_map = _build_object_type_map(conn)
 
-        typer.echo("Scanning for dynamic SQL ...", err=True)
-        dyn_flags = _scan_dynamic_sql(conn)
-        dyn_count = sum(1 for v in dyn_flags.values() if v)
-        typer.echo(f"  {dyn_count} objects with dynamic SQL", err=True)
+        typer.echo("Scanning proc bodies for routing flags ...", err=True)
+        rflags = _scan_routing_flags(conn)
+        llm_count = sum(1 for v in rflags.values() if v.get("needs_llm"))
+        enrich_count = sum(1 for v in rflags.values() if v.get("needs_enrich"))
+        typer.echo(f"  {llm_count} need LLM, {enrich_count} need enrichment", err=True)
 
         typer.echo("Extracting procedure references (DMF) ...", err=True)
         proc_rows = _extract_dmf_refs(conn, "P")
@@ -483,7 +485,7 @@ def main(
             proc_dmf_rows=proc_rows,
             view_dmf_rows=view_rows,
             func_dmf_rows=func_rows,
-            dynamic_sql_flags=dyn_flags,
+            routing_flags=rflags,
             database=database,
             object_types=object_type_map,
         )

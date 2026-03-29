@@ -113,7 +113,16 @@ SELECT * FROM @result;
 
 **Empty catalog files:** Objects with zero DMF rows (empty proc body, dynamic-SQL-only, cross-db-only references) still get catalog files — written with empty `references` arrays using the `_build_object_type_map()` key set. Tables with no constraints and no inbound refs also get files via the same map. This ensures every known object has a catalog file.
 
-**Dynamic SQL scan:** A separate regex pass over all proc/view/function bodies (`OBJECT_DEFINITION()`) detects `EXEC(@var)` and `sp_executesql` patterns. Objects with these patterns get `has_dynamic_sql: true` in their catalog file — surfaces as a `DYNAMIC_SQL_PRESENT` warning in the scoping agent.
+**Routing flag scan:** A regex pass over all proc/view/function bodies (`OBJECT_DEFINITION()`) sets two flags in each catalog file:
+
+| Flag | Pattern(s) | Meaning |
+|---|---|---|
+| `needs_llm` | `EXEC(@var)`, `BEGIN TRY`, `WHILE`, `IF` | sqlglot cannot fully resolve — route to `discover show` / LLM |
+| `needs_enrich` | `SELECT INTO`, `TRUNCATE`, static `EXEC schema.proc` | DMF left gaps; `catalog-enrich` fills them offline |
+
+`sp_executesql` sets neither flag — DMF resolves it at definition time.
+
+After `catalog-enrich` processes a proc, `needs_enrich` is flipped to `false`. Procs with `needs_llm: true` are skipped by `catalog-enrich` (LLM must handle them via `discover show`).
 
 ### Step 7 — AST enrichment (offline)
 
@@ -166,27 +175,35 @@ Every known object gets a catalog file. The `referenced_by` on a table is popula
 
 ---
 
-## Flags: `has_dynamic_sql` vs `needs_llm`
+## Flags: `needs_llm` and `needs_enrich`
 
-These two flags are set at different stages and mean different things.
+Both flags are written by `export_ddl.py` during the body scan pass (Step 6) and stored in the catalog file. They are mutually exclusive in intent but can both be true if a proc mixes patterns (e.g. WHILE loop + SELECT INTO).
 
-**`has_dynamic_sql`** is written into the catalog file by `export_ddl.py` during extraction (Step 6). It is set by a regex scan over the raw proc body — it fires on `EXEC(@var)` and `sp_executesql` patterns only. It means: the catalog `references` for this proc are incomplete because some write targets are runtime strings that cannot be resolved offline.
+**`needs_llm`** — sqlglot cannot fully resolve the control flow. Set for:
 
-**`needs_llm`** is set by `discover show` at query time (not stored in the catalog). It is set by two independent checks in `extract_refs`:
+- `EXEC(@var)` — dynamic SQL; write target is a runtime string
+- `BEGIN TRY` — TRY/CATCH block; error-path DML is opaque
+- `WHILE` — loop; sqlglot emits it as an opaque `Command` node
+- `IF` — conditional branching; sqlglot `If` node is not fully walked
 
-1. Any `EXEC`/`EXECUTE` anywhere in the body — both static (`EXEC schema.usp_other`) and dynamic (`EXEC(@sql)`). Static EXEC calls are resolved by the scoping agent via the call graph, but sqlglot alone cannot determine what the called proc does.
-2. Unparseable control flow from sqlglot — TRY/CATCH blocks, WHILE loops, and complex IF/ELSE that sqlglot emits as opaque `Command` or `If` nodes.
+Procs with `needs_llm: true` are skipped by `catalog-enrich`. `discover show` must be used to analyze them.
 
-The relationship:
+**`needs_enrich`** — DMF left gaps that AST can fill. Set for:
 
-| Scenario | `has_dynamic_sql` (catalog) | `needs_llm` (discover show) |
+- `SELECT INTO` — creates/writes a new table at runtime; not in DMF dependency metadata
+- `TRUNCATE` — not a dependency in DMF
+- Static `EXEC schema.proc` — DMF captures the proc-to-proc call but not the indirect table writes through call chains
+
+`catalog-enrich` processes only procs where `needs_enrich: true` and `needs_llm: false`. After enrichment it flips `needs_enrich` to `false`.
+
+| Scenario | `needs_llm` | `needs_enrich` |
 |---|---|---|
-| `EXEC(@sql)` / `sp_executesql` | ✓ | ✓ |
-| Static `EXEC schema.usp_other` | — | ✓ |
-| TRY/CATCH or WHILE block | — | ✓ |
-| Pure DML (INSERT/UPDATE/MERGE) | — | — |
-
-`has_dynamic_sql` is the narrow flag: write targets are unresolvable even with LLM + raw DDL. `needs_llm` is the broader flag: statement-level analysis (migrate/skip/claude classification) requires LLM because sqlglot alone isn't sufficient.
+| `EXEC(@sql)` | ✓ | — |
+| `BEGIN TRY` / `WHILE` / `IF` | ✓ | — |
+| `SELECT INTO` / `TRUNCATE` | — | ✓ |
+| Static `EXEC schema.proc` | — | ✓ |
+| `sp_executesql` | — | — |
+| Pure DML (`INSERT`/`UPDATE`/`MERGE`/`DELETE`) | — | — |
 
 ---
 

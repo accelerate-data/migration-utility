@@ -9,12 +9,12 @@ from pathlib import Path
 from shared.catalog import (
     flip_references,
     has_catalog,
-    has_dynamic_sql,
     load_function_catalog,
     load_proc_catalog,
     load_table_catalog,
     load_view_catalog,
     process_dmf_results,
+    scan_routing_flags,
     write_catalog_files,
     write_object_catalog,
     write_table_catalog,
@@ -304,30 +304,77 @@ def test_write_catalog_files_end_to_end() -> None:
         assert len(proc_data["references"]["tables"]["in_scope"]) == 2
 
 
-# ── has_dynamic_sql detection ───────────────────────────────────────────
+# ── scan_routing_flags ──────────────────────────────────────────────────────
 
 
-def test_has_dynamic_sql_exec_variable() -> None:
-    assert has_dynamic_sql("EXEC(@sql)") is True
-    assert has_dynamic_sql("EXECUTE(@sql)") is True
-    assert has_dynamic_sql("EXEC (@sql)") is True
+def test_scan_routing_flags_exec_dynamic_needs_llm() -> None:
+    flags = scan_routing_flags("EXEC(@sql)")
+    assert flags["needs_llm"] is True
+    assert flags["needs_enrich"] is False
+
+    flags = scan_routing_flags("EXECUTE(@sql)")
+    assert flags["needs_llm"] is True
+
+    flags = scan_routing_flags("EXEC (@sql)")
+    assert flags["needs_llm"] is True
 
 
-def test_has_dynamic_sql_sp_executesql() -> None:
-    assert has_dynamic_sql("EXEC sp_executesql @sql, N'@id INT', @id = 1") is True
+def test_scan_routing_flags_try_catch_needs_llm() -> None:
+    flags = scan_routing_flags("BEGIN TRY\n  INSERT INTO dbo.T1 VALUES(1);\nEND TRY BEGIN CATCH END CATCH")
+    assert flags["needs_llm"] is True
+    assert flags["needs_enrich"] is False
 
 
-def test_has_dynamic_sql_static_exec_not_flagged() -> None:
-    # Static EXEC dbo.usp_foo should NOT match — no @var or parenthesized expression
-    assert has_dynamic_sql("EXEC dbo.usp_helper") is False
-    assert has_dynamic_sql("EXECUTE dbo.usp_helper @param = 1") is False
+def test_scan_routing_flags_while_needs_llm() -> None:
+    flags = scan_routing_flags("WHILE @i < 10 BEGIN SET @i = @i + 1; END")
+    assert flags["needs_llm"] is True
 
 
-def test_has_dynamic_sql_absent() -> None:
-    assert has_dynamic_sql("INSERT INTO dbo.T1 SELECT * FROM dbo.T2") is False
+def test_scan_routing_flags_if_needs_llm() -> None:
+    flags = scan_routing_flags("IF EXISTS (SELECT 1 FROM dbo.T) INSERT INTO dbo.T2 VALUES(1)")
+    assert flags["needs_llm"] is True
 
 
-def test_write_object_catalog_with_dynamic_sql_flag() -> None:
+def test_scan_routing_flags_sp_executesql_no_flags() -> None:
+    # sp_executesql is resolved by DMF — no flags needed
+    flags = scan_routing_flags("EXEC sp_executesql @sql")
+    assert flags["needs_llm"] is False
+    assert flags["needs_enrich"] is False
+
+
+def test_scan_routing_flags_select_into_needs_enrich() -> None:
+    # SELECT INTO: INTO on a line without INSERT
+    flags = scan_routing_flags("SELECT id, val\nINTO dbo.target\nFROM dbo.source")
+    assert flags["needs_enrich"] is True
+    assert flags["needs_llm"] is False
+
+    # INSERT INTO must NOT match
+    flags2 = scan_routing_flags("INSERT INTO dbo.target SELECT id FROM dbo.source")
+    assert flags2["needs_enrich"] is False
+
+
+def test_scan_routing_flags_truncate_needs_enrich() -> None:
+    flags = scan_routing_flags("TRUNCATE TABLE dbo.target; INSERT INTO dbo.target SELECT * FROM dbo.src")
+    assert flags["needs_enrich"] is True
+    assert flags["needs_llm"] is False
+
+
+def test_scan_routing_flags_static_exec_needs_enrich() -> None:
+    flags = scan_routing_flags("EXEC dbo.usp_helper")
+    assert flags["needs_enrich"] is True
+    assert flags["needs_llm"] is False
+
+    flags = scan_routing_flags("EXECUTE schema.usp_other @param = 1")
+    assert flags["needs_enrich"] is True
+
+
+def test_scan_routing_flags_pure_dml_no_flags() -> None:
+    flags = scan_routing_flags("INSERT INTO dbo.T1 SELECT * FROM dbo.T2")
+    assert flags["needs_llm"] is False
+    assert flags["needs_enrich"] is False
+
+
+def test_write_object_catalog_with_needs_llm_flag() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         ddl_path = Path(tmp)
         refs = {
@@ -336,13 +383,14 @@ def test_write_object_catalog_with_dynamic_sql_flag() -> None:
             "functions": {"in_scope": [], "out_of_scope": []},
             "procedures": {"in_scope": [], "out_of_scope": []},
         }
-        write_object_catalog(ddl_path, "procedures", "dbo.usp_dynamic", refs, dynamic_sql=True)
+        write_object_catalog(ddl_path, "procedures", "dbo.usp_dynamic", refs, needs_llm=True)
         loaded = load_proc_catalog(ddl_path, "dbo.usp_dynamic")
         assert loaded is not None
-        assert loaded["has_dynamic_sql"] is True
+        assert loaded["needs_llm"] is True
+        assert "needs_enrich" not in loaded
 
 
-def test_write_object_catalog_without_dynamic_sql_flag() -> None:
+def test_write_object_catalog_with_needs_enrich_flag() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         ddl_path = Path(tmp)
         refs = {
@@ -351,10 +399,27 @@ def test_write_object_catalog_without_dynamic_sql_flag() -> None:
             "functions": {"in_scope": [], "out_of_scope": []},
             "procedures": {"in_scope": [], "out_of_scope": []},
         }
-        write_object_catalog(ddl_path, "procedures", "dbo.usp_static", refs)
+        write_object_catalog(ddl_path, "procedures", "dbo.usp_static", refs, needs_enrich=True)
         loaded = load_proc_catalog(ddl_path, "dbo.usp_static")
         assert loaded is not None
-        assert "has_dynamic_sql" not in loaded
+        assert loaded["needs_enrich"] is True
+        assert "needs_llm" not in loaded
+
+
+def test_write_object_catalog_no_flags() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        ddl_path = Path(tmp)
+        refs = {
+            "tables": {"in_scope": [], "out_of_scope": []},
+            "views": {"in_scope": [], "out_of_scope": []},
+            "functions": {"in_scope": [], "out_of_scope": []},
+            "procedures": {"in_scope": [], "out_of_scope": []},
+        }
+        write_object_catalog(ddl_path, "procedures", "dbo.usp_plain", refs)
+        loaded = load_proc_catalog(ddl_path, "dbo.usp_plain")
+        assert loaded is not None
+        assert "needs_llm" not in loaded
+        assert "needs_enrich" not in loaded
 
 
 # ── Cross-database / cross-server scoping ─────────────────────────────────

@@ -27,10 +27,21 @@ from typing import Any
 
 from shared.name_resolver import normalize
 
-_DYNAMIC_SQL_RE = re.compile(
-    r"\bEXEC(?:UTE)?\s*[\(@]|"
-    r"\bsp_executesql\b",
+# ── Routing flag patterns ────────────────────────────────────────────────────
+
+_NEEDS_LLM_RE = re.compile(
+    r"\bEXEC(?:UTE)?\s*\("    # EXEC(@sql) — dynamic execution
+    r"|\bBEGIN\s+TRY\b"       # TRY/CATCH block
+    r"|\bWHILE\b"             # WHILE loop
+    r"|\bIF\b",               # IF/ELSE branch
     re.IGNORECASE,
+)
+
+_NEEDS_ENRICH_RE = re.compile(
+    r"^(?!.*\bINSERT\b).*\bINTO\s+[\[\w#@]"                  # SELECT INTO (excludes INSERT INTO lines)
+    r"|\bTRUNCATE\b"                                          # TRUNCATE TABLE
+    r"|\bEXEC(?:UTE)?\s+(?!sp_executesql\b)(?![@(])[\[\w]",  # static EXEC (not dynamic, not sp_executesql)
+    re.IGNORECASE | re.MULTILINE,
 )
 
 
@@ -125,12 +136,24 @@ def load_function_catalog(ddl_path: Path, func_fqn: str) -> dict[str, Any] | Non
     return json.loads(p.read_text(encoding="utf-8"))
 
 
-# ── Dynamic SQL detection ───────────────────────────────────────────────────
+# ── Routing flag detection ──────────────────────────────────────────────────
 
 
-def has_dynamic_sql(definition: str) -> bool:
-    """Return True if a proc/view/function body contains EXEC(@var) or sp_executesql."""
-    return bool(_DYNAMIC_SQL_RE.search(definition))
+def scan_routing_flags(definition: str) -> dict[str, bool]:
+    """Scan a proc/view/function body and return routing flags.
+
+    Returns ``{"needs_llm": bool, "needs_enrich": bool}``.
+
+    ``needs_llm``: set when sqlglot cannot fully resolve the body — dynamic
+    ``EXEC(@var)``, ``TRY/CATCH``, ``WHILE``, or ``IF/ELSE`` branching.
+
+    ``needs_enrich``: set when DMF left gaps AST can fill — ``SELECT INTO``,
+    ``TRUNCATE``, or static ``EXEC`` call chains.
+    """
+    return {
+        "needs_llm": bool(_NEEDS_LLM_RE.search(definition)),
+        "needs_enrich": bool(_NEEDS_ENRICH_RE.search(definition)),
+    }
 
 
 # ── Writing ─────────────────────────────────────────────────────────────────
@@ -180,13 +203,16 @@ def write_object_catalog(
     fqn: str,
     references: dict[str, list[dict[str, Any]]],
     *,
-    dynamic_sql: bool = False,
+    needs_llm: bool = False,
+    needs_enrich: bool = False,
 ) -> Path:
     """Write a proc/view/function catalog file.  Returns the written path."""
     norm = normalize(fqn)
     data: dict[str, Any] = {"references": references}
-    if dynamic_sql:
-        data["has_dynamic_sql"] = True
+    if needs_llm:
+        data["needs_llm"] = True
+    if needs_enrich:
+        data["needs_enrich"] = True
     p = _object_path(ddl_path, object_type, norm)
     _write_json(p, data)
     return p
@@ -453,7 +479,7 @@ def write_catalog_files(
     view_dmf_rows: list[dict[str, Any]],
     func_dmf_rows: list[dict[str, Any]],
     object_types: dict[str, str] | None = None,
-    dynamic_sql_flags: dict[str, bool] | None = None,
+    routing_flags: dict[str, dict[str, bool]] | None = None,
     database: str = "",
 ) -> dict[str, int]:
     """Process raw extraction data and write all catalog JSON files.
@@ -461,15 +487,15 @@ def write_catalog_files(
     *table_signals* maps ``table_fqn`` → catalog signal dict (PKs, FKs, etc.).
     *proc_dmf_rows*, *view_dmf_rows*, *func_dmf_rows* are raw DMF result rows.
     *object_types* resolves ambiguous OBJECT_OR_COLUMN references.
-    *dynamic_sql_flags* maps ``fqn`` → True for objects whose body contains
-    EXEC(@var) or sp_executesql.
+    *routing_flags* maps ``fqn`` → ``{"needs_llm": bool, "needs_enrich": bool}``
+    from the body scan pass.
     *database* is the current database name, used to classify cross-database
     references as out-of-scope.
 
     Returns counts: ``{tables: N, procedures: N, views: N, functions: N}``.
     """
     counts = {"tables": 0, "procedures": 0, "views": 0, "functions": 0}
-    dyn_flags = dynamic_sql_flags or {}
+    rflags = routing_flags or {}
 
     # Process DMF results per object type
     proc_refs = process_dmf_results(proc_dmf_rows, object_types, database=database)
@@ -479,29 +505,32 @@ def write_catalog_files(
     def _empty_refs() -> dict[str, dict[str, list[dict[str, Any]]]]:
         return {"tables": _empty_scoped(), "views": _empty_scoped(), "functions": _empty_scoped(), "procedures": _empty_scoped()}
 
+    def _flags(fqn: str) -> dict[str, bool]:
+        return rflags.get(fqn, {})
+
     # Write proc/view/function catalog files
     for fqn, refs in proc_refs.items():
-        write_object_catalog(ddl_path, "procedures", fqn, refs, dynamic_sql=dyn_flags.get(fqn, False))
+        write_object_catalog(ddl_path, "procedures", fqn, refs, **_flags(fqn))
         counts["procedures"] += 1
 
     for fqn, refs in view_refs.items():
-        write_object_catalog(ddl_path, "views", fqn, refs, dynamic_sql=dyn_flags.get(fqn, False))
+        write_object_catalog(ddl_path, "views", fqn, refs, **_flags(fqn))
         counts["views"] += 1
 
     for fqn, refs in func_refs.items():
-        write_object_catalog(ddl_path, "functions", fqn, refs, dynamic_sql=dyn_flags.get(fqn, False))
+        write_object_catalog(ddl_path, "functions", fqn, refs, **_flags(fqn))
         counts["functions"] += 1
 
     # Write empty catalog files for objects that had no DMF refs
     for fqn, bucket in (object_types or {}).items():
         if bucket == "procedures" and fqn not in proc_refs:
-            write_object_catalog(ddl_path, "procedures", fqn, _empty_refs(), dynamic_sql=dyn_flags.get(fqn, False))
+            write_object_catalog(ddl_path, "procedures", fqn, _empty_refs(), **_flags(fqn))
             counts["procedures"] += 1
         elif bucket == "views" and fqn not in view_refs:
-            write_object_catalog(ddl_path, "views", fqn, _empty_refs(), dynamic_sql=dyn_flags.get(fqn, False))
+            write_object_catalog(ddl_path, "views", fqn, _empty_refs(), **_flags(fqn))
             counts["views"] += 1
         elif bucket == "functions" and fqn not in func_refs:
-            write_object_catalog(ddl_path, "functions", fqn, _empty_refs(), dynamic_sql=dyn_flags.get(fqn, False))
+            write_object_catalog(ddl_path, "functions", fqn, _empty_refs(), **_flags(fqn))
             counts["functions"] += 1
 
     # Flip references to build referenced_by for tables
