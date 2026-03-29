@@ -17,6 +17,7 @@ Run all checks **silently** — do NOT install or change anything yet.
 4. `uv run "${CLAUDE_PLUGIN_ROOT}/../migration/ddl_mcp/server.py" --help` — does the DDL MCP server start cleanly?
 5. `toolbox --version` — is the genai-toolbox binary installed?
 6. Check whether each of the four MSSQL environment variables is set (non-empty): `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD`. Do not print their values.
+7. `git rev-parse --is-inside-work-tree` — is the current working directory inside a git repository? If not, warn the user that the project folder is not under version control and recommend initialising git before running extraction skills.
 
 If `CLAUDE_PLUGIN_ROOT` is not set, stop immediately and tell the user to load the plugin with `claude --plugin-dir <path-to-ad-migration>` before running this command.
 
@@ -31,6 +32,7 @@ Plugin status:
   shared deps: ✓ synced             /  ✗ not synced
   ddl_mcp:     ✓ starts             /  ✗ fails
   toolbox:     ✓ installed (x.y.z)  /  — not found (optional)
+  git:         ✓ repo detected      /  — not a git repo (recommended)
 
   SQL Server credentials (required for /setup-ddl and live-DB skills):
   MSSQL_HOST:  ✓ set  /  — not set
@@ -88,8 +90,65 @@ show the error output to the user and tell them to check their Python environmen
 
 ## Step 4: Report
 
-Re-run the same 6 checks and show the updated status table. Tell the user:
+Re-run the same 7 checks and show the updated status table. Tell the user:
 
 - **All required deps OK, credentials set, toolbox installed**: ready to use `discover`, `scope`, `scoping-agent`, and `/setup-ddl`.
 - **toolbox missing or credentials unset**: DDL file mode (`discover`, `scope`, `scoping-agent`) is fully available. Live-database skills (`/setup-ddl`) require both `toolbox` and all four MSSQL env vars — export them in the shell before launching `claude`, then install `toolbox` from the genai-toolbox releases page.
 - **Anything still failing**: which step to fix next before continuing.
+
+## Step 5: Seed project CLAUDE.md
+
+Check whether a `CLAUDE.md` exists in the current working directory.
+
+**If no `CLAUDE.md` exists**, write one using the template below. Tell the user it was created and suggest restarting Claude so the new instructions are picked up.
+
+**If a `CLAUDE.md` already exists**, read it and check whether it contains the minimum required sections listed below. For any missing section, tell the user which sections are missing and recommend adding them. Do not overwrite or modify the existing file without explicit confirmation.
+
+### Minimum required sections
+
+These sections come from the plugin's `agent-sources/CLAUDE.md` and should be present in every migration project:
+
+1. **Domain** — what the project is migrating (source system, target platform)
+2. **Stack** — technology table (source DDL access, live DB access, transformation target, storage, orchestration, platform)
+3. **Commit Discipline** — checkpoint table and commit message format
+4. **Customization** — placeholder section with HTML comments for source schemas, naming conventions, excluded objects, and environment notes
+
+### Template for new projects
+
+```markdown
+# Migration Project
+
+## Domain
+
+Migrating a data warehouse to **Vibedata Managed Fabric Lakehouse**. Source system: **Microsoft SQL Server** (T-SQL stored procedures).
+
+Migration target: silver and gold dbt transformations on the Fabric Lakehouse endpoint. Bronze ingestion layers, ADF pipelines, and Power BI are out of scope.
+
+## Stack
+
+| Layer | Technology | Notes |
+|---|---|---|
+| Source DDL access | DDL file MCP (`ddl_mcp`) | Pre-extracted `.sql` files; no live DB required |
+| Live source DB access | `mssql` MCP via genai-toolbox | Requires `toolbox` binary on PATH |
+| Transformation target | **dbt** (dbt-fabric adapter) | SQL models on Lakehouse endpoint |
+| Storage | **Delta tables** on OneLake | Managed by Fabric Lakehouse |
+| Orchestration | dbt build pipeline | |
+| Platform | **Microsoft Fabric** on Azure | |
+
+## Commit Discipline
+
+Commit at logical checkpoints so work is never lost mid-session.
+
+| Checkpoint | When to commit |
+|---|---|
+| After DDL extraction | `setup-ddl` completes writing DDL files and catalog |
+| After discovery | `discover` produces new analysis or annotations |
+| After scoping | Scoping agent finalises scope configuration |
+| After model generation | A dbt model is written or updated |
+| After config changes | Manifest, project config, or schema changes |
+
+Commit messages: `type: short description` (e.g. `feat: extract DDL from AdventureWorks`).
+
+If not a git repository, skip commit steps silently.
+
+After writing or checking the file, tell the user: **"Restart Claude to pick up the new project instructions."**

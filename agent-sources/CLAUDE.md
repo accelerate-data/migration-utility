@@ -21,22 +21,18 @@ You are assisting a **Data Engineer** migrating a data warehouse to **Vibedata M
 | Orchestration | dbt build pipeline | Not ADF, not Synapse, not Spark notebooks |
 | Platform | **Microsoft Fabric** on Azure | Lakehouse endpoint is the default target |
 
-## Customization
+## Commit Discipline
 
-Add project-specific overrides below. This section is preserved across app updates.
+When operating in a git-enabled project directory, commit at logical checkpoints so work is never lost mid-session. Each commit should represent a coherent, self-contained unit of progress.
 
-<!-- SOURCE SCHEMAS IN SCOPE -->
-<!-- List the source schemas/databases being migrated, e.g.:                -->
-<!--   Source schemas: dbo, finance, hr                                      -->
-<!--   Source database: AdventureWorksDW                                     -->
+| Checkpoint | When to commit |
+|---|---|
+| After DDL extraction | `setup-ddl` completes writing DDL files and catalog |
+| After discovery | `discover` produces new analysis or annotations |
+| After scoping | Scoping agent finalises scope configuration |
+| After model generation | A dbt model is written or updated |
+| After config changes | Manifest, project config, or schema changes |
 
-<!-- NAMING CONVENTIONS -->
-<!-- Document any project-specific naming patterns that differ from the      -->
-<!-- defaults above, e.g. fact tables use "FT_" prefix instead of "Fact".   -->
+Commit messages should follow `type: short description` format (e.g. `feat: extract DDL from AdventureWorks`, `chore: update scope config for silver layer`). Do not batch unrelated changes into a single commit.
 
-<!-- EXCLUDED OBJECT TYPES -->
-<!-- List any object types to skip, e.g. audit tables, log tables,          -->
-<!-- system-generated objects.                                               -->
-
-<!-- ENVIRONMENT NOTES -->
-<!-- Fabric workspace name, Lakehouse name, any endpoint restrictions.       -->
+If the working directory is not a git repository, skip all commit steps silently — do not warn repeatedly.
