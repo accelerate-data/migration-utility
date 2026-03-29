@@ -9,7 +9,7 @@
     "name": { "type": "string", "description": "Object name, e.g. usp_load_DimCustomer" },
     "params": {
       "type": "array",
-      "description": "Procedure parameters from sys.parameters. Populated by export_ddl.",
+      "description": "Procedure parameters from sys.parameters.",
       "items": {
         "type": "object",
         "required": ["name", "sql_type"],

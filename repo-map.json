@@ -71,7 +71,7 @@
     },
     "shared_python": {
       "path": "agent-sources/ad-migration/workbench/migration/shared/shared/",
-      "description": "Python library for DDL analysis. Modules: loader.py (DDL parsing, sqlglot AST, GO-delimited block splitting), discover.py (catalog-mandatory list/show/refs CLI), catalog.py (catalog JSON I/O, routing flags, DMF row processing, flip_references), catalog_dmf.py (write_catalog_files orchestration), catalog_enrich.py (offline AST enrichment CLI — BFS call graph, SELECT INTO/TRUNCATE detection), export_ddl.py (SQL Server DDL export with --catalog flag, table signals, DMF extraction), setup_ddl.py (DDL setup orchestration), dmf_processing.py (DMF row processing helpers), sql_types.py (SQL type mappings), ir.py (intermediate representation), dialect.py (sqlglot dialect registry), name_resolver.py (FQN normalization)."
+      "description": "Python library for DDL analysis. Modules: loader.py (DDL parsing, sqlglot AST, GO-delimited block splitting), discover.py (catalog-mandatory list/show/refs CLI), catalog.py (catalog JSON I/O, routing flags), catalog_dmf.py (write_catalog_files orchestration), catalog_enrich.py (offline AST enrichment CLI — BFS call graph, SELECT INTO/TRUNCATE detection), setup_ddl.py (DDL setup orchestration), dmf_processing.py (DMF row processing helpers), sql_types.py (SQL type mappings), name_resolver.py (FQN normalization), profile.py (profiling context assembly + write-back CLI)."
     },
     "shared_schemas": {
       "path": "agent-sources/ad-migration/workbench/migration/shared/shared/schemas/",

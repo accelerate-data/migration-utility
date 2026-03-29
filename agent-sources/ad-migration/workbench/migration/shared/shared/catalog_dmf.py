@@ -12,11 +12,13 @@ from pathlib import Path
 from typing import Any
 
 from shared.catalog import (
-    empty_scoped,
-    process_dmf_results,
     write_object_catalog,
     write_table_catalog,
+)
+from shared.dmf_processing import (
+    empty_scoped,
     flip_references,
+    process_dmf_results,
 )
 from shared.name_resolver import normalize
 

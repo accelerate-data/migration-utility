@@ -133,6 +133,155 @@ def assemble_tables(
     typer.echo(json.dumps(result))
 
 
+# ── write-catalog helpers ────────────────────────────────────────────────────
+
+_TYPE_MAPPING = {"U": "tables", "V": "views", "P": "procedures",
+                 "FN": "functions", "IF": "functions", "TF": "functions"}
+
+
+def _ensure_table_skeleton(signals: dict[str, dict[str, Any]], fqn: str) -> dict[str, Any]:
+    """Ensure signals[fqn] has all default keys. Returns the entry."""
+    if fqn not in signals:
+        signals[fqn] = {
+            "columns": [], "primary_keys": [], "unique_indexes": [],
+            "foreign_keys": [], "auto_increment_columns": [],
+            "change_capture": None, "sensitivity_classifications": [],
+        }
+    return signals[fqn]
+
+
+def _build_object_types_map(object_types_raw: list | dict) -> dict[str, str]:
+    """Build a normalized FQN → bucket name mapping from raw object_types rows."""
+    if isinstance(object_types_raw, dict):
+        return object_types_raw
+    result: dict[str, str] = {}
+    if isinstance(object_types_raw, list):
+        for row in object_types_raw:
+            fqn = normalize(f"{row['schema_name']}.{row['name']}")
+            bucket = _TYPE_MAPPING.get(row.get("type", "").strip())
+            if bucket:
+                result[fqn] = bucket
+    return result
+
+
+def _apply_column_rows(signals: dict[str, dict[str, Any]], rows: list) -> None:
+    for row in rows:
+        fqn = normalize(f"{row['schema_name']}.{row['table_name']}")
+        sig = _ensure_table_skeleton(signals, fqn)
+        sig["columns"].append({
+            "name": row["column_name"],
+            "sql_type": format_sql_type(
+                row["type_name"], row["max_length"], row["precision"], row["scale"],
+            ),
+            "is_nullable": bool(row.get("is_nullable")),
+            "is_identity": bool(row.get("is_identity")),
+        })
+
+
+def _apply_pk_unique_rows(signals: dict[str, dict[str, Any]], rows: list) -> None:
+    for row in rows:
+        fqn = normalize(f"{row['schema_name']}.{row['table_name']}")
+        sig = _ensure_table_skeleton(signals, fqn)
+        if row.get("is_primary_key"):
+            existing = next((pk for pk in sig["primary_keys"] if pk["constraint_name"] == row["index_name"]), None)
+            if existing is None:
+                sig["primary_keys"].append({"constraint_name": row["index_name"], "columns": [row["column_name"]]})
+            else:
+                existing["columns"].append(row["column_name"])
+        else:
+            existing = next((ui for ui in sig["unique_indexes"] if ui["index_name"] == row["index_name"]), None)
+            if existing is None:
+                sig["unique_indexes"].append({"index_name": row["index_name"], "columns": [row["column_name"]]})
+            else:
+                existing["columns"].append(row["column_name"])
+
+
+def _apply_fk_rows(signals: dict[str, dict[str, Any]], rows: list) -> None:
+    for row in rows:
+        fqn = normalize(f"{row['schema_name']}.{row['table_name']}")
+        sig = _ensure_table_skeleton(signals, fqn)
+        existing = next((f for f in sig["foreign_keys"] if f["constraint_name"] == row["constraint_name"]), None)
+        if existing is None:
+            sig["foreign_keys"].append({
+                "constraint_name": row["constraint_name"],
+                "columns": [row["column_name"]],
+                "referenced_schema": row["ref_schema"],
+                "referenced_table": row["ref_table"],
+                "referenced_columns": [row["ref_column"]],
+            })
+        else:
+            existing["columns"].append(row["column_name"])
+            existing["referenced_columns"].append(row["ref_column"])
+
+
+def _apply_identity_rows(signals: dict[str, dict[str, Any]], rows: list) -> None:
+    for row in rows:
+        fqn = normalize(f"{row['schema_name']}.{row['table_name']}")
+        sig = _ensure_table_skeleton(signals, fqn)
+        entry: dict[str, Any] = {"column": row["column_name"], "mechanism": "identity"}
+        if "seed_value" in row:
+            entry["seed"] = row["seed_value"]
+        if "increment_value" in row:
+            entry["increment"] = row["increment_value"]
+        sig["auto_increment_columns"].append(entry)
+
+
+def _apply_change_capture_rows(
+    signals: dict[str, dict[str, Any]], cdc_rows: list, ct_rows: list,
+) -> None:
+    for row in cdc_rows:
+        fqn = normalize(f"{row['schema_name']}.{row['table_name']}")
+        sig = _ensure_table_skeleton(signals, fqn)
+        sig["change_capture"] = {"enabled": True, "mechanism": "cdc"}
+    for row in ct_rows:
+        fqn = normalize(f"{row['schema_name']}.{row['table_name']}")
+        sig = _ensure_table_skeleton(signals, fqn)
+        sig["change_capture"] = {"enabled": True, "mechanism": "change_tracking"}
+
+
+def _apply_sensitivity_rows(signals: dict[str, dict[str, Any]], rows: list) -> None:
+    for row in rows:
+        fqn = normalize(f"{row['schema_name']}.{row['table_name']}")
+        sig = _ensure_table_skeleton(signals, fqn)
+        sig["sensitivity_classifications"].append({
+            "column": row["column_name"],
+            "label": row.get("label", ""),
+            "information_type": row.get("information_type", ""),
+        })
+
+
+def _build_routing_flags(
+    definitions_rows: list, scan_routing_flags: Any,
+) -> dict[str, dict[str, bool]]:
+    result: dict[str, dict[str, bool]] = {}
+    for row in definitions_rows:
+        definition = row.get("definition")
+        if definition:
+            fqn = normalize(f"{row['schema_name']}.{row['object_name']}")
+            flags = scan_routing_flags(definition)
+            if flags["needs_llm"] or flags["needs_enrich"]:
+                result[fqn] = flags
+    return result
+
+
+def _build_proc_params(proc_params_rows: list) -> dict[str, list[dict[str, Any]]]:
+    result: dict[str, list[dict[str, Any]]] = {}
+    for row in proc_params_rows:
+        fqn = normalize(f"{row['schema_name']}.{row['proc_name']}")
+        if fqn not in result:
+            result[fqn] = []
+        result[fqn].append({
+            "name": row["param_name"],
+            "sql_type": format_sql_type(
+                row["type_name"], row.get("max_length", 0),
+                row.get("precision", 0), row.get("scale", 0),
+            ),
+            "is_output": bool(row.get("is_output")),
+            "has_default": bool(row.get("has_default_value")),
+        })
+    return result
+
+
 # ── write-catalog ─────────────────────────────────────────────────────────────
 
 
@@ -169,136 +318,19 @@ def write_catalog(
     proc_params_rows = _read_json_optional(staging_dir / "proc_params.json")
     definitions_rows = _read_json_optional(staging_dir / "definitions.json")
 
-    # ── Build object_types map ────────────────────────────────────────────
-    type_mapping = {"U": "tables", "V": "views", "P": "procedures",
-                    "FN": "functions", "IF": "functions", "TF": "functions"}
-    object_types: dict[str, str] = {}
-    if isinstance(object_types_raw, list):
-        for row in object_types_raw:
-            fqn = normalize(f"{row['schema_name']}.{row['name']}")
-            bucket = type_mapping.get(row.get("type", "").strip())
-            if bucket:
-                object_types[fqn] = bucket
-    elif isinstance(object_types_raw, dict):
-        object_types = object_types_raw
+    # ── Build derived structures ─────────────────────────────────────────
+    object_types = _build_object_types_map(object_types_raw)
 
-    # ── Build table_signals ───────────────────────────────────────────────
     table_signals: dict[str, dict[str, Any]] = {}
+    _apply_column_rows(table_signals, table_columns_rows)
+    _apply_pk_unique_rows(table_signals, pk_unique_rows)
+    _apply_fk_rows(table_signals, fk_rows)
+    _apply_identity_rows(table_signals, identity_rows)
+    _apply_change_capture_rows(table_signals, cdc_rows, ct_rows)
+    _apply_sensitivity_rows(table_signals, sensitivity_rows)
 
-    def _ensure(fqn: str) -> dict[str, Any]:
-        if fqn not in table_signals:
-            table_signals[fqn] = {
-                "columns": [], "primary_keys": [], "unique_indexes": [],
-                "foreign_keys": [], "auto_increment_columns": [],
-                "change_capture": None, "sensitivity_classifications": [],
-            }
-        return table_signals[fqn]
-
-    # Columns
-    for row in table_columns_rows:
-        fqn = normalize(f"{row['schema_name']}.{row['table_name']}")
-        sig = _ensure(fqn)
-        sig["columns"].append({
-            "name": row["column_name"],
-            "sql_type": format_sql_type(
-                row["type_name"], row["max_length"], row["precision"], row["scale"],
-            ),
-            "is_nullable": bool(row.get("is_nullable")),
-            "is_identity": bool(row.get("is_identity")),
-        })
-
-    # PKs and unique indexes
-    for row in pk_unique_rows:
-        fqn = normalize(f"{row['schema_name']}.{row['table_name']}")
-        sig = _ensure(fqn)
-        if row.get("is_primary_key"):
-            existing = next((pk for pk in sig["primary_keys"] if pk["constraint_name"] == row["index_name"]), None)
-            if existing is None:
-                sig["primary_keys"].append({"constraint_name": row["index_name"], "columns": [row["column_name"]]})
-            else:
-                existing["columns"].append(row["column_name"])
-        else:
-            existing = next((ui for ui in sig["unique_indexes"] if ui["index_name"] == row["index_name"]), None)
-            if existing is None:
-                sig["unique_indexes"].append({"index_name": row["index_name"], "columns": [row["column_name"]]})
-            else:
-                existing["columns"].append(row["column_name"])
-
-    # Foreign keys
-    for row in fk_rows:
-        fqn = normalize(f"{row['schema_name']}.{row['table_name']}")
-        sig = _ensure(fqn)
-        existing = next((f for f in sig["foreign_keys"] if f["constraint_name"] == row["constraint_name"]), None)
-        if existing is None:
-            sig["foreign_keys"].append({
-                "constraint_name": row["constraint_name"],
-                "columns": [row["column_name"]],
-                "referenced_schema": row["ref_schema"],
-                "referenced_table": row["ref_table"],
-                "referenced_columns": [row["ref_column"]],
-            })
-        else:
-            existing["columns"].append(row["column_name"])
-            existing["referenced_columns"].append(row["ref_column"])
-
-    # Identity columns
-    for row in identity_rows:
-        fqn = normalize(f"{row['schema_name']}.{row['table_name']}")
-        sig = _ensure(fqn)
-        entry: dict[str, Any] = {"column": row["column_name"], "mechanism": "identity"}
-        if "seed_value" in row:
-            entry["seed"] = row["seed_value"]
-        if "increment_value" in row:
-            entry["increment"] = row["increment_value"]
-        sig["auto_increment_columns"].append(entry)
-
-    # CDC
-    for row in cdc_rows:
-        fqn = normalize(f"{row['schema_name']}.{row['table_name']}")
-        sig = _ensure(fqn)
-        sig["change_capture"] = {"enabled": True, "mechanism": "cdc"}
-
-    # Change tracking
-    for row in ct_rows:
-        fqn = normalize(f"{row['schema_name']}.{row['table_name']}")
-        sig = _ensure(fqn)
-        sig["change_capture"] = {"enabled": True, "mechanism": "change_tracking"}
-
-    # Sensitivity
-    for row in sensitivity_rows:
-        fqn = normalize(f"{row['schema_name']}.{row['table_name']}")
-        sig = _ensure(fqn)
-        sig["sensitivity_classifications"].append({
-            "column": row["column_name"],
-            "label": row.get("label", ""),
-            "information_type": row.get("information_type", ""),
-        })
-
-    # ── Build routing flags from definitions ──────────────────────────────
-    routing_flags: dict[str, dict[str, bool]] = {}
-    for row in definitions_rows:
-        definition = row.get("definition")
-        if definition:
-            fqn = normalize(f"{row['schema_name']}.{row['object_name']}")
-            flags = scan_routing_flags(definition)
-            if flags["needs_llm"] or flags["needs_enrich"]:
-                routing_flags[fqn] = flags
-
-    # ── Build proc_params ─────────────────────────────────────────────────
-    proc_params: dict[str, list[dict[str, Any]]] = {}
-    for row in proc_params_rows:
-        fqn = normalize(f"{row['schema_name']}.{row['proc_name']}")
-        if fqn not in proc_params:
-            proc_params[fqn] = []
-        proc_params[fqn].append({
-            "name": row["param_name"],
-            "sql_type": format_sql_type(
-                row["type_name"], row.get("max_length", 0),
-                row.get("precision", 0), row.get("scale", 0),
-            ),
-            "is_output": bool(row.get("is_output")),
-            "has_default": bool(row.get("has_default_value")),
-        })
+    routing_flags = _build_routing_flags(definitions_rows, scan_routing_flags)
+    proc_params = _build_proc_params(proc_params_rows)
 
     # ── Write catalog files ───────────────────────────────────────────────
     counts = write_catalog_files(

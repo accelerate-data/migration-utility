@@ -58,14 +58,11 @@ def _empty_referenced_by() -> dict[str, dict[str, list[dict[str, Any]]]]:
 
 
 def _setup_select_into(tmp_path: Path) -> Path:
-    """Set up a DDL directory with a proc that does SELECT INTO.
+    """Set up a DDL directory with a proc that does SELECT INTO."""
+    ddl_dir = tmp_path / "ddl"
+    ddl_dir.mkdir()
 
-    Returns the root path (tmp_path) — load_directory resolves ddl/ internally.
-    """
-    ddl = tmp_path / "ddl"
-    ddl.mkdir()
-
-    _write_sql(ddl, "procedures.sql", """\
+    _write_sql(ddl_dir, "procedures.sql", """\
 CREATE PROCEDURE [dbo].[usp_create_snapshot]
 AS
 BEGIN
@@ -74,7 +71,7 @@ END
 GO
 """)
 
-    _write_sql(ddl, "tables.sql", """\
+    _write_sql(ddl_dir, "tables.sql", """\
 CREATE TABLE [bronze].[Source] (
     id INT NOT NULL,
     val NVARCHAR(100) NULL
@@ -110,10 +107,10 @@ GO
 
 def _setup_exec_chain(tmp_path: Path) -> Path:
     """Set up DDL with proc A calling proc B, proc B writes to table T."""
-    ddl = tmp_path / "ddl"
-    ddl.mkdir()
+    ddl_dir = tmp_path / "ddl"
+    ddl_dir.mkdir()
 
-    _write_sql(ddl, "procedures.sql", """\
+    _write_sql(ddl_dir, "procedures.sql", """\
 CREATE PROCEDURE [dbo].[usp_orchestrator]
 AS
 BEGIN
@@ -129,7 +126,7 @@ END
 GO
 """)
 
-    _write_sql(ddl, "tables.sql", """\
+    _write_sql(ddl_dir, "tables.sql", """\
 CREATE TABLE [bronze].[Source] (
     id INT NOT NULL,
     val NVARCHAR(100) NULL
@@ -190,10 +187,10 @@ GO
 
 def _setup_catalog_query_only(tmp_path: Path) -> Path:
     """Set up DDL where all writes are already catalog-query-detectable."""
-    ddl = tmp_path / "ddl"
-    ddl.mkdir()
+    ddl_dir = tmp_path / "ddl"
+    ddl_dir.mkdir()
 
-    _write_sql(ddl, "procedures.sql", """\
+    _write_sql(ddl_dir, "procedures.sql", """\
 CREATE PROCEDURE [dbo].[usp_simple_insert]
 AS
 BEGIN
@@ -203,7 +200,7 @@ END
 GO
 """)
 
-    _write_sql(ddl, "tables.sql", """\
+    _write_sql(ddl_dir, "tables.sql", """\
 CREATE TABLE [bronze].[Source] (
     id INT NOT NULL,
     val NVARCHAR(100) NULL
@@ -239,10 +236,10 @@ GO
 
 def _setup_dynamic_sql(tmp_path: Path) -> Path:
     """Set up DDL where the proc uses dynamic SQL (EXEC(@sql))."""
-    ddl = tmp_path / "ddl"
-    ddl.mkdir()
+    ddl_dir = tmp_path / "ddl"
+    ddl_dir.mkdir()
 
-    _write_sql(ddl, "procedures.sql", """\
+    _write_sql(ddl_dir, "procedures.sql", """\
 CREATE PROCEDURE [dbo].[usp_dynamic]
 AS
 BEGIN
@@ -253,7 +250,7 @@ END
 GO
 """)
 
-    _write_sql(ddl, "tables.sql", """\
+    _write_sql(ddl_dir, "tables.sql", """\
 CREATE TABLE [bronze].[Source] (
     id INT NOT NULL
 )
