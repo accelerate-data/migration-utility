@@ -30,7 +30,7 @@ Key output fields to populate correctly:
 - `candidate_writer.call_path` — always required; `["schema.proc"]` for direct candidates.
 - `candidate_writer.confidence` — `1.0` for catalog-sourced writers; scored `[0.0, 1.0]` for AST-derived candidates.
 
-Supported technologies: `sql_server`, `fabric_warehouse`. If absent or unsupported, set every item to `error` with code `ANALYSIS_UNSUPPORTED_TECHNOLOGY` and write output immediately.
+After reading the input, read `<ddl_path>/manifest.json` for `technology` and `dialect`. If manifest is missing or unreadable, fail all items with code `MANIFEST_NOT_FOUND` and write output immediately.
 
 ---
 

@@ -24,7 +24,6 @@ If `ddl-path` is missing from `$ARGUMENTS`, ask the user for it before proceedin
 |---|---|---|
 | `--ddl-path` | yes | path to DDL directory |
 | `--type` | yes | `tables`, `procedures`, `views`, `functions` |
-| `--dialect` | no | sqlglot dialect (default: `tsql`) |
 
 **show** — inspect a single object (columns, refs, raw DDL):
 
@@ -32,7 +31,6 @@ If `ddl-path` is missing from `$ARGUMENTS`, ask the user for it before proceedin
 |---|---|---|
 | `--ddl-path` | yes | path to DDL directory |
 | `--name` | yes | fully-qualified object name (e.g. `dbo.FactSales`, `[silver].[DimProduct]`) |
-| `--dialect` | no | sqlglot dialect (default: `tsql`) |
 
 **refs** — find all procedures/views that reference an object (readers, writers with confidence, indirect writers via call graph):
 
@@ -40,8 +38,9 @@ If `ddl-path` is missing from `$ARGUMENTS`, ask the user for it before proceedin
 |---|---|---|
 | `--ddl-path` | yes | path to DDL directory |
 | `--name` | yes | fully-qualified object name |
-| `--dialect` | no | sqlglot dialect (default: `tsql`) |
 | `--depth` | no | max call-graph depth for indirect writers (default: `3`) |
+
+Dialect is read automatically from `manifest.json` in the DDL directory (written by `setup-ddl`). No `--dialect` flag.
 
 If no subcommand is specified in `$ARGUMENTS`, default to `list`.
 

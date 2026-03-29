@@ -19,7 +19,7 @@ FIXTURES = Path(__file__).parent / "fixtures" / "discover" / "flat"
 
 
 def test_list_tables():
-    result = run_list(FIXTURES, ObjectType.tables, "tsql")
+    result = run_list(FIXTURES, ObjectType.tables)
     assert "silver.dimcustomer" in result["objects"]
     assert "silver.factsales" in result["objects"]
     assert "bronze.customer" in result["objects"]
@@ -27,7 +27,7 @@ def test_list_tables():
 
 
 def test_list_procedures():
-    result = run_list(FIXTURES, ObjectType.procedures, "tsql")
+    result = run_list(FIXTURES, ObjectType.procedures)
     assert "silver.usp_load_dimcustomer" in result["objects"]
     assert "silver.usp_load_factsales" in result["objects"]
     assert "silver.usp_load_with_cte" in result["objects"]
@@ -37,12 +37,12 @@ def test_list_procedures():
 
 
 def test_list_views():
-    result = run_list(FIXTURES, ObjectType.views, "tsql")
+    result = run_list(FIXTURES, ObjectType.views)
     assert "silver.vw_customersales" in result["objects"]
 
 
 def test_list_functions():
-    result = run_list(FIXTURES, ObjectType.functions, "tsql")
+    result = run_list(FIXTURES, ObjectType.functions)
     assert "silver.fn_format_name" in result["objects"]
 
 
@@ -50,7 +50,7 @@ def test_list_functions():
 
 
 def test_show_table_columns():
-    result = run_show(FIXTURES, "silver.DimCustomer", "tsql")
+    result = run_show(FIXTURES, "silver.DimCustomer")
     assert result["name"] == "silver.dimcustomer"
     assert result["type"] == "table"
     col_names = [c["name"] for c in result["columns"]]
@@ -60,7 +60,7 @@ def test_show_table_columns():
 
 
 def test_show_simple_proc_refs():
-    result = run_show(FIXTURES, "silver.usp_load_dimcustomer", "tsql")
+    result = run_show(FIXTURES, "silver.usp_load_dimcustomer")
     assert result["type"] == "procedure"
     assert result["needs_llm"] is False
     assert result["classification"] == "deterministic"
@@ -69,19 +69,19 @@ def test_show_simple_proc_refs():
 
 
 def test_show_merge_proc_refs():
-    result = run_show(FIXTURES, "silver.usp_load_factsales", "tsql")
+    result = run_show(FIXTURES, "silver.usp_load_factsales")
     assert "silver.factsales" in result["refs"]["writes_to"]
     assert "bronze.sales" in result["refs"]["reads_from"]
 
 
 def test_show_cte_proc_refs():
-    result = run_show(FIXTURES, "silver.usp_load_with_cte", "tsql")
+    result = run_show(FIXTURES, "silver.usp_load_with_cte")
     assert "silver.dimcustomer" in result["refs"]["writes_to"]
     assert "bronze.customer" in result["refs"]["reads_from"]
 
 
 def test_show_multi_cte_proc_refs():
-    result = run_show(FIXTURES, "silver.usp_load_with_multi_cte", "tsql")
+    result = run_show(FIXTURES, "silver.usp_load_with_multi_cte")
     assert "silver.dimcustomer" in result["refs"]["writes_to"]
     assert "bronze.salesorder" in result["refs"]["reads_from"]
     assert "bronze.customer" in result["refs"]["reads_from"]
@@ -89,7 +89,7 @@ def test_show_multi_cte_proc_refs():
 
 def test_show_if_else_proc_needs_llm():
     """IF/ELSE control flow → needs_llm=True, partial refs from single-pass."""
-    result = run_show(FIXTURES, "silver.usp_conditional_load", "tsql")
+    result = run_show(FIXTURES, "silver.usp_conditional_load")
     assert result["needs_llm"] is True
     assert result["classification"] == "claude_assisted"
     # The MERGE and DELETE are inside IF/ELSE — single-pass won't capture them.
@@ -104,7 +104,7 @@ def test_show_if_else_proc_needs_llm():
 
 def test_show_try_catch_proc_needs_llm():
     """TRY/CATCH control flow → needs_llm=True."""
-    result = run_show(FIXTURES, "silver.usp_try_catch_load", "tsql")
+    result = run_show(FIXTURES, "silver.usp_try_catch_load")
     assert result["needs_llm"] is True
     assert result["classification"] == "claude_assisted"
     stmts = result["statements"]
@@ -116,7 +116,7 @@ def test_show_try_catch_proc_needs_llm():
 
 def test_show_not_found():
     with pytest.raises((SystemExit, typer.Exit)) as exc_info:
-        run_show(FIXTURES, "silver.does_not_exist", "tsql")
+        run_show(FIXTURES, "silver.does_not_exist")
     assert exc_info.value.exit_code == 1
 
 
@@ -129,7 +129,7 @@ def _writer_names(result: dict) -> list[str]:
 
 
 def test_refs_dimcustomer_writers():
-    result = run_refs(FIXTURES, "silver.DimCustomer", "tsql")
+    result = run_refs(FIXTURES, "silver.DimCustomer")
     assert result["name"] == "silver.dimcustomer"
     names = _writer_names(result)
     # Deterministic direct writers
@@ -150,13 +150,13 @@ def test_refs_dimcustomer_writers():
 
 
 def test_refs_dimcustomer_readers():
-    result = run_refs(FIXTURES, "silver.DimCustomer", "tsql")
+    result = run_refs(FIXTURES, "silver.DimCustomer")
     # The view reads from DimCustomer
     assert "silver.vw_customersales" in result["readers"]
 
 
 def test_refs_factsales_writers_and_view():
-    result = run_refs(FIXTURES, "silver.FactSales", "tsql")
+    result = run_refs(FIXTURES, "silver.FactSales")
     names = _writer_names(result)
     assert "silver.usp_load_factsales" in names
     assert "silver.vw_customersales" in result["readers"]
@@ -166,7 +166,7 @@ def test_refs_factsales_writers_and_view():
 
 
 def test_refs_bronze_customer_readers():
-    result = run_refs(FIXTURES, "bronze.Customer", "tsql")
+    result = run_refs(FIXTURES, "bronze.Customer")
     assert "silver.usp_load_dimcustomer" in result["readers"]
     assert "silver.usp_load_with_cte" in result["readers"]
     # usp_conditional_load reads bronze.Customer inside IF/ELSE — partial,
@@ -175,7 +175,7 @@ def test_refs_bronze_customer_readers():
 
 
 def test_refs_unknown_object():
-    result = run_refs(FIXTURES, "silver.DoesNotExist", "tsql")
+    result = run_refs(FIXTURES, "silver.DoesNotExist")
     assert result["readers"] == []
     assert result["writers"] == []
 
@@ -184,16 +184,16 @@ def test_refs_unknown_object():
 
 
 def test_show_proc_uses_functions():
-    result = run_show(FIXTURES, "silver.usp_load_formatted", "tsql")
+    result = run_show(FIXTURES, "silver.usp_load_formatted")
     assert result["type"] == "procedure"
     assert "silver.fn_format_name" in result["refs"]["uses_functions"]
 
 
 def test_refs_function_finds_callers():
-    result = run_refs(FIXTURES, "silver.fn_format_name", "tsql")
+    result = run_refs(FIXTURES, "silver.fn_format_name")
     assert "silver.usp_load_formatted" in result["readers"]
 
 
 def test_refs_rejects_procedure():
-    result = run_refs(FIXTURES, "silver.usp_load_dimcustomer", "tsql")
+    result = run_refs(FIXTURES, "silver.usp_load_dimcustomer")
     assert "error" in result

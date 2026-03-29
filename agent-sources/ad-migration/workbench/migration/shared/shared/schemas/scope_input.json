@@ -3,15 +3,10 @@
   "title": "ScopeInput",
   "description": "Input contract for the scoping agent. Maps target tables to candidate writer procedures.",
   "type": "object",
-  "required": ["schema_version", "run_id", "technology", "ddl_path", "items"],
+  "required": ["schema_version", "run_id", "ddl_path", "items"],
   "properties": {
     "schema_version": { "type": "string", "const": "1.0" },
     "run_id": { "type": "string", "format": "uuid" },
-    "technology": {
-      "type": "string",
-      "enum": ["sql_server", "fabric_warehouse", "fabric_lakehouse", "snowflake"],
-      "description": "Source technology family; determines which analysis patterns to apply."
-    },
     "ddl_path": {
       "type": "string",
       "description": "Absolute path to the DDL artifacts directory."

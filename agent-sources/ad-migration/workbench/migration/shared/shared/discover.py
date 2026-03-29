@@ -61,14 +61,20 @@ class ObjectType(str, Enum):
     functions = "functions"
 
 
-def _load(ddl_path: Path, dialect: str) -> DdlCatalog:
-    """Load a DdlCatalog from flat or indexed directory."""
+def _load(ddl_path: Path) -> tuple[DdlCatalog, str]:
+    """Load a DdlCatalog from flat or indexed directory.
+
+    Returns (catalog, dialect) where dialect is read from manifest.json
+    (default: tsql).
+    """
+    manifest = _read_manifest(ddl_path)
+    dialect = manifest["dialect"]
     catalog_json = ddl_path / "catalog.json"
     if catalog_json.exists():
         print(f"discover: loading indexed catalog from {ddl_path}", file=sys.stderr)
-        return load_catalog(ddl_path)
+        return load_catalog(ddl_path), dialect
     print(f"discover: loading flat directory from {ddl_path}", file=sys.stderr)
-    return load_directory(ddl_path, dialect=dialect)
+    return load_directory(ddl_path, dialect=dialect), dialect
 
 
 def _emit(data: Any) -> None:
@@ -224,22 +230,20 @@ def _extract_params(entry: DdlEntry, dialect: str = "tsql") -> list[dict[str, An
 # ── Core logic (importable for testing) ───────────────────────────────────────
 
 
-def run_list(ddl_path: Path, object_type: ObjectType, dialect: str) -> dict[str, Any]:
+def run_list(ddl_path: Path, object_type: ObjectType) -> dict[str, Any]:
     """Return the list subcommand result dict."""
-    catalog = _load(ddl_path, dialect)
+    catalog, _ = _load(ddl_path)
     bucket = _bucket(catalog, object_type)
     objects = sorted(bucket.keys())
     return {"objects": objects}
 
 
-def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
+def run_show(ddl_path: Path, name: str) -> dict[str, Any]:
     """Return the show subcommand result dict.
 
     Raises SystemExit(1) if the object is not found.
     """
-    _manifest = _read_manifest(ddl_path)
-    dialect = _manifest.get("dialect", dialect)
-    catalog = _load(ddl_path, dialect)
+    catalog, dialect = _load(ddl_path)
     found = _find_entry(catalog, name)
     if found is None:
         norm = normalize(name)
@@ -418,7 +422,7 @@ def _run_refs_from_catalog(ddl_path: Path, target: str) -> dict[str, Any]:
 
 
 def run_refs(
-    ddl_path: Path, name: str, dialect: str, depth: int = 3,
+    ddl_path: Path, name: str, depth: int = 3,
 ) -> dict[str, Any]:
     """Return the refs subcommand result dict.
 
@@ -440,14 +444,14 @@ def run_refs(
 
     # Fall back to AST-based approach
     print(f"discover: refs from AST scan for {target}", file=sys.stderr)
-    return _run_refs_from_ast(ddl_path, target, dialect, depth)
+    return _run_refs_from_ast(ddl_path, target, depth)
 
 
 def _run_refs_from_ast(
-    ddl_path: Path, target: str, dialect: str, depth: int,
+    ddl_path: Path, target: str, depth: int,
 ) -> dict[str, Any]:
     """Full AST-based refs with BFS call-graph and confidence scoring (fallback)."""
-    catalog = _load(ddl_path, dialect)
+    catalog, dialect = _load(ddl_path)
 
     # refs is for tables, views, and functions — not procedures
     found = _find_entry(catalog, target)
@@ -625,11 +629,10 @@ def _run_refs_from_ast(
 def list_objects(
     ddl_path: Path = typer.Option(..., help="Path to DDL directory"),
     type: ObjectType = typer.Option(..., help="Object type to list"),
-    dialect: str = typer.Option("tsql", help="sqlglot dialect"),
 ) -> None:
     """List all objects of a given type in a DDL directory."""
     try:
-        result = run_list(ddl_path, type, dialect)
+        result = run_list(ddl_path, type)
     except (FileNotFoundError, DdlParseError) as exc:
         print(f"discover: {exc}", file=sys.stderr)
         raise typer.Exit(code=2) from exc
@@ -640,11 +643,10 @@ def list_objects(
 def show(
     ddl_path: Path = typer.Option(..., help="Path to DDL directory"),
     name: str = typer.Option(..., help="Fully-qualified object name (schema.Name)"),
-    dialect: str = typer.Option("tsql", help="sqlglot dialect"),
 ) -> None:
     """Show details for a single named DDL object."""
     try:
-        result = run_show(ddl_path, name, dialect)
+        result = run_show(ddl_path, name)
     except (FileNotFoundError, DdlParseError) as exc:
         print(f"discover: {exc}", file=sys.stderr)
         raise typer.Exit(code=2) from exc
@@ -655,12 +657,11 @@ def show(
 def refs(
     ddl_path: Path = typer.Option(..., help="Path to DDL directory"),
     name: str = typer.Option(..., help="Fully-qualified object name (schema.Name)"),
-    dialect: str = typer.Option("tsql", help="sqlglot dialect"),
     depth: int = typer.Option(3, help="Maximum call-graph depth for indirect writers"),
 ) -> None:
     """Find all procedures/views that reference a given object."""
     try:
-        result = run_refs(ddl_path, name, dialect, depth=depth)
+        result = run_refs(ddl_path, name, depth=depth)
     except (FileNotFoundError, DdlParseError) as exc:
         print(f"discover: {exc}", file=sys.stderr)
         raise typer.Exit(code=2) from exc
