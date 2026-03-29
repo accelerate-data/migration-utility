@@ -178,8 +178,8 @@ class TestCatalogSignals:
     def test_identity_column(self, catalog_output):
         cat = _load_table_catalog(catalog_output, "test_catalog.target_identity")
         assert cat is not None
-        assert len(cat["identity_columns"]) > 0
-        ident = cat["identity_columns"][0]
+        assert len(cat["auto_increment_columns"]) > 0
+        ident = cat["auto_increment_columns"][0]
         assert ident["seed"] == 100
         assert ident["increment"] == 5
 
@@ -188,7 +188,7 @@ class TestCatalogSignals:
         assert cat is not None
         assert cat["primary_keys"] == []
         assert cat["foreign_keys"] == []
-        assert cat["identity_columns"] == []
+        assert cat["auto_increment_columns"] == []
 
     def test_no_refs_empty(self, catalog_output):
         cat = _load_table_catalog(catalog_output, "test_catalog.target_no_refs")

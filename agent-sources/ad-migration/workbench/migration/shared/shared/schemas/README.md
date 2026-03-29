@@ -24,7 +24,8 @@ Per-object catalog files produced by `setup-ddl` and consumed by `discover`, `pr
 
 | Schema | Object type | Key fields |
 |---|---|---|
-| [table_catalog.json](table_catalog.json) | Table | PKs, FKs, identity, CDC, sensitivity, `referenced_by`, `profile` |
+| [manifest.json](manifest.json) | Extraction manifest | technology, dialect, source_database, extracted_schemas, extracted_at |
+| [table_catalog.json](table_catalog.json) | Table | PKs, FKs, auto_increment_columns, change_capture (opt), sensitivity (opt), `referenced_by`, `profile` |
 | [procedure_catalog.json](procedure_catalog.json) | Procedure | `references`, `referenced_by` |
 | [view_catalog.json](view_catalog.json) | View | `references`, `referenced_by` |
 | [function_catalog.json](function_catalog.json) | Function | `references`, `referenced_by` |
@@ -33,6 +34,7 @@ Per-object catalog files produced by `setup-ddl` and consumed by `discover`, `pr
 
 ```text
 <ddl-output-dir>/
+├── manifest.json              → manifest.json schema
 ├── tables.sql
 ├── procedures.sql
 ├── views.sql
@@ -56,16 +58,17 @@ Per-object catalog files produced by `setup-ddl` and consumed by `discover`, `pr
 
 | Section | Source | When captured |
 |---|---|---|
-| Catalog signals (PKs, FKs, identity, CDC, sensitivity) | `sys.*` catalog views (bulk SELECTs) | setup-ddl |
-| `references` / `referenced_by` (DMF-sourced) | `sys.dm_sql_referenced_entities` per proc/view/function | setup-ddl |
+| Catalog signals (PKs, FKs, auto_increment_columns, change_capture, sensitivity) | `sys.*` catalog views (bulk SELECTs) | setup-ddl |
+| `references` / `referenced_by` (catalog-query-sourced) | `sys.dm_sql_referenced_entities` per proc/view/function | setup-ddl |
 | `references` / `referenced_by` (AST-augmented) | sqlglot scan of proc bodies for CTAS, SELECT INTO, EXEC targets | setup-ddl |
 | `profile` section | `/profile` skill or profiler agent | After setup-ddl, during profiling |
+| manifest.json | Written by setup-ddl at extraction time | setup-ddl |
 
 ### Detection field
 
 Entries in `references` and `referenced_by` carry a `detection` field when AST-augmented:
 
-- Absent or `"dmf"` -- from `sys.dm_sql_referenced_entities`. High trust.
+- Absent or `"catalog_query"` -- from `sys.dm_sql_referenced_entities`. High trust.
 - `"ast_scan"` -- from sqlglot scan of proc bodies. Fills DMF gaps (CTAS, SELECT INTO, EXEC chains).
 
 ### Scope field

@@ -57,7 +57,7 @@ _DYNAMIC_SQL_RE = re.compile(
 #   primary_keys: list[PrimaryKey]
 #   unique_indexes: list[UniqueIndex]
 #   foreign_keys: list[ForeignKey]
-#   identity_columns: list[str]
+#   auto_increment_columns: list[dict]   (column, mechanism, seed?, increment?)
 #   cdc_enabled: bool
 #   change_tracking_enabled: bool | None
 #   sensitivity_classifications: list[SensitivityEntry]

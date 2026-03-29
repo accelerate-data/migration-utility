@@ -9,7 +9,7 @@ See [docs/design/unit-test-strategy/](../unit-test-strategy/) for design rationa
 ## Philosophy and Boundary
 
 - Test generator owns fixture generation and ground-truth capture.
-- `proc_body` and `table_schemas` are tool-fetched at runtime from `sys.sql_modules` and `sys.columns`. They are not passed in the input.
+- `proc_body` is read from DDL files via `discover show --ddl-path <ddl_path> --name <writer>`. `table_schemas` are read from DDL files via `discover show --ddl-path <ddl_path> --name <table>`. No live database access is needed for metadata — the live DB is only used for ground-truth execution in the ground-truth capture stage.
 - Migrator consumes test generator output and incorporates `unit_tests:` blocks into model schema YAML.
 - Test generator must not make or modify migration business decisions (classification, keys, materialization).
 
@@ -21,6 +21,7 @@ The test generator receives the planner output unchanged.
 {
   "schema_version": "1.0",
   "run_id": "uuid",
+  "ddl_path": "/absolute/path/to/artifacts/ddl",
   "items": [
     {
       "item_id": "dbo.fact_sales",
@@ -69,8 +70,8 @@ The test generator receives the planner output unchanged.
 
 ### 1. FetchProcContext
 
-- Fetch `proc_body` from `sys.sql_modules` using `answers.writer`.
-- Fetch `table_schemas` from `sys.columns` / `sys.types` for `item_id` and all join targets.
+- Read `proc_body` from DDL files via `discover show --ddl-path <ddl_path> --name <writer>` using `answers.writer`.
+- Read `table_schemas` from DDL files via `discover show --ddl-path <ddl_path> --name <table>` for `item_id` and all join targets.
 
 ### 2. ExtractBranches
 

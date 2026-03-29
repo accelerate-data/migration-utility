@@ -15,7 +15,7 @@
       "referenced_columns": ["customer_key"]
     }
   ],
-  "identity_columns": ["sale_id"],
+  "auto_increment_columns": [{"column": "sale_id", "mechanism": "identity"}],
   "cdc_enabled": false,
   "change_tracking_enabled": null,
   "sensitivity_classifications": [],

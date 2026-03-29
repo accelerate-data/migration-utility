@@ -41,6 +41,7 @@ from shared.loader import (  # noqa: E402
     DdlEntry,
     DdlParseError,
     ObjectRefs,
+    _read_manifest,
     extract_refs,
     load_catalog,
     load_directory,
@@ -177,7 +178,7 @@ def _resolve_dependencies(
 # ── Column / param extraction from AST ───────────────────────────────────────
 
 
-def _extract_columns(entry: DdlEntry) -> list[dict[str, str]]:
+def _extract_columns(entry: DdlEntry, dialect: str = "tsql") -> list[dict[str, str]]:
     """Walk ColumnDef nodes in the AST and return column definitions.
 
     Returns an empty list if the AST is None or no ColumnDef nodes are found.
@@ -188,12 +189,12 @@ def _extract_columns(entry: DdlEntry) -> list[dict[str, str]]:
     for col_def in entry.ast.find_all(exp.ColumnDef):
         col_name = col_def.name
         dtype_node = col_def.args.get("kind")
-        sql_type = dtype_node.sql(dialect="tsql") if dtype_node is not None else ""
+        sql_type = dtype_node.sql(dialect=dialect) if dtype_node is not None else ""
         columns.append({"name": col_name, "sql_type": sql_type})
     return columns
 
 
-def _extract_params(entry: DdlEntry) -> list[dict[str, Any]]:
+def _extract_params(entry: DdlEntry, dialect: str = "tsql") -> list[dict[str, Any]]:
     """Extract procedure parameters from the AST.
 
     Walks ParameterizedTypedef / Parameter nodes attached to the Create node.
@@ -205,9 +206,9 @@ def _extract_params(entry: DdlEntry) -> list[dict[str, Any]]:
     for param in entry.ast.find_all(exp.Parameter):
         param_name = param.name
         dtype_node = param.args.get("kind")
-        sql_type = dtype_node.sql(dialect="tsql") if dtype_node is not None else ""
+        sql_type = dtype_node.sql(dialect=dialect) if dtype_node is not None else ""
         default_node = param.args.get("default")
-        default_val = default_node.sql(dialect="tsql") if default_node is not None else None
+        default_val = default_node.sql(dialect=dialect) if default_node is not None else None
         is_output = bool(param.args.get("output"))
         params.append(
             {
@@ -236,6 +237,8 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
 
     Raises SystemExit(1) if the object is not found.
     """
+    _manifest = _read_manifest(ddl_path)
+    dialect = _manifest["dialect"]
     catalog = _load(ddl_path, dialect)
     found = _find_entry(catalog, name)
     if found is None:
@@ -252,7 +255,7 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
     parse_error: str | None = entry.parse_error
 
     if type_label == "table":
-        columns = _extract_columns(entry)
+        columns = _extract_columns(entry, dialect=dialect)
 
     needs_llm = False
     classification: str | None = None
@@ -260,7 +263,7 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
     statements: list[dict] | None = None
 
     if type_label == "procedure":
-        params = _extract_params(entry)
+        params = _extract_params(entry, dialect=dialect)
 
         # Try catalog for reference data
         proc_cat = load_proc_catalog(ddl_path, norm)

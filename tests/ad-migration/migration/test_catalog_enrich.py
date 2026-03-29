@@ -185,8 +185,8 @@ GO
     return ddl
 
 
-def _setup_dmf_only(tmp_path: Path) -> Path:
-    """Set up DDL where all writes are already DMF-detectable."""
+def _setup_catalog_query_only(tmp_path: Path) -> Path:
+    """Set up DDL where all writes are already catalog-query-detectable."""
     ddl = tmp_path / "ddl"
     ddl.mkdir()
 
@@ -336,9 +336,9 @@ def test_enrich_detects_exec_chain(tmp_path: Path) -> None:
     assert orch_entries[0]["detection"] == "ast_scan"
 
 
-def test_enrich_preserves_dmf_entries(tmp_path: Path) -> None:
-    """Proc with DMF-sourced refs — those should be unchanged after enrich."""
-    ddl = _setup_dmf_only(tmp_path)
+def test_enrich_preserves_catalog_query_entries(tmp_path: Path) -> None:
+    """Proc with catalog-query-sourced refs — those should be unchanged after enrich."""
+    ddl = _setup_catalog_query_only(tmp_path)
 
     # Capture original proc catalog
     original_proc = _read_catalog_json(ddl, "procedures", "dbo.usp_simple_insert")

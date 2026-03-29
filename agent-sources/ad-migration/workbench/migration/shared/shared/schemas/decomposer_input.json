@@ -3,10 +3,11 @@
   "title": "DecomposerInput",
   "description": "Input contract for the decomposer agent. Produces SQL decomposition proposals for dbt migration.",
   "type": "object",
-  "required": ["schema_version", "run_id", "items"],
+  "required": ["schema_version", "run_id", "ddl_path", "items"],
   "properties": {
     "schema_version": { "type": "string", "const": "1.0" },
     "run_id": { "type": "string", "format": "uuid" },
+    "ddl_path": { "type": "string", "description": "Absolute path to the artifacts/ddl directory produced by setup-ddl." },
     "items": {
       "type": "array",
       "items": {

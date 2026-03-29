@@ -3,7 +3,7 @@
   "title": "TableCatalog",
   "description": "Per-table catalog file produced by setup-ddl. Contains catalog signals and inbound references.",
   "type": "object",
-  "required": ["table", "primary_keys", "unique_indexes", "foreign_keys", "identity_columns", "cdc_enabled", "change_tracking_enabled", "sensitivity_classifications", "referenced_by"],
+  "required": ["table", "primary_keys", "unique_indexes", "foreign_keys", "auto_increment_columns", "referenced_by"],
   "properties": {
     "table": {
       "type": "string",
@@ -45,20 +45,36 @@
         }
       }
     },
-    "identity_columns": {
+    "auto_increment_columns": {
       "type": "array",
+      "description": "Columns with automatic sequence generation. Normalized from identity (SQL Server), autoincrement (Snowflake), or generated always (Spark).",
       "items": {
         "type": "object",
-        "required": ["column", "seed", "increment"],
+        "required": ["column"],
         "properties": {
           "column": { "type": "string" },
           "seed": { "type": "integer" },
-          "increment": { "type": "integer" }
+          "increment": { "type": "integer" },
+          "mechanism": {
+            "type": "string",
+            "enum": ["identity", "autoincrement", "sequence", "generated_always"],
+            "description": "Source mechanism. Informational only — downstream agents use presence/absence, not mechanism."
+          }
         }
       }
     },
-    "cdc_enabled": { "type": "boolean" },
-    "change_tracking_enabled": { "type": "boolean" },
+    "change_capture": {
+      "type": "object",
+      "description": "Change-tracking metadata. Optional — absent means not detected or not applicable.",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "mechanism": {
+          "type": "string",
+          "enum": ["cdc", "change_tracking", "stream", "change_data_feed"],
+          "description": "Source mechanism: cdc/change_tracking (SQL Server), stream (Snowflake), change_data_feed (Delta/Spark)."
+        }
+      }
+    },
     "sensitivity_classifications": {
       "type": "array",
       "items": {
@@ -70,6 +86,11 @@
           "information_type": { "type": "string" }
         }
       }
+    },
+    "technology_metadata": {
+      "type": "object",
+      "description": "Technology-specific metadata with no cross-platform equivalent. Keyed by technology name. Downstream agents may inspect but must not require.",
+      "additionalProperties": true
     },
     "referenced_by": { "$ref": "#/$defs/reference_groups" },
     "profile": {

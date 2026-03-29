@@ -24,7 +24,7 @@
         "is_schema_bound": { "type": "boolean" },
         "is_caller_dependent": { "type": "boolean" },
         "is_ambiguous": { "type": "boolean" },
-        "detection": { "type": "string", "enum": ["dmf", "ast_scan"] },
+        "detection": { "type": "string", "enum": ["catalog_query", "ast_scan"] },
         "columns": {
           "type": "array",
           "items": { "$ref": "#/$defs/column_ref" }

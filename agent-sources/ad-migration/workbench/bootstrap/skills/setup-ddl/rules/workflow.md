@@ -57,9 +57,9 @@ Change tracking and sensitivity classifications use TRY/CATCH — if the `sys.*`
 
 **Tools used:** `mssql:mssql-execute-sql` MCP tool, native Write tool.
 
-## Step 8 — Extract references via DMF
+## Step 8 — Extract references via catalog query
 
-Run server-side cursor queries to call `sys.dm_sql_referenced_entities` for all procedures, views, and functions (one cursor per object type). Each cursor returns all DMF results in a single result set.
+Run server-side cursor queries to call `sys.dm_sql_referenced_entities` for all procedures, views, and functions (one cursor per object type). Each cursor returns all catalog query results in a single result set.
 
 Process the results:
 
@@ -68,13 +68,19 @@ Process the results:
 3. Write per-proc/view/function catalog files with outbound `references`.
 4. Flip references to build `referenced_by` on table catalog files (merge with signals from Step 7).
 
-Individual DMF errors (e.g. broken object references) are caught by TRY/CATCH in the cursor — logged and skipped, not fatal.
+Individual catalog query errors (e.g. broken object references) are caught by TRY/CATCH in the cursor — logged and skipped, not fatal.
 
 **Known limitation:** `sys.dm_sql_referenced_entities` resolves at definition time. Dynamic SQL references (`EXEC(@sql)`, `sp_executesql`) are invisible. These procs require LLM analysis via `discover show`.
 
 **Tools used:** `mssql:mssql-execute-sql` MCP tool, native Write tool.
 
-## Step 9 — Report summary
+## Step 9 — Write extraction manifest
+
+Write `<output-folder>/manifest.json` with technology, dialect, source database, extracted schemas, and timestamp. See `shared/shared/schemas/manifest.json` for the schema. For SQL Server extractions, use `"technology": "sql_server"` and `"dialect": "tsql"`.
+
+**Tools used:** native Write tool.
+
+## Step 10 — Report summary
 
 Print a confirmation table:
 

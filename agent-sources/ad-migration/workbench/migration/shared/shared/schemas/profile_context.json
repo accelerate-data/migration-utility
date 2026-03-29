@@ -40,12 +40,13 @@
             }
           }
         },
-        "identity_columns": {
+        "auto_increment_columns": {
           "type": "array",
           "items": {
             "type": "object",
             "properties": {
               "column": { "type": "string" },
+              "mechanism": { "type": "string", "enum": ["identity", "autoincrement", "sequence", "generated_always"] },
               "seed": { "type": "integer" },
               "increment": { "type": "integer" }
             }

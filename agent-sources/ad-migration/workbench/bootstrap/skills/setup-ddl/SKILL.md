@@ -461,9 +461,35 @@ Tell the user they can now run `discover` or the `scoping-agent` against the out
 
 **Known limitation:** Procs that write only via dynamic SQL (`EXEC(@sql)`, `sp_executesql`) will not appear in catalog `referenced_by`. This is an inherent offline limitation of `sys.dm_sql_referenced_entities` — it resolves references at definition time, not runtime. These procs require LLM analysis via `discover show`.
 
-## Step 9 — AST enrichment
+## Step 9 — Write extraction manifest
 
-Run the catalog enrichment script to fill DMF gaps:
+Write a `manifest.json` to the output folder root. This file tells downstream tools (loader, discover, agents) which technology and sqlglot dialect to use, removing hardcoded tsql assumptions.
+
+```json
+{
+  "schema_version": "1.0",
+  "technology": "<technology>",
+  "dialect": "<dialect>",
+  "source_database": "<database>",
+  "extracted_schemas": ["<schema1>", "<schema2>"],
+  "extracted_at": "<ISO 8601 timestamp>"
+}
+```
+
+Technology-to-dialect mapping:
+
+| Technology | Dialect | Delimiter |
+|---|---|---|
+| `sql_server` | `tsql` | `GO` |
+| `fabric_warehouse` | `tsql` | `GO` |
+| `fabric_lakehouse` | `spark` | `;` |
+| `snowflake` | `snowflake` | `;` |
+
+For this skill (SQL Server / Fabric Warehouse extraction), always write `"technology": "sql_server"` and `"dialect": "tsql"` (or `"fabric_warehouse"` if the user specified Fabric Warehouse as the source). The manifest schema is at `shared/shared/schemas/manifest.json`.
+
+## Step 10 — AST enrichment
+
+Run the catalog enrichment script to fill catalog-query gaps:
 
 ```bash
 uv run --project <shared-path> catalog-enrich --ddl-path <output-folder>
@@ -471,11 +497,11 @@ uv run --project <shared-path> catalog-enrich --ddl-path <output-folder>
 
 This augments catalog files with AST-derived references for:
 
-- CTAS / SELECT INTO targets (DMF misses new table creation)
+- CTAS / SELECT INTO targets (catalog queries miss new table creation)
 - TRUNCATE targets
 - Indirect writers through EXEC call chains
 
-Entries added carry `"detection": "ast_scan"` to distinguish from DMF-sourced data. Dynamic SQL (`EXEC(@sql)`, `sp_executesql`) remains unresolvable offline.
+Entries added carry `"detection": "ast_scan"` to distinguish from catalog-query-sourced data. Dynamic SQL (`EXEC(@sql)`, `sp_executesql`) remains unresolvable offline.
 
 ## Constraints
 

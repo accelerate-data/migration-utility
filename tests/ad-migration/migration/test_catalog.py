@@ -78,7 +78,7 @@ def test_write_table_catalog_round_trip() -> None:
             "primary_keys": [{"constraint_name": "PK_T1", "columns": ["id"]}],
             "unique_indexes": [],
             "foreign_keys": [],
-            "identity_columns": ["id"],
+            "auto_increment_columns": [{"column": "id", "mechanism": "identity"}],
             "cdc_enabled": True,
             "change_tracking_enabled": None,
             "sensitivity_classifications": [],
@@ -97,7 +97,7 @@ def test_write_table_catalog_round_trip() -> None:
         loaded = load_table_catalog(ddl_path, "dbo.T1")
         assert loaded is not None
         assert loaded["cdc_enabled"] is True
-        assert loaded["identity_columns"] == ["id"]
+        assert loaded["auto_increment_columns"] == [{"column": "id", "mechanism": "identity"}]
         assert len(loaded["referenced_by"]["procedures"]["in_scope"]) == 1
 
 
@@ -249,7 +249,7 @@ def test_write_catalog_files_end_to_end() -> None:
                 "primary_keys": [],
                 "unique_indexes": [],
                 "foreign_keys": [],
-                "identity_columns": [],
+                "auto_increment_columns": [],
                 "cdc_enabled": False,
                 "change_tracking_enabled": None,
                 "sensitivity_classifications": [],

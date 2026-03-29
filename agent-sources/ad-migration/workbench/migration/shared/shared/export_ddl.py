@@ -175,7 +175,7 @@ def _extract_table_signals(conn) -> dict[str, dict]:
         if fqn not in signals:
             signals[fqn] = {
                 "primary_keys": [], "unique_indexes": [], "foreign_keys": [],
-                "identity_columns": [], "cdc_enabled": False,
+                "auto_increment_columns": [], "cdc_enabled": False,
                 "change_tracking_enabled": None, "sensitivity_classifications": [],
             }
         sig = signals[fqn]
@@ -214,7 +214,7 @@ def _extract_table_signals(conn) -> dict[str, dict]:
         if fqn not in signals:
             signals[fqn] = {
                 "primary_keys": [], "unique_indexes": [], "foreign_keys": [],
-                "identity_columns": [], "cdc_enabled": False,
+                "auto_increment_columns": [], "cdc_enabled": False,
                 "change_tracking_enabled": None, "sensitivity_classifications": [],
             }
         sig = signals[fqn]
@@ -243,10 +243,10 @@ def _extract_table_signals(conn) -> dict[str, dict]:
         if fqn not in signals:
             signals[fqn] = {
                 "primary_keys": [], "unique_indexes": [], "foreign_keys": [],
-                "identity_columns": [], "cdc_enabled": False,
+                "auto_increment_columns": [], "cdc_enabled": False,
                 "change_tracking_enabled": None, "sensitivity_classifications": [],
             }
-        signals[fqn]["identity_columns"].append(row.column_name)
+        signals[fqn]["auto_increment_columns"].append({"column": row.column_name, "mechanism": "identity"})
 
     # CDC
     cursor.execute("""
