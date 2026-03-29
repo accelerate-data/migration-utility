@@ -461,6 +461,22 @@ Tell the user they can now run `discover` or the `scoping-agent` against the out
 
 **Known limitation:** Procs that write only via dynamic SQL (`EXEC(@sql)`, `sp_executesql`) will not appear in catalog `referenced_by`. This is an inherent offline limitation of `sys.dm_sql_referenced_entities` — it resolves references at definition time, not runtime. These procs require LLM analysis via `discover show`.
 
+## Step 9 — AST enrichment
+
+Run the catalog enrichment script to fill DMF gaps:
+
+```bash
+uv run --project <shared-path> catalog-enrich --ddl-path <output-folder>
+```
+
+This augments catalog files with AST-derived references for:
+
+- CTAS / SELECT INTO targets (DMF misses new table creation)
+- TRUNCATE targets
+- Indirect writers through EXEC call chains
+
+Entries added carry `"detection": "ast_scan"` to distinguish from DMF-sourced data. Dynamic SQL (`EXEC(@sql)`, `sp_executesql`) remains unresolvable offline.
+
 ## Constraints
 
 - Use `mssql:mssql-execute-sql` for all SQL Server queries — never use native tools to connect to the database directly.
