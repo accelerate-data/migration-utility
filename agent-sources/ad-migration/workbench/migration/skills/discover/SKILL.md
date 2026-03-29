@@ -119,7 +119,13 @@ Check `classification` to decide how much help you get:
 
 See [`references/tsql-parse-classification.md`](references/tsql-parse-classification.md) for classification guidance.
 
-Present a call graph and migration guidance. Tag each statement as `migrate` or `skip`:
+Present three sections: **Logic Summary**, **Call Graph**, and **Migration Guidance**.
+
+**Logic Summary** — always produced by reading `raw_ddl`. Plain-language description of what the procedure does, step by step. No tags, no classification — just explain the logic.
+
+**Call Graph** — read/write targets from `refs`.
+
+**Migration Guidance** — tag each statement as `migrate` or `skip`:
 
 | Action | Meaning |
 |---|---|
@@ -127,8 +133,13 @@ Present a call graph and migration guidance. Tag each statement as `migrate` or 
 | `skip` | Operational overhead (SET, TRUNCATE, DROP/CREATE INDEX) — dbt handles or ignores |
 
 ```text
-Call Graph
+Logic Summary
+  This procedure performs a full reload of silver.DimCustomer. It truncates
+  the target table, then inserts from a join of bronze.Customer and
+  bronze.Person, computing DateFirstPurchase via an OUTER APPLY on
+  bronze.SalesOrderHeader.
 
+Call Graph
   silver.usp_load_DimCustomer  (direct writer)
     ├── reads: bronze.Customer
     ├── reads: bronze.Person
