@@ -169,8 +169,8 @@ All statements get `source: "ast"`.
 **For claude-assisted procedures** (`classification: claude_assisted` or statements containing `action: "claude"`):
 
 1. Read `raw_ddl` and analyse each `claude` statement — follow the call graph, resolve dynamic SQL, and classify as `migrate` or `skip`.
-2. Present the full resolved statement list to the FDE for confirmation. Show each statement with its proposed action and rationale.
-3. After FDE confirms (with any edits), run `discover write-statements` to persist. All resolved statements get `source: "llm"`.
+2. Present the full resolved statement list for confirmation. Show each statement with its proposed action and rationale.
+3. After confirmation (with any edits), run `discover write-statements` to persist. All resolved statements get `source: "llm"`.
 
 No `claude` actions are written to catalog — all must be resolved before persisting.
 
