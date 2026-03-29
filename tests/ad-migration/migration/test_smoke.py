@@ -174,7 +174,8 @@ def test_load_directory_tables() -> None:
 
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp)
-        (p / "tables.sql").write_text(_TABLES_SQL, encoding="utf-8")
+        (p / "ddl").mkdir()
+        (p / "ddl" / "tables.sql").write_text(_TABLES_SQL, encoding="utf-8")
         catalog = load_directory(p)
 
     assert "silver.dimproduct" in catalog.tables
@@ -186,7 +187,8 @@ def test_load_directory_procedures() -> None:
 
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp)
-        (p / "procedures.sql").write_text(_PROCEDURES_SQL, encoding="utf-8")
+        (p / "ddl").mkdir()
+        (p / "ddl" / "procedures.sql").write_text(_PROCEDURES_SQL, encoding="utf-8")
         catalog = load_directory(p)
 
     assert "dbo.usp_loaddimproduct" in catalog.procedures
@@ -199,7 +201,8 @@ def test_load_directory_ast_parsed() -> None:
 
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp)
-        (p / "tables.sql").write_text(_TABLES_SQL, encoding="utf-8")
+        (p / "ddl").mkdir()
+        (p / "ddl" / "tables.sql").write_text(_TABLES_SQL, encoding="utf-8")
         catalog = load_directory(p)
 
     entry = catalog.tables["silver.dimproduct"]
@@ -226,7 +229,8 @@ def test_load_directory_mixed_types_single_file() -> None:
     )
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp)
-        (p / "everything.sql").write_text(mixed, encoding="utf-8")
+        (p / "ddl").mkdir()
+        (p / "ddl" / "everything.sql").write_text(mixed, encoding="utf-8")
         catalog = load_directory(p)
 
     assert "silver.dimproduct" in catalog.tables
@@ -240,10 +244,11 @@ def test_load_directory_arbitrary_filenames() -> None:
 
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp)
-        (p / "my_custom_tables.sql").write_text(
+        (p / "ddl").mkdir()
+        (p / "ddl" / "my_custom_tables.sql").write_text(
             "CREATE TABLE dbo.Foo (Id INT NOT NULL)\nGO\n", encoding="utf-8"
         )
-        (p / "some_procs.sql").write_text(
+        (p / "ddl" / "some_procs.sql").write_text(
             "CREATE PROCEDURE dbo.usp_Bar\nAS\nBEGIN\n"
             "    INSERT INTO dbo.Foo (Id) SELECT 1\nEND\nGO\n",
             encoding="utf-8",
@@ -260,10 +265,11 @@ def test_load_directory_multiple_files_same_type() -> None:
 
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp)
-        (p / "batch_a.sql").write_text(
+        (p / "ddl").mkdir()
+        (p / "ddl" / "batch_a.sql").write_text(
             "CREATE TABLE dbo.Alpha (Id INT)\nGO\n", encoding="utf-8"
         )
-        (p / "batch_b.sql").write_text(
+        (p / "ddl" / "batch_b.sql").write_text(
             "CREATE TABLE dbo.Beta (Id INT)\nGO\n", encoding="utf-8"
         )
         catalog = load_directory(p)
@@ -273,10 +279,11 @@ def test_load_directory_multiple_files_same_type() -> None:
 
 
 def test_load_directory_empty_dir() -> None:
-    """Empty directory yields empty catalog."""
+    """Empty directory with ddl/ subdirectory yields empty catalog."""
     from shared.loader import load_directory
 
     with tempfile.TemporaryDirectory() as tmp:
+        (Path(tmp) / "ddl").mkdir()
         catalog = load_directory(Path(tmp))
 
     assert catalog.tables == {}
@@ -297,7 +304,8 @@ def test_catalog_get_helpers() -> None:
 
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp)
-        (p / "tables.sql").write_text(_TABLES_SQL, encoding="utf-8")
+        (p / "ddl").mkdir()
+        (p / "ddl" / "tables.sql").write_text(_TABLES_SQL, encoding="utf-8")
         catalog = load_directory(p)
 
     assert catalog.get_table("[silver].[DimProduct]") is not None
@@ -407,7 +415,8 @@ def test_load_directory_stores_parse_error_per_block() -> None:
 
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp)
-        (p / "procedures.sql").write_text(
+        (p / "ddl").mkdir()
+        (p / "ddl" / "procedures.sql").write_text(
             "CREATE PROCEDURE [dbo].[usp_bad]\n"
             "    @Mode INT = 0\n"
             "AS\n"

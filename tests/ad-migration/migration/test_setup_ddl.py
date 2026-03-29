@@ -62,7 +62,7 @@ class TestAssembleModules:
         out = json.loads(result.stdout)
         assert out["count"] == 2
 
-        sql = (output_folder / "procedures.sql").read_text()
+        sql = (output_folder / "ddl" / "procedures.sql").read_text()
         assert "CREATE PROC dbo.usp_a" in sql
         assert "\nGO\n" in sql
 
@@ -99,7 +99,7 @@ class TestAssembleModules:
         assert result.returncode == 0
         out = json.loads(result.stdout)
         assert out["count"] == 0
-        assert (output_folder / "views.sql").read_text() == ""
+        assert (output_folder / "ddl" / "views.sql").read_text() == ""
 
     def test_invalid_type_rejected(self, tmp_path):
         input_file = tmp_path / "input.json"
@@ -140,7 +140,7 @@ class TestAssembleTables:
         out = json.loads(result.stdout)
         assert out["count"] == 1
 
-        sql = (output_folder / "tables.sql").read_text()
+        sql = (output_folder / "ddl" / "tables.sql").read_text()
         assert "CREATE TABLE [dbo].[T1]" in sql
         assert "IDENTITY(1,1)" in sql
         assert "NVARCHAR(50)" in sql  # 100 / 2 for N-types
@@ -162,7 +162,7 @@ class TestAssembleTables:
             "--output-folder", str(output_folder),
         ])
         assert result.returncode == 0
-        sql = (output_folder / "tables.sql").read_text()
+        sql = (output_folder / "ddl" / "tables.sql").read_text()
         assert "NVARCHAR(MAX)" in sql
 
     def test_decimal_type(self, tmp_path):
@@ -181,7 +181,7 @@ class TestAssembleTables:
             "--output-folder", str(output_folder),
         ])
         assert result.returncode == 0
-        sql = (output_folder / "tables.sql").read_text()
+        sql = (output_folder / "ddl" / "tables.sql").read_text()
         assert "DECIMAL(18,2)" in sql
 
     def test_multiple_tables_go_delimited(self, tmp_path):
@@ -203,7 +203,7 @@ class TestAssembleTables:
             "--output-folder", str(output_folder),
         ])
         assert result.returncode == 0
-        sql = (output_folder / "tables.sql").read_text()
+        sql = (output_folder / "ddl" / "tables.sql").read_text()
         assert sql.count("CREATE TABLE") == 2
         assert "\nGO\n" in sql
 

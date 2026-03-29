@@ -48,7 +48,7 @@
     {
       "name": "ad-migration plugin",
       "type": "Claude Code plugin (marketplace)",
-      "description": "DDL analysis and migration pipeline. Three sub-plugins: bootstrap, migration, test-generation. Loaded via: claude --plugin-path agent-sources/ad-migration"
+      "description": "DDL analysis and migration pipeline. Three sub-plugins: bootstrap, migration, test-generation. Loaded via: claude --plugin-dir agent-sources/ad-migration"
     }
   ],
   "entrypoints": {
@@ -145,7 +145,7 @@
   },
   "notes_for_agents": {
     "startup": "Read this file before exploring code. It is the primary startup context for structure, entrypoints, modules, and commands.",
-    "plugin_loading": "Load the ad-migration plugin with: claude --plugin-path agent-sources/ad-migration. CLAUDE_PLUGIN_ROOT points to the active sub-plugin root (e.g. workbench/bootstrap/ or workbench/migration/).",
+    "plugin_loading": "Load the ad-migration plugin with: claude --plugin-dir agent-sources/ad-migration. CLAUDE_PLUGIN_ROOT points to the active sub-plugin root (e.g. workbench/bootstrap/ or workbench/migration/).",
     "ddl_filenames": "The loader auto-detects object types from CREATE statements — .sql filenames are not significant. Any directory of .sql files works.",
     "catalog_mandatory": "discover.py requires catalog/ files from setup-ddl. Errors if catalog is missing. No AST fallback.",
     "parse_errors": "sqlglot parse failures are hard errors (DdlParseError). The loader does not silently skip unparseable DDL.",

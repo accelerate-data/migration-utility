@@ -102,7 +102,7 @@ export function runScopingAgent(
       [
         "-p",
         "--dangerously-skip-permissions",
-        "--plugin-path",
+        "--plugin-dir",
         PLUGIN_PATH,
         "--agent",
         "scoping-agent",
