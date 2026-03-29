@@ -34,7 +34,7 @@ Agent definitions must not declare `skills:` for discover. Use `uv run` commands
 ## Flow
 
 1. Scoping: analysis agent maps target table to writer procedure candidate(s), selects writer when resolvable, and enriches the selected writer with `reads_from` (tables/views it reads from) for downstream wave planning.
-2. Profiling: profiler agent proposes candidate migration decisions for FDE approval.
+2. Profiling: profiler agent collects catalog signals (deterministic), runs LLM inference for classification/keys/watermark/PII candidates, and uses sampled profiling as tiebreaker for low-confidence results. FDE approves candidates before downstream consumption.
 3. Decomposition: decomposer agent segments selected writer SQL into reusable logical blocks and split points.
 4. Planning: planner agent consumes approved answers + approved decomposition, then produces materialization, tests, and documentation intent.
 5. Test Generation: test generator agent produces branch-covering `unit_tests:` YAML fixtures from the planner output.
@@ -43,7 +43,7 @@ Agent definitions must not declare `skills:` for discover. Use `uv run` commands
 ## Workflow
 
 - [Scoping Agent](scoping-agent.md) - input/output contract for table-to-writer procedure mapping.
-- [Profiler Agent](profiler-agent.md) - required input and output schema for candidate generation. See [What to Profile and Why](what-to-profile-and-why.md) for rationale and detection options per field.
+- [Profiler Agent](profiler-agent.md) - 4-step pipeline (catalog → LLM → sampled tiebreaker → validate) for candidate generation. See [What to Profile and Why](what-to-profile-and-why.md) for the LLM reference tables.
 - [Decomposer Agent](decomposer-agent.md) - required input and output schema for SQL decomposition and model split-point proposals.
 - [Planner Agent](planner-agent.md) - required input and output schema for design manifest generation.
 - [Test Generator Agent](test-generator-agent.md) - required input and output schema for branch-covering fixture generation. See [Unit Test Strategy](../unit-test-strategy/) for the original design rationale and harness details (batch path only; for the interactive path `test_gen.py` uses AST-based inference without a live DB).

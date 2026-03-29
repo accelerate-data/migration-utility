@@ -1,6 +1,6 @@
 # SP → dbt Migration Plugin
 
-Deterministic Python skills that automate stored-procedure-to-dbt migration — discover, scope, assess, migrate, test-gen, and validate — using sqlglot AST analysis. No live database required. Claude orchestrates the skills and handles judgment calls.
+Deterministic Python skills that automate stored-procedure-to-dbt migration — discover, scope, profile, migrate, test-gen, and validate — using sqlglot AST analysis and LLM inference. No live database required for the deterministic steps. Claude orchestrates the skills and handles judgment calls.
 
 ---
 
@@ -36,7 +36,7 @@ agent-sources/ad-migration/               ← marketplace package
     │   ├── skills/
     │   │   ├── discover/                  ← SKILL.md + rules/
     │   │   ├── scope/                     ← SKILL.md + rules/
-    │   │   ├── assess/                    ← not yet implemented
+    │   │   ├── profile/                   ← not yet implemented
     │   │   ├── migrate/                   ← not yet implemented
     │   │   ├── test-gen/                  ← not yet implemented
     │   │   └── validate/                  ← not yet implemented
@@ -66,6 +66,7 @@ All skills import from `shared/`. Nothing in `shared/` is skill-specific.
 | `loader.py` | Parse a DDL directory → `DdlCatalog` (GO-split + `sqlglot.parse_one`) |
 | `name_resolver.py` | Normalize FQN: strip brackets, lowercase, apply default schema |
 | `dialect.py` | `SqlDialect` protocol + registry keyed by string name |
+| `profile.py` | Collect catalog signals for profiling (PKs, FKs, identity cols, CDC metadata) |
 
 ---
 
@@ -136,6 +137,39 @@ Confidence scoring rules (from `scoring.md`, implemented in code):
 | Multiple independent write paths | +0.05 |
 
 Status: `confirmed` if confidence ≥ 0.70, else `suspected`.
+
+### profile
+
+```text
+Input:  --ddl-path PATH  --table dbo.FactSales  --writer dbo.usp_Load
+        --dialect tsql
+
+Output: {
+  "table": "dbo.FactSales",
+  "writer": "dbo.usp_Load",
+  "catalog_signals": {
+    "primary_keys": [],
+    "foreign_keys": [],
+    "identity_columns": [],
+    "cdc_enabled": false,
+    "sensitivity_classifications": []
+  },
+  "proc_body": "CREATE PROCEDURE ...",
+  "columns": [
+    { "name": "sale_id", "sql_type": "BIGINT" }
+  ],
+  "related_procedures": []
+}
+```
+
+`profile.py` collects **deterministic catalog signals only** — declared PKs, FKs, identity columns, CDC metadata, sensitivity classifications. It also bundles the proc body, column list, and related procedure bodies for downstream consumption.
+
+The LLM profiling step (classification, key inference, watermark detection, PII) happens **outside** `profile.py`:
+
+- **Batch path:** The profiler agent reads `profile.py` output and runs LLM inference per the [Profiler Agent Contract](../agent-contract/profiler-agent.md).
+- **Interactive path:** Claude reads the JSON output, applies the reference tables from [What to Profile and Why](../agent-contract/what-to-profile-and-why.md), and presents candidates for user approval.
+
+When `mssql_mcp` is available, `profile.py` queries `sys.*` views directly. When only `ddl_mcp` is available (offline mode), it extracts what it can from static DDL files (column lists, proc bodies) and marks catalog-only fields as `unavailable`.
 
 ### Statement classification (replaces assess)
 
@@ -230,12 +264,13 @@ The orchestrator. Defined in `commands/migrate-table/SKILL.md`. No Python — Cl
 **Interactive flow:**
 
 ```text
-1. discover     → list tables → user picks one
-2. scope        → find writers → user confirms which procedure to migrate
+1. discover      → list tables → user picks one
+2. scope         → find writers → user confirms which procedure to migrate
 3. discover show → statement breakdown → user reviews migrate/skip/claude
-4. migrate      → generate dbt SQL → user approves before file write
-5. test-gen     → generate schema.yml → user approves before file write
-6. validate     → compare outputs (skipped if no live DB)
+4. profile       → catalog signals + LLM inference → user approves candidates
+5. migrate       → generate dbt SQL (using profile answers) → user approves before file write
+6. test-gen      → generate schema.yml → user approves before file write
+7. validate      → compare outputs (skipped if no live DB)
 ```
 
 **Gate rules:**
@@ -244,6 +279,7 @@ The orchestrator. Defined in `commands/migrate-table/SKILL.md`. No Python — Cl
 |---|---|
 | scope | Always — show writer list, user picks procedure |
 | discover show | If `claude_assisted` — require explicit approval before proceeding |
+| profile | Always — show classification, keys, watermark, PII candidates; user approves/edits |
 | migrate | Always — show generated model before writing to disk |
 | test-gen | Always — show schema.yml before writing to disk |
 | validate | None — result shown, no gate |
@@ -276,15 +312,18 @@ The orchestrator. Defined in `commands/migrate-table/SKILL.md`. No Python — Cl
 
 ---
 
-### Wave 3 — Migrate
+### Wave 3 — Profile + Migrate
 
 | Issue | What | Depends on |
 |---|---|---|
-| VU-742 | migrate.py | VU-732, VU-739 |
+| TBD | profile.py | VU-732 (shared lib), VU-733 (discover) |
+| TBD | profile SKILL.md | profile.py |
+| TBD | profile tests | profile.py |
+| VU-742 | migrate.py | VU-732, profile.py |
 | VU-743 | migrate SKILL.md | VU-742 |
 | VU-744 | migrate tests | VU-742 |
 
-**Exit criteria:** `migrate.py` produces a valid `.sql` dbt model. Snapshot tests pass for all fixture procedures.
+**Exit criteria:** `profile.py` returns catalog signals + proc body + columns as structured JSON. `migrate.py` consumes profile answers and produces a valid `.sql` dbt model. Snapshot tests pass for all fixture procedures.
 
 ---
 
@@ -322,6 +361,8 @@ VU-732 (shared lib) ✅
   │
   ├── VU-736 (scope.py) ✅ ──── VU-737 (SKILL) ✅ ── VU-738 (tests) ✅
   │
+  ├── TBD (profile.py) ──────── TBD (SKILL) ──────── TBD (tests)
+  │
   ├── VU-742 (migrate.py) ──── VU-743 (SKILL) ───── VU-744 (tests)
   │     │
   │     ├── VU-745 (test_gen.py) ── VU-746 (SKILL) ── VU-747 (tests)
@@ -331,6 +372,7 @@ VU-732 (shared lib) ✅
 VU-751 (ddl_mcp) ✅
 
 assess cancelled — statement classification built into discover show.
+profile.py collects catalog signals; LLM inference is done by the agent (batch) or Claude (interactive).
 All skills → VU-752 (migrate-table SKILL.md) → VU-753 (GHA workflow)
 ```
 
