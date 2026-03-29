@@ -117,6 +117,52 @@ def test_context_related_procedures_included() -> None:
     assert "INSERT INTO" in helper["proc_body"]
 
 
+# ── Context: error paths ────────────────────────────────────────────────────
+
+
+def test_context_missing_table_catalog_exits_1() -> None:
+    """Context with nonexistent table exits 1."""
+    from click.exceptions import Exit
+
+    with pytest.raises(Exit) as exc_info:
+        profile.run_context(
+            _PROFILE_FIXTURES, "dbo.NonexistentTable", "dbo.usp_load_fact_sales",
+        )
+    assert exc_info.value.exit_code == 1
+
+
+def test_context_missing_proc_catalog_exits_1() -> None:
+    """Context with nonexistent writer proc exits 1."""
+    from click.exceptions import Exit
+
+    with pytest.raises(Exit) as exc_info:
+        profile.run_context(
+            _PROFILE_FIXTURES, "silver.FactSales", "dbo.usp_nonexistent_proc",
+        )
+    assert exc_info.value.exit_code == 1
+
+
+def test_context_missing_proc_body_returns_empty_string() -> None:
+    """Context with valid catalog but missing DDL body returns empty proc_body."""
+    tmp, ddl_path = _make_writable_copy()
+    try:
+        # Create a proc catalog file for a proc that has no DDL body
+        proc_dir = ddl_path / "catalog" / "procedures"
+        proc_dir.mkdir(parents=True, exist_ok=True)
+        ghost_proc = {
+            "schema": "dbo",
+            "name": "usp_ghost",
+            "references": {"tables": {"in_scope": []}, "procedures": {"in_scope": []}},
+        }
+        (proc_dir / "dbo.usp_ghost.json").write_text(
+            json.dumps(ghost_proc, indent=2), encoding="utf-8",
+        )
+        result = profile.run_context(ddl_path, "silver.FactSales", "dbo.usp_ghost")
+        assert result["proc_body"] == ""
+    finally:
+        tmp.cleanup()
+
+
 # ── Write: valid profile ─────────────────────────────────────────────────────
 
 
