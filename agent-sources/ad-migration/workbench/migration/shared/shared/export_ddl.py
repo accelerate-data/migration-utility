@@ -1,13 +1,15 @@
 """DDL export CLI.
 
 Connects to a live SQL Server and writes GO-delimited DDL files compatible
-with loader.load_directory() to a target directory.
+with loader.load_directory() to a target directory.  Optionally extracts
+catalog signals and DMF reference data into per-object JSON files.
 
 Usage:
     uv run --extra export python export_ddl.py \\
       --host 127.0.0.1 --port 1433 --database MigrationTest \\
       --user sa --password P@ssw0rd123 \\
-      --output /path/to/artifacts/ddl/
+      --output /path/to/artifacts/ddl/ \\
+      --catalog
 
 Requires pyodbc and the Microsoft ODBC Driver for SQL Server.
 Install: uv sync --extra export
@@ -144,6 +146,209 @@ def _export_tables(conn, output_path: Path) -> int:
     return len(blocks)
 
 
+def _extract_table_signals(conn) -> dict[str, dict]:
+    """Extract catalog signals for all tables: PKs, unique indexes, FKs, identity, CDC, change tracking, sensitivity."""
+    from shared.name_resolver import normalize
+
+    signals: dict[str, dict] = {}
+
+    # PKs and unique indexes
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT
+            SCHEMA_NAME(t.schema_id) AS schema_name,
+            t.name AS table_name,
+            i.name AS index_name,
+            i.is_unique,
+            i.is_primary_key,
+            c.name AS column_name,
+            ic.key_ordinal
+        FROM sys.tables t
+        JOIN sys.indexes i ON i.object_id = t.object_id AND (i.is_primary_key = 1 OR (i.is_unique = 1 AND i.is_primary_key = 0))
+        JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+        JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
+        WHERE t.is_ms_shipped = 0
+        ORDER BY schema_name, table_name, i.index_id, ic.key_ordinal
+    """)
+    for row in cursor.fetchall():
+        fqn = normalize(f"{row.schema_name}.{row.table_name}")
+        if fqn not in signals:
+            signals[fqn] = {
+                "primary_keys": [], "unique_indexes": [], "foreign_keys": [],
+                "identity_columns": [], "cdc_enabled": False,
+                "change_tracking_enabled": None, "sensitivity_classifications": [],
+            }
+        sig = signals[fqn]
+        if row.is_primary_key:
+            existing = next((pk for pk in sig["primary_keys"] if pk["constraint_name"] == row.index_name), None)
+            if existing is None:
+                sig["primary_keys"].append({"constraint_name": row.index_name, "columns": [row.column_name]})
+            else:
+                existing["columns"].append(row.column_name)
+        else:
+            existing = next((ui for ui in sig["unique_indexes"] if ui["index_name"] == row.index_name), None)
+            if existing is None:
+                sig["unique_indexes"].append({"index_name": row.index_name, "columns": [row.column_name]})
+            else:
+                existing["columns"].append(row.column_name)
+
+    # Foreign keys
+    cursor.execute("""
+        SELECT
+            SCHEMA_NAME(t.schema_id) AS schema_name,
+            t.name AS table_name,
+            fk.name AS constraint_name,
+            COL_NAME(fkc.parent_object_id, fkc.parent_column_id) AS column_name,
+            SCHEMA_NAME(rt.schema_id) AS ref_schema,
+            rt.name AS ref_table,
+            COL_NAME(fkc.referenced_object_id, fkc.referenced_column_id) AS ref_column
+        FROM sys.foreign_keys fk
+        JOIN sys.tables t ON t.object_id = fk.parent_object_id
+        JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
+        JOIN sys.tables rt ON rt.object_id = fk.referenced_object_id
+        WHERE t.is_ms_shipped = 0
+        ORDER BY schema_name, table_name, fk.name, fkc.constraint_column_id
+    """)
+    for row in cursor.fetchall():
+        fqn = normalize(f"{row.schema_name}.{row.table_name}")
+        if fqn not in signals:
+            signals[fqn] = {
+                "primary_keys": [], "unique_indexes": [], "foreign_keys": [],
+                "identity_columns": [], "cdc_enabled": False,
+                "change_tracking_enabled": None, "sensitivity_classifications": [],
+            }
+        sig = signals[fqn]
+        existing = next((f for f in sig["foreign_keys"] if f["constraint_name"] == row.constraint_name), None)
+        if existing is None:
+            sig["foreign_keys"].append({
+                "constraint_name": row.constraint_name,
+                "columns": [row.column_name],
+                "referenced_schema": row.ref_schema,
+                "referenced_table": row.ref_table,
+                "referenced_columns": [row.ref_column],
+            })
+        else:
+            existing["columns"].append(row.column_name)
+            existing["referenced_columns"].append(row.ref_column)
+
+    # Identity columns
+    cursor.execute("""
+        SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name, c.name AS column_name
+        FROM sys.identity_columns c
+        JOIN sys.tables t ON t.object_id = c.object_id
+        WHERE t.is_ms_shipped = 0
+    """)
+    for row in cursor.fetchall():
+        fqn = normalize(f"{row.schema_name}.{row.table_name}")
+        if fqn not in signals:
+            signals[fqn] = {
+                "primary_keys": [], "unique_indexes": [], "foreign_keys": [],
+                "identity_columns": [], "cdc_enabled": False,
+                "change_tracking_enabled": None, "sensitivity_classifications": [],
+            }
+        signals[fqn]["identity_columns"].append(row.column_name)
+
+    # CDC
+    cursor.execute("""
+        SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name, t.is_tracked_by_cdc
+        FROM sys.tables t WHERE t.is_ms_shipped = 0 AND t.is_tracked_by_cdc = 1
+    """)
+    for row in cursor.fetchall():
+        fqn = normalize(f"{row.schema_name}.{row.table_name}")
+        if fqn in signals:
+            signals[fqn]["cdc_enabled"] = True
+
+    # Change tracking (graceful)
+    try:
+        cursor.execute("""
+            SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name
+            FROM sys.change_tracking_tables ct
+            JOIN sys.tables t ON t.object_id = ct.object_id
+        """)
+        for row in cursor.fetchall():
+            fqn = normalize(f"{row.schema_name}.{row.table_name}")
+            if fqn in signals:
+                signals[fqn]["change_tracking_enabled"] = True
+    except Exception:
+        pass  # change tracking not available
+
+    # Sensitivity classifications (graceful)
+    try:
+        cursor.execute("""
+            SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name,
+                   sc.label, sc.information_type, COL_NAME(sc.major_id, sc.minor_id) AS column_name
+            FROM sys.sensitivity_classifications sc
+            JOIN sys.tables t ON t.object_id = sc.major_id
+            WHERE t.is_ms_shipped = 0
+        """)
+        for row in cursor.fetchall():
+            fqn = normalize(f"{row.schema_name}.{row.table_name}")
+            if fqn in signals:
+                signals[fqn]["sensitivity_classifications"].append({
+                    "column": row.column_name,
+                    "label": row.label,
+                    "information_type": row.information_type,
+                })
+    except Exception:
+        pass  # sensitivity classifications not available (requires SQL Server 2019+)
+
+    return signals
+
+
+def _extract_dmf_refs(conn, object_type_code: str) -> list[dict]:
+    """Run server-side cursor to call sys.dm_sql_referenced_entities for all objects of a type.
+
+    Returns raw DMF result rows as dicts.
+    """
+    type_filter = " OR ".join(f"o.type = '{t}'" for t in object_type_code.split(","))
+    sql = f"""
+        DECLARE @result TABLE (
+            referencing_schema NVARCHAR(128), referencing_name NVARCHAR(128),
+            referenced_schema NVARCHAR(128), referenced_entity NVARCHAR(128),
+            referenced_minor_name NVARCHAR(128), referenced_class_desc NVARCHAR(60),
+            is_selected BIT, is_updated BIT, is_select_all BIT,
+            is_insert_all BIT, is_all_columns_found BIT,
+            is_caller_dependent BIT, is_ambiguous BIT
+        );
+        DECLARE @schema NVARCHAR(128), @name NVARCHAR(128);
+        DECLARE cur CURSOR LOCAL FAST_FORWARD FOR
+            SELECT SCHEMA_NAME(o.schema_id), o.name FROM sys.objects o
+            WHERE ({type_filter}) AND o.is_ms_shipped = 0;
+        OPEN cur;
+        FETCH NEXT FROM cur INTO @schema, @name;
+        WHILE @@FETCH_STATUS = 0
+        BEGIN
+            BEGIN TRY
+                INSERT INTO @result
+                SELECT @schema, @name,
+                    ISNULL(ref.referenced_schema_name, ''),
+                    ISNULL(ref.referenced_entity_name, ''),
+                    ISNULL(ref.referenced_minor_name, ''),
+                    ISNULL(ref.referenced_class_desc, ''),
+                    ISNULL(ref.is_selected, 0), ISNULL(ref.is_updated, 0),
+                    ISNULL(ref.is_select_all, 0), ISNULL(ref.is_insert_all, 0),
+                    ISNULL(ref.is_all_columns_found, 0),
+                    ISNULL(ref.is_caller_dependent, 0), ISNULL(ref.is_ambiguous, 0)
+                FROM sys.dm_sql_referenced_entities(
+                    QUOTENAME(@schema) + '.' + QUOTENAME(@name), 'OBJECT'
+                ) ref;
+            END TRY
+            BEGIN CATCH
+            END CATCH
+            FETCH NEXT FROM cur INTO @schema, @name;
+        END;
+        CLOSE cur; DEALLOCATE cur;
+        SELECT * FROM @result;
+    """
+    cursor = conn.cursor()
+    cursor.execute(sql)
+    columns = [desc[0] for desc in cursor.description]
+    rows = []
+    for row in cursor.fetchall():
+        rows.append(dict(zip(columns, row)))
+    return rows
+
+
 @app.command()
 def main(
     host: str = typer.Option("127.0.0.1", help="SQL Server host"),
@@ -152,6 +357,7 @@ def main(
     user: str = typer.Option("sa", help="SQL login username"),
     password: str = typer.Option(..., envvar="SA_PASSWORD", help="SQL login password"),
     output: Path = typer.Option(..., help="Output directory for DDL files"),
+    catalog: bool = typer.Option(False, help="Also extract catalog signals and DMF references"),
 ) -> None:
     """Export DDL from a SQL Server database to a loader-compatible directory."""
     output.mkdir(parents=True, exist_ok=True)
@@ -173,6 +379,35 @@ def main(
 
     typer.echo("Exporting functions ...", err=True)
     counts["functions"] = _export_modules(conn, "FN,IF,TF", output / "functions.sql")
+
+    if catalog:
+        from shared.catalog import write_catalog_files
+
+        typer.echo("Extracting catalog signals ...", err=True)
+        table_signals = _extract_table_signals(conn)
+
+        typer.echo("Extracting procedure references (DMF) ...", err=True)
+        proc_rows = _extract_dmf_refs(conn, "P")
+        typer.echo(f"  {len(proc_rows)} DMF rows from procedures", err=True)
+
+        typer.echo("Extracting view references (DMF) ...", err=True)
+        view_rows = _extract_dmf_refs(conn, "V")
+        typer.echo(f"  {len(view_rows)} DMF rows from views", err=True)
+
+        typer.echo("Extracting function references (DMF) ...", err=True)
+        func_rows = _extract_dmf_refs(conn, "FN,IF,TF")
+        typer.echo(f"  {len(func_rows)} DMF rows from functions", err=True)
+
+        cat_counts = write_catalog_files(
+            output,
+            table_signals=table_signals,
+            proc_dmf_rows=proc_rows,
+            view_dmf_rows=view_rows,
+            func_dmf_rows=func_rows,
+        )
+        typer.echo(f"\nCatalog files written:", err=True)
+        for kind, count in cat_counts.items():
+            typer.echo(f"  catalog/{kind}: {count}", err=True)
 
     conn.close()
 
