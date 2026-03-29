@@ -7,8 +7,6 @@ across process boundaries.
 
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel, Field
 
 
@@ -62,10 +60,7 @@ class Procedure(BaseModel):
     params: list[ProcParam] = Field(default_factory=list)
     body_sql: str
     source_file: str | None = None
-    ast: Any | None = Field(default=None, exclude=True)
 
     @property
     def fqn(self) -> str:
         return f"{self.schema_name}.{self.procedure_name}"
-
-    model_config = {"arbitrary_types_allowed": True}

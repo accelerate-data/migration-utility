@@ -116,9 +116,7 @@ def _make_ast_ref_entry(
     }
 
 
-def _empty_scoped() -> dict[str, list[dict[str, Any]]]:
-    """Return an empty scoped bucket."""
-    return {"in_scope": [], "out_of_scope": []}
+from shared.catalog import _empty_scoped
 
 
 def _ensure_references(data: dict[str, Any]) -> dict[str, Any]:
@@ -210,10 +208,6 @@ def enrich_catalog(ddl_path: Path, dialect: str = "tsql") -> dict[str, Any]:
     indirect_writers: dict[str, set[str]] = {}  # proc_fqn → set of table FQNs
 
     for proc_fqn in ast_refs:
-        if proc_fqn in direct_writers:
-            # Still check for indirect writes to OTHER tables
-            pass
-
         visited: set[str] = {proc_fqn}
         queue: deque[str] = deque(ast_calls.get(proc_fqn, []))
         indirect_tables: set[str] = set()

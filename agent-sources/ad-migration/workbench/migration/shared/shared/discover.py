@@ -200,9 +200,7 @@ def run_show(ddl_path: Path, name: str) -> dict[str, Any]:
             for t in tables_in_scope:
                 if t.get("is_updated"):
                     tfqn = normalize(f"{t['schema']}.{t['name']}")
-                    ops = []
-                    if t.get("is_updated"):
-                        ops.append("UPDATE")
+                    ops = ["UPDATE"]
                     if t.get("is_insert_all"):
                         ops.append("INSERT")
                     write_ops[tfqn] = ops
