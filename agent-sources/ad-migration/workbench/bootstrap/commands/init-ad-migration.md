@@ -150,5 +150,32 @@ Commit at logical checkpoints so work is never lost mid-session.
 Commit messages: `type: short description` (e.g. `feat: extract DDL from AdventureWorks`).
 
 If not a git repository, skip commit steps silently.
+```
 
 After writing or checking the file, tell the user: **"Restart Claude to pick up the new project instructions."**
+
+## Step 6: Set up .gitignore
+
+If the working directory is a git repository (check 7 passed), check whether a `.gitignore` file exists.
+
+**If no `.gitignore` exists**, create one with the base entries below.
+
+**If a `.gitignore` already exists**, read it and append any missing entries from the list below. Do not duplicate entries that are already present.
+
+### Required .gitignore entries
+
+```text
+# Staging files from setup-ddl (intermediate MCP query results)
+.staging/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
+```
+
+Tell the user which entries were added (or that `.gitignore` was created).
