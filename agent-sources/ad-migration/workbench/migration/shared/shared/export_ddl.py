@@ -102,8 +102,8 @@ def _export_tables(conn, output_path: Path) -> int:
             c.scale,
             c.is_nullable,
             c.is_identity,
-            ic.seed_value,
-            ic.increment_value
+            CAST(ic.seed_value AS BIGINT) AS seed_value,
+            CAST(ic.increment_value AS BIGINT) AS increment_value
         FROM sys.tables t
         JOIN sys.columns c ON c.object_id = t.object_id
         JOIN sys.types tp ON tp.user_type_id = c.user_type_id
@@ -175,8 +175,8 @@ def _extract_table_signals(conn) -> dict[str, dict]:
         if fqn not in signals:
             signals[fqn] = {
                 "primary_keys": [], "unique_indexes": [], "foreign_keys": [],
-                "auto_increment_columns": [], "cdc_enabled": False,
-                "change_tracking_enabled": None, "sensitivity_classifications": [],
+                "auto_increment_columns": [], "change_capture": None,
+                "sensitivity_classifications": [],
             }
         sig = signals[fqn]
         if row.is_primary_key:
@@ -214,8 +214,8 @@ def _extract_table_signals(conn) -> dict[str, dict]:
         if fqn not in signals:
             signals[fqn] = {
                 "primary_keys": [], "unique_indexes": [], "foreign_keys": [],
-                "auto_increment_columns": [], "cdc_enabled": False,
-                "change_tracking_enabled": None, "sensitivity_classifications": [],
+                "auto_increment_columns": [], "change_capture": None,
+                "sensitivity_classifications": [],
             }
         sig = signals[fqn]
         existing = next((f for f in sig["foreign_keys"] if f["constraint_name"] == row.constraint_name), None)
@@ -233,7 +233,9 @@ def _extract_table_signals(conn) -> dict[str, dict]:
 
     # Identity columns
     cursor.execute("""
-        SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name, c.name AS column_name
+        SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name, c.name AS column_name,
+               CAST(c.seed_value AS BIGINT) AS seed_value,
+               CAST(c.increment_value AS BIGINT) AS increment_value
         FROM sys.identity_columns c
         JOIN sys.tables t ON t.object_id = c.object_id
         WHERE t.is_ms_shipped = 0
@@ -243,10 +245,15 @@ def _extract_table_signals(conn) -> dict[str, dict]:
         if fqn not in signals:
             signals[fqn] = {
                 "primary_keys": [], "unique_indexes": [], "foreign_keys": [],
-                "auto_increment_columns": [], "cdc_enabled": False,
-                "change_tracking_enabled": None, "sensitivity_classifications": [],
+                "auto_increment_columns": [], "change_capture": None,
+                "sensitivity_classifications": [],
             }
-        signals[fqn]["auto_increment_columns"].append({"column": row.column_name, "mechanism": "identity"})
+        signals[fqn]["auto_increment_columns"].append({
+            "column": row.column_name,
+            "mechanism": "identity",
+            "seed": row.seed_value,
+            "increment": row.increment_value,
+        })
 
     # CDC
     cursor.execute("""
@@ -256,7 +263,7 @@ def _extract_table_signals(conn) -> dict[str, dict]:
     for row in cursor.fetchall():
         fqn = normalize(f"{row.schema_name}.{row.table_name}")
         if fqn in signals:
-            signals[fqn]["cdc_enabled"] = True
+            signals[fqn]["change_capture"] = {"enabled": True, "mechanism": "cdc"}
 
     # Change tracking (graceful)
     try:
@@ -268,7 +275,7 @@ def _extract_table_signals(conn) -> dict[str, dict]:
         for row in cursor.fetchall():
             fqn = normalize(f"{row.schema_name}.{row.table_name}")
             if fqn in signals:
-                signals[fqn]["change_tracking_enabled"] = True
+                signals[fqn]["change_capture"] = {"enabled": True, "mechanism": "change_tracking"}
     except Exception:
         pass  # change tracking not available
 
@@ -302,6 +309,7 @@ def _extract_dmf_refs(conn, object_type_code: str) -> list[dict]:
     """
     type_filter = " OR ".join(f"o.type = '{t}'" for t in object_type_code.split(","))
     sql = f"""
+        SET NOCOUNT ON;
         DECLARE @result TABLE (
             referencing_schema NVARCHAR(128), referencing_name NVARCHAR(128),
             referenced_schema NVARCHAR(128), referenced_entity NVARCHAR(128),
@@ -346,11 +354,46 @@ def _extract_dmf_refs(conn, object_type_code: str) -> list[dict]:
     """
     cursor = conn.cursor()
     cursor.execute(sql)
+    # Advance past any intermediate result sets (e.g. from WHILE loop row counts)
+    while cursor.description is None:
+        if not cursor.nextset():
+            return []
     columns = [desc[0] for desc in cursor.description]
     rows = []
     for row in cursor.fetchall():
         rows.append(dict(zip(columns, row)))
     return rows
+
+
+def _build_object_type_map(conn) -> dict[str, str]:
+    """Return {normalized_fqn: catalog_bucket} for all non-system objects.
+
+    Used to resolve OBJECT_OR_COLUMN references in DMF rows.
+    """
+    from shared.name_resolver import normalize
+
+    mapping = {
+        "U": "tables",
+        "V": "views",
+        "P": "procedures",
+        "FN": "functions",
+        "IF": "functions",
+        "TF": "functions",
+    }
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT SCHEMA_NAME(o.schema_id) AS schema_name, o.name, o.type
+        FROM sys.objects o
+        WHERE o.is_ms_shipped = 0
+          AND o.type IN ('U', 'V', 'P', 'FN', 'IF', 'TF')
+    """)
+    result: dict[str, str] = {}
+    for row in cursor.fetchall():
+        fqn = normalize(f"{row[0]}.{row[1]}")
+        bucket = mapping.get(row[2].strip())
+        if bucket:
+            result[fqn] = bucket
+    return result
 
 
 def _scan_dynamic_sql(conn) -> dict[str, bool]:
@@ -415,6 +458,7 @@ def main(
 
         typer.echo("Extracting catalog signals ...", err=True)
         table_signals = _extract_table_signals(conn)
+        object_type_map = _build_object_type_map(conn)
 
         typer.echo("Scanning for dynamic SQL ...", err=True)
         dyn_flags = _scan_dynamic_sql(conn)
@@ -441,6 +485,7 @@ def main(
             func_dmf_rows=func_rows,
             dynamic_sql_flags=dyn_flags,
             database=database,
+            object_types=object_type_map,
         )
         typer.echo(f"\nCatalog files written:", err=True)
         for kind, count in cat_counts.items():

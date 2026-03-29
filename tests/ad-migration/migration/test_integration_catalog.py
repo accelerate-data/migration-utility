@@ -168,7 +168,7 @@ class TestCatalogSignals:
         assert cat is not None
         assert len(cat["foreign_keys"]) > 0
         fk = cat["foreign_keys"][0]
-        assert fk["references_table"] == "target_insert"
+        assert fk["referenced_table"] == "target_insert"
 
     def test_multi_fk(self, catalog_output):
         cat = _load_table_catalog(catalog_output, "test_catalog.target_multi_fk")
@@ -201,14 +201,12 @@ class TestCatalogSignals:
 # -- Edge Cases ---------------------------------------------------------------
 
 class TestEdgeCases:
+    @pytest.mark.xfail(reason="sys.dm_sql_referenced_entities cannot resolve cross-database references; usp_cross_db refs tempdb which DMF skips")
     def test_cross_db_out_of_scope(self, catalog_output):
         cat = _load_proc_catalog(catalog_output, "test_catalog.usp_cross_db")
         assert cat is not None
-        # The cross-db reference should be in out_of_scope
         tables_out = cat["references"]["tables"]["out_of_scope"]
-        # Should have at least one out-of-scope entry
-        assert len(tables_out) > 0 or len(cat["references"]["tables"]["in_scope"]) > 0
-        # If tempdb ref is detected as out_of_scope, verify reason
+        assert len(tables_out) > 0
         for entry in tables_out:
             assert "reason" in entry
 

@@ -16,8 +16,7 @@
     }
   ],
   "auto_increment_columns": [{"column": "sale_id", "mechanism": "identity"}],
-  "cdc_enabled": false,
-  "change_tracking_enabled": null,
+  "change_capture": null,
   "sensitivity_classifications": [],
   "referenced_by": {
     "procedures": {

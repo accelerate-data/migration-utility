@@ -39,10 +39,10 @@ These are already in `catalog/tables/<table>.json` from setup-ddl (VU-766). `pro
 | Catalog field | What it provides |
 |---|---|
 | `primary_keys` | Declared PKs and unique constraints — **fact, not candidate** |
-| `identity_columns` | Definitive surrogate key signal — **fact** |
+| `auto_increment_columns` | Definitive surrogate key signal — **fact** |
 | `foreign_keys` | Declared FK relationships — **fact** (LLM classifies `fk_type`) |
 | `sensitivity_classifications` | PII labels (often empty) — **fact when present** |
-| `cdc_enabled` / `change_tracking_enabled` | Informs incremental strategy |
+| `change_capture` | Informs incremental strategy |
 | `referenced_by` | Which procs/views/functions reference this table, with `is_selected`/`is_updated` per column |
 
 Additionally, `catalog/procedures/<writer>.json` provides `references` — all tables the writer proc touches, with column-level `is_selected`/`is_updated` flags.

@@ -317,9 +317,8 @@ For each table, assemble a JSON file at `<output-folder>/catalog/tables/<schema>
   "primary_keys": [{"constraint_name": "PK_...", "columns": ["col1", "col2"]}],
   "unique_indexes": [{"index_name": "IX_...", "columns": ["col1"]}],
   "foreign_keys": [{"constraint_name": "FK_...", "columns": ["col"], "referenced_schema": "dbo", "referenced_table": "T2", "referenced_columns": ["col"]}],
-  "identity_columns": ["col1"],
-  "cdc_enabled": false,
-  "change_tracking_enabled": null,
+  "auto_increment_columns": [{"column": "col1", "mechanism": "identity"}],
+  "change_capture": null,
   "sensitivity_classifications": []
 }
 ```

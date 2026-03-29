@@ -62,8 +62,14 @@
             }
           }
         },
-        "cdc_enabled": { "type": "boolean" },
-        "change_tracking_enabled": { "type": "boolean" },
+        "change_capture": {
+          "type": ["object", "null"],
+          "description": "Change-tracking metadata. Null means not detected or not applicable.",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "mechanism": { "type": "string", "enum": ["cdc", "change_tracking", "stream", "change_data_feed"] }
+          }
+        },
         "sensitivity_classifications": {
           "type": "array",
           "items": {

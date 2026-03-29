@@ -58,8 +58,7 @@ _DYNAMIC_SQL_RE = re.compile(
 #   unique_indexes: list[UniqueIndex]
 #   foreign_keys: list[ForeignKey]
 #   auto_increment_columns: list[dict]   (column, mechanism, seed?, increment?)
-#   cdc_enabled: bool
-#   change_tracking_enabled: bool | None
+#   change_capture: {enabled: bool, mechanism: str} | None
 #   sensitivity_classifications: list[SensitivityEntry]
 #   referenced_by: {procedures: [...], views: [...], functions: [...]}
 #
@@ -153,7 +152,15 @@ def write_table_catalog(
 ) -> Path:
     """Write a table catalog file.  Returns the written path."""
     fqn = normalize(table_fqn)
-    data: dict[str, Any] = {**signals}
+    defaults: dict[str, Any] = {
+        "primary_keys": [],
+        "unique_indexes": [],
+        "foreign_keys": [],
+        "auto_increment_columns": [],
+        "change_capture": None,
+        "sensitivity_classifications": [],
+    }
+    data: dict[str, Any] = {**defaults, **signals}
     if referenced_by is not None:
         data["referenced_by"] = referenced_by
     else:
@@ -469,6 +476,9 @@ def write_catalog_files(
     view_refs = process_dmf_results(view_dmf_rows, object_types, database=database)
     func_refs = process_dmf_results(func_dmf_rows, object_types, database=database)
 
+    def _empty_refs() -> dict[str, dict[str, list[dict[str, Any]]]]:
+        return {"tables": _empty_scoped(), "views": _empty_scoped(), "functions": _empty_scoped(), "procedures": _empty_scoped()}
+
     # Write proc/view/function catalog files
     for fqn, refs in proc_refs.items():
         write_object_catalog(ddl_path, "procedures", fqn, refs, dynamic_sql=dyn_flags.get(fqn, False))
@@ -481,6 +491,18 @@ def write_catalog_files(
     for fqn, refs in func_refs.items():
         write_object_catalog(ddl_path, "functions", fqn, refs, dynamic_sql=dyn_flags.get(fqn, False))
         counts["functions"] += 1
+
+    # Write empty catalog files for objects that had no DMF refs
+    for fqn, bucket in (object_types or {}).items():
+        if bucket == "procedures" and fqn not in proc_refs:
+            write_object_catalog(ddl_path, "procedures", fqn, _empty_refs(), dynamic_sql=dyn_flags.get(fqn, False))
+            counts["procedures"] += 1
+        elif bucket == "views" and fqn not in view_refs:
+            write_object_catalog(ddl_path, "views", fqn, _empty_refs(), dynamic_sql=dyn_flags.get(fqn, False))
+            counts["views"] += 1
+        elif bucket == "functions" and fqn not in func_refs:
+            write_object_catalog(ddl_path, "functions", fqn, _empty_refs(), dynamic_sql=dyn_flags.get(fqn, False))
+            counts["functions"] += 1
 
     # Flip references to build referenced_by for tables
     table_referenced_by: dict[str, dict[str, dict[str, list[dict[str, Any]]]]] = {}
@@ -508,7 +530,8 @@ def write_catalog_files(
             scoped["in_scope"].sort(key=lambda e: f"{e['schema']}.{e['name']}".lower())
 
     # Write table catalog files
-    all_table_fqns = set(table_signals.keys()) | set(table_referenced_by.keys())
+    known_tables = {fqn for fqn, bucket in (object_types or {}).items() if bucket == "tables"}
+    all_table_fqns = set(table_signals.keys()) | set(table_referenced_by.keys()) | known_tables
     for table_fqn in sorted(all_table_fqns):
         signals = table_signals.get(table_fqn, {})
         ref_by = table_referenced_by.get(table_fqn)

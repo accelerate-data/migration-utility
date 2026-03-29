@@ -51,12 +51,15 @@ _DELIMITER_MAP: dict[str, re.Pattern[str]] = {
 
 
 def _read_manifest(ddl_path: Path) -> dict[str, str]:
-    """Read manifest.json from ddl_path if present. Returns dialect and delimiter key, defaulting to tsql/GO."""
+    """Read manifest.json from ddl_path if present. Returns dialect, defaulting to tsql."""
     manifest_file = Path(ddl_path) / "manifest.json"
     if manifest_file.exists():
         import json as _json
-        with manifest_file.open() as f:
-            m = _json.load(f)
+        try:
+            with manifest_file.open() as f:
+                m = _json.load(f)
+        except _json.JSONDecodeError as exc:
+            raise ValueError(f"manifest.json in {ddl_path} is not valid JSON: {exc}") from exc
         return {"dialect": m.get("dialect", "tsql")}
     return {"dialect": "tsql"}
 

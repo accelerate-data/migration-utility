@@ -29,7 +29,7 @@ FIXTURES = Path(__file__).parent / "fixtures" / "catalog"
 def test_load_table_catalog_from_fixture() -> None:
     data = load_table_catalog(FIXTURES.parent, "silver.FactSales")
     assert data is not None
-    assert data["cdc_enabled"] is False
+    assert data["change_capture"] is None
     assert len(data["primary_keys"]) == 1
     assert data["primary_keys"][0]["columns"] == ["sale_id"]
     writers = [
@@ -79,8 +79,7 @@ def test_write_table_catalog_round_trip() -> None:
             "unique_indexes": [],
             "foreign_keys": [],
             "auto_increment_columns": [{"column": "id", "mechanism": "identity"}],
-            "cdc_enabled": True,
-            "change_tracking_enabled": None,
+            "change_capture": {"enabled": True, "mechanism": "cdc"},
             "sensitivity_classifications": [],
         }
         ref_by = {
@@ -96,7 +95,7 @@ def test_write_table_catalog_round_trip() -> None:
         write_table_catalog(ddl_path, "dbo.T1", signals, ref_by)
         loaded = load_table_catalog(ddl_path, "dbo.T1")
         assert loaded is not None
-        assert loaded["cdc_enabled"] is True
+        assert loaded["change_capture"] == {"enabled": True, "mechanism": "cdc"}
         assert loaded["auto_increment_columns"] == [{"column": "id", "mechanism": "identity"}]
         assert len(loaded["referenced_by"]["procedures"]["in_scope"]) == 1
 
@@ -250,8 +249,7 @@ def test_write_catalog_files_end_to_end() -> None:
                 "unique_indexes": [],
                 "foreign_keys": [],
                 "auto_increment_columns": [],
-                "cdc_enabled": False,
-                "change_tracking_enabled": None,
+                "change_capture": None,
                 "sensitivity_classifications": [],
             }
         }

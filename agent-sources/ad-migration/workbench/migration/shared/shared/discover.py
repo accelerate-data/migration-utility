@@ -238,7 +238,7 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
     Raises SystemExit(1) if the object is not found.
     """
     _manifest = _read_manifest(ddl_path)
-    dialect = _manifest["dialect"]
+    dialect = _manifest.get("dialect", dialect)
     catalog = _load(ddl_path, dialect)
     found = _find_entry(catalog, name)
     if found is None:

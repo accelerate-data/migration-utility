@@ -139,8 +139,8 @@ Output: {
   "catalog": {
     "primary_keys": [...],
     "foreign_keys": [...],
-    "identity_columns": [...],
-    "cdc_enabled": false,
+    "auto_increment_columns": [...],
+    "change_capture": null,
     "sensitivity_classifications": [],
     "referenced_by": { "procedures": [...], "views": [...] }
   },
