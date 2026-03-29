@@ -169,11 +169,11 @@ Save the result to `<output-folder>/.staging/procedures.json`, then:
 ```bash
 uv run --project <shared-path> setup-ddl assemble-modules \
   --input <output-folder>/.staging/procedures.json \
-  --output-folder <output-folder>/ddl \
+  --output-folder <output-folder> \
   --type procedures
 ```
 
-Repeat for **views** (change `o.type = 'P'` to `o.type = 'V'`, save as `views.json`, `--type views`) and **functions** (change to `o.type IN ('FN', 'IF', 'TF')`, save as `functions.json`, `--type functions`). All use `--output-folder <output-folder>/ddl`.
+Repeat for **views** (change `o.type = 'P'` to `o.type = 'V'`, save as `views.json`, `--type views`) and **functions** (change to `o.type IN ('FN', 'IF', 'TF')`, save as `functions.json`, `--type functions`).
 
 If a query returns no results, skip the staging file and CLI call for that type.
 
@@ -213,7 +213,7 @@ Save the result to `<output-folder>/.staging/table_columns.json`, then:
 ```bash
 uv run --project <shared-path> setup-ddl assemble-tables \
   --input <output-folder>/.staging/table_columns.json \
-  --output-folder <output-folder>/ddl
+  --output-folder <output-folder>
 ```
 
 ## Step 7 — Extract catalog signals and references
@@ -425,9 +425,7 @@ The tool outputs JSON with counts: `{"tables": N, "procedures": N, "views": N, "
 Run the catalog enrichment script to fill catalog-query gaps:
 
 ```bash
-uv run --project <shared-path> catalog-enrich \
-  --ddl-path <output-folder>/ddl \
-  --catalog-root <output-folder>
+uv run --project <shared-path> catalog-enrich --ddl-path <output-folder>
 ```
 
 This augments catalog files with AST-derived references for:

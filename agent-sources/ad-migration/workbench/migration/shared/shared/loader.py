@@ -504,12 +504,16 @@ def load_directory(ddl_path: Path | str, dialect: str = "tsql") -> DdlCatalog:
     if not path.exists():
         raise FileNotFoundError(f"DDL path does not exist: {path}")
 
+    ddl_dir = path / "ddl"
+    if not ddl_dir.is_dir():
+        raise FileNotFoundError(f"ddl/ subdirectory does not exist: {ddl_dir}")
+
     _manifest = _read_manifest(path)
     dialect = _manifest["dialect"]
     delimiter_re = _DELIMITER_MAP.get(dialect, _GO_RE)
 
     catalog = DdlCatalog()
-    for sql_file in sorted(path.glob("*.sql")):
+    for sql_file in sorted(ddl_dir.glob("*.sql")):
         _load_file(sql_file, catalog, dialect=dialect, delimiter_re=delimiter_re)
     return catalog
 

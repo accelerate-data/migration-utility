@@ -317,32 +317,28 @@ def _flip_to_table_catalogs(
     return tables_augmented
 
 
-def enrich_catalog(
-    ddl_path: Path, dialect: str = "tsql", catalog_root: Path | None = None,
-) -> dict[str, Any]:
+def enrich_catalog(ddl_path: Path, dialect: str = "tsql") -> dict[str, Any]:
     """Enrich catalog files with AST-derived references.
 
     Args:
-        ddl_path: Directory containing ``.sql`` files and ``manifest.json``.
+        ddl_path: Root artifacts directory containing ``ddl/``, ``catalog/``,
+            and ``manifest.json``.
         dialect: SQL dialect for parsing (default: "tsql").
-        catalog_root: Directory containing ``catalog/``. Defaults to *ddl_path*
-            when the catalog lives alongside DDL files.
 
     Returns summary: {"tables_augmented": N, "procedures_augmented": N, "entries_added": N}
     """
     ddl_path = Path(ddl_path)
-    catalog_root = Path(catalog_root) if catalog_root else ddl_path
 
-    if not has_catalog(catalog_root):
-        logger.warning("event=enrich_catalog status=skip reason=no_catalog path=%s", catalog_root)
+    if not has_catalog(ddl_path):
+        logger.warning("event=enrich_catalog status=skip reason=no_catalog path=%s", ddl_path)
         return {"tables_augmented": 0, "procedures_augmented": 0, "entries_added": 0}
 
     ddl_catalog = load_directory(ddl_path, dialect=dialect)
 
-    ast_refs, ast_calls = _scan_ast_refs(catalog_root, ddl_catalog)
+    ast_refs, ast_calls = _scan_ast_refs(ddl_path, ddl_catalog)
     direct_writers, indirect_writers = _build_writer_maps(ast_refs, ast_calls)
-    procedures_augmented, entries_added = _augment_proc_catalogs(catalog_root, direct_writers, indirect_writers)
-    tables_augmented = _flip_to_table_catalogs(catalog_root, procedures_augmented)
+    procedures_augmented, entries_added = _augment_proc_catalogs(ddl_path, direct_writers, indirect_writers)
+    tables_augmented = _flip_to_table_catalogs(ddl_path, procedures_augmented)
 
     summary = {
         "tables_augmented": len(tables_augmented),
@@ -355,9 +351,8 @@ def enrich_catalog(
 
 @app.command()
 def main(
-    ddl_path: Path = typer.Option(..., help="Path to directory containing .sql files and manifest.json"),
+    ddl_path: Path = typer.Option(..., help="Root artifacts directory containing ddl/, catalog/, and manifest.json"),
     dialect: str = typer.Option("tsql", help="SQL dialect"),
-    catalog_root: Path = typer.Option(None, help="Path to directory containing catalog/. Defaults to --ddl-path."),
 ) -> None:
     """Augment catalog files with AST-derived references."""
     logging.basicConfig(
@@ -365,7 +360,7 @@ def main(
         format="%(name)s: %(message)s",
         stream=sys.stderr,
     )
-    result = enrich_catalog(ddl_path, dialect, catalog_root=catalog_root)
+    result = enrich_catalog(ddl_path, dialect)
     json.dump(result, sys.stdout, indent=2)
     print(file=sys.stdout)  # trailing newline
 

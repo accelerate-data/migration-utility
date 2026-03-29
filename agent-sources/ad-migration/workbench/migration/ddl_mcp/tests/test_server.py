@@ -93,18 +93,22 @@ GO
 @pytest.fixture()
 def ddl_dir(tmp_path: Path) -> Path:
     """Temp DDL directory with tables, procedures, and functions."""
+    ddl_dir = tmp_path / "ddl"
+    ddl_dir.mkdir()
     procs = PROC_WRITER + PROC_READER + PROC_COMMENT_ONLY + PROC_EXEC
-    (tmp_path / "tables.sql").write_text(TABLES_SQL, encoding="utf-8")
-    (tmp_path / "procedures.sql").write_text(procs, encoding="utf-8")
-    (tmp_path / "functions.sql").write_text(FUNCTIONS_SQL, encoding="utf-8")
+    (ddl_dir / "tables.sql").write_text(TABLES_SQL, encoding="utf-8")
+    (ddl_dir / "procedures.sql").write_text(procs, encoding="utf-8")
+    (ddl_dir / "functions.sql").write_text(FUNCTIONS_SQL, encoding="utf-8")
     return tmp_path
 
 
 @pytest.fixture()
 def ddl_dir_no_functions(tmp_path: Path) -> Path:
     """Temp DDL directory without functions.sql."""
-    (tmp_path / "tables.sql").write_text(TABLES_SQL, encoding="utf-8")
-    (tmp_path / "procedures.sql").write_text(PROC_WRITER, encoding="utf-8")
+    ddl_dir = tmp_path / "ddl"
+    ddl_dir.mkdir()
+    (ddl_dir / "tables.sql").write_text(TABLES_SQL, encoding="utf-8")
+    (ddl_dir / "procedures.sql").write_text(PROC_WRITER, encoding="utf-8")
     return tmp_path
 
 

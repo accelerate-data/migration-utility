@@ -72,8 +72,9 @@ def assemble_modules(
         if definition:
             blocks.append(definition.strip())
 
-    output_folder.mkdir(parents=True, exist_ok=True)
-    out_path = output_folder / f"{type}.sql"
+    ddl_dir = output_folder / "ddl"
+    ddl_dir.mkdir(parents=True, exist_ok=True)
+    out_path = ddl_dir / f"{type}.sql"
     out_path.write_text(
         "\nGO\n".join(blocks) + ("\nGO\n" if blocks else ""),
         encoding="utf-8",
@@ -121,8 +122,9 @@ def assemble_tables(
         ddl = f"CREATE TABLE [{schema_name}].[{table_name}] (\n" + ",\n".join(col_defs) + "\n)"
         blocks.append(ddl)
 
-    output_folder.mkdir(parents=True, exist_ok=True)
-    out_path = output_folder / "tables.sql"
+    ddl_dir = output_folder / "ddl"
+    ddl_dir.mkdir(parents=True, exist_ok=True)
+    out_path = ddl_dir / "tables.sql"
     out_path.write_text(
         "\nGO\n".join(blocks) + ("\nGO\n" if blocks else ""),
         encoding="utf-8",
