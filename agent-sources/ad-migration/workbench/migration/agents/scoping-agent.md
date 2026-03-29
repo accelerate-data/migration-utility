@@ -123,33 +123,13 @@ Map deterministic writers to candidate entries. Use `confidence` for resolution 
 
 If discover fails for an item, record an `error` result with code `DISCOVER_EXECUTION_FAILED`.
 
-### Step 2 — Analyse LLM-Required Procs
+### Step 2 — Analyse LLM-Required Procs (AST fallback only)
 
-Only applies when `llm_required[]` is present in the refs output (typically AST fallback mode).
+**Catalog path:** Skip this step. The catalog either sees a write or it doesn't — there is no `llm_required` signal. Dynamic SQL gaps are surfaced as warnings via `has_dynamic_sql` in Step 3.
 
-For each proc in `llm_required`, run:
+**AST fallback path:** Only applies when `llm_required[]` is present in the refs output.
 
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover show \
-  --ddl-path <ddl_path> --name <proc_name>
-```
-
-Parse JSON stdout to get `raw_ddl`, `statements`, `refs`.
-
-Read the procedure body and determine:
-
-- Which tables it writes to (INSERT/UPDATE/DELETE/MERGE/TRUNCATE/SELECT INTO)
-- Which tables it reads from (FROM/JOIN targets, excluding write targets)
-- What other procs it calls (EXEC targets)
-- For dynamic SQL: decode the SQL string if possible, otherwise note as unresolvable
-
-If the proc writes to the target table, produce a candidate writer entry with:
-
-- `rationale`: your reasoning
-- `write_operations`: the operations you identified
-- `write_type`: "direct" or "indirect"
-
-For building `dependencies` on LLM-assisted candidates: identify referenced objects (tables, views, functions, EXEC targets) from the raw DDL, then call `discover show` on each to get its type and resolved dependencies. Assemble `dependencies: { tables: [...], views: [...], functions: [...] }` from the show results. Use `discover show` as your lookup tool — do not hunt through DDL files manually.
+For each proc in `llm_required`, run `discover show` and read the `raw_ddl` and `statements`. Identify whether it reads from or writes to the target table. If it writes, produce a candidate writer entry with `rationale`, `write_operations`, and `write_type`. This is the same light treatment the `/discover` skill uses — one proc body read, no recursive call-graph traversal.
 
 Merge these with the deterministic writers from Step 1.
 
@@ -178,19 +158,27 @@ For each item, apply resolution based on the refs source:
 
 For each writer, add a `rationale` field describing the write evidence.
 
-### Step 4 — Enrich Selected Writers with `dependencies`
+**Dynamic SQL warnings (catalog path):** For each candidate writer, read its catalog file at `<ddl_path>/catalog/procedures/<writer>.json`. If `has_dynamic_sql` is `true`, add a warning to the candidate:
 
-For each `resolved` item, get the `dependencies` for the selected writer:
-
-- If the selected writer was LLM-assisted (Step 2), `dependencies` was already built — reuse it.
-- Otherwise, run `discover show` on the selected writer:
-
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover show \
-  --ddl-path <ddl_path> --name <selected_writer>
+```json
+{
+  "code": "DYNAMIC_SQL_PRESENT",
+  "message": "Proc contains EXEC/sp_executesql — catalog may not capture all writes.",
+  "severity": "warning"
+}
 ```
 
-Extract `dependencies` from the JSON output and set it on the candidate writer entry. This field contains the transitively resolved base tables, views, and functions the writer depends on. Views and functions are resolved down to their underlying tables. It is consumed by downstream wave planning to determine inter-table migration ordering.
+This is a passive flag for the FDE — the agent does not attempt to resolve dynamic SQL.
+
+### Step 4 — Enrich Selected Writers with `dependencies`
+
+For each `resolved` item, get the `dependencies` for the selected writer.
+
+**Catalog path:** Read `<ddl_path>/catalog/procedures/<writer>.json` → `references.tables` where `is_selected=true` gives `reads_from` dependencies. Assemble `dependencies: { tables: [...], views: [...], functions: [...] }` from the catalog file's `references` section. No `discover show` call needed.
+
+**AST fallback path:** Run `discover show` on the selected writer and extract `dependencies` from the JSON output.
+
+The `dependencies` field contains the tables, views, and functions the writer depends on. It is consumed by downstream wave planning to determine inter-table migration ordering.
 
 ### Step 5 — Validate Output
 

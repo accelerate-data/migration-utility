@@ -9,6 +9,7 @@ from pathlib import Path
 from shared.catalog import (
     flip_references,
     has_catalog,
+    has_dynamic_sql,
     load_function_catalog,
     load_proc_catalog,
     load_table_catalog,
@@ -291,3 +292,46 @@ def test_write_catalog_files_end_to_end() -> None:
         proc_data = load_proc_catalog(ddl_path, "dbo.usp_load_fact_sales")
         assert proc_data is not None
         assert len(proc_data["references"]["tables"]) == 2
+
+
+# ── has_dynamic_sql detection ───────────────────────────────────────────
+
+
+def test_has_dynamic_sql_exec_variable() -> None:
+    assert has_dynamic_sql("EXEC(@sql)") is True
+    assert has_dynamic_sql("EXECUTE(@sql)") is True
+    assert has_dynamic_sql("EXEC (@sql)") is True
+
+
+def test_has_dynamic_sql_sp_executesql() -> None:
+    assert has_dynamic_sql("EXEC sp_executesql @sql, N'@id INT', @id = 1") is True
+
+
+def test_has_dynamic_sql_static_exec_not_flagged() -> None:
+    # Static EXEC dbo.usp_foo should NOT match — no @var or parenthesized expression
+    assert has_dynamic_sql("EXEC dbo.usp_helper") is False
+    assert has_dynamic_sql("EXECUTE dbo.usp_helper @param = 1") is False
+
+
+def test_has_dynamic_sql_absent() -> None:
+    assert has_dynamic_sql("INSERT INTO dbo.T1 SELECT * FROM dbo.T2") is False
+
+
+def test_write_object_catalog_with_dynamic_sql_flag() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        ddl_path = Path(tmp)
+        refs = {"tables": [], "views": [], "functions": [], "procedures": []}
+        write_object_catalog(ddl_path, "procedures", "dbo.usp_dynamic", refs, dynamic_sql=True)
+        loaded = load_proc_catalog(ddl_path, "dbo.usp_dynamic")
+        assert loaded is not None
+        assert loaded["has_dynamic_sql"] is True
+
+
+def test_write_object_catalog_without_dynamic_sql_flag() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        ddl_path = Path(tmp)
+        refs = {"tables": [], "views": [], "functions": [], "procedures": []}
+        write_object_catalog(ddl_path, "procedures", "dbo.usp_static", refs)
+        loaded = load_proc_catalog(ddl_path, "dbo.usp_static")
+        assert loaded is not None
+        assert "has_dynamic_sql" not in loaded

@@ -349,6 +349,30 @@ def _extract_dmf_refs(conn, object_type_code: str) -> list[dict]:
     return rows
 
 
+def _scan_dynamic_sql(conn) -> dict[str, bool]:
+    """Scan all proc/view/function bodies for EXEC(@var) or sp_executesql patterns.
+
+    Returns {normalized_fqn: True} for objects containing dynamic SQL.
+    """
+    from shared.catalog import has_dynamic_sql as _check
+    from shared.name_resolver import normalize
+
+    flags: dict[str, bool] = {}
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT SCHEMA_NAME(o.schema_id) AS schema_name, o.name AS object_name,
+               OBJECT_DEFINITION(o.object_id) AS definition
+        FROM sys.objects o
+        WHERE o.type IN ('P', 'V', 'FN', 'IF', 'TF') AND o.is_ms_shipped = 0
+    """)
+    for row in cursor.fetchall():
+        if row.definition:
+            fqn = normalize(f"{row.schema_name}.{row.object_name}")
+            if _check(row.definition):
+                flags[fqn] = True
+    return flags
+
+
 @app.command()
 def main(
     host: str = typer.Option("127.0.0.1", help="SQL Server host"),
@@ -381,10 +405,17 @@ def main(
     counts["functions"] = _export_modules(conn, "FN,IF,TF", output / "functions.sql")
 
     if catalog:
+        from shared.catalog import has_dynamic_sql as _has_dyn_sql
         from shared.catalog import write_catalog_files
+        from shared.name_resolver import normalize
 
         typer.echo("Extracting catalog signals ...", err=True)
         table_signals = _extract_table_signals(conn)
+
+        typer.echo("Scanning for dynamic SQL ...", err=True)
+        dyn_flags = _scan_dynamic_sql(conn)
+        dyn_count = sum(1 for v in dyn_flags.values() if v)
+        typer.echo(f"  {dyn_count} objects with dynamic SQL", err=True)
 
         typer.echo("Extracting procedure references (DMF) ...", err=True)
         proc_rows = _extract_dmf_refs(conn, "P")
@@ -404,6 +435,7 @@ def main(
             proc_dmf_rows=proc_rows,
             view_dmf_rows=view_rows,
             func_dmf_rows=func_rows,
+            dynamic_sql_flags=dyn_flags,
         )
         typer.echo(f"\nCatalog files written:", err=True)
         for kind, count in cat_counts.items():

@@ -21,10 +21,17 @@ Proc/view/function files carry ``references`` (outbound references from the DMF)
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
 from shared.name_resolver import normalize
+
+_DYNAMIC_SQL_RE = re.compile(
+    r"\bEXEC(?:UTE)?\s*[\(@]|"
+    r"\bsp_executesql\b",
+    re.IGNORECASE,
+)
 
 
 # ── Schemas (TypedDict-style, but plain dicts in practice) ──────────────────
@@ -119,6 +126,14 @@ def load_function_catalog(ddl_path: Path, func_fqn: str) -> dict[str, Any] | Non
     return json.loads(p.read_text(encoding="utf-8"))
 
 
+# ── Dynamic SQL detection ───────────────────────────────────────────────────
+
+
+def has_dynamic_sql(definition: str) -> bool:
+    """Return True if a proc/view/function body contains EXEC(@var) or sp_executesql."""
+    return bool(_DYNAMIC_SQL_RE.search(definition))
+
+
 # ── Writing ─────────────────────────────────────────────────────────────────
 
 
@@ -153,10 +168,14 @@ def write_object_catalog(
     object_type: str,
     fqn: str,
     references: dict[str, list[dict[str, Any]]],
+    *,
+    dynamic_sql: bool = False,
 ) -> Path:
     """Write a proc/view/function catalog file.  Returns the written path."""
     norm = normalize(fqn)
-    data = {"references": references}
+    data: dict[str, Any] = {"references": references}
+    if dynamic_sql:
+        data["has_dynamic_sql"] = True
     p = _object_path(ddl_path, object_type, norm)
     _write_json(p, data)
     return p
@@ -368,16 +387,20 @@ def write_catalog_files(
     view_dmf_rows: list[dict[str, Any]],
     func_dmf_rows: list[dict[str, Any]],
     object_types: dict[str, str] | None = None,
+    dynamic_sql_flags: dict[str, bool] | None = None,
 ) -> dict[str, int]:
     """Process raw extraction data and write all catalog JSON files.
 
     *table_signals* maps ``table_fqn`` → catalog signal dict (PKs, FKs, etc.).
     *proc_dmf_rows*, *view_dmf_rows*, *func_dmf_rows* are raw DMF result rows.
     *object_types* resolves ambiguous OBJECT_OR_COLUMN references.
+    *dynamic_sql_flags* maps ``fqn`` → True for objects whose body contains
+    EXEC(@var) or sp_executesql.
 
     Returns counts: ``{tables: N, procedures: N, views: N, functions: N}``.
     """
     counts = {"tables": 0, "procedures": 0, "views": 0, "functions": 0}
+    dyn_flags = dynamic_sql_flags or {}
 
     # Process DMF results per object type
     proc_refs = process_dmf_results(proc_dmf_rows, object_types)
@@ -386,15 +409,15 @@ def write_catalog_files(
 
     # Write proc/view/function catalog files
     for fqn, refs in proc_refs.items():
-        write_object_catalog(ddl_path, "procedures", fqn, refs)
+        write_object_catalog(ddl_path, "procedures", fqn, refs, dynamic_sql=dyn_flags.get(fqn, False))
         counts["procedures"] += 1
 
     for fqn, refs in view_refs.items():
-        write_object_catalog(ddl_path, "views", fqn, refs)
+        write_object_catalog(ddl_path, "views", fqn, refs, dynamic_sql=dyn_flags.get(fqn, False))
         counts["views"] += 1
 
     for fqn, refs in func_refs.items():
-        write_object_catalog(ddl_path, "functions", fqn, refs)
+        write_object_catalog(ddl_path, "functions", fqn, refs, dynamic_sql=dyn_flags.get(fqn, False))
         counts["functions"] += 1
 
     # Flip references to build referenced_by for tables
