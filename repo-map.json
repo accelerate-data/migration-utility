@@ -99,11 +99,11 @@
   "modules": {
     "frontend_components": {
       "path": "app/src/components/",
-      "description": "Reusable UI components. Files: github-login-dialog.tsx, icon-nav.tsx, step-progress.tsx. Sub-directories: settings/ (create-project-dialog, project-row, project-delete-dialog, project-reset-dialog, repo-selector), ui/ (shadcn/ui primitives). Hooks: hooks/use-project-init.ts."
+      "description": "Reusable UI components. Files: github-login-dialog.tsx, icon-nav.tsx, step-progress.tsx. Sub-directories: settings/ (create-project-dialog, project-row, project-delete-dialog, project-reset-dialog, repo-selector, settings-panel-shell), ui/ (shadcn/ui primitives). Hooks: hooks/use-project-init.ts."
     },
     "frontend_routes": {
       "path": "app/src/routes/",
-      "description": "Page-level route components: home.tsx, splash.tsx, settings/ directory."
+      "description": "Page-level route components: home.tsx, splash.tsx, settings/ directory (index.tsx, connections-tab.tsx, profile-tab.tsx, projects-tab.tsx)."
     },
     "frontend_stores": {
       "path": "app/src/stores/",
@@ -111,7 +111,7 @@
     },
     "frontend_lib": {
       "path": "app/src/lib/",
-      "description": "Utilities and shared types: branding.ts, logger.ts, path-utils.ts, tauri.ts (typed Tauri command wrappers), types.ts, utils.ts."
+      "description": "Utilities and shared types: branding.ts, date-utils.ts, logger.ts, path-utils.ts, tauri.ts (typed Tauri command wrappers), types.ts, utils.ts."
     },
     "frontend_tests": {
       "path": "app/src/__tests__/",
@@ -143,7 +143,7 @@
     },
     "shared_python": {
       "path": "agent-sources/ad-migration/workbench/migration/shared/shared/",
-      "description": "Python library for DDL analysis. Modules: loader.py (DDL parsing, sqlglot AST, GO-delimited block splitting), discover.py (catalog-mandatory list/show/refs CLI), catalog.py (catalog JSON I/O, routing flags, DMF row processing, flip_references), catalog_dmf.py (write_catalog_files orchestration), catalog_enrich.py (offline AST enrichment CLI — BFS call graph, SELECT INTO/TRUNCATE detection), export_ddl.py (SQL Server DDL export with --catalog flag, table signals, DMF extraction), ir.py (intermediate representation), dialect.py (sqlglot dialect registry), name_resolver.py (FQN normalization)."
+      "description": "Python library for DDL analysis. Modules: loader.py (DDL parsing, sqlglot AST, GO-delimited block splitting), discover.py (catalog-mandatory list/show/refs CLI), catalog.py (catalog JSON I/O, routing flags, DMF row processing, flip_references), catalog_dmf.py (write_catalog_files orchestration), catalog_enrich.py (offline AST enrichment CLI — BFS call graph, SELECT INTO/TRUNCATE detection), export_ddl.py (SQL Server DDL export with --catalog flag, table signals, DMF extraction), setup_ddl.py (DDL setup orchestration), dmf_processing.py (DMF row processing helpers), sql_types.py (SQL type mappings), ir.py (intermediate representation), dialect.py (sqlglot dialect registry), name_resolver.py (FQN normalization)."
     },
     "shared_schemas": {
       "path": "agent-sources/ad-migration/workbench/migration/shared/shared/schemas/",
@@ -199,7 +199,7 @@
     "tests/ad-migration/scoping-agent/": "TypeScript vitest tests for scoping agent",
     "docs/design/": "Architecture decision records and design specs",
     ".claude/rules/": "Shared agent rules (8 policy files: coding-conventions, db-schema-change, frontend-design, git-workflow, logging-policy, rust-backend, agent-sidecar, codex-execution-policy)",
-    ".claude/skills/": "Workflow playbooks for Claude Code CLI skills (7 skills)"
+    ".claude/skills/": "Workflow playbooks for Claude Code CLI skills (6 skills)"
   },
   "commands": {
     "dev": "cd app && npm run dev",
