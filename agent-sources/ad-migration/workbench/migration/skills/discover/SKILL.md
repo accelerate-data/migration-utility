@@ -110,19 +110,21 @@ silver.vw_CustomerSales (view)
 
 ### Procedures
 
-Check `classification` first, then fall back to `statements`:
+Always read `raw_ddl` to understand the procedure body. Use `refs` and `statements` (when available) to supplement, but the body is the source of truth.
 
-1. If `classification` is `deterministic` and `statements` is populated — use `refs` and `statements` directly
-2. If `classification` is `claude_assisted` or `statements` is null — read `raw_ddl` and analyse the proc body yourself
+Check `classification` to decide how much help you get:
 
-Always present a call graph and logic summary. Tag each statement in the logic summary as `migrate` or `skip`:
+1. `deterministic` with `statements` populated — `refs` and `statements` are pre-classified, use them alongside the body
+2. `claude_assisted` or `statements` is null — classify each statement yourself from the body
+
+See [`references/tsql-parse-classification.md`](references/tsql-parse-classification.md) for classification guidance.
+
+Present a call graph and migration guidance. Tag each statement as `migrate` or `skip`:
 
 | Action | Meaning |
 |---|---|
 | `migrate` | Core transformation (INSERT, UPDATE, DELETE, MERGE, SELECT INTO) — becomes the dbt model |
 | `skip` | Operational overhead (SET, TRUNCATE, DROP/CREATE INDEX) — dbt handles or ignores |
-
-For deterministic procs, the `statements` array has these pre-classified. For claude_assisted procs, read `raw_ddl` and classify each statement yourself. See [`references/tsql-parse-classification.md`](references/tsql-parse-classification.md) for guidance.
 
 ```text
 Call Graph
@@ -132,7 +134,7 @@ Call Graph
     ├── reads: bronze.Person
     └── writes: silver.DimCustomer
 
-Logic Summary
+Migration Guidance
   1. [skip]    TRUNCATE TABLE silver.DimCustomer
   2. [migrate] INSERT INTO silver.DimCustomer from JOIN of bronze.Customer and bronze.Person
   3. [migrate] Computes DateFirstPurchase via OUTER APPLY on bronze.SalesOrderHeader
