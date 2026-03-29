@@ -110,14 +110,14 @@ silver.vw_CustomerSales (view)
 
 ### Procedures
 
-Always include classification, call graph, and logic summary. Check `needs_llm` and `classification`:
+Always present: classification, call graph, and logic summary — same format regardless of classification.
 
-| `classification` | Meaning | Action |
-|---|---|---|
-| `deterministic` | Catalog + enrichment resolved all refs. `statements` available. | Use `refs` and `write_operations` directly. |
-| `claude_assisted` | Dynamic SQL, TRY/CATCH, WHILE, or IF/ELSE. `statements` is null. | Read `raw_ddl` to complete the analysis. |
+| `classification` | Data available |
+|---|---|
+| `deterministic` | `refs`, `write_operations`, `statements` — build call graph from structured data |
+| `claude_assisted` | `refs` (may be partial), `statements` is null — read `raw_ddl` to build call graph |
 
-**Deterministic example:**
+Both paths produce the same output for the user:
 
 ```text
 Classification: Deterministic
@@ -135,21 +135,7 @@ Logic Summary
   3. Computes DateFirstPurchase via OUTER APPLY on bronze.SalesOrderHeader
 ```
 
-**Claude-assisted example:**
-
-```text
-Classification: Claude-assisted (needs_llm)
-Statements: not available — read raw_ddl below
-
-  raw_ddl:
-    CREATE PROCEDURE silver.usp_load_FactSales
-    AS BEGIN
-      DECLARE @sql NVARCHAR(MAX) = ...
-      EXEC(@sql)
-    END
-```
-
-For claude_assisted procs, read `raw_ddl` to identify writes, reads, and calls that the catalog could not resolve. Use the same call graph format for both paths.
+For `claude_assisted` procs, read `raw_ddl` to identify the writes, reads, and calls that the catalog could not resolve, then present the same call graph + logic summary format.
 
 ### Statement actions (deterministic procs only)
 
