@@ -27,6 +27,7 @@ from shared.catalog import (
     load_table_catalog,
 )
 from shared.loader import (
+    CatalogFileMissingError,
     CatalogNotFoundError,
     DdlParseError,
     load_ddl,
@@ -114,16 +115,14 @@ def run_context(ddl_path: Path, table: str, writer: str) -> dict[str, Any]:
     # Load table catalog
     table_cat = load_table_catalog(ddl_path, table_norm)
     if table_cat is None:
-        logger.error("event=context_failed operation=load_table_catalog table=%s reason=no_catalog_file", table_norm)
-        raise typer.Exit(code=1)
+        raise CatalogFileMissingError("table", table_norm)
 
     catalog_signals = _extract_catalog_signals(table_cat)
 
     # Load writer procedure catalog
     proc_cat = load_proc_catalog(ddl_path, writer_norm)
     if proc_cat is None:
-        logger.error("event=context_failed operation=load_proc_catalog table=%s writer=%s reason=no_catalog_file", table_norm, writer_norm)
-        raise typer.Exit(code=1)
+        raise CatalogFileMissingError("procedure", writer_norm)
 
     writer_references = proc_cat.get("references", {})
 
@@ -233,16 +232,12 @@ def run_write(ddl_path: Path, table: str, profile_json: dict[str, Any]) -> dict[
     # Validate profile
     errors = _validate_profile(profile_json)
     if errors:
-        error_result = {"ok": False, "errors": errors}
-        logger.error("event=write_failed operation=validate table=%s error_count=%d", table_norm, len(errors))
-        _emit(error_result)
-        raise typer.Exit(code=1)
+        raise ValueError(f"Profile validation failed for {table_norm}: {'; '.join(errors)}")
 
     # Load existing catalog file
     catalog_path = ddl_path / "catalog" / "tables" / f"{table_norm}.json"
     if not catalog_path.exists():
-        logger.error("event=write_failed operation=read_catalog table=%s reason=file_not_found", table_norm)
-        raise typer.Exit(code=2)
+        raise CatalogFileMissingError("table", table_norm)
 
     try:
         existing = json.loads(catalog_path.read_text(encoding="utf-8"))
@@ -286,6 +281,9 @@ def context(
     """Assemble profiling context for a table + writer pair."""
     try:
         result = run_context(ddl_path, table, writer)
+    except CatalogFileMissingError as exc:
+        logger.error("event=context_failed table=%s writer=%s error=%s", table, writer, exc)
+        raise typer.Exit(code=1) from exc
     except (FileNotFoundError, DdlParseError, CatalogNotFoundError) as exc:
         logger.error("event=context_failed table=%s writer=%s error=%s", table, writer, exc)
         raise typer.Exit(code=2) from exc
@@ -307,6 +305,9 @@ def write(
 
     try:
         result = run_write(ddl_path, table, profile_data)
+    except (ValueError, CatalogFileMissingError) as exc:
+        logger.error("event=write_failed table=%s error=%s", table, exc)
+        raise typer.Exit(code=1) from exc
     except (FileNotFoundError, OSError) as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)
         raise typer.Exit(code=2) from exc

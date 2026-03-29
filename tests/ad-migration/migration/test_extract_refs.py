@@ -1,4 +1,4 @@
-"""Tests for extract_refs and _parse_body_statements.
+"""Tests for extract_refs and parse_body_statements.
 
 Covers all DML patterns that sqlglot handles deterministically, plus
 control flow patterns that require the two-pass strategy.
@@ -13,9 +13,9 @@ from pathlib import Path
 import pytest
 
 from shared.loader import (
-    _collect_refs_from_statements,
-    _parse_body_statements,
+    collect_refs_from_statements,
     load_directory,
+    parse_body_statements,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures" / "discover" / "flat"
@@ -27,16 +27,16 @@ def _make_proc(body: str) -> str:
 
 def _refs_from_proc(body: str) -> tuple[list[str], list[str]]:
     raw_ddl = _make_proc(body)
-    stmts, _needs_llm = _parse_body_statements(raw_ddl)
-    refs = _collect_refs_from_statements(stmts)
+    stmts, _needs_llm = parse_body_statements(raw_ddl)
+    refs = collect_refs_from_statements(stmts)
     return refs.writes_to, refs.reads_from
 
 
 def _refs_from_fixture(proc_name: str) -> tuple[list[str], list[str]]:
     catalog = load_directory(FIXTURES)
     entry = catalog.procedures[proc_name]
-    stmts, _needs_llm = _parse_body_statements(entry.raw_ddl)
-    refs = _collect_refs_from_statements(stmts)
+    stmts, _needs_llm = parse_body_statements(entry.raw_ddl)
+    refs = collect_refs_from_statements(stmts)
     return refs.writes_to, refs.reads_from
 
 

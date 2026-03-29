@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from shared import profile
+from shared.loader import CatalogFileMissingError
 
 _TESTS_DIR = Path(__file__).parent
 _PROFILE_FIXTURES = _TESTS_DIR / "fixtures" / "profile"
@@ -120,26 +121,20 @@ def test_context_related_procedures_included() -> None:
 # ── Context: error paths ────────────────────────────────────────────────────
 
 
-def test_context_missing_table_catalog_exits_1() -> None:
-    """Context with nonexistent table exits 1."""
-    from typer import Exit
-
-    with pytest.raises(Exit) as exc_info:
+def test_context_missing_table_catalog_raises() -> None:
+    """Context with nonexistent table raises CatalogFileMissingError."""
+    with pytest.raises(CatalogFileMissingError):
         profile.run_context(
             _PROFILE_FIXTURES, "dbo.NonexistentTable", "dbo.usp_load_fact_sales",
         )
-    assert exc_info.value.exit_code == 1
 
 
-def test_context_missing_proc_catalog_exits_1() -> None:
-    """Context with nonexistent writer proc exits 1."""
-    from typer import Exit
-
-    with pytest.raises(Exit) as exc_info:
+def test_context_missing_proc_catalog_raises() -> None:
+    """Context with nonexistent writer proc raises CatalogFileMissingError."""
+    with pytest.raises(CatalogFileMissingError):
         profile.run_context(
             _PROFILE_FIXTURES, "silver.FactSales", "dbo.usp_nonexistent_proc",
         )
-    assert exc_info.value.exit_code == 1
 
 
 def test_context_missing_proc_body_returns_empty_string() -> None:
@@ -200,19 +195,16 @@ def test_write_valid_profile_merges() -> None:
 # ── Write: missing required field ────────────────────────────────────────────
 
 
-def test_write_missing_required_field_exits_1() -> None:
-    """Write with missing required field exits 1."""
-    from typer import Exit
-
+def test_write_missing_required_field_raises() -> None:
+    """Write with missing required field raises ValueError."""
     tmp, ddl_path = _make_writable_copy()
     try:
         bad_profile = {
             "writer": "dbo.usp_load_fact_sales",
             # missing "status"
         }
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(ValueError, match="validation failed"):
             profile.run_write(ddl_path, "silver.FactSales", bad_profile)
-        assert exc_info.value.exit_code == 1
     finally:
         tmp.cleanup()
 
@@ -220,10 +212,8 @@ def test_write_missing_required_field_exits_1() -> None:
 # ── Write: invalid enum value ────────────────────────────────────────────────
 
 
-def test_write_invalid_enum_exits_1() -> None:
-    """Write with invalid enum value exits 1."""
-    from typer import Exit
-
+def test_write_invalid_enum_raises() -> None:
+    """Write with invalid enum value raises ValueError."""
     tmp, ddl_path = _make_writable_copy()
     try:
         bad_profile = {
@@ -234,17 +224,14 @@ def test_write_invalid_enum_exits_1() -> None:
                 "source": "llm",
             },
         }
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(ValueError, match="validation failed"):
             profile.run_write(ddl_path, "silver.FactSales", bad_profile)
-        assert exc_info.value.exit_code == 1
     finally:
         tmp.cleanup()
 
 
-def test_write_invalid_fk_type_exits_1() -> None:
-    """Write with invalid FK type exits 1."""
-    from typer import Exit
-
+def test_write_invalid_fk_type_raises() -> None:
+    """Write with invalid FK type raises ValueError."""
     tmp, ddl_path = _make_writable_copy()
     try:
         bad_profile = {
@@ -258,17 +245,14 @@ def test_write_invalid_fk_type_exits_1() -> None:
                 }
             ],
         }
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(ValueError, match="validation failed"):
             profile.run_write(ddl_path, "silver.FactSales", bad_profile)
-        assert exc_info.value.exit_code == 1
     finally:
         tmp.cleanup()
 
 
-def test_write_invalid_suggested_action_exits_1() -> None:
-    """Write with invalid suggested action exits 1."""
-    from typer import Exit
-
+def test_write_invalid_suggested_action_raises() -> None:
+    """Write with invalid suggested action raises ValueError."""
     tmp, ddl_path = _make_writable_copy()
     try:
         bad_profile = {
@@ -282,17 +266,14 @@ def test_write_invalid_suggested_action_exits_1() -> None:
                 }
             ],
         }
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(ValueError, match="validation failed"):
             profile.run_write(ddl_path, "silver.FactSales", bad_profile)
-        assert exc_info.value.exit_code == 1
     finally:
         tmp.cleanup()
 
 
-def test_write_invalid_source_exits_1() -> None:
-    """Write with invalid source enum exits 1."""
-    from typer import Exit
-
+def test_write_invalid_source_raises() -> None:
+    """Write with invalid source enum raises ValueError."""
     tmp, ddl_path = _make_writable_copy()
     try:
         bad_profile = {
@@ -303,9 +284,8 @@ def test_write_invalid_source_exits_1() -> None:
                 "source": "invalid_source",
             },
         }
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(ValueError, match="validation failed"):
             profile.run_write(ddl_path, "silver.FactSales", bad_profile)
-        assert exc_info.value.exit_code == 1
     finally:
         tmp.cleanup()
 
@@ -313,19 +293,16 @@ def test_write_invalid_source_exits_1() -> None:
 # ── Write: nonexistent catalog ───────────────────────────────────────────────
 
 
-def test_write_nonexistent_catalog_exits_2() -> None:
-    """Write to nonexistent catalog file exits 2."""
-    from typer import Exit
-
+def test_write_nonexistent_catalog_raises() -> None:
+    """Write to nonexistent catalog file raises CatalogFileMissingError."""
     tmp, ddl_path = _make_writable_copy()
     try:
         valid_profile = {
             "status": "ok",
             "writer": "dbo.usp_load_nonexistent",
         }
-        with pytest.raises(Exit) as exc_info:
+        with pytest.raises(CatalogFileMissingError):
             profile.run_write(ddl_path, "dbo.NonexistentTable", valid_profile)
-        assert exc_info.value.exit_code == 2
     finally:
         tmp.cleanup()
 

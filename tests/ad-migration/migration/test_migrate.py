@@ -15,8 +15,8 @@ import shutil
 from pathlib import Path
 
 import pytest
-from click.exceptions import Exit as ClickExit
 
+from shared.loader import CatalogFileMissingError, ProfileMissingError
 from shared.migrate import (
     derive_materialization,
     derive_schema_tests,
@@ -207,27 +207,25 @@ class TestRunContext:
         assert "pii" in tests
         assert any(p["column"] == "email" for p in tests["pii"])
 
-    def test_missing_profile_exits_1(self, ddl_path: Path) -> None:
-        """Table without profile section causes exit code 1."""
+    def test_missing_profile_raises(self, ddl_path: Path) -> None:
+        """Table without profile section raises ProfileMissingError."""
         cat_path = ddl_path / "catalog" / "tables" / "silver.factsales.json"
         data = json.loads(cat_path.read_text())
         del data["profile"]
         cat_path.write_text(json.dumps(data))
 
-        with pytest.raises(ClickExit) as exc_info:
+        with pytest.raises(ProfileMissingError):
             run_context(ddl_path, "silver.FactSales", "dbo.usp_load_fact_sales")
-        assert exc_info.value.exit_code == 1
 
-    def test_missing_statements_exits_1(self, ddl_path: Path) -> None:
-        """Procedure without statements section causes exit code 1."""
+    def test_missing_statements_raises(self, ddl_path: Path) -> None:
+        """Procedure without statements section raises CatalogFileMissingError."""
         cat_path = ddl_path / "catalog" / "procedures" / "dbo.usp_load_fact_sales.json"
         data = json.loads(cat_path.read_text())
         del data["statements"]
         cat_path.write_text(json.dumps(data))
 
-        with pytest.raises(ClickExit) as exc_info:
+        with pytest.raises(CatalogFileMissingError):
             run_context(ddl_path, "silver.FactSales", "dbo.usp_load_fact_sales")
-        assert exc_info.value.exit_code == 1
 
 
 # ── run_write ─────────────────────────────────────────────────────────────────
@@ -266,29 +264,25 @@ class TestRunWrite:
         assert len(result["written"]) == 1
         assert (dbt_project / "models" / "staging" / "stg_factsales.sql").exists()
 
-    def test_write_empty_sql_exits_1(self, dbt_project: Path) -> None:
-        with pytest.raises(ClickExit) as exc_info:
+    def test_write_empty_sql_raises(self, dbt_project: Path) -> None:
+        with pytest.raises(ValueError, match="model SQL is empty"):
             run_write("silver.FactSales", Path("/tmp"), dbt_project, "", "")
-        assert exc_info.value.exit_code == 1
 
-    def test_write_whitespace_sql_exits_1(self, dbt_project: Path) -> None:
-        with pytest.raises(ClickExit) as exc_info:
+    def test_write_whitespace_sql_raises(self, dbt_project: Path) -> None:
+        with pytest.raises(ValueError, match="model SQL is empty"):
             run_write("silver.FactSales", Path("/tmp"), dbt_project, "   \n  ", "")
-        assert exc_info.value.exit_code == 1
 
-    def test_write_nonexistent_project_exits_2(self, tmp_path: Path) -> None:
+    def test_write_nonexistent_project_raises(self, tmp_path: Path) -> None:
         nonexistent = tmp_path / "no_such_dir"
-        with pytest.raises(ClickExit) as exc_info:
+        with pytest.raises(FileNotFoundError):
             run_write("silver.FactSales", Path("/tmp"), nonexistent, "select 1", "")
-        assert exc_info.value.exit_code == 2
 
-    def test_write_missing_dbt_project_yml_exits_2(self, tmp_path: Path) -> None:
+    def test_write_missing_dbt_project_yml_raises(self, tmp_path: Path) -> None:
         """Directory exists but no dbt_project.yml."""
         empty_dir = tmp_path / "empty_dbt"
         empty_dir.mkdir()
-        with pytest.raises(ClickExit) as exc_info:
+        with pytest.raises(FileNotFoundError):
             run_write("silver.FactSales", Path("/tmp"), empty_dir, "select 1", "")
-        assert exc_info.value.exit_code == 2
 
     def test_write_idempotent(self, dbt_project: Path) -> None:
         """Running write twice produces the same files."""

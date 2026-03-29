@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from shared import discover
-from shared.loader import DdlParseError
+from shared.loader import CatalogNotFoundError, DdlParseError, ObjectNotFoundError
 
 _TESTS_DIR = Path(__file__).parent
 _FLAT_FIXTURES = _TESTS_DIR / "fixtures" / "discover" / "flat"
@@ -201,8 +201,6 @@ def test_show_errors_without_catalog() -> None:
     """show errors when no catalog/ directory exists."""
     import tempfile
 
-    from typer import Exit
-
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp)
         ddl_dir = p / "ddl"
@@ -211,7 +209,7 @@ def test_show_errors_without_catalog() -> None:
             "CREATE PROCEDURE dbo.usp_Test AS BEGIN SELECT 1 END\nGO\n",
             encoding="utf-8",
         )
-        with pytest.raises(Exit):
+        with pytest.raises(CatalogNotFoundError):
             discover.run_show(p, "dbo.usp_Test")
 
 
@@ -250,9 +248,7 @@ def test_refs_catalog_no_confidence() -> None:
 
 
 def test_refs_errors_without_catalog() -> None:
-    """refs raises Exit when no catalog/ directory exists."""
-    from typer import Exit
-
+    """refs raises CatalogNotFoundError when no catalog/ directory exists."""
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp)
         ddl_dir = p / "ddl"
@@ -260,5 +256,5 @@ def test_refs_errors_without_catalog() -> None:
         (ddl_dir / "tables.sql").write_text(
             "CREATE TABLE dbo.T (Id INT)\nGO\n", encoding="utf-8",
         )
-        with pytest.raises(Exit):
+        with pytest.raises(CatalogNotFoundError):
             discover.run_refs(p, "dbo.T")

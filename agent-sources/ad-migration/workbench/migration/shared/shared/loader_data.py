@@ -23,6 +23,31 @@ class CatalogNotFoundError(Exception):
         self.ddl_path = ddl_path
 
 
+class CatalogFileMissingError(Exception):
+    """Raised when a specific catalog JSON file is missing."""
+
+    def __init__(self, object_type: str, fqn: str) -> None:
+        super().__init__(f"No catalog file for {object_type} {fqn}")
+        self.object_type = object_type
+        self.fqn = fqn
+
+
+class ProfileMissingError(Exception):
+    """Raised when a table catalog file has no profile section."""
+
+    def __init__(self, table_fqn: str) -> None:
+        super().__init__(f"Table {table_fqn} has no profile section — run profiler first")
+        self.table_fqn = table_fqn
+
+
+class ObjectNotFoundError(Exception):
+    """Raised when a named DDL object is not found in the catalog."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(f"Object not found: {name}")
+        self.name = name
+
+
 # ── Data structures ──────────────────────────────────────────────────────────
 
 

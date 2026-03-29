@@ -18,6 +18,8 @@ from typing import Any
 import typer
 
 from shared.catalog import (
+    ensure_referenced_by,
+    ensure_references,
     has_catalog,
     load_proc_catalog,
     load_table_catalog,
@@ -25,6 +27,7 @@ from shared.catalog import (
     write_table_catalog,
 )
 from shared.loader import (
+    DdlCatalog,
     DdlParseError,
     ObjectRefs,
     extract_refs,
@@ -108,46 +111,6 @@ def _make_ast_ref_entry(
     }
 
 
-from shared.dmf_processing import empty_scoped
-
-
-def _ensure_references(data: dict[str, Any]) -> dict[str, Any]:
-    """Ensure a proc catalog dict has a full references structure."""
-    if "references" not in data:
-        data["references"] = {
-            "tables": empty_scoped(),
-            "views": empty_scoped(),
-            "functions": empty_scoped(),
-            "procedures": empty_scoped(),
-        }
-    refs = data["references"]
-    for bucket in ("tables", "views", "functions", "procedures"):
-        if bucket not in refs:
-            refs[bucket] = empty_scoped()
-        if "in_scope" not in refs[bucket]:
-            refs[bucket]["in_scope"] = []
-        if "out_of_scope" not in refs[bucket]:
-            refs[bucket]["out_of_scope"] = []
-    return data
-
-
-def _ensure_referenced_by(data: dict[str, Any]) -> dict[str, Any]:
-    """Ensure a table catalog dict has a full referenced_by structure."""
-    if "referenced_by" not in data:
-        data["referenced_by"] = {
-            "procedures": empty_scoped(),
-            "views": empty_scoped(),
-            "functions": empty_scoped(),
-        }
-    ref_by = data["referenced_by"]
-    for bucket in ("procedures", "views", "functions"):
-        if bucket not in ref_by:
-            ref_by[bucket] = empty_scoped()
-        if "in_scope" not in ref_by[bucket]:
-            ref_by[bucket]["in_scope"] = []
-        if "out_of_scope" not in ref_by[bucket]:
-            ref_by[bucket]["out_of_scope"] = []
-    return data
 
 
 def _scan_ast_refs(
@@ -238,7 +201,7 @@ def _augment_proc_catalogs(
         proc_data = load_proc_catalog(ddl_path, proc_fqn)
         if proc_data is None:
             proc_data = {}
-        proc_data = _ensure_references(proc_data)
+        proc_data = ensure_references(proc_data)
 
         tables_in_scope = proc_data["references"]["tables"]["in_scope"]
         proc_modified = False
@@ -293,7 +256,7 @@ def _flip_to_table_catalogs(
             table_data = load_table_catalog(ddl_path, table_fqn)
             if table_data is None:
                 table_data = {}
-            table_data = _ensure_referenced_by(table_data)
+            table_data = ensure_referenced_by(table_data)
 
             procs_in_scope = table_data["referenced_by"]["procedures"]["in_scope"]
             proc_schema, proc_name = fqn_parts(proc_fqn)

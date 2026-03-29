@@ -34,10 +34,12 @@ from shared.catalog import (
     load_function_catalog,
 )
 from shared.loader import (
+    CatalogFileMissingError,
     CatalogNotFoundError,
     DdlCatalog,
     DdlEntry,
     DdlParseError,
+    ObjectNotFoundError,
     extract_refs,
     load_ddl,
 )
@@ -61,12 +63,12 @@ class ObjectType(str, Enum):
 def _load(ddl_path: Path) -> tuple[DdlCatalog, str]:
     """Load a DdlCatalog and dialect from a DDL directory.
 
-    Requires a catalog/ directory (from setup-ddl). Errors if missing.
+    Requires a catalog/ directory (from setup-ddl).
+
+    Raises:
+        CatalogNotFoundError: if catalog/ directory is missing.
     """
-    try:
-        return load_ddl(ddl_path)
-    except CatalogNotFoundError:
-        raise typer.Exit(code=2)
+    return load_ddl(ddl_path)
 
 
 def _emit(data: Any) -> None:
@@ -96,9 +98,8 @@ def _find_entry(
 
 
 def _catalog_error(type_label: str, norm: str) -> None:
-    """Log error and raise Exit(1) for missing catalog file."""
-    logger.error("event=catalog_missing type=%s name=%s", type_label, norm)
-    raise typer.Exit(code=1)
+    """Raise CatalogFileMissingError for missing catalog file."""
+    raise CatalogFileMissingError(type_label, norm)
 
 
 # ── Core logic (importable for testing) ───────────────────────────────────────
@@ -205,9 +206,7 @@ def run_show(ddl_path: Path, name: str) -> dict[str, Any]:
     catalog, _ = _load(ddl_path)
     found = _find_entry(catalog, name)
     if found is None:
-        norm = normalize(name)
-        logger.error("event=show_failed name=%s reason=not_found", norm)
-        raise typer.Exit(code=1)
+        raise ObjectNotFoundError(normalize(name))
 
     norm, type_label, entry = found
 
@@ -299,8 +298,7 @@ def run_refs(ddl_path: Path, name: str) -> dict[str, Any]:
     writer identification. Requires catalog files from setup-ddl.
     """
     if not has_catalog(ddl_path):
-        logger.error("event=refs_failed ddl_path=%s reason=no_catalog_directory", ddl_path)
-        raise typer.Exit(code=2)
+        raise CatalogNotFoundError(ddl_path)
     target = normalize(name)
 
     catalog, _ = _load(ddl_path)
@@ -328,7 +326,10 @@ def list_objects(
     """List all objects of a given type in a DDL directory."""
     try:
         result = run_list(ddl_path, type)
-    except (FileNotFoundError, DdlParseError) as exc:
+    except (CatalogFileMissingError, ObjectNotFoundError) as exc:
+        logger.error("event=command_failed error=%s", exc)
+        raise typer.Exit(code=1) from exc
+    except (FileNotFoundError, DdlParseError, CatalogNotFoundError) as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=2) from exc
     _emit(result)
@@ -342,7 +343,10 @@ def show(
     """Show details for a single named DDL object."""
     try:
         result = run_show(ddl_path, name)
-    except (FileNotFoundError, DdlParseError) as exc:
+    except (CatalogFileMissingError, ObjectNotFoundError) as exc:
+        logger.error("event=command_failed error=%s", exc)
+        raise typer.Exit(code=1) from exc
+    except (FileNotFoundError, DdlParseError, CatalogNotFoundError) as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=2) from exc
     _emit(result)
@@ -356,7 +360,10 @@ def refs(
     """Find all procedures/views that reference a given object."""
     try:
         result = run_refs(ddl_path, name)
-    except (FileNotFoundError, DdlParseError) as exc:
+    except (CatalogFileMissingError, ObjectNotFoundError) as exc:
+        logger.error("event=command_failed error=%s", exc)
+        raise typer.Exit(code=1) from exc
+    except (FileNotFoundError, DdlParseError, CatalogNotFoundError) as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=2) from exc
     _emit(result)

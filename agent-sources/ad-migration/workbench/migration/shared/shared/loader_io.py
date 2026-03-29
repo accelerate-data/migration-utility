@@ -15,12 +15,12 @@ from shared.loader_data import (
     DdlParseError,
 )
 from shared.loader_parse import (
-    _GO_RE,
-    _extract_name,
-    _extract_type_bucket,
-    _parse_block,
-    _split_blocks,
+    GO_RE,
+    extract_name,
     extract_refs,
+    extract_type_bucket,
+    parse_block,
+    split_blocks,
 )
 from shared.name_resolver import normalize
 
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 _SEMICOLON_RE = re.compile(r";\s*(?:\n|$)")
 
 _DELIMITER_MAP: dict[str, re.Pattern[str]] = {
-    "tsql": _GO_RE,
+    "tsql": GO_RE,
     "snowflake": _SEMICOLON_RE,
     "spark": _SEMICOLON_RE,
 }
@@ -61,24 +61,24 @@ def _load_file(
     path: Path,
     catalog: DdlCatalog,
     dialect: str = "tsql",
-    delimiter_re: re.Pattern[str] = _GO_RE,
+    delimiter_re: re.Pattern[str] = GO_RE,
 ) -> None:
     """Parse a .sql file and route each block into the correct catalog bucket."""
     if not path.exists():
         return
-    blocks = _split_blocks(path.read_text(encoding="utf-8"), delimiter_re=delimiter_re)
+    blocks = split_blocks(path.read_text(encoding="utf-8"), delimiter_re=delimiter_re)
     for block in blocks:
-        raw_name = _extract_name(block)
+        raw_name = extract_name(block)
         if not raw_name:
             logger.warning("event=load_file operation=extract_name file=%s reason=no_name_found", path.name)
             continue
-        bucket_name = _extract_type_bucket(block)
+        bucket_name = extract_type_bucket(block)
         if not bucket_name:
             logger.warning("event=load_file operation=extract_type file=%s object=%s reason=unknown_type", path.name, raw_name)
             continue
         key = normalize(raw_name)
         try:
-            ast = _parse_block(block, dialect=dialect)
+            ast = parse_block(block, dialect=dialect)
             getattr(catalog, bucket_name)[key] = DdlEntry(raw_ddl=block, ast=ast)
         except DdlParseError as exc:
             logger.warning("event=load_file operation=parse_block file=%s object=%s error=%s", path.name, raw_name, exc)
@@ -112,7 +112,7 @@ def load_directory(ddl_path: Path | str, dialect: str = "tsql") -> DdlCatalog:
 
     _manifest = read_manifest(path)
     dialect = _manifest["dialect"]
-    delimiter_re = _DELIMITER_MAP.get(dialect, _GO_RE)
+    delimiter_re = _DELIMITER_MAP.get(dialect, GO_RE)
 
     catalog = DdlCatalog()
     for sql_file in sorted(ddl_dir.glob("*.sql")):

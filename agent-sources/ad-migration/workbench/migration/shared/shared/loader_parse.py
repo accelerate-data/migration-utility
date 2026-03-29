@@ -19,7 +19,7 @@ from shared.name_resolver import normalize
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-_GO_RE = re.compile(r"(?:^|\n)\s*GO\b", re.IGNORECASE)
+GO_RE = re.compile(r"(?:^|\n)\s*GO\b", re.IGNORECASE)
 
 _OBJECT_NAME_RE = re.compile(
     r"CREATE\s+(?:OR\s+ALTER\s+)?"
@@ -61,25 +61,25 @@ _EXEC_LINE_RE = re.compile(
 # ── Block splitting + parsing ────────────────────────────────────────────────
 
 
-def _split_blocks(sql: str, delimiter_re: re.Pattern[str] = _GO_RE) -> list[str]:
+def split_blocks(sql: str, delimiter_re: re.Pattern[str] = GO_RE) -> list[str]:
     """Split SQL into individual object blocks using the given delimiter pattern."""
     blocks = delimiter_re.split(sql)
     return [b.strip() for b in blocks if b.strip()]
 
 
-def _extract_name(block: str) -> str | None:
+def extract_name(block: str) -> str | None:
     m = _OBJECT_NAME_RE.search(block)
     return m.group(1) if m else None
 
 
-def _extract_type_bucket(block: str) -> str | None:
+def extract_type_bucket(block: str) -> str | None:
     m = _TYPE_KEYWORD_RE.search(block)
     if m:
         return _TYPE_MAP.get(m.group(1).lower())
     return None
 
 
-def _parse_block(block: str, dialect: str = "tsql") -> Any:
+def parse_block(block: str, dialect: str = "tsql") -> Any:
     """Parse a single DDL block with sqlglot and return the AST.
 
     Raises:
@@ -89,11 +89,11 @@ def _parse_block(block: str, dialect: str = "tsql") -> Any:
     try:
         result = sqlglot.parse_one(block, dialect=dialect, error_level=sqlglot.ErrorLevel.WARN)
     except Exception as exc:
-        name = _extract_name(block) or "<unknown>"
+        name = extract_name(block) or "<unknown>"
         raise DdlParseError(f"sqlglot raised an exception parsing '{name}': {exc}") from exc
 
     if result is None or isinstance(result, exp.Command):
-        name = _extract_name(block) or "<unknown>"
+        name = extract_name(block) or "<unknown>"
         raise DdlParseError(
             f"sqlglot could not parse DDL block for '{name}' (fell back to Command)"
         )
@@ -150,7 +150,7 @@ def _table_fqn(table: exp.Table) -> str:
     return normalize(f"{table.db}.{table.name}")
 
 
-def _parse_body_statements(raw_ddl: str, dialect: str = "tsql") -> tuple[list[Any], bool]:
+def parse_body_statements(raw_ddl: str, dialect: str = "tsql") -> tuple[list[Any], bool]:
     """Parse procedure body with a single sqlglot pass.
 
     Returns (statements, needs_llm):
@@ -253,7 +253,7 @@ def _collect_function_refs(stmt: Any, uses_functions: set[str], dialect: str) ->
                 uses_functions.add(normalize(f"{schema}.{func_name}"))
 
 
-def _collect_refs_from_statements(statements: list[Any], dialect: str = "tsql") -> ObjectRefs:
+def collect_refs_from_statements(statements: list[Any], dialect: str = "tsql") -> ObjectRefs:
     """Walk a list of parsed statements and collect write/read/function references."""
     writes_to: set[str] = set()
     reads_from: set[str] = set()
@@ -327,9 +327,9 @@ def extract_refs(entry: DdlEntry, dialect: str = "tsql") -> ObjectRefs:
     has_exec = bool(_EXEC_RE.search(entry.raw_ddl))
 
     # For entries with AS BEGIN...END bodies, parse the body statements
-    body_stmts, body_needs_llm = _parse_body_statements(entry.raw_ddl, dialect=dialect)
+    body_stmts, body_needs_llm = parse_body_statements(entry.raw_ddl, dialect=dialect)
     if body_stmts:
-        refs = _collect_refs_from_statements(body_stmts, dialect=dialect)
+        refs = collect_refs_from_statements(body_stmts, dialect=dialect)
         refs.needs_llm = body_needs_llm or has_exec
         if has_exec:
             _add_exec_statements(entry.raw_ddl, refs)
@@ -339,7 +339,7 @@ def extract_refs(entry: DdlEntry, dialect: str = "tsql") -> ObjectRefs:
     if entry.ast is None:
         raise DdlParseError("Cannot extract refs: DDL block failed to parse (ast is None)")
 
-    refs = _collect_refs_from_statements([entry.ast], dialect=dialect)
+    refs = collect_refs_from_statements([entry.ast], dialect=dialect)
     refs.needs_llm = has_exec
     if has_exec:
         _add_exec_statements(entry.raw_ddl, refs)

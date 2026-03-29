@@ -212,9 +212,9 @@ def test_catalog_get_helpers() -> None:
 
 # ── DdlParseError — Command fallback ─────────────────────────────────────────
 
-def test_parse_block_raises_for_if_else() -> None:
+def testparse_block_raises_for_if_else() -> None:
     """Proc with IF/ELSE BEGIN/END falls back to Command → DdlParseError."""
-    from shared.loader import DdlParseError, _parse_block
+    from shared.loader import DdlParseError, parse_block
 
     sql = """CREATE PROCEDURE [dbo].[usp_complex]
     @Mode INT = 0
@@ -230,12 +230,12 @@ BEGIN
     END
 END"""
     with pytest.raises(DdlParseError, match="Command"):
-        _parse_block(sql, dialect="tsql")
+        parse_block(sql, dialect="tsql")
 
 
-def test_parse_block_raises_for_multiple_statements() -> None:
+def testparse_block_raises_for_multiple_statements() -> None:
     """Multiple DML statements in proc body fall back to Command → DdlParseError."""
-    from shared.loader import DdlParseError, _parse_block
+    from shared.loader import DdlParseError, parse_block
 
     sql = """CREATE PROCEDURE [dbo].[usp_multi]
 AS
@@ -244,7 +244,7 @@ BEGIN
     INSERT INTO silver.T2 (c) SELECT d FROM bronze.S2
 END"""
     with pytest.raises(DdlParseError, match="Command"):
-        _parse_block(sql, dialect="tsql")
+        parse_block(sql, dialect="tsql")
 
 
 def test_load_directory_stores_parse_error_per_block() -> None:
@@ -309,14 +309,14 @@ def test_extract_refs_raises_for_parse_failed_entry() -> None:
 
 def test_extract_refs_handles_internal_command() -> None:
     """Procs with internal Command nodes (EXEC) are handled via body parsing."""
-    from shared.loader import _parse_block, extract_refs, DdlEntry
+    from shared.loader import parse_block, extract_refs, DdlEntry
 
     sql = """CREATE PROCEDURE [dbo].[usp_orchestrator]
 AS
 BEGIN
     EXEC dbo.usp_simple_insert
 END"""
-    ast = _parse_block(sql, dialect="tsql")
+    ast = parse_block(sql, dialect="tsql")
     entry = DdlEntry(raw_ddl=sql, ast=ast)
     # extract_refs no longer raises — it falls through to body parsing
     # EXEC produces a Command that gets skipped (no DML to extract)

@@ -19,7 +19,7 @@ Exit codes:
 from __future__ import annotations
 
 import json
-import sys
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -31,10 +31,15 @@ from shared.catalog import (
     load_table_catalog,
 )
 from shared.loader import (
+    CatalogFileMissingError,
+    CatalogNotFoundError,
     DdlParseError,
+    ProfileMissingError,
     load_directory,
 )
 from shared.name_resolver import fqn_parts, normalize
+
+logger = logging.getLogger(__name__)
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
@@ -44,7 +49,7 @@ app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
 def _emit(data: Any) -> None:
     """Write JSON to stdout."""
-    print(json.dumps(data, ensure_ascii=False, indent=2))
+    print(json.dumps(data, ensure_ascii=False))
 
 
 def _model_name_from_table(table_fqn: str) -> str:
@@ -144,12 +149,10 @@ def _load_table_profile(ddl_path: Path, table_fqn: str) -> dict[str, Any]:
     """Load the profile section from a table catalog file."""
     cat = load_table_catalog(ddl_path, table_fqn)
     if cat is None:
-        print(f"migrate: no catalog file for table {table_fqn}", file=sys.stderr)
-        raise typer.Exit(code=1)
+        raise CatalogFileMissingError("table", table_fqn)
     profile = cat.get("profile")
     if profile is None:
-        print(f"migrate: table {table_fqn} has no profile section — run profiler first", file=sys.stderr)
-        raise typer.Exit(code=1)
+        raise ProfileMissingError(table_fqn)
     return profile
 
 
@@ -157,45 +160,27 @@ def _load_proc_statements(ddl_path: Path, writer_fqn: str) -> list[dict[str, Any
     """Load resolved statements from a procedure catalog file."""
     cat = load_proc_catalog(ddl_path, writer_fqn)
     if cat is None:
-        print(f"migrate: no catalog file for procedure {writer_fqn}", file=sys.stderr)
-        raise typer.Exit(code=1)
+        raise CatalogFileMissingError("procedure", writer_fqn)
     statements = cat.get("statements")
     if statements is None:
-        print(
-            f"migrate: procedure {writer_fqn} has no statements section — run discover/scoping first",
-            file=sys.stderr,
-        )
-        raise typer.Exit(code=1)
+        raise CatalogFileMissingError("procedure statements", writer_fqn)
     return statements
 
 
 def _load_proc_body(ddl_path: Path, writer_fqn: str) -> str:
     """Load the raw DDL body of a procedure from the DDL directory."""
-    try:
-        catalog = load_directory(ddl_path)
-    except FileNotFoundError as exc:
-        print(f"migrate: {exc}", file=sys.stderr)
-        raise typer.Exit(code=2) from exc
+    catalog = load_directory(ddl_path)
     entry = catalog.get_procedure(writer_fqn)
     if entry is None:
-        print(f"migrate: procedure {writer_fqn} not found in DDL directory", file=sys.stderr)
-        raise typer.Exit(code=1)
+        raise CatalogFileMissingError("procedure DDL", writer_fqn)
     return entry.raw_ddl
 
 
 def _load_table_columns(ddl_path: Path, table_fqn: str) -> list[dict[str, Any]]:
-    """Load column list from the table catalog file or DDL."""
+    """Load column list from the table catalog file."""
     cat = load_table_catalog(ddl_path, table_fqn)
     if cat and cat.get("columns"):
         return cat["columns"]
-    # Fallback: try DDL parsing
-    try:
-        catalog = load_directory(ddl_path)
-    except FileNotFoundError:
-        return []
-    entry = catalog.get_table(table_fqn)
-    if entry is None:
-        return []
     return []
 
 
@@ -225,8 +210,7 @@ def run_context(
     writer_norm = normalize(writer_fqn)
 
     if not has_catalog(ddl_path):
-        print(f"migrate: no catalog/ directory in {ddl_path} — run setup-ddl first", file=sys.stderr)
-        raise typer.Exit(code=2)
+        raise CatalogNotFoundError(ddl_path)
 
     profile = _load_table_profile(ddl_path, table_norm)
     statements = _load_proc_statements(ddl_path, writer_norm)
@@ -272,39 +256,28 @@ def run_write(
 
     # Validation
     if not model_sql or not model_sql.strip():
-        print("migrate: model SQL is empty", file=sys.stderr)
-        raise typer.Exit(code=1)
+        raise ValueError("model SQL is empty")
 
     if not dbt_project_path.is_dir():
-        print(f"migrate: dbt project path does not exist: {dbt_project_path}", file=sys.stderr)
-        raise typer.Exit(code=2)
+        raise FileNotFoundError(f"dbt project path does not exist: {dbt_project_path}")
 
     dbt_project_yml = dbt_project_path / "dbt_project.yml"
     if not dbt_project_yml.exists():
-        print(f"migrate: no dbt_project.yml in {dbt_project_path}", file=sys.stderr)
-        raise typer.Exit(code=2)
+        raise FileNotFoundError(f"no dbt_project.yml in {dbt_project_path}")
 
     staging_dir = dbt_project_path / "models" / "staging"
-    try:
-        staging_dir.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:
-        print(f"migrate: cannot create staging directory: {exc}", file=sys.stderr)
-        raise typer.Exit(code=2) from exc
+    staging_dir.mkdir(parents=True, exist_ok=True)
 
     sql_path = staging_dir / f"{model_name}.sql"
     yml_path = staging_dir / f"_{model_name}.yml"
 
     written: list[str] = []
-    try:
-        sql_path.write_text(model_sql, encoding="utf-8")
-        written.append(str(sql_path.relative_to(dbt_project_path)))
+    sql_path.write_text(model_sql, encoding="utf-8")
+    written.append(str(sql_path.relative_to(dbt_project_path)))
 
-        if schema_yml and schema_yml.strip():
-            yml_path.write_text(schema_yml, encoding="utf-8")
-            written.append(str(yml_path.relative_to(dbt_project_path)))
-    except OSError as exc:
-        print(f"migrate: write failed: {exc}", file=sys.stderr)
-        raise typer.Exit(code=2) from exc
+    if schema_yml and schema_yml.strip():
+        yml_path.write_text(schema_yml, encoding="utf-8")
+        written.append(str(yml_path.relative_to(dbt_project_path)))
 
     return {"written": written, "status": "ok"}
 
@@ -321,8 +294,11 @@ def context(
     """Assemble migration context from catalog + DDL."""
     try:
         result = run_context(ddl_path, table, writer)
-    except (FileNotFoundError, DdlParseError) as exc:
-        print(f"migrate: {exc}", file=sys.stderr)
+    except (CatalogFileMissingError, ProfileMissingError) as exc:
+        logger.error("event=context_failed table=%s writer=%s error=%s", table, writer, exc)
+        raise typer.Exit(code=1) from exc
+    except (FileNotFoundError, DdlParseError, CatalogNotFoundError) as exc:
+        logger.error("event=context_failed table=%s writer=%s error=%s", table, writer, exc)
         raise typer.Exit(code=2) from exc
     _emit(result)
 
@@ -338,8 +314,11 @@ def write(
     """Write generated dbt model SQL + schema YAML to dbt project."""
     try:
         result = run_write(table, ddl_path, dbt_project_path, model_sql, schema_yml)
+    except ValueError as exc:
+        logger.error("event=write_failed table=%s error=%s", table, exc)
+        raise typer.Exit(code=1) from exc
     except (FileNotFoundError, OSError) as exc:
-        print(f"migrate: {exc}", file=sys.stderr)
+        logger.error("event=write_failed table=%s error=%s", table, exc)
         raise typer.Exit(code=2) from exc
     _emit(result)
 

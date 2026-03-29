@@ -5,22 +5,11 @@ a running MCP server process.
 """
 
 import json
-import sys
 from pathlib import Path
 
 import pytest
 
-# Make the shared package importable from this test context.
-_SHARED_ROOT = Path(__file__).parent.parent.parent / "shared"
-if str(_SHARED_ROOT) not in sys.path:
-    sys.path.insert(0, str(_SHARED_ROOT))
-
 from shared.loader import load_directory
-
-# Import helpers under test from server module.
-_SERVER_DIR = Path(__file__).parent.parent
-sys.path.insert(0, str(_SERVER_DIR.parent))  # ad-migration root so shared is importable
-sys.path.insert(0, str(_SERVER_DIR))  # ddl_mcp/ so `import server` works
 
 import server as ddl_server
 
