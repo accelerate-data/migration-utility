@@ -29,48 +29,65 @@ Reference schema: `../shared/shared/schemas/migrator_input.json`
 
 ## Pipeline
 
-The migrator owns these steps internally:
+For each item in `items[]`:
 
-### 1. ReadCatalog
+### 1. AssembleContext (Deterministic — `migrate.py context`)
 
-Read profile from `catalog/tables/<item_id>.json` and resolved statements from `catalog/procedures/<writer>.json`.
+Run `uv run migrate context --table <item_id> --writer <selected_writer> --ddl-path <ddl_path>`.
 
-### 2. DecideMaterialization
+Outputs: profile (classification, keys, watermark, PII), derived materialization, resolved statements, full proc body, target table columns, source tables, and deterministic schema tests.
 
-Deterministic rules based on profile classification:
+### 2. GenerateModel (LLM)
 
-- `dim_scd2` -> `snapshot`
-- No watermark OR `fact_periodic_snapshot` -> `table`
-- Fact/dimension with watermark -> `incremental`
+Using the context output, the original proc body, and the resolved `migrate` statements, generate a dbt model:
 
-### 3. FilterMigrateStatements
+1. Decide model structure from proc complexity:
+   - Single INSERT from sources → one staging model
+   - Multiple INSERTs to same table → one model with UNION ALL
+   - Temp table chains or multi-step logic → staging + intermediate models with `ref()`
+   - Nested subqueries → flatten into sequential CTE chain
+2. Generate dbt SQL using the import CTE → logical CTE → final CTE pattern:
+   - Import CTEs: all `{{ ref() }}` and `{{ source() }}` at the top
+   - Logical CTEs: one transformation step per CTE, descriptive names
+   - Final CTE: clean SELECT from the last logical CTE
+3. Apply dbt patterns: `{{ config(materialized=...) }}`, `{{ var('param', default) }}` for proc parameters, `{{ ref() }}`/`{{ source() }}` for table references
 
-Filter resolved statements where `action == migrate`.
+### 3. LogicalEquivalenceCheck (LLM)
 
-### 4. TranspileSQL
+Compare the generated model against the original `migrate` statements:
 
-Use sqlglot to transpile T-SQL to target dialect, wrap in dbt model.
+- Same source tables read?
+- Same columns selected/written?
+- Same join conditions and types?
+- Same filter predicates (WHERE, HAVING)?
+- Same aggregation grain (GROUP BY)?
+- INSERT/MERGE/UPDATE semantics preserved?
 
-### 5. BuildSchemaTests
+Flag discrepancies as warnings. If a semantic gap is found, revise the model before proceeding.
 
-Deterministic from profile:
+### 4. BuildSchemaYml
 
-- PK -> `unique` + `not_null`
-- FK -> `relationships`
-- Watermark -> `recency` (if incremental)
-- PII -> column-level `meta` tags
+Render `schema_tests` from context into `.yml`:
 
-### 6. BuildDocumentation
+- PK → `unique` + `not_null`
+- FK → `relationships`
+- Watermark → `recency` (if incremental)
+- PII → column-level `meta` tags
+- Model and column descriptions
 
-Model name, description, and column descriptions from profile and tool-fetched column metadata.
+### 5. WriteArtifacts (Deterministic — `migrate.py write`)
 
-### 7. WriteArtifacts
+Run `uv run migrate write --table <item_id> --ddl-path <ddl_path> --dbt-project-path <path> --model-sql '<sql>' --schema-yml '<yml>'`.
 
-Write dbt model `.sql` and schema `.yml` files.
+### 6. Validate
 
-### 8. ValidateOutput
+Run `dbt compile --select <model_name>` to verify the generated model compiles.
 
-Validate generated artifacts for correctness and completeness.
+### 7. HandleErrors
+
+- If `migrate.py` fails: set `status: "error"`, record in `errors[]`, continue to next item.
+- If LLM generation fails or equivalence check finds irreconcilable gaps: set `status: "partial"`, record in `warnings[]`, continue.
+- If `dbt compile` fails: set `status: "partial"`, record compile errors, continue.
 
 ## Output Schema (MigrationArtifactManifest)
 

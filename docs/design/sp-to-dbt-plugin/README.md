@@ -70,6 +70,7 @@ All skills import from `shared/`. Nothing in `shared/` is skill-specific.
 | `dialect.py` | `SqlDialect` protocol + registry keyed by string name |
 | `export_ddl.py` | DDL + catalog extraction from live SQL Server via pyodbc (`--catalog` flag) |
 | `profile.py` | Assemble profiling context from catalog files + DDL (no live DB, no LLM) |
+| `migrate.py` | Assemble migration context (profile + statements + proc body) and write generated artifacts to dbt project (no LLM, no transpile) |
 
 ---
 
@@ -192,30 +193,62 @@ Resolved statements are persisted to `catalog/procedures/<writer>.json` by the s
 
 ### migrate
 
+Two subcommands: `context` (assemble migration context) and `write` (persist generated artifacts).
+
+#### `migrate context`
+
 ```text
-Input:  --proc PATH  --output DIR
-        --dialect tsql  --target spark
-        --refs '{"dbo.dim_customer": "dim_customer"}'
+Input:  context --ddl-path PATH  --table dbo.FactSales
+        --writer dbo.usp_Load
 
 Output: {
-  "model_path": "out/usp_Load.sql",
-  "param_mappings": { "@start_date": "var('start_date', '2020-01-01')" },
-  "transpile_warnings": [...],
-  "materialization_hint": "incremental|table|view"
+  "table": "dbo.FactSales",
+  "writer": "dbo.usp_Load",
+  "profile": {
+    "classification": "fact_transaction",
+    "primary_key": { "columns": ["sale_id"], "primary_key_type": "surrogate" },
+    "watermark": { "column": "load_date" },
+    "foreign_keys": [...],
+    "pii_actions": [...]
+  },
+  "materialization": "incremental",
+  "statements": [
+    { "action": "migrate", "source": "ast", "sql": "INSERT INTO ..." }
+  ],
+  "proc_body": "CREATE PROCEDURE ...",
+  "columns": [{ "name": "sale_id", "data_type": "BIGINT" }],
+  "source_tables": ["dbo.DimCustomer", "dbo.DimDate"],
+  "schema_tests": {
+    "entity_integrity": [{ "column": "sale_id", "tests": ["unique", "not_null"] }],
+    "referential_integrity": [{ "column": "customer_sk", "to": "ref('dim_customer')", "field": "customer_sk" }],
+    "recency": { "column": "load_date" },
+    "pii": [{ "column": "customer_email", "action": "mask" }]
+  }
 }
 ```
 
-Generation steps:
+Reads profile from `catalog/tables/`, statements from `catalog/procedures/`, proc body and columns from DDL. Derives materialization deterministically from classification. Builds schema tests from profile answers. No LLM calls, no SQL transpilation.
 
-1. Parse procedure with `sqlglot.parse_one(sql, dialect="tsql")`
-2. Replace parameter references with `{{ var('name', default) }}` nodes
-3. `sqlglot.transpile(sql, read="tsql", write="spark")`
-4. Post-process: apply `--refs` map → `{{ ref() }}` / `{{ source() }}`
-5. Determine materialization hint from AST (date filter → incremental, GROUP BY only → table, else view)
-6. Wrap: leading comment block → `{{ config(materialized=...) }}` → CTEs → final SELECT
-7. Write `.sql` to output directory
+#### `migrate write`
 
-Exits with code 1 if `assess` status is `Unsupported`.
+```text
+Input:  write --ddl-path PATH  --table dbo.FactSales
+        --dbt-project-path PATH
+        --model-sql '<sql>'  --schema-yml '<yml>'
+
+Output: { "written": ["models/staging/fct_fact_sales.sql", "models/staging/_fct_fact_sales.yml"], "status": "ok" }
+```
+
+Validates and writes `.sql` + `.yml` to the dbt project models directory. Exit codes: `0` = success, `1` = validation failure, `2` = IO error.
+
+#### Shared between both paths
+
+Both the interactive skill and the batch agent share `migrate.py` subcommands. Each has its own LLM generation logic between `context` and `write`:
+
+- **Interactive (`/migrate` skill):** `context` → LLM generates dbt model (decides structure, applies CTE conventions, ref/source/var substitution) → logical equivalence check → present for approval → `write`.
+- **Batch (migrator agent):** `context` per table → agent generates with batch-tuned prompting (no approval gates, skip-and-continue) → equivalence check → `write` per table → `dbt compile` → aggregate summary.
+
+The LLM generation is the same logic in both paths. No sqlglot transpilation — the LLM generates dbt-idiomatic SQL directly from the original proc statements, proc body, and profile answers.
 
 ### test-gen
 
