@@ -1,21 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Circle, Loader2, XCircle, AlertTriangle, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { StepRow } from '@/components/step-progress';
+import type { StepState } from '@/components/step-progress';
 import { appStartupSync, listenProjectInitStep } from '@/lib/tauri';
 import { GLOBAL_STEPS, PER_PROJECT_STEPS, INIT_STEP_LABEL } from '@/lib/types';
 import { logger } from '@/lib/logger';
-import type { InitStep, InitStepStatus, Project } from '@/lib/types';
+import type { InitStep, Project } from '@/lib/types';
 
 interface SplashProps {
   projects: Project[];
   activeProjectId: string;
   onSuccess: () => void;
   onCancel: () => void;
-}
-
-interface StepState {
-  step: InitStep;
-  status: InitStepStatus | null;
 }
 
 function makeSteps(steps: InitStep[]): StepState[] {
@@ -44,34 +41,6 @@ function SummaryIcon({ status }: { status: ReturnType<typeof projectSummaryStatu
   );
   // pending
   return <Circle className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />;
-}
-
-function StepRow({ step, status }: StepState) {
-  const label = INIT_STEP_LABEL[step];
-  const isRunning = !status || status.kind === 'running';
-  const isOk = status?.kind === 'ok';
-  const isWarn = status?.kind === 'warning';
-  const isError = status?.kind === 'error';
-
-  return (
-    <div className="flex items-start gap-2">
-      <div className="mt-0.5 shrink-0">
-        {isError && <XCircle className="h-3.5 w-3.5 text-destructive" />}
-        {isWarn && <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />}
-        {isOk && <CheckCircle2 className="h-3.5 w-3.5" style={{ color: 'var(--color-seafoam)' }} />}
-        {isRunning && <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: 'var(--color-pacific)' }} />}
-      </div>
-      <div className="flex flex-col min-w-0">
-        <span className="text-xs text-muted-foreground">{label}</span>
-        {isError && status.kind === 'error' && (
-          <span className="text-xs text-destructive break-all mt-0.5">{status.message}</span>
-        )}
-        {isWarn && status.kind === 'warning' && status.warnings.length > 0 && (
-          <span className="text-xs text-amber-600 dark:text-amber-400 break-all mt-0.5">{status.warnings[0]}</span>
-        )}
-      </div>
-    </div>
-  );
 }
 
 function GlobalStepRow({ step, status }: StepState) {

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, FolderOpen, Loader2, Plus, RefreshCw, Search, Trash2, X, XCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { FolderOpen, Loader2, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
@@ -30,11 +30,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import StepProgress from '@/components/step-progress';
 import SettingsPanelShell from '@/components/settings/settings-panel-shell';
-import { projectCreateFull, projectDetectDatabases, projectDeleteFull, projectInit, projectResetLocal, listenProjectInitStep, tauriErrorMessage } from '@/lib/tauri';
-import { INIT_STEP_LABEL, TECHNOLOGY_LABEL } from '@/lib/types';
-import type { InitStep, Technology } from '@/lib/types';
+import { projectCreateFull, projectDetectDatabases, projectDeleteFull, projectResetLocal, tauriErrorMessage } from '@/lib/tauri';
+import { TECHNOLOGY_LABEL } from '@/lib/types';
+import type { Technology } from '@/lib/types';
 import { logger } from '@/lib/logger';
+import { useProjectInit } from '@/hooks/use-project-init';
 import { useProjectStore } from '@/stores/project-store';
 
 const TECHNOLOGIES: { value: Technology; label: string }[] = [
@@ -43,62 +45,6 @@ const TECHNOLOGIES: { value: Technology; label: string }[] = [
   { value: 'fabric_lakehouse', label: TECHNOLOGY_LABEL['fabric_lakehouse'] },
   { value: 'snowflake', label: TECHNOLOGY_LABEL['snowflake'] },
 ];
-
-// ── Init progress ─────────────────────────────────────────────────────────────
-
-function InitProgress() {
-  const { initSteps, isInitRunning, dismissInit } = useProjectStore();
-  if (!isInitRunning && initSteps.length === 0) return null;
-
-  return (
-    <div className="rounded-lg border border-border bg-card p-4 flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-foreground">Initializing project…</p>
-        {!isInitRunning && (
-          <button
-            onClick={dismissInit}
-            className="text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Dismiss"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-      {initSteps.map(({ step, status }) => {
-        const label = INIT_STEP_LABEL[step as InitStep];
-        const pending = !status;
-        const icon = pending
-          ? <span className="h-4 w-4 shrink-0 flex items-center justify-center"><span className="h-2 w-2 rounded-full bg-muted-foreground/30" /></span>
-          : status.kind === 'running'
-            ? <Loader2 className="h-4 w-4 animate-spin shrink-0" style={{ color: 'var(--color-pacific)' }} />
-            : status.kind === 'ok'
-              ? <CheckCircle2 className="h-4 w-4 shrink-0" style={{ color: 'var(--color-seafoam)' }} />
-              : status.kind === 'warning'
-                ? <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
-                : <XCircle className="h-4 w-4 shrink-0 text-destructive" />;
-
-        return (
-          <div key={step} className="flex items-start gap-2">
-            {icon}
-            <div className="flex flex-col min-w-0">
-              <span className={`text-sm ${pending ? 'text-muted-foreground' : 'text-foreground'}`}>{label}</span>
-              {status?.kind === 'error' && (
-                <span className="text-xs text-destructive break-all">{status.message}</span>
-              )}
-              {status?.kind === 'warning' && status.warnings.length > 0 && (
-                <ul className="mt-0.5 flex flex-col gap-0.5">
-                  {status.warnings.map((w, i) => (
-                    <li key={i} className="text-xs text-amber-600 break-all">{w}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 function toSlugPreview(name: string): string {
   return name
@@ -149,8 +95,8 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
   const [detectError, setDetectError] = useState('');
   const [extractionDate, setExtractionDate] = useState(localTodayString);
   const [creating, setCreating] = useState(false);
-  const { startInit, finishInit, applyInitStep, loadProjects } = useProjectStore();
-  const unlistenRef = useRef<(() => void) | null>(null);
+  const { loadProjects } = useProjectStore();
+  const { runInit } = useProjectInit();
 
   const isSqlServer = technology === 'sql_server';
 
@@ -218,21 +164,13 @@ function CreateProjectDialog({ open, onOpenChange, onCreated }: CreateDialogProp
       reset();
       onCreated();
 
-      startInit();
-      unlistenRef.current = await listenProjectInitStep((ev) => applyInitStep(ev));
-      // Yield one tick to ensure the listener is fully registered before events start.
-      await new Promise<void>((resolve) => setTimeout(resolve, 0));
-      await projectInit(project.id);
-      finishInit();
+      await runInit(project.id);
       toast.success('Project initialized successfully');
     } catch (err) {
       logger.error('projects-tab: create failed', err);
       toast.error(tauriErrorMessage(err), { duration: Infinity });
-      finishInit();
     } finally {
       setCreating(false);
-      unlistenRef.current?.();
-      unlistenRef.current = null;
     }
   }
 
@@ -427,27 +365,21 @@ function ProjectRow({ id, name, slug, technology, isActive, onRefresh }: Project
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const { setActive, startInit, finishInit, applyInitStep } = useProjectStore();
-  const unlistenRef = useRef<(() => void) | null>(null);
+  const { setActive } = useProjectStore();
+  const { runInit } = useProjectInit();
 
   async function handleSelect() {
     if (isActive) return;
     setBusy(true);
     try {
       await setActive(id);
-      startInit();
-      unlistenRef.current = await listenProjectInitStep((ev) => applyInitStep(ev));
-      await projectInit(id);
-      finishInit();
+      await runInit(id);
       toast.success(`Switched to "${name}"`);
     } catch (err) {
       logger.error('projects-tab: switch failed', err);
       toast.error(`Switch failed: ${tauriErrorMessage(err)}`, { duration: Infinity });
-      finishInit();
     } finally {
       setBusy(false);
-      unlistenRef.current?.();
-      unlistenRef.current = null;
     }
   }
 
@@ -471,19 +403,13 @@ function ProjectRow({ id, name, slug, technology, isActive, onRefresh }: Project
     setResetOpen(false);
     try {
       await projectResetLocal(id);
-      startInit();
-      unlistenRef.current = await listenProjectInitStep((ev) => applyInitStep(ev));
-      await projectInit(id);
-      finishInit();
+      await runInit(id);
       toast.success(`"${name}" reset and reinitialized`);
     } catch (err) {
       logger.error('projects-tab: reset failed', err);
       toast.error(`Reset failed: ${tauriErrorMessage(err)}`, { duration: Infinity });
-      finishInit();
     } finally {
       setBusy(false);
-      unlistenRef.current?.();
-      unlistenRef.current = null;
     }
   }
 
@@ -636,7 +562,7 @@ function ProjectRow({ id, name, slug, technology, isActive, onRefresh }: Project
 // ── Projects tab ──────────────────────────────────────────────────────────────
 
 export default function ProjectsTab() {
-  const { projects, activeProject, isLoading, loadProjects } = useProjectStore();
+  const { projects, activeProject, isLoading, loadProjects, initSteps, isInitRunning, dismissInit } = useProjectStore();
   const [createOpen, setCreateOpen] = useState(false);
 
   useEffect(() => {
@@ -659,7 +585,7 @@ export default function ProjectsTab() {
           </Button>
         </div>
 
-        <InitProgress />
+        <StepProgress steps={initSteps} isRunning={isInitRunning} onDismiss={dismissInit} />
 
         {isLoading && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
