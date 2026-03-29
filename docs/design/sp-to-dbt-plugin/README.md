@@ -35,7 +35,6 @@ agent-sources/ad-migration/               ← marketplace package
     │   │       └── catalog.py             ← catalog JSON file I/O
     │   ├── skills/
     │   │   ├── discover/                  ← SKILL.md + rules/
-    │   │   ├── scope/                     ← SKILL.md + rules/
     │   │   ├── profile/                   ← not yet implemented
     │   │   ├── migrate/                   ← not yet implemented
     │   │   ├── test-gen/                  ← not yet implemented
@@ -65,6 +64,8 @@ All skills import from `shared/`. Nothing in `shared/` is skill-specific.
 | `ir.py` | Pydantic IR types: `Procedure`, `ProcParam`, `SelectModel`, `CteNode`, `TableRef`, `ColumnRef` |
 | `loader.py` | Parse a DDL directory → `DdlCatalog` (GO-split + `sqlglot.parse_one`) |
 | `catalog.py` | Per-object catalog JSON file I/O: read/write `catalog/` files, DMF result processing, reference flipping |
+| `catalog_dmf.py` | DMF result classification: group referenced entities by type, detect cross-database/cross-server refs |
+| `catalog_enrich.py` | Offline AST enrichment: fill DMF gaps (SELECT INTO, TRUNCATE, EXEC chains) via sqlglot + BFS |
 | `name_resolver.py` | Normalize FQN: strip brackets, lowercase, apply default schema |
 | `dialect.py` | `SqlDialect` protocol + registry keyed by string name |
 | `export_ddl.py` | DDL + catalog extraction from live SQL Server via pyodbc (`--catalog` flag) |
@@ -98,12 +99,9 @@ Output (show):  { "name": "...", "type": "procedure", "raw_ddl": "...",
                             "write_operations": {"target": ["INSERT"]} },
                   "needs_llm": false, "classification": "deterministic",
                   "parse_error": null }
-Output (refs, catalog):  { "name": "dbo.Foo", "source": "catalog",
+Output (refs):  { "name": "dbo.Foo", "source": "catalog",
                   "readers": [...], "writers": [{"procedure": "...",
                   "write_type": "direct", "is_updated": true}] }
-Output (refs, AST fallback):  { "name": "dbo.Foo", "source": "ast",
-                  "readers": [...], "writers": [{"procedure": "...",
-                  "write_type": "direct", "confidence": 0.90, "status": "confirmed"}] }
 ```
 
 ### scope (via scoping agent)

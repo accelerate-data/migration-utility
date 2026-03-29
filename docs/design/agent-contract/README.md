@@ -33,7 +33,7 @@ Agent definitions must not declare `skills:` for discover. Use `uv run` commands
 
 ## Flow
 
-1. Scoping: analysis agent maps target table to writer procedure candidate(s), selects writer when resolvable, and enriches the selected writer with `reads_from` (tables/views it reads from) for downstream wave planning.
+1. Scoping: analysis agent calls `discover refs` per table for catalog-based writer identification (`is_updated=true`), calls `discover show` per candidate for statement analysis and dependency resolution, selects writer when resolvable, and enriches the selected writer with resolved `dependencies` for downstream wave planning.
 2. Profiling: profiler agent runs `profile.py` per table for context assembly, applies LLM reasoning to answer the six profiling questions, and writes results into each table's catalog JSON. Shares `profile.py` with the interactive `/profile` skill; LLM reasoning is replicated with batch-appropriate prompting. FDE approves before downstream consumption.
 3. Decomposition: decomposer agent segments selected writer SQL into reusable logical blocks and split points.
 4. Planning: planner agent consumes approved answers + approved decomposition, then produces materialization, tests, and documentation intent.
