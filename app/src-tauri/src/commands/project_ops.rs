@@ -14,6 +14,213 @@ use crate::types::{CommandError, InitStep, InitStepEvent, InitStepStatus, Projec
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/// Validate that settings contain a local clone path and GitHub token, and that the
+/// clone path is an existing git directory. Returns `(local_clone_path, token)`.
+fn validate_create_settings(
+    state: &State<'_, DbState>,
+) -> Result<(String, String), CommandError> {
+    let conn = state.conn().inspect_err(|e| {
+        log::error!("[validate_create_settings] DB lock: {e}");
+    })?;
+    let s = crate::db::read_settings(&conn)?;
+    let lcp = s.local_clone_path.ok_or_else(|| {
+        CommandError::Validation("Local clone path not configured in Settings".into())
+    })?;
+    let tok = s.github_oauth_token.ok_or_else(|| {
+        CommandError::Validation("GitHub authentication required".into())
+    })?;
+
+    if !Path::new(&lcp).exists() {
+        return Err(CommandError::Validation(format!(
+            "Migration repository not found at '{lcp}'. Go to Settings → Connections and click Save & Clone first."
+        )));
+    }
+    if !Path::new(&lcp).join(".git").exists() {
+        return Err(CommandError::Validation(format!(
+            "'{lcp}' is not a git repository. Go to Settings → Connections and click Save & Clone first."
+        )));
+    }
+
+    Ok((lcp, tok))
+}
+
+/// Execute steps 3-8 of project creation: create dirs, copy source, compute sha256,
+/// write metadata, extract DDL, git LFS + commit/push. On failure the caller is
+/// responsible for cleaning up `slug_dir`.
+fn setup_project_artifacts(
+    slug_dir: &Path,
+    source_path: &str,
+    project: &Project,
+    db_name: &str,
+    extraction_datetime: &str,
+    local_clone_path: &str,
+) -> Result<(), CommandError> {
+    let source_dir = slug_dir.join("artifacts").join("source");
+    let ddl_dir = slug_dir.join("artifacts").join("ddl");
+
+    // 3. Create directory structure.
+    std::fs::create_dir_all(&source_dir)?;
+    std::fs::create_dir_all(&ddl_dir)?;
+    log::debug!("[setup_project_artifacts] created artifact dirs under {}", slug_dir.display());
+
+    // 4. Copy source binary to artifacts/source/.
+    let src = Path::new(source_path);
+    let source_filename = src.file_name().ok_or_else(|| {
+        CommandError::Validation(format!("Invalid source path: {source_path}"))
+    })?;
+    let source_dest = source_dir.join(source_filename);
+    std::fs::copy(src, &source_dest)
+        .map_err(|e| CommandError::Io(format!("Failed to copy source file: {e}")))?;
+    log::debug!("[setup_project_artifacts] copied source to {}", source_dest.display());
+
+    // 5. Compute source SHA-256 for metadata and future DDL consistency checks.
+    let source_sha256 = compute_file_sha256(&source_dest)?;
+
+    // 6. Write metadata.json into artifacts/source/.
+    let metadata = serde_json::json!({
+        "id": project.id,
+        "slug": project.slug,
+        "name": project.name,
+        "technology": project.technology,
+        "createdAt": project.created_at,
+        "dbName": db_name,
+        "extractionDatetime": extraction_datetime,
+        "sourceFilename": source_filename.to_string_lossy(),
+        "sourceSha256": source_sha256,
+    });
+    std::fs::write(
+        source_dir.join("metadata.json"),
+        serde_json::to_string_pretty(&metadata).unwrap(),
+    )?;
+    log::debug!("[setup_project_artifacts] wrote metadata.json");
+
+    // 7. Extract DDL from source binary.
+    let ext = src.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+    if ext == "dacpac" {
+        extract_ddl_from_dacpac(&source_dest, &ddl_dir)?;
+    } else {
+        extract_ddl_from_zip(&source_dest, &ddl_dir)?;
+    }
+    log::info!("[setup_project_artifacts] DDL extraction complete slug={}", project.slug);
+
+    // 8. Enable Git LFS, track source file type, git add → commit → push.
+    run_cmd("git", &["lfs", "install"], None, &[])
+        .map_err(|e| {
+            if e.to_string().contains("is not a git command") || e.to_string().contains("not found") {
+                CommandError::Validation(
+                    "Git LFS is not installed. Install it and retry:\n\
+                     • macOS:   brew install git-lfs\n\
+                     • Linux:   apt install git-lfs  (or equivalent)\n\
+                     • Windows: winget install Git.LFS\n\
+                     Then run: git lfs install".into(),
+                )
+            } else {
+                e
+            }
+        })?;
+
+    let lfs_pattern = if ext == "dacpac" { "*.dacpac" } else { "artifacts/source/*.zip" };
+    run_cmd("git", &["lfs", "track", lfs_pattern], Some(local_clone_path), &[])?;
+
+    // --force because the repo's .gitignore may contain *.dacpac.
+    git_commit_and_push(
+        local_clone_path,
+        &format!("feat: add project {}", project.slug),
+        &[".gitattributes", &project.slug],
+        true,
+    )?;
+    log::info!("[setup_project_artifacts] pushed project {} to repo", project.slug);
+
+    Ok(())
+}
+
+/// Remove the legacy `artifacts/dacpac/` directory if `artifacts/source/` already
+/// exists (project was migrated to the new layout). Stages, commits, and pushes the
+/// removal.
+fn cleanup_legacy_dacpac_dir(
+    slug: &str,
+    slug_dir: &Path,
+    source_dir: &Path,
+    local_clone_path: &str,
+) {
+    let old_dacpac_dir = slug_dir.join("artifacts").join("dacpac");
+    if !source_dir.join("metadata.json").exists() || !old_dacpac_dir.exists() {
+        return;
+    }
+
+    log::info!("[cleanup_legacy_dacpac_dir] removing stale artifacts/dacpac/ for slug={slug}");
+    if let Err(e) = std::fs::remove_dir_all(&old_dacpac_dir) {
+        log::warn!("[cleanup_legacy_dacpac_dir] could not remove artifacts/dacpac/: {e}");
+    } else {
+        // Stage and commit the removal.
+        let _ = run_cmd("git", &["rm", "-rf", "--cached",
+            &format!("{slug}/artifacts/dacpac")], Some(local_clone_path), &[]);
+        let _ = git_commit_and_push(
+            local_clone_path,
+            &format!("chore: remove legacy artifacts/dacpac/ for {slug}"),
+            &[slug],
+            false,
+        );
+    }
+}
+
+/// Perform the git pull (or clone) step during startup, emitting events. Returns
+/// `Ok(())` on success or if the clone path / URL are not configured (warning only).
+async fn startup_git_pull(
+    app: &tauri::AppHandle,
+    local_clone_path: &Option<String>,
+    clone_url: &Option<String>,
+) -> Result<(), CommandError> {
+    emit_step(app, InitStep::GitPull, InitStepStatus::Running, None);
+    match (local_clone_path, clone_url) {
+        (None, _) => {
+            log::warn!("[startup_git_pull] local_clone_path not configured — skipping git pull");
+            emit_step(app, InitStep::GitPull, InitStepStatus::Warning {
+                warnings: vec!["Git repo not configured in Settings → Connections. Skipping sync.".into()],
+            }, None);
+        }
+        (Some(lcp), _) if Path::new(lcp).join(".git").exists() => {
+            match run_cmd_async("git", &["pull"], Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]).await {
+                Err(ref e) => {
+                    let msg = e.to_string();
+                    log::error!("[startup_git_pull] GitPull failed: {msg}");
+                    emit_step(app, InitStep::GitPull, InitStepStatus::Error { message: msg.clone() }, None);
+                    return Err(CommandError::External(msg));
+                }
+                Ok(_) => {
+                    if let Err(e) = run_cmd_async("git", &["lfs", "pull"], Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]).await {
+                        log::warn!("[startup_git_pull] git lfs pull failed (non-fatal): {e}");
+                    }
+                    emit_step(app, InitStep::GitPull, InitStepStatus::Ok, None);
+                }
+            }
+        }
+        (Some(lcp), Some(url)) => {
+            match run_cmd_async("git", &["clone", url, lcp], None, &[("GIT_TERMINAL_PROMPT", "0")]).await {
+                Err(ref e) => {
+                    let msg = e.to_string();
+                    log::error!("[startup_git_pull] git clone failed: {msg}");
+                    emit_step(app, InitStep::GitPull, InitStepStatus::Error { message: msg.clone() }, None);
+                    return Err(CommandError::External(msg));
+                }
+                Ok(_) => {
+                    if let Err(e) = run_cmd_async("git", &["lfs", "pull"], Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]).await {
+                        log::warn!("[startup_git_pull] git lfs pull (post-clone) failed (non-fatal): {e}");
+                    }
+                    emit_step(app, InitStep::GitPull, InitStepStatus::Ok, None);
+                }
+            }
+        }
+        (Some(_), None) => {
+            log::warn!("[startup_git_pull] clone_url not configured — skipping git pull");
+            emit_step(app, InitStep::GitPull, InitStepStatus::Warning {
+                warnings: vec!["Clone URL not configured — using existing local files.".into()],
+            }, None);
+        }
+    }
+    Ok(())
+}
+
 fn emit_step(app: &tauri::AppHandle, step: InitStep, status: InitStepStatus, project_id: Option<String>) {
     let event = InitStepEvent {
         step,
@@ -71,30 +278,7 @@ pub fn project_create_full(
     log::info!("[project_create_full] name={} technology={} db_name={}", name, technology, db_name);
 
     // 1. Validate settings — fail fast with no side effects.
-    let (local_clone_path, _token) = {
-        let conn = state.conn().inspect_err(|e| {
-            log::error!("[project_create_full] DB lock: {e}");
-        })?;
-        let s = crate::db::read_settings(&conn)?;
-        let lcp = s.local_clone_path.ok_or_else(|| {
-            CommandError::Validation("Local clone path not configured in Settings".into())
-        })?;
-        let tok = s.github_oauth_token.ok_or_else(|| {
-            CommandError::Validation("GitHub authentication required".into())
-        })?;
-        (lcp, tok)
-    };
-
-    if !Path::new(&local_clone_path).exists() {
-        return Err(CommandError::Validation(format!(
-            "Migration repository not found at '{local_clone_path}'. Go to Settings → Connections and click Save & Clone first."
-        )));
-    }
-    if !Path::new(&local_clone_path).join(".git").exists() {
-        return Err(CommandError::Validation(format!(
-            "'{local_clone_path}' is not a git repository. Go to Settings → Connections and click Save & Clone first."
-        )));
-    }
+    let (local_clone_path, _token) = validate_create_settings(&state)?;
 
     // 2. Prepare project identity (id, slug) — checks slug collisions but does NOT insert yet.
     let project = {
@@ -107,88 +291,8 @@ pub fn project_create_full(
 
     // 3–8. Execute external steps. On failure, clean up local dir only (no DB row to rollback).
     let slug_dir = Path::new(&local_clone_path).join(&project.slug);
-    let artifacts_dir = slug_dir.join("artifacts");
-    let source_dir = artifacts_dir.join("source");
-    let ddl_dir = artifacts_dir.join("ddl");
 
-    let external_result: Result<(), CommandError> = (|| {
-        // 3. Create directory structure.
-        std::fs::create_dir_all(&source_dir)?;
-        std::fs::create_dir_all(&ddl_dir)?;
-        log::debug!("[project_create_full] created artifact dirs under {}", slug_dir.display());
-
-        // 4. Copy source binary to artifacts/source/.
-        let src = Path::new(&source_path);
-        let source_filename = src.file_name().ok_or_else(|| {
-            CommandError::Validation(format!("Invalid source path: {source_path}"))
-        })?;
-        let source_dest = source_dir.join(source_filename);
-        std::fs::copy(src, &source_dest)
-            .map_err(|e| CommandError::Io(format!("Failed to copy source file: {e}")))?;
-        log::debug!("[project_create_full] copied source to {}", source_dest.display());
-
-        // 5. Compute source SHA-256 for metadata and future DDL consistency checks.
-        let source_sha256 = compute_file_sha256(&source_dest)?;
-
-        // 6. Write metadata.json into artifacts/source/.
-        let metadata = serde_json::json!({
-            "id": project.id,
-            "slug": project.slug,
-            "name": project.name,
-            "technology": project.technology,
-            "createdAt": project.created_at,
-            "dbName": db_name,
-            "extractionDatetime": extraction_datetime,
-            "sourceFilename": source_filename.to_string_lossy(),
-            "sourceSha256": source_sha256,
-        });
-        std::fs::write(
-            source_dir.join("metadata.json"),
-            serde_json::to_string_pretty(&metadata).unwrap(),
-        )?;
-        log::debug!("[project_create_full] wrote metadata.json");
-
-        // 7. Extract DDL from source binary.
-        let ext = src.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
-        if ext == "dacpac" {
-            extract_ddl_from_dacpac(&source_dest, &ddl_dir)?;
-        } else {
-            extract_ddl_from_zip(&source_dest, &ddl_dir)?;
-        }
-        log::info!("[project_create_full] DDL extraction complete slug={}", project.slug);
-
-        // 8. Enable Git LFS, track source file type, git add → commit → push.
-        run_cmd("git", &["lfs", "install"], None, &[])
-            .map_err(|e| {
-                if e.to_string().contains("is not a git command") || e.to_string().contains("not found") {
-                    CommandError::Validation(
-                        "Git LFS is not installed. Install it and retry:\n\
-                         • macOS:   brew install git-lfs\n\
-                         • Linux:   apt install git-lfs  (or equivalent)\n\
-                         • Windows: winget install Git.LFS\n\
-                         Then run: git lfs install".into(),
-                    )
-                } else {
-                    e
-                }
-            })?;
-
-        let lfs_pattern = if ext == "dacpac" { "*.dacpac" } else { "artifacts/source/*.zip" };
-        run_cmd("git", &["lfs", "track", lfs_pattern], Some(&local_clone_path), &[])?;
-
-        // --force because the repo's .gitignore may contain *.dacpac.
-        git_commit_and_push(
-            &local_clone_path,
-            &format!("feat: add project {}", project.slug),
-            &[".gitattributes", &project.slug],
-            true,
-        )?;
-        log::info!("[project_create_full] pushed project {} to repo", project.slug);
-
-        Ok(())
-    })();
-
-    if let Err(ref e) = external_result {
+    if let Err(e) = setup_project_artifacts(&slug_dir, &source_path, &project, &db_name, &extraction_datetime, &local_clone_path) {
         log::error!("[project_create_full] external steps failed: {e}");
         // Clean up local dir only — no DB row was inserted.
         if slug_dir.exists() {
@@ -196,7 +300,7 @@ pub fn project_create_full(
                 log::warn!("[project_create_full] cleanup dir failed (non-fatal): {rm_e}");
             }
         }
-        return Err(external_result.unwrap_err());
+        return Err(e);
     }
 
     // 9. Insert DB row now that external steps succeeded — crash-safe ordering.
@@ -314,23 +418,7 @@ async fn run_project_ddl_steps(
     let ddl_dir = slug_dir.join("artifacts").join("ddl");
 
     // ── Cleanup: remove legacy artifacts/dacpac/ if source/ already exists ───
-    let old_dacpac_dir = slug_dir.join("artifacts").join("dacpac");
-    if source_dir.join("metadata.json").exists() && old_dacpac_dir.exists() {
-        log::info!("[run_project_ddl_steps] removing stale artifacts/dacpac/ for slug={slug}");
-        if let Err(e) = std::fs::remove_dir_all(&old_dacpac_dir) {
-            log::warn!("[run_project_ddl_steps] could not remove artifacts/dacpac/: {e}");
-        } else {
-            // Stage and commit the removal.
-            let _ = run_cmd("git", &["rm", "-rf", "--cached",
-                &format!("{slug}/artifacts/dacpac")], Some(local_clone_path), &[]);
-            let _ = git_commit_and_push(
-                local_clone_path,
-                &format!("chore: remove legacy artifacts/dacpac/ for {slug}"),
-                &[slug],
-                false,
-            );
-        }
-    }
+    cleanup_legacy_dacpac_dir(slug, &slug_dir, &source_dir, local_clone_path);
 
     // ── Step 2: DdlCheck ─────────────────────────────────────────────────────
     emit_step(app, InitStep::DdlCheck, InitStepStatus::Running, pid.clone());
@@ -601,53 +689,7 @@ pub async fn app_startup_sync(
     }
 
     // ── Step 1: GitPull (global, once) ────────────────────────────────────────
-    emit_step(&app, InitStep::GitPull, InitStepStatus::Running, None);
-    match (&local_clone_path, &clone_url) {
-        (None, _) => {
-            log::warn!("[app_startup_sync] local_clone_path not configured — skipping git pull");
-            emit_step(&app, InitStep::GitPull, InitStepStatus::Warning {
-                warnings: vec!["Git repo not configured in Settings → Connections. Skipping sync.".into()],
-            }, None);
-        }
-        (Some(lcp), _) if Path::new(lcp).join(".git").exists() => {
-            match run_cmd_async("git", &["pull"], Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]).await {
-                Err(ref e) => {
-                    let msg = e.to_string();
-                    log::error!("[app_startup_sync] GitPull failed: {msg}");
-                    emit_step(&app, InitStep::GitPull, InitStepStatus::Error { message: msg.clone() }, None);
-                    return Err(CommandError::External(msg));
-                }
-                Ok(_) => {
-                    if let Err(e) = run_cmd_async("git", &["lfs", "pull"], Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]).await {
-                        log::warn!("[app_startup_sync] git lfs pull failed (non-fatal): {e}");
-                    }
-                    emit_step(&app, InitStep::GitPull, InitStepStatus::Ok, None);
-                }
-            }
-        }
-        (Some(lcp), Some(url)) => {
-            match run_cmd_async("git", &["clone", url, lcp], None, &[("GIT_TERMINAL_PROMPT", "0")]).await {
-                Err(ref e) => {
-                    let msg = e.to_string();
-                    log::error!("[app_startup_sync] git clone failed: {msg}");
-                    emit_step(&app, InitStep::GitPull, InitStepStatus::Error { message: msg.clone() }, None);
-                    return Err(CommandError::External(msg));
-                }
-                Ok(_) => {
-                    if let Err(e) = run_cmd_async("git", &["lfs", "pull"], Some(lcp), &[("GIT_TERMINAL_PROMPT", "0")]).await {
-                        log::warn!("[app_startup_sync] git lfs pull (post-clone) failed (non-fatal): {e}");
-                    }
-                    emit_step(&app, InitStep::GitPull, InitStepStatus::Ok, None);
-                }
-            }
-        }
-        (Some(_), None) => {
-            log::warn!("[app_startup_sync] clone_url not configured — skipping git pull");
-            emit_step(&app, InitStep::GitPull, InitStepStatus::Warning {
-                warnings: vec!["Clone URL not configured — using existing local files.".into()],
-            }, None);
-        }
-    }
+    startup_git_pull(&app, &local_clone_path, &clone_url).await?;
 
     // ── Steps 2-3: DDL check per project, in parallel ─────────────────────────
     let lcp = local_clone_path.clone().unwrap_or_default();
