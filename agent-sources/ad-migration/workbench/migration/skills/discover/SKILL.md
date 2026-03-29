@@ -8,13 +8,11 @@ argument-hint: "[ddl-path] [subcommand] [options]"
 
 # Discover
 
-Instructions for using `discover` to explore a DDL artifact directory.
+Explore a DDL artifact directory. Requires catalog files from `setup-ddl` — errors if catalog is missing.
 
 ## Arguments
 
-Parse `$ARGUMENTS` for `ddl-path` and optionally a subcommand with its options.
-
-If `ddl-path` is missing from `$ARGUMENTS`, ask the user for it before proceeding. Do not assume any default path.
+Parse `$ARGUMENTS` for `ddl-path` and optionally a subcommand with its options. If `ddl-path` is missing, ask the user for it. Do not assume any default path. If no subcommand is specified, default to `list`.
 
 ### Subcommands
 
@@ -25,7 +23,7 @@ If `ddl-path` is missing from `$ARGUMENTS`, ask the user for it before proceedin
 | `--ddl-path` | yes | path to DDL directory |
 | `--type` | yes | `tables`, `procedures`, `views`, `functions` |
 
-**show** — inspect a single object (columns, refs, raw DDL):
+**show** — inspect a single object (columns, params, refs, raw DDL):
 
 | Option | Required | Values |
 |---|---|---|
@@ -39,44 +37,158 @@ If `ddl-path` is missing from `$ARGUMENTS`, ask the user for it before proceedin
 | `--ddl-path` | yes | path to DDL directory |
 | `--name` | yes | fully-qualified object name |
 
-If no subcommand is specified in `$ARGUMENTS`, default to `list`.
-
-Invocation examples are in [`references/workflow.md`](references/workflow.md).
-
 ## Before invoking any subcommand
 
 Read `<ddl-path>/manifest.json` to confirm the directory is a valid DDL extraction and to understand the source technology and dialect. If the manifest is missing, stop and tell the user to run `setup-ddl` first.
 
-## Workflow
+## Output schemas
 
-Follow the step sequence in [`references/workflow.md`](references/workflow.md) for the `list → show → refs` flow, including how to present results and interpret output.
+| Subcommand | Schema |
+|---|---|
+| `list` | `shared/shared/schemas/discover_list_output.json` |
+| `show` | `shared/shared/schemas/discover_show_output.json` |
+| `refs` | `shared/shared/schemas/discover_refs_output.json` |
 
-## Parse classification
+## list
 
-For procedures, `show` returns a `classification` field that tells the agent the analysis path:
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover list \
+  --ddl-path <ddl-path> --type <type>
+```
+
+Present as a numbered list:
+
+```text
+Found 5 tables:
+  1. dbo.DimCustomer
+  2. dbo.DimProduct
+  3. dbo.DimDate
+  4. silver.FactSales
+  5. silver.FactReturns
+
+Which object would you like to inspect?
+```
+
+If the user selects an object, proceed to `show`. If they ask what references it, proceed to `refs`.
+
+## show
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover show \
+  --ddl-path <ddl-path> --name <fqn>
+```
+
+Present differently based on the object type:
+
+### Tables
+
+Show the column list (from catalog):
+
+```text
+silver.DimCustomer (table, 3 columns)
+
+  CustomerKey   BIGINT       NOT NULL
+  FirstName     NVARCHAR(50) NULL
+  Region        NVARCHAR(50) NULL
+```
+
+### Views
+
+Show refs and the view definition:
+
+```text
+silver.vw_CustomerSales (view)
+
+  Reads from: silver.DimCustomer, silver.FactSales
+
+  Definition:
+    SELECT c.FirstName, SUM(f.Amount) AS TotalSales
+    FROM silver.DimCustomer c
+    JOIN silver.FactSales f ON c.CustomerKey = f.CustomerKey
+    GROUP BY c.FirstName
+```
+
+### Procedures
+
+Always include classification, call graph, and logic summary. Check `needs_llm` and `classification`:
 
 | `classification` | Meaning | Action |
 |---|---|---|
-| `deterministic` | sqlglot parsed everything in a single pass, no EXEC | Use `refs` and `write_operations` directly — high trust |
-| `claude_assisted` | Unparseable control flow (IF/ELSE, TRY/CATCH) or EXEC/dynamic SQL | `refs` may be partial. Read `raw_ddl` and `statements` to complete the analysis — identify writes, reads, EXEC targets, and dynamic SQL |
+| `deterministic` | Catalog + enrichment resolved all refs. `statements` available. | Use `refs` and `write_operations` directly. |
+| `claude_assisted` | Dynamic SQL, TRY/CATCH, WHILE, or IF/ELSE. `statements` is null. | Read `raw_ddl` to complete the analysis. |
 
-The `classification` is derived from `needs_llm` and `parse_error`. The `show` output for procedures includes:
+**Deterministic example:**
 
-- `refs.writes_to` — list of target table FQNs
-- `refs.reads_from` — list of source table FQNs
-- `refs.write_operations` — map of target FQN → operation names (e.g. `{"silver.dimcustomer": ["TRUNCATE", "INSERT"]}`)
-- `statements` — per-statement breakdown with action classification:
+```text
+Classification: Deterministic
+
+Call Graph
+
+  silver.usp_load_DimCustomer  (direct writer)
+    ├── reads: bronze.Customer
+    ├── reads: bronze.Person
+    └── writes: silver.DimCustomer  (WRITE + INSERT)
+
+Logic Summary
+  1. TRUNCATE TABLE silver.DimCustomer
+  2. INSERT INTO silver.DimCustomer from JOIN of bronze.Customer and bronze.Person
+  3. Computes DateFirstPurchase via OUTER APPLY on bronze.SalesOrderHeader
+```
+
+**Claude-assisted example:**
+
+```text
+Classification: Claude-assisted (needs_llm)
+Statements: not available — read raw_ddl below
+
+  raw_ddl:
+    CREATE PROCEDURE silver.usp_load_FactSales
+    AS BEGIN
+      DECLARE @sql NVARCHAR(MAX) = ...
+      EXEC(@sql)
+    END
+```
+
+For claude_assisted procs, read `raw_ddl` to identify writes, reads, and calls that the catalog could not resolve. Use the same call graph format for both paths.
+
+### Statement actions (deterministic procs only)
+
+The `statements` array classifies each statement in the proc body:
 
 | Action | Statement types | Meaning |
 |---|---|---|
-| `migrate` | INSERT, UPDATE, DELETE, MERGE, SELECT INTO | Core transformation → becomes the dbt model |
-| `skip` | SET, TRUNCATE, DROP INDEX, CREATE INDEX/PARTITION | Operational overhead → dbt handles or ignores |
+| `migrate` | INSERT, UPDATE, DELETE, MERGE, SELECT INTO | Core transformation — becomes the dbt model |
+| `skip` | SET, TRUNCATE, DROP INDEX, CREATE INDEX/PARTITION | Operational overhead — dbt handles or ignores |
 | `claude` | EXEC, sp_executesql, dynamic SQL | Needs Claude to follow call graph |
 
 See [`references/tsql-parse-classification.md`](references/tsql-parse-classification.md) for the exhaustive pattern list.
 
-## Handling parse errors
+## refs
 
-Procedures with `parse_error` set are still loaded — they are not skipped. Their `raw_ddl` is preserved and can be read for manual inspection or passed to Claude. The `parse_error` field explains why sqlglot could not fully parse the procedure.
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover refs \
+  --ddl-path <ddl-path> --name <fqn>
+```
 
-If `discover` exits with code 2, the directory itself could not be read (missing path, IO error). Individual proc parse failures do not cause exit code 2 — they are stored with `parse_error` and the remaining procs continue loading.
+Data comes from `catalog/tables/<table>.json` → `referenced_by`. Writers are procs with `is_updated=true`. Readers are procs/views with `is_selected=true` (and not `is_updated`).
+
+Present grouped:
+
+```text
+silver.FactSales references (from catalog):
+
+  Writers (1):
+    - dbo.usp_load_FactSales  (is_updated)
+
+  Readers (2):
+    - dbo.usp_read_fact_sales  (is_selected)
+    - dbo.vw_sales_summary  (is_selected)
+```
+
+**Known limitation:** Procs that write only via dynamic SQL (`EXEC(@sql)`, `sp_executesql`) will not appear in catalog `referenced_by`. This is an inherent limitation of `sys.dm_sql_referenced_entities`. These procs require LLM analysis via `discover show`.
+
+## Parse errors
+
+Procedures with `parse_error` set are still loaded — not skipped. Their `raw_ddl` is preserved for inspection. The `parse_error` field explains why sqlglot could not fully parse the body.
+
+If `discover` exits with code 2, the directory itself could not be read (missing path, IO error, no catalog). Individual proc parse failures do not cause exit code 2.
