@@ -83,56 +83,10 @@
       "description": "Inbound references grouped by object type. Each type splits into in_scope and out_of_scope.",
       "required": ["procedures", "views", "functions", "triggers"],
       "properties": {
-        "procedures": { "$ref": "#/$defs/scoped_ref_list" },
-        "views": { "$ref": "#/$defs/scoped_ref_list" },
-        "functions": { "$ref": "#/$defs/scoped_ref_list" },
-        "triggers": { "$ref": "#/$defs/scoped_ref_list" }
-      }
-    },
-    "scoped_ref_list": {
-      "type": "object",
-      "required": ["in_scope", "out_of_scope"],
-      "properties": {
-        "in_scope": { "type": "array", "items": { "$ref": "#/$defs/in_scope_ref" } },
-        "out_of_scope": { "type": "array", "items": { "$ref": "#/$defs/out_of_scope_ref" } }
-      }
-    },
-    "in_scope_ref": {
-      "type": "object",
-      "required": ["schema", "name"],
-      "properties": {
-        "schema": { "type": "string" },
-        "name": { "type": "string" },
-        "is_selected": { "type": "boolean" },
-        "is_updated": { "type": "boolean" },
-        "is_insert_all": { "type": "boolean" },
-        "is_schema_bound": { "type": "boolean" },
-        "is_caller_dependent": { "type": "boolean" },
-        "is_ambiguous": { "type": "boolean" },
-        "detection": { "type": "string", "enum": ["dmf", "ast_scan"] },
-        "columns": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["name"],
-            "properties": {
-              "name": { "type": "string" },
-              "is_selected": { "type": "boolean" },
-              "is_updated": { "type": "boolean" }
-            }
-          }
-        }
-      }
-    },
-    "out_of_scope_ref": {
-      "type": "object",
-      "required": ["schema", "name", "reason"],
-      "properties": {
-        "schema": { "type": "string" },
-        "name": { "type": "string" },
-        "database": { "type": "string" },
-        "server": { "type": ["string", "null"] },
-        "reason": { "type": "string" }
+        "procedures": { "$ref": "common.json#/$defs/scoped_ref_list" },
+        "views": { "$ref": "common.json#/$defs/scoped_ref_list" },
+        "functions": { "$ref": "common.json#/$defs/scoped_ref_list" },
+        "triggers": { "$ref": "common.json#/$defs/scoped_ref_list" }
       }
     },
     "profile_section": {
@@ -201,8 +155,8 @@
             }
           }
         },
-        "warnings": { "type": "array" },
-        "errors": { "type": "array" }
+        "warnings": { "type": "array", "items": { "$ref": "common.json#/$defs/diagnostics_entry" } },
+        "errors": { "type": "array", "items": { "$ref": "common.json#/$defs/diagnostics_entry" } }
       }
     }
   }

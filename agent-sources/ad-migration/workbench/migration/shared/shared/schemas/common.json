@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "common.json",
+  "title": "CommonDefinitions",
+  "description": "Shared definitions used across catalog schemas and agent input/output contracts.",
+  "$defs": {
+    "scoped_ref_list": {
+      "type": "object",
+      "required": ["in_scope", "out_of_scope"],
+      "properties": {
+        "in_scope": { "type": "array", "items": { "$ref": "#/$defs/in_scope_ref" } },
+        "out_of_scope": { "type": "array", "items": { "$ref": "#/$defs/out_of_scope_ref" } }
+      }
+    },
+    "in_scope_ref": {
+      "type": "object",
+      "required": ["schema", "name"],
+      "properties": {
+        "schema": { "type": "string" },
+        "name": { "type": "string" },
+        "is_selected": { "type": "boolean" },
+        "is_updated": { "type": "boolean" },
+        "is_insert_all": { "type": "boolean" },
+        "is_schema_bound": { "type": "boolean" },
+        "is_caller_dependent": { "type": "boolean" },
+        "is_ambiguous": { "type": "boolean" },
+        "detection": { "type": "string", "enum": ["dmf", "ast_scan"] },
+        "columns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/column_ref" }
+        }
+      }
+    },
+    "out_of_scope_ref": {
+      "type": "object",
+      "required": ["schema", "name", "reason"],
+      "properties": {
+        "schema": { "type": "string" },
+        "name": { "type": "string" },
+        "database": { "type": "string" },
+        "server": { "type": ["string", "null"] },
+        "reason": { "type": "string" }
+      }
+    },
+    "column_ref": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "is_selected": { "type": "boolean" },
+        "is_updated": { "type": "boolean" }
+      }
+    },
+    "diagnostics_entry": {
+      "type": "object",
+      "required": ["code", "message", "severity"],
+      "properties": {
+        "code": { "type": "string", "description": "Stable machine-readable identifier." },
+        "message": { "type": "string", "description": "Human-readable description." },
+        "field": { "type": "string", "description": "Optional field path associated with the issue." },
+        "severity": { "type": "string", "enum": ["error", "warning"] },
+        "details": { "type": "object", "description": "Optional structured context object." }
+      }
+    },
+    "validation_section": {
+      "type": "object",
+      "required": ["passed", "issues"],
+      "properties": {
+        "passed": { "type": "boolean" },
+        "issues": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/diagnostics_entry" }
+        }
+      }
+    },
+    "summary_section": {
+      "type": "object",
+      "required": ["total", "ok", "partial", "error"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "ok": { "type": "integer", "minimum": 0 },
+        "partial": { "type": "integer", "minimum": 0 },
+        "error": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

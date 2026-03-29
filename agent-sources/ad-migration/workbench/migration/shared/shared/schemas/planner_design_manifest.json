@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PlannerDesignManifest",
+  "description": "Output contract for the planner agent. Contains per-item design manifests with materialization, tests, and documentation.",
+  "type": "object",
+  "required": ["schema_version", "run_id", "results", "summary"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "run_id": { "type": "string", "format": "uuid" },
+    "results": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/planner_result" }
+    },
+    "summary": { "$ref": "common.json#/$defs/summary_section" }
+  },
+  "$defs": {
+    "planner_result": {
+      "type": "object",
+      "required": ["item_id", "status", "answers", "decomposition", "plan", "validation", "errors"],
+      "properties": {
+        "item_id": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["ok", "partial", "error"]
+        },
+        "answers": { "$ref": "planner_input.json#/$defs/answers" },
+        "decomposition": { "$ref": "planner_input.json#/$defs/decomposition" },
+        "plan": { "$ref": "#/$defs/plan" },
+        "validation": { "$ref": "common.json#/$defs/validation_section" },
+        "errors": {
+          "type": "array",
+          "items": { "$ref": "common.json#/$defs/diagnostics_entry" }
+        }
+      }
+    },
+    "plan": {
+      "type": "object",
+      "required": ["materialization", "schema_tests", "documentation"],
+      "properties": {
+        "materialization": {
+          "type": "string",
+          "enum": ["incremental", "table", "snapshot"]
+        },
+        "schema_tests": {
+          "type": "object",
+          "required": [
+            "entity_integrity_tests",
+            "referential_integrity_tests",
+            "domain_validity_tests",
+            "incremental_recency_tests",
+            "classification_semantic_tests",
+            "pii_governance_checks"
+          ],
+          "properties": {
+            "entity_integrity_tests": { "type": "array", "items": { "$ref": "#/$defs/schema_test" } },
+            "referential_integrity_tests": { "type": "array", "items": { "$ref": "#/$defs/referential_test" } },
+            "domain_validity_tests": { "type": "array", "items": { "$ref": "#/$defs/schema_test" } },
+            "incremental_recency_tests": { "type": "array", "items": { "$ref": "#/$defs/schema_test" } },
+            "classification_semantic_tests": { "type": "array", "items": { "$ref": "#/$defs/classification_test" } },
+            "pii_governance_checks": { "type": "array", "items": { "$ref": "#/$defs/pii_check" } }
+          }
+        },
+        "documentation": { "$ref": "#/$defs/documentation" }
+      }
+    },
+    "schema_test": {
+      "type": "object",
+      "required": ["name", "columns", "severity"],
+      "properties": {
+        "name": { "type": "string" },
+        "columns": { "type": "array", "items": { "type": "string" } },
+        "severity": { "type": "string", "enum": ["error", "warning"] }
+      }
+    },
+    "referential_test": {
+      "type": "object",
+      "required": ["name", "column", "references_source_relation", "references_column", "severity"],
+      "properties": {
+        "name": { "type": "string" },
+        "column": { "type": "string" },
+        "references_source_relation": { "type": "string" },
+        "references_column": { "type": "string" },
+        "severity": { "type": "string", "enum": ["error", "warning"] }
+      }
+    },
+    "classification_test": {
+      "type": "object",
+      "required": ["name", "columns", "classification", "severity"],
+      "properties": {
+        "name": { "type": "string" },
+        "columns": { "type": "array", "items": { "type": "string" } },
+        "classification": { "type": "string" },
+        "severity": { "type": "string", "enum": ["error", "warning"] }
+      }
+    },
+    "pii_check": {
+      "type": "object",
+      "required": ["name", "column", "action", "severity"],
+      "properties": {
+        "name": { "type": "string" },
+        "column": { "type": "string" },
+        "action": { "type": "string", "enum": ["mask", "drop", "tokenize", "keep"] },
+        "severity": { "type": "string", "enum": ["error", "warning"] }
+      }
+    },
+    "documentation": {
+      "type": "object",
+      "required": ["model_name", "model_description"],
+      "properties": {
+        "model_name": { "type": "string" },
+        "model_description": { "type": "string" },
+        "column_descriptions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["column", "description"],
+            "properties": {
+              "column": { "type": "string" },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "business_definitions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["term", "definition"],
+            "properties": {
+              "term": { "type": "string" },
+              "definition": { "type": "string" }
+            }
+          }
+        },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "owner": { "type": "string" }
+      }
+    }
+  }
+}

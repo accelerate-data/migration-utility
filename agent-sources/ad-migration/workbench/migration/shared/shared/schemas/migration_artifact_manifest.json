@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MigrationArtifactManifest",
+  "description": "Output contract for the migrator agent. Contains per-item generated dbt artifacts and execution results.",
+  "type": "object",
+  "required": ["schema_version", "run_id", "results", "summary"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "run_id": { "type": "string", "format": "uuid" },
+    "results": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/migration_result" }
+    },
+    "summary": { "$ref": "common.json#/$defs/summary_section" }
+  },
+  "$defs": {
+    "migration_result": {
+      "type": "object",
+      "required": ["item_id", "status", "output", "errors"],
+      "properties": {
+        "item_id": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["ok", "partial", "error"]
+        },
+        "output": { "$ref": "#/$defs/migration_output" },
+        "errors": {
+          "type": "array",
+          "items": { "$ref": "common.json#/$defs/diagnostics_entry" }
+        }
+      }
+    },
+    "migration_output": {
+      "type": "object",
+      "required": ["table_ref", "model_name", "artifact_paths", "generated", "execution", "warnings", "errors"],
+      "properties": {
+        "table_ref": { "type": "string" },
+        "model_name": { "type": "string" },
+        "artifact_paths": {
+          "type": "object",
+          "required": ["model_sql", "model_yaml"],
+          "properties": {
+            "model_sql": { "type": "string" },
+            "model_yaml": { "type": "string" },
+            "source_yaml": { "type": "string" }
+          }
+        },
+        "generated": {
+          "type": "object",
+          "properties": {
+            "model_sql": {
+              "type": "object",
+              "properties": {
+                "materialized": { "type": "string", "enum": ["incremental", "table", "snapshot"] },
+                "uses_watermark": { "type": "boolean" },
+                "uses_writer_logic": { "type": "boolean" }
+              }
+            },
+            "model_yaml": {
+              "type": "object",
+              "properties": {
+                "has_model_description": { "type": "boolean" },
+                "has_column_descriptions": { "type": "boolean" },
+                "schema_tests_rendered": { "type": "array", "items": { "type": "string" } },
+                "has_unit_tests": { "type": "boolean" }
+              }
+            },
+            "source_yaml": {
+              "type": "object",
+              "properties": {
+                "source_count": { "type": "integer", "minimum": 0 },
+                "table_count": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        },
+        "execution": {
+          "type": "object",
+          "properties": {
+            "dbt_parse_passed": { "type": "boolean" },
+            "dbt_compile_passed": { "type": "boolean" },
+            "dbt_errors": {
+              "type": "array",
+              "items": { "$ref": "common.json#/$defs/diagnostics_entry" }
+            }
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": { "$ref": "common.json#/$defs/diagnostics_entry" }
+        },
+        "errors": {
+          "type": "array",
+          "items": { "$ref": "common.json#/$defs/diagnostics_entry" }
+        }
+      }
+    }
+  }
+}
