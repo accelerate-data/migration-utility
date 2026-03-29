@@ -11,7 +11,7 @@ argument-hint: "[ddl-path] [--table <fqn>] [--dbt-project-path <path>] [--non-in
 
 # Migrate Table
 
-Orchestrates the full migration pipeline for a single table: discover the writer procedure, profile the table, generate a dbt model, and write artifacts. Each stage has user approval gates (unless `--non-interactive`).
+Orchestrates the migration pipeline for a single table: discover the writer procedure, profile the table, generate a dbt model, and write artifacts. Each stage has user approval gates (unless `--non-interactive`).
 
 ## Arguments
 
@@ -93,26 +93,6 @@ Run the `/migrate` skill against the selected table and writer. This assembles m
 **Gate (interactive):** User approves generated dbt model and schema YAML before writing.
 
 **Gate (non-interactive):** Auto-approve and write.
-
-### Stage 4: Test generation (placeholder)
-
-> Test generation is not yet implemented. When available, this stage will:
->
-> 1. Run `/test-gen` to generate dbt tests from the model and profile
-> 2. Present generated tests for user approval
-> 3. Write test fixtures and schema updates to the dbt project
-
-Skip this stage silently. Log: "Test generation not yet available — skipping."
-
-### Stage 5: Validate (placeholder)
-
-> Validation is not yet implemented. When available, this stage will:
->
-> 1. Run the generated model against the live source database
-> 2. Compare output with the original procedure's output
-> 3. Report row counts, column mismatches, and sample diffs
-
-Skip this stage silently if no live database is configured. Log: "Validation not yet available — skipping."
 
 ## Error handling
 
