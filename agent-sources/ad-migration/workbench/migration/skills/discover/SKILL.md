@@ -40,11 +40,13 @@ If `ddl-path` is missing from `$ARGUMENTS`, ask the user for it before proceedin
 | `--name` | yes | fully-qualified object name |
 | `--depth` | no | max call-graph depth for indirect writers (default: `3`) |
 
-Dialect is read automatically from `manifest.json` in the DDL directory (written by `setup-ddl`). No `--dialect` flag.
-
 If no subcommand is specified in `$ARGUMENTS`, default to `list`.
 
 Invocation examples are in [`references/workflow.md`](references/workflow.md).
+
+## Before invoking any subcommand
+
+Read `<ddl-path>/manifest.json` to confirm the directory is a valid DDL extraction and to understand the source technology and dialect. If the manifest is missing, stop and tell the user to run `setup-ddl` first.
 
 ## Workflow
 
