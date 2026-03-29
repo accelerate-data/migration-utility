@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import json
 import sys
-from collections import deque
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -30,7 +29,6 @@ import sqlglot.expressions as exp
 import typer
 
 from shared.catalog import (
-    has_catalog,
     load_proc_catalog,
     load_table_catalog,
     load_view_catalog,
@@ -40,7 +38,6 @@ from shared.loader import (  # noqa: E402
     DdlCatalog,
     DdlEntry,
     DdlParseError,
-    ObjectRefs,
     _read_manifest,
     extract_refs,
     load_catalog,
@@ -86,10 +83,6 @@ def _bucket(catalog: DdlCatalog, object_type: ObjectType) -> dict[str, DdlEntry]
     return getattr(catalog, object_type.value)
 
 
-def _singular(object_type: ObjectType) -> str:
-    return object_type.value.rstrip("s")
-
-
 def _find_entry(
     catalog: DdlCatalog, name: str
 ) -> tuple[str, str, DdlEntry] | None:
@@ -108,77 +101,6 @@ def _find_entry(
         if norm in bucket:
             return norm, type_label, bucket[norm]
     return None
-
-
-# ── Transitive dependency resolution ─────────────────────────────────────────
-
-
-def _resolve_dependencies(
-    obj_refs: ObjectRefs, catalog: DdlCatalog,
-) -> dict[str, list[str]]:
-    """Resolve transitive dependencies through views and functions to base tables.
-
-    Walks reads_from and uses_functions, recursing into views and functions
-    to find the underlying base tables.  Uses a visited set for cycle safety.
-    Objects not found in the catalog are assumed to be external tables.
-    """
-    tables: set[str] = set()
-    views: set[str] = set()
-    functions: set[str] = set()
-    visited: set[str] = set()
-
-    queue: deque[str] = deque(obj_refs.reads_from + obj_refs.uses_functions)
-
-    while queue:
-        fqn = queue.popleft()
-        if fqn in visited:
-            continue
-        visited.add(fqn)
-
-        found = _find_entry(catalog, fqn)
-        if found is None:
-            tables.add(fqn)
-            continue
-
-        _, type_label, entry = found
-
-        if type_label == "table":
-            tables.add(fqn)
-        elif type_label == "view":
-            views.add(fqn)
-            try:
-                view_refs = extract_refs(entry)
-                for ref in view_refs.reads_from:
-                    if ref not in visited:
-                        queue.append(ref)
-            except DdlParseError as exc:
-                print(
-                    f"discover: cannot resolve view {fqn}: {str(exc)[:60]}",
-                    file=sys.stderr,
-                )
-        elif type_label == "function":
-            functions.add(fqn)
-            try:
-                func_refs = extract_refs(entry)
-                for ref in func_refs.reads_from:
-                    if ref not in visited:
-                        queue.append(ref)
-                for ref in func_refs.uses_functions:
-                    if ref not in visited:
-                        queue.append(ref)
-            except DdlParseError as exc:
-                print(
-                    f"discover: cannot resolve function {fqn}: {str(exc)[:60]}",
-                    file=sys.stderr,
-                )
-        elif type_label == "procedure":
-            tables.add(fqn)
-
-    return {
-        "tables": sorted(tables),
-        "views": sorted(views),
-        "functions": sorted(functions),
-    }
 
 
 # ── Column / param extraction from AST ───────────────────────────────────────
@@ -255,7 +177,6 @@ def run_show(ddl_path: Path, name: str) -> dict[str, Any]:
     columns: list[dict] = []
     params: list[dict] = []
     refs_dict: dict | None = None
-    dependencies: dict[str, list[str]] | None = None
     parse_error: str | None = entry.parse_error
 
     if type_label == "table":
@@ -263,13 +184,12 @@ def run_show(ddl_path: Path, name: str) -> dict[str, Any]:
 
     needs_llm = False
     classification: str | None = None
-
     statements: list[dict] | None = None
 
     if type_label == "procedure":
         params = _extract_params(entry, dialect=dialect)
 
-        # Try catalog for reference data
+        # Read reference data from catalog
         proc_cat = load_proc_catalog(ddl_path, norm)
         if proc_cat is not None:
             cat_refs = proc_cat.get("references", {})
@@ -294,28 +214,12 @@ def run_show(ddl_path: Path, name: str) -> dict[str, Any]:
                 "uses_functions": sorted(set(funcs)),
             }
             print(f"discover: show refs from catalog for {norm}", file=sys.stderr)
-        else:
-            # Fallback to AST-based reference extraction
-            try:
-                obj_refs = extract_refs(entry)
-                refs_dict = {
-                    "reads_from": obj_refs.reads_from,
-                    "writes_to": obj_refs.writes_to,
-                    "write_operations": obj_refs.write_operations,
-                    "uses_functions": obj_refs.uses_functions,
-                }
-                dependencies = _resolve_dependencies(obj_refs, catalog)
-            except DdlParseError as exc:
-                parse_error = str(exc)
-                refs_dict = None
 
         # Always AST-parse for statements, needs_llm, classification
         try:
             obj_refs_for_stmts = extract_refs(entry)
             needs_llm = obj_refs_for_stmts.needs_llm
             statements = obj_refs_for_stmts.statements
-            if dependencies is None and proc_cat is None:
-                dependencies = _resolve_dependencies(obj_refs_for_stmts, catalog)
         except DdlParseError:
             needs_llm = True
 
@@ -325,7 +229,6 @@ def run_show(ddl_path: Path, name: str) -> dict[str, Any]:
             classification = "deterministic"
 
     elif type_label in ("view", "function"):
-        # Try catalog for reference data
         cat_loader = load_view_catalog if type_label == "view" else load_function_catalog
         obj_cat = cat_loader(ddl_path, norm)
         if obj_cat is not None:
@@ -338,17 +241,6 @@ def run_show(ddl_path: Path, name: str) -> dict[str, Any]:
                 "writes_to": sorted(set(writes)),
             }
             print(f"discover: show refs from catalog for {norm}", file=sys.stderr)
-        else:
-            try:
-                obj_refs = extract_refs(entry)
-                refs_dict = {
-                    "reads_from": obj_refs.reads_from,
-                    "writes_to": obj_refs.writes_to,
-                }
-                dependencies = _resolve_dependencies(obj_refs, catalog)
-            except DdlParseError as exc:
-                parse_error = str(exc)
-                refs_dict = None
 
     return {
         "name": norm,
@@ -357,7 +249,6 @@ def run_show(ddl_path: Path, name: str) -> dict[str, Any]:
         "columns": columns,
         "params": params,
         "refs": refs_dict,
-        "dependencies": dependencies,
         "statements": statements,
         "needs_llm": needs_llm,
         "classification": classification,
@@ -365,32 +256,12 @@ def run_show(ddl_path: Path, name: str) -> dict[str, Any]:
     }
 
 
-def _compute_confidence(
-    write_type: str,
-    call_path_len: int,
-    max_path_len: int,
-    multiple_paths: bool,
-) -> float:
-    """Compute confidence score for a writer entry.
-
-    Scoring rules:
-      - Direct write base: 0.90
-      - Indirect write base: 0.75
-      - Shorter call path: +0.02 per hop saved vs deepest
-      - Multiple independent paths: +0.05
-    """
-    base = 0.90 if write_type == "direct" else 0.75
-    score = base + (max_path_len - call_path_len) * 0.02
-    if multiple_paths:
-        score += 0.05
-    return max(0.0, min(1.0, score))
-
-
 def _run_refs_from_catalog(ddl_path: Path, target: str) -> dict[str, Any]:
     """Build refs result from catalog JSON files (no AST, no BFS, no confidence)."""
     table_cat = load_table_catalog(ddl_path, target)
     if table_cat is None:
-        return {}  # signal: no catalog available
+        print(f"discover: no catalog found for {target} — run setup-ddl first", file=sys.stderr)
+        raise typer.Exit(code=1)
 
     ref_by = table_cat.get("referenced_by", {})
     readers: list[str] = []
@@ -421,204 +292,17 @@ def _run_refs_from_catalog(ddl_path: Path, target: str) -> dict[str, Any]:
     }
 
 
-def run_refs(
-    ddl_path: Path, name: str, depth: int = 3,
-) -> dict[str, Any]:
+def run_refs(ddl_path: Path, name: str) -> dict[str, Any]:
     """Return the refs subcommand result dict.
 
-    Tries catalog-first: if ``catalog/tables/<name>.json`` exists, reads
-    ``referenced_by`` for instant writer identification (no AST, no BFS,
-    no confidence scoring).
+    Reads ``catalog/tables/<name>.json`` → ``referenced_by`` for instant
+    writer identification. No AST, no BFS, no confidence scoring.
 
-    Falls back to full AST scan with BFS call-graph traversal and
-    confidence scoring when catalog files are absent.
+    Requires catalog files from setup-ddl.
     """
     target = normalize(name)
-
-    # Try catalog-first path
-    if has_catalog(ddl_path):
-        catalog_result = _run_refs_from_catalog(ddl_path, target)
-        if catalog_result:
-            print(f"discover: refs from catalog for {target}", file=sys.stderr)
-            return catalog_result
-
-    # Fall back to AST-based approach
-    print(f"discover: refs from AST scan for {target}", file=sys.stderr)
-    return _run_refs_from_ast(ddl_path, target, depth)
-
-
-def _run_refs_from_ast(
-    ddl_path: Path, target: str, depth: int,
-) -> dict[str, Any]:
-    """Full AST-based refs with BFS call-graph and confidence scoring (fallback)."""
-    catalog, dialect = _load(ddl_path)
-
-    # refs is for tables, views, and functions — not procedures
-    found = _find_entry(catalog, target)
-    if found is not None:
-        _, type_label, _ = found
-        if type_label == "procedure":
-            return {
-                "name": target,
-                "error": "refs is not supported for procedures. Use 'show' to inspect a procedure's reads, writes, and function usage.",
-            }
-
-    # ── Phase 1: scan all procs/views for direct refs ────────────────────
-    readers: list[str] = []
-    direct_writers: dict[str, list[str]] = {}  # proc_name → write_operations
-    llm_required: list[str] = []
-    excluded: set[str] = set()
-
-    # Cache extract_refs results to avoid double-parsing
-    refs_cache: dict[str, Any] = {}
-
-    for bucket_name in ("procedures", "views"):
-        bucket: dict[str, DdlEntry] = getattr(catalog, bucket_name)
-        for caller_name, entry in bucket.items():
-            if entry.parse_error is not None:
-                llm_required.append(caller_name)
-                excluded.add(caller_name)
-                continue
-            try:
-                obj_refs = extract_refs(entry)
-                refs_cache[caller_name] = obj_refs
-            except DdlParseError as exc:
-                print(
-                    f"discover: skipping {caller_name} (extract_refs error: {str(exc)[:60]})",
-                    file=sys.stderr,
-                )
-                llm_required.append(caller_name)
-                excluded.add(caller_name)
-                continue
-
-            if obj_refs.needs_llm:
-                # Check partial refs but always flag for LLM
-                if target in obj_refs.reads_from:
-                    readers.append(caller_name)
-                if target in obj_refs.writes_to:
-                    direct_writers[caller_name] = obj_refs.write_operations.get(target, [])
-                if target in obj_refs.uses_functions:
-                    readers.append(caller_name)
-                llm_required.append(caller_name)
-                excluded.add(caller_name)
-                continue
-
-            # Deterministic — full refs
-            if target in obj_refs.reads_from:
-                readers.append(caller_name)
-            if target in obj_refs.uses_functions:
-                readers.append(caller_name)
-            ops = obj_refs.write_operations.get(target, [])
-            if ops:
-                direct_writers[caller_name] = ops
-
-    # ── Phase 2: build call graph (procedures only) ──────────────────────
-    callee_map: dict[str, list[str]] = {}
-    proc_names = set(catalog.procedures.keys())
-    for proc_name, obj_refs in refs_cache.items():
-        if proc_name in excluded:
-            continue
-        callees = [c for c in obj_refs.calls if c in proc_names]
-        if callees:
-            callee_map[proc_name] = callees
-
-    # ── Phase 3: BFS for indirect writers ────────────────────────────────
-    writer_entries: list[dict[str, Any]] = []
-    added_procs: set[str] = set()
-
-    for proc_name, ops in direct_writers.items():
-        writer_entries.append({
-            "procedure": proc_name,
-            "write_type": "direct",
-            "write_operations": ops,
-            "call_path": [],
-            "confidence": 0.0,
-            "status": "",
-        })
-        added_procs.add(proc_name)
-
-    for start_proc in proc_names:
-        if start_proc in added_procs or start_proc in excluded:
-            continue
-
-        visited: set[str] = {start_proc}
-        queue: deque[tuple[str, list[str]]] = deque([(start_proc, [])])
-        found_paths: list[list[str]] = []
-
-        while queue:
-            current, path = queue.popleft()
-            if len(path) >= depth:
-                continue
-            for callee in callee_map.get(current, []):
-                if callee in direct_writers and callee not in excluded:
-                    found_paths.append(path + [callee])
-                elif callee not in visited:
-                    visited.add(callee)
-                    queue.append((callee, path + [callee]))
-
-        if found_paths:
-            best_path = min(found_paths, key=len)
-            writer_entries.append({
-                "procedure": start_proc,
-                "write_type": "indirect",
-                "write_operations": [],
-                "call_path": list(best_path),
-                "confidence": 0.0,
-                "status": "",
-            })
-            added_procs.add(start_proc)
-
-    # ── Phase 4: confidence scoring ──────────────────────────────────────
-    max_path_len = max(
-        (len(w["call_path"]) for w in writer_entries),
-        default=0,
-    )
-
-    # Count multiple paths for indirect writers
-    indirect_multi: dict[str, int] = {}
-    for start_proc in proc_names:
-        if start_proc in direct_writers or start_proc in excluded:
-            continue
-        if start_proc not in added_procs:
-            continue
-        visited2: set[str] = {start_proc}
-        queue2: deque[tuple[str, list[str]]] = deque([(start_proc, [])])
-        path_count = 0
-        while queue2:
-            current, path = queue2.popleft()
-            if len(path) >= depth:
-                continue
-            for callee in callee_map.get(current, []):
-                if callee in direct_writers and callee not in excluded:
-                    path_count += 1
-                elif callee not in visited2:
-                    visited2.add(callee)
-                    queue2.append((callee, path + [callee]))
-        indirect_multi[start_proc] = path_count
-
-    for w in writer_entries:
-        multiple = (
-            indirect_multi.get(w["procedure"], 0) > 1
-            if w["write_type"] == "indirect"
-            else False
-        )
-        w["confidence"] = round(_compute_confidence(
-            write_type=w["write_type"],
-            call_path_len=len(w["call_path"]),
-            max_path_len=max_path_len,
-            multiple_paths=multiple,
-        ), 4)
-        w["status"] = "confirmed" if w["confidence"] >= 0.70 else "suspected"
-
-    # ── Build result ─────────────────────────────────────────────────────
-    result: dict[str, Any] = {
-        "name": target,
-        "source": "ast",
-        "readers": sorted(set(readers)),
-        "writers": sorted(writer_entries, key=lambda w: w["procedure"]),
-    }
-    if llm_required:
-        result["llm_required"] = sorted(set(llm_required))
+    result = _run_refs_from_catalog(ddl_path, target)
+    print(f"discover: refs from catalog for {target}", file=sys.stderr)
     return result
 
 
@@ -657,11 +341,10 @@ def show(
 def refs(
     ddl_path: Path = typer.Option(..., help="Path to DDL directory"),
     name: str = typer.Option(..., help="Fully-qualified object name (schema.Name)"),
-    depth: int = typer.Option(3, help="Maximum call-graph depth for indirect writers"),
 ) -> None:
     """Find all procedures/views that reference a given object."""
     try:
-        result = run_refs(ddl_path, name, depth=depth)
+        result = run_refs(ddl_path, name)
     except (FileNotFoundError, DdlParseError) as exc:
         print(f"discover: {exc}", file=sys.stderr)
         raise typer.Exit(code=2) from exc
