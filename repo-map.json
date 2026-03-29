@@ -87,15 +87,15 @@
     },
     "migration_skills": {
       "path": "agent-sources/ad-migration/workbench/migration/skills/",
-      "description": "Skill definitions: discover/ (DDL exploration — list/show/refs from catalog). setup-ddl is in the bootstrap sub-plugin."
+      "description": "Skill definitions: discover/ (DDL exploration — list/show/refs from catalog), profile/ (interactive single-table profiling with approval gates). setup-ddl is in the bootstrap sub-plugin."
     },
     "migration_agents": {
       "path": "agent-sources/ad-migration/workbench/migration/agents/",
-      "description": "Agent definitions: scoping-agent.md (catalog-based writer detection via discover refs)."
+      "description": "Agent definitions: scoping-agent.md (catalog-based writer detection via discover refs), profiler-agent.md (batch profiling — context assembly, LLM reasoning, catalog write-back)."
     },
     "tests_migration": {
       "path": "tests/ad-migration/migration/",
-      "description": "Python pytest suite: test_discover.py, test_catalog.py, test_catalog_enrich.py, test_extract_refs.py, test_integration_catalog.py, test_smoke.py. Fixtures: ddl/, ddl_unparseable/, discover/flat/ (with catalog/ subdirectory), discover/unparseable/, catalog/ (table and procedure JSON fixtures), sql/ (Docker SQL Server setup scripts)."
+      "description": "Python pytest suite: test_discover.py, test_catalog.py, test_catalog_enrich.py, test_extract_refs.py, test_integration_catalog.py, test_profile.py, test_smoke.py. Fixtures: ddl/, ddl_unparseable/, discover/flat/ (with catalog/ subdirectory), discover/unparseable/, catalog/ (table and procedure JSON fixtures), profile/ (profiling context and write fixtures), sql/ (Docker SQL Server setup scripts)."
     },
     "tests_scoping_agent": {
       "path": "tests/ad-migration/scoping-agent/",
