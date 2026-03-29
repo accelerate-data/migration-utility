@@ -114,16 +114,14 @@ Always read `raw_ddl` to understand the procedure body. Use `refs` and `statemen
 
 Check `classification` to decide how much help you get:
 
-1. `deterministic` with `statements` populated — `refs` and `statements` are pre-classified, use them alongside the body
-2. `claude_assisted` or `statements` is null — classify each statement yourself from the body
+1. `deterministic` with `statements` populated — `refs` and `statements` are pre-classified, use them alongside the body as the authoritative source of truth. 
+2. `claude_assisted` or `statements` is null — classify each statement yourself from the body. See [`references/tsql-parse-classification.md`](references/tsql-parse-classification.md) for classification guidance.
 
-See [`references/tsql-parse-classification.md`](references/tsql-parse-classification.md) for classification guidance.
+Present three sections: **Call Graph**, **Logic Summary** and **Migration Guidance**.
 
-Present three sections: **Logic Summary**, **Call Graph**, and **Migration Guidance**.
+**Call Graph** — read/write targets from `refs`. Resolve to base tables: if a ref is a view, function, or procedure, run `discover show` on it to get its refs, and follow the chain until you reach base tables. Present the full lineage in the call graph.
 
 **Logic Summary** — always produced by reading `raw_ddl`. Plain-language description of what the procedure does, step by step. No tags, no classification — just explain the logic.
-
-**Call Graph** — read/write targets from `refs`.
 
 **Migration Guidance** — tag each statement as `migrate` or `skip`:
 
@@ -133,21 +131,23 @@ Present three sections: **Logic Summary**, **Call Graph**, and **Migration Guida
 | `skip` | Operational overhead (SET, TRUNCATE, DROP/CREATE INDEX) — dbt handles or ignores |
 
 ```text
-Logic Summary
-  This procedure performs a full reload of silver.DimCustomer. It truncates
-  the target table, then inserts from a join of bronze.Customer and
-  bronze.Person, computing DateFirstPurchase via an OUTER APPLY on
-  bronze.SalesOrderHeader.
-
 Call Graph
   silver.usp_load_DimCustomer  (direct writer)
-    ├── reads: bronze.Customer
+    ├── reads: silver.vw_ProductCatalog (view)
+    │     ├── reads: bronze.Customer        ← resolved via discover show
+    │     └── reads: bronze.Product         ← resolved via discover show
     ├── reads: bronze.Person
     └── writes: silver.DimCustomer
 
+Logic Summary
+  This procedure performs a full reload of silver.DimCustomer. It reads
+  from vw_ProductCatalog (which joins bronze.Customer and bronze.Product),
+  joins with bronze.Person, computes DateFirstPurchase via OUTER APPLY on
+  bronze.SalesOrderHeader, and inserts into silver.DimCustomer.
+
 Migration Guidance
   1. [skip]    TRUNCATE TABLE silver.DimCustomer
-  2. [migrate] INSERT INTO silver.DimCustomer from JOIN of bronze.Customer and bronze.Person
+  2. [migrate] INSERT INTO silver.DimCustomer from vw_ProductCatalog JOIN bronze.Person
   3. [migrate] Computes DateFirstPurchase via OUTER APPLY on bronze.SalesOrderHeader
 ```
 
