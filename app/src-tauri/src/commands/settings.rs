@@ -2,7 +2,7 @@ use std::path::Path;
 
 use tauri::State;
 
-use crate::commands::project_ops::run_cmd;
+use crate::commands::process::run_cmd;
 use crate::db::DbState;
 use crate::types::{AppSettingsPublic, CommandError};
 
