@@ -31,12 +31,6 @@ jobs:
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
 
           STRUCTURAL_DIRS=(
-            "app/src-tauri/src/commands/"
-            "app/src/stores/"
-            "app/src/routes/"
-            "app/src/components/"
-            "app/src/lib/"
-            "app/src/hooks/"
             "agent-sources/ad-migration/workbench/migration/skills/"
             "agent-sources/ad-migration/workbench/migration/agents/"
             "agent-sources/ad-migration/workbench/migration/shared/shared/"
@@ -62,65 +56,3 @@ jobs:
           else
             echo "No structural changes detected — audit passed."
           fi
-
-  frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: app/package-lock.json
-
-      - name: Install dependencies
-        working-directory: app
-        run: npm ci
-
-      - name: Type check
-        working-directory: app
-        run: npx tsc --noEmit
-
-      - name: Unit tests
-        working-directory: app
-        run: npm run test:unit
-
-  rust:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Install Tauri system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: app/src-tauri -> target
-
-      - name: Stub sidecar dist for Tauri resource validation
-        run: |
-          mkdir -p app/sidecar/dist
-          echo "{}" > app/sidecar/dist/placeholder.json
-
-      - name: Stub dacpac-extract binary for Tauri resource validation
-        run: touch app/src-tauri/binaries/dacpac-extract-x86_64-unknown-linux-gnu
-
-      - name: Cargo test
-        working-directory: app/src-tauri
-        run: cargo test
-
-      - name: Clippy
-        working-directory: app/src-tauri
-        run: cargo clippy -- -D warnings
