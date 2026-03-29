@@ -52,11 +52,12 @@ pub(crate) fn open_in_memory() -> Result<Connection, DbError> {
     Ok(conn)
 }
 
-/// Best-effort column repairs run after migrations.
+/// Best-effort column repairs run after migrations on every startup.
 ///
 /// Handles edge cases where a migration was skipped (e.g. schema_version was
 /// already marked applied on a DB that predates the column, or the migration
-/// ran against a different DB file). Safe to call on every startup.
+/// ran against a different DB file). No-ops silently when columns already exist.
+/// Keep this function until all pre-004 developer databases have been updated.
 fn repair_schema(conn: &Connection) -> Result<(), DbError> {
     // projects.technology — added by migration 004; may be absent on older DB files.
     let has_technology: bool = conn.query_row(

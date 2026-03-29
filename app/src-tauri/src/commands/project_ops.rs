@@ -233,16 +233,18 @@ fn emit_step(app: &tauri::AppHandle, step: InitStep, status: InitStepStatus, pro
 }
 
 /// Prepare a Project struct (id, slug, timestamps) without inserting into the DB.
+/// Validates the technology string against the `Technology` enum.
 /// Requires a connection only for slug collision checks.
 fn prepare_project(
     conn: &rusqlite::Connection,
     name: &str,
     technology: &str,
 ) -> Result<Project, CommandError> {
+    let tech = crate::types::Technology::validate(technology)?;
     let id = Uuid::new_v4().to_string();
     let slug = slugify(name, conn)?;
     let created_at = chrono::Utc::now().to_rfc3339();
-    Ok(Project { id, slug, name: name.to_string(), technology: technology.to_string(), created_at })
+    Ok(Project { id, slug, name: name.to_string(), technology: tech.to_string(), created_at })
 }
 
 /// Insert a pre-prepared project row into the DB.

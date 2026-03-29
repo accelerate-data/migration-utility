@@ -122,7 +122,7 @@ pub enum GitHubAuthResult {
 // ── Domain types ──────────────────────────────────────────────────────────────
 
 /// Source technology for a migration project.
-#[allow(dead_code)]
+/// Used for validation at command boundaries — the DB stores the snake_case string.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Technology {
@@ -130,6 +130,19 @@ pub enum Technology {
     FabricWarehouse,
     FabricLakehouse,
     Snowflake,
+}
+
+impl Technology {
+    /// Validate a raw technology string. Returns the canonical snake_case form.
+    pub fn validate(s: &str) -> Result<&'static str, CommandError> {
+        match s {
+            "sql_server" => Ok("sql_server"),
+            "fabric_warehouse" => Ok("fabric_warehouse"),
+            "fabric_lakehouse" => Ok("fabric_lakehouse"),
+            "snowflake" => Ok("snowflake"),
+            _ => Err(CommandError::Validation(format!("Unknown technology: {s}"))),
+        }
+    }
 }
 
 
