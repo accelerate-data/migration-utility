@@ -156,22 +156,22 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover refs \
   --ddl-path <ddl-path> --name <fqn>
 ```
 
-Data comes from `catalog/tables/<table>.json` → `referenced_by`. Writers are procs with `is_updated=true`. Readers are procs/views with `is_selected=true` (and not `is_updated`).
+The output contains `writers` (procs that modify the table) and `readers` (procs/views that select from it).
 
 Present grouped:
 
 ```text
-silver.FactSales references (from catalog):
+silver.FactSales references:
 
   Writers (1):
-    - dbo.usp_load_FactSales  (is_updated)
+    - dbo.usp_load_FactSales
 
   Readers (2):
-    - dbo.usp_read_fact_sales  (is_selected)
-    - dbo.vw_sales_summary  (is_selected)
+    - dbo.usp_read_fact_sales
+    - dbo.vw_sales_summary
 ```
 
-**Known limitation:** Procs that write only via dynamic SQL (`EXEC(@sql)`, `sp_executesql`) will not appear in catalog `referenced_by`. This is an inherent limitation of `sys.dm_sql_referenced_entities`. These procs require LLM analysis via `discover show`.
+**Known limitation:** Procs that write only via dynamic SQL (`EXEC(@sql)`, `sp_executesql`) will not appear as writers. Use `discover show` on suspected procs to confirm via `raw_ddl` analysis.
 
 ## Parse errors
 
