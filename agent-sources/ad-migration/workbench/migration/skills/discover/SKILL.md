@@ -139,15 +139,14 @@ For `claude_assisted` procs, read `raw_ddl` to identify the writes, reads, and c
 
 ### Statement actions
 
-Classify each statement in the proc body as one of:
+Each statement in a proc body is either:
 
 | Action | Meaning |
 |---|---|
 | `migrate` | Core transformation (INSERT, UPDATE, DELETE, MERGE, SELECT INTO) — becomes the dbt model |
 | `skip` | Operational overhead (SET, TRUNCATE, DROP/CREATE INDEX) — dbt handles or ignores |
-| `claude` | Needs LLM analysis (EXEC, sp_executesql, dynamic SQL) — follow the call graph |
 
-For deterministic procs, the `statements` array is pre-classified. For claude_assisted procs, classify statements yourself from `raw_ddl`.
+For deterministic procs, the `statements` array has these pre-classified. For claude_assisted procs, read `raw_ddl` and classify each statement yourself.
 
 See [`references/tsql-parse-classification.md`](references/tsql-parse-classification.md) for the exhaustive pattern list.
 
