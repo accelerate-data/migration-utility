@@ -74,6 +74,13 @@ answer. FDE overrides record deviations from the auto-selection.
 | `answers.watermark` | string or null | Highest-confidence watermark column | Select a different column or set to `null` |
 | `answers.foreign_keys` | JSON array | All candidates with `confidence >= 0.75` | Add, remove, or edit FK entries |
 | `answers.pii_actions` | JSON array | All candidates with `confidence >= 0.75` | Add, remove, or change `action` per column |
+| `plan.materialization` | string | Derived from classification rules | Override materialization strategy for the migrator |
+| `plan.documentation.model_name` | string | Derived from table name | Override dbt model name |
+| `plan.documentation.model_description` | string | Generated | Override model description |
+| `plan.documentation.owner` | string | None | Set team/owner |
+| `plan.documentation.tags` | JSON array | None | Set tags |
+
+These plan fields are consumed by the migrator agent when building dbt artifacts.
 
 **Example rows for `dbo.fact_sales`:**
 
@@ -88,59 +95,6 @@ answer. FDE overrides record deviations from the auto-selection.
 | `dbo.fact_sales` | `profiler-agent` | `answers.pii_actions` | `[{"column":"customer_email","action":"mask"}]` | `uuid-def` | `2024-01-15T11:00:00Z` |
 
 **Read-only:** `confidence`, `rationale`, `signal_sources`, `evidence_refs`, `warnings`, `validation`, `errors`.
-
----
-
-### `decomposer-agent`
-
-FDE edits control which split points are carried forward to the planner and what intermediate
-models are named.
-
-| `field` | Type | Agent default | FDE action |
-|---|---|---|---|
-| `split_points[{split_after_block_id}].accepted` | boolean | `true` for all proposed splits | Reject a split by setting to `false` |
-| `split_points[{split_after_block_id}].proposed_model_name` | string | Agent-proposed name | Rename the intermediate model |
-| `blocks[{block_id}].purpose` | string | Agent-generated description | Edit the purpose text |
-
-**Example rows for `dbo.fact_sales`:**
-
-| `table_id` | `stage` | `field` | `fde_value` | `source_run_id` | `source_submitted_ts` |
-|---|---|---|---|---|---|
-| `dbo.fact_sales` | `decomposer-agent` | `split_points[01_extract_sales_stage].accepted` | `false` | `uuid-ghi` | `2024-01-15T11:30:00Z` |
-| `dbo.fact_sales` | `decomposer-agent` | `split_points[01_extract_sales_stage].proposed_model_name` | `"int_sales_raw"` | `uuid-ghi` | `2024-01-15T11:30:00Z` |
-| `dbo.fact_sales` | `decomposer-agent` | `blocks[02_enrich_customer_product].purpose` | `"Resolve customer and product keys via lookup."` | `uuid-ghi` | `2024-01-15T11:30:00Z` |
-
-**Read-only:** `block_id`, `source_sql_ref`, `confidence`, `rationale`, `split_after_block_id`
-(changing which block a split follows requires a re-run), `warnings`, `validation`, `errors`.
-
-Only accepted split points (`accepted != false`) are passed to the planner input.
-
----
-
-### `planner-agent`
-
-FDE edits override materialization and documentation decisions before migration.
-
-| `field` | Type | Agent default | FDE action |
-|---|---|---|---|
-| `plan.materialization` | string | Agent-determined via classification rules | Override materialization strategy |
-| `plan.documentation.model_name` | string | Agent-generated name | Rename the dbt model |
-| `plan.documentation.model_description` | string | Agent-generated description | Edit the description |
-| `plan.documentation.owner` | string | Agent-generated owner | Override team/owner |
-| `plan.documentation.tags` | JSON array | Agent-generated tags | Override tags list |
-
-**Example rows for `dbo.fact_sales`:**
-
-| `table_id` | `stage` | `field` | `fde_value` | `source_run_id` | `source_submitted_ts` |
-|---|---|---|---|---|---|
-| `dbo.fact_sales` | `planner-agent` | `plan.materialization` | `"table"` | `uuid-jkl` | `2024-01-15T12:00:00Z` |
-| `dbo.fact_sales` | `planner-agent` | `plan.documentation.model_name` | `"fct_sales_v2"` | `uuid-jkl` | `2024-01-15T12:00:00Z` |
-| `dbo.fact_sales` | `planner-agent` | `plan.documentation.model_description` | `"Custom description."` | `uuid-jkl` | `2024-01-15T12:00:00Z` |
-| `dbo.fact_sales` | `planner-agent` | `plan.documentation.owner` | `"finance-team"` | `uuid-jkl` | `2024-01-15T12:00:00Z` |
-| `dbo.fact_sales` | `planner-agent` | `plan.documentation.tags` | `["gold","finance"]` | `uuid-jkl` | `2024-01-15T12:00:00Z` |
-
-**Read-only:** `answers` echo payload, `decomposition`, `plan.schema_tests`, `validation`, `errors`.
-Schema tests are agent-derived from deterministic rules — edits require a re-run.
 
 ---
 

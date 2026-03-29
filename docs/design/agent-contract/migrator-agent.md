@@ -1,132 +1,76 @@
 # Migrator Agent Contract
 
-The migrator agent consumes planner output and test generator fixtures, then generates dbt project artifacts. Migrator is responsible for querying direct source metadata via tools and converting planning output into executable files. The application merges planner output and FixtureManifest per `item_id` before routing to the migrator.
+The migrator agent reads approved profile and resolved statements from catalog files, then generates dbt project artifacts. Migrator is responsible for querying direct source metadata via tools and converting profile data into executable files.
 
 ## Philosophy and Boundary
 
 - Migrator owns artifact generation (`.sql`, `.yml`, and related dbt resources).
+- Migrator reads approved profile from `catalog/tables/<item_id>.json` and resolved statements from `catalog/procedures/<writer>.json`. It derives materialization deterministically from profile classification and generates schema tests from profile answers. Test generator output (`unit_tests[]`) is incorporated in a subsequent stage.
 - Migrator fetches direct facts (schema, column types, relation metadata) using tools.
 - Migrator must not invent business decisions that require FDE judgment.
-- Planner output is authoritative for selected answers, decomposition, schema tests, and documentation.
-- Test generator output (`unit_tests[]`) is authoritative for fixture-based unit tests.
 
 ## Required Input
 
 ```json
 {
-  "schema_version": "",
-  "run_id": "",
-  "items": [
-    {
-      "item_id": "",
-      "answers": {},
-      "decomposition": {...},
-      "plan": {...},
-      "unit_tests": []
-    }
-  ]
-}
-```
-
-**Example**
-
-```json
-{
-  "schema_version": "1.0",
+  "schema_version": "2.0",
   "run_id": "uuid",
+  "ddl_path": "/absolute/path/to/artifacts/ddl",
   "items": [
     {
       "item_id": "dbo.fact_sales",
-      "answers": {
-        "writer": "dbo.usp_load_fact_sales",
-        "classification": "fact_transaction",
-        "primary_key": ["sale_id"],
-        "primary_key_type": "surrogate",
-        "natural_key": ["order_id", "line_number"],
-        "foreign_keys": [
-          {
-            "column": "customer_sk",
-            "references_source_relation": "dbo.dim_customer",
-            "references_column": "customer_sk",
-            "fk_type": "standard"
-          }
-        ],
-        "watermark": "load_date",
-        "pii_actions": [
-          { "column": "customer_email", "action": "mask" }
-        ]
-      },
-      "decomposition": {
-        "segmented_logical_blocks": [],
-        "candidate_model_split_points": []
-      },
-      "plan": {
-        "materialization": "incremental",
-        "schema_tests": {
-          "entity_integrity_tests": [
-            { "name": "not_null", "columns": ["sale_id"], "severity": "error" },
-            { "name": "unique", "columns": ["sale_id"], "severity": "error" },
-            { "name": "unique_combination", "columns": ["order_id", "line_number"], "severity": "error" }
-          ],
-          "referential_integrity_tests": [
-            {
-              "name": "relationships",
-              "column": "customer_sk",
-              "references_source_relation": "dbo.dim_customer",
-              "references_column": "customer_sk",
-              "severity": "error"
-            }
-          ],
-          "domain_validity_tests": [
-            { "name": "not_null", "columns": ["customer_sk"], "severity": "error" }
-          ],
-          "incremental_recency_tests": [
-            { "name": "not_null", "columns": ["load_date"], "severity": "error" },
-            { "name": "recency", "columns": ["load_date"], "severity": "warning" }
-          ],
-          "classification_semantic_tests": [
-            { "name": "grain_no_duplication", "columns": ["sale_id"], "classification": "fact_transaction", "severity": "error" }
-          ],
-          "pii_governance_checks": [
-            { "name": "column_masking_applied", "column": "customer_email", "action": "mask", "severity": "error" }
-          ]
-        },
-        "documentation": {
-          "model_name": "fct_fact_sales",
-          "model_description": "Transaction-level sales fact table for reporting and analytics.",
-          "column_descriptions": [
-            { "column": "sale_id", "description": "Surrogate key for each sale event." },
-            { "column": "customer_sk", "description": "Foreign key to dim_customer." },
-            { "column": "load_date", "description": "Ingestion timestamp used for incremental loading." }
-          ],
-          "business_definitions": [],
-          "tags": ["gold", "sales"],
-          "owner": "data-platform"
-        }
-      },
-      "unit_tests": [
-        {
-          "name": "test_incremental_new_sale_inserted",
-          "model": "fct_fact_sales",
-          "given": [
-            {
-              "input": "source('fabric_wh', 'staging_sales')",
-              "rows": [
-                { "order_id": 1, "line_number": 1, "customer_sk": 101, "load_date": "2024-01-15" }
-              ]
-            }
-          ],
-          "expect": {
-            "rows": [
-              { "sale_id": 1001, "order_id": 1, "line_number": 1, "customer_sk": 101, "load_date": "2024-01-15" }
-            ]
-          }
-        }
-      ]
+      "selected_writer": "dbo.usp_load_fact_sales"
     }
   ]
 }
 ```
+
+Reference schema: `../shared/shared/schemas/migrator_input.json`
+
+## Pipeline
+
+The migrator owns these steps internally:
+
+### 1. ReadCatalog
+
+Read profile from `catalog/tables/<item_id>.json` and resolved statements from `catalog/procedures/<writer>.json`.
+
+### 2. DecideMaterialization
+
+Deterministic rules based on profile classification:
+
+- `dim_scd2` -> `snapshot`
+- No watermark OR `fact_periodic_snapshot` -> `table`
+- Fact/dimension with watermark -> `incremental`
+
+### 3. FilterMigrateStatements
+
+Filter resolved statements where `action == migrate`.
+
+### 4. TranspileSQL
+
+Use sqlglot to transpile T-SQL to target dialect, wrap in dbt model.
+
+### 5. BuildSchemaTests
+
+Deterministic from profile:
+
+- PK -> `unique` + `not_null`
+- FK -> `relationships`
+- Watermark -> `recency` (if incremental)
+- PII -> column-level `meta` tags
+
+### 6. BuildDocumentation
+
+Model name, description, and column descriptions from profile and tool-fetched column metadata.
+
+### 7. WriteArtifacts
+
+Write dbt model `.sql` and schema `.yml` files.
+
+### 8. ValidateOutput
+
+Validate generated artifacts for correctness and completeness.
 
 ## Output Schema (MigrationArtifactManifest)
 
@@ -213,19 +157,19 @@ The migrator agent consumes planner output and test generator fixtures, then gen
 
 ## Required Migrator Guarantees
 
-- Generated dbt artifacts must reflect planner output exactly.
-- `plan.schema_tests` is rendered into column/model-level dbt tests in `model_yaml` (not_null, unique, relationships, freshness, etc.).
-- `unit_tests[]` from the test generator is rendered into `unit_tests:` blocks in `model_yaml`.
+- Generated dbt artifacts must reflect profile answers and resolved statements faithfully.
+- Schema tests are derived deterministically from profile (PK, FK, watermark, PII) and rendered into column/model-level dbt tests in `model_yaml`.
+- `unit_tests[]` from the test generator is rendered into `unit_tests:` blocks in `model_yaml` in a subsequent stage.
 - Tool-fetched schema facts are used for type/column correctness.
-- If planner output is incomplete, return `partial|error` with explicit missing fields.
+- If catalog data is incomplete, return `partial|error` with explicit missing fields.
 
 ## Migrator Boundary
 
 Migrator must not:
 
-- change planner business decisions
+- invent business decisions that require FDE judgment
 - request new decision candidates from profiler
-- add approval gating requirements not present in planner input
+- override approved profile answers
 
 `warnings[]`, `errors[]`, and `execution.dbt_errors[]` use the shared diagnostics schema in
 `docs/design/agent-contract/README.md`.

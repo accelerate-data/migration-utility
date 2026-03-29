@@ -211,4 +211,4 @@ columns:
 ## Namespace Rules
 
 - `candidate_foreign_keys[*].references_source_relation` and `references_column` are source-side SQL Server identifiers.
-- Profiler must not emit dbt `ref()` names. Namespace translation is planner/migrator scope.
+- Profiler must not emit dbt `ref()` names. Namespace translation is migrator scope.

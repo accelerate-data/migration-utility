@@ -6,83 +6,51 @@ This contract is for the **batch GHA pipeline** only. For the interactive single
 
 See [docs/design/unit-test-strategy/](../unit-test-strategy/) for design rationale, tooling decisions, and the full harness design including the branch manifest schema.
 
+Test generation runs AFTER migration in the pipeline (migration is stage 3, test generation is stage 4).
+
 ## Philosophy and Boundary
 
 - Test generator owns fixture generation and ground-truth capture.
+- Test generator reads profile from `catalog/tables/<item_id>.json`, resolved statements from `catalog/procedures/<writer>.json`, and migration output from the migrator's artifact directory.
 - `proc_body` is read from DDL files via `discover show --ddl-path <ddl_path> --name <writer>`. `table_schemas` are read from DDL files via `discover show --ddl-path <ddl_path> --name <table>`. No live database access is needed for metadata — the live DB is only used for ground-truth execution in the ground-truth capture stage.
 - Migrator consumes test generator output and incorporates `unit_tests:` blocks into model schema YAML.
 - Test generator must not make or modify migration business decisions (classification, keys, materialization).
 
 ## Required Input
 
-The test generator receives the planner output unchanged.
-
 ```json
 {
-  "schema_version": "1.0",
+  "schema_version": "2.0",
   "run_id": "uuid",
   "ddl_path": "/absolute/path/to/artifacts/ddl",
   "items": [
     {
       "item_id": "dbo.fact_sales",
-      "answers": {
-        "writer": "dbo.usp_load_fact_sales",
-        "classification": "fact_transaction",
-        "primary_key": ["sale_id"],
-        "primary_key_type": "surrogate",
-        "natural_key": ["order_id", "line_number"],
-        "foreign_keys": [
-          {
-            "column": "customer_sk",
-            "references_source_relation": "dbo.dim_customer",
-            "references_column": "customer_sk",
-            "fk_type": "standard"
-          }
-        ],
-        "watermark": "load_date",
-        "pii_actions": []
-      },
-      "decomposition": {
-        "segmented_logical_blocks": [
-          {
-            "block_id": "01_extract_sales_stage",
-            "purpose": "Load source rows and apply base filters.",
-            "source_sql_ref": {
-              "statement_indices": [0],
-              "line_span": {"start": 12, "end": 37}
-            }
-          }
-        ],
-        "candidate_model_split_points": []
-      },
-      "plan": {
-        "materialization": "incremental",
-        "documentation": {
-          "model_name": "fct_fact_sales"
-        }
-      }
+      "selected_writer": "dbo.usp_load_fact_sales"
     }
   ]
 }
 ```
 
+Reference schema: `../shared/shared/schemas/test_generator_input.json`
+
 ## Generation Strategy
 
 ### 1. FetchProcContext
 
-- Read `proc_body` from DDL files via `discover show --ddl-path <ddl_path> --name <writer>` using `answers.writer`.
+- Read `proc_body` from DDL files via `discover show --ddl-path <ddl_path> --name <writer>` using `selected_writer`.
 - Read `table_schemas` from DDL files via `discover show --ddl-path <ddl_path> --name <table>` for `item_id` and all join targets.
 
 ### 2. ExtractBranches
 
-- For each block in `decomposition.segmented_logical_blocks`, prompt the LLM to extract all conditional branches within the block's `source_sql_ref.line_span`.
+- For each statement in the resolved statements from `catalog/procedures/<writer>.json` where `action == migrate`, extract conditional branches from the SQL AST.
 - sqlglot handles individual statement conditions (WHERE, CASE, MERGE clauses); LLM handles IF/ELSE/WHILE procedural control flow.
 - Output: branch manifest — see [harness design](../unit-test-strategy/ground-truth-harness.md) for schema.
 
 ### 3. GenerateFixtures
 
 - For each branch, generate minimum input rows (positive + negative case).
-- Use `answers.foreign_keys` to build FK dependency graph; generate rows in topological order.
+- Use profile `foreign_keys` from `catalog/tables/<item_id>.json` to build FK dependency graph; generate rows in topological order.
 - Group correlated columns (date ranges, amount/currency) in a single LLM call.
 
 ### 4. CaptureGroundTruth
@@ -105,7 +73,6 @@ The test generator receives the planner output unchanged.
 
 ### 7. ValidateOutput
 
-- Validate all `split_after_block_id` references exist in `decomposition.segmented_logical_blocks`.
 - Validate every `unit_tests:` block has at least one `given` row and one `expect` row.
 - Set `coverage` field: `complete` when all branches covered, `partial` otherwise.
 - Set item `status`: `ok | partial | error`.

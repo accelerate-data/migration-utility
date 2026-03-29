@@ -35,7 +35,7 @@ Desktop App (Tauri)
           │  workflow_dispatch (GitHub API, OAuth token)
           ▼
   GitHub Actions runner
-    ├── Reads DDL from repo → runs agent (scoping, profiling, decomposing, planning, migrating)
+    ├── Reads DDL from repo → runs agent (scoping, profiling, migrating, test-generating)
     └── Connects to source database via MCP → runs test generator agent
 ```
 
@@ -81,7 +81,7 @@ Directory layout inside the repo:
       {run_id}.json              # agent output, immutable, committed by GH Actions
 ```
 
-`{action}` is one of: `scoping-agent`, `profiler-agent`, `decomposer-agent`, `planner-agent`, `test-generator-agent`, `migrator-agent`.
+`{action}` is one of: `scoping-agent`, `profiler-agent`, `migrator-agent`, `test-generator-agent`.
 
 **Git LFS:** The app enables LFS on the repo via GitHub API at project creation before the first source file push. No manual setup required.
 
@@ -289,7 +289,7 @@ No run history is maintained — each consolidation overwrites the current state
 
 ### Dirty Computation
 
-Runs as a standalone final step after all statuses are updated. Iterates **backwards** from the last stage to the first (migrate → test-generator → plan → decompose → profile). For each stage N:
+Runs as a standalone final step after all statuses are updated. Iterates **backwards** from the last stage to the first (test-generator → migrate → profile). For each stage N:
 
 ```text
 if stage_status[N].status == 'failed':
@@ -305,7 +305,7 @@ else:
   dirty[N] = 0
 ```
 
-Migrate has two upstreams (plan and test-generator); it is dirty if either upstream's artifact is newer than migrate's, or either upstream has an FDE override, or migrate's own last run failed.
+Migrate has one upstream (profile via catalog); it is dirty if profile's artifact is newer than migrate's, or profile has an FDE override, or migrate's own last run failed.
 
 Scope has no upstream and is never dirty.
 
@@ -319,7 +319,7 @@ Status refresh is manual. Each tab has a **Refresh** button that triggers consol
 
 ## FDE Edits
 
-Each stage modal lets the FDE review the prior stage's output before submitting a run. Overrides are allowed for Scope, Profile, Decompose, and Plan outputs. Generate Tests and Migrate outputs are read-only — they are final artifacts.
+Each stage modal lets the FDE review the prior stage's output before submitting a run. Overrides are allowed for Scope and Profile outputs. Migrate and Generate Tests outputs are read-only — they are final artifacts.
 
 Rules:
 
@@ -336,7 +336,7 @@ Full schema and per-stage editable field definitions: [fde-overrides.md](fde-ove
 
 ## Stage Surfaces
 
-The migration UI is a single screen with six tabs: **Scope → Profile → Decompose → Plan → Generate Tests → Migrate**. The FDE can switch between tabs freely. Each tab is a funnel — it only shows tables that have a successful output from the prior stage.
+The migration UI is a single screen with four tabs: **Scope → Profile → Migrate → Generate Tests**. The FDE can switch between tabs freely. Each tab is a funnel — it only shows tables that have a successful output from the prior stage.
 
 ### Common Layout
 
@@ -345,7 +345,7 @@ Each tab:
 - Table list showing only tables eligible for this stage (see Stage Gate below).
 - Status filter (mutually exclusive): `Pending` (never run or failed), `Success`, `In Progress`, `Dirty`. Default view is `Pending`.
 - **Refresh** button — pulls repo, re-consolidates SQLite.
-- Double-click a table row → modal showing the prior stage's output. FDE can edit fields for Scope, Profile, Decompose, and Plan stages; Generate Tests and Migrate modals are read-only. Changes are saved on explicit confirm.
+- Double-click a table row → modal showing the prior stage's output. FDE can edit fields for Scope and Profile stages; Migrate and Generate Tests modals are read-only. Changes are saved on explicit confirm.
 - Right-click a table row with a run (Success, Failed, or In Progress) → context menu with **View run log** — opens the GitHub Actions run URL (`https://github.com/{owner}/{repo}/actions/runs/{github_run_id}`) in the browser via `tauri-plugin-opener`. Pending rows (never submitted) have no run; the option is absent.
 - Select one or more tables → **Submit** button.
 - If any selected table already has a successful result for this stage, a confirmation prompt appears before resubmission.
@@ -378,30 +378,16 @@ Output: `{project-slug}/artifacts/profiler-agent/{run_id}.json`
 - Shows tables with a successful Scope output.
 - Modal shows: Scope output. FDE can edit `selected_writer` before profiling.
 
-#### 3. Decompose (`decomposer-agent`)
-
-Output: `{project-slug}/artifacts/decomposer-agent/{run_id}.json`
-
-- Shows tables with a successful Profile output.
-- Modal shows: Profile output. FDE can edit candidate selections before decomposing.
-
-#### 4. Plan (`planner-agent`)
-
-Output: `{project-slug}/artifacts/planner-agent/{run_id}.json`
-
-- Shows tables with a successful Decompose output.
-- Modal shows: Decompose output. FDE can edit split points and block purposes before planning.
-
-#### 5. Generate Tests (`test-generator-agent`)
-
-Output: `{project-slug}/artifacts/test-generator-agent/{run_id}.json`
-
-- Shows tables with a successful Plan output.
-- Modal shows: Plan output (read-only). Generate Tests is a final output stage — no FDE overrides.
-
-#### 6. Migrate (`migrator-agent`)
+#### 3. Migrate (`migrator-agent`)
 
 Output: `{project-slug}/artifacts/migrator-agent/{run_id}.json`
 
-- Shows tables with successful Plan **and** Generate Tests outputs.
-- Modal shows: Plan output and Generate Tests output (read-only). Migrate is a final output stage — no FDE overrides.
+- Shows tables with a successful Profile output.
+- Modal shows: Profile output. FDE can review profile answers before submitting migration.
+
+#### 4. Generate Tests (`test-generator-agent`)
+
+Output: `{project-slug}/artifacts/test-generator-agent/{run_id}.json`
+
+- Shows tables with a successful Migrate output.
+- Modal shows: Migrate output (read-only). Generate Tests is a final output stage — no FDE overrides.

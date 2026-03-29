@@ -188,6 +188,8 @@ The LLM reasoning is the same six questions in both paths. The difference is orc
 
 This replaces the separate `assess` skill. The `classification` field (`deterministic` or `claude_assisted`) gives the top-level verdict; the `statements` array gives the per-statement breakdown.
 
+Resolved statements are persisted to `catalog/procedures/<writer>.json` by the scoping agent (batch) or `/discover` skill (interactive). All `claude` actions are resolved to `migrate` or `skip` before persisting. Downstream stages (profiler, migrator) read statements from catalog.
+
 ### migrate
 
 ```text
@@ -271,10 +273,10 @@ The orchestrator. Defined in `commands/migrate-table/SKILL.md`. No Python — Cl
 ```text
 1. discover      → list tables → user picks one
 2. scope         → find writers → user confirms which procedure to migrate
-3. discover show → statement breakdown → user reviews migrate/skip/claude
+3. discover show → statement breakdown → user reviews migrate/skip/claude; claude statements resolved via LLM + FDE confirmation; resolved statements written to catalog
 4. profile       → catalog signals + LLM inference → user approves candidates
-5. migrate       → generate dbt SQL (using profile answers) → user approves before file write
-6. test-gen      → generate schema.yml → user approves before file write
+5. migrate       → generate dbt SQL (derives materialization + tests from profile) → user approves before file write
+6. test-gen      → generate schema.yml + unit test fixtures → user approves before file write
 7. validate      → compare outputs (skipped if no live DB)
 ```
 
@@ -283,7 +285,7 @@ The orchestrator. Defined in `commands/migrate-table/SKILL.md`. No Python — Cl
 | After step | Gate |
 |---|---|
 | scope | Always — show writer list, user picks procedure |
-| discover show | If `claude_assisted` — require explicit approval before proceeding |
+| discover show | If `claude_assisted` — resolve via LLM, FDE confirms; write resolved statements to catalog |
 | profile | Always — show classification, keys, watermark, PII candidates; user approves/edits |
 | migrate | Always — show generated model before writing to disk |
 | test-gen | Always — show schema.yml before writing to disk |

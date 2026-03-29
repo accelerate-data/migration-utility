@@ -174,3 +174,26 @@ This field is consumed by downstream wave planning to build inter-table dependen
 
 - Orchestrator traversal is always enabled through call-graph resolution.
 - Cross-database access is out of scope for this flow.
+
+## Step 5 — Persist Resolved Statements to Catalog
+
+After writing the scoping output, the agent persists resolved statements for each `resolved` item to `catalog/procedures/<selected_writer>.json`.
+
+For each resolved item:
+
+1. If `discover show` returned `classification: deterministic` — all statements already have `action: migrate|skip`. Write them to catalog with `source: "ast"`.
+
+2. If `discover show` returned `classification: claude_assisted` — the LLM analysis in Step 2 resolved all `claude` actions to `migrate` or `skip`. Write the resolved statements to catalog with `source: "llm"`.
+
+Run:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover write-statements \
+  --ddl-path <ddl_path> --name <selected_writer> --statements '<json>'
+```
+
+The `write-statements` subcommand validates that every statement has `action` in `[migrate, skip]` and `source` in `[ast, llm]`, then merges the `statements` array into the existing procedure catalog file.
+
+No `claude` actions are persisted to catalog — all are resolved before writing.
+
+Downstream stages (profiler, migrator) read resolved statements from `catalog/procedures/<writer>.json`.

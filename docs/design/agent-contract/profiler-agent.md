@@ -9,7 +9,7 @@ For the interactive single-table path, see the `/profile` skill in [SP → dbt M
 - All catalog signals are pre-captured by setup-ddl (VU-766) in `catalog/` files. The agent never queries the live database.
 - Proc bodies are in DDL files from setup-ddl. No `sys.sql_modules` access needed.
 - `profile.py` (shared) has two subcommands: `context` (assemble LLM input) and `write` (merge profile into catalog file). The agent does LLM reasoning between the two.
-- FDE approves profile results before planner consumes them.
+- FDE approves profile results before the migrator consumes them.
 - No sampled data profiling — live DB is unavailable at migration time.
 
 ## Required Input
@@ -252,12 +252,12 @@ The actual profile data lives in the catalog file, not duplicated in the batch o
 ## Namespace Rules
 
 - `profile.foreign_keys[*].references_source_relation` and `references_column` are source-side SQL Server identifiers.
-- Profiler must not emit dbt `ref()` names. Namespace translation is planner/migrator scope.
+- Profiler must not emit dbt `ref()` names. Namespace translation is migrator scope.
 
 ## What Profiler Must Not Output
 
 - Final dbt SQL or Jinja model content.
-- Final materialization/test decisions (planner's job).
+- Final materialization/test decisions (migrator's job).
 
 `warnings[]` and `errors[]` use the shared diagnostics schema in `docs/design/agent-contract/README.md`.
 

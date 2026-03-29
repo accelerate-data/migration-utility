@@ -114,7 +114,7 @@ Always read `raw_ddl` to understand the procedure body. Use `refs` and `statemen
 
 Check `classification` to decide how much help you get:
 
-1. `deterministic` with `statements` populated — `refs` and `statements` are pre-classified, use them alongside the body as the authoritative source of truth. 
+1. `deterministic` with `statements` populated — `refs` and `statements` are pre-classified, use them alongside the body as the authoritative source of truth.
 2. `claude_assisted` or `statements` is null — classify each statement yourself from the body. See [`references/tsql-parse-classification.md`](references/tsql-parse-classification.md) for classification guidance.
 
 Present three sections: **Call Graph**, **Logic Summary** and **Migration Guidance**.
@@ -150,6 +150,29 @@ Migration Guidance
   2. [migrate] INSERT INTO silver.DimCustomer from vw_ProductCatalog JOIN bronze.Person
   3. [migrate] Computes DateFirstPurchase via OUTER APPLY on bronze.SalesOrderHeader
 ```
+
+### Persisting Resolved Statements
+
+After reviewing statements with the user, persist resolved statements to catalog:
+
+**For deterministic procedures** (`classification: deterministic`, no `claude` actions in statements):
+
+Run directly:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover write-statements \
+  --ddl-path <ddl_path> --name <procedure_name> --statements '<json>'
+```
+
+All statements get `source: "ast"`.
+
+**For claude-assisted procedures** (`classification: claude_assisted` or statements containing `action: "claude"`):
+
+1. Read `raw_ddl` and analyse each `claude` statement — follow the call graph, resolve dynamic SQL, and classify as `migrate` or `skip`.
+2. Present the full resolved statement list to the FDE for confirmation. Show each statement with its proposed action and rationale.
+3. After FDE confirms (with any edits), run `discover write-statements` to persist. All resolved statements get `source: "llm"`.
+
+No `claude` actions are written to catalog — all must be resolved before persisting.
 
 ## refs
 

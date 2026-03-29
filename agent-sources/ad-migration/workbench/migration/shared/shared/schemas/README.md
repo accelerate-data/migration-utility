@@ -26,7 +26,7 @@ Per-object catalog files produced by `setup-ddl` and consumed by `discover`, `pr
 |---|---|---|
 | [manifest.json](manifest.json) | Extraction manifest | technology, dialect, source_database, extracted_schemas, extracted_at |
 | [table_catalog.json](table_catalog.json) | Table | `columns`, PKs, FKs, auto_increment_columns, change_capture (opt), sensitivity (opt), `referenced_by`, `profile` |
-| [procedure_catalog.json](procedure_catalog.json) | Procedure | `params`, `references`, `referenced_by`, `needs_llm`, `needs_enrich` |
+| [procedure_catalog.json](procedure_catalog.json) | Procedure | `params`, `references`, `referenced_by`, `statements`, `needs_llm`, `needs_enrich` |
 | [view_catalog.json](view_catalog.json) | View | `references`, `referenced_by` |
 | [function_catalog.json](function_catalog.json) | Function | `references`, `referenced_by` |
 
@@ -94,18 +94,14 @@ Structured JSON output from the `discover` CLI subcommands, consumed by skills a
 |---|---|---|
 | [scope_input.json](scope_input.json) | Scoping | `schema_version`, `run_id`, `technology`, `ddl_path`, `items[].item_id` |
 | [profiler_input.json](profiler_input.json) | Profiler | `schema_version`, `run_id`, `ddl_path`, `items[].item_id`, `items[].selected_writer` |
-| [decomposer_input.json](decomposer_input.json) | Decomposer | `schema_version`, `run_id`, `items[].item_id`, `items[].writer` |
-| [planner_input.json](planner_input.json) | Planner | `schema_version`, `run_id`, `items[].item_id`, `items[].answers`, `items[].decomposition` |
-| [test_generator_input.json](test_generator_input.json) | Test Generator | `schema_version`, `run_id`, `items[].item_id`, `items[].answers`, `items[].decomposition`, `items[].plan` |
-| [migrator_input.json](migrator_input.json) | Migrator | `schema_version`, `run_id`, `items[].item_id`, `items[].answers`, `items[].decomposition`, `items[].plan`, `items[].unit_tests` |
+| [test_generator_input.json](test_generator_input.json) | Test Generator | `schema_version`, `run_id`, `ddl_path`, `items[].item_id`, `items[].selected_writer` |
+| [migrator_input.json](migrator_input.json) | Migrator | `schema_version`, `run_id`, `ddl_path`, `items[].item_id`, `items[].selected_writer` |
 
 ## Agent output schemas
 
 | Schema | Agent | Notes |
 |---|---|---|
 | [candidate_writers.json](candidate_writers.json) | Scoping | Per-table writer discovery with `status`, `selected_writer`, `candidate_writers[]`, custom `scope_summary` |
-| [decomposition_proposal.json](decomposition_proposal.json) | Decomposer | Logical blocks and split points per item |
-| [planner_design_manifest.json](planner_design_manifest.json) | Planner | Materialization, schema tests, documentation per item |
 | [fixture_manifest.json](fixture_manifest.json) | Test Generator | Branch-covering unit test fixtures with coverage tracking |
 | [migration_artifact_manifest.json](migration_artifact_manifest.json) | Migrator | Generated dbt artifact paths, metadata, and execution results |
 

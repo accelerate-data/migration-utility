@@ -1,6 +1,6 @@
 # Agent Contract
 
-Contracts for the **batch GHA pipeline**: multi-agent ETL migration from SQL Server stored procedures to dbt models. These contracts govern the six LLM agents that run in GitHub Actions and whose outputs the desktop app displays and routes.
+Contracts for the **batch GHA pipeline**: multi-agent ETL migration from SQL Server stored procedures to dbt models. These contracts govern the four LLM agents that run in GitHub Actions and whose outputs the desktop app displays and routes.
 
 For the complementary interactive single-table path, see [SP → dbt Migration Plugin](../sp-to-dbt-plugin/README.md). The plugin's Python skills (`discover.py`, `catalog.py`, `migrate.py`, `test_gen.py`) implement the deterministic parts of the pipeline below; the batch agents delegate to these skills where applicable and handle the judgment-heavy steps.
 
@@ -33,37 +33,31 @@ Agent definitions must not declare `skills:` for discover. Use `uv run` commands
 
 ## Flow
 
-1. Scoping: analysis agent calls `discover refs` per table for catalog-based writer identification (`is_updated=true`), calls `discover show` per candidate for statement analysis and dependency resolution, selects writer when resolvable, and enriches the selected writer with resolved `dependencies` for downstream wave planning.
+1. Scoping: analysis agent calls `discover refs` per table for catalog-based writer identification (`is_updated=true`), calls `discover show` per candidate for statement analysis and dependency resolution, selects writer when resolvable, and enriches the selected writer with resolved `dependencies` for downstream wave planning. Writes resolved statements to `catalog/procedures/<writer>.json`.
 2. Profiling: profiler agent runs `profile.py` per table for context assembly, applies LLM reasoning to answer the six profiling questions, and writes results into each table's catalog JSON. Shares `profile.py` with the interactive `/profile` skill; LLM reasoning is replicated with batch-appropriate prompting. FDE approves before downstream consumption.
-3. Decomposition: decomposer agent segments selected writer SQL into reusable logical blocks and split points.
-4. Planning: planner agent consumes approved answers + approved decomposition, then produces materialization, tests, and documentation intent.
-5. Test Generation: test generator agent produces branch-covering `unit_tests:` YAML fixtures from the planner output.
-6. Migration: migrator agent converts planner output + test generator fixtures into dbt artifacts using tool-fetched facts.
+3. Migration: migrator agent reads profile from `catalog/tables/<item_id>.json` and resolved statements from `catalog/procedures/<writer>.json`. Derives materialization deterministically from profile classification, generates schema tests from profile answers, and produces dbt model SQL and schema YAML artifacts.
+4. Test Generation: test generator agent produces branch-covering `unit_tests:` YAML fixtures from migration output and resolved statements.
 
 ## Workflow
 
 - [Scoping Agent](scoping-agent.md) - input/output contract for table-to-writer procedure mapping.
 - [Profiler Agent](profiler-agent.md) - runs `profile.py` (shared context assembler) per table, applies LLM reasoning for the six profiling questions, writes `profile` section into catalog files. Shares `profile.py` with the interactive `/profile` skill. See [What to Profile and Why](what-to-profile-and-why.md) for the LLM reference tables.
-- [Decomposer Agent](decomposer-agent.md) - required input and output schema for SQL decomposition and model split-point proposals.
-- [Planner Agent](planner-agent.md) - required input and output schema for design manifest generation.
 - [Test Generator Agent](test-generator-agent.md) - required input and output schema for branch-covering fixture generation. See [Unit Test Strategy](../unit-test-strategy/) for the original design rationale and harness details (batch path only; for the interactive path `test_gen.py` uses AST-based inference without a live DB).
-- [Migrator Agent](migrator-agent.md) - required input and output schema for dbt artifact generation.
+- [Migrator Agent](migrator-agent.md) - required input and output schema for dbt artifact generation. Reads profile and statements from catalog.
 
 ## Contract Boundary
 
 - Scoping output is minimal writer discovery/selection data.
 - Profiler output is candidate proposals that require FDE judgment.
-- Decomposer output is SQL decomposition proposals (logical blocks + split points).
-- Planner captures final decisions, carries approved decomposition unchanged, and produces test plan/documentation metadata.
 - Test generator fetches proc SQL via tools, generates synthetic fixtures, captures ground-truth proc output, and emits `unit_tests:` YAML blocks. It does not write dbt files.
-- Migrator fetches direct facts via tools and materializes dbt files from planner output, incorporating test generator fixtures.
+- Migrator reads profile and statements from catalog, derives materialization from classification, generates schema tests from profile answers, and produces dbt artifacts.
 - Upstream agents should not emit fields that downstream stages can derive or fetch reliably.
 - All agent outputs use `results[]` as the top-level per-item collection key.
 
 ## Workflow Semantics
 
 - Scoping and profiling produce machine-readable outputs with per-item status and errors.
-- FDE approval is the decision gate between profiler candidates and planner/migrator execution.
+- FDE approval is the decision gate between profiler candidates and migrator execution.
 - Validation findings should be surfaced as structured warnings/errors.
 - Scope stage submission contract:
   - submission payload includes `items[]` where each element carries an `item_id`.

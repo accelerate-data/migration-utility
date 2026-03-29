@@ -47,6 +47,20 @@
       "properties": {
         "procedures": { "$ref": "common.json#/$defs/scoped_ref_list" }
       }
+    },
+    "statements": {
+      "type": "array",
+      "description": "Resolved statement classification. Written by scoping agent or /discover skill after all claude actions are resolved to migrate or skip.",
+      "items": {
+        "type": "object",
+        "required": ["action", "source", "sql"],
+        "properties": {
+          "type": { "type": "string", "description": "Statement type, e.g. Insert, Update, Merge, Command." },
+          "action": { "type": "string", "enum": ["migrate", "skip"], "description": "migrate: core DML that becomes the dbt model. skip: operational overhead." },
+          "source": { "type": "string", "enum": ["ast", "llm"], "description": "How the action was determined: ast (deterministic sqlglot parse) or llm (Claude analysis of dynamic SQL/call graph)." },
+          "sql": { "type": "string", "description": "SQL text of the statement." }
+        }
+      }
     }
   }
 }
