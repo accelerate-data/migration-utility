@@ -55,9 +55,7 @@ For each candidate writer:
    - `deterministic` — no further action needed.
    - `claude_assisted` — read `raw_ddl` and analyse the proc body:
      - Identify `reads_from` and `writes_to`.
-     - Classify each statement as `migrate` or `skip`:
-       - `migrate`: INSERT, UPDATE, DELETE, MERGE, SELECT INTO — core transformation that becomes the dbt model.
-       - `skip`: SET, TRUNCATE, DROP/CREATE INDEX, DECLARE, PRINT, BEGIN/COMMIT/ROLLBACK — operational overhead.
+     - Classify each statement as `migrate` or `skip`. See `../skills/discover/references/tsql-parse-classification.md` for the full classification guide.
      - If the proc calls other procs (EXEC), run `discover show` on each and follow recursively.
      - Populate `llm_analysis` on the candidate with `reads_from`, `writes_to`, `statements`, and `rationale`.
      - Add `LLM_ANALYSIS_REQUIRED` warning.
