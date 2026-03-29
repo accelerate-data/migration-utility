@@ -1128,12 +1128,18 @@ pub fn project_reset_local(
 
 /// Extract the source database name from a DacPac file by reading DacMetadata.xml.
 /// DacPac files are ZIP archives; DacMetadata.xml contains the `<Name>` element.
+/// Uses the `zip` crate directly instead of shelling out to `unzip` (which is unavailable on Windows).
 fn dacpac_db_name(dacpac_path: &str) -> Result<String, CommandError> {
     log::debug!("[dacpac_db_name] reading DacMetadata.xml from {dacpac_path}");
-    let xml = run_cmd("unzip", &["-p", dacpac_path, "DacMetadata.xml"], None, &[])
-        .map_err(|e| {
-            CommandError::External(format!("Failed to read DacPac metadata: {e}"))
-        })?;
+    let file = std::fs::File::open(dacpac_path)
+        .map_err(|e| CommandError::Io(format!("Cannot open DacPac '{}': {e}", dacpac_path)))?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|e| CommandError::External(format!("Not a valid DacPac (ZIP): {e}")))?;
+    let mut entry = archive.by_name("DacMetadata.xml")
+        .map_err(|_| CommandError::External("DacMetadata.xml not found in DacPac — is this a valid DacPac?".into()))?;
+    let mut xml = String::new();
+    entry.read_to_string(&mut xml)
+        .map_err(|e| CommandError::Io(format!("Failed to read DacMetadata.xml: {e}")))?;
     // Parse <Name>...</Name> from the XML (DacMetadata.xml is simple and well-formed).
     for line in xml.lines() {
         let trimmed = line.trim();
@@ -1257,6 +1263,46 @@ mod tests {
             |row| row.get(0),
         ).unwrap();
         assert!(!has_port, "port column must be removed by migration 004");
+    }
+
+    #[test]
+    fn dacpac_db_name_extracts_name_from_zip() {
+        use std::io::Write;
+        let dir = tempfile::tempdir().unwrap();
+        let dacpac_path = dir.path().join("test.dacpac");
+
+        // Build a minimal ZIP containing DacMetadata.xml with a <Name> element.
+        let file = std::fs::File::create(&dacpac_path).unwrap();
+        let mut zip_writer = zip::ZipWriter::new(file);
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        zip_writer.start_file("DacMetadata.xml", options).unwrap();
+        zip_writer
+            .write_all(b"<?xml version=\"1.0\"?>\n<DacMetadata>\n  <Name>Contoso_DW</Name>\n</DacMetadata>")
+            .unwrap();
+        zip_writer.finish().unwrap();
+
+        let result = dacpac_db_name(dacpac_path.to_str().unwrap()).unwrap();
+        assert_eq!(result, "Contoso_DW");
+    }
+
+    #[test]
+    fn dacpac_db_name_errors_on_missing_metadata() {
+        use std::io::Write;
+        let dir = tempfile::tempdir().unwrap();
+        let dacpac_path = dir.path().join("empty.dacpac");
+
+        let file = std::fs::File::create(&dacpac_path).unwrap();
+        let mut zip_writer = zip::ZipWriter::new(file);
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        zip_writer.start_file("model.xml", options).unwrap();
+        zip_writer.write_all(b"<root/>").unwrap();
+        zip_writer.finish().unwrap();
+
+        let result = dacpac_db_name(dacpac_path.to_str().unwrap());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("DacMetadata.xml not found"));
     }
 
 }
