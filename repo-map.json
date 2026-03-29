@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-29T15:20:00Z",
+  "generated_at": "2026-03-30T00:00:00Z",
   "repo_root": "migration-utility",
   "primary_languages": ["TypeScript", "Python", "Markdown"],
   "package_managers": [
@@ -17,6 +17,11 @@
       "name": "uv (shared)",
       "lockfile": "agent-sources/ad-migration/workbench/migration/shared/uv.lock",
       "manifest": "agent-sources/ad-migration/workbench/migration/shared/pyproject.toml"
+    },
+    {
+      "name": "uv (ddl_mcp)",
+      "lockfile": "agent-sources/ad-migration/workbench/migration/ddl_mcp/uv.lock",
+      "manifest": "agent-sources/ad-migration/workbench/migration/ddl_mcp/pyproject.toml"
     }
   ],
   "build_systems": [
@@ -72,11 +77,11 @@
     },
     "shared_python": {
       "path": "agent-sources/ad-migration/workbench/migration/shared/shared/",
-      "description": "Python library for DDL analysis. Modules: loader.py (DDL parsing, sqlglot AST, GO-delimited block splitting), discover.py (catalog-mandatory list/show/refs CLI), catalog.py (catalog JSON I/O, routing flags, DMF row processing, flip_references), catalog_dmf.py (write_catalog_files orchestration), catalog_enrich.py (offline AST enrichment CLI — BFS call graph, SELECT INTO/TRUNCATE detection), export_ddl.py (SQL Server DDL export with --catalog flag, table signals, DMF extraction), setup_ddl.py (DDL setup orchestration), migrate.py (migration context assembly + dbt artifact writer CLI), profile.py (profiling context assembly + write-back CLI), dmf_processing.py (DMF row processing helpers), sql_types.py (SQL type mappings), ir.py (intermediate representation), dialect.py (sqlglot dialect registry), name_resolver.py (FQN normalization)."
+      "description": "Python library for DDL analysis. Modules: loader.py (DDL parsing, sqlglot AST, GO-delimited block splitting), loader_data.py (data structures for parsed DDL entries), loader_io.py (DDL file I/O), loader_parse.py (sqlglot parse wrappers), discover.py (catalog-mandatory list/show/refs CLI), catalog.py (catalog JSON I/O, routing flags, DMF row processing, flip_references), catalog_dmf.py (write_catalog_files orchestration), catalog_enrich.py (offline AST enrichment CLI — BFS call graph, SELECT INTO/TRUNCATE detection), setup_ddl.py (DDL setup orchestration), migrate.py (migration context assembly + dbt artifact writer CLI), profile.py (profiling context assembly + write-back CLI), dmf_processing.py (DMF row processing helpers), sql_types.py (SQL type mappings), name_resolver.py (FQN normalization)."
     },
     "shared_schemas": {
       "path": "agent-sources/ad-migration/workbench/migration/shared/shared/schemas/",
-      "description": "JSON Schema files (21 total). Catalog schemas: table_catalog, procedure_catalog, view_catalog, function_catalog, manifest. Agent I/O: scope_input, candidate_writers, profiler_input, decomposer_input, planner_input, test_generator_input, migrator_input, decomposition_proposal, planner_design_manifest, fixture_manifest, migration_artifact_manifest, profile_context. Discover CLI output: discover_list_output, discover_show_output, discover_refs_output. Shared defs: common.json."
+      "description": "JSON Schema files (17 total). Catalog schemas: table_catalog, procedure_catalog, view_catalog, function_catalog, manifest. Agent I/O: scope_input, candidate_writers, profiler_input, test_generator_input, migrator_input, fixture_manifest, migration_artifact_manifest, profile_context. Discover CLI output: discover_list_output, discover_show_output, discover_refs_output. Shared defs: common.json."
     },
     "ddl_mcp": {
       "path": "agent-sources/ad-migration/workbench/migration/ddl_mcp/",
@@ -100,7 +105,7 @@
     },
     "tests_migration": {
       "path": "tests/ad-migration/migration/",
-      "description": "Python pytest suite: test_discover.py, test_catalog.py, test_catalog_enrich.py, test_extract_refs.py, test_integration_catalog.py, test_smoke.py, test_migrate.py, test_profile.py. Fixtures: ddl/, ddl_unparseable/, discover/flat/ (with catalog/ subdirectory), discover/unparseable/, catalog/ (table and procedure JSON fixtures), migrate/ (DDL, catalog with profiles/statements, dbt project fixture), profile/ (profiling context and write fixtures), sql/ (Docker SQL Server setup scripts)."
+      "description": "Python pytest suite: test_discover.py, test_catalog.py, test_catalog_enrich.py, test_extract_refs.py, test_setup_ddl.py, test_smoke.py, test_migrate.py, test_profile.py. Fixtures: ddl/, ddl_unparseable/, discover/flat/ (with catalog/ subdirectory), discover/unparseable/, catalog/ (table and procedure JSON fixtures), migrate/ (DDL, catalog with procedures/tables, dbt project fixture, manifest.json), profile/ (DDL, catalog with procedures/tables, manifest.json), sql/ (Docker SQL Server setup scripts)."
     },
     "tests_scoping_agent": {
       "path": "tests/ad-migration/scoping-agent/",
@@ -108,11 +113,11 @@
     },
     "scripts": {
       "path": "scripts/",
-      "description": "Developer scripts: link-worktree-db.sh, publish-test-db-image.sh, restore-dw-samples.sh, sql/ (test DB creation scripts and JSON fixtures)."
+      "description": "Developer scripts: link-worktree-db.sh, publish-test-db-image.sh, restore-dw-samples.sh, build-dacpac-extract.sh, sql/ (test DB creation scripts and JSON fixtures)."
     },
     "docs": {
       "path": "docs/",
-      "description": "VitePress documentation. Sub-directories: design/ (agent-contract, branding, overall-design, setup-ddl, sp-to-dbt-plugin, test-scenario, tsql-parse-classification, unit-test-strategy), reference/ (agent-instructions-governance, local-agent-testing, setup-docker, test-db-image), requirements/, user-guide/."
+      "description": "VitePress documentation. Sub-directories: design/ (agent-contract, branding, overall-design, setup-ddl, sp-to-dbt-plugin, test-scenario, tsql-parse-classification, unit-test-strategy), reference/ (agent-instructions-governance, local-agent-testing, running-tests, setup-docker, test-db-image), requirements/, user-guide/."
     }
   },
   "key_directories": {
