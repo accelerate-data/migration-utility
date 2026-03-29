@@ -1,0 +1,44 @@
+{
+  "schema": "dbo",
+  "name": "usp_merge_dim_customer",
+  "params": [],
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "DimCustomer",
+          "is_selected": false,
+          "is_updated": true,
+          "is_insert_all": false
+        },
+        {
+          "schema": "bronze",
+          "name": "CustomerStaging",
+          "is_selected": true,
+          "is_updated": false
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "dbo",
+          "name": "usp_helper_log",
+          "is_selected": false,
+          "is_updated": false
+        }
+      ],
+      "out_of_scope": []
+    }
+  }
+}

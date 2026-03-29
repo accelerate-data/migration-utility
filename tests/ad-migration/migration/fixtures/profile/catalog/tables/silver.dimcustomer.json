@@ -1,0 +1,39 @@
+{
+  "schema": "silver",
+  "name": "DimCustomer",
+  "columns": [
+    { "name": "customer_sk", "sql_type": "BIGINT", "is_nullable": false, "is_identity": false },
+    { "name": "customer_id", "sql_type": "NVARCHAR(20)", "is_nullable": false, "is_identity": false },
+    { "name": "first_name", "sql_type": "NVARCHAR(50)", "is_nullable": true, "is_identity": false },
+    { "name": "last_name", "sql_type": "NVARCHAR(50)", "is_nullable": true, "is_identity": false },
+    { "name": "region", "sql_type": "NVARCHAR(50)", "is_nullable": true, "is_identity": false }
+  ],
+  "primary_keys": [],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "dbo",
+          "name": "usp_merge_dim_customer",
+          "is_selected": false,
+          "is_updated": true,
+          "is_insert_all": false
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  }
+}
