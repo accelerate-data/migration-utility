@@ -242,7 +242,24 @@ async fn git_pull_or_clone(
         run_cmd_async("git", &["pull"], Some(local_clone_path), &[("GIT_TERMINAL_PROMPT", "0")]).await?;
     } else {
         let auth_url = inject_token_into_url(clone_url, github_token);
-        run_cmd_async("git", &["clone", &auth_url, local_clone_path], None, &[("GIT_TERMINAL_PROMPT", "0")]).await?;
+        run_cmd_async("git", &["clone", &auth_url, local_clone_path], None, &[("GIT_TERMINAL_PROMPT", "0")])
+            .await
+            .inspect_err(|e| {
+                let safe_msg = if let Some(tok) = github_token {
+                    e.to_string().replace(tok, "<token>")
+                } else {
+                    e.to_string()
+                };
+                log::error!("[git_pull_or_clone] git clone failed: {safe_msg}");
+            })
+            .map_err(|e| {
+                let safe = if let Some(tok) = github_token {
+                    e.to_string().replace(tok, "<token>")
+                } else {
+                    e.to_string()
+                };
+                CommandError::External(safe)
+            })?;
     }
     if let Err(e) = run_cmd_async("git", &["lfs", "pull"], Some(local_clone_path), &[("GIT_TERMINAL_PROMPT", "0")]).await {
         log::warn!("[git_pull_or_clone] git lfs pull failed (non-fatal): {e}");

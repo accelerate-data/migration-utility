@@ -57,11 +57,12 @@ pub(crate) fn open_in_memory() -> Result<Connection, DbError> {
 /// already marked on a DB that predates the column). Gated: skips entirely
 /// once migration 004 is confirmed applied with the column present.
 fn repair_schema(conn: &Connection) -> Result<(), DbError> {
+    // Must be called after run_migrations (schema_version table exists).
     let migration_004_applied: bool = conn.query_row(
         "SELECT COUNT(*) > 0 FROM schema_version WHERE version = 4",
         [],
         |row| row.get(0),
-    ).unwrap_or(false);
+    )?;
 
     if !migration_004_applied {
         log::info!("repair_schema: migration 004 not yet applied, skipping (will be handled by migrations)");
