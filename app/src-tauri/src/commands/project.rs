@@ -2,62 +2,16 @@ use rusqlite::params;
 use tauri::State;
 use uuid::Uuid;
 
-use crate::db::DbState;
+use crate::db::{self, DbState};
 use crate::types::{CommandError, Project};
-
-#[tauri::command]
-pub fn project_create(
-    state: State<'_, DbState>,
-    name: String,
-    technology: String,
-) -> Result<Project, CommandError> {
-    log::info!("[project_create] name={} technology={}", name, technology);
-    let conn = state.conn().map_err(|e| {
-        log::error!("[project_create] DB lock: {}", e);
-        CommandError::Database(e)
-    })?;
-
-    let id = Uuid::new_v4().to_string();
-    let slug = slugify(&name, &conn)?;
-    let created_at = chrono::Utc::now().to_rfc3339();
-
-    conn.execute(
-        "INSERT INTO projects(id, slug, name, technology, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![id, slug, name, technology, created_at],
-    )
-    .map_err(|e| {
-        log::error!("[project_create] insert failed: {}", e);
-        CommandError::from(e)
-    })?;
-
-    log::info!("[project_create] created id={} slug={}", id, slug);
-    Ok(Project { id, slug, name, technology, created_at })
-}
 
 #[tauri::command]
 pub fn project_list(state: State<'_, DbState>) -> Result<Vec<Project>, CommandError> {
     log::info!("[project_list]");
-    let conn = state.conn().map_err(|e| {
+    let conn = state.conn().inspect_err(|e| {
         log::error!("[project_list] DB lock: {}", e);
-        CommandError::Database(e)
     })?;
-
-    let mut stmt = conn.prepare(
-        "SELECT id, slug, name, technology, created_at FROM projects ORDER BY created_at DESC",
-    )?;
-    let projects = stmt
-        .query_map([], |row| {
-            Ok(Project {
-                id: row.get(0)?,
-                slug: row.get(1)?,
-                name: row.get(2)?,
-                technology: row.get(3)?,
-                created_at: row.get(4)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
-
-    Ok(projects)
+    db::list_projects(&conn)
 }
 
 #[tauri::command]
@@ -66,28 +20,10 @@ pub fn project_get(
     id: String,
 ) -> Result<Project, CommandError> {
     log::info!("[project_get] id={}", id);
-    let conn = state.conn().map_err(|e| {
+    let conn = state.conn().inspect_err(|e| {
         log::error!("[project_get] DB lock: {}", e);
-        CommandError::Database(e)
     })?;
-
-    conn.query_row(
-        "SELECT id, slug, name, technology, created_at FROM projects WHERE id = ?1",
-        params![id],
-        |row| {
-            Ok(Project {
-                id: row.get(0)?,
-                slug: row.get(1)?,
-                name: row.get(2)?,
-                technology: row.get(3)?,
-                created_at: row.get(4)?,
-            })
-        },
-    )
-    .map_err(|e| match e {
-        rusqlite::Error::QueryReturnedNoRows => CommandError::NotFound(format!("project {id}")),
-        other => CommandError::from(other),
-    })
+    db::get_project(&conn, &id)
 }
 
 #[tauri::command]
@@ -96,19 +32,22 @@ pub fn project_delete(
     id: String,
 ) -> Result<(), CommandError> {
     log::info!("[project_delete] id={}", id);
-    let conn = state.conn().map_err(|e| {
+    let conn = state.conn().inspect_err(|e| {
         log::error!("[project_delete] DB lock: {}", e);
-        CommandError::Database(e)
     })?;
 
-    let rows = conn.execute("DELETE FROM projects WHERE id = ?1", params![id])
-        .map_err(|e| {
-            log::error!("[project_delete] delete failed id={}: {}", id, e);
-            CommandError::from(e)
-        })?;
-    if rows == 0 {
-        return Err(CommandError::NotFound(format!("project {id}")));
+    db::delete_project(&conn, &id).inspect_err(|_| {
+        log::error!("[project_delete] delete failed id={}", id);
+    })?;
+
+    // Clear active_project_id if the deleted project was active
+    let mut settings = db::read_settings(&conn)?;
+    if settings.active_project_id.as_deref() == Some(&id) {
+        log::info!("[project_delete] clearing active_project_id (was deleted project id={})", id);
+        settings.active_project_id = None;
+        db::write_settings(&conn, &settings)?;
     }
+
     log::info!("[project_delete] deleted id={}", id);
     Ok(())
 }
@@ -119,24 +58,17 @@ pub fn project_set_active(
     id: String,
 ) -> Result<(), CommandError> {
     log::info!("[project_set_active] id={}", id);
-    let conn = state.conn().map_err(|e| {
+    let conn = state.conn().inspect_err(|e| {
         log::error!("[project_set_active] DB lock: {}", e);
-        CommandError::Database(e)
     })?;
 
-    // Verify project exists
-    let exists: bool = conn.query_row(
-        "SELECT COUNT(*) > 0 FROM projects WHERE id = ?1",
-        params![id],
-        |row| row.get(0),
-    )?;
-    if !exists {
+    if !db::project_exists(&conn, &id)? {
         return Err(CommandError::NotFound(format!("project {id}")));
     }
 
-    let mut settings = crate::db::read_settings(&conn).map_err(CommandError::Database)?;
+    let mut settings = db::read_settings(&conn)?;
     settings.active_project_id = Some(id.clone());
-    crate::db::write_settings(&conn, &settings).map_err(CommandError::Database)?;
+    db::write_settings(&conn, &settings)?;
     log::info!("[project_set_active] active project set to id={}", id);
     Ok(())
 }
@@ -146,43 +78,31 @@ pub fn project_get_active(
     state: State<'_, DbState>,
 ) -> Result<Option<Project>, CommandError> {
     log::info!("[project_get_active]");
-    let conn = state.conn().map_err(|e| {
+    let conn = state.conn().inspect_err(|e| {
         log::error!("[project_get_active] DB lock: {}", e);
-        CommandError::Database(e)
     })?;
 
-    let settings = crate::db::read_settings(&conn).map_err(CommandError::Database)?;
+    let settings = db::read_settings(&conn)?;
     let Some(id) = settings.active_project_id else {
         return Ok(None);
     };
 
-    match conn.query_row(
-        "SELECT id, slug, name, technology, created_at FROM projects WHERE id = ?1",
-        params![id],
-        |row| {
-            Ok(Project {
-                id: row.get(0)?,
-                slug: row.get(1)?,
-                name: row.get(2)?,
-                technology: row.get(3)?,
-                created_at: row.get(4)?,
-            })
-        },
-    ) {
+    match db::get_project(&conn, &id) {
         Ok(p) => Ok(Some(p)),
-        Err(rusqlite::Error::QueryReturnedNoRows) => {
+        Err(CommandError::NotFound(_)) => {
             // active_project_id points to a deleted project — clear it
-            let mut s = crate::db::read_settings(&conn).map_err(CommandError::Database)?;
+            log::warn!("[project_get_active] stale active_project_id={} references non-existent project — clearing", id);
+            let mut s = db::read_settings(&conn)?;
             s.active_project_id = None;
-            crate::db::write_settings(&conn, &s).map_err(CommandError::Database)?;
+            db::write_settings(&conn, &s)?;
             Ok(None)
         }
-        Err(e) => Err(CommandError::from(e)),
+        Err(e) => Err(e),
     }
 }
 
-/// Generate a kebab-case slug from name, appending a short suffix on collision.
-pub(crate) fn slugify(name: &str, conn: &rusqlite::Connection) -> Result<String, CommandError> {
+/// Convert a project name to a kebab-case slug (pure, no DB access).
+fn slug_base(name: &str) -> Result<String, CommandError> {
     let base = name
         .to_lowercase()
         .chars()
@@ -198,6 +118,12 @@ pub(crate) fn slugify(name: &str, conn: &rusqlite::Connection) -> Result<String,
             "Project name must contain at least one alphanumeric character".into(),
         ));
     }
+    Ok(base)
+}
+
+/// Generate a kebab-case slug from name, appending a short suffix on collision.
+pub(crate) fn slugify(name: &str, conn: &rusqlite::Connection) -> Result<String, CommandError> {
+    let base = slug_base(name)?;
 
     let exists: bool = conn.query_row(
         "SELECT COUNT(*) > 0 FROM projects WHERE slug = ?1",
@@ -214,37 +140,30 @@ pub(crate) fn slugify(name: &str, conn: &rusqlite::Connection) -> Result<String,
     Ok(format!("{base}-{suffix}"))
 }
 
+#[tauri::command]
+pub fn project_slug_preview(name: String) -> Result<String, CommandError> {
+    log::info!("[project_slug_preview] name={}", name);
+    slug_base(&name)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::db;
+    use crate::types::Project;
 
     #[test]
     fn project_create_and_list_roundtrip() {
         let conn = db::open_in_memory().unwrap();
-        conn.execute(
-            "INSERT INTO projects(id, slug, name, technology, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params!["proj-1", "my-project", "My Project", "sql_server", "2026-01-01T00:00:00Z"],
-        )
-        .unwrap();
+        let project = Project {
+            id: "proj-1".into(),
+            slug: "my-project".into(),
+            name: "My Project".into(),
+            technology: "sql_server".into(),
+            created_at: "2026-01-01T00:00:00Z".into(),
+        };
+        db::insert_project(&conn, &project).unwrap();
 
-        let mut stmt = conn
-            .prepare("SELECT id, slug, name, technology, created_at FROM projects")
-            .unwrap();
-        let projects: Vec<Project> = stmt
-            .query_map([], |row| {
-                Ok(Project {
-                    id: row.get(0)?,
-                    slug: row.get(1)?,
-                    name: row.get(2)?,
-                    technology: row.get(3)?,
-                    created_at: row.get(4)?,
-                })
-            })
-            .unwrap()
-            .collect::<Result<_, _>>()
-            .unwrap();
-
+        let projects = db::list_projects(&conn).unwrap();
         assert_eq!(projects.len(), 1);
         assert_eq!(projects[0].name, "My Project");
         assert_eq!(projects[0].slug, "my-project");

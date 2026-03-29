@@ -1,5 +1,15 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import type {
+  AppSettingsPublic,
+  DeviceFlowResponse,
+  GitHubAuthResult,
+  GitHubRepo,
+  GitHubUser,
+  InitStepEvent,
+  Project,
+  Technology,
+} from './types';
 
 /**
  * Extract a human-readable message from a Tauri command error.
@@ -14,15 +24,6 @@ export function tauriErrorMessage(err: unknown): string {
   }
   return String(err);
 }
-import type {
-  AppSettingsPublic,
-  DeviceFlowResponse,
-  GitHubAuthResult,
-  GitHubRepo,
-  GitHubUser,
-  InitStepEvent,
-  Project,
-} from './types';
 
 // ── GitHub Auth ───────────────────────────────────────────────────────────────
 
@@ -65,9 +66,6 @@ export const getDataDirPath = () =>
 
 // ── Projects ──────────────────────────────────────────────────────────────────
 
-export const projectCreate = (name: string, technology: string) =>
-  invoke<Project>('project_create', { name, technology });
-
 export const projectList = () =>
   invoke<Project[]>('project_list');
 
@@ -83,9 +81,12 @@ export const projectSetActive = (id: string) =>
 export const projectGetActive = () =>
   invoke<Project | null>('project_get_active');
 
+export const projectSlugPreview = (name: string) =>
+  invoke<string>('project_slug_preview', { name });
+
 export const projectCreateFull = (
   name: string,
-  technology: string,
+  technology: Technology,
   sourcePath: string,
   dbName: string,
   extractionDatetime: string,

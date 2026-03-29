@@ -1,21 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Circle, Loader2, XCircle, AlertTriangle, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { StepRow } from '@/components/step-progress';
+import type { StepState } from '@/stores/project-store';
+import { useProjectStore } from '@/stores/project-store';
 import { appStartupSync, listenProjectInitStep } from '@/lib/tauri';
-import { GLOBAL_STEPS, PER_PROJECT_STEPS, INIT_STEP_LABEL } from '@/lib/types';
+import { PER_PROJECT_STEPS, INIT_STEP_LABEL } from '@/lib/types';
 import { logger } from '@/lib/logger';
-import type { InitStep, InitStepStatus, Project } from '@/lib/types';
+import type { InitStep, Project } from '@/lib/types';
 
 interface SplashProps {
   projects: Project[];
   activeProjectId: string;
   onSuccess: () => void;
   onCancel: () => void;
-}
-
-interface StepState {
-  step: InitStep;
-  status: InitStepStatus | null;
 }
 
 function makeSteps(steps: InitStep[]): StepState[] {
@@ -44,34 +42,6 @@ function SummaryIcon({ status }: { status: ReturnType<typeof projectSummaryStatu
   );
   // pending
   return <Circle className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />;
-}
-
-function StepRow({ step, status }: StepState) {
-  const label = INIT_STEP_LABEL[step];
-  const isRunning = !status || status.kind === 'running';
-  const isOk = status?.kind === 'ok';
-  const isWarn = status?.kind === 'warning';
-  const isError = status?.kind === 'error';
-
-  return (
-    <div className="flex items-start gap-2">
-      <div className="mt-0.5 shrink-0">
-        {isError && <XCircle className="h-3.5 w-3.5 text-destructive" />}
-        {isWarn && <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />}
-        {isOk && <CheckCircle2 className="h-3.5 w-3.5" style={{ color: 'var(--color-seafoam)' }} />}
-        {isRunning && <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: 'var(--color-pacific)' }} />}
-      </div>
-      <div className="flex flex-col min-w-0">
-        <span className="text-xs text-muted-foreground">{label}</span>
-        {isError && status.kind === 'error' && (
-          <span className="text-xs text-destructive break-all mt-0.5">{status.message}</span>
-        )}
-        {isWarn && status.kind === 'warning' && status.warnings.length > 0 && (
-          <span className="text-xs text-amber-600 dark:text-amber-400 break-all mt-0.5">{status.warnings[0]}</span>
-        )}
-      </div>
-    </div>
-  );
 }
 
 function GlobalStepRow({ step, status }: StepState) {
@@ -151,12 +121,11 @@ function ProjectRow({
 }
 
 export default function SplashScreen({ projects, activeProjectId, onSuccess, onCancel }: SplashProps) {
-  const [globalSteps, setGlobalSteps] = useState<StepState[]>(makeSteps(GLOBAL_STEPS));
-  const [projectSteps, setProjectSteps] = useState<Record<string, StepState[]>>(
-    Object.fromEntries(projects.map((p) => [p.id, makeSteps(PER_PROJECT_STEPS)]))
-  );
-  const [isRunning, setIsRunning] = useState(false);
-  const [hasFailed, setHasFailed] = useState(false);
+  const globalSteps = useProjectStore((s) => s.startupGlobalSteps);
+  const projectSteps = useProjectStore((s) => s.startupProjectSteps);
+  const isRunning = useProjectStore((s) => s.isStartupRunning);
+  const hasFailed = useProjectStore((s) => s.startupFailed);
+  const { startStartup, applyStartupStep, finishStartup, failStartup } = useProjectStore.getState();
 
   const unlistenRef = useRef<(() => void) | null>(null);
   const hasStarted = useRef(false);
@@ -173,38 +142,20 @@ export default function SplashScreen({ projects, activeProjectId, onSuccess, onC
   }, []);
 
   async function runInit() {
-    setIsRunning(true);
-    setHasFailed(false);
-    setGlobalSteps(makeSteps(GLOBAL_STEPS));
-    setProjectSteps(Object.fromEntries(projects.map((p) => [p.id, makeSteps(PER_PROJECT_STEPS)])));
+    startStartup(projects);
 
     try {
       unlistenRef.current = await listenProjectInitStep((ev) => {
-        if (ev.projectId) {
-          setProjectSteps((prev) => {
-            const existing = prev[ev.projectId!] ?? makeSteps(PER_PROJECT_STEPS);
-            return {
-              ...prev,
-              [ev.projectId!]: existing.map((s) =>
-                s.step === ev.step ? { ...s, status: ev.status } : s
-              ),
-            };
-          });
-        } else {
-          setGlobalSteps((prev) =>
-            prev.map((s) => (s.step === ev.step ? { ...s, status: ev.status } : s))
-          );
-        }
+        applyStartupStep(ev);
       });
 
       await appStartupSync();
-      setIsRunning(false);
+      finishStartup();
       logger.debug('splash: startup sync complete');
       onSuccess();
     } catch (err) {
       logger.error('splash: startup sync failed', err);
-      setIsRunning(false);
-      setHasFailed(true);
+      failStartup();
     } finally {
       unlistenRef.current?.();
       unlistenRef.current = null;
@@ -212,10 +163,8 @@ export default function SplashScreen({ projects, activeProjectId, onSuccess, onC
   }
 
   async function handleRetry() {
-    hasStarted.current = false;
     unlistenRef.current?.();
     unlistenRef.current = null;
-    hasStarted.current = true;
     await runInit();
   }
 

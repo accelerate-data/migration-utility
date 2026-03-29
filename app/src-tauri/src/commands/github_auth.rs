@@ -1,33 +1,62 @@
 use tauri::State;
 
 use crate::db::DbState;
-use crate::types::{DeviceFlowResponse, GitHubAuthResult, GitHubRepo, GitHubUser};
+use crate::types::{CommandError, DeviceFlowResponse, GitHubAuthResult, GitHubRepo, GitHubUser};
 
-const GITHUB_CLIENT_ID: &str = "Ov23lioPbQz4gAFxEfhM";
+/// Return the GitHub OAuth App client ID, allowing an env-var override for
+/// testing or alternative deployments.
+fn github_client_id() -> String {
+    std::env::var("GITHUB_CLIENT_ID").unwrap_or_else(|_| "Ov23lioPbQz4gAFxEfhM".to_string())
+}
+
+/// Build a `reqwest::Client` pre-configured with GitHub API authentication
+/// headers (Bearer token, Accept, User-Agent, API version).
+fn github_authenticated_client(token: &str) -> reqwest::Client {
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        "Authorization",
+        reqwest::header::HeaderValue::from_str(&format!("Bearer {}", token)).unwrap(),
+    );
+    headers.insert(
+        "Accept",
+        reqwest::header::HeaderValue::from_static("application/vnd.github+json"),
+    );
+    headers.insert(
+        "User-Agent",
+        reqwest::header::HeaderValue::from_static("MigrationUtility"),
+    );
+    headers.insert(
+        "X-GitHub-Api-Version",
+        reqwest::header::HeaderValue::from_static("2022-11-28"),
+    );
+    reqwest::Client::builder()
+        .default_headers(headers)
+        .build()
+        .unwrap()
+}
 
 /// Start the GitHub Device Flow by requesting a device code.
 #[tauri::command]
-pub async fn github_start_device_flow() -> Result<DeviceFlowResponse, String> {
+pub async fn github_start_device_flow() -> Result<DeviceFlowResponse, CommandError> {
     log::info!("[github_start_device_flow] starting device flow");
     let client = reqwest::Client::new();
+    let client_id = github_client_id();
 
     let response = client
         .post("https://github.com/login/device/code")
         .header("Accept", "application/json")
-        .form(&[("client_id", GITHUB_CLIENT_ID), ("scope", "repo,read:user")])
+        .form(&[("client_id", client_id.as_str()), ("scope", "repo,read:user")])
         .send()
         .await
         .map_err(|e| {
-            let msg = format!("Failed to start device flow: {e}");
-            log::error!("[github_start_device_flow] {msg}");
-            msg
+            log::error!("[github_start_device_flow] Failed to start device flow: {e}");
+            CommandError::External(format!("Failed to start device flow: {e}"))
         })?;
 
     let status = response.status();
     let body: serde_json::Value = response.json().await.map_err(|e| {
-        let msg = format!("Failed to parse device flow response: {e}");
-        log::error!("[github_start_device_flow] {msg}");
-        msg
+        log::error!("[github_start_device_flow] Failed to parse device flow response: {e}");
+        CommandError::External(format!("Failed to parse device flow response: {e}"))
     })?;
 
     if !status.is_success() {
@@ -37,24 +66,24 @@ pub async fn github_start_device_flow() -> Result<DeviceFlowResponse, String> {
             .unwrap_or("Unknown error");
         let err = format!("GitHub device flow error ({}): {}", status, message);
         log::error!("[github_start_device_flow] {err}");
-        return Err(err);
+        return Err(CommandError::External(err));
     }
 
     let device_code = body["device_code"]
         .as_str()
-        .ok_or("Missing device_code in response")?
+        .ok_or_else(|| CommandError::External("Missing device_code in response".into()))?
         .to_string();
     let user_code = body["user_code"]
         .as_str()
-        .ok_or("Missing user_code in response")?
+        .ok_or_else(|| CommandError::External("Missing user_code in response".into()))?
         .to_string();
     let verification_uri = body["verification_uri"]
         .as_str()
-        .ok_or("Missing verification_uri in response")?
+        .ok_or_else(|| CommandError::External("Missing verification_uri in response".into()))?
         .to_string();
     let expires_in = body["expires_in"]
         .as_u64()
-        .ok_or("Missing expires_in in response")?;
+        .ok_or_else(|| CommandError::External("Missing expires_in in response".into()))?;
     let interval = body["interval"].as_u64().unwrap_or(5);
 
     Ok(DeviceFlowResponse {
@@ -73,30 +102,29 @@ pub async fn github_start_device_flow() -> Result<DeviceFlowResponse, String> {
 pub async fn github_poll_for_token(
     state: State<'_, DbState>,
     device_code: String,
-) -> Result<GitHubAuthResult, String> {
+) -> Result<GitHubAuthResult, CommandError> {
     log::info!("[github_poll_for_token] polling for token");
     let client = reqwest::Client::new();
+    let client_id = github_client_id();
 
     let response = client
         .post("https://github.com/login/oauth/access_token")
         .header("Accept", "application/json")
         .form(&[
-            ("client_id", GITHUB_CLIENT_ID),
+            ("client_id", client_id.as_str()),
             ("device_code", device_code.as_str()),
             ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
         ])
         .send()
         .await
         .map_err(|e| {
-            let msg = format!("Failed to poll for token: {e}");
-            log::error!("[github_poll_for_token] {msg}");
-            msg
+            log::error!("[github_poll_for_token] Failed to poll for token: {e}");
+            CommandError::External(format!("Failed to poll for token: {e}"))
         })?;
 
     let body: serde_json::Value = response.json().await.map_err(|e| {
-        let msg = format!("Failed to parse token response: {e}");
-        log::error!("[github_poll_for_token] {msg}");
-        msg
+        log::error!("[github_poll_for_token] Failed to parse token response: {e}");
+        CommandError::External(format!("Failed to parse token response: {e}"))
     })?;
 
     if let Some(error) = body["error"].as_str() {
@@ -109,17 +137,18 @@ pub async fn github_poll_for_token(
                     .unwrap_or("Unknown error");
                 let err = format!("GitHub OAuth error: {} — {}", error, description);
                 log::error!("[github_poll_for_token] {err}");
-                Err(err)
+                Err(CommandError::External(err))
             }
         };
     }
 
     let access_token = body["access_token"]
         .as_str()
-        .ok_or("Missing access_token in response")?
+        .ok_or_else(|| CommandError::External("Missing access_token in response".into()))?
         .to_string();
 
-    let user = fetch_github_user(&client, &access_token)
+    let auth_client = github_authenticated_client(&access_token);
+    let user = fetch_github_user(&auth_client)
         .await
         .map_err(|e| {
             log::error!("[github_poll_for_token] failed to fetch user profile: {e}");
@@ -133,9 +162,8 @@ pub async fn github_poll_for_token(
         settings.github_user_avatar = Some(user.avatar_url.clone());
         settings.github_user_email = user.email.clone();
         settings.github_oauth_token = Some(access_token);
-        crate::db::write_settings(&conn, &settings).map_err(|e| {
+        crate::db::write_settings(&conn, &settings).inspect_err(|e| {
             log::error!("[github_poll_for_token] failed to save settings: {e}");
-            e
         })?;
     }
 
@@ -146,7 +174,7 @@ pub async fn github_poll_for_token(
 /// Get the currently authenticated GitHub user from the database.
 /// Returns None if not signed in.
 #[tauri::command]
-pub fn github_get_user(state: State<'_, DbState>) -> Result<Option<GitHubUser>, String> {
+pub fn github_get_user(state: State<'_, DbState>) -> Result<Option<GitHubUser>, CommandError> {
     log::info!("[github_get_user]");
     let conn = state.conn()?;
     let settings = crate::db::read_settings(&conn)?;
@@ -167,7 +195,7 @@ pub fn github_get_user(state: State<'_, DbState>) -> Result<Option<GitHubUser>, 
 
 /// Sign out of GitHub by clearing all OAuth fields from the database.
 #[tauri::command]
-pub fn github_logout(state: State<'_, DbState>) -> Result<(), String> {
+pub fn github_logout(state: State<'_, DbState>) -> Result<(), CommandError> {
     log::info!("[github_logout]");
     let conn = state.conn()?;
     let mut settings = crate::db::read_settings(&conn)?;
@@ -184,17 +212,17 @@ pub async fn github_list_repos(
     state: State<'_, DbState>,
     query: String,
     limit: Option<usize>,
-) -> Result<Vec<GitHubRepo>, String> {
+) -> Result<Vec<GitHubRepo>, CommandError> {
     log::info!("[github_list_repos] query={}", query);
     let token = {
         let conn = state.conn()?;
         let settings = crate::db::read_settings(&conn)?;
         settings
             .github_oauth_token
-            .ok_or_else(|| "GitHub is not connected".to_string())?
+            .ok_or_else(|| CommandError::Validation("GitHub is not connected".into()))?
     };
 
-    let client = reqwest::Client::new();
+    let client = github_authenticated_client(&token);
     let response = client
         .get("https://api.github.com/user/repos")
         .query(&[
@@ -202,37 +230,31 @@ pub async fn github_list_repos(
             ("sort", "updated"),
             ("affiliation", "owner,collaborator,organization_member"),
         ])
-        .header("Authorization", format!("Bearer {}", token))
-        .header("Accept", "application/vnd.github+json")
-        .header("User-Agent", "MigrationUtility")
-        .header("X-GitHub-Api-Version", "2022-11-28")
         .send()
         .await
         .map_err(|e| {
-            let msg = format!("Failed to list GitHub repos: {e}");
-            log::error!("[github_list_repos] {msg}");
-            msg
+            log::error!("[github_list_repos] Failed to list GitHub repos: {e}");
+            CommandError::External(format!("Failed to list GitHub repos: {e}"))
         })?;
 
     let status = response.status();
     let body: serde_json::Value = response.json().await.map_err(|e| {
-        let msg = format!("Failed to parse repo list response: {e}");
-        log::error!("[github_list_repos] {msg}");
-        msg
+        log::error!("[github_list_repos] Failed to parse repo list response: {e}");
+        CommandError::External(format!("Failed to parse repo list response: {e}"))
     })?;
 
     if !status.is_success() {
         let message = body["message"].as_str().unwrap_or("Unknown error");
         let err = format!("GitHub API error listing repos ({}): {}", status, message);
         log::error!("[github_list_repos] {err}");
-        return Err(err);
+        return Err(CommandError::External(err));
     }
 
     let query_lc = query.to_lowercase();
     let max = limit.unwrap_or(10).min(100);
     let repos = body
         .as_array()
-        .ok_or_else(|| "Unexpected response format from GitHub".to_string())?
+        .ok_or_else(|| CommandError::External("Unexpected response format from GitHub".into()))?
         .iter()
         .filter_map(|repo| {
             let id = repo["id"].as_i64()?;
@@ -255,6 +277,34 @@ pub async fn github_list_repos(
     Ok(repos)
 }
 
+/// Send a GET request via an authenticated GitHub API client.
+/// Returns the response on success. Maps network errors to `CommandError::External`
+/// with the provided `context` label for logging.
+async fn github_api_get(
+    client: &reqwest::Client,
+    url: &str,
+    context: &str,
+) -> Result<reqwest::Response, CommandError> {
+    client.get(url).send().await.map_err(|e| {
+        log::error!("[{context}] GET {url} failed: {e}");
+        CommandError::External(format!("{context}: {e}"))
+    })
+}
+
+/// Parse a non-success GitHub API response into a `CommandError`.
+async fn github_api_error(resp: reqwest::Response, context: &str) -> CommandError {
+    let status = resp.status();
+    let body: serde_json::Value = resp.json().await.unwrap_or_default();
+    let msg = format!(
+        "{} ({}): {}",
+        context,
+        status,
+        body["message"].as_str().unwrap_or("unknown")
+    );
+    log::error!("[github_check_repo_empty] {msg}");
+    CommandError::External(msg)
+}
+
 /// Check whether a GitHub repo is suitable as a migration target.
 /// Returns true if the repo has no directories at its root (project folders).
 /// A repo with only top-level files (e.g. a README) is still considered suitable.
@@ -262,32 +312,21 @@ pub async fn github_list_repos(
 pub async fn github_check_repo_empty(
     state: State<'_, DbState>,
     full_name: String,
-) -> Result<bool, String> {
+) -> Result<bool, CommandError> {
     log::info!("[github_check_repo_empty] repo={}", full_name);
     let token = {
         let conn = state.conn()?;
         let settings = crate::db::read_settings(&conn)?;
         settings
             .github_oauth_token
-            .ok_or_else(|| "GitHub is not connected".to_string())?
+            .ok_or_else(|| CommandError::Validation("GitHub is not connected".into()))?
     };
 
-    let client = reqwest::Client::new();
+    let client = github_authenticated_client(&token);
 
     // First check branches. A 409 means the repo has no git history at all — definitely usable.
-    let branches_resp = client
-        .get(format!("https://api.github.com/repos/{}/branches", full_name))
-        .header("Authorization", format!("Bearer {}", token))
-        .header("Accept", "application/vnd.github+json")
-        .header("User-Agent", "MigrationUtility")
-        .header("X-GitHub-Api-Version", "2022-11-28")
-        .send()
-        .await
-        .map_err(|e| {
-            let msg = format!("Failed to check repo branches: {e}");
-            log::error!("[github_check_repo_empty] {msg}");
-            msg
-        })?;
+    let branches_url = format!("https://api.github.com/repos/{full_name}/branches");
+    let branches_resp = github_api_get(&client, &branches_url, "github_check_repo_empty").await?;
 
     let branches_status = branches_resp.status();
     if branches_status.as_u16() == 409 {
@@ -295,49 +334,25 @@ pub async fn github_check_repo_empty(
         return Ok(true);
     }
     if !branches_status.is_success() {
-        let body: serde_json::Value = branches_resp.json().await.unwrap_or_default();
-        let msg = format!(
-            "GitHub API error ({}): {}",
-            branches_status,
-            body["message"].as_str().unwrap_or("unknown")
-        );
-        log::error!("[github_check_repo_empty] {msg}");
-        return Err(msg);
+        return Err(github_api_error(branches_resp, "GitHub API error checking branches").await);
     }
 
     // Repo has at least one branch. Check root contents for any directory (project folder).
-    let contents_resp = client
-        .get(format!("https://api.github.com/repos/{}/contents/", full_name))
-        .header("Authorization", format!("Bearer {}", token))
-        .header("Accept", "application/vnd.github+json")
-        .header("User-Agent", "MigrationUtility")
-        .header("X-GitHub-Api-Version", "2022-11-28")
-        .send()
-        .await
-        .map_err(|e| {
-            let msg = format!("Failed to check repo contents: {e}");
-            log::error!("[github_check_repo_empty] {msg}");
-            msg
-        })?;
+    let contents_url = format!("https://api.github.com/repos/{full_name}/contents/");
+    let contents_resp = github_api_get(&client, &contents_url, "github_check_repo_empty").await?;
 
     let contents_status = contents_resp.status();
     if contents_status.as_u16() == 404 {
-        // No contents found — repo is usable.
         log::info!("[github_check_repo_empty] repo={} status=no_contents", full_name);
         return Ok(true);
     }
     if !contents_status.is_success() {
-        let body: serde_json::Value = contents_resp.json().await.unwrap_or_default();
-        let msg = format!(
-            "GitHub API error checking contents ({}): {}",
-            contents_status,
-            body["message"].as_str().unwrap_or("unknown")
-        );
-        log::error!("[github_check_repo_empty] {msg}");
-        return Err(msg);
+        return Err(github_api_error(contents_resp, "GitHub API error checking contents").await);
     }
 
-    let contents: serde_json::Value = contents_resp.json().await.map_err(|e| e.to_string())?;
+    let contents: serde_json::Value = contents_resp.json().await.map_err(|e| {
+        CommandError::External(format!("Failed to parse repo contents: {e}"))
+    })?;
     let has_project_folder = contents
         .as_array()
         .map(|items| items.iter().any(|item| item["type"].as_str() == Some("dir")))
@@ -455,42 +470,36 @@ mod tests {
     }
 }
 
-async fn fetch_github_user(client: &reqwest::Client, token: &str) -> Result<GitHubUser, String> {
+async fn fetch_github_user(client: &reqwest::Client) -> Result<GitHubUser, CommandError> {
     let response = client
         .get("https://api.github.com/user")
-        .header("Authorization", format!("Bearer {}", token))
-        .header("Accept", "application/vnd.github+json")
-        .header("User-Agent", "MigrationUtility")
-        .header("X-GitHub-Api-Version", "2022-11-28")
         .send()
         .await
         .map_err(|e| {
-            let msg = format!("Failed to fetch GitHub user: {e}");
-            log::error!("[fetch_github_user] {msg}");
-            msg
+            log::error!("[fetch_github_user] Failed to fetch GitHub user: {e}");
+            CommandError::External(format!("Failed to fetch GitHub user: {e}"))
         })?;
 
     let status = response.status();
     let body: serde_json::Value = response.json().await.map_err(|e| {
-        let msg = format!("Failed to parse GitHub user response: {e}");
-        log::error!("[fetch_github_user] {msg}");
-        msg
+        log::error!("[fetch_github_user] Failed to parse GitHub user response: {e}");
+        CommandError::External(format!("Failed to parse GitHub user response: {e}"))
     })?;
 
     if !status.is_success() {
         let message = body["message"].as_str().unwrap_or("Unknown error");
         let err = format!("GitHub API error fetching user ({}): {}", status, message);
         log::error!("[fetch_github_user] {err}");
-        return Err(err);
+        return Err(CommandError::External(err));
     }
 
     let login = body["login"]
         .as_str()
-        .ok_or("Missing login in user response")?
+        .ok_or_else(|| CommandError::External("Missing login in user response".into()))?
         .to_string();
     let avatar_url = body["avatar_url"]
         .as_str()
-        .ok_or("Missing avatar_url in user response")?
+        .ok_or_else(|| CommandError::External("Missing avatar_url in user response".into()))?
         .to_string();
     let email = body["email"].as_str().map(|s| s.to_string());
 

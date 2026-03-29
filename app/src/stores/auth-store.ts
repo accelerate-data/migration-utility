@@ -34,7 +34,8 @@ export const useAuthStore = create<AuthState>((set) => ({
         isLoading: false,
         lastCheckedAt: new Date().toISOString(),
       });
-    } catch {
+    } catch (err) {
+      logger.error('auth-store: loadUser failed', err);
       set({ isLoading: false, lastCheckedAt: new Date().toISOString() });
     }
   },

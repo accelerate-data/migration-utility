@@ -29,7 +29,7 @@ async function seedStore(page: Page, overrides: StoreOverrides = {}) {
         migrationStatus: 'idle',
         scopeStepStatus: {},
         scopeStepSavedAt: {},
-        currentSurface: 'home',
+
         currentScopeStep: 'scope',
         selectedTableIds: [],
         ...overrides,

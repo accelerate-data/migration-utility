@@ -30,7 +30,7 @@ pub fn run() {
                         logging::set_log_level(level);
                     }
                 }
-                Err(e) => {
+                Err(ref e) => {
                     log::warn!("startup: failed to read settings for log level restore: {}", e);
                 }
             }
@@ -49,12 +49,12 @@ pub fn run() {
             commands::github_auth::github_logout,
             commands::github_auth::github_list_repos,
             commands::github_auth::github_check_repo_empty,
-            commands::project::project_create,
             commands::project::project_list,
             commands::project::project_get,
             commands::project::project_delete,
             commands::project::project_set_active,
             commands::project::project_get_active,
+            commands::project::project_slug_preview,
             commands::project_ops::project_create_full,
             commands::project_ops::project_detect_databases,
             commands::project_ops::project_init,
