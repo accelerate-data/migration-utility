@@ -52,14 +52,15 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover show \
   --ddl-path <ddl_path> --name <writer>
 ```
 
-From the output, extract:
+From the output, extract `refs`, `classification`, and `raw_ddl`.
 
-- `refs` — the writer's read/write targets (assemble into `dependencies: { tables, views, functions }`)
-- `classification` — determines the enrichment path:
+**Resolve to base tables:** If any ref is a view, function, or procedure — run `discover show` on it and follow the chain until you reach base tables. Assemble the fully resolved `dependencies: { tables, views, functions }`.
+
+**Enrichment path based on `classification`:**
 
 **`deterministic`**: `refs` and `statements` are complete. Use directly.
 
-**`claude_assisted`**: Read `raw_ddl` from the show output. Analyse the proc body to determine `reads_from`, `writes_to`, and classify each statement as `migrate` or `skip`. Populate `llm_analysis` on the candidate with your findings. Add `LLM_ANALYSIS_REQUIRED` warning.
+**`claude_assisted`**: Read `raw_ddl` from the show output. Analyse the proc body to determine `reads_from`, `writes_to`, and classify each statement as `migrate` or `skip`. For any EXEC calls to other procs, run `discover show` on the called proc and follow the chain recursively. Populate `llm_analysis` on the candidate with your findings. Add `LLM_ANALYSIS_REQUIRED` warning.
 
 The `llm_analysis` field preserves your analysis so downstream agents (profiler, decomposer) don't re-read the same proc body.
 
