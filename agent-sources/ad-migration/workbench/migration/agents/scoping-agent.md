@@ -1,6 +1,6 @@
 ---
 name: scoping-agent
-description: Identifies writer procedures from catalog data or static DDL files and produces a CandidateWriters JSON output. Use when scoping a migration item.
+description: Identifies writer procedures from catalog data and produces a CandidateWriters JSON output. Use when scoping a migration item.
 model: claude-sonnet-4-6
 maxTurns: 30
 tools:
@@ -13,7 +13,7 @@ tools:
 
 Given a batch of target tables, identify which procedures write to each and select the single writer when resolvable.
 
-Use `uv run discover` directly for all analysis — do not invoke the discover skill.
+Use `uv run discover` directly for all analysis — do not invoke the discover skill. Do not read catalog files directly — use `discover refs` and `discover show` as your interface.
 
 ---
 
@@ -23,12 +23,6 @@ The initial message contains two space-separated file paths: input JSON and outp
 
 - **Input schema:** `../shared/shared/schemas/scope_input.json`
 - **Output schema:** `../shared/shared/schemas/candidate_writers.json`
-
-Key output fields to populate correctly:
-
-- `result.analysis` / `candidate_writer.analysis` — `"deterministic"` unless LLM reasoning via `discover show` was needed; then `"claude_assisted"`.
-- `candidate_writer.call_path` — always required; `["schema.proc"]` for direct candidates.
-- `candidate_writer.confidence` — `1.0` for catalog-sourced writers; scored `[0.0, 1.0]` for AST-derived candidates.
 
 After reading the input, read `<ddl_path>/manifest.json` for `technology` and `dialect`. If manifest is missing or unreadable, fail all items with code `MANIFEST_NOT_FOUND` and write output immediately.
 
@@ -45,11 +39,25 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover refs \
   --ddl-path <ddl_path> --name <item_id>
 ```
 
-Writers are procs/views with `is_updated=true`. Binary facts from catalog, no confidence scoring. Set `analysis: "deterministic"`, `confidence: 1.0` on each candidate.
+The output contains `writers` and `readers`. Each writer is a candidate.
 
 If discover fails (exit code 1 or 2), record `error` with code `DISCOVER_EXECUTION_FAILED`.
 
-### Step 2 — Apply Resolution Rules
+### Step 2 — Enrich Each Candidate
+
+For each candidate writer, run:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover show \
+  --ddl-path <ddl_path> --name <writer>
+```
+
+From the output, extract:
+
+- `refs` — the writer's read/write targets (dependencies for downstream wave planning)
+- `classification` — if `claude_assisted`, add to `warnings[]`: `{ "code": "LLM_ANALYSIS_REQUIRED", "message": "Proc contains dynamic SQL or complex control flow — references may be incomplete.", "severity": "warning" }`
+
+### Step 3 — Apply Resolution Rules
 
 | Condition | Status |
 |---|---|
@@ -58,24 +66,12 @@ If discover fails (exit code 1 or 2), record `error` with code `DISCOVER_EXECUTI
 | No writers | `no_writer_found` |
 | Discover failed | `error` |
 
-**LLM-required warnings:** For each candidate, read `<ddl_path>/catalog/procedures/<writer>.json`. If `needs_llm: true`, add to `warnings[]`:
-
-```json
-{ "code": "LLM_ANALYSIS_REQUIRED", "message": "Proc contains dynamic SQL or complex control flow — catalog references may be incomplete.", "severity": "warning" }
-```
-
-### Step 3 — Enrich Selected Writer with `dependencies`
-
-For `resolved` items only:
-
-Read `<ddl_path>/catalog/procedures/<writer>.json` and assemble `dependencies: { tables, views, functions }` from the `references` section.
-
 ### Step 4 — Validate and Write Output
 
 Non-obvious cross-field checks:
 
 - `resolved` → `selected_writer` present and matches a `procedure_name` in `candidate_writers`.
-- `resolved` → selected writer candidate has `dependencies` populated.
+- `resolved` → selected writer candidate has `dependencies` populated (from Step 2 refs).
 - `ambiguous_multi_writer` → at least two candidates, no `selected_writer`.
 
 Set `validation.passed = false` and populate `validation.issues[]` on failure.
