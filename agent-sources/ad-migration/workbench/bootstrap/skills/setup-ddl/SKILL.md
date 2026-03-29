@@ -37,23 +37,21 @@ Before starting, verify:
 
 ## Workflow
 
-Follow the step sequence below. Steps 1–3 are interactive (agent + MCP). Steps 4–8 use deterministic Python CLI tools — the agent saves MCP query results to `<output-folder>/.staging/` as JSON files, then calls the CLI tool to process them.
+Follow the step sequence below. Steps 1–2 are interactive (agent + MCP). Steps 3–7 use deterministic Python CLI tools — the agent saves MCP query results to `<output-folder>/.staging/` as JSON files, then calls the CLI tool to process them.
 
 `<shared-path>` refers to `${CLAUDE_PLUGIN_ROOT}/../migration/shared`.
 
-## Step 1 — Select database
+## Step 1 — Select database and schemas
 
-List user databases on the server:
+Collect database and schema information in one pass, then present a single combined prompt.
+
+**1a.** List user databases on the server:
 
 ```sql
 SELECT name FROM sys.databases WHERE database_id > 4 ORDER BY name
 ```
 
-Use `AskUserQuestion` to present the list with a `None — exit` option. If the user picks `None`, stop immediately with no further action. Once a database is selected, run `USE [<database>]` before all subsequent queries to set the database context.
-
-## Step 2 — Select schemas
-
-List non-system schemas with object counts so the user can see what each schema contains:
+**1b.** For each database returned, run `USE [<database>]` followed by the schema counts query:
 
 ```sql
 SELECT
@@ -70,9 +68,25 @@ GROUP BY s.name
 ORDER BY s.name
 ```
 
-Use `AskUserQuestion` (with `multiSelect: true`) to present the results with an `all` option. If `all` is selected, do not add a schema filter to subsequent queries. Store the selected schemas for filtering in subsequent steps.
+**1c.** Present the combined results in a single `AskUserQuestion` formatted as a tree:
 
-## Step 3 — Extraction preview + confirm
+```text
+Available databases and schemas:
+
+1. AdventureWorks
+   a. dbo             — 42 tables, 10 procedures, 5 views, 3 functions
+   b. HumanResources  — 12 tables, 4 procedures, 2 views, 1 function
+   c. Sales           — 18 tables, 8 procedures, 3 views, 0 functions
+2. Northwind
+   a. dbo             — 8 tables, 0 procedures, 0 views, 0 functions
+
+Pick a database (number) and schemas (letters, or "all"):
+e.g. "1 a,c" or "1 all" or "None" to exit
+```
+
+If the user picks `None`, stop immediately with no further action. Otherwise parse the response to extract the selected database and schemas. If `all` is selected, do not add a schema filter to subsequent queries. Run `USE [<database>]` to set the database context for all subsequent queries. Store the selected schemas for filtering in subsequent steps.
+
+## Step 2 — Extraction preview + confirm
 
 Run count queries and present a summary so the user knows what will be extracted **before any files are written**:
 
@@ -122,7 +136,7 @@ Schemas: <selected-schemas>
 
 Use `AskUserQuestion` to get confirmation before extraction proceeds. If they decline, stop immediately — no files are written.
 
-## Step 4 — Write manifest
+## Step 3 — Write manifest
 
 After user confirmation, write the manifest first (it only depends on database/schema selection):
 
@@ -145,7 +159,7 @@ Technology-to-dialect mapping:
 | `fabric_lakehouse` | `spark` | `;` |
 | `snowflake` | `snowflake` | `;` |
 
-## Step 5 — Export procedures, views, and functions
+## Step 4 — Export procedures, views, and functions
 
 For each object type, run the query via `mssql:mssql-execute-sql`, save the result as JSON, then call the CLI tool.
 
@@ -176,7 +190,7 @@ Repeat for **views** (change `o.type = 'P'` to `o.type = 'V'`, save as `views.js
 
 If a query returns no results, skip the staging file and CLI call for that type.
 
-## Step 6 — Export tables
+## Step 5 — Export tables
 
 Run via `mssql:mssql-execute-sql`:
 
@@ -215,7 +229,7 @@ uv run --project <shared-path> setup-ddl assemble-tables \
   --output-folder <output-folder>
 ```
 
-## Step 7 — Extract catalog signals and references
+## Step 6 — Extract catalog signals and references
 
 Run all catalog queries via `mssql:mssql-execute-sql` and save each result to the staging directory. The CLI tool reads these files and writes all catalog JSON files in one pass.
 
@@ -225,7 +239,7 @@ Save each MCP query result as a JSON file in `<output-folder>/.staging/`:
 
 | Staging file | Query |
 |---|---|
-| `table_columns.json` | Same result from Step 6 (already saved) |
+| `table_columns.json` | Same result from Step 5 (already saved) |
 | `pk_unique.json` | PKs and unique indexes (see query below) |
 | `foreign_keys.json` | Foreign keys (see query below) |
 | `identity_columns.json` | Identity columns (see query below) |
@@ -419,7 +433,7 @@ uv run --project <shared-path> setup-ddl write-catalog \
 
 The tool outputs JSON with counts: `{"tables": N, "procedures": N, "views": N, "functions": N}`.
 
-## Step 8 — AST enrichment
+## Step 7 — AST enrichment
 
 Run the catalog enrichment script to fill catalog-query gaps:
 
@@ -435,7 +449,7 @@ This augments catalog files with AST-derived references for:
 
 Entries added carry `"detection": "ast_scan"` to distinguish from catalog-query-sourced data. Dynamic SQL (`EXEC(@sql)`, `sp_executesql`) remains unresolvable offline.
 
-## Step 9 — Report
+## Step 8 — Report
 
 After all files are written, report a summary:
 
