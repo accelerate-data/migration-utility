@@ -266,10 +266,11 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
         proc_cat = load_proc_catalog(ddl_path, norm)
         if proc_cat is not None:
             cat_refs = proc_cat.get("references", {})
-            reads = [normalize(f"{t['schema']}.{t['name']}") for t in cat_refs.get("tables", []) if t.get("is_selected")]
-            writes = [normalize(f"{t['schema']}.{t['name']}") for t in cat_refs.get("tables", []) if t.get("is_updated")]
+            tables_in_scope = cat_refs.get("tables", {}).get("in_scope", [])
+            reads = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_selected")]
+            writes = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_updated")]
             write_ops: dict[str, list[str]] = {}
-            for t in cat_refs.get("tables", []):
+            for t in tables_in_scope:
                 if t.get("is_updated"):
                     tfqn = normalize(f"{t['schema']}.{t['name']}")
                     ops = []
@@ -278,7 +279,7 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
                     if t.get("is_insert_all"):
                         ops.append("INSERT")
                     write_ops[tfqn] = ops
-            funcs = [normalize(f"{f['schema']}.{f['name']}") for f in cat_refs.get("functions", [])]
+            funcs = [normalize(f"{f['schema']}.{f['name']}") for f in cat_refs.get("functions", {}).get("in_scope", [])]
             refs_dict = {
                 "reads_from": sorted(set(reads)),
                 "writes_to": sorted(set(writes)),
@@ -322,8 +323,9 @@ def run_show(ddl_path: Path, name: str, dialect: str) -> dict[str, Any]:
         obj_cat = cat_loader(ddl_path, norm)
         if obj_cat is not None:
             cat_refs = obj_cat.get("references", {})
-            reads = [normalize(f"{t['schema']}.{t['name']}") for t in cat_refs.get("tables", []) if t.get("is_selected")]
-            writes = [normalize(f"{t['schema']}.{t['name']}") for t in cat_refs.get("tables", []) if t.get("is_updated")]
+            tables_in_scope = cat_refs.get("tables", {}).get("in_scope", [])
+            reads = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_selected")]
+            writes = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_updated")]
             refs_dict = {
                 "reads_from": sorted(set(reads)),
                 "writes_to": sorted(set(writes)),
@@ -388,7 +390,7 @@ def _run_refs_from_catalog(ddl_path: Path, target: str) -> dict[str, Any]:
     writers: list[dict[str, Any]] = []
 
     for bucket_type in ("procedures", "views", "functions"):
-        for entry in ref_by.get(bucket_type, []):
+        for entry in ref_by.get(bucket_type, {}).get("in_scope", []):
             fqn = normalize(f"{entry['schema']}.{entry['name']}")
             is_updated = entry.get("is_updated", False)
             is_selected = entry.get("is_selected", False)

@@ -308,7 +308,9 @@ def _extract_dmf_refs(conn, object_type_code: str) -> list[dict]:
             referenced_minor_name NVARCHAR(128), referenced_class_desc NVARCHAR(60),
             is_selected BIT, is_updated BIT, is_select_all BIT,
             is_insert_all BIT, is_all_columns_found BIT,
-            is_caller_dependent BIT, is_ambiguous BIT
+            is_caller_dependent BIT, is_ambiguous BIT,
+            referenced_database_name NVARCHAR(128),
+            referenced_server_name NVARCHAR(128)
         );
         DECLARE @schema NVARCHAR(128), @name NVARCHAR(128);
         DECLARE cur CURSOR LOCAL FAST_FORWARD FOR
@@ -328,7 +330,9 @@ def _extract_dmf_refs(conn, object_type_code: str) -> list[dict]:
                     ISNULL(ref.is_selected, 0), ISNULL(ref.is_updated, 0),
                     ISNULL(ref.is_select_all, 0), ISNULL(ref.is_insert_all, 0),
                     ISNULL(ref.is_all_columns_found, 0),
-                    ISNULL(ref.is_caller_dependent, 0), ISNULL(ref.is_ambiguous, 0)
+                    ISNULL(ref.is_caller_dependent, 0), ISNULL(ref.is_ambiguous, 0),
+                    ISNULL(ref.referenced_database_name, ''),
+                    ISNULL(ref.referenced_server_name, '')
                 FROM sys.dm_sql_referenced_entities(
                     QUOTENAME(@schema) + '.' + QUOTENAME(@name), 'OBJECT'
                 ) ref;
@@ -436,6 +440,7 @@ def main(
             view_dmf_rows=view_rows,
             func_dmf_rows=func_rows,
             dynamic_sql_flags=dyn_flags,
+            database=database,
         )
         typer.echo(f"\nCatalog files written:", err=True)
         for kind, count in cat_counts.items():

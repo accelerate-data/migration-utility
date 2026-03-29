@@ -33,7 +33,7 @@ def test_load_table_catalog_from_fixture() -> None:
     assert len(data["primary_keys"]) == 1
     assert data["primary_keys"][0]["columns"] == ["sale_id"]
     writers = [
-        e for e in data["referenced_by"]["procedures"] if e["is_updated"]
+        e for e in data["referenced_by"]["procedures"]["in_scope"] if e["is_updated"]
     ]
     assert len(writers) == 1
     assert writers[0]["name"] == "usp_load_fact_sales"
@@ -42,7 +42,7 @@ def test_load_table_catalog_from_fixture() -> None:
 def test_load_proc_catalog_from_fixture() -> None:
     data = load_proc_catalog(FIXTURES.parent, "dbo.usp_load_fact_sales")
     assert data is not None
-    tables = data["references"]["tables"]
+    tables = data["references"]["tables"]["in_scope"]
     assert len(tables) == 2
     written = [t for t in tables if t["is_updated"]]
     assert len(written) == 1
@@ -84,35 +84,41 @@ def test_write_table_catalog_round_trip() -> None:
             "sensitivity_classifications": [],
         }
         ref_by = {
-            "procedures": [
-                {"schema": "dbo", "name": "usp_load", "is_selected": False, "is_updated": True}
-            ],
-            "views": [],
-            "functions": [],
+            "procedures": {
+                "in_scope": [
+                    {"schema": "dbo", "name": "usp_load", "is_selected": False, "is_updated": True}
+                ],
+                "out_of_scope": [],
+            },
+            "views": {"in_scope": [], "out_of_scope": []},
+            "functions": {"in_scope": [], "out_of_scope": []},
         }
         write_table_catalog(ddl_path, "dbo.T1", signals, ref_by)
         loaded = load_table_catalog(ddl_path, "dbo.T1")
         assert loaded is not None
         assert loaded["cdc_enabled"] is True
         assert loaded["identity_columns"] == ["id"]
-        assert len(loaded["referenced_by"]["procedures"]) == 1
+        assert len(loaded["referenced_by"]["procedures"]["in_scope"]) == 1
 
 
 def test_write_object_catalog_round_trip() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         ddl_path = Path(tmp)
         refs = {
-            "tables": [
-                {"schema": "dbo", "name": "T1", "is_selected": True, "is_updated": False}
-            ],
-            "views": [],
-            "functions": [],
-            "procedures": [],
+            "tables": {
+                "in_scope": [
+                    {"schema": "dbo", "name": "T1", "is_selected": True, "is_updated": False}
+                ],
+                "out_of_scope": [],
+            },
+            "views": {"in_scope": [], "out_of_scope": []},
+            "functions": {"in_scope": [], "out_of_scope": []},
+            "procedures": {"in_scope": [], "out_of_scope": []},
         }
         write_object_catalog(ddl_path, "procedures", "dbo.usp_test", refs)
         loaded = load_proc_catalog(ddl_path, "dbo.usp_test")
         assert loaded is not None
-        assert loaded["references"]["tables"][0]["name"] == "T1"
+        assert loaded["references"]["tables"]["in_scope"][0]["name"] == "T1"
 
 
 # ── DMF result processing ──────────────────────────────────────────────────
@@ -157,8 +163,8 @@ def test_process_dmf_results_groups_by_referencing_object() -> None:
     assert "dbo.usp_other" in result
 
     load_refs = result["dbo.usp_load"]
-    assert len(load_refs["tables"]) == 2
-    fact_entry = next(t for t in load_refs["tables"] if t["name"] == "FactSales")
+    assert len(load_refs["tables"]["in_scope"]) == 2
+    fact_entry = next(t for t in load_refs["tables"]["in_scope"] if t["name"] == "FactSales")
     assert fact_entry["is_updated"] is True
 
 
@@ -170,7 +176,7 @@ def test_process_dmf_results_column_detail() -> None:
     ]
     result = process_dmf_results(rows)
     refs = result["dbo.usp_load"]
-    fact = next(t for t in refs["tables"] if t["name"] == "FactSales")
+    fact = next(t for t in refs["tables"]["in_scope"] if t["name"] == "FactSales")
     assert fact["is_selected"] is True  # from column-level row
     assert fact["is_updated"] is True  # from entity-level row
     assert len(fact["columns"]) == 2
@@ -186,10 +192,10 @@ def test_process_dmf_results_classifies_types() -> None:
     ]
     result = process_dmf_results(rows)
     refs = result["dbo.usp_load"]
-    assert len(refs["views"]) == 1
-    assert len(refs["functions"]) == 1
-    assert len(refs["procedures"]) == 1
-    assert refs["tables"] == []
+    assert len(refs["views"]["in_scope"]) == 1
+    assert len(refs["functions"]["in_scope"]) == 1
+    assert len(refs["procedures"]["in_scope"]) == 1
+    assert refs["tables"]["in_scope"] == []
 
 
 # ── flip_references ─────────────────────────────────────────────────────────
@@ -198,27 +204,33 @@ def test_process_dmf_results_classifies_types() -> None:
 def test_flip_references_builds_table_referenced_by() -> None:
     proc_refs = {
         "dbo.usp_load": {
-            "tables": [
-                {"schema": "silver", "name": "FactSales", "is_selected": False, "is_updated": True},
-                {"schema": "bronze", "name": "SalesRaw", "is_selected": True, "is_updated": False},
-            ],
-            "views": [],
-            "functions": [],
-            "procedures": [],
+            "tables": {
+                "in_scope": [
+                    {"schema": "silver", "name": "FactSales", "is_selected": False, "is_updated": True},
+                    {"schema": "bronze", "name": "SalesRaw", "is_selected": True, "is_updated": False},
+                ],
+                "out_of_scope": [],
+            },
+            "views": {"in_scope": [], "out_of_scope": []},
+            "functions": {"in_scope": [], "out_of_scope": []},
+            "procedures": {"in_scope": [], "out_of_scope": []},
         },
         "dbo.usp_read": {
-            "tables": [
-                {"schema": "silver", "name": "FactSales", "is_selected": True, "is_updated": False},
-            ],
-            "views": [],
-            "functions": [],
-            "procedures": [],
+            "tables": {
+                "in_scope": [
+                    {"schema": "silver", "name": "FactSales", "is_selected": True, "is_updated": False},
+                ],
+                "out_of_scope": [],
+            },
+            "views": {"in_scope": [], "out_of_scope": []},
+            "functions": {"in_scope": [], "out_of_scope": []},
+            "procedures": {"in_scope": [], "out_of_scope": []},
         },
     }
     flipped = flip_references(proc_refs, "procedures")
     assert "silver.factsales" in flipped
     assert "bronze.salesraw" in flipped
-    fact_refs = flipped["silver.factsales"]["procedures"]
+    fact_refs = flipped["silver.factsales"]["procedures"]["in_scope"]
     assert len(fact_refs) == 2
     writer = next(e for e in fact_refs if e["is_updated"])
     assert writer["name"] == "usp_load"
@@ -282,16 +294,16 @@ def test_write_catalog_files_end_to_end() -> None:
         table_data = load_table_catalog(ddl_path, "silver.FactSales")
         assert table_data is not None
         proc_writers = [
-            e for e in table_data["referenced_by"]["procedures"] if e["is_updated"]
+            e for e in table_data["referenced_by"]["procedures"]["in_scope"] if e["is_updated"]
         ]
         assert len(proc_writers) == 1
-        view_readers = table_data["referenced_by"]["views"]
+        view_readers = table_data["referenced_by"]["views"]["in_scope"]
         assert len(view_readers) == 1
 
         # Verify proc file has outbound references
         proc_data = load_proc_catalog(ddl_path, "dbo.usp_load_fact_sales")
         assert proc_data is not None
-        assert len(proc_data["references"]["tables"]) == 2
+        assert len(proc_data["references"]["tables"]["in_scope"]) == 2
 
 
 # ── has_dynamic_sql detection ───────────────────────────────────────────
@@ -320,7 +332,12 @@ def test_has_dynamic_sql_absent() -> None:
 def test_write_object_catalog_with_dynamic_sql_flag() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         ddl_path = Path(tmp)
-        refs = {"tables": [], "views": [], "functions": [], "procedures": []}
+        refs = {
+            "tables": {"in_scope": [], "out_of_scope": []},
+            "views": {"in_scope": [], "out_of_scope": []},
+            "functions": {"in_scope": [], "out_of_scope": []},
+            "procedures": {"in_scope": [], "out_of_scope": []},
+        }
         write_object_catalog(ddl_path, "procedures", "dbo.usp_dynamic", refs, dynamic_sql=True)
         loaded = load_proc_catalog(ddl_path, "dbo.usp_dynamic")
         assert loaded is not None
@@ -330,8 +347,72 @@ def test_write_object_catalog_with_dynamic_sql_flag() -> None:
 def test_write_object_catalog_without_dynamic_sql_flag() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         ddl_path = Path(tmp)
-        refs = {"tables": [], "views": [], "functions": [], "procedures": []}
+        refs = {
+            "tables": {"in_scope": [], "out_of_scope": []},
+            "views": {"in_scope": [], "out_of_scope": []},
+            "functions": {"in_scope": [], "out_of_scope": []},
+            "procedures": {"in_scope": [], "out_of_scope": []},
+        }
         write_object_catalog(ddl_path, "procedures", "dbo.usp_static", refs)
         loaded = load_proc_catalog(ddl_path, "dbo.usp_static")
         assert loaded is not None
         assert "has_dynamic_sql" not in loaded
+
+
+# ── Cross-database / cross-server scoping ─────────────────────────────────
+
+
+def test_process_dmf_results_cross_database() -> None:
+    """Rows with referenced_database_name != current database land in out_of_scope."""
+    rows = [
+        {
+            **_make_dmf_row(tgt_entity="FactSales", is_updated=True),
+            "referenced_database_name": "",
+            "referenced_server_name": "",
+        },
+        {
+            **_make_dmf_row(tgt_entity="ExternalTable", tgt_schema="dbo"),
+            "referenced_database_name": "OtherDB",
+            "referenced_server_name": "",
+        },
+        {
+            **_make_dmf_row(tgt_entity="RemoteTable", tgt_schema="dbo"),
+            "referenced_database_name": "RemoteDB",
+            "referenced_server_name": "LinkedServer1",
+        },
+    ]
+    result = process_dmf_results(rows, database="MyDB")
+    refs = result["dbo.usp_load"]
+
+    # In-scope: only FactSales
+    assert len(refs["tables"]["in_scope"]) == 1
+    assert refs["tables"]["in_scope"][0]["name"] == "FactSales"
+
+    # Out-of-scope: ExternalTable (cross_database) and RemoteTable (cross_server)
+    out = refs["tables"]["out_of_scope"]
+    assert len(out) == 2
+    by_name = {e["name"]: e for e in out}
+
+    ext = by_name["ExternalTable"]
+    assert ext["reason"] == "cross_database_reference"
+    assert ext["database"] == "OtherDB"
+    assert ext["server"] is None
+
+    remote = by_name["RemoteTable"]
+    assert remote["reason"] == "cross_server_reference"
+    assert remote["server"] == "LinkedServer1"
+
+
+def test_process_dmf_results_same_database_is_in_scope() -> None:
+    """Rows where referenced_database_name matches the current database stay in_scope."""
+    rows = [
+        {
+            **_make_dmf_row(tgt_entity="LocalTable", is_selected=True),
+            "referenced_database_name": "MyDB",
+            "referenced_server_name": "",
+        },
+    ]
+    result = process_dmf_results(rows, database="MyDB")
+    refs = result["dbo.usp_load"]
+    assert len(refs["tables"]["in_scope"]) == 1
+    assert refs["tables"]["out_of_scope"] == []

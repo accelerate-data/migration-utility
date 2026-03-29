@@ -149,7 +149,7 @@ def write_table_catalog(
     ddl_path: Path,
     table_fqn: str,
     signals: dict[str, Any],
-    referenced_by: dict[str, list[dict[str, Any]]] | None = None,
+    referenced_by: dict[str, dict[str, list[dict[str, Any]]]] | None = None,
 ) -> Path:
     """Write a table catalog file.  Returns the written path."""
     fqn = normalize(table_fqn)
@@ -157,7 +157,11 @@ def write_table_catalog(
     if referenced_by is not None:
         data["referenced_by"] = referenced_by
     else:
-        data.setdefault("referenced_by", {"procedures": [], "views": [], "functions": []})
+        data.setdefault("referenced_by", {
+            "procedures": _empty_scoped(),
+            "views": _empty_scoped(),
+            "functions": _empty_scoped(),
+        })
     p = _object_path(ddl_path, "tables", fqn)
     _write_json(p, data)
     return p
@@ -229,25 +233,37 @@ def _classify_referenced_type(class_desc: str) -> str | None:
     return mapping.get(desc)
 
 
+def _empty_scoped() -> dict[str, list[dict[str, Any]]]:
+    """Return an empty scoped bucket: ``{"in_scope": [], "out_of_scope": []}``."""
+    return {"in_scope": [], "out_of_scope": []}
+
+
 def process_dmf_results(
     rows: list[dict[str, Any]],
     object_types: dict[str, str] | None = None,
-) -> dict[str, dict[str, list[dict[str, Any]]]]:
+    database: str = "",
+) -> dict[str, dict[str, dict[str, list[dict[str, Any]]]]]:
     """Group raw DMF result rows into per-referencing-object reference dicts.
 
     *rows* is a list of dicts with keys matching the DMF cursor output:
     ``referencing_schema``, ``referencing_name``, ``referenced_schema``,
     ``referenced_entity``, ``referenced_minor_name``, ``referenced_class_desc``,
     ``is_selected``, ``is_updated``, ``is_select_all``, ``is_insert_all``,
-    ``is_all_columns_found``, ``is_caller_dependent``, ``is_ambiguous``.
+    ``is_all_columns_found``, ``is_caller_dependent``, ``is_ambiguous``,
+    ``referenced_database_name``, ``referenced_server_name``.
 
     *object_types* is an optional ``{schema.name: type}`` mapping where type
     is one of ``tables``, ``views``, ``functions``, ``procedures``.  Used to
     resolve ``OBJECT_OR_COLUMN`` class descriptions.
 
-    Returns ``{referencing_fqn: {tables: [...], views: [...], ...}}``.
+    *database* is the current database name.  References whose
+    ``referenced_database_name`` differs (or whose ``referenced_server_name``
+    is non-empty) are classified as ``out_of_scope``.
+
+    Returns ``{referencing_fqn: {tables: {in_scope: [...], out_of_scope: [...]}, ...}}``.
     """
     object_types = object_types or {}
+    db_lower = database.lower()
 
     # Group rows by (referencing object, referenced entity)
     grouped: dict[str, dict[str, dict[str, Any]]] = {}
@@ -266,6 +282,19 @@ def process_dmf_results(
         minor_name = row.get("referenced_minor_name") or ""
         class_desc = row.get("referenced_class_desc") or ""
 
+        # Determine cross-database / cross-server scope
+        ref_db = (row.get("referenced_database_name") or "").strip()
+        ref_server = (row.get("referenced_server_name") or "").strip()
+
+        is_out_of_scope = False
+        out_reason: str | None = None
+        if ref_server:
+            is_out_of_scope = True
+            out_reason = "cross_server_reference"
+        elif ref_db and db_lower and ref_db.lower() != db_lower:
+            is_out_of_scope = True
+            out_reason = "cross_database_reference"
+
         bucket = _classify_referenced_type(class_desc)
         if bucket is None:
             # Try object_types lookup for OBJECT_OR_COLUMN
@@ -276,79 +305,105 @@ def process_dmf_results(
         if referencing_fqn not in grouped:
             grouped[referencing_fqn] = {}
 
-        entity_key = f"{bucket}:{tgt_fqn}"
+        entity_key = f"{bucket}:{tgt_fqn}:{'out' if is_out_of_scope else 'in'}"
         if entity_key not in grouped[referencing_fqn]:
-            grouped[referencing_fqn][entity_key] = {
+            entry_data: dict[str, Any] = {
                 "bucket": bucket,
                 "schema": tgt_schema,
                 "name": tgt_name,
-                "is_selected": False,
-                "is_updated": False,
-                "is_insert_all": False,
-                "columns": {},
+                "is_out_of_scope": is_out_of_scope,
             }
-
-        entry = grouped[referencing_fqn][entity_key]
-        entry["is_selected"] = entry["is_selected"] or bool(row.get("is_selected"))
-        entry["is_updated"] = entry["is_updated"] or bool(row.get("is_updated"))
-        entry["is_insert_all"] = entry["is_insert_all"] or bool(row.get("is_insert_all"))
-
-        # Column-level detail
-        if minor_name:
-            if minor_name not in entry["columns"]:
-                entry["columns"][minor_name] = {
-                    "name": minor_name,
+            if is_out_of_scope:
+                entry_data["database"] = ref_db or database
+                entry_data["server"] = ref_server or None
+                entry_data["reason"] = out_reason
+            else:
+                entry_data.update({
                     "is_selected": False,
                     "is_updated": False,
-                }
-            col = entry["columns"][minor_name]
-            col["is_selected"] = col["is_selected"] or bool(row.get("is_selected"))
-            col["is_updated"] = col["is_updated"] or bool(row.get("is_updated"))
+                    "is_insert_all": False,
+                    "columns": {},
+                })
+            grouped[referencing_fqn][entity_key] = entry_data
 
-    # Reshape into per-object references dicts
-    result: dict[str, dict[str, list[dict[str, Any]]]] = {}
+        entry = grouped[referencing_fqn][entity_key]
+
+        # Only accumulate detail for in-scope entries
+        if not is_out_of_scope:
+            entry["is_selected"] = entry["is_selected"] or bool(row.get("is_selected"))
+            entry["is_updated"] = entry["is_updated"] or bool(row.get("is_updated"))
+            entry["is_insert_all"] = entry["is_insert_all"] or bool(row.get("is_insert_all"))
+
+            # Column-level detail
+            if minor_name:
+                if minor_name not in entry["columns"]:
+                    entry["columns"][minor_name] = {
+                        "name": minor_name,
+                        "is_selected": False,
+                        "is_updated": False,
+                    }
+                col = entry["columns"][minor_name]
+                col["is_selected"] = col["is_selected"] or bool(row.get("is_selected"))
+                col["is_updated"] = col["is_updated"] or bool(row.get("is_updated"))
+
+    # Reshape into per-object references dicts with scoped buckets
+    result: dict[str, dict[str, dict[str, list[dict[str, Any]]]]] = {}
     for referencing_fqn, entities in grouped.items():
-        refs: dict[str, list[dict[str, Any]]] = {
-            "tables": [],
-            "views": [],
-            "functions": [],
-            "procedures": [],
+        refs: dict[str, dict[str, list[dict[str, Any]]]] = {
+            "tables": _empty_scoped(),
+            "views": _empty_scoped(),
+            "functions": _empty_scoped(),
+            "procedures": _empty_scoped(),
         }
         for entity_data in entities.values():
-            bucket = entity_data["bucket"]
-            columns = sorted(entity_data["columns"].values(), key=lambda c: c["name"])
-            ref_entry = _make_ref_entry(
-                schema=entity_data["schema"],
-                name=entity_data["name"],
-                is_selected=entity_data["is_selected"],
-                is_updated=entity_data["is_updated"],
-                is_insert_all=entity_data["is_insert_all"],
-                columns=columns if columns else None,
-            )
-            refs[bucket].append(ref_entry)
+            b = entity_data["bucket"]
+            if entity_data["is_out_of_scope"]:
+                out_entry: dict[str, Any] = {
+                    "schema": entity_data["schema"],
+                    "name": entity_data["name"],
+                    "database": entity_data.get("database", ""),
+                    "server": entity_data.get("server"),
+                    "reason": entity_data["reason"],
+                }
+                refs[b]["out_of_scope"].append(out_entry)
+            else:
+                columns = sorted(entity_data["columns"].values(), key=lambda c: c["name"])
+                ref_entry = _make_ref_entry(
+                    schema=entity_data["schema"],
+                    name=entity_data["name"],
+                    is_selected=entity_data["is_selected"],
+                    is_updated=entity_data["is_updated"],
+                    is_insert_all=entity_data["is_insert_all"],
+                    columns=columns if columns else None,
+                )
+                refs[b]["in_scope"].append(ref_entry)
         # Sort each bucket by schema.name for deterministic output
-        for bucket_list in refs.values():
-            bucket_list.sort(key=lambda e: f"{e['schema']}.{e['name']}".lower())
+        for scoped in refs.values():
+            scoped["in_scope"].sort(key=lambda e: f"{e['schema']}.{e['name']}".lower())
+            scoped["out_of_scope"].sort(key=lambda e: f"{e['schema']}.{e['name']}".lower())
         result[referencing_fqn] = refs
     return result
 
 
 def flip_references(
-    proc_refs: dict[str, dict[str, list[dict[str, Any]]]],
+    proc_refs: dict[str, dict[str, dict[str, list[dict[str, Any]]]]],
     referencing_type: str,
-) -> dict[str, dict[str, list[dict[str, Any]]]]:
+) -> dict[str, dict[str, dict[str, list[dict[str, Any]]]]]:
     """Build ``referenced_by`` dicts for tables by flipping outbound proc/view/function refs.
 
     *proc_refs* is the output of ``process_dmf_results()``:
-    ``{referencing_fqn: {tables: [...], views: [...], ...}}``.
+    ``{referencing_fqn: {tables: {in_scope: [...], out_of_scope: [...]}, ...}}``.
 
     *referencing_type* is one of ``procedures``, ``views``, ``functions`` — the
     bucket name under which the referencing objects should appear in the
     ``referenced_by`` section of table files.
 
-    Returns ``{table_fqn: {procedures: [...], views: [...], functions: [...]}}``.
+    Only ``in_scope`` entries are flipped (no table catalog file exists for
+    out-of-scope references).
+
+    Returns ``{table_fqn: {procedures: {in_scope: [...], out_of_scope: []}, ...}}``.
     """
-    result: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    result: dict[str, dict[str, dict[str, list[dict[str, Any]]]]] = {}
 
     for referencing_fqn, refs in proc_refs.items():
         # Parse referencing_fqn back to schema.name
@@ -356,11 +411,15 @@ def flip_references(
         ref_schema = parts[0] if len(parts) >= 2 else "dbo"
         ref_name = parts[-1]
 
-        for table_entry in refs.get("tables", []):
+        for table_entry in refs.get("tables", {}).get("in_scope", []):
             table_fqn = normalize(f"{table_entry['schema']}.{table_entry['name']}")
 
             if table_fqn not in result:
-                result[table_fqn] = {"procedures": [], "views": [], "functions": []}
+                result[table_fqn] = {
+                    "procedures": _empty_scoped(),
+                    "views": _empty_scoped(),
+                    "functions": _empty_scoped(),
+                }
 
             flipped_entry = _make_ref_entry(
                 schema=ref_schema,
@@ -370,12 +429,12 @@ def flip_references(
                 is_insert_all=table_entry.get("is_insert_all", False),
                 columns=table_entry.get("columns"),
             )
-            result[table_fqn][referencing_type].append(flipped_entry)
+            result[table_fqn][referencing_type]["in_scope"].append(flipped_entry)
 
     # Sort each bucket for deterministic output
     for table_refs in result.values():
-        for bucket_list in table_refs.values():
-            bucket_list.sort(key=lambda e: f"{e['schema']}.{e['name']}".lower())
+        for scoped in table_refs.values():
+            scoped["in_scope"].sort(key=lambda e: f"{e['schema']}.{e['name']}".lower())
 
     return result
 
@@ -388,6 +447,7 @@ def write_catalog_files(
     func_dmf_rows: list[dict[str, Any]],
     object_types: dict[str, str] | None = None,
     dynamic_sql_flags: dict[str, bool] | None = None,
+    database: str = "",
 ) -> dict[str, int]:
     """Process raw extraction data and write all catalog JSON files.
 
@@ -396,6 +456,8 @@ def write_catalog_files(
     *object_types* resolves ambiguous OBJECT_OR_COLUMN references.
     *dynamic_sql_flags* maps ``fqn`` → True for objects whose body contains
     EXEC(@var) or sp_executesql.
+    *database* is the current database name, used to classify cross-database
+    references as out-of-scope.
 
     Returns counts: ``{tables: N, procedures: N, views: N, functions: N}``.
     """
@@ -403,9 +465,9 @@ def write_catalog_files(
     dyn_flags = dynamic_sql_flags or {}
 
     # Process DMF results per object type
-    proc_refs = process_dmf_results(proc_dmf_rows, object_types)
-    view_refs = process_dmf_results(view_dmf_rows, object_types)
-    func_refs = process_dmf_results(func_dmf_rows, object_types)
+    proc_refs = process_dmf_results(proc_dmf_rows, object_types, database=database)
+    view_refs = process_dmf_results(view_dmf_rows, object_types, database=database)
+    func_refs = process_dmf_results(func_dmf_rows, object_types, database=database)
 
     # Write proc/view/function catalog files
     for fqn, refs in proc_refs.items():
@@ -421,7 +483,7 @@ def write_catalog_files(
         counts["functions"] += 1
 
     # Flip references to build referenced_by for tables
-    table_referenced_by: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    table_referenced_by: dict[str, dict[str, dict[str, list[dict[str, Any]]]]] = {}
     for referencing_type, refs_dict in [
         ("procedures", proc_refs),
         ("views", view_refs),
@@ -430,14 +492,20 @@ def write_catalog_files(
         flipped = flip_references(refs_dict, referencing_type)
         for table_fqn, ref_by in flipped.items():
             if table_fqn not in table_referenced_by:
-                table_referenced_by[table_fqn] = {"procedures": [], "views": [], "functions": []}
+                table_referenced_by[table_fqn] = {
+                    "procedures": _empty_scoped(),
+                    "views": _empty_scoped(),
+                    "functions": _empty_scoped(),
+                }
             for bucket_name in ("procedures", "views", "functions"):
-                table_referenced_by[table_fqn][bucket_name].extend(ref_by.get(bucket_name, []))
+                table_referenced_by[table_fqn][bucket_name]["in_scope"].extend(
+                    ref_by.get(bucket_name, {}).get("in_scope", [])
+                )
 
     # Sort merged referenced_by
     for ref_by in table_referenced_by.values():
-        for bucket_list in ref_by.values():
-            bucket_list.sort(key=lambda e: f"{e['schema']}.{e['name']}".lower())
+        for scoped in ref_by.values():
+            scoped["in_scope"].sort(key=lambda e: f"{e['schema']}.{e['name']}".lower())
 
     # Write table catalog files
     all_table_fqns = set(table_signals.keys()) | set(table_referenced_by.keys())
