@@ -77,12 +77,7 @@ docker stop aw-sql
 ## Integration Test Command
 
 ```bash
-MIGRATION_TEST_SQL_SERVER_HOST=127.0.0.1 \
-MIGRATION_TEST_SQL_SERVER_PORT=1433 \
-MIGRATION_TEST_SQL_SERVER_USER=sa \
-MIGRATION_TEST_SQL_SERVER_PASSWORD='P@ssw0rd123' \
-MIGRATION_TEST_SQL_SERVER_DATABASE=WideWorldImportersDW \
-cargo test --manifest-path app/src-tauri/Cargo.toml source_sql -- --ignored
+cd lib && uv run pytest -m integration
 ```
 
 ## Troubleshooting

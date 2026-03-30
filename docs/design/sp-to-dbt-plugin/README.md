@@ -19,7 +19,7 @@ The repo root is a Claude Code marketplace package. Three plugins are registered
 ```text
 .claude-plugin/marketplace.json
 ├── bootstrap/                             ← plugin: init + setup + DDL extraction
-│   ├── commands/                          ← init-ad-migration command
+│   ├── commands/                          ← init-ad-migration, init-dbt
 │   └── skills/
 │       └── setup-ddl/                    ← DDL extraction from live SQL Server
 ├── migration/                             ← plugin: analysis + migration pipeline
@@ -27,11 +27,9 @@ The repo root is a Claude Code marketplace package. Three plugins are registered
 │   ├── skills/
 │   │   ├── discover/                      ← SKILL.md + references/
 │   │   ├── profile/
-│   │   ├── migrate/
-│   │   ├── test-gen/
-│   │   └── validate/
+│   │   └── migrate/
 │   └── commands/
-│       └── migrate-table/                 ← orchestrator
+│       └── migrate-table.md               ← orchestrator
 ├── mcp/
 │   ├── ddl/                               ← DDL file MCP server
 │   └── mssql/                             ← live SQL Server MCP config
@@ -53,16 +51,20 @@ All skills import from `shared/`. Nothing in `shared/` is skill-specific.
 
 | Module | Responsibility |
 |---|---|
-| `ir.py` | Pydantic IR types: `Procedure`, `ProcParam`, `SelectModel`, `CteNode`, `TableRef`, `ColumnRef` |
 | `loader.py` | Parse a DDL directory → `DdlCatalog` (GO-split + `sqlglot.parse_one`) |
-| `catalog.py` | Per-object catalog JSON file I/O: read/write `catalog/` files, DMF result processing, reference flipping |
+| `loader_parse.py` | Body statement parsing, ref extraction, statement classification |
+| `loader_data.py` | Data structures for DDL entries and object refs |
+| `loader_io.py` | File I/O for DDL loading |
+| `catalog.py` | Per-object catalog JSON file I/O: read/write `catalog/` files, routing flags, reference flipping |
 | `catalog_dmf.py` | DMF result classification: group referenced entities by type, detect cross-database/cross-server refs |
 | `catalog_enrich.py` | Offline AST enrichment: fill DMF gaps (SELECT INTO, TRUNCATE, EXEC chains) via sqlglot + BFS |
 | `name_resolver.py` | Normalize FQN: strip brackets, lowercase, apply default schema |
-| `dialect.py` | `SqlDialect` protocol + registry keyed by string name |
-| `export_ddl.py` | DDL + catalog extraction from live SQL Server via pyodbc (`--catalog` flag) |
+| `env_config.py` | Environment and path resolution (project root, catalog dir, dbt project path) |
 | `setup_ddl.py` | DDL setup orchestration: assemble modules, tables, manifest, and catalog from staging JSON |
-| `dmf_processing.py` | DMF row processing helpers shared by export and catalog write paths |
+| `discover.py` | CLI: list/show/refs/write-statements subcommands for DDL catalog queries |
+| `profile.py` | CLI: context/write subcommands for profiling context assembly and catalog write-back |
+| `migrate.py` | CLI: context/write subcommands for migration context assembly and dbt artifact generation |
+| `dmf_processing.py` | DMF row processing helpers shared by catalog write paths |
 | `sql_types.py` | SQL type mappings between T-SQL and target dialects |
 
 ---
@@ -292,7 +294,7 @@ If `mssql_mcp` is not configured: returns `{ "status": "skipped" }`, exit 0.
 
 ## `migrate-table` Command
 
-The orchestrator. Defined in `commands/migrate-table/SKILL.md`. No Python — Claude follows the instructions.
+The orchestrator. Defined in `commands/migrate-table.md`. No Python — Claude follows the instructions.
 
 **Interactive flow:**
 
@@ -348,20 +350,18 @@ The orchestrator. Defined in `commands/migrate-table/SKILL.md`. No Python — Cl
 
 ---
 
-### Wave 3 — Profile + Migrate
+### Wave 3 — Profile + Migrate ✅
 
-| Issue | What | Depends on |
+| Issue | What | Status |
 |---|---|---|
-| VU-773 | profile.py | VU-732 (shared lib), VU-733 (discover) |
-| VU-774 | profile SKILL.md | VU-773 |
-| VU-775 | profile tests | VU-773 |
-| VU-776 | profiler-agent.md | VU-773 |
-| VU-742 | migrate.py | VU-732, VU-773 |
-| VU-743 | migrate SKILL.md | VU-742 |
-| VU-744 | migrate tests | VU-742 |
-| VU-777 | migrator-agent.md | VU-742 |
-
-**Exit criteria:** `profile.py` returns catalog signals + proc body + columns as structured JSON. `migrate.py` consumes profile answers and produces a valid `.sql` dbt model. Snapshot tests pass for all fixture procedures.
+| VU-773 | profile.py | Done |
+| VU-774 | profile SKILL.md | Done |
+| VU-775 | profile tests | Done |
+| VU-776 | profiler-agent.md | Done |
+| VU-742 | migrate.py | Done |
+| VU-743 | migrate SKILL.md | Done |
+| VU-744 | migrate tests | Done |
+| VU-777 | migrator-agent.md | Done |
 
 ---
 
