@@ -17,6 +17,7 @@ Declared as `[project.scripts]` in `shared/pyproject.toml`:
 | Command | Entrypoint | Purpose |
 |---|---|---|
 | `discover` | `shared.discover:app` | Query the DDL catalog — list objects, show details, find referencing procedures |
+| `init` | `shared.init:app` | Scaffold migration project files (CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, .githooks) |
 | `setup-ddl` | `shared.setup_ddl:app` | Assemble DDL files and write catalog JSON from MCP query results |
 | `catalog-enrich` | `shared.catalog_enrich:app` | Augment catalog with AST-derived references missed by DMF (CTAS, SELECT INTO, EXEC call chains) |
 | `profile` | `shared.profile:app` | Assemble profiling context for a table + writer pair, and write profiles back to catalog |
@@ -67,6 +68,15 @@ All parameters use `--option` style. No CLIs use positional arguments.
 
 Requires a `catalog/` directory (from `setup-ddl`). Exits with code `2` if missing.
 
+### `init`
+
+| Subcommand | Key options | Returns |
+|---|---|---|
+| `scaffold-project` | `--project-root` (optional, defaults to CWD) | `{"files_created": [...], "files_updated": [...], "files_skipped": [...]}` |
+| `scaffold-hooks` | `--project-root` (optional, defaults to CWD) | `{"hook_created": bool, "hooks_path_configured": bool}` |
+
+Both subcommands are idempotent. `scaffold-project` writes CLAUDE.md, README.md, repo-map.json, .gitignore, and .envrc. `scaffold-hooks` writes `.githooks/pre-commit` and configures `core.hooksPath`.
+
 ### `setup-ddl`
 
 | Subcommand | Key options | Returns |
@@ -107,6 +117,4 @@ If the catalog directory is missing, returns a zeroed summary instead of exiting
 
 ## Testability Pattern
 
-Business logic is separated from CLI wiring. Subcommands delegate to standalone functions (e.g., `run_list`, `run_show`, `run_refs`, `run_write_statements`, `enrich_catalog`, `run_context`, `run_write`) that can be imported and tested directly without invoking Typer. CLI commands only handle I/O and exit codes.
-
-**Exception:** `setup-ddl` currently embeds business logic directly in its `@app.command()` functions — it does not follow this pattern.
+Business logic is separated from CLI wiring. Subcommands delegate to standalone functions (e.g., `run_list`, `run_show`, `run_refs`, `run_write_statements`, `enrich_catalog`, `run_context`, `run_write`, `run_scaffold_project`, `run_scaffold_hooks`, `run_assemble_modules`, `run_assemble_tables`, `run_write_catalog`, `run_write_manifest`) that can be imported and tested directly without invoking Typer. CLI commands only handle I/O and exit codes.
