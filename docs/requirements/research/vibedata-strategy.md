@@ -37,7 +37,7 @@ Data Engineers, Analytics Engineers, and Data Reliability Engineers in early/gro
 | MTTR | 15+ hours → <30 min target | 68% take 4+ hours just to detect; root cause analysis dominates resolution time |
 | Knowledge dependency | Person-dependent → Reusable skills | "When Sarah left, nobody knew why that pipeline was built that way" |
 
-*Sources: [Problem Statement References](context/problem-statement-references.md#1-who-experiences-this-pain)*
+*Sources: Problem Statement References (original context docs removed)*
 
 ### Why current solutions fail
 
@@ -49,7 +49,7 @@ Data Engineers, Analytics Engineers, and Data Reliability Engineers in early/gro
 | **Broken feedback loops** | Production issues don't trigger new tests to prevent recurrence | Thousands of incidents tracked but not converted to preventive tests |
 | **Knowledge walks out the door** | Institutional knowledge trapped in people's heads | 80% of critical knowledge undocumented; $47M/year lost per large company |
 
-*Sources: [Problem Statement References](context/problem-statement-references.md#2-why-current-solutions-fail)*
+*Sources: Problem Statement References (original context docs removed)*
 
 ### Why existing tools don't solve this
 
@@ -63,7 +63,7 @@ Data Engineers, Analytics Engineers, and Data Reliability Engineers in early/gro
 | **Fivetran + dbt** | 700+ managed connectors, schema evolution, zero-maintenance EL, dbt integration for transforms | Merger unifies tooling but not effort—still manual dbt development, manual test writing, no AI/agentic capabilities; no specs capture; Day 2 requires Monte Carlo/Metaplane (additional $$$); no knowledge capture |
 
 *Note: Ingestion tools (dlthub, Airbyte) focus narrowly on source connectivity. Observability and catalog tools (Monte Carlo, Datafold, Great Expectations, Atlan) address specific slices—data diff, validation rules, cataloging. None attempt end-to-end workflow integration.*
-*Source note: Fivetran connector count from [Fivetran Deep Dive](context/competition/fivetran.md).*
+*Source note: Fivetran connector count from Fivetran Deep Dive (original context docs removed).*
 
 ### The fundamental gap
 
@@ -72,7 +72,7 @@ Teams cobble together 5-7+ tools, creating integration overhead, responsibility 
 No existing tool provides spec driven development (intent), shift-left methodology (tests and golden data validation), bidirectional feedback from production to development (retro agent), or persistent organizational knowledge (skills) to support data engineering workflows.
 
 **The 1:10:100 rule**: Addressing issue in requirements/build/unit test phase cost ~$1, $10 in UAT and $100 in prod. Current tools focus on the $10-$100 stages.
-*Sources: [Modern data stack complexity survey](context/assets/s1-blogs-the-current-data-stack-is-too-complex-70-data-leaders-practitioners-agree.md), [Problem Statement References](context/problem-statement-references.md#3-additional-context)*
+*Sources: Modern data stack complexity survey, Problem Statement References (original context docs removed)*
 
 ### Why now: Industry shifts creating urgency
 
@@ -85,7 +85,7 @@ Three fundamental industry shifts make agentic data engineering not just possibl
 | **Services delivery** | Offshore headcount | Embedded domain experts + AI | India's Big Four lost $150B market value in 9 months. Outcomes, not headcount, now define value. |
 | **Build economics** | Implementation cost acts as quality filter | Zero-cost build removes the filter; bad specs execute at scale | Specification precision becomes the binding constraint. Vibedata's Requirements Agent and intent-capture workflow address exactly this gap. AWS launched Kiro around the same premise — specs before code. |
 
-**Key data points** (see [Industry Changes Analysis](context/changes-due-to-ai.md) for full research):
+**Key data points:**
 
 - **Gartner**: 40% of enterprise apps will have AI agents by 2026 (up from <5% in 2025)
 - **McKinsey**: AI agents could handle 44% of US work hours; AI fluency is fastest-growing skill (7x in 2 years)
@@ -209,7 +209,7 @@ In smaller teams, the DRE is often the same person as the data engineer or analy
 | NPS | <30 after 6 months | Major product reassessment |
 
 *Note: Metrics and thresholds in Sections 6.1-6.3 are internal operating targets.*
-*Benchmark context references: [SaaS conversion benchmarks](context/assets/s2-reports-saas-conversion-report.md), [enterprise retention benchmarks](context/assets/s3-pendo-blog-enterprise-product-benchmarks.md), [NPS interpretation framework](context/assets/s4-about-measuring-your-net-promoter-score.md).*
+*Benchmark context references: SaaS conversion benchmarks, enterprise retention benchmarks, NPS interpretation framework (original context docs removed).*
 
 ---
 
@@ -269,7 +269,7 @@ Every action makes the platform smarter through two reinforcing loops:
 4. **Context preservation**: Build context (intent, plan, validation history) is required for Day 2 operations. *Evidence: Deloitte notes only 21% have mature agent governance—context and traceability are key gaps.*
 5. **Platform**: Fabric adoption continues growing in target segment
 6. **Business model**: Hybrid GTM (PLG → sales → partners) scales effectively
-7. **Industry timing**: Data engineering is shifting from "important" to "mission critical" as reverse ETL and AI agents consume data operationally. *Evidence: See [Industry Changes Analysis](context/changes-due-to-ai.md).*
+7. **Industry timing**: Data engineering is shifting from "important" to "mission critical" as reverse ETL and AI agents consume data operationally. *Evidence: Industry Changes Analysis (original context docs removed).*
 
 ---
 
@@ -282,9 +282,9 @@ Every action makes the platform smarter through two reinforcing loops:
 | Skills don't guide agent | Medium | High | >40% intent failures | Pause MVP; invest in skills research |
 | Fabric adoption slow | Low | Low | <20% YoY growth | Deepen Fabric integration; leverage Microsoft partnership |
 
-*Note: Risk triggers are internal operating thresholds; Fabric market context reference: [Microsoft Fabric adoption update](context/assets/s7-en-us-microsoft-fabric-blog-2024-11-19-microsoft-fabric-unveils-ai-innovation-an.md).*
+*Note: Risk triggers are internal operating thresholds; Fabric market context reference: Microsoft Fabric adoption update (original context docs removed).*
 
 ---
 
 **Statistics Traceability**: [statistics-traceability.md](statistics-traceability.md)
-**Decision Log**: [context/decision-log.md](context/decision-log.md)
+**Decision Log**: See [decisions.md](../decisions.md)

@@ -70,47 +70,11 @@ docker start aw-sql
 docker logs --tail 50 aw-sql
 ```
 
-- Run tests for your changed module (example):
+- Run Python integration tests (ignored by default):
 
 ```bash
-cargo test --manifest-path app/src-tauri/Cargo.toml source_sql
+cd lib && uv run pytest -m integration
 ```
-
-- Run real SQL Server integration tests (ignored by default), targeting `WideWorldImportersDW`:
-
-```bash
-MIGRATION_TEST_SQL_SERVER_HOST=127.0.0.1 \
-MIGRATION_TEST_SQL_SERVER_PORT=1433 \
-MIGRATION_TEST_SQL_SERVER_USER=sa \
-MIGRATION_TEST_SQL_SERVER_PASSWORD='P@ssw0rd123' \
-MIGRATION_TEST_SQL_SERVER_DATABASE=WideWorldImportersDW \
-cargo test --manifest-path app/src-tauri/Cargo.toml source_sql -- --ignored
-```
-
-### Target a different SQL Server instance for tests
-
-`source_sql` live integration tests read SQL connection settings from environment variables at
-runtime. Override these to run against a different host, credentials, or database:
-
-- `MIGRATION_TEST_SQL_SERVER_HOST` (example: `10.0.0.25`)
-- `MIGRATION_TEST_SQL_SERVER_PORT` (example: `1433`)
-- `MIGRATION_TEST_SQL_SERVER_USER` (example: `sa`)
-- `MIGRATION_TEST_SQL_SERVER_PASSWORD` (example: `MyStrongPassword`)
-- `MIGRATION_TEST_SQL_SERVER_DATABASE` (example: `AdventureWorksDW2022`)
-
-Example command:
-
-```bash
-MIGRATION_TEST_SQL_SERVER_HOST=10.0.0.25 \
-MIGRATION_TEST_SQL_SERVER_PORT=1433 \
-MIGRATION_TEST_SQL_SERVER_USER=sa \
-MIGRATION_TEST_SQL_SERVER_PASSWORD='MyStrongPassword' \
-MIGRATION_TEST_SQL_SERVER_DATABASE=AdventureWorksDW2022 \
-cargo test --manifest-path app/src-tauri/Cargo.toml source_sql -- --ignored
-```
-
-If any variable is omitted, tests fall back to defaults in `app/src-tauri/src/source_sql.rs`
-(`127.0.0.1:1433`, `sa`, `P@ssw0rd123`, `WideWorldImportersDW`).
 
 - Stop the container when done (optional):
 

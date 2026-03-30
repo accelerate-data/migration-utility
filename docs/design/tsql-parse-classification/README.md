@@ -8,42 +8,37 @@ Exhaustive classification of T-SQL patterns encountered in stored procedure migr
 Stored Procedure DDL
         │
         ▼
-  _parse_body_statements()
-        │
-        ├── Pass 1: recursive Command re-parsing
-        │     strips BEGIN/END/ELSE/IF/WHILE/TRY/CATCH from Command nodes
-        │     re-parses to recover DML
-        │
-        ├── Pass 2: full control flow stripping (fallback)
-        │     catches statements sqlglot drops inside IF <cond> BEGIN...END
+  parse_body_statements()
         │
         ▼
-  Parsed statement list
+  Single sqlglot.parse() call
         │
-        ├── All statements are real AST nodes → Deterministic
+        ├── All statements are real AST nodes → classification: "deterministic"
         │     extract_refs() populates writes_to / reads_from
         │
-        └── Any EXEC Command nodes remain → Claude-assisted
-              raw_ddl preserved for Claude to analyse
+        └── Any Command or If nodes found → classification: "claude_assisted"
+              needs_llm = True; raw_ddl preserved for Claude to analyse
 ```
 
 ## Decision Rule
 
-After two-pass body parsing, check the statement list:
+After body parsing, check the statement list:
 
-- **No Command nodes** → deterministic. `extract_refs` handles everything.
-- **Command nodes with EXEC/EXECUTE** → Claude-assisted. The proc contains dynamic SQL or procedure calls that sqlglot cannot parse. `raw_ddl` is passed to Claude for analysis.
+- **No `Command` or `If` nodes** → deterministic. `extract_refs` handles everything.
+- **Any `exp.Command` or `exp.If` nodes** → Claude-assisted. The proc contains dynamic SQL, procedure calls, or control flow that sqlglot cannot fully parse. `raw_ddl` is passed to Claude for analysis.
 
-The `show` command signals this via:
+The `discover show` command signals this via the `classification` field:
 
-- `parse_error: null` + populated `refs` → deterministic
-- `parse_error` set → Claude-assisted
+- `classification: "deterministic"` + populated `statements` → fully parsed
+- `classification: "claude_assisted"` → needs LLM reasoning from raw DDL
+
+Note: `parse_error` is a separate orthogonal field that records whether the `CREATE PROCEDURE` block itself failed to parse at DDL load time.
 
 ## Pattern Classification
 
-### Deterministic — sqlglot (patterns 1-20)
+### Deterministic — sqlglot (patterns 1-18)
 
-These patterns are fully parsed by sqlglot after body extraction. `extract_refs` populates `writes_to` and `reads_from` without any LLM involvement.
+These patterns are fully parsed by sqlglot. `extract_refs` populates `writes_to` and `reads_from` without any LLM involvement.
 
 | # | Pattern | Example | Test fixture |
 |---|---|---|---|
@@ -64,15 +59,22 @@ These patterns are fully parsed by sqlglot after body extraction. `extract_refs`
 | 15 | Subquery in WHERE | `WHERE col > (SELECT AVG(col) FROM ...)` | `usp_SubqueryInWhere` |
 | 16 | Correlated subquery | `WHERE col = (SELECT MAX(...) WHERE outer.id = inner.id)` | `usp_CorrelatedSubquery` |
 | 17 | Window functions | `COUNT(*) OVER (PARTITION BY ...)`, `ROW_NUMBER() OVER (...)` | `usp_WindowFunction` |
-| 18 | DROP/CREATE INDEX | `DROP INDEX ...; CREATE INDEX ...` around DML | `usp_FullReload` (inline test) |
-| 19 | IF/ELSE BEGIN END | Control flow wrapping DML — two-pass recovers both branches | `usp_ConditionalMerge` |
-| 20 | BEGIN TRY/CATCH | Error handling wrapping DML — two-pass recovers both blocks | `usp_TryCatchLoad` |
-| 21 | WHILE BEGIN END | Loop wrapping DML — two-pass recovers loop body | `usp_WhileLoop` |
-| 22 | Nested control flow | IF inside WHILE inside TRY/CATCH — recursive + fallback strip | `usp_NestedControlFlow` |
+| 18 | DROP/CREATE INDEX | `DROP INDEX ...; CREATE INDEX ...` around DML | inline test |
 
-### Claude-assisted — EXEC/dynamic SQL (patterns 23-34)
+### Claude-assisted — control flow and EXEC (patterns 19-34)
 
-These patterns produce Command nodes that cannot be resolved statically. The proc's `raw_ddl` is passed to Claude for analysis. Claude reads the proc body, follows call graphs, and determines write targets.
+These patterns produce `Command` or `If` nodes that cannot be fully resolved statically. The proc's `raw_ddl` is passed to Claude for analysis.
+
+**Control flow patterns (19-22):** sqlglot parses `IF`, `TRY/CATCH`, and `WHILE` blocks into `Command` or `If` AST nodes. DML nested inside these blocks is not reliably extracted. The proc is flagged `needs_llm = True` and Claude reads the raw DDL.
+
+| # | Pattern | Example | Why Claude | Test fixture |
+|---|---|---|---|---|
+| 19 | IF/ELSE BEGIN END | Control flow wrapping DML | `exp.If` node — DML inside branches not reliably extracted | `usp_ConditionalMerge` |
+| 20 | BEGIN TRY/CATCH | Error handling wrapping DML | `exp.Command` node — DML inside not extracted | `usp_TryCatchLoad` |
+| 21 | WHILE BEGIN END | Loop wrapping DML | `exp.Command` node — DML inside not extracted | `usp_WhileLoop` |
+| 22 | Nested control flow | IF inside WHILE inside TRY/CATCH | Multiple Command/If nodes — DML inside not extracted | `usp_NestedControlFlow` |
+
+**EXEC/dynamic SQL patterns (23-34):** These produce `Command` nodes for procedure calls or dynamic SQL that cannot be resolved statically.
 
 | # | Pattern | Example | Why Claude | Test fixture |
 |---|---|---|---|---|
@@ -89,27 +91,12 @@ These patterns produce Command nodes that cannot be resolved statically. The pro
 | 33 | EXEC variable SQL | `EXEC (@sql)` | Runtime string | `usp_ExecDynamic` |
 | 34 | EXEC concat | `EXEC ('INSERT INTO ' + @table)` | Runtime string building | (covered by `usp_ExecDynamic`) |
 
-## How the Two-Pass Strategy Works
+## TRUNCATE Split Behavior
 
-sqlglot v25.34.1 cannot parse T-SQL control flow (`IF`, `BEGIN/END`, `ELSE`, `WHILE`, `TRY/CATCH`) as standalone blocks. These become `Command` nodes.
-
-**Pass 1 — Recursive Command re-parsing:**
-
-1. Parse the proc body with `sqlglot.parse()`
-2. For each `Command` node, strip leading control flow keywords (`BEGIN`, `END`, `ELSE`, `IF ...`, `WHILE ...`, `BEGIN TRY`, etc.)
-3. Re-parse the stripped text
-4. Repeat recursively (max depth 5) until no more Commands can be reduced
-
-**Pass 2 — Full control flow stripping (fallback):**
-
-1. Strip all control flow keywords from the raw body text using regex
-2. Parse the remaining flat DML statements
-3. Merge with pass 1 results, deduplicating by SQL text
-
-This catches statements that sqlglot drops inside `IF <condition> BEGIN...END` blocks, where the IF node swallows `BEGIN` as its true branch and the INSERT between BEGIN and END is lost.
+`classify_statement` returns `action: "skip"` for `exp.TruncateTable`, but `_collect_write_refs` independently traverses `TruncateTable` nodes and adds them to `writes_to` with operation `"TRUNCATE"`. This means TRUNCATE appears in `writes_to` for dependency tracking but is excluded from the `migrate` statement list. The split is intentional: the table relationship matters for scoping, but TRUNCATE itself does not translate to dbt SQL.
 
 ## Known Limitations
 
-- **EXEC call graph**: sqlglot produces `Command` nodes for all EXEC variants. The `calls` field in `ObjectRefs` is always empty. Indirect writer detection via call graph traversal does not work for EXEC-based orchestrators.
+- **EXEC call graph**: sqlglot produces `Command` nodes for all EXEC variants. The `calls` field in `ObjectRefs` is always empty at the AST layer. However, `catalog_enrich.py` extracts EXEC-based call edges via `_extract_calls()` and materializes indirect write targets into catalog files. The enrichment path compensates for this limitation post-parse.
 - **Dynamic SQL**: `EXEC (@sql)` and `sp_executesql @var` cannot be resolved statically. Only Claude can reason about what SQL might be constructed at runtime.
-- **IF condition tables**: Tables referenced only in `IF EXISTS (SELECT ... FROM table)` conditions are not captured in `reads_from` after control flow stripping. These are condition checks, not data reads for the model.
+- **IF condition tables**: Tables referenced only in `IF EXISTS (SELECT ... FROM table)` conditions are not captured in `reads_from`. These are condition checks, not data reads for the model.

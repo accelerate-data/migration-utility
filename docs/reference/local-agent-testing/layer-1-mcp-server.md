@@ -165,7 +165,7 @@ Layer 2.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `mssql-execute-sql` not in `/mcp` output | `.mcp.json` missing or Claude Code not restarted | Check `.mcp.json` exists at repo root, restart Claude Code |
+| `mssql-execute-sql` not in `/mcp` output | `.mcp.json` missing or Claude Code not restarted | Check `migration/.mcp.json` exists, restart Claude Code |
 | "configured but not connected" in Claude | `toolbox` failed to start | Run `toolbox --stdio --tools-file <abs-path>` manually to see the error; check `which toolbox` |
 | Connection refused | SQL Server container not running | `docker ps`, start container |
 | Login failed for user 'sa' | Wrong `SA_PASSWORD` or SA login disabled | Check container env, `docker inspect` |
