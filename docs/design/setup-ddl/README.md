@@ -1,19 +1,24 @@
 # Setup DDL Design
 
-`setup-ddl` bootstraps the migration workspace. It connects to a live SQL Server, extracts DDL files and per-object catalog JSON, then runs offline AST enrichment. All downstream skills (`discover`, `scope`, `profile`) work from these files — no live DB required after this step.
+`setup-ddl` bootstraps the migration workspace. It connects to a live SQL Server via the `mssql` MCP tool, extracts DDL files and per-object catalog JSON, then runs offline AST enrichment. All downstream skills (`discover`, `scope`, `profile`) work from these local files — no live DB required after this step.
 
 ---
 
-## Execution modes
+## Architecture
 
-Two modes share the same logical flow but differ in who drives the interaction:
+The skill (`bootstrap/skills/setup-ddl/SKILL.md`) drives the interaction. It runs SQL via the `mssql` MCP tool, saves raw results as JSON to `.staging/`, then calls the `setup-ddl` CLI (`lib/shared/setup_ddl.py`) for deterministic file processing. The agent never processes query results inline — it acts as a relay between MCP and CLI.
 
-| Mode | Driver | SQL access | Use case |
-|---|---|---|---|
-| Interactive skill | Claude (SKILL.md) | `mssql` MCP tool | User-facing: schema selection, preview, confirmation |
-| Python CLI | `export_ddl.py` | pyodbc / ODBC Driver 18 | Automation, CI, called by skill after confirmation |
-
-The skill handles the user-facing steps (Steps 1–5). Once the user confirms, it calls `export_ddl.py --catalog` for the bulk extraction (Steps 6–7), then runs `catalog-enrich` offline (Step 8).
+```text
+User ← Agent (SKILL.md) → mssql MCP → SQL Server
+                        ↓
+                   .staging/*.json
+                        ↓
+              setup-ddl CLI (run_* functions)
+                        ↓
+              ddl/*.sql + catalog/**/*.json + manifest.json
+                        ↓
+              catalog-enrich CLI (offline AST pass)
+```
 
 ---
 
@@ -21,200 +26,169 @@ The skill handles the user-facing steps (Steps 1–5). Once the user confirms, i
 
 ### Step 1 — Select database
 
-Query `sys.databases` and present user databases. User picks one. All subsequent queries run in that database context.
+Query `sys.databases` via MCP and present user databases. User picks one. All subsequent queries run in that database context (`USE [<database>]`).
+
+If `manifest.json` already exists, the database is locked to `source_database` from the manifest — skip to Step 2.
 
 ### Step 2 — Select schemas
 
 Query `sys.schemas` joined to `sys.objects` for object counts per schema. User picks one, several, or all schemas. Schema selection filters all subsequent queries.
 
-### Step 3 — Extraction preview
+### Step 3 — Extraction preview + confirm
 
-Before writing any files, run count queries to show what will be extracted and what catalog signals are available:
+Count queries show what will be extracted and which catalog signals are available (PKs, FKs, identity columns, CDC-tracked tables). User must confirm before anything is written.
 
-```sql
--- Object counts
-SELECT SUM(CASE WHEN o.type = 'U' THEN 1 ELSE 0 END) AS tables, ... FROM sys.objects o WHERE ...
+### Step 4 — Write manifest
 
--- Catalog signal availability
-SELECT
-  (SELECT COUNT(*) FROM sys.key_constraints WHERE type = 'PK') AS pk_count,
-  (SELECT COUNT(*) FROM sys.foreign_keys) AS fk_count,
-  (SELECT COUNT(*) FROM sys.identity_columns) AS identity_count,
-  (SELECT COUNT(*) FROM sys.tables WHERE is_tracked_by_cdc = 1) AS cdc_count
-```
-
-Present as a summary table. User must confirm before anything is written. If declined, no files are written.
-
-### Step 4 — Extract DDL files
-
-Write four `.sql` files to the output directory. These are the inputs for `ddl_mcp` and sqlglot parsing:
-
-| File | Source | Method |
-|---|---|---|
-| `procedures.sql` | `sys.objects` type P | `OBJECT_DEFINITION()` |
-| `views.sql` | `sys.objects` type V | `OBJECT_DEFINITION()` |
-| `functions.sql` | `sys.objects` types FN/IF/TF | `OBJECT_DEFINITION()` |
-| `tables.sql` | `sys.tables` + `sys.columns` | Reconstructed `CREATE TABLE` from catalog |
-
-Tables use catalog reconstruction because `OBJECT_DEFINITION()` returns null for tables. Each file uses `GO` as the statement delimiter.
-
-### Step 5 — Extract catalog signals (bulk queries)
-
-Bulk `SELECT` queries against `sys.*` views. No per-table loops. Results grouped by `(schema, table)` and written as per-table JSON under `catalog/tables/<schema>.<table>.json`.
-
-| Signal | Source |
-|---|---|
-| `primary_keys` | `sys.key_constraints` + `sys.indexes` + `sys.index_columns` |
-| `unique_indexes` | `sys.indexes` (unique, non-PK) + `sys.index_columns` |
-| `foreign_keys` | `sys.foreign_keys` + `sys.foreign_key_columns` |
-| `auto_increment_columns` | `sys.identity_columns` (with `seed_value`, `increment_value` cast to BIGINT — sql_variant is not ODBC-safe) |
-| `cdc_enabled` | `sys.tables.is_tracked_by_cdc` |
-| `change_capture` | `sys.change_tracking_tables` (graceful — view may not exist) |
-| `sensitivity_classifications` | `sys.sensitivity_classifications` (graceful — requires SQL Server 2019+) |
-
-Also builds `_build_object_type_map()`: a `{normalized_fqn: "tables"|"procedures"|"views"|"functions"}` dict from `sys.objects`. Used in the next step to resolve DMF `OBJECT_OR_COLUMN` references to the correct bucket.
-
-### Step 6 — Extract references via DMF
-
-Calls `sys.dm_sql_referenced_entities` for every procedure, view, and function using a server-side cursor. One batch per object type — avoids N round-trips.
-
-```sql
-SET NOCOUNT ON;  -- suppress intermediate result sets from WHILE loop
-DECLARE @result TABLE (...);
-DECLARE cur CURSOR LOCAL FAST_FORWARD FOR
-    SELECT SCHEMA_NAME(o.schema_id), o.name FROM sys.objects o WHERE o.type = 'P' ...;
-OPEN cur; FETCH NEXT FROM cur INTO @schema, @name;
-WHILE @@FETCH_STATUS = 0
-BEGIN
-    BEGIN TRY
-        INSERT INTO @result SELECT @schema, @name, ref.* FROM sys.dm_sql_referenced_entities(...) ref;
-    END TRY BEGIN CATCH END CATCH  -- skip broken refs, don't abort
-    FETCH NEXT FROM cur INTO @schema, @name;
-END;
-CLOSE cur; DEALLOCATE cur;
-SELECT * FROM @result;
-```
-
-`SET NOCOUNT ON` is required. Without it, pyodbc sees the WHILE loop's row counts as intermediate result sets and `cursor.description` is `None` on the final `SELECT`. A `nextset()` loop advances past any remaining intermediate sets as a safety net.
-
-**Classifying `OBJECT_OR_COLUMN` references:** DMF uses `referenced_class_desc = 'OBJECT_OR_COLUMN'` for both tables and procedures called via `EXEC`. The `_build_object_type_map()` dict resolves these — proc-to-proc EXEC calls go to the `procedures` bucket, not `tables`.
-
-**Processing:**
-
-1. Group rows by referencing object.
-2. Classify each referenced entity into `tables`, `views`, `functions`, or `procedures` using `referenced_class_desc` + object type map.
-3. Detect cross-database and cross-server references (`referenced_database_name`, `referenced_server_name`) → `out_of_scope` with reason.
-4. Write per-object catalog files:
-   - `catalog/procedures/<schema>.<proc>.json` — `references` with `in_scope`/`out_of_scope` per type
-   - `catalog/views/<schema>.<view>.json`
-   - `catalog/functions/<schema>.<function>.json`
-5. Flip references: for each table/view/function in any outbound `references.*.in_scope`, add the referencing object to that target's `referenced_by` section.
-6. Write `catalog/tables/<schema>.<table>.json` merging catalog signals + flipped `referenced_by`.
-
-**Empty catalog files:** Objects with zero DMF rows (empty proc body, dynamic-SQL-only, cross-db-only references) still get catalog files — written with empty `references` arrays using the `_build_object_type_map()` key set. Tables with no constraints and no inbound refs also get files via the same map. This ensures every known object has a catalog file.
-
-**Routing flag scan:** A regex pass over all proc/view/function bodies (`OBJECT_DEFINITION()`) sets two flags in each catalog file:
-
-| Flag | Pattern(s) | Meaning |
-|---|---|---|
-| `needs_llm` | `EXEC(@var)`, `BEGIN TRY`, `WHILE`, `IF` | sqlglot cannot fully resolve — route to `discover show` / LLM |
-| `needs_enrich` | `SELECT INTO`, `TRUNCATE`, static `EXEC schema.proc` | DMF left gaps; `catalog-enrich` fills them offline |
-
-`sp_executesql` sets neither flag — DMF resolves it at definition time.
-
-After `catalog-enrich` processes a proc, `needs_enrich` is flipped to `false`. Procs with `needs_llm: true` are skipped by `catalog-enrich` (LLM must handle them via `discover show`).
-
-### Step 7 — AST enrichment (offline)
-
-After `export_ddl.py` completes, run `catalog-enrich`:
+First file written, immediately after confirmation:
 
 ```bash
-uv run --project <shared-path> catalog-enrich --project-root <project-root>
+uv run --project <shared-path> setup-ddl write-manifest \
+  --technology sql_server --database <database> --schemas <schemas>
 ```
 
-This step has no live DB dependency. It reads `procedures.sql` and the catalog files written in Steps 5–6, then augments them with references the DMF cannot detect:
+Records technology, dialect, source database, selected schemas, and extraction timestamp. Consumed by `ddl_mcp` and `discover` to set the sqlglot dialect.
+
+### Step 5 — Export procedures, views, and functions
+
+For each object type: run `OBJECT_DEFINITION()` query via MCP, save result to `.staging/<type>.json`, then call the CLI:
+
+```bash
+uv run --project <shared-path> setup-ddl assemble-modules \
+  --input .staging/procedures.json --type procedures
+```
+
+Repeat for views and functions. Each produces a GO-delimited `.sql` file in `ddl/`.
+
+### Step 6 — Export tables
+
+Tables use catalog reconstruction (columns from `sys.columns` + `sys.types`) because `OBJECT_DEFINITION()` returns null for tables. Save column metadata to `.staging/table_columns.json`, then:
+
+```bash
+uv run --project <shared-path> setup-ddl assemble-tables \
+  --input .staging/table_columns.json
+```
+
+Produces `ddl/tables.sql` with reconstructed `CREATE TABLE` statements, GO-delimited.
+
+### Step 7 — Extract catalog signals and references
+
+All remaining catalog queries run via MCP and save results to `.staging/`:
+
+| Staging file | Content |
+|---|---|
+| `pk_unique.json` | Primary keys and unique indexes |
+| `foreign_keys.json` | Foreign key constraints |
+| `identity_columns.json` | Identity columns |
+| `cdc.json` | CDC-tracked tables |
+| `change_tracking.json` | Change tracking tables (graceful — view may not exist) |
+| `sensitivity.json` | Sensitivity classifications (graceful — requires SQL Server 2019+) |
+| `object_types.json` | Object type map (`{schema, name, type}` for all objects) |
+| `definitions.json` | All proc/view/function bodies (for routing flag scan) |
+| `proc_params.json` | Procedure parameters |
+| `proc_dmf.json` | DMF refs for procedures (server-side cursor batch) |
+| `view_dmf.json` | DMF refs for views |
+| `func_dmf.json` | DMF refs for functions |
+
+DMF queries use server-side cursors to batch `sys.dm_sql_referenced_entities` calls into one result set per object type, with `BEGIN TRY / BEGIN CATCH` to skip broken refs.
+
+Once all staging files are saved, one CLI call processes everything:
+
+```bash
+uv run --project <shared-path> setup-ddl write-catalog \
+  --staging-dir .staging --database <database>
+```
+
+The `run_write_catalog` function:
+
+1. Builds table signals from column, PK, FK, identity, CDC, change tracking, and sensitivity data.
+2. Builds an object type map (`_build_object_types_map`) to resolve `OBJECT_OR_COLUMN` DMF references into the correct bucket (tables vs procedures).
+3. Scans all definitions for routing flags (`scan_routing_flags`).
+4. Calls `write_catalog_files` to write per-object catalog JSON, including reference flipping (proc outbound refs → table `referenced_by`).
+
+### Step 8 — AST enrichment (offline)
+
+No live DB dependency. Reads `ddl/procedures.sql` and catalog files, augments with references the DMF cannot detect:
+
+```bash
+uv run --project <shared-path> catalog-enrich --project-root .
+```
 
 | Gap | Why DMF misses it | AST fix |
 |---|---|---|
-| `SELECT INTO` target | Creates a new object at runtime — not in dependency metadata | sqlglot walks `exp.Into` nodes |
-| `CTAS` (CREATE TABLE AS SELECT) | Same — new object | sqlglot walks `exp.Create` with AS SELECT |
+| `SELECT INTO` target | Creates a new object at runtime | sqlglot walks `exp.Into` nodes |
+| `CTAS` | Same — new object | sqlglot walks `exp.Create` with AS SELECT |
 | `TRUNCATE` target | Not a dependency in DMF | sqlglot walks `exp.TruncateTable` |
-| Indirect writers via EXEC chains | DMF stops at the EXEC call, doesn't follow | BFS call-graph traversal |
+| Indirect writers via EXEC chains | DMF stops at the EXEC call | BFS call-graph traversal |
 
-Augmented entries are tagged `"detection": "ast_scan"` to distinguish from DMF-sourced entries.
+Augmented entries are tagged `"detection": "ast_scan"`. Dynamic SQL (`EXEC(@sql)`, `sp_executesql`) is not augmented — the target is a runtime string, unknowable offline.
 
-Dynamic SQL (`EXEC(@sql)`, `sp_executesql`) is not augmented — the target is a runtime string, unknowable offline.
+### Step 9 — Report
 
-### Step 8 — Write manifest
-
-Write `manifest.json` to the output root with technology, dialect, source database, selected schemas, and extraction timestamp. Consumed by `ddl_mcp` and `discover` to set sqlglot dialect without hardcoding.
+Summary of files written (DDL counts, catalog counts, manifest path). Tells the user they can now run `discover` or the `scoping-agent`.
 
 ---
 
 ## Output structure
 
-One project root = one source database. `manifest.json` at the root records which database was extracted; re-running `setup-ddl` in the same directory fully replaces `ddl/` and `catalog/`.
+One project root = one source database. Re-running `setup-ddl` fully replaces `ddl/` and `catalog/`.
 
 ```text
 <project-root>/
-├── tables.sql
-├── procedures.sql
-├── views.sql
-├── functions.sql
 ├── manifest.json
+├── ddl/
+│   ├── tables.sql
+│   ├── procedures.sql
+│   ├── views.sql
+│   └── functions.sql
 └── catalog/
     ├── tables/
     │   └── <schema>.<table>.json     ← signals + referenced_by
     ├── procedures/
-    │   └── <schema>.<proc>.json      ← references (+ has_dynamic_sql if flagged)
+    │   └── <schema>.<proc>.json      ← references + routing flags
     ├── views/
     │   └── <schema>.<view>.json      ← references
     └── functions/
         └── <schema>.<function>.json  ← references
 ```
 
-Every known object gets a catalog file. The `referenced_by` on a table is populated by flipping proc/view/function outbound refs — it is always present, but may have empty arrays if nothing statically references the table.
+Every known object gets a catalog file. `referenced_by` on a table is populated by flipping proc/view/function outbound refs — always present, but may have empty arrays.
 
 ---
 
-## Flags: `needs_llm` and `needs_enrich`
+## Routing flags: `needs_llm` and `needs_enrich`
 
-Both flags are written by `export_ddl.py` during the body scan pass (Step 6) and stored in the catalog file. They are mutually exclusive in intent but can both be true if a proc mixes patterns (e.g. WHILE loop + SELECT INTO).
+Written by `setup-ddl write-catalog` during the routing flag scan (`scan_routing_flags` in `catalog.py`). Stored in each proc/view/function catalog file.
 
-**`needs_llm`** — sqlglot cannot fully resolve the control flow. Set for:
+**`needs_llm`** — sqlglot cannot fully resolve the control flow:
 
-- `EXEC(@var)` — dynamic SQL; write target is a runtime string
-- `BEGIN TRY` — TRY/CATCH block; error-path DML is opaque
-- `WHILE` — loop; sqlglot emits it as an opaque `Command` node
-- `IF` — conditional branching; sqlglot `If` node is not fully walked
-
-Procs with `needs_llm: true` are skipped by `catalog-enrich`. `discover show` must be used to analyze them.
-
-**`needs_enrich`** — DMF left gaps that AST can fill. Set for:
-
-- `SELECT INTO` — creates/writes a new table at runtime; not in DMF dependency metadata
-- `TRUNCATE` — not a dependency in DMF
-- Static `EXEC schema.proc` — DMF captures the proc-to-proc call but not the indirect table writes through call chains
-
-`catalog-enrich` processes only procs where `needs_enrich: true` and `needs_llm: false`. After enrichment it flips `needs_enrich` to `false`.
-
-| Scenario | `needs_llm` | `needs_enrich` |
+| Pattern | Regex | Why |
 |---|---|---|
-| `EXEC(@sql)` | ✓ | — |
-| `BEGIN TRY` / `WHILE` / `IF` | ✓ | — |
-| `SELECT INTO` / `TRUNCATE` | — | ✓ |
-| Static `EXEC schema.proc` | — | ✓ |
-| `sp_executesql` | — | — |
-| Pure DML (`INSERT`/`UPDATE`/`MERGE`/`DELETE`) | — | — |
+| `EXEC(@var)` / `EXECUTE(@var)` | `\bEXEC(?:UTE)?\s*\(` | Dynamic SQL; write target is a runtime string |
+| `BEGIN TRY` | `\bBEGIN\s+TRY\b` | TRY/CATCH block; error-path DML is opaque |
+| `WHILE` | `\bWHILE\b` | Loop; sqlglot emits as opaque `Command` node |
+| `IF` | `\bIF\b` | Conditional branching; sqlglot `If` node not fully walked |
+
+**`needs_enrich`** — DMF left gaps that AST can fill:
+
+| Pattern | Regex | Why |
+|---|---|---|
+| `SELECT INTO` (not `INSERT INTO`) | `^(?!.*\bINSERT\b).*\bINTO\s+[\[\w#@]` (multiline) | Creates/writes a new table; not in DMF |
+| `TRUNCATE` | `\bTRUNCATE\b` | Not a dependency in DMF |
+| Static `EXEC schema.proc` | `\bEXEC(?:UTE)?\s+(?!sp_executesql\b)(?![@(])[\[\w]` | DMF captures the call but not indirect table writes |
+
+`sp_executesql` sets neither flag — DMF resolves it at definition time.
+
+`catalog-enrich` processes only entries where `needs_enrich: true` and `needs_llm: false`. After enrichment it flips `needs_enrich` to `false`. Entries with `needs_llm: true` require LLM analysis via `discover show`.
 
 ---
 
 ## Known limitations
 
-**Dynamic SQL is invisible offline.** `sys.dm_sql_referenced_entities` resolves references at definition time. `EXEC(@sql)` and `sp_executesql` with a string variable are unknowable without runtime capture (Query Store, Extended Events). These procs will have `has_dynamic_sql: true` in their catalog file. The tables they write to will have empty or incomplete `referenced_by`.
+**Dynamic SQL is invisible offline.** `sys.dm_sql_referenced_entities` resolves references at definition time. `EXEC(@sql)` and `sp_executesql` with a string variable are unknowable without runtime capture. These procs have `needs_llm: true`. Tables they write to will have empty or incomplete `referenced_by`.
 
-**Cross-database references.** DMF cannot follow references to objects in other databases. `SELECT * FROM OtherDB.dbo.T` produces no DMF rows for `OtherDB.dbo.T`. The proc catalog file will have empty `references` for these tables.
+**Cross-database references.** DMF cannot follow references to objects in other databases. These are classified as `out_of_scope` with a reason in the proc catalog file.
 
-**Broken references.** If a proc references a dropped or renamed object, DMF throws an error for that proc. The `BEGIN TRY / BEGIN CATCH` in the cursor loop skips these silently — the proc gets a catalog file with empty references and no error is raised.
+**Broken references.** If a proc references a dropped or renamed object, DMF throws an error. The `BEGIN TRY / BEGIN CATCH` in the cursor loop skips these — the proc gets a catalog file with empty references.
 
 **Stale catalog.** If DDL changes after `setup-ddl` runs, the catalog is out of date. Re-run `setup-ddl` to refresh.
