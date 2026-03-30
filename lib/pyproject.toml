@@ -22,6 +22,7 @@ packages = ["shared"]
 [project.scripts]
 catalog-enrich = "shared.catalog_enrich:app"
 discover = "shared.discover:app"
+init = "shared.init:app"
 migrate = "shared.migrate:app"
 profile = "shared.profile:app"
 setup-ddl = "shared.setup_ddl:app"
