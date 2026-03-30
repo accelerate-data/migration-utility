@@ -59,6 +59,7 @@ One project per repo. No multi-project support, no slugs, no project IDs.
 ### Directory Layout
 
 ```text
+manifest.json                  # dialect config (default: tsql)
 catalog/
   tables/
     dbo.FactSales.json         # table catalog (keys, FKs, PII, profile answers)
@@ -66,14 +67,11 @@ catalog/
   procedures/
     dbo.usp_Load_FactSales.json  # procedure catalog (statements, writer refs)
 ddl/
-  tables.sql                   # CREATE TABLE statements
+  tables.sql                   # CREATE TABLE statements (filenames are conventional — loader detects object types from CREATE statements)
   procedures.sql               # CREATE PROCEDURE bodies
   views.sql
   functions.sql
-  indexes.sql                  # CREATE INDEX + ALTER TABLE constraints
 artifacts/
-  ddl/
-    metadata.json              # source file metadata (technology, sha256, extraction datetime)
   scoping-agent/
     {run_id}.input.json        # agent input committed before dispatch
     {run_id}.json              # agent output, immutable, committed by GHA or local agent

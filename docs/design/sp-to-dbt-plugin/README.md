@@ -22,29 +22,24 @@ agent-sources/ad-migration/               ← marketplace package
 ├── CLAUDE.md                              ← shared domain context
 └── workbench/
     ├── bootstrap/                         ← plugin: init + setup + DDL extraction
-    │   ├── commands/init-ad-migration.md
+    │   ├── commands/                      ← init-ad-migration command
     │   └── skills/
     │       └── setup-ddl/                ← DDL extraction from live SQL Server
     ├── migration/                         ← plugin: analysis + migration pipeline
-    │   ├── CLAUDE.md
-    │   ├── .mcp.json
+    │   ├── agents/                        ← scoping-agent.md
     │   ├── shared/                        ← Python package (uv-managed)
-    │   │   └── shared/
-    │   │       ├── ir.py, loader.py, name_resolver.py, dialect.py
-    │   │       ├── discover.py            ← skill script
-    │   │       └── catalog.py             ← catalog JSON file I/O
+    │   │   └── shared/                    ← Python modules (see Shared Library table)
+    │   │       └── schemas/               ← JSON Schema files
     │   ├── skills/
-    │   │   ├── discover/                  ← SKILL.md + rules/
+    │   │   ├── discover/                  ← SKILL.md + references/
     │   │   ├── profile/                   ← not yet implemented
     │   │   ├── migrate/                   ← not yet implemented
     │   │   ├── test-gen/                  ← not yet implemented
     │   │   └── validate/                  ← not yet implemented
     │   ├── commands/
     │   │   └── migrate-table/             ← orchestrator (not yet implemented)
-    │   ├── ddl_mcp/
-    │   │   └── server.py                  ← DDL file MCP server
-    │   └── mssql_mcp/
-    │       └── tools.yaml                 ← live SQL Server MCP config
+    │   ├── ddl_mcp/                       ← DDL file MCP server
+    │   └── mssql_mcp/                     ← live SQL Server MCP config
     └── test-generation/                   ← plugin: dbt test generation (placeholder)
         └── CLAUDE.md
 ```
@@ -69,8 +64,9 @@ All skills import from `shared/`. Nothing in `shared/` is skill-specific.
 | `name_resolver.py` | Normalize FQN: strip brackets, lowercase, apply default schema |
 | `dialect.py` | `SqlDialect` protocol + registry keyed by string name |
 | `export_ddl.py` | DDL + catalog extraction from live SQL Server via pyodbc (`--catalog` flag) |
-| `profile.py` | Assemble profiling context from catalog files + DDL (no live DB, no LLM) |
-| `migrate.py` | Assemble migration context (profile + statements + proc body) and write generated artifacts to dbt project (no LLM, no transpile) |
+| `setup_ddl.py` | DDL setup orchestration: assemble modules, tables, manifest, and catalog from staging JSON |
+| `dmf_processing.py` | DMF row processing helpers shared by export and catalog write paths |
+| `sql_types.py` | SQL type mappings between T-SQL and target dialects |
 
 ---
 
