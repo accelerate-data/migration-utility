@@ -25,7 +25,6 @@ tests/output/
 
 # Claude Code — ignore local config, track committed skills
 .claude/worktrees/
-.local/
 
 # Environment
 .env

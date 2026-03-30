@@ -108,7 +108,7 @@
     },
     "scripts": {
       "path": "scripts/",
-      "description": "Developer scripts: link-worktree-db.sh, publish-test-db-image.sh, restore-dw-samples.sh, build-dacpac-extract.sh, sql/ (test DB creation scripts and JSON fixtures)."
+      "description": "Developer scripts: setup-worktree.sh, publish-test-db-image.sh, restore-dw-samples.sh, build-dacpac-extract.sh, sql/ (test DB creation scripts and JSON fixtures)."
     },
     "docs": {
       "path": "docs/",
