@@ -41,29 +41,10 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
-          languages: rust
+          languages: python, javascript-typescript
 
       - name: Autobuild
         uses: github/codeql-action/autobuild@v4
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v4
-
-  cargo-audit:
-    name: cargo-audit
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
-
-      - name: Run cargo audit
-        working-directory: app/src-tauri
-        run: cargo audit
