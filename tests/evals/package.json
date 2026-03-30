@@ -1,0 +1,16 @@
+{
+  "name": "@migration-utility/evals",
+  "private": true,
+  "description": "Promptfoo eval harness for agent and skill testing",
+  "scripts": {
+    "eval": "promptfoo eval",
+    "eval:scoping": "promptfoo eval -c packages/scoping/promptfooconfig.yaml",
+    "eval:profiler": "promptfoo eval -c packages/profiler/promptfooconfig.yaml",
+    "eval:migrator": "promptfoo eval -c packages/migrator/promptfooconfig.yaml",
+    "view": "promptfoo view"
+  },
+  "dependencies": {
+    "ajv": "^8.17.0",
+    "promptfoo": "^0.103.0"
+  }
+}

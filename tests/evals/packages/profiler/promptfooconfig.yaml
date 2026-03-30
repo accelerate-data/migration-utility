@@ -1,0 +1,8 @@
+description: "Profiler Package — profile skill + profiler agent"
+
+evaluateOptions:
+  maxConcurrency: 1
+
+testSuites:
+  - file://skill-profile.yaml
+  - file://agent-profiler.yaml

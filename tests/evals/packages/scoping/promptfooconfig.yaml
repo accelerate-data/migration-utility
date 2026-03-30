@@ -1,0 +1,8 @@
+description: "Scoping Package — discover show skill + scoping agent"
+
+evaluateOptions:
+  maxConcurrency: 1
+
+testSuites:
+  - file://skill-discover-show.yaml
+  - file://agent-scoping.yaml
