@@ -34,8 +34,8 @@ jobs:
             "migration/skills/"
             "migration/agents/"
             "lib/shared/"
+            "mcp/ddl/"
             "tests/unit/"
-            "tests/agents/"
           )
 
           structural_changed=false

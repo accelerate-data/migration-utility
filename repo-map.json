@@ -1,22 +1,17 @@
 {
-  "generated_at": "2026-03-30T00:00:00Z",
+  "generated_at": "2026-03-30T12:00:00Z",
   "repo_root": "migration-utility",
   "primary_languages": ["TypeScript", "Python", "Markdown"],
   "package_managers": [
     {
-      "name": "npm (tests)",
-      "lockfile": "tests/package-lock.json",
-      "manifest": "tests/package.json"
-    },
-    {
-      "name": "npm (docs)",
-      "lockfile": "docs/package-lock.json",
-      "manifest": "docs/package.json"
-    },
-    {
       "name": "uv (shared)",
       "lockfile": "lib/uv.lock",
       "manifest": "lib/pyproject.toml"
+    },
+    {
+      "name": "uv (ddl-mcp)",
+      "lockfile": "mcp/ddl/uv.lock",
+      "manifest": "mcp/ddl/pyproject.toml"
     }
   ],
   "build_systems": [
@@ -35,13 +30,12 @@
   ],
   "test_frameworks": [
     {
-      "name": "Vitest",
-      "config_files": ["tests/vitest.config.ts"],
-      "scope": "Scoping-agent integration tests (tests/agents/)"
+      "name": "pytest (shared)",
+      "scope": "Python DDL analysis tests in tests/unit/. Run via: cd lib && uv run pytest"
     },
     {
-      "name": "pytest",
-      "scope": "Python DDL analysis tests in tests/unit/. Run via: cd lib && uv run pytest"
+      "name": "pytest (ddl-mcp)",
+      "scope": "MCP DDL server tests in mcp/ddl/tests/. Run via: cd mcp/ddl && uv run pytest"
     }
   ],
   "applications": [
@@ -103,9 +97,9 @@
       "path": "tests/unit/",
       "description": "Python pytest suite: test_discover.py, test_catalog.py, test_catalog_enrich.py, test_extract_refs.py, test_setup_ddl.py, test_smoke.py, test_migrate.py, test_profile.py. Fixtures: ddl/, ddl_unparseable/, discover/flat/ (with catalog/ subdirectory), discover/unparseable/, catalog/ (table and procedure JSON fixtures), migrate/ (DDL, catalog with procedures/tables, dbt project fixture, manifest.json), profile/ (DDL, catalog with procedures/tables, manifest.json), sql/ (Docker SQL Server setup scripts)."
     },
-    "tests_scoping_agent": {
-      "path": "tests/agents/",
-      "description": "TypeScript vitest suite: scoping-agent.test.ts. Fixtures: 8 scenario directories (ambiguous-multi-writer, call-graph, error-cross-db, no-writer-found, partial, resolved, target-is-view, writer-through-view)."
+    "tests_ddl_mcp": {
+      "path": "mcp/ddl/tests/",
+      "description": "Python pytest suite for the DDL MCP server. test_server.py tests all MCP tool handlers (list_tables, get_table_schema, list_procedures, get_procedure_body, get_dependencies, list_views, get_view_body, list_functions, get_function_body)."
     },
     "scripts": {
       "path": "scripts/",
@@ -113,7 +107,7 @@
     },
     "docs": {
       "path": "docs/",
-      "description": "Documentation. Sub-directories: design/ (agent-contract, branding, overall-design, setup-ddl, sp-to-dbt-plugin, test-scenario, tsql-parse-classification, unit-test-strategy), reference/ (agent-instructions-governance, local-agent-testing, running-tests, setup-docker, test-db-image), requirements/."
+      "description": "Documentation. Sub-directories: design/ (agent-contract, branding, cli-design, overall-design, setup-ddl, sp-to-dbt-plugin, test-scenario, tsql-parse-classification, unit-test-strategy), reference/ (agent-instructions-governance, local-agent-testing, running-tests, setup-docker, test-db-image), requirements/."
     }
   },
   "key_directories": {
@@ -121,7 +115,7 @@
     "lib/": "Python DDL analysis library (uv project, sqlglot-based)",
     "lib/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
     "tests/unit/": "Python pytest tests for shared library (discover, catalog, catalog_enrich, extract_refs, integration)",
-    "tests/agents/": "TypeScript vitest tests for scoping agent",
+    "mcp/ddl/tests/": "Python pytest tests for the DDL MCP server",
     "docs/design/": "Architecture decision records and design specs",
     ".claude/rules/": "Shared agent rules (4 policy files: coding-conventions, git-workflow, logging-policy, codex-execution-policy)",
     ".claude/skills/": "Workflow playbooks for Claude Code CLI skills (5 skills)"
@@ -129,7 +123,7 @@
   "commands": {
     "test_migration_python": "cd lib && uv run pytest",
     "test_migration_python_integration": "cd lib && uv run pytest -m integration",
-    "test_scoping_agent": "cd tests && npx vitest run",
+    "test_mcp_ddl": "cd mcp/ddl && uv run pytest",
     "lint_md": "markdownlint <file>"
   },
   "conventions": {
@@ -155,7 +149,7 @@
     "ddl_filenames": "The loader auto-detects object types from CREATE statements — .sql filenames are not significant. Any directory of .sql files works.",
     "catalog_mandatory": "discover.py requires catalog/ files from setup-ddl. Errors if catalog is missing. No AST fallback.",
     "parse_errors": "sqlglot parse failures are hard errors (DdlParseError). The loader does not silently skip unparseable DDL.",
-    "python_tests": "Run from lib dir: cd lib && uv run pytest. Integration tests (Docker SQL Server): uv run pytest -m integration",
+    "python_tests": "Two pytest suites: (1) shared lib — cd lib && uv run pytest; integration tests: uv run pytest -m integration. (2) DDL MCP server — cd mcp/ddl && uv run pytest.",
     "mssql_env_vars": "Live SQL Server access requires MSSQL_HOST, MSSQL_PORT, MSSQL_DB, SA_PASSWORD exported before launching claude.",
     "update_repo_map": "Refresh this file whenever you change architecture, entrypoints, commands, modules, or package structure."
   }

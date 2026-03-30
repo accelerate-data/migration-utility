@@ -216,7 +216,7 @@ dependencies = [
 requires-dist = [
     { name = "mcp", specifier = ">=1.0" },
     { name = "pytest", specifier = ">=8.0" },
-    { name = "shared", editable = "../shared" },
+    { name = "shared", editable = "../../lib" },
     { name = "sqlglot", specifier = ">=25.0,<26" },
 ]
 
@@ -727,7 +727,7 @@ wheels = [
 [[package]]
 name = "shared"
 version = "0.1.0"
-source = { editable = "../shared" }
+source = { editable = "../../lib" }
 dependencies = [
     { name = "pydantic" },
     { name = "sqlglot" },
