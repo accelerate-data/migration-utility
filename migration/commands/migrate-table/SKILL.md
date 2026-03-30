@@ -37,7 +37,7 @@ Before starting the migration pipeline:
 #### 1a. List tables
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover list \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover list \
   --ddl-path <ddl-path> --type tables
 ```
 
@@ -46,7 +46,7 @@ If `--table` was provided, skip the picker. Otherwise, present the table list an
 #### 1b. Find writers
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover refs \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover refs \
   --ddl-path <ddl-path> --name <selected_table>
 ```
 
@@ -59,7 +59,7 @@ Present the writers list. If exactly one writer, auto-select it and confirm with
 #### 1c. Show writer details and resolve statements
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover show \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover show \
   --ddl-path <ddl-path> --name <selected_writer>
 ```
 
@@ -68,7 +68,7 @@ Check `classification`:
 - **`deterministic`**: Statements are already resolved. Persist to catalog automatically:
 
   ```bash
-  uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover write-statements \
+  uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover write-statements \
     --ddl-path <ddl-path> --name <selected_writer> --statements '<json>'
   ```
 

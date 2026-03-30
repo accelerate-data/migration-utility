@@ -45,14 +45,14 @@ Read `<ddl-path>/manifest.json` to confirm the directory is a valid DDL extracti
 
 | Subcommand | Schema |
 |---|---|
-| `list` | `shared/shared/schemas/discover_list_output.json` |
-| `show` | `shared/shared/schemas/discover_show_output.json` |
-| `refs` | `shared/shared/schemas/discover_refs_output.json` |
+| `list` | `lib/shared/schemas/discover_list_output.json` |
+| `show` | `lib/shared/schemas/discover_show_output.json` |
+| `refs` | `lib/shared/schemas/discover_refs_output.json` |
 
 ## list
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover list \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover list \
   --ddl-path <ddl-path> --type <type>
 ```
 
@@ -74,7 +74,7 @@ If the user selects an object, proceed to `show`. If they ask what references it
 ## show
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover show \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover show \
   --ddl-path <ddl-path> --name <fqn>
 ```
 
@@ -153,14 +153,14 @@ Migration Guidance
 
 #### Persisting Resolved Statements
 
-After presenting the procedure, persist resolved statements to catalog. 
+After presenting the procedure, persist resolved statements to catalog.
 
 **For deterministic procedures** (`classification: deterministic`, no `claude` actions in statements):
 
 All statements are already classified by the AST. Persist immediately after presenting Migration Guidance — no additional user confirmation needed:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover write-statements \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover write-statements \
   --ddl-path <ddl_path> --name <procedure_name> --statements '<json>'
 ```
 
@@ -177,7 +177,7 @@ No `claude` actions are written to catalog — all must be resolved before persi
 ## refs
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover refs \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover refs \
   --ddl-path <ddl-path> --name <fqn>
 ```
 

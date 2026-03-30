@@ -32,7 +32,7 @@ Test generation runs AFTER migration in the pipeline (migration is stage 3, test
 }
 ```
 
-Reference schema: `../shared/shared/schemas/test_generator_input.json`
+Reference schema: `../lib/shared/schemas/test_generator_input.json`
 
 ## Generation Strategy
 

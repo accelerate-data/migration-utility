@@ -19,11 +19,11 @@ Parse `$ARGUMENTS` for `ddl-path`, `--table`, and `--writer`. If `ddl-path` is m
 ### Step 1 -- Assemble Context (Deterministic)
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" profile context \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" profile context \
   --ddl-path <ddl-path> --table <table> --writer <writer>
 ```
 
-This reads catalog signals, writer references, proc body, column list, and related procedure context. Output is a JSON matching `shared/shared/schemas/profile_context.json`.
+This reads catalog signals, writer references, proc body, column list, and related procedure context. Output is a JSON matching `lib/shared/schemas/profile_context.json`.
 
 If exit code is non-zero, stop and report the error.
 
@@ -107,12 +107,12 @@ Wait for explicit user approval before proceeding to Step 4.
 After user approval (with any edits):
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" profile write \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" profile write \
   --ddl-path <ddl-path> --table <table> \
   --profile '<json>'
 ```
 
-The profile JSON must match the `profile_section` schema in `shared/shared/schemas/table_catalog.json`. Required fields: `status`, `writer`. All enum values must be from the allowed sets.
+The profile JSON must match the `profile_section` schema in `lib/shared/schemas/table_catalog.json`. Required fields: `status`, `writer`. All enum values must be from the allowed sets.
 
 If the write exits non-zero, report the validation errors and ask the user to correct.
 

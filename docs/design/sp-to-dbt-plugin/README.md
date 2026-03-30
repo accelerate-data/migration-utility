@@ -14,39 +14,36 @@ Deterministic Python skills that automate stored-procedure-to-dbt migration — 
 
 ## Where It Lives
 
-`ad-migration` is a Claude Code marketplace package. `workbench/` contains three plugins registered in `marketplace.json`.
+The repo root is a Claude Code marketplace package. Three plugins are registered in `.claude-plugin/marketplace.json`.
 
 ```text
-agent-sources/ad-migration/               ← marketplace package
-├── .claude-plugin/marketplace.json
-├── CLAUDE.md                              ← shared domain context
-└── workbench/
-    ├── bootstrap/                         ← plugin: init + setup + DDL extraction
-    │   ├── commands/                      ← init-ad-migration command
-    │   └── skills/
-    │       └── setup-ddl/                ← DDL extraction from live SQL Server
-    ├── migration/                         ← plugin: analysis + migration pipeline
-    │   ├── agents/                        ← scoping-agent.md
-    │   ├── shared/                        ← Python package (uv-managed)
-    │   │   └── shared/                    ← Python modules (see Shared Library table)
-    │   │       └── schemas/               ← JSON Schema files
-    │   ├── skills/
-    │   │   ├── discover/                  ← SKILL.md + references/
-    │   │   ├── profile/                   ← not yet implemented
-    │   │   ├── migrate/                   ← not yet implemented
-    │   │   ├── test-gen/                  ← not yet implemented
-    │   │   └── validate/                  ← not yet implemented
-    │   ├── commands/
-    │   │   └── migrate-table/             ← orchestrator (not yet implemented)
-    │   ├── ddl_mcp/                       ← DDL file MCP server
-    │   └── mssql_mcp/                     ← live SQL Server MCP config
-    └── test-generation/                   ← plugin: dbt test generation (placeholder)
-        └── CLAUDE.md
+.claude-plugin/marketplace.json
+├── bootstrap/                             ← plugin: init + setup + DDL extraction
+│   ├── commands/                          ← init-ad-migration command
+│   └── skills/
+│       └── setup-ddl/                    ← DDL extraction from live SQL Server
+├── migration/                             ← plugin: analysis + migration pipeline
+│   ├── agents/                            ← scoping-agent.md
+│   ├── skills/
+│   │   ├── discover/                      ← SKILL.md + references/
+│   │   ├── profile/
+│   │   ├── migrate/
+│   │   ├── test-gen/
+│   │   └── validate/
+│   └── commands/
+│       └── migrate-table/                 ← orchestrator
+├── mcp/
+│   ├── ddl/                               ← DDL file MCP server
+│   └── mssql/                             ← live SQL Server MCP config
+├── lib/                                   ← Python package (uv-managed)
+│   └── shared/                            ← Python modules (see Shared Library table)
+│       └── schemas/                       ← JSON Schema files
+└── test-generation/                       ← plugin: dbt test generation (placeholder)
 ```
 
-Tests live at `tests/ad-migration/migration/`.
+Tests live at `tests/unit/`.
 
-Each skill has a `SKILL.md` (Claude instructions) + a Python script in `shared/shared/`. The script outputs JSON to stdout. Claude runs it via `uv run`, reads the JSON, and decides next steps.
+Each skill has a `SKILL.md` (Claude instructions) + a Python script in `lib/shared/`. The script outputs JSON to stdout. Claude runs it via `uv run`, reads the JSON, and decides next steps.
 
 ---
 

@@ -21,7 +21,7 @@ Use `uv run migrate` directly for all context assembly and artifact writes — d
 
 The initial message contains two space-separated file paths: input JSON and output JSON.
 
-- **Input schema:** `../shared/shared/schemas/migrator_input.json`
+- **Input schema:** `../lib/shared/schemas/migrator_input.json`
 - **Output schema:** See `docs/design/agent-contract/migrator-agent.md` for MigrationArtifactManifest
 
 After reading the input, read `<ddl_path>/manifest.json` for `technology` and `dialect`. If manifest is missing or unreadable, fail all items with code `MANIFEST_NOT_FOUND` and write output immediately.
@@ -35,7 +35,7 @@ After reading the input, read `<ddl_path>/manifest.json` for `technology` and `d
 For each item in `items[]`, run:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" migrate context \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" migrate context \
   --table <item_id> --writer <selected_writer> --ddl-path <ddl_path>
 ```
 
@@ -98,7 +98,7 @@ Render `schema_tests` from context into `.yml`:
 ### Step 5 — Write Artifacts
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" migrate write \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" migrate write \
   --table <item_id> \
   --ddl-path <ddl_path> \
   --dbt-project-path <dbt_project_path> \

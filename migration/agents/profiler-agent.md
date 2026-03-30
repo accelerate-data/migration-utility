@@ -21,7 +21,7 @@ Use `uv run profile` directly for context assembly and catalog writes. Do not re
 
 The initial message contains two space-separated file paths: input JSON and output JSON.
 
-- **Input schema:** `../shared/shared/schemas/profiler_input.json`
+- **Input schema:** `../lib/shared/schemas/profiler_input.json`
 - **Output schema:** See Batch Output section below.
 
 After reading the input, read `<ddl_path>/manifest.json` for `technology` and `dialect`. If manifest is missing or unreadable, fail all items with `status: "error"` and write output immediately.
@@ -35,7 +35,7 @@ After reading the input, read `<ddl_path>/manifest.json` for `technology` and `d
 For each item in `items[]`, run:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" profile context \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" profile context \
   --ddl-path <ddl_path> --table <item_id> --writer <selected_writer>
 ```
 
@@ -106,7 +106,7 @@ For remaining columns:
 Run:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" profile write \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" profile write \
   --ddl-path <ddl_path> --table <item_id> \
   --profile '<json>'
 ```

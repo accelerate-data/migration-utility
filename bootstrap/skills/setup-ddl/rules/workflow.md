@@ -76,7 +76,7 @@ Individual catalog query errors (e.g. broken object references) are caught by TR
 
 ## Step 9 — Write extraction manifest
 
-Write `<output-folder>/manifest.json` with technology, dialect, source database, extracted schemas, and timestamp. See `shared/shared/schemas/manifest.json` for the schema. For SQL Server extractions, use `"technology": "sql_server"` and `"dialect": "tsql"`.
+Write `<output-folder>/manifest.json` with technology, dialect, source database, extracted schemas, and timestamp. See `lib/shared/schemas/manifest.json` for the schema. For SQL Server extractions, use `"technology": "sql_server"` and `"dialect": "tsql"`.
 
 **Tools used:** native Write tool.
 

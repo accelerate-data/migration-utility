@@ -13,8 +13,8 @@ from pathlib import Path
 import pytest
 
 SHARED_DIR = (
-    Path(__file__).parent.parent.parent.parent
-    / "agent-sources" / "ad-migration" / "workbench" / "migration" / "shared"
+    Path(__file__).parent.parent.parent
+    / "lib"
 )
 
 

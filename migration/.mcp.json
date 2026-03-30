@@ -2,7 +2,7 @@
   "mcpServers": {
     "ddl": {
       "command": "uv",
-      "args": ["run", "${CLAUDE_PLUGIN_ROOT}/ddl_mcp/server.py"],
+      "args": ["run", "${CLAUDE_PLUGIN_ROOT}/../mcp/ddl/server.py"],
       "env": {
         "DDL_PATH": "${DDL_PATH}"
       }
@@ -10,7 +10,7 @@
     "mssql": {
       "command": "toolbox",
       "args": [
-        "--tools-file", "${CLAUDE_PLUGIN_ROOT}/mssql_mcp/tools.yaml",
+        "--tools-file", "${CLAUDE_PLUGIN_ROOT}/../mcp/mssql/tools.yaml",
         "--stdio"
       ]
     }

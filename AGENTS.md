@@ -60,8 +60,8 @@ Determine what you changed, then pick the right runner:
 
 | What changed | Tests to run |
 |---|---|
-| Python shared library | `cd agent-sources/ad-migration/workbench/migration/shared && uv run pytest` |
-| Python integration (Docker SQL Server) | `cd agent-sources/ad-migration/workbench/migration/shared && uv run pytest -m integration` |
+| Python shared library | `cd lib && uv run pytest` |
+| Python integration (Docker SQL Server) | `cd lib && uv run pytest -m integration` |
 | Scoping agent | `cd tests && npx vitest run` |
 | Unsure | all of the above |
 

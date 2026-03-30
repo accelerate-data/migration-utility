@@ -25,7 +25,7 @@ Parse `$ARGUMENTS` for `ddl-path`, `--table`, and `--writer`. If `ddl-path` is m
 ## Step 1: Assemble context
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" migrate context \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" migrate context \
   --table <table_fqn> --writer <writer_fqn> --ddl-path <ddl-path>
 ```
 
@@ -232,7 +232,7 @@ If the user requests edits, apply them and re-run the equivalence check on the e
 After approval:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" migrate write \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" migrate write \
   --table <table_fqn> \
   --ddl-path <ddl-path> \
   --dbt-project-path <dbt-project-path> \

@@ -11,8 +11,8 @@ import { tmpdir } from "os";
 import path from "path";
 import { randomUUID } from "crypto";
 
-const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
-const PLUGIN_PATH = path.join(REPO_ROOT, "agent-sources", "ad-migration");
+const REPO_ROOT = path.resolve(import.meta.dirname, "../..");
+const PLUGIN_PATH = REPO_ROOT;
 const FIXTURES_ROOT = path.join(import.meta.dirname, "fixtures");
 
 export interface ScopingInput {

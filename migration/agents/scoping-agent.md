@@ -21,8 +21,8 @@ Use `uv run discover` directly for all analysis — do not invoke the discover s
 
 The initial message contains two space-separated file paths: input JSON and output JSON.
 
-- **Input schema:** `../shared/shared/schemas/scope_input.json`
-- **Output schema:** `../shared/shared/schemas/candidate_writers.json`
+- **Input schema:** `../lib/shared/schemas/scope_input.json`
+- **Output schema:** `../lib/shared/schemas/candidate_writers.json`
 
 After reading the input, read `<ddl_path>/manifest.json` for `technology` and `dialect`. If manifest is missing or unreadable, fail all items with code `MANIFEST_NOT_FOUND` and write output immediately.
 
@@ -35,7 +35,7 @@ After reading the input, read `<ddl_path>/manifest.json` for `technology` and `d
 For each item in `items[]`, run:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover refs \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover refs \
   --ddl-path <ddl_path> --name <item_id>
 ```
 
@@ -96,7 +96,7 @@ For each resolved item:
 Run:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover write-statements \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover write-statements \
   --ddl-path <ddl_path> --name <selected_writer> --statements '<json>'
 ```
 

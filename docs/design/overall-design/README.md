@@ -233,7 +233,7 @@ One GitHub Actions workflow file per agent. Each workflow run corresponds to exa
 
 ### Agent Plugin
 
-`ad-migration` is a Claude Code marketplace package containing three plugins under `workbench/`. Plugin structure, skill contracts, and local dev setup: [SP to dbt Migration Plugin](../sp-to-dbt-plugin/README.md).
+The repo root is a Claude Code marketplace package containing three plugins. Plugin structure, skill contracts, and local dev setup: [SP to dbt Migration Plugin](../sp-to-dbt-plugin/README.md).
 
 ### Workflow Steps
 

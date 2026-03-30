@@ -13,7 +13,7 @@ dependencies = [
 dev = []
 
 [tool.uv.sources]
-shared = { path = "../shared", editable = true }
+shared = { path = "../../lib", editable = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

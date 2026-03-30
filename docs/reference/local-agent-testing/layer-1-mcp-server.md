@@ -39,10 +39,10 @@ toolbox --version
 
 ## Step 2: Locate `tools.yaml`
 
-The canonical config is checked into the repo at `agent-sources/plugins/ad-migration/mssql_mcp/tools.yaml`.
+The canonical config is checked into the repo at `mcp/mssql/tools.yaml`.
 
 ```text
-agent-sources/plugins/ad-migration/mssql_mcp/tools.yaml   ← single source of truth (local + GH Actions)
+mcp/mssql/tools.yaml   ← single source of truth (local + GH Actions)
 ```
 
 The file uses `${ENV_NAME}` placeholders for all connection details. No secrets are
@@ -55,11 +55,11 @@ stored in the file.
 First, verify `toolbox` starts correctly from the repo root:
 
 ```bash
-toolbox --stdio --tools-file agent-sources/plugins/ad-migration/mssql_mcp/tools.yaml
+toolbox --stdio --tools-file mcp/mssql/tools.yaml
 # Should hang waiting for stdin input — that means it started correctly. Ctrl-C to exit.
 ```
 
-If that works, the MCP config lives in the plugin at `agent-sources/plugins/ad-migration/.mcp.json`.
+If that works, the MCP config lives in the plugin at `migration/.mcp.json`.
 Fill in your password locally — the pre-commit hook will block any commit that includes secrets:
 
 ```bash

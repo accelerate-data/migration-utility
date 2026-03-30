@@ -6,7 +6,7 @@
 # ]
 #
 # [tool.uv.sources]
-# shared = { path = "../shared" }
+# shared = { path = "../../lib" }
 # ///
 """DDL file MCP server.
 
