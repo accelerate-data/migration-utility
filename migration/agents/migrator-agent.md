@@ -100,7 +100,6 @@ Render `schema_tests` from context into `.yml`:
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" migrate write \
   --table <item_id> \
-  --dbt-project-path <dbt_project_path> \
   --model-sql '<generated_sql>' \
   --schema-yml '<generated_yml>'
 ```
@@ -110,7 +109,7 @@ If write fails, record `status: "error"` and continue.
 ### Step 6 — Validate with dbt compile
 
 ```bash
-cd <dbt_project_path> && dbt compile --select <model_name>
+cd "${DBT_PROJECT_PATH:-./dbt}" && dbt compile --select <model_name>
 ```
 
 If compile succeeds, record `execution.dbt_compile_passed: true`.

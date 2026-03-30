@@ -45,6 +45,7 @@ from shared.loader import (
     extract_refs,
     load_ddl,
 )
+from shared.env_config import resolve_project_root
 from shared.name_resolver import normalize
 
 logger = logging.getLogger(__name__)
@@ -347,8 +348,7 @@ def list_objects(
     type: ObjectType = typer.Option(..., help="Object type to list"),
 ) -> None:
     """List all objects of a given type in a DDL directory."""
-    if project_root is None:
-        project_root = Path.cwd()
+    project_root = resolve_project_root(project_root)
     try:
         result = run_list(project_root, type)
     except (CatalogFileMissingError, ObjectNotFoundError) as exc:
@@ -366,8 +366,7 @@ def show(
     name: str = typer.Option(..., help="Fully-qualified object name (schema.Name)"),
 ) -> None:
     """Show details for a single named DDL object."""
-    if project_root is None:
-        project_root = Path.cwd()
+    project_root = resolve_project_root(project_root)
     try:
         result = run_show(project_root, name)
     except (CatalogFileMissingError, ObjectNotFoundError) as exc:
@@ -385,8 +384,7 @@ def refs(
     name: str = typer.Option(..., help="Fully-qualified object name (schema.Name)"),
 ) -> None:
     """Find all procedures/views that reference a given object."""
-    if project_root is None:
-        project_root = Path.cwd()
+    project_root = resolve_project_root(project_root)
     try:
         result = run_refs(project_root, name)
     except (CatalogFileMissingError, ObjectNotFoundError) as exc:
@@ -405,8 +403,7 @@ def write_statements(
     statements: str = typer.Option(..., help="JSON array of resolved statement objects"),
 ) -> None:
     """Persist resolved statements into a procedure catalog file."""
-    if project_root is None:
-        project_root = Path.cwd()
+    project_root = resolve_project_root(project_root)
     try:
         stmts = json.loads(statements)
     except json.JSONDecodeError as exc:

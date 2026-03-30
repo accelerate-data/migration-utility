@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from shared.dmf_processing import empty_scoped
+from shared.env_config import resolve_catalog_dir
 from shared.name_resolver import fqn_parts, normalize
 
 # ── Routing flag patterns ────────────────────────────────────────────────────
@@ -82,7 +83,7 @@ _NEEDS_ENRICH_RE = re.compile(
 
 
 def _catalog_dir(project_root: Path) -> Path:
-    return project_root / "catalog"
+    return resolve_catalog_dir(project_root)
 
 
 def _object_path(project_root: Path, object_type: str, fqn: str) -> Path:

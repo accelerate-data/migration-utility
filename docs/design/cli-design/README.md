@@ -68,10 +68,10 @@ Requires a `catalog/` directory (from `setup-ddl`). Exits with code `2` if missi
 
 | Subcommand | Key options | Returns |
 |---|---|---|
-| `assemble-modules` | `--input`, `--output-folder`, `--type {procedures,views,functions}` | `{"file": ..., "count": N}` |
-| `assemble-tables` | `--input`, `--output-folder` | `{"file": ..., "count": N}` |
-| `write-catalog` | `--staging-dir`, `--output-folder`, `--database` | Count summary JSON |
-| `write-manifest` | `--output-folder`, `--technology`, `--database`, `--schemas` | `{"file": ...}` |
+| `assemble-modules` | `--input`, `--project-root` (optional, defaults to CWD), `--type {procedures,views,functions}` | `{"file": ..., "count": N}` |
+| `assemble-tables` | `--input`, `--project-root` (optional, defaults to CWD) | `{"file": ..., "count": N}` |
+| `write-catalog` | `--staging-dir`, `--project-root` (optional, defaults to CWD), `--database` | Count summary JSON |
+| `write-manifest` | `--project-root` (optional, defaults to CWD), `--technology`, `--database`, `--schemas` | `{"file": ...}` |
 
 ### `catalog-enrich`
 

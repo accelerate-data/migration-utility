@@ -33,6 +33,7 @@ from shared.loader import (
     extract_refs,
     load_directory,
 )
+from shared.env_config import resolve_project_root
 from shared.name_resolver import fqn_parts, normalize
 
 logger = logging.getLogger(__name__)
@@ -310,8 +311,7 @@ def main(
     dialect: str = typer.Option("tsql", help="SQL dialect"),
 ) -> None:
     """Augment catalog files with AST-derived references."""
-    if project_root is None:
-        project_root = Path.cwd()
+    project_root = resolve_project_root(project_root)
     logging.basicConfig(
         level=logging.INFO,
         format="%(name)s: %(message)s",

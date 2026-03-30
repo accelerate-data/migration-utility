@@ -5,19 +5,20 @@ performs deterministic processing — assembling DDL files, writing catalog JSON
 or producing the extraction manifest.
 
 Usage (via uv):
-    uv run --project <shared> setup-ddl assemble-modules --input <json> --output-folder <dir> --type procedures
-    uv run --project <shared> setup-ddl assemble-tables --input <json> --output-folder <dir>
-    uv run --project <shared> setup-ddl write-catalog --staging-dir <dir> --output-folder <dir> --database <name>
-    uv run --project <shared> setup-ddl write-manifest --output-folder <dir> --technology sql_server --database <name> --schemas bronze,silver
+    uv run --project <shared> setup-ddl assemble-modules --input <json> --project-root <dir> --type procedures
+    uv run --project <shared> setup-ddl assemble-tables --input <json> --project-root <dir>
+    uv run --project <shared> setup-ddl write-catalog --staging-dir <dir> --project-root <dir> --database <name>
+    uv run --project <shared> setup-ddl write-manifest --project-root <dir> --technology sql_server --database <name> --schemas bronze,silver
 """
 
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import typer
 
@@ -57,10 +58,15 @@ def _read_json_optional(path: Path) -> Any:
 @app.command("assemble-modules")
 def assemble_modules(
     input: Path = typer.Option(..., help="JSON file with [{schema_name, object_name, definition}]"),
-    output_folder: Path = typer.Option(..., help="Output directory"),
+    project_root: Optional[Path] = typer.Option(
+        None, "--project-root",
+        help="Project root containing ddl/, catalog/, manifest.json (defaults to CWD)"
+    ),
     type: str = typer.Option(..., help="Object type: procedures, views, or functions"),
 ) -> None:
     """Assemble a GO-delimited .sql file from OBJECT_DEFINITION results."""
+    if project_root is None:
+        project_root = Path.cwd()
     if type not in ("procedures", "views", "functions"):
         typer.echo(f"Invalid type: {type}. Must be procedures, views, or functions.", err=True)
         raise typer.Exit(1)
@@ -72,7 +78,7 @@ def assemble_modules(
         if definition:
             blocks.append(definition.strip())
 
-    ddl_dir = output_folder / "ddl"
+    ddl_dir = project_root / "ddl"
     ddl_dir.mkdir(parents=True, exist_ok=True)
     out_path = ddl_dir / f"{type}.sql"
     out_path.write_text(
@@ -89,9 +95,14 @@ def assemble_modules(
 @app.command("assemble-tables")
 def assemble_tables(
     input: Path = typer.Option(..., help="JSON file with column metadata rows"),
-    output_folder: Path = typer.Option(..., help="Output directory"),
+    project_root: Optional[Path] = typer.Option(
+        None, "--project-root",
+        help="Project root containing ddl/, catalog/, manifest.json (defaults to CWD)"
+    ),
 ) -> None:
     """Build CREATE TABLE statements from sys.columns metadata and write tables.sql."""
+    if project_root is None:
+        project_root = Path.cwd()
     rows = _read_json(input)
 
     # Group by (schema_name, table_name)
@@ -122,7 +133,7 @@ def assemble_tables(
         ddl = f"CREATE TABLE [{schema_name}].[{table_name}] (\n" + ",\n".join(col_defs) + "\n)"
         blocks.append(ddl)
 
-    ddl_dir = output_folder / "ddl"
+    ddl_dir = project_root / "ddl"
     ddl_dir.mkdir(parents=True, exist_ok=True)
     out_path = ddl_dir / "tables.sql"
     out_path.write_text(
@@ -288,7 +299,10 @@ def _build_proc_params(proc_params_rows: list) -> dict[str, list[dict[str, Any]]
 @app.command("write-catalog")
 def write_catalog(
     staging_dir: Path = typer.Option(..., help="Directory with staging JSON files from MCP queries"),
-    output_folder: Path = typer.Option(..., help="DDL output directory (catalog/ written here)"),
+    project_root: Optional[Path] = typer.Option(
+        None, "--project-root",
+        help="Project root containing ddl/, catalog/, manifest.json (defaults to CWD)"
+    ),
     database: str = typer.Option(..., help="Source database name"),
 ) -> None:
     """Process staging JSON files and write all catalog JSON files.
@@ -300,6 +314,8 @@ def write_catalog(
       proc_params.json (optional),
       proc_dmf.json, view_dmf.json, func_dmf.json
     """
+    if project_root is None:
+        project_root = Path.cwd()
     from shared.catalog import scan_routing_flags
     from shared.catalog_dmf import write_catalog_files
 
@@ -333,8 +349,14 @@ def write_catalog(
     proc_params = _build_proc_params(proc_params_rows)
 
     # ── Write catalog files ───────────────────────────────────────────────
+    for subdir in ("tables", "procedures", "views", "functions"):
+        d = project_root / "catalog" / subdir
+        if d.exists():
+            shutil.rmtree(d)
+        d.mkdir(parents=True, exist_ok=True)
+
     counts = write_catalog_files(
-        output_folder,
+        project_root,
         table_signals=table_signals,
         proc_dmf_rows=proc_dmf_rows,
         view_dmf_rows=view_dmf_rows,
@@ -353,12 +375,17 @@ def write_catalog(
 
 @app.command("write-manifest")
 def write_manifest(
-    output_folder: Path = typer.Option(..., help="DDL output directory"),
+    project_root: Optional[Path] = typer.Option(
+        None, "--project-root",
+        help="Project root containing ddl/, catalog/, manifest.json (defaults to CWD)"
+    ),
     technology: str = typer.Option(..., help="Source technology: sql_server, fabric_warehouse, fabric_lakehouse, snowflake"),
     database: str = typer.Option(..., help="Source database name"),
     schemas: str = typer.Option(..., help="Comma-separated list of extracted schemas"),
 ) -> None:
-    """Write manifest.json to the output folder."""
+    """Write manifest.json to the project root."""
+    if project_root is None:
+        project_root = Path.cwd()
     if technology not in _TECH_DIALECT:
         typer.echo(f"Unknown technology: {technology}. Must be one of {list(_TECH_DIALECT.keys())}.", err=True)
         raise typer.Exit(1)
@@ -372,8 +399,8 @@ def write_manifest(
         "extracted_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    output_folder.mkdir(parents=True, exist_ok=True)
-    out_path = output_folder / "manifest.json"
+    project_root.mkdir(parents=True, exist_ok=True)
+    out_path = project_root / "manifest.json"
     out_path.write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",

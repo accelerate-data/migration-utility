@@ -22,6 +22,7 @@ from shared.loader_parse import (
     parse_block,
     split_blocks,
 )
+from shared.env_config import resolve_catalog_dir, resolve_ddl_dir
 from shared.name_resolver import normalize
 
 logger = logging.getLogger(__name__)
@@ -106,7 +107,7 @@ def load_directory(project_root: Path | str, dialect: str = "tsql") -> DdlCatalo
     if not path.exists():
         raise FileNotFoundError(f"Project root does not exist: {path}")
 
-    ddl_dir = path / "ddl"
+    ddl_dir = resolve_ddl_dir(path)
     if not ddl_dir.is_dir():
         raise FileNotFoundError(f"ddl/ subdirectory does not exist: {ddl_dir}")
 
@@ -212,7 +213,7 @@ def load_ddl(project_root: Path) -> tuple[DdlCatalog, str]:
     """
     manifest = read_manifest(project_root)
     dialect = manifest["dialect"]
-    catalog_dir = project_root / "catalog"
+    catalog_dir = resolve_catalog_dir(project_root)
     if not catalog_dir.is_dir() or not any(catalog_dir.rglob("*.json")):
         logger.error("event=load_ddl operation=check_catalog project_root=%s reason=no_catalog_directory", project_root)
         raise CatalogNotFoundError(project_root)

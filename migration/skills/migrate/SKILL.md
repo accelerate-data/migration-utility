@@ -234,10 +234,11 @@ After approval:
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" migrate write \
   --table <table_fqn> \
-  --dbt-project-path <dbt-project-path> \
   --model-sql '<generated_sql>' \
   --schema-yml '<generated_yml>'
 ```
+
+The dbt project path is resolved automatically from `$DBT_PROJECT_PATH` or defaults to `./dbt` relative to the project root. Pass `--dbt-project-path <path>` only if you need to override this.
 
 Report the written file paths to the user.
 
