@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import typer
 
@@ -289,9 +289,11 @@ def run_write(
 def context(
     table: str = typer.Option(..., help="Fully-qualified target table name (schema.table)"),
     writer: str = typer.Option(..., help="Fully-qualified writer procedure name (schema.proc)"),
-    project_root: Path = typer.Option(..., "--project-root", help="Path to project root directory"),
+    project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
 ) -> None:
     """Assemble migration context from catalog + DDL."""
+    if project_root is None:
+        project_root = Path.cwd()
     try:
         result = run_context(project_root, table, writer)
     except (CatalogFileMissingError, ProfileMissingError) as exc:
@@ -306,12 +308,14 @@ def context(
 @app.command()
 def write(
     table: str = typer.Option(..., help="Fully-qualified target table name (schema.table)"),
-    project_root: Path = typer.Option(..., "--project-root", help="Path to project root directory"),
+    project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
     dbt_project_path: Path = typer.Option(..., help="Path to dbt project root"),
     model_sql: str = typer.Option(..., help="Generated dbt model SQL"),
     schema_yml: str = typer.Option("", help="Generated schema YAML"),
 ) -> None:
     """Write generated dbt model SQL + schema YAML to dbt project."""
+    if project_root is None:
+        project_root = Path.cwd()
     try:
         result = run_write(table, project_root, dbt_project_path, model_sql, schema_yml)
     except ValueError as exc:

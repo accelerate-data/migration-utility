@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import typer
 
@@ -274,11 +274,13 @@ def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> d
 
 @app.command()
 def context(
-    project_root: Path = typer.Option(..., "--project-root", help="Path to project root directory"),
+    project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
     table: str = typer.Option(..., help="Fully-qualified table name (schema.Name)"),
     writer: str = typer.Option(..., help="Fully-qualified writer procedure name"),
 ) -> None:
     """Assemble profiling context for a table + writer pair."""
+    if project_root is None:
+        project_root = Path.cwd()
     try:
         result = run_context(project_root, table, writer)
     except CatalogFileMissingError as exc:
@@ -292,11 +294,13 @@ def context(
 
 @app.command()
 def write(
-    project_root: Path = typer.Option(..., "--project-root", help="Path to project root directory"),
+    project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
     table: str = typer.Option(..., help="Fully-qualified table name (schema.Name)"),
     profile: str = typer.Option(..., help="Profile JSON string"),
 ) -> None:
     """Validate and merge a profile section into a table catalog file."""
+    if project_root is None:
+        project_root = Path.cwd()
     try:
         profile_data = json.loads(profile)
     except json.JSONDecodeError as exc:

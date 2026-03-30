@@ -17,8 +17,8 @@ Usage (stdio mode):
     uv run server.py
 
 DDL path resolution order (first wins):
-    1. `project_root` parameter passed in the tool call arguments
-    2. `DDL_PATH` environment variable
+    1. `DDL_PATH` environment variable
+    2. Current working directory
 
 The resolved path must point to a directory containing one or more .sql files
 with GO-delimited CREATE statements.  Object types (table, procedure, view,
@@ -41,29 +41,21 @@ server = Server("ddl-mcp")
 
 _catalog_cache: dict[Path, DdlCatalog] = {}
 
-_DDL_PATH_SCHEMA = {
-    "project_root": {
-        "type": "string",
-        "description": (
-            "Absolute path to the project root directory (contains ddl/, catalog/, manifest.json). "
-            "Overrides the DDL_PATH environment variable when provided."
-        ),
-    }
-}
+_DDL_PATH_SCHEMA: dict = {}
 
 
 # ── Path helpers ──────────────────────────────────────────────────────────────
 
-def _project_root(override: str | None = None) -> Path:
-    raw = (override or os.environ.get("DDL_PATH", "")).strip()
-    if not raw:
-        raise ValueError(
-            "Project root is not set. Pass project_root in tool arguments or set the "
-            "DDL_PATH environment variable."
-        )
-    p = Path(raw)
+def _project_root() -> Path:
+    raw = os.environ.get("DDL_PATH", "").strip()
+    p = Path(raw) if raw else Path.cwd()
     if not p.exists():
         raise FileNotFoundError(f"Project root does not exist: {p}")
+    manifest = p / "manifest.json"
+    if not manifest.exists():
+        raise FileNotFoundError(
+            f"manifest.json not found in {p}. Run setup-ddl first or set DDL_PATH."
+        )
     return p
 
 
@@ -233,7 +225,7 @@ async def list_tools() -> list[types.Tool]:
 
 @server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
-    project_root = _project_root(arguments.get("project_root"))
+    project_root = _project_root()
     catalog = _catalog(project_root)
 
     if name == "list_tables":

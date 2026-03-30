@@ -3,7 +3,7 @@ name: profile
 description: >
   Profile a single table for migration. Assembles deterministic context from catalog and DDL, reasons over the six profiling questions using what-to-profile-and-why.md, presents profile candidates for user approval, then writes the approved profile into the table catalog file. Use when the user asks to "profile a table", "classify a table", "what kind of model is this table", or wants to determine PK, FK, watermark, or PII for a migration target.
 user-invocable: true
-argument-hint: "[project-root] --table <table> --writer <writer>"
+argument-hint: "--table <table> --writer <writer>"
 ---
 
 # Profile
@@ -12,11 +12,11 @@ Profile a single table for migration by assembling context, reasoning over six p
 
 ## Arguments
 
-Parse `$ARGUMENTS` for `project-root`, `--table`, and `--writer`. If `project-root` is missing, default to the current working directory. Use `AskUserQuestion` to confirm the resolved path, table, and writer before proceeding.
+Parse `$ARGUMENTS` for `--table` and `--writer`. Use `AskUserQuestion` if either is missing.
 
 ## Before invoking any subcommand
 
-Read `<project-root>/manifest.json` to confirm a valid project root. If missing, stop and tell the user to run `setup-ddl` first.
+Read `manifest.json` from the current working directory to confirm a valid project root. If missing, stop and tell the user to run `setup-ddl` first.
 
 ## Pipeline
 
@@ -24,7 +24,7 @@ Read `<project-root>/manifest.json` to confirm a valid project root. If missing,
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" profile context \
-  --project-root <project-root> --table <table> --writer <writer>
+  --table <table> --writer <writer>
 ```
 
 This reads catalog signals, writer references, proc body, column list, and related procedure context. Output is a JSON matching `lib/shared/schemas/profile_context.json`.
@@ -112,7 +112,7 @@ After user approval (with any edits):
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" profile write \
-  --project-root <project-root> --table <table> \
+  --table <table> \
   --profile '<json>'
 ```
 

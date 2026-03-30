@@ -13,7 +13,7 @@ import re
 import sys
 from collections import deque
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import typer
 
@@ -306,10 +306,12 @@ def enrich_catalog(project_root: Path, dialect: str = "tsql") -> dict[str, Any]:
 
 @app.command()
 def main(
-    project_root: Path = typer.Option(..., "--project-root", help="Root artifacts directory containing ddl/, catalog/, and manifest.json"),
+    project_root: Optional[Path] = typer.Option(None, "--project-root", help="Root artifacts directory containing ddl/, catalog/, and manifest.json (defaults to current working directory)"),
     dialect: str = typer.Option("tsql", help="SQL dialect"),
 ) -> None:
     """Augment catalog files with AST-derived references."""
+    if project_root is None:
+        project_root = Path.cwd()
     logging.basicConfig(
         level=logging.INFO,
         format="%(name)s: %(message)s",

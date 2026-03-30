@@ -23,7 +23,7 @@ import json
 import logging
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import typer
 
@@ -343,10 +343,12 @@ def run_refs(project_root: Path, name: str) -> dict[str, Any]:
 
 @app.command(name="list")
 def list_objects(
-    project_root: Path = typer.Option(..., "--project-root", help="Path to project root directory"),
+    project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
     type: ObjectType = typer.Option(..., help="Object type to list"),
 ) -> None:
     """List all objects of a given type in a DDL directory."""
+    if project_root is None:
+        project_root = Path.cwd()
     try:
         result = run_list(project_root, type)
     except (CatalogFileMissingError, ObjectNotFoundError) as exc:
@@ -360,10 +362,12 @@ def list_objects(
 
 @app.command()
 def show(
-    project_root: Path = typer.Option(..., "--project-root", help="Path to project root directory"),
+    project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
     name: str = typer.Option(..., help="Fully-qualified object name (schema.Name)"),
 ) -> None:
     """Show details for a single named DDL object."""
+    if project_root is None:
+        project_root = Path.cwd()
     try:
         result = run_show(project_root, name)
     except (CatalogFileMissingError, ObjectNotFoundError) as exc:
@@ -377,10 +381,12 @@ def show(
 
 @app.command()
 def refs(
-    project_root: Path = typer.Option(..., "--project-root", help="Path to project root directory"),
+    project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
     name: str = typer.Option(..., help="Fully-qualified object name (schema.Name)"),
 ) -> None:
     """Find all procedures/views that reference a given object."""
+    if project_root is None:
+        project_root = Path.cwd()
     try:
         result = run_refs(project_root, name)
     except (CatalogFileMissingError, ObjectNotFoundError) as exc:
@@ -394,11 +400,13 @@ def refs(
 
 @app.command(name="write-statements")
 def write_statements(
-    project_root: Path = typer.Option(..., "--project-root", help="Path to project root directory"),
+    project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
     name: str = typer.Option(..., help="Fully-qualified procedure name (schema.Name)"),
     statements: str = typer.Option(..., help="JSON array of resolved statement objects"),
 ) -> None:
     """Persist resolved statements into a procedure catalog file."""
+    if project_root is None:
+        project_root = Path.cwd()
     try:
         stmts = json.loads(statements)
     except json.JSONDecodeError as exc:

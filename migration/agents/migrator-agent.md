@@ -24,7 +24,7 @@ The initial message contains two space-separated file paths: input JSON and outp
 - **Input schema:** `../lib/shared/schemas/migrator_input.json`
 - **Output schema:** See `docs/design/agent-contract/migrator-agent.md` for MigrationArtifactManifest
 
-After reading the input, read `<project_root>/manifest.json` for `technology` and `dialect`. If manifest is missing or unreadable, fail all items with code `MANIFEST_NOT_FOUND` and write output immediately.
+After reading the input, read `manifest.json` from the current working directory for `technology` and `dialect`. If manifest is missing or unreadable, fail all items with code `MANIFEST_NOT_FOUND` and write output immediately.
 
 ---
 
@@ -36,7 +36,7 @@ For each item in `items[]`, run:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" migrate context \
-  --table <item_id> --writer <selected_writer> --project-root <project_root>
+  --table <item_id> --writer <selected_writer>
 ```
 
 Parse the JSON output. If the command fails (exit code 1 or 2), record `status: "error"` with the error message and continue to the next item.
@@ -100,7 +100,6 @@ Render `schema_tests` from context into `.yml`:
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" migrate write \
   --table <item_id> \
-  --project-root <project_root> \
   --dbt-project-path <dbt_project_path> \
   --model-sql '<generated_sql>' \
   --schema-yml '<generated_yml>'
