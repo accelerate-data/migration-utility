@@ -1,22 +1,17 @@
 {
-  "generated_at": "2026-03-29T15:20:00Z",
+  "generated_at": "2026-03-30T12:00:00Z",
   "repo_root": "migration-utility",
   "primary_languages": ["TypeScript", "Python", "Markdown"],
   "package_managers": [
     {
-      "name": "npm (tests)",
-      "lockfile": "tests/package-lock.json",
-      "manifest": "tests/package.json"
-    },
-    {
-      "name": "npm (docs)",
-      "lockfile": "docs/package-lock.json",
-      "manifest": "docs/package.json"
-    },
-    {
       "name": "uv (shared)",
-      "lockfile": "agent-sources/ad-migration/workbench/migration/shared/uv.lock",
-      "manifest": "agent-sources/ad-migration/workbench/migration/shared/pyproject.toml"
+      "lockfile": "lib/uv.lock",
+      "manifest": "lib/pyproject.toml"
+    },
+    {
+      "name": "uv (ddl-mcp)",
+      "lockfile": "mcp/ddl/uv.lock",
+      "manifest": "mcp/ddl/pyproject.toml"
     }
   ],
   "build_systems": [
@@ -30,100 +25,105 @@
         ".github/workflows/dependabot-automerge.yml",
         ".github/workflows/docs.yml"
       ],
-      "notes": "ci.yml: repo-map audit on PRs. docs.yml: VitePress deploy."
+      "notes": "ci.yml: repo-map audit on PRs."
     }
   ],
   "test_frameworks": [
     {
-      "name": "Vitest",
-      "config_files": ["tests/vitest.config.ts"],
-      "scope": "Scoping-agent integration tests (tests/ad-migration/scoping-agent/)"
+      "name": "pytest (shared)",
+      "scope": "Python DDL analysis tests in tests/unit/. Run via: cd lib && uv run pytest"
     },
     {
-      "name": "pytest",
-      "scope": "Python DDL analysis tests in tests/ad-migration/migration/. Run via: cd agent-sources/ad-migration/workbench/migration/shared && uv run pytest"
+      "name": "pytest (ddl-mcp)",
+      "scope": "MCP DDL server tests in mcp/ddl/tests/. Run via: cd mcp/ddl && uv run pytest"
     }
   ],
   "applications": [
     {
       "name": "ad-migration plugin",
       "type": "Claude Code plugin (marketplace)",
-      "description": "DDL analysis and migration pipeline. Three sub-plugins: bootstrap, migration, test-generation. Loaded via: claude --plugin-dir agent-sources/ad-migration"
+      "description": "DDL analysis and migration pipeline. Three sub-plugins: bootstrap, migration, test-generation. Loaded via: claude --plugin-dir ."
     }
   ],
   "entrypoints": {
-    "ddl_mcp_server": "agent-sources/ad-migration/workbench/migration/ddl_mcp/server.py",
-    "discover_cli": "agent-sources/ad-migration/workbench/migration/shared/shared/discover.py",
-    "catalog_enrich_cli": "agent-sources/ad-migration/workbench/migration/shared/shared/catalog_enrich.py"
+    "ddl_mcp_server": "mcp/ddl/server.py",
+    "discover_cli": "lib/shared/discover.py",
+    "catalog_enrich_cli": "lib/shared/catalog_enrich.py",
+    "migrate_cli": "lib/shared/migrate.py",
+    "profile_cli": "lib/shared/profile.py"
   },
   "modules": {
     "plugin_marketplace": {
-      "path": "agent-sources/ad-migration/.claude-plugin/marketplace.json",
+      "path": ".claude-plugin/marketplace.json",
       "description": "Plugin marketplace manifest defining 3 sub-plugins: bootstrap, migration, test-generation. Each plugin has a 'source' key pointing to its workbench directory."
     },
     "plugin_bootstrap": {
-      "path": "agent-sources/ad-migration/workbench/bootstrap/",
-      "description": "Bootstrap sub-plugin. Commands: commands/init-ad-migration.md (prerequisite checker and installer). Skills: skills/setup-ddl/ (DDL extraction from live SQL Server with catalog signals, DMF references, and AST enrichment)."
+      "path": "bootstrap/",
+      "description": "Bootstrap sub-plugin. Commands: commands/init-ad-migration.md (prerequisite checker and installer), commands/init-dbt.md (dbt project scaffolding with adapter selection and sources.yml generation). Skills: skills/setup-ddl/ (DDL extraction from live SQL Server with catalog signals, DMF references, and AST enrichment)."
     },
     "plugin_migration": {
-      "path": "agent-sources/ad-migration/workbench/migration/",
-      "description": "Migration sub-plugin. Contains shared Python library, DDL MCP server, MSSQL MCP config, skills, and agents."
+      "path": "migration/",
+      "description": "Migration sub-plugin. Contains skills, agents, and commands for the migration workflow."
     },
     "shared_python": {
-      "path": "agent-sources/ad-migration/workbench/migration/shared/shared/",
-      "description": "Python library for DDL analysis. Modules: loader.py (DDL parsing, sqlglot AST, GO-delimited block splitting), discover.py (catalog-mandatory list/show/refs CLI), catalog.py (catalog JSON I/O, routing flags, DMF row processing, flip_references), catalog_dmf.py (write_catalog_files orchestration), catalog_enrich.py (offline AST enrichment CLI — BFS call graph, SELECT INTO/TRUNCATE detection), export_ddl.py (SQL Server DDL export with --catalog flag, table signals, DMF extraction), setup_ddl.py (DDL setup orchestration), dmf_processing.py (DMF row processing helpers), sql_types.py (SQL type mappings), ir.py (intermediate representation), dialect.py (sqlglot dialect registry), name_resolver.py (FQN normalization)."
+      "path": "lib/shared/",
+      "description": "Python library for DDL analysis. Modules: loader.py (DDL parsing, sqlglot AST, GO-delimited block splitting), loader_data.py (data structures for parsed DDL entries), loader_io.py (DDL file I/O), loader_parse.py (sqlglot parse wrappers), discover.py (catalog-mandatory list/show/refs CLI), catalog.py (catalog JSON I/O, routing flags, DMF row processing, flip_references), catalog_dmf.py (write_catalog_files orchestration), catalog_enrich.py (offline AST enrichment CLI — BFS call graph, SELECT INTO/TRUNCATE detection), setup_ddl.py (DDL setup orchestration), migrate.py (migration context assembly + dbt artifact writer CLI), profile.py (profiling context assembly + write-back CLI), dmf_processing.py (DMF row processing helpers), sql_types.py (SQL type mappings), name_resolver.py (FQN normalization)."
     },
     "shared_schemas": {
-      "path": "agent-sources/ad-migration/workbench/migration/shared/shared/schemas/",
-      "description": "JSON Schema files (21 total). Catalog schemas: table_catalog, procedure_catalog, view_catalog, function_catalog, manifest. Agent I/O: scope_input, candidate_writers, profiler_input, decomposer_input, planner_input, test_generator_input, migrator_input, decomposition_proposal, planner_design_manifest, fixture_manifest, migration_artifact_manifest, profile_context. Discover CLI output: discover_list_output, discover_show_output, discover_refs_output. Shared defs: common.json."
+      "path": "lib/shared/schemas/",
+      "description": "JSON Schema files (17 total). Catalog schemas: table_catalog, procedure_catalog, view_catalog, function_catalog, manifest. Agent I/O: scope_input, candidate_writers, profiler_input, test_generator_input, migrator_input, fixture_manifest, migration_artifact_manifest, profile_context. Discover CLI output: discover_list_output, discover_show_output, discover_refs_output. Shared defs: common.json."
     },
     "ddl_mcp": {
-      "path": "agent-sources/ad-migration/workbench/migration/ddl_mcp/",
+      "path": "mcp/ddl/",
       "description": "MCP server for structured DDL parsing. server.py exposes list_tables, get_table_schema, list_procedures, get_procedure_body, get_dependencies, list_views, get_view_body, list_functions, get_function_body."
     },
     "mssql_mcp": {
-      "path": "agent-sources/ad-migration/workbench/migration/mssql_mcp/",
+      "path": "mcp/mssql/",
       "description": "genai-toolbox config for live SQL Server queries. tools.yaml defines mssql-execute-sql tool."
     },
     "migration_skills": {
-      "path": "agent-sources/ad-migration/workbench/migration/skills/",
-      "description": "Skill definitions: discover/ (DDL exploration — list/show/refs from catalog). setup-ddl is in the bootstrap sub-plugin."
+      "path": "migration/skills/",
+      "description": "Skill definitions: discover/ (DDL exploration — list/show/refs from catalog), migrate/ (dbt model generation from stored procedures), profile/ (interactive single-table profiling with approval gates). setup-ddl is in the bootstrap sub-plugin."
     },
     "migration_agents": {
-      "path": "agent-sources/ad-migration/workbench/migration/agents/",
-      "description": "Agent definitions: scoping-agent.md (catalog-based writer detection via discover refs)."
+      "path": "migration/agents/",
+      "description": "Agent definitions: scoping-agent.md (catalog-based writer detection via discover refs), migrator-agent.md (batch dbt model generation from stored procedures), profiler-agent.md (batch profiling — context assembly, LLM reasoning, catalog write-back)."
+    },
+    "migration_commands": {
+      "path": "migration/commands/",
+      "description": "Top-level orchestrator commands: migrate-table/ (end-to-end single-table migration pipeline — discover, profile, migrate, test-gen, validate)."
     },
     "tests_migration": {
-      "path": "tests/ad-migration/migration/",
-      "description": "Python pytest suite: test_discover.py, test_catalog.py, test_catalog_enrich.py, test_extract_refs.py, test_integration_catalog.py, test_smoke.py. Fixtures: ddl/, ddl_unparseable/, discover/flat/ (with catalog/ subdirectory), discover/unparseable/, catalog/ (table and procedure JSON fixtures), sql/ (Docker SQL Server setup scripts)."
+      "path": "tests/unit/",
+      "description": "Python pytest suite: test_discover.py, test_catalog.py, test_catalog_enrich.py, test_extract_refs.py, test_setup_ddl.py, test_smoke.py, test_migrate.py, test_profile.py. Fixtures: ddl/, ddl_unparseable/, discover/flat/ (with catalog/ subdirectory), discover/unparseable/, catalog/ (table and procedure JSON fixtures), migrate/ (DDL, catalog with procedures/tables, dbt project fixture, manifest.json), profile/ (DDL, catalog with procedures/tables, manifest.json), sql/ (Docker SQL Server setup scripts)."
     },
-    "tests_scoping_agent": {
-      "path": "tests/ad-migration/scoping-agent/",
-      "description": "TypeScript vitest suite: scoping-agent.test.ts. Fixtures: 8 scenario directories (ambiguous-multi-writer, call-graph, error-cross-db, no-writer-found, partial, resolved, target-is-view, writer-through-view)."
+    "tests_ddl_mcp": {
+      "path": "mcp/ddl/tests/",
+      "description": "Python pytest suite for the DDL MCP server. test_server.py tests all MCP tool handlers (list_tables, get_table_schema, list_procedures, get_procedure_body, get_dependencies, list_views, get_view_body, list_functions, get_function_body)."
     },
     "scripts": {
       "path": "scripts/",
-      "description": "Developer scripts: link-worktree-db.sh, publish-test-db-image.sh, restore-dw-samples.sh, sql/ (test DB creation scripts and JSON fixtures)."
+      "description": "Developer scripts: link-worktree-db.sh, publish-test-db-image.sh, restore-dw-samples.sh, build-dacpac-extract.sh, sql/ (test DB creation scripts and JSON fixtures)."
     },
     "docs": {
       "path": "docs/",
-      "description": "VitePress documentation. Sub-directories: design/ (agent-contract, branding, overall-design, setup-ddl, sp-to-dbt-plugin, test-scenario, tsql-parse-classification, unit-test-strategy), reference/ (agent-instructions-governance, local-agent-testing, setup-docker, test-db-image), requirements/, user-guide/."
+      "description": "Documentation. Sub-directories: design/ (agent-contract, branding, cli-design, overall-design, setup-ddl, sp-to-dbt-plugin, test-scenario, tsql-parse-classification, unit-test-strategy), reference/ (agent-instructions-governance, local-agent-testing, running-tests, setup-docker, test-db-image), requirements/."
     }
   },
   "key_directories": {
-    "agent-sources/ad-migration/": "Claude Code plugin marketplace (bootstrap + migration + test-generation sub-plugins)",
-    "agent-sources/ad-migration/workbench/migration/shared/": "Python DDL analysis library (uv project, sqlglot-based)",
-    "agent-sources/ad-migration/workbench/migration/shared/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
-    "tests/ad-migration/migration/": "Python pytest tests for shared library (discover, catalog, catalog_enrich, extract_refs, integration)",
-    "tests/ad-migration/scoping-agent/": "TypeScript vitest tests for scoping agent",
+    ".claude-plugin/": "Claude Code plugin marketplace manifest (bootstrap + migration + test-generation sub-plugins)",
+    "lib/": "Python DDL analysis library (uv project, sqlglot-based)",
+    "lib/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
+    "tests/unit/": "Python pytest tests for shared library (discover, catalog, catalog_enrich, extract_refs, integration)",
+    "mcp/ddl/tests/": "Python pytest tests for the DDL MCP server",
     "docs/design/": "Architecture decision records and design specs",
     ".claude/rules/": "Shared agent rules (4 policy files: coding-conventions, git-workflow, logging-policy, codex-execution-policy)",
     ".claude/skills/": "Workflow playbooks for Claude Code CLI skills (5 skills)"
   },
   "commands": {
-    "test_migration_python": "cd agent-sources/ad-migration/workbench/migration/shared && uv run pytest",
-    "test_migration_python_integration": "cd agent-sources/ad-migration/workbench/migration/shared && uv run pytest -m integration",
-    "test_scoping_agent": "cd tests && npx vitest run",
+    "test_migration_python": "cd lib && uv run pytest",
+    "test_migration_python_integration": "cd lib && uv run pytest -m integration",
+    "test_mcp_ddl": "cd mcp/ddl && uv run pytest",
     "lint_md": "markdownlint <file>"
   },
   "conventions": {
@@ -145,11 +145,11 @@
   },
   "notes_for_agents": {
     "startup": "Read this file before exploring code. It is the primary startup context for structure, entrypoints, modules, and commands.",
-    "plugin_loading": "Load the ad-migration plugin with: claude --plugin-dir agent-sources/ad-migration. CLAUDE_PLUGIN_ROOT points to the active sub-plugin root (e.g. workbench/bootstrap/ or workbench/migration/).",
+    "plugin_loading": "Load the ad-migration plugin with: claude --plugin-dir . CLAUDE_PLUGIN_ROOT points to the active sub-plugin root (e.g. bootstrap/ or migration/).",
     "ddl_filenames": "The loader auto-detects object types from CREATE statements — .sql filenames are not significant. Any directory of .sql files works.",
     "catalog_mandatory": "discover.py requires catalog/ files from setup-ddl. Errors if catalog is missing. No AST fallback.",
     "parse_errors": "sqlglot parse failures are hard errors (DdlParseError). The loader does not silently skip unparseable DDL.",
-    "python_tests": "Run from shared dir: cd agent-sources/ad-migration/workbench/migration/shared && uv run pytest. Integration tests (Docker SQL Server): uv run pytest -m integration",
+    "python_tests": "Two pytest suites: (1) shared lib — cd lib && uv run pytest; integration tests: uv run pytest -m integration. (2) DDL MCP server — cd mcp/ddl && uv run pytest.",
     "mssql_env_vars": "Live SQL Server access requires MSSQL_HOST, MSSQL_PORT, MSSQL_DB, SA_PASSWORD exported before launching claude.",
     "update_repo_map": "Refresh this file whenever you change architecture, entrypoints, commands, modules, or package structure."
   }

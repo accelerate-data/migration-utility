@@ -31,10 +31,11 @@ jobs:
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
 
           STRUCTURAL_DIRS=(
-            "agent-sources/ad-migration/workbench/migration/skills/"
-            "agent-sources/ad-migration/workbench/migration/agents/"
-            "agent-sources/ad-migration/workbench/migration/shared/shared/"
-            "tests/ad-migration/"
+            "migration/skills/"
+            "migration/agents/"
+            "lib/shared/"
+            "mcp/ddl/"
+            "tests/unit/"
           )
 
           structural_changed=false

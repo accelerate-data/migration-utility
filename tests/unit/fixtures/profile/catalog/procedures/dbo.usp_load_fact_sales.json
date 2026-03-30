@@ -1,0 +1,43 @@
+{
+  "schema": "dbo",
+  "name": "usp_load_fact_sales",
+  "params": [
+    { "name": "@batch_date", "sql_type": "DATETIME2", "is_output": false, "has_default": false }
+  ],
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "FactSales",
+          "is_selected": false,
+          "is_updated": true,
+          "is_insert_all": false,
+          "columns": [
+            { "name": "sale_id", "is_selected": true, "is_updated": false },
+            { "name": "amount", "is_selected": false, "is_updated": true }
+          ]
+        },
+        {
+          "schema": "bronze",
+          "name": "SalesRaw",
+          "is_selected": true,
+          "is_updated": false
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  }
+}

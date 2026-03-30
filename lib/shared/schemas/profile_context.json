@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProfileContext",
+  "description": "Output of `profile.py context` command. Assembles all deterministic context needed for LLM profiling reasoning.",
+  "type": "object",
+  "required": ["table", "writer", "catalog_signals", "writer_references", "proc_body", "columns"],
+  "properties": {
+    "table": {
+      "type": "string",
+      "description": "Fully qualified table name: <schema>.<table>."
+    },
+    "writer": {
+      "type": "string",
+      "description": "Fully qualified writer procedure name."
+    },
+    "catalog_signals": {
+      "type": "object",
+      "description": "Catalog signals from the table catalog file.",
+      "properties": {
+        "primary_keys": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "constraint_name": { "type": "string" },
+              "columns": { "type": "array", "items": { "type": "string" } },
+              "type": { "type": "string", "enum": ["PRIMARY KEY", "UNIQUE"] }
+            }
+          }
+        },
+        "foreign_keys": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "column": { "type": "string" },
+              "references_schema": { "type": "string" },
+              "references_table": { "type": "string" },
+              "references_column": { "type": "string" }
+            }
+          }
+        },
+        "auto_increment_columns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "column": { "type": "string" },
+              "mechanism": { "type": "string", "enum": ["identity", "autoincrement", "sequence", "generated_always"] },
+              "seed": { "type": "integer" },
+              "increment": { "type": "integer" }
+            }
+          }
+        },
+        "unique_indexes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "index_name": { "type": "string" },
+              "columns": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "change_capture": {
+          "type": ["object", "null"],
+          "description": "Change-tracking metadata. Null means not detected or not applicable.",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "mechanism": { "type": "string", "enum": ["cdc", "change_tracking", "stream", "change_data_feed"] }
+          }
+        },
+        "sensitivity_classifications": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "column": { "type": "string" },
+              "label": { "type": "string" },
+              "information_type": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "writer_references": {
+      "type": "object",
+      "description": "Outbound references from the writer procedure with column-level read/write flags.",
+      "properties": {
+        "tables": { "$ref": "common.json#/$defs/scoped_ref_list" },
+        "views": { "$ref": "common.json#/$defs/scoped_ref_list" },
+        "functions": { "$ref": "common.json#/$defs/scoped_ref_list" },
+        "procedures": { "$ref": "common.json#/$defs/scoped_ref_list" }
+      }
+    },
+    "proc_body": {
+      "type": "string",
+      "description": "Full SQL body of the writer procedure."
+    },
+    "columns": {
+      "type": "array",
+      "description": "Column list for the target table from tables.sql.",
+      "items": {
+        "type": "object",
+        "required": ["name", "sql_type"],
+        "properties": {
+          "name": { "type": "string" },
+          "sql_type": { "type": "string" },
+          "is_nullable": { "type": "boolean" },
+          "max_length": { "type": "integer" },
+          "precision": { "type": "integer" },
+          "scale": { "type": "integer" }
+        }
+      }
+    },
+    "related_procedures": {
+      "type": "array",
+      "description": "Related procedure context when referenced by the writer. Each entry includes catalog and body.",
+      "items": {
+        "type": "object",
+        "required": ["procedure", "proc_body"],
+        "properties": {
+          "procedure": { "type": "string" },
+          "proc_body": { "type": "string" },
+          "references": { "type": "object" }
+        }
+      }
+    }
+  }
+}

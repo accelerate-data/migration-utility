@@ -25,7 +25,7 @@ The migrator agent reads approved profile and resolved statements from catalog f
 }
 ```
 
-Reference schema: `../shared/shared/schemas/migrator_input.json`
+Reference schema: `../lib/shared/schemas/migrator_input.json`
 
 ## Pipeline
 

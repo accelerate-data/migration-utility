@@ -1,0 +1,67 @@
+{
+  "schema": "silver",
+  "name": "factsales",
+  "columns": [
+    { "name": "sale_id", "data_type": "BIGINT", "is_nullable": false },
+    { "name": "customer_sk", "data_type": "BIGINT", "is_nullable": false },
+    { "name": "product_sk", "data_type": "BIGINT", "is_nullable": false },
+    { "name": "amount", "data_type": "DECIMAL(18,2)", "is_nullable": false },
+    { "name": "load_date", "data_type": "DATETIME2", "is_nullable": false }
+  ],
+  "primary_keys": [
+    {
+      "constraint_name": "PK_FactSales",
+      "columns": ["sale_id"],
+      "type": "PRIMARY KEY"
+    }
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [
+    {
+      "constraint_name": "FK_FactSales_DimCustomer",
+      "column": "customer_sk",
+      "references_schema": "silver",
+      "references_table": "DimCustomer",
+      "references_column": "customer_sk"
+    }
+  ],
+  "auto_increment_columns": [{ "column": "sale_id", "mechanism": "identity" }],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "dbo",
+          "name": "usp_load_fact_sales",
+          "is_selected": false,
+          "is_updated": true,
+          "is_insert_all": false
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": { "in_scope": [], "out_of_scope": [] },
+    "functions": { "in_scope": [], "out_of_scope": [] }
+  },
+  "profile": {
+    "status": "ok",
+    "classification": "fact_transaction",
+    "primary_key": {
+      "columns": ["sale_id"],
+      "primary_key_type": "surrogate"
+    },
+    "watermark": {
+      "column": "load_date"
+    },
+    "foreign_keys": [
+      {
+        "column": "customer_sk",
+        "references_schema": "silver",
+        "references_table": "DimCustomer",
+        "references_column": "customer_sk"
+      }
+    ],
+    "pii_actions": []
+  }
+}

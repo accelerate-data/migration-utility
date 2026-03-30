@@ -29,7 +29,7 @@ Declared as `[project.scripts]` in `shared/pyproject.toml`:
 Agents invoke CLIs via `uv run`:
 
 ```bash
-uv run --project agent-sources/ad-migration/workbench/migration/shared <command> [subcommand] --option value
+uv run --project lib <command> [subcommand] --option value
 ```
 
 ### I/O contract
