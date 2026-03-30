@@ -19,6 +19,8 @@ Declared as `[project.scripts]` in `shared/pyproject.toml`:
 | `discover` | `shared.discover:app` | Query the DDL catalog — list objects, show details, find referencing procedures |
 | `setup-ddl` | `shared.setup_ddl:app` | Assemble DDL files and write catalog JSON from MCP query results |
 | `catalog-enrich` | `shared.catalog_enrich:app` | Augment catalog with AST-derived references missed by DMF (CTAS, SELECT INTO, EXEC call chains) |
+| `profile` | `shared.profile:app` | Assemble profiling context for a table + writer pair, and write profiles back to catalog |
+| `migrate` | `shared.migrate:app` | Assemble migration context from catalog + profile, and write dbt model SQL + schema YAML |
 
 ---
 
@@ -61,6 +63,7 @@ All parameters use `--option` style. No CLIs use positional arguments.
 | `list` | `--project-root`, `--type {tables,procedures,views,functions}` | `{"objects": [...]}` |
 | `show` | `--project-root`, `--name schema.Name` | Object detail: columns/params/refs/statements/classification |
 | `refs` | `--project-root`, `--name schema.Name` | `{"readers": [...], "writers": [...]}` |
+| `write-statements` | `--project-root`, `--name schema.Name`, `--statements` (JSON array) | `{"written": ..., "statement_count": N}` |
 
 Requires a `catalog/` directory (from `setup-ddl`). Exits with code `2` if missing.
 
@@ -84,8 +87,26 @@ Single command. Walks all procedures, extracts AST refs, and back-populates `ref
 
 Returns `{"tables_augmented": N, "procedures_augmented": N, "entries_added": N}`.
 
+If the catalog directory is missing, returns a zeroed summary instead of exiting non-zero.
+
+### `profile`
+
+| Subcommand | Key options | Returns |
+|---|---|---|
+| `context` | `--project-root`, `--table schema.Name`, `--writer schema.Name` | Profiling context JSON (catalog signals, DDL, references) |
+| `write` | `--project-root`, `--table schema.Name`, `--profile` (JSON string) | Write-back confirmation JSON |
+
+### `migrate`
+
+| Subcommand | Key options | Returns |
+|---|---|---|
+| `context` | `--project-root`, `--table schema.Name`, `--writer schema.Name` | Migration context JSON (profile, statements, DDL columns) |
+| `write` | `--project-root`, `--dbt-project-path` (optional), `--table schema.Name`, `--model-sql`, `--schema-yml` | Write confirmation JSON |
+
 ---
 
 ## Testability Pattern
 
-Business logic is separated from CLI wiring. Each subcommand delegates to a standalone function (e.g., `run_list`, `run_show`, `run_refs`, `enrich_catalog`) that can be imported and tested directly without invoking Typer. CLI commands only handle I/O and exit codes.
+Business logic is separated from CLI wiring. Subcommands delegate to standalone functions (e.g., `run_list`, `run_show`, `run_refs`, `run_write_statements`, `enrich_catalog`, `run_context`, `run_write`) that can be imported and tested directly without invoking Typer. CLI commands only handle I/O and exit codes.
+
+**Exception:** `setup-ddl` currently embeds business logic directly in its `@app.command()` functions — it does not follow this pattern.
