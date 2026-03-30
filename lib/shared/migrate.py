@@ -37,6 +37,7 @@ from shared.loader import (
     ProfileMissingError,
     load_directory,
 )
+from shared.env_config import resolve_dbt_project_path, resolve_project_root
 from shared.name_resolver import fqn_parts, normalize
 
 logger = logging.getLogger(__name__)
@@ -292,8 +293,7 @@ def context(
     project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
 ) -> None:
     """Assemble migration context from catalog + DDL."""
-    if project_root is None:
-        project_root = Path.cwd()
+    project_root = resolve_project_root(project_root)
     try:
         result = run_context(project_root, table, writer)
     except (CatalogFileMissingError, ProfileMissingError) as exc:
@@ -309,13 +309,14 @@ def context(
 def write(
     table: str = typer.Option(..., help="Fully-qualified target table name (schema.table)"),
     project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
-    dbt_project_path: Path = typer.Option(..., help="Path to dbt project root"),
+    dbt_project_path: Optional[Path] = typer.Option(None, "--dbt-project-path", help="Path to dbt project (default: $DBT_PROJECT_PATH or ./dbt)"),
     model_sql: str = typer.Option(..., help="Generated dbt model SQL"),
     schema_yml: str = typer.Option("", help="Generated schema YAML"),
 ) -> None:
     """Write generated dbt model SQL + schema YAML to dbt project."""
-    if project_root is None:
-        project_root = Path.cwd()
+    project_root = resolve_project_root(project_root)
+    if dbt_project_path is None:
+        dbt_project_path = resolve_dbt_project_path(project_root)
     try:
         result = run_write(table, project_root, dbt_project_path, model_sql, schema_yml)
     except ValueError as exc:

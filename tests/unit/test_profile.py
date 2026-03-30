@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -355,6 +356,7 @@ def test_write_cli_emits_error_json_on_validation_failure() -> None:
     """write CLI emits structured error JSON to stdout and exits 1 on validation failure."""
     tmp, ddl_path = _make_writable_copy()
     try:
+        subprocess.run(["git", "init"], cwd=ddl_path, capture_output=True, check=True)
         bad_profile = json.dumps({"writer": "dbo.usp_load_fact_sales"})  # missing status
         result = _cli_runner.invoke(
             profile.app,

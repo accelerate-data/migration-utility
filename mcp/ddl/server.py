@@ -34,6 +34,7 @@ import sqlglot.expressions as exp
 from mcp import types
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
+from shared.env_config import assert_git_repo
 from shared.loader import DdlCatalog, DdlEntry, DdlParseError, extract_refs, load_directory, read_manifest
 from shared.name_resolver import normalize
 
@@ -51,6 +52,7 @@ def _project_root() -> Path:
     p = Path(raw) if raw else Path.cwd()
     if not p.exists():
         raise FileNotFoundError(f"Project root does not exist: {p}")
+    assert_git_repo(p)
     manifest = p / "manifest.json"
     if not manifest.exists():
         raise FileNotFoundError(

@@ -129,7 +129,7 @@ After `catalog-enrich` processes a proc, `needs_enrich` is flipped to `false`. P
 After `export_ddl.py` completes, run `catalog-enrich`:
 
 ```bash
-uv run --project <shared-path> catalog-enrich --project-root <output-folder>
+uv run --project <shared-path> catalog-enrich --project-root <project-root>
 ```
 
 This step has no live DB dependency. It reads `procedures.sql` and the catalog files written in Steps 5–6, then augments them with references the DMF cannot detect:
@@ -153,8 +153,10 @@ Write `manifest.json` to the output root with technology, dialect, source databa
 
 ## Output structure
 
+One project root = one source database. `manifest.json` at the root records which database was extracted; re-running `setup-ddl` in the same directory fully replaces `ddl/` and `catalog/`.
+
 ```text
-<output-folder>/
+<project-root>/
 ├── tables.sql
 ├── procedures.sql
 ├── views.sql

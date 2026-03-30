@@ -32,6 +32,7 @@ from shared.loader import (
     DdlParseError,
     load_ddl,
 )
+from shared.env_config import resolve_project_root
 from shared.name_resolver import normalize
 
 logger = logging.getLogger(__name__)
@@ -279,8 +280,7 @@ def context(
     writer: str = typer.Option(..., help="Fully-qualified writer procedure name"),
 ) -> None:
     """Assemble profiling context for a table + writer pair."""
-    if project_root is None:
-        project_root = Path.cwd()
+    project_root = resolve_project_root(project_root)
     try:
         result = run_context(project_root, table, writer)
     except CatalogFileMissingError as exc:
@@ -299,8 +299,7 @@ def write(
     profile: str = typer.Option(..., help="Profile JSON string"),
 ) -> None:
     """Validate and merge a profile section into a table catalog file."""
-    if project_root is None:
-        project_root = Path.cwd()
+    project_root = resolve_project_root(project_root)
     try:
         profile_data = json.loads(profile)
     except json.JSONDecodeError as exc:

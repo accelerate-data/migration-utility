@@ -47,19 +47,19 @@ class TestAssembleModules:
         ]
         input_file = tmp_path / "input.json"
         _write_json(input_file, rows)
-        output_folder = tmp_path / "out"
+        project_root = tmp_path / "out"
 
         result = _run_cli([
             "assemble-modules",
             "--input", str(input_file),
-            "--output-folder", str(output_folder),
+            "--project-root", str(project_root),
             "--type", "procedures",
         ])
         assert result.returncode == 0
         out = json.loads(result.stdout)
         assert out["count"] == 2
 
-        sql = (output_folder / "ddl" / "procedures.sql").read_text()
+        sql = (project_root / "ddl" / "procedures.sql").read_text()
         assert "CREATE PROC dbo.usp_a" in sql
         assert "\nGO\n" in sql
 
@@ -70,12 +70,12 @@ class TestAssembleModules:
         ]
         input_file = tmp_path / "input.json"
         _write_json(input_file, rows)
-        output_folder = tmp_path / "out"
+        project_root = tmp_path / "out"
 
         result = _run_cli([
             "assemble-modules",
             "--input", str(input_file),
-            "--output-folder", str(output_folder),
+            "--project-root", str(project_root),
             "--type", "procedures",
         ])
         assert result.returncode == 0
@@ -85,18 +85,18 @@ class TestAssembleModules:
     def test_empty_input_writes_empty_file(self, tmp_path):
         input_file = tmp_path / "input.json"
         _write_json(input_file, [])
-        output_folder = tmp_path / "out"
+        project_root = tmp_path / "out"
 
         result = _run_cli([
             "assemble-modules",
             "--input", str(input_file),
-            "--output-folder", str(output_folder),
+            "--project-root", str(project_root),
             "--type", "views",
         ])
         assert result.returncode == 0
         out = json.loads(result.stdout)
         assert out["count"] == 0
-        assert (output_folder / "ddl" / "views.sql").read_text() == ""
+        assert (project_root / "ddl" / "views.sql").read_text() == ""
 
     def test_invalid_type_rejected(self, tmp_path):
         input_file = tmp_path / "input.json"
@@ -105,7 +105,7 @@ class TestAssembleModules:
         result = _run_cli([
             "assemble-modules",
             "--input", str(input_file),
-            "--output-folder", str(tmp_path / "out"),
+            "--project-root", str(tmp_path / "out"),
             "--type", "tables",
         ])
         assert result.returncode != 0
@@ -126,18 +126,18 @@ class TestAssembleTables:
         ]
         input_file = tmp_path / "input.json"
         _write_json(input_file, rows)
-        output_folder = tmp_path / "out"
+        project_root = tmp_path / "out"
 
         result = _run_cli([
             "assemble-tables",
             "--input", str(input_file),
-            "--output-folder", str(output_folder),
+            "--project-root", str(project_root),
         ])
         assert result.returncode == 0
         out = json.loads(result.stdout)
         assert out["count"] == 1
 
-        sql = (output_folder / "ddl" / "tables.sql").read_text()
+        sql = (project_root / "ddl" / "tables.sql").read_text()
         assert "CREATE TABLE [dbo].[T1]" in sql
         assert "IDENTITY(1,1)" in sql
         assert "NVARCHAR(50)" in sql  # 100 / 2 for N-types
@@ -151,15 +151,15 @@ class TestAssembleTables:
         ]
         input_file = tmp_path / "input.json"
         _write_json(input_file, rows)
-        output_folder = tmp_path / "out"
+        project_root = tmp_path / "out"
 
         result = _run_cli([
             "assemble-tables",
             "--input", str(input_file),
-            "--output-folder", str(output_folder),
+            "--project-root", str(project_root),
         ])
         assert result.returncode == 0
-        sql = (output_folder / "ddl" / "tables.sql").read_text()
+        sql = (project_root / "ddl" / "tables.sql").read_text()
         assert "NVARCHAR(MAX)" in sql
 
     def test_decimal_type(self, tmp_path):
@@ -170,15 +170,15 @@ class TestAssembleTables:
         ]
         input_file = tmp_path / "input.json"
         _write_json(input_file, rows)
-        output_folder = tmp_path / "out"
+        project_root = tmp_path / "out"
 
         result = _run_cli([
             "assemble-tables",
             "--input", str(input_file),
-            "--output-folder", str(output_folder),
+            "--project-root", str(project_root),
         ])
         assert result.returncode == 0
-        sql = (output_folder / "ddl" / "tables.sql").read_text()
+        sql = (project_root / "ddl" / "tables.sql").read_text()
         assert "DECIMAL(18,2)" in sql
 
     def test_multiple_tables_go_delimited(self, tmp_path):
@@ -192,15 +192,15 @@ class TestAssembleTables:
         ]
         input_file = tmp_path / "input.json"
         _write_json(input_file, rows)
-        output_folder = tmp_path / "out"
+        project_root = tmp_path / "out"
 
         result = _run_cli([
             "assemble-tables",
             "--input", str(input_file),
-            "--output-folder", str(output_folder),
+            "--project-root", str(project_root),
         ])
         assert result.returncode == 0
-        sql = (output_folder / "ddl" / "tables.sql").read_text()
+        sql = (project_root / "ddl" / "tables.sql").read_text()
         assert sql.count("CREATE TABLE") == 2
         assert "\nGO\n" in sql
 
@@ -212,7 +212,7 @@ class TestWriteManifest:
     def test_writes_manifest(self, tmp_path):
         result = _run_cli([
             "write-manifest",
-            "--output-folder", str(tmp_path),
+            "--project-root", str(tmp_path),
             "--technology", "sql_server",
             "--database", "TestDB",
             "--schemas", "bronze,silver",
@@ -229,7 +229,7 @@ class TestWriteManifest:
     def test_fabric_warehouse_dialect(self, tmp_path):
         result = _run_cli([
             "write-manifest",
-            "--output-folder", str(tmp_path),
+            "--project-root", str(tmp_path),
             "--technology", "fabric_warehouse",
             "--database", "TestDB",
             "--schemas", "dbo",
@@ -241,7 +241,7 @@ class TestWriteManifest:
     def test_invalid_technology_rejected(self, tmp_path):
         result = _run_cli([
             "write-manifest",
-            "--output-folder", str(tmp_path),
+            "--project-root", str(tmp_path),
             "--technology", "oracle",
             "--database", "TestDB",
             "--schemas", "dbo",
@@ -293,7 +293,7 @@ class TestWriteCatalog:
         result = _run_cli([
             "write-catalog",
             "--staging-dir", str(staging),
-            "--output-folder", str(output),
+            "--project-root", str(output),
             "--database", "TestDB",
         ])
         assert result.returncode == 0, result.stderr
@@ -345,7 +345,7 @@ class TestWriteCatalog:
         result = _run_cli([
             "write-catalog",
             "--staging-dir", str(staging),
-            "--output-folder", str(output),
+            "--project-root", str(output),
             "--database", "TestDB",
         ])
         assert result.returncode == 0, result.stderr
@@ -380,7 +380,7 @@ class TestWriteCatalog:
         result = _run_cli([
             "write-catalog",
             "--staging-dir", str(staging),
-            "--output-folder", str(output),
+            "--project-root", str(output),
             "--database", "TestDB",
         ])
         assert result.returncode == 0, result.stderr

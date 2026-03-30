@@ -6,7 +6,7 @@ description: >
   or "run the full migration pipeline". Coordinates discover, profile, and migrate
   skills in sequence with user gates.
 user-invocable: true
-argument-hint: "[[project-root]] [--table <fqn>] [--dbt-project-path <path>] [--non-interactive]"
+argument-hint: "[[project-root]] [--table <fqn>] [--non-interactive]"
 ---
 
 # Migrate Table
@@ -19,7 +19,7 @@ Orchestrates the migration pipeline for a single table: discover the writer proc
 |---|---|---|
 | `[project-root]` | no | Path to project root directory — defaults to current working directory |
 | `--table` | no | Target table FQN — interactive picker if omitted |
-| `--dbt-project-path` | no | Path to dbt project — auto-detected from `<project-root>/../dbt/` if omitted |
+| `--dbt-project-path` | no | Path to dbt project — auto-detected from `$DBT_PROJECT_PATH` or `<project-root>/dbt` if omitted |
 | `--non-interactive` | no | Skip all confirmation gates (for GHA/batch use) |
 
 ## Prerequisite check
@@ -28,7 +28,7 @@ Before starting the migration pipeline:
 
 1. If `project-root` is not provided, default to the current working directory. Use `AskUserQuestion` to confirm the resolved path with the user before proceeding.
 2. Confirm `<project-root>/manifest.json` exists — if not, stop: "Run `/setup-ddl` first."
-3. Confirm a dbt project exists at `--dbt-project-path` or `<project-root>/../dbt/` — if not, stop: "Run `/init-dbt` first."
+3. Confirm a dbt project exists at `$DBT_PROJECT_PATH` or `<project-root>/dbt` — if not, stop: "Run `/init-dbt` first."
 4. Confirm `catalog/` directory has table and procedure files — if not, stop: "Run `/setup-ddl` with `--catalog` first."
 
 ## Pipeline

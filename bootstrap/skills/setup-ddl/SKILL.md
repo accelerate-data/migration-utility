@@ -2,20 +2,11 @@
 name: setup-ddl
 description: >
   This skill should be used when the user asks to "set up DDL", "extract DDL from SQL Server", "populate ddl", "connect to the remote database and get DDL", "pull DDL from the source database", or wants to initialise the local DDL artifact directory from a live SQL Server before running discovery or scoping.
-argument-hint: "[output-folder]"
 ---
 
 # Setup DDL
 
 Extract DDL from a live SQL Server and write local artifact files that the `ddl` MCP server used by `discover`/`scope` tools to read the schema.
-
-## Arguments
-
-Parse `$ARGUMENTS`:
-
-- `output-folder` (required): root artifacts path (e.g. `./artifacts`). DDL `.sql` files go into `<output-folder>/ddl/`, catalog JSON into `<output-folder>/catalog/`, and `manifest.json` at the root.
-
-If `output-folder` is missing from `$ARGUMENTS`, default to the current working directory. Use `AskUserQuestion` to show the user the resolved path and get confirmation before proceeding.
 
 ## Prerequisites
 
@@ -33,11 +24,32 @@ Before starting, verify:
 
    `MSSQL_DB` is not required at this stage — the skill selects the database interactively. Confirm `MSSQL_HOST`, `MSSQL_PORT`, and `SA_PASSWORD` are set. If any are missing, tell the user and stop.
 
-3. **Pre-flight check** — check whether `<output-folder>/ddl/` already exists and contains `.sql` files. If it does, tell the user and ask for confirmation before overwriting. Do not proceed without explicit confirmation.
+## Preamble — confirm project root
+
+1. Run `pwd` and show the resolved path. Use `AskUserQuestion` to ask: "Is this the correct project root?" If the user says no, tell them to `cd` to the correct directory and re-run the skill. Stop.
+
+2. Check whether `manifest.json` exists in the current directory:
+
+   - **Present** → read `source_database` and `extracted_schemas` from it. Show the user:
+
+     ```text
+     Project root locked to database: <source_database>
+     Previously extracted schemas: <extracted_schemas>
+     ```
+
+     Then **skip Step 1** and proceed directly to **Step 2 — Select schemas**.
+
+   - **Absent** → proceed to Step 1 as normal.
+
+If `ddl/` or `catalog/` already exists in the project root, warn the user:
+
+> Re-running will **fully rebuild** both `ddl/` and `catalog/`. All previously extracted files will be replaced.
+
+Use `AskUserQuestion` to get confirmation before proceeding. If they decline, stop immediately.
 
 ## Workflow
 
-Follow the step sequence below. Steps 1–3 are interactive (agent + MCP). Steps 4–8 use deterministic Python CLI tools — the agent saves MCP query results to `<output-folder>/.staging/` as JSON files, then calls the CLI tool to process them.
+Follow the step sequence below. Steps 1–3 are interactive (agent + MCP). Steps 4–8 use deterministic Python CLI tools — the agent saves MCP query results to `./.staging/` as JSON files, then calls the CLI tool to process them.
 
 `<shared-path>` refers to `${CLAUDE_PLUGIN_ROOT}/../lib`.
 
@@ -115,8 +127,8 @@ Schemas: <selected-schemas>
     Identity cols:   N columns
     CDC-tracked:     N tables
 
-  DDL files will be written to:     <output-folder>/ddl/
-  Catalog files will be written to: <output-folder>/catalog/
+  DDL files will be written to:     ./ddl/
+  Catalog files will be written to: ./catalog/
   Reference data from sys.dm_sql_referenced_entities will be extracted
   for all procedures, views, and functions.
 ```
@@ -129,7 +141,6 @@ After user confirmation, write the manifest first (it only depends on database/s
 
 ```bash
 uv run --project <shared-path> setup-ddl write-manifest \
-  --output-folder <output-folder> \
   --technology sql_server \
   --database <database> \
   --schemas <comma-separated-schemas>
@@ -164,12 +175,11 @@ WHERE o.type = 'P'
 ORDER BY schema_name, object_name
 ```
 
-Save the result to `<output-folder>/.staging/procedures.json`, then:
+Save the result to `./.staging/procedures.json`, then:
 
 ```bash
 uv run --project <shared-path> setup-ddl assemble-modules \
-  --input <output-folder>/.staging/procedures.json \
-  --output-folder <output-folder> \
+  --input ./.staging/procedures.json \
   --type procedures
 ```
 
@@ -208,12 +218,11 @@ WHERE t.is_ms_shipped = 0
 ORDER BY schema_name, table_name, c.column_id
 ```
 
-Save the result to `<output-folder>/.staging/table_columns.json`, then:
+Save the result to `./.staging/table_columns.json`, then:
 
 ```bash
 uv run --project <shared-path> setup-ddl assemble-tables \
-  --input <output-folder>/.staging/table_columns.json \
-  --output-folder <output-folder>
+  --input ./.staging/table_columns.json
 ```
 
 ## Step 7 — Extract catalog signals and references
@@ -222,7 +231,7 @@ Run all catalog queries via `mssql:mssql-execute-sql` and save each result to th
 
 ### Staging files to create
 
-Save each MCP query result as a JSON file in `<output-folder>/.staging/`:
+Save each MCP query result as a JSON file in `./.staging/`:
 
 | Staging file | Query |
 |---|---|
@@ -413,8 +422,7 @@ Once all staging files are saved:
 
 ```bash
 uv run --project <shared-path> setup-ddl write-catalog \
-  --staging-dir <output-folder>/.staging \
-  --output-folder <output-folder> \
+  --staging-dir ./.staging \
   --database <database>
 ```
 
@@ -425,7 +433,7 @@ The tool outputs JSON with counts: `{"tables": N, "procedures": N, "views": N, "
 Run the catalog enrichment script to fill catalog-query gaps:
 
 ```bash
-uv run --project <shared-path> catalog-enrich --project-root <output-folder>
+uv run --project <shared-path> catalog-enrich --project-root .
 ```
 
 This augments catalog files with AST-derived references for:
@@ -441,7 +449,7 @@ Entries added carry `"detection": "ast_scan"` to distinguish from catalog-query-
 After all files are written, report a summary:
 
 ```text
-DDL extraction complete → <output-folder>/
+DDL extraction complete → ./
 Database: <database>
 Schemas:  <selected-schemas>
 
@@ -457,10 +465,10 @@ Schemas:  <selected-schemas>
     views/      : N files
     functions/  : N files
 
-  manifest.json at <output-folder>/manifest.json
+  manifest.json at ./manifest.json
 ```
 
-Tell the user they can now run `discover` or the `scoping-agent` against the output folder. The `discover refs` command will automatically use catalog data for instant writer identification.
+Tell the user they can now run `discover` or the `scoping-agent` against the project root. The `discover refs` command will automatically use catalog data for instant writer identification.
 
 **Known limitation:** Procs that write only via dynamic SQL (`EXEC(@sql)`, `sp_executesql`) will not appear in catalog `referenced_by`. This is an inherent offline limitation of `sys.dm_sql_referenced_entities` — it resolves references at definition time, not runtime. These procs require LLM analysis via `discover show`.
 
