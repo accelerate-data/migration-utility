@@ -13,9 +13,12 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
 from shared import profile
 from shared.loader import CatalogFileMissingError
+
+_cli_runner = CliRunner()
 
 _TESTS_DIR = Path(__file__).parent
 _PROFILE_FIXTURES = _TESTS_DIR / "fixtures" / "profile"
@@ -341,5 +344,26 @@ def test_write_idempotent() -> None:
         second = cat_path.read_text(encoding="utf-8")
 
         assert first == second
+    finally:
+        tmp.cleanup()
+
+
+# ── CLI: structured error JSON on failure ────────────────────────────────────
+
+
+def test_write_cli_emits_error_json_on_validation_failure() -> None:
+    """write CLI emits structured error JSON to stdout and exits 1 on validation failure."""
+    tmp, ddl_path = _make_writable_copy()
+    try:
+        bad_profile = json.dumps({"writer": "dbo.usp_load_fact_sales"})  # missing status
+        result = _cli_runner.invoke(
+            profile.app,
+            ["write", "--ddl-path", str(ddl_path), "--table", "silver.FactSales", "--profile", bad_profile],
+        )
+        assert result.exit_code == 1
+        output = json.loads(result.stdout)
+        assert output["ok"] is False
+        assert "error" in output
+        assert output["table"] == "silver.factsales"
     finally:
         tmp.cleanup()

@@ -307,9 +307,11 @@ def write(
         result = run_write(ddl_path, table, profile_data)
     except (ValueError, CatalogFileMissingError) as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)
+        _emit({"ok": False, "error": str(exc), "table": normalize(table)})
         raise typer.Exit(code=1) from exc
     except (FileNotFoundError, OSError) as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)
+        _emit({"ok": False, "error": str(exc), "table": normalize(table)})
         raise typer.Exit(code=2) from exc
     _emit(result)
 
