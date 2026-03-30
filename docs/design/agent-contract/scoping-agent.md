@@ -21,7 +21,6 @@ Given a target table, identify candidate writer procedures and select one writer
   "schema_version": "1.0",
   "run_id": "uuid",
   "technology": "sql_server",
-  "project_root": "/absolute/path/to/artifacts",
   "items": [
     {
       "item_id": "dbo.fact_sales",
@@ -34,7 +33,7 @@ Given a target table, identify candidate writer procedures and select one writer
 ## Input Semantics
 
 - `technology` — source technology family; determines which analysis patterns to apply. Valid values: `sql_server`, `fabric_warehouse`, `fabric_lakehouse`, `snowflake`. The agent emits `ANALYSIS_UNSUPPORTED_TECHNOLOGY` for unsupported values.
-- `project_root` — absolute path to the project root directory (contains `ddl/`, `catalog/`, `manifest.json`). Passed to every CLI invocation; no `DDL_PATH` environment variable required.
+- Project root is inferred from CWD. No `project_root` field in the input schema; no `DDL_PATH` environment variable required.
 - `search_depth` is the maximum call-graph traversal depth from discovered candidate procedures.
 - Units: procedure-call hops (`0` = candidate procedure body only, `1` = direct callees, etc.).
 - Valid range: integer `0..5`.
@@ -188,8 +187,8 @@ For each resolved item:
 Run:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/shared" discover write-statements \
-  --project-root <project_root> --name <selected_writer> --statements '<json>'
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover write-statements \
+  --name <selected_writer> --statements '<json>'
 ```
 
 The `write-statements` subcommand validates that every statement has `action` in `[migrate, skip]` and `source` in `[ast, llm]`, then merges the `statements` array into the existing procedure catalog file.

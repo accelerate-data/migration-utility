@@ -1,5 +1,7 @@
 # Test Generator Agent Contract
 
+> **Not yet implemented.** This contract is a design specification. No agent definition, `test_gen.py`, or `dotnet-sqltest` tooling exists in the codebase.
+
 The test generator agent produces branch-covering dbt unit test fixtures for a stored procedure migration. It extracts all conditional branches from the proc, generates synthetic input data that exercises each branch, captures the actual proc output as ground truth, and emits `unit_tests:` YAML blocks for the migrator to incorporate into the model schema file.
 
 This contract is for the **batch GHA pipeline** only. For the interactive single-table path, `test_gen.py` (part of the `migrate-table` plugin) produces dbt schema tests from AST inference with no live DB required — see [SP → dbt Migration Plugin](../sp-to-dbt-plugin/README.md). The full ground-truth harness below applies when a live source DB connection is available (batch path).
@@ -22,7 +24,6 @@ Test generation runs AFTER migration in the pipeline (migration is stage 3, test
 {
   "schema_version": "2.0",
   "run_id": "uuid",
-  "project_root": "/absolute/path/to/artifacts",
   "items": [
     {
       "item_id": "dbo.fact_sales",
@@ -32,7 +33,7 @@ Test generation runs AFTER migration in the pipeline (migration is stage 3, test
 }
 ```
 
-Reference schema: `../lib/shared/schemas/test_generator_input.json`
+Project root is inferred from CWD. Reference schema: `../lib/shared/schemas/test_generator_input.json`
 
 ## Generation Strategy
 

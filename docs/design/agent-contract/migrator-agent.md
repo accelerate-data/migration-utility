@@ -15,7 +15,6 @@ The migrator agent reads approved profile and resolved statements from catalog f
 {
   "schema_version": "2.0",
   "run_id": "uuid",
-  "project_root": "/absolute/path/to/artifacts",
   "items": [
     {
       "item_id": "dbo.fact_sales",
@@ -25,7 +24,7 @@ The migrator agent reads approved profile and resolved statements from catalog f
 }
 ```
 
-Reference schema: `../lib/shared/schemas/migrator_input.json`
+Project root is inferred from CWD. Reference schema: `../lib/shared/schemas/migrator_input.json`
 
 ## Pipeline
 
@@ -33,7 +32,7 @@ For each item in `items[]`:
 
 ### 1. AssembleContext (Deterministic — `migrate.py context`)
 
-Run `uv run migrate context --table <item_id> --writer <selected_writer> --project-root <project_root>`.
+Run `uv run migrate context --table <item_id> --writer <selected_writer>`.
 
 Outputs: profile (classification, keys, watermark, PII), derived materialization, resolved statements, full proc body, target table columns, source tables, and deterministic schema tests.
 
@@ -77,7 +76,7 @@ Render `schema_tests` from context into `.yml`:
 
 ### 5. WriteArtifacts (Deterministic — `migrate.py write`)
 
-Run `uv run migrate write --table <item_id> --project-root <project_root> --dbt-project-path <path> --model-sql '<sql>' --schema-yml '<yml>'`.
+Run `uv run migrate write --table <item_id> --dbt-project-path <path> --model-sql '<sql>' --schema-yml '<yml>'`.
 
 ### 6. Validate
 

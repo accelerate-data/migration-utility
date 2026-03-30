@@ -18,7 +18,6 @@ For the interactive single-table path, see the `/profile` skill in [SP → dbt M
 {
   "schema_version": "1.0",
   "run_id": "uuid",
-  "project_root": "/path/to/artifacts",
   "items": [
     {
       "item_id": "dbo.fact_sales",
@@ -28,7 +27,7 @@ For the interactive single-table path, see the `/profile` skill in [SP → dbt M
 }
 ```
 
-No `related_procedure_depth` — related procedure context is pre-captured in catalog files.
+No `project_root` — agents infer it from CWD. No `related_procedure_depth` — related procedure context is pre-captured in catalog files.
 
 ## Agent Pipeline
 
@@ -36,7 +35,7 @@ For each item in `items[]`:
 
 ### 1. AssembleContext (Deterministic — `profile.py context`)
 
-Run `uv run profile context --table <item_id> --writer <selected_writer> --project-root <project_root> --dialect tsql`.
+Run `uv run profile context --table <item_id> --writer <selected_writer>`.
 
 `profile.py context` reads:
 
@@ -111,7 +110,7 @@ For remaining columns:
 
 ### 3. WriteCatalogFile (Deterministic — `profile.py write`)
 
-Run `uv run profile write --table <item_id> --project-root <project_root> --profile '<json>'`.
+Run `uv run profile write --table <item_id> --profile '<json>'`.
 
 The `write` subcommand:
 
@@ -263,5 +262,5 @@ The actual profile data lives in the catalog file, not duplicated in the batch o
 
 ## Handoff
 
-- Decomposer consumes `item_id` and `selected_writer` from application-routed inputs.
-- Planner consumes approved profile answers from `catalog/tables/<table>.json` → `profile` section.
+- Profiler consumes `item_id` and `selected_writer` from application-routed scoping output.
+- Migrator consumes approved profile answers from `catalog/tables/<table>.json` → `profile` section.
