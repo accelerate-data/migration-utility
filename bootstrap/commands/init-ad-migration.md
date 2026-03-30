@@ -7,19 +7,21 @@ description: Checks that uv, Python 3.11+, shared package deps, ddl_mcp server, 
 
 Verify and set up all prerequisites before using `discover`, `scope`, `/setup-ddl`, or the `scoping-agent`.
 
+## Step 0: Pre-check
+
+If `CLAUDE_PLUGIN_ROOT` is not set, stop immediately and tell the user to load the plugin with `claude --plugin-dir <path-to-ad-migration>` before running this command.
+
 ## Step 1: Gather evidence
 
 Run all checks **silently** — do NOT install or change anything yet.
 
 1. `uv --version` — is uv installed?
 2. `python3 --version` — is Python ≥ 3.11?
-3. `uv run --project "${CLAUDE_PLUGIN_ROOT}/../migration/shared" python3 -c "import pydantic, sqlglot, typer"` — are shared package deps synced?
-4. `uv run "${CLAUDE_PLUGIN_ROOT}/../migration/ddl_mcp/server.py" --help` — does the DDL MCP server start cleanly?
+3. `uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" python3 -c "import pydantic, sqlglot, typer"` — are shared package deps synced?
+4. `uv run "${CLAUDE_PLUGIN_ROOT}/../mcp/ddl/server.py" --help` — does the DDL MCP server start cleanly?
 5. `toolbox --version` — is the genai-toolbox binary installed?
 6. Check whether each of the four MSSQL environment variables is set (non-empty): `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD`. Do not print their values.
 7. `git rev-parse --is-inside-work-tree` — is the current working directory inside a git repository? If not, warn the user that the project folder is not under version control and recommend initialising git before running extraction skills.
-
-If `CLAUDE_PLUGIN_ROOT` is not set, stop immediately and tell the user to load the plugin with `claude --plugin-dir <path-to-ad-migration>` before running this command.
 
 ## Step 2: Present plan
 
@@ -61,7 +63,7 @@ export SA_PASSWORD=<your-password>
 
 These values are passed to the `mssql` MCP server at startup via environment inheritance — they must be set in the shell before launching `claude`, not after.
 
-If everything is already set up, say so and skip to Step 4. Otherwise, ask the user to confirm before proceeding.
+If everything is already set up, say so and skip Step 3 (nothing to install). Proceed directly to Step 5. Otherwise, ask the user to confirm before proceeding.
 
 ## Step 3: Execute
 
@@ -80,7 +82,7 @@ After installing, re-run `uv --version` to confirm. Tell the user to restart the
 **Sync shared deps** (if not synced):
 
 ```bash
-uv sync --project "${CLAUDE_PLUGIN_ROOT}/../migration/shared"
+uv sync --project "${CLAUDE_PLUGIN_ROOT}/../lib"
 ```
 
 **ddl_mcp fails** (after shared sync): re-run the ddl_mcp check. If it still fails,
@@ -100,18 +102,17 @@ Re-run the same 7 checks and show the updated status table. Tell the user:
 
 Check whether a `CLAUDE.md` exists in the current working directory.
 
-**If no `CLAUDE.md` exists**, write one using the template below. Tell the user it was created and suggest restarting Claude so the new instructions are picked up.
+**If no `CLAUDE.md` exists**, write one using the template below. Tell the user it was created.
 
 **If a `CLAUDE.md` already exists**, read it and check whether it contains the minimum required sections listed below. For any missing section, tell the user which sections are missing and recommend adding them. Do not overwrite or modify the existing file without explicit confirmation.
 
 ### Minimum required sections
 
-These sections come from the plugin's `agent-sources/CLAUDE.md` and should be present in every migration project:
+Every migration project's `CLAUDE.md` should contain the following sections:
 
 1. **Domain** — what the project is migrating (source system, target platform)
 2. **Stack** — technology table (source DDL access, live DB access, transformation target, storage, orchestration, platform)
 3. **Commit Discipline** — checkpoint table and commit message format
-4. **Customization** — placeholder section with HTML comments for source schemas, naming conventions, excluded objects, and environment notes
 
 ### Template for new projects
 
@@ -152,11 +153,9 @@ Commit messages: `type: short description` (e.g. `feat: extract DDL from Adventu
 If not a git repository, skip commit steps silently.
 ```
 
-After writing or checking the file, tell the user: **"Restart Claude to pick up the new project instructions."**
-
 ## Step 6: Set up .gitignore
 
-If the working directory is a git repository (check 7 passed), check whether a `.gitignore` file exists.
+If the working directory is inside a git repository (confirmed by the git check in Step 1), check whether a `.gitignore` file exists.
 
 **If no `.gitignore` exists**, create one with the base entries below.
 
@@ -179,3 +178,25 @@ Thumbs.db
 ```
 
 Tell the user which entries were added (or that `.gitignore` was created).
+
+## Step 7: Commit
+
+If the working directory is a git repository, commit the files created or modified in Steps 5 and 6:
+
+```bash
+git add CLAUDE.md .gitignore
+git commit -m "chore: init migration project (CLAUDE.md, .gitignore)"
+```
+
+If not a git repository, skip silently.
+
+Then tell the user: **"Restart Claude to pick up the new project instructions."**
+
+## Idempotency
+
+Safe to re-run. Each step checks current state before acting:
+
+- Checks in Step 1 re-evaluate actual environment state.
+- Step 5 reads existing `CLAUDE.md` and checks for missing sections rather than overwriting.
+- Step 6 appends only missing `.gitignore` entries.
+- Step 7 only commits if there are staged changes.
