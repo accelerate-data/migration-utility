@@ -26,6 +26,7 @@ Use `docs/design/` for architecture and implementation design details.
 - [Setup DDL](setup-ddl/README.md) — step-by-step logic for DDL extraction, catalog signal queries, DMF reference extraction, and AST enrichment
 - [SP → dbt Migration Plugin](sp-to-dbt-plugin/README.md) — skill architecture, per-skill contracts, and implementation wave plan
 - [T-SQL Parse Classification](tsql-parse-classification/README.md) — exhaustive pattern list, deterministic (sqlglot) vs Claude-assisted routing
+- [CLI Design](cli-design/README.md) — framework choice, registered commands, I/O contract, exit codes, and testability pattern
 
 ## What Goes In `references`
 
