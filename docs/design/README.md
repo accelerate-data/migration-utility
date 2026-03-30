@@ -25,6 +25,7 @@ Use `docs/design/` for architecture and implementation design details.
 - [SP → dbt Migration Plugin](sp-to-dbt-plugin/README.md) — skill architecture, per-skill contracts, and implementation wave plan
 - [T-SQL Parse Classification](tsql-parse-classification/README.md) — exhaustive pattern list, deterministic (sqlglot) vs Claude-assisted routing
 - [CLI Design](cli-design/README.md) — framework choice, registered commands, I/O contract, exit codes, and testability pattern
+- [Eval Harness](eval-harness/README.md) — Promptfoo-based non-interactive testing for agents and skills against the MigrationTest schema
 
 ## What Goes In `references`
 
