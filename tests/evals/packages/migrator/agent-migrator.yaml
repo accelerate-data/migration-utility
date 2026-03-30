@@ -1,0 +1,43 @@
+description: "Migrator agent — batch dbt model generation from MigrationTest"
+
+prompts:
+  - file://../../prompts/agent-migrator.txt
+
+providers:
+  - file://../../providers/claude-code-headless.yaml
+
+defaultTest:
+  vars:
+    fixture_path: "{{FIXTURE_PATH | default('tests/evals/fixtures/migration-test')}}"
+  assert:
+    - type: is-json
+    - type: contains
+      value: "migrate context"
+    - type: contains
+      value: "migrate write"
+
+tests:
+  # ── simple INSERT → table materialization ─────────────────────
+  - description: "simple-insert-table — DimProduct"
+    vars:
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      scenario_id: "simple-insert"
+    assert:
+      - type: javascript
+        value: |
+          const d = JSON.parse(output);
+          return d.results && d.results[0] &&
+            (d.results[0].status === 'ok' || d.results[0].status === 'partial');
+      - type: javascript
+        value: "JSON.parse(output).summary.error === 0"
+      # TODO: assert materialization and artifact paths once fixture with profile is available
+
+  # ── incremental with watermark ────────────────────────────────
+  # TODO: requires fixture with watermark profile populated
+
+  # ── snapshot SCD2 ─────────────────────────────────────────────
+  # TODO: requires SCD2 fixture
+
+  # ── MERGE → incremental ──────────────────────────────────────
+  # TODO: requires MERGE fixture with incremental profile

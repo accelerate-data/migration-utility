@@ -1,0 +1,41 @@
+description: "Migrate skill — dbt model generation from stored procedures"
+
+prompts:
+  - file://../../prompts/skill-migrate.txt
+
+providers:
+  - file://../../providers/claude-code-headless.yaml
+
+defaultTest:
+  vars:
+    fixture_path: "{{FIXTURE_PATH | default('tests/evals/fixtures/migration-test')}}"
+
+tests:
+  # ── simple INSERT → table materialization ─────────────────────
+  - description: "simple-insert-table — DimProduct MERGE → dbt model"
+    vars:
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+    assert:
+      - type: contains
+        value: "{{ config("
+      - type: contains
+        value: "select * from final"
+      - type: contains
+        value: "migrate context"
+      - type: contains
+        value: "migrate write"
+      # TODO: assert specific materialization once fixture with profile is available
+
+  # ── incremental with watermark ────────────────────────────────
+  # TODO: requires fixture with watermark profile populated
+  # - description: "incremental-watermark — FactInternetSales"
+  #   vars:
+  #     target_table: "silver.FactInternetSales"
+  #     writer: "silver.usp_stage_FactInternetSales"
+
+  # ── snapshot SCD2 ─────────────────────────────────────────────
+  # TODO: requires SCD2 fixture with dim_scd2 profile
+
+  # ── MERGE → incremental ──────────────────────────────────────
+  # TODO: requires MERGE fixture with incremental profile
