@@ -62,10 +62,12 @@ Determine what you changed, then pick the right runner:
 |---|---|
 | Python shared library | `cd lib && uv run pytest` |
 | Python integration (Docker SQL Server) | `cd lib && uv run pytest -m integration` |
-| Scoping agent | `cd tests && npx vitest run` |
+| MCP server | `cd mcp/ddl && uv run pytest` |
 | Unsure | all of the above |
 
 When a change depends on local infrastructure (for example SQL Server-backed ignored tests), document in the PR which commands were run and which were not run.
+
+**Stale venv after a repo move:** If `mcp/ddl` tests fail with `cannot execute: No such file or directory`, the `.venv` has a stale interpreter path from a prior directory location. Fix: `rm -rf mcp/ddl/.venv && cd mcp/ddl && uv sync`.
 
 ## Design Docs
 
