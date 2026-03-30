@@ -98,6 +98,10 @@
       "path": "tests/unit/",
       "description": "Python pytest suite: test_discover.py, test_catalog.py, test_catalog_enrich.py, test_extract_refs.py, test_setup_ddl.py, test_init.py, test_smoke.py, test_migrate.py, test_profile.py, test_env_config.py. Fixtures: ddl/, ddl_unparseable/, discover/flat/ (with catalog/ subdirectory), discover/unparseable/, catalog/ (table and procedure JSON fixtures), migrate/ (DDL, catalog with procedures/tables, dbt project fixture, manifest.json), profile/ (DDL, catalog with procedures/tables, manifest.json), sql/ (Docker SQL Server setup scripts)."
     },
+    "tests_evals": {
+      "path": "tests/evals/",
+      "description": "Promptfoo eval harness for non-interactive agent and skill testing against MigrationTest schema. Three packages: scoping (8 scenarios x skill + agent), profiler (4 scenarios), migrator (4 scenarios). Run via: cd tests/evals && npx promptfoo eval. See docs/design/eval-harness/README.md."
+    },
     "tests_ddl_mcp": {
       "path": "mcp/ddl/tests/",
       "description": "Python pytest suite for the DDL MCP server. test_server.py tests all MCP tool handlers (list_tables, get_table_schema, list_procedures, get_procedure_body, get_dependencies, list_views, get_view_body, list_functions, get_function_body)."
@@ -108,7 +112,7 @@
     },
     "docs": {
       "path": "docs/",
-      "description": "Documentation. Sub-directories: design/ (agent-contract, branding, cli-design, overall-design, setup-ddl, sp-to-dbt-plugin, test-scenario, tsql-parse-classification, unit-test-strategy), reference/ (agent-instructions-governance, local-agent-testing, running-tests, setup-docker, test-db-image), requirements/."
+      "description": "Documentation. Sub-directories: design/ (agent-contract, branding, cli-design, eval-harness, overall-design, setup-ddl, sp-to-dbt-plugin, test-scenario, tsql-parse-classification, unit-test-strategy), reference/ (agent-instructions-governance, local-agent-testing, running-tests, setup-docker, test-db-image), requirements/."
     }
   },
   "key_directories": {
@@ -116,6 +120,7 @@
     "lib/": "Python DDL analysis library (uv project, sqlglot-based)",
     "lib/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
     "tests/unit/": "Python pytest tests for shared library (discover, catalog, catalog_enrich, extract_refs, integration)",
+    "tests/evals/": "Promptfoo eval harness for agent and skill testing (scoping, profiler, migrator packages)",
     "mcp/ddl/tests/": "Python pytest tests for the DDL MCP server",
     "docs/design/": "Architecture decision records and design specs",
     ".claude/rules/": "Shared agent rules (4 policy files: coding-conventions, git-workflow, logging-policy, codex-execution-policy)",
@@ -125,7 +130,11 @@
     "test_migration_python": "cd lib && uv run pytest",
     "test_migration_python_integration": "cd lib && uv run pytest -m integration",
     "test_mcp_ddl": "cd mcp/ddl && uv run pytest",
-    "lint_md": "markdownlint <file>"
+    "lint_md": "markdownlint <file>",
+    "eval_all": "cd tests/evals && npx promptfoo eval",
+    "eval_scoping": "cd tests/evals && npx promptfoo eval -c packages/scoping/promptfooconfig.yaml",
+    "eval_profiler": "cd tests/evals && npx promptfoo eval -c packages/profiler/promptfooconfig.yaml",
+    "eval_migrator": "cd tests/evals && npx promptfoo eval -c packages/migrator/promptfooconfig.yaml"
   },
   "conventions": {
     "typescript_files": "kebab-case (scope-selector.tsx, candidacy-table.tsx)",
