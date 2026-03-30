@@ -180,6 +180,9 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# MCP server config (may contain credentials)
+.mcp.json
 ```
 
 Tell the user which entries were added (or that `.gitignore` was created).

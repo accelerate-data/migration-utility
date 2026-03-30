@@ -27,7 +27,7 @@ Migration utility for stored-procedure-to-dbt conversion: a Claude Code plugin f
 Three execution paths, one pipeline:
 
 ┌─────────────────────────────────────────────────────────┐
-│                   Migration Repository                   │
+│                   Migration Repository                  │
 │  (1 project = 1 repo, all state in artifact JSONs)      │
 └────────────────────────┬────────────────────────────────┘
                          │
