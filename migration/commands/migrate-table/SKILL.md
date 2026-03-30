@@ -6,7 +6,7 @@ description: >
   or "run the full migration pipeline". Coordinates discover, profile, and migrate
   skills in sequence with user gates.
 user-invocable: true
-argument-hint: "[ddl-path] [--table <fqn>] [--dbt-project-path <path>] [--non-interactive]"
+argument-hint: "[[project-root]] [--table <fqn>] [--dbt-project-path <path>] [--non-interactive]"
 ---
 
 # Migrate Table
@@ -17,18 +17,19 @@ Orchestrates the migration pipeline for a single table: discover the writer proc
 
 | Argument | Required | Description |
 |---|---|---|
-| `ddl-path` | yes | Path to DDL artifacts directory |
+| `[project-root]` | no | Path to project root directory — defaults to current working directory |
 | `--table` | no | Target table FQN — interactive picker if omitted |
-| `--dbt-project-path` | no | Path to dbt project — auto-detected from `<ddl-path>/../dbt/` if omitted |
+| `--dbt-project-path` | no | Path to dbt project — auto-detected from `<project-root>/../dbt/` if omitted |
 | `--non-interactive` | no | Skip all confirmation gates (for GHA/batch use) |
 
 ## Prerequisite check
 
 Before starting the migration pipeline:
 
-1. Confirm `<ddl-path>/manifest.json` exists — if not, stop: "Run `/setup-ddl` first."
-2. Confirm a dbt project exists at `--dbt-project-path` or `<ddl-path>/../dbt/` — if not, stop: "Run `/init-dbt` first."
-3. Confirm `catalog/` directory has table and procedure files — if not, stop: "Run `/setup-ddl` with `--catalog` first."
+1. If `project-root` is not provided, default to the current working directory. Use `AskUserQuestion` to confirm the resolved path with the user before proceeding.
+2. Confirm `<project-root>/manifest.json` exists — if not, stop: "Run `/setup-ddl` first."
+3. Confirm a dbt project exists at `--dbt-project-path` or `<project-root>/../dbt/` — if not, stop: "Run `/init-dbt` first."
+4. Confirm `catalog/` directory has table and procedure files — if not, stop: "Run `/setup-ddl` with `--catalog` first."
 
 ## Pipeline
 
@@ -38,7 +39,7 @@ Before starting the migration pipeline:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover list \
-  --ddl-path <ddl-path> --type tables
+  --project-root <project-root> --type tables
 ```
 
 If `--table` was provided, skip the picker. Otherwise, present the table list and use `AskUserQuestion` to let the user pick.
@@ -47,7 +48,7 @@ If `--table` was provided, skip the picker. Otherwise, present the table list an
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover refs \
-  --ddl-path <ddl-path> --name <selected_table>
+  --project-root <project-root> --name <selected_table>
 ```
 
 Present the writers list. If exactly one writer, auto-select it and confirm with the user. If multiple writers, ask the user to pick one. If no writers found, stop with an error.
@@ -60,7 +61,7 @@ Present the writers list. If exactly one writer, auto-select it and confirm with
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover show \
-  --ddl-path <ddl-path> --name <selected_writer>
+  --project-root <project-root> --name <selected_writer>
 ```
 
 Check `classification`:
@@ -69,7 +70,7 @@ Check `classification`:
 
   ```bash
   uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover write-statements \
-    --ddl-path <ddl-path> --name <selected_writer> --statements '<json>'
+    --project-root <project-root> --name <selected_writer> --statements '<json>'
   ```
 
 - **`claude_assisted`**: Read the `raw_ddl`, resolve each `claude`-action statement by following the call graph and classifying as `migrate` or `skip`. Present the resolved statements for user confirmation, then persist.

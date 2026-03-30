@@ -17,7 +17,7 @@ Usage (stdio mode):
     uv run server.py
 
 DDL path resolution order (first wins):
-    1. `ddl_path` parameter passed in the tool call arguments
+    1. `project_root` parameter passed in the tool call arguments
     2. `DDL_PATH` environment variable
 
 The resolved path must point to a directory containing one or more .sql files
@@ -42,10 +42,10 @@ server = Server("ddl-mcp")
 _catalog_cache: dict[Path, DdlCatalog] = {}
 
 _DDL_PATH_SCHEMA = {
-    "ddl_path": {
+    "project_root": {
         "type": "string",
         "description": (
-            "Absolute path to the DDL artifacts directory. "
+            "Absolute path to the project root directory (contains ddl/, catalog/, manifest.json). "
             "Overrides the DDL_PATH environment variable when provided."
         ),
     }
@@ -54,24 +54,24 @@ _DDL_PATH_SCHEMA = {
 
 # ── Path helpers ──────────────────────────────────────────────────────────────
 
-def _ddl_path(override: str | None = None) -> Path:
+def _project_root(override: str | None = None) -> Path:
     raw = (override or os.environ.get("DDL_PATH", "")).strip()
     if not raw:
         raise ValueError(
-            "DDL path is not set. Pass ddl_path in tool arguments or set the "
+            "Project root is not set. Pass project_root in tool arguments or set the "
             "DDL_PATH environment variable."
         )
     p = Path(raw)
     if not p.exists():
-        raise FileNotFoundError(f"DDL path does not exist: {p}")
+        raise FileNotFoundError(f"Project root does not exist: {p}")
     return p
 
 
-def _catalog(ddl_path: Path) -> DdlCatalog:
-    resolved = ddl_path.resolve()
+def _catalog(project_root: Path) -> DdlCatalog:
+    resolved = project_root.resolve()
     if resolved not in _catalog_cache:
-        manifest = read_manifest(ddl_path)
-        _catalog_cache[resolved] = load_directory(ddl_path, dialect=manifest["dialect"])
+        manifest = read_manifest(project_root)
+        _catalog_cache[resolved] = load_directory(project_root, dialect=manifest["dialect"])
     return _catalog_cache[resolved]
 
 
@@ -233,8 +233,8 @@ async def list_tools() -> list[types.Tool]:
 
 @server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
-    ddl_path = _ddl_path(arguments.get("ddl_path"))
-    catalog = _catalog(ddl_path)
+    project_root = _project_root(arguments.get("project_root"))
+    catalog = _catalog(project_root)
 
     if name == "list_tables":
         return [types.TextContent(type="text", text="\n".join(sorted(catalog.tables)) or "(none)")]

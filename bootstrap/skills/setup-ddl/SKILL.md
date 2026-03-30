@@ -425,7 +425,7 @@ The tool outputs JSON with counts: `{"tables": N, "procedures": N, "views": N, "
 Run the catalog enrichment script to fill catalog-query gaps:
 
 ```bash
-uv run --project <shared-path> catalog-enrich --ddl-path <output-folder>
+uv run --project <shared-path> catalog-enrich --project-root <output-folder>
 ```
 
 This augments catalog files with AST-derived references for:

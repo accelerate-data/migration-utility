@@ -104,22 +104,20 @@ verification:
 # List tables in a DDL directory
 uv run \
   --project lib \
-  discover list --ddl-path <path-to-sql-files> --type tables
+  discover list --project-root <path-to-sql-files> --type tables
 
 # Show details for a specific object
 uv run \
   --project lib \
-  discover show --ddl-path <path-to-sql-files> --name silver.DimProduct
+  discover show --project-root <path-to-sql-files> --name silver.DimProduct
 
 # Find writer procedures for a table
 uv run \
   --project lib \
-  scope --ddl-path <path-to-sql-files> --table silver.DimProduct
+  scope --project-root <path-to-sql-files> --table silver.DimProduct
 ```
 
-`--ddl-path` must point to a directory containing `.sql` files, not to
-a single file. Object types are auto-detected from `CREATE` statements
-inside the files — filenames are not significant.
+`--project-root` must point to a directory containing a `ddl/` subdirectory with `.sql` files. Object types are auto-detected from `CREATE` statements inside the files — filenames are not significant.
 
 ## Quick reference
 

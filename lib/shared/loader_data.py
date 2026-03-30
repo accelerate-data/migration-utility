@@ -16,11 +16,11 @@ class DdlParseError(Exception):
 
 
 class CatalogNotFoundError(Exception):
-    """Raised when the catalog/ directory is missing from the DDL path."""
+    """Raised when the catalog/ directory is missing from the project root."""
 
-    def __init__(self, ddl_path: Any) -> None:
-        super().__init__(f"No catalog/ directory found in {ddl_path}")
-        self.ddl_path = ddl_path
+    def __init__(self, project_root: Any) -> None:
+        super().__init__(f"No catalog/ directory found in {project_root}")
+        self.project_root = project_root
 
 
 class CatalogFileMissingError(Exception):

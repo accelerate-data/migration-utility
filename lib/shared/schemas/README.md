@@ -92,10 +92,10 @@ Structured JSON output from the `discover` CLI subcommands, consumed by skills a
 
 | Schema | Agent | Required fields |
 |---|---|---|
-| [scope_input.json](scope_input.json) | Scoping | `schema_version`, `run_id`, `technology`, `ddl_path`, `items[].item_id` |
-| [profiler_input.json](profiler_input.json) | Profiler | `schema_version`, `run_id`, `ddl_path`, `items[].item_id`, `items[].selected_writer` |
-| [test_generator_input.json](test_generator_input.json) | Test Generator | `schema_version`, `run_id`, `ddl_path`, `items[].item_id`, `items[].selected_writer` |
-| [migrator_input.json](migrator_input.json) | Migrator | `schema_version`, `run_id`, `ddl_path`, `items[].item_id`, `items[].selected_writer` |
+| [scope_input.json](scope_input.json) | Scoping | `schema_version`, `run_id`, `technology`, `project_root`, `items[].item_id` |
+| [profiler_input.json](profiler_input.json) | Profiler | `schema_version`, `run_id`, `project_root`, `items[].item_id`, `items[].selected_writer` |
+| [test_generator_input.json](test_generator_input.json) | Test Generator | `schema_version`, `run_id`, `project_root`, `items[].item_id`, `items[].selected_writer` |
+| [migrator_input.json](migrator_input.json) | Migrator | `schema_version`, `run_id`, `project_root`, `items[].item_id`, `items[].selected_writer` |
 
 ## Agent output schemas
 

@@ -62,7 +62,7 @@ class ObjectType(str, Enum):
     functions = "functions"
 
 
-def _load(ddl_path: Path) -> tuple[DdlCatalog, str]:
+def _load(project_root: Path) -> tuple[DdlCatalog, str]:
     """Load a DdlCatalog and dialect from a DDL directory.
 
     Requires a catalog/ directory (from setup-ddl).
@@ -70,7 +70,7 @@ def _load(ddl_path: Path) -> tuple[DdlCatalog, str]:
     Raises:
         CatalogNotFoundError: if catalog/ directory is missing.
     """
-    return load_ddl(ddl_path)
+    return load_ddl(project_root)
 
 
 def _emit(data: Any) -> None:
@@ -107,17 +107,17 @@ def _catalog_error(type_label: str, norm: str) -> None:
 # ── Core logic (importable for testing) ───────────────────────────────────────
 
 
-def run_list(ddl_path: Path, object_type: ObjectType) -> dict[str, Any]:
+def run_list(project_root: Path, object_type: ObjectType) -> dict[str, Any]:
     """Return the list subcommand result dict."""
-    catalog, _ = _load(ddl_path)
+    catalog, _ = _load(project_root)
     bucket = _bucket(catalog, object_type)
     objects = sorted(bucket.keys())
     return {"objects": objects}
 
 
-def _show_table(ddl_path: Path, norm: str) -> dict[str, Any]:
+def _show_table(project_root: Path, norm: str) -> dict[str, Any]:
     """Build show fields for a table object."""
-    table_cat = load_table_catalog(ddl_path, norm)
+    table_cat = load_table_catalog(project_root, norm)
     if table_cat is None:
         _catalog_error("table", norm)
         assert False, "unreachable"  # _catalog_error always raises
@@ -125,10 +125,10 @@ def _show_table(ddl_path: Path, norm: str) -> dict[str, Any]:
 
 
 def _show_procedure(
-    ddl_path: Path, norm: str, entry: DdlEntry,
+    project_root: Path, norm: str, entry: DdlEntry,
 ) -> dict[str, Any]:
     """Build show fields for a procedure object."""
-    proc_cat = load_proc_catalog(ddl_path, norm)
+    proc_cat = load_proc_catalog(project_root, norm)
     if proc_cat is None:
         _catalog_error("procedure", norm)
         assert False, "unreachable"  # _catalog_error always raises
@@ -178,11 +178,11 @@ def _show_procedure(
 
 
 def _show_view_or_function(
-    ddl_path: Path, norm: str, type_label: str,
+    project_root: Path, norm: str, type_label: str,
 ) -> dict[str, Any]:
     """Build show fields for a view or function object."""
     cat_loader = load_view_catalog if type_label == "view" else load_function_catalog
-    obj_cat = cat_loader(ddl_path, norm)
+    obj_cat = cat_loader(project_root, norm)
     if obj_cat is None:
         _catalog_error(type_label, norm)
         assert False, "unreachable"  # _catalog_error always raises
@@ -199,13 +199,13 @@ def _show_view_or_function(
     }
 
 
-def run_show(ddl_path: Path, name: str) -> dict[str, Any]:
+def run_show(project_root: Path, name: str) -> dict[str, Any]:
     """Return the show subcommand result dict.
 
     Reads all metadata from catalog files. AST parsing is only used for
     statement breakdown on deterministic (needs_llm=false) procedures.
     """
-    catalog, _ = _load(ddl_path)
+    catalog, _ = _load(project_root)
     found = _find_entry(catalog, name)
     if found is None:
         raise ObjectNotFoundError(normalize(name))
@@ -213,11 +213,11 @@ def run_show(ddl_path: Path, name: str) -> dict[str, Any]:
     norm, type_label, entry = found
 
     if type_label == "table":
-        extra = _show_table(ddl_path, norm)
+        extra = _show_table(project_root, norm)
     elif type_label == "procedure":
-        extra = _show_procedure(ddl_path, norm, entry)
+        extra = _show_procedure(project_root, norm, entry)
     elif type_label in ("view", "function"):
-        extra = _show_view_or_function(ddl_path, norm, type_label)
+        extra = _show_view_or_function(project_root, norm, type_label)
     else:
         extra = {}
 
@@ -235,7 +235,7 @@ def run_show(ddl_path: Path, name: str) -> dict[str, Any]:
     }
 
 
-def _run_refs_from_catalog(ddl_path: Path, target: str) -> dict[str, Any]:
+def _run_refs_from_catalog(project_root: Path, target: str) -> dict[str, Any]:
     """Build refs result from catalog JSON files.
 
     Looks up tables, views, and functions — any object that can be
@@ -249,7 +249,7 @@ def _run_refs_from_catalog(ddl_path: Path, target: str) -> dict[str, Any]:
     cat: dict[str, Any] | None = None
     object_type = "object"
     for type_label, loader in _loaders:
-        cat = loader(ddl_path, target)
+        cat = loader(project_root, target)
         if cat is not None:
             object_type = type_label
             break
@@ -294,7 +294,7 @@ def _run_refs_from_catalog(ddl_path: Path, target: str) -> dict[str, Any]:
 
 
 def run_write_statements(
-    ddl_path: Path, name: str, statements: list[dict[str, Any]],
+    project_root: Path, name: str, statements: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Persist resolved statements into a procedure catalog file.
 
@@ -310,21 +310,21 @@ def run_write_statements(
                 f"Unresolved statement action {action!r} for {stmt.get('id', '?')} — "
                 "all actions must be 'migrate' or 'skip' before writing."
             )
-    path = write_proc_statements(ddl_path, name, statements)
+    path = write_proc_statements(project_root, name, statements)
     return {"written": str(path), "statement_count": len(statements)}
 
 
-def run_refs(ddl_path: Path, name: str) -> dict[str, Any]:
+def run_refs(project_root: Path, name: str) -> dict[str, Any]:
     """Return the refs subcommand result dict.
 
     Reads catalog/tables/<name>.json -> referenced_by for instant
     writer identification. Requires catalog files from setup-ddl.
     """
-    if not has_catalog(ddl_path):
-        raise CatalogNotFoundError(ddl_path)
+    if not has_catalog(project_root):
+        raise CatalogNotFoundError(project_root)
     target = normalize(name)
 
-    catalog, _ = _load(ddl_path)
+    catalog, _ = _load(project_root)
     found = _find_entry(catalog, name)
     if found is not None:
         _, type_label, _ = found
@@ -333,7 +333,7 @@ def run_refs(ddl_path: Path, name: str) -> dict[str, Any]:
                 "error": f"{target} is a procedure — refs only works for tables, views, and functions. Use 'show {name}' to see what this procedure reads/writes.",
             }
 
-    result = _run_refs_from_catalog(ddl_path, target)
+    result = _run_refs_from_catalog(project_root, target)
     logger.info("event=refs_complete target=%s source=catalog", target)
     return result
 
@@ -343,12 +343,12 @@ def run_refs(ddl_path: Path, name: str) -> dict[str, Any]:
 
 @app.command(name="list")
 def list_objects(
-    ddl_path: Path = typer.Option(..., help="Path to DDL directory"),
+    project_root: Path = typer.Option(..., "--project-root", help="Path to project root directory"),
     type: ObjectType = typer.Option(..., help="Object type to list"),
 ) -> None:
     """List all objects of a given type in a DDL directory."""
     try:
-        result = run_list(ddl_path, type)
+        result = run_list(project_root, type)
     except (CatalogFileMissingError, ObjectNotFoundError) as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=1) from exc
@@ -360,12 +360,12 @@ def list_objects(
 
 @app.command()
 def show(
-    ddl_path: Path = typer.Option(..., help="Path to DDL directory"),
+    project_root: Path = typer.Option(..., "--project-root", help="Path to project root directory"),
     name: str = typer.Option(..., help="Fully-qualified object name (schema.Name)"),
 ) -> None:
     """Show details for a single named DDL object."""
     try:
-        result = run_show(ddl_path, name)
+        result = run_show(project_root, name)
     except (CatalogFileMissingError, ObjectNotFoundError) as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=1) from exc
@@ -377,12 +377,12 @@ def show(
 
 @app.command()
 def refs(
-    ddl_path: Path = typer.Option(..., help="Path to DDL directory"),
+    project_root: Path = typer.Option(..., "--project-root", help="Path to project root directory"),
     name: str = typer.Option(..., help="Fully-qualified object name (schema.Name)"),
 ) -> None:
     """Find all procedures/views that reference a given object."""
     try:
-        result = run_refs(ddl_path, name)
+        result = run_refs(project_root, name)
     except (CatalogFileMissingError, ObjectNotFoundError) as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=1) from exc
@@ -394,7 +394,7 @@ def refs(
 
 @app.command(name="write-statements")
 def write_statements(
-    ddl_path: Path = typer.Option(..., help="Path to DDL directory"),
+    project_root: Path = typer.Option(..., "--project-root", help="Path to project root directory"),
     name: str = typer.Option(..., help="Fully-qualified procedure name (schema.Name)"),
     statements: str = typer.Option(..., help="JSON array of resolved statement objects"),
 ) -> None:
@@ -405,7 +405,7 @@ def write_statements(
         logger.error("event=command_failed error=invalid_json detail=%s", exc)
         raise typer.Exit(code=2) from exc
     try:
-        result = run_write_statements(ddl_path, name, stmts)
+        result = run_write_statements(project_root, name, stmts)
     except (ObjectNotFoundError, FileNotFoundError) as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=1) from exc

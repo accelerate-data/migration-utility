@@ -24,7 +24,7 @@ from shared.name_resolver import normalize
 
 
 def _write_object_catalogs(
-    ddl_path: Path,
+    project_root: Path,
     dmf_refs: dict[str, dict],
     object_type: str,
     rflags: dict[str, dict[str, bool]],
@@ -43,13 +43,13 @@ def _write_object_catalogs(
     count = 0
     for fqn, refs in dmf_refs.items():
         params = pparams.get(fqn) if object_type == "procedures" else None
-        write_object_catalog(ddl_path, object_type, fqn, refs, **rflags.get(fqn, {}), params=params)
+        write_object_catalog(project_root, object_type, fqn, refs, **rflags.get(fqn, {}), params=params)
         count += 1
 
     for fqn, bucket in (object_types or {}).items():
         if bucket == object_type and fqn not in dmf_refs:
             params = pparams.get(fqn) if object_type == "procedures" else None
-            write_object_catalog(ddl_path, object_type, fqn, _empty_refs(), **rflags.get(fqn, {}), params=params)
+            write_object_catalog(project_root, object_type, fqn, _empty_refs(), **rflags.get(fqn, {}), params=params)
             count += 1
 
     return count
@@ -80,7 +80,7 @@ def _build_table_referenced_by(
 
 
 def write_catalog_files(
-    ddl_path: Path,
+    project_root: Path,
     table_signals: dict[str, dict[str, Any]],
     proc_dmf_rows: list[dict[str, Any]],
     view_dmf_rows: list[dict[str, Any]],
@@ -102,9 +102,9 @@ def write_catalog_files(
     func_refs = process_dmf_results(func_dmf_rows, object_types, database=database)
 
     counts = {
-        "procedures": _write_object_catalogs(ddl_path, proc_refs, "procedures", rflags, pparams, object_types),
-        "views": _write_object_catalogs(ddl_path, view_refs, "views", rflags, pparams, object_types),
-        "functions": _write_object_catalogs(ddl_path, func_refs, "functions", rflags, pparams, object_types),
+        "procedures": _write_object_catalogs(project_root, proc_refs, "procedures", rflags, pparams, object_types),
+        "views": _write_object_catalogs(project_root, view_refs, "views", rflags, pparams, object_types),
+        "functions": _write_object_catalogs(project_root, func_refs, "functions", rflags, pparams, object_types),
     }
 
     table_referenced_by = _build_table_referenced_by(proc_refs, view_refs, func_refs)
@@ -113,7 +113,7 @@ def write_catalog_files(
     all_table_fqns = set(table_signals.keys()) | set(table_referenced_by.keys()) | known_tables
     counts["tables"] = 0
     for table_fqn in sorted(all_table_fqns):
-        write_table_catalog(ddl_path, table_fqn, table_signals.get(table_fqn, {}), table_referenced_by.get(table_fqn))
+        write_table_catalog(project_root, table_fqn, table_signals.get(table_fqn, {}), table_referenced_by.get(table_fqn))
         counts["tables"] += 1
 
     return counts

@@ -24,7 +24,7 @@ The initial message contains two space-separated file paths: input JSON and outp
 - **Input schema:** `../lib/shared/schemas/scope_input.json`
 - **Output schema:** `../lib/shared/schemas/candidate_writers.json`
 
-After reading the input, read `<ddl_path>/manifest.json` for `technology` and `dialect`. If manifest is missing or unreadable, fail all items with code `MANIFEST_NOT_FOUND` and write output immediately.
+After reading the input, read `<project_root>/manifest.json` for `technology` and `dialect`. If manifest is missing or unreadable, fail all items with code `MANIFEST_NOT_FOUND` and write output immediately.
 
 ---
 
@@ -36,7 +36,7 @@ For each item in `items[]`, run:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover refs \
-  --ddl-path <ddl_path> --name <item_id>
+  --project-root <project_root> --name <item_id>
 ```
 
 The output contains `writers` and `readers`. Each writer is a candidate.
@@ -47,7 +47,7 @@ If discover fails (exit code 1 or 2), record `error` with code `DISCOVER_EXECUTI
 
 For each candidate writer:
 
-1. Run `discover show --ddl-path <ddl_path> --name <writer>`.
+1. Run `discover show --project-root <project_root> --name <writer>`.
 
 2. Extract `refs` from the output. For every ref that is a view, function, or procedure (not a base table), run `discover show` on it and follow the chain until you reach base tables. Assemble the fully resolved `dependencies: { tables, views, functions }` on the candidate.
 
@@ -97,7 +97,7 @@ Run:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover write-statements \
-  --ddl-path <ddl_path> --name <selected_writer> --statements '<json>'
+  --project-root <project_root> --name <selected_writer> --statements '<json>'
 ```
 
 No `claude` actions are persisted — all must be resolved before writing.

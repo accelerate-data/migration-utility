@@ -129,7 +129,7 @@ After `catalog-enrich` processes a proc, `needs_enrich` is flipped to `false`. P
 After `export_ddl.py` completes, run `catalog-enrich`:
 
 ```bash
-uv run --project <shared-path> catalog-enrich --ddl-path <output-folder>
+uv run --project <shared-path> catalog-enrich --project-root <output-folder>
 ```
 
 This step has no live DB dependency. It reads `procedures.sql` and the catalog files written in Steps 5–6, then augments them with references the DMF cannot detect:
