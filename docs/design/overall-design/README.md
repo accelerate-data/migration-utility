@@ -42,11 +42,11 @@ Three execution paths, one pipeline:
    at every step     single-table     full-scope
 ```
 
-| Path | Entry point | Approval gates | Runs where |
-|---|---|---|---|
-| Interactive | FDE opens Claude Code, uses skills (`/discover`, `/profile`, `/migrate`) | Yes -- every step | Local terminal |
-| Local batch | `migrate-util scope --table X` | None -- agent runs autonomously | Local terminal |
-| GHA batch | `migrate-util dispatch scope --all` | None -- commits input, triggers GHA workflow | GitHub Actions |
+| Path | Entry point | Approval gates | Runs where | Status |
+|---|---|---|---|---|
+| Interactive | FDE opens Claude Code, uses skills (`/discover`, `/profile`, `/migrate`) | Yes -- every step | Local terminal | Implemented |
+| Local batch | `migrate-util scope --table X` | None -- agent runs autonomously | Local terminal | **Not yet implemented** |
+| GHA batch | `migrate-util dispatch scope --all` | None -- commits input, triggers GHA workflow | GitHub Actions | **Not yet implemented** |
 
 All three paths share the same deterministic Python skills and agent contracts. The difference is orchestration: interactive stops for FDE approval, batch continues autonomously.
 
@@ -94,33 +94,7 @@ Catalog files (`catalog/tables/`, `catalog/procedures/`) are the shared state be
 
 ## DDL Extraction
 
-The `setup-ddl` skill extracts DDL and catalog signals from the source system. This runs once at project setup.
-
-### SQL Server (DacPac)
-
-A bundled .NET 8 tool (`dacpac-extractor`) uses `Microsoft.SqlServer.DacFx` to unpack the DacPac and script all objects:
-
-```bash
-dacpac-extractor {source-file} {output-dir}
-```
-
-Outputs: `tables.sql`, `procedures.sql`, `views.sql`, `functions.sql`, `indexes.sql`.
-
-For catalog extraction (keys, FKs, referenced entities), the skill connects to a live SQL Server instance via `export_ddl.py --catalog` and writes JSON files to `catalog/`.
-
-### Other Sources (zip)
-
-The skill unzips the archive and normalizes the contents into the same `ddl/` structure.
-
-### Source Metadata
-
-`artifacts/ddl/metadata.json` records:
-
-- `technology` -- source system type
-- `source_filename` -- original filename
-- `source_sha256` -- hash of the source file
-- `extraction_datetime` -- when extraction occurred
-- `tool_version` -- migration utility version
+The `setup-ddl` CLI extracts DDL and builds catalog files from MCP query results. This runs once at project setup. Source metadata (technology, dialect, schemas) is recorded in `manifest.json` at the project root.
 
 ---
 
@@ -134,12 +108,12 @@ Scoping ──► Profiling ──► Migration ──► Test Generation
 
 Each stage reads upstream catalog/artifact data and produces its own output. See [Agent Contracts](../agent-contract/README.md) for per-agent input/output schemas and [SP to dbt Migration Plugin](../sp-to-dbt-plugin/README.md) for skill contracts and shared library.
 
-| Stage | Agent | What it does |
-|---|---|---|
-| Scoping | `scoping-agent` | Discover writers for each table via catalog refs + AST fallback |
-| Profiling | `profiler-agent` | Classify tables, identify keys/watermarks/FKs/PII |
-| Migration | `migrator-agent` | Generate dbt models from proc bodies + profile answers |
-| Test Generation | `test-generator-agent` | Generate schema tests and unit test fixtures |
+| Stage | Agent | What it does | Status |
+|---|---|---|---|
+| Scoping | `scoping-agent` | Discover writers for each table via catalog refs + AST fallback | Implemented |
+| Profiling | `profiler-agent` | Classify tables, identify keys/watermarks/FKs/PII | Implemented |
+| Migration | `migrator-agent` | Generate dbt models from proc bodies + profile answers | Implemented |
+| Test Generation | `test-generator-agent` | Generate schema tests and unit test fixtures | **Not yet implemented** |
 
 ---
 
@@ -150,18 +124,17 @@ The FDE uses Claude Code skills directly. The `/migrate-table` orchestrator comm
 Flow:
 
 1. `/discover` -- list tables, pick one
-2. `/scope` -- find writers, confirm which procedure to migrate
-3. `/discover show` -- statement breakdown, resolve `claude` statements via LLM + FDE confirmation
-4. `/profile` -- catalog signals + LLM inference, FDE approves candidates
-5. `/migrate` -- generate dbt model, FDE approves before file write
-6. `/test-gen` -- generate schema.yml + unit test fixtures, FDE approves before file write
-7. `/validate` -- compare outputs (skipped if no live DB)
+2. `/discover show` -- statement breakdown, resolve `claude` statements via LLM + FDE confirmation
+3. `/profile` -- catalog signals + LLM inference, FDE approves candidates
+4. `/migrate` -- generate dbt model, FDE approves before file write
 
 Each step reads from and writes to catalog files in the migration repo. The FDE reviews and edits before approving. See [SP to dbt Migration Plugin](../sp-to-dbt-plugin/README.md) for full skill contracts.
 
 ---
 
 ## Batch Execution
+
+> **Not yet implemented.** The `migrate-util` CLI and GHA dispatch workflows described below are planned but not built.
 
 ### Local Batch
 
@@ -188,18 +161,11 @@ Commits an `{action}/{run_id}.input.json` to the migration repo and triggers a `
 4. Runs the agent.
 5. Creates branch `run/{run_id}`, commits output JSON, merges into `main`, deletes the run branch.
 
-### Test Generator (SQL Server)
-
-The test generator agent requires a live database for validation. On GHA:
-
-1. Pulls source file from LFS.
-2. Starts SQL Server Docker container; restores database from source file.
-3. Starts live execution MCP in HTTP mode.
-4. Runs the test generator agent.
-
 ---
 
 ## Status
+
+> **Not yet implemented.** Depends on the `migrate-util` CLI.
 
 Status is derived entirely from artifact JSONs in the migration repo. No SQLite, no separate status table.
 
@@ -222,20 +188,15 @@ Last run per table wins -- a later run supersedes all prior runs for that table.
 
 ## Agent Execution Model
 
+> **GHA dispatch not yet implemented.** The per-agent workflow design below is planned.
+
 One GitHub Actions workflow file per agent. Each workflow run corresponds to exactly one agent and one batch of tables.
-
-### Workflow Inputs
-
-| Input | Description |
-|---|---|
-| `run_id` | UUID generated at submission time |
-| `submitted_ts` | ISO 8601 UTC timestamp |
 
 ### Agent Plugin
 
 The repo root is a Claude Code marketplace package containing three plugins. Plugin structure, skill contracts, and local dev setup: [SP to dbt Migration Plugin](../sp-to-dbt-plugin/README.md).
 
-### Workflow Steps
+### Workflow Steps (planned)
 
 1. Clone the migration repo.
 2. Install genai-toolbox binary; start DDL file MCP in HTTP mode on `localhost:5000`.
@@ -245,9 +206,3 @@ The repo root is a Claude Code marketplace package containing three plugins. Plu
 6. Commit output JSON to `artifacts/{action}/{run_id}.json` on that branch.
 7. Merge `run/{run_id}` into `main` (each run touches a unique file path -- no conflicts).
 8. Delete the `run/{run_id}` branch.
-
----
-
-## FDE Overrides
-
-FDE overrides are direct edits to catalog files committed to git. There is no separate override table or schema. See [fde-overrides.md](fde-overrides.md) for details.
