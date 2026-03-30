@@ -9,13 +9,20 @@ Usage (via uv):
     uv run --project <shared> setup-ddl assemble-tables --input <json> --project-root <dir>
     uv run --project <shared> setup-ddl write-catalog --staging-dir <dir> --project-root <dir> --database <name>
     uv run --project <shared> setup-ddl write-manifest --project-root <dir> --technology sql_server --database <name> --schemas bronze,silver
+
+All JSON output goes to stdout; warnings/progress go to stderr.
+
+Exit codes:
+    0  success
+    1  domain failure (invalid type, unknown technology)
+    2  IO or parse error
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import shutil
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -25,7 +32,9 @@ import typer
 from shared.name_resolver import normalize
 from shared.sql_types import format_sql_type
 
-app = typer.Typer(add_completion=False)
+logger = logging.getLogger(__name__)
+
+app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
 # ── Technology → dialect mapping ──────────────────────────────────────────────
 
@@ -50,98 +59,6 @@ def _read_json_optional(path: Path) -> Any:
     if not path.exists():
         return []
     return json.loads(path.read_text(encoding="utf-8"))
-
-
-# ── assemble-modules ──────────────────────────────────────────────────────────
-
-
-@app.command("assemble-modules")
-def assemble_modules(
-    input: Path = typer.Option(..., help="JSON file with [{schema_name, object_name, definition}]"),
-    project_root: Optional[Path] = typer.Option(
-        None, "--project-root",
-        help="Project root containing ddl/, catalog/, manifest.json (defaults to CWD)"
-    ),
-    type: str = typer.Option(..., help="Object type: procedures, views, or functions"),
-) -> None:
-    """Assemble a GO-delimited .sql file from OBJECT_DEFINITION results."""
-    if project_root is None:
-        project_root = Path.cwd()
-    if type not in ("procedures", "views", "functions"):
-        typer.echo(f"Invalid type: {type}. Must be procedures, views, or functions.", err=True)
-        raise typer.Exit(1)
-
-    rows = _read_json(input)
-    blocks: list[str] = []
-    for row in rows:
-        definition = row.get("definition")
-        if definition:
-            blocks.append(definition.strip())
-
-    ddl_dir = project_root / "ddl"
-    ddl_dir.mkdir(parents=True, exist_ok=True)
-    out_path = ddl_dir / f"{type}.sql"
-    out_path.write_text(
-        "\nGO\n".join(blocks) + ("\nGO\n" if blocks else ""),
-        encoding="utf-8",
-    )
-    result = {"file": str(out_path), "count": len(blocks)}
-    typer.echo(json.dumps(result))
-
-
-# ── assemble-tables ───────────────────────────────────────────────────────────
-
-
-@app.command("assemble-tables")
-def assemble_tables(
-    input: Path = typer.Option(..., help="JSON file with column metadata rows"),
-    project_root: Optional[Path] = typer.Option(
-        None, "--project-root",
-        help="Project root containing ddl/, catalog/, manifest.json (defaults to CWD)"
-    ),
-) -> None:
-    """Build CREATE TABLE statements from sys.columns metadata and write tables.sql."""
-    if project_root is None:
-        project_root = Path.cwd()
-    rows = _read_json(input)
-
-    # Group by (schema_name, table_name)
-    tables: dict[tuple[str, str], list[dict[str, Any]]] = {}
-    for row in rows:
-        key = (row["schema_name"], row["table_name"])
-        tables.setdefault(key, []).append(row)
-
-    # Sort columns by column_id within each table
-    for cols in tables.values():
-        cols.sort(key=lambda r: r.get("column_id", 0))
-
-    blocks: list[str] = []
-    for (schema_name, table_name), cols in tables.items():
-        col_defs: list[str] = []
-        for c in cols:
-            type_str = format_sql_type(
-                c["type_name"], c["max_length"], c["precision"], c["scale"],
-            )
-            identity = ""
-            if c.get("is_identity"):
-                seed = c.get("seed_value", 1)
-                inc = c.get("increment_value", 1)
-                identity = f" IDENTITY({seed},{inc})"
-            nullable = " NOT NULL" if not c.get("is_nullable") else " NULL"
-            col_defs.append(f"    [{c['column_name']}] {type_str}{identity}{nullable}")
-
-        ddl = f"CREATE TABLE [{schema_name}].[{table_name}] (\n" + ",\n".join(col_defs) + "\n)"
-        blocks.append(ddl)
-
-    ddl_dir = project_root / "ddl"
-    ddl_dir.mkdir(parents=True, exist_ok=True)
-    out_path = ddl_dir / "tables.sql"
-    out_path.write_text(
-        "\nGO\n".join(blocks) + ("\nGO\n" if blocks else ""),
-        encoding="utf-8",
-    )
-    result = {"file": str(out_path), "count": len(blocks)}
-    typer.echo(json.dumps(result))
 
 
 # ── write-catalog helpers ────────────────────────────────────────────────────
@@ -293,29 +210,75 @@ def _build_proc_params(proc_params_rows: list) -> dict[str, list[dict[str, Any]]
     return result
 
 
-# ── write-catalog ─────────────────────────────────────────────────────────────
+# ── Business logic (run_* functions) ─────────────────────────────────────────
 
 
-@app.command("write-catalog")
-def write_catalog(
-    staging_dir: Path = typer.Option(..., help="Directory with staging JSON files from MCP queries"),
-    project_root: Optional[Path] = typer.Option(
-        None, "--project-root",
-        help="Project root containing ddl/, catalog/, manifest.json (defaults to CWD)"
-    ),
-    database: str = typer.Option(..., help="Source database name"),
-) -> None:
-    """Process staging JSON files and write all catalog JSON files.
+def run_assemble_modules(input_path: Path, project_root: Path, object_type: str) -> dict[str, Any]:
+    """Assemble a GO-delimited .sql file from OBJECT_DEFINITION results."""
+    if object_type not in ("procedures", "views", "functions"):
+        raise ValueError(f"Invalid type: {object_type}. Must be procedures, views, or functions.")
 
-    Expected staging files (saved by the agent from MCP query results):
-      table_columns.json, pk_unique.json, foreign_keys.json,
-      identity_columns.json, cdc.json, change_tracking.json (optional),
-      sensitivity.json (optional), object_types.json, routing_flags.json (optional),
-      proc_params.json (optional),
-      proc_dmf.json, view_dmf.json, func_dmf.json
-    """
-    if project_root is None:
-        project_root = Path.cwd()
+    rows = _read_json(input_path)
+    blocks: list[str] = []
+    for row in rows:
+        definition = row.get("definition")
+        if definition:
+            blocks.append(definition.strip())
+
+    ddl_dir = project_root / "ddl"
+    ddl_dir.mkdir(parents=True, exist_ok=True)
+    out_path = ddl_dir / f"{object_type}.sql"
+    out_path.write_text(
+        "\nGO\n".join(blocks) + ("\nGO\n" if blocks else ""),
+        encoding="utf-8",
+    )
+    return {"file": str(out_path), "count": len(blocks)}
+
+
+def run_assemble_tables(input_path: Path, project_root: Path) -> dict[str, Any]:
+    """Build CREATE TABLE statements from sys.columns metadata and write tables.sql."""
+    rows = _read_json(input_path)
+
+    # Group by (schema_name, table_name)
+    tables: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for row in rows:
+        key = (row["schema_name"], row["table_name"])
+        tables.setdefault(key, []).append(row)
+
+    # Sort columns by column_id within each table
+    for cols in tables.values():
+        cols.sort(key=lambda r: r.get("column_id", 0))
+
+    blocks: list[str] = []
+    for (schema_name, table_name), cols in tables.items():
+        col_defs: list[str] = []
+        for c in cols:
+            type_str = format_sql_type(
+                c["type_name"], c["max_length"], c["precision"], c["scale"],
+            )
+            identity = ""
+            if c.get("is_identity"):
+                seed = c.get("seed_value", 1)
+                inc = c.get("increment_value", 1)
+                identity = f" IDENTITY({seed},{inc})"
+            nullable = " NOT NULL" if not c.get("is_nullable") else " NULL"
+            col_defs.append(f"    [{c['column_name']}] {type_str}{identity}{nullable}")
+
+        ddl = f"CREATE TABLE [{schema_name}].[{table_name}] (\n" + ",\n".join(col_defs) + "\n)"
+        blocks.append(ddl)
+
+    ddl_dir = project_root / "ddl"
+    ddl_dir.mkdir(parents=True, exist_ok=True)
+    out_path = ddl_dir / "tables.sql"
+    out_path.write_text(
+        "\nGO\n".join(blocks) + ("\nGO\n" if blocks else ""),
+        encoding="utf-8",
+    )
+    return {"file": str(out_path), "count": len(blocks)}
+
+
+def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> dict[str, Any]:
+    """Process staging JSON files and write all catalog JSON files."""
     from shared.catalog import scan_routing_flags
     from shared.catalog_dmf import write_catalog_files
 
@@ -367,10 +330,96 @@ def write_catalog(
         proc_params=proc_params,
     )
 
-    typer.echo(json.dumps(counts))
+    return counts
 
 
-# ── write-manifest ────────────────────────────────────────────────────────────
+def run_write_manifest(
+    project_root: Path, technology: str, database: str, schemas: list[str],
+) -> dict[str, Any]:
+    """Write manifest.json to the project root."""
+    if technology not in _TECH_DIALECT:
+        raise ValueError(
+            f"Unknown technology: {technology}. Must be one of {list(_TECH_DIALECT.keys())}."
+        )
+
+    manifest = {
+        "schema_version": "1.0",
+        "technology": technology,
+        "dialect": _TECH_DIALECT[technology],
+        "source_database": database,
+        "extracted_schemas": schemas,
+        "extracted_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    project_root.mkdir(parents=True, exist_ok=True)
+    out_path = project_root / "manifest.json"
+    out_path.write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    return {"file": str(out_path)}
+
+
+# ── CLI wrappers ─────────────────────────────────────────────────────────────
+
+
+@app.command("assemble-modules")
+def assemble_modules(
+    input: Path = typer.Option(..., help="JSON file with [{schema_name, object_name, definition}]"),
+    project_root: Optional[Path] = typer.Option(
+        None, "--project-root",
+        help="Project root containing ddl/, catalog/, manifest.json (defaults to CWD)"
+    ),
+    type: str = typer.Option(..., help="Object type: procedures, views, or functions"),
+) -> None:
+    """Assemble a GO-delimited .sql file from OBJECT_DEFINITION results."""
+    if project_root is None:
+        project_root = Path.cwd()
+    try:
+        result = run_assemble_modules(input, project_root, type)
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(json.dumps(result))
+
+
+@app.command("assemble-tables")
+def assemble_tables(
+    input: Path = typer.Option(..., help="JSON file with column metadata rows"),
+    project_root: Optional[Path] = typer.Option(
+        None, "--project-root",
+        help="Project root containing ddl/, catalog/, manifest.json (defaults to CWD)"
+    ),
+) -> None:
+    """Build CREATE TABLE statements from sys.columns metadata and write tables.sql."""
+    if project_root is None:
+        project_root = Path.cwd()
+    result = run_assemble_tables(input, project_root)
+    typer.echo(json.dumps(result))
+
+
+@app.command("write-catalog")
+def write_catalog(
+    staging_dir: Path = typer.Option(..., help="Directory with staging JSON files from MCP queries"),
+    project_root: Optional[Path] = typer.Option(
+        None, "--project-root",
+        help="Project root containing ddl/, catalog/, manifest.json (defaults to CWD)"
+    ),
+    database: str = typer.Option(..., help="Source database name"),
+) -> None:
+    """Process staging JSON files and write all catalog JSON files.
+
+    Expected staging files (saved by the agent from MCP query results):
+      table_columns.json, pk_unique.json, foreign_keys.json,
+      identity_columns.json, cdc.json, change_tracking.json (optional),
+      sensitivity.json (optional), object_types.json, routing_flags.json (optional),
+      proc_params.json (optional),
+      proc_dmf.json, view_dmf.json, func_dmf.json
+    """
+    if project_root is None:
+        project_root = Path.cwd()
+    result = run_write_catalog(staging_dir, project_root, database)
+    typer.echo(json.dumps(result))
 
 
 @app.command("write-manifest")
@@ -386,26 +435,13 @@ def write_manifest(
     """Write manifest.json to the project root."""
     if project_root is None:
         project_root = Path.cwd()
-    if technology not in _TECH_DIALECT:
-        typer.echo(f"Unknown technology: {technology}. Must be one of {list(_TECH_DIALECT.keys())}.", err=True)
-        raise typer.Exit(1)
-
-    manifest = {
-        "schema_version": "1.0",
-        "technology": technology,
-        "dialect": _TECH_DIALECT[technology],
-        "source_database": database,
-        "extracted_schemas": [s.strip() for s in schemas.split(",")],
-        "extracted_at": datetime.now(timezone.utc).isoformat(),
-    }
-
-    project_root.mkdir(parents=True, exist_ok=True)
-    out_path = project_root / "manifest.json"
-    out_path.write_text(
-        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-    typer.echo(json.dumps({"file": str(out_path)}))
+    schema_list = [s.strip() for s in schemas.split(",")]
+    try:
+        result = run_write_manifest(project_root, technology, database, schema_list)
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(json.dumps(result))
 
 
 if __name__ == "__main__":
