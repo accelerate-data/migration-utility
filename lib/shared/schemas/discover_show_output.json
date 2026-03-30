@@ -110,6 +110,7 @@
       "type": "object",
       "description": "Reference extraction result for views and functions (no write tracking).",
       "required": ["reads_from", "writes_to"],
+      "additionalProperties": false,
       "properties": {
         "reads_from": { "type": "array", "items": { "type": "string" } },
         "writes_to": { "type": "array", "items": { "type": "string" } }

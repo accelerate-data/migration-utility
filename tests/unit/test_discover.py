@@ -23,8 +23,9 @@ _UNPARSEABLE_FIXTURES = _TESTS_DIR / "fixtures" / "discover" / "unparseable"
 # ── test_list_flat_tables ──────────────────────────────────────────────────
 
 
-def test_list_flat_tables() -> None:
+def test_list_flat_tables(assert_valid_schema) -> None:
     result = discover.run_list(_FLAT_FIXTURES, discover.ObjectType.tables)
+    assert_valid_schema(result, "discover_list_output.json")
     objects = result["objects"]
     assert "silver.dimproduct" in objects
     assert "bronze.product" in objects
@@ -39,8 +40,9 @@ def test_list_flat_tables() -> None:
 # ── test_list_flat_procedures ─────────────────────────────────────────────
 
 
-def test_list_flat_procedures() -> None:
+def test_list_flat_procedures(assert_valid_schema) -> None:
     result = discover.run_list(_FLAT_FIXTURES, discover.ObjectType.procedures)
+    assert_valid_schema(result, "discover_list_output.json")
     objects = result["objects"]
     assert "dbo.usp_loaddimproduct" in objects
     assert "dbo.usp_logmessage" in objects
@@ -115,9 +117,10 @@ def test_list_unparseable_stored_with_error() -> None:
 # ── test_show_table_columns ───────────────────────────────────────────────
 
 
-def test_show_table_columns() -> None:
+def test_show_table_columns(assert_valid_schema) -> None:
     """show on a table returns columns list populated from AST."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.DimProduct")
+    assert_valid_schema(result, "discover_show_output.json")
     assert result["type"] == "table"
     assert result["parse_error"] is None
     columns = result["columns"]
@@ -162,8 +165,9 @@ def test_discover_cli_list_succeeds_with_unparseable() -> None:
 # ── show: statement analysis (no catalog needed) ─────────────────────────
 
 
-def test_show_deterministic_has_statements() -> None:
+def test_show_deterministic_has_statements(assert_valid_schema) -> None:
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadDimProduct")
+    assert_valid_schema(result, "discover_show_output.json")
     assert result["classification"] == "deterministic"
     assert result["statements"] is not None
     actions = {s["action"] for s in result["statements"]}
@@ -219,9 +223,10 @@ def test_show_errors_without_catalog() -> None:
 _CATALOG_FIXTURES = _TESTS_DIR / "fixtures" / "catalog"
 
 
-def test_refs_catalog_finds_writers() -> None:
+def test_refs_catalog_finds_writers(assert_valid_schema) -> None:
     """refs uses catalog data when catalog/tables/*.json exists."""
     result = discover.run_refs(_CATALOG_FIXTURES.parent, "silver.FactSales")
+    assert_valid_schema(result, "discover_refs_output.json")
     assert result["source"] == "catalog"
     writer_names = [w["procedure"] for w in result["writers"]]
     assert "dbo.usp_load_fact_sales" in writer_names

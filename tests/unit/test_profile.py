@@ -36,11 +36,12 @@ def _make_writable_copy() -> tuple[tempfile.TemporaryDirectory, Path]:
 # ── Context: rich catalog signals ────────────────────────────────────────────
 
 
-def test_context_rich_catalog_all_signals_present() -> None:
+def test_context_rich_catalog_all_signals_present(assert_valid_schema) -> None:
     """Context with rich catalog returns all catalog signals."""
     result = profile.run_context(
         _PROFILE_FIXTURES, "silver.FactSales", "dbo.usp_load_fact_sales",
     )
+    assert_valid_schema(result, "profile_context.json")
     assert result["table"] == "silver.factsales"
     assert result["writer"] == "dbo.usp_load_fact_sales"
 
@@ -91,11 +92,12 @@ def test_context_rich_catalog_proc_body() -> None:
 # ── Context: bare catalog (no constraints) ───────────────────────────────────
 
 
-def test_context_bare_catalog_empty_arrays() -> None:
+def test_context_bare_catalog_empty_arrays(assert_valid_schema) -> None:
     """Context with bare catalog returns empty arrays, no errors."""
     result = profile.run_context(
         _PROFILE_FIXTURES, "silver.DimCustomer", "dbo.usp_merge_dim_customer",
     )
+    assert_valid_schema(result, "profile_context.json")
     signals = result["catalog_signals"]
     assert signals["primary_keys"] == []
     assert signals["foreign_keys"] == []
