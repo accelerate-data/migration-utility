@@ -242,6 +242,41 @@ The dbt project path is resolved automatically from `$DBT_PROJECT_PATH` or defau
 
 Report the written file paths to the user.
 
+## Step 8: Validate with dbt compile
+
+Run `dbt compile` to verify the generated model compiles:
+
+```bash
+cd "${DBT_PROJECT_PATH:-./dbt}" && dbt compile --select <model_name>
+```
+
+### On success
+
+Report to the user:
+
+```text
+dbt compile passed for <model_name>.
+```
+
+### On compile failure
+
+If compile fails with a **non-connection error** (syntax, bad ref, macro resolution):
+
+1. Show the full error output to the user
+2. Offer to fix: "Compile failed. Want me to fix the model? (y/n)"
+3. If yes, revise the model SQL, re-run `migrate write`, and re-run `dbt compile` (max 2 fix attempts)
+4. If still failing after 2 attempts, report the errors and leave the model as-is
+
+### Fallback to dbt parse
+
+If compile fails with a **connection error** (adapter cannot reach the warehouse — look for "Could not connect", "Login failed", "Connection refused", or similar adapter errors in output):
+
+1. Tell the user: "No warehouse connection available. Falling back to offline validation."
+2. Run `dbt parse` in the dbt project directory
+3. `dbt parse` validates YAML syntax, Jinja syntax, and ref/source graph integrity without a connection
+4. Report parse results (pass or fail with errors)
+5. If parse fails, offer to fix (same 2-attempt cycle as compile)
+
 ## Output schemas
 
 | Subcommand | Schema reference |
