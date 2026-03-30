@@ -1,0 +1,79 @@
+{
+  "schema": "silver",
+  "name": "vw_dimpromotion",
+  "columns": [],
+  "primary_keys": [],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "usp_load_dimpromotion",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "DiscountPct",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "EndDate",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "EnglishPromotionCategory",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "EnglishPromotionName",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "EnglishPromotionType",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "MaxQty",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "MinQty",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "PromotionAlternateKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "StartDate",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  }
+}

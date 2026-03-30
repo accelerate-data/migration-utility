@@ -1,0 +1,149 @@
+{
+  "schema": "silver",
+  "name": "usp_load_dimproduct",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "Product",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "Class",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "Color",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "DiscontinuedDate",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ListPrice",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductLine",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductName",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "SellEndDate",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "SellStartDate",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "Size",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "StandardCost",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "Style",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "DimProduct",
+          "is_selected": true,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "Class",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "Color",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "EnglishProductName",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ListPrice",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ProductAlternateKey",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductLine",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "Size",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "StandardCost",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "Status",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "Style",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  }
+}

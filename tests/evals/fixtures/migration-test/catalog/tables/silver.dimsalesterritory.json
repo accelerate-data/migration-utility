@@ -1,0 +1,102 @@
+{
+  "schema": "silver",
+  "name": "dimsalesterritory",
+  "columns": [
+    {
+      "name": "SalesTerritoryKey",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": true
+    },
+    {
+      "name": "SalesTerritoryAlternateKey",
+      "sql_type": "INT",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "SalesTerritoryRegion",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "SalesTerritoryCountry",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "SalesTerritoryGroup",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": true,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [
+    {
+      "constraint_name": "PK__DimSales__8266AEE9DDDA181D",
+      "columns": [
+        "SalesTerritoryKey"
+      ]
+    }
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [
+    {
+      "column": "SalesTerritoryKey",
+      "mechanism": "identity"
+    }
+  ],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "vdimsalesterritory",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "SalesTerritoryAlternateKey",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "SalesTerritoryCountry",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "SalesTerritoryGroup",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "SalesTerritoryKey",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "SalesTerritoryRegion",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  }
+}

@@ -1,0 +1,145 @@
+{
+  "schema": "bronze",
+  "name": "promotion",
+  "columns": [
+    {
+      "name": "PromotionID",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": true
+    },
+    {
+      "name": "Description",
+      "sql_type": "NVARCHAR(255)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "DiscountPct",
+      "sql_type": "FLOAT",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "PromotionType",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "PromotionCategory",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "StartDate",
+      "sql_type": "DATETIME",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "EndDate",
+      "sql_type": "DATETIME",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "MinQty",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "MaxQty",
+      "sql_type": "INT",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "ModifiedDate",
+      "sql_type": "DATETIME",
+      "is_nullable": false,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [
+    {
+      "column": "PromotionID",
+      "mechanism": "identity"
+    }
+  ],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "usp_load_dimpromotion",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "Description",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "DiscountPct",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "EndDate",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "MaxQty",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "MinQty",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "PromotionCategory",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "PromotionID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "PromotionType",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "StartDate",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  }
+}
