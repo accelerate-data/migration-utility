@@ -3,7 +3,7 @@
 Level 2 Architecture for Vibedata — the unified view of how modules and capabilities work together.
 
 **Status**: Draft
-**Prerequisites**: [vision/vibedata-strategy.md](vision/vibedata-strategy.md)
+**Prerequisites**: [vibedata-strategy.md](vibedata-strategy.md)
 
 ---
 
@@ -17,7 +17,7 @@ Vibedata has 3 core functions:
 - **Transform** raw data into curated silver and gold tables
 - **Operate** the resulting pipelines in production
 
-Most data tools address one of these in isolation — ingestion (Fivetran, Airbyte), transformation (dbt Cloud), or observability (Elementary, Monte Carlo). Vibedata owns the full lifecycle and connects them through an improvement flywheel that makes the platform smarter with every pipeline built and every incident resolved (see [vibedata-strategy.md Section 7.2](vision/vibedata-strategy.md)).
+Most data tools address one of these in isolation — ingestion (Fivetran, Airbyte), transformation (dbt Cloud), or observability (Elementary, Monte Carlo). Vibedata owns the full lifecycle and connects them through an improvement flywheel that makes the platform smarter with every pipeline built and every incident resolved (see [vibedata-strategy.md Section 7.2](vibedata-strategy.md)).
 
 The architecture is built on four integrated pillars — LLM, Agentic Workflow, Skills, and MCPs. Users maintain control throughout — all requirements and design decisions captured in GitHub, all code follows GitHub Flow, users approve deployments, and all issues managed via GitHub Issues.
 
@@ -411,7 +411,7 @@ Skills are stored in the domain or source repo's skills directory and follow the
 | Dependency-managed | Skills can be kept current via automated dependency updates (dependabot pattern) |
 | Cross-surface | The same skill file is available to builders in studio, deploy agents in CI, and operator agents on issues |
 
-Skills improve over time through the improvement flywheel — every pipeline built and every incident resolved feeds back into skills via the Retro Agent (see 6.3.5). See [vibedata-strategy.md Section 7.2](vision/vibedata-strategy.md) for the full flywheel description.
+Skills improve over time through the improvement flywheel — every pipeline built and every incident resolved feeds back into skills via the Retro Agent (see 6.3.5). See [vibedata-strategy.md Section 7.2](vibedata-strategy.md) for the full flywheel description.
 
 #### 6.2.5 Settings
 
@@ -611,7 +611,7 @@ Repo-based artifacts (alert templates, runbooks) are customer-overridable.
 
 | Topic | Document |
 | -------- | -------- |
-| Product strategy | [vision/vibedata-strategy.md](vision/vibedata-strategy.md) |
+| Product strategy | [vibedata-strategy.md](vibedata-strategy.md) |
 | Studio overview | [module-specs/studio/specs/overview.md](module-specs/studio/specs/overview.md) |
 | Studio Agent (Builders) | [module-specs/studio/specs/agent--studio-agent.md](module-specs/studio/specs/agent--studio-agent.md) |
 | Monitoring Agents (Operators) | [module-specs/studio/specs/agent--monitoring-agent.md](module-specs/studio/specs/agent--monitoring-agent.md) |

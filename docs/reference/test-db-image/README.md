@@ -80,7 +80,7 @@ docker tag ghcr.io/hbanerjee74/migration-test-db:latest \
 docker push ghcr.io/hbanerjee74/migration-test-db:$(date +%Y%m%d)
 ```
 
-Update the image tag reference in the vitest `globalSetup` when pinning CI to a specific version.
+Update the image tag reference in test configuration when pinning CI to a specific version.
 
 ---
 

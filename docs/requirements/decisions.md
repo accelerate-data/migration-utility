@@ -94,8 +94,9 @@
 
 ### DEC-12 — GitHub OAuth Authentication
 
-**Decision:** The app uses a classic OAuth App with `repo` and `workflow` scopes. Token is stored in local SQLite with silent refresh via OAuth refresh token flow. The app handles 401 responses by refreshing before re-prompting.
-**Rationale:** `repo` scope covers clone, read/write, LFS, and secrets. `workflow` scope enables `workflow_dispatch` triggers.
+> **Superseded.** This decision described Tauri desktop app auth. The project is now a CLI tool using `gh` CLI authentication.
+
+~~**Decision:** The app uses a classic OAuth App with `repo` and `workflow` scopes. Token is stored in local SQLite with silent refresh via OAuth refresh token flow.~~
 
 ---
 
@@ -109,10 +110,8 @@
 
 1. **Scope** (`scoping-agent`) — identifies candidate writers for each table.
 2. **Profile** (`profiler-agent`) — classifies tables; identifies keys, watermarks, FKs, PII.
-3. **Decompose** (`decomposer-agent`) — splits stored procedures into logical blocks with split points.
-4. **Plan** (`planner-agent`) — determines materialization, naming, documentation, schema tests.
-5. **Generate Tests** (`test-generator-agent`) — generates dbt unit tests and YAML fixtures.
-6. **Migrate** (`migrator-agent`) — translates source SQL to dbt models.
+3. **Migrate** (`migrator-agent`) — translates source SQL to dbt models, derives materialization, generates schema tests.
+4. **Test Generation** (`test-generator-agent`) — generates dbt unit tests and YAML fixtures. *Not yet implemented.*
 
 Each stage produces immutable JSON artifacts committed to the migration repo by the GitHub Actions runner.
 
@@ -147,14 +146,14 @@ Each stage produces immutable JSON artifacts committed to the migration repo by 
 
 ### DEC-17 — Execution Runtime: GitHub Actions via workflow_dispatch
 
+> **Partially superseded.** The Tauri desktop app is no longer planned. The interactive path uses Claude Code skills directly. The GHA batch path is planned but not yet implemented.
+
 **Decision:**
 
-- **Desktop app (Tauri):** scope selection, FDE review/approval surfaces, status consolidation. Working state persists in local SQLite.
-- **Agent execution (headless):** one GitHub Actions workflow file per agent. The app triggers runs via `workflow_dispatch`, passing `run_id`, `action`, `project_slug`, `submitted_ts`, and `items[]`.
-- Each run: clones the migration repo, restores DacPac (cached), runs the agent, commits output JSON to `{project-slug}/artifacts/{action}/{run_id}.json` on a `run/{run_id}` branch, merges to main, deletes the branch.
-- Logs are fetched from the GitHub Actions API on demand — not committed to the repo.
+- **Interactive path:** FDE uses Claude Code skills (`/discover`, `/profile`, `/migrate`) with approval gates at every step.
+- **Agent execution (headless, planned):** one GitHub Actions workflow file per agent. A `migrate-util` CLI triggers runs via `workflow_dispatch`.
 
-**Rationale:** GitHub Actions eliminates hosting infrastructure. `workflow_dispatch` gives the desktop app deterministic control over what runs when. Branch-per-run avoids merge conflicts (unique file paths).
+**Rationale:** GitHub Actions eliminates hosting infrastructure. `workflow_dispatch` gives deterministic control over what runs when. Branch-per-run avoids merge conflicts (unique file paths).
 
 ---
 

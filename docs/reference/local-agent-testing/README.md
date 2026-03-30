@@ -16,7 +16,7 @@ Design references:
 ```text
 Layer 1 — MCP server              genai-toolbox + local SQL Server
            ↓ validates               SQL catalog queries return correct data
-Layer 2 — Deterministic skills     Python scripts (discover.py, discover.py, etc.) + DDL fixtures
+Layer 2 — Deterministic skills     Python scripts (discover.py, profile.py, migrate.py) + DDL fixtures
            ↓ validates               AST analysis, confidence scoring, output contracts
 Layer 3 — GH Action               Workflow YAML mechanics, stub skill step
            ↓ validates               Cache, DB restore, branch/rebase/commit/push
