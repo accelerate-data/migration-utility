@@ -33,6 +33,11 @@ markdownlint <file-or-dir>
 
 Never hard-wrap prose at 80 characters (or any fixed column). Let each sentence or clause flow as a single long line — editors and renderers handle wrapping. Hard wraps only inside code blocks or tables where alignment matters.
 
+## Testing
+
+- Tests that call CLI `run_*` functions (`run_list`, `run_show`, `run_refs`, `run_context`, `run_write`) must validate the return value with `assert_valid_schema(result, "<schema_name>.json")` using the matching schema from `lib/shared/schemas/`
+- If no matching output schema exists for a new `run_*` function, create one before the test is merged
+
 ## Error Handling
 
 - Validate at system boundaries: Fabric API responses, ADF JSON parsing, dbt-core-mcp tool results, plan.md reads
