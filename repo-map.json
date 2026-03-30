@@ -131,10 +131,10 @@
     "test_migration_python_integration": "cd lib && uv run pytest -m integration",
     "test_mcp_ddl": "cd mcp/ddl && uv run pytest",
     "lint_md": "markdownlint <file>",
-    "eval_all": "cd tests/evals && npx promptfoo eval",
-    "eval_scoping": "cd tests/evals && npx promptfoo eval -c packages/scoping/promptfooconfig.yaml",
-    "eval_profiler": "cd tests/evals && npx promptfoo eval -c packages/profiler/promptfooconfig.yaml",
-    "eval_migrator": "cd tests/evals && npx promptfoo eval -c packages/migrator/promptfooconfig.yaml"
+    "eval_all": "cd tests/evals && npm run eval",
+    "eval_scoping": "cd tests/evals && npm run eval:scoping",
+    "eval_profiler": "cd tests/evals && npm run eval:profiler",
+    "eval_migrator": "cd tests/evals && npm run eval:migrator"
   },
   "conventions": {
     "typescript_files": "kebab-case (scope-selector.tsx, candidacy-table.tsx)",

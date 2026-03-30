@@ -1,8 +1,0 @@
-description: "Migrator Package — migrate skill + migrator agent"
-
-evaluateOptions:
-  maxConcurrency: 1
-
-testSuites:
-  - file://skill-migrate.yaml
-  - file://agent-migrator.yaml

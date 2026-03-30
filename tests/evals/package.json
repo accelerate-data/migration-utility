@@ -3,10 +3,12 @@
   "private": true,
   "description": "Promptfoo eval harness for agent and skill testing",
   "scripts": {
-    "eval": "promptfoo eval",
-    "eval:scoping": "promptfoo eval -c packages/scoping/promptfooconfig.yaml",
-    "eval:profiler": "promptfoo eval -c packages/profiler/promptfooconfig.yaml",
-    "eval:migrator": "promptfoo eval -c packages/migrator/promptfooconfig.yaml",
+    "eval": "promptfoo eval -c packages/scoping/skill-discover-show.yaml -c packages/scoping/agent-scoping.yaml -c packages/profiler/skill-profile.yaml -c packages/profiler/agent-profiler.yaml -c packages/migrator/skill-migrate.yaml -c packages/migrator/agent-migrator.yaml",
+    "eval:scoping": "promptfoo eval -c packages/scoping/skill-discover-show.yaml -c packages/scoping/agent-scoping.yaml",
+    "eval:scoping:skill": "promptfoo eval -c packages/scoping/skill-discover-show.yaml",
+    "eval:scoping:agent": "promptfoo eval -c packages/scoping/agent-scoping.yaml",
+    "eval:profiler": "promptfoo eval -c packages/profiler/skill-profile.yaml -c packages/profiler/agent-profiler.yaml",
+    "eval:migrator": "promptfoo eval -c packages/migrator/skill-migrate.yaml -c packages/migrator/agent-migrator.yaml",
     "view": "promptfoo view"
   },
   "dependencies": {

@@ -42,9 +42,8 @@ Skills and agents share the same DDL project fixture but are tested separately b
 
 ```text
 tests/evals/
-  package.json                         # promptfoo + ajv
+  package.json                         # promptfoo + ajv, npm run scripts
   .gitignore                           # node_modules/, output/
-  promptfooconfig.yaml                 # full suite — imports all 3 packages
   providers/
     claude-code-headless.yaml          # exec provider wrapping claude -p
   prompts/
@@ -56,15 +55,12 @@ tests/evals/
     agent-migrator.txt                 # prompt template for migrator agent
   packages/
     scoping/
-      promptfooconfig.yaml             # package config — runs skill + agent
-      skill-discover-show.yaml         # 8 skill scenarios
-      agent-scoping.yaml               # 8 agent scenarios
+      skill-discover-show.yaml         # 8 skill scenarios (self-contained config)
+      agent-scoping.yaml               # 8 agent scenarios (self-contained config)
     profiler/
-      promptfooconfig.yaml
       skill-profile.yaml               # 4 skill scenarios
       agent-profiler.yaml              # 4 agent scenarios
     migrator/
-      promptfooconfig.yaml
       skill-migrate.yaml               # 4 skill scenarios
       agent-migrator.yaml              # 4 agent scenarios
   fixtures/
@@ -102,20 +98,26 @@ cd tests/evals
 npm install
 
 # Full suite — all packages
-npx promptfoo eval
+npm run eval
 
-# Single package
-npx promptfoo eval -c packages/scoping/promptfooconfig.yaml
-npx promptfoo eval -c packages/profiler/promptfooconfig.yaml
-npx promptfoo eval -c packages/migrator/promptfooconfig.yaml
+# Single package (skill + agent)
+npm run eval:scoping
+npm run eval:profiler
+npm run eval:migrator
 
-# Single scenario file (skills only or agents only)
+# Single scenario file (skill only or agent only)
+npm run eval:scoping:skill
+npm run eval:scoping:agent
+
+# Or use npx directly for any combination
 npx promptfoo eval -c packages/scoping/skill-discover-show.yaml
 npx promptfoo eval -c packages/scoping/agent-scoping.yaml
 
 # View results in browser
-npx promptfoo view
+npm run view
 ```
+
+Each scenario file is a self-contained promptfoo config with its own `providers`, `prompts`, and `tests`. The npm scripts compose them via `-c` flags.
 
 `ANTHROPIC_API_KEY` must be in the environment. Promptfoo reads it automatically.
 
