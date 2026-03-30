@@ -1,0 +1,142 @@
+description: "Discover show skill — claude_assisted procedure analysis"
+
+prompts:
+  - file://../../prompts/skill-discover-show.txt
+
+providers:
+  - file://../../providers/claude-code-headless.yaml
+
+defaultTest:
+  vars:
+    fixture_path: "{{FIXTURE_PATH | default('tests/evals/fixtures/migration-test')}}"
+
+tests:
+  # ── resolved: direct MERGE writer ─────────────────────────────
+  - description: "resolved — DimProduct single MERGE writer"
+    vars:
+      target_table: "silver.usp_load_DimProduct"
+    assert:
+      - type: contains
+        value: "Call Graph"
+      - type: contains
+        value: "Logic Summary"
+      - type: contains
+        value: "Migration Guidance"
+      - type: contains
+        value: "[migrate]"
+      - type: contains
+        value: "MERGE"
+      - type: contains
+        value: "bronze.Product"
+      - type: contains
+        value: "discover show"
+
+  # ── ambiguous_multi_writer: two writers for DimCustomer ───────
+  - description: "ambiguous — DimCustomer Full + Delta writers"
+    vars:
+      target_table: "silver.usp_load_DimCustomer_Full"
+    assert:
+      - type: contains
+        value: "Call Graph"
+      - type: contains
+        value: "Logic Summary"
+      - type: contains
+        value: "Migration Guidance"
+      - type: contains
+        value: "[migrate]"
+      - type: contains
+        value: "TRUNCATE"
+      - type: contains
+        value: "discover show"
+
+  # ── call-graph: EXEC chain orchestrator ───────────────────────
+  - description: "call-graph — FactInternetSales EXEC orchestrator"
+    vars:
+      target_table: "silver.usp_load_FactInternetSales"
+    assert:
+      - type: contains
+        value: "Call Graph"
+      - type: contains
+        value: "Logic Summary"
+      - type: contains
+        value: "usp_stage_FactInternetSales"
+      - type: contains
+        value: "discover show"
+
+  # ── dynamic-sql: sp_executesql only ───────────────────────────
+  - description: "dynamic-sql — DimCurrency sp_executesql"
+    vars:
+      target_table: "silver.usp_load_DimCurrency"
+    assert:
+      - type: contains
+        value: "Call Graph"
+      - type: contains
+        value: "Logic Summary"
+      - type: contains
+        value: "Migration Guidance"
+      - type: contains
+        value: "sp_executesql"
+      - type: contains
+        value: "discover show"
+
+  # ── error-cross-db: cross-database reference ──────────────────
+  - description: "error — DimEmployee cross-database reference"
+    vars:
+      target_table: "silver.usp_load_DimEmployee"
+    assert:
+      - type: contains
+        value: "Call Graph"
+      - type: contains
+        value: "Logic Summary"
+      - type: contains
+        value: "OtherDB"
+      - type: contains
+        value: "discover show"
+
+  # ── writer-through-view ───────────────────────────────────────
+  - description: "writer-through-view — DimPromotion via updateable view"
+    vars:
+      target_table: "silver.usp_load_DimPromotion"
+    assert:
+      - type: contains
+        value: "Call Graph"
+      - type: contains
+        value: "Logic Summary"
+      - type: contains
+        value: "Migration Guidance"
+      - type: contains
+        value: "vw_DimPromotion"
+      - type: contains
+        value: "discover show"
+
+  # ── DimCustomer Delta (MERGE variant) ─────────────────────────
+  - description: "resolved — DimCustomer Delta MERGE writer"
+    vars:
+      target_table: "silver.usp_load_DimCustomer_Delta"
+    assert:
+      - type: contains
+        value: "Call Graph"
+      - type: contains
+        value: "Logic Summary"
+      - type: contains
+        value: "Migration Guidance"
+      - type: contains
+        value: "MERGE"
+      - type: contains
+        value: "discover show"
+
+  # ── staging leaf procedure ────────────────────────────────────
+  - description: "resolved — FactInternetSales staging leaf (TRUNCATE+INSERT)"
+    vars:
+      target_table: "silver.usp_stage_FactInternetSales"
+    assert:
+      - type: contains
+        value: "Call Graph"
+      - type: contains
+        value: "Logic Summary"
+      - type: contains
+        value: "Migration Guidance"
+      - type: contains
+        value: "[migrate]"
+      - type: contains
+        value: "discover show"

@@ -1,0 +1,125 @@
+description: "Scoping agent — writer resolution from MigrationTest"
+
+prompts:
+  - file://../../prompts/agent-scoping.txt
+
+providers:
+  - file://../../providers/claude-code-headless.yaml
+
+defaultTest:
+  vars:
+    fixture_path: "{{FIXTURE_PATH | default('tests/evals/fixtures/migration-test')}}"
+  assert:
+    - type: is-json
+    - type: javascript
+      value: |
+        const d = JSON.parse(output);
+        return d.schema_version === '1.0' && d.results && d.summary;
+    - type: contains
+      value: "discover refs"
+    - type: contains
+      value: "discover show"
+
+tests:
+  # ── resolved: direct MERGE writer ─────────────────────────────
+  - description: "resolved — DimProduct single MERGE writer"
+    vars:
+      target_table: "silver.DimProduct"
+      scenario_id: "resolved"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).results[0].status === 'resolved'"
+      - type: javascript
+        value: |
+          const w = JSON.parse(output).results[0].selected_writer;
+          return w && w.toLowerCase().includes('usp_load_dimproduct');
+      - type: javascript
+        value: "JSON.parse(output).summary.error === 0"
+
+  # ── ambiguous_multi_writer: two writers for DimCustomer ───────
+  - description: "ambiguous — DimCustomer Full + Delta writers"
+    vars:
+      target_table: "silver.DimCustomer"
+      scenario_id: "ambiguous-multi-writer"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).results[0].status === 'ambiguous_multi_writer'"
+      - type: javascript
+        value: "JSON.parse(output).results[0].candidate_writers.length >= 2"
+      - type: javascript
+        value: "JSON.parse(output).summary.ambiguous_multi_writer >= 1"
+
+  # ── call-graph: EXEC chain orchestrator ───────────────────────
+  - description: "call-graph — FactInternetSales EXEC orchestrator"
+    vars:
+      target_table: "silver.FactInternetSales"
+      scenario_id: "call-graph"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).results[0].status === 'resolved'"
+      - type: javascript
+        value: "JSON.parse(output).summary.error === 0"
+
+  # ── no-writer-found: no procedures write to DimGeography ──────
+  - description: "no-writer-found — DimGeography has no writers"
+    vars:
+      target_table: "silver.DimGeography"
+      scenario_id: "no-writer-found"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).results[0].status === 'no_writer_found'"
+      - type: javascript
+        value: "JSON.parse(output).summary.no_writer_found >= 1"
+
+  # ── dynamic-sql: sp_executesql only ───────────────────────────
+  - description: "dynamic-sql — DimCurrency sp_executesql"
+    vars:
+      target_table: "silver.DimCurrency"
+      scenario_id: "dynamic-sql"
+    assert:
+      - type: javascript
+        value: |
+          const s = JSON.parse(output).results[0].status;
+          return s === 'resolved' || s === 'no_writer_found';
+      - type: javascript
+        value: "JSON.parse(output).summary.error === 0"
+
+  # ── error-cross-db: cross-database reference ──────────────────
+  - description: "error — DimEmployee cross-database reference"
+    vars:
+      target_table: "silver.DimEmployee"
+      scenario_id: "error-cross-db"
+    assert:
+      - type: javascript
+        value: |
+          const r = JSON.parse(output).results[0];
+          return r.status === 'error' ||
+            (r.warnings && r.warnings.some(w => w.code && w.code.includes('CROSS_DATABASE')));
+
+  # ── writer-through-view ───────────────────────────────────────
+  - description: "writer-through-view — DimPromotion via updateable view"
+    vars:
+      target_table: "silver.DimPromotion"
+      scenario_id: "writer-through-view"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).results[0].status === 'resolved'"
+      - type: javascript
+        value: |
+          const w = JSON.parse(output).results[0].selected_writer;
+          return w && w.toLowerCase().includes('usp_load_dimpromotion');
+      - type: javascript
+        value: "JSON.parse(output).summary.error === 0"
+
+  # ── mv-as-target: indexed view target ─────────────────────────
+  - description: "mv-as-target — DimSalesTerritory indexed view"
+    vars:
+      target_table: "silver.DimSalesTerritory"
+      scenario_id: "mv-as-target"
+    assert:
+      - type: javascript
+        value: |
+          const s = JSON.parse(output).results[0].status;
+          return s === 'resolved' || s === 'no_writer_found';
+      - type: javascript
+        value: "JSON.parse(output).summary.error === 0"
