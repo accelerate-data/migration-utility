@@ -24,7 +24,7 @@ The initial message contains two space-separated file paths: input JSON and outp
 - **Input schema:** `../lib/shared/schemas/profiler_input.json`
 - **Output schema:** See Batch Output section below.
 
-After reading the input, read `<ddl_path>/manifest.json` for `technology` and `dialect`. If manifest is missing or unreadable, fail all items with `status: "error"` and write output immediately.
+After reading the input, read `<project_root>/manifest.json` for `technology` and `dialect`. If manifest is missing or unreadable, fail all items with `status: "error"` and write output immediately.
 
 ---
 
@@ -36,7 +36,7 @@ For each item in `items[]`, run:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" profile context \
-  --ddl-path <ddl_path> --table <item_id> --writer <selected_writer>
+  --project-root <project_root> --table <item_id> --writer <selected_writer>
 ```
 
 If the command fails (exit code 1 or 2), record `status: "error"` with the failure message in `errors[]` and continue to the next item.
@@ -107,7 +107,7 @@ Run:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" profile write \
-  --ddl-path <ddl_path> --table <item_id> \
+  --project-root <project_root> --table <item_id> \
   --profile '<json>'
 ```
 

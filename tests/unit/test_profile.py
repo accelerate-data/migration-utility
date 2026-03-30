@@ -358,7 +358,7 @@ def test_write_cli_emits_error_json_on_validation_failure() -> None:
         bad_profile = json.dumps({"writer": "dbo.usp_load_fact_sales"})  # missing status
         result = _cli_runner.invoke(
             profile.app,
-            ["write", "--ddl-path", str(ddl_path), "--table", "silver.FactSales", "--profile", bad_profile],
+            ["write", "--project-root", str(ddl_path), "--table", "silver.FactSales", "--profile", bad_profile],
         )
         assert result.exit_code == 1
         output = json.loads(result.stdout)

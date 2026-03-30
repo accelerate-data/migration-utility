@@ -3,13 +3,13 @@
   "title": "ProfilerInput",
   "description": "Input contract for the profiler agent. Produces migration profile candidates for each table.",
   "type": "object",
-  "required": ["schema_version", "run_id", "ddl_path", "items"],
+  "required": ["schema_version", "run_id", "project_root", "items"],
   "properties": {
     "schema_version": { "type": "string", "const": "1.0" },
     "run_id": { "type": "string", "format": "uuid" },
-    "ddl_path": {
+    "project_root": {
       "type": "string",
-      "description": "Absolute path to the DDL artifacts directory."
+      "description": "Absolute path to the project root directory (contains ddl/, catalog/, manifest.json)."
     },
     "items": {
       "type": "array",

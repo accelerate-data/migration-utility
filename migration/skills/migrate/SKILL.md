@@ -6,7 +6,7 @@ description: >
   "create a model for <table>". Requires catalog profile and resolved
   statements from prior discover + profile stages.
 user-invocable: true
-argument-hint: "[ddl-path] [--table <fqn>] [--writer <fqn>]"
+argument-hint: "[project-root] [--table <fqn>] [--writer <fqn>]"
 ---
 
 # Migrate
@@ -15,18 +15,18 @@ Generate a dbt model from a profiled stored procedure. Reads deterministic conte
 
 ## Arguments
 
-Parse `$ARGUMENTS` for `ddl-path`, `--table`, and `--writer`. If `ddl-path` is missing, default to the current working directory. Use `AskUserQuestion` if `--table` or `--writer` are missing.
+Parse `$ARGUMENTS` for `project-root`, `--table`, and `--writer`. If `project-root` is missing, default to the current working directory. Use `AskUserQuestion` if `--table` or `--writer` are missing.
 
 ## Before invoking
 
-1. Read `<ddl-path>/manifest.json` to confirm the directory is a valid DDL extraction. If missing, stop and tell the user to run `setup-ddl` first.
-2. Confirm a dbt project exists (look for `dbt_project.yml` in `<ddl-path>/../dbt/` or ask the user for `--dbt-project-path`). If missing, tell the user to run `/init-dbt` first.
+1. Read `<project-root>/manifest.json` to confirm a valid project root. If missing, stop and tell the user to run `setup-ddl` first.
+2. Confirm a dbt project exists (look for `dbt_project.yml` in `<project-root>/../dbt/` or ask the user for `--dbt-project-path`). If missing, tell the user to run `/init-dbt` first.
 
 ## Step 1: Assemble context
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" migrate context \
-  --table <table_fqn> --writer <writer_fqn> --ddl-path <ddl-path>
+  --table <table_fqn> --writer <writer_fqn> --project-root <project-root>
 ```
 
 Read the output JSON. It contains:
@@ -234,7 +234,7 @@ After approval:
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" migrate write \
   --table <table_fqn> \
-  --ddl-path <ddl-path> \
+  --project-root <project-root> \
   --dbt-project-path <dbt-project-path> \
   --model-sql '<generated_sql>' \
   --schema-yml '<generated_yml>'

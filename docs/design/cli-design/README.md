@@ -58,9 +58,9 @@ All parameters use `--option` style. No CLIs use positional arguments.
 
 | Subcommand | Key options | Returns |
 |---|---|---|
-| `list` | `--ddl-path`, `--type {tables,procedures,views,functions}` | `{"objects": [...]}` |
-| `show` | `--ddl-path`, `--name schema.Name` | Object detail: columns/params/refs/statements/classification |
-| `refs` | `--ddl-path`, `--name schema.Name` | `{"readers": [...], "writers": [...]}` |
+| `list` | `--project-root`, `--type {tables,procedures,views,functions}` | `{"objects": [...]}` |
+| `show` | `--project-root`, `--name schema.Name` | Object detail: columns/params/refs/statements/classification |
+| `refs` | `--project-root`, `--name schema.Name` | `{"readers": [...], "writers": [...]}` |
 
 Requires a `catalog/` directory (from `setup-ddl`). Exits with code `2` if missing.
 
@@ -79,7 +79,7 @@ Single command. Walks all procedures, extracts AST refs, and back-populates `ref
 
 | Key option | Purpose |
 |---|---|
-| `--ddl-path` | Root artifacts directory containing `ddl/`, `catalog/`, and `manifest.json` |
+| `--project-root` | Root artifacts directory containing `ddl/`, `catalog/`, and `manifest.json` |
 | `--dialect` | SQL dialect (default: `tsql`) |
 
 Returns `{"tables_augmented": N, "procedures_augmented": N, "entries_added": N}`.

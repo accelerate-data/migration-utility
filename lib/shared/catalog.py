@@ -6,7 +6,7 @@ file keyed by normalized ``schema.name``.
 
 Layout::
 
-    <ddl-output-dir>/
+    <project-root>/
     └── catalog/
         ├── tables/<schema>.<table>.json
         ├── procedures/<schema>.<proc>.json
@@ -81,22 +81,22 @@ _NEEDS_ENRICH_RE = re.compile(
 # ── File naming ─────────────────────────────────────────────────────────────
 
 
-def _catalog_dir(ddl_path: Path) -> Path:
-    return ddl_path / "catalog"
+def _catalog_dir(project_root: Path) -> Path:
+    return project_root / "catalog"
 
 
-def _object_path(ddl_path: Path, object_type: str, fqn: str) -> Path:
+def _object_path(project_root: Path, object_type: str, fqn: str) -> Path:
     """Return the catalog JSON path for a given object.
 
     *object_type* is one of ``tables``, ``procedures``, ``views``,
     ``functions``.  *fqn* is a normalised ``schema.name`` string.
     """
-    return _catalog_dir(ddl_path) / object_type / f"{fqn}.json"
+    return _catalog_dir(project_root) / object_type / f"{fqn}.json"
 
 
-def has_catalog(ddl_path: Path) -> bool:
+def has_catalog(project_root: Path) -> bool:
     """Return True if a catalog directory exists with at least one file."""
-    d = _catalog_dir(ddl_path)
+    d = _catalog_dir(project_root)
     if not d.is_dir():
         return False
     return any(d.rglob("*.json"))
@@ -105,28 +105,28 @@ def has_catalog(ddl_path: Path) -> bool:
 # ── Loading ─────────────────────────────────────────────────────────────────
 
 
-def _load_catalog_file(ddl_path: Path, object_type: str, fqn: str) -> dict[str, Any] | None:
+def _load_catalog_file(project_root: Path, object_type: str, fqn: str) -> dict[str, Any] | None:
     """Load a single catalog JSON file, or ``None`` if absent."""
-    p = _object_path(ddl_path, object_type, normalize(fqn))
+    p = _object_path(project_root, object_type, normalize(fqn))
     if not p.exists():
         return None
     return json.loads(p.read_text(encoding="utf-8"))
 
 
-def load_table_catalog(ddl_path: Path, table_fqn: str) -> dict[str, Any] | None:
-    return _load_catalog_file(ddl_path, "tables", table_fqn)
+def load_table_catalog(project_root: Path, table_fqn: str) -> dict[str, Any] | None:
+    return _load_catalog_file(project_root, "tables", table_fqn)
 
 
-def load_proc_catalog(ddl_path: Path, proc_fqn: str) -> dict[str, Any] | None:
-    return _load_catalog_file(ddl_path, "procedures", proc_fqn)
+def load_proc_catalog(project_root: Path, proc_fqn: str) -> dict[str, Any] | None:
+    return _load_catalog_file(project_root, "procedures", proc_fqn)
 
 
-def load_view_catalog(ddl_path: Path, view_fqn: str) -> dict[str, Any] | None:
-    return _load_catalog_file(ddl_path, "views", view_fqn)
+def load_view_catalog(project_root: Path, view_fqn: str) -> dict[str, Any] | None:
+    return _load_catalog_file(project_root, "views", view_fqn)
 
 
-def load_function_catalog(ddl_path: Path, func_fqn: str) -> dict[str, Any] | None:
-    return _load_catalog_file(ddl_path, "functions", func_fqn)
+def load_function_catalog(project_root: Path, func_fqn: str) -> dict[str, Any] | None:
+    return _load_catalog_file(project_root, "functions", func_fqn)
 
 
 # ── Routing flag detection ──────────────────────────────────────────────────
@@ -200,7 +200,7 @@ def ensure_referenced_by(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def write_table_catalog(
-    ddl_path: Path,
+    project_root: Path,
     table_fqn: str,
     signals: dict[str, Any],
     referenced_by: dict[str, dict[str, list[dict[str, Any]]]] | None = None,
@@ -226,13 +226,13 @@ def write_table_catalog(
             "views": empty_scoped(),
             "functions": empty_scoped(),
         })
-    p = _object_path(ddl_path, "tables", fqn)
+    p = _object_path(project_root, "tables", fqn)
     _write_json(p, data)
     return p
 
 
 def write_proc_statements(
-    ddl_path: Path,
+    project_root: Path,
     proc_fqn: str,
     statements: list[dict[str, Any]],
 ) -> Path:
@@ -242,7 +242,7 @@ def write_proc_statements(
     Raises ``FileNotFoundError`` if the catalog file does not exist.
     """
     norm = normalize(proc_fqn)
-    p = _object_path(ddl_path, "procedures", norm)
+    p = _object_path(project_root, "procedures", norm)
     if not p.exists():
         raise FileNotFoundError(f"Procedure catalog not found: {p}")
     data = json.loads(p.read_text(encoding="utf-8"))
@@ -252,7 +252,7 @@ def write_proc_statements(
 
 
 def write_object_catalog(
-    ddl_path: Path,
+    project_root: Path,
     object_type: str,
     fqn: str,
     references: dict[str, list[dict[str, Any]]],
@@ -271,7 +271,7 @@ def write_object_catalog(
         data["needs_llm"] = True
     if needs_enrich:
         data["needs_enrich"] = True
-    p = _object_path(ddl_path, object_type, norm)
+    p = _object_path(project_root, object_type, norm)
     _write_json(p, data)
     return p
 

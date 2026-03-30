@@ -41,15 +41,15 @@ _CATALOG_SCHEMA_VERSION = "1.0"
 # ── Manifest ─────────────────────────────────────────────────────────────────
 
 
-def read_manifest(ddl_path: Path) -> dict[str, str]:
-    """Read manifest.json from ddl_path if present. Returns dialect, defaulting to tsql."""
-    manifest_file = Path(ddl_path) / "manifest.json"
+def read_manifest(project_root: Path) -> dict[str, str]:
+    """Read manifest.json from project_root if present. Returns dialect, defaulting to tsql."""
+    manifest_file = Path(project_root) / "manifest.json"
     if manifest_file.exists():
         try:
             with manifest_file.open() as f:
                 m = json.load(f)
         except json.JSONDecodeError as exc:
-            raise ValueError(f"manifest.json in {ddl_path} is not valid JSON: {exc}") from exc
+            raise ValueError(f"manifest.json in {project_root} is not valid JSON: {exc}") from exc
         return {"dialect": m.get("dialect", "tsql")}
     return {"dialect": "tsql"}
 
@@ -85,26 +85,26 @@ def _load_file(
             getattr(catalog, bucket_name)[key] = DdlEntry(raw_ddl=block, ast=None, parse_error=str(exc))
 
 
-def load_directory(ddl_path: Path | str, dialect: str = "tsql") -> DdlCatalog:
+def load_directory(project_root: Path | str, dialect: str = "tsql") -> DdlCatalog:
     """Read all .sql files in a DDL directory and return a populated DdlCatalog.
 
     Object types are auto-detected from CREATE statements — filenames are not
     significant.  Any .sql file may contain any mix of tables, procedures,
     views, and functions separated by GO delimiters.
 
-    If a manifest.json is present in ddl_path, the dialect declared there
+    If a manifest.json is present in project_root, the dialect declared there
     overrides the dialect parameter.
 
     Args:
-        ddl_path: Path to directory containing .sql files.
+        project_root: Path to project root directory containing ddl/ and manifest.json.
         dialect:  sqlglot dialect for parsing (default: "tsql").
 
     Raises:
-        FileNotFoundError: if ddl_path does not exist.
+        FileNotFoundError: if project_root does not exist.
     """
-    path = Path(ddl_path)
+    path = Path(project_root)
     if not path.exists():
-        raise FileNotFoundError(f"DDL path does not exist: {path}")
+        raise FileNotFoundError(f"Project root does not exist: {path}")
 
     ddl_dir = path / "ddl"
     if not ddl_dir.is_dir():
@@ -171,7 +171,7 @@ def _write_per_object_files(
 
 
 def index_directory(
-    ddl_path: Path | str,
+    project_root: Path | str,
     output_dir: Path | str,
     dialect: str = "tsql",
 ) -> None:
@@ -181,11 +181,11 @@ def index_directory(
     ``catalog.json`` reference graph index.
 
     Raises:
-        FileNotFoundError: if ddl_path does not exist.
+        FileNotFoundError: if project_root does not exist.
     """
-    _manifest = read_manifest(Path(ddl_path))
+    _manifest = read_manifest(Path(project_root))
     dialect = _manifest["dialect"]
-    catalog = load_directory(ddl_path, dialect=dialect)
+    catalog = load_directory(project_root, dialect=dialect)
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -194,7 +194,7 @@ def index_directory(
     catalog_doc = {
         "schema_version": _CATALOG_SCHEMA_VERSION,
         "indexed_at": datetime.now(timezone.utc).isoformat(),
-        "source": str(Path(ddl_path).resolve()),
+        "source": str(Path(project_root).resolve()),
         "objects": objects,
     }
     (out / "catalog.json").write_text(
@@ -203,23 +203,23 @@ def index_directory(
     )
 
 
-def load_ddl(ddl_path: Path) -> tuple[DdlCatalog, str]:
-    """Load a DdlCatalog and dialect from a DDL directory.
+def load_ddl(project_root: Path) -> tuple[DdlCatalog, str]:
+    """Load a DdlCatalog and dialect from a project root directory.
 
     Requires a catalog/ directory (from setup-ddl). Raises CatalogNotFoundError
     if missing. Prefers pre-built catalog.json when available, falls back to
     parsing .sql files directly.
     """
-    manifest = read_manifest(ddl_path)
+    manifest = read_manifest(project_root)
     dialect = manifest["dialect"]
-    catalog_dir = ddl_path / "catalog"
+    catalog_dir = project_root / "catalog"
     if not catalog_dir.is_dir() or not any(catalog_dir.rglob("*.json")):
-        logger.error("event=load_ddl operation=check_catalog ddl_path=%s reason=no_catalog_directory", ddl_path)
-        raise CatalogNotFoundError(ddl_path)
-    catalog_json = ddl_path / "catalog.json"
+        logger.error("event=load_ddl operation=check_catalog project_root=%s reason=no_catalog_directory", project_root)
+        raise CatalogNotFoundError(project_root)
+    catalog_json = project_root / "catalog.json"
     if catalog_json.exists():
-        return load_catalog(ddl_path), dialect
-    return load_directory(ddl_path, dialect=dialect), dialect
+        return load_catalog(project_root), dialect
+    return load_directory(project_root, dialect=dialect), dialect
 
 
 def load_catalog(output_dir: Path | str) -> DdlCatalog:

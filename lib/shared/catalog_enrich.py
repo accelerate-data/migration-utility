@@ -114,7 +114,7 @@ def _make_ast_ref_entry(
 
 
 def _scan_ast_refs(
-    ddl_path: Path, ddl_catalog: DdlCatalog,
+    project_root: Path, ddl_catalog: DdlCatalog,
 ) -> tuple[dict[str, ObjectRefs], dict[str, list[str]]]:
     """Extract AST refs and EXEC calls for eligible procedures.
 
@@ -125,7 +125,7 @@ def _scan_ast_refs(
     ast_calls: dict[str, list[str]] = {}
 
     for proc_fqn, entry in ddl_catalog.procedures.items():
-        proc_cat = load_proc_catalog(ddl_path, proc_fqn)
+        proc_cat = load_proc_catalog(project_root, proc_fqn)
         if proc_cat and proc_cat.get("needs_llm"):
             logger.debug("event=enrich_skip proc=%s reason=needs_llm", proc_fqn)
             continue
@@ -185,7 +185,7 @@ def _build_writer_maps(
 
 
 def _augment_proc_catalogs(
-    ddl_path: Path,
+    project_root: Path,
     direct_writers: dict[str, set[str]],
     indirect_writers: dict[str, set[str]],
 ) -> tuple[set[str], int]:
@@ -198,7 +198,7 @@ def _augment_proc_catalogs(
     all_writer_procs = set(direct_writers.keys()) | set(indirect_writers.keys())
 
     for proc_fqn in sorted(all_writer_procs):
-        proc_data = load_proc_catalog(ddl_path, proc_fqn)
+        proc_data = load_proc_catalog(project_root, proc_fqn)
         if proc_data is None:
             proc_data = {}
         proc_data = ensure_references(proc_data)
@@ -226,7 +226,7 @@ def _augment_proc_catalogs(
             procedures_augmented.add(proc_fqn)
             tables_in_scope.sort(key=lambda e: f"{e['schema']}.{e['name']}".lower())
             write_object_catalog(
-                ddl_path, "procedures", proc_fqn, proc_data["references"],
+                project_root, "procedures", proc_fqn, proc_data["references"],
                 needs_llm=proc_data.get("needs_llm", False), needs_enrich=False,
             )
 
@@ -234,7 +234,7 @@ def _augment_proc_catalogs(
 
 
 def _flip_to_table_catalogs(
-    ddl_path: Path, procedures_augmented: set[str],
+    project_root: Path, procedures_augmented: set[str],
 ) -> set[str]:
     """Update table catalogs with reverse references from augmented procs.
 
@@ -243,7 +243,7 @@ def _flip_to_table_catalogs(
     tables_augmented: set[str] = set()
 
     for proc_fqn in sorted(procedures_augmented):
-        proc_data = load_proc_catalog(ddl_path, proc_fqn)
+        proc_data = load_proc_catalog(project_root, proc_fqn)
         if proc_data is None:
             continue
         tables_in_scope = proc_data.get("references", {}).get("tables", {}).get("in_scope", [])
@@ -253,7 +253,7 @@ def _flip_to_table_catalogs(
                 continue
 
             table_fqn = normalize(f"{table_entry['schema']}.{table_entry['name']}")
-            table_data = load_table_catalog(ddl_path, table_fqn)
+            table_data = load_table_catalog(project_root, table_fqn)
             if table_data is None:
                 table_data = {}
             table_data = ensure_referenced_by(table_data)
@@ -267,33 +267,33 @@ def _flip_to_table_catalogs(
                 tables_augmented.add(table_fqn)
 
             ref_by = table_data.pop("referenced_by", None)
-            write_table_catalog(ddl_path, table_fqn, table_data, ref_by)
+            write_table_catalog(project_root, table_fqn, table_data, ref_by)
 
     return tables_augmented
 
 
-def enrich_catalog(ddl_path: Path, dialect: str = "tsql") -> dict[str, Any]:
+def enrich_catalog(project_root: Path, dialect: str = "tsql") -> dict[str, Any]:
     """Enrich catalog files with AST-derived references.
 
     Args:
-        ddl_path: Root artifacts directory containing ``ddl/``, ``catalog/``,
+        project_root: Root artifacts directory containing ``ddl/``, ``catalog/``,
             and ``manifest.json``.
         dialect: SQL dialect for parsing (default: "tsql").
 
     Returns summary: {"tables_augmented": N, "procedures_augmented": N, "entries_added": N}
     """
-    ddl_path = Path(ddl_path)
+    project_root = Path(project_root)
 
-    if not has_catalog(ddl_path):
-        logger.warning("event=enrich_catalog status=skip reason=no_catalog path=%s", ddl_path)
+    if not has_catalog(project_root):
+        logger.warning("event=enrich_catalog status=skip reason=no_catalog path=%s", project_root)
         return {"tables_augmented": 0, "procedures_augmented": 0, "entries_added": 0}
 
-    ddl_catalog = load_directory(ddl_path, dialect=dialect)
+    ddl_catalog = load_directory(project_root, dialect=dialect)
 
-    ast_refs, ast_calls = _scan_ast_refs(ddl_path, ddl_catalog)
+    ast_refs, ast_calls = _scan_ast_refs(project_root, ddl_catalog)
     direct_writers, indirect_writers = _build_writer_maps(ast_refs, ast_calls)
-    procedures_augmented, entries_added = _augment_proc_catalogs(ddl_path, direct_writers, indirect_writers)
-    tables_augmented = _flip_to_table_catalogs(ddl_path, procedures_augmented)
+    procedures_augmented, entries_added = _augment_proc_catalogs(project_root, direct_writers, indirect_writers)
+    tables_augmented = _flip_to_table_catalogs(project_root, procedures_augmented)
 
     summary = {
         "tables_augmented": len(tables_augmented),
@@ -306,7 +306,7 @@ def enrich_catalog(ddl_path: Path, dialect: str = "tsql") -> dict[str, Any]:
 
 @app.command()
 def main(
-    ddl_path: Path = typer.Option(..., help="Root artifacts directory containing ddl/, catalog/, and manifest.json"),
+    project_root: Path = typer.Option(..., "--project-root", help="Root artifacts directory containing ddl/, catalog/, and manifest.json"),
     dialect: str = typer.Option("tsql", help="SQL dialect"),
 ) -> None:
     """Augment catalog files with AST-derived references."""
@@ -315,7 +315,7 @@ def main(
         format="%(name)s: %(message)s",
         stream=sys.stderr,
     )
-    result = enrich_catalog(ddl_path, dialect)
+    result = enrich_catalog(project_root, dialect)
     json.dump(result, sys.stdout, indent=2)
     print(file=sys.stdout)  # trailing newline
 

@@ -3,7 +3,7 @@ name: discover
 description: >
   This skill should be used when the user asks to "list tables", "list procedures", "list views", "list functions", "show me the DDL for X", "inspect object X", "what references Y", "find what writes to [table]", "which procedures populate [table]", or wants to explore the structure of a DDL export directory. Use for any object inspection, reference tracing, or writer discovery against a local DDL snapshot.
 user-invocable: true
-argument-hint: "[ddl-path] [subcommand] [options]"
+argument-hint: "[project-root] [subcommand] [options]"
 ---
 
 # Discover
@@ -12,7 +12,7 @@ Explore a DDL artifact directory. Requires catalog files from `setup-ddl` — er
 
 ## Arguments
 
-Parse `$ARGUMENTS` for `ddl-path` and optionally a subcommand with its options. If `ddl-path` is missing, default to the current working directory. Use `AskUserQuestion` to show the user the resolved path and get confirmation before proceeding. If no subcommand is specified, default to `list`.
+Parse `$ARGUMENTS` for `project-root` and optionally a subcommand with its options. If `project-root` is missing, default to the current working directory. Use `AskUserQuestion` to show the user the resolved path and get confirmation before proceeding. If no subcommand is specified, default to `list`.
 
 ### Subcommands
 
@@ -20,26 +20,26 @@ Parse `$ARGUMENTS` for `ddl-path` and optionally a subcommand with its options. 
 
 | Option | Required | Values |
 |---|---|---|
-| `--ddl-path` | yes | path to DDL directory |
+| `--project-root` | yes | path to project root directory |
 | `--type` | yes | `tables`, `procedures`, `views`, `functions` |
 
 **show** — inspect a single object (columns, params, refs, raw DDL):
 
 | Option | Required | Values |
 |---|---|---|
-| `--ddl-path` | yes | path to DDL directory |
+| `--project-root` | yes | path to project root directory |
 | `--name` | yes | fully-qualified object name (e.g. `dbo.FactSales`, `[silver].[DimProduct]`) |
 
 **refs** — find all procedures/views that reference an object (readers, writers from catalog):
 
 | Option | Required | Values |
 |---|---|---|
-| `--ddl-path` | yes | path to DDL directory |
+| `--project-root` | yes | path to project root directory |
 | `--name` | yes | fully-qualified object name |
 
 ## Before invoking any subcommand
 
-Read `<ddl-path>/manifest.json` to confirm the directory is a valid DDL extraction and to understand the source technology and dialect. If the manifest is missing, stop and tell the user to run `setup-ddl` first.
+Read `<project-root>/manifest.json` to confirm the directory is a valid project root and to understand the source technology and dialect. If the manifest is missing, stop and tell the user to run `setup-ddl` first.
 
 ## Output schemas
 
@@ -53,7 +53,7 @@ Read `<ddl-path>/manifest.json` to confirm the directory is a valid DDL extracti
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover list \
-  --ddl-path <ddl-path> --type <type>
+  --project-root <project-root> --type <type>
 ```
 
 Present as a numbered list:
@@ -75,7 +75,7 @@ If the user selects an object, proceed to `show`. If they ask what references it
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover show \
-  --ddl-path <ddl-path> --name <fqn>
+  --project-root <project-root> --name <fqn>
 ```
 
 Present differently based on the object type:
@@ -161,7 +161,7 @@ All statements are already classified by the AST. Persist immediately after pres
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover write-statements \
-  --ddl-path <ddl_path> --name <procedure_name> --statements '<json>'
+  --project-root <project-root> --name <procedure_name> --statements '<json>'
 ```
 
 All statements get `source: "ast"`.
@@ -178,7 +178,7 @@ No `claude` actions are written to catalog — all must be resolved before persi
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover refs \
-  --ddl-path <ddl-path> --name <fqn>
+  --project-root <project-root> --name <fqn>
 ```
 
 The output contains `writers` (procs that modify the table) and `readers` (procs/views that select from it).

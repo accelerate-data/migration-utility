@@ -12,7 +12,7 @@ Test generation runs AFTER migration in the pipeline (migration is stage 3, test
 
 - Test generator owns fixture generation and ground-truth capture.
 - Test generator reads profile from `catalog/tables/<item_id>.json`, resolved statements from `catalog/procedures/<writer>.json`, and migration output from the migrator's artifact directory.
-- `proc_body` is read from DDL files via `discover show --ddl-path <ddl_path> --name <writer>`. `table_schemas` are read from DDL files via `discover show --ddl-path <ddl_path> --name <table>`. No live database access is needed for metadata — the live DB is only used for ground-truth execution in the ground-truth capture stage.
+- `proc_body` is read from DDL files via `discover show --project-root <project_root> --name <writer>`. `table_schemas` are read from DDL files via `discover show --project-root <project_root> --name <table>`. No live database access is needed for metadata — the live DB is only used for ground-truth execution in the ground-truth capture stage.
 - Migrator consumes test generator output and incorporates `unit_tests:` blocks into model schema YAML.
 - Test generator must not make or modify migration business decisions (classification, keys, materialization).
 
@@ -22,7 +22,7 @@ Test generation runs AFTER migration in the pipeline (migration is stage 3, test
 {
   "schema_version": "2.0",
   "run_id": "uuid",
-  "ddl_path": "/absolute/path/to/artifacts/ddl",
+  "project_root": "/absolute/path/to/artifacts",
   "items": [
     {
       "item_id": "dbo.fact_sales",
@@ -38,8 +38,8 @@ Reference schema: `../lib/shared/schemas/test_generator_input.json`
 
 ### 1. FetchProcContext
 
-- Read `proc_body` from DDL files via `discover show --ddl-path <ddl_path> --name <writer>` using `selected_writer`.
-- Read `table_schemas` from DDL files via `discover show --ddl-path <ddl_path> --name <table>` for `item_id` and all join targets.
+- Read `proc_body` from DDL files via `discover show --project-root <project_root> --name <writer>` using `selected_writer`.
+- Read `table_schemas` from DDL files via `discover show --project-root <project_root> --name <table>` for `item_id` and all join targets.
 
 ### 2. ExtractBranches
 

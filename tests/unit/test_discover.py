@@ -154,7 +154,7 @@ def test_discover_cli_list_succeeds_with_unparseable() -> None:
     runner = CliRunner()
     result = runner.invoke(
         discover.app,
-        ["list", "--ddl-path", str(_UNPARSEABLE_FIXTURES), "--type", "procedures"],
+        ["list", "--project-root", str(_UNPARSEABLE_FIXTURES), "--type", "procedures"],
     )
     assert result.exit_code == 0
 

@@ -82,7 +82,7 @@ uv run --project shared <skill> [flags] 2>/dev/null
 ### discover
 
 ```text
-Input:  --ddl-path PATH  --dialect tsql
+Input:  --project-root PATH  --dialect tsql
         subcommand: list|show|refs
         --type tables|procedures|views|functions  (list only)
         --name dbo.MyTable                         (show|refs only)
@@ -122,7 +122,7 @@ Two subcommands: `context` (assemble LLM input) and `write` (merge results into 
 #### `profile context`
 
 ```text
-Input:  context --ddl-path PATH  --table dbo.FactSales
+Input:  context --project-root PATH  --table dbo.FactSales
         --writer dbo.usp_Load  --dialect tsql
 
 Output: {
@@ -153,7 +153,7 @@ Reads pre-captured catalog files + DDL, cherry-picks relevant signals, outputs a
 #### `profile write`
 
 ```text
-Input:  write --ddl-path PATH  --table dbo.FactSales
+Input:  write --project-root PATH  --table dbo.FactSales
         --profile '{"status":"ok","writer":"dbo.usp_Load",...}'
 
 Output: { "written": "catalog/tables/dbo.FactSales.json", "status": "ok" }
@@ -191,7 +191,7 @@ Two subcommands: `context` (assemble migration context) and `write` (persist gen
 #### `migrate context`
 
 ```text
-Input:  context --ddl-path PATH  --table dbo.FactSales
+Input:  context --project-root PATH  --table dbo.FactSales
         --writer dbo.usp_Load
 
 Output: {
@@ -225,7 +225,7 @@ Reads profile from `catalog/tables/`, statements from `catalog/procedures/`, pro
 #### `migrate write`
 
 ```text
-Input:  write --ddl-path PATH  --table dbo.FactSales
+Input:  write --project-root PATH  --table dbo.FactSales
         --dbt-project-path PATH
         --model-sql '<sql>'  --schema-yml '<yml>'
 

@@ -18,7 +18,7 @@ For the interactive single-table path, see the `/profile` skill in [SP → dbt M
 {
   "schema_version": "1.0",
   "run_id": "uuid",
-  "ddl_path": "/path/to/artifacts/ddl",
+  "project_root": "/path/to/artifacts",
   "items": [
     {
       "item_id": "dbo.fact_sales",
@@ -36,7 +36,7 @@ For each item in `items[]`:
 
 ### 1. AssembleContext (Deterministic — `profile.py context`)
 
-Run `uv run profile context --table <item_id> --writer <selected_writer> --ddl-path <ddl_path> --dialect tsql`.
+Run `uv run profile context --table <item_id> --writer <selected_writer> --project-root <project_root> --dialect tsql`.
 
 `profile.py context` reads:
 
@@ -111,7 +111,7 @@ For remaining columns:
 
 ### 3. WriteCatalogFile (Deterministic — `profile.py write`)
 
-Run `uv run profile write --table <item_id> --ddl-path <ddl_path> --profile '<json>'`.
+Run `uv run profile write --table <item_id> --project-root <project_root> --profile '<json>'`.
 
 The `write` subcommand:
 

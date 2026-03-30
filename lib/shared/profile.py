@@ -87,14 +87,14 @@ def _extract_catalog_signals(table_cat: dict[str, Any]) -> dict[str, Any]:
 
 
 def _build_related_procedures(
-    ddl_path: Path, ddl_catalog: Any, writer_references: dict[str, Any],
+    project_root: Path, ddl_catalog: Any, writer_references: dict[str, Any],
 ) -> list[dict[str, Any]]:
     """Load catalog + DDL body for each procedure in the writer's in_scope refs."""
     related: list[dict[str, Any]] = []
     proc_refs = writer_references.get("procedures", {})
     for ref_proc in proc_refs.get("in_scope", []):
         ref_fqn = normalize(f"{ref_proc['schema']}.{ref_proc['name']}")
-        ref_cat = load_proc_catalog(ddl_path, ref_fqn)
+        ref_cat = load_proc_catalog(project_root, ref_fqn)
         ref_entry = ddl_catalog.get_procedure(ref_fqn)
         ref_body = ref_entry.raw_ddl if ref_entry else ""
         entry: dict[str, Any] = {"procedure": ref_fqn, "proc_body": ref_body}
@@ -104,7 +104,7 @@ def _build_related_procedures(
     return related
 
 
-def run_context(ddl_path: Path, table: str, writer: str) -> dict[str, Any]:
+def run_context(project_root: Path, table: str, writer: str) -> dict[str, Any]:
     """Assemble profiling context for a table + writer pair.
 
     Returns a dict matching ``schemas/profile_context.json``.
@@ -113,27 +113,27 @@ def run_context(ddl_path: Path, table: str, writer: str) -> dict[str, Any]:
     writer_norm = normalize(writer)
 
     # Load table catalog
-    table_cat = load_table_catalog(ddl_path, table_norm)
+    table_cat = load_table_catalog(project_root, table_norm)
     if table_cat is None:
         raise CatalogFileMissingError("table", table_norm)
 
     catalog_signals = _extract_catalog_signals(table_cat)
 
     # Load writer procedure catalog
-    proc_cat = load_proc_catalog(ddl_path, writer_norm)
+    proc_cat = load_proc_catalog(project_root, writer_norm)
     if proc_cat is None:
         raise CatalogFileMissingError("procedure", writer_norm)
 
     writer_references = proc_cat.get("references", {})
 
     # Load proc body from DDL files
-    ddl_catalog, _ = load_ddl(ddl_path)
+    ddl_catalog, _ = load_ddl(project_root)
     proc_entry = ddl_catalog.get_procedure(writer_norm)
     proc_body = proc_entry.raw_ddl if proc_entry else ""
     if not proc_body:
         logger.warning("event=context_warning operation=load_proc_body table=%s writer=%s reason=no_ddl_body", table_norm, writer_norm)
 
-    related_procedures = _build_related_procedures(ddl_path, ddl_catalog, writer_references)
+    related_procedures = _build_related_procedures(project_root, ddl_catalog, writer_references)
 
     logger.info("event=context_assembled table=%s writer=%s related_count=%d", table_norm, writer_norm, len(related_procedures))
     return {
@@ -221,7 +221,7 @@ def _validate_profile(profile: dict[str, Any]) -> list[str]:
     return errors
 
 
-def run_write(ddl_path: Path, table: str, profile_json: dict[str, Any]) -> dict[str, Any]:
+def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> dict[str, Any]:
     """Validate and merge a profile section into a table catalog file.
 
     Returns a confirmation dict on success.
@@ -235,7 +235,7 @@ def run_write(ddl_path: Path, table: str, profile_json: dict[str, Any]) -> dict[
         raise ValueError(f"Profile validation failed for {table_norm}: {'; '.join(errors)}")
 
     # Load existing catalog file
-    catalog_path = ddl_path / "catalog" / "tables" / f"{table_norm}.json"
+    catalog_path = project_root / "catalog" / "tables" / f"{table_norm}.json"
     if not catalog_path.exists():
         raise CatalogFileMissingError("table", table_norm)
 
@@ -274,13 +274,13 @@ def run_write(ddl_path: Path, table: str, profile_json: dict[str, Any]) -> dict[
 
 @app.command()
 def context(
-    ddl_path: Path = typer.Option(..., help="Path to DDL directory"),
+    project_root: Path = typer.Option(..., "--project-root", help="Path to project root directory"),
     table: str = typer.Option(..., help="Fully-qualified table name (schema.Name)"),
     writer: str = typer.Option(..., help="Fully-qualified writer procedure name"),
 ) -> None:
     """Assemble profiling context for a table + writer pair."""
     try:
-        result = run_context(ddl_path, table, writer)
+        result = run_context(project_root, table, writer)
     except CatalogFileMissingError as exc:
         logger.error("event=context_failed table=%s writer=%s error=%s", table, writer, exc)
         raise typer.Exit(code=1) from exc
@@ -292,7 +292,7 @@ def context(
 
 @app.command()
 def write(
-    ddl_path: Path = typer.Option(..., help="Path to DDL directory"),
+    project_root: Path = typer.Option(..., "--project-root", help="Path to project root directory"),
     table: str = typer.Option(..., help="Fully-qualified table name (schema.Name)"),
     profile: str = typer.Option(..., help="Profile JSON string"),
 ) -> None:
@@ -304,7 +304,7 @@ def write(
         raise typer.Exit(code=2) from exc
 
     try:
-        result = run_write(ddl_path, table, profile_data)
+        result = run_write(project_root, table, profile_data)
     except (ValueError, CatalogFileMissingError) as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)
         _emit({"ok": False, "error": str(exc), "table": normalize(table)})

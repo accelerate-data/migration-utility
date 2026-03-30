@@ -145,9 +145,9 @@ def derive_schema_tests(profile: dict[str, Any]) -> dict[str, Any]:
 # ── Context assembly ──────────────────────────────────────────────────────────
 
 
-def _load_table_profile(ddl_path: Path, table_fqn: str) -> dict[str, Any]:
+def _load_table_profile(project_root: Path, table_fqn: str) -> dict[str, Any]:
     """Load the profile section from a table catalog file."""
-    cat = load_table_catalog(ddl_path, table_fqn)
+    cat = load_table_catalog(project_root, table_fqn)
     if cat is None:
         raise CatalogFileMissingError("table", table_fqn)
     profile = cat.get("profile")
@@ -156,9 +156,9 @@ def _load_table_profile(ddl_path: Path, table_fqn: str) -> dict[str, Any]:
     return profile
 
 
-def _load_proc_statements(ddl_path: Path, writer_fqn: str) -> list[dict[str, Any]]:
+def _load_proc_statements(project_root: Path, writer_fqn: str) -> list[dict[str, Any]]:
     """Load resolved statements from a procedure catalog file."""
-    cat = load_proc_catalog(ddl_path, writer_fqn)
+    cat = load_proc_catalog(project_root, writer_fqn)
     if cat is None:
         raise CatalogFileMissingError("procedure", writer_fqn)
     statements = cat.get("statements")
@@ -167,28 +167,28 @@ def _load_proc_statements(ddl_path: Path, writer_fqn: str) -> list[dict[str, Any
     return statements
 
 
-def _load_proc_body(ddl_path: Path, writer_fqn: str) -> str:
+def _load_proc_body(project_root: Path, writer_fqn: str) -> str:
     """Load the raw DDL body of a procedure from the DDL directory."""
-    catalog = load_directory(ddl_path)
+    catalog = load_directory(project_root)
     entry = catalog.get_procedure(writer_fqn)
     if entry is None:
         raise CatalogFileMissingError("procedure DDL", writer_fqn)
     return entry.raw_ddl
 
 
-def _load_table_columns(ddl_path: Path, table_fqn: str) -> list[dict[str, Any]]:
+def _load_table_columns(project_root: Path, table_fqn: str) -> list[dict[str, Any]]:
     """Load column list from the table catalog file."""
-    cat = load_table_catalog(ddl_path, table_fqn)
+    cat = load_table_catalog(project_root, table_fqn)
     if cat and cat.get("columns"):
         return cat["columns"]
     return []
 
 
 def _collect_source_tables(
-    ddl_path: Path, writer_fqn: str,
+    project_root: Path, writer_fqn: str,
 ) -> list[str]:
     """Collect source tables from the writer procedure's references."""
-    cat = load_proc_catalog(ddl_path, writer_fqn)
+    cat = load_proc_catalog(project_root, writer_fqn)
     if cat is None:
         return []
     refs = cat.get("references", {})
@@ -201,7 +201,7 @@ def _collect_source_tables(
 
 
 def run_context(
-    ddl_path: Path,
+    project_root: Path,
     table_fqn: str,
     writer_fqn: str,
 ) -> dict[str, Any]:
@@ -209,14 +209,14 @@ def run_context(
     table_norm = normalize(table_fqn)
     writer_norm = normalize(writer_fqn)
 
-    if not has_catalog(ddl_path):
-        raise CatalogNotFoundError(ddl_path)
+    if not has_catalog(project_root):
+        raise CatalogNotFoundError(project_root)
 
-    profile = _load_table_profile(ddl_path, table_norm)
-    statements = _load_proc_statements(ddl_path, writer_norm)
-    proc_body = _load_proc_body(ddl_path, writer_norm)
-    columns = _load_table_columns(ddl_path, table_norm)
-    source_tables = _collect_source_tables(ddl_path, writer_norm)
+    profile = _load_table_profile(project_root, table_norm)
+    statements = _load_proc_statements(project_root, writer_norm)
+    proc_body = _load_proc_body(project_root, writer_norm)
+    columns = _load_table_columns(project_root, table_norm)
+    source_tables = _collect_source_tables(project_root, writer_norm)
     materialization = derive_materialization(profile)
     schema_tests = derive_schema_tests(profile)
 
@@ -238,7 +238,7 @@ def run_context(
 
 def run_write(
     table_fqn: str,
-    ddl_path: Path,
+    project_root: Path,
     dbt_project_path: Path,
     model_sql: str,
     schema_yml: str,
@@ -289,11 +289,11 @@ def run_write(
 def context(
     table: str = typer.Option(..., help="Fully-qualified target table name (schema.table)"),
     writer: str = typer.Option(..., help="Fully-qualified writer procedure name (schema.proc)"),
-    ddl_path: Path = typer.Option(..., help="Path to DDL artifacts directory"),
+    project_root: Path = typer.Option(..., "--project-root", help="Path to project root directory"),
 ) -> None:
     """Assemble migration context from catalog + DDL."""
     try:
-        result = run_context(ddl_path, table, writer)
+        result = run_context(project_root, table, writer)
     except (CatalogFileMissingError, ProfileMissingError) as exc:
         logger.error("event=context_failed table=%s writer=%s error=%s", table, writer, exc)
         raise typer.Exit(code=1) from exc
@@ -306,14 +306,14 @@ def context(
 @app.command()
 def write(
     table: str = typer.Option(..., help="Fully-qualified target table name (schema.table)"),
-    ddl_path: Path = typer.Option(..., help="Path to DDL artifacts directory"),
+    project_root: Path = typer.Option(..., "--project-root", help="Path to project root directory"),
     dbt_project_path: Path = typer.Option(..., help="Path to dbt project root"),
     model_sql: str = typer.Option(..., help="Generated dbt model SQL"),
     schema_yml: str = typer.Option("", help="Generated schema YAML"),
 ) -> None:
     """Write generated dbt model SQL + schema YAML to dbt project."""
     try:
-        result = run_write(table, ddl_path, dbt_project_path, model_sql, schema_yml)
+        result = run_write(table, project_root, dbt_project_path, model_sql, schema_yml)
     except ValueError as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)
         raise typer.Exit(code=1) from exc
