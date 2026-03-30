@@ -1,5 +1,23 @@
 """Shared library for migration skills."""
 
-from shared import loader, name_resolver
+from shared import (
+    catalog,
+    catalog_enrich,
+    discover,
+    loader,
+    migrate,
+    name_resolver,
+    profile,
+    setup_ddl,
+)
 
-__all__ = ["loader", "name_resolver"]
+__all__ = [
+    "catalog",
+    "catalog_enrich",
+    "discover",
+    "loader",
+    "migrate",
+    "name_resolver",
+    "profile",
+    "setup_ddl",
+]

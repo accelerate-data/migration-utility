@@ -39,6 +39,8 @@ from shared.name_resolver import normalize
 
 server = Server("ddl-mcp")
 
+_catalog_cache: dict[Path, DdlCatalog] = {}
+
 _DDL_PATH_SCHEMA = {
     "ddl_path": {
         "type": "string",
@@ -66,8 +68,11 @@ def _ddl_path(override: str | None = None) -> Path:
 
 
 def _catalog(ddl_path: Path) -> DdlCatalog:
-    manifest = read_manifest(ddl_path)
-    return load_directory(ddl_path, dialect=manifest["dialect"])
+    resolved = ddl_path.resolve()
+    if resolved not in _catalog_cache:
+        manifest = read_manifest(ddl_path)
+        _catalog_cache[resolved] = load_directory(ddl_path, dialect=manifest["dialect"])
+    return _catalog_cache[resolved]
 
 
 # ── Column metadata ───────────────────────────────────────────────────────────

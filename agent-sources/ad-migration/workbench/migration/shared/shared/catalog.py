@@ -231,6 +231,26 @@ def write_table_catalog(
     return p
 
 
+def write_proc_statements(
+    ddl_path: Path,
+    proc_fqn: str,
+    statements: list[dict[str, Any]],
+) -> Path:
+    """Persist resolved statements into an existing procedure catalog file.
+
+    Reads the current catalog file, sets ``statements``, and writes it back.
+    Raises ``FileNotFoundError`` if the catalog file does not exist.
+    """
+    norm = normalize(proc_fqn)
+    p = _object_path(ddl_path, "procedures", norm)
+    if not p.exists():
+        raise FileNotFoundError(f"Procedure catalog not found: {p}")
+    data = json.loads(p.read_text(encoding="utf-8"))
+    data["statements"] = statements
+    _write_json(p, data)
+    return p
+
+
 def write_object_catalog(
     ddl_path: Path,
     object_type: str,

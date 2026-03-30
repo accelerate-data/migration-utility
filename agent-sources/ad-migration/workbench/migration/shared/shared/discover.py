@@ -1,10 +1,11 @@
 """discover.py — DDL object catalog reader.
 
-Standalone CLI with three subcommands:
+Standalone CLI with four subcommands:
 
-    list   List all objects of a given type in a DDL directory.
-    show   Show details (columns/params/refs) for a single named object.
-    refs   Find all procedures/views that reference a given object.
+    list             List all objects of a given type in a DDL directory.
+    show             Show details (columns/params/refs) for a single named object.
+    refs             Find all procedures/views that reference a given object.
+    write-statements Persist resolved statements into a procedure catalog file.
 
 Requires catalog files from setup-ddl. Errors if catalog is missing.
 
@@ -32,6 +33,7 @@ from shared.catalog import (
     load_table_catalog,
     load_view_catalog,
     load_function_catalog,
+    write_proc_statements,
 )
 from shared.loader import (
     CatalogFileMissingError,
@@ -291,6 +293,27 @@ def _run_refs_from_catalog(ddl_path: Path, target: str) -> dict[str, Any]:
     }
 
 
+def run_write_statements(
+    ddl_path: Path, name: str, statements: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Persist resolved statements into a procedure catalog file.
+
+    All statements must have ``action`` set to ``migrate`` or ``skip`` —
+    unresolved ``claude`` actions are rejected.
+
+    Returns a dict with ``written`` (path) and ``statement_count``.
+    """
+    for stmt in statements:
+        action = stmt.get("action")
+        if action not in ("migrate", "skip"):
+            raise ValueError(
+                f"Unresolved statement action {action!r} for {stmt.get('id', '?')} — "
+                "all actions must be 'migrate' or 'skip' before writing."
+            )
+    path = write_proc_statements(ddl_path, name, statements)
+    return {"written": str(path), "statement_count": len(statements)}
+
+
 def run_refs(ddl_path: Path, name: str) -> dict[str, Any]:
     """Return the refs subcommand result dict.
 
@@ -366,6 +389,29 @@ def refs(
     except (FileNotFoundError, DdlParseError, CatalogNotFoundError) as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=2) from exc
+    _emit(result)
+
+
+@app.command(name="write-statements")
+def write_statements(
+    ddl_path: Path = typer.Option(..., help="Path to DDL directory"),
+    name: str = typer.Option(..., help="Fully-qualified procedure name (schema.Name)"),
+    statements: str = typer.Option(..., help="JSON array of resolved statement objects"),
+) -> None:
+    """Persist resolved statements into a procedure catalog file."""
+    try:
+        stmts = json.loads(statements)
+    except json.JSONDecodeError as exc:
+        logger.error("event=command_failed error=invalid_json detail=%s", exc)
+        raise typer.Exit(code=2) from exc
+    try:
+        result = run_write_statements(ddl_path, name, stmts)
+    except (ObjectNotFoundError, FileNotFoundError) as exc:
+        logger.error("event=command_failed error=%s", exc)
+        raise typer.Exit(code=1) from exc
+    except ValueError as exc:
+        logger.error("event=command_failed error=%s", exc)
+        raise typer.Exit(code=1) from exc
     _emit(result)
 
 
