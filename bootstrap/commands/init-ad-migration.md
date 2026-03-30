@@ -175,6 +175,11 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+# Environment
+.env
+.env.*
+!.env.example
 ```
 
 Tell the user which entries were added (or that `.gitignore` was created).
