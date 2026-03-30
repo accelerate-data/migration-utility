@@ -1,13 +1,13 @@
 ---
 name: setup-ddl
 description: >
-  This skill should be used when the user asks to "set up DDL", "extract DDL from SQL Server", "populate artifacts/ddl", "connect to the remote database and get DDL", "pull DDL from the source database", or wants to initialise the local DDL artifact directory from a live SQL Server before running discovery or scoping.
+  This skill should be used when the user asks to "set up DDL", "extract DDL from SQL Server", "populate ddl", "connect to the remote database and get DDL", "pull DDL from the source database", or wants to initialise the local DDL artifact directory from a live SQL Server before running discovery or scoping.
 argument-hint: "[output-folder]"
 ---
 
 # Setup DDL
 
-Extract DDL from a live SQL Server and write local artifact files that the `ddl` MCP server and `discover`/`scope` tools can read.
+Extract DDL from a live SQL Server and write local artifact files that the `ddl` MCP server used by `discover`/`scope` tools to read the schema.
 
 ## Arguments
 
