@@ -11,6 +11,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "jsonschema>=4.18"]
 export = ["pyodbc>=5.0"]
+sandbox = ["pyodbc>=5.0"]
 
 [build-system]
 requires = ["hatchling"]
@@ -26,6 +27,7 @@ init = "shared.init:app"
 migrate = "shared.migrate:app"
 profile = "shared.profile:app"
 setup-ddl = "shared.setup_ddl:app"
+test-harness = "shared.test_harness:app"
 
 [tool.pytest.ini_options]
 testpaths = ["../tests/unit"]
