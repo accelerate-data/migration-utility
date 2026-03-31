@@ -80,11 +80,11 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-scoping \
   --name <item_id> --scoping '<json>'
 ```
 
-The `write-scoping` subcommand merges the scoping section (status, selected_writer, candidate_writers, warnings, validation) into `catalog/tables/<item_id>.json`.
+The `write-scoping` subcommand merges the scoping section (status, selected_writer, candidates, warnings, validation) into `catalog/tables/<item_id>.json`.
 
 Non-obvious cross-field checks:
 
-- `resolved` → `selected_writer` present and matches a `procedure_name` in `candidate_writers`.
+- `resolved` → `selected_writer` present and matches a `procedure_name` in `candidates`.
 - `resolved` → selected writer candidate has `dependencies` populated (from Step 2 refs).
 - `ambiguous_multi_writer` → at least two candidates, no `selected_writer`.
 

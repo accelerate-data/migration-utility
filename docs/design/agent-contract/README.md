@@ -76,7 +76,7 @@ The following object schema is shared across `validation.issues[]`, `warnings[]`
 ```json
 {
   "code": "ANALYSIS_SELECTED_WRITER_NOT_IN_CANDIDATES",
-  "message": "selected_writer must exist in candidate_writers when status is resolved.",
+  "message": "selected_writer must exist in candidates when status is resolved.",
   "field": "selected_writer",
   "severity": "error|warning",
   "details": {}

@@ -74,17 +74,17 @@ This field is consumed by downstream wave planning to build inter-table dependen
 - Validation checklist:
   - `item_id` is present.
   - `status` is one of: `resolved|ambiguous_multi_writer|no_writer_found|error`.
-  - `candidate_writers` is structurally valid.
+  - `candidates` is structurally valid.
   - every candidate includes `procedure_name` and `rationale`.
   - if `status == "resolved"`:
     - `selected_writer` is present
-    - `selected_writer` exists in `candidate_writers`
+    - `selected_writer` exists in `candidates`
     - the selected writer candidate has `dependencies` populated
   - if `status == "ambiguous_multi_writer"`:
     - at least two candidates are present
     - `selected_writer` is absent
   - if `status == "no_writer_found"`:
-    - `candidate_writers` is empty
+    - `candidates` is empty
     - `selected_writer` is absent
   - if `status == "error"`:
     - `errors` is non-empty
@@ -100,7 +100,7 @@ Scoping results are written to `catalog/tables/<item_id>.json` under a `scoping`
   "scoping": {
     "status": "resolved",
     "selected_writer": "dbo.usp_load_fact_sales",
-    "candidate_writers": [
+    "candidates": [
       {
         "procedure_name": "dbo.usp_load_fact_sales",
         "dependencies": {
