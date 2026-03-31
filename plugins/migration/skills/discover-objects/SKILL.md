@@ -93,7 +93,7 @@ Show columns, then perform writer discovery and scoping:
 
 2. Call `discover refs --name <table>` to find writer candidates. If no writers found, report `no_writer_found` and persist scoping to catalog.
 
-3. For each writer candidate, **check catalog first**: read `catalog/procedures/<proc>.json` — if `statements` already exists, reuse (proc was already processed). If `statements` is missing, run `discover show --name <proc>` to resolve call graph, classify statements, and persist to catalog.
+3. For each writer candidate, **check catalog first**: read `catalog/procedures/<proc>.json` — if `statements` already exists, reuse (proc was already processed). If `statements` is missing, follow the full [procedure analysis flow](references/procedure-analysis-flow.md) for the proc. Do not abbreviate — every step (Call Graph, Logic Summary, Migration Guidance, Persist Statements) must be completed before moving to the next candidate.
 
 4. Present all writer candidates with rationale, dependencies, and statement summary:
 
@@ -141,69 +141,7 @@ silver.vw_CustomerSales (view)
 
 ### Procedures
 
-Always read `raw_ddl` to understand the procedure body. Use `refs` and `statements` (when available) to supplement, but the body is the source of truth.
-
-Check `classification` to decide how much help you get:
-
-1. `deterministic` with `statements` populated — `refs` and `statements` are pre-classified, use them alongside the body as the authoritative source of truth.
-2. `claude_assisted` or `statements` is null — classify each statement yourself from the body. See [`references/tsql-parse-classification.md`](references/tsql-parse-classification.md) for classification guidance.
-
-Present three sections: **Call Graph**, **Logic Summary** and **Migration Guidance**.
-
-**Call Graph** — read/write targets from `refs`. Resolve to base tables: if a ref is a view, function, or procedure, run `discover show` on it to get its refs, and follow the chain until you reach base tables. Present the full lineage in the call graph.
-
-**Logic Summary** — always produced by reading `raw_ddl`. Plain-language description of what the procedure does, step by step. No tags, no classification — just explain the logic.
-
-**Migration Guidance** — tag each statement as `migrate` or `skip`:
-
-| Action | Meaning |
-|---|---|
-| `migrate` | Core transformation (INSERT, UPDATE, DELETE, MERGE, SELECT INTO) — becomes the dbt model |
-| `skip` | Operational overhead (SET, TRUNCATE, DROP/CREATE INDEX) — dbt handles or ignores |
-
-```text
-Call Graph
-  silver.usp_load_DimCustomer  (direct writer)
-    ├── reads: silver.vw_ProductCatalog (view)
-    │     ├── reads: bronze.Customer        ← resolved via discover show
-    │     └── reads: bronze.Product         ← resolved via discover show
-    ├── reads: bronze.Person
-    └── writes: silver.DimCustomer
-
-Logic Summary
-  This procedure performs a full reload of silver.DimCustomer. It reads
-  from vw_ProductCatalog (which joins bronze.Customer and bronze.Product),
-  joins with bronze.Person, computes DateFirstPurchase via OUTER APPLY on
-  bronze.SalesOrderHeader, and inserts into silver.DimCustomer.
-
-Migration Guidance
-  1. [skip]    TRUNCATE TABLE silver.DimCustomer
-  2. [migrate] INSERT INTO silver.DimCustomer from vw_ProductCatalog JOIN bronze.Person
-  3. [migrate] Computes DateFirstPurchase via OUTER APPLY on bronze.SalesOrderHeader
-```
-
-#### Persisting Resolved Statements
-
-After presenting the procedure, persist resolved statements to catalog.
-
-**For deterministic procedures** (`classification: deterministic`, no `claude` actions in statements):
-
-All statements are already classified by the AST. Persist immediately after presenting Migration Guidance — no additional user confirmation needed:
-
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-statements \
-  --name <procedure_name> --statements '<json>'
-```
-
-All statements get `source: "ast"`.
-
-**For claude-assisted procedures** (`classification: claude_assisted` or statements containing `action: "claude"`):
-
-1. Read `raw_ddl` and analyse each `claude` statement — follow the call graph, resolve dynamic SQL, and classify as `migrate` or `skip`.
-2. Present the full resolved statement list for confirmation. Show each statement with its proposed action and rationale.
-3. After confirmation (with any edits), run `discover write-statements` to persist. All resolved statements get `source: "llm"`.
-
-No `claude` actions are written to catalog — all must be resolved before persisting.
+Follow the [procedure analysis flow](references/procedure-analysis-flow.md). This covers classification, call graph resolution, logic summary, migration guidance, and statement persistence.
 
 ## refs
 
