@@ -11,6 +11,7 @@ providers:
       working_dir: ../..
       max_turns: 30
       permission_mode: bypassPermissions
+      allow_dangerously_skip_permissions: true
       append_allowed_tools:
         - Read
         - Write
