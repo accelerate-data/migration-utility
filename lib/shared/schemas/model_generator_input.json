@@ -11,7 +11,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["item_id", "selected_writer"],
+        "required": ["item_id"],
         "properties": {
           "item_id": { "type": "string", "description": "Fully qualified table name: <schema>.<table>." },
           "selected_writer": { "type": "string", "description": "Fully qualified procedure name selected by scoping agent." }

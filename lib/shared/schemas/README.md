@@ -25,7 +25,7 @@ Per-object catalog files produced by `setup-ddl` and consumed by `discover-objec
 | Schema | Object type | Key fields |
 |---|---|---|
 | [manifest.json](manifest.json) | Extraction manifest | technology, dialect, source_database, extracted_schemas, extracted_at |
-| [table_catalog.json](table_catalog.json) | Table | `columns`, PKs, FKs, auto_increment_columns, change_capture (opt), sensitivity (opt), `referenced_by`, `profile` |
+| [table_catalog.json](table_catalog.json) | Table | `columns`, PKs, FKs, auto_increment_columns, change_capture (opt), sensitivity (opt), `referenced_by`, `profile`, `scoping` |
 | [procedure_catalog.json](procedure_catalog.json) | Procedure | `params`, `references`, `referenced_by`, `statements`, `needs_llm`, `needs_enrich` |
 | [view_catalog.json](view_catalog.json) | View | `references`, `referenced_by` |
 | [function_catalog.json](function_catalog.json) | Function | `references`, `referenced_by` |
@@ -62,6 +62,7 @@ Per-object catalog files produced by `setup-ddl` and consumed by `discover-objec
 | `references` / `referenced_by` (catalog-query-sourced) | `sys.dm_sql_referenced_entities` per proc/view/function | setup-ddl |
 | `references` / `referenced_by` (AST-augmented) | sqlglot scan of proc bodies for CTAS, SELECT INTO, EXEC targets | setup-ddl |
 | `profile` section | `/profile-table` skill or profiler agent | After setup-ddl, during profiling |
+| `scoping` section | scoping agent or `/discover-objects show` | After setup-ddl, during scoping |
 | manifest.json | Written by setup-ddl at extraction time | setup-ddl |
 
 ### Detection field
@@ -92,16 +93,15 @@ Structured JSON output from the `discover` CLI subcommands, consumed by skills a
 
 | Schema | Agent | Required fields |
 |---|---|---|
-| [scope_input.json](scope_input.json) | Scoping | `schema_version`, `run_id`, `items[].item_id` |
-| [profiler_input.json](profiler_input.json) | Profiler | `schema_version`, `run_id`, `items[].item_id`, `items[].selected_writer` |
-| [test_generator_input.json](test_generator_input.json) | Test Generator | `schema_version`, `run_id`, `items[].item_id`, `items[].selected_writer` |
-| [model_generator_input.json](model_generator_input.json) | Model Generator | `schema_version`, `run_id`, `items[].item_id`, `items[].selected_writer` |
+| [profiler_input.json](profiler_input.json) | Profiler | `schema_version`, `run_id`, `items[].item_id` |
+| [test_generator_input.json](test_generator_input.json) | Test Generator | `schema_version`, `run_id`, `items[].item_id` |
+| [model_generator_input.json](model_generator_input.json) | Model Generator | `schema_version`, `run_id`, `items[].item_id` |
 
 ## Agent output schemas
 
 | Schema | Agent | Notes |
 |---|---|---|
-| [candidate_writers.json](candidate_writers.json) | Scoping | Per-table writer discovery with `status`, `selected_writer`, `candidate_writers[]`, custom `scope_summary` |
+| [scoping_summary.json](scoping_summary.json) | Scoping | Lightweight batch rollup with per-item `status` — full scoping data lives in `catalog/tables/<table>.json` |
 | [fixture_manifest.json](fixture_manifest.json) | Test Generator | Branch-covering unit test fixtures with coverage tracking |
 | [migration_artifact_manifest.json](migration_artifact_manifest.json) | Migrator | Generated dbt artifact paths, metadata, and execution results |
 
