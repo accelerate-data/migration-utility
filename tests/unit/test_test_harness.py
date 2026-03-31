@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import json
 import shutil
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -88,8 +86,7 @@ class TestSqlServerSandboxUp:
         mock_pyodbc.connect.side_effect = [
             mock_conn,           # initial connection (CREATE DATABASE)
             mock_sandbox_conn,   # sandbox connection (CREATE SCHEMA, SELECT INTO)
-            mock_source_conn,    # source connection (list tables)
-            mock_source_conn,    # source connection (list procedures)
+            mock_source_conn,    # source connection (list tables + procedures)
         ]
 
         result = backend.sandbox_up(
@@ -129,11 +126,14 @@ class TestSqlServerSandboxUp:
 
 
 class TestSqlServerExecuteScenario:
-    @patch("shared.sandbox.sql_server.pyodbc")
-    def test_execute_captures_ground_truth(self, mock_pyodbc: MagicMock) -> None:
-        backend = SqlServerSandbox(
+    def _make_backend(self) -> SqlServerSandbox:
+        return SqlServerSandbox(
             host="localhost", port="1433", database="TestDB", password="pass",
         )
+
+    @patch("shared.sandbox.sql_server.pyodbc")
+    def test_execute_captures_ground_truth(self, mock_pyodbc: MagicMock) -> None:
+        backend = self._make_backend()
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value = mock_cursor
