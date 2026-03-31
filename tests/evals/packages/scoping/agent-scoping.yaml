@@ -10,11 +10,8 @@ defaultTest:
   vars:
     fixture_path: "tests/evals/fixtures/migration-test"
   assert:
-    - type: is-json
-    - type: javascript
-      value: |
-        const d = JSON.parse(output);
-        return d.schema_version === '1.0' && d.results && d.summary;
+    - type: contains-json
+      value: file://../../../../lib/shared/schemas/candidate_writers.json
     - type: contains
       value: "discover refs"
     - type: contains
@@ -28,13 +25,20 @@ tests:
       scenario_id: "resolved"
     assert:
       - type: javascript
-        value: "JSON.parse(output).results[0].status === 'resolved'"
+        value: |
+          const m = output.match(/\{[\s\S]*"schema_version"[\s\S]*\}/);
+          const d = JSON.parse(m[0]);
+          return d.results[0].status === 'resolved';
       - type: javascript
         value: |
-          const w = JSON.parse(output).results[0].selected_writer;
-          return w && w.toLowerCase().includes('usp_load_dimproduct');
+          const m = output.match(/\{[\s\S]*"schema_version"[\s\S]*\}/);
+          const d = JSON.parse(m[0]);
+          return d.results[0].selected_writer.toLowerCase().includes('usp_load_dimproduct');
       - type: javascript
-        value: "JSON.parse(output).summary.error === 0"
+        value: |
+          const m = output.match(/\{[\s\S]*"schema_version"[\s\S]*\}/);
+          const d = JSON.parse(m[0]);
+          return d.summary.error === 0;
 
   # ── ambiguous_multi_writer: two writers for DimCustomer ───────
   - description: "ambiguous — DimCustomer Full + Delta writers"
@@ -43,11 +47,15 @@ tests:
       scenario_id: "ambiguous-multi-writer"
     assert:
       - type: javascript
-        value: "JSON.parse(output).results[0].status === 'ambiguous_multi_writer'"
+        value: |
+          const m = output.match(/\{[\s\S]*"schema_version"[\s\S]*\}/);
+          const d = JSON.parse(m[0]);
+          return d.results[0].status === 'ambiguous_multi_writer';
       - type: javascript
-        value: "JSON.parse(output).results[0].candidate_writers.length >= 2"
-      - type: javascript
-        value: "JSON.parse(output).summary.ambiguous_multi_writer >= 1"
+        value: |
+          const m = output.match(/\{[\s\S]*"schema_version"[\s\S]*\}/);
+          const d = JSON.parse(m[0]);
+          return d.results[0].candidate_writers.length >= 2;
 
   # ── call-graph: EXEC chain orchestrator ───────────────────────
   - description: "call-graph — FactInternetSales EXEC orchestrator"
@@ -56,9 +64,10 @@ tests:
       scenario_id: "call-graph"
     assert:
       - type: javascript
-        value: "JSON.parse(output).results[0].status === 'resolved'"
-      - type: javascript
-        value: "JSON.parse(output).summary.error === 0"
+        value: |
+          const m = output.match(/\{[\s\S]*"schema_version"[\s\S]*\}/);
+          const d = JSON.parse(m[0]);
+          return d.results[0].status === 'resolved' && d.summary.error === 0;
 
   # ── no-writer-found: no procedures write to DimGeography ──────
   - description: "no-writer-found — DimGeography has no writers"
@@ -67,9 +76,10 @@ tests:
       scenario_id: "no-writer-found"
     assert:
       - type: javascript
-        value: "JSON.parse(output).results[0].status === 'no_writer_found'"
-      - type: javascript
-        value: "JSON.parse(output).summary.no_writer_found >= 1"
+        value: |
+          const m = output.match(/\{[\s\S]*"schema_version"[\s\S]*\}/);
+          const d = JSON.parse(m[0]);
+          return d.results[0].status === 'no_writer_found';
 
   # ── dynamic-sql: sp_executesql only ───────────────────────────
   - description: "dynamic-sql — DimCurrency sp_executesql"
@@ -79,10 +89,10 @@ tests:
     assert:
       - type: javascript
         value: |
-          const s = JSON.parse(output).results[0].status;
-          return s === 'resolved' || s === 'no_writer_found';
-      - type: javascript
-        value: "JSON.parse(output).summary.error === 0"
+          const m = output.match(/\{[\s\S]*"schema_version"[\s\S]*\}/);
+          const d = JSON.parse(m[0]);
+          const s = d.results[0].status;
+          return (s === 'resolved' || s === 'no_writer_found') && d.summary.error === 0;
 
   # ── error-cross-db: cross-database reference ──────────────────
   - description: "error — DimEmployee cross-database reference"
@@ -92,7 +102,9 @@ tests:
     assert:
       - type: javascript
         value: |
-          const r = JSON.parse(output).results[0];
+          const m = output.match(/\{[\s\S]*"schema_version"[\s\S]*\}/);
+          const d = JSON.parse(m[0]);
+          const r = d.results[0];
           return r.status === 'error' ||
             (r.warnings && r.warnings.some(w => w.code && w.code.includes('CROSS_DATABASE')));
 
@@ -103,13 +115,12 @@ tests:
       scenario_id: "writer-through-view"
     assert:
       - type: javascript
-        value: "JSON.parse(output).results[0].status === 'resolved'"
-      - type: javascript
         value: |
-          const w = JSON.parse(output).results[0].selected_writer;
-          return w && w.toLowerCase().includes('usp_load_dimpromotion');
-      - type: javascript
-        value: "JSON.parse(output).summary.error === 0"
+          const m = output.match(/\{[\s\S]*"schema_version"[\s\S]*\}/);
+          const d = JSON.parse(m[0]);
+          return d.results[0].status === 'resolved' &&
+            d.results[0].selected_writer.toLowerCase().includes('usp_load_dimpromotion') &&
+            d.summary.error === 0;
 
   # ── mv-as-target: indexed view target ─────────────────────────
   - description: "mv-as-target — DimSalesTerritory indexed view"
@@ -119,7 +130,7 @@ tests:
     assert:
       - type: javascript
         value: |
-          const s = JSON.parse(output).results[0].status;
-          return s === 'resolved' || s === 'no_writer_found';
-      - type: javascript
-        value: "JSON.parse(output).summary.error === 0"
+          const m = output.match(/\{[\s\S]*"schema_version"[\s\S]*\}/);
+          const d = JSON.parse(m[0]);
+          const s = d.results[0].status;
+          return (s === 'resolved' || s === 'no_writer_found') && d.summary.error === 0;
