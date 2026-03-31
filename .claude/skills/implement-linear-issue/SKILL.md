@@ -98,7 +98,7 @@ Do not ask permission for non-destructive work. Only confirm with user:
    - `Todo`: assign to me + move to `In Progress`.
    - `In Progress`: continue (assign to me if missing).
    - `In Review`: move back to `In Progress`.
-4. Create or reuse worktree at `../worktrees/<branchName>`. If creating new, run `./scripts/link-worktree-db.sh <worktree-path>` immediately after `git worktree add`.
+4. Create or reuse worktree at `../worktrees/<branchName>`. If creating new, run `./scripts/setup-worktree.sh <worktree-path>` immediately after `git worktree add`.
 5. Fetch comments via `mcp__linear__list_comments`. If a comment containing `## Implementation Plan` exists, load it as the active plan and skip to getting user approval (or resume execution if already approved).
 
 ---

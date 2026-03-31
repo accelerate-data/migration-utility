@@ -1,0 +1,49 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "Migrate skill — dbt model generation from stored procedures"
+
+prompts:
+  - file://../../prompts/skill-migrate.txt
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    config:
+      model: claude-sonnet-4-6
+      working_dir: ../..
+      max_turns: 30
+      permission_mode: bypassPermissions
+      allow_dangerously_skip_permissions: true
+      append_allowed_tools:
+        - Read
+        - Write
+        - Bash
+        - Glob
+        - Grep
+
+defaultTest:
+  vars:
+    fixture_path: "tests/evals/fixtures/migration-test"
+  assert:
+    - type: icontains
+      value: "config("
+
+tests:
+  # ── simple INSERT → table materialization ─────────────────────
+  - description: "simple-insert-table — DimProduct MERGE → dbt model"
+    vars:
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+    assert:
+      - type: icontains
+        value: "select"
+      - type: icontains
+        value: "from"
+      # TODO: assert specific materialization once fixture with profile is available
+
+  # ── incremental with watermark ────────────────────────────────
+  # TODO: requires fixture with watermark profile populated
+
+  # ── snapshot SCD2 ─────────────────────────────────────────────
+  # TODO: requires SCD2 fixture with dim_scd2 profile
+
+  # ── MERGE → incremental ──────────────────────────────────────
+  # TODO: requires MERGE fixture with incremental profile

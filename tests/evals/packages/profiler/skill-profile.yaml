@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "Profile skill — LLM profiling of tables for migration"
+
+prompts:
+  - file://../../prompts/skill-profile.txt
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    config:
+      model: claude-sonnet-4-6
+      working_dir: ../..
+      max_turns: 30
+      permission_mode: bypassPermissions
+      allow_dangerously_skip_permissions: true
+      append_allowed_tools:
+        - Read
+        - Write
+        - Bash
+        - Glob
+        - Grep
+
+defaultTest:
+  vars:
+    fixture_path: "tests/evals/fixtures/migration-test"
+  assert:
+    - type: icontains
+      value: "Classification"
+
+tests:
+  # ── fact table with rich catalog signals ──────────────────────
+  - description: "fact-rich-catalog — FactInternetSales"
+    vars:
+      target_table: "silver.FactInternetSales"
+      writer: "silver.usp_stage_FactInternetSales"
+    assert:
+      - type: icontains
+        value: "Primary key"
+      # TODO: assert specific classification in prose once fixture is extracted
+
+  # ── dim full reload ───────────────────────────────────────────
+  - description: "dim-full-reload — DimProduct TRUNCATE+INSERT"
+    vars:
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+    assert: []
+      # TODO: assert dim_full_reload or dim_scd1 classification
+
+  # ── dim SCD2 ──────────────────────────────────────────────────
+  # TODO: requires SCD2 fixture in MigrationTest schema
+
+  # ── PII detection ─────────────────────────────────────────────
+  # TODO: requires table with email/SSN/phone columns in MigrationTest

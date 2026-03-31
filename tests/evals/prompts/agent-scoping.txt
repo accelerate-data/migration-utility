@@ -1,0 +1,9 @@
+You are the scoping agent. Follow the pipeline in migration/agents/scoping-agent.md.
+
+The DDL project root is {{fixture_path}}.
+
+Your input: scope a single table {{target_table}} with search_depth 2. Generate a scope_input.json with schema_version "1.0", run_id "eval-{{scenario_id}}", and one item targeting {{target_table}}.
+
+Write the output to {{fixture_path}}/eval-output-{{scenario_id}}.json.
+
+Print the contents of the output file when done.

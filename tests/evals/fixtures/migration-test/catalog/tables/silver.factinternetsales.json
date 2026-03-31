@@ -1,0 +1,204 @@
+{
+  "schema": "silver",
+  "name": "factinternetsales",
+  "columns": [
+    {
+      "name": "SalesOrderNumber",
+      "sql_type": "NVARCHAR(20)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "SalesOrderLineNumber",
+      "sql_type": "TINYINT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "ProductKey",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "CustomerKey",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "SalesTerritoryKey",
+      "sql_type": "INT",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "OrderQuantity",
+      "sql_type": "SMALLINT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "UnitPrice",
+      "sql_type": "MONEY",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "ExtendedAmount",
+      "sql_type": "MONEY",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "SalesAmount",
+      "sql_type": "MONEY",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "TaxAmt",
+      "sql_type": "MONEY",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "Freight",
+      "sql_type": "MONEY",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "OrderDate",
+      "sql_type": "DATETIME",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "DueDate",
+      "sql_type": "DATETIME",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "ShipDate",
+      "sql_type": "DATETIME",
+      "is_nullable": true,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [
+    {
+      "constraint_name": "PK_FactInternetSales",
+      "columns": [
+        "SalesOrderNumber",
+        "SalesOrderLineNumber"
+      ]
+    }
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "usp_load_factinternetsales",
+          "is_selected": false,
+          "is_updated": true,
+          "detection": "ast_scan"
+        },
+        {
+          "schema": "silver",
+          "name": "usp_stage_factinternetsales",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "CustomerKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "DueDate",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ExtendedAmount",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "Freight",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "OrderDate",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "OrderQuantity",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ProductKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "SalesAmount",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "SalesOrderLineNumber",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "SalesOrderNumber",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "SalesTerritoryKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ShipDate",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "TaxAmt",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "UnitPrice",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  }
+}

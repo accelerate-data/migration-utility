@@ -1,0 +1,30 @@
+{
+  "schema": "silver",
+  "name": "usp_sync_dimemployee_external",
+  "references": {
+    "tables": {
+      "in_scope": [],
+      "out_of_scope": [
+        {
+          "schema": "dbo",
+          "name": "EmployeeExtended",
+          "database": "OtherDB",
+          "server": null,
+          "reason": "cross_database_reference"
+        }
+      ]
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  }
+}

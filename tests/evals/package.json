@@ -1,0 +1,22 @@
+{
+  "name": "@migration-utility/evals",
+  "private": true,
+  "description": "Promptfoo eval harness for agent and skill testing",
+  "scripts": {
+    "prerestore": "git checkout -- fixtures/",
+    "postrestore": "git checkout -- fixtures/ && git clean -fd fixtures/",
+    "eval": "npm run prerestore && promptfoo eval --no-cache -c packages/scoping/skill-discover-show.yaml -c packages/scoping/agent-scoping.yaml -c packages/profiler/skill-profile.yaml -c packages/profiler/agent-profiler.yaml -c packages/migrator/skill-migrate.yaml -c packages/migrator/agent-migrator.yaml; npm run postrestore",
+    "eval:scoping": "npm run prerestore && promptfoo eval --no-cache -c packages/scoping/skill-discover-show.yaml -c packages/scoping/agent-scoping.yaml; npm run postrestore",
+    "eval:scoping:skill": "npm run prerestore && promptfoo eval --no-cache -c packages/scoping/skill-discover-show.yaml; npm run postrestore",
+    "eval:scoping:agent": "npm run prerestore && promptfoo eval --no-cache -c packages/scoping/agent-scoping.yaml; npm run postrestore",
+    "eval:profiler": "npm run prerestore && promptfoo eval --no-cache -c packages/profiler/skill-profile.yaml -c packages/profiler/agent-profiler.yaml; npm run postrestore",
+    "eval:migrator": "npm run prerestore && promptfoo eval --no-cache -c packages/migrator/skill-migrate.yaml -c packages/migrator/agent-migrator.yaml; npm run postrestore",
+    "view": "promptfoo view"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-code": "latest",
+    "ajv": "latest",
+    "ajv-formats": "^3.0.1",
+    "promptfoo": "latest"
+  }
+}

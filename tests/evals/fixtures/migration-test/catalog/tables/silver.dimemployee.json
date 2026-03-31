@@ -1,0 +1,152 @@
+{
+  "schema": "silver",
+  "name": "dimemployee",
+  "columns": [
+    {
+      "name": "EmployeeKey",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": true
+    },
+    {
+      "name": "EmployeeAlternateKey",
+      "sql_type": "NVARCHAR(15)",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "FirstName",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "LastName",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "Title",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "HireDate",
+      "sql_type": "DATE",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "Gender",
+      "sql_type": "NCHAR(1)",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "MaritalStatus",
+      "sql_type": "NCHAR(1)",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "SalariedFlag",
+      "sql_type": "BIT",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "CurrentFlag",
+      "sql_type": "BIT",
+      "is_nullable": false,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [
+    {
+      "constraint_name": "PK__DimEmplo__8749E50ADE743826",
+      "columns": [
+        "EmployeeKey"
+      ]
+    }
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [
+    {
+      "column": "EmployeeKey",
+      "mechanism": "identity"
+    }
+  ],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "usp_load_dimemployee",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "CurrentFlag",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "EmployeeAlternateKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "FirstName",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "Gender",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "HireDate",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "LastName",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "MaritalStatus",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "SalariedFlag",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "Title",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  }
+}
