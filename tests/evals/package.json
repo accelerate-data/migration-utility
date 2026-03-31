@@ -12,8 +12,8 @@
     "view": "promptfoo view"
   },
   "dependencies": {
-    "@anthropic-ai/claude-code": "^2.1.88",
-    "ajv": "^8.17.0",
-    "promptfoo": "^0.121.0"
+    "@anthropic-ai/claude-code": "latest",
+    "ajv": "latest",
+    "promptfoo": "latest"
   }
 }
