@@ -310,7 +310,7 @@ def context(
     except (CatalogFileMissingError, ProfileMissingError) as exc:
         logger.error("event=context_failed table=%s writer=%s error=%s", table, writer, exc)
         raise typer.Exit(code=1) from exc
-    except (FileNotFoundError, DdlParseError, CatalogNotFoundError) as exc:
+    except (ValueError, FileNotFoundError, DdlParseError, CatalogNotFoundError) as exc:
         logger.error("event=context_failed table=%s writer=%s error=%s", table, writer, exc)
         raise typer.Exit(code=2) from exc
     _emit(result)

@@ -1,11 +1,12 @@
 """discover.py — DDL object catalog reader.
 
-Standalone CLI with four subcommands:
+Standalone CLI with five subcommands:
 
     list             List all objects of a given type in a DDL directory.
     show             Show details (columns/params/refs) for a single named object.
     refs             Find all procedures/views that reference a given object.
     write-statements Persist resolved statements into a procedure catalog file.
+    write-scoping    Persist scoping results into a table catalog file.
 
 Requires catalog files from setup-ddl. Errors if catalog is missing.
 
