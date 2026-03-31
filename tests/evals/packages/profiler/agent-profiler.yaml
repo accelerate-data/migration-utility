@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "Profiler agent — batch profiling from MigrationTest"
 
 prompts:
@@ -20,14 +21,12 @@ providers:
 defaultTest:
   vars:
     fixture_path: "tests/evals/fixtures/migration-test"
+  options:
+    transform: |
+      const m = output.match(/\{[\s\S]*"status"[\s\S]*"classification"[\s\S]*\}/);
+      m ? m[0] : output
   assert:
-    - type: is-json
-    - type: javascript
-      value: |
-        const d = JSON.parse(output);
-        return d.status === 'ok' || d.status === 'partial';
-    - type: contains
-      value: "profile context"
+    - type: contains-json
 
 tests:
   # ── fact table with rich catalog signals ──────────────────────

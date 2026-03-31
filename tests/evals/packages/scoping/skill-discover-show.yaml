@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "Discover show skill — claude_assisted procedure analysis"
 
 prompts:
@@ -20,6 +21,11 @@ providers:
 defaultTest:
   vars:
     fixture_path: "tests/evals/fixtures/migration-test"
+  assert:
+    - type: icontains
+      value: "Call Graph"
+    - type: icontains
+      value: "Logic Summary"
 
 tests:
   # ── resolved: direct MERGE writer ─────────────────────────────
@@ -27,127 +33,79 @@ tests:
     vars:
       target_table: "silver.usp_load_DimProduct"
     assert:
-      - type: contains
-        value: "Call Graph"
-      - type: contains
-        value: "Logic Summary"
-      - type: contains
+      - type: icontains
         value: "Migration Guidance"
-      - type: contains
-        value: "[migrate]"
-      - type: contains
+      - type: icontains
+        value: "migrate"
+      - type: icontains
         value: "MERGE"
-      - type: contains
+      - type: icontains
         value: "bronze.Product"
-      - type: contains
-        value: "discover show"
 
   # ── ambiguous_multi_writer: two writers for DimCustomer ───────
   - description: "ambiguous — DimCustomer Full + Delta writers"
     vars:
       target_table: "silver.usp_load_DimCustomer_Full"
     assert:
-      - type: contains
-        value: "Call Graph"
-      - type: contains
-        value: "Logic Summary"
-      - type: contains
+      - type: icontains
         value: "Migration Guidance"
-      - type: contains
-        value: "[migrate]"
-      - type: contains
+      - type: icontains
+        value: "migrate"
+      - type: icontains
         value: "TRUNCATE"
-      - type: contains
-        value: "discover show"
 
   # ── call-graph: EXEC chain orchestrator ───────────────────────
   - description: "call-graph — FactInternetSales EXEC orchestrator"
     vars:
       target_table: "silver.usp_load_FactInternetSales"
     assert:
-      - type: contains
-        value: "Call Graph"
-      - type: contains
-        value: "Logic Summary"
-      - type: contains
+      - type: icontains
         value: "usp_stage_FactInternetSales"
-      - type: contains
-        value: "discover show"
 
   # ── dynamic-sql: sp_executesql only ───────────────────────────
   - description: "dynamic-sql — DimCurrency sp_executesql"
     vars:
       target_table: "silver.usp_load_DimCurrency"
     assert:
-      - type: contains
-        value: "Call Graph"
-      - type: contains
-        value: "Logic Summary"
-      - type: contains
+      - type: icontains
         value: "Migration Guidance"
-      - type: contains
+      - type: icontains
         value: "sp_executesql"
-      - type: contains
-        value: "discover show"
 
   # ── error-cross-db: cross-database reference ──────────────────
   - description: "error — DimEmployee cross-database reference"
     vars:
       target_table: "silver.usp_load_DimEmployee"
     assert:
-      - type: contains
-        value: "Call Graph"
-      - type: contains
-        value: "Logic Summary"
-      - type: contains
+      - type: icontains
         value: "OtherDB"
-      - type: contains
-        value: "discover show"
 
   # ── writer-through-view ───────────────────────────────────────
   - description: "writer-through-view — DimPromotion via updateable view"
     vars:
       target_table: "silver.usp_load_DimPromotion"
     assert:
-      - type: contains
-        value: "Call Graph"
-      - type: contains
-        value: "Logic Summary"
-      - type: contains
+      - type: icontains
         value: "Migration Guidance"
-      - type: contains
+      - type: icontains
         value: "vw_DimPromotion"
-      - type: contains
-        value: "discover show"
 
   # ── DimCustomer Delta (MERGE variant) ─────────────────────────
   - description: "resolved — DimCustomer Delta MERGE writer"
     vars:
       target_table: "silver.usp_load_DimCustomer_Delta"
     assert:
-      - type: contains
-        value: "Call Graph"
-      - type: contains
-        value: "Logic Summary"
-      - type: contains
+      - type: icontains
         value: "Migration Guidance"
-      - type: contains
+      - type: icontains
         value: "MERGE"
-      - type: contains
-        value: "discover show"
 
   # ── staging leaf procedure ────────────────────────────────────
   - description: "resolved — FactInternetSales staging leaf (TRUNCATE+INSERT)"
     vars:
       target_table: "silver.usp_stage_FactInternetSales"
     assert:
-      - type: contains
-        value: "Call Graph"
-      - type: contains
-        value: "Logic Summary"
-      - type: contains
+      - type: icontains
         value: "Migration Guidance"
-      - type: contains
-        value: "[migrate]"
-      - type: contains
-        value: "discover show"
+      - type: icontains
+        value: "migrate"

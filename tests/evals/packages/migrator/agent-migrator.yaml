@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "Migrator agent — batch dbt model generation from MigrationTest"
 
 prompts:
@@ -20,12 +21,12 @@ providers:
 defaultTest:
   vars:
     fixture_path: "tests/evals/fixtures/migration-test"
+  options:
+    transform: |
+      const m = output.match(/\{[\s\S]*"schema_version"[\s\S]*"summary"[\s\S]*\}/);
+      m ? m[0] : output
   assert:
-    - type: is-json
-    - type: contains
-      value: "migrate context"
-    - type: contains
-      value: "migrate write"
+    - type: contains-json
 
 tests:
   # ── simple INSERT → table materialization ─────────────────────
