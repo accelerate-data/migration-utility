@@ -23,9 +23,7 @@ defaultTest:
   vars:
     fixture_path: "tests/evals/fixtures/migration-test"
   options:
-    transform: |
-      const m = output.match(/\{[\s\S]*"schema_version"[\s\S]*"summary"[\s\S]*\}/);
-      m ? m[0] : output
+    transform: "(output.match(/\\{[\\s\\S]*\"schema_version\"[\\s\\S]*\"summary\"[\\s\\S]*\\}/) || [output])[0]"
   assert:
     - type: contains-json
 
