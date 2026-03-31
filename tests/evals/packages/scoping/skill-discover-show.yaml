@@ -4,7 +4,7 @@ prompts:
   - file://../../prompts/skill-discover-show.txt
 
 providers:
-  - 'exec: ../../run-claude.sh'
+  - 'exec: ./run-claude.sh'
 
 defaultTest:
   vars:
