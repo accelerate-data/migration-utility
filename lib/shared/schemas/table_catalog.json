@@ -108,6 +108,47 @@
     "profile": {
       "description": "Written by the /profile skill or profiler agent. Not present after setup-ddl, only after profiling.",
       "$ref": "#/$defs/profile_section"
+    },
+    "scoping": {
+      "type": "object",
+      "description": "Writer selection results from scoping agent or /discover-objects show. Written by discover write-scoping.",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["resolved", "ambiguous_multi_writer", "no_writer_found", "error"]
+        },
+        "selected_writer": {
+          "type": "string",
+          "description": "Normalized FQN of the selected writer procedure. Present only when status is resolved."
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["procedure_name", "rationale"],
+            "properties": {
+              "procedure_name": { "type": "string" },
+              "dependencies": {
+                "type": "object",
+                "properties": {
+                  "tables": { "type": "array", "items": { "type": "string" } },
+                  "views": { "type": "array", "items": { "type": "string" } },
+                  "functions": { "type": "array", "items": { "type": "string" } }
+                }
+              },
+              "rationale": { "type": "string" }
+            }
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": { "$ref": "common.json#/$defs/diagnostics_entry" }
+        },
+        "errors": {
+          "type": "array",
+          "items": { "$ref": "common.json#/$defs/diagnostics_entry" }
+        }
+      }
     }
   },
   "$defs": {

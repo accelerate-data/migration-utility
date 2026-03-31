@@ -26,7 +26,9 @@ defaultTest:
     transform: "(output.match(/\\{[\\s\\S]*\"schema_version\"[\\s\\S]*\"summary\"[\\s\\S]*\\}/) || [output])[0]"
   assert:
     - type: javascript
-      value: file://../../assertions/validate-candidate-writers.js
+      value: |
+        const d = JSON.parse(output);
+        return d.schema_version === '1.0' && d.run_id && d.results && Array.isArray(d.results) && d.summary !== undefined;
 
 tests:
   # ── resolved: direct MERGE writer ─────────────────────────────
@@ -51,7 +53,11 @@ tests:
       - type: javascript
         value: "JSON.parse(output).results[0].status === 'ambiguous_multi_writer'"
       - type: javascript
-        value: "JSON.parse(output).results[0].candidate_writers.length >= 2"
+        value: |
+          // The summary no longer carries candidates; check the catalog file
+          const fs = require('fs');
+          const catalog = JSON.parse(fs.readFileSync('catalog/tables/silver.DimCustomer.json', 'utf8'));
+          return catalog.scoping && catalog.scoping.candidates && catalog.scoping.candidates.length >= 2;
 
   # ── call-graph: EXEC chain orchestrator ───────────────────────
   - description: "call-graph — FactInternetSales EXEC orchestrator"

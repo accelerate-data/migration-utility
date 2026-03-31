@@ -1,11 +1,12 @@
 """discover.py — DDL object catalog reader.
 
-Standalone CLI with four subcommands:
+Standalone CLI with five subcommands:
 
     list             List all objects of a given type in a DDL directory.
     show             Show details (columns/params/refs) for a single named object.
     refs             Find all procedures/views that reference a given object.
     write-statements Persist resolved statements into a procedure catalog file.
+    write-scoping    Persist scoping results into a table catalog file.
 
 Requires catalog files from setup-ddl. Errors if catalog is missing.
 
@@ -315,6 +316,42 @@ def run_write_statements(
     return {"written": str(path), "statement_count": len(statements)}
 
 
+def run_write_scoping(
+    project_root: Path,
+    table_fqn: str,
+    scoping: dict[str, Any],
+) -> dict[str, Any]:
+    """Validate and merge scoping results into a table catalog file."""
+    table_norm = normalize(table_fqn)
+
+    # Validate status
+    valid_statuses = {"resolved", "ambiguous_multi_writer", "no_writer_found", "error"}
+    status = scoping.get("status", "")
+    if status not in valid_statuses:
+        raise ValueError(f"Invalid scoping status: {status!r}")
+
+    # Validate selected_writer present when resolved
+    if status == "resolved" and not scoping.get("selected_writer"):
+        raise ValueError("selected_writer required when status is resolved")
+
+    # Load existing catalog
+    cat = load_table_catalog(project_root, table_norm)
+    if cat is None:
+        raise CatalogFileMissingError("table", table_norm)
+
+    # Merge scoping section
+    cat["scoping"] = scoping
+
+    # Atomic write (same pattern as write_proc_statements)
+    catalog_dir = project_root / "catalog" / "tables"
+    cat_path = catalog_dir / f"{table_norm}.json"
+    tmp_path = cat_path.with_suffix(".tmp")
+    tmp_path.write_text(json.dumps(cat, indent=2) + "\n")
+    tmp_path.rename(cat_path)
+
+    return {"written": str(cat_path), "status": "ok"}
+
+
 def run_refs(project_root: Path, name: str) -> dict[str, Any]:
     """Return the refs subcommand result dict.
 
@@ -412,6 +449,30 @@ def write_statements(
     try:
         result = run_write_statements(project_root, name, stmts)
     except (ObjectNotFoundError, FileNotFoundError) as exc:
+        logger.error("event=command_failed error=%s", exc)
+        raise typer.Exit(code=1) from exc
+    except ValueError as exc:
+        logger.error("event=command_failed error=%s", exc)
+        raise typer.Exit(code=1) from exc
+    _emit(result)
+
+
+@app.command(name="write-scoping")
+def write_scoping(
+    project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
+    name: str = typer.Option(..., help="Fully qualified table name"),
+    scoping: str = typer.Option(..., help="Scoping JSON"),
+) -> None:
+    """Persist scoping results to a table catalog file."""
+    project_root = resolve_project_root(project_root)
+    try:
+        scoping_data = json.loads(scoping)
+    except json.JSONDecodeError as exc:
+        logger.error("event=command_failed error=invalid_json detail=%s", exc)
+        raise typer.Exit(code=2) from exc
+    try:
+        result = run_write_scoping(project_root, name, scoping_data)
+    except (CatalogFileMissingError, ObjectNotFoundError) as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=1) from exc
     except ValueError as exc:

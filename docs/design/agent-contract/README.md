@@ -33,8 +33,8 @@ Agent definitions must not declare `skills:` for discover. Use `uv run` commands
 
 ## Flow
 
-1. **Scoping:** analysis agent calls `discover refs` per table for catalog-based writer identification (`is_updated=true`), calls `discover show` per candidate for statement analysis and dependency resolution, selects writer when resolvable, and enriches the selected writer with resolved `dependencies` for downstream wave planning. Writes resolved statements to `catalog/procedures/<writer>.json`.
-2. **Profiling:** profiler agent runs `profile.py` per table for context assembly, applies LLM reasoning to answer the six profiling questions, and writes results into each table's catalog JSON. Shares `profile.py` with the interactive `/profile-table` skill; LLM reasoning is replicated with batch-appropriate prompting. FDE approves before downstream consumption.
+1. **Scoping:** analysis agent calls `discover refs` per table for catalog-based writer identification (`is_updated=true`), calls `discover show` per candidate for statement analysis and dependency resolution, selects writer when resolvable, and enriches the selected writer with resolved `dependencies` for downstream wave planning. Writes scoping results to `catalog/tables/<table>.json` (scoping section) and resolved statements to `catalog/procedures/<writer>.json`. Produces lightweight `scoping_summary.json` for orchestrator routing.
+2. **Profiling:** profiler agent reads `selected_writer` from catalog scoping section, runs `profile.py` per table for context assembly, applies LLM reasoning to answer the six profiling questions, and writes results into each table's catalog JSON. Shares `profile.py` with the interactive `/profile-table` skill; LLM reasoning is replicated with batch-appropriate prompting. FDE approves before downstream consumption.
 3. **Sandbox setup:** `test-harness sandbox-up` creates a throwaway database (`__test_<run_id>`) and deploys table DDL from catalog. This is a CLI command, not an agent.
 4. **Test generation:** test generator agent reads the same context as the model-generator (proc body, statements, profile, columns, source tables). It enumerates branches, synthesizes fixtures, executes the proc in the sandbox via MCP to capture ground truth, and writes `unit_tests:` JSON to `test-specs/<item_id>.json`. The test reviewer agent independently enumerates branches, scores coverage, and reviews fixture quality. It can kick back to the test generator for missing branches or quality issues. Maximum 2 review ↔ generator iterations.
 5. **Migration:** model-generator agent reads profile, statements, and the approved test spec from `test-specs/`. Generates dbt model + schema YAML (with `unit_tests:` rendered). Runs `dbt test` and self-corrects until tests pass (max 3 iterations). The code reviewer agent then checks standards, correctness, and test integration. It can kick back to the model-generator for issues. Maximum 2 review ↔ model-generator iterations.
@@ -51,7 +51,7 @@ Agent definitions must not declare `skills:` for discover. Use `uv run` commands
 
 ## Contract Boundary
 
-- Scoping output is minimal writer discovery/selection data.
+- Scoping writes results to `catalog/tables/<table>.json` (scoping section), not a separate output file. The `scoping_summary.json` is a lightweight rollup for orchestrator routing.
 - Profiler output is candidate proposals that require FDE judgment.
 - Test generator synthesizes fixtures, executes procs in a sandbox, captures ground truth, and writes `unit_tests:` JSON to `test-specs/`. It does not write dbt files.
 - Test reviewer independently scores coverage and fixture quality. It does not generate fixtures or modify `test-specs/`.
@@ -75,10 +75,10 @@ The following object schema is shared across `validation.issues[]`, `warnings[]`
 
 ```json
 {
-  "code": "ANALYSIS_SELECTED_WRITER_NOT_IN_CANDIDATES",
-  "message": "selected_writer must exist in candidate_writers when status is resolved.",
-  "field": "selected_writer",
-  "severity": "error|warning",
+  "code": "SCOPING_NOT_COMPLETED",
+  "message": "scoping section missing or no selected_writer in catalog for silver.dimcustomer.",
+  "item_id": "silver.dimcustomer",
+  "severity": "error",
   "details": {}
 }
 ```
@@ -87,6 +87,7 @@ Field requirements:
 
 - `code`: stable machine-readable identifier.
 - `message`: human-readable description.
+- `item_id`: fully qualified table name this entry relates to.
 - `field`: optional field path associated with the issue (empty or omitted for non-field errors).
 - `severity`: `error` or `warning`.
 - `details`: optional structured context object.

@@ -12,7 +12,7 @@ Profile a single table for migration by assembling context, reasoning over six p
 
 ## Arguments
 
-Parse `$ARGUMENTS` for `--table` and `--writer`. Use `AskUserQuestion` if either is missing.
+Parse `$ARGUMENTS` for `--table` and optionally `--writer`. Use `AskUserQuestion` if `--table` is missing. If `--writer` is not provided, the writer is read from the catalog scoping section of the table's catalog file (`catalog/tables/<table>.json` → `scoping.selected_writer`).
 
 ## Before invoking any subcommand
 
@@ -24,8 +24,10 @@ Read `manifest.json` from the current working directory to confirm a valid proje
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" profile context \
-  --table <table> --writer <writer>
+  --table <table> [--writer <writer>]
 ```
+
+If `--writer` is omitted, the CLI reads the selected writer from the table's catalog scoping section. Pass `--writer` explicitly only to override the catalog value.
 
 This reads catalog signals, writer references, proc body, column list, and related procedure context. Output is a JSON matching `lib/shared/schemas/profile_context.json`.
 

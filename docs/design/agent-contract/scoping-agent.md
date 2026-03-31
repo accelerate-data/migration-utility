@@ -6,13 +6,14 @@ It is the prerequisite step for profiler input.
 ## Philosophy and Boundary
 
 - Analysis is responsible only for writer discovery and writer selection.
-- Analysis should not output data that profiler can derive reliably from the selected writer.
+- Scoping writes results to `catalog/tables/<table>.json` (scoping section), not a separate output file. Downstream agents read `selected_writer` from catalog.
 - Keep analysis payload minimal for clear handoff.
 - Exception: `reads_from` is included on candidate writers to support downstream wave planning without requiring re-analysis.
+- The scoping agent produces a lightweight `scoping_summary.json` for the orchestrator — this contains per-item status and catalog paths, not the full scoping data.
 
 ## Goal
 
-Given a target table, identify candidate writer procedures and select one writer when resolvable.
+Given a target table, identify candidate writer procedures and select one writer when resolvable. Write the scoping decision to the table's catalog file.
 
 ## Required Input
 
@@ -43,7 +44,7 @@ Given a target table, identify candidate writer procedures and select one writer
 
 > **Catalog-first analysis.** The scoping agent calls `uv run discover refs` per table for catalog-based writer identification. Catalog files (from `setup-ddl`) carry `is_updated`/`is_selected` flags from `sys.dm_sql_referenced_entities` — writers are procs with `is_updated=true`. The agent then calls `discover show` on each candidate writer for statement-level analysis and dependency resolution. Procs flagged `needs_llm: true` in their catalog file (EXEC(@var), TRY/CATCH, WHILE, IF) require LLM reasoning from the raw DDL.
 
-The agent's role is batch orchestration: read the input, run `discover refs` per item, run `discover show` per candidate writer for statement analysis and dependency resolution, apply resolution rules, validate, and write the output.
+The agent's role is batch orchestration: read the input, run `discover refs` per item, run `discover show` per candidate writer for statement analysis and dependency resolution, apply resolution rules, validate, and write scoping results to catalog.
 
 ### Resolution Rules
 
@@ -73,51 +74,56 @@ This field is consumed by downstream wave planning to build inter-table dependen
 - Validation checklist:
   - `item_id` is present.
   - `status` is one of: `resolved|ambiguous_multi_writer|no_writer_found|error`.
-  - `candidate_writers` is structurally valid.
+  - `candidates` is structurally valid.
   - every candidate includes `procedure_name` and `rationale`.
   - if `status == "resolved"`:
     - `selected_writer` is present
-    - `selected_writer` exists in `candidate_writers`
+    - `selected_writer` exists in `candidates`
     - the selected writer candidate has `dependencies` populated
   - if `status == "ambiguous_multi_writer"`:
     - at least two candidates are present
     - `selected_writer` is absent
   - if `status == "no_writer_found"`:
-    - `candidate_writers` is empty
+    - `candidates` is empty
     - `selected_writer` is absent
   - if `status == "error"`:
     - `errors` is non-empty
   - `validation.passed` is `false` when any validation issue exists.
   - summary counts match item-level statuses.
 
-## Output Schema (CandidateWriters)
+## Output: Catalog Scoping Section
+
+Scoping results are written to `catalog/tables/<item_id>.json` under a `scoping` key:
 
 ```json
 {
-  "schema_version": "",
-  "run_id": "",
-  "results": [
-    {
-      "item_id": "",
-      "status": "",
-      "selected_writer": "",
-      "candidate_writers": [],
-      "warnings": [],
-      "validation": {},
-      "errors": []
-    }
-  ],
-  "summary": {
-    "total": 0,
-    "resolved": 0,
-    "ambiguous_multi_writer": 0,
-    "no_writer_found": 0,
-    "error": 0
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "dbo.usp_load_fact_sales",
+    "candidates": [
+      {
+        "procedure_name": "dbo.usp_load_fact_sales",
+        "dependencies": {
+          "tables": ["bronze.salesraw", "dbo.dimcustomer"],
+          "views": [],
+          "functions": []
+        },
+        "rationale": "Catalog referenced_by shows is_updated=true for this procedure."
+      }
+    ],
+    "warnings": [],
+    "validation": {
+      "passed": true,
+      "issues": []
+    },
+    "errors": []
   }
 }
 ```
 
-**Example**
+## Output: Scoping Summary (for Orchestrator)
+
+The agent writes a lightweight `scoping_summary.json` to the output file path:
 
 ```json
 {
@@ -126,30 +132,21 @@ This field is consumed by downstream wave planning to build inter-table dependen
   "results": [
     {
       "item_id": "dbo.fact_sales",
-      "status": "resolved|ambiguous_multi_writer|no_writer_found|error",
-      "selected_writer": "dbo.usp_load_fact_sales",
-      "candidate_writers": [
-        {
-          "procedure_name": "dbo.usp_load_fact_sales",
-          "dependencies": {
-            "tables": ["bronze.salesraw", "dbo.dimcustomer"],
-            "views": [],
-            "functions": []
-          },
-          "rationale": "Catalog referenced_by shows is_updated=true for this procedure."
-        }
-      ],
-      "warnings": [],
-      "validation": {
-        "passed": true,
-        "issues": []
-      },
-      "errors": []
+      "status": "resolved",
+      "catalog_path": "catalog/tables/dbo.fact_sales.json"
     }
   ],
-  "summary": {...}
+  "summary": {
+    "total": 1,
+    "resolved": 1,
+    "ambiguous_multi_writer": 0,
+    "no_writer_found": 0,
+    "error": 0
+  }
 }
 ```
+
+The full scoping data lives in the catalog file, not duplicated in the summary.
 
 ## Resolution Rules
 
@@ -172,7 +169,9 @@ This field is consumed by downstream wave planning to build inter-table dependen
 
 ## Step 5 — Persist Resolved Statements to Catalog
 
-After writing the scoping output, the agent persists resolved statements for each `resolved` item to `catalog/procedures/<selected_writer>.json`.
+After writing the scoping results, the agent persists resolved statements for each `resolved` item to `catalog/procedures/<selected_writer>.json`.
+
+Only persist for procs not already in catalog (idempotent) — if the proc already has `statements`, skip.
 
 For each resolved item:
 
@@ -191,4 +190,4 @@ The `write-statements` subcommand validates that every statement has `action` in
 
 No `claude` actions are persisted to catalog — all are resolved before writing.
 
-Downstream stages (profiler, migrator) read resolved statements from `catalog/procedures/<writer>.json`.
+Downstream stages (profiler, migrator) read resolved statements from `catalog/procedures/<writer>.json` and `selected_writer` from `catalog/tables/<table>.json`.

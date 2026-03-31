@@ -130,6 +130,21 @@ def load_function_catalog(project_root: Path, func_fqn: str) -> dict[str, Any] |
     return _load_catalog_file(project_root, "functions", func_fqn)
 
 
+def read_selected_writer(project_root: Path, table_fqn: str) -> str | None:
+    """Read selected_writer from the scoping section of a table catalog file.
+
+    Returns None if the table catalog doesn't exist or has no scoping section
+    or scoping.selected_writer is not set.
+    """
+    cat = load_table_catalog(project_root, table_fqn)
+    if cat is None:
+        return None
+    scoping = cat.get("scoping")
+    if scoping is None:
+        return None
+    return scoping.get("selected_writer")
+
+
 # ── Routing flag detection ──────────────────────────────────────────────────
 
 

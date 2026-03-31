@@ -57,6 +57,7 @@
       "properties": {
         "code": { "type": "string", "description": "Stable machine-readable identifier." },
         "message": { "type": "string", "description": "Human-readable description." },
+        "item_id": { "type": "string", "description": "Fully qualified table name this entry relates to." },
         "field": { "type": "string", "description": "Optional field path associated with the issue." },
         "severity": { "type": "string", "enum": ["error", "warning"] },
         "details": { "type": "object", "description": "Optional structured context object." }

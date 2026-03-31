@@ -27,14 +27,13 @@ Both paths share the Python CLI (`lib/shared/test_harness.py`) for deterministic
   "run_id": "uuid",
   "items": [
     {
-      "item_id": "silver.dimproduct",
-      "selected_writer": "dbo.usp_load_dimproduct"
+      "item_id": "silver.dimproduct"
     }
   ]
 }
 ```
 
-Project root is inferred from CWD. Reference schema: `../lib/shared/schemas/test_generator_input.json`
+Project root is inferred from CWD. Reference schema: `../lib/shared/schemas/test_generator_input.json`. Items only need `item_id` — the test generator reads `selected_writer` from the catalog scoping section.
 
 ## Prerequisites
 
@@ -50,7 +49,9 @@ If the sandbox does not exist, the agent fails with a clear error directing the 
 
 ### 1. AssembleContext (Deterministic — `migrate.py context`)
 
-Run `uv run migrate context --table <item_id> --writer <selected_writer>`.
+Run `uv run migrate context --table <item_id>`.
+
+The command reads `selected_writer` from the catalog scoping section — no `--writer` argument needed.
 
 Same context the model-generator receives: profile, materialization, statements, proc body, columns, source tables, schema tests. The test generator uses this to understand what the proc does — not to generate dbt.
 

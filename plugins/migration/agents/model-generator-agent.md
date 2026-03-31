@@ -21,10 +21,23 @@ Use `uv run migrate` directly for all context assembly and artifact writes — d
 
 The initial message contains two space-separated file paths: input JSON and output JSON.
 
-- **Input schema:** `../lib/shared/schemas/model_generator_input.json`
+- **Input schema:** `../lib/shared/schemas/model_generator_input.json` — items only need `item_id` (not `selected_writer`)
 - **Output schema:** See `docs/design/agent-contract/model-generator-agent.md` for MigrationArtifactManifest
 
-After reading the input, read `manifest.json` from the current working directory for `technology` and `dialect`. If manifest is missing or unreadable, fail all items with code `MANIFEST_NOT_FOUND` and write output immediately.
+---
+
+## Prerequisites
+
+Before processing items:
+
+1. Read `manifest.json` from the current working directory for `technology` and `dialect`. If missing or unreadable, fail **all** items with code `MANIFEST_NOT_FOUND` and write output immediately.
+2. Check `dbt_project.yml` exists at `./dbt/` (or `$DBT_PROJECT_PATH`). If missing, fail **all** items with code `DBT_PROJECT_MISSING` and write output immediately.
+
+Per item, before Step 1:
+
+- Check `catalog/tables/<item_id>.json` exists. If missing, skip this item with `CATALOG_FILE_MISSING` in `errors[]`.
+- Check `scoping.selected_writer` is set. If missing, skip this item with `SCOPING_NOT_COMPLETED` in `errors[]`.
+- Check `profile` exists and `profile.status` is `"ok"`. If missing or not ok, skip this item with `PROFILE_NOT_COMPLETED` in `errors[]`.
 
 ---
 
@@ -36,8 +49,10 @@ For each item in `items[]`, run:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" migrate context \
-  --table <item_id> --writer <selected_writer>
+  --table <item_id>
 ```
+
+The command reads `selected_writer` from the catalog scoping section — no `--writer` argument needed.
 
 Parse the JSON output. If the command fails (exit code 1 or 2), record `status: "error"` with the error message and continue to the next item.
 
@@ -191,3 +206,31 @@ Write the final JSON to the output file path:
 ```
 
 Compute summary counts from the results array. The `run_id` must match the input.
+
+---
+
+## Error and Warning Codes
+
+Every entry in `errors[]` or `warnings[]` uses this format:
+
+```json
+{
+  "item_id": "silver.factsales",
+  "code": "PROFILE_NOT_COMPLETED",
+  "message": "profile section missing or status != ok for silver.factsales.",
+  "severity": "error"
+}
+```
+
+| Code | Severity | When |
+|---|---|---|
+| `MANIFEST_NOT_FOUND` | error | manifest.json missing — all items fail |
+| `DBT_PROJECT_MISSING` | error | dbt_project.yml not found — all items fail |
+| `CATALOG_FILE_MISSING` | error | catalog/tables/<item_id>.json not found — skip item |
+| `SCOPING_NOT_COMPLETED` | error | scoping section missing or no selected_writer — skip item |
+| `PROFILE_NOT_COMPLETED` | error | profile section missing or status != ok — skip item |
+| `CONTEXT_ASSEMBLY_FAILED` | error | `migrate context` CLI failed — skip item |
+| `MODEL_GENERATION_FAILED` | error | LLM produced empty or invalid model SQL — skip item |
+| `EQUIVALENCE_GAP` | warning | semantic gap found between proc and generated model — item proceeds as partial |
+| `ARTIFACT_WRITE_FAILED` | error | `migrate write` CLI failed — skip item |
+| `DBT_COMPILE_FAILED` | warning | `dbt compile` failed after retries — item proceeds as partial |
