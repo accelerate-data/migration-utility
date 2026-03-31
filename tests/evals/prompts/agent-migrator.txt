@@ -6,4 +6,4 @@ Your input: migrate table {{target_table}} with writer {{writer}}. Generate a mi
 
 Write the output to {{fixture_path}}/eval-output-{{scenario_id}}.json.
 
-Print the contents of the output file when done.
+After writing the output file, read it back and print the raw JSON as the very last thing in your response. Do not summarize or paraphrase — output the exact JSON block.
