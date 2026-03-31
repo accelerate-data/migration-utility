@@ -75,10 +75,10 @@ The following object schema is shared across `validation.issues[]`, `warnings[]`
 
 ```json
 {
-  "code": "ANALYSIS_SELECTED_WRITER_NOT_IN_CANDIDATES",
-  "message": "selected_writer must exist in candidates when status is resolved.",
-  "field": "selected_writer",
-  "severity": "error|warning",
+  "code": "SCOPING_NOT_COMPLETED",
+  "message": "scoping section missing or no selected_writer in catalog for silver.dimcustomer.",
+  "item_id": "silver.dimcustomer",
+  "severity": "error",
   "details": {}
 }
 ```
@@ -87,6 +87,7 @@ Field requirements:
 
 - `code`: stable machine-readable identifier.
 - `message`: human-readable description.
+- `item_id`: fully qualified table name this entry relates to.
 - `field`: optional field path associated with the issue (empty or omitted for non-field errors).
 - `severity`: `error` or `warning`.
 - `details`: optional structured context object.

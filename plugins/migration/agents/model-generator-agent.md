@@ -211,7 +211,7 @@ Compute summary counts from the results array. The `run_id` must match the input
 
 ## Error and Warning Codes
 
-All codes use the shared diagnostics schema (`code`, `message`, `severity`, `details`). Recorded in the item's `errors[]` or `warnings[]`.
+All entries use the shared diagnostics schema with `item_id`, `code`, `message`, and `severity`. Recorded in the item's `errors[]` or `warnings[]`.
 
 | Code | Severity | When |
 |---|---|---|
