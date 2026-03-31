@@ -27,15 +27,15 @@ The repo root is a Claude Code marketplace package. Four plugins are registered 
 │   │   ├── sandbox-up.md                 ← create throwaway DB + deploy DDL
 │   │   └── sandbox-down.md               ← tear down throwaway DB
 │   ├── agents/
-│   │   ├── test-generator/               ← batch: fixture synthesis + ground truth capture
-│   │   └── test-reviewer/                ← batch: coverage scoring + quality gate
+│   │   ├── test-generator                ← batch: fixture synthesis + ground truth capture
+│   │   └── test-reviewer                 ← batch: coverage scoring + quality gate
 │   └── skills/
 │       └── test-gen/                     ← interactive: /test-gen
 ├── migration/                             ← plugin: analysis + migration pipeline
 │   ├── agents/
 │   │   ├── scoping-agent.md
-│   │   ├── migrator/                     ← batch: dbt model generation + test loop
-│   │   └── code-reviewer/                ← batch: standards + correctness gate
+│   │   ├── migrator                      ← batch: dbt model generation + test loop
+│   │   └── code-reviewer                 ← batch: standards + correctness gate
 │   ├── skills/
 │   │   ├── discover/                      ← SKILL.md + references/
 │   │   ├── profile/
@@ -184,7 +184,7 @@ Both the interactive skill and the batch agent share `profile.py` subcommands. E
 
 The LLM reasoning is the same six questions in both paths. The difference is orchestration: interactive stops for approval, batch continues and reports at the end.
 
-### Statement classification (replaces assess)
+### Statement classification
 
 `discover show` for procedures now returns a `statements` array that classifies each body statement:
 
