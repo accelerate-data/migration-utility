@@ -47,14 +47,21 @@ If discover fails (exit code 1 or 2), record `error` with code `DISCOVER_EXECUTI
 
 For each candidate writer:
 
-1. **Check catalog first** (idempotent): read `catalog/procedures/<proc>.json`. If `statements` already exists, reuse — the proc was already fully analysed. Collect `dependencies` from the existing catalog data and skip to Step 3.
+1. **Check catalog first** (idempotent): read `catalog/procedures/<proc>.json`. If `statements` already exists, reuse — the proc was already fully analysed. Collect `dependencies` from the existing catalog data and skip to step 6.
 
-2. **If not already enriched**, follow the full [procedure analysis flow](../skills/discover-objects/references/procedure-analysis-flow.md) for this proc. This runs classification, call graph resolution (resolving all refs to base tables), logic summary, migration guidance, and statement persistence. Do not abbreviate any step.
+2. Run `discover show --name <writer>` to get `refs`, `statements`, `classification`, and `raw_ddl`.
 
-3. From the analysis results, collect:
+3. **Resolve call graph**: extract `refs` from the output. For every ref that is a view, function, or procedure (not a base table), run `discover show` on it and follow the chain until you reach base tables. Assemble the fully resolved `dependencies: { tables, views, functions }`.
+
+4. **Classify statements**: check `classification`:
+   - `deterministic` with `statements` populated — statements are pre-classified, no further action needed.
+   - `claude_assisted` or `statements` is null — read `raw_ddl` and classify each statement as `migrate` or `skip`. See `../skills/discover-objects/references/tsql-parse-classification.md` for the classification guide. If the proc calls other procs (EXEC), run `discover show` on each and follow recursively. Add `LLM_ANALYSIS_REQUIRED` warning.
+
+5. **Persist statements**: run `discover write-statements --name <writer> --statements '<json>'` to write resolved statements to catalog. Deterministic statements get `source: "ast"`, LLM-resolved statements get `source: "llm"`. No `claude` actions are persisted — all must be resolved.
+
+6. **Collect candidate data**:
    - `dependencies: { tables, views, functions }` — fully resolved base tables from the call graph
-   - `rationale` — why this procedure was identified as a writer
-   - If `claude_assisted`, add `LLM_ANALYSIS_REQUIRED` warning
+   - `rationale` — why this procedure was identified as a writer (e.g. "Catalog referenced_by shows is_updated=true")
 
 ### Step 3 — Apply Resolution Rules
 
@@ -106,28 +113,7 @@ Non-obvious cross-field checks before writing:
 
 Set `validation.passed = false` and populate `validation.issues[]` on failure.
 
-### Step 5 — Persist Resolved Statements to Catalog
-
-After writing scoping results, persist resolved statements for each `resolved` item to `catalog/procedures/<selected_writer>.json`.
-
-Only persist for procs not already in catalog (idempotent) — if Step 2 reused existing statements, skip this step for that proc.
-
-For each resolved item:
-
-1. If `discover show` returned `classification: deterministic` — all statements already have `action: migrate|skip`. Write them with `source: "ast"`.
-
-2. If `discover show` returned `classification: claude_assisted` — the LLM analysis in Step 2 resolved all `claude` actions to `migrate` or `skip`. Write them with `source: "llm"`.
-
-Run:
-
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-statements \
-  --name <selected_writer> --statements '<json>'
-```
-
-No `claude` actions are persisted — all must be resolved before writing.
-
-### Step 6 — Write Summary Output
+### Step 5 — Write Summary Output
 
 Write a lightweight summary JSON (`scoping_summary.json` schema) to the output file path:
 
