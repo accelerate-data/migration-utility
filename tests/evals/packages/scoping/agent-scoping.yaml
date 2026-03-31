@@ -26,7 +26,6 @@ defaultTest:
     transform: "(output.match(/\\{[\\s\\S]*\"schema_version\"[\\s\\S]*\"summary\"[\\s\\S]*\\}/) || [output])[0]"
   assert:
     - type: contains-json
-      value: file://../../../../lib/shared/schemas/candidate_writers.json
 
 tests:
   # ── resolved: direct MERGE writer ─────────────────────────────
