@@ -2,7 +2,7 @@
 description: "Profile skill — LLM profiling of tables for migration"
 
 prompts:
-  - file://../../prompts/skill-profile.txt
+  - file://../../prompts/skill-profile-table.txt
 
 providers:
   - id: anthropic:claude-agent-sdk

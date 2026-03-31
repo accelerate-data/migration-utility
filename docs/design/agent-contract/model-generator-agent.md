@@ -1,16 +1,16 @@
-# Migrator Agent Contract
+# Model Generator Agent Contract
 
-The migrator agent reads approved profile and resolved statements from catalog files, consumes the approved test spec from `test-specs/`, then generates dbt project artifacts. After generating the model, the migrator runs `dbt test` against the test spec's `unit_tests:` and self-corrects until tests pass (or max iterations reached). The code reviewer then reviews the output.
+The model-generator agent reads approved profile and resolved statements from catalog files, consumes the approved test spec from `test-specs/`, then generates dbt project artifacts. After generating the model, the model-generator runs `dbt test` against the test spec's `unit_tests:` and self-corrects until tests pass (or max iterations reached). The code reviewer then reviews the output.
 
 ## Philosophy and Boundary
 
-- Migrator owns artifact generation (`.sql`, `.yml`, and related dbt resources).
-- Migrator reads approved profile from `catalog/tables/<item_id>.json` and resolved statements from `catalog/procedures/<writer>.json`. It derives materialization deterministically from profile classification and generates schema tests from profile answers.
-- Migrator reads the approved test spec from `test-specs/<item_id>.json` and renders `unit_tests[]` into the schema YAML alongside schema tests.
-- After generating artifacts, the migrator runs `dbt test` against the unit tests. If tests fail, the migrator revises the model and re-tests. Maximum self-correction iterations: 3.
-- Migrator fetches direct facts (schema, column types, relation metadata) using tools.
-- Migrator must not invent business decisions that require FDE judgment.
-- After the migrator's build-and-test loop passes, the code reviewer agent reviews the output and may kick back with standards or correctness issues. See [Code Reviewer Agent](code-reviewer-agent.md).
+- Model generator owns artifact generation (`.sql`, `.yml`, and related dbt resources).
+- Model generator reads approved profile from `catalog/tables/<item_id>.json` and resolved statements from `catalog/procedures/<writer>.json`. It derives materialization deterministically from profile classification and generates schema tests from profile answers.
+- Model generator reads the approved test spec from `test-specs/<item_id>.json` and renders `unit_tests[]` into the schema YAML alongside schema tests.
+- After generating artifacts, the model-generator runs `dbt test` against the unit tests. If tests fail, the model-generator revises the model and re-tests. Maximum self-correction iterations: 3.
+- Model generator fetches direct facts (schema, column types, relation metadata) using tools.
+- Model generator must not invent business decisions that require FDE judgment.
+- After the model-generator's build-and-test loop passes, the code reviewer agent reviews the output and may kick back with standards or correctness issues. See [Code Reviewer Agent](code-reviewer-agent.md).
 
 ## Required Input
 
@@ -180,18 +180,18 @@ Run `uv run migrate write --table <item_id> --dbt-project-path <path> --model-sq
 }
 ```
 
-## Required Migrator Guarantees
+## Required Model Generator Guarantees
 
 - Generated dbt artifacts must reflect profile answers and resolved statements faithfully.
 - Schema tests are derived deterministically from profile (PK, FK, watermark, PII) and rendered into column/model-level dbt tests in `model_yaml`.
 - `unit_tests[]` from `test-specs/<item_id>.json` is rendered into `unit_tests:` blocks in `model_yaml`. All scenarios must be present — none dropped.
-- All unit tests must pass before the migrator reports `status: "ok"`.
+- All unit tests must pass before the model-generator reports `status: "ok"`.
 - Tool-fetched schema facts are used for type/column correctness.
 - If catalog data is incomplete, return `partial|error` with explicit missing fields.
 
-## Migrator Boundary
+## Model Generator Boundary
 
-Migrator must not:
+Model generator must not:
 
 - invent business decisions that require FDE judgment
 - request new decision candidates from profiler

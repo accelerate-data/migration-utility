@@ -1,8 +1,8 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
-description: "Migrate skill — dbt model generation from stored procedures"
+description: "Generate-model skill — dbt model generation from stored procedures"
 
 prompts:
-  - file://../../prompts/skill-migrate.txt
+  - file://../../prompts/skill-generate-model.txt
 
 providers:
   - id: anthropic:claude-agent-sdk

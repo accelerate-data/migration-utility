@@ -2,19 +2,19 @@
 
 The test generator agent produces branch-covering dbt unit test fixtures for a stored procedure migration. It analyzes the proc's conditional branches, synthesizes minimal synthetic input data that exercises each branch, executes the proc in a sandbox database via MCP to capture ground truth output, and emits `unit_tests:` JSON blocks to `test-specs/`.
 
-Test generation runs BEFORE migration. The test spec is an independent artifact that the migrator consumes — the test generator never sees the generated dbt model.
+Test generation runs BEFORE migration. The test spec is an independent artifact that the model-generator consumes — the test generator never sees the generated dbt model.
 
 This contract covers both paths:
 
 - **Batch (agent):** `plugins/ground-truth-harness/agents/test-generator/` — runs in GHA pipeline, JSON in/out, no approval gates.
-- **Interactive (skill):** `plugins/ground-truth-harness/skills/test-gen/SKILL.md` — user-invocable via `/test-gen`, presents results for approval.
+- **Interactive (skill):** `plugins/ground-truth-harness/skills/generate-tests/SKILL.md` — user-invocable via `/generate-tests`, presents results for approval.
 
 Both paths share the Python CLI (`lib/shared/test_harness.py`) for deterministic work (sandbox lifecycle, SQL execution, result capture). LLM reasoning (branch analysis, fixture synthesis) is replicated with path-appropriate prompting.
 
 ## Philosophy and Boundary
 
 - Test generator owns branch analysis, fixture synthesis, ground truth capture, and coverage self-assessment.
-- Test generator reads the same context as the migrator: profile from `catalog/tables/<item_id>.json`, resolved statements from `catalog/procedures/<writer>.json`, proc body and columns from DDL files.
+- Test generator reads the same context as the model-generator: profile from `catalog/tables/<item_id>.json`, resolved statements from `catalog/procedures/<writer>.json`, proc body and columns from DDL files.
 - Test generator does NOT score its own coverage — the test reviewer independently enumerates branches and scores.
 - Test generator writes structured JSON to `test-specs/<item_id>.json`. It does not write dbt YAML files.
 - Test generator must not make or modify migration business decisions (classification, keys, materialization).
@@ -52,7 +52,7 @@ If the sandbox does not exist, the agent fails with a clear error directing the 
 
 Run `uv run migrate context --table <item_id> --writer <selected_writer>`.
 
-Same context the migrator receives: profile, materialization, statements, proc body, columns, source tables, schema tests. The test generator uses this to understand what the proc does — not to generate dbt.
+Same context the model-generator receives: profile, materialization, statements, proc body, columns, source tables, schema tests. The test generator uses this to understand what the proc does — not to generate dbt.
 
 ### 2. ExtractBranches (LLM)
 
@@ -206,7 +206,7 @@ Items with `coverage: partial` proceed to the test reviewer, which may kick back
 Test generator must not:
 
 - Generate dbt SQL model files
-- Render YAML — `unit_tests[]` is structured JSON; the migrator renders YAML
+- Render YAML — `unit_tests[]` is structured JSON; the model-generator renders YAML
 - Make materialization or business key decisions
 - Score its own coverage authoritatively — the test reviewer does that
 

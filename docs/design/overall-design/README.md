@@ -17,7 +17,7 @@ Migration utility for stored-procedure-to-dbt conversion: a Claude Code plugin f
 
 1. **GitHub account** with `gh` CLI authenticated (`gh auth login`). The migration repo lives here; GHA workflows execute agent runs.
 2. **Claude Code CLI** installed and authenticated.
-3. **`ad-migration` plugin** installed in Claude Code (marketplace package containing bootstrap, migration, and test-generation plugins).
+3. **`ad-migration` plugin** installed in Claude Code (marketplace package containing bootstrap, migration, and ground-truth-harness plugins).
 
 ---
 
@@ -44,7 +44,7 @@ Three execution paths, one pipeline:
 
 | Path | Entry point | Approval gates | Runs where | Status |
 |---|---|---|---|---|
-| Interactive | FDE opens Claude Code, uses skills (`/discover`, `/profile`, `/migrate`) | Yes -- every step | Local terminal | Implemented |
+| Interactive | FDE opens Claude Code, uses skills (`/discover-objects`, `/profile-table`, `/generate-model`) | Yes -- every step | Local terminal | Implemented |
 | Local batch | `migrate-util scope --table X` | None -- agent runs autonomously | Local terminal | **Not yet implemented** |
 | GHA batch | `migrate-util dispatch scope --all` | None -- commits input, triggers GHA workflow | GitHub Actions | **Not yet implemented** |
 
@@ -78,7 +78,7 @@ artifacts/
   profiler-agent/
     {run_id}.input.json
     {run_id}.json
-  migrator-agent/
+  model-generator-agent/
     {run_id}.input.json
     {run_id}.json
   test-generator-agent/
@@ -112,7 +112,7 @@ Each stage reads upstream catalog/artifact data and produces its own output. See
 |---|---|---|---|
 | Scoping | `scoping-agent` | Discover writers for each table via catalog refs + AST fallback | Implemented |
 | Profiling | `profiler-agent` | Classify tables, identify keys/watermarks/FKs/PII | Implemented |
-| Migration | `migrator-agent` | Generate dbt models from proc bodies + profile answers | Implemented |
+| Migration | `model-generator-agent` | Generate dbt models from proc bodies + profile answers | Implemented |
 | Test Generation | `test-generator-agent` | Generate schema tests and unit test fixtures | **Not yet implemented** |
 
 ---
@@ -123,10 +123,10 @@ The FDE uses Claude Code skills directly. The `/migrate-table` orchestrator comm
 
 Flow:
 
-1. `/discover` -- list tables, pick one
-2. `/discover show` -- statement breakdown, resolve `claude` statements via LLM + FDE confirmation
-3. `/profile` -- catalog signals + LLM inference, FDE approves candidates
-4. `/migrate` -- generate dbt model, FDE approves before file write
+1. `/discover-objects` -- list tables, pick one
+2. `/discover-objects show` -- statement breakdown, resolve `claude` statements via LLM + FDE confirmation
+3. `/profile-table` -- catalog signals + LLM inference, FDE approves candidates
+4. `/generate-model` -- generate dbt model, FDE approves before file write
 
 Each step reads from and writes to catalog files in the migration repo. The FDE reviews and edits before approving. See [SP to dbt Migration Plugin](../sp-to-dbt-plugin/README.md) for full skill contracts.
 
@@ -194,7 +194,7 @@ One GitHub Actions workflow file per agent. Each workflow run corresponds to exa
 
 ### Agent Plugin
 
-The repo root is a Claude Code marketplace package containing three plugins. Plugin structure, skill contracts, and local dev setup: [SP to dbt Migration Plugin](../sp-to-dbt-plugin/README.md).
+The repo root is a Claude Code marketplace package containing three plugins (bootstrap, migration, ground-truth-harness). Plugin structure, skill contracts, and local dev setup: [SP to dbt Migration Plugin](../sp-to-dbt-plugin/README.md).
 
 ### Workflow Steps (planned)
 

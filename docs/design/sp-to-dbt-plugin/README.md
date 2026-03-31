@@ -1,6 +1,6 @@
 # SP → dbt Migration Plugin
 
-Deterministic Python skills that automate stored-procedure-to-dbt migration — discover, scope, profile, migrate, test-gen, and validate — using sqlglot AST analysis and LLM inference. No live database required for the deterministic steps. Claude orchestrates the skills and handles judgment calls.
+Deterministic Python skills that automate stored-procedure-to-dbt migration — discover-objects, scope, profile-table, generate-model, generate-tests, and validate — using sqlglot AST analysis and LLM inference. No live database required for the deterministic steps. Claude orchestrates the skills and handles judgment calls.
 
 ---
 
@@ -30,16 +30,16 @@ The repo root is a Claude Code marketplace package. Four plugins are registered 
 │   │   ├── test-generator                ← batch: fixture synthesis + ground truth capture
 │   │   └── test-reviewer                 ← batch: coverage scoring + quality gate
 │   └── skills/
-│       └── test-gen/                     ← interactive: /test-gen
+│       └── generate-tests/               ← interactive: /generate-tests
 ├── migration/                             ← plugin: analysis + migration pipeline
 │   ├── agents/
 │   │   ├── scoping-agent.md
-│   │   ├── migrator                      ← batch: dbt model generation + test loop
+│   │   ├── model-generator                ← batch: dbt model generation + test loop
 │   │   └── code-reviewer                 ← batch: standards + correctness gate
 │   ├── skills/
-│   │   ├── discover/                      ← SKILL.md + references/
-│   │   ├── profile/
-│   │   └── migrate/
+│   │   ├── discover-objects/              ← SKILL.md + references/
+│   │   ├── profile-table/
+│   │   └── generate-model/
 │   └── commands/
 │       └── migrate-table.md               ← orchestrator
 ├── mcp/
@@ -179,7 +179,7 @@ Reads existing catalog file, validates the profile JSON (required fields, allowe
 
 Both the interactive skill and the batch agent share `profile.py` subcommands. Each has its own LLM reasoning instructions between `context` and `write`:
 
-- **Interactive (`/profile` skill):** `context` → Claude reasons over context + [What to Profile and Why](../agent-contract/what-to-profile-and-why.md) → present for approval → `write`.
+- **Interactive (`/profile-table` skill):** `context` → Claude reasons over context + [What to Profile and Why](../agent-contract/what-to-profile-and-why.md) → present for approval → `write`.
 - **Batch (profiler agent):** `context` per table → agent reasons with batch-tuned prompting (no approval gates, skip-and-continue) → `write` per table → aggregate summary. See [Profiler Agent Contract](../agent-contract/profiler-agent.md).
 
 The LLM reasoning is the same six questions in both paths. The difference is orchestration: interactive stops for approval, batch continues and reports at the end.
@@ -196,7 +196,7 @@ The LLM reasoning is the same six questions in both paths. The difference is orc
 
 This replaces the separate `assess` skill. The `classification` field (`deterministic` or `claude_assisted`) gives the top-level verdict; the `statements` array gives the per-statement breakdown.
 
-Resolved statements are persisted to `catalog/procedures/<writer>.json` by the scoping agent (batch) or `/discover` skill (interactive). All `claude` actions are resolved to `migrate` or `skip` before persisting. Downstream stages (profiler, migrator) read statements from catalog.
+Resolved statements are persisted to `catalog/procedures/<writer>.json` by the scoping agent (batch) or `/discover-objects` skill (interactive). All `claude` actions are resolved to `migrate` or `skip` before persisting. Downstream stages (profiler, model-generator) read statements from catalog.
 
 ### migrate
 
@@ -252,8 +252,8 @@ Validates and writes `.sql` + `.yml` to the dbt project models directory. Exit c
 
 Both the interactive skill and the batch agent share `migrate.py` subcommands. Each has its own LLM generation logic between `context` and `write`:
 
-- **Interactive (`/migrate` skill):** `context` → LLM generates dbt model (decides structure, applies CTE conventions, ref/source/var substitution) → logical equivalence check → present for approval → `write`.
-- **Batch (migrator agent):** `context` per table → agent generates with batch-tuned prompting (no approval gates, skip-and-continue) → equivalence check → `write` per table → `dbt compile` → aggregate summary.
+- **Interactive (`/generate-model` skill):** `context` → LLM generates dbt model (decides structure, applies CTE conventions, ref/source/var substitution) → logical equivalence check → present for approval → `write`.
+- **Batch (model-generator agent):** `context` per table → agent generates with batch-tuned prompting (no approval gates, skip-and-continue) → equivalence check → `write` per table → `dbt compile` → aggregate summary.
 
 The LLM generation is the same logic in both paths. No sqlglot transpilation — the LLM generates dbt-idiomatic SQL directly from the original proc statements, proc body, and profile answers.
 
@@ -293,9 +293,9 @@ Output: { "database": "__test_<run_id>", "status": "dropped" }
 
 Drops the throwaway database.
 
-### test-gen (skill + agent)
+### generate-tests (skill + agent)
 
-Skill: `/test-gen` (interactive, user-invocable). Agent: `test-generator` (batch pipeline).
+Skill: `/generate-tests` (interactive, user-invocable). Agent: `test-generator` (batch pipeline).
 
 Both share the same Python CLI (`test_harness.py`) and `migrate context` for deterministic work. LLM reasoning (branch analysis, fixture synthesis) is path-specific.
 
@@ -310,7 +310,7 @@ See [Test Generator Agent Contract](../agent-contract/test-generator-agent.md) f
 
 #### Shared between both paths
 
-- **Interactive (`/test-gen` skill):** `migrate context` → LLM enumerates branches + synthesizes fixtures → `test-harness execute` per scenario → present test spec for approval → write to `test-specs/`.
+- **Interactive (`/generate-tests` skill):** `migrate context` → LLM enumerates branches + synthesizes fixtures → `test-harness execute` per scenario → present test spec for approval → write to `test-specs/`.
 - **Batch (test-generator agent):** `migrate context` per table → agent enumerates + synthesizes → `test-harness execute` per scenario → write to `test-specs/` → test-reviewer agent scores coverage and may kick back.
 
 ### validate (superseded)
@@ -336,8 +336,8 @@ The orchestrator. Defined in `commands/migrate-table.md`. No Python — Claude f
 3. discover show  → statement breakdown → user reviews migrate/skip/claude; resolved statements written to catalog
 4. profile        → catalog signals + LLM inference → user approves candidates
 5. sandbox-up     → create throwaway DB + deploy DDL (if not already running)
-6. /test-gen      → synthesize fixtures, execute proc, capture ground truth → user approves test spec
-7. /migrate       → generate dbt model + schema YAML (with unit_tests from test spec) → run dbt test → self-correct → user approves
+6. /generate-tests → synthesize fixtures, execute proc, capture ground truth → user approves test spec
+7. /generate-model → generate dbt model + schema YAML (with unit_tests from test spec) → run dbt test → self-correct → user approves
 8. sandbox-down   → tear down throwaway DB
 ```
 
@@ -348,8 +348,8 @@ The orchestrator. Defined in `commands/migrate-table.md`. No Python — Claude f
 | scope | Always — show writer list, user picks procedure |
 | discover show | If `claude_assisted` — resolve via LLM, FDE confirms; write resolved statements to catalog |
 | profile | Always — show classification, keys, watermark, PII candidates; user approves/edits |
-| /test-gen | Always — show test spec (scenarios, coverage) before writing to `test-specs/` |
-| /migrate | Always — show generated model before writing to disk |
+| /generate-tests | Always — show test spec (scenarios, coverage) before writing to `test-specs/` |
+| /generate-model | Always — show generated model before writing to disk |
 
 **Batch (GHA) flow:**
 
@@ -359,7 +359,7 @@ The orchestrator. Defined in `commands/migrate-table.md`. No Python — Claude f
 3. sandbox-up          → create throwaway DB
 4. test-generator      → generate test specs per table
    test-reviewer       → score coverage, kick back if gaps (Loop 1)
-5. migrator            → generate models, run dbt test, self-correct (Loop 2)
+5. model-generator     → generate models, run dbt test, self-correct (Loop 2)
    code-reviewer       → check standards, kick back if issues
 6. sandbox-down        → tear down
 ```
@@ -406,7 +406,7 @@ The orchestrator. Defined in `commands/migrate-table.md`. No Python — Claude f
 | VU-742 | migrate.py | Done |
 | VU-743 | migrate SKILL.md | Done |
 | VU-744 | migrate tests | Done |
-| VU-777 | migrator-agent.md | Done |
+| VU-777 | model-generator-agent.md | Done |
 
 ---
 
@@ -418,12 +418,12 @@ The orchestrator. Defined in `commands/migrate-table.md`. No Python — Claude f
 | TBD | `ground-truth-harness` plugin scaffold | test_harness.py |
 | TBD | sandbox-up.md + sandbox-down.md commands | plugin scaffold |
 | VU-745 | test-generator agent contract | test_harness.py |
-| VU-746 | /test-gen SKILL.md | VU-745 |
-| VU-747 | test-gen tests | VU-745 |
+| VU-746 | /generate-tests SKILL.md | VU-745 |
+| VU-747 | generate-tests tests | VU-745 |
 | TBD | test-reviewer agent contract | VU-745 |
 | TBD | code-reviewer agent contract | VU-777 |
 
-**Exit criteria:** `test_harness.py` can create/destroy sandbox and capture ground truth. Test generator emits `test-specs/<item_id>.json` with `unit_tests[]`. Test reviewer scores coverage. Code reviewer reviews migrator output. VU-748/749/750 (validate) are superseded by the ground truth harness.
+**Exit criteria:** `test_harness.py` can create/destroy sandbox and capture ground truth. Test generator emits `test-specs/<item_id>.json` with `unit_tests[]`. Test reviewer scores coverage. Code reviewer reviews model-generator output. VU-748/749/750 (validate) are superseded by the ground truth harness.
 
 ---
 
@@ -452,10 +452,10 @@ VU-732 (shared lib) ✅
   │                        └── VU-776 (profiler-agent.md)
   │
   ├── VU-742 (migrate.py) ──── VU-743 (SKILL) ───── VU-744 (tests)
-  │                        └── VU-777 (migrator-agent.md)
+  │                        └── VU-777 (model-generator-agent.md)
   │     │
   │     ├── TBD (test_harness.py) ── TBD (ground-truth-harness plugin)
-  │     │     ├── VU-745 (test-generator agent) ── VU-746 (/test-gen SKILL) ── VU-747 (tests)
+  │     │     ├── VU-745 (test-generator agent) ── VU-746 (/generate-tests SKILL) ── VU-747 (tests)
   │     │     ├── TBD (test-reviewer agent)
   │     │     └── TBD (sandbox-up/down commands)
   │     │

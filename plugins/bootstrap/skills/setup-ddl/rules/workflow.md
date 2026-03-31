@@ -102,6 +102,6 @@ Schemas:  <selected-schemas>
     catalog/functions/  : N files
 ```
 
-Tell the user they can now run the `discover` skill or invoke the `scoping-agent` against the project root. The `discover refs` command will automatically use catalog data when available.
+Tell the user they can now run the `discover-objects` skill or invoke the `scoping-agent` against the project root. The `discover refs` command will automatically use catalog data when available.
 
-**Next skills:** `discover` (list/inspect objects, catalog-based refs).
+**Next skills:** `discover-objects` (list/inspect objects, catalog-based refs).

@@ -1,5 +1,5 @@
 ---
-name: migrate-table
+name: generate-model
 description: >
   Generates a dbt model from a stored procedure. Invoke when the user asks to
   "migrate a procedure", "generate a dbt model", "convert SP to dbt", or

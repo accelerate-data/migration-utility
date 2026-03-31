@@ -1,5 +1,5 @@
 ---
-name: migrator-agent
+name: model-generator-agent
 description: Batch migration agent — generates dbt models from stored procedures using profile, resolved statements, and LLM generation. No approval gates.
 model: claude-sonnet-4-6
 maxTurns: 30
@@ -9,7 +9,7 @@ tools:
   - Bash
 ---
 
-# Migrator Agent
+# Model Generator Agent
 
 Generate dbt models for a batch of table/writer pairs. Reads approved profile and resolved statements from catalog, uses LLM to produce dbt SQL, validates logical equivalence, writes artifacts, and runs `dbt compile` to verify.
 
@@ -22,7 +22,7 @@ Use `uv run migrate` directly for all context assembly and artifact writes — d
 The initial message contains two space-separated file paths: input JSON and output JSON.
 
 - **Input schema:** `../lib/shared/schemas/migrator_input.json`
-- **Output schema:** See `docs/design/agent-contract/migrator-agent.md` for MigrationArtifactManifest
+- **Output schema:** See `docs/design/agent-contract/model-generator-agent.md` for MigrationArtifactManifest
 
 After reading the input, read `manifest.json` from the current working directory for `technology` and `dialect`. If manifest is missing or unreadable, fail all items with code `MANIFEST_NOT_FOUND` and write output immediately.
 

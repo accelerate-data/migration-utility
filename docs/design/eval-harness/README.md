@@ -23,7 +23,7 @@ Skills and agents share the same DDL project fixture but are tested separately b
 
 | Dimension | Skill | Agent |
 |---|---|---|
-| Invocation | `/discover show --name <proc>` | Two file paths (input JSON, output JSON) |
+| Invocation | `/discover-objects show --name <proc>` | Two file paths (input JSON, output JSON) |
 | Output | Human-formatted text | Structured JSON |
 | Approval gates | Interactive (simulated as non-interactive) | None |
 | Assertions | `icontains` for text sections | JSON schema validation, field values |
@@ -47,22 +47,22 @@ tests/evals/
   assertions/
     validate-candidate-writers.js      # JSON schema validation (draft 2020-12)
   prompts/
-    skill-discover-show.txt            # prompt template for discover show skill
+    skill-discover-objects-show.txt     # prompt template for discover-objects show skill
     agent-scoping.txt                  # prompt template for scoping agent
-    skill-profile.txt                  # prompt template for profile skill
+    skill-profile-table.txt             # prompt template for profile-table skill
     agent-profiler.txt                 # prompt template for profiler agent
-    skill-migrate.txt                  # prompt template for migrate skill
-    agent-migrator.txt                 # prompt template for migrator agent
+    skill-generate-model.txt            # prompt template for generate-model skill
+    agent-model-generator.txt          # prompt template for model-generator agent
   packages/
     scoping/
-      skill-discover-show.yaml         # 8 skill scenarios (self-contained config)
+      skill-discover-objects-show.yaml  # 8 skill scenarios (self-contained config)
       agent-scoping.yaml               # 8 agent scenarios (self-contained config)
     profiler/
-      skill-profile.yaml               # 4 skill scenarios
+      skill-profile-table.yaml          # 4 skill scenarios
       agent-profiler.yaml              # 4 agent scenarios
-    migrator/
-      skill-migrate.yaml               # 4 skill scenarios
-      agent-migrator.yaml              # 4 agent scenarios
+    model-generator/
+      skill-generate-model.yaml        # 4 skill scenarios
+      agent-model-generator.yaml       # 4 agent scenarios
   fixtures/
     migration-test/                    # extracted DDL project (one-time)
       manifest.json
@@ -79,9 +79,9 @@ The harness is organized into three packages. Each package tests one stage of th
 
 | Package | Skills tested | Agent tested | Scenarios |
 |---|---|---|---|
-| `scoping` | `/discover show` on claude_assisted procs | scoping-agent | 8 x 2 = 16 |
-| `profiler` | `/profile` (context + LLM reasoning + write) | profiler-agent | 4 x 2 = 8 |
-| `migrator` | `/migrate` (context + dbt generation + write) | migrator-agent | 4 x 2 = 8 |
+| `scoping` | `/discover-objects show` on claude_assisted procs | scoping-agent | 8 x 2 = 16 |
+| `profiler` | `/profile-table` (context + LLM reasoning + write) | profiler-agent | 4 x 2 = 8 |
+| `model-generator` | `/generate-model` (context + dbt generation + write) | model-generator-agent | 4 x 2 = 8 |
 
 Each scenario file is a self-contained promptfoo config with its own `providers`, `prompts`, and `tests`. The npm scripts compose them via `-c` flags.
 
@@ -103,7 +103,7 @@ npm run eval
 # Single package (skill + agent)
 npm run eval:scoping
 npm run eval:profiler
-npm run eval:migrator
+npm run eval:model-generator
 
 # Single scenario file (skill only or agent only)
 npm run eval:scoping:skill
@@ -149,7 +149,7 @@ Each scenario targets a table from the MigrationTest schema. The expected status
 | `dim-full-reload` | silver.DimProduct | `dim_full_reload`, null watermark |
 | `pii-detection` | (requires PII fixture) | PII actions populated |
 
-### Migrator scenarios
+### Model-generator scenarios
 
 | Scenario ID | Target table | Key model assertion |
 |---|---|---|
@@ -232,12 +232,12 @@ fixtures/migration-test/
     views/<schema>.<view>.json     # per-view catalog
 ```
 
-The scoping package uses the base extracted fixture. The profiler package needs the catalog enriched with resolved `statements` (post-scoping). The migrator package needs the catalog enriched with `profile` sections (post-profiling). These are layered snapshots stored as sibling directories if needed:
+The scoping package uses the base extracted fixture. The profiler package needs the catalog enriched with resolved `statements` (post-scoping). The model-generator package needs the catalog enriched with `profile` sections (post-profiling). These are layered snapshots stored as sibling directories if needed:
 
 ```text
 fixtures/
   migration-test/                  # base extraction (scoping)
-  migration-test-profiled/         # after scoping + profiling (migrator)
+  migration-test-profiled/         # after scoping + profiling (model-generator)
 ```
 
 ---
@@ -279,10 +279,10 @@ The exact extraction steps depend on how the migration project is configured. Se
 1. **Add the procedure and target table** to `scripts/sql/create-migration-test-db.sql`.
 2. **Rebuild the Docker image** and re-run `create-migration-test-db.sql` against it.
 3. **Re-extract the fixture** (see [Extracting the fixture](#extracting-the-fixture)).
-4. **Add a test case** to both `packages/scoping/skill-discover-show.yaml` and `packages/scoping/agent-scoping.yaml`:
+4. **Add a test case** to both `packages/scoping/skill-discover-objects-show.yaml` and `packages/scoping/agent-scoping.yaml`:
 
 ```yaml
-# In skill-discover-show.yaml
+# In skill-discover-objects-show.yaml
 - description: "my-new-scenario — <what it tests>"
   vars:
     target_table: "silver.MyNewTable"
@@ -299,21 +299,21 @@ The exact extraction steps depend on how the migration project is configured. Se
       value: "JSON.parse(output).results[0].status === '<expected_status>'"
 ```
 
-### Adding a profiler or migrator scenario
+### Adding a profiler or model-generator scenario
 
 Same steps, but:
 
-- The fixture must include the appropriate pipeline stage data (statements for profiler, profiles for migrator).
+- The fixture must include the appropriate pipeline stage data (statements for profiler, profiles for model-generator).
 - Add the test case to the corresponding package's scenario files.
 - Profiler assertions check `classification.resolved_kind`, `watermark`, `primary_key`, `pii_actions`.
-- Migrator assertions check `materialization`, artifact paths, `dbt_compile_passed`.
+- Model-generator assertions check `materialization`, artifact paths, `dbt_compile_passed`.
 
 ### Updating an existing scenario
 
 1. Modify the procedure in `create-migration-test-db.sql`.
 2. Re-extract the fixture.
 3. Update the assertions in the scenario YAML if the expected behavior changed.
-4. Run the affected package: `npm run eval:scoping` (or `eval:profiler`, `eval:migrator`).
+4. Run the affected package: `npm run eval:scoping` (or `eval:profiler`, `eval:model-generator`).
 
 ### Refreshing the fixture after schema changes
 

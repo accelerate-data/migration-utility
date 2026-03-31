@@ -81,7 +81,7 @@ Check `classification`:
 
 ### Stage 2: Profile
 
-Run the `/profile` skill against the selected table and writer. This assembles catalog signals, runs LLM profiling (classification, keys, watermark, PII), and writes results to catalog.
+Run the `/profile-table` skill against the selected table and writer. This assembles catalog signals, runs LLM profiling (classification, keys, watermark, PII), and writes results to catalog.
 
 **Gate (interactive):** User approves profile answers (classification, primary key, watermark, foreign keys, PII actions).
 
@@ -89,7 +89,7 @@ Run the `/profile` skill against the selected table and writer. This assembles c
 
 ### Stage 3: Migrate
 
-Run the `/migrate` skill against the selected table and writer. This assembles migration context, generates dbt SQL via LLM, runs logical equivalence check, and writes artifacts.
+Run the `/generate-model` skill against the selected table and writer. This assembles migration context, generates dbt SQL via LLM, runs logical equivalence check, and writes artifacts.
 
 **Gate (interactive):** User approves generated dbt model and schema YAML before writing.
 

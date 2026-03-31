@@ -16,9 +16,9 @@
       "description": "DDL analysis and migration pipeline: scoping, discovery, and DDL extraction for Fabric Warehouse to dbt."
     },
     {
-      "name": "test-generation",
-      "source": "./test-generation",
-      "description": "Test generation for migrated dbt models (not yet implemented)."
+      "name": "ground-truth-harness",
+      "source": "./ground-truth-harness",
+      "description": "Ground-truth harness for migrated dbt models (not yet implemented)."
     }
   ]
 }

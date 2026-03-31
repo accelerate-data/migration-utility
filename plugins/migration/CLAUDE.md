@@ -24,7 +24,7 @@ Never use `ddl` MCP for plain file reads. Never use native Read tool to parse DD
 
 | Skill | Trigger |
 |---|---|
-| `/discover` | "list tables", "show me the DDL for X", "what references Y", "find what writes to [table]", "which procedures populate [table]" |
+| `/discover-objects` | "list tables", "show me the DDL for X", "what references Y", "find what writes to [table]", "which procedures populate [table]" |
 
 `/setup-ddl` is in the bootstrap plugin — run it before using discover.
 

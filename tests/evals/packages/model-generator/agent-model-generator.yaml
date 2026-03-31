@@ -1,8 +1,8 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
-description: "Migrator agent — batch dbt model generation from MigrationTest"
+description: "Model-generator agent — batch dbt model generation from MigrationTest"
 
 prompts:
-  - file://../../prompts/agent-migrator.txt
+  - file://../../prompts/agent-model-generator.txt
 
 providers:
   - id: anthropic:claude-agent-sdk
