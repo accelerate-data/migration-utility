@@ -24,7 +24,17 @@ The initial message contains two space-separated file paths: input JSON and outp
 - **Input:** items list with `item_id` per table (from orchestrator)
 - **Output:** scoping results written to `catalog/tables/<table>.json` (scoping section) + lightweight `scoping_summary.json` to the output file path
 
-After reading the input, read `manifest.json` from the current working directory for `technology` and `dialect`. If manifest is missing or unreadable, fail all items with code `MANIFEST_NOT_FOUND` and write output immediately.
+---
+
+## Prerequisites
+
+Before processing items:
+
+- Read `manifest.json` from the current working directory for `technology` and `dialect`. If missing or unreadable, fail **all** items with code `MANIFEST_NOT_FOUND` and write summary output immediately.
+
+Per item, before Step 1:
+
+- Check `catalog/tables/<item_id>.json` exists. If missing, skip this item with `CATALOG_FILE_MISSING` in `errors[]`.
 
 ---
 
@@ -139,3 +149,16 @@ Write a lightweight summary JSON (`scoping_summary.json` schema) to the output f
 ```
 
 The full scoping data lives in the catalog files, not duplicated in the summary output. The summary is for orchestrator routing and status tracking.
+
+---
+
+## Error and Warning Codes
+
+All codes use the shared diagnostics schema (`code`, `message`, `severity`, `details`). Recorded in the item's `errors[]` or `warnings[]`.
+
+| Code | Severity | When |
+|---|---|---|
+| `MANIFEST_NOT_FOUND` | error | manifest.json missing — all items fail |
+| `CATALOG_FILE_MISSING` | error | catalog/tables/<item_id>.json not found — skip item |
+| `DISCOVER_EXECUTION_FAILED` | error | `discover refs` or `discover show` CLI failed — skip item |
+| `LLM_ANALYSIS_REQUIRED` | warning | claude_assisted proc required LLM resolution — item proceeds |

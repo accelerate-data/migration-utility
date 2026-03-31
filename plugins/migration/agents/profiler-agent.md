@@ -24,7 +24,18 @@ The initial message contains two space-separated file paths: input JSON and outp
 - **Input schema:** `../lib/shared/schemas/profiler_input.json`
 - **Output schema:** See Batch Output section below.
 
-After reading the input, read `manifest.json` from the current working directory for `technology` and `dialect`. If manifest is missing or unreadable, fail all items with `status: "error"` and write output immediately.
+---
+
+## Prerequisites
+
+Before processing items:
+
+1. Read `manifest.json` from the current working directory for `technology` and `dialect`. If missing or unreadable, fail **all** items with code `MANIFEST_NOT_FOUND` and write output immediately.
+
+Per item, before Step 1:
+
+- Check `catalog/tables/<item_id>.json` exists. If missing, skip this item with `CATALOG_FILE_MISSING` in `errors[]`.
+- Check `scoping.selected_writer` is set. If scoping section is missing or `selected_writer` is null, skip this item with `SCOPING_NOT_COMPLETED` in `errors[]`.
 
 ---
 
@@ -111,3 +122,18 @@ After processing all items, write a summary to the output file path:
 ```
 
 The actual profile data lives in the catalog file, not duplicated in the batch output.
+
+---
+
+## Error and Warning Codes
+
+All codes use the shared diagnostics schema (`code`, `message`, `severity`, `details`). Recorded in the item's `errors[]` or `warnings[]`.
+
+| Code | Severity | When |
+|---|---|---|
+| `MANIFEST_NOT_FOUND` | error | manifest.json missing — all items fail |
+| `CATALOG_FILE_MISSING` | error | catalog/tables/<item_id>.json not found — skip item |
+| `SCOPING_NOT_COMPLETED` | error | scoping section missing or no selected_writer — skip item |
+| `CONTEXT_ASSEMBLY_FAILED` | error | `profile context` CLI failed — skip item |
+| `PROFILE_WRITE_FAILED` | error | `profile write` CLI failed — skip item |
+| `PARTIAL_PROFILE` | warning | LLM could not answer a required question — item proceeds with partial |
