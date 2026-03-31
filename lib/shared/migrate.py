@@ -29,6 +29,7 @@ from shared.catalog import (
     has_catalog,
     load_proc_catalog,
     load_table_catalog,
+    read_selected_writer,
 )
 from shared.loader import (
     CatalogFileMissingError,
@@ -204,10 +205,20 @@ def _collect_source_tables(
 def run_context(
     project_root: Path,
     table_fqn: str,
-    writer_fqn: str,
+    writer_fqn: str | None = None,
 ) -> dict[str, Any]:
-    """Assemble migration context for a single table/writer pair."""
+    """Assemble migration context for a single table/writer pair.
+
+    If *writer_fqn* is not provided, reads ``scoping.selected_writer``
+    from the table catalog.  Raises ``ValueError`` if neither is available.
+    """
     table_norm = normalize(table_fqn)
+    if not writer_fqn:
+        writer_fqn = read_selected_writer(project_root, table_norm)
+        if not writer_fqn:
+            raise ValueError(
+                f"No writer provided and no scoping.selected_writer in catalog for {table_norm}"
+            )
     writer_norm = normalize(writer_fqn)
 
     if not has_catalog(project_root):
@@ -289,7 +300,7 @@ def run_write(
 @app.command()
 def context(
     table: str = typer.Option(..., help="Fully-qualified target table name (schema.table)"),
-    writer: str = typer.Option(..., help="Fully-qualified writer procedure name (schema.proc)"),
+    writer: Optional[str] = typer.Option(None, help="Fully-qualified writer procedure name (reads from catalog scoping section if omitted)"),
     project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
 ) -> None:
     """Assemble migration context from catalog + DDL."""

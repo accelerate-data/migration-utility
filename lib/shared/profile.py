@@ -25,6 +25,7 @@ import typer
 from shared.catalog import (
     load_proc_catalog,
     load_table_catalog,
+    read_selected_writer,
 )
 from shared.loader import (
     CatalogFileMissingError,
@@ -105,12 +106,21 @@ def _build_related_procedures(
     return related
 
 
-def run_context(project_root: Path, table: str, writer: str) -> dict[str, Any]:
+def run_context(project_root: Path, table: str, writer: str | None = None) -> dict[str, Any]:
     """Assemble profiling context for a table + writer pair.
+
+    If *writer* is not provided, reads ``scoping.selected_writer`` from
+    the table catalog.  Raises ``ValueError`` if neither is available.
 
     Returns a dict matching ``schemas/profile_context.json``.
     """
     table_norm = normalize(table)
+    if not writer:
+        writer = read_selected_writer(project_root, table_norm)
+        if not writer:
+            raise ValueError(
+                f"No writer provided and no scoping.selected_writer in catalog for {table_norm}"
+            )
     writer_norm = normalize(writer)
 
     # Load table catalog
@@ -277,7 +287,7 @@ def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> d
 def context(
     project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
     table: str = typer.Option(..., help="Fully-qualified table name (schema.Name)"),
-    writer: str = typer.Option(..., help="Fully-qualified writer procedure name"),
+    writer: Optional[str] = typer.Option(None, help="Fully-qualified writer procedure name (reads from catalog scoping section if omitted)"),
 ) -> None:
     """Assemble profiling context for a table + writer pair."""
     project_root = resolve_project_root(project_root)
