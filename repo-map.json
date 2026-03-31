@@ -72,7 +72,7 @@
     },
     "shared_schemas": {
       "path": "lib/shared/schemas/",
-      "description": "JSON Schema files (17 total). Catalog schemas: table_catalog, procedure_catalog, view_catalog, function_catalog, manifest. Agent I/O: scope_input, candidate_writers, profiler_input, test_generator_input, model_generator_input, fixture_manifest, migration_artifact_manifest, profile_context. Discover CLI output: discover_list_output, discover_show_output, discover_refs_output. Shared defs: common.json."
+      "description": "JSON Schema files (17 total). Catalog schemas: table_catalog, procedure_catalog, view_catalog, function_catalog, manifest. Agent I/O: scope_input, scoping_summary, profiler_input, test_generator_input, model_generator_input, fixture_manifest, migration_artifact_manifest, profile_context. Discover CLI output: discover_list_output, discover_show_output, discover_refs_output. Shared defs: common.json."
     },
     "ddl_mcp": {
       "path": "mcp/ddl/",
@@ -84,11 +84,11 @@
     },
     "migration_skills": {
       "path": "plugins/migration/skills/",
-      "description": "Skill definitions: discover-objects/ (DDL exploration — list/show/refs from catalog), generate-model/ (dbt model generation from stored procedures), profile-table/ (interactive single-table profiling with approval gates). setup-ddl is in the bootstrap sub-plugin."
+      "description": "Skill definitions: discover-objects/ (DDL exploration — list/show/refs from catalog; show for tables includes full scoping flow with writer discovery and catalog persistence), generate-model/ (dbt model generation from stored procedures), profile-table/ (interactive single-table profiling with approval gates). setup-ddl is in the bootstrap sub-plugin."
     },
     "migration_agents": {
       "path": "plugins/migration/agents/",
-      "description": "Agent definitions: scoping-agent.md (catalog-based writer detection via discover refs), model-generator-agent.md (batch dbt model generation from stored procedures), profiler-agent.md (batch profiling — context assembly, LLM reasoning, catalog write-back)."
+      "description": "Agent definitions: scoping-agent.md (catalog-based writer detection via discover refs, writes scoping results to catalog and produces scoping_summary), model-generator-agent.md (batch dbt model generation from stored procedures), profiler-agent.md (batch profiling — context assembly, LLM reasoning, catalog write-back)."
     },
     "migration_commands": {
       "path": "plugins/migration/commands/",

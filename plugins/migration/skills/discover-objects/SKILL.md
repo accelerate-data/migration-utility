@@ -79,15 +79,49 @@ Present differently based on the object type:
 
 ### Tables
 
-Show the column list (from catalog):
+Show columns, then perform writer discovery and scoping:
 
-```text
-silver.DimCustomer (table, 3 columns)
+1. Show the column list (from catalog):
 
-  CustomerKey   BIGINT       NOT NULL
-  FirstName     NVARCHAR(50) NULL
-  Region        NVARCHAR(50) NULL
-```
+   ```text
+   silver.DimCustomer (table, 3 columns)
+
+     CustomerKey   BIGINT       NOT NULL
+     FirstName     NVARCHAR(50) NULL
+     Region        NVARCHAR(50) NULL
+   ```
+
+2. Call `discover refs --name <table>` to find writer candidates. If no writers found, report `no_writer_found` and persist scoping to catalog.
+
+3. For each writer candidate, **check catalog first**: read `catalog/procedures/<proc>.json` — if `statements` already exists, reuse (proc was already processed). If `statements` is missing, run `discover show --name <proc>` to resolve call graph, classify statements, and persist to catalog.
+
+4. Present all writer candidates with rationale, dependencies, and statement summary:
+
+   ```text
+   Writer candidates for silver.DimCustomer:
+
+     1. dbo.usp_load_dimcustomer_full (direct writer)
+        Reads: bronze.Customer, bronze.Person
+        Writes: silver.DimCustomer
+        Statements: 1 migrate, 1 skip
+
+     2. dbo.usp_load_dimcustomer_delta (direct writer)
+        Reads: bronze.Customer, silver.DimCustomer
+        Writes: silver.DimCustomer
+        Statements: 1 migrate (MERGE)
+   ```
+
+5. Apply resolution rules:
+   - 1 writer → auto-select, confirm with user
+   - 2+ writers → user picks
+   - 0 writers → report `no_writer_found`
+
+6. After user confirms selected writer, persist scoping to catalog:
+
+   ```bash
+   uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-scoping \
+     --name <table_fqn> --scoping '<json>'
+   ```
 
 ### Views
 
