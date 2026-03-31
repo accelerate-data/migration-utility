@@ -20,14 +20,13 @@ The model-generator agent reads approved profile and resolved statements from ca
   "run_id": "uuid",
   "items": [
     {
-      "item_id": "dbo.fact_sales",
-      "selected_writer": "dbo.usp_load_fact_sales"
+      "item_id": "dbo.fact_sales"
     }
   ]
 }
 ```
 
-Project root is inferred from CWD. Reference schema: `../lib/shared/schemas/model_generator_input.json`
+Project root is inferred from CWD. Reference schema: `../lib/shared/schemas/model_generator_input.json`. Items only need `item_id` — the model generator reads `selected_writer` from the catalog scoping section.
 
 ## Pipeline
 
@@ -35,7 +34,9 @@ For each item in `items[]`:
 
 ### 1. AssembleContext (Deterministic — `migrate.py context`)
 
-Run `uv run migrate context --table <item_id> --writer <selected_writer>`.
+Run `uv run migrate context --table <item_id>`.
+
+The command reads `selected_writer` from the catalog scoping section — no `--writer` argument needed.
 
 Outputs: profile (classification, keys, watermark, PII), derived materialization, resolved statements, full proc body, target table columns, source tables, and deterministic schema tests.
 

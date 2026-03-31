@@ -20,14 +20,13 @@ For the interactive single-table path, see the `/profile-table` skill. Both path
   "run_id": "uuid",
   "items": [
     {
-      "item_id": "dbo.fact_sales",
-      "selected_writer": "dbo.usp_load_fact_sales"
+      "item_id": "dbo.fact_sales"
     }
   ]
 }
 ```
 
-No `project_root` — agents infer it from CWD. No `related_procedure_depth` — related procedure context is pre-captured in catalog files.
+No `project_root` — agents infer it from CWD. No `selected_writer` — the profiler reads it from the catalog scoping section in `catalog/tables/<item_id>.json`. No `related_procedure_depth` — related procedure context is pre-captured in catalog files.
 
 ## Agent Pipeline
 
@@ -35,7 +34,9 @@ For each item in `items[]`:
 
 ### 1. AssembleContext (Deterministic — `profile.py context`)
 
-Run `uv run profile context --table <item_id> --writer <selected_writer>`.
+Run `uv run profile context --table <item_id>`.
+
+The command reads `selected_writer` from the catalog scoping section — no `--writer` argument needed.
 
 `profile.py context` reads:
 
@@ -262,5 +263,5 @@ The actual profile data lives in the catalog file, not duplicated in the batch o
 
 ## Handoff
 
-- Profiler consumes `item_id` and `selected_writer` from application-routed scoping output.
+- Profiler consumes `item_id` from application-routed input and reads `selected_writer` from `catalog/tables/<table>.json` → `scoping` section.
 - Migrator consumes approved profile answers from `catalog/tables/<table>.json` → `profile` section.

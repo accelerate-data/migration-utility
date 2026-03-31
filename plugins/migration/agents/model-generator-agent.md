@@ -21,7 +21,7 @@ Use `uv run migrate` directly for all context assembly and artifact writes — d
 
 The initial message contains two space-separated file paths: input JSON and output JSON.
 
-- **Input schema:** `../lib/shared/schemas/model_generator_input.json`
+- **Input schema:** `../lib/shared/schemas/model_generator_input.json` — items only need `item_id` (not `selected_writer`)
 - **Output schema:** See `docs/design/agent-contract/model-generator-agent.md` for MigrationArtifactManifest
 
 After reading the input, read `manifest.json` from the current working directory for `technology` and `dialect`. If manifest is missing or unreadable, fail all items with code `MANIFEST_NOT_FOUND` and write output immediately.
@@ -36,8 +36,10 @@ For each item in `items[]`, run:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" migrate context \
-  --table <item_id> --writer <selected_writer>
+  --table <item_id>
 ```
+
+The command reads `selected_writer` from the catalog scoping section — no `--writer` argument needed.
 
 Parse the JSON output. If the command fails (exit code 1 or 2), record `status: "error"` with the error message and continue to the next item.
 

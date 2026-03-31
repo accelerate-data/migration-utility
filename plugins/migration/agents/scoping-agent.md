@@ -1,6 +1,6 @@
 ---
 name: scoping-agent
-description: Identifies writer procedures from catalog data and produces a CandidateWriters JSON output. Use when scoping a migration item.
+description: Identifies writer procedures from catalog data and writes scoping results to catalog/tables/<table>.json. Use when scoping a migration item.
 model: claude-sonnet-4-6
 maxTurns: 30
 tools:
@@ -21,8 +21,8 @@ Use `uv run discover` directly for all analysis — do not invoke the discover s
 
 The initial message contains two space-separated file paths: input JSON and output JSON.
 
-- **Input schema:** `../lib/shared/schemas/scope_input.json`
-- **Output schema:** `../lib/shared/schemas/candidate_writers.json`
+- **Input:** items list with `item_id` per table (from orchestrator)
+- **Output:** scoping results written to `catalog/tables/<table>.json` (scoping section) + lightweight `scoping_summary.json` to the output file path
 
 After reading the input, read `manifest.json` from the current working directory for `technology` and `dialect`. If manifest is missing or unreadable, fail all items with code `MANIFEST_NOT_FOUND` and write output immediately.
 
@@ -47,11 +47,13 @@ If discover fails (exit code 1 or 2), record `error` with code `DISCOVER_EXECUTI
 
 For each candidate writer:
 
-1. Run `discover show --name <writer>`.
+1. Check if `catalog/procedures/<proc>.json` already has `statements` populated. If so, reuse the existing statements instead of re-running `discover show` (idempotent).
 
-2. Extract `refs` from the output. For every ref that is a view, function, or procedure (not a base table), run `discover show` on it and follow the chain until you reach base tables. Assemble the fully resolved `dependencies: { tables, views, functions }` on the candidate.
+2. If not already enriched, run `discover show --name <writer>`.
 
-3. Check `classification`:
+3. Extract `refs` from the output. For every ref that is a view, function, or procedure (not a base table), run `discover show` on it and follow the chain until you reach base tables. Assemble the fully resolved `dependencies: { tables, views, functions }` on the candidate.
+
+4. Check `classification`:
    - `deterministic` — no further action needed.
    - `claude_assisted` — read `raw_ddl` and analyse the proc body:
      - Identify `reads_from` and `writes_to`.
@@ -69,7 +71,16 @@ For each candidate writer:
 | No writers | `no_writer_found` |
 | Discover failed | `error` |
 
-### Step 4 — Validate and Write Output
+### Step 4 — Write Scoping Results to Catalog
+
+For each item, run:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-scoping \
+  --name <item_id> --scoping '<json>'
+```
+
+The `write-scoping` subcommand merges the scoping section (status, selected_writer, candidate_writers, warnings, validation) into `catalog/tables/<item_id>.json`.
 
 Non-obvious cross-field checks:
 
@@ -79,11 +90,11 @@ Non-obvious cross-field checks:
 
 Set `validation.passed = false` and populate `validation.issues[]` on failure.
 
-Write the final JSON (schema_version, run_id, results[], summary) to the output file path.
-
 ### Step 5 — Persist Resolved Statements to Catalog
 
-After writing scoping output, persist resolved statements for each `resolved` item to `catalog/procedures/<selected_writer>.json`.
+After writing scoping results, persist resolved statements for each `resolved` item to `catalog/procedures/<selected_writer>.json`.
+
+Only persist for procs not already in catalog (idempotent) — if Step 2 reused existing statements, skip this step for that proc.
 
 For each resolved item:
 
@@ -99,3 +110,30 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-statements \
 ```
 
 No `claude` actions are persisted — all must be resolved before writing.
+
+### Step 6 — Write Summary Output
+
+Write a lightweight summary JSON (`scoping_summary.json` schema) to the output file path:
+
+```json
+{
+  "schema_version": "1.0",
+  "run_id": "<from input>",
+  "results": [
+    {
+      "item_id": "dbo.fact_sales",
+      "status": "resolved|ambiguous_multi_writer|no_writer_found|error",
+      "catalog_path": "catalog/tables/dbo.fact_sales.json"
+    }
+  ],
+  "summary": {
+    "total": 5,
+    "resolved": 3,
+    "ambiguous_multi_writer": 1,
+    "no_writer_found": 0,
+    "error": 1
+  }
+}
+```
+
+The full scoping data lives in the catalog files, not duplicated in the summary output. The summary is for orchestrator routing and status tracking.
