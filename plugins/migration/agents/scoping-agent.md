@@ -47,15 +47,14 @@ If discover fails (exit code 1 or 2), record `error` with code `DISCOVER_EXECUTI
 
 For each candidate writer:
 
-1. Check if `catalog/procedures/<proc>.json` already has `statements` populated. If so, reuse the existing statements instead of re-running `discover show` (idempotent).
+1. **Check catalog first** (idempotent): read `catalog/procedures/<proc>.json`. If `statements` already exists, reuse — the proc was already fully analysed. Collect `dependencies` from the existing catalog data and skip to Step 3.
 
-2. If not already enriched, run `discover show --name <writer>`.
+2. **If not already enriched**, follow the full [procedure analysis flow](../skills/discover-objects/references/procedure-analysis-flow.md) for this proc. This runs classification, call graph resolution (resolving all refs to base tables), logic summary, migration guidance, and statement persistence. Do not abbreviate any step.
 
-3. Extract `refs` from the output. For every ref that is a view, function, or procedure (not a base table), run `discover show` on it and follow the chain until you reach base tables. Assemble the fully resolved `dependencies: { tables, views, functions }` on the candidate.
-
-4. Check `classification`:
-   - `deterministic` — no further action needed. Statements are already classified.
-   - `claude_assisted` — follow the full [procedure analysis flow](../skills/discover-objects/references/procedure-analysis-flow.md) to resolve all statements. Add `LLM_ANALYSIS_REQUIRED` warning. Resolved statements are persisted to catalog in Step 5.
+3. From the analysis results, collect:
+   - `dependencies: { tables, views, functions }` — fully resolved base tables from the call graph
+   - `rationale` — why this procedure was identified as a writer
+   - If `claude_assisted`, add `LLM_ANALYSIS_REQUIRED` warning
 
 ### Step 3 — Apply Resolution Rules
 
