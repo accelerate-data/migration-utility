@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Any
 
@@ -46,26 +45,13 @@ def _create_backend(manifest: dict[str, Any]) -> Any:
     technology = manifest.get("technology", "sql_server")
     backend_cls = get_backend(technology)
 
-    host = os.environ.get("MSSQL_HOST", "")
-    port = os.environ.get("MSSQL_PORT", "1433")
-    database = manifest.get("source_database", os.environ.get("MSSQL_DB", ""))
-    password = os.environ.get("SA_PASSWORD", "")
-
-    missing = []
-    if not host:
-        missing.append("MSSQL_HOST")
-    if not password:
-        missing.append("SA_PASSWORD")
-    if not database:
-        missing.append("MSSQL_DB (or source_database in manifest)")
-    if missing:
+    try:
+        return backend_cls.from_env(manifest)
+    except ValueError as exc:
         typer.echo(json.dumps({"status": "error", "errors": [
-            {"code": "MISSING_ENV_VARS",
-             "message": f"Required environment variables not set: {missing}"}
+            {"code": "MISSING_ENV_VARS", "message": str(exc)}
         ]}))
-        raise typer.Exit(code=1)
-
-    return backend_cls(host=host, port=port, database=database, password=password)
+        raise typer.Exit(code=1) from exc
 
 
 @app.command()

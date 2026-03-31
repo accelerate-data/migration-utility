@@ -9,6 +9,11 @@ from typing import Any
 class SandboxBackend(ABC):
     """Interface that every technology-specific sandbox must implement."""
 
+    @classmethod
+    @abstractmethod
+    def from_env(cls, manifest: dict[str, Any]) -> SandboxBackend:
+        """Create an instance from environment variables and manifest config."""
+
     @abstractmethod
     def sandbox_up(
         self,

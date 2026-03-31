@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
+from collections.abc import Generator
+from contextlib import contextmanager
 from typing import Any
 
 import pyodbc
@@ -32,8 +35,15 @@ def _validate_identifier(name: str) -> None:
     identifiers like dbo.Product. Rejects anything containing quotes,
     semicolons, or other injection vectors.
     """
-    # Strip brackets for validation
-    stripped = name.replace("[", "").replace("]", "")
+    if not name:
+        raise ValueError(f"Unsafe SQL identifier: {name!r}")
+    # Reject characters that can never appear in a safe identifier
+    if re.search(r"[;'\"\-\\]", name):
+        raise ValueError(f"Unsafe SQL identifier: {name!r}")
+    # Strip matched bracket pairs [name] → name, reject unbalanced brackets
+    stripped = re.sub(r"\[([^\[\]]+)\]", r"\1", name)
+    if "[" in stripped or "]" in stripped:
+        raise ValueError(f"Unsafe SQL identifier: {name!r}")
     parts = stripped.split(".")
     for part in parts:
         if not part or not _IDENTIFIER_RE.match(part):
@@ -55,7 +65,31 @@ class SqlServerSandbox(SandboxBackend):
         self.database = database
         self.password = password
 
-    def _connect(self, *, database: str | None = None) -> pyodbc.Connection:
+    @classmethod
+    def from_env(cls, manifest: dict[str, Any]) -> SqlServerSandbox:
+        """Create an instance from MSSQL_* env vars and manifest config.
+
+        Raises ValueError if required configuration is missing.
+        """
+        host = os.environ.get("MSSQL_HOST", "")
+        port = os.environ.get("MSSQL_PORT", "1433")
+        database = manifest.get("source_database", os.environ.get("MSSQL_DB", ""))
+        password = os.environ.get("SA_PASSWORD", "")
+
+        missing = []
+        if not host:
+            missing.append("MSSQL_HOST")
+        if not password:
+            missing.append("SA_PASSWORD")
+        if not database:
+            missing.append("MSSQL_DB (or source_database in manifest)")
+        if missing:
+            raise ValueError(f"Required environment variables not set: {missing}")
+
+        return cls(host=host, port=port, database=database, password=password)
+
+    @contextmanager
+    def _connect(self, *, database: str | None = None) -> Generator[pyodbc.Connection, None, None]:
         db = database or self.database
         conn_str = (
             f"DRIVER={{ODBC Driver 18 for SQL Server}};"
@@ -64,7 +98,11 @@ class SqlServerSandbox(SandboxBackend):
             f"UID=sa;PWD={self.password};"
             f"TrustServerCertificate=yes;"
         )
-        return pyodbc.connect(conn_str, autocommit=True)
+        conn = pyodbc.connect(conn_str, autocommit=True)
+        try:
+            yield conn
+        finally:
+            conn.close()
 
     # ── sandbox_up helpers ───────────────────────────────────────────────
 
@@ -72,8 +110,7 @@ class SqlServerSandbox(SandboxBackend):
         self, sandbox_db: str, run_id: str,
     ) -> None:
         """Create the sandbox database, dropping it first if it exists."""
-        conn = self._connect()
-        try:
+        with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 f"IF DB_ID(N'{sandbox_db}') IS NOT NULL "
@@ -81,8 +118,6 @@ class SqlServerSandbox(SandboxBackend):
             )
             cursor.execute(f"CREATE DATABASE [{sandbox_db}]")
             logger.info("event=database_created run_id=%s db=%s", run_id, sandbox_db)
-        finally:
-            conn.close()
 
     def _create_schemas(
         self, sandbox_cursor: pyodbc.Cursor, schemas: list[str],
@@ -180,6 +215,7 @@ class SqlServerSandbox(SandboxBackend):
         source_database: str,
     ) -> dict[str, Any]:
         _validate_run_id(run_id)
+        _validate_identifier(source_database)
         for s in schemas:
             _validate_identifier(s)
         sandbox_db = self.sandbox_db_name(run_id)
@@ -195,26 +231,25 @@ class SqlServerSandbox(SandboxBackend):
         tables_cloned: list[str] = []
         procedures_cloned: list[str] = []
 
-        sandbox_conn = self._connect(database=sandbox_db)
-        source_conn: pyodbc.Connection | None = None
         try:
-            sandbox_cursor = sandbox_conn.cursor()
-            errors.extend(self._create_schemas(sandbox_cursor, schemas))
+            with self._connect(database=sandbox_db) as sandbox_conn, \
+                 self._connect(database=source_database) as source_conn:
+                sandbox_cursor = sandbox_conn.cursor()
+                source_cursor = source_conn.cursor()
 
-            source_conn = self._connect(database=source_database)
-            source_cursor = source_conn.cursor()
+                errors.extend(self._create_schemas(sandbox_cursor, schemas))
 
-            t_cloned, t_errors = self._clone_tables(
-                source_cursor, sandbox_cursor, source_database, schemas,
-            )
-            tables_cloned.extend(t_cloned)
-            errors.extend(t_errors)
+                t_cloned, t_errors = self._clone_tables(
+                    source_cursor, sandbox_cursor, source_database, schemas,
+                )
+                tables_cloned.extend(t_cloned)
+                errors.extend(t_errors)
 
-            p_cloned, p_errors = self._clone_procedures(
-                source_cursor, sandbox_cursor, schemas,
-            )
-            procedures_cloned.extend(p_cloned)
-            errors.extend(p_errors)
+                p_cloned, p_errors = self._clone_procedures(
+                    source_cursor, sandbox_cursor, schemas,
+                )
+                procedures_cloned.extend(p_cloned)
+                errors.extend(p_errors)
 
         except pyodbc.Error as exc:
             logger.error("event=sandbox_up_failed run_id=%s error=%s", run_id, exc)
@@ -226,10 +261,6 @@ class SqlServerSandbox(SandboxBackend):
                 "procedures_cloned": procedures_cloned,
                 "errors": [{"code": "SANDBOX_UP_FAILED", "message": str(exc)}],
             }
-        finally:
-            if source_conn is not None:
-                source_conn.close()
-            sandbox_conn.close()
 
         status = "ok" if not errors else "partial"
         logger.info(
@@ -251,16 +282,16 @@ class SqlServerSandbox(SandboxBackend):
         sandbox_db = self.sandbox_db_name(run_id)
         logger.info("event=sandbox_down run_id=%s sandbox_db=%s", run_id, sandbox_db)
 
-        conn = self._connect()
         try:
-            cursor = conn.cursor()
-            cursor.execute(
-                f"IF DB_ID(N'{sandbox_db}') IS NOT NULL "
-                f"BEGIN "
-                f"  ALTER DATABASE [{sandbox_db}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; "
-                f"  DROP DATABASE [{sandbox_db}]; "
-                f"END"
-            )
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    f"IF DB_ID(N'{sandbox_db}') IS NOT NULL "
+                    f"BEGIN "
+                    f"  ALTER DATABASE [{sandbox_db}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; "
+                    f"  DROP DATABASE [{sandbox_db}]; "
+                    f"END"
+                )
             logger.info("event=sandbox_down_complete run_id=%s", run_id)
             return {"run_id": run_id, "sandbox_database": sandbox_db, "status": "ok"}
         except pyodbc.Error as exc:
@@ -271,8 +302,6 @@ class SqlServerSandbox(SandboxBackend):
                 "status": "error",
                 "errors": [{"code": "SANDBOX_DOWN_FAILED", "message": str(exc)}],
             }
-        finally:
-            conn.close()
 
     def execute_scenario(
         self,
@@ -295,38 +324,43 @@ class SqlServerSandbox(SandboxBackend):
         for fixture in given:
             _validate_identifier(fixture["table"])
 
+        for fixture in given:
+            for row in fixture.get("rows", []):
+                for col_name in row:
+                    _validate_identifier(col_name)
+
         logger.info(
             "event=execute_scenario run_id=%s scenario=%s procedure=%s",
             run_id, scenario_name, procedure,
         )
 
-        conn = self._connect(database=sandbox_db)
         try:
-            cursor = conn.cursor()
+            with self._connect(database=sandbox_db) as conn:
+                conn.autocommit = False
+                cursor = conn.cursor()
 
-            for fixture in given:
-                table = fixture["table"]
-                rows = fixture["rows"]
-                if not rows:
-                    continue
-                columns = list(rows[0].keys())
-                col_list = ", ".join(f"[{c}]" for c in columns)
-                placeholders = ", ".join("?" for _ in columns)
-                insert_sql = f"INSERT INTO {table} ({col_list}) VALUES ({placeholders})"
-                value_lists = [[row[c] for c in columns] for row in rows]
-                cursor.executemany(insert_sql, value_lists)
+                try:
+                    for fixture in given:
+                        table = fixture["table"]
+                        rows = fixture["rows"]
+                        if not rows:
+                            continue
+                        columns = list(rows[0].keys())
+                        col_list = ", ".join(f"[{c}]" for c in columns)
+                        placeholders = ", ".join("?" for _ in columns)
+                        insert_sql = f"INSERT INTO {table} ({col_list}) VALUES ({placeholders})"
+                        value_lists = [[row[c] for c in columns] for row in rows]
+                        cursor.executemany(insert_sql, value_lists)
 
-            cursor.execute(f"EXEC {procedure}")
+                    cursor.execute(f"EXEC {procedure}")
 
-            cursor.execute(f"SELECT * FROM {target_table}")
-            result_columns = [desc[0] for desc in cursor.description]
-            result_rows = [
-                dict(zip(result_columns, row)) for row in cursor.fetchall()
-            ]
-
-            tables_to_clean = {target_table} | {f["table"] for f in given}
-            for table in tables_to_clean:
-                cursor.execute(f"DELETE FROM {table}")
+                    cursor.execute(f"SELECT * FROM {target_table}")
+                    result_columns = [desc[0] for desc in cursor.description]
+                    result_rows = [
+                        dict(zip(result_columns, row)) for row in cursor.fetchall()
+                    ]
+                finally:
+                    conn.rollback()
 
             logger.info(
                 "event=scenario_complete run_id=%s scenario=%s rows=%d",
@@ -356,8 +390,6 @@ class SqlServerSandbox(SandboxBackend):
                 "row_count": 0,
                 "errors": [{"code": "SCENARIO_FAILED", "message": str(exc)}],
             }
-        finally:
-            conn.close()
 
 
 def _serialize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
