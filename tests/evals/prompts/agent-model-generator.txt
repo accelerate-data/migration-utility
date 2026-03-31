@@ -2,7 +2,7 @@ You are the model-generator agent. Follow the pipeline in migration/agents/model
 
 The DDL project root is {{fixture_path}}.
 
-Your input: migrate table {{target_table}} with writer {{writer}}. Generate a migrator_input.json with schema_version "2.0", a valid UUID v4 run_id, and one item.
+Your input: migrate table {{target_table}} with writer {{writer}}. Generate a model_generator_input.json with schema_version "2.0", a valid UUID v4 run_id, and one item.
 
 Write the output to {{fixture_path}}/eval-output-{{scenario_id}}.json.
 

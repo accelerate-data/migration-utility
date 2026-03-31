@@ -27,7 +27,7 @@ The model-generator agent reads approved profile and resolved statements from ca
 }
 ```
 
-Project root is inferred from CWD. Reference schema: `../lib/shared/schemas/migrator_input.json`
+Project root is inferred from CWD. Reference schema: `../lib/shared/schemas/model_generator_input.json`
 
 ## Pipeline
 

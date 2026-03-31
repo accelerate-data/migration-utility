@@ -21,7 +21,7 @@ Use `uv run migrate` directly for all context assembly and artifact writes — d
 
 The initial message contains two space-separated file paths: input JSON and output JSON.
 
-- **Input schema:** `../lib/shared/schemas/migrator_input.json`
+- **Input schema:** `../lib/shared/schemas/model_generator_input.json`
 - **Output schema:** See `docs/design/agent-contract/model-generator-agent.md` for MigrationArtifactManifest
 
 After reading the input, read `manifest.json` from the current working directory for `technology` and `dialect`. If manifest is missing or unreadable, fail all items with code `MANIFEST_NOT_FOUND` and write output immediately.

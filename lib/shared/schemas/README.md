@@ -95,7 +95,7 @@ Structured JSON output from the `discover` CLI subcommands, consumed by skills a
 | [scope_input.json](scope_input.json) | Scoping | `schema_version`, `run_id`, `items[].item_id` |
 | [profiler_input.json](profiler_input.json) | Profiler | `schema_version`, `run_id`, `items[].item_id`, `items[].selected_writer` |
 | [test_generator_input.json](test_generator_input.json) | Test Generator | `schema_version`, `run_id`, `items[].item_id`, `items[].selected_writer` |
-| [migrator_input.json](migrator_input.json) | Migrator | `schema_version`, `run_id`, `items[].item_id`, `items[].selected_writer` |
+| [model_generator_input.json](model_generator_input.json) | Model Generator | `schema_version`, `run_id`, `items[].item_id`, `items[].selected_writer` |
 
 ## Agent output schemas
 

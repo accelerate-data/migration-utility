@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "MigratorInput",
-  "description": "Input contract for the migrator agent. Migrator reads profile from catalog/tables/ and resolved statements from catalog/procedures/.",
+  "title": "ModelGeneratorInput",
+  "description": "Input contract for the model-generator agent. Reads profile from catalog/tables/ and resolved statements from catalog/procedures/.",
   "type": "object",
   "required": ["schema_version", "run_id", "items"],
   "properties": {
