@@ -11,7 +11,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "jsonschema>=4.18"]
 export = ["pyodbc>=5.0"]
-sandbox = ["pyodbc>=5.0"]
+sandbox = ["shared[export]"]
 
 [build-system]
 requires = ["hatchling"]

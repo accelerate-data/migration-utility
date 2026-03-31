@@ -263,19 +263,19 @@ class TestSchemaValidation:
 
 
 class TestCLIManifestRouting:
-    def test_read_manifest_returns_technology(self, tmp_path: Path) -> None:
+    def test_load_manifest_returns_technology(self, tmp_path: Path) -> None:
         shutil.copy(FIXTURES / "manifest.json", tmp_path / "manifest.json")
-        from shared.test_harness import _read_manifest
+        from shared.test_harness import _load_manifest
 
-        manifest = _read_manifest(tmp_path)
+        manifest = _load_manifest(tmp_path)
         assert manifest["technology"] == "sql_server"
         assert manifest["source_database"] == "TestDB"
         assert manifest["extracted_schemas"] == ["dbo", "silver"]
 
-    def test_read_manifest_missing_raises(self, tmp_path: Path) -> None:
+    def test_load_manifest_missing_raises(self, tmp_path: Path) -> None:
         from click.exceptions import Exit
 
-        from shared.test_harness import _read_manifest
+        from shared.test_harness import _load_manifest
 
         with pytest.raises(Exit):
-            _read_manifest(tmp_path)
+            _load_manifest(tmp_path)

@@ -7,6 +7,7 @@ import logging
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from shared.loader_data import (
     CatalogNotFoundError,
@@ -42,8 +43,12 @@ _CATALOG_SCHEMA_VERSION = "1.0"
 # ── Manifest ─────────────────────────────────────────────────────────────────
 
 
-def read_manifest(project_root: Path) -> dict[str, str]:
-    """Read manifest.json from project_root if present. Returns dialect, defaulting to tsql."""
+def read_manifest(project_root: Path) -> dict[str, Any]:
+    """Read manifest.json from project_root if present.
+
+    Returns the full manifest dict with dialect defaulting to tsql.
+    If manifest.json does not exist, returns a minimal dict with only dialect.
+    """
     manifest_file = Path(project_root) / "manifest.json"
     if manifest_file.exists():
         try:
@@ -51,7 +56,8 @@ def read_manifest(project_root: Path) -> dict[str, str]:
                 m = json.load(f)
         except json.JSONDecodeError as exc:
             raise ValueError(f"manifest.json in {project_root} is not valid JSON: {exc}") from exc
-        return {"dialect": m.get("dialect", "tsql")}
+        m.setdefault("dialect", "tsql")
+        return m
     return {"dialect": "tsql"}
 
 

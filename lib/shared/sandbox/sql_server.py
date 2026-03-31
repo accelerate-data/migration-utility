@@ -216,7 +216,12 @@ class SqlServerSandbox(SandboxBackend):
     ) -> dict[str, Any]:
         _validate_run_id(run_id)
         sandbox_db = self.sandbox_db_name(run_id)
+
+        # Validate scenario keys before opening a connection
         scenario_name = scenario.get("name", "unnamed")
+        for key in ("target_table", "procedure", "given"):
+            if key not in scenario:
+                raise KeyError(f"Scenario missing required key: {key!r}")
         target_table = scenario["target_table"]
         procedure = scenario["procedure"]
         given = scenario["given"]
@@ -230,7 +235,6 @@ class SqlServerSandbox(SandboxBackend):
         try:
             cursor = conn.cursor()
 
-            # 1. Insert fixture rows
             for fixture in given:
                 table = fixture["table"]
                 rows = fixture["rows"]
@@ -240,21 +244,17 @@ class SqlServerSandbox(SandboxBackend):
                 col_list = ", ".join(f"[{c}]" for c in columns)
                 placeholders = ", ".join("?" for _ in columns)
                 insert_sql = f"INSERT INTO {table} ({col_list}) VALUES ({placeholders})"
-                for row in rows:
-                    values = [row[c] for c in columns]
-                    cursor.execute(insert_sql, values)
+                value_lists = [[row[c] for c in columns] for row in rows]
+                cursor.executemany(insert_sql, value_lists)
 
-            # 2. Execute the procedure
             cursor.execute(f"EXEC {procedure}")
 
-            # 3. Capture ground truth from target table
             cursor.execute(f"SELECT * FROM {target_table}")
             result_columns = [desc[0] for desc in cursor.description]
             result_rows = [
                 dict(zip(result_columns, row)) for row in cursor.fetchall()
             ]
 
-            # 4. Clean up
             tables_to_clean = {target_table} | {f["table"] for f in given}
             for table in tables_to_clean:
                 cursor.execute(f"DELETE FROM {table}")
@@ -273,7 +273,7 @@ class SqlServerSandbox(SandboxBackend):
                 "errors": [],
             }
 
-        except Exception as exc:
+        except pyodbc.Error as exc:
             logger.error(
                 "event=scenario_failed run_id=%s scenario=%s error=%s",
                 run_id, scenario_name, exc,

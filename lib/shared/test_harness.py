@@ -15,25 +15,30 @@ from typing import Any
 import typer
 
 from shared.env_config import resolve_project_root
+from shared.loader_io import read_manifest
 from shared.sandbox import get_backend
 
 logger = logging.getLogger(__name__)
 app = typer.Typer(name="test-harness", no_args_is_help=True)
 
 
-def _read_manifest(project_root: Path) -> dict[str, Any]:
-    """Read manifest.json and return the full manifest dict."""
-    manifest_path = project_root / "manifest.json"
-    if not manifest_path.exists():
-        typer.echo(
-            json.dumps({"status": "error", "errors": [
-                {"code": "MANIFEST_NOT_FOUND",
-                 "message": f"manifest.json not found at {project_root}"}
-            ]}),
-        )
+def _load_manifest(project_root: Path) -> dict[str, Any]:
+    """Load manifest.json via shared loader, converting errors to typer.Exit."""
+    try:
+        manifest = read_manifest(project_root)
+    except ValueError as exc:
+        typer.echo(json.dumps({"status": "error", "errors": [
+            {"code": "MANIFEST_INVALID", "message": str(exc)}
+        ]}))
+        raise typer.Exit(code=1) from exc
+
+    if "technology" not in manifest:
+        typer.echo(json.dumps({"status": "error", "errors": [
+            {"code": "MANIFEST_NOT_FOUND",
+             "message": f"manifest.json not found or missing technology at {project_root}"}
+        ]}))
         raise typer.Exit(code=1)
-    with manifest_path.open() as f:
-        return json.load(f)
+    return manifest
 
 
 def _create_backend(manifest: dict[str, Any]) -> Any:
@@ -54,12 +59,10 @@ def _create_backend(manifest: dict[str, Any]) -> Any:
     if not database:
         missing.append("MSSQL_DB (or source_database in manifest)")
     if missing:
-        typer.echo(
-            json.dumps({"status": "error", "errors": [
-                {"code": "MISSING_ENV_VARS",
-                 "message": f"Required environment variables not set: {missing}"}
-            ]}),
-        )
+        typer.echo(json.dumps({"status": "error", "errors": [
+            {"code": "MISSING_ENV_VARS",
+             "message": f"Required environment variables not set: {missing}"}
+        ]}))
         raise typer.Exit(code=1)
 
     return backend_cls(host=host, port=port, database=database, password=password)
@@ -72,16 +75,15 @@ def sandbox_up(
 ) -> None:
     """Create a sandbox database and clone schema from the source."""
     root = resolve_project_root(Path(project_root))
-    manifest = _read_manifest(root)
+    manifest = _load_manifest(root)
     backend = _create_backend(manifest)
 
     schemas = manifest.get("extracted_schemas", [])
-    source_database = manifest.get("source_database", os.environ.get("MSSQL_DB", ""))
 
     result = backend.sandbox_up(
         run_id=run_id,
         schemas=schemas,
-        source_database=source_database,
+        source_database=backend.database,
     )
     typer.echo(json.dumps(result, indent=2))
     if result.get("status") == "error":
@@ -95,7 +97,7 @@ def sandbox_down(
 ) -> None:
     """Drop a sandbox database."""
     root = resolve_project_root(Path(project_root))
-    manifest = _read_manifest(root)
+    manifest = _load_manifest(root)
     backend = _create_backend(manifest)
 
     result = backend.sandbox_down(run_id=run_id)
@@ -112,21 +114,19 @@ def execute(
 ) -> None:
     """Execute a test scenario in the sandbox and capture ground truth."""
     root = resolve_project_root(Path(project_root))
-    manifest = _read_manifest(root)
+    manifest = _load_manifest(root)
     backend = _create_backend(manifest)
 
     scenario_path = Path(scenario)
-    if not scenario_path.exists():
-        typer.echo(
-            json.dumps({"status": "error", "errors": [
-                {"code": "SCENARIO_NOT_FOUND",
-                 "message": f"Scenario file not found: {scenario}"}
-            ]}),
-        )
+    try:
+        with scenario_path.open() as f:
+            scenario_data = json.load(f)
+    except FileNotFoundError:
+        typer.echo(json.dumps({"status": "error", "errors": [
+            {"code": "SCENARIO_NOT_FOUND",
+             "message": f"Scenario file not found: {scenario}"}
+        ]}))
         raise typer.Exit(code=1)
-
-    with scenario_path.open() as f:
-        scenario_data = json.load(f)
 
     result = backend.execute_scenario(run_id=run_id, scenario=scenario_data)
     typer.echo(json.dumps(result, indent=2))
