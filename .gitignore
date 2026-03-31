@@ -8,6 +8,9 @@ node_modules/
 dist/
 build/
 
+# Local data
+.local/
+
 # Working directories (user-generated output)
 context/
 workflow-state.md
