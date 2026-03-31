@@ -236,10 +236,7 @@ class SqlServerSandbox(SandboxBackend):
                 dict(zip(result_columns, row)) for row in cursor.fetchall()
             ]
 
-            # 4. Clean up — truncate all fixture tables and the target
-            tables_to_clean = {target_table}
-            for fixture in given:
-                tables_to_clean.add(fixture["table"])
+            tables_to_clean = {target_table} | {f["table"] for f in given}
             for table in tables_to_clean:
                 cursor.execute(f"DELETE FROM {table}")
 
@@ -278,13 +275,10 @@ class SqlServerSandbox(SandboxBackend):
 
 def _serialize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Ensure all values are JSON-serializable."""
-    serialized = []
-    for row in rows:
-        clean: dict[str, Any] = {}
-        for k, v in row.items():
-            if isinstance(v, (int, float, str, bool, type(None))):
-                clean[k] = v
-            else:
-                clean[k] = str(v)
-        serialized.append(clean)
-    return serialized
+    return [
+        {
+            k: v if isinstance(v, (int, float, str, bool, type(None))) else str(v)
+            for k, v in row.items()
+        }
+        for row in rows
+    ]
