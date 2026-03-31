@@ -10,7 +10,7 @@ import pytest
 
 from shared.sandbox import get_backend
 from shared.sandbox.base import SandboxBackend
-from shared.sandbox.sql_server import SqlServerSandbox
+from shared.sandbox.sql_server import SqlServerSandbox, _validate_run_id
 
 FIXTURES = Path(__file__).parent / "fixtures" / "test_harness"
 
@@ -43,6 +43,29 @@ class TestSandboxDbName:
     def test_name_without_dashes(self) -> None:
         name = SandboxBackend.sandbox_db_name("abc123")
         assert name == "__test_abc123"
+
+
+# ── Run ID validation ────────────────────────────────────────────────────────
+
+
+class TestRunIdValidation:
+    def test_valid_uuid(self) -> None:
+        _validate_run_id("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+
+    def test_valid_alphanumeric(self) -> None:
+        _validate_run_id("test_run_123")
+
+    def test_rejects_sql_injection(self) -> None:
+        with pytest.raises(ValueError, match="Invalid run_id"):
+            _validate_run_id("x'; DROP DATABASE master; --")
+
+    def test_rejects_empty(self) -> None:
+        with pytest.raises(ValueError, match="Invalid run_id"):
+            _validate_run_id("")
+
+    def test_rejects_special_chars(self) -> None:
+        with pytest.raises(ValueError, match="Invalid run_id"):
+            _validate_run_id("run id with spaces")
 
 
 # ── SQL Server backend (mocked pyodbc) ───────────────────────────────────────
@@ -98,6 +121,8 @@ class TestSqlServerSandboxUp:
         assert result["status"] in ("ok", "partial")
         assert result["run_id"] == "test-run-id"
         assert "__test_" in result["sandbox_database"]
+        assert result["tables_cloned"] == ["dbo.Product", "silver.DimProduct"]
+        assert result["procedures_cloned"] == ["dbo.usp_load"]
 
         # Verify CREATE DATABASE was called
         calls = [str(c) for c in mock_cursor.execute.call_args_list]
