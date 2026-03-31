@@ -68,16 +68,38 @@ For each candidate writer:
 
 ### Step 4 — Write Scoping Results to Catalog
 
-For each item, run:
+For each item, assemble the scoping JSON from Steps 1–3:
+
+```json
+{
+  "status": "resolved",
+  "selected_writer": "dbo.usp_load_fact_sales",
+  "candidates": [
+    {
+      "procedure_name": "dbo.usp_load_fact_sales",
+      "dependencies": {
+        "tables": ["bronze.salesraw", "bronze.customer"],
+        "views": [],
+        "functions": []
+      },
+      "rationale": "Catalog referenced_by shows is_updated=true for this procedure."
+    }
+  ],
+  "warnings": [],
+  "errors": []
+}
+```
+
+Each candidate is built from Step 1 (writer list from `discover refs`) and Step 2 (resolved `dependencies` from `discover show` chain). The `rationale` explains why the procedure was identified as a writer.
+
+Then run:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-scoping \
   --name <item_id> --scoping '<json>'
 ```
 
-The `write-scoping` subcommand merges the scoping section (status, selected_writer, candidates, warnings, validation) into `catalog/tables/<item_id>.json`.
-
-Non-obvious cross-field checks:
+Non-obvious cross-field checks before writing:
 
 - `resolved` → `selected_writer` present and matches a `procedure_name` in `candidates`.
 - `resolved` → selected writer candidate has `dependencies` populated (from Step 2 refs).
