@@ -1,6 +1,6 @@
 # Eval Harness
 
-Non-interactive test harness for agents and skills. Uses [Promptfoo](https://github.com/promptfoo/promptfoo) to invoke Claude Code in headless mode against the MigrationTest schema, then validates structured output and tool usage.
+Non-interactive test harness for agents and skills. Uses [Promptfoo](https://github.com/promptfoo/promptfoo) with the `anthropic:claude-agent-sdk` provider to invoke Claude Code against the MigrationTest schema, then validates structured output.
 
 ---
 
@@ -12,11 +12,11 @@ MigrationTest schema (Docker SQL Server)
         ▼  (one-time extraction via setup-ddl + catalog-enrich)
 DDL project fixture (tests/evals/fixtures/migration-test/)
         │
-        ▼  (Promptfoo invokes claude -p per scenario)
-Claude Code headless ──► agents or skills ──► Python CLIs
+        ▼  (Promptfoo invokes claude-agent-sdk per scenario)
+Claude Code agent ──► reads fixture ──► calls Python CLIs ──► produces output
         │
         ▼  (Promptfoo validates output)
-Assertions: JSON schema, status enums, tool usage
+Assertions: JSON schema (draft 2020-12), status enums, text sections
 ```
 
 Skills and agents share the same DDL project fixture but are tested separately because they have different execution paths:
@@ -26,7 +26,7 @@ Skills and agents share the same DDL project fixture but are tested separately b
 | Invocation | `/discover show --name <proc>` | Two file paths (input JSON, output JSON) |
 | Output | Human-formatted text | Structured JSON |
 | Approval gates | Interactive (simulated as non-interactive) | None |
-| Assertions | Text sections, prose classifications | JSON schema validation, field values |
+| Assertions | `icontains` for text sections | JSON schema validation, field values |
 
 ---
 
@@ -44,8 +44,8 @@ Skills and agents share the same DDL project fixture but are tested separately b
 tests/evals/
   package.json                         # promptfoo + ajv, npm run scripts
   .gitignore                           # node_modules/, output/
-  providers/
-    claude-code-headless.yaml          # exec provider wrapping claude -p
+  assertions/
+    validate-candidate-writers.js      # JSON schema validation (draft 2020-12)
   prompts/
     skill-discover-show.txt            # prompt template for discover show skill
     agent-scoping.txt                  # prompt template for scoping agent
@@ -83,7 +83,7 @@ The harness is organized into three packages. Each package tests one stage of th
 | `profiler` | `/profile` (context + LLM reasoning + write) | profiler-agent | 4 x 2 = 8 |
 | `migrator` | `/migrate` (context + dbt generation + write) | migrator-agent | 4 x 2 = 8 |
 
-Each package has its own `promptfooconfig.yaml` that references the shared provider and the package's scenario files.
+Each scenario file is a self-contained promptfoo config with its own `providers`, `prompts`, and `tests`. The npm scripts compose them via `-c` flags.
 
 ---
 
@@ -109,17 +109,17 @@ npm run eval:migrator
 npm run eval:scoping:skill
 npm run eval:scoping:agent
 
-# Or use npx directly for any combination
-npx promptfoo eval -c packages/scoping/skill-discover-show.yaml
-npx promptfoo eval -c packages/scoping/agent-scoping.yaml
-
 # View results in browser
 npm run view
 ```
 
-Each scenario file is a self-contained promptfoo config with its own `providers`, `prompts`, and `tests`. The npm scripts compose them via `-c` flags.
-
 `ANTHROPIC_API_KEY` must be in the environment. Promptfoo reads it automatically.
+
+### Idempotency
+
+Every npm eval script restores fixtures before and after each run (`git checkout -- fixtures/ && git clean -fd fixtures/`). This ensures each run starts from a clean state regardless of whether the previous run modified catalog files (via `discover write-statements`, `profile write`, etc.).
+
+All eval scripts use `--no-cache` to force fresh LLM invocations.
 
 ---
 
@@ -164,10 +164,9 @@ Each scenario targets a table from the MigrationTest schema. The expected status
 
 ### What to assert
 
-- **Schema validity** — every agent output must validate against its JSON schema (via ajv)
-- **Status enums** — `resolved`, `ambiguous_multi_writer`, `no_writer_found`, `partial`, `error`
+- **Schema validity** — agent output validated against JSON schema (draft 2020-12) via `assertions/validate-candidate-writers.js`
+- **Status enums** — `resolved`, `ambiguous_multi_writer`, `no_writer_found`, `error`
 - **Deterministic fields** — `selected_writer`, `summary.resolved`, `summary.error`
-- **Tool usage** — agent called expected CLI commands (`discover refs`, `profile context`, etc.)
 - **Section presence** (skills) — output contains Call Graph, Logic Summary, Migration Guidance
 
 ### What NOT to assert
@@ -175,34 +174,43 @@ Each scenario targets a table from the MigrationTest schema. The expected status
 - **Free-text rationale** — LLM wording varies between runs
 - **Exact ordering** — of candidates, warnings, or dependency lists
 - **Token-level output** — prompt phrasing changes cause harmless variation
+- **Tool usage** — tool calls are in SDK metadata, not in the output text
 
-### Assertion types
+### Assertion patterns
 
-Promptfoo supports these assertion types in scenario YAML:
+**Agent scenarios** use `options.transform` to extract JSON from conversational output, then validate:
 
 ```yaml
-assert:
-  # JSON structure
-  - type: is-json
+defaultTest:
+  options:
+    transform: "(output.match(/\\{[\\s\\S]*\"schema_version\"...) || [output])[0]"
+  assert:
+    # JSON schema validation (draft 2020-12, uses Ajv2020 + ajv-formats)
+    - type: javascript
+      value: file://../../assertions/validate-candidate-writers.js
+tests:
+  - description: "resolved — DimProduct"
+    assert:
+      - type: javascript
+        value: "JSON.parse(output).results[0].status === 'resolved'"
+```
 
-  # Inline JavaScript — return true/false
-  - type: javascript
-    value: "JSON.parse(output).results[0].status === 'resolved'"
+**Skill scenarios** use case-insensitive text containment:
 
-  # JSON schema validation
-  - type: javascript
-    value: |
-      const Ajv = require('ajv');
-      const schema = require('../../lib/shared/schemas/candidate_writers.json');
-      return new Ajv().validate(schema, JSON.parse(output));
-
-  # Text containment (for skill output or tool usage)
-  - type: contains
-    value: "Call Graph"
-
-  # Negation
-  - type: not-contains
-    value: "error"
+```yaml
+defaultTest:
+  assert:
+    - type: icontains
+      value: "Call Graph"
+    - type: icontains
+      value: "Logic Summary"
+tests:
+  - description: "resolved — DimProduct"
+    assert:
+      - type: icontains
+        value: "Migration Guidance"
+      - type: icontains
+        value: "MERGE"
 ```
 
 ---
@@ -279,19 +287,14 @@ The exact extraction steps depend on how the migration project is configured. Se
   vars:
     target_table: "silver.MyNewTable"
   assert:
-    - type: contains
-      value: "Call Graph"
-    - type: contains
+    - type: icontains
       value: "Migration Guidance"
-    - type: contains
-      value: "[migrate]"
 
 # In agent-scoping.yaml
 - description: "my-new-scenario — <what it tests>"
   vars:
     target_table: "silver.MyNewTable"
   assert:
-    - type: is-json
     - type: javascript
       value: "JSON.parse(output).results[0].status === '<expected_status>'"
 ```
@@ -310,7 +313,7 @@ Same steps, but:
 1. Modify the procedure in `create-migration-test-db.sql`.
 2. Re-extract the fixture.
 3. Update the assertions in the scenario YAML if the expected behavior changed.
-4. Run the affected package: `npx promptfoo eval -c packages/<package>/promptfooconfig.yaml`.
+4. Run the affected package: `npm run eval:scoping` (or `eval:profiler`, `eval:migrator`).
 
 ### Refreshing the fixture after schema changes
 
@@ -321,35 +324,37 @@ sqlcmd -S localhost,1433 -U sa -P '<password>' -d master -i scripts/sql/create-m
 # Re-extract (see Extracting the fixture above)
 
 # Verify scenarios still pass
-cd tests/evals && npx promptfoo eval
+cd tests/evals && npm run eval
 ```
 
 ---
 
 ## Provider configuration
 
-The provider invokes Claude Code in headless mode:
+Each scenario file inlines the `anthropic:claude-agent-sdk` provider:
 
 ```yaml
-# providers/claude-code-headless.yaml
 providers:
-  - id: exec:claude-headless
+  - id: anthropic:claude-agent-sdk
     config:
-      command: |
-        claude -p \
-          --output-format json \
-          --allowedTools "Read,Write,Bash" \
-          --max-turns 30 \
-          --dangerously-skip-permissions \
-          "{{prompt}}"
-      timeout: 300000
+      model: claude-sonnet-4-6
+      working_dir: ../..
+      max_turns: 30
+      permission_mode: bypassPermissions
+      allow_dangerously_skip_permissions: true
+      append_allowed_tools:
+        - Read
+        - Write
+        - Bash
+        - Glob
+        - Grep
 ```
 
-- `--output-format json` — structured output for agent assertions
-- `--allowedTools` — restricts to the tools agents/skills actually use
-- `--max-turns 30` — matches agent maxTurns config
-- `--dangerously-skip-permissions` — no interactive permission prompts
-- Timeout: 5 minutes per scenario
+- `model` — matches agent definitions (sonnet for evals, override per scenario if needed)
+- `working_dir: ../..` — repo root relative to `tests/evals/`, gives the agent filesystem access
+- `max_turns: 30` — matches agent maxTurns config
+- `permission_mode: bypassPermissions` — no interactive permission prompts
+- `append_allowed_tools` — Read, Write, Bash, Glob, Grep (the tools agents/skills use)
 
 ---
 
@@ -361,4 +366,4 @@ Each scenario invokes Claude with tool use. At current pricing, expect roughly $
 - Single package: ~$2-5 per run
 - Single scenario: ~$0.10-0.50
 
-Run selectively during development. Use `npx promptfoo eval -c packages/<package>/<file>.yaml` to test individual files.
+Run selectively during development. Use `npm run eval:scoping:agent` to test a single file rather than the full suite.
