@@ -8,12 +8,34 @@ See `AGENTS.md` for architecture, conventions, and agent guidance.
 
 ## Prerequisites
 
-- [Claude Code CLI](https://docs.anthropic.com/claude-code) (`claude`)
-- [uv](https://docs.astral.sh/uv/) — Python package manager
-- Python 3.11+
-- [direnv](https://direnv.net/) — loads credentials from `.env` automatically
+### Required tools
 
-Fill in `.env` (commented examples are included), then:
+| Tool | Purpose |
+|------|---------|
+| Python 3.11+ | Runtime for `lib/` and `mcp/` |
+| [uv](https://docs.astral.sh/uv/) | Python package manager |
+| Node.js + npm | Promptfoo eval harness (`tests/evals/`) |
+| [Claude Code CLI](https://docs.anthropic.com/claude-code) | Plugin development and agent execution |
+| [direnv](https://direnv.net/) | Auto-loads `.env` credentials |
+| [markdownlint-cli](https://github.com/igorshubovych/markdownlint-cli) | All `.md` files must pass before commit |
+
+### Claude Code plugins
+
+Install these via the Claude Code plugin marketplace before starting work:
+
+- **promptfoo-evals** — eval harness skill for creating/updating promptfoo suites
+- **@claude-plugins-official** — official plugin pack (enables code-simplifier, frontend-design, feature-dev, code-review as configured in `.claude/settings.json`)
+
+### Optional (for integration tests)
+
+| Tool | Purpose |
+|------|---------|
+| Docker Desktop | Runs SQL Server 2022 container for `pytest -m integration` |
+| [gh CLI](https://cli.github.com/) | GitHub API interactions |
+
+### Environment variables
+
+Fill in `.env` (commented examples are included) — key variables include `SA_PASSWORD` and `ANTHROPIC_API_KEY`. Then:
 
 ```bash
 direnv allow
