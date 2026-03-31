@@ -1,5 +1,6 @@
 // Validates output against candidate_writers.json schema (draft 2020-12).
 const Ajv2020 = require('ajv/dist/2020').default;
+const addFormats = require('ajv-formats');
 const fs = require('fs');
 const path = require('path');
 
@@ -9,6 +10,7 @@ const COMMON_PATH = path.resolve(__dirname, '..', '..', '..', 'lib', 'shared', '
 module.exports = (output, context) => {
   const schema = JSON.parse(fs.readFileSync(SCHEMA_PATH, 'utf8'));
   const ajv = new Ajv2020({ allErrors: true, strict: false });
+  addFormats(ajv);
 
   if (fs.existsSync(COMMON_PATH)) {
     ajv.addSchema(JSON.parse(fs.readFileSync(COMMON_PATH, 'utf8')), 'common.json');
