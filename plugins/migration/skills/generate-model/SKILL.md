@@ -281,7 +281,7 @@ If compile fails with a **connection error** (adapter cannot reach the warehouse
 
 | Subcommand | Schema reference |
 |---|---|
-| `context` | See `docs/design/sp-to-dbt-plugin/README.md` section "migrate context" |
+| `context` | See `docs/design/agent-contract/model-generator-agent.md` section "AssembleContext" |
 | `write` | `{ "written": [...], "status": "ok" }` |
 
 ## Error handling

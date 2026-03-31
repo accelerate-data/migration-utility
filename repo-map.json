@@ -112,7 +112,7 @@
     },
     "docs": {
       "path": "docs/",
-      "description": "Documentation. Sub-directories: design/ (agent-contract, branding, cli-design, eval-harness, overall-design, setup-ddl, sp-to-dbt-plugin, test-scenario, tsql-parse-classification, unit-test-strategy), reference/ (agent-instructions-governance, local-agent-testing, running-tests, setup-docker, test-db-image), requirements/."
+      "description": "Documentation. Sub-directories: design/ (agent-contract, cli-design, eval-harness, overall-design, setup-ddl, test-scenario, tsql-parse-classification), reference/ (agent-instructions-governance, local-agent-testing, running-tests, setup-docker, test-db-image), requirements/."
     }
   },
   "key_directories": {

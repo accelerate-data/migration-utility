@@ -106,7 +106,7 @@ Four stages, executed in order:
 Scoping ──► Profiling ──► Migration ──► Test Generation
 ```
 
-Each stage reads upstream catalog/artifact data and produces its own output. See [Agent Contracts](../agent-contract/README.md) for per-agent input/output schemas and [SP to dbt Migration Plugin](../sp-to-dbt-plugin/README.md) for skill contracts and shared library.
+Each stage reads upstream catalog/artifact data and produces its own output. See [Agent Contracts](../agent-contract/README.md) for per-agent input/output schemas.
 
 | Stage | Agent | What it does | Status |
 |---|---|---|---|
@@ -128,7 +128,7 @@ Flow:
 3. `/profile-table` -- catalog signals + LLM inference, FDE approves candidates
 4. `/generate-model` -- generate dbt model, FDE approves before file write
 
-Each step reads from and writes to catalog files in the migration repo. The FDE reviews and edits before approving. See [SP to dbt Migration Plugin](../sp-to-dbt-plugin/README.md) for full skill contracts.
+Each step reads from and writes to catalog files in the migration repo. The FDE reviews and edits before approving.
 
 ---
 
@@ -194,7 +194,7 @@ One GitHub Actions workflow file per agent. Each workflow run corresponds to exa
 
 ### Agent Plugin
 
-The repo root is a Claude Code marketplace package containing three plugins (bootstrap, migration, ground-truth-harness). Plugin structure, skill contracts, and local dev setup: [SP to dbt Migration Plugin](../sp-to-dbt-plugin/README.md).
+The repo root is a Claude Code marketplace package containing three plugins (bootstrap, migration, ground-truth-harness). See `AGENTS.md` for repo structure and `repo-map.json` for the full module/entrypoint map.
 
 ### Workflow Steps (planned)
 

@@ -2,7 +2,7 @@
 
 Contracts for the **batch GHA pipeline**: multi-agent ETL migration from SQL Server stored procedures to dbt models. These contracts govern the four LLM agents that run in GitHub Actions and whose outputs the desktop app displays and routes.
 
-For the complementary interactive single-table path, see [SP → dbt Migration Plugin](../sp-to-dbt-plugin/README.md). The shared Python CLIs (`discover.py`, `profile.py`, `migrate.py`) implement the deterministic parts of the pipeline below; the batch agents delegate to these CLIs where applicable and handle the judgment-heavy steps.
+The shared Python CLIs (`discover.py`, `profile.py`, `migrate.py`) implement the deterministic parts of the pipeline below; the batch agents delegate to these CLIs where applicable and handle the judgment-heavy steps. The interactive single-table path uses the same CLIs via skills (`/discover-objects`, `/profile-table`, `/generate-model`).
 
 All contracts are batch-only. Single-table UI execution is a degenerate batch with one `items[]` element.
 
