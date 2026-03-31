@@ -1,15 +1,15 @@
 # Code Reviewer Agent Contract
 
-The code reviewer agent is an LLM-based quality gate for migration output. It reviews the generated dbt model for standards compliance, idiomatic dbt patterns, naming conventions, and correctness relative to the original proc. It can kick back to the migrator with specific issues.
+The code reviewer agent is an LLM-based quality gate for migration output. It reviews the generated dbt model for standards compliance, idiomatic dbt patterns, naming conventions, and correctness relative to the original proc. It can kick back to the model-generator with specific issues.
 
-The code reviewer is always an agent — no interactive skill path. It runs after the migrator's build-and-test loop completes (all unit tests passing). It lives in the migration plugin alongside the migrator.
+The code reviewer is always an agent — no interactive skill path. It runs after the model-generator's build-and-test loop completes (all unit tests passing). It lives in the migration plugin alongside the model-generator.
 
 ## Philosophy and Boundary
 
 - Code reviewer owns standards enforcement and model quality assessment.
 - Code reviewer reads the generated dbt artifacts (`.sql` + `.yml`), the original proc context (same `migrate context` output), and the approved test spec from `test-specs/<item_id>.json`.
-- Code reviewer does not run tests — the migrator already passed all unit tests before the code reviewer is invoked.
-- Code reviewer can request revisions by kicking back to the migrator with specific issues.
+- Code reviewer does not run tests — the model-generator already passed all unit tests before the code reviewer is invoked.
+- Code reviewer can request revisions by kicking back to the model-generator with specific issues.
 - Code reviewer does not modify files directly.
 
 ## Required Input
@@ -77,12 +77,12 @@ Compare the generated model against the original proc context:
 | Condition | Action |
 |---|---|
 | All checks pass | Approve — migration complete |
-| Standards issues found | Kick back to migrator with specific fixes |
-| Correctness issues found | Kick back to migrator with specific discrepancies |
-| Test integration issues found | Kick back to migrator with missing/broken test references |
+| Standards issues found | Kick back to model-generator with specific fixes |
+| Correctness issues found | Kick back to model-generator with specific discrepancies |
+| Test integration issues found | Kick back to model-generator with missing/broken test references |
 | Max review iterations reached | Approve with warnings — flag for human review |
 
-After kicking back, the migrator revises the model, re-runs `dbt test` to confirm unit tests still pass, and resubmits. Maximum review ↔ migrator iterations: 2 (configurable).
+After kicking back, the model-generator revises the model, re-runs `dbt test` to confirm unit tests still pass, and resubmits. Maximum review ↔ model-generator iterations: 2 (configurable).
 
 ## Output Schema (CodeReviewResult)
 
@@ -114,7 +114,7 @@ After kicking back, the migrator revises the model, re-runs `dbt test` to confir
           "issues": []
         }
       },
-      "feedback_for_migrator": [
+      "feedback_for_model_generator": [
         "Add import CTE for source('bronze', 'product_category') — proc reads from it via JOIN"
       ],
       "warnings": [],

@@ -74,7 +74,7 @@ This field is consumed by downstream wave planning to build inter-table dependen
   - `item_id` is present.
   - `status` is one of: `resolved|ambiguous_multi_writer|no_writer_found|error`.
   - `candidate_writers` is structurally valid.
-  - every candidate includes `write_type`, `call_path`, and `rationale`.
+  - every candidate includes `procedure_name` and `rationale`.
   - if `status == "resolved"`:
     - `selected_writer` is present
     - `selected_writer` exists in `candidate_writers`
@@ -131,16 +131,12 @@ This field is consumed by downstream wave planning to build inter-table dependen
       "candidate_writers": [
         {
           "procedure_name": "dbo.usp_load_fact_sales",
-          "write_type": "direct",
-          "write_operations": ["INSERT"],
-          "call_path": ["dbo.usp_load_fact_sales"],
           "dependencies": {
             "tables": ["bronze.salesraw", "dbo.dimcustomer"],
             "views": [],
             "functions": []
           },
-          "rationale": "Catalog referenced_by shows is_updated=true for this procedure.",
-          "llm_analysis": null
+          "rationale": "Catalog referenced_by shows is_updated=true for this procedure."
         }
       ],
       "warnings": [],

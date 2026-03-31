@@ -42,7 +42,7 @@
     {
       "name": "ad-migration plugin",
       "type": "Claude Code plugin (marketplace)",
-      "description": "DDL analysis and migration pipeline. Three sub-plugins: bootstrap, migration, test-generation. Loaded via: claude --plugin-dir plugins/"
+      "description": "DDL analysis and migration pipeline. Three sub-plugins: bootstrap, migration, ground-truth-harness. Loaded via: claude --plugin-dir plugins/"
     }
   ],
   "entrypoints": {
@@ -56,7 +56,7 @@
   "modules": {
     "plugin_marketplace": {
       "path": "plugins/.claude-plugin/marketplace.json",
-      "description": "Plugin marketplace manifest defining 3 sub-plugins: bootstrap, migration, test-generation. Each plugin has a 'source' key pointing to its workbench directory."
+      "description": "Plugin marketplace manifest defining 3 sub-plugins: bootstrap, migration, ground-truth-harness. Each plugin has a 'source' key pointing to its workbench directory."
     },
     "plugin_bootstrap": {
       "path": "plugins/bootstrap/",
@@ -72,7 +72,7 @@
     },
     "shared_schemas": {
       "path": "lib/shared/schemas/",
-      "description": "JSON Schema files (17 total). Catalog schemas: table_catalog, procedure_catalog, view_catalog, function_catalog, manifest. Agent I/O: scope_input, candidate_writers, profiler_input, test_generator_input, migrator_input, fixture_manifest, migration_artifact_manifest, profile_context. Discover CLI output: discover_list_output, discover_show_output, discover_refs_output. Shared defs: common.json."
+      "description": "JSON Schema files (17 total). Catalog schemas: table_catalog, procedure_catalog, view_catalog, function_catalog, manifest. Agent I/O: scope_input, candidate_writers, profiler_input, test_generator_input, model_generator_input, fixture_manifest, migration_artifact_manifest, profile_context. Discover CLI output: discover_list_output, discover_show_output, discover_refs_output. Shared defs: common.json."
     },
     "ddl_mcp": {
       "path": "mcp/ddl/",
@@ -84,11 +84,11 @@
     },
     "migration_skills": {
       "path": "plugins/migration/skills/",
-      "description": "Skill definitions: discover/ (DDL exploration — list/show/refs from catalog), migrate/ (dbt model generation from stored procedures), profile/ (interactive single-table profiling with approval gates). setup-ddl is in the bootstrap sub-plugin."
+      "description": "Skill definitions: discover-objects/ (DDL exploration — list/show/refs from catalog), generate-model/ (dbt model generation from stored procedures), profile-table/ (interactive single-table profiling with approval gates). setup-ddl is in the bootstrap sub-plugin."
     },
     "migration_agents": {
       "path": "plugins/migration/agents/",
-      "description": "Agent definitions: scoping-agent.md (catalog-based writer detection via discover refs), migrator-agent.md (batch dbt model generation from stored procedures), profiler-agent.md (batch profiling — context assembly, LLM reasoning, catalog write-back)."
+      "description": "Agent definitions: scoping-agent.md (catalog-based writer detection via discover refs), model-generator-agent.md (batch dbt model generation from stored procedures), profiler-agent.md (batch profiling — context assembly, LLM reasoning, catalog write-back)."
     },
     "migration_commands": {
       "path": "plugins/migration/commands/",
@@ -100,7 +100,7 @@
     },
     "tests_evals": {
       "path": "tests/evals/",
-      "description": "Promptfoo eval harness for non-interactive agent and skill testing against MigrationTest schema. Three packages: scoping (8 scenarios x skill + agent), profiler (4 scenarios), migrator (4 scenarios). Run via: cd tests/evals && npx promptfoo eval. See docs/design/eval-harness/README.md."
+      "description": "Promptfoo eval harness for non-interactive agent and skill testing against MigrationTest schema. Three packages: scoping (8 scenarios x skill + agent), profiler (4 scenarios), model-generator (4 scenarios). Run via: cd tests/evals && npx promptfoo eval. See docs/design/eval-harness/README.md."
     },
     "tests_ddl_mcp": {
       "path": "mcp/ddl/tests/",
@@ -112,15 +112,15 @@
     },
     "docs": {
       "path": "docs/",
-      "description": "Documentation. Sub-directories: design/ (agent-contract, branding, cli-design, eval-harness, overall-design, setup-ddl, sp-to-dbt-plugin, test-scenario, tsql-parse-classification, unit-test-strategy), reference/ (agent-instructions-governance, local-agent-testing, running-tests, setup-docker, test-db-image), requirements/."
+      "description": "Documentation. Sub-directories: design/ (agent-contract, cli-design, eval-harness, overall-design, setup-ddl, test-scenario, tsql-parse-classification), reference/ (agent-instructions-governance, local-agent-testing, running-tests, setup-docker, test-db-image), requirements/."
     }
   },
   "key_directories": {
-    "plugins/": "Claude Code plugin workbenches (bootstrap + migration + test-generation sub-plugins) with marketplace manifest",
+    "plugins/": "Claude Code plugin workbenches (bootstrap + migration + ground-truth-harness sub-plugins) with marketplace manifest",
     "lib/": "Python DDL analysis library (uv project, sqlglot-based)",
     "lib/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
     "tests/unit/": "Python pytest tests for shared library (discover, catalog, catalog_enrich, extract_refs, integration)",
-    "tests/evals/": "Promptfoo eval harness for agent and skill testing (scoping, profiler, migrator packages)",
+    "tests/evals/": "Promptfoo eval harness for agent and skill testing (scoping, profiler, model-generator packages)",
     "mcp/ddl/tests/": "Python pytest tests for the DDL MCP server",
     "docs/design/": "Architecture decision records and design specs",
     ".claude/rules/": "Shared agent rules (4 policy files: coding-conventions, git-workflow, logging-policy, codex-execution-policy)",
@@ -134,7 +134,7 @@
     "eval_all": "cd tests/evals && npm run eval",
     "eval_scoping": "cd tests/evals && npm run eval:scoping",
     "eval_profiler": "cd tests/evals && npm run eval:profiler",
-    "eval_migrator": "cd tests/evals && npm run eval:migrator"
+    "eval_model_generator": "cd tests/evals && npm run eval:model-generator"
   },
   "conventions": {
     "typescript_files": "kebab-case (scope-selector.tsx, candidacy-table.tsx)",

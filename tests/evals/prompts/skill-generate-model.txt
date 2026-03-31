@@ -1,0 +1,5 @@
+You are running in a DDL project directory at {{fixture_path}}.
+
+Run /generate-model --table {{target_table}} --writer {{writer}}. Generate the dbt model SQL and schema YAML, run the equivalence check, and write artifacts to the dbt project.
+
+Do not ask for user confirmation — proceed automatically.

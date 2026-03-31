@@ -1,8 +1,8 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
-description: "Migrator agent — batch dbt model generation from MigrationTest"
+description: "Generate-model skill — dbt model generation from stored procedures"
 
 prompts:
-  - file://../../prompts/agent-migrator.txt
+  - file://../../prompts/skill-generate-model.txt
 
 providers:
   - id: anthropic:claude-agent-sdk
@@ -22,33 +22,28 @@ providers:
 defaultTest:
   vars:
     fixture_path: "tests/evals/fixtures/migration-test"
-  options:
-    transform: "(output.match(/\\{[\\s\\S]*\"schema_version\"[\\s\\S]*\"summary\"[\\s\\S]*\\}/) || [output])[0]"
   assert:
-    - type: contains-json
+    - type: icontains
+      value: "config("
 
 tests:
   # ── simple INSERT → table materialization ─────────────────────
-  - description: "simple-insert-table — DimProduct"
+  - description: "simple-insert-table — DimProduct MERGE → dbt model"
     vars:
       target_table: "silver.DimProduct"
       writer: "silver.usp_load_DimProduct"
-      scenario_id: "simple-insert"
     assert:
-      - type: javascript
-        value: |
-          const d = JSON.parse(output);
-          return d.results && d.results[0] &&
-            (d.results[0].status === 'ok' || d.results[0].status === 'partial');
-      - type: javascript
-        value: "JSON.parse(output).summary.error === 0"
-      # TODO: assert materialization and artifact paths once fixture with profile is available
+      - type: icontains
+        value: "select"
+      - type: icontains
+        value: "from"
+      # TODO: assert specific materialization once fixture with profile is available
 
   # ── incremental with watermark ────────────────────────────────
   # TODO: requires fixture with watermark profile populated
 
   # ── snapshot SCD2 ─────────────────────────────────────────────
-  # TODO: requires SCD2 fixture
+  # TODO: requires SCD2 fixture with dim_scd2 profile
 
   # ── MERGE → incremental ──────────────────────────────────────
   # TODO: requires MERGE fixture with incremental profile

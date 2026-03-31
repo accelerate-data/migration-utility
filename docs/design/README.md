@@ -20,9 +20,8 @@ Use `docs/design/` for architecture and implementation design details.
 
 - [Overall Design](overall-design/README.md) — end-to-end user flow, architecture decisions, and open issues
 - [Test Scenario Design](test-scenario/README.md)
-- [Agent Contract](agent-contract/README.md) — structured agent output contracts and FDE review requirements (scoping, profiler, test-generator, test-reviewer, migrator, code-reviewer)
+- [Agent Contract](agent-contract/README.md) — structured agent output contracts and FDE review requirements (scoping, profiler, test-generator, test-reviewer, model-generator, code-reviewer)
 - [Setup DDL](setup-ddl/README.md) — step-by-step logic for DDL extraction, catalog signal queries, DMF reference extraction, and AST enrichment
-- [SP → dbt Migration Plugin](sp-to-dbt-plugin/README.md) — skill architecture, per-skill contracts, ground-truth-harness plugin, and implementation wave plan
 - [T-SQL Parse Classification](tsql-parse-classification/README.md) — exhaustive pattern list, deterministic (sqlglot) vs Claude-assisted routing
 - [CLI Design](cli-design/README.md) — framework choice, registered commands, I/O contract, exit codes, and testability pattern
 - [Eval Harness](eval-harness/README.md) — Promptfoo-based non-interactive testing for agents and skills against the MigrationTest schema

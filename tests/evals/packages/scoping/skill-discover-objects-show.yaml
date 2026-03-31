@@ -2,7 +2,7 @@
 description: "Discover show skill — claude_assisted procedure analysis"
 
 prompts:
-  - file://../../prompts/skill-discover-show.txt
+  - file://../../prompts/skill-discover-objects-show.txt
 
 providers:
   - id: anthropic:claude-agent-sdk

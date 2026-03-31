@@ -1,5 +1,5 @@
 ---
-name: migrate-table
+name: generate-model
 description: >
   Generates a dbt model from a stored procedure. Invoke when the user asks to
   "migrate a procedure", "generate a dbt model", "convert SP to dbt", or
@@ -281,7 +281,7 @@ If compile fails with a **connection error** (adapter cannot reach the warehouse
 
 | Subcommand | Schema reference |
 |---|---|
-| `context` | See `docs/design/sp-to-dbt-plugin/README.md` section "migrate context" |
+| `context` | See `docs/design/agent-contract/model-generator-agent.md` section "AssembleContext" |
 | `write` | `{ "written": [...], "status": "ok" }` |
 
 ## Error handling

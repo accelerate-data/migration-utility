@@ -1,0 +1,5 @@
+You are running in a DDL project directory at {{fixture_path}}.
+
+Run /discover-objects show --name {{target_table}} and present the full analysis including Call Graph, Logic Summary, and Migration Guidance. After presenting, persist the resolved statements to catalog via discover write-statements.
+
+Do not ask for user confirmation — proceed automatically.

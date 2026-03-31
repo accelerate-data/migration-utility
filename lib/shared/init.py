@@ -66,9 +66,9 @@ See `repo-map.json` for the full directory structure and agent notes.
 | Skill | Purpose |
 |---|---|
 | `/setup-ddl` | Extract DDL from live SQL Server and write local artifact files |
-| `/discover` | Explore the DDL catalog — list objects, show details, find references |
-| `/migrate` | Generate dbt models from stored procedures |
-| `/profile` | Interactive single-table profiling with approval gates |
+| `/discover-objects` | Explore the DDL catalog — list objects, show details, find references |
+| `/generate-model` | Generate dbt models from stored procedures |
+| `/profile-table` | Interactive single-table profiling with approval gates |
 
 ## MCP Servers
 
@@ -137,9 +137,9 @@ These values are passed to the `mssql` MCP server at startup via environment inh
 
 1. **`/init-ad-migration`** — verify prerequisites and scaffold project files
 2. **`/setup-ddl`** — extract DDL from live SQL Server into local artifact files
-3. **`/discover`** — explore the DDL catalog (list objects, show details, find references)
-4. **`/profile`** — profile individual tables interactively
-5. **`/migrate`** — generate dbt models from stored procedures
+3. **`/discover-objects`** — explore the DDL catalog (list objects, show details, find references)
+4. **`/profile-table`** — profile individual tables interactively
+5. **`/generate-model`** — generate dbt models from stored procedures
 
 ## Directory Structure
 

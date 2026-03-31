@@ -1,0 +1,6 @@
+{
+  "name": "ground-truth-harness",
+  "description": "Ground-truth harness for migrated dbt models (not yet implemented).",
+  "version": "0.1.0",
+  "author": { "name": "Accelerate Data", "url": "https://github.com/accelerate-data" }
+}
