@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 
@@ -59,24 +58,13 @@ class SqlServerSandbox(SandboxBackend):
         cursor = conn.cursor()
 
         try:
-            # 1. Create sandbox database
             cursor.execute(
                 f"IF DB_ID('{sandbox_db}') IS NOT NULL "
                 f"DROP DATABASE [{sandbox_db}]"
             )
             cursor.execute(f"CREATE DATABASE [{sandbox_db}]")
-            logger.info("event=database_created run_id=%s db=%s", run_id, sandbox_db)
-
-            # 2. Create schemas in sandbox
-            for schema in schemas:
-                cursor.execute(
-                    f"IF NOT EXISTS ("
-                    f"  SELECT 1 FROM [{sandbox_db}].sys.schemas "
-                    f"  WHERE name = '{schema}'"
-                    f") EXEC('{sandbox_db}..sp_executesql N''CREATE SCHEMA [{schema}]''')"
-                )
-                # Simpler approach: USE the sandbox DB
             conn.close()
+            logger.info("event=database_created run_id=%s db=%s", run_id, sandbox_db)
 
             sandbox_conn = self._connect(database=sandbox_db)
             sandbox_cursor = sandbox_conn.cursor()
@@ -94,9 +82,10 @@ class SqlServerSandbox(SandboxBackend):
                         "message": f"Failed to create schema {schema}: {exc}",
                     })
 
-            # 3. Clone tables (schema only, no data, no constraints)
             source_conn = self._connect(database=source_database)
             source_cursor = source_conn.cursor()
+
+            # Clone tables (schema only, no data, no constraints)
             source_cursor.execute(
                 "SELECT TABLE_SCHEMA, TABLE_NAME "
                 "FROM INFORMATION_SCHEMA.TABLES "
@@ -104,11 +93,7 @@ class SqlServerSandbox(SandboxBackend):
                 + ",".join(f"'{s}'" for s in schemas)
                 + ") ORDER BY TABLE_SCHEMA, TABLE_NAME"
             )
-            tables = source_cursor.fetchall()
-            source_conn.close()
-
-            for row in tables:
-                schema_name, table_name = row
+            for schema_name, table_name in source_cursor.fetchall():
                 fqn = f"[{schema_name}].[{table_name}]"
                 try:
                     sandbox_cursor.execute(
@@ -122,9 +107,7 @@ class SqlServerSandbox(SandboxBackend):
                         "message": f"Failed to clone {fqn}: {exc}",
                     })
 
-            # 4. Clone procedures
-            source_conn = self._connect(database=source_database)
-            source_cursor = source_conn.cursor()
+            # Clone procedures
             source_cursor.execute(
                 "SELECT s.name AS schema_name, p.name AS proc_name, "
                 "       OBJECT_DEFINITION(p.object_id) AS definition "
@@ -134,11 +117,7 @@ class SqlServerSandbox(SandboxBackend):
                 + ",".join(f"'{s}'" for s in schemas)
                 + ") ORDER BY s.name, p.name"
             )
-            procs = source_cursor.fetchall()
-            source_conn.close()
-
-            for row in procs:
-                schema_name, proc_name, definition = row
+            for schema_name, proc_name, definition in source_cursor.fetchall():
                 fqn = f"{schema_name}.{proc_name}"
                 if definition is None:
                     errors.append({
@@ -155,6 +134,7 @@ class SqlServerSandbox(SandboxBackend):
                         "message": f"Failed to clone procedure {fqn}: {exc}",
                     })
 
+            source_conn.close()
             sandbox_conn.close()
 
         except pyodbc.Error as exc:
