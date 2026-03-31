@@ -25,7 +25,8 @@ defaultTest:
   options:
     transform: "(output.match(/\\{[\\s\\S]*\"schema_version\"[\\s\\S]*\"summary\"[\\s\\S]*\\}/) || [output])[0]"
   assert:
-    - type: contains-json
+    - type: javascript
+      value: file://../../assertions/validate-candidate-writers.js
 
 tests:
   # ── resolved: direct MERGE writer ─────────────────────────────
