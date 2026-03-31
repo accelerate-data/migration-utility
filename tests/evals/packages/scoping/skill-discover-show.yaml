@@ -4,16 +4,7 @@ prompts:
   - file://../../prompts/skill-discover-show.txt
 
 providers:
-  - id: exec:claude-headless
-    config:
-      command: |
-        claude -p \
-          --output-format json \
-          --allowedTools "Read,Write,Bash" \
-          --max-turns 30 \
-          --dangerously-skip-permissions \
-          "{{prompt}}"
-      timeout: 300000
+  - 'exec: ../../run-claude.sh'
 
 defaultTest:
   vars:
