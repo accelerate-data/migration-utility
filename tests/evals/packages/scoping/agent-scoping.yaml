@@ -4,7 +4,16 @@ prompts:
   - file://../../prompts/agent-scoping.txt
 
 providers:
-  - file://../../providers/claude-code-headless.yaml
+  - id: exec:claude-headless
+    config:
+      command: |
+        claude -p \
+          --output-format json \
+          --allowedTools "Read,Write,Bash" \
+          --max-turns 30 \
+          --dangerously-skip-permissions \
+          "{{prompt}}"
+      timeout: 300000
 
 defaultTest:
   vars:
