@@ -4,7 +4,7 @@ prompts:
   - file://../../prompts/agent-scoping.txt
 
 providers:
-  - 'exec: ./run-claude.sh'
+  - 'exec: bash run-claude.sh'
 
 defaultTest:
   vars:
