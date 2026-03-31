@@ -19,7 +19,6 @@ class SandboxBackend(ABC):
         self,
         run_id: str,
         schemas: list[str],
-        source_database: str,
     ) -> dict[str, Any]:
         """Create the sandbox database and clone schema from the source."""
 

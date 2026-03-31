@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import shutil
+from collections.abc import Callable
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -89,60 +93,120 @@ class TestIdentifierValidation:
         with pytest.raises(ValueError, match="Unsafe SQL identifier"):
             _validate_identifier("dbo'--")
 
+    def test_bracketed_hyphen(self) -> None:
+        _validate_identifier("[my-table]")
+
+    def test_bracketed_dotted_hyphen(self) -> None:
+        _validate_identifier("[dbo].[my-table]")
+
+    def test_bare_hyphen_rejected(self) -> None:
+        with pytest.raises(ValueError, match="Unsafe SQL identifier"):
+            _validate_identifier("my-table")
+
     def test_rejects_empty(self) -> None:
         with pytest.raises(ValueError, match="Unsafe SQL identifier"):
             _validate_identifier("")
 
 
-# ── SQL Server backend (mocked pyodbc) ───────────────────────────────────────
+# ── from_env validation (#9) ─────────────────────────────────────────────────
+
+
+class TestFromEnv:
+    def test_from_env_missing_host_raises(self) -> None:
+        env = {"SA_PASSWORD": "pass", "MSSQL_DB": "db"}
+        with patch.dict(os.environ, env, clear=True):
+            with pytest.raises(ValueError, match="MSSQL_HOST"):
+                SqlServerSandbox.from_env({})
+
+    def test_from_env_missing_password_raises(self) -> None:
+        env = {"MSSQL_HOST": "localhost", "MSSQL_DB": "db"}
+        with patch.dict(os.environ, env, clear=True):
+            with pytest.raises(ValueError, match="SA_PASSWORD"):
+                SqlServerSandbox.from_env({})
+
+    def test_from_env_missing_database_raises(self) -> None:
+        env = {"MSSQL_HOST": "localhost", "SA_PASSWORD": "pass"}
+        with patch.dict(os.environ, env, clear=True):
+            with pytest.raises(ValueError, match="MSSQL_DB"):
+                SqlServerSandbox.from_env({})
+
+    def test_from_env_prefers_manifest_source_database(self) -> None:
+        env = {"MSSQL_HOST": "localhost", "SA_PASSWORD": "pass", "MSSQL_DB": "envDB"}
+        with patch.dict(os.environ, env, clear=True):
+            backend = SqlServerSandbox.from_env({"source_database": "manifestDB"})
+        assert backend.database == "manifestDB"
+
+    def test_from_env_reads_user_and_driver(self) -> None:
+        env = {
+            "MSSQL_HOST": "localhost", "SA_PASSWORD": "pass", "MSSQL_DB": "db",
+            "MSSQL_USER": "admin", "MSSQL_DRIVER": "FreeTDS",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            backend = SqlServerSandbox.from_env({})
+        assert backend.user == "admin"
+        assert backend.driver == "FreeTDS"
+
+
+# ── SQL Server backend (mocked _connect) ─────────────────────────────────────
+
+
+def _make_backend() -> SqlServerSandbox:
+    return SqlServerSandbox(
+        host="localhost",
+        port="1433",
+        database="TestDB",
+        password="TestPass123",
+    )
+
+
+def _mock_connect_factory(
+    *,
+    source_cursor: MagicMock | None = None,
+    sandbox_cursor: MagicMock | None = None,
+    default_cursor: MagicMock | None = None,
+) -> Callable[..., Any]:
+    """Return a _connect side_effect that routes by database keyword arg."""
+    @contextmanager
+    def _fake_connect(*, database: str | None = None):
+        conn = MagicMock()
+        if database and database.startswith("__test_") and sandbox_cursor is not None:
+            conn.cursor.return_value = sandbox_cursor
+        elif source_cursor is not None and database and not database.startswith("__test_"):
+            conn.cursor.return_value = source_cursor
+        elif default_cursor is not None:
+            conn.cursor.return_value = default_cursor
+        else:
+            raise AssertionError(f"Unexpected _connect call: database={database!r}")
+        yield conn
+    return _fake_connect
 
 
 class TestSqlServerSandboxUp:
-    """Test sandbox_up generates correct SQL via mocked pyodbc."""
+    """Test sandbox_up generates correct SQL via mocked _connect."""
 
-    def _make_backend(self) -> SqlServerSandbox:
-        return SqlServerSandbox(
-            host="localhost",
-            port="1433",
-            database="TestDB",
-            password="TestPass123",
-        )
+    def test_sandbox_up_creates_database(self) -> None:
+        backend = _make_backend()
 
-    @patch("shared.sandbox.sql_server.pyodbc")
-    def test_sandbox_up_creates_database(self, mock_pyodbc: MagicMock) -> None:
-        backend = self._make_backend()
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
-
-        # Source DB query returns tables
-        mock_source_conn = MagicMock()
-        mock_source_cursor = MagicMock()
-        mock_source_conn.cursor.return_value = mock_source_cursor
-        mock_source_cursor.fetchall.side_effect = [
-            # Tables query
+        source_cursor = MagicMock()
+        source_cursor.fetchall.side_effect = [
             [("dbo", "Product"), ("silver", "DimProduct")],
-            # Procedures query
             [("dbo", "usp_load", "CREATE PROCEDURE dbo.usp_load AS BEGIN SELECT 1 END")],
         ]
 
-        # Sandbox connection for schema creation and SELECT INTO
-        mock_sandbox_conn = MagicMock()
-        mock_sandbox_cursor = MagicMock()
-        mock_sandbox_conn.cursor.return_value = mock_sandbox_cursor
+        sandbox_cursor = MagicMock()
+        default_cursor = MagicMock()
 
-        # connect() returns different connections based on call order
-        mock_pyodbc.connect.side_effect = [
-            mock_conn,           # initial connection (CREATE DATABASE)
-            mock_sandbox_conn,   # sandbox connection (CREATE SCHEMA, SELECT INTO)
-            mock_source_conn,    # source connection (list tables + procedures)
-        ]
-
-        result = backend.sandbox_up(
-            run_id="test-run-id",
-            schemas=["dbo", "silver"],
-            source_database="TestDB",
+        fake_connect = _mock_connect_factory(
+            source_cursor=source_cursor,
+            sandbox_cursor=sandbox_cursor,
+            default_cursor=default_cursor,
         )
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            result = backend.sandbox_up(
+                run_id="test-run-id",
+                schemas=["dbo", "silver"],
+            )
 
         assert result["status"] in ("ok", "partial")
         assert result["run_id"] == "test-run-id"
@@ -150,25 +214,29 @@ class TestSqlServerSandboxUp:
         assert result["tables_cloned"] == ["dbo.Product", "silver.DimProduct"]
         assert result["procedures_cloned"] == ["dbo.usp_load"]
 
-        # Verify CREATE DATABASE was called
-        calls = [str(c) for c in mock_cursor.execute.call_args_list]
+        calls = [str(c) for c in default_cursor.execute.call_args_list]
         create_db_calls = [c for c in calls if "CREATE DATABASE" in c]
         assert len(create_db_calls) == 1
 
-    @patch("shared.sandbox.sql_server.pyodbc")
-    def test_sandbox_down_drops_database(self, mock_pyodbc: MagicMock) -> None:
-        backend = self._make_backend()
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
-        mock_pyodbc.connect.return_value = mock_conn
 
-        result = backend.sandbox_down(run_id="test-run-id")
+
+# ── Sandbox down (mocked) ────────────────────────────────────────────────────
+
+
+class TestSqlServerSandboxDown:
+    def test_sandbox_down_drops_database(self) -> None:
+        backend = _make_backend()
+        default_cursor = MagicMock()
+
+        fake_connect = _mock_connect_factory(default_cursor=default_cursor)
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            result = backend.sandbox_down(run_id="test-run-id")
 
         assert result["status"] == "ok"
         assert result["run_id"] == "test-run-id"
 
-        calls = [str(c) for c in mock_cursor.execute.call_args_list]
+        calls = [str(c) for c in default_cursor.execute.call_args_list]
         drop_calls = [c for c in calls if "DROP DATABASE" in c]
         assert len(drop_calls) == 1
 
@@ -177,22 +245,13 @@ class TestSqlServerSandboxUp:
 
 
 class TestSqlServerExecuteScenario:
-    def _make_backend(self) -> SqlServerSandbox:
-        return SqlServerSandbox(
-            host="localhost", port="1433", database="TestDB", password="pass",
-        )
+    def test_execute_captures_ground_truth(self) -> None:
+        backend = _make_backend()
+        sandbox_cursor = MagicMock()
+        sandbox_cursor.description = [("id",), ("name",)]
+        sandbox_cursor.fetchall.return_value = [(1, "Widget")]
 
-    @patch("shared.sandbox.sql_server.pyodbc")
-    def test_execute_captures_ground_truth(self, mock_pyodbc: MagicMock) -> None:
-        backend = self._make_backend()
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
-        mock_pyodbc.connect.return_value = mock_conn
-
-        # Mock SELECT * result
-        mock_cursor.description = [("id",), ("name",)]
-        mock_cursor.fetchall.return_value = [(1, "Widget")]
+        fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
 
         scenario = {
             "name": "test_insert_new_product",
@@ -206,12 +265,20 @@ class TestSqlServerExecuteScenario:
             ],
         }
 
-        result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
 
         assert result["status"] == "ok"
         assert result["row_count"] == 1
         assert result["ground_truth_rows"] == [{"id": 1, "name": "Widget"}]
         assert result["scenario_name"] == "test_insert_new_product"
+
+    def test_execute_missing_required_key_raises(self) -> None:
+        backend = _make_backend()
+        scenario = {"name": "incomplete", "target_table": "[dbo].[T]"}
+
+        with pytest.raises(KeyError, match="procedure"):
+            backend.execute_scenario(run_id="test-run", scenario=scenario)
 
 
 # ── Schema validation ────────────────────────────────────────────────────────
@@ -241,6 +308,45 @@ class TestSchemaValidation:
             "errors": [{"code": "SCENARIO_FAILED", "message": "connection refused"}],
         }
         assert_valid_schema(data, "test_harness_execute_output.json")
+
+    def test_sandbox_up_output_ok(self, assert_valid_schema) -> None:
+        data = {
+            "run_id": "abc-123",
+            "sandbox_database": "__test_abc_123",
+            "status": "ok",
+            "tables_cloned": ["dbo.Product"],
+            "procedures_cloned": ["dbo.usp_load"],
+            "errors": [],
+        }
+        assert_valid_schema(data, "sandbox_up_output.json")
+
+    def test_sandbox_up_output_error(self, assert_valid_schema) -> None:
+        data = {
+            "run_id": "abc-123",
+            "sandbox_database": "__test_abc_123",
+            "status": "error",
+            "tables_cloned": [],
+            "procedures_cloned": [],
+            "errors": [{"code": "SANDBOX_UP_FAILED", "message": "connection refused"}],
+        }
+        assert_valid_schema(data, "sandbox_up_output.json")
+
+    def test_sandbox_down_output_ok(self, assert_valid_schema) -> None:
+        data = {
+            "run_id": "abc-123",
+            "sandbox_database": "__test_abc_123",
+            "status": "ok",
+        }
+        assert_valid_schema(data, "sandbox_down_output.json")
+
+    def test_sandbox_down_output_error(self, assert_valid_schema) -> None:
+        data = {
+            "run_id": "abc-123",
+            "sandbox_database": "__test_abc_123",
+            "status": "error",
+            "errors": [{"code": "SANDBOX_DOWN_FAILED", "message": "timeout"}],
+        }
+        assert_valid_schema(data, "sandbox_down_output.json")
 
     def test_test_spec_output_valid(self, assert_valid_schema) -> None:
         data = {

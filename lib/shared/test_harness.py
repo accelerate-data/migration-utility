@@ -9,13 +9,14 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 import typer
 
 from shared.env_config import resolve_project_root
 from shared.loader_io import read_manifest
 from shared.sandbox import get_backend
+from shared.sandbox.base import SandboxBackend
 
 logger = logging.getLogger(__name__)
 app = typer.Typer(name="test-harness", no_args_is_help=True)
@@ -26,32 +27,35 @@ def _load_manifest(project_root: Path) -> dict[str, Any]:
     try:
         manifest = read_manifest(project_root)
     except ValueError as exc:
-        typer.echo(json.dumps({"status": "error", "errors": [
-            {"code": "MANIFEST_INVALID", "message": str(exc)}
-        ]}))
-        raise typer.Exit(code=1) from exc
+        _error_exit("MANIFEST_INVALID", str(exc), exc)
 
     if "technology" not in manifest:
-        typer.echo(json.dumps({"status": "error", "errors": [
-            {"code": "MANIFEST_NOT_FOUND",
-             "message": f"manifest.json not found or missing technology at {project_root}"}
-        ]}))
-        raise typer.Exit(code=1)
+        _error_exit(
+            "MISSING_TECHNOLOGY",
+            f"manifest.json is missing required 'technology' key at {project_root}",
+        )
     return manifest
 
 
-def _create_backend(manifest: dict[str, Any]) -> Any:
+def _create_backend(manifest: dict[str, Any]) -> SandboxBackend:
     """Instantiate the sandbox backend for the manifest's technology."""
-    technology = manifest.get("technology", "sql_server")
+    technology = manifest["technology"]
     backend_cls = get_backend(technology)
 
     try:
         return backend_cls.from_env(manifest)
     except ValueError as exc:
-        typer.echo(json.dumps({"status": "error", "errors": [
-            {"code": "MISSING_ENV_VARS", "message": str(exc)}
-        ]}))
+        _error_exit("MISSING_ENV_VARS", str(exc), exc)
+
+
+def _error_exit(code: str, message: str, exc: Exception | None = None) -> NoReturn:
+    """Emit a JSON error and raise typer.Exit."""
+    typer.echo(json.dumps({"status": "error", "errors": [
+        {"code": code, "message": message}
+    ]}))
+    if exc is not None:
         raise typer.Exit(code=1) from exc
+    raise typer.Exit(code=1)
 
 
 @app.command()
@@ -66,12 +70,19 @@ def sandbox_up(
     backend = _create_backend(manifest)
 
     schemas = manifest.get("extracted_schemas", [])
+    if not schemas:
+        _error_exit(
+            "NO_SCHEMAS",
+            "extracted_schemas is missing or empty in manifest.json — nothing to clone",
+        )
 
-    result = backend.sandbox_up(
-        run_id=run_id,
-        schemas=schemas,
-        source_database=backend.database,
-    )
+    try:
+        result = backend.sandbox_up(
+            run_id=run_id,
+            schemas=schemas,
+        )
+    except (ValueError, KeyError) as exc:
+        _error_exit("SANDBOX_UP_INVALID_INPUT", str(exc), exc)
     typer.echo(json.dumps(result, indent=2))
     logger.info("event=cli_complete command=sandbox_up run_id=%s status=%s", run_id, result.get("status"))
     if result.get("status") == "error":
@@ -89,7 +100,10 @@ def sandbox_down(
     manifest = _load_manifest(root)
     backend = _create_backend(manifest)
 
-    result = backend.sandbox_down(run_id=run_id)
+    try:
+        result = backend.sandbox_down(run_id=run_id)
+    except (ValueError, KeyError) as exc:
+        _error_exit("SANDBOX_DOWN_INVALID_INPUT", str(exc), exc)
     typer.echo(json.dumps(result, indent=2))
     logger.info("event=cli_complete command=sandbox_down run_id=%s status=%s", run_id, result.get("status"))
     if result.get("status") == "error":
@@ -113,13 +127,14 @@ def execute(
         with scenario_path.open() as f:
             scenario_data = json.load(f)
     except FileNotFoundError:
-        typer.echo(json.dumps({"status": "error", "errors": [
-            {"code": "SCENARIO_NOT_FOUND",
-             "message": f"Scenario file not found: {scenario}"}
-        ]}))
-        raise typer.Exit(code=1)
+        _error_exit("SCENARIO_NOT_FOUND", f"Scenario file not found: {scenario}")
+    except json.JSONDecodeError as exc:
+        _error_exit("SCENARIO_INVALID_JSON", f"Scenario file is not valid JSON: {exc}", exc)
 
-    result = backend.execute_scenario(run_id=run_id, scenario=scenario_data)
+    try:
+        result = backend.execute_scenario(run_id=run_id, scenario=scenario_data)
+    except (ValueError, KeyError) as exc:
+        _error_exit("EXECUTE_INVALID_INPUT", str(exc), exc)
     typer.echo(json.dumps(result, indent=2))
     logger.info("event=cli_complete command=execute run_id=%s status=%s", run_id, result.get("status"))
     if result.get("status") == "error":

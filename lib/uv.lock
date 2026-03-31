@@ -468,9 +468,6 @@ dev = [
 export = [
     { name = "pyodbc" },
 ]
-sandbox = [
-    { name = "pyodbc" },
-]
 
 [package.metadata]
 requires-dist = [
@@ -478,11 +475,10 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pyodbc", marker = "extra == 'export'", specifier = ">=5.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
-    { name = "shared", extras = ["export"], marker = "extra == 'sandbox'" },
     { name = "sqlglot", specifier = ">=25.0,<26" },
     { name = "typer", specifier = ">=0.12" },
 ]
-provides-extras = ["dev", "export", "sandbox"]
+provides-extras = ["dev", "export"]
 
 [[package]]
 name = "shellingham"
