@@ -14,7 +14,7 @@ Deterministic Python skills that automate stored-procedure-to-dbt migration — 
 
 ## Where It Lives
 
-The repo root is a Claude Code marketplace package. Three plugins are registered in `.claude-plugin/marketplace.json`.
+The repo root is a Claude Code marketplace package. Four plugins are registered in `.claude-plugin/marketplace.json`.
 
 ```text
 .claude-plugin/marketplace.json
@@ -22,8 +22,20 @@ The repo root is a Claude Code marketplace package. Three plugins are registered
 │   ├── commands/                          ← init-ad-migration, init-dbt
 │   └── skills/
 │       └── setup-ddl/                    ← DDL extraction from live SQL Server
+├── ground-truth-harness/                  ← plugin: sandbox + test generation + review
+│   ├── commands/
+│   │   ├── sandbox-up.md                 ← create throwaway DB + deploy DDL
+│   │   └── sandbox-down.md               ← tear down throwaway DB
+│   ├── agents/
+│   │   ├── test-generator/               ← batch: fixture synthesis + ground truth capture
+│   │   └── test-reviewer/                ← batch: coverage scoring + quality gate
+│   └── skills/
+│       └── test-gen/                     ← interactive: /test-gen
 ├── migration/                             ← plugin: analysis + migration pipeline
-│   ├── agents/                            ← scoping-agent.md
+│   ├── agents/
+│   │   ├── scoping-agent.md
+│   │   ├── migrator/                     ← batch: dbt model generation + test loop
+│   │   └── code-reviewer/                ← batch: standards + correctness gate
 │   ├── skills/
 │   │   ├── discover/                      ← SKILL.md + references/
 │   │   ├── profile/
@@ -36,7 +48,6 @@ The repo root is a Claude Code marketplace package. Three plugins are registered
 ├── lib/                                   ← Python package (uv-managed)
 │   └── shared/                            ← Python modules (see Shared Library table)
 │       └── schemas/                       ← JSON Schema files
-└── test-generation/                       ← plugin: dbt test generation (placeholder)
 ```
 
 Tests live at `tests/unit/`.
@@ -66,6 +77,7 @@ All skills import from `shared/`. Nothing in `shared/` is skill-specific.
 | `migrate.py` | CLI: context/write subcommands for migration context assembly and dbt artifact generation |
 | `dmf_processing.py` | DMF row processing helpers shared by catalog write paths |
 | `sql_types.py` | SQL type mappings between T-SQL and target dialects |
+| `test_harness.py` | CLI: sandbox-up/sandbox-down/execute subcommands for ground truth capture |
 
 ---
 
@@ -245,50 +257,70 @@ Both the interactive skill and the batch agent share `migrate.py` subcommands. E
 
 The LLM generation is the same logic in both paths. No sqlglot transpilation — the LLM generates dbt-idiomatic SQL directly from the original proc statements, proc body, and profile answers.
 
-### test-gen
+### test-harness (CLI)
+
+Three subcommands for sandbox lifecycle and ground truth capture:
+
+#### `test-harness sandbox-up`
 
 ```text
-Input:  --proc PATH  --model PATH  --output DIR
+Input:  sandbox-up --project-root PATH --run-id UUID
 
-Output: {
-  "schema_yml_path": "out/schema.yml",
-  "tests": [
-    { "column": "customer_id", "test": "not_null", "reason": "used in JOIN predicate" }
-  ]
-}
+Output: { "database": "__test_<run_id>", "status": "ok", "tables_deployed": 12 }
 ```
 
-Test inference rules (AST-based):
+Creates a throwaway database (`__test_<run_id>`), deploys table DDL from catalog with identical schema/table names. The proc runs unmodified — schema references resolve naturally within the sandbox namespace. Cross-platform via MCP: SQL Server (`CREATE DATABASE`), Snowflake (`CREATE DATABASE`/`CLONE`), Redshift (`CREATE SCHEMA`).
 
-| Pattern | Test generated |
-|---|---|
-| Column in JOIN predicate | `not_null` |
-| Column in GROUP BY | `unique` |
-| Column in CASE WHEN with ≤10 distinct branches | `accepted_values` |
-| FK reference visible in JOIN | `relationships` |
-
-### validate
+#### `test-harness execute`
 
 ```text
-Input:  --proc dbo.usp_Load  --model PATH
-        --params '{"start_date": "2024-01-01"}'
+Input:  execute --project-root PATH --run-id UUID
+        --writer dbo.usp_load_dimproduct
+        --fixtures '{"given": [...], "target_table": "silver.dimproduct"}'
 
-Output: {
-  "status": "pass|fail|warning|skipped",
-  "row_diff_count": 0,
-  "column_mismatches": [],
-  "sample_diffs": []
-}
+Output: { "rows": [{"product_key": 1, ...}], "row_count": 1, "status": "ok" }
 ```
 
-Execution:
+Inserts fixture rows into source tables in the sandbox, executes the proc, captures output via `SELECT *` from the target table, cleans up inserted rows.
 
-1. Resolve `{{ var('name', default) }}` in model SQL using `--params`
-2. Run original proc via `mssql_mcp` `execute_query`
-3. Run resolved model SQL via `mssql_mcp` `execute_query`
-4. Compare result sets (unordered, float tolerance applied)
+#### `test-harness sandbox-down`
 
-If `mssql_mcp` is not configured: returns `{ "status": "skipped" }`, exit 0.
+```text
+Input:  sandbox-down --run-id UUID
+
+Output: { "database": "__test_<run_id>", "status": "dropped" }
+```
+
+Drops the throwaway database.
+
+### test-gen (skill + agent)
+
+Skill: `/test-gen` (interactive, user-invocable). Agent: `test-generator` (batch pipeline).
+
+Both share the same Python CLI (`test_harness.py`) and `migrate context` for deterministic work. LLM reasoning (branch analysis, fixture synthesis) is path-specific.
+
+```text
+Input:  same as migrate context — --table <fqn> --writer <fqn>
+        Sandbox must be running (sandbox-up).
+
+Output: test-specs/<item_id>.json
+```
+
+See [Test Generator Agent Contract](../agent-contract/test-generator-agent.md) for the full output schema and generation strategy.
+
+#### Shared between both paths
+
+- **Interactive (`/test-gen` skill):** `migrate context` → LLM enumerates branches + synthesizes fixtures → `test-harness execute` per scenario → present test spec for approval → write to `test-specs/`.
+- **Batch (test-generator agent):** `migrate context` per table → agent enumerates + synthesizes → `test-harness execute` per scenario → write to `test-specs/` → test-reviewer agent scores coverage and may kick back.
+
+### validate (superseded)
+
+The separate `validate.py` skill is superseded by the ground truth harness. Validation is now:
+
+1. Test generator captures ground truth by executing the proc in a sandbox.
+2. Migrator runs `dbt test` with `unit_tests:` (ground truth as expected output) against the generated model.
+
+This replaces the prior approach of running both proc and model SQL and comparing result sets.
 
 ---
 
@@ -299,13 +331,14 @@ The orchestrator. Defined in `commands/migrate-table.md`. No Python — Claude f
 **Interactive flow:**
 
 ```text
-1. discover      → list tables → user picks one
-2. scope         → find writers → user confirms which procedure to migrate
-3. discover show → statement breakdown → user reviews migrate/skip/claude; claude statements resolved via LLM + FDE confirmation; resolved statements written to catalog
-4. profile       → catalog signals + LLM inference → user approves candidates
-5. migrate       → generate dbt SQL (derives materialization + tests from profile) → user approves before file write
-6. test-gen      → generate schema.yml + unit test fixtures → user approves before file write
-7. validate      → compare outputs (skipped if no live DB)
+1. discover       → list tables → user picks one
+2. scope          → find writers → user confirms which procedure to migrate
+3. discover show  → statement breakdown → user reviews migrate/skip/claude; resolved statements written to catalog
+4. profile        → catalog signals + LLM inference → user approves candidates
+5. sandbox-up     → create throwaway DB + deploy DDL (if not already running)
+6. /test-gen      → synthesize fixtures, execute proc, capture ground truth → user approves test spec
+7. /migrate       → generate dbt model + schema YAML (with unit_tests from test spec) → run dbt test → self-correct → user approves
+8. sandbox-down   → tear down throwaway DB
 ```
 
 **Gate rules:**
@@ -315,9 +348,21 @@ The orchestrator. Defined in `commands/migrate-table.md`. No Python — Claude f
 | scope | Always — show writer list, user picks procedure |
 | discover show | If `claude_assisted` — resolve via LLM, FDE confirms; write resolved statements to catalog |
 | profile | Always — show classification, keys, watermark, PII candidates; user approves/edits |
-| migrate | Always — show generated model before writing to disk |
-| test-gen | Always — show schema.yml before writing to disk |
-| validate | None — result shown, no gate |
+| /test-gen | Always — show test spec (scenarios, coverage) before writing to `test-specs/` |
+| /migrate | Always — show generated model before writing to disk |
+
+**Batch (GHA) flow:**
+
+```text
+1. scoping-agent       → discover + resolve writers per table
+2. profiler-agent      → profile per table
+3. sandbox-up          → create throwaway DB
+4. test-generator      → generate test specs per table
+   test-reviewer       → score coverage, kick back if gaps (Loop 1)
+5. migrator            → generate models, run dbt test, self-correct (Loop 2)
+   code-reviewer       → check standards, kick back if issues
+6. sandbox-down        → tear down
+```
 
 **`--non-interactive` mode (GHA):** skips all gates, stops at first `Unsupported` procedure with exit 1.
 
@@ -365,18 +410,20 @@ The orchestrator. Defined in `commands/migrate-table.md`. No Python — Claude f
 
 ---
 
-### Wave 4 — Test-Gen + Validate (parallel)
+### Wave 4 — Ground Truth Harness + Test Generation
 
 | Issue | What | Depends on |
 |---|---|---|
-| VU-745 | test_gen.py | VU-732, VU-742 |
-| VU-746 | test-gen SKILL.md | VU-745 |
+| TBD | `test_harness.py` CLI (sandbox-up/down/execute) | VU-732, VU-742 |
+| TBD | `ground-truth-harness` plugin scaffold | test_harness.py |
+| TBD | sandbox-up.md + sandbox-down.md commands | plugin scaffold |
+| VU-745 | test-generator agent contract | test_harness.py |
+| VU-746 | /test-gen SKILL.md | VU-745 |
 | VU-747 | test-gen tests | VU-745 |
-| VU-748 | validate.py | VU-742 |
-| VU-749 | validate SKILL.md | VU-748 |
-| VU-750 | validate tests | VU-748 |
+| TBD | test-reviewer agent contract | VU-745 |
+| TBD | code-reviewer agent contract | VU-777 |
 
-**Exit criteria:** `test_gen.py` emits correct `schema.yml` for fixtures. `validate.py` comparison logic passes all unit tests without a live DB.
+**Exit criteria:** `test_harness.py` can create/destroy sandbox and capture ground truth. Test generator emits `test-specs/<item_id>.json` with `unit_tests[]`. Test reviewer scores coverage. Code reviewer reviews migrator output. VU-748/749/750 (validate) are superseded by the ground truth harness.
 
 ---
 
@@ -407,9 +454,14 @@ VU-732 (shared lib) ✅
   ├── VU-742 (migrate.py) ──── VU-743 (SKILL) ───── VU-744 (tests)
   │                        └── VU-777 (migrator-agent.md)
   │     │
-  │     ├── VU-745 (test_gen.py) ── VU-746 (SKILL) ── VU-747 (tests)
+  │     ├── TBD (test_harness.py) ── TBD (ground-truth-harness plugin)
+  │     │     ├── VU-745 (test-generator agent) ── VU-746 (/test-gen SKILL) ── VU-747 (tests)
+  │     │     ├── TBD (test-reviewer agent)
+  │     │     └── TBD (sandbox-up/down commands)
   │     │
-  │     └── VU-748 (validate.py) ── VU-749 (SKILL) ── VU-750 (tests)
+  │     └── TBD (code-reviewer agent)
+  │
+  │  VU-748/749/750 (validate) — superseded by ground truth harness
   │
 VU-751 (ddl_mcp) ✅
 

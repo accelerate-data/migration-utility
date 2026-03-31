@@ -1,13 +1,16 @@
 # Migrator Agent Contract
 
-The migrator agent reads approved profile and resolved statements from catalog files, then generates dbt project artifacts. Migrator is responsible for querying direct source metadata via tools and converting profile data into executable files.
+The migrator agent reads approved profile and resolved statements from catalog files, consumes the approved test spec from `test-specs/`, then generates dbt project artifacts. After generating the model, the migrator runs `dbt test` against the test spec's `unit_tests:` and self-corrects until tests pass (or max iterations reached). The code reviewer then reviews the output.
 
 ## Philosophy and Boundary
 
 - Migrator owns artifact generation (`.sql`, `.yml`, and related dbt resources).
-- Migrator reads approved profile from `catalog/tables/<item_id>.json` and resolved statements from `catalog/procedures/<writer>.json`. It derives materialization deterministically from profile classification and generates schema tests from profile answers. Test generator output (`unit_tests[]`) is incorporated in a subsequent stage.
+- Migrator reads approved profile from `catalog/tables/<item_id>.json` and resolved statements from `catalog/procedures/<writer>.json`. It derives materialization deterministically from profile classification and generates schema tests from profile answers.
+- Migrator reads the approved test spec from `test-specs/<item_id>.json` and renders `unit_tests[]` into the schema YAML alongside schema tests.
+- After generating artifacts, the migrator runs `dbt test` against the unit tests. If tests fail, the migrator revises the model and re-tests. Maximum self-correction iterations: 3.
 - Migrator fetches direct facts (schema, column types, relation metadata) using tools.
 - Migrator must not invent business decisions that require FDE judgment.
+- After the migrator's build-and-test loop passes, the code reviewer agent reviews the output and may kick back with standards or correctness issues. See [Code Reviewer Agent](code-reviewer-agent.md).
 
 ## Required Input
 
@@ -74,19 +77,25 @@ Render `schema_tests` from context into `.yml`:
 - PII → column-level `meta` tags
 - Model and column descriptions
 
+Merge `unit_tests[]` from `test-specs/<item_id>.json` into the schema YAML as a `unit_tests:` block. Every scenario from the test spec must be rendered — none may be dropped or modified.
+
 ### 5. WriteArtifacts (Deterministic — `migrate.py write`)
 
 Run `uv run migrate write --table <item_id> --dbt-project-path <path> --model-sql '<sql>' --schema-yml '<yml>'`.
 
-### 6. Validate
+### 6. CompileAndTest
 
-Run `dbt compile --select <model_name>` to verify the generated model compiles.
+1. Run `dbt compile --select <model_name>` to verify the generated model compiles.
+2. Run `dbt test --select <model_name>` to execute unit tests from the test spec.
+3. If unit tests fail: analyze failures, revise the model (return to Step 2), and re-test.
+4. Maximum self-correction iterations: 3. If tests still fail after 3 attempts, set `status: "partial"` and record failures.
 
 ### 7. HandleErrors
 
 - If `migrate.py` fails: set `status: "error"`, record in `errors[]`, continue to next item.
 - If LLM generation fails or equivalence check finds irreconcilable gaps: set `status: "partial"`, record in `warnings[]`, continue.
 - If `dbt compile` fails: set `status: "partial"`, record compile errors, continue.
+- If `dbt test` fails after max iterations: set `status: "partial"`, record failing test names and diffs, continue.
 
 ## Output Schema (MigrationArtifactManifest)
 
@@ -175,7 +184,8 @@ Run `dbt compile --select <model_name>` to verify the generated model compiles.
 
 - Generated dbt artifacts must reflect profile answers and resolved statements faithfully.
 - Schema tests are derived deterministically from profile (PK, FK, watermark, PII) and rendered into column/model-level dbt tests in `model_yaml`.
-- `unit_tests[]` from the test generator is rendered into `unit_tests:` blocks in `model_yaml` in a subsequent stage.
+- `unit_tests[]` from `test-specs/<item_id>.json` is rendered into `unit_tests:` blocks in `model_yaml`. All scenarios must be present — none dropped.
+- All unit tests must pass before the migrator reports `status: "ok"`.
 - Tool-fetched schema facts are used for type/column correctness.
 - If catalog data is incomplete, return `partial|error` with explicit missing fields.
 
