@@ -154,7 +154,16 @@ The full scoping data lives in the catalog files, not duplicated in the summary 
 
 ## Error and Warning Codes
 
-All entries use the shared diagnostics schema with `item_id`, `code`, `message`, and `severity`. Recorded in the item's `errors[]` or `warnings[]`.
+Every entry in `errors[]` or `warnings[]` uses this format:
+
+```json
+{
+  "item_id": "silver.dimcustomer",
+  "code": "CATALOG_FILE_MISSING",
+  "message": "catalog/tables/silver.dimcustomer.json not found.",
+  "severity": "error"
+}
+```
 
 | Code | Severity | When |
 |---|---|---|

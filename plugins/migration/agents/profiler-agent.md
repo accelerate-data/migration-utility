@@ -127,7 +127,16 @@ The actual profile data lives in the catalog file, not duplicated in the batch o
 
 ## Error and Warning Codes
 
-All entries use the shared diagnostics schema with `item_id`, `code`, `message`, and `severity`. Recorded in the item's `errors[]` or `warnings[]`.
+Every entry in `errors[]` or `warnings[]` uses this format:
+
+```json
+{
+  "item_id": "silver.dimcustomer",
+  "code": "SCOPING_NOT_COMPLETED",
+  "message": "scoping section missing or no selected_writer in catalog for silver.dimcustomer.",
+  "severity": "error"
+}
+```
 
 | Code | Severity | When |
 |---|---|---|

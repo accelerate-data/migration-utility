@@ -211,7 +211,16 @@ Compute summary counts from the results array. The `run_id` must match the input
 
 ## Error and Warning Codes
 
-All entries use the shared diagnostics schema with `item_id`, `code`, `message`, and `severity`. Recorded in the item's `errors[]` or `warnings[]`.
+Every entry in `errors[]` or `warnings[]` uses this format:
+
+```json
+{
+  "item_id": "silver.factsales",
+  "code": "PROFILE_NOT_COMPLETED",
+  "message": "profile section missing or status != ok for silver.factsales.",
+  "severity": "error"
+}
+```
 
 | Code | Severity | When |
 |---|---|---|
