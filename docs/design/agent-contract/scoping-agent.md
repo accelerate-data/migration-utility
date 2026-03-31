@@ -136,8 +136,7 @@ This field is consumed by downstream wave planning to build inter-table dependen
             "views": [],
             "functions": []
           },
-          "rationale": "Catalog referenced_by shows is_updated=true for this procedure.",
-          "llm_analysis": null
+          "rationale": "Catalog referenced_by shows is_updated=true for this procedure."
         }
       ],
       "warnings": [],

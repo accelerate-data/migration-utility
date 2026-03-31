@@ -56,37 +56,6 @@
         "rationale": {
           "type": "string",
           "description": "Why this procedure was identified as a writer."
-        },
-        "llm_analysis": {
-          "type": "object",
-          "description": "Present when classification is claude_assisted. The scoping agent read raw_ddl and determined refs that the catalog could not resolve. Consumed by downstream agents to avoid re-analysing the same proc.",
-          "properties": {
-            "reads_from": {
-              "type": "array",
-              "items": { "type": "string" },
-              "description": "Tables/views the proc reads from, as determined by LLM."
-            },
-            "writes_to": {
-              "type": "array",
-              "items": { "type": "string" },
-              "description": "Tables the proc writes to, as determined by LLM."
-            },
-            "statements": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "action": { "type": "string", "enum": ["migrate", "skip"] },
-                  "sql": { "type": "string" }
-                }
-              },
-              "description": "Statement-level classification produced by the LLM."
-            },
-            "rationale": {
-              "type": "string",
-              "description": "LLM reasoning for the analysis — what it found in the raw_ddl."
-            }
-          }
         }
       }
     },

@@ -57,10 +57,8 @@ For each candidate writer:
      - Identify `reads_from` and `writes_to`.
      - Classify each statement as `migrate` or `skip`. See `../skills/discover-objects/references/tsql-parse-classification.md` for the full classification guide.
      - If the proc calls other procs (EXEC), run `discover show` on each and follow recursively.
-     - Populate `llm_analysis` on the candidate with `reads_from`, `writes_to`, `statements`, and `rationale`.
      - Add `LLM_ANALYSIS_REQUIRED` warning.
-
-The `llm_analysis` field preserves your analysis so downstream agents don't re-read the same proc.
+     - The resolved statements are persisted to catalog in Step 5 — downstream agents read from there.
 
 ### Step 3 — Apply Resolution Rules
 
