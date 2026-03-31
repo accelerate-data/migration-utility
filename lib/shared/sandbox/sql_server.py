@@ -13,6 +13,7 @@ from shared.sandbox.base import SandboxBackend
 logger = logging.getLogger(__name__)
 
 _RUN_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
+_IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_ ]*$")
 
 
 def _validate_run_id(run_id: str) -> None:
@@ -22,6 +23,21 @@ def _validate_run_id(run_id: str) -> None:
             f"Invalid run_id: {run_id!r}. "
             f"Must match [a-zA-Z0-9_-] and be 1-64 characters."
         )
+
+
+def _validate_identifier(name: str) -> None:
+    """Validate a SQL identifier (schema, table, procedure name) is safe.
+
+    Accepts bracket-quoted identifiers like [dbo].[Product] or plain
+    identifiers like dbo.Product. Rejects anything containing quotes,
+    semicolons, or other injection vectors.
+    """
+    # Strip brackets for validation
+    stripped = name.replace("[", "").replace("]", "")
+    parts = stripped.split(".")
+    for part in parts:
+        if not part or not _IDENTIFIER_RE.match(part):
+            raise ValueError(f"Unsafe SQL identifier: {name!r}")
 
 
 class SqlServerSandbox(SandboxBackend):
@@ -50,23 +66,12 @@ class SqlServerSandbox(SandboxBackend):
         )
         return pyodbc.connect(conn_str, autocommit=True)
 
-    def sandbox_up(
-        self,
-        run_id: str,
-        schemas: list[str],
-        source_database: str,
-    ) -> dict[str, Any]:
-        _validate_run_id(run_id)
-        sandbox_db = self.sandbox_db_name(run_id)
-        tables_cloned: list[str] = []
-        procedures_cloned: list[str] = []
-        errors: list[dict[str, str]] = []
+    # ── sandbox_up helpers ───────────────────────────────────────────────
 
-        logger.info(
-            "event=sandbox_up run_id=%s sandbox_db=%s source=%s schemas=%s",
-            run_id, sandbox_db, source_database, schemas,
-        )
-
+    def _create_sandbox_db(
+        self, sandbox_db: str, run_id: str,
+    ) -> None:
+        """Create the sandbox database, dropping it first if it exists."""
         conn = self._connect()
         try:
             cursor = conn.cursor()
@@ -79,80 +84,140 @@ class SqlServerSandbox(SandboxBackend):
         finally:
             conn.close()
 
+    def _create_schemas(
+        self, sandbox_cursor: pyodbc.Cursor, schemas: list[str],
+    ) -> list[dict[str, str]]:
+        """Create schemas in the sandbox. Returns list of error dicts."""
+        errors: list[dict[str, str]] = []
+        for schema in schemas:
+            try:
+                sandbox_cursor.execute(
+                    f"IF NOT EXISTS ("
+                    f"  SELECT 1 FROM sys.schemas WHERE name = N'{schema}'"
+                    f") EXEC('CREATE SCHEMA [{schema}]')"
+                )
+            except pyodbc.Error as exc:
+                errors.append({
+                    "code": "SCHEMA_CREATE_FAILED",
+                    "message": f"Failed to create schema {schema}: {exc}",
+                })
+        return errors
+
+    def _clone_tables(
+        self,
+        source_cursor: pyodbc.Cursor,
+        sandbox_cursor: pyodbc.Cursor,
+        source_database: str,
+        schemas: list[str],
+    ) -> tuple[list[str], list[dict[str, str]]]:
+        """Clone table structure from source to sandbox. Returns (cloned, errors)."""
+        cloned: list[str] = []
+        errors: list[dict[str, str]] = []
+        source_cursor.execute(
+            "SELECT TABLE_SCHEMA, TABLE_NAME "
+            "FROM INFORMATION_SCHEMA.TABLES "
+            "WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_SCHEMA IN ("
+            + ",".join(f"N'{s}'" for s in schemas)
+            + ") ORDER BY TABLE_SCHEMA, TABLE_NAME"
+        )
+        for schema_name, table_name in source_cursor.fetchall():
+            fqn = f"[{schema_name}].[{table_name}]"
+            try:
+                sandbox_cursor.execute(
+                    f"SELECT TOP 0 * INTO {fqn} "
+                    f"FROM [{source_database}].{fqn}"
+                )
+                cloned.append(f"{schema_name}.{table_name}")
+            except pyodbc.Error as exc:
+                errors.append({
+                    "code": "TABLE_CLONE_FAILED",
+                    "message": f"Failed to clone {fqn}: {exc}",
+                })
+        return cloned, errors
+
+    def _clone_procedures(
+        self,
+        source_cursor: pyodbc.Cursor,
+        sandbox_cursor: pyodbc.Cursor,
+        schemas: list[str],
+    ) -> tuple[list[str], list[dict[str, str]]]:
+        """Clone procedure definitions from source to sandbox. Returns (cloned, errors)."""
+        cloned: list[str] = []
+        errors: list[dict[str, str]] = []
+        source_cursor.execute(
+            "SELECT s.name AS schema_name, p.name AS proc_name, "
+            "       OBJECT_DEFINITION(p.object_id) AS definition "
+            "FROM sys.procedures p "
+            "JOIN sys.schemas s ON p.schema_id = s.schema_id "
+            "WHERE s.name IN ("
+            + ",".join(f"N'{s}'" for s in schemas)
+            + ") ORDER BY s.name, p.name"
+        )
+        for schema_name, proc_name, definition in source_cursor.fetchall():
+            fqn = f"{schema_name}.{proc_name}"
+            if definition is None:
+                errors.append({
+                    "code": "PROC_DEFINITION_NULL",
+                    "message": f"Cannot read definition for {fqn} (encrypted or inaccessible)",
+                })
+                continue
+            try:
+                sandbox_cursor.execute(definition)
+                cloned.append(fqn)
+            except pyodbc.Error as exc:
+                errors.append({
+                    "code": "PROC_CLONE_FAILED",
+                    "message": f"Failed to clone procedure {fqn}: {exc}",
+                })
+        return cloned, errors
+
+    # ── Public API ───────────────────────────────────────────────────────
+
+    def sandbox_up(
+        self,
+        run_id: str,
+        schemas: list[str],
+        source_database: str,
+    ) -> dict[str, Any]:
+        _validate_run_id(run_id)
+        for s in schemas:
+            _validate_identifier(s)
+        sandbox_db = self.sandbox_db_name(run_id)
+
+        logger.info(
+            "event=sandbox_up run_id=%s sandbox_db=%s source=%s schemas=%s",
+            run_id, sandbox_db, source_database, schemas,
+        )
+
+        self._create_sandbox_db(sandbox_db, run_id)
+
+        errors: list[dict[str, str]] = []
+        tables_cloned: list[str] = []
+        procedures_cloned: list[str] = []
+
         sandbox_conn = self._connect(database=sandbox_db)
         source_conn: pyodbc.Connection | None = None
         try:
             sandbox_cursor = sandbox_conn.cursor()
-
-            for schema in schemas:
-                try:
-                    sandbox_cursor.execute(
-                        f"IF NOT EXISTS ("
-                        f"  SELECT 1 FROM sys.schemas WHERE name = N'{schema}'"
-                        f") EXEC('CREATE SCHEMA [{schema}]')"
-                    )
-                except pyodbc.Error as exc:
-                    errors.append({
-                        "code": "SCHEMA_CREATE_FAILED",
-                        "message": f"Failed to create schema {schema}: {exc}",
-                    })
+            errors.extend(self._create_schemas(sandbox_cursor, schemas))
 
             source_conn = self._connect(database=source_database)
             source_cursor = source_conn.cursor()
 
-            # Clone tables (schema only, no data, no constraints)
-            source_cursor.execute(
-                "SELECT TABLE_SCHEMA, TABLE_NAME "
-                "FROM INFORMATION_SCHEMA.TABLES "
-                "WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_SCHEMA IN ("
-                + ",".join(f"N'{s}'" for s in schemas)
-                + ") ORDER BY TABLE_SCHEMA, TABLE_NAME"
+            t_cloned, t_errors = self._clone_tables(
+                source_cursor, sandbox_cursor, source_database, schemas,
             )
-            for schema_name, table_name in source_cursor.fetchall():
-                fqn = f"[{schema_name}].[{table_name}]"
-                try:
-                    sandbox_cursor.execute(
-                        f"SELECT TOP 0 * INTO {fqn} "
-                        f"FROM [{source_database}].{fqn}"
-                    )
-                    tables_cloned.append(f"{schema_name}.{table_name}")
-                except pyodbc.Error as exc:
-                    errors.append({
-                        "code": "TABLE_CLONE_FAILED",
-                        "message": f"Failed to clone {fqn}: {exc}",
-                    })
+            tables_cloned.extend(t_cloned)
+            errors.extend(t_errors)
 
-            # Clone procedures
-            source_cursor.execute(
-                "SELECT s.name AS schema_name, p.name AS proc_name, "
-                "       OBJECT_DEFINITION(p.object_id) AS definition "
-                "FROM sys.procedures p "
-                "JOIN sys.schemas s ON p.schema_id = s.schema_id "
-                "WHERE s.name IN ("
-                + ",".join(f"N'{s}'" for s in schemas)
-                + ") ORDER BY s.name, p.name"
+            p_cloned, p_errors = self._clone_procedures(
+                source_cursor, sandbox_cursor, schemas,
             )
-            for schema_name, proc_name, definition in source_cursor.fetchall():
-                fqn = f"{schema_name}.{proc_name}"
-                if definition is None:
-                    errors.append({
-                        "code": "PROC_DEFINITION_NULL",
-                        "message": f"Cannot read definition for {fqn} (encrypted or inaccessible)",
-                    })
-                    continue
-                try:
-                    sandbox_cursor.execute(definition)
-                    procedures_cloned.append(fqn)
-                except pyodbc.Error as exc:
-                    errors.append({
-                        "code": "PROC_CLONE_FAILED",
-                        "message": f"Failed to clone procedure {fqn}: {exc}",
-                    })
+            procedures_cloned.extend(p_cloned)
+            errors.extend(p_errors)
 
         except pyodbc.Error as exc:
-            logger.error(
-                "event=sandbox_up_failed run_id=%s error=%s", run_id, exc,
-            )
+            logger.error("event=sandbox_up_failed run_id=%s error=%s", run_id, exc)
             return {
                 "run_id": run_id,
                 "sandbox_database": sandbox_db,
@@ -217,7 +282,6 @@ class SqlServerSandbox(SandboxBackend):
         _validate_run_id(run_id)
         sandbox_db = self.sandbox_db_name(run_id)
 
-        # Validate scenario keys before opening a connection
         scenario_name = scenario.get("name", "unnamed")
         for key in ("target_table", "procedure", "given"):
             if key not in scenario:
@@ -225,6 +289,11 @@ class SqlServerSandbox(SandboxBackend):
         target_table = scenario["target_table"]
         procedure = scenario["procedure"]
         given = scenario["given"]
+
+        _validate_identifier(target_table)
+        _validate_identifier(procedure)
+        for fixture in given:
+            _validate_identifier(fixture["table"])
 
         logger.info(
             "event=execute_scenario run_id=%s scenario=%s procedure=%s",

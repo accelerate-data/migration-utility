@@ -10,7 +10,7 @@ import pytest
 
 from shared.sandbox import get_backend
 from shared.sandbox.base import SandboxBackend
-from shared.sandbox.sql_server import SqlServerSandbox, _validate_run_id
+from shared.sandbox.sql_server import SqlServerSandbox, _validate_identifier, _validate_run_id
 
 FIXTURES = Path(__file__).parent / "fixtures" / "test_harness"
 
@@ -66,6 +66,32 @@ class TestRunIdValidation:
     def test_rejects_special_chars(self) -> None:
         with pytest.raises(ValueError, match="Invalid run_id"):
             _validate_run_id("run id with spaces")
+
+
+# ── Identifier validation ────────────────────────────────────────────────────
+
+
+class TestIdentifierValidation:
+    def test_simple_name(self) -> None:
+        _validate_identifier("dbo")
+
+    def test_dotted_name(self) -> None:
+        _validate_identifier("silver.DimProduct")
+
+    def test_bracketed_name(self) -> None:
+        _validate_identifier("[dbo].[Product]")
+
+    def test_rejects_semicolon(self) -> None:
+        with pytest.raises(ValueError, match="Unsafe SQL identifier"):
+            _validate_identifier("dbo; DROP TABLE x")
+
+    def test_rejects_quote(self) -> None:
+        with pytest.raises(ValueError, match="Unsafe SQL identifier"):
+            _validate_identifier("dbo'--")
+
+    def test_rejects_empty(self) -> None:
+        with pytest.raises(ValueError, match="Unsafe SQL identifier"):
+            _validate_identifier("")
 
 
 # ── SQL Server backend (mocked pyodbc) ───────────────────────────────────────

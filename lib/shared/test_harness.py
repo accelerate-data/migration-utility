@@ -74,6 +74,7 @@ def sandbox_up(
     project_root: str = typer.Option(".", help="Project root directory"),
 ) -> None:
     """Create a sandbox database and clone schema from the source."""
+    logger.info("event=cli_invoked command=sandbox_up run_id=%s", run_id)
     root = resolve_project_root(Path(project_root))
     manifest = _load_manifest(root)
     backend = _create_backend(manifest)
@@ -86,6 +87,7 @@ def sandbox_up(
         source_database=backend.database,
     )
     typer.echo(json.dumps(result, indent=2))
+    logger.info("event=cli_complete command=sandbox_up run_id=%s status=%s", run_id, result.get("status"))
     if result.get("status") == "error":
         raise typer.Exit(code=1)
 
@@ -96,12 +98,14 @@ def sandbox_down(
     project_root: str = typer.Option(".", help="Project root directory"),
 ) -> None:
     """Drop a sandbox database."""
+    logger.info("event=cli_invoked command=sandbox_down run_id=%s", run_id)
     root = resolve_project_root(Path(project_root))
     manifest = _load_manifest(root)
     backend = _create_backend(manifest)
 
     result = backend.sandbox_down(run_id=run_id)
     typer.echo(json.dumps(result, indent=2))
+    logger.info("event=cli_complete command=sandbox_down run_id=%s status=%s", run_id, result.get("status"))
     if result.get("status") == "error":
         raise typer.Exit(code=1)
 
@@ -113,6 +117,7 @@ def execute(
     project_root: str = typer.Option(".", help="Project root directory"),
 ) -> None:
     """Execute a test scenario in the sandbox and capture ground truth."""
+    logger.info("event=cli_invoked command=execute run_id=%s scenario=%s", run_id, scenario)
     root = resolve_project_root(Path(project_root))
     manifest = _load_manifest(root)
     backend = _create_backend(manifest)
@@ -130,6 +135,7 @@ def execute(
 
     result = backend.execute_scenario(run_id=run_id, scenario=scenario_data)
     typer.echo(json.dumps(result, indent=2))
+    logger.info("event=cli_complete command=execute run_id=%s status=%s", run_id, result.get("status"))
     if result.get("status") == "error":
         raise typer.Exit(code=1)
 
