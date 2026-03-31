@@ -54,13 +54,8 @@ For each candidate writer:
 3. Extract `refs` from the output. For every ref that is a view, function, or procedure (not a base table), run `discover show` on it and follow the chain until you reach base tables. Assemble the fully resolved `dependencies: { tables, views, functions }` on the candidate.
 
 4. Check `classification`:
-   - `deterministic` — no further action needed.
-   - `claude_assisted` — read `raw_ddl` and analyse the proc body:
-     - Identify `reads_from` and `writes_to`.
-     - Classify each statement as `migrate` or `skip`. See `../skills/discover-objects/references/tsql-parse-classification.md` for the full classification guide.
-     - If the proc calls other procs (EXEC), run `discover show` on each and follow recursively.
-     - Add `LLM_ANALYSIS_REQUIRED` warning.
-     - The resolved statements are persisted to catalog in Step 5 — downstream agents read from there.
+   - `deterministic` — no further action needed. Statements are already classified.
+   - `claude_assisted` — follow the full [procedure analysis flow](../skills/discover-objects/references/procedure-analysis-flow.md) to resolve all statements. Add `LLM_ANALYSIS_REQUIRED` warning. Resolved statements are persisted to catalog in Step 5.
 
 ### Step 3 — Apply Resolution Rules
 

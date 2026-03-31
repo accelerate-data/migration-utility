@@ -11,7 +11,7 @@ tools:
 
 # Profiler Agent
 
-Given a batch of target tables with selected writers, produce migration profile candidates for each table and write them into the table catalog files.
+Given a batch of target tables, produce migration profile candidates for each table and write them into the table catalog files. The selected writer for each table is read from the `scoping` section in `catalog/tables/<table>.json`.
 
 Use `uv run profile` directly for context assembly and catalog writes. Do not read or write catalog files directly -- use `profile context` and `profile write` as your interface.
 
@@ -36,8 +36,10 @@ For each item in `items[]`, run:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" profile context \
-  --table <item_id> --writer <selected_writer>
+  --table <item_id>
 ```
+
+The command reads `selected_writer` from the catalog scoping section — no `--writer` argument needed.
 
 If the command fails (exit code 1 or 2), record `status: "error"` with the failure message in `errors[]` and continue to the next item.
 
