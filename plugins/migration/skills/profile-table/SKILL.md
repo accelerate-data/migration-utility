@@ -35,9 +35,7 @@ If exit code is non-zero, stop and report the error.
 
 ### Step 2 -- LLM Profiling (Reasoning)
 
-Read the context JSON and the reference tables from `docs/design/agent-contract/what-to-profile-and-why.md`. Answer the six profiling questions below.
-
-**Key principle:** Catalog signals are facts, not candidates. If the catalog declares a PK, that is the PK (`source: "catalog"`). If the catalog has declared FKs, those are confirmed FKs. The LLM fills in what the catalog does not answer (`source: "llm"`). When the LLM adds detail to a catalog fact (e.g. classifying `fk_type` on a declared FK), use `source: "catalog+llm"`.
+Read the context JSON and the signal tables in [profiling-signals.md](references/profiling-signals.md). Answer the six profiling questions (Q1–Q6) defined there. Follow all signal tables and pattern matching rules — do not abbreviate.
 
 #### Q1 -- Classification (`resolved_kind`)
 

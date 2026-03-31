@@ -56,9 +56,7 @@ If the command fails (exit code 1 or 2), record `status: "error"` with the failu
 
 ### Step 2 -- LLM Profiling
 
-Using the context JSON, answer the six profiling questions (Q1–Q6) defined in [profiling-signals.md](../skills/profile-table/references/profiling-signals.md). Follow the signal tables and pattern matching rules in that reference — do not abbreviate.
-
-**Catalog facts are answers, not candidates.** If the catalog declares a PK, that is the PK. If the catalog has declared FKs, those are confirmed FKs. The LLM fills in what the catalog does not answer.
+Using the context JSON, answer the six profiling questions (Q1–Q6) defined in [profiling-signals.md](../skills/profile-table/references/profiling-signals.md). Follow all signal tables and pattern matching rules in that reference — do not abbreviate.
 
 ### Step 3 -- Write to Catalog
 
