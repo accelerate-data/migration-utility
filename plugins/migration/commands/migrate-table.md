@@ -38,7 +38,7 @@ Before starting the migration pipeline:
 #### 1a. List tables
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover list \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover list \
   --project-root <project-root> --type tables
 ```
 
@@ -47,7 +47,7 @@ If `--table` was provided, skip the picker. Otherwise, present the table list an
 #### 1b. Find writers
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover refs \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover refs \
   --project-root <project-root> --name <selected_table>
 ```
 
@@ -60,7 +60,7 @@ Present the writers list. If exactly one writer, auto-select it and confirm with
 #### 1c. Show writer details and resolve statements
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover show \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover show \
   --project-root <project-root> --name <selected_writer>
 ```
 
@@ -69,7 +69,7 @@ Check `classification`:
 - **`deterministic`**: Statements are already resolved. Persist to catalog automatically:
 
   ```bash
-  uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover write-statements \
+  uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-statements \
     --project-root <project-root> --name <selected_writer> --statements '<json>'
   ```
 

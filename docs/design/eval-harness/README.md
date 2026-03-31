@@ -259,7 +259,7 @@ export SA_PASSWORD=<your-password>
 # 3. Run setup-ddl to extract DDL and build catalog
 #    (from a project directory pointed at MigrationTest)
 cd <migration-project-root>
-claude --plugin-dir . -p "/setup-ddl"
+claude --plugin-dir plugins/ -p "/setup-ddl"
 
 # 4. Run catalog-enrich for AST enrichment
 uv run --project lib catalog-enrich

@@ -51,7 +51,7 @@ Use `AskUserQuestion` to get confirmation before proceeding. If they decline, st
 
 Follow the step sequence below. Steps 1–3 are interactive (agent + MCP). Steps 4–8 use deterministic Python CLI tools — the agent saves MCP query results to `./.staging/` as JSON files, then calls the CLI tool to process them.
 
-`<shared-path>` refers to `${CLAUDE_PLUGIN_ROOT}/../lib`.
+`<shared-path>` refers to `${CLAUDE_PLUGIN_ROOT}/../../lib`.
 
 ## Step 1 — Select database
 

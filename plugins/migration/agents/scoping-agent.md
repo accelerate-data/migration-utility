@@ -35,7 +35,7 @@ After reading the input, read `manifest.json` from the current working directory
 For each item in `items[]`, run:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover refs \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover refs \
   --name <item_id>
 ```
 
@@ -96,7 +96,7 @@ For each resolved item:
 Run:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover write-statements \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-statements \
   --name <selected_writer> --statements '<json>'
 ```
 

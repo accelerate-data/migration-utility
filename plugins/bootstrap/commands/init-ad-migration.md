@@ -17,8 +17,8 @@ Run all checks **silently** — do NOT install or change anything yet.
 
 1. `uv --version` — is uv installed?
 2. `python3 --version` — is Python >= 3.11?
-3. `uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" python3 -c "import pydantic, sqlglot, typer"` — are shared package deps synced?
-4. `uv run "${CLAUDE_PLUGIN_ROOT}/../mcp/ddl/server.py" --help` — does the DDL MCP server start cleanly?
+3. `uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" python3 -c "import pydantic, sqlglot, typer"` — are shared package deps synced?
+4. `uv run "${CLAUDE_PLUGIN_ROOT}/../../mcp/ddl/server.py" --help` — does the DDL MCP server start cleanly?
 5. `toolbox --version` — is the genai-toolbox binary installed?
 6. Check whether each of the four MSSQL environment variables is set (non-empty): `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD`. Do not print their values.
 7. `git rev-parse --is-inside-work-tree` — is the current working directory inside a git repository? If not, warn the user that the project folder is not under version control and recommend initialising git before running extraction skills.
@@ -87,7 +87,7 @@ After installing, re-run `uv --version` to confirm. Tell the user to restart the
 **Sync shared deps** (if not synced):
 
 ```bash
-uv sync --project "${CLAUDE_PLUGIN_ROOT}/../lib"
+uv sync --project "${CLAUDE_PLUGIN_ROOT}/../../lib"
 ```
 
 **ddl_mcp fails** (after shared sync): re-run the ddl_mcp check. If it still fails, show the error output to the user and tell them to check their Python environment.
@@ -101,8 +101,8 @@ uv sync --project "${CLAUDE_PLUGIN_ROOT}/../lib"
 Run the `init` CLI to scaffold the project directory. This creates CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, and .githooks/pre-commit — all idempotently.
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" init scaffold-project --project-root .
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" init scaffold-hooks --project-root .
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" init scaffold-project --project-root .
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" init scaffold-hooks --project-root .
 ```
 
 Parse the JSON output and report to the user which files were created, updated, or skipped.

@@ -42,7 +42,7 @@
     {
       "name": "ad-migration plugin",
       "type": "Claude Code plugin (marketplace)",
-      "description": "DDL analysis and migration pipeline. Three sub-plugins: bootstrap, migration, test-generation. Loaded via: claude --plugin-dir ."
+      "description": "DDL analysis and migration pipeline. Three sub-plugins: bootstrap, migration, test-generation. Loaded via: claude --plugin-dir plugins/"
     }
   ],
   "entrypoints": {
@@ -55,15 +55,15 @@
   },
   "modules": {
     "plugin_marketplace": {
-      "path": ".claude-plugin/marketplace.json",
+      "path": "plugins/.claude-plugin/marketplace.json",
       "description": "Plugin marketplace manifest defining 3 sub-plugins: bootstrap, migration, test-generation. Each plugin has a 'source' key pointing to its workbench directory."
     },
     "plugin_bootstrap": {
-      "path": "bootstrap/",
+      "path": "plugins/bootstrap/",
       "description": "Bootstrap sub-plugin. Commands: commands/init-ad-migration.md (prerequisite checker and installer), commands/init-dbt.md (dbt project scaffolding with adapter selection and sources.yml generation). Skills: skills/setup-ddl/ (DDL extraction from live SQL Server with catalog signals, DMF references, and AST enrichment)."
     },
     "plugin_migration": {
-      "path": "migration/",
+      "path": "plugins/migration/",
       "description": "Migration sub-plugin. Contains skills, agents, and commands for the migration workflow."
     },
     "shared_python": {
@@ -83,15 +83,15 @@
       "description": "genai-toolbox config for live SQL Server queries. tools.yaml defines mssql-execute-sql tool."
     },
     "migration_skills": {
-      "path": "migration/skills/",
+      "path": "plugins/migration/skills/",
       "description": "Skill definitions: discover/ (DDL exploration — list/show/refs from catalog), migrate/ (dbt model generation from stored procedures), profile/ (interactive single-table profiling with approval gates). setup-ddl is in the bootstrap sub-plugin."
     },
     "migration_agents": {
-      "path": "migration/agents/",
+      "path": "plugins/migration/agents/",
       "description": "Agent definitions: scoping-agent.md (catalog-based writer detection via discover refs), migrator-agent.md (batch dbt model generation from stored procedures), profiler-agent.md (batch profiling — context assembly, LLM reasoning, catalog write-back)."
     },
     "migration_commands": {
-      "path": "migration/commands/",
+      "path": "plugins/migration/commands/",
       "description": "Top-level orchestrator commands: migrate-table/ (end-to-end single-table migration pipeline — discover, profile, migrate, test-gen, validate)."
     },
     "tests_migration": {
@@ -116,7 +116,7 @@
     }
   },
   "key_directories": {
-    ".claude-plugin/": "Claude Code plugin marketplace manifest (bootstrap + migration + test-generation sub-plugins)",
+    "plugins/": "Claude Code plugin workbenches (bootstrap + migration + test-generation sub-plugins) with marketplace manifest",
     "lib/": "Python DDL analysis library (uv project, sqlglot-based)",
     "lib/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
     "tests/unit/": "Python pytest tests for shared library (discover, catalog, catalog_enrich, extract_refs, integration)",
@@ -155,7 +155,7 @@
   },
   "notes_for_agents": {
     "startup": "Read this file before exploring code. It is the primary startup context for structure, entrypoints, modules, and commands.",
-    "plugin_loading": "Load the ad-migration plugin with: claude --plugin-dir . CLAUDE_PLUGIN_ROOT points to the active sub-plugin root (e.g. bootstrap/ or migration/).",
+    "plugin_loading": "Load the ad-migration plugin with: claude --plugin-dir plugins/ CLAUDE_PLUGIN_ROOT points to the active sub-plugin root (e.g. plugins/bootstrap/ or plugins/migration/).",
     "ddl_filenames": "The loader auto-detects object types from CREATE statements — .sql filenames are not significant. Any directory of .sql files works.",
     "catalog_mandatory": "discover.py requires catalog/ files from setup-ddl. Errors if catalog is missing. No AST fallback.",
     "parse_errors": "sqlglot parse failures are hard errors (DdlParseError). The loader does not silently skip unparseable DDL.",

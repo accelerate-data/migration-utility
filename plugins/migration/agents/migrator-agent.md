@@ -35,7 +35,7 @@ After reading the input, read `manifest.json` from the current working directory
 For each item in `items[]`, run:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" migrate context \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" migrate context \
   --table <item_id> --writer <selected_writer>
 ```
 
@@ -98,7 +98,7 @@ Render `schema_tests` from context into `.yml`:
 ### Step 5 — Write Artifacts
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" migrate write \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" migrate write \
   --table <item_id> \
   --model-sql '<generated_sql>' \
   --schema-yml '<generated_yml>'

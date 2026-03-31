@@ -54,7 +54,7 @@ uv sync --project lib
 To run the plugin locally:
 
 ```bash
-claude --plugin-dir .
+claude --plugin-dir plugins/
 ```
 
 ---

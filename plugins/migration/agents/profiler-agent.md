@@ -35,7 +35,7 @@ After reading the input, read `manifest.json` from the current working directory
 For each item in `items[]`, run:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" profile context \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" profile context \
   --table <item_id> --writer <selected_writer>
 ```
 
@@ -106,7 +106,7 @@ For remaining columns:
 Run:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" profile write \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" profile write \
   --table <item_id> \
   --profile '<json>'
 ```

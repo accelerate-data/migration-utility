@@ -49,7 +49,7 @@ Read `manifest.json` from the current working directory to confirm it is a valid
 ## list
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover list \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover list \
   --type <type>
 ```
 
@@ -71,7 +71,7 @@ If the user selects an object, proceed to `show`. If they ask what references it
 ## show
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover show \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover show \
   --name <fqn>
 ```
 
@@ -157,7 +157,7 @@ After presenting the procedure, persist resolved statements to catalog.
 All statements are already classified by the AST. Persist immediately after presenting Migration Guidance — no additional user confirmation needed:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover write-statements \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-statements \
   --name <procedure_name> --statements '<json>'
 ```
 
@@ -174,7 +174,7 @@ No `claude` actions are written to catalog — all must be resolved before persi
 ## refs
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" discover refs \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover refs \
   --name <fqn>
 ```
 

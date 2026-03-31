@@ -23,7 +23,7 @@ Read `manifest.json` from the current working directory to confirm a valid proje
 ### Step 1 -- Assemble Context (Deterministic)
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" profile context \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" profile context \
   --table <table> --writer <writer>
 ```
 
@@ -111,7 +111,7 @@ Wait for explicit user approval before proceeding to Step 4.
 After user approval (with any edits):
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../lib" profile write \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" profile write \
   --table <table> \
   --profile '<json>'
 ```
