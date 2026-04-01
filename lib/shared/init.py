@@ -2,7 +2,7 @@
 
 Two subcommands:
 
-    scaffold-project   Write CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc
+    scaffold-project   Write CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, .claude/rules/command-lifecycle.md
     scaffold-hooks     Write .githooks/pre-commit and configure git hooks path
 
 Both are idempotent: existing files are merged or skipped, never overwritten.
@@ -225,6 +225,86 @@ export MSSQL_DB=
 export SA_PASSWORD=
 """
 
+COMMAND_LIFECYCLE_MD = """\
+# Command Lifecycle
+
+Every stage-specific command (`/scoping`, `/profiling`, `/generating-tests`, `/generating-model`) follows this shared lifecycle. Individual commands add stage-specific guards and delegation rules on top.
+
+## Invocation
+
+```text
+/<command> <schema.table> [schema.table ...]
+```
+
+Table names are fully-qualified (`schema.table`). Single table = one sub-agent, FDE reviews inline. Multiple tables = parallel sub-agents, FDE reviews summary at end.
+
+## Common Guards
+
+### Batch-wide
+
+Before processing any items:
+
+1. Read `manifest.json` from the current working directory. If missing or unreadable, fail **all** items with code `MANIFEST_NOT_FOUND` and write output immediately.
+
+### Per-item
+
+Before running the skill for each item:
+
+1. Check `catalog/tables/<item_id>.json` exists. If missing, skip this item with `CATALOG_FILE_MISSING` in `errors[]`.
+
+## Git Lifecycle
+
+1. **Single table** — run on the current branch.
+2. **Multiple tables** — create branch `run/<command>-batch-N` (N = next unused integer).
+3. Clear `.migration-runs/`, write `meta.json` with `{stage, tables, started_at}`.
+4. Spawn one sub-agent per table. Each follows the corresponding skill's per-table rules.
+5. Sub-agents run autonomously; on error, skip the table and continue.
+6. Each sub-agent writes its result to `.migration-runs/results/<schema>.<table>.json`.
+7. Aggregate results into `.migration-runs/summary.json`.
+8. Present summary to FDE.
+9. Ask FDE: commit and open PR?
+
+## Run Log Structure
+
+```text
+.migration-runs/
+  meta.json                        # stage, tables, started_at
+  results/
+    <schema>.<table>.json          # one per item — sub-agent writes on completion
+  summary.json                     # command writes after all sub-agents finish
+```
+
+- Cleared at the start of each command invocation.
+- `.gitignore`d — never committed.
+- No run IDs, no nesting.
+- Consumed at commit/PR time for rich commit messages and PR bodies.
+
+## Error and Warning Format
+
+Every entry in `errors[]` or `warnings[]` uses this structure:
+
+```json
+{
+  "item_id": "silver.dimcustomer",
+  "code": "CATALOG_FILE_MISSING",
+  "message": "catalog/tables/silver.dimcustomer.json not found.",
+  "severity": "error"
+}
+```
+
+## Output Integrity
+
+Never set `status: "ok"` if `errors[]` is non-empty or a required step was skipped. The `status` field must reflect the actual outcome.
+
+## Skip-and-Continue
+
+Never stop the batch on a single item failure. Process all items and report aggregate results. On skill failure, record the error code and continue to the next item.
+
+## Relationship to Skills
+
+Skills define per-table processing rules. Commands reference skills when constructing sub-agent prompts. The skill is unaware of whether it was invoked directly by the FDE or by a command's sub-agent — suppress user gates when running in batch.
+"""
+
 PRE_COMMIT_HOOK = """\
 #!/usr/bin/env bash
 # Pre-commit hook: block secrets from being committed.
@@ -352,6 +432,18 @@ def run_scaffold_project(project_root: Path) -> dict[str, Any]:
     else:
         files_skipped.append(".envrc")
 
+    # .claude/rules/command-lifecycle.md
+    lifecycle_path = project_root / ".claude" / "rules" / "command-lifecycle.md"
+    if not lifecycle_path.exists():
+        lifecycle_path.parent.mkdir(parents=True, exist_ok=True)
+        lifecycle_path.write_text(COMMAND_LIFECYCLE_MD, encoding="utf-8")
+        files_created.append(".claude/rules/command-lifecycle.md")
+        logger.info(
+            "event=scaffold_file file=.claude/rules/command-lifecycle.md status=created"
+        )
+    else:
+        files_skipped.append(".claude/rules/command-lifecycle.md")
+
     return {
         "files_created": files_created,
         "files_updated": files_updated,
@@ -408,7 +500,7 @@ def scaffold_project(
         help="Project root directory (defaults to CWD)",
     ),
 ) -> None:
-    """Scaffold CLAUDE.md, README.md, repo-map.json, .gitignore, and .envrc."""
+    """Scaffold CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, and .claude/rules/command-lifecycle.md."""
     if project_root is None:
         project_root = Path.cwd()
     result = run_scaffold_project(project_root)

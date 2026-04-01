@@ -65,7 +65,7 @@
     },
     "plugin_migration": {
       "path": "plugins/migration/",
-      "description": "Migration sub-plugin. Contains skills, agents, and commands for the migration workflow."
+      "description": "Migration sub-plugin. Contains skills and commands for the migration workflow."
     },
     "plugin_ground_truth_harness": {
       "path": "plugins/ground-truth-harness/",
@@ -95,13 +95,9 @@
       "path": "plugins/migration/skills/",
       "description": "Skill definitions: listing-objects/ (catalog browsing — list objects by type), scoping-table/ (table scoping — writer discovery, statement resolution, catalog persistence), analyzing-object/ (object analysis — show details, refs, statement classification), generating-model/ (dbt model generation from stored procedures), profiling-table/ (interactive single-table profiling with approval gates). setup-ddl is in the bootstrap sub-plugin."
     },
-    "migration_agents": {
-      "path": "plugins/migration/agents/",
-      "description": "Agent definitions: scoping.md (catalog-based writer detection via discover refs, writes scoping results to catalog and produces scoping_summary), model-generator.md (batch dbt model generation — delegates to /generating-model skill per item), profiler.md (batch profiling — context assembly, LLM reasoning, catalog write-back)."
-    },
     "migration_commands": {
       "path": "plugins/migration/commands/",
-      "description": "Top-level orchestrator commands: migrate-table/ (end-to-end single-table migration pipeline — discover, profile, migrate, test-gen, validate)."
+      "description": "Stage-specific commands: scoping.md (writer discovery), profiling.md (migration profiling), generating-model.md (dbt model generation). Each follows the shared command lifecycle in .claude/rules/command-lifecycle.md."
     },
     "tests_migration": {
       "path": "tests/unit/",
@@ -109,7 +105,7 @@
     },
     "tests_evals": {
       "path": "tests/evals/",
-      "description": "Promptfoo eval harness for non-interactive agent and skill testing against MigrationTest schema. Three packages: scoping (8 scenarios x analyzing-object skill + agent), profiler (4 scenarios x profiling-table skill + agent), model-generator (4 scenarios x generating-model skill + agent). Run via: cd tests/evals && npx promptfoo eval. See docs/design/eval-harness/README.md."
+      "description": "Promptfoo eval harness for skill testing against MigrationTest schema. Three packages: scoping (8 scenarios x analyzing-object skill), profiler (4 scenarios x profiling-table skill), model-generator (4 scenarios x generating-model skill). Run via: cd tests/evals && npx promptfoo eval. See docs/design/eval-harness/README.md."
     },
     "tests_ddl_mcp": {
       "path": "mcp/ddl/tests/",

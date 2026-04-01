@@ -212,7 +212,7 @@ dbt project scaffolded at <project-root>/dbt/
 
 Next steps:
   1. Update profiles.yml with your connection credentials (unless DuckDB)
-  2. Run /migrate-table to generate dbt models from stored procedures
+  2. Run /scoping, /profiling, and /generating-model to migrate stored procedures to dbt models
 ```
 
 ## Idempotency
