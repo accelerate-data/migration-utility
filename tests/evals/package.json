@@ -5,7 +5,7 @@
   "scripts": {
     "prerestore": "git checkout -- fixtures/",
     "postrestore": "git checkout -- fixtures/ && git clean -fd fixtures/",
-    "eval": "npm run prerestore && promptfoo eval --no-cache -c packages/scoping/skill-analyzing-object.yaml -c packages/profiler/skill-profiling-table.yaml -c packages/model-generator/skill-generating-model.yaml; npm run postrestore",
+    "eval": "npm run eval:scoping && npm run eval:profiler && npm run eval:model-generator",
     "eval:scoping": "npm run prerestore && promptfoo eval --no-cache -c packages/scoping/skill-analyzing-object.yaml; npm run postrestore",
     "eval:scoping:skill": "npm run prerestore && promptfoo eval --no-cache -c packages/scoping/skill-analyzing-object.yaml; npm run postrestore",
     "eval:profiler": "npm run prerestore && promptfoo eval --no-cache -c packages/profiler/skill-profiling-table.yaml; npm run postrestore",
