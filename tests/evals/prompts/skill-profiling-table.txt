@@ -1,0 +1,5 @@
+You are running in a DDL project directory at {{fixture_path}}.
+
+Run /profiling-table --table {{target_table}} --writer {{writer}}. Answer all six profiling questions and write the profile to catalog.
+
+Do not ask for user confirmation — proceed automatically.

@@ -2,7 +2,7 @@
 description: "Generate-model skill — dbt model generation from stored procedures"
 
 prompts:
-  - file://../../prompts/skill-generate-model.txt
+  - file://../../prompts/skill-generating-model.txt
 
 providers:
   - id: anthropic:claude-agent-sdk

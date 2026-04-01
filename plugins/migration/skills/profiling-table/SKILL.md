@@ -1,5 +1,5 @@
 ---
-name: profile-table
+name: profiling-table
 description: >
   Profile a single table for migration. Assembles deterministic context from catalog and DDL, reasons over the six profiling questions using what-to-profile-and-why.md, presents profile candidates for user approval, then writes the approved profile into the table catalog file. Use when the user asks to "profile a table", "classify a table", "what kind of model is this table", or wants to determine PK, FK, watermark, or PII for a migration target.
 user-invocable: true
