@@ -196,6 +196,17 @@ Field requirements:
 - `severity`: `error` or `warning`.
 - `details`: optional structured context object.
 
+## Handling reviewer feedback
+
+If `$ARGUMENTS` or the invoking prompt includes a `feedback_for_generator` JSON block, apply it before running the normal pipeline:
+
+- **`uncovered_branches`**: list of branch IDs missing coverage. Read the existing `test-specs/<item_id>.json`, then generate new scenarios targeting each listed branch and add them to `unit_tests[]`.
+- **`quality_fixes`**: list of per-scenario remediation instructions. Locate the named scenario in `unit_tests[]` and revise its fixtures according to the instruction (e.g., fix unrealistic values, align FK consistency).
+
+After applying feedback, re-run Steps 2–6 with the revised scenarios. Do not discard previously approved scenarios — only add or revise as directed.
+
+If no `feedback_for_generator` is present, skip this section.
+
 ## Error handling
 
 | Command | Exit code | Action |

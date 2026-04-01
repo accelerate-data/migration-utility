@@ -226,19 +226,23 @@ Show the user:
 3. Equivalence check results (if any warnings)
 4. Materialization and config decisions
 
-Ask the user: "Approve this model to write to the dbt project? (y/n/edit)"
-
-If the user requests edits, apply them and re-run the equivalence check on the edited version.
+Ask the user: "Approve this model to write to the dbt project? (y/n/edit)". If the user requests edits, apply them and re-run the equivalence check on the edited version.
 
 ## Step 7: Write artifacts
 
 After approval:
 
+Write the generated SQL and YAML to temporary files first to avoid shell escaping issues with multi-line content:
+
+1. Write the model SQL to `.staging/model.sql`
+2. Write the schema YAML to `.staging/schema.yml`
+
 ```bash
+mkdir -p .staging
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" migrate write \
   --table <table_fqn> \
-  --model-sql '<generated_sql>' \
-  --schema-yml '<generated_yml>'
+  --model-sql-file .staging/model.sql \
+  --schema-yml-file .staging/schema.yml
 ```
 
 The dbt project path is resolved automatically from `$DBT_PROJECT_PATH` or defaults to `./dbt` relative to the project root. Pass `--dbt-project-path <path>` only if you need to override this.
@@ -268,7 +272,7 @@ If compile fails with a **non-connection error** (syntax, bad ref, macro resolut
 1. Show the full error output to the user
 2. Offer to fix: "Compile failed. Want me to fix the model? (y/n)"
 3. If yes, revise the model SQL, re-run `migrate write`, and re-run `dbt compile` (max 3 fix attempts)
-4. If still failing after 2 attempts, report the errors and leave the model as-is
+4. If still failing after 3 attempts, report the errors and leave the model as-is
 
 ### Fallback to dbt parse
 

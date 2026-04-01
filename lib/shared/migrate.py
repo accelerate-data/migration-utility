@@ -321,10 +321,19 @@ def write(
     table: str = typer.Option(..., help="Fully-qualified target table name (schema.table)"),
     project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
     dbt_project_path: Optional[Path] = typer.Option(None, "--dbt-project-path", help="Path to dbt project (default: $DBT_PROJECT_PATH or ./dbt)"),
-    model_sql: str = typer.Option(..., help="Generated dbt model SQL"),
-    schema_yml: str = typer.Option("", help="Generated schema YAML"),
+    model_sql: str = typer.Option("", help="Generated dbt model SQL (inline string)"),
+    schema_yml: str = typer.Option("", help="Generated schema YAML (inline string)"),
+    model_sql_file: Optional[Path] = typer.Option(None, "--model-sql-file", help="Path to file containing generated dbt model SQL"),
+    schema_yml_file: Optional[Path] = typer.Option(None, "--schema-yml-file", help="Path to file containing generated schema YAML"),
 ) -> None:
     """Write generated dbt model SQL + schema YAML to dbt project."""
+    if model_sql_file:
+        model_sql = model_sql_file.read_text(encoding="utf-8")
+    if schema_yml_file:
+        schema_yml = schema_yml_file.read_text(encoding="utf-8")
+    if not model_sql:
+        logger.error("event=write_failed table=%s error=no model SQL provided (use --model-sql or --model-sql-file)", table)
+        raise typer.Exit(code=1)
     project_root = resolve_project_root(project_root)
     if dbt_project_path is None:
         dbt_project_path = resolve_dbt_project_path(project_root)

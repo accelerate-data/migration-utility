@@ -22,7 +22,7 @@ Before starting, verify:
    | `MSSQL_PORT` | SQL Server port | `1433` |
    | `SA_PASSWORD` | SQL login password | _(from env)_ |
 
-   `MSSQL_DB` is not required at this stage — the skill selects the database interactively. Confirm `MSSQL_HOST`, `MSSQL_PORT`, and `SA_PASSWORD` are set. If any are missing, tell the user and stop.
+   `MSSQL_DB` must be set (use `master` if no specific default is needed) — genai-toolbox binds it at connection init. Confirm `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, and `SA_PASSWORD` are set. If any are missing, tell the user and stop.
 
 ## Preamble — confirm project root
 
@@ -30,7 +30,7 @@ Before starting, verify:
 
 2. Check whether `manifest.json` exists in the current directory:
 
-   - **Present** → read `source_database` and `extracted_schemas` from it. Show the user:
+   - **Present** → read `source_database` and `extracted_schemas` from it. Use `source_database` as `<database>` for all subsequent SQL blocks. Show the user:
 
      ```text
      Project root locked to database: <source_database>
@@ -61,13 +61,16 @@ List user databases on the server:
 SELECT name FROM sys.databases WHERE database_id > 4 ORDER BY name
 ```
 
-Present the list ask them to pick 1. Do not proceed without a selected database. Once a database is selected, run `USE [<database>]` before all subsequent queries to set the database context.
+Present the list and ask them to pick 1. Do not proceed without a selected database.
+
+**Important:** `mssql-execute-sql` runs each statement as a discrete connection — `USE` does not carry across calls. Prepend `USE [<database>];` to **every** SQL block in Steps 2–7.
 
 ## Step 2 — Select schemas
 
 List non-system schemas with object counts so the user can see what each schema contains:
 
 ```sql
+USE [<database>];
 SELECT
     s.name AS schema_name,
     SUM(CASE WHEN o.type = 'U'  THEN 1 ELSE 0 END) AS tables,
@@ -91,6 +94,7 @@ When substituting `<selected-schemas>` into SQL `IN` clauses, quote each schema 
 Run count queries and present a summary so the user knows what will be extracted **before any files are written**:
 
 ```sql
+USE [<database>];
 SELECT
     SUM(CASE WHEN o.type = 'U'  THEN 1 ELSE 0 END) AS tables,
     SUM(CASE WHEN o.type = 'P'  THEN 1 ELSE 0 END) AS procedures,
@@ -104,6 +108,7 @@ WHERE o.is_ms_shipped = 0
 Also check catalog signal availability:
 
 ```sql
+USE [<database>];
 SELECT
     (SELECT COUNT(*) FROM sys.key_constraints WHERE type = 'PK') AS pk_count,
     (SELECT COUNT(*) FROM sys.foreign_keys) AS fk_count,
@@ -161,11 +166,18 @@ Technology-to-dialect mapping:
 
 ## Step 5 — Export procedures, views, and functions
 
+Create the staging directory first:
+
+```bash
+mkdir -p ./.staging
+```
+
 For each object type, run the query via `mssql:mssql-execute-sql`, save the result as JSON, then call the CLI tool.
 
 **Procedures:**
 
 ```sql
+USE [<database>];
 SELECT
     SCHEMA_NAME(o.schema_id) AS schema_name,
     o.name AS object_name,
@@ -185,7 +197,7 @@ uv run --project <shared-path> setup-ddl assemble-modules \
   --type procedures
 ```
 
-Repeat for **views** (change `o.type = 'P'` to `o.type = 'V'`, save as `views.json`, `--type views`) and **functions** (change to `o.type IN ('FN', 'IF', 'TF')`, save as `functions.json`, `--type functions`).
+Repeat for **views** (change `o.type = 'P'` to `o.type = 'V'`, save as `views.json`, `--type views`) and **functions** (change to `o.type IN ('FN', 'IF', 'TF')`, save as `functions.json`, `--type functions`). Remember to prepend `USE [<database>];` to each query.
 
 If a query returns no results, skip the staging file and CLI call for that type.
 
@@ -194,6 +206,7 @@ If a query returns no results, skip the staging file and CLI call for that type.
 Run via `mssql:mssql-execute-sql`:
 
 ```sql
+USE [<database>];
 SELECT
     SCHEMA_NAME(t.schema_id)  AS schema_name,
     t.name                    AS table_name,
@@ -229,7 +242,7 @@ uv run --project <shared-path> setup-ddl assemble-tables \
 
 ## Step 7 — Extract catalog signals and references
 
-Run all catalog queries via `mssql:mssql-execute-sql` and save each result to the staging directory. The CLI tool reads these files and writes all catalog JSON files in one pass.
+Run all catalog queries via `mssql:mssql-execute-sql` and save each result to the staging directory. Prepend `USE [<database>];` to every query — each MCP call is a discrete connection. The CLI tool reads these files and writes all catalog JSON files in one pass.
 
 ### Staging files to create
 
@@ -256,6 +269,7 @@ Save each MCP query result as a JSON file in `./.staging/`:
 **Primary keys and unique indexes** → `pk_unique.json`:
 
 ```sql
+USE [<database>];
 SELECT
     SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name,
     i.name AS index_name, i.is_unique, i.is_primary_key,
@@ -271,6 +285,7 @@ ORDER BY schema_name, table_name, i.index_id, ic.key_ordinal
 **Foreign keys** → `foreign_keys.json`:
 
 ```sql
+USE [<database>];
 SELECT
     SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name,
     fk.name AS constraint_name,
@@ -288,6 +303,7 @@ ORDER BY schema_name, table_name, fk.name, fkc.constraint_column_id
 **Identity columns** → `identity_columns.json`:
 
 ```sql
+USE [<database>];
 SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name, c.name AS column_name
 FROM sys.identity_columns c
 JOIN sys.tables t ON t.object_id = c.object_id
@@ -297,6 +313,7 @@ WHERE t.is_ms_shipped = 0 AND SCHEMA_NAME(t.schema_id) IN (<selected-schemas>)
 **CDC** → `cdc.json`:
 
 ```sql
+USE [<database>];
 SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name
 FROM sys.tables t
 WHERE t.is_ms_shipped = 0 AND t.is_tracked_by_cdc = 1
@@ -306,6 +323,7 @@ WHERE t.is_ms_shipped = 0 AND t.is_tracked_by_cdc = 1
 **Change tracking** (graceful) → `change_tracking.json`:
 
 ```sql
+USE [<database>];
 BEGIN TRY
     SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name
     FROM sys.change_tracking_tables ct
@@ -320,6 +338,7 @@ END CATCH
 **Sensitivity classifications** (graceful) → `sensitivity.json`:
 
 ```sql
+USE [<database>];
 BEGIN TRY
     SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name,
            sc.label, sc.information_type, COL_NAME(sc.major_id, sc.minor_id) AS column_name
@@ -335,6 +354,7 @@ END CATCH
 **Object type map** → `object_types.json`:
 
 ```sql
+USE [<database>];
 SELECT SCHEMA_NAME(o.schema_id) AS schema_name, o.name, o.type
 FROM sys.objects o
 WHERE o.is_ms_shipped = 0
@@ -345,6 +365,7 @@ WHERE o.is_ms_shipped = 0
 **All definitions** (for routing flag scan) → `definitions.json`:
 
 ```sql
+USE [<database>];
 SELECT SCHEMA_NAME(o.schema_id) AS schema_name, o.name AS object_name,
        OBJECT_DEFINITION(o.object_id) AS definition
 FROM sys.objects o
@@ -355,6 +376,7 @@ WHERE o.type IN ('P', 'V', 'FN', 'IF', 'TF') AND o.is_ms_shipped = 0
 **Procedure parameters** → `proc_params.json`:
 
 ```sql
+USE [<database>];
 SELECT
     SCHEMA_NAME(o.schema_id) AS schema_name,
     o.name AS proc_name,
@@ -377,6 +399,7 @@ ORDER BY schema_name, proc_name, p.parameter_id
 Use server-side cursors to batch all `sys.dm_sql_referenced_entities` calls into one result set per object type. Run for **procedures** → `proc_dmf.json`:
 
 ```sql
+USE [<database>];
 DECLARE @result TABLE (
     referencing_schema NVARCHAR(128), referencing_name NVARCHAR(128),
     referenced_schema NVARCHAR(128), referenced_entity NVARCHAR(128),

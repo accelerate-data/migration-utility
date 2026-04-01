@@ -49,13 +49,14 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-scoping \
 
 ### Step 3 -- Analyze each writer candidate
 
-For each writer candidate, delegate to the analyzing-object skill:
+For each writer candidate, launch a sub-agent to run the analyzing-object skill:
 
 ```text
-/analyzing-object --name <writer>
+Run the migration:analyzing-object skill for <writer>.
+Return the analysis result JSON.
 ```
 
-Do NOT inline call graph resolution, statement classification, or any procedure analysis logic here. The `/analyzing-object` skill owns that entire flow. Wait for it to complete before proceeding to the next candidate.
+Do NOT inline call graph resolution, statement classification, or any procedure analysis logic here. The `analyzing-object` skill owns that entire flow. Wait for the sub-agent to complete before proceeding to the next candidate.
 
 ### Step 4 -- Present writer candidates
 

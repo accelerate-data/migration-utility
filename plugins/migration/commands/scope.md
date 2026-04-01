@@ -21,15 +21,15 @@ Identify which procedures write to each table. Launches one sub-agent per table 
 ### Step 1 — Setup
 
 1. Read worktree base path from `.claude/rules/git-workflow.md`.
-2. Generate run slug: `scope-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters if too long).
-3. Create worktree: `git worktree add <base>/<slug> -b <slug>`.
+2. Generate run slug: `feature/scope-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters after `feature/`).
+3. Create worktree: `mkdir -p <base>/feature && git worktree add <base>/<slug> -b <slug>`.
 4. In the worktree, clear `.migration-runs/` and write `meta.json`:
 
 ```json
 {
   "command": "scope",
   "tables": ["silver.DimCustomer", "silver.DimProduct"],
-  "worktree": "../worktrees/scope-silver-dimcustomer-silver-dimproduct",
+  "worktree": "../worktrees/feature/scope-silver-dimcustomer-silver-dimproduct",
   "started_at": "2026-04-01T12:00:00Z"
 }
 ```

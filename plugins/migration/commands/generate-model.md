@@ -24,15 +24,15 @@ Generate dbt models for a batch of tables. Launches one sub-agent per table in p
 ### Step 1 — Setup
 
 1. Read worktree base path from `.claude/rules/git-workflow.md`.
-2. Generate run slug: `generate-model-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters if too long).
-3. Create worktree: `git worktree add <base>/<slug> -b <slug>`.
+2. Generate run slug: `feature/generate-model-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters after `feature/`).
+3. Create worktree: `mkdir -p <base>/feature && git worktree add <base>/<slug> -b <slug>`.
 4. In the worktree, clear `.migration-runs/` and write `meta.json`:
 
 ```json
 {
   "command": "generate-model",
   "tables": ["silver.DimCustomer", "silver.DimProduct"],
-  "worktree": "../worktrees/generate-model-silver-dimcustomer-silver-dimproduct",
+  "worktree": "../worktrees/feature/generate-model-silver-dimcustomer-silver-dimproduct",
   "started_at": "2026-04-01T12:00:00Z"
 }
 ```
@@ -44,13 +44,12 @@ Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
 ```text
 Run the migration:generating-model skill for <schema.table>.
 The worktree is at <worktree-path>.
+Skip the Step 4 and Step 6 approval prompts — proceed automatically.
+Equivalence warnings: proceed and write the model. Record each gap as EQUIVALENCE_GAP warning.
+dbt compile failure: attempt up to 3 self-corrections. If still failing, write as-is with DBT_COMPILE_FAILED warning.
 Write the item result JSON to .migration-runs/<schema.table>.json.
 On failure, write result with status: "error" and error details.
 Return the item result JSON.
-
-Notes:
-- Equivalence warnings: proceed and write the model. Record each gap as EQUIVALENCE_GAP warning.
-- dbt compile failure: attempt up to 3 self-corrections. If still failing, write as-is with DBT_COMPILE_FAILED warning.
 ```
 
 ### Step 3 — Summarize

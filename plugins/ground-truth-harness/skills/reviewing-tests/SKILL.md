@@ -107,7 +107,7 @@ Apply the following verdict rules:
 | Coverage gaps identified | **Kick back** — set `status` to `revision_requested`, populate `feedback_for_generator.uncovered_branches` with the branch IDs that lack scenarios |
 | Quality issues found | **Kick back** — set `status` to `revision_requested`, populate `feedback_for_generator.quality_fixes` with specific remediation instructions per scenario |
 | Both coverage gaps and quality issues | **Kick back** — set `status` to `revision_requested`, populate both feedback fields |
-| Iteration 2 and issues remain | **Approve with warnings** — set `status` to `approved`, add a warning entry flagging the item for human review |
+| Iteration 2 and issues remain | **Approve with warnings** — set `status` to `approved_with_warnings`, add a warning entry flagging the item for human review |
 
 Maximum review iterations: 2. If `--iteration 2` and issues remain, approve with warnings rather than looping further.
 
@@ -118,7 +118,7 @@ Emit the following JSON structure as the skill's output:
 ```json
 {
   "item_id": "silver.dimproduct",
-  "status": "approved|revision_requested|error",
+  "status": "approved|approved_with_warnings|revision_requested|error",
   "reviewer_branch_manifest": [
     {
       "id": "merge_not_matched_insert",
