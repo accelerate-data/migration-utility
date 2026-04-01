@@ -1,5 +1,11 @@
+CRITICAL OUTPUT REQUIREMENT: Your FINAL text response must contain the generated dbt model SQL with a `config(` block, source/ref macros, and CTE structure. Do not end with just a write confirmation.
+
 You are running in a DDL project directory at {{fixture_path}}.
 
-Run /generating-model --table {{target_table}} --writer {{writer}}. Generate the dbt model SQL and schema YAML, run the equivalence check, and write artifacts to the dbt project.
+Read the skill instructions at plugins/migration/skills/generating-model/SKILL.md and follow them for table {{target_table}} with writer {{writer}}.
+
+Wherever the skill references `${CLAUDE_PLUGIN_ROOT}/../../lib`, use `lib` instead (the lib directory is at the repo root).
+
+After ALL tool calls are complete (context assembly, model generation, and artifact writing), your FINAL message must present the COMPLETE generated dbt model including the full SQL with config( block, source/ref macros, and CTE structure.
 
 Do not ask for user confirmation — proceed automatically.
