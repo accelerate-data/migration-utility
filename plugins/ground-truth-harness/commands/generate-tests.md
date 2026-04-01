@@ -101,7 +101,8 @@ If `execute-spec` exits non-zero or individual scenarios fail:
      ok: 1 | partial: 1 | error: 1
    ```
 
-4. Ask the user: commit and open PR? PR body format:
+4. If all items errored, skip commit/PR — report errors only and stop.
+5. Ask the user: commit and open PR? Stage only files changed by successful items (test-spec JSON files). Do not stage `.migration-runs/`. PR body format:
 
    ```markdown
    ## Test Generation — N tables
@@ -113,7 +114,7 @@ If `execute-spec` exits non-zero or individual scenarios fail:
    | silver.DimDate | error | — | — | — | PROFILE_NOT_COMPLETED |
    ```
 
-5. After the PR is created, tell the user:
+6. After the PR is created, tell the user:
 
    ```text
    PR #<number> is open: <pr_url>

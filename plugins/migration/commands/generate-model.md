@@ -68,7 +68,8 @@ Return the item result JSON.
      ok: 1 | partial: 1 | error: 1
    ```
 
-4. Ask the user: commit and open PR? PR body format:
+4. If all items errored, skip commit/PR — report errors only and stop.
+5. Ask the user: commit and open PR? Stage only files changed by successful items (model SQL and schema YAML files). Do not stage `.migration-runs/`. PR body format:
 
    ```markdown
    ## Model Generation — N tables
@@ -80,7 +81,7 @@ Return the item result JSON.
    | silver.DimDate | error | — | — | PROFILE_NOT_COMPLETED |
    ```
 
-5. After the PR is created, tell the user:
+6. After the PR is created, tell the user:
 
    ```text
    PR #<number> is open: <pr_url>
