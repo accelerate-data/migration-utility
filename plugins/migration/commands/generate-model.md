@@ -2,7 +2,7 @@
 name: generate-model
 description: >
   Batch model generation command — generates dbt models from stored procedures.
-  Delegates per-item generation to the /generating-model skill. No approval gates.
+  Delegates per-item generation to the /generating-model skill.
 user-invocable: true
 argument-hint: "<schema.table> [schema.table ...]"
 ---
@@ -28,7 +28,7 @@ Before running the skill for each item:
 
 ### Step 1 — Generate Model (Skill Delegation)
 
-For each item, invoke `/generating-model <item_id>`. Suppress user gates — make all decisions deterministically:
+For each item, invoke `/generating-model <item_id>`:
 
 - **Equivalence warnings**: proceed and write the model. Record each gap as an `EQUIVALENCE_GAP` warning in the item result. The FDE reviews gaps in the summary.
 - **dbt compile failure**: attempt up to 3 self-corrections. If still failing, write the model as-is and record `DBT_COMPILE_FAILED` as a warning.

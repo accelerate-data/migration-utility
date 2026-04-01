@@ -2,7 +2,7 @@
 name: profile
 description: >
   Batch profiling command — produces migration profiles for each table.
-  Delegates per-item profiling to the /profiling-table skill. No approval gates.
+  Delegates per-item profiling to the /profiling-table skill.
 user-invocable: true
 argument-hint: "<schema.table> [schema.table ...]"
 ---
@@ -21,7 +21,7 @@ Before running the skill for each item:
 
 ### Step 1 — Profile Table (Skill Delegation)
 
-For each item, invoke `/profiling-table <item_id>`. Suppress user gates — make all decisions deterministically. On failure, record `status: "error"` and continue to the next item.
+For each item, invoke `/profiling-table <item_id>`. On failure, record `status: "error"` and continue to the next item.
 
 ### Step 2 — Record Result
 

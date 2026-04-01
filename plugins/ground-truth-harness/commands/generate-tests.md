@@ -30,7 +30,7 @@ Before running the skill for each item:
 
 ### Step 1 — Generate Scenarios (Skill Delegation)
 
-For each item, invoke `/generating-tests <item_id>`. Suppress user gates — make all decisions deterministically. On failure, record `status: "error"` and continue to the next item.
+For each item, invoke `/generating-tests <item_id>`. On failure, record `status: "error"` and continue to the next item.
 
 The skill writes `test-specs/<item_id>.json` with branch manifest and fixtures but no `expect.rows`.
 

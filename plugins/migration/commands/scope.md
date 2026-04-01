@@ -2,7 +2,7 @@
 name: scope
 description: >
   Batch scoping command — identifies writer procedures for each table.
-  Delegates per-item scoping to the /scoping-table skill. No approval gates.
+  Delegates per-item scoping to the /scoping-table skill.
 user-invocable: true
 argument-hint: "<schema.table> [schema.table ...]"
 ---
@@ -15,7 +15,7 @@ Given a batch of target tables, identify which procedures write to each and sele
 
 ### Step 1 — Scope Table (Skill Delegation)
 
-For each item, invoke `/scoping-table <item_id>`. Suppress user gates — make all decisions deterministically. On failure, record `status: "error"` and continue to the next item.
+For each item, invoke `/scoping-table <item_id>`. On failure, record `status: "error"` and continue to the next item.
 
 ### Step 2 — Collect Result
 

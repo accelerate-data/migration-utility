@@ -78,9 +78,7 @@ Show the user:
 2. Generated fixtures (inputs per scenario)
 3. Any uncovered branches or warnings
 
-In interactive mode, ask the user: "Approve these test scenarios? (y/n/edit)". If the user requests edits, apply them and re-present.
-
-In batch mode (invoked by `/generate-tests`), skip approval and proceed directly to writing.
+Ask the user: "Approve these test scenarios? (y/n/edit)". If the user requests edits, apply them and re-present.
 
 ## Step 5: Write test spec
 
