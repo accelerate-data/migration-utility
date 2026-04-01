@@ -49,7 +49,7 @@
     },
     "unit_test_entry": {
       "type": "object",
-      "required": ["name", "model", "given", "expect"],
+      "required": ["name", "model", "given"],
       "properties": {
         "name": { "type": "string", "description": "Test name: test_<load_pattern>_<scenario_description>." },
         "model": { "type": "string", "description": "dbt model name, deterministic from table FQN." },

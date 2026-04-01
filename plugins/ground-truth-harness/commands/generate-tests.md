@@ -1,15 +1,16 @@
 ---
 name: generate-tests
 description: >
-  Multi-table test generation command. Delegates per-item work to
-  /generating-tests skill with /reviewing-tests review loop.
+  Multi-table test generation command. Delegates scenario generation to
+  /generating-tests skill with /reviewing-tests review loop, then
+  bulk-executes approved scenarios to capture ground truth.
 user-invocable: true
 argument-hint: "<schema.table> [schema.table ...]"
 ---
 
 # Generate Tests
 
-Given a batch of target tables, generate ground truth test fixtures for each. Delegates per-item test generation to the `/generating-tests` skill and includes a `/reviewing-tests` review loop.
+Given a batch of target tables, generate test scenarios, review them for coverage, then bulk-execute approved scenarios in the sandbox to capture ground truth. Delegates scenario generation to the `/generating-tests` skill and includes a `/reviewing-tests` review loop.
 
 ## Additional Batch-wide Guard
 
@@ -27,19 +28,41 @@ Before running the skill for each item (after common guards):
 
 ## Pipeline
 
-### Step 1 — Generate Tests (Skill Delegation)
+### Step 1 — Generate Scenarios (Skill Delegation)
 
-For each item, invoke `/generating-tests <item_id> --run-id <run_id>`. Suppress user gates — make all decisions deterministically. On failure, record `status: "error"` and continue to the next item.
+For each item, invoke `/generating-tests <item_id>`. Suppress user gates — make all decisions deterministically. On failure, record `status: "error"` and continue to the next item.
 
-### Step 2 — Review Tests (Skill Delegation)
+The skill writes `test-specs/<item_id>.json` with branch manifest and fixtures but no `expect.rows`.
+
+### Step 2 — Review Scenarios (Skill Delegation)
 
 For each item that completed step 1 successfully, invoke `/reviewing-tests <item_id> --iteration 1`.
 
-- If verdict is `approved` or `approved_with_warnings`: proceed to record result.
-- If verdict is `revision_requested`: re-invoke `/generating-tests <item_id> --run-id <run_id>` with the reviewer's `feedback_for_generator` as additional context. Then re-invoke `/reviewing-tests <item_id> --iteration 2`. Maximum 2 review iterations per item.
+- If verdict is `approved` or `approved_with_warnings`: proceed to step 3.
+- If verdict is `revision_requested`: re-invoke `/generating-tests <item_id>` with the reviewer's `feedback_for_generator` as additional context. Then re-invoke `/reviewing-tests <item_id> --iteration 2`. Maximum 2 review iterations per item.
 - On review failure, record `status: "partial"` and continue.
 
-### Step 3 — Record Result
+### Step 3 — Capture Ground Truth (Deterministic)
+
+For each item with approved scenarios, bulk-execute all `unit_tests[]` entries against the sandbox:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" test-harness execute \
+  --run-id <run_id> \
+  --scenario <json_file>
+```
+
+For each scenario:
+
+1. Write the scenario's `given` fixtures to a temp JSON file.
+2. Call `test-harness execute` to insert fixtures, exec the proc, and capture output.
+3. Merge the `ground_truth_rows` from the CLI output into `expect.rows` in `test-specs/<item_id>.json`.
+
+If a scenario execution fails, record the error in `warnings[]` and leave `expect.rows` empty for that scenario. Do not abort the batch.
+
+After all scenarios execute, update `test-specs/<item_id>.json` with the merged ground truth.
+
+### Step 4 — Record Result
 
 Write the item result to `.migration-runs/<item_id>.json`:
 
@@ -52,6 +75,8 @@ Write the item result to `.migration-runs/<item_id>.json`:
     "coverage": "complete|partial",
     "branch_count": 8,
     "scenario_count": 7,
+    "scenarios_executed": 7,
+    "scenarios_failed": 0,
     "review_iterations": 1,
     "review_verdict": "approved|approved_with_warnings"
   },
@@ -72,3 +97,4 @@ Write the item result to `.migration-runs/<item_id>.json`:
 | `TEST_GENERATION_FAILED` | error | `/generating-tests` skill pipeline failed — skip item |
 | `REVIEW_KICKED_BACK` | warning | reviewer requested revision — item retried |
 | `COVERAGE_PARTIAL` | warning | not all branches covered after max iterations — item proceeds as partial |
+| `SCENARIO_EXECUTION_FAILED` | warning | one or more scenarios failed during ground truth capture — item proceeds with partial expectations |

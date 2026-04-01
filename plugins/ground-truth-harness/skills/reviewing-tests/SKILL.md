@@ -94,7 +94,6 @@ For each test scenario in `unit_tests[]`, assess these dimensions:
 - **Scenario isolation:** Does each scenario test one branch clearly, or are multiple branches tangled in a way that makes failure diagnosis ambiguous?
 - **FK consistency:** Do foreign key values in fixture rows align across source tables within each scenario? A row referencing `customer_key = 42` in the fact table should have a matching `customer_key = 42` in the dimension fixture.
 - **Edge cases:** Are boundary values present where appropriate (NULLs, empty strings, MAX values, zero-row inputs)?
-- **Ground truth plausibility:** Does `expect.rows` look consistent with the proc logic and the `given` inputs? The ground truth was captured from actual proc execution, so it is factual — but check that the fixture inputs logically produce the expected output.
 
 Record each issue with the scenario name, a description of the concern, and a severity (`warning` or `error`).
 
