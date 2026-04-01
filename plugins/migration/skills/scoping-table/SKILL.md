@@ -90,9 +90,14 @@ Wait for explicit user confirmation before proceeding to Step 6.
 
 ### Step 6 -- Persist scoping to catalog
 
+Write the scoping JSON to a temp file to avoid shell quoting issues (rationale text may contain apostrophes):
+
 ```bash
+mkdir -p .staging
+# Write scoping JSON to .staging/scoping.json
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-scoping \
-  --name <table> --scoping '<json>'
+  --name <table> --scoping-file .staging/scoping.json
+rm -rf .staging
 ```
 
 The scoping JSON must include the selected writer (or `no_writer_found` status) and a `selected_writer_rationale` field (1–2 sentences explaining why this writer was chosen over alternatives, or why no writer / ambiguous). If the write exits non-zero, report the error and ask the user to correct.

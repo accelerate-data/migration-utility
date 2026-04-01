@@ -434,9 +434,15 @@ def refs(
 def write_statements(
     project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
     name: str = typer.Option(..., help="Fully-qualified procedure name (schema.Name)"),
-    statements: str = typer.Option(..., help="JSON array of resolved statement objects"),
+    statements: str = typer.Option("", help="JSON array of resolved statement objects"),
+    statements_file: Optional[Path] = typer.Option(None, "--statements-file", help="Path to file containing statements JSON"),
 ) -> None:
     """Persist resolved statements into a procedure catalog file."""
+    if statements_file:
+        statements = statements_file.read_text(encoding="utf-8")
+    if not statements:
+        logger.error("event=command_failed error=no statements provided (use --statements or --statements-file)")
+        raise typer.Exit(code=1)
     project_root = resolve_project_root(project_root)
     try:
         stmts = json.loads(statements)
@@ -458,9 +464,15 @@ def write_statements(
 def write_scoping(
     project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
     name: str = typer.Option(..., help="Fully qualified table name"),
-    scoping: str = typer.Option(..., help="Scoping JSON"),
+    scoping: str = typer.Option("", help="Scoping JSON"),
+    scoping_file: Optional[Path] = typer.Option(None, "--scoping-file", help="Path to file containing scoping JSON"),
 ) -> None:
     """Persist scoping results to a table catalog file."""
+    if scoping_file:
+        scoping = scoping_file.read_text(encoding="utf-8")
+    if not scoping:
+        logger.error("event=command_failed error=no scoping provided (use --scoping or --scoping-file)")
+        raise typer.Exit(code=1)
     project_root = resolve_project_root(project_root)
     try:
         scoping_data = json.loads(scoping)

@@ -88,9 +88,14 @@ After presenting the analysis to the user, persist resolved statements to catalo
 
 No `claude` actions are written to catalog — all must be resolved before persisting.
 
+Write the statements JSON to a temp file to avoid shell quoting issues (rationale text may contain apostrophes):
+
 ```bash
+mkdir -p .staging
+# Write statements JSON to .staging/statements.json
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-statements \
-  --name <procedure_name> --statements '<json>'
+  --name <procedure_name> --statements-file .staging/statements.json
+rm -rf .staging
 ```
 
 ## Error handling
