@@ -9,7 +9,7 @@ user-invocable: true
 argument-hint: "<schema.table>"
 ---
 
-# Generate Tests
+# Generating Tests
 
 Generate ground truth test fixtures for a stored procedure migration. Reads deterministic context from catalog, uses LLM to enumerate conditional branches and synthesize fixtures, executes the proc in a sandbox database to capture ground truth output, and writes structured JSON to `test-specs/`.
 

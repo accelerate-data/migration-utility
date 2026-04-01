@@ -8,7 +8,7 @@ user-invocable: false
 argument-hint: "<schema.table>"
 ---
 
-# Review Tests
+# Reviewing Tests
 
 Quality gate for test generation output. Independently enumerates conditional branches from the stored procedure, maps the test generator's scenarios against the reviewer's own branch list, scores coverage, reviews fixture quality, and issues a verdict.
 

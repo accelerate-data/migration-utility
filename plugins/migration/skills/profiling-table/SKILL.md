@@ -6,7 +6,7 @@ user-invocable: true
 argument-hint: "<schema.table>"
 ---
 
-# Profile
+# Profiling Table
 
 Profile a single table for migration by assembling context, reasoning over six profiling questions, and writing results to the table catalog file.
 

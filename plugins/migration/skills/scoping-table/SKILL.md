@@ -6,7 +6,7 @@ user-invocable: true
 argument-hint: "<schema.table>"
 ---
 
-# Scope Table
+# Scoping Table
 
 Discover writers for a table, analyze each candidate, resolve which writer owns the table, and persist the scoping decision to the catalog.
 

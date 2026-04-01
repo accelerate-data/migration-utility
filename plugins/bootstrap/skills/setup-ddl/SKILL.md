@@ -4,7 +4,7 @@ description: >
   This skill should be used when the user asks to "set up DDL", "extract DDL from SQL Server", "populate ddl", "connect to the remote database and get DDL", "pull DDL from the source database", or wants to initialise the local DDL artifact directory from a live SQL Server before running discovery or scoping.
 ---
 
-# Setup DDL
+# Setting Up DDL
 
 Extract DDL from a live SQL Server and write local artifact files that the `ddl` MCP server used by `listing-objects`/`scoping-table` skills to read the schema.
 
