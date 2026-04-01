@@ -57,20 +57,20 @@ Six stages per table, with two quality-gate review loops:
 │                                          │    ▼         │    │ Model Gen  │ │
 │                                          │  Reviewer    │    │    ▼       │ │
 │                                          │    │         │    │ dbt test   │ │
-│                                          │  pass? ──no──│─┐  │ (≤3 iter) │ │
+│                                          │  pass? ──no──│─┐  │ (≤3 iter)  │ │
 │                                          │    │    (≤2) │ │  │    ▼       │ │
-│                                          │   yes        │ │  │ Code Rev  │ │
-│                                          └────┼─────────┘ │  │    │      │ │
-│                                               │           │  │  pass?    │ │
-│                                               ▼           │  │  no ──────│─┤
-│                                          test-specs/      │  │  (≤2)    │ │
-│                                               │           │  │   yes     │ │
-│                                               └───────────│──►   ▼       │ │
-│                                                           │  │  Done     │ │
+│                                          │   yes        │ │  │ Code Rev   │ │
+│                                          └────┼─────────┘ │  │    │       │ │
+│                                               │           │  │  pass?     │ │
+│                                               ▼           │  │  no ────── │─┤
+│                                          test-specs/      │  │  (≤2)      │ │
+│                                               │           │  │   yes      │ │
+│                                               └───────────│──►   ▼        │ │
+│                                                           │  │  Done      │ │
 │                                                           │  └────────────┘ │
 │                                                           │                 │
-│                                                    ◄──────┘  ──► Sandbox   │
-│                                                                   Down     │
+│                                                    ◄──────┘  ──► Sandbox    │
+│                                                                   Down      │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -126,18 +126,9 @@ dbt/                                # generated dbt project
     ...
 ```
 
-### Batch Artifacts
+### No artifacts directory
 
-The `artifacts/` directory exists only for batch and GHA execution paths. It is the audit trail for agent runs — the interactive path does not use it.
-
-```text
-artifacts/
-  <agent-name>/
-    <run_id>.input.json             # committed before dispatch (what was requested)
-    <run_id>.json                   # committed after completion (what was produced)
-```
-
-Each agent gets its own subdirectory. Input is committed before the agent starts; output is committed after it finishes. Run files are append-only — a later run supersedes prior runs for the same table. The interactive path writes directly to catalog and test-specs, skipping artifacts entirely.
+Agents write directly to catalog files, test-specs, and dbt models. There is no separate `artifacts/` directory for input/output JSON. The catalog IS the pipeline state. Run metadata (timing, cost, per-item status) is tracked in a transient `.migration-status.json` that is `.gitignore`d — it is consumed at commit/PR time to generate rich commit messages and PR bodies, then discarded.
 
 ---
 
@@ -154,19 +145,20 @@ Three paths, one pipeline. All share the same deterministic Python CLIs and agen
         ┌────────────────┼────────────────┐
         │                │                │
    Interactive      Local Batch       GHA Batch
-   (skills +        (migrate-util     (migrate-util
-    approval)        --table)          dispatch --all)
+   (skills +        (/batch-run       (migrate-util
+    approval)        command)          dispatch --all)
         │                │                │
         ▼                ▼                ▼
-   FDE approves      Autonomous       Autonomous
-   every step        single-table     full-scope
+   FDE approves      FDE present,     Autonomous
+   every step        reviews at        full-scope
+                     stage boundary
 ```
 
 | Path | Entry point | Approval gates | Runs where | Status |
 |---|---|---|---|---|
 | Interactive | Claude Code skills | Yes — every step | Local terminal | Implemented |
-| Local batch | `migrate-util <stage> --table X` | None — agent runs autonomously | Local terminal | **Not yet implemented** |
-| GHA batch | `migrate-util dispatch <stage> --all` | None — commits input, triggers workflow | GitHub Actions | **Not yet implemented** |
+| Local batch | `/batch-run <stage> --tables X,Y,Z` | Stage boundaries — FDE reviews between stages | Local terminal (Claude Code session) | **Not yet implemented** |
+| GHA batch | `migrate-util dispatch <stage> --all` | None — fully autonomous | GitHub Actions | **Deferred** |
 
 ### Interactive Flow
 
@@ -179,13 +171,35 @@ The FDE drives the pipeline one table at a time using Claude Code skills:
 
 Each step reads from and writes to catalog files. The FDE reviews and edits before approving.
 
-### Batch Execution
+### Local Batch Execution
 
-> **Not yet implemented.** The `migrate-util` CLI and GHA dispatch workflows are planned but not built.
+> **Not yet implemented.**
 
-**Local batch:** runs the agent pipeline for a single table locally, autonomously committing results.
+The FDE runs batches of 5-10 tables per stage from a Claude Code session using the `/batch-run` command. Two layers:
 
-**GHA batch:** commits `artifacts/<agent>/<run_id>.input.json`, triggers a `workflow_dispatch` on the corresponding GHA workflow. The workflow clones the repo, starts the MCP server, runs the agent, and commits output.
+| Layer | What | How |
+|---|---|---|
+| **`migrate-util` CLI** (deterministic) | Item eligibility filtering, agent subprocess spawning, status tracking, git operations | Python Typer, no LLM, `lib/shared/migrate_util.py` |
+| **`/batch-run` command** (interactive) | User-facing orchestration — task list, commit prompts, resolution questions, progress | Claude Code command, uses LLM for interaction only |
+
+A "run" is scoped to one stage and one set of tables. Each run gets its own git branch:
+
+```text
+main
+  ├── run/scope-batch-1          (scope tables 1-10)
+  ├── run/profile-batch-1        (profile tables 1-10)
+  └── run/migrate-batch-1        (migrate tables 1-5)
+```
+
+Multiple runs can be in flight: scope batch 2 while profiling batch 1 while migrating batch 0. Full E2E (`/batch-run run --table X`) chains all stages for a single table only.
+
+Within a stage, the agent is autonomous (skip-and-continue on errors). Between stages, the FDE reviews via git diff, resolves ambiguous items, and decides whether to commit and proceed.
+
+**Commit and PR strategy:** The `/batch-run` command asks the FDE whether to commit. When committing, the CLI reads `.migration-status.json` and generates a rich commit message with run summary (per-table status, timing, cost). When creating a PR, the same summary goes into the PR body. No summary files are committed — the transient status file is consumed at commit/PR time and discarded.
+
+### GHA Batch Execution
+
+> **Deferred.** Not in scope for the current implementation.
 
 ---
 
@@ -193,6 +207,15 @@ Each step reads from and writes to catalog files. The FDE reviews and edits befo
 
 > **Not yet implemented.** Depends on the `migrate-util` CLI.
 
-Status is derived from catalog files and batch artifact JSONs. No SQLite, no separate status table.
+Status is derived entirely from catalog files. No SQLite, no separate status table, no `artifacts/` directory.
 
-For each table, `status` finds the latest run per stage and reports completion, success/failure (`status` field), and staleness (upstream artifact newer than downstream).
+`migrate-util status` scans catalog files and test-specs to determine per-table stage completion:
+
+| Field | Source |
+|---|---|
+| Scoping done | `catalog/tables/<table>.json` has `scoping` section |
+| Profiling done | `catalog/tables/<table>.json` has `profile` section |
+| Test-gen done | `test-specs/<table>.json` exists |
+| Migration done | `dbt/models/` contains model `.sql` + `.yml` for the table |
+
+The transient `.migration-status.json` adds in-flight progress (timing, cost, per-item status) during a batch run. The `rich` library renders a formatted status table to the terminal.

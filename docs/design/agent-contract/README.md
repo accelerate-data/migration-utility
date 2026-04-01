@@ -1,10 +1,10 @@
 # Agent Contract
 
-Contracts for the **batch GHA pipeline**: multi-agent ETL migration from SQL Server stored procedures to dbt models. These contracts govern the four LLM agents that run in GitHub Actions and whose outputs the desktop app displays and routes.
+Contracts for the **batch pipeline**: multi-agent ETL migration from SQL Server stored procedures to dbt models. These contracts govern the six LLM agents that run in local batch mode (via `/batch-run` command) and GHA.
 
-The shared Python CLIs (`discover.py`, `profile.py`, `migrate.py`) implement the deterministic parts of the pipeline below; the batch agents delegate to these CLIs where applicable and handle the judgment-heavy steps. The interactive single-table path uses the same CLIs via skills (`/discover-objects`, `/profile-table`, `/generate-model`).
+The shared Python CLIs (`discover.py`, `profile.py`, `migrate.py`, `test_harness.py`) implement the deterministic parts of the pipeline below; the batch agents delegate to these CLIs where applicable and handle the judgment-heavy steps. The interactive single-table path uses the same CLIs via skills (`/discover-objects`, `/profile-table`, `/generate-tests`, `/generate-model`).
 
-All contracts are batch-only. Single-table UI execution is a degenerate batch with one `items[]` element.
+All contracts are batch-only. Single-table interactive execution uses skills, not agents.
 
 ## Identifier Semantics
 
@@ -13,14 +13,10 @@ All contracts are batch-only. Single-table UI execution is a degenerate batch wi
 
 ## Approval Ownership
 
-- The application owns FDE review and approval workflows.
-- Agents consume only approved inputs.
-- Approved inputs may come from:
-  - agent-generated candidates that FDE reviewed/approved
-  - direct FDE-entered values approved in the app
-- The application owns cross-agent routing/filtering between stages.
-- Non-actionable items (for example `ambiguous_multi_writer`, `partial`, `no_writer_found`, `error`)
-  are handled by the application, either by manual resolution or by removing the table from scope.
+- In batch mode, the `/batch-run` command owns FDE review at stage boundaries. Within a stage, agents run autonomously.
+- In interactive mode, skills own per-step approval.
+- Agents consume only approved inputs (catalog data from prior stages that the FDE has reviewed).
+- Non-actionable items (for example `ambiguous_multi_writer`, `partial`, `no_writer_found`, `error`) are surfaced by the `/batch-run` command for FDE resolution (or via `migrate-util resolve` CLI).
 
 ## Invocation Paths
 
@@ -33,11 +29,11 @@ Agent definitions must not declare `skills:` for discover. Use `uv run` commands
 
 ## Flow
 
-1. **Scoping:** analysis agent calls `discover refs` per table for catalog-based writer identification (`is_updated=true`), calls `discover show` per candidate for statement analysis and dependency resolution, selects writer when resolvable, and enriches the selected writer with resolved `dependencies` for downstream wave planning. Writes scoping results to `catalog/tables/<table>.json` (scoping section) and resolved statements to `catalog/procedures/<writer>.json`. Produces lightweight `scoping_summary.json` for orchestrator routing.
-2. **Profiling:** profiler agent reads `selected_writer` from catalog scoping section, runs `profile.py` per table for context assembly, applies LLM reasoning to answer the six profiling questions, and writes results into each table's catalog JSON. Shares `profile.py` with the interactive `/profile-table` skill; LLM reasoning is replicated with batch-appropriate prompting. FDE approves before downstream consumption.
-3. **Sandbox setup:** `test-harness sandbox-up` creates a throwaway database (`__test_<run_id>`) and deploys table DDL from catalog. This is a CLI command, not an agent.
-4. **Test generation:** test generator agent reads the same context as the model-generator (proc body, statements, profile, columns, source tables). It enumerates branches, synthesizes fixtures, executes the proc in the sandbox via MCP to capture ground truth, and writes `unit_tests:` JSON to `test-specs/<item_id>.json`. The test reviewer agent independently enumerates branches, scores coverage, and reviews fixture quality. It can kick back to the test generator for missing branches or quality issues. Maximum 2 review ↔ generator iterations.
-5. **Migration:** model-generator agent reads profile, statements, and the approved test spec from `test-specs/`. Generates dbt model + schema YAML (with `unit_tests:` rendered). Runs `dbt test` and self-corrects until tests pass (max 3 iterations). The code reviewer agent then checks standards, correctness, and test integration. It can kick back to the model-generator for issues. Maximum 2 review ↔ model-generator iterations.
+1. **Scoping:** scoping agent calls `discover refs` per table for catalog-based writer identification (`is_updated=true`), calls `discover show` per candidate for statement analysis and dependency resolution, selects writer when resolvable. Writes scoping results to `catalog/tables/<table>.json` (scoping section) and resolved statements to `catalog/procedures/<writer>.json`.
+2. **Profiling:** profiler agent reads `selected_writer` from catalog scoping section, runs `profile.py` per table for context assembly, applies LLM reasoning to answer the six profiling questions, and writes results into each table's catalog JSON. FDE reviews at stage boundary before proceeding.
+3. **Sandbox setup:** `test-harness sandbox-up` creates a throwaway database (`__test_<run_id>`) by cloning schema and procedures from a live SQL Server. This is a CLI command, not an agent. Requires live DB connection.
+4. **Test generation:** test generator agent reads the same context as the model-generator (proc body, statements, profile, columns, source tables). It enumerates branches, synthesizes fixtures, executes the proc in the sandbox via MCP to capture ground truth, and writes `unit_tests:` JSON to `test-specs/<item_id>.json`. The test reviewer agent independently enumerates branches, scores coverage, and reviews fixture quality. It can kick back to the test generator for missing branches or quality issues. Maximum 2 review ↔ generator iterations. When procs need parameters, the agent infers defaults or asks the FDE inline.
+5. **Migration:** model-generator agent reads profile, statements, and the approved test spec from `test-specs/` (mandatory). Generates dbt model + schema YAML (with `unit_tests:` rendered). Runs `dbt test` and self-corrects until tests pass (max 3 iterations). May also create additional tests beyond the spec. The code reviewer agent then checks standards, correctness, and test integration. It can kick back to the model-generator for issues. Maximum 2 review ↔ model-generator iterations.
 6. **Sandbox teardown:** `test-harness sandbox-down` drops the throwaway database.
 
 ## Workflow
@@ -51,8 +47,8 @@ Agent definitions must not declare `skills:` for discover. Use `uv run` commands
 
 ## Contract Boundary
 
-- Scoping writes results to `catalog/tables/<table>.json` (scoping section), not a separate output file. The `scoping_summary.json` is a lightweight rollup for orchestrator routing.
-- Profiler output is candidate proposals that require FDE judgment.
+- Scoping writes results to `catalog/tables/<table>.json` (scoping section), not a separate output file. No summary JSON — the `migrate-util status` command derives status from catalog.
+- Profiler writes to `catalog/tables/<table>.json` (profile section). FDE reviews at stage boundary.
 - Test generator synthesizes fixtures, executes procs in a sandbox, captures ground truth, and writes `unit_tests:` JSON to `test-specs/`. It does not write dbt files.
 - Test reviewer independently scores coverage and fixture quality. It does not generate fixtures or modify `test-specs/`.
 - Model generator reads profile, statements, and approved test spec. Generates dbt artifacts, renders `unit_tests:` into schema YAML, runs `dbt test`, and self-corrects.

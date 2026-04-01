@@ -8,8 +8,8 @@ It is the prerequisite step for profiler input.
 - Analysis is responsible only for writer discovery and writer selection.
 - Scoping writes results to `catalog/tables/<table>.json` (scoping section), not a separate output file. Downstream agents read `selected_writer` from catalog.
 - Keep analysis payload minimal for clear handoff.
-- Exception: `reads_from` is included on candidate writers to support downstream wave planning without requiring re-analysis.
-- The scoping agent produces a lightweight `scoping_summary.json` for the orchestrator — this contains per-item status and catalog paths, not the full scoping data.
+- Exception: `reads_from` is included on candidate writers to support downstream context without requiring re-analysis.
+- No summary JSON. The `migrate-util status` command derives per-table scoping status from catalog files.
 
 ## Goal
 
@@ -121,32 +121,9 @@ Scoping results are written to `catalog/tables/<item_id>.json` under a `scoping`
 }
 ```
 
-## Output: Scoping Summary (for Orchestrator)
+## No Summary File
 
-The agent writes a lightweight `scoping_summary.json` to the output file path:
-
-```json
-{
-  "schema_version": "1.0",
-  "run_id": "uuid",
-  "results": [
-    {
-      "item_id": "dbo.fact_sales",
-      "status": "resolved",
-      "catalog_path": "catalog/tables/dbo.fact_sales.json"
-    }
-  ],
-  "summary": {
-    "total": 1,
-    "resolved": 1,
-    "ambiguous_multi_writer": 0,
-    "no_writer_found": 0,
-    "error": 0
-  }
-}
-```
-
-The full scoping data lives in the catalog file, not duplicated in the summary.
+The scoping agent does not produce a summary JSON. All scoping data lives in catalog files. The `migrate-util status` command derives per-table status by scanning `catalog/tables/` for the presence and content of `scoping` sections.
 
 ## Resolution Rules
 

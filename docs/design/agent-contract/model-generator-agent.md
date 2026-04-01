@@ -1,6 +1,6 @@
 # Model Generator Agent Contract
 
-The model-generator agent reads approved profile and resolved statements from catalog files, consumes the approved test spec from `test-specs/`, then generates dbt project artifacts. After generating the model, the model-generator runs `dbt test` against the test spec's `unit_tests:` and self-corrects until tests pass (or max iterations reached). The code reviewer then reviews the output.
+The model-generator agent reads approved profile and resolved statements from catalog files, consumes the approved test spec from `test-specs/` (mandatory — test generation runs before migration), then generates dbt project artifacts. After generating the model, the model-generator runs `dbt test` against the test spec's `unit_tests:` and self-corrects until tests pass (or max iterations reached). The model-generator may also create additional tests beyond the spec if it identifies gaps. The code reviewer then reviews the output.
 
 ## Philosophy and Boundary
 

@@ -193,31 +193,9 @@ Profile section schema:
 
 `natural_key` may be empty and still `ok` when `primary_key_type == "surrogate"`.
 
-## Batch Output
+## No Summary File
 
-After processing all items, the agent assembles a summary:
-
-```json
-{
-  "schema_version": "1.0",
-  "run_id": "uuid",
-  "results": [
-    {
-      "item_id": "dbo.fact_sales",
-      "status": "ok",
-      "catalog_path": "catalog/tables/dbo.fact_sales.json"
-    }
-  ],
-  "summary": {
-    "total": 1,
-    "ok": 1,
-    "partial": 0,
-    "error": 0
-  }
-}
-```
-
-The actual profile data lives in the catalog file, not duplicated in the batch output.
+The profiler agent does not produce a summary JSON. All profile data lives in catalog files (`catalog/tables/<item_id>.json` → `profile` section). The `migrate-util status` command derives per-table status by scanning catalog files for the presence and content of `profile` sections.
 
 ## Classification Kinds
 
