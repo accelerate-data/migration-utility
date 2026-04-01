@@ -14,7 +14,7 @@ Quality gate for test generation output. Independently enumerates conditional br
 
 ## Arguments
 
-`$ARGUMENTS` is the fully-qualified table name (the `item_id`).
+`$ARGUMENTS` is the fully-qualified table name (the `item_id`), optionally followed by `--iteration <N>` (1-based). Defaults to 1 if not provided. The `/generate-tests` command passes the current iteration number.
 
 ## Before invoking
 
@@ -108,9 +108,9 @@ Apply the following verdict rules:
 | Coverage gaps identified | **Kick back** — set `status` to `revision_requested`, populate `feedback_for_generator.uncovered_branches` with the branch IDs that lack scenarios |
 | Quality issues found | **Kick back** — set `status` to `revision_requested`, populate `feedback_for_generator.quality_fixes` with specific remediation instructions per scenario |
 | Both coverage gaps and quality issues | **Kick back** — set `status` to `revision_requested`, populate both feedback fields |
-| Max review iterations reached (2) | **Approve with warnings** — set `status` to `approved`, add a warning entry flagging the item for human review |
+| Iteration 2 and issues remain | **Approve with warnings** — set `status` to `approved`, add a warning entry flagging the item for human review |
 
-Maximum review / generator iterations: 2 (configurable). If this is the second review pass and issues remain, approve with warnings rather than looping further.
+Maximum review iterations: 2. If `--iteration 2` and issues remain, approve with warnings rather than looping further.
 
 ## Output schema (TestReviewResult)
 

@@ -15,7 +15,8 @@ Given a batch of target tables, generate ground truth test fixtures for each. De
 
 Before processing any items (after common guards):
 
-- Check sandbox exists via `uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" test-harness sandbox-status`. If missing, fail **all** items with code `SANDBOX_NOT_FOUND` and write output immediately.
+- Ask the user for the sandbox run ID (the UUID from `/setup-sandbox`).
+- Check sandbox exists via `uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" test-harness sandbox-status --run-id <run_id>`. If missing, fail **all** items with code `SANDBOX_NOT_FOUND` and write output immediately.
 
 ## Additional Per-item Guards
 
@@ -28,14 +29,14 @@ Before running the skill for each item (after common guards):
 
 ### Step 1 — Generate Tests (Skill Delegation)
 
-For each item, invoke `/generating-tests <item_id>`. Suppress user gates — make all decisions deterministically. On failure, record `status: "error"` and continue to the next item.
+For each item, invoke `/generating-tests <item_id> --run-id <run_id>`. Suppress user gates — make all decisions deterministically. On failure, record `status: "error"` and continue to the next item.
 
 ### Step 2 — Review Tests (Skill Delegation)
 
-For each item that completed step 1 successfully, invoke `/reviewing-tests <item_id>`.
+For each item that completed step 1 successfully, invoke `/reviewing-tests <item_id> --iteration 1`.
 
 - If verdict is `approved` or `approved_with_warnings`: proceed to record result.
-- If verdict is `revision_requested`: re-invoke `/generating-tests <item_id>` with the reviewer's `feedback_for_generator` as additional context. Then re-invoke `/reviewing-tests`. Maximum 2 review iterations per item.
+- If verdict is `revision_requested`: re-invoke `/generating-tests <item_id> --run-id <run_id>` with the reviewer's `feedback_for_generator` as additional context. Then re-invoke `/reviewing-tests <item_id> --iteration 2`. Maximum 2 review iterations per item.
 - On review failure, record `status: "partial"` and continue.
 
 ### Step 3 — Record Result

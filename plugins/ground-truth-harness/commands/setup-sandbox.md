@@ -1,6 +1,7 @@
 ---
 name: setup-sandbox
 description: Creates a throwaway sandbox database by cloning schema from the source SQL Server. Checks prerequisites, generates a run ID, and calls the test-harness CLI.
+argument-hint: "[run-id]"
 ---
 
 # Set Up Sandbox
@@ -68,6 +69,14 @@ Parse the JSON output and report:
 Tell the user the sandbox is ready and provide the run ID for use with `/generate-tests` or `test-harness execute`.
 
 If there were errors, list them and recommend checking the source database connectivity.
+
+## Error handling
+
+| Command | Exit code | Action |
+|---|---|---|
+| `test-harness sandbox-up` | 1 | Sandbox creation or schema cloning failed. Report errors from JSON output |
+| `test-harness sandbox-up` | 0 + `status: "partial"` | Some tables/procs failed to clone. Report which ones failed, sandbox is still usable |
+| `test-harness --help` | non-zero | CLI not installed. Tell user to run `uv sync` in the lib directory |
 
 ## Idempotency
 

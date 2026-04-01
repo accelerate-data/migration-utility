@@ -1,6 +1,7 @@
 ---
 name: teardown-sandbox
 description: Drops a throwaway sandbox database created by setup-sandbox.
+argument-hint: "<run-id>"
 ---
 
 # Tear Down Sandbox
@@ -33,3 +34,10 @@ Parse the JSON output and report whether the database was successfully dropped.
 ## Step 5: Report
 
 Confirm the sandbox has been removed. If the database did not exist, report that it was already cleaned up (not an error).
+
+## Error handling
+
+| Command | Exit code | Action |
+|---|---|---|
+| `test-harness sandbox-down` | 1 | Drop failed (connection error, permissions). Report error from JSON output |
+| `test-harness sandbox-down` | 0 + database not found | Already cleaned up. Report as success, not an error |

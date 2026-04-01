@@ -17,7 +17,7 @@ Test generation runs BEFORE migration. The test spec is an independent artifact 
 
 ## Arguments
 
-`$ARGUMENTS` is the fully-qualified table name. Ask the user if missing.
+`$ARGUMENTS` is the fully-qualified table name, optionally followed by `--run-id <uuid>`. Ask the user for the table name if missing. Ask the user for the run ID if not provided — this is the UUID from `/setup-sandbox`.
 
 ## Before invoking
 
@@ -26,7 +26,8 @@ Test generation runs BEFORE migration. The test spec is an independent artifact 
 3. Check the sandbox exists:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" test-harness sandbox-status
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" test-harness sandbox-status \
+  --run-id <run_id>
 ```
 
 If the sandbox is not found (exit code 1), stop and tell the user to run `/setup-sandbox` first.
@@ -115,9 +116,9 @@ Show the user:
 3. Captured ground truth (expected outputs per scenario)
 4. Any uncovered branches or warnings
 
-Ask the user: "Approve this test spec? (y/n/edit)"
+In interactive mode, ask the user: "Approve this test spec? (y/n/edit)". If the user requests edits, apply them and re-capture ground truth for affected scenarios only. Then present the updated spec for re-approval.
 
-If the user requests edits, apply them and re-capture ground truth for affected scenarios only. Then present the updated spec for re-approval.
+In batch mode (invoked by `/generate-tests`), skip approval and proceed directly to writing the test spec.
 
 ## Step 7: Emit fixtures
 
