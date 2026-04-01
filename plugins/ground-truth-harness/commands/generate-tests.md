@@ -34,12 +34,24 @@ For each item, invoke `/generating-tests <item_id>`. Suppress user gates — mak
 
 The skill writes `test-specs/<item_id>.json` with branch manifest and fixtures but no `expect.rows`.
 
-### Step 2 — Review Scenarios (Skill Delegation)
+### Step 2 — Review Scenarios (Sub-agent)
 
-For each item that completed step 1 successfully, invoke `/reviewing-tests <item_id> --iteration 1`.
+For each item that completed step 1, launch a **sub-agent** to run `/reviewing-tests`. The reviewer runs in an isolated context to prevent its branch enumeration and quality analysis from polluting the generator's context.
 
-- If verdict is `approved` or `approved_with_warnings`: proceed to step 3.
-- If verdict is `revision_requested`: re-invoke `/generating-tests <item_id>` with the reviewer's `feedback_for_generator` as additional context. Then re-invoke `/reviewing-tests <item_id> --iteration 2`. Maximum 2 review iterations per item.
+Construct the sub-agent prompt:
+
+```text
+You are a test reviewer. Follow the /reviewing-tests skill instructions.
+Table: <item_id>
+Iteration: 1
+Read test-specs/<item_id>.json and the proc context via migrate context.
+Return your verdict as a TestReviewResult JSON block.
+```
+
+Parse the sub-agent's returned `TestReviewResult` JSON:
+
+- If `status` is `approved` or `approved_with_warnings`: proceed to step 3.
+- If `status` is `revision_requested`: pass `feedback_for_generator` to `/generating-tests <item_id>` as additional context, then launch a new review sub-agent with `Iteration: 2`. Maximum 2 review iterations per item.
 - On review failure, record `status: "partial"` and continue.
 
 ### Step 3 — Capture Ground Truth (Deterministic)
