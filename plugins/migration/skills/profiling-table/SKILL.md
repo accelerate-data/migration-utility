@@ -37,60 +37,6 @@ If exit code is non-zero, stop and report the error.
 
 Read the context JSON and the signal tables in [profiling-signals.md](references/profiling-signals.md). Answer the six profiling questions (Q1–Q6) defined there. Follow all signal tables and pattern matching rules — do not abbreviate.
 
-#### Q1 -- Classification (`resolved_kind`)
-
-Read the writer proc body. Match write patterns against the classification table in `what-to-profile-and-why.md`:
-
-- Identify the dominant DML pattern (INSERT-only, MERGE, TRUNCATE+INSERT, etc.)
-- Check column shape signals (SCD columns, milestone dates, snapshot dates, flag columns)
-- Use `writer_references` to confirm which tables are read vs written
-- Produce `resolved_kind` from the 8 allowed values: `dim_non_scd`, `dim_scd1`, `dim_scd2`, `dim_junk`, `fact_transaction`, `fact_periodic_snapshot`, `fact_accumulating_snapshot`, `fact_aggregate`
-
-#### Q2 -- Primary Key
-
-Check catalog `primary_keys` first. If declared, that is the answer.
-
-If no declared PK:
-
-- Look for MERGE ON clause in proc body
-- Look for UPDATE/DELETE WHERE col = @param
-- Use `auto_increment_columns` as surrogate signal
-
-#### Q3 -- Foreign Keys
-
-Check catalog `foreign_keys` first. If declared, those are confirmed. Classify each `fk_type` (standard/role_playing/degenerate) using proc JOIN patterns.
-
-If no declared FKs:
-
-- Use `writer_references` column-level `is_selected` flags
-- Use `referenced_by` to find reader procs joining on the same column
-- Apply naming-convention patterns (`_sk`/`_id` suffix)
-
-#### Q4 -- Natural Key vs Surrogate Key
-
-Check catalog `auto_increment_columns`. If present, the PK is surrogate.
-
-If no identity column:
-
-- Look for `NEWID()` / `NEWSEQUENTIALID()` / `NEXT VALUE FOR` in proc body
-- Check column name patterns (`_sk`/`_guid` = surrogate; `_code`/`_number` = natural)
-- MERGE ON using different column from INSERT PK = classic surrogate pattern
-
-#### Q5 -- Watermark
-
-- Look for WHERE clause filtering in proc body (`WHERE col > @last_run`, `BETWEEN @start AND @end`)
-- Check column name patterns (`modified_at`, `load_date`, `_dt`, `_ts`)
-- Use `change_capture` from catalog to inform strategy
-
-#### Q6 -- PII Actions
-
-Check catalog `sensitivity_classifications` first. If populated, those are confirmed.
-
-For remaining columns:
-
-- Match column names against PII patterns (email, ssn, phone, address, etc.)
-- Assign suggested action: `mask` (default), `drop`, `tokenize`, `keep`
-
 ### Step 3 -- Present for Approval
 
 Present the profile as a structured summary for user review. Include:

@@ -11,9 +11,9 @@ tools:
 
 # Model Generator Agent
 
-Generate dbt models for a batch of table/writer pairs. Reads approved profile and resolved statements from catalog, uses LLM to produce dbt SQL, validates logical equivalence, writes artifacts, and runs `dbt compile` to verify.
+Generate dbt models for a batch of table/writer pairs. Delegates dbt generation to the `/generating-model` skill per item, running in batch mode without approval gates.
 
-Use `uv run migrate` directly for all context assembly and artifact writes — do not read catalog files directly.
+Use `uv run migrate` directly for context assembly. The `/generating-model` skill handles generation, validation, and artifact writes.
 
 ---
 
@@ -56,86 +56,20 @@ The command reads `selected_writer` from the catalog scoping section — no `--w
 
 Parse the JSON output. If the command fails (exit code 1 or 2), record `status: "error"` with the error message and continue to the next item.
 
-### Step 2 — Generate dbt Model (LLM)
+### Step 2 — Generate, Validate, and Write (Skill Delegation)
 
-Using the context output, generate a dbt model following these rules:
+Follow the `/generating-model` skill pipeline (Steps 2–8) for this item using the context from Step 1. The skill defines the full dbt generation algorithm: model structure decisions, CTE generation, equivalence checks, schema YAML, artifact writes, and `dbt compile` validation.
 
-**Decide model structure** from proc complexity:
+**Batch overrides — do not use `AskUserQuestion`:**
 
-- Single INSERT from source tables → one staging model
-- Multiple INSERTs to the same target table → one model with UNION ALL
-- Multiple INSERTs to different target tables → separate models (one per target)
-- Temp table chains → staging + intermediate models with `{{ ref() }}`
-- Nested subqueries → flatten into sequential CTEs
+- Make all model structure and materialization decisions deterministically
+- Accept equivalence warnings and proceed (record as `EQUIVALENCE_GAP` warning)
+- Auto-approve all artifacts — write directly without confirmation
+- On `dbt compile` failure: attempt fix (max 2 attempts), then record as `DBT_COMPILE_FAILED` and continue
 
-**Generate dbt SQL** using the import CTE → logical CTE → final CTE pattern:
+If any step in the skill pipeline fails, record `status: "error"` with the appropriate error code and continue to the next item.
 
-1. **Import CTEs**: all `{{ ref() }}` and `{{ source() }}` references at the top, each in its own named CTE
-2. **Logical CTEs**: one transformation step per CTE, descriptive names (not `cte1`, `temp`, `x`)
-3. **Final CTE**: clean SELECT from the last logical CTE
-
-**Apply dbt patterns:**
-
-- `{{ config(materialized='<materialization>') }}` at top
-- `{{ var('param_name', 'default') }}` for procedure parameters
-- `{{ ref('model_name') }}` for previously migrated tables
-- `{{ source('schema', 'table') }}` for raw/bronze source tables
-- Incremental: add `unique_key`, `incremental_strategy`, and `{% if is_incremental() %}` filter
-- Snapshot: use dbt snapshot block pattern
-
-### Step 3 — Logical Equivalence Check (LLM)
-
-Compare the generated model against the original `migrate` statements from context:
-
-- Same source tables read?
-- Same columns selected/written?
-- Same join conditions and types?
-- Same filter predicates (WHERE, HAVING)?
-- Same aggregation grain (GROUP BY)?
-- INSERT/MERGE/UPDATE semantics preserved by materialization?
-
-If a semantic gap is found:
-
-1. Attempt to revise the model to close the gap (max 2 revision attempts)
-2. If irreconcilable, set `status: "partial"` and record warnings
-3. Continue to write — do not block on equivalence warnings
-
-### Step 4 — Build Schema YAML
-
-Render `schema_tests` from context into `.yml`:
-
-- PK columns → `unique` + `not_null` data tests
-- FK columns → `relationships` tests with `to: ref(...)` and `field: ...`
-- Watermark → `recency` test (incremental models only)
-- PII columns → column-level `meta` tags (`contains_pii: true`)
-- Add model description: "Migrated from `<writer>`. Target: `<table>`."
-
-### Step 5 — Write Artifacts
-
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" migrate write \
-  --table <item_id> \
-  --model-sql '<generated_sql>' \
-  --schema-yml '<generated_yml>'
-```
-
-If write fails, record `status: "error"` and continue.
-
-### Step 6 — Validate with dbt compile
-
-```bash
-cd "${DBT_PROJECT_PATH:-./dbt}" && dbt compile --select <model_name>
-```
-
-If compile succeeds, record `execution.dbt_compile_passed: true`.
-
-If compile fails:
-
-1. Read the error output
-2. Attempt to fix the model (max 2 attempts)
-3. If still failing, set `status: "partial"` and record compile errors in `execution.dbt_errors[]`
-
-### Step 7 — Record Result
+### Step 3 — Record Result
 
 For each item, record:
 
