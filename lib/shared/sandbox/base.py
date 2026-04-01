@@ -34,6 +34,10 @@ class SandboxBackend(ABC):
     ) -> dict[str, Any]:
         """Run one test scenario: insert fixtures, exec proc, capture output."""
 
+    @abstractmethod
+    def sandbox_status(self, run_id: str) -> dict[str, Any]:
+        """Check whether the sandbox database exists and is accessible."""
+
     @staticmethod
     def sandbox_db_name(run_id: str) -> str:
         """Deterministic sandbox database name."""

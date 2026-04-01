@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sandbox_status_output.json",
+  "title": "SandboxStatusOutput",
+  "description": "Output of the test-harness sandbox-status command — checks whether a sandbox database exists.",
+  "type": "object",
+  "required": ["run_id", "sandbox_database", "status", "exists"],
+  "properties": {
+    "run_id": { "type": "string" },
+    "sandbox_database": { "type": "string" },
+    "status": { "type": "string", "enum": ["ok", "not_found", "error"] },
+    "exists": { "type": "boolean" },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      }
+    }
+  }
+}

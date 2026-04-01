@@ -81,7 +81,7 @@
     },
     "shared_schemas": {
       "path": "lib/shared/schemas/",
-      "description": "JSON Schema files (20 total). Catalog schemas: table_catalog, procedure_catalog, view_catalog, function_catalog, manifest. Agent I/O: scoping_summary, profiler_input, test_generator_input, model_generator_input, fixture_manifest, migration_artifact_manifest, profile_context. Test harness: test_harness_execute_output, test_spec_output, sandbox_up_output, sandbox_down_output. Discover CLI output: discover_list_output, discover_show_output, discover_refs_output. Shared defs: common.json."
+      "description": "JSON Schema files (21 total). Catalog schemas: table_catalog, procedure_catalog, view_catalog, function_catalog, manifest. Agent I/O: scoping_summary, profiler_input, model_generator_input, fixture_manifest, migration_artifact_manifest, profile_context. Skill output: test_spec (per-item test spec). Test harness: test_harness_execute_output, test_spec_output (batch envelope), sandbox_up_output, sandbox_down_output, sandbox_status_output. Discover CLI output: discover_list_output, discover_show_output, discover_refs_output. Shared defs: common.json."
     },
     "ddl_mcp": {
       "path": "mcp/ddl/",
