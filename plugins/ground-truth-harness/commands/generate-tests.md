@@ -14,14 +14,14 @@ Given a batch of target tables, generate test scenarios, review them for coverag
 
 ## Additional Batch-wide Guard
 
-Before processing any items (after common guards):
+Before processing any items:
 
 - Ask the user for the sandbox run ID (the UUID from `/setup-sandbox`).
 - Check sandbox exists via `uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" test-harness sandbox-status --run-id <run_id>`. If missing, fail **all** items with code `SANDBOX_NOT_FOUND` and write output immediately.
 
 ## Additional Per-item Guards
 
-Before running the skill for each item (after common guards):
+Before running the skill for each item:
 
 - Check `scoping.selected_writer` is set. If missing, skip this item with `SCOPING_NOT_COMPLETED` in `errors[]`.
 - Check `profile` exists and `profile.status` is `"ok"`. If missing or not ok, skip this item with `PROFILE_NOT_COMPLETED` in `errors[]`.

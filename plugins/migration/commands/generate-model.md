@@ -13,13 +13,13 @@ Generate dbt models for a batch of table/writer pairs. Delegates per-item genera
 
 ## Additional Batch-wide Guard
 
-Before processing any items (after common guards):
+Before processing any items:
 
 - Check `dbt_project.yml` exists at `./dbt/` (or `$DBT_PROJECT_PATH`). If missing, fail **all** items with code `DBT_PROJECT_MISSING` and write output immediately.
 
 ## Additional Per-item Guards
 
-Before running the skill for each item (after common guards):
+Before running the skill for each item:
 
 - Check `scoping.selected_writer` is set. If missing, skip this item with `SCOPING_NOT_COMPLETED` in `errors[]`.
 - Check `profile` exists and `profile.status` is `"ok"`. If missing or not ok, skip this item with `PROFILE_NOT_COMPLETED` in `errors[]`.

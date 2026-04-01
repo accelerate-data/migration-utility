@@ -13,7 +13,7 @@ Given a batch of target tables, produce migration profile candidates for each ta
 
 ## Additional Per-item Guard
 
-Before running the skill for each item (after common guards):
+Before running the skill for each item:
 
 - Check `scoping.selected_writer` is set in the catalog file. If scoping section is missing or `selected_writer` is null, skip this item with `SCOPING_NOT_COMPLETED` in `errors[]`.
 
