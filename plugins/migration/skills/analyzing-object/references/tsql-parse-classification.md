@@ -6,14 +6,25 @@ When `discover show` returns `statements: null` (claude_assisted procs), read `r
 
 | Statement type | Example | Notes |
 |---|---|---|
-| INSERT...SELECT | `INSERT INTO silver.T SELECT ... FROM bronze.S` | Target table = write target, source tables = reads |
-| UPDATE | `UPDATE silver.T SET col = val FROM bronze.S` | Target table = write target |
-| DELETE | `DELETE FROM silver.T WHERE ...` | Target table = write target |
+| INSERT...SELECT | `INSERT INTO silver.T SELECT ... FROM bronze.S` | Target table = write target, source tables = reads. The SELECT may contain UNION ALL, UNION, INTERSECT, EXCEPT, PIVOT, UNPIVOT, GROUPING SETS, CUBE, ROLLUP, CROSS APPLY, OUTER APPLY, or any join/subquery variant — classify the outer INSERT as migrate regardless of SELECT complexity. Often preceded by `TRUNCATE TABLE` (which is skip) as a truncate-and-reload pattern. |
+| UPDATE | `UPDATE silver.T SET col = val FROM silver.T JOIN bronze.S ON ...` | Target table = write target |
+| DELETE | `DELETE FROM silver.T WHERE ...` | Target table = write target. Includes `DELETE TOP (N)` variant. |
 | MERGE | `MERGE INTO silver.T USING bronze.S ON ...` | Target = write, USING source = read |
 | SELECT INTO | `SELECT col INTO silver.T FROM bronze.S` | Creates new table — write target |
-| CTE + DML | `WITH cte AS (...) INSERT INTO silver.T SELECT FROM cte` | The DML at the end is the migrate statement |
-| EXEC (static) | `EXEC dbo.usp_Load` | Follow the called proc — run `discover show` on it to get its refs |
-| EXEC (dynamic) | `EXEC (@sql)` / `EXEC sp_executesql @sql` | Read variable assignments to find the SQL string and classify the embedded DML |
+| CTE + INSERT | `WITH cte AS (...) INSERT INTO silver.T SELECT FROM cte` | The DML at the end is the migrate statement |
+| CTE + UPDATE | `WITH cte AS (...) UPDATE t SET col = cte.val FROM silver.T t JOIN cte ON ...` | CTE defines the source; UPDATE is the migrate statement |
+| CTE + DELETE | `WITH cte AS (...) DELETE FROM silver.T WHERE id IN (SELECT id FROM cte)` | CTE defines the filter; DELETE is the migrate statement |
+| CTE + MERGE | `WITH src AS (...) MERGE INTO silver.T USING src ON ...` | CTE defines the USING source; MERGE is the migrate statement |
+| EXEC / EXECUTE (static) | `EXEC dbo.usp_Load` or `EXECUTE dbo.usp_Load` | Follow the called proc — run `discover show` on it to get its refs. `EXECUTE` is the unabbreviated form of `EXEC` — classify identically. |
+| EXEC (bracketed) | `EXEC [silver].[usp_Load]` | Same as static — bracket notation is just quoting |
+| EXEC with params | `EXEC dbo.usp_Load @Mode = 1` | Follow the called proc; parameters don't change classification |
+| EXEC with OUTPUT | `EXEC dbo.usp_Load @Result OUTPUT` | Follow the called proc; OUTPUT param doesn't change classification |
+| EXEC with return | `EXEC @rc = dbo.usp_Load` | Follow the called proc; return variable prefix doesn't change classification |
+| EXEC cross-database | `EXEC OtherDB.dbo.usp_Load` | **Flag as error** — 3-part name is out of scope for this migration |
+| EXEC linked server | `EXEC [Server].db.dbo.usp_Load` | **Flag as error** — 4-part name (linked server) is out of scope |
+| sp_executesql (literal) | `EXEC sp_executesql N'INSERT INTO dbo.T ...'` | SQL is visible in the string literal — classify the embedded DML directly |
+| sp_executesql (variable) | `EXEC sp_executesql @sql` | Read variable assignments to find the SQL string and classify the embedded DML |
+| EXEC (dynamic) | `EXEC (@sql)` / `EXEC ('INSERT INTO ' + @table)` | Read variable assignments to find the SQL string and classify the embedded DML |
 
 ## skip — operational overhead, dbt handles or ignores
 
@@ -27,6 +38,7 @@ When `discover show` returns `statements: null` (claude_assisted procs), read `r
 | RAISERROR / THROW | `RAISERROR('Error', 16, 1)` | Error handling |
 | BEGIN/COMMIT/ROLLBACK | `BEGIN TRAN ... COMMIT` | Transaction control — dbt manages transactions |
 | IF EXISTS (check only) | `IF EXISTS (SELECT 1 FROM dbo.T)` | Condition check, not a data read for the model |
+| RETURN | `RETURN 0` | Early exit — no data operation |
 
 ## Reading control flow
 

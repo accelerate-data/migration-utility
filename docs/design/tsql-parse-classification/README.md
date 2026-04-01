@@ -36,7 +36,7 @@ Note: `parse_error` is a separate orthogonal field that records whether the `CRE
 
 ## Pattern Classification
 
-### Deterministic — sqlglot (patterns 1-45)
+### Deterministic — sqlglot (patterns 1-44)
 
 These patterns are fully parsed by sqlglot. `extract_refs` populates `writes_to` and `reads_from` without any LLM involvement.
 
@@ -59,7 +59,7 @@ These patterns are fully parsed by sqlglot. `extract_refs` populates `writes_to`
 | 15 | Subquery in WHERE | `WHERE col > (SELECT AVG(col) FROM ...)` | `usp_SubqueryInWhere` |
 | 16 | Correlated subquery | `WHERE col = (SELECT MAX(...) WHERE outer.id = inner.id)` | `usp_CorrelatedSubquery` |
 | 17 | Window functions | `COUNT(*) OVER (PARTITION BY ...)`, `ROW_NUMBER() OVER (...)` | `usp_WindowFunction` |
-| 18 | DROP/CREATE INDEX | `DROP INDEX ...; CREATE INDEX ...` around DML | inline test |
+| 18 | *(removed — see Skip-only table)* | | |
 | 19 | UNION ALL | `INSERT INTO ... SELECT ... FROM ... UNION ALL SELECT ... FROM` | `usp_UnionAll` |
 | 20 | UNION | `INSERT INTO ... SELECT ... FROM ... UNION SELECT ... FROM` | `usp_Union` |
 | 21 | INTERSECT | `INSERT INTO ... SELECT ... FROM ... INTERSECT SELECT ... FROM ...` | `usp_Intersect` |
@@ -86,6 +86,22 @@ These patterns are fully parsed by sqlglot. `extract_refs` populates `writes_to`
 | 42 | ROLLUP | `SELECT ... GROUP BY ROLLUP (year, month, day)` | `usp_Rollup` |
 | 43 | PIVOT | `SELECT ... FROM ... PIVOT (SUM(val) FOR col IN (...)) pvt` | `usp_Pivot` |
 | 44 | UNPIVOT | `SELECT ... FROM ... UNPIVOT (val FOR col IN (...)) unpvt` | `usp_Unpivot` |
+
+### Skip-only — no pattern number, no ref extraction (deterministic path)
+
+These statements are parsed by sqlglot but classified as `skip` — they don't produce refs and aren't migrated to dbt SQL.
+
+| Statement type | Example | Notes |
+|---|---|---|
+| SET | `SET NOCOUNT ON`, `SET XACT_ABORT ON` | Session config |
+| DECLARE | `DECLARE @i INT = 0` | Variable declaration |
+| RETURN | `RETURN 0` | Early exit — no data operation |
+| PRINT | `PRINT 'Loading...'` | Logging |
+| RAISERROR | `RAISERROR('Error', 16, 1)` | Error handling |
+| THROW | `THROW 50001, 'msg', 1` | Error handling (modern syntax) |
+| BEGIN/COMMIT/ROLLBACK | `BEGIN TRAN ... COMMIT` | Transaction control — dbt manages transactions |
+| IF EXISTS (check only) | `IF EXISTS (SELECT 1 FROM dbo.T)` | Condition check, not a data read for the model |
+| DROP/CREATE INDEX | `DROP INDEX ix_1 ON silver.T; CREATE INDEX ...` | Index management — `classify_statement` returns `skip` for both `exp.Drop` and `exp.Create` (kind=INDEX) |
 
 ### Claude-assisted — control flow and EXEC (patterns 45-60)
 
@@ -120,6 +136,10 @@ These patterns produce `Command` or `If` nodes that cannot be fully resolved sta
 ## TRUNCATE Split Behavior
 
 `classify_statement` returns `action: "skip"` for `exp.TruncateTable`, but `_collect_write_refs` independently traverses `TruncateTable` nodes and adds them to `writes_to` with operation `"TRUNCATE"`. This means TRUNCATE appears in `writes_to` for dependency tracking but is excluded from the `migrate` statement list. The split is intentional: the table relationship matters for scoping, but TRUNCATE itself does not translate to dbt SQL.
+
+## Migrate vs Skip Classification
+
+When a proc is `claude_assisted`, Claude reads `raw_ddl` and classifies each statement as **migrate** (becomes dbt model SQL) or **skip** (operational overhead that dbt handles or ignores). The full classification reference is at `plugins/migration/skills/analyzing-object/references/tsql-parse-classification.md`.
 
 ## Known Limitations
 
