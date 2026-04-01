@@ -15,8 +15,8 @@ Generate test scenarios, review for coverage, then bulk-execute approved scenari
 ## Guards
 
 - `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
-- Ask user for sandbox run ID (UUID from `/setup-sandbox`).
-- Check sandbox exists via `uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" test-harness sandbox-status --run-id <run_id>`. If missing, fail all items with `SANDBOX_NOT_FOUND`.
+- `manifest.json` must have `sandbox.run_id`. If missing, fail all items with `SANDBOX_NOT_FOUND` and tell user to run `/setup-sandbox`.
+- Check sandbox exists via `uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" test-harness sandbox-status`. If not found, fail all items with `SANDBOX_NOT_FOUND`.
 - Per item: `catalog/tables/<item_id>.json` must exist. If missing, skip with `CATALOG_FILE_MISSING`.
 - Per item: `scoping.selected_writer` must be set. If missing, skip with `SCOPING_NOT_COMPLETED`.
 - Per item: `profile` must exist with `status: "ok"`. If missing, skip with `PROFILE_NOT_COMPLETED`.
@@ -77,11 +77,10 @@ For each item with approved scenarios:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" test-harness execute-spec \
-  --run-id <run_id> \
   --spec test-specs/<item_id>.json
 ```
 
-The CLI executes all scenarios, captures ground truth, and writes `expect.rows` back into the file.
+The CLI reads `sandbox.run_id` from `manifest.json`, executes all scenarios, captures ground truth, and writes `expect.rows` back into the file.
 
 ### Step 5 — Summarize
 

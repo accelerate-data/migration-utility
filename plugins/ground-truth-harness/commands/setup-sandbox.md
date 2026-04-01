@@ -1,7 +1,6 @@
 ---
 name: setup-sandbox
-description: Creates a throwaway sandbox database by cloning schema from the source SQL Server. Checks prerequisites, generates a run ID, and calls the test-harness CLI.
-argument-hint: "[run-id]"
+description: Creates a throwaway sandbox database by cloning schema from the source SQL Server. Checks prerequisites and calls the test-harness CLI. Persists sandbox info to manifest.json.
 ---
 
 # Set Up Sandbox
@@ -46,20 +45,20 @@ Sandbox setup:
 
 If any required item is missing, explain what needs to be fixed and stop. Do not proceed without all prerequisites met.
 
-Ask the user if they want to proceed. If the user provides a run ID, use it. Otherwise generate a new UUID.
+Ask the user if they want to proceed.
 
 ## Step 4: Execute
 
 After the user confirms:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" test-harness sandbox-up \
-  --run-id <uuid>
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" test-harness sandbox-up
 ```
 
-Parse the JSON output and report:
+The CLI generates a run ID, creates the sandbox, and writes `sandbox.run_id` and `sandbox.database` into `manifest.json`. Parse the JSON output and report:
 
 - Sandbox database name
+- Run ID (persisted in manifest)
 - Number of tables cloned
 - Number of procedures cloned
 - Any errors or warnings
