@@ -69,5 +69,6 @@ Present `writers` (procs that modify the object) and `readers` (procs/views that
 
 ## Error handling
 
-- Exit code 2: directory could not be read (missing path, IO error, no catalog).
+- `discover list/show/refs` exit code 1: object not found or catalog file missing for that object. Report which object was not found.
+- `discover list/show/refs` exit code 2: catalog directory unreadable (missing path, IO error). Report the error and stop.
 - Procedures with `parse_error` are still loaded — their `raw_ddl` is preserved for inspection.

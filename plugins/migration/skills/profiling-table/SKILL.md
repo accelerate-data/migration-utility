@@ -71,10 +71,9 @@ If the write exits non-zero, report the validation errors and ask the user to co
 
 The `profile` section written to `catalog/tables/<table>.json` follows `table_catalog.json#/$defs/profile_section`.
 
-## Exit Codes
+## Error handling
 
-| Code | Meaning |
-|---|---|
-| 0 | Success |
-| 1 | Domain/validation failure (missing catalog, invalid enum) |
-| 2 | IO or parse error |
+- `profile context` exit code 1: catalog file missing for the table or writer. Report which prerequisite is missing.
+- `profile context` exit code 2: IO/parse error. Surface the error message.
+- `profile write` exit code 1: validation failure (invalid profile JSON, missing required fields, bad enum values). Report validation errors, ask user to correct.
+- `profile write` exit code 2: IO error (catalog file unreadable, write failure). Report and stop.
