@@ -118,9 +118,14 @@ Per-item output written to `.migration-runs/`:
       }
     },
     "execution": {
-      "dbt_parse_passed": true,
       "dbt_compile_passed": true,
+      "dbt_test_passed": true,
+      "self_correction_iterations": 0,
       "dbt_errors": []
+    },
+    "review": {
+      "iterations": 1,
+      "verdict": "approved|approved_with_warnings"
     },
     "warnings": [],
     "errors": []

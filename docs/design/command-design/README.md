@@ -12,13 +12,16 @@ Commands are plugin command files (`.md` files), not skills. They run inside the
 | `/profile` | `migration` | `/profiling-table` | |
 | `/generate-tests` | `ground-truth-harness` | `/generating-tests` | Includes test-reviewer sub-agent loop |
 | `/generate-model` | `migration` | `/generating-model` | Includes code-reviewer sub-agent loop |
+| `/setup-sandbox` | `ground-truth-harness` | — | Create throwaway DB for ground-truth capture |
+| `/teardown-sandbox` | `ground-truth-harness` | — | Drop throwaway DB |
+| `/cleanup-worktrees` | `bootstrap` | — | Scans worktrees, removes those with merged PRs |
 
 ## Invocation
 
 The FDE types a command followed by fully-qualified table names:
 
 ```text
-/scoping silver.DimCustomer silver.DimProduct silver.FactSales
+/scope silver.DimCustomer silver.DimProduct silver.FactSales
 ```
 
 Table names are `schema.table`. Single table = one sub-agent, FDE reviews inline. Multiple tables = parallel sub-agents, FDE reviews summary at end.

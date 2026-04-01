@@ -231,6 +231,10 @@ PRs target the repo's default branch. The FDE reviews and merges — the command
 
 Interactive skills do not open PRs automatically. The FDE manages PRs as part of their normal workflow.
 
+### Worktree Cleanup
+
+After a PR is merged, run `/cleanup-worktrees` to remove stale worktrees. The command scans all worktrees, checks each branch for a merged PR via `gh`, and removes the worktree + local + remote branch for merged ones. Can also target a single branch: `/cleanup-worktrees <branch-name>`.
+
 ### What Gets Committed
 
 | Committed (durable) | Never committed (ephemeral) |

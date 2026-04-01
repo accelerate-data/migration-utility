@@ -71,7 +71,7 @@ Per-item output:
 ```json
 {
   "item_id": "silver.dimproduct",
-  "status": "approved|revision_requested|error",
+  "status": "approved|revision_requested|approved_with_warnings|error",
   "checks": {
     "standards": {
       "passed": true,
