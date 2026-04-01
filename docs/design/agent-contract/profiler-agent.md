@@ -2,7 +2,7 @@
 
 The profiler agent produces migration profile candidates for each table in a batch. It runs `profile.py` for context assembly, applies LLM reasoning to answer the six profiling questions, and writes results into each table's catalog file.
 
-For the interactive single-table path, see the `/profile-table` skill. Both paths share `profile.py` for deterministic context assembly; the LLM reasoning is replicated with context-appropriate prompting (batch: no approval gates, structured output, skip-and-continue on errors; interactive: present for approval, stop on ambiguity).
+For the interactive single-table path, see the `/profiling-table` skill. Both paths share `profile.py` for deterministic context assembly; the LLM reasoning is replicated with context-appropriate prompting (batch: no approval gates, structured output, skip-and-continue on errors; interactive: present for approval, stop on ambiguity).
 
 ## Philosophy and Boundary
 

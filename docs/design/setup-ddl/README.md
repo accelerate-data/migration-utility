@@ -1,6 +1,6 @@
 # Setup DDL Design
 
-`setup-ddl` bootstraps the migration workspace. It connects to a live SQL Server via the `mssql` MCP tool, extracts DDL files and per-object catalog JSON, then runs offline AST enrichment. All downstream skills (`discover`, `scope`, `profile`) work from these local files — no live DB required after this step.
+`setup-ddl` bootstraps the migration workspace. It connects to a live SQL Server via the `mssql` MCP tool, extracts DDL files and per-object catalog JSON, then runs offline AST enrichment. All downstream skills (`listing-objects`, `scoping-table`, `profiling-table`) work from these local files — no live DB required after this step.
 
 ---
 
@@ -125,7 +125,7 @@ Augmented entries are tagged `"detection": "ast_scan"`. Dynamic SQL (`EXEC(@sql)
 
 ### Step 9 — Report
 
-Summary of files written (DDL counts, catalog counts, manifest path). Tells the user they can now run `discover` or the `scoping-agent`.
+Summary of files written (DDL counts, catalog counts, manifest path). Tells the user they can now run `discover` or the `scoping` agent.
 
 ---
 

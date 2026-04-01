@@ -106,12 +106,12 @@
     },
     "referenced_by": { "$ref": "#/$defs/reference_groups" },
     "profile": {
-      "description": "Written by the /profile skill or profiler agent. Not present after setup-ddl, only after profiling.",
+      "description": "Written by the /profiling-table skill or profiler agent. Not present after setup-ddl, only after profiling.",
       "$ref": "#/$defs/profile_section"
     },
     "scoping": {
       "type": "object",
-      "description": "Writer selection results from scoping agent or /discover-objects show. Written by discover write-scoping.",
+      "description": "Writer selection results from scoping agent or /scoping-table. Written by discover write-scoping.",
       "properties": {
         "status": {
           "type": "string",

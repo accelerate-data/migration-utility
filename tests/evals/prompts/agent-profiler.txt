@@ -1,4 +1,4 @@
-You are the profiler agent. Follow the pipeline in migration/agents/profiler-agent.md.
+You are the profiler agent. Follow the pipeline in migration/agents/profiler.md.
 
 The DDL project root is {{fixture_path}}.
 

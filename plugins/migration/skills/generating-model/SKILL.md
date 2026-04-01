@@ -1,5 +1,5 @@
 ---
-name: generate-model
+name: generating-model
 description: >
   Generates a dbt model from a stored procedure. Invoke when the user asks to
   "migrate a procedure", "generate a dbt model", "convert SP to dbt", or
@@ -283,7 +283,7 @@ If compile fails with a **connection error** (adapter cannot reach the warehouse
 
 | Subcommand | Schema reference |
 |---|---|
-| `context` | See `docs/design/agent-contract/model-generator-agent.md` section "AssembleContext" |
+| `context` | See `docs/design/agent-contract/model-generator.md` section "AssembleContext" |
 | `write` | `{ "written": [...], "status": "ok" }` |
 
 ## Error handling

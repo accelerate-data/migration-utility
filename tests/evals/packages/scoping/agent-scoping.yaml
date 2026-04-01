@@ -40,7 +40,10 @@ tests:
       - type: javascript
         value: "JSON.parse(output).results[0].status === 'resolved'"
       - type: javascript
-        value: "JSON.parse(output).results[0].selected_writer.toLowerCase().includes('usp_load_dimproduct')"
+        value: |
+          const fs = require('fs');
+          const catalog = JSON.parse(fs.readFileSync('catalog/tables/silver.DimProduct.json', 'utf8'));
+          return catalog.scoping && catalog.scoping.selected_writer && catalog.scoping.selected_writer.toLowerCase().includes('usp_load_dimproduct');
       - type: javascript
         value: "JSON.parse(output).summary.error === 0"
 
@@ -109,9 +112,10 @@ tests:
       - type: javascript
         value: |
           const d = JSON.parse(output);
-          return d.results[0].status === 'resolved' &&
-            d.results[0].selected_writer.toLowerCase().includes('usp_load_dimpromotion') &&
-            d.summary.error === 0;
+          if (d.results[0].status !== 'resolved' || d.summary.error !== 0) return false;
+          const fs = require('fs');
+          const catalog = JSON.parse(fs.readFileSync('catalog/tables/silver.DimPromotion.json', 'utf8'));
+          return catalog.scoping && catalog.scoping.selected_writer && catalog.scoping.selected_writer.toLowerCase().includes('usp_load_dimpromotion');
 
   # ── mv-as-target: indexed view target ─────────────────────────
   - description: "mv-as-target — DimSalesTerritory indexed view"

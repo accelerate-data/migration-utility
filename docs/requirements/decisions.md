@@ -108,9 +108,9 @@
 
 **Decision:** Migration runs as six sequential stages:
 
-1. **Scope** (`scoping-agent`) — identifies candidate writers for each table.
-2. **Profile** (`profiler-agent`) — classifies tables; identifies keys, watermarks, FKs, PII.
-3. **Migrate** (`model-generator-agent`) — translates source SQL to dbt models, derives materialization, generates schema tests.
+1. **Scope** (`scoping`) — identifies candidate writers for each table.
+2. **Profile** (`profiler`) — classifies tables; identifies keys, watermarks, FKs, PII.
+3. **Migrate** (`model-generator`) — translates source SQL to dbt models, derives materialization, generates schema tests.
 4. **Test Generation** (`test-generator-agent`) — generates dbt unit tests and YAML fixtures. *Not yet implemented.*
 
 Each stage produces immutable JSON artifacts committed to the migration repo by the GitHub Actions runner.
@@ -150,7 +150,7 @@ Each stage produces immutable JSON artifacts committed to the migration repo by 
 
 **Decision:**
 
-- **Interactive path:** FDE uses Claude Code skills (`/discover-objects`, `/profile-table`, `/generate-model`) with approval gates at every step.
+- **Interactive path:** FDE uses Claude Code skills (`/listing-objects`, `/scoping-table`, `/profiling-table`, `/generating-model`) with approval gates at every step.
 - **Agent execution (headless, planned):** one GitHub Actions workflow file per agent. A `migrate-util` CLI triggers runs via `workflow_dispatch`.
 
 **Rationale:** GitHub Actions eliminates hosting infrastructure. `workflow_dispatch` gives deterministic control over what runs when. Branch-per-run avoids merge conflicts (unique file paths).

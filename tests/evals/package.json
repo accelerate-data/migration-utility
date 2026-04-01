@@ -5,12 +5,12 @@
   "scripts": {
     "prerestore": "git checkout -- fixtures/",
     "postrestore": "git checkout -- fixtures/ && git clean -fd fixtures/",
-    "eval": "npm run prerestore && promptfoo eval --no-cache -c packages/scoping/skill-discover-objects-show.yaml -c packages/scoping/agent-scoping.yaml -c packages/profiler/skill-profile-table.yaml -c packages/profiler/agent-profiler.yaml -c packages/model-generator/skill-generate-model.yaml -c packages/model-generator/agent-model-generator.yaml; npm run postrestore",
-    "eval:scoping": "npm run prerestore && promptfoo eval --no-cache -c packages/scoping/skill-discover-objects-show.yaml -c packages/scoping/agent-scoping.yaml; npm run postrestore",
-    "eval:scoping:skill": "npm run prerestore && promptfoo eval --no-cache -c packages/scoping/skill-discover-objects-show.yaml; npm run postrestore",
+    "eval": "npm run prerestore && promptfoo eval --no-cache -c packages/scoping/skill-analyzing-object.yaml -c packages/scoping/agent-scoping.yaml -c packages/profiler/skill-profiling-table.yaml -c packages/profiler/agent-profiler.yaml -c packages/model-generator/skill-generating-model.yaml -c packages/model-generator/agent-model-generator.yaml; npm run postrestore",
+    "eval:scoping": "npm run prerestore && promptfoo eval --no-cache -c packages/scoping/skill-analyzing-object.yaml -c packages/scoping/agent-scoping.yaml; npm run postrestore",
+    "eval:scoping:skill": "npm run prerestore && promptfoo eval --no-cache -c packages/scoping/skill-analyzing-object.yaml; npm run postrestore",
     "eval:scoping:agent": "npm run prerestore && promptfoo eval --no-cache -c packages/scoping/agent-scoping.yaml; npm run postrestore",
-    "eval:profiler": "npm run prerestore && promptfoo eval --no-cache -c packages/profiler/skill-profile-table.yaml -c packages/profiler/agent-profiler.yaml; npm run postrestore",
-    "eval:migrator": "npm run prerestore && promptfoo eval --no-cache -c packages/model-generator/skill-generate-model.yaml -c packages/model-generator/agent-model-generator.yaml; npm run postrestore",
+    "eval:profiler": "npm run prerestore && promptfoo eval --no-cache -c packages/profiler/skill-profiling-table.yaml -c packages/profiler/agent-profiler.yaml; npm run postrestore",
+    "eval:model-generator": "npm run prerestore && promptfoo eval --no-cache -c packages/model-generator/skill-generating-model.yaml -c packages/model-generator/agent-model-generator.yaml; npm run postrestore",
     "view": "promptfoo view"
   },
   "dependencies": {

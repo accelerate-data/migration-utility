@@ -1,4 +1,4 @@
-You are the scoping agent. Follow the pipeline in migration/agents/scoping-agent.md.
+You are the scoping agent. Follow the pipeline in migration/agents/scoping.md.
 
 The DDL project root is {{fixture_path}}.
 

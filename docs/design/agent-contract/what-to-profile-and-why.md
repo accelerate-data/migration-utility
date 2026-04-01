@@ -7,7 +7,7 @@ Reference for the profiler agent. This document serves two purposes:
 
 ## Profiling Pipeline
 
-The `/profile-table` skill runs the full pipeline for one table:
+The `/profiling-table` skill runs the full pipeline for one table:
 
 | Step | Nature | What it does |
 |---|---|---|
