@@ -1,6 +1,6 @@
 ---
 name: scoping
-description: Identifies writer procedures from catalog data and writes scoping results to catalog/tables/<table>.json. Use when scoping a migration item.
+description: Batch scoping agent — identifies writer procedures for each table and persists scoping results to catalog. Delegates to /scoping-table skill per item. No approval gates.
 model: claude-sonnet-4-6
 maxTurns: 30
 tools:
@@ -11,9 +11,7 @@ tools:
 
 # Scoping Agent
 
-Given a batch of target tables, identify which procedures write to each and select the single writer when resolvable.
-
-Use `uv run discover` directly for all analysis — do not invoke the discover skill. Do not read catalog files directly — use `discover refs` and `discover show` as your interface.
+Given a batch of target tables, identify which procedures write to each and select the single writer when resolvable. Delegates per-item scoping to the `/scoping-table` skill.
 
 ---
 
@@ -40,92 +38,30 @@ Per item, before Step 1:
 
 ## Pipeline
 
-### Step 1 — Discover Refs
+### Step 1 — Scope Table (Skill Delegation)
 
-For each item in `items[]`, run:
+For each item in `items[]`, follow the `/scoping-table` skill pipeline. The skill handles writer discovery (via `discover refs`), procedure analysis (via `/analyzing-object` per candidate), resolution rules, and catalog persistence (via `discover write-scoping`).
 
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover refs \
-  --name <item_id>
-```
+**Batch overrides — do not use `AskUserQuestion`:**
 
-The output contains `writers` and `readers`. Each writer is a candidate.
+- If one writer is found, select it deterministically — do not confirm with user
+- If multiple writers are found, select the first candidate with `is_updated=true` in catalog `referenced_by`. If ambiguous, set status `ambiguous_multi_writer` and continue
+- If no writers are found, set status `no_writer_found` and continue
+- On `/analyzing-object` failure for a candidate, mark it `BLOCKED` and continue with remaining candidates
 
-If discover fails (exit code 1 or 2), record `error` with code `DISCOVER_EXECUTION_FAILED`.
+If any step in the skill pipeline fails, record `status: "error"` with the appropriate error code and continue to the next item.
 
-### Step 2 — Enrich Each Candidate
+### Step 2 — Collect Result
 
-For each candidate writer:
+After the skill completes for an item, read `catalog/tables/<item_id>.json` to confirm scoping was persisted. Record the item result:
 
-1. **Check catalog first** (idempotent): read `catalog/procedures/<proc>.json`. If `statements` already exists, reuse — the proc was already fully analysed. Collect `dependencies` from the existing catalog data and skip to step 6.
+- `item_id` — the table FQN
+- `status` — `resolved`, `ambiguous_multi_writer`, `no_writer_found`, or `error`
+- `catalog_path` — path to the catalog file
 
-2. Run `discover show --name <writer>` to get `refs`, `statements`, `classification`, and `raw_ddl`.
+### Step 3 — Write Summary Output
 
-3. **Resolve call graph**: extract `refs` from the output. For every ref that is a view, function, or procedure (not a base table), run `discover show` on it and follow the chain until you reach base tables. Assemble the fully resolved `dependencies: { tables, views, functions }`.
-
-4. **Classify statements**: check `classification`:
-   - `deterministic` with `statements` populated — statements are pre-classified, no further action needed.
-   - `claude_assisted` or `statements` is null — read `raw_ddl` and classify each statement as `migrate` or `skip`. See `../skills/analyzing-object/references/tsql-parse-classification.md` for the classification guide. If the proc calls other procs (EXEC), run `discover show` on each and follow recursively. Add `LLM_ANALYSIS_REQUIRED` warning.
-
-5. **Persist statements**: run `discover write-statements --name <writer> --statements '<json>'` to write resolved statements to catalog. Deterministic statements get `source: "ast"`, LLM-resolved statements get `source: "llm"`. No `claude` actions are persisted — all must be resolved.
-
-6. **Collect candidate data**:
-   - `dependencies: { tables, views, functions }` — fully resolved base tables from the call graph
-   - `rationale` — why this procedure was identified as a writer (e.g. "Catalog referenced_by shows is_updated=true")
-
-### Step 3 — Apply Resolution Rules
-
-| Condition | Status |
-|---|---|
-| One writer | `resolved` — set `selected_writer` |
-| Two or more writers | `ambiguous_multi_writer` |
-| No writers | `no_writer_found` |
-| Discover failed | `error` |
-
-### Step 4 — Write Scoping Results to Catalog
-
-For each item, assemble the scoping JSON from Steps 1–3:
-
-```json
-{
-  "status": "resolved",
-  "selected_writer": "dbo.usp_load_fact_sales",
-  "candidates": [
-    {
-      "procedure_name": "dbo.usp_load_fact_sales",
-      "dependencies": {
-        "tables": ["bronze.salesraw", "bronze.customer"],
-        "views": [],
-        "functions": []
-      },
-      "rationale": "Catalog referenced_by shows is_updated=true for this procedure."
-    }
-  ],
-  "warnings": [],
-  "errors": []
-}
-```
-
-Each candidate is built from Step 1 (writer list from `discover refs`) and Step 2 (resolved `dependencies` from `discover show` chain). The `rationale` explains why the procedure was identified as a writer.
-
-Then run:
-
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-scoping \
-  --name <item_id> --scoping '<json>'
-```
-
-Non-obvious cross-field checks before writing:
-
-- `resolved` → `selected_writer` present and matches a `procedure_name` in `candidates`.
-- `resolved` → selected writer candidate has `dependencies` populated (from Step 2 refs).
-- `ambiguous_multi_writer` → at least two candidates, no `selected_writer`.
-
-Set `validation.passed = false` and populate `validation.issues[]` on failure.
-
-### Step 5 — Write Summary Output
-
-Write a lightweight summary JSON (`scoping_summary.json` schema) to the output file path:
+After processing all items, write the summary JSON to the output file path:
 
 ```json
 {
@@ -152,6 +88,19 @@ The full scoping data lives in the catalog files, not duplicated in the summary 
 
 ---
 
+## Error Handling
+
+| Situation | Action |
+|---|---|
+| `/scoping-table` skill fails for item | `status: "error"`, record error, skip to next item |
+| `/analyzing-object` fails for a candidate | Mark candidate `BLOCKED`, continue with remaining candidates |
+| `discover refs` returns no writers | `status: "no_writer_found"`, record in result, continue |
+| Multiple writers, cannot resolve | `status: "ambiguous_multi_writer"`, record in result, continue |
+
+Never stop the batch on a single item failure. Process all items and report aggregate results.
+
+---
+
 ## Error and Warning Codes
 
 Every entry in `errors[]` or `warnings[]` uses this format:
@@ -169,5 +118,5 @@ Every entry in `errors[]` or `warnings[]` uses this format:
 |---|---|---|
 | `MANIFEST_NOT_FOUND` | error | manifest.json missing — all items fail |
 | `CATALOG_FILE_MISSING` | error | catalog/tables/<item_id>.json not found — skip item |
-| `DISCOVER_EXECUTION_FAILED` | error | `discover refs` or `discover show` CLI failed — skip item |
-| `LLM_ANALYSIS_REQUIRED` | warning | claude_assisted proc required LLM resolution — item proceeds |
+| `SCOPING_FAILED` | error | `/scoping-table` skill pipeline failed — skip item |
+| `CANDIDATE_BLOCKED` | warning | `/analyzing-object` failed for a candidate — candidate skipped |

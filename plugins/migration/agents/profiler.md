@@ -1,6 +1,6 @@
 ---
 name: profiler
-description: Batch profiling agent that produces migration profile candidates for each table. Runs profile.py for context, applies LLM reasoning for the six profiling questions, and writes results into catalog files.
+description: Batch profiling agent — produces migration profiles for each table by delegating to /profiling-table skill. No approval gates.
 model: claude-sonnet-4-6
 maxTurns: 30
 tools:
@@ -11,9 +11,7 @@ tools:
 
 # Profiler Agent
 
-Given a batch of target tables, produce migration profile candidates for each table and write them into the table catalog files. The selected writer for each table is read from the `scoping` section in `catalog/tables/<table>.json`.
-
-Use `uv run profile` directly for context assembly and catalog writes. Do not read or write catalog files directly -- use `profile context` and `profile write` as your interface.
+Given a batch of target tables, produce migration profile candidates for each table and write them into the table catalog files. Delegates per-item profiling to the `/profiling-table` skill.
 
 ---
 
@@ -41,57 +39,40 @@ Per item, before Step 1:
 
 ## Pipeline
 
-### Step 1 -- Assemble Context
+### Step 1 — Profile Table (Skill Delegation)
 
-For each item in `items[]`, run:
+For each item in `items[]`, follow the `/profiling-table` skill pipeline. The skill handles context assembly (via `profile context`), LLM profiling (Q1-Q6 from `profiling-signals.md`), and catalog persistence (via `profile write`).
 
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" profile context \
-  --table <item_id>
-```
+**Batch overrides — do not use `AskUserQuestion`:**
 
-The command reads `selected_writer` from the catalog scoping section — no `--writer` argument needed.
+- Make all profiling decisions deterministically
+- If a required question (Q1 classification, Q2 primary key, Q5 watermark) cannot be answered, set `status: "partial"` and record the unresolved questions as `PARTIAL_PROFILE` warnings — do not stop
+- Auto-approve all profiles — write directly without confirmation
+- On `profile write` failure, record `PROFILE_WRITE_FAILED` and continue
 
-If the command fails (exit code 1 or 2), record `status: "error"` with the failure message in `errors[]` and continue to the next item.
+If any step in the skill pipeline fails, record `status: "error"` with the appropriate error code and continue to the next item.
 
-### Step 2 -- LLM Profiling
+### Step 2 — Record Result
 
-Using the context JSON, answer the six profiling questions (Q1–Q6) defined in [profiling-signals.md](../skills/profiling-table/references/profiling-signals.md). Follow all signal tables and pattern matching rules in that reference — do not abbreviate.
+For each item, record:
 
-### Step 3 -- Write to Catalog
-
-Run:
-
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" profile write \
-  --table <item_id> \
-  --profile '<json>'
-```
-
-The profile JSON must include `status`, `writer`, and the profiling answers. All enum values must be from the allowed sets defined in `docs/design/agent-contract/profiler.md`.
-
-No approval gates in batch mode -- write directly after reasoning.
-
-### Step 4 -- Handle Errors
-
-- If `profile context` fails: set `status: "error"`, record in `errors[]`, continue to next item.
-- If LLM cannot answer a required question (classification, primary_key, watermark): set `status: "partial"`, record which questions are unresolved in `warnings[]`, continue to next item.
-- If `profile write` fails: set `status: "error"`, record in `errors[]`, continue to next item.
-- Do not stop the batch on individual item failures.
+- `item_id` — the table FQN
+- `status` — `ok`, `partial`, or `error`
+- `catalog_path` — path to the catalog file
 
 ---
 
 ## `source` Field Semantics
 
-- `"catalog"` -- fact from setup-ddl catalog data. Not inferred.
-- `"llm"` -- inferred by LLM from proc body / column patterns / reference tables.
-- `"catalog+llm"` -- catalog provided the base fact, LLM added classification.
+- `"catalog"` — fact from setup-ddl catalog data. Not inferred.
+- `"llm"` — inferred by LLM from proc body / column patterns / reference tables.
+- `"catalog+llm"` — catalog provided the base fact, LLM added classification.
 
 ## `status` Field
 
-- `ok` -- required questions answered (classification, primary_key, watermark).
-- `partial` -- one or more required questions unanswered.
-- `error` -- runtime failure prevented profiling.
+- `ok` — required questions answered (classification, primary_key, watermark).
+- `partial` — one or more required questions unanswered.
+- `error` — runtime failure prevented profiling.
 
 ---
 
@@ -141,6 +122,6 @@ Every entry in `errors[]` or `warnings[]` uses this format:
 | `MANIFEST_NOT_FOUND` | error | manifest.json missing — all items fail |
 | `CATALOG_FILE_MISSING` | error | catalog/tables/<item_id>.json not found — skip item |
 | `SCOPING_NOT_COMPLETED` | error | scoping section missing or no selected_writer — skip item |
-| `CONTEXT_ASSEMBLY_FAILED` | error | `profile context` CLI failed — skip item |
+| `PROFILING_FAILED` | error | `/profiling-table` skill pipeline failed — skip item |
 | `PROFILE_WRITE_FAILED` | error | `profile write` CLI failed — skip item |
 | `PARTIAL_PROFILE` | warning | LLM could not answer a required question — item proceeds with partial |
