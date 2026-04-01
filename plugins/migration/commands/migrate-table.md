@@ -6,12 +6,12 @@ description: >
   or "run the full migration pipeline". Coordinates discover, profile, and migrate
   skills in sequence with user gates.
 user-invocable: true
-argument-hint: "[[project-root]] [--table <fqn>] [--non-interactive]"
+argument-hint: "[[project-root]] [--table <fqn>]"
 ---
 
 # Migrate Table
 
-Orchestrates the migration pipeline for a single table: discover the writer procedure, profile the table, generate a dbt model, and write artifacts. Each stage has user approval gates (unless `--non-interactive`).
+Orchestrates the migration pipeline for a single table: discover the writer procedure, profile the table, generate a dbt model, and write artifacts. Each stage has user approval gates.
 
 ## Arguments
 
@@ -20,7 +20,6 @@ Orchestrates the migration pipeline for a single table: discover the writer proc
 | `[project-root]` | no | Path to project root directory — defaults to current working directory |
 | `--table` | no | Target table FQN — interactive picker if omitted |
 | `--dbt-project-path` | no | Path to dbt project — auto-detected from `$DBT_PROJECT_PATH` or `<project-root>/dbt` if omitted |
-| `--non-interactive` | no | Skip all confirmation gates (for GHA/batch use) |
 
 ## Prerequisite check
 
@@ -46,35 +45,29 @@ If `--table` was provided, skip the picker. Otherwise, present the table list an
 
 #### 1b. Scope table via `/scoping-table`
 
-Run `/scoping-table --name <selected_table>`. This performs the full scoping flow: shows columns, discovers writer candidates via `refs`, resolves statements for each candidate, presents candidates for user selection, and persists scoping to catalog via `discover write-scoping`.
+Run `/scoping-table --table <selected_table>`. This performs the full scoping flow: shows columns, discovers writer candidates via `refs`, delegates each candidate to `/analyzing-object`, presents candidates for user selection, and persists scoping to catalog.
 
-**Gate (interactive):** User confirms the selected writer procedure.
-
-**Gate (non-interactive):** Auto-select if one writer; error if zero or multiple.
+User confirms the selected writer procedure before proceeding.
 
 ### Stage 2: Profile
 
 Run the `/profiling-table` skill against the selected table. The writer is read from the catalog scoping section — no need to pass `--writer`. This assembles catalog signals, runs LLM profiling (classification, keys, watermark, PII), and writes results to catalog.
 
-**Gate (interactive):** User approves profile answers (classification, primary key, watermark, foreign keys, PII actions).
-
-**Gate (non-interactive):** Auto-approve and write to catalog.
+User approves profile answers (classification, primary key, watermark, foreign keys, PII actions) before proceeding.
 
 ### Stage 3: Migrate
 
 Run the `/generating-model` skill against the selected table. The writer is read from the catalog scoping section — no need to pass `--writer`. This assembles migration context, generates dbt SQL via LLM, runs logical equivalence check, and writes artifacts.
 
-**Gate (interactive):** User approves generated dbt model and schema YAML before writing.
-
-**Gate (non-interactive):** Auto-approve and write.
+User approves generated dbt model and schema YAML before writing.
 
 ## Error handling
 
 | Error | Behavior |
 |---|---|
-| Any skill exits non-zero | Surface the error message to the user. In interactive mode, ask if they want to retry or abort. In non-interactive mode, abort the pipeline. |
+| Any skill exits non-zero | Surface the error message to the user. Ask if they want to retry or abort. |
 | Missing prerequisite (no profile, no statements) | Tell the user which prerequisite is missing and which command to run. |
-| `dbt compile` fails after model write | Show the compile error. In interactive mode, offer to edit the model. In non-interactive mode, record as partial success. |
+| `dbt compile` fails after model write | Show the compile error. Offer to edit the model. |
 
 ## Completion
 
