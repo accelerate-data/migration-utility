@@ -1,6 +1,6 @@
 # CLI Design
 
-Deterministic Python CLIs in the `shared` package that agents call via `uv run`. Each CLI outputs JSON to stdout and diagnostics to stderr.
+Deterministic Python CLIs in the `shared` package. Each CLI outputs JSON to stdout and diagnostics to stderr.
 
 ---
 
@@ -22,6 +22,7 @@ Declared as `[project.scripts]` in `shared/pyproject.toml`:
 | `catalog-enrich` | `shared.catalog_enrich:app` | Augment catalog with AST-derived references missed by DMF (CTAS, SELECT INTO, EXEC call chains) |
 | `profile` | `shared.profile:app` | Assemble profiling context for a table + writer pair, and write profiles back to catalog |
 | `migrate` | `shared.migrate:app` | Assemble migration context from catalog + profile, and write dbt model SQL + schema YAML |
+| `test-harness` | `shared.test_harness:app` | Sandbox lifecycle and scenario execution for ground-truth testing |
 
 ---
 
@@ -29,11 +30,21 @@ Declared as `[project.scripts]` in `shared/pyproject.toml`:
 
 ### Invocation
 
-Agents invoke CLIs via `uv run`:
-
 ```bash
 uv run --project lib <command> [subcommand] --option value
 ```
+
+### Invocation model
+
+CLIs are the deterministic bottom layer in a three-tier stack:
+
+| Layer | Role | Calls CLIs? |
+|---|---|---|
+| **Agent** | Thin batch wrapper — loops over work items, writes summary JSON, suppresses approval gates | Via skill |
+| **Skill** | Per-item algorithm with approval gates (interactive) or deterministic mode (when called by an agent) | Yes |
+| **CLI** | Deterministic Python — JSON in/out, no LLM reasoning, no interactivity | N/A |
+
+Agents delegate to skills; skills call CLIs. CLIs never call skills or agents. A skill may compose multiple CLIs in a single workflow (e.g., `migrate context` then `test-harness execute`).
 
 ### I/O contract
 
@@ -113,8 +124,20 @@ If the catalog directory is missing, returns a zeroed summary instead of exiting
 | `context` | `--project-root`, `--table schema.Name`, `--writer schema.Name` | Migration context JSON (profile, statements, DDL columns) |
 | `write` | `--project-root`, `--dbt-project-path` (optional), `--table schema.Name`, `--model-sql`, `--schema-yml` | Write confirmation JSON |
 
+### `test-harness`
+
+| Subcommand | Key options | Returns |
+|---|---|---|
+| `sandbox-up` | `--run-id` (UUID), `--project-root` | `{"status": "ok", "database": ..., "tables_cloned": N, "procedures_cloned": N}` |
+| `sandbox-down` | `--run-id`, `--project-root` | `{"status": "ok"}` |
+| `execute` | `--run-id`, `--scenario` (file path to JSON), `--project-root` | Ground-truth result JSON (schema: `test_harness_execute_output.json`) |
+
+Reads `manifest.json` to determine technology and routes to a technology-specific backend (`sql_server`, `fabric_warehouse`). Requires `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD` environment variables for SQL Server backends.
+
+`--scenario` takes a **file path**, not inline JSON. Callers (skills) must write scenario data to a temp file before invoking `execute`.
+
 ---
 
 ## Testability Pattern
 
-Business logic is separated from CLI wiring. Subcommands delegate to standalone functions (e.g., `run_list`, `run_show`, `run_refs`, `run_write_statements`, `enrich_catalog`, `run_context`, `run_write`, `run_scaffold_project`, `run_scaffold_hooks`, `run_assemble_modules`, `run_assemble_tables`, `run_write_catalog`, `run_write_manifest`) that can be imported and tested directly without invoking Typer. CLI commands only handle I/O and exit codes.
+Business logic is separated from CLI wiring. Subcommands delegate to standalone functions that can be imported and tested directly without invoking Typer. CLI commands only handle I/O and exit codes. For `test-harness`, the backend abstraction (`SandboxBackend`) is the testable boundary — each method (`sandbox_up`, `sandbox_down`, `execute_scenario`) is tested independently of Typer.
