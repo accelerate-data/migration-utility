@@ -83,8 +83,12 @@ Compute coverage:
 
 - **total_branches**: count of branches from the reviewer's enumeration.
 - **covered_branches**: count of branches with at least one mapped scenario.
-- **score**: `complete` if all branches are covered, `partial` otherwise.
-- **uncovered**: list of branch objects (`id`, `description`) that have zero mapped scenarios.
+- **untestable_branches**: count of branches marked untestable (see below).
+- **score**: `complete` if all testable branches are covered (covered + untestable = total), `partial` otherwise.
+- **uncovered**: list of branch objects (`id`, `description`) that have zero mapped scenarios and are not untestable.
+- **untestable**: list of branch objects (`id`, `description`, `rationale`) that cannot be tested with static fixtures.
+
+A branch is **untestable** when it depends on runtime state that static fixtures cannot reproduce: `GETDATE()`/`SYSDATETIME()` comparisons, dynamic SQL with variable table/column targets, external service calls, or non-deterministic functions. Each untestable classification requires a `rationale` explaining why. Do not use untestable as a catch-all — if a branch can be tested by carefully constructed fixture data, it is testable.
 
 ## Step 5: Review fixture quality
 
@@ -103,8 +107,8 @@ Apply the following verdict rules:
 
 | Condition | Action |
 |---|---|
-| Coverage complete + quality acceptable | **Approve** — set `status` to `approved` |
-| Coverage gaps identified | **Kick back** — set `status` to `revision_requested`, populate `feedback_for_generator.uncovered_branches` with the branch IDs that lack scenarios |
+| All testable branches covered + quality acceptable | **Approve** — set `status` to `approved`. If untestable branches exist, include them in the output for documentation |
+| Testable coverage gaps identified | **Kick back** — set `status` to `revision_requested`, populate `feedback_for_generator.uncovered_branches` with the branch IDs that lack scenarios (exclude untestable branches) |
 | Quality issues found | **Kick back** — set `status` to `revision_requested`, populate `feedback_for_generator.quality_fixes` with specific remediation instructions per scenario |
 | Both coverage gaps and quality issues | **Kick back** — set `status` to `revision_requested`, populate both feedback fields |
 | Iteration 2 and issues remain | **Approve with warnings** — set `status` to `approved_with_warnings`, add a warning entry flagging the item for human review |
@@ -129,12 +133,20 @@ Emit the following JSON structure as the skill's output:
   ],
   "coverage": {
     "total_branches": 8,
-    "covered_branches": 7,
+    "covered_branches": 6,
+    "untestable_branches": 1,
     "score": "partial",
     "uncovered": [
       {
         "id": "left_join_null_category",
         "description": "LEFT JOIN to category table — no matching category (NULL right side)"
+      }
+    ],
+    "untestable": [
+      {
+        "id": "getdate_expiry_check",
+        "description": "WHERE ExpiryDate < GETDATE() — runtime date comparison",
+        "rationale": "Branch depends on current system time; static fixtures cannot control GETDATE() output"
       }
     ]
   },
