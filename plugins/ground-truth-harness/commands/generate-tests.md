@@ -149,7 +149,8 @@ If `execute-spec` exits non-zero or individual scenarios fail:
 | Code | Severity | When |
 |---|---|---|
 | `MANIFEST_NOT_FOUND` | error | manifest.json missing — all items fail |
-| `SANDBOX_NOT_FOUND` | error | Sandbox database not running — all items fail |
+| `SANDBOX_RUN_ID_MISSING` | error | manifest.json has no `sandbox.run_id` — run `/setup-sandbox` first |
+| `SANDBOX_NOT_RUNNING` | error | sandbox-status check failed — sandbox may have been torn down or DB dropped |
 | `CATALOG_FILE_MISSING` | error | catalog/tables/\<item_id>.json not found — skip item |
 | `SCOPING_NOT_COMPLETED` | error | scoping section missing or no selected_writer — skip item |
 | `PROFILE_NOT_COMPLETED` | error | profile section missing or status != ok — skip item |
