@@ -63,7 +63,17 @@ Return the item result JSON.
      ok: 1 | partial: 1 | error: 1
    ```
 
-4. Ask FDE: commit and open PR? PR body should include a summary line and a per-table results table (not raw JSON).
+4. Ask FDE: commit and open PR? PR body format:
+
+   ```markdown
+   ## Profiling — N tables
+
+   | Table | Status | Classification | Primary Key |
+   |---|---|---|---|
+   | silver.DimCustomer | ok | dimension | CustomerKey |
+   | silver.DimProduct | partial | dimension | — |
+   | silver.DimDate | error | — | SCOPING_NOT_COMPLETED |
+   ```
 
 ### Cleanup
 

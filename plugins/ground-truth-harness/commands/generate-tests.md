@@ -99,7 +99,17 @@ The CLI executes all scenarios, captures ground truth, and writes `expect.rows` 
      ok: 1 | partial: 1 | error: 1
    ```
 
-4. Ask FDE: commit and open PR? PR body should include a summary line and a per-table results table (not raw JSON).
+4. Ask FDE: commit and open PR? PR body format:
+
+   ```markdown
+   ## Test Generation — N tables
+
+   | Table | Status | Branches | Scenarios | Coverage | Review |
+   |---|---|---|---|---|---|
+   | silver.DimCustomer | ok | 8 | 8 | complete | approved |
+   | silver.DimProduct | partial | 6 | 4 | partial | approved_with_warnings |
+   | silver.DimDate | error | — | — | — | PROFILE_NOT_COMPLETED |
+   ```
 
 ### Cleanup
 

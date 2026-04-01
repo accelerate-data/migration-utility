@@ -62,7 +62,17 @@ Return the item result JSON.
      resolved: 2 | error: 1
    ```
 
-4. Ask FDE: commit and open PR? PR body should include a summary line and a per-table results table (not raw JSON).
+4. Ask FDE: commit and open PR? PR body format:
+
+   ```markdown
+   ## Scoping — N tables
+
+   | Table | Status | Writer |
+   |---|---|---|
+   | silver.DimCustomer | resolved | dbo.usp_load_dimcustomer |
+   | silver.DimProduct | resolved | dbo.usp_load_dimproduct |
+   | silver.DimDate | error | CATALOG_FILE_MISSING |
+   ```
 
 ### Cleanup
 

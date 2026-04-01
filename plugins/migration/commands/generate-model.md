@@ -69,7 +69,17 @@ Notes:
      ok: 1 | partial: 1 | error: 1
    ```
 
-4. Ask FDE: commit and open PR? PR body should include a summary line and a per-table results table (not raw JSON).
+4. Ask FDE: commit and open PR? PR body format:
+
+   ```markdown
+   ## Model Generation — N tables
+
+   | Table | Status | Model | Materialized | dbt compile |
+   |---|---|---|---|---|
+   | silver.DimCustomer | ok | stg_dimcustomer | incremental | passed |
+   | silver.DimProduct | partial | stg_dimproduct | table | EQUIVALENCE_GAP |
+   | silver.DimDate | error | — | — | PROFILE_NOT_COMPLETED |
+   ```
 
 ### Cleanup
 
