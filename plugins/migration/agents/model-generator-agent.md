@@ -58,7 +58,7 @@ Parse the JSON output. If the command fails (exit code 1 or 2), record `status: 
 
 ### Step 2 — Generate, Validate, and Write (Skill Delegation)
 
-Follow the `/generating-model` skill pipeline (Steps 2–8) for this item using the context from Step 1. The skill defines the full dbt generation algorithm: model structure decisions, CTE generation, equivalence checks, schema YAML, artifact writes, and `dbt compile` validation.
+Follow the `/generating-model` skill pipeline (Steps 2–8) for this item. Skip Step 1 of the skill (context assembly) — the agent already performed it above. The skill defines the full dbt generation algorithm: model structure decisions, CTE generation, equivalence checks, schema YAML, artifact writes, and `dbt compile` validation.
 
 **Batch overrides — do not use `AskUserQuestion`:**
 

@@ -21,7 +21,7 @@ Parse `$ARGUMENTS` for `--table`. Use `AskUserQuestion` if `--table` is missing.
 ## Before invoking
 
 1. Read `manifest.json` from the current working directory to confirm a valid project root. If missing, stop and tell the user to run `setup-ddl` first.
-2. Confirm `catalog/tables/<table>.json` exists. If missing, stop and tell the user to run `discover list --type tables` first.
+2. Confirm `catalog/tables/<table>.json` exists. If missing, stop and tell the user to run `/listing-objects --type tables` first.
 
 ## Pipeline
 
