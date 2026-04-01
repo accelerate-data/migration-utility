@@ -23,7 +23,6 @@ Declared as `[project.scripts]` in `shared/pyproject.toml`:
 | `profile` | `shared.profile:app` | Assemble profiling context for a table + writer pair, and write profiles back to catalog |
 | `migrate` | `shared.migrate:app` | Assemble migration context from catalog + profile, and write dbt model SQL + schema YAML |
 | `test-harness` | `shared.test_harness:app` | Sandbox lifecycle and scenario execution for ground-truth testing |
-| `migrate-util` | `shared.migrate_util:app` | Batch orchestrator — stage execution, status, resolution, dry-run |
 
 ---
 
@@ -37,17 +36,15 @@ uv run --project lib <command> [subcommand] --option value
 
 ### Invocation model
 
-CLIs are the deterministic bottom layer in a five-tier stack:
+CLIs are the deterministic bottom layer in a three-tier stack:
 
 | Layer | Role | Calls CLIs? |
 |---|---|---|
-| **`/batch-run` command** | User-facing orchestration — task list, commit prompts, resolution questions, progress. Uses LLM for interaction only | Calls `migrate-util` |
-| **`migrate-util` CLI** | Deterministic batch orchestrator — item filtering, agent spawning, status tracking, git operations | Spawns agents |
-| **Agent** | Thin batch wrapper — loops over work items, calls CLIs, suppresses approval gates | Via `uv run` |
+| **Command** | Plugin command file — accepts table names, creates worktree, spawns sub-agents, summarises results, opens PR | Spawns sub-agents |
 | **Skill** | Per-item algorithm with approval gates (interactive) | Yes |
 | **CLI** | Deterministic Python — JSON in/out, no LLM reasoning, no interactivity | N/A |
 
-Agents call CLIs directly via `uv run`. Skills call CLIs. CLIs never call skills or agents. The `/batch-run` command calls `migrate-util` which spawns agents as subprocesses.
+Sub-agents and skills call CLIs directly via `uv run`. CLIs never call skills or agents.
 
 ### I/O contract
 
@@ -79,6 +76,7 @@ All parameters use `--option` style. No CLIs use positional arguments.
 | `show` | `--project-root`, `--name schema.Name` | Object detail: columns/params/refs/statements/classification |
 | `refs` | `--project-root`, `--name schema.Name` | `{"readers": [...], "writers": [...]}` |
 | `write-statements` | `--project-root`, `--name schema.Name`, `--statements` (JSON array) | `{"written": ..., "statement_count": N}` |
+| `write-scoping` | `--project-root`, `--name schema.Name`, `--scoping` (JSON string) | Write-back confirmation JSON |
 
 Requires a `catalog/` directory (from `setup-ddl`). Exits with code `2` if missing.
 
@@ -133,50 +131,12 @@ If the catalog directory is missing, returns a zeroed summary instead of exiting
 |---|---|---|
 | `sandbox-up` | `--run-id` (UUID), `--project-root` | `{"status": "ok", "database": ..., "tables_cloned": N, "procedures_cloned": N}` |
 | `sandbox-down` | `--run-id`, `--project-root` | `{"status": "ok"}` |
+| `sandbox-status` | `--run-id`, `--project-root` | `{"run_id": ..., "database": ..., "exists": bool}` (schema: `sandbox_status_output.json`) |
 | `execute` | `--run-id`, `--scenario` (file path to JSON), `--project-root` | Ground-truth result JSON (schema: `test_harness_execute_output.json`) |
 
 Reads `manifest.json` to determine technology and routes to a technology-specific backend (`sql_server`, `fabric_warehouse`). Requires `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD` environment variables for SQL Server backends.
 
 `--scenario` takes a **file path**, not inline JSON. Callers (skills) must write scenario data to a temp file before invoking `execute`.
-
-### `migrate-util`
-
-Batch orchestrator. Deterministic — no LLM reasoning. Invoked by the `/batch-run` command or directly from the terminal.
-
-| Subcommand | Key options | Returns |
-|---|---|---|
-| `scope` | `--table`, `--tables` (comma-separated), `--all`, `--project-root` | Per-item status JSON (derived from catalog post-agent) |
-| `profile` | `--table`, `--tables`, `--all`, `--project-root` | Per-item status JSON |
-| `test-gen` | `--table`, `--tables`, `--all`, `--project-root` | Per-item status JSON |
-| `migrate` | `--table`, `--tables`, `--all`, `--project-root` | Per-item status JSON |
-| `run` | `--table` (single table only) | Full pipeline status JSON |
-| `status` | `--table` (optional), `--project-root` | Status table JSON (all tables, all stages) |
-| `resolve` | `--table`, `--writer`, `--project-root` | Resolution confirmation JSON |
-| `sandbox` | `up` or `down`, `--run-id`, `--project-root` | Delegates to `test-harness` CLI |
-| `init` | `--project-root` | Delegates to `init` CLI |
-| `dry-run` | `<stage>`, `--table`, `--tables`, `--all`, `--project-root` | Eligible items JSON (no agent invocation) |
-
-Each stage subcommand (`scope`, `profile`, `test-gen`, `migrate`):
-
-1. Reads catalog to find eligible items (filters by upstream stage completion)
-2. Spawns `claude --plugin-dir plugins/ --agent <agent-name>` as subprocess
-3. Agent writes results directly to catalog / test-specs / dbt models
-4. CLI reads catalog post-agent to determine per-item status
-5. Updates `.migration-status.json` (transient, `.gitignore`d) with timing, cost, results
-6. Returns summary JSON to caller
-
-`status` derives completion from catalog presence:
-
-| Stage complete when | Source |
-|---|---|
-| Scoping | `catalog/tables/<table>.json` has `scoping` section |
-| Profiling | `catalog/tables/<table>.json` has `profile` section |
-| Test generation | `test-specs/<table>.json` exists |
-| Migration | `dbt/models/` has `.sql` + `.yml` for the table |
-
-`resolve` writes directly to the `scoping` section of `catalog/tables/<table>.json`, setting `selected_writer` and `status: "resolved"`.
-
-`dry-run` shows what items would be processed without invoking agents. Lists eligible tables and their current stage status.
 
 ---
 

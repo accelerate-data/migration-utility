@@ -2,16 +2,16 @@
 
 ## Overview
 
-Commands are plugin command files (`.md` files in `plugins/migration/commands/`), not skills. They run inside the Claude Code session and can spawn sub-agents. Each command handles both single-table and multi-table invocation through the same code path — single-table is just a batch of one.
+Commands are plugin command files (`.md` files), not skills. They run inside the Claude Code session and can spawn sub-agents. Each command handles both single-table and multi-table invocation through the same code path — single-table is just a batch of one.
 
 ## Commands
 
-| Command | Skill per table | Notes |
-|---|---|---|
-| `/scope` | `/scoping-table` | |
-| `/profile` | `/profiling-table` | |
-| `/generate-tests` | `/generating-tests` | Includes test-reviewer sub-agent loop |
-| `/generate-model` | `/generating-model` | Includes code-reviewer sub-agent loop |
+| Command | Plugin | Skill per table | Notes |
+|---|---|---|---|
+| `/scope` | `migration` | `/scoping-table` | |
+| `/profile` | `migration` | `/profiling-table` | |
+| `/generate-tests` | `ground-truth-harness` | `/generating-tests` | Includes test-reviewer sub-agent loop |
+| `/generate-model` | `migration` | `/generating-model` | Includes code-reviewer sub-agent loop |
 
 ## Invocation
 

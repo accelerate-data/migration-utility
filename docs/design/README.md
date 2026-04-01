@@ -25,7 +25,7 @@ Use `docs/design/` for architecture and implementation design details.
 - [T-SQL Parse Classification](tsql-parse-classification/README.md) — exhaustive pattern list, deterministic (sqlglot) vs Claude-assisted routing
 - [CLI Design](cli-design/README.md) — framework choice, registered commands, I/O contract, exit codes, and testability pattern
 - [Eval Harness](eval-harness/README.md) — Promptfoo-based non-interactive testing for agents and skills against the MigrationTest schema
-- [Command Orchestration](command-design/README.md) — plugin command lifecycle, sub-agent spawning, run log structure, and relationship to skills
+- [Command Design](command-design/README.md) — plugin command lifecycle, sub-agent spawning, run log structure, and relationship to skills
 
 ## What Goes In `references`
 

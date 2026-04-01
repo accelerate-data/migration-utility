@@ -19,14 +19,7 @@ Claude Code agent ──► reads fixture ──► calls Python CLIs ──► 
 Assertions: JSON schema (draft 2020-12), status enums, text sections
 ```
 
-Skills and agents share the same DDL project fixture but are tested separately because they have different execution paths:
-
-| Dimension | Skill | Agent |
-|---|---|---|
-| Invocation | `/analyzing-object --name <proc>` | Two file paths (input JSON, output JSON) |
-| Output | Human-formatted text | Structured JSON |
-| Approval gates | Interactive (simulated as non-interactive) | None |
-| Assertions | `icontains` for text sections | JSON schema validation, field values |
+Skills are tested via Promptfoo scenarios that invoke them non-interactively and validate their output.
 
 ---
 
@@ -48,21 +41,15 @@ tests/evals/
     validate-candidate-writers.js      # JSON schema validation (draft 2020-12)
   prompts/
     skill-analyzing-object.txt          # prompt template for analyzing-object skill
-    agent-scoping.txt                  # prompt template for scoping agent
     skill-profiling-table.txt            # prompt template for profiling-table skill
-    agent-profiler.txt                 # prompt template for profiler agent
     skill-generating-model.txt           # prompt template for generating-model skill
-    agent-model-generator.txt          # prompt template for model-generator agent
   packages/
     scoping/
       skill-analyzing-object.yaml       # 8 skill scenarios (self-contained config)
-      agent-scoping.yaml               # 8 agent scenarios (self-contained config)
     profiler/
       skill-profiling-table.yaml         # 4 skill scenarios
-      agent-profiler.yaml              # 4 agent scenarios
     model-generator/
       skill-generating-model.yaml       # 4 skill scenarios
-      agent-model-generator.yaml       # 4 agent scenarios
   fixtures/
     migration-test/                    # extracted DDL project (one-time)
       manifest.json
@@ -77,11 +64,11 @@ tests/evals/
 
 The harness is organized into three packages. Each package tests one stage of the migration pipeline and can be run independently.
 
-| Package | Skills tested | Agent tested | Scenarios |
-|---|---|---|---|
-| `scoping` | `/analyzing-object` on claude_assisted procs | scoping | 8 x 2 = 16 |
-| `profiler` | `/profiling-table` (context + LLM reasoning + write) | profiler | 4 x 2 = 8 |
-| `model-generator` | `/generating-model` (context + dbt generation + write) | model-generator | 4 x 2 = 8 |
+| Package | Skills tested | Scenarios |
+|---|---|---|
+| `scoping` | `/analyzing-object` on claude_assisted procs | 8 |
+| `profiler` | `/profiling-table` (context + LLM reasoning + write) | 4 |
+| `model-generator` | `/generating-model` (context + dbt generation + write) | 4 |
 
 Each scenario file is a self-contained promptfoo config with its own `providers`, `prompts`, and `tests`. The npm scripts compose them via `-c` flags.
 
@@ -100,14 +87,13 @@ npm install
 # Full suite — all packages
 npm run eval
 
-# Single package (skill + agent)
+# Single package
 npm run eval:scoping
 npm run eval:profiler
 npm run eval:model-generator
 
-# Single scenario file (skill only or agent only)
+# Single scenario file
 npm run eval:scoping:skill
-npm run eval:scoping:agent
 
 # View results in browser
 npm run view
@@ -164,10 +150,9 @@ Each scenario targets a table from the MigrationTest schema. The expected status
 
 ### What to assert
 
-- **Schema validity** — agent output validated against JSON schema (draft 2020-12) via `assertions/validate-candidate-writers.js`
+- **Section presence** — output contains Call Graph, Logic Summary, Migration Guidance
 - **Status enums** — `resolved`, `ambiguous_multi_writer`, `no_writer_found`, `error`
-- **Deterministic fields** — `selected_writer`, `summary.resolved`, `summary.error`
-- **Section presence** (skills) — output contains Call Graph, Logic Summary, Migration Guidance
+- **Deterministic fields** — `selected_writer`, classification values
 
 ### What NOT to assert
 
@@ -178,24 +163,7 @@ Each scenario targets a table from the MigrationTest schema. The expected status
 
 ### Assertion patterns
 
-**Agent scenarios** use `options.transform` to extract JSON from conversational output, then validate:
-
-```yaml
-defaultTest:
-  options:
-    transform: "(output.match(/\\{[\\s\\S]*\"schema_version\"...) || [output])[0]"
-  assert:
-    # JSON schema validation (draft 2020-12, uses Ajv2020 + ajv-formats)
-    - type: javascript
-      value: file://../../assertions/validate-candidate-writers.js
-tests:
-  - description: "resolved — DimProduct"
-    assert:
-      - type: javascript
-        value: "JSON.parse(output).results[0].status === 'resolved'"
-```
-
-**Skill scenarios** use case-insensitive text containment:
+Skill scenarios use case-insensitive text containment:
 
 ```yaml
 defaultTest:
@@ -279,24 +247,15 @@ The exact extraction steps depend on how the migration project is configured. Se
 1. **Add the procedure and target table** to `scripts/sql/create-migration-test-db.sql`.
 2. **Rebuild the Docker image** and re-run `create-migration-test-db.sql` against it.
 3. **Re-extract the fixture** (see [Extracting the fixture](#extracting-the-fixture)).
-4. **Add a test case** to both `packages/scoping/skill-analyzing-object.yaml` and `packages/scoping/agent-scoping.yaml`:
+4. **Add a test case** to `packages/scoping/skill-analyzing-object.yaml`:
 
 ```yaml
-# In skill-analyzing-object.yaml
 - description: "my-new-scenario — <what it tests>"
   vars:
     target_table: "silver.MyNewTable"
   assert:
     - type: icontains
       value: "Migration Guidance"
-
-# In agent-scoping.yaml
-- description: "my-new-scenario — <what it tests>"
-  vars:
-    target_table: "silver.MyNewTable"
-  assert:
-    - type: javascript
-      value: "JSON.parse(output).results[0].status === '<expected_status>'"
 ```
 
 ### Adding a profiler or model-generator scenario
@@ -362,8 +321,8 @@ providers:
 
 Each scenario invokes Claude with tool use. At current pricing, expect roughly $0.10-0.50 per scenario depending on agent complexity and turn count.
 
-- Full suite (32 scenarios): ~$5-15 per run
-- Single package: ~$2-5 per run
+- Full suite (16 scenarios): ~$2-8 per run
+- Single package: ~$1-3 per run
 - Single scenario: ~$0.10-0.50
 
-Run selectively during development. Use `npm run eval:scoping:agent` to test a single file rather than the full suite.
+Run selectively during development. Use `npm run eval:scoping:skill` to test a single file rather than the full suite.
