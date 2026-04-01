@@ -66,9 +66,13 @@ See `repo-map.json` for the full directory structure and agent notes.
 | Skill | Purpose |
 |---|---|
 | `/setup-ddl` | Extract DDL from live SQL Server and write local artifact files |
-| `/listing-objects` | Browse the DDL catalog — list objects by type |
-| `/generating-model` | Generate dbt models from stored procedures |
+| `/listing-objects` | Browse the DDL catalog — list, show, refs |
+| `/scoping-table` | Writer discovery and resolution for a single table |
+| `/analyzing-object` | Deep-dive procedure analysis — call graph, statements, migration guidance |
 | `/profiling-table` | Interactive single-table profiling with approval gates |
+| `/generating-tests` | Generate ground truth test fixtures for a table |
+| `/reviewing-tests` | Quality gate for test generation output |
+| `/generating-model` | Generate dbt models from stored procedures |
 
 ## MCP Servers
 
@@ -76,6 +80,10 @@ See `repo-map.json` for the full directory structure and agent notes.
 |---|---|---|
 | `ddl_mcp` | stdio | Structured DDL parsing from local `.sql` files |
 | `mssql` | HTTP (genai-toolbox) | Live SQL Server queries |
+
+## Command Lifecycle
+
+Multi-table commands (`/scope`, `/profile`, `/generate-tests`, `/generate-model`) follow the shared lifecycle in `.claude/rules/command-lifecycle.md` — invocation format, common guards, git branching, run log structure, skip-and-continue behavior.
 
 ## Guardrails
 
