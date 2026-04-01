@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0",
+  "technology": "sql_server",
+  "dialect": "tsql",
+  "source_database": "TestDB",
+  "extracted_schemas": ["dbo", "silver"],
+  "extracted_at": "2026-03-31T00:00:00Z"
+}

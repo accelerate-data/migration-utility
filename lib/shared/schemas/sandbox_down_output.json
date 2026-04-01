@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sandbox_down_output.json",
+  "title": "SandboxDownOutput",
+  "description": "Output of the test-harness sandbox-down command — sandbox teardown result.",
+  "type": "object",
+  "required": ["run_id", "sandbox_database", "status"],
+  "properties": {
+    "run_id": { "type": "string" },
+    "sandbox_database": { "type": "string" },
+    "status": { "type": "string", "enum": ["ok", "error"] },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      }
+    }
+  }
+}
