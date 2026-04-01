@@ -44,34 +44,31 @@ Four commands prepare a migration repo before any per-table work begins. Steps 1
 
 ## Migration Workflow
 
-Six stages per table, with two quality-gate review loops:
+Per-table pipeline with two quality-gate review loops:
 
-```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          Per-Table Pipeline                                 │
-│                                                                             │
-│  Scoping ──► Profiling ──► Sandbox Up ──►┌──────────────┐──► Migration Loop │
-│                                          │  Test Loop   │                   │
-│                                          │              │                   │
-│                                          │  Generator   │    ┌────────────┐ │
-│                                          │    ▼         │    │ Model Gen  │ │
-│                                          │  Reviewer    │    │    ▼       │ │
-│                                          │    │         │    │ dbt test   │ │
-│                                          │  pass? ──no──│─┐  │ (≤3 iter)  │ │
-│                                          │    │    (≤2) │ │  │    ▼       │ │
-│                                          │   yes        │ │  │ Code Rev   │ │
-│                                          └────┼─────────┘ │  │    │       │ │
-│                                               │           │  │  pass?     │ │
-│                                               ▼           │  │  no ────── │─┤
-│                                          test-specs/      │  │  (≤2)      │ │
-│                                               │           │  │   yes      │ │
-│                                               └───────────│──►   ▼        │ │
-│                                                           │  │  Done      │ │
-│                                                           │  └────────────┘ │
-│                                                           │                 │
-│                                                    ◄──────┘  ──► Sandbox    │
-│                                                                   Down      │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    scope[Scoping] --> profile[Profiling]
+    profile --> sandbox[Sandbox Up]
+
+    sandbox --> gen[Test Generator]
+
+    subgraph test_loop["Test Loop (≤2 review iterations)"]
+        gen --> reviewer[Test Reviewer]
+        reviewer -->|revision requested| gen
+    end
+
+    reviewer -->|approved| specs[test-specs/]
+
+    specs --> model[Model Generator]
+
+    subgraph migrate_loop["Migration Loop"]
+        model --> dbt["dbt test (≤3 self-corrections)"]
+        dbt --> code_rev[Code Reviewer]
+        code_rev -->|revision requested ≤2| model
+    end
+
+    code_rev -->|approved| done[Done]
 ```
 
 ### Stages
@@ -83,7 +80,8 @@ Six stages per table, with two quality-gate review loops:
 | Sandbox Up | `test-harness sandbox-up` (CLI) | Create throwaway database for ground-truth capture. Not an agent. |
 | Test Generation | `test-generator-agent` + `test-reviewer-agent` | Generator enumerates proc branches, synthesizes fixtures, executes proc in sandbox, captures ground truth, writes `test-specs/<item_id>.json`. Reviewer independently enumerates branches, scores coverage, reviews fixture quality. Kicks back for missing branches or quality issues. **Max 2 review iterations.** |
 | Migration | `model-generator-agent` + `code-reviewer-agent` | Model generator reads profile + test spec, generates dbt model + schema YAML (with `unit_tests:` rendered from test spec), runs `dbt test`, self-corrects up to **3 iterations**. Code reviewer checks standards, correctness, test integration. Kicks back for issues. **Max 2 review iterations.** |
-| Sandbox Down | `test-harness sandbox-down` (CLI) | Drop throwaway database. Idempotent. |
+
+Sandbox teardown (`test-harness sandbox-down`) is run manually after test generation completes — it is cleanup, not a pipeline stage.
 
 **Key design decisions:**
 
