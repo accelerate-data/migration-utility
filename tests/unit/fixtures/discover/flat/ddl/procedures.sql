@@ -344,3 +344,335 @@ AS BEGIN
     FROM bronze.Product
 END
 GO
+-- ============================================================
+-- Set operation patterns (19-23)
+-- ============================================================
+-- UNION ALL
+CREATE PROCEDURE [dbo].[usp_UnionAll]
+AS
+BEGIN
+    INSERT INTO [silver].[DimProduct] (ProductAlternateKey, EnglishProductName)
+    SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product WHERE ProductID <= 100
+    UNION ALL
+    SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product WHERE ProductID > 100;
+END
+GO
+-- UNION (dedup)
+CREATE PROCEDURE [dbo].[usp_Union]
+AS
+BEGIN
+    INSERT INTO [silver].[DimProduct] (ProductAlternateKey, EnglishProductName)
+    SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product WHERE ProductID <= 100
+    UNION
+    SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product WHERE ProductID > 50;
+END
+GO
+-- INTERSECT
+CREATE PROCEDURE [dbo].[usp_Intersect]
+AS
+BEGIN
+    INSERT INTO [silver].[DimProduct] (ProductAlternateKey, EnglishProductName)
+    SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product WHERE ProductID <= 100
+    INTERSECT
+    SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product WHERE ProductID >= 50;
+END
+GO
+-- EXCEPT
+CREATE PROCEDURE [dbo].[usp_Except]
+AS
+BEGIN
+    INSERT INTO [silver].[DimProduct] (ProductAlternateKey, EnglishProductName)
+    SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product
+    EXCEPT
+    SELECT ProductAlternateKey, EnglishProductName FROM [silver].[DimProduct];
+END
+GO
+-- UNION ALL in CTE branch
+CREATE PROCEDURE [dbo].[usp_UnionAllInCTE]
+AS
+BEGIN
+    WITH combined AS (
+        SELECT ProductID, ProductName FROM bronze.Product WHERE ProductID <= 100
+        UNION ALL
+        SELECT ProductID, ProductName FROM bronze.Product WHERE ProductID > 100
+    )
+    INSERT INTO [silver].[DimProduct] (ProductAlternateKey, EnglishProductName)
+    SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM combined;
+END
+GO
+-- ============================================================
+-- Join variant patterns (24-29)
+-- ============================================================
+-- INNER JOIN (explicit keyword)
+CREATE PROCEDURE [dbo].[usp_InnerJoin]
+AS
+BEGIN
+    INSERT INTO [silver].[DimProduct] (ProductAlternateKey, EnglishProductName)
+    SELECT CAST(p.ProductID AS NVARCHAR(25)), COALESCE(c.ConfigValue, p.ProductName)
+    FROM bronze.Product p
+    INNER JOIN dbo.Config c ON c.ConfigKey = CAST(p.ProductID AS NVARCHAR(100));
+END
+GO
+-- FULL OUTER JOIN
+CREATE PROCEDURE [dbo].[usp_FullOuterJoin]
+AS
+BEGIN
+    INSERT INTO [silver].[DimProduct] (ProductAlternateKey, EnglishProductName)
+    SELECT CAST(COALESCE(p.ProductID, 0) AS NVARCHAR(25)),
+           COALESCE(p.ProductName, c.ConfigValue)
+    FROM bronze.Product p
+    FULL OUTER JOIN dbo.Config c ON c.ConfigKey = CAST(p.ProductID AS NVARCHAR(100));
+END
+GO
+-- CROSS JOIN
+CREATE PROCEDURE [dbo].[usp_CrossJoin]
+AS
+BEGIN
+    INSERT INTO dbo.Config (ConfigKey, ConfigValue)
+    SELECT CAST(p.ProductID AS NVARCHAR(100)), c.ConfigValue
+    FROM bronze.Product p
+    CROSS JOIN dbo.Config c
+    WHERE p.ProductID <= 5;
+END
+GO
+-- CROSS APPLY
+CREATE PROCEDURE [dbo].[usp_CrossApply]
+AS
+BEGIN
+    INSERT INTO [silver].[DimProduct] (ProductAlternateKey, EnglishProductName)
+    SELECT CAST(p.ProductID AS NVARCHAR(25)), x.ConfigValue
+    FROM bronze.Product p
+    CROSS APPLY (
+        SELECT TOP 1 ConfigValue FROM dbo.Config WHERE ConfigKey = CAST(p.ProductID AS NVARCHAR(100))
+    ) x;
+END
+GO
+-- OUTER APPLY
+CREATE PROCEDURE [dbo].[usp_OuterApply]
+AS
+BEGIN
+    INSERT INTO [silver].[DimProduct] (ProductAlternateKey, EnglishProductName)
+    SELECT CAST(p.ProductID AS NVARCHAR(25)), COALESCE(x.ConfigValue, p.ProductName)
+    FROM bronze.Product p
+    OUTER APPLY (
+        SELECT TOP 1 ConfigValue FROM dbo.Config WHERE ConfigKey = CAST(p.ProductID AS NVARCHAR(100))
+    ) x;
+END
+GO
+-- Self-join
+CREATE PROCEDURE [dbo].[usp_SelfJoin]
+AS
+BEGIN
+    INSERT INTO dbo.Config (ConfigKey, ConfigValue)
+    SELECT CAST(a.ProductID AS NVARCHAR(100)), b.ProductName
+    FROM bronze.Product a
+    JOIN bronze.Product b ON a.ProductID = b.ProductID + 1;
+END
+GO
+-- ============================================================
+-- Subquery variant patterns (30-35)
+-- ============================================================
+-- Derived table in FROM
+CREATE PROCEDURE [dbo].[usp_DerivedTable]
+AS
+BEGIN
+    INSERT INTO [silver].[DimProduct] (ProductAlternateKey, EnglishProductName)
+    SELECT sub.AltKey, sub.ProdName
+    FROM (
+        SELECT CAST(ProductID AS NVARCHAR(25)) AS AltKey, ProductName AS ProdName
+        FROM bronze.Product
+        WHERE ProductName IS NOT NULL
+    ) sub
+    JOIN dbo.Config c ON c.ConfigKey = sub.AltKey;
+END
+GO
+-- Scalar subquery in SELECT
+CREATE PROCEDURE [dbo].[usp_ScalarSubquery]
+AS
+BEGIN
+    INSERT INTO [silver].[DimProduct] (ProductAlternateKey, EnglishProductName)
+    SELECT CAST(p.ProductID AS NVARCHAR(25)),
+           (SELECT MAX(c.ConfigValue) FROM dbo.Config c
+            WHERE c.ConfigKey = CAST(p.ProductID AS NVARCHAR(100)))
+    FROM bronze.Product p;
+END
+GO
+-- EXISTS subquery
+CREATE PROCEDURE [dbo].[usp_ExistsSubquery]
+AS
+BEGIN
+    INSERT INTO [silver].[DimProduct] (ProductAlternateKey, EnglishProductName)
+    SELECT CAST(p.ProductID AS NVARCHAR(25)), p.ProductName
+    FROM bronze.Product p
+    WHERE EXISTS (
+        SELECT 1 FROM dbo.Config c WHERE c.ConfigKey = CAST(p.ProductID AS NVARCHAR(100))
+    );
+END
+GO
+-- NOT EXISTS subquery
+CREATE PROCEDURE [dbo].[usp_NotExistsSubquery]
+AS
+BEGIN
+    INSERT INTO [silver].[DimProduct] (ProductAlternateKey, EnglishProductName)
+    SELECT CAST(p.ProductID AS NVARCHAR(25)), p.ProductName
+    FROM bronze.Product p
+    WHERE NOT EXISTS (
+        SELECT 1 FROM [silver].[DimProduct] d
+        WHERE d.ProductAlternateKey = CAST(p.ProductID AS NVARCHAR(25))
+    );
+END
+GO
+-- IN subquery
+CREATE PROCEDURE [dbo].[usp_InSubquery]
+AS
+BEGIN
+    INSERT INTO [silver].[DimProduct] (ProductAlternateKey, EnglishProductName)
+    SELECT CAST(p.ProductID AS NVARCHAR(25)), p.ProductName
+    FROM bronze.Product p
+    WHERE p.ProductID IN (
+        SELECT CAST(ConfigKey AS INT) FROM dbo.Config WHERE ConfigValue IS NOT NULL
+    );
+END
+GO
+-- NOT IN subquery
+CREATE PROCEDURE [dbo].[usp_NotInSubquery]
+AS
+BEGIN
+    INSERT INTO [silver].[DimProduct] (ProductAlternateKey, EnglishProductName)
+    SELECT CAST(p.ProductID AS NVARCHAR(25)), p.ProductName
+    FROM bronze.Product p
+    WHERE p.ProductID NOT IN (
+        SELECT CAST(ProductAlternateKey AS INT) FROM [silver].[DimProduct]
+        WHERE ProductAlternateKey IS NOT NULL
+    );
+END
+GO
+-- ============================================================
+-- CTE variant patterns (36-39)
+-- ============================================================
+-- Recursive CTE
+CREATE PROCEDURE [dbo].[usp_RecursiveCTE]
+AS
+BEGIN
+    WITH hierarchy AS (
+        SELECT ProductID, ProductName, 1 AS lvl
+        FROM bronze.Product
+        WHERE ProductID <= 5
+        UNION ALL
+        SELECT p.ProductID, p.ProductName, h.lvl + 1
+        FROM bronze.Product p
+        JOIN hierarchy h ON p.ProductID = h.ProductID + 5
+        WHERE h.lvl < 3
+    )
+    INSERT INTO [silver].[DimProduct] (ProductAlternateKey, EnglishProductName)
+    SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM hierarchy;
+END
+GO
+-- UPDATE with CTE prefix
+CREATE PROCEDURE [dbo].[usp_UpdateWithCTE]
+AS
+BEGIN
+    WITH latest AS (
+        SELECT CAST(ProductID AS NVARCHAR(25)) AS AltKey, ProductName
+        FROM bronze.Product
+    )
+    UPDATE d
+    SET EnglishProductName = l.ProductName
+    FROM [silver].[DimProduct] d
+    JOIN latest l ON d.ProductAlternateKey = l.AltKey;
+END
+GO
+-- DELETE with CTE prefix
+CREATE PROCEDURE [dbo].[usp_DeleteWithCTE]
+AS
+BEGIN
+    WITH stale AS (
+        SELECT ProductAlternateKey
+        FROM [silver].[DimProduct]
+        WHERE EnglishProductName IS NULL
+    )
+    DELETE FROM [silver].[DimProduct]
+    WHERE ProductAlternateKey IN (SELECT ProductAlternateKey FROM stale);
+END
+GO
+-- MERGE with CTE source
+CREATE PROCEDURE [dbo].[usp_MergeWithCTE]
+AS
+BEGIN
+    WITH src AS (
+        SELECT CAST(ProductID AS NVARCHAR(25)) AS AltKey, ProductName
+        FROM bronze.Product
+    )
+    MERGE INTO [silver].[DimProduct] AS tgt
+    USING src ON tgt.ProductAlternateKey = src.AltKey
+    WHEN MATCHED THEN
+        UPDATE SET tgt.EnglishProductName = src.ProductName
+    WHEN NOT MATCHED THEN
+        INSERT (ProductAlternateKey, EnglishProductName)
+        VALUES (src.AltKey, src.ProductName);
+END
+GO
+-- ============================================================
+-- Grouping variant patterns (40-42)
+-- ============================================================
+-- GROUPING SETS
+CREATE PROCEDURE [dbo].[usp_GroupingSets]
+AS
+BEGIN
+    INSERT INTO dbo.Config (ConfigKey, ConfigValue)
+    SELECT COALESCE(ProductName, 'ALL'), CAST(COUNT(*) AS NVARCHAR(50))
+    FROM bronze.Product
+    GROUP BY GROUPING SETS ((ProductName), ());
+END
+GO
+-- CUBE
+CREATE PROCEDURE [dbo].[usp_Cube]
+AS
+BEGIN
+    INSERT INTO dbo.Config (ConfigKey, ConfigValue)
+    SELECT COALESCE(ProductName, 'ALL'), CAST(COUNT(*) AS NVARCHAR(50))
+    FROM bronze.Product
+    GROUP BY CUBE (ProductName);
+END
+GO
+-- ROLLUP
+CREATE PROCEDURE [dbo].[usp_Rollup]
+AS
+BEGIN
+    INSERT INTO dbo.Config (ConfigKey, ConfigValue)
+    SELECT COALESCE(ProductName, 'ALL'), CAST(COUNT(*) AS NVARCHAR(50))
+    FROM bronze.Product
+    GROUP BY ROLLUP (ProductName);
+END
+GO
+-- ============================================================
+-- Pivot / Unpivot patterns (43-44)
+-- ============================================================
+-- PIVOT
+CREATE PROCEDURE [dbo].[usp_Pivot]
+AS
+BEGIN
+    INSERT INTO dbo.Config (ConfigKey, ConfigValue)
+    SELECT pvt.ProductName, CAST(pvt.[1] AS NVARCHAR(50))
+    FROM (
+        SELECT ProductName, ProductID, ProductID AS Val
+        FROM bronze.Product
+    ) src
+    PIVOT (COUNT(Val) FOR ProductID IN ([1], [2], [3])) pvt;
+END
+GO
+-- UNPIVOT
+CREATE PROCEDURE [dbo].[usp_Unpivot]
+AS
+BEGIN
+    INSERT INTO dbo.Config (ConfigKey, ConfigValue)
+    SELECT CAST(unpvt.ProductID AS NVARCHAR(100)), unpvt.ColValue
+    FROM (
+        SELECT ProductID,
+               CAST(ProductName AS NVARCHAR(50)) AS ProductName,
+               CAST(ProductNumber AS NVARCHAR(50)) AS ProductNumber
+        FROM bronze.Product
+    ) src
+    UNPIVOT (ColValue FOR ColName IN (ProductName, ProductNumber)) unpvt;
+END
+GO

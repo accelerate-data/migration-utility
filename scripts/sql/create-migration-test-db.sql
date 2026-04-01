@@ -230,6 +230,23 @@ CREATE TABLE silver.FactInternetSales (
 GO
 
 -- ============================================================
+-- Helper table for pattern-coverage procs
+-- ============================================================
+
+CREATE TABLE dbo.Config (
+    ConfigID    INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    ConfigKey   NVARCHAR(100)     NOT NULL,
+    ConfigValue NVARCHAR(255)     NULL
+);
+GO
+
+INSERT INTO dbo.Config (ConfigKey, ConfigValue) VALUES
+    ('full_reload', '1'),
+    ('default_category', 'General'),
+    ('cleanup_threshold', '1000');
+GO
+
+-- ============================================================
 -- VIEWS
 -- ============================================================
 
@@ -524,6 +541,420 @@ BEGIN
     FROM bronze.Promotion p;
 END;
 GO
+-- ============================================================
+-- Section C: T-SQL pattern-coverage procs (patterns 19-44)
+-- These complement the scoping-scenario procs above by
+-- exercising every deterministic sqlglot pattern from the
+-- T-SQL Parse Classification design doc.
+-- ============================================================
+
+USE MigrationTest;
+GO
+
+-- Pattern 19: UNION ALL
+CREATE OR ALTER PROCEDURE dbo.usp_UnionAll
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO silver.DimProduct (ProductAlternateKey, EnglishProductName, Color)
+    SELECT CAST(ProductID AS NVARCHAR(25)), ProductName, ISNULL(Color, '')
+    FROM bronze.Product WHERE ProductID <= 250
+    UNION ALL
+    SELECT CAST(ProductID AS NVARCHAR(25)), ProductName, ISNULL(Color, '')
+    FROM bronze.Product WHERE ProductID > 250;
+END;
+GO
+
+-- Pattern 20: UNION (dedup)
+CREATE OR ALTER PROCEDURE dbo.usp_Union
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO silver.DimProduct (ProductAlternateKey, EnglishProductName, Color)
+    SELECT CAST(ProductID AS NVARCHAR(25)), ProductName, ISNULL(Color, '')
+    FROM bronze.Product WHERE ProductID <= 300
+    UNION
+    SELECT CAST(ProductID AS NVARCHAR(25)), ProductName, ISNULL(Color, '')
+    FROM bronze.Product WHERE ProductID >= 200;
+END;
+GO
+
+-- Pattern 21: INTERSECT
+CREATE OR ALTER PROCEDURE dbo.usp_Intersect
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO silver.DimCurrency (CurrencyAlternateKey, CurrencyName)
+    SELECT CurrencyCode, CurrencyName FROM bronze.Currency WHERE CurrencyCode <= 'M'
+    INTERSECT
+    SELECT CurrencyCode, CurrencyName FROM bronze.Currency WHERE CurrencyCode >= 'E';
+END;
+GO
+
+-- Pattern 22: EXCEPT
+CREATE OR ALTER PROCEDURE dbo.usp_Except
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO silver.DimCurrency (CurrencyAlternateKey, CurrencyName)
+    SELECT CurrencyCode, CurrencyName FROM bronze.Currency
+    EXCEPT
+    SELECT CurrencyAlternateKey, CurrencyName FROM silver.DimCurrency;
+END;
+GO
+
+-- Pattern 23: UNION ALL in CTE branch
+CREATE OR ALTER PROCEDURE dbo.usp_UnionAllInCTE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    WITH combined AS (
+        SELECT CurrencyCode, CurrencyName FROM bronze.Currency WHERE CurrencyCode <= 'M'
+        UNION ALL
+        SELECT CurrencyCode, CurrencyName FROM bronze.Currency WHERE CurrencyCode > 'M'
+    )
+    INSERT INTO silver.DimCurrency (CurrencyAlternateKey, CurrencyName)
+    SELECT CurrencyCode, CurrencyName FROM combined;
+END;
+GO
+
+-- Pattern 24: INNER JOIN (explicit keyword)
+CREATE OR ALTER PROCEDURE dbo.usp_InnerJoin
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO silver.DimCustomer (CustomerAlternateKey, FirstName, LastName)
+    SELECT CAST(c.CustomerID AS NVARCHAR(15)), p.FirstName, p.LastName
+    FROM bronze.Customer c
+    INNER JOIN bronze.Person p ON c.PersonID = p.BusinessEntityID;
+END;
+GO
+
+-- Pattern 25: FULL OUTER JOIN
+CREATE OR ALTER PROCEDURE dbo.usp_FullOuterJoin
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO dbo.Config (ConfigKey, ConfigValue)
+    SELECT COALESCE(CAST(c.CustomerID AS NVARCHAR(100)), 'no_customer'),
+           COALESCE(p.FirstName, 'no_person')
+    FROM bronze.Customer c
+    FULL OUTER JOIN bronze.Person p ON c.PersonID = p.BusinessEntityID;
+END;
+GO
+
+-- Pattern 26: CROSS JOIN
+CREATE OR ALTER PROCEDURE dbo.usp_CrossJoin
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO dbo.Config (ConfigKey, ConfigValue)
+    SELECT CAST(t.TerritoryID AS NVARCHAR(100)), cur.CurrencyName
+    FROM bronze.SalesTerritory t
+    CROSS JOIN bronze.Currency cur
+    WHERE t.TerritoryID <= 3 AND cur.CurrencyCode IN ('USD', 'EUR', 'GBP');
+END;
+GO
+
+-- Pattern 27: CROSS APPLY
+CREATE OR ALTER PROCEDURE dbo.usp_CrossApply
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.FactInternetSales;
+    INSERT INTO silver.FactInternetSales (
+        SalesOrderNumber, SalesOrderLineNumber, ProductKey, CustomerKey,
+        OrderQuantity, UnitPrice, SalesAmount, OrderDate)
+    SELECT h.SalesOrderNumber, CAST(d.SalesOrderDetailID % 127 AS TINYINT),
+           d.ProductID, h.CustomerID, d.OrderQty, d.UnitPrice, d.LineTotal, h.OrderDate
+    FROM bronze.SalesOrderHeader h
+    CROSS APPLY (
+        SELECT TOP 5 * FROM bronze.SalesOrderDetail det
+        WHERE det.SalesOrderID = h.SalesOrderID
+        ORDER BY det.SalesOrderDetailID
+    ) d
+    WHERE h.SalesOrderID <= 43662;
+END;
+GO
+
+-- Pattern 28: OUTER APPLY
+CREATE OR ALTER PROCEDURE dbo.usp_OuterApply
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO silver.DimCustomer (CustomerAlternateKey, FirstName, LastName, DateFirstPurchase)
+    SELECT CAST(c.CustomerID AS NVARCHAR(15)),
+           COALESCE(p.FirstName, 'Unknown'),
+           COALESCE(p.LastName, 'Unknown'),
+           CAST(oh.MinDate AS DATE)
+    FROM bronze.Customer c
+    LEFT JOIN bronze.Person p ON c.PersonID = p.BusinessEntityID
+    OUTER APPLY (
+        SELECT MIN(OrderDate) AS MinDate
+        FROM bronze.SalesOrderHeader sh
+        WHERE sh.CustomerID = c.CustomerID
+    ) oh;
+END;
+GO
+
+-- Pattern 29: Self-join
+CREATE OR ALTER PROCEDURE dbo.usp_SelfJoin
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO dbo.Config (ConfigKey, ConfigValue)
+    SELECT CAST(a.ProductID AS NVARCHAR(100)), b.ProductName
+    FROM bronze.Product a
+    JOIN bronze.Product b ON a.ProductSubcategoryID = b.ProductSubcategoryID
+        AND a.ProductID <> b.ProductID
+    WHERE a.ProductSubcategoryID IS NOT NULL AND a.ProductID <= 320;
+END;
+GO
+
+-- Pattern 30: Derived table in FROM
+CREATE OR ALTER PROCEDURE dbo.usp_DerivedTable
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO silver.DimProduct (ProductAlternateKey, EnglishProductName, StandardCost, ListPrice, Color)
+    SELECT sub.AltKey, sub.ProdName, sub.AvgCost, sub.AvgPrice, ''
+    FROM (
+        SELECT CAST(ProductID AS NVARCHAR(25)) AS AltKey,
+               ProductName AS ProdName,
+               StandardCost AS AvgCost,
+               ListPrice AS AvgPrice
+        FROM bronze.Product
+        WHERE ProductName IS NOT NULL
+    ) sub
+    JOIN bronze.Product p2 ON sub.AltKey = CAST(p2.ProductID AS NVARCHAR(25));
+END;
+GO
+
+-- Pattern 31: Scalar subquery in SELECT
+CREATE OR ALTER PROCEDURE dbo.usp_ScalarSubquery
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO silver.DimCustomer (CustomerAlternateKey, FirstName, LastName)
+    SELECT CAST(c.CustomerID AS NVARCHAR(15)),
+           (SELECT TOP 1 p.FirstName FROM bronze.Person p WHERE p.BusinessEntityID = c.PersonID),
+           (SELECT TOP 1 p.LastName FROM bronze.Person p WHERE p.BusinessEntityID = c.PersonID)
+    FROM bronze.Customer c
+    WHERE c.PersonID IS NOT NULL;
+END;
+GO
+
+-- Pattern 32: EXISTS subquery
+CREATE OR ALTER PROCEDURE dbo.usp_ExistsSubquery
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO silver.DimCustomer (CustomerAlternateKey, FirstName, LastName)
+    SELECT CAST(c.CustomerID AS NVARCHAR(15)), p.FirstName, p.LastName
+    FROM bronze.Customer c
+    JOIN bronze.Person p ON c.PersonID = p.BusinessEntityID
+    WHERE EXISTS (
+        SELECT 1 FROM bronze.SalesOrderHeader h WHERE h.CustomerID = c.CustomerID
+    );
+END;
+GO
+
+-- Pattern 33: NOT EXISTS subquery
+CREATE OR ALTER PROCEDURE dbo.usp_NotExistsSubquery
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO silver.DimCurrency (CurrencyAlternateKey, CurrencyName)
+    SELECT cur.CurrencyCode, cur.CurrencyName
+    FROM bronze.Currency cur
+    WHERE NOT EXISTS (
+        SELECT 1 FROM silver.DimCurrency d WHERE d.CurrencyAlternateKey = cur.CurrencyCode
+    );
+END;
+GO
+
+-- Pattern 34: IN subquery
+CREATE OR ALTER PROCEDURE dbo.usp_InSubquery
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO silver.DimEmployee (EmployeeAlternateKey, FirstName, LastName, Title, HireDate)
+    SELECT e.NationalIDNumber,
+           SUBSTRING(e.LoginID, CHARINDEX(N'\', e.LoginID) + 1, 50),
+           e.JobTitle, e.JobTitle, e.HireDate
+    FROM bronze.Employee e
+    WHERE e.BusinessEntityID IN (
+        SELECT PersonID FROM bronze.Customer WHERE PersonID IS NOT NULL
+    );
+END;
+GO
+
+-- Pattern 35: NOT IN subquery
+CREATE OR ALTER PROCEDURE dbo.usp_NotInSubquery
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO silver.DimProduct (ProductAlternateKey, EnglishProductName, Color)
+    SELECT CAST(p.ProductID AS NVARCHAR(25)), p.ProductName, ISNULL(p.Color, '')
+    FROM bronze.Product p
+    WHERE p.ProductID NOT IN (
+        SELECT CAST(d.ProductAlternateKey AS INT)
+        FROM silver.DimProduct d
+        WHERE d.ProductAlternateKey IS NOT NULL
+    );
+END;
+GO
+
+-- Pattern 36: Recursive CTE
+CREATE OR ALTER PROCEDURE dbo.usp_RecursiveCTE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    WITH hierarchy AS (
+        SELECT ProductID, ProductName, 1 AS lvl
+        FROM bronze.Product
+        WHERE ProductSubcategoryID IS NULL
+        UNION ALL
+        SELECT p.ProductID, p.ProductName, h.lvl + 1
+        FROM bronze.Product p
+        JOIN hierarchy h ON p.ProductSubcategoryID = h.ProductID
+        WHERE h.lvl < 3
+    )
+    INSERT INTO dbo.Config (ConfigKey, ConfigValue)
+    SELECT CAST(ProductID AS NVARCHAR(100)), ProductName FROM hierarchy;
+END;
+GO
+
+-- Pattern 37: UPDATE with CTE prefix
+CREATE OR ALTER PROCEDURE dbo.usp_UpdateWithCTE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    WITH latest AS (
+        SELECT CAST(ProductID AS NVARCHAR(25)) AS AltKey, ProductName
+        FROM bronze.Product
+    )
+    UPDATE d
+    SET EnglishProductName = l.ProductName
+    FROM silver.DimProduct d
+    JOIN latest l ON d.ProductAlternateKey = l.AltKey;
+END;
+GO
+
+-- Pattern 38: DELETE with CTE prefix
+CREATE OR ALTER PROCEDURE dbo.usp_DeleteWithCTE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    WITH stale AS (
+        SELECT ProductAlternateKey
+        FROM silver.DimProduct
+        WHERE EnglishProductName IS NULL
+    )
+    DELETE FROM silver.DimProduct
+    WHERE ProductAlternateKey IN (SELECT ProductAlternateKey FROM stale);
+END;
+GO
+
+-- Pattern 39: MERGE with CTE source
+CREATE OR ALTER PROCEDURE dbo.usp_MergeWithCTE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    WITH src AS (
+        SELECT CAST(ProductID AS NVARCHAR(25)) AS AltKey,
+               ProductName,
+               StandardCost,
+               ListPrice,
+               ISNULL(Color, '') AS Color
+        FROM bronze.Product
+    )
+    MERGE INTO silver.DimProduct AS tgt
+    USING src ON tgt.ProductAlternateKey = src.AltKey
+    WHEN MATCHED THEN
+        UPDATE SET tgt.EnglishProductName = src.ProductName,
+                   tgt.StandardCost = src.StandardCost,
+                   tgt.ListPrice = src.ListPrice,
+                   tgt.Color = src.Color
+    WHEN NOT MATCHED THEN
+        INSERT (ProductAlternateKey, EnglishProductName, StandardCost, ListPrice, Color)
+        VALUES (src.AltKey, src.ProductName, src.StandardCost, src.ListPrice, src.Color);
+END;
+GO
+
+-- Pattern 40: GROUPING SETS
+CREATE OR ALTER PROCEDURE dbo.usp_GroupingSets
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO dbo.Config (ConfigKey, ConfigValue)
+    SELECT COALESCE(Color, 'ALL_COLORS'),
+           CAST(COUNT(*) AS NVARCHAR(50))
+    FROM bronze.Product
+    GROUP BY GROUPING SETS ((Color), ());
+END;
+GO
+
+-- Pattern 41: CUBE
+CREATE OR ALTER PROCEDURE dbo.usp_Cube
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO dbo.Config (ConfigKey, ConfigValue)
+    SELECT COALESCE(Color, 'ALL') + '|' + COALESCE(ProductLine, 'ALL'),
+           CAST(COUNT(*) AS NVARCHAR(50))
+    FROM bronze.Product
+    GROUP BY CUBE (Color, ProductLine);
+END;
+GO
+
+-- Pattern 42: ROLLUP
+CREATE OR ALTER PROCEDURE dbo.usp_Rollup
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO dbo.Config (ConfigKey, ConfigValue)
+    SELECT COALESCE(Color, 'ALL') + '|' + COALESCE(Class, 'ALL'),
+           CAST(COUNT(*) AS NVARCHAR(50))
+    FROM bronze.Product
+    GROUP BY ROLLUP (Color, Class);
+END;
+GO
+
+-- Pattern 43: PIVOT
+CREATE OR ALTER PROCEDURE dbo.usp_Pivot
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO dbo.Config (ConfigKey, ConfigValue)
+    SELECT pvt.TerritoryGroup, CAST(pvt.[1] + pvt.[2] + pvt.[3] AS NVARCHAR(50))
+    FROM (
+        SELECT st.TerritoryGroup, st.TerritoryID,
+               CAST(st.SalesYTD AS MONEY) AS SalesAmt
+        FROM bronze.SalesTerritory st
+    ) src
+    PIVOT (SUM(SalesAmt) FOR TerritoryID IN ([1], [2], [3])) pvt;
+END;
+GO
+
+-- Pattern 44: UNPIVOT
+CREATE OR ALTER PROCEDURE dbo.usp_Unpivot
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO dbo.Config (ConfigKey, ConfigValue)
+    SELECT CAST(unpvt.ProductID AS NVARCHAR(100)), unpvt.AttrValue
+    FROM (
+        SELECT ProductID,
+               CAST(ISNULL(ProductName, '') AS NVARCHAR(50)) AS ProductName,
+               CAST(ISNULL(ProductNumber, '') AS NVARCHAR(50)) AS ProductNumber
+        FROM bronze.Product
+        WHERE ProductID <= 10
+    ) src
+    UNPIVOT (AttrValue FOR AttrName IN (ProductName, ProductNumber)) unpvt;
+END;
+GO
+
 USE MigrationTest;
 GO
 PRINT '=== Running smoke tests ===';
