@@ -187,8 +187,8 @@ Test reviewer must not:
 
 ## Error handling
 
-| Condition | Action |
-|---|---|
-| `migrate context` exits 1 | Prerequisite missing. Report which and set `status: "error"` with code `CONTEXT_PREREQUISITE_MISSING` |
-| `migrate context` exits 2 | IO/parse error. Surface error message and set `status: "error"` with code `CONTEXT_IO_ERROR` |
-| `test-specs/<item_id>.json` missing | Tell caller to run `/generating-tests` first. Set `status: "error"` with code `TEST_SPEC_MISSING` |
+| Command | Exit code | Action |
+|---|---|---|
+| `migrate context` | 1 | Prerequisite missing. Report which and set `status: "error"` with code `CONTEXT_PREREQUISITE_MISSING` |
+| `migrate context` | 2 | IO/parse error. Surface error message and set `status: "error"` with code `CONTEXT_IO_ERROR` |
+| `test-specs/<item_id>.json` | missing | Tell caller to run `/generating-tests` first. Set `status: "error"` with code `TEST_SPEC_MISSING` |

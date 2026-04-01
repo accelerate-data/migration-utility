@@ -93,10 +93,10 @@ The scoping JSON must include the selected writer (or `no_writer_found` status) 
 
 ## Error handling
 
-| Condition | Action |
-|---|---|
-| `discover refs` exits 1 | Object not found or catalog file missing. Report and stop |
-| `discover refs` exits 2 | Catalog directory unreadable (IO error). Report and stop |
-| `/analyzing-object` fails for a candidate | Log failure, mark candidate `BLOCKED`, continue with remaining |
-| `discover write-scoping` exits 1 | Validation failure. Report errors, ask user to correct |
-| `discover write-scoping` exits 2 | Invalid JSON or IO error. Report and stop |
+| Command | Exit code | Action |
+|---|---|---|
+| `discover refs` | 1 | Object not found or catalog file missing. Report and stop |
+| `discover refs` | 2 | Catalog directory unreadable (IO error). Report and stop |
+| `/analyzing-object` | skill failure | Log failure, mark candidate `BLOCKED`, continue with remaining |
+| `discover write-scoping` | 1 | Validation failure. Report errors, ask user to correct |
+| `discover write-scoping` | 2 | Invalid JSON or IO error. Report and stop |

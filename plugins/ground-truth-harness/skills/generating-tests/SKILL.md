@@ -242,9 +242,9 @@ Field requirements:
 
 ## Error handling
 
-| Condition | Action |
-|---|---|
-| `migrate context` exits 1 | No profile or no statements. Tell user to run scoping and profiling first |
-| `migrate context` exits 2 | IO/parse error. Surface the error message |
-| `test-harness execute` exits 1 | Scenario execution failure. Record error in test spec, continue to next scenario |
-| `test-harness sandbox-status` exits 1 | Sandbox not found. Tell user to run `/setup-sandbox` |
+| Command | Exit code | Action |
+|---|---|---|
+| `migrate context` | 1 | No profile or no statements. Tell user to run scoping and profiling first |
+| `migrate context` | 2 | IO/parse error. Surface the error message |
+| `test-harness execute` | 1 | Scenario execution failure. Record error in test spec, continue to next scenario |
+| `test-harness sandbox-status` | 1 | Sandbox not found. Tell user to run `/setup-sandbox` |

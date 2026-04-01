@@ -73,9 +73,9 @@ The `profile` section written to `catalog/tables/<table>.json` follows `table_ca
 
 ## Error handling
 
-| Condition | Action |
-|---|---|
-| `profile context` exits 1 | Catalog file missing for table or writer. Report which prerequisite is missing |
-| `profile context` exits 2 | IO/parse error. Surface the error message |
-| `profile write` exits 1 | Validation failure (invalid JSON, missing fields, bad enums). Report errors, ask user to correct |
-| `profile write` exits 2 | IO error (catalog unreadable, write failure). Report and stop |
+| Command | Exit code | Action |
+|---|---|---|
+| `profile context` | 1 | Catalog file missing for table or writer. Report which prerequisite is missing |
+| `profile context` | 2 | IO/parse error. Surface the error message |
+| `profile write` | 1 | Validation failure (invalid JSON, missing fields, bad enums). Report errors, ask user to correct |
+| `profile write` | 2 | IO error (catalog unreadable, write failure). Report and stop |
