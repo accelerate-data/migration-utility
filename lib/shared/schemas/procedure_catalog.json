@@ -58,7 +58,8 @@
           "type": { "type": "string", "description": "Statement type, e.g. Insert, Update, Merge, Command." },
           "action": { "type": "string", "enum": ["migrate", "skip"], "description": "migrate: core DML that becomes the dbt model. skip: operational overhead." },
           "source": { "type": "string", "enum": ["ast", "llm"], "description": "How the action was determined: ast (deterministic sqlglot parse) or llm (Claude analysis of dynamic SQL/call graph)." },
-          "sql": { "type": "string", "description": "SQL text of the statement." }
+          "sql": { "type": "string", "description": "SQL text of the statement." },
+          "rationale": { "type": "string", "description": "Why this statement is migrate or skip. Required for source: llm; optional for source: ast." }
         }
       }
     }
