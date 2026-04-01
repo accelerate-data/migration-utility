@@ -93,8 +93,6 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-statements \
   --name <procedure_name> --statements '<json>'
 ```
 
-See [`references/procedure-analysis-flow.md`](references/procedure-analysis-flow.md) for the full canonical flow.
-
 ## Error handling
 
 - If `discover show` exits with code 2, the catalog directory could not be read (missing path, IO error, no catalog). Report the error and stop.
