@@ -1,6 +1,8 @@
 ---
 name: init-dbt
 description: Scaffolds a dbt project with target adapter selection, sources.yml generation from catalog, and compile validation. Requires DDL extraction to be complete (manifest.json).
+user-invocable: true
+argument-hint: "[project-root-path]"
 ---
 
 # Initialize dbt Project
