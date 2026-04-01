@@ -17,3 +17,7 @@ Before running the skill for each item:
 ## Additional per-item checks (agent-specific)
 
 Some agents require additional per-item checks beyond the common ones above. These are documented in each agent's own Prerequisites section.
+
+## Output integrity
+
+Never set `status: "ok"` if `errors[]` is non-empty or a required step was skipped. The `status` field must reflect the actual outcome.
