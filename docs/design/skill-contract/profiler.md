@@ -1,36 +1,16 @@
-# Profiler Agent Contract
+# Profiler Skill Contract
 
-The profiler agent produces migration profile candidates for each table in a batch. It runs `profile.py` for context assembly, applies LLM reasoning to answer the six profiling questions, and writes results into each table's catalog file.
-
-For the interactive single-table path, see the `/profiling-table` skill. Both paths share `profile.py` for deterministic context assembly; the LLM reasoning is replicated with context-appropriate prompting (batch: no approval gates, structured output, skip-and-continue on errors; interactive: present for approval, stop on ambiguity).
+The profiler skill produces a migration profile for a table. It runs `profile.py` for context assembly, applies LLM reasoning to answer the six profiling questions, and writes results into the table's catalog file.
 
 ## Philosophy and Boundary
 
-- All catalog signals are pre-captured by setup-ddl (VU-766) in `catalog/` files. The agent never queries the live database.
+- All catalog signals are pre-captured by setup-ddl (VU-766) in `catalog/` files. The skill never queries the live database.
 - Proc bodies are in DDL files from setup-ddl. No `sys.sql_modules` access needed.
-- `profile.py` (shared) has two subcommands: `context` (assemble LLM input) and `write` (merge profile into catalog file). The agent does LLM reasoning between the two.
+- `profile.py` (shared) has two subcommands: `context` (assemble LLM input) and `write` (merge profile into catalog file). The skill does LLM reasoning between the two.
 - FDE approves profile results before the migrator consumes them.
 - No sampled data profiling — live DB is unavailable at migration time.
 
-## Required Input
-
-```json
-{
-  "schema_version": "1.0",
-  "run_id": "uuid",
-  "items": [
-    {
-      "item_id": "dbo.fact_sales"
-    }
-  ]
-}
-```
-
-No `project_root` — agents infer it from CWD. No `selected_writer` — the profiler reads it from the catalog scoping section in `catalog/tables/<item_id>.json`. No `related_procedure_depth` — related procedure context is pre-captured in catalog files.
-
-## Agent Pipeline
-
-For each item in `items[]`:
+## Pipeline
 
 ### 1. AssembleContext (Deterministic — `profile.py context`)
 
@@ -81,7 +61,7 @@ If no declared FKs:
 
 - Use `writer_references` column-level `is_selected` flags to see which dimension tables the writer JOINs
 - Use `referenced_by` to see which reader procs join on which columns — multiple independent readers joining on the same column is high confidence
-- Apply naming-convention patterns (`_sk`/`_id` suffix → dimension table stem match)
+- Apply naming-convention patterns (`_sk`/`_id` suffix, dimension table stem match)
 
 #### Q4 — Natural Key vs Surrogate Key
 
@@ -90,8 +70,8 @@ Check catalog `auto_increment_columns` — if present, the PK is surrogate (`sou
 If no identity column:
 
 - Look for `NEWID()` / `NEWSEQUENTIALID()` / `NEXT VALUE FOR` in proc body
-- Check column name patterns (`_sk`/`_guid` → surrogate; `_code`/`_number` → natural)
-- MERGE ON clause using different column from INSERT PK → classic surrogate pattern
+- Check column name patterns (`_sk`/`_guid` is surrogate; `_code`/`_number` is natural)
+- MERGE ON clause using different column from INSERT PK is classic surrogate pattern
 
 #### Q5 — Watermark
 
@@ -121,7 +101,7 @@ The `write` subcommand:
 4. Writes back atomically
 5. Outputs confirmation JSON to stdout
 
-The agent passes the LLM-produced profile as a JSON string argument. Python handles all file I/O and validation — the agent never writes files directly.
+The skill passes the LLM-produced profile as a JSON string argument. Python handles all file I/O and validation — the skill never writes files directly.
 
 Profile section schema:
 
@@ -175,9 +155,8 @@ Profile section schema:
 
 ### 4. HandleErrors
 
-- If `profile.py` fails: set `status: "error"`, record in `errors[]`, continue to next item.
-- If LLM cannot answer a required question (classification, primary_key, watermark): set `status: "partial"`, record which questions are unresolved in `warnings[]`, continue to next item.
-- Do not stop the batch on individual item failures.
+- If `profile.py` fails: set `status: "error"`, record in `errors[]`, continue.
+- If LLM cannot answer a required question (classification, primary_key, watermark): set `status: "partial"`, record which questions are unresolved in `warnings[]`, continue.
 
 ## `source` Field Semantics
 
@@ -192,10 +171,6 @@ Profile section schema:
 - `error` — runtime failure prevented profiling.
 
 `natural_key` may be empty and still `ok` when `primary_key_type == "surrogate"`.
-
-## No Summary File
-
-The profiler agent does not produce a summary JSON. All profile data lives in catalog files (`catalog/tables/<item_id>.json` → `profile` section). The `migrate-util status` command derives per-table status by scanning catalog files for the presence and content of `profile` sections.
 
 ## Classification Kinds
 
@@ -237,9 +212,9 @@ The profiler agent does not produce a summary JSON. All profile data lives in ca
 - Final dbt SQL or Jinja model content.
 - Final materialization/test decisions (migrator's job).
 
-`warnings[]` and `errors[]` use the shared diagnostics schema in `docs/design/agent-contract/README.md`.
+`warnings[]` and `errors[]` use the shared diagnostics schema in `README.md`.
 
 ## Handoff
 
-- Profiler consumes `item_id` from application-routed input and reads `selected_writer` from `catalog/tables/<table>.json` → `scoping` section.
+- Profiler consumes `item_id` and reads `selected_writer` from `catalog/tables/<table>.json` → `scoping` section.
 - Migrator consumes approved profile answers from `catalog/tables/<table>.json` → `profile` section.

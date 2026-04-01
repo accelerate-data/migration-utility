@@ -1,8 +1,8 @@
-# Code Reviewer Agent Contract
+# Code Reviewer Skill Contract
 
-The code reviewer agent is an LLM-based quality gate for migration output. It reviews the generated dbt model for standards compliance, idiomatic dbt patterns, naming conventions, and correctness relative to the original proc. It can kick back to the model-generator with specific issues.
+The code reviewer skill is an LLM-based quality gate for migration output. It reviews the generated dbt model for standards compliance, idiomatic dbt patterns, naming conventions, and correctness relative to the original proc. It can kick back to the model-generator with specific issues.
 
-The code reviewer is always an agent — no interactive skill path. It runs after the model-generator's build-and-test loop completes (all unit tests passing). It lives in the migration plugin alongside the model-generator.
+The code reviewer runs after the model-generator's build-and-test loop completes (all unit tests passing).
 
 ## Philosophy and Boundary
 
@@ -11,26 +11,6 @@ The code reviewer is always an agent — no interactive skill path. It runs afte
 - Code reviewer does not run tests — the model-generator already passed all unit tests before the code reviewer is invoked.
 - Code reviewer can request revisions by kicking back to the model-generator with specific issues.
 - Code reviewer does not modify files directly.
-
-## Required Input
-
-```json
-{
-  "schema_version": "1.0",
-  "run_id": "uuid",
-  "items": [
-    {
-      "item_id": "silver.dimproduct",
-      "selected_writer": "dbo.usp_load_dimproduct",
-      "model_sql_path": "dbt/models/staging/stg_dimproduct.sql",
-      "schema_yml_path": "dbt/models/staging/stg_dimproduct.yml",
-      "test_spec_path": "test-specs/silver.dimproduct.json"
-    }
-  ]
-}
-```
-
-Project root is inferred from CWD.
 
 ## Review Strategy
 
@@ -44,7 +24,7 @@ Project root is inferred from CWD.
 
 | Check | What to verify |
 |---|---|
-| CTE pattern | Import CTE → logical CTE → final CTE structure followed |
+| CTE pattern | Import CTE -> logical CTE -> final CTE structure followed |
 | Import CTEs | All sources use `{{ source() }}` or `{{ ref() }}` — no hardcoded table names |
 | Naming | Model name matches convention (`stg_<table>`), CTE names are descriptive |
 | Config block | `{{ config(materialized=...) }}` present and matches derived materialization |
@@ -82,51 +62,41 @@ Compare the generated model against the original proc context:
 | Test integration issues found | Kick back to model-generator with missing/broken test references |
 | Max review iterations reached | Approve with warnings — flag for human review |
 
-After kicking back, the model-generator revises the model, re-runs `dbt test` to confirm unit tests still pass, and resubmits. Maximum review ↔ model-generator iterations: 2 (configurable).
+After kicking back, the model-generator revises the model, re-runs `dbt test` to confirm unit tests still pass, and resubmits. Maximum review / model-generator iterations: 2 (configurable).
 
 ## Output Schema (CodeReviewResult)
 
+Per-item output:
+
 ```json
 {
-  "schema_version": "1.0",
-  "run_id": "uuid",
-  "results": [
-    {
-      "item_id": "silver.dimproduct",
-      "status": "approved|revision_requested|error",
-      "checks": {
-        "standards": {
-          "passed": true,
-          "issues": []
-        },
-        "correctness": {
-          "passed": false,
-          "issues": [
-            {
-              "code": "MISSING_SOURCE_TABLE",
-              "message": "bronze.product_category referenced in proc but not in model import CTEs",
-              "severity": "error"
-            }
-          ]
-        },
-        "test_integration": {
-          "passed": true,
-          "issues": []
+  "item_id": "silver.dimproduct",
+  "status": "approved|revision_requested|error",
+  "checks": {
+    "standards": {
+      "passed": true,
+      "issues": []
+    },
+    "correctness": {
+      "passed": false,
+      "issues": [
+        {
+          "code": "MISSING_SOURCE_TABLE",
+          "message": "bronze.product_category referenced in proc but not in model import CTEs",
+          "severity": "error"
         }
-      },
-      "feedback_for_model_generator": [
-        "Add import CTE for source('bronze', 'product_category') — proc reads from it via JOIN"
-      ],
-      "warnings": [],
-      "errors": []
+      ]
+    },
+    "test_integration": {
+      "passed": true,
+      "issues": []
     }
+  },
+  "feedback_for_model_generator": [
+    "Add import CTE for source('bronze', 'product_category') — proc reads from it via JOIN"
   ],
-  "summary": {
-    "total": 1,
-    "approved": 0,
-    "revision_requested": 1,
-    "error": 0
-  }
+  "warnings": [],
+  "errors": []
 }
 ```
 
@@ -140,4 +110,4 @@ Code reviewer must not:
 - Override profile decisions (classification, materialization, keys)
 - Override ground truth (captured proc output is fact)
 
-`checks.*.issues[]`, `warnings[]`, and `errors[]` use the shared diagnostics schema in `docs/design/agent-contract/README.md`.
+`checks.*.issues[]`, `warnings[]`, and `errors[]` use the shared diagnostics schema in `README.md`.

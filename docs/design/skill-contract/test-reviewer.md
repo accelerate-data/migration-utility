@@ -1,8 +1,6 @@
-# Test Reviewer Agent Contract
+# Test Reviewer Skill Contract
 
-The test reviewer agent is an LLM-based quality gate for test generation. It independently enumerates branches from the proc, maps the test generator's scenarios against its own branch list, scores coverage, and reviews fixture quality. It can kick back to the test generator with specific missing branches.
-
-The test reviewer is always an agent — no interactive skill path. It runs after the test generator in both batch and orchestrated flows.
+The test reviewer skill is an LLM-based quality gate for test generation. It independently enumerates branches from the proc, maps the test generator's scenarios against its own branch list, scores coverage, and reviews fixture quality. It can kick back to the test generator with specific missing branches.
 
 ## Philosophy and Boundary
 
@@ -11,24 +9,6 @@ The test reviewer is always an agent — no interactive skill path. It runs afte
 - Test reviewer reads the generator's output from `test-specs/<item_id>.json`.
 - Test reviewer can request additional test cases by kicking back to the test generator with a list of uncovered branches.
 - Test reviewer does not generate fixtures, execute procs, or modify test specs directly.
-
-## Required Input
-
-```json
-{
-  "schema_version": "1.0",
-  "run_id": "uuid",
-  "items": [
-    {
-      "item_id": "silver.dimproduct",
-      "selected_writer": "dbo.usp_load_dimproduct",
-      "test_spec_path": "test-specs/silver.dimproduct.json"
-    }
-  ]
-}
-```
-
-Project root is inferred from CWD.
 
 ## Review Strategy
 
@@ -82,58 +62,48 @@ For each test scenario, assess:
 | Both gaps and quality issues | Kick back with both |
 | Max review iterations reached | Approve with warnings — flag for human review |
 
-Maximum review ↔ generator iterations: 2 (configurable).
+Maximum review / generator iterations: 2 (configurable).
 
 ## Output Schema (TestReviewResult)
 
+Per-item output:
+
 ```json
 {
-  "schema_version": "1.0",
-  "run_id": "uuid",
-  "results": [
+  "item_id": "silver.dimproduct",
+  "status": "approved|revision_requested|error",
+  "reviewer_branch_manifest": [
     {
-      "item_id": "silver.dimproduct",
-      "status": "approved|revision_requested|error",
-      "reviewer_branch_manifest": [
-        {
-          "id": "merge_not_matched_insert",
-          "description": "MERGE WHEN NOT MATCHED → INSERT new product",
-          "covered": true,
-          "covering_scenarios": ["test_merge_not_matched_new_product_inserted"]
-        }
-      ],
-      "coverage": {
-        "total_branches": 8,
-        "covered_branches": 7,
-        "score": "partial",
-        "uncovered": [
-          {
-            "id": "left_join_null_category",
-            "description": "LEFT JOIN to category table — no matching category (NULL right side)"
-          }
-        ]
-      },
-      "quality_issues": [
-        {
-          "scenario": "test_merge_matched_existing_product_updated",
-          "issue": "Fixture uses negative list_price (-10.00) which is unrealistic for this domain",
-          "severity": "warning"
-        }
-      ],
-      "feedback_for_generator": {
-        "uncovered_branches": ["left_join_null_category"],
-        "quality_fixes": ["Use realistic positive prices in test_merge_matched_existing_product_updated"]
-      },
-      "warnings": [],
-      "errors": []
+      "id": "merge_not_matched_insert",
+      "description": "MERGE WHEN NOT MATCHED → INSERT new product",
+      "covered": true,
+      "covering_scenarios": ["test_merge_not_matched_new_product_inserted"]
     }
   ],
-  "summary": {
-    "total": 1,
-    "approved": 0,
-    "revision_requested": 1,
-    "error": 0
-  }
+  "coverage": {
+    "total_branches": 8,
+    "covered_branches": 7,
+    "score": "partial",
+    "uncovered": [
+      {
+        "id": "left_join_null_category",
+        "description": "LEFT JOIN to category table — no matching category (NULL right side)"
+      }
+    ]
+  },
+  "quality_issues": [
+    {
+      "scenario": "test_merge_matched_existing_product_updated",
+      "issue": "Fixture uses negative list_price (-10.00) which is unrealistic for this domain",
+      "severity": "warning"
+    }
+  ],
+  "feedback_for_generator": {
+    "uncovered_branches": ["left_join_null_category"],
+    "quality_fixes": ["Use realistic positive prices in test_merge_matched_existing_product_updated"]
+  },
+  "warnings": [],
+  "errors": []
 }
 ```
 
@@ -147,4 +117,4 @@ Test reviewer must not:
 - Make migration or profiling decisions
 - Override the test generator's ground truth output (captured proc results are facts)
 
-`warnings[]` and `errors[]` use the shared diagnostics schema in `docs/design/agent-contract/README.md`.
+`warnings[]` and `errors[]` use the shared diagnostics schema in `README.md`.

@@ -1,49 +1,28 @@
-# Test Generator Agent Contract
+# Test Generator Skill Contract
 
-The test generator agent produces branch-covering dbt unit test fixtures for a stored procedure migration. It analyzes the proc's conditional branches, synthesizes minimal synthetic input data that exercises each branch, executes the proc in a sandbox database via MCP to capture ground truth output, and emits `unit_tests:` JSON blocks to `test-specs/`.
+The test generator skill produces branch-covering dbt unit test fixtures for a stored procedure migration. It analyzes the proc's conditional branches, synthesizes minimal synthetic input data that exercises each branch, executes the proc in a sandbox database via MCP to capture ground truth output, and emits `unit_tests:` JSON blocks to `test-specs/`.
 
 Test generation runs BEFORE migration. The test spec is an independent artifact that the model-generator consumes — the test generator never sees the generated dbt model.
-
-This contract covers both paths:
-
-- **Batch (agent):** `plugins/ground-truth-harness/agents/test-generator/` — runs in GHA pipeline, JSON in/out, no approval gates.
-- **Interactive (skill):** `plugins/ground-truth-harness/skills/generate-tests/SKILL.md` — user-invocable via `/generate-tests`, presents results for approval.
 
 Both paths share the Python CLI (`lib/shared/test_harness.py`) for deterministic work (sandbox lifecycle, SQL execution, result capture). LLM reasoning (branch analysis, fixture synthesis) is replicated with path-appropriate prompting.
 
 ## Philosophy and Boundary
 
 - Test generator owns branch analysis, fixture synthesis, ground truth capture, and coverage self-assessment.
-- Test generator reads the same context as the model-generator: profile from `catalog/tables/<item_id>.json`, resolved statements from `catalog/procedures/<writer>.json`, proc body and columns from DDL files.
+- The skill reads the same context as the model-generator: profile from `catalog/tables/<item_id>.json`, resolved statements from `catalog/procedures/<writer>.json`, proc body and columns from DDL files.
 - Test generator does NOT score its own coverage — the test reviewer independently enumerates branches and scores.
 - Test generator writes structured JSON to `test-specs/<item_id>.json`. It does not write dbt YAML files.
 - Test generator must not make or modify migration business decisions (classification, keys, materialization).
 
-## Required Input
-
-```json
-{
-  "schema_version": "2.0",
-  "run_id": "uuid",
-  "items": [
-    {
-      "item_id": "silver.dimproduct"
-    }
-  ]
-}
-```
-
-Project root is inferred from CWD. Reference schema: `../lib/shared/schemas/test_generator_input.json`. Items only need `item_id` — the test generator reads `selected_writer` from the catalog scoping section.
-
 ## Prerequisites
 
-The sandbox database must exist before the agent runs. Created via the `sandbox-up` command:
+The sandbox database must exist before the skill runs. Created via the `sandbox-up` command:
 
 ```bash
-uv run --project lib test-harness sandbox-up --run-id <uuid>
+uv run --project lib test-harness sandbox-up
 ```
 
-If the sandbox does not exist, the agent fails with a clear error directing the user to run `sandbox-up`.
+If the sandbox does not exist, the skill fails with a clear error directing the user to run `sandbox-up`.
 
 ## Generation Strategy
 
@@ -91,7 +70,7 @@ For each scenario, execute against the sandbox database via MCP:
 3. `SELECT *` from the target table — capture output as ground truth.
 4. Clean up inserted rows (TRUNCATE or DELETE) before the next scenario.
 
-The sandbox contains the same schemas and table structures as production but in an isolated throwaway database (`__test_<run_id>`). The proc runs unmodified — schema references resolve naturally within the sandbox namespace.
+The sandbox contains the same schemas and table structures as production but in an isolated throwaway database. The proc runs unmodified — schema references resolve naturally within the sandbox namespace.
 
 ### 5. SelfIterateOnGaps (LLM)
 
@@ -108,7 +87,7 @@ Note: this is the generator's own internal loop. The test reviewer performs the 
 Write `test-specs/<item_id>.json` with the structured output (see Output Schema below).
 
 - Test name convention: `test_<load_pattern>_<scenario_description>`.
-- Model name is deterministic from table FQN: `silver.dimproduct` → `stg_dimproduct`.
+- Model name is deterministic from table FQN: `silver.dimproduct` -> `stg_dimproduct`.
 - `given[].input` uses dbt `source()` for bronze tables and `ref()` for silver/gold tables.
 
 ### 7. ValidateOutput
@@ -119,65 +98,53 @@ Write `test-specs/<item_id>.json` with the structured output (see Output Schema 
 
 ## Output Schema (TestSpec)
 
-Written to `test-specs/<item_id>.json`.
+Written to `test-specs/<item_id>.json`:
 
 ```json
 {
-  "schema_version": "1.0",
-  "run_id": "uuid",
-  "results": [
+  "item_id": "silver.dimproduct",
+  "status": "ok|partial|error",
+  "coverage": "complete|partial",
+  "branch_manifest": [
     {
-      "item_id": "silver.dimproduct",
-      "status": "ok|partial|error",
-      "coverage": "complete|partial",
-      "branch_manifest": [
-        {
-          "id": "merge_matched_update",
-          "statement_index": 0,
-          "description": "MERGE WHEN MATCHED → UPDATE existing product",
-          "scenarios": ["test_merge_matched_existing_product_updated"]
-        }
-      ],
-      "unit_tests": [
-        {
-          "name": "test_merge_matched_existing_product_updated",
-          "model": "stg_dimproduct",
-          "given": [
-            {
-              "input": "source('bronze', 'product')",
-              "rows": [
-                { "product_id": 1, "product_name": "Widget", "list_price": 99.99 }
-              ]
-            },
-            {
-              "input": "ref('stg_dimproduct')",
-              "rows": [
-                { "product_key": 1, "product_name": "Old Widget", "list_price": 50.00 }
-              ]
-            }
-          ],
-          "expect": {
-            "rows": [
-              { "product_key": 1, "product_name": "Widget", "list_price": 99.99 }
-            ]
-          }
-        }
-      ],
-      "uncovered_branches": [],
-      "warnings": [],
-      "validation": {
-        "passed": true,
-        "issues": []
-      },
-      "errors": []
+      "id": "merge_matched_update",
+      "statement_index": 0,
+      "description": "MERGE WHEN MATCHED → UPDATE existing product",
+      "scenarios": ["test_merge_matched_existing_product_updated"]
     }
   ],
-  "summary": {
-    "total": 1,
-    "ok": 1,
-    "partial": 0,
-    "error": 0
-  }
+  "unit_tests": [
+    {
+      "name": "test_merge_matched_existing_product_updated",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "input": "source('bronze', 'product')",
+          "rows": [
+            { "product_id": 1, "product_name": "Widget", "list_price": 99.99 }
+          ]
+        },
+        {
+          "input": "ref('stg_dimproduct')",
+          "rows": [
+            { "product_key": 1, "product_name": "Old Widget", "list_price": 50.00 }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          { "product_key": 1, "product_name": "Widget", "list_price": 99.99 }
+        ]
+      }
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "errors": []
 }
 ```
 
@@ -189,7 +156,7 @@ Written to `test-specs/<item_id>.json`.
 | `model` | string | yes | dbt model name, deterministic from table FQN |
 | `given` | object[] | yes | One entry per mocked input relation |
 | `given[].input` | string | yes | dbt `ref(...)` or `source(...)` expression |
-| `given[].rows` | object[] | yes | Synthetic fixture input rows as column→value maps |
+| `given[].rows` | object[] | yes | Synthetic fixture input rows as column->value maps |
 | `expect.rows` | object[] | yes | Ground truth output rows captured from proc execution |
 
 ## Coverage and Status Rules
@@ -211,4 +178,4 @@ Test generator must not:
 - Make materialization or business key decisions
 - Score its own coverage authoritatively — the test reviewer does that
 
-`validation.issues[]`, `warnings[]`, and `errors[]` use the shared diagnostics schema in `docs/design/agent-contract/README.md`.
+`validation.issues[]`, `warnings[]`, and `errors[]` use the shared diagnostics schema in `README.md`.

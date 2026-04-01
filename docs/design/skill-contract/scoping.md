@@ -1,50 +1,23 @@
-# Scoping Agent Contract
+# Scoping Skill Contract
 
-The scoping agent maps a target table to one or more candidate writer procedures for T-SQL sources (SQL Server, Fabric Warehouse).
-It is the prerequisite step for profiler input.
+The scoping skill maps a target table to one or more candidate writer procedures for T-SQL sources (SQL Server, Fabric Warehouse). It is the prerequisite step for profiler input.
 
 ## Philosophy and Boundary
 
 - Analysis is responsible only for writer discovery and writer selection.
-- Scoping writes results to `catalog/tables/<table>.json` (scoping section), not a separate output file. Downstream agents read `selected_writer` from catalog.
+- Scoping writes results to `catalog/tables/<table>.json` (scoping section), not a separate output file. Downstream skills read `selected_writer` from catalog.
 - Keep analysis payload minimal for clear handoff.
 - Exception: `reads_from` is included on candidate writers to support downstream context without requiring re-analysis.
-- No summary JSON. The `migrate-util status` command derives per-table scoping status from catalog files.
 
 ## Goal
 
 Given a target table, identify candidate writer procedures and select one writer when resolvable. Write the scoping decision to the table's catalog file.
 
-## Required Input
-
-```json
-{
-  "schema_version": "1.0",
-  "run_id": "uuid",
-  "technology": "sql_server",
-  "items": [
-    {
-      "item_id": "dbo.fact_sales",
-      "search_depth": 2
-    }
-  ]
-}
-```
-
-## Input Semantics
-
-- `technology` — source technology family; determines which analysis patterns to apply. Valid values: `sql_server`, `fabric_warehouse`, `fabric_lakehouse`, `snowflake`. The agent emits `ANALYSIS_UNSUPPORTED_TECHNOLOGY` for unsupported values.
-- Project root is inferred from CWD. No `project_root` field in the input schema; no `DDL_PATH` environment variable required.
-- `search_depth` is the maximum call-graph traversal depth from discovered candidate procedures.
-- Units: procedure-call hops (`0` = candidate procedure body only, `1` = direct callees, etc.).
-- Valid range: integer `0..5`.
-- Default: `2`.
-
 ## Discovery Strategy
 
-> **Catalog-first analysis.** The scoping agent calls `uv run discover refs` per table for catalog-based writer identification. Catalog files (from `setup-ddl`) carry `is_updated`/`is_selected` flags from `sys.dm_sql_referenced_entities` — writers are procs with `is_updated=true`. The agent then calls `discover show` on each candidate writer for statement-level analysis and dependency resolution. Procs flagged `needs_llm: true` in their catalog file (EXEC(@var), TRY/CATCH, WHILE, IF) require LLM reasoning from the raw DDL.
+> **Catalog-first analysis.** The scoping skill calls `uv run discover refs` per table for catalog-based writer identification. Catalog files (from `setup-ddl`) carry `is_updated`/`is_selected` flags from `sys.dm_sql_referenced_entities` — writers are procs with `is_updated=true`. The skill then calls `discover show` on each candidate writer for statement-level analysis and dependency resolution. Procs flagged `needs_llm: true` in their catalog file (EXEC(@var), TRY/CATCH, WHILE, IF) require LLM reasoning from the raw DDL.
 
-The agent's role is batch orchestration: read the input, run `discover refs` per item, run `discover show` per candidate writer for statement analysis and dependency resolution, apply resolution rules, validate, and write scoping results to catalog.
+The skill's role is: read the input, run `discover refs` per item, run `discover show` per candidate writer for statement analysis and dependency resolution, apply resolution rules, validate, and write scoping results to catalog.
 
 ### Resolution Rules
 
@@ -53,24 +26,21 @@ The agent's role is batch orchestration: read the input, run `discover refs` per
   - `resolved`: exactly one writer proc has `is_updated=true` in catalog.
   - `ambiguous_multi_writer`: two or more procs have `is_updated=true`.
   - `no_writer_found`: no proc has `is_updated=true`.
-  - cross-database reference detected: return `error` with issue code
-    `ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE`.
+  - cross-database reference detected: return `error` with issue code `ANALYSIS_CROSS_DATABASE_OUT_OF_SCOPE`.
   - `error`: execution/parsing/runtime failure prevented completion.
 
 ### `dependencies` Enrichment
 
-For each `resolved` item, the agent populates `dependencies` on the selected writer's candidate entry. This contains the transitively resolved base tables, views, and functions the writer procedure depends on. Views and functions are resolved down to their underlying base tables. The data is obtained from:
+For each `resolved` item, the skill populates `dependencies` on the selected writer's candidate entry. This contains the transitively resolved base tables, views, and functions the writer procedure depends on. Views and functions are resolved down to their underlying base tables. The data is obtained from:
 
-- `discover show` on the selected writer → `refs` field, then recursive `discover show` on referenced views/functions/procedures to resolve down to base tables
-- Agent judgment + `discover show` lookups on referenced objects for `needs_llm: true` candidates
+- `discover show` on the selected writer, then recursive `discover show` on referenced views/functions/procedures to resolve down to base tables
+- LLM judgment + `discover show` lookups on referenced objects for `needs_llm: true` candidates
 
 This field is consumed by downstream wave planning to build inter-table dependency graphs without re-analysing source DDL.
 
 ### Validation
 
-- Run internal consistency/contract checks on the output item (for example selected writer
-  consistency and required fields).
-  Runtime failures must be reported in `errors`.
+- Run internal consistency/contract checks on the output item (for example selected writer consistency and required fields). Runtime failures must be reported in `errors`.
 - Validation checklist:
   - `item_id` is present.
   - `status` is one of: `resolved|ambiguous_multi_writer|no_writer_found|error`.
@@ -89,7 +59,6 @@ This field is consumed by downstream wave planning to build inter-table dependen
   - if `status == "error"`:
     - `errors` is non-empty
   - `validation.passed` is `false` when any validation issue exists.
-  - summary counts match item-level statuses.
 
 ## Output: Catalog Scoping Section
 
@@ -121,10 +90,6 @@ Scoping results are written to `catalog/tables/<item_id>.json` under a `scoping`
 }
 ```
 
-## No Summary File
-
-The scoping agent does not produce a summary JSON. All scoping data lives in catalog files. The `migrate-util status` command derives per-table status by scanning `catalog/tables/` for the presence and content of `scoping` sections.
-
 ## Resolution Rules
 
 - `resolved`: exactly one writer proc has `is_updated=true` in catalog.
@@ -137,7 +102,7 @@ The scoping agent does not produce a summary JSON. All scoping data lives in cat
 - Dynamic SQL (`sp_executesql`, `EXEC(@sql)`) may hide dependencies from metadata.
 - Synonyms/views may mask base-table writers.
 - `TRUNCATE`-only writers may be missed by dependency metadata and require body-parse detection.
-- `dependencies` for `needs_llm: true` candidates depends on agent judgment from reading raw DDL combined with `discover show` lookups — accuracy varies with procedure complexity.
+- `dependencies` for `needs_llm: true` candidates depends on LLM judgment from reading raw DDL combined with `discover show` lookups — accuracy varies with procedure complexity.
 
 ## Assumptions
 
@@ -146,7 +111,7 @@ The scoping agent does not produce a summary JSON. All scoping data lives in cat
 
 ## Step 5 — Persist Resolved Statements to Catalog
 
-After writing the scoping results, the agent persists resolved statements for each `resolved` item to `catalog/procedures/<selected_writer>.json`.
+After writing the scoping results, the skill persists resolved statements for each `resolved` item to `catalog/procedures/<selected_writer>.json`.
 
 Only persist for procs not already in catalog (idempotent) — if the proc already has `statements`, skip.
 

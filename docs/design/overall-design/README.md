@@ -1,6 +1,6 @@
 # Overall Design
 
-Migration utility for stored-procedure-to-dbt conversion: a Claude Code plugin for interactive migration, a `migrate-util` CLI for batch execution, and GitHub Actions workflows for headless runs. Targets silver and gold transformations only (bronze is out of scope).
+Migration utility for stored-procedure-to-dbt conversion: Claude Code plugin commands for both interactive and multi-table migration. Targets silver and gold transformations only (bronze is out of scope).
 
 ## Supported Sources
 
@@ -73,19 +73,18 @@ flowchart LR
 
 | Path | Entry point | Approval gates | Runs where | Status |
 |---|---|---|---|---|
-| Interactive | FDE opens Claude Code, uses skills (`/listing-objects`, `/scoping-table`, `/profiling-table`, `/generating-model`) | Yes -- every step | Local terminal | Implemented |
-| Local batch | `migrate-util scope --table X` | None -- agent runs autonomously | Local terminal | **Not yet implemented** |
-| GHA batch | `migrate-util dispatch scope --all` | None -- commits input, triggers GHA workflow | GitHub Actions | **Not yet implemented** |
+| Interactive | FDE uses skills (`/listing-objects`, `/scoping-table`, `/profiling-table`, `/generating-model`) | Yes — every step | Local terminal | Implemented |
+| Multi-table | FDE uses commands (`/scoping`, `/profiling`, `/generating-tests`, `/generating-model`) | FDE reviews summary at end | Local terminal | **Not yet implemented** |
 
 ### Stages
 
 | Stage | Executor | Role |
 |---|---|---|
-| Scoping | `scoping` | Delegates to `/scoping-table` per table. Discovers writers, analyzes candidates via `/analyzing-object`, writes `selected_writer` to catalog. |
-| Profiling | `profiler` | Delegates to `/profiling-table` per table. Classifies table, identifies keys, watermark, FKs, PII. Writes profile answers to catalog. |
+| Scoping | `/scoping` command | Delegates to `/scoping-table` per table. Discovers writers, analyzes candidates via `/analyzing-object`, writes `selected_writer` to catalog. |
+| Profiling | `/profiling` command | Delegates to `/profiling-table` per table. Classifies table, identifies keys, watermark, FKs, PII. Writes profile answers to catalog. |
 | Sandbox Up | `test-harness sandbox-up` (CLI) | Create throwaway database for ground-truth capture. Not an agent. |
-| Test Generation | `test-generator-agent` + `test-reviewer-agent` | Generator enumerates proc branches, synthesizes fixtures, executes proc in sandbox, captures ground truth, writes `test-specs/<item_id>.json`. Reviewer independently enumerates branches, scores coverage, reviews fixture quality. Kicks back for missing branches or quality issues. **Max 2 review iterations.** |
-| Migration | `model-generator` + `code-reviewer` | Model generator reads profile + test spec, generates dbt model + schema YAML (with `unit_tests:` rendered from test spec), runs `dbt test`, self-corrects up to **3 iterations**. Code reviewer checks standards, correctness, test integration. Kicks back for issues. **Max 2 review iterations.** |
+| Test Generation | `/generating-tests` command | Enumerates proc branches, synthesizes fixtures, executes proc in sandbox, captures ground truth, writes `test-specs/<item_id>.json`. Review loop independently enumerates branches, scores coverage, reviews fixture quality. Kicks back for missing branches or quality issues. **Max 2 review iterations.** |
+| Migration | `/generating-model` command | Reads profile + test spec, generates dbt model + schema YAML (with `unit_tests:` rendered from test spec), runs `dbt test`, self-corrects up to **3 iterations**. Code review loop checks standards, correctness, test integration. Kicks back for issues. **Max 2 review iterations.** |
 
 **Key design decisions:**
 
@@ -93,7 +92,7 @@ flowchart LR
 - Sandbox is a CLI step, not an agent — it's deterministic infrastructure.
 - Review agents are pure quality gates — they don't generate artifacts or modify files.
 
-Full per-agent contracts (input/output schemas, pipeline steps, boundary rules): [Agent Contracts](../agent-contract/README.md).
+Full per-skill contracts (input/output schemas, pipeline steps, boundary rules): [Skill Contracts](../skill-contract/README.md).
 
 ---
 
@@ -130,95 +129,68 @@ dbt/                                # generated dbt project
 
 ### Status Updates
 
-Agents write directly to catalog files, test-specs, and dbt models. The catalog IS the pipeline state. Run metadata (timing, cost, per-item status) is tracked in a transient `.migration-status.json` that is `.gitignore`d — it is consumed at commit/PR time to generate rich commit messages and PR bodies, then discarded.
+Commands write directly to catalog files, test-specs, and dbt models via sub-agents. The catalog IS the pipeline state. Run metadata (timing, cost, per-item status) is collected in `.migration-runs/` (`.gitignore`d) — consumed at commit/PR time for rich messages, then stays local.
 
 ---
 
-## Execution Paths
+## Execution Model
 
-Three paths, one pipeline. All share the same deterministic Python CLIs and agent contracts — the difference is orchestration.
+Each pipeline stage has a skill (single-table, interactive) and a command (multi-table, parallel sub-agents). The skill defines the per-table processing rules. The command orchestrates multiple tables by spawning one sub-agent per table, each following the skill's rules.
 
-```text
-┌─────────────────────────────────────────────────────────┐
-│                   Migration Repository                  │
-│        (1 project = 1 repo, all state in catalog)       │
-└────────────────────────┬────────────────────────────────┘
-                         │
-        ┌────────────────┼────────────────┐
-        │                │                │
-   Interactive      Local Batch       GHA Batch
-   (skills +        (/batch-run       (migrate-util
-    approval)        command)          dispatch --all)
-        │                │                │
-        ▼                ▼                ▼
-   FDE approves      FDE present,     Autonomous
-   every step        reviews at        full-scope
-                     stage boundary
-```
+| Entry point | Tables | Approval | Status |
+|---|---|---|---|
+| Skill (`/scoping-table`, `/profiling-table`, etc.) | One | FDE reviews inline | Implemented |
+| Command (`/scoping`, `/profiling`, etc.) | Multiple | FDE reviews summary at end | **Not yet implemented** |
 
-| Path | Entry point | Approval gates | Runs where | Status |
-|---|---|---|---|---|
-| Interactive | Claude Code skills | Yes — every step | Local terminal | Implemented |
-| Local batch | `/batch-run <stage> --tables X,Y,Z` | Stage boundaries — FDE reviews between stages | Local terminal (Claude Code session) | **Not yet implemented** |
-| GHA batch | `migrate-util dispatch <stage> --all` | None — fully autonomous | GitHub Actions | **Deferred** |
+### Interactive (skills)
 
-### Interactive Flow
-
-The FDE drives the pipeline one table at a time using Claude Code skills:
+The FDE drives the pipeline one table at a time:
 
 1. `/listing-objects` — list tables, pick one
 2. `/scoping-table` — discover writers, resolve via `/analyzing-object`, FDE confirms
 3. `/profiling-table` — catalog signals + LLM inference, FDE approves
-4. `/generate-tests` — branch analysis, fixture synthesis, sandbox execution, ground truth capture
+4. `/generating-tests` — branch analysis, fixture synthesis, sandbox execution, ground truth capture
 5. `/generating-model` — generate dbt model from profile + test spec, FDE approves before file write
 
 Each step reads from and writes to catalog files. The FDE reviews and edits before approving.
 
-### Local Batch Execution
+### Multi-table (commands)
 
 > **Not yet implemented.**
 
-The FDE runs batches of 5-10 tables per stage from a Claude Code session using the `/batch-run` command. Two layers:
-
-| Layer | What | How |
-|---|---|---|
-| **`migrate-util` CLI** (deterministic) | Item eligibility filtering, agent subprocess spawning, status tracking, git operations | Python Typer, no LLM, `lib/shared/migrate_util.py` |
-| **`/batch-run` command** (interactive) | User-facing orchestration — task list, commit prompts, resolution questions, progress | Claude Code command, uses LLM for interaction only |
-
-A "run" is scoped to one stage and one set of tables. Each run gets its own git branch:
+The FDE passes multiple table names to a command:
 
 ```text
-main
-  ├── run/scope-batch-1          (scope tables 1-10)
-  ├── run/profile-batch-1        (profile tables 1-10)
-  └── run/migrate-batch-1        (migrate tables 1-5)
+/scoping silver.DimCustomer silver.DimProduct silver.FactSales
 ```
 
-Multiple runs can be in flight: scope batch 2 while profiling batch 1 while migrating batch 0. Full E2E (`/batch-run run --table X`) chains all stages for a single table only.
+Each command:
 
-Within a stage, the agent is autonomous (skip-and-continue on errors). Between stages, the FDE reviews via git diff, resolves ambiguous items, and decides whether to commit and proceed.
+1. Creates a branch (e.g. `run/scoping-batch-1`)
+2. Spawns one sub-agent per table in parallel — each sub-agent follows the skill's processing rules
+3. Sub-agents run autonomously (skip-and-continue on errors)
+4. Collects per-table results into `.migration-runs/results/`
+5. Aggregates `.migration-runs/summary.json`
+6. Presents summary to FDE, asks: commit + PR?
 
-**Commit and PR strategy:** The `/batch-run` command asks the FDE whether to commit. When committing, the CLI reads `.migration-status.json` and generates a rich commit message with run summary (per-table status, timing, cost). When creating a PR, the same summary goes into the PR body. No summary files are committed — the transient status file is consumed at commit/PR time and discarded.
+### Run log (ephemeral)
 
-### GHA Batch Execution
+Run summaries are collected in `.migration-runs/` (`.gitignore`d). Cleared at the start of each command invocation.
 
-> **Deferred.** Not in scope for the current implementation.
+```text
+.migration-runs/
+  meta.json                        # stage, tables, started_at
+  results/
+    <schema>.<table>.json          # one per item — sub-agent writes on completion
+  summary.json                     # command writes after all sub-agents finish
+```
+
+Consumed at commit/PR time for rich messages, stays local.
 
 ---
 
 ## Status
 
-> **Not yet implemented.** Depends on the `migrate-util` CLI.
+No separate status store. Durable status is git — catalog files, test-specs, and dbt models are committed artifacts. To see what's done, read the repo.
 
-Status is derived entirely from catalog files. No SQLite, no separate status table, no `artifacts/` directory.
-
-`migrate-util status` scans catalog files and test-specs to determine per-table stage completion:
-
-| Field | Source |
-|---|---|
-| Scoping done | `catalog/tables/<table>.json` has `scoping` section |
-| Profiling done | `catalog/tables/<table>.json` has `profile` section |
-| Test-gen done | `test-specs/<table>.json` exists |
-| Migration done | `dbt/models/` contains model `.sql` + `.yml` for the table |
-
-The transient `.migration-status.json` adds in-flight progress (timing, cost, per-item status) during a batch run. The `rich` library renders a formatted status table to the terminal.
+Diagnostics (errors, warnings) are stored per-table in catalog files as `diagnostics_entry` arrays — they travel with the table through the pipeline. Run summaries are ephemeral and collected in `.migration-runs/` (see Execution Model above).
