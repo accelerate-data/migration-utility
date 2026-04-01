@@ -1,6 +1,7 @@
 ---
 name: init-ad-migration
 description: Checks prerequisites, installs missing deps, scaffolds project files (CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, .githooks), and hands off to /setup-ddl.
+user-invocable: true
 ---
 
 # Initialize ad-migration plugin

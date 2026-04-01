@@ -1,6 +1,7 @@
 ---
 name: teardown-sandbox
 description: Drops a throwaway sandbox database created by setup-sandbox.
+user-invocable: true
 ---
 
 # Tear Down Sandbox

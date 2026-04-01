@@ -1,6 +1,7 @@
 ---
 name: setup-sandbox
 description: Creates a throwaway sandbox database by cloning schema from the source SQL Server. Checks prerequisites and calls the test-harness CLI. Persists sandbox info to manifest.json.
+user-invocable: true
 ---
 
 # Set Up Sandbox
