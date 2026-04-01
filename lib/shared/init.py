@@ -262,15 +262,51 @@ Before running the skill for each item:
 
 ## Git Lifecycle
 
+### Branching
+
 1. **Single table** — run on the current branch.
 2. **Multiple tables** — create branch `run/<command>-batch-N` (N = next unused integer).
-3. Clear `.migration-runs/`, write `meta.json` with `{stage, tables, started_at}`.
-4. Spawn one sub-agent per table. Each follows the corresponding skill's per-table rules.
-5. Sub-agents run autonomously; on error, skip the table and continue.
-6. Each sub-agent writes its result to `.migration-runs/results/<schema>.<table>.json`.
-7. Aggregate results into `.migration-runs/summary.json`.
-8. Present summary to FDE.
-9. Ask FDE: commit and open PR?
+
+### Execution
+
+1. Clear `.migration-runs/`, write `meta.json` with `{stage, tables, started_at}`.
+2. Spawn one sub-agent per table. Each follows the corresponding skill's per-table rules.
+3. Each sub-agent commits its artifacts on success (one commit per table).
+4. Each sub-agent writes its result to `.migration-runs/results/<schema>.<table>.json`.
+
+### Commit Messages
+
+Format: `<command>(<schema>.<table>): <one-line summary>`
+
+Example: `scoping(silver.DimCustomer): resolve 3 writers, 1 ambiguous`
+
+### Error Handling
+
+After all sub-agents finish, the command reads `.migration-runs/results/` for the success/error list. For each errored table, revert its commit:
+
+```bash
+git revert --no-edit <sha>
+```
+
+The FDE sees a clean branch with only succeeded tables. Errored table diagnostics remain in `.migration-runs/results/` for inspection.
+
+### PR Strategy
+
+1. Aggregate results into `.migration-runs/summary.json`.
+2. Present summary to FDE.
+3. Ask FDE: open PR?
+
+PR body includes:
+
+- Stage and table list from `meta.json`
+- Per-table status (success/skipped/error) from `summary.json`
+- Diagnostics summary for tables with warnings
+
+PRs target the repo's default branch. The FDE reviews and merges — the command does not auto-merge.
+
+### Interactive Mode
+
+Interactive skills (single-table, FDE-driven) follow the same one-commit-per-table rule. The FDE commits on approval. Interactive skills do not open PRs automatically — the FDE manages PRs as part of their normal workflow.
 
 ## Run Log Structure
 

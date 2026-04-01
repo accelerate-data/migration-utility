@@ -69,7 +69,7 @@
     },
     "plugin_ground_truth_harness": {
       "path": "plugins/ground-truth-harness/",
-      "description": "Ground-truth harness sub-plugin. Commands: commands/setup-sandbox.md (create throwaway sandbox DB by cloning schema from source SQL Server), commands/teardown-sandbox.md (drop sandbox DB)."
+      "description": "Ground-truth harness sub-plugin. Commands: commands/setup-sandbox.md (create throwaway sandbox DB by cloning schema from source SQL Server), commands/teardown-sandbox.md (drop sandbox DB), commands/generate-tests.md (multi-table test generation with review loop). Skills: skills/generating-tests/ (single-table test generation with ground truth capture), skills/reviewing-tests/ (LLM quality gate for test specs)."
     },
     "sandbox_backends": {
       "path": "lib/shared/sandbox/",
