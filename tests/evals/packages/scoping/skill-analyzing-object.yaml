@@ -23,90 +23,50 @@ defaultTest:
   vars:
     fixture_path: "tests/evals/fixtures/migration-test"
   assert:
-    - type: icontains
-      value: "Call Graph"
-    - type: icontains
-      value: "Logic Summary"
+    - type: javascript
+      value: file://../../assertions/check-procedure-catalog.js
 
 tests:
   # ── resolved: direct MERGE writer ─────────────────────────────
   - description: "resolved — DimProduct single MERGE writer"
     vars:
       target_table: "silver.usp_load_DimProduct"
-    assert:
-      - type: icontains
-        value: "Migration Guidance"
-      - type: icontains
-        value: "migrate"
-      - type: icontains
-        value: "MERGE"
-      - type: icontains
-        value: "bronze.Product"
+      expected_content: "merge"
 
   # ── ambiguous_multi_writer: two writers for DimCustomer ───────
   - description: "ambiguous — DimCustomer Full + Delta writers"
     vars:
       target_table: "silver.usp_load_DimCustomer_Full"
-    assert:
-      - type: icontains
-        value: "Migration Guidance"
-      - type: icontains
-        value: "migrate"
-      - type: icontains
-        value: "TRUNCATE"
+      expected_content: "truncate"
 
   # ── call-graph: EXEC chain orchestrator ───────────────────────
   - description: "call-graph — FactInternetSales EXEC orchestrator"
     vars:
       target_table: "silver.usp_load_FactInternetSales"
-    assert:
-      - type: icontains
-        value: "usp_stage_FactInternetSales"
 
   # ── dynamic-sql: sp_executesql only ───────────────────────────
   - description: "dynamic-sql — DimCurrency sp_executesql"
     vars:
       target_table: "silver.usp_load_DimCurrency"
-    assert:
-      - type: icontains
-        value: "Migration Guidance"
-      - type: icontains
-        value: "sp_executesql"
 
   # ── error-cross-db: cross-database reference ──────────────────
   - description: "error — DimEmployee cross-database reference"
     vars:
       target_table: "silver.usp_load_DimEmployee"
-    assert:
-      - type: icontains
-        value: "OtherDB"
 
   # ── writer-through-view ───────────────────────────────────────
   - description: "writer-through-view — DimPromotion via updateable view"
     vars:
       target_table: "silver.usp_load_DimPromotion"
-    assert:
-      - type: icontains
-        value: "Migration Guidance"
-      - type: icontains
-        value: "vw_DimPromotion"
+      expected_content: "vw_dimpromotion"
 
   # ── DimCustomer Delta (MERGE variant) ─────────────────────────
   - description: "resolved — DimCustomer Delta MERGE writer"
     vars:
       target_table: "silver.usp_load_DimCustomer_Delta"
-    assert:
-      - type: icontains
-        value: "Migration Guidance"
-      - type: icontains
-        value: "MERGE"
+      expected_content: "merge"
 
   # ── staging leaf procedure ────────────────────────────────────
   - description: "resolved — FactInternetSales staging leaf (TRUNCATE+INSERT)"
     vars:
       target_table: "silver.usp_stage_FactInternetSales"
-    assert:
-      - type: icontains
-        value: "Migration Guidance"
-      - type: icontains
-        value: "migrate"

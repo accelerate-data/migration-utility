@@ -88,6 +88,14 @@ See `repo-map.json` for the full directory structure and agent notes.
 
 Update `repo-map.json` whenever files are added, removed, or renamed in structural directories (ddl/, catalog/, dbt/).
 
+## Skill Reasoning
+
+Before answering any LLM judgment step (classification, writer selection, statement tagging, profiling question), state your reasoning in 1–2 sentences. This trace must appear in the conversation log so reviewers and batch-run debuggers can see *why* a decision was made, not just *what* it was.
+
+## Output Framing
+
+Present results so the reader understands the output without mental overhead. Lead with the decision, then supporting evidence. At approval gates, the user should see the answer first and the reasoning second — not the other way around.
+
 ## Commit Discipline
 
 Commit at logical checkpoints so work is never lost mid-session.
@@ -345,6 +353,8 @@ _CLAUDE_MD_REQUIRED_SECTIONS = [
     "Skills",
     "MCP Servers",
     "Guardrails",
+    "Skill Reasoning",
+    "Output Framing",
     "Maintenance",
     "Commit Discipline",
 ]

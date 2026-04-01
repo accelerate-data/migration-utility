@@ -121,6 +121,10 @@
           "type": "string",
           "description": "Normalized FQN of the selected writer procedure. Present only when status is resolved."
         },
+        "selected_writer_rationale": {
+          "type": "string",
+          "description": "LLM reasoning for why this writer was selected over alternatives (or why ambiguous/no_writer_found)."
+        },
         "candidates": {
           "type": "array",
           "items": {
@@ -184,6 +188,7 @@
           "properties": {
             "columns": { "type": "array", "items": { "type": "string" } },
             "primary_key_type": { "type": "string", "enum": ["surrogate", "natural", "composite", "unknown"] },
+            "rationale": { "type": "string", "description": "Why these columns were identified as the primary key and why this PK type." },
             "source": { "type": "string", "enum": ["catalog", "llm", "catalog+llm"] }
           }
         },
@@ -212,6 +217,7 @@
               "references_source_relation": { "type": "string" },
               "references_column": { "type": "string" },
               "fk_type": { "type": "string", "enum": ["standard", "role_playing", "degenerate"] },
+              "rationale": { "type": "string", "description": "Why this FK type was chosen (standard vs role_playing vs degenerate)." },
               "source": { "type": "string", "enum": ["catalog", "llm", "catalog+llm"] }
             }
           }
@@ -224,6 +230,7 @@
               "column": { "type": "string" },
               "entity": { "type": "string" },
               "suggested_action": { "type": "string", "enum": ["mask", "drop", "tokenize", "keep"] },
+              "rationale": { "type": "string", "description": "Why this PII action was suggested for this column." },
               "source": { "type": "string", "enum": ["catalog", "llm", "catalog+llm"] }
             }
           }

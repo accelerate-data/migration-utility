@@ -62,7 +62,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" profile write \
   --profile '<json>'
 ```
 
-The profile JSON must match the `profile_section` schema in `lib/shared/schemas/table_catalog.json`. Required fields: `status`, `writer`. All enum values must be from the allowed sets.
+The profile JSON must match the `profile_section` schema in `lib/shared/schemas/table_catalog.json`. Required fields: `status`, `writer`. All enum values must be from the allowed sets. Each decision point must include a `rationale` field (1–2 sentences): `classification.rationale`, `primary_key.rationale`, `natural_key.rationale`, `watermark.rationale`, and per-entry `rationale` in `foreign_keys[]` and `pii_actions[]`.
 
 If the write exits non-zero, report the validation errors and ask the user to correct.
 

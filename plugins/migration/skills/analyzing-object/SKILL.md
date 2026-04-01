@@ -89,7 +89,7 @@ After presenting the analysis to the user, persist resolved statements to catalo
 
 1. Read `raw_ddl` and analyse each `claude` statement — follow the call graph, resolve dynamic SQL, and classify as `migrate` or `skip`.
 2. Present the full resolved statement list for confirmation. Show each statement with its proposed action and rationale.
-3. After confirmation (with any edits), persist. All resolved statements get `source: "llm"`.
+3. After confirmation (with any edits), persist. All resolved statements get `source: "llm"`. Each statement must include a `rationale` field (1–2 sentences) explaining why it is `migrate` or `skip`.
 
 No `claude` actions are written to catalog — all must be resolved before persisting.
 
