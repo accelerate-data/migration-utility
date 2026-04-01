@@ -140,11 +140,13 @@ class SqlServerSandbox(SandboxBackend):
         quoted = f"[{sandbox_db}]"
         with self._connect() as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                f"IF DB_ID(?) IS NOT NULL "
-                f"DROP DATABASE {quoted}",
-                sandbox_db,
-            )
+            cursor.execute("SELECT DB_ID(?)", sandbox_db)
+            exists = cursor.fetchone()[0] is not None
+            if exists:
+                cursor.execute(
+                    f"ALTER DATABASE {quoted} SET SINGLE_USER WITH ROLLBACK IMMEDIATE"
+                )
+                cursor.execute(f"DROP DATABASE {quoted}")
             cursor.execute(f"CREATE DATABASE {quoted}")
             logger.info("event=database_created run_id=%s db=%s", run_id, sandbox_db)
 
@@ -157,12 +159,10 @@ class SqlServerSandbox(SandboxBackend):
             _validate_identifier(schema)
             try:
                 sandbox_cursor.execute(
-                    "IF NOT EXISTS ("
-                    "  SELECT 1 FROM sys.schemas WHERE name = ?"
-                    ") EXEC(N'CREATE SCHEMA ' + QUOTENAME(?))",
-                    schema,
-                    schema,
+                    "SELECT 1 FROM sys.schemas WHERE name = ?", schema,
                 )
+                if sandbox_cursor.fetchone() is None:
+                    sandbox_cursor.execute(f"CREATE SCHEMA [{schema}]")
             except pyodbc.Error as exc:
                 errors.append({
                     "code": "SCHEMA_CREATE_FAILED",
@@ -317,17 +317,17 @@ class SqlServerSandbox(SandboxBackend):
         logger.info("event=sandbox_down run_id=%s sandbox_db=%s", run_id, sandbox_db)
 
         try:
+            _validate_sandbox_db_name(sandbox_db)
             quoted = f"[{sandbox_db}]"
             with self._connect() as conn:
                 cursor = conn.cursor()
-                cursor.execute(
-                    f"IF DB_ID(?) IS NOT NULL "
-                    f"BEGIN "
-                    f"  ALTER DATABASE {quoted} SET SINGLE_USER WITH ROLLBACK IMMEDIATE; "
-                    f"  DROP DATABASE {quoted}; "
-                    f"END",
-                    sandbox_db,
-                )
+                cursor.execute("SELECT DB_ID(?)", sandbox_db)
+                exists = cursor.fetchone()[0] is not None
+                if exists:
+                    cursor.execute(
+                        f"ALTER DATABASE {quoted} SET SINGLE_USER WITH ROLLBACK IMMEDIATE"
+                    )
+                    cursor.execute(f"DROP DATABASE {quoted}")
             logger.info("event=sandbox_down_complete run_id=%s", run_id)
             return {"run_id": run_id, "sandbox_database": sandbox_db, "status": "ok"}
         except pyodbc.Error as exc:
