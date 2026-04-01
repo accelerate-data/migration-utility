@@ -72,7 +72,7 @@ See `repo-map.json` for the full directory structure and agent notes.
 | `/profiling-table` | Interactive single-table profiling with approval gates |
 | `/generating-tests` | Generate ground truth test fixtures for a table |
 | `/reviewing-tests` | Quality gate for test generation output |
-| `/generating-model` | Generate dbt models from stored procedures |
+| `/generate-model` | Generate dbt models from stored procedures |
 
 ## MCP Servers
 
@@ -155,7 +155,7 @@ These values are passed to the `mssql` MCP server at startup via environment inh
 2. **`/setup-ddl`** — extract DDL from live SQL Server into local artifact files
 3. **`/listing-objects`** — browse the DDL catalog (list objects by type)
 4. **`/profiling-table`** — profile individual tables interactively
-5. **`/generating-model`** — generate dbt models from stored procedures
+5. **`/generate-model`** — generate dbt models from stored procedures
 
 ## Directory Structure
 
@@ -244,7 +244,7 @@ export SA_PASSWORD=
 COMMAND_LIFECYCLE_MD = """\
 # Command Lifecycle
 
-Every stage-specific command (`/scoping`, `/profiling`, `/generating-tests`, `/generating-model`) follows this shared lifecycle. Individual commands add stage-specific guards and delegation rules on top.
+Every stage-specific command (`/scope`, `/profile`, `/generate-tests`, `/generate-model`) follows this shared lifecycle. Individual commands add stage-specific guards and delegation rules on top.
 
 ## Invocation
 

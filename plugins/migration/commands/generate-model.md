@@ -1,5 +1,5 @@
 ---
-name: generating-model
+name: generate-model
 description: >
   Batch model generation command — generates dbt models from stored procedures.
   Delegates per-item generation to the /generating-model skill. No approval gates.
@@ -7,7 +7,7 @@ user-invocable: true
 argument-hint: "<schema.table> [schema.table ...]"
 ---
 
-# Generating Model
+# Generate Model
 
 Generate dbt models for a batch of table/writer pairs. Delegates per-item generation to the `/generating-model` skill.
 

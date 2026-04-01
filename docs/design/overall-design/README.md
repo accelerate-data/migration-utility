@@ -74,17 +74,17 @@ flowchart LR
 | Path | Entry point | Approval gates | Runs where | Status |
 |---|---|---|---|---|
 | Interactive | FDE uses skills (`/listing-objects`, `/scoping-table`, `/profiling-table`, `/generating-model`) | Yes — every step | Local terminal | Implemented |
-| Multi-table | FDE uses commands (`/scoping`, `/profiling`, `/generating-tests`, `/generating-model`) | FDE reviews summary at end | Local terminal | **Not yet implemented** |
+| Multi-table | FDE uses commands (`/scope`, `/profile`, `/generate-tests`, `/generate-model`) | FDE reviews summary at end | Local terminal | **Not yet implemented** |
 
 ### Stages
 
 | Stage | Executor | Role |
 |---|---|---|
-| Scoping | `/scoping` command | Delegates to `/scoping-table` per table. Discovers writers, analyzes candidates via `/analyzing-object`, writes `selected_writer` to catalog. |
-| Profiling | `/profiling` command | Delegates to `/profiling-table` per table. Classifies table, identifies keys, watermark, FKs, PII. Writes profile answers to catalog. |
+| Scoping | `/scope` command | Delegates to `/scoping-table` per table. Discovers writers, analyzes candidates via `/analyzing-object`, writes `selected_writer` to catalog. |
+| Profiling | `/profile` command | Delegates to `/profiling-table` per table. Classifies table, identifies keys, watermark, FKs, PII. Writes profile answers to catalog. |
 | Sandbox Up | `test-harness sandbox-up` (CLI) | Create throwaway database for ground-truth capture. Not an agent. |
-| Test Generation | `/generating-tests` command | Enumerates proc branches, synthesizes fixtures, executes proc in sandbox, captures ground truth, writes `test-specs/<item_id>.json`. Review loop independently enumerates branches, scores coverage, reviews fixture quality. Kicks back for missing branches or quality issues. **Max 2 review iterations.** |
-| Migration | `/generating-model` command | Reads profile + test spec, generates dbt model + schema YAML (with `unit_tests:` rendered from test spec), runs `dbt test`, self-corrects up to **3 iterations**. Code review loop checks standards, correctness, test integration. Kicks back for issues. **Max 2 review iterations.** |
+| Test Generation | `/generate-tests` command | Enumerates proc branches, synthesizes fixtures, executes proc in sandbox, captures ground truth, writes `test-specs/<item_id>.json`. Review loop independently enumerates branches, scores coverage, reviews fixture quality. Kicks back for missing branches or quality issues. **Max 2 review iterations.** |
+| Migration | `/generate-model` command | Reads profile + test spec, generates dbt model + schema YAML (with `unit_tests:` rendered from test spec), runs `dbt test`, self-corrects up to **3 iterations**. Code review loop checks standards, correctness, test integration. Kicks back for issues. **Max 2 review iterations.** |
 
 **Key design decisions:**
 
@@ -140,7 +140,7 @@ Each pipeline stage has a skill (single-table, interactive) and a command (multi
 | Entry point | Tables | Approval | Status |
 |---|---|---|---|
 | Skill (`/scoping-table`, `/profiling-table`, etc.) | One | FDE reviews inline | Implemented |
-| Command (`/scoping`, `/profiling`, etc.) | Multiple | FDE reviews summary at end | **Not yet implemented** |
+| Command (`/scope`, `/profile`, etc.) | Multiple | FDE reviews summary at end | **Not yet implemented** |
 
 ### Interactive (skills)
 

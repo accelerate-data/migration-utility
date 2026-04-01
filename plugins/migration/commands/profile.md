@@ -1,5 +1,5 @@
 ---
-name: profiling
+name: profile
 description: >
   Batch profiling command — produces migration profiles for each table.
   Delegates per-item profiling to the /profiling-table skill. No approval gates.
@@ -7,7 +7,7 @@ user-invocable: true
 argument-hint: "<schema.table> [schema.table ...]"
 ---
 
-# Profiling
+# Profile
 
 Given a batch of target tables, produce migration profile candidates for each table and write them into the table catalog files. Delegates per-item profiling to the `/profiling-table` skill.
 

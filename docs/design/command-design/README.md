@@ -8,10 +8,10 @@ Commands are plugin command files (`.md` files in `plugins/migration/commands/`)
 
 | Command | Skill per table | Notes |
 |---|---|---|
-| `/scoping` | `/scoping-table` | |
-| `/profiling` | `/profiling-table` | |
-| `/generating-tests` | `/generating-tests` | Includes test-reviewer sub-agent loop |
-| `/generating-model` | `/generating-model` | Includes code-reviewer sub-agent loop |
+| `/scope` | `/scoping-table` | |
+| `/profile` | `/profiling-table` | |
+| `/generate-tests` | `/generating-tests` | Includes test-reviewer sub-agent loop |
+| `/generate-model` | `/generating-model` | Includes code-reviewer sub-agent loop |
 
 ## Invocation
 

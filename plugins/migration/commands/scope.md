@@ -1,5 +1,5 @@
 ---
-name: scoping
+name: scope
 description: >
   Batch scoping command — identifies writer procedures for each table.
   Delegates per-item scoping to the /scoping-table skill. No approval gates.
@@ -7,7 +7,7 @@ user-invocable: true
 argument-hint: "<schema.table> [schema.table ...]"
 ---
 
-# Scoping
+# Scope
 
 Given a batch of target tables, identify which procedures write to each and select the single writer when resolvable. Delegates per-item scoping to the `/scoping-table` skill.
 
