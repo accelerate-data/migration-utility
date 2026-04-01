@@ -13,153 +13,179 @@ Migration utility for stored-procedure-to-dbt conversion: a Claude Code plugin f
 
 ---
 
-## Prerequisites
+## Environment Setup
 
-1. **GitHub account** with `gh` CLI authenticated (`gh auth login`). The migration repo lives here; GHA workflows execute agent runs.
+Four commands prepare a migration repo before any per-table work begins. Steps 1-3 run once per project; step 4 runs once per test-generation batch.
+
+| Step | Command | Type | Prerequisites | Produces |
+|---|---|---|---|---|
+| 1. Scaffold project | `/init-ad-migration` | Plugin command | Plugin loaded, uv, Python 3.11+ | `CLAUDE.md`, `README.md`, `repo-map.json`, `.gitignore`, `.githooks/` |
+| 2. Extract DDL + catalog | `/setup-ddl` | Skill (interactive) | toolbox on PATH, MSSQL env vars (`MSSQL_HOST`, `MSSQL_PORT`, `SA_PASSWORD`) | `manifest.json`, `ddl/*.sql`, `catalog/**/*.json` |
+| 3. Scaffold dbt project | `/init-dbt` | Plugin command | `manifest.json`, populated `catalog/tables/` | `dbt/` project tree with `sources.yml` |
+| 4. Create test sandbox | `test-harness sandbox-up` | CLI (`uv run`) | `manifest.json`, MSSQL env vars | `__test_<run_id>` throwaway database |
+
+### Prerequisites
+
+1. **GitHub account** with `gh` CLI authenticated (`gh auth login`).
 2. **Claude Code CLI** installed and authenticated.
-3. **`ad-migration` plugin** installed in Claude Code (marketplace package containing bootstrap, migration, and ground-truth-harness plugins).
+3. **`ad-migration` plugin** installed (marketplace package containing bootstrap, migration, and ground-truth-harness plugins).
+
+### Step details
+
+**`/init-ad-migration`** — checks prerequisites (uv, Python, toolbox, MSSQL vars, git, direnv), presents a plan, then scaffolds project files and configures git hooks. Entry point for every new migration project.
+
+**`/setup-ddl`** — connects to a live SQL Server via MCP, extracts DDL for user-selected databases and schemas, builds catalog files with 12 signal queries (PKs, FKs, identity, CDC, change tracking, sensitivity, DMF refs), and runs AST enrichment. All downstream stages depend on the catalog this produces.
+
+**`/init-dbt`** — reads `manifest.json` and catalog to scaffold a dbt project with adapter-specific `profiles.yml` and `sources.yml` generated from catalog tables. User picks target platform (Fabric Lakehouse, Spark, Snowflake, DuckDB). Idempotent — regenerates `sources.yml` on re-run, never overwrites `profiles.yml`.
+
+**`test-harness sandbox-up`** — creates a throwaway database (`__test_<run_id>`) by cloning schema and procedures from the source SQL Server. Used by the test generator to execute procs and capture ground truth. Torn down after test generation via `test-harness sandbox-down`.
 
 ---
 
-## High-Level Architecture
+## Migration Workflow
+
+Six stages per table, with two quality-gate review loops:
 
 ```text
-Three execution paths, one pipeline:
-
-┌─────────────────────────────────────────────────────────┐
-│                   Migration Repository                  │
-│  (1 project = 1 repo, all state in artifact JSONs)      │
-└────────────────────────┬────────────────────────────────┘
-                         │
-        ┌────────────────┼────────────────┐
-        │                │                │
-   Interactive      Local Batch       GHA Batch
-   (FDE + Claude    (migrate-util     (migrate-util
-    Code skills)     scope --table)    dispatch --all)
-        │                │                │
-        ▼                ▼                ▼
-   Approval gates    Autonomous       Autonomous
-   at every step     single-table     full-scope
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          Per-Table Pipeline                                 │
+│                                                                             │
+│  Scoping ──► Profiling ──► Sandbox Up ──►┌──────────────┐──► Migration Loop │
+│                                          │  Test Loop   │                   │
+│                                          │              │                   │
+│                                          │  Generator   │    ┌────────────┐ │
+│                                          │    ▼         │    │ Model Gen  │ │
+│                                          │  Reviewer    │    │    ▼       │ │
+│                                          │    │         │    │ dbt test   │ │
+│                                          │  pass? ──no──│─┐  │ (≤3 iter) │ │
+│                                          │    │    (≤2) │ │  │    ▼       │ │
+│                                          │   yes        │ │  │ Code Rev  │ │
+│                                          └────┼─────────┘ │  │    │      │ │
+│                                               │           │  │  pass?    │ │
+│                                               ▼           │  │  no ──────│─┤
+│                                          test-specs/      │  │  (≤2)    │ │
+│                                               │           │  │   yes     │ │
+│                                               └───────────│──►   ▼       │ │
+│                                                           │  │  Done     │ │
+│                                                           │  └────────────┘ │
+│                                                           │                 │
+│                                                    ◄──────┘  ──► Sandbox   │
+│                                                                   Down     │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-| Path | Entry point | Approval gates | Runs where | Status |
-|---|---|---|---|---|
-| Interactive | FDE opens Claude Code, uses skills (`/discover-objects`, `/profile-table`, `/generate-model`) | Yes -- every step | Local terminal | Implemented |
-| Local batch | `migrate-util scope --table X` | None -- agent runs autonomously | Local terminal | **Not yet implemented** |
-| GHA batch | `migrate-util dispatch scope --all` | None -- commits input, triggers GHA workflow | GitHub Actions | **Not yet implemented** |
+### Stages
 
-All three paths share the same deterministic Python skills and agent contracts. The difference is orchestration: interactive stops for FDE approval, batch continues autonomously.
+| Stage | Executor | Role |
+|---|---|---|
+| Scoping | `scoping-agent` | Discover which stored procedure writes each table. Reads catalog refs, falls back to AST analysis. Writes `selected_writer` to catalog. |
+| Profiling | `profiler-agent` | Classify table, identify keys, watermark, FKs, PII. Writes profile answers to catalog. |
+| Sandbox Up | `test-harness sandbox-up` (CLI) | Create throwaway database for ground-truth capture. Not an agent. |
+| Test Generation | `test-generator-agent` + `test-reviewer-agent` | Generator enumerates proc branches, synthesizes fixtures, executes proc in sandbox, captures ground truth, writes `test-specs/<item_id>.json`. Reviewer independently enumerates branches, scores coverage, reviews fixture quality. Kicks back for missing branches or quality issues. **Max 2 review iterations.** |
+| Migration | `model-generator-agent` + `code-reviewer-agent` | Model generator reads profile + test spec, generates dbt model + schema YAML (with `unit_tests:` rendered from test spec), runs `dbt test`, self-corrects up to **3 iterations**. Code reviewer checks standards, correctness, test integration. Kicks back for issues. **Max 2 review iterations.** |
+| Sandbox Down | `test-harness sandbox-down` (CLI) | Drop throwaway database. Idempotent. |
+
+**Key design decisions:**
+
+- Test generation runs BEFORE migration — the model-generator consumes the approved test spec and must pass `dbt test` against it.
+- Sandbox is a CLI step, not an agent — it's deterministic infrastructure.
+- Review agents are pure quality gates — they don't generate artifacts or modify files.
+
+Full per-agent contracts (input/output schemas, pipeline steps, boundary rules): [Agent Contracts](../agent-contract/README.md).
 
 ---
 
 ## Migration Repository
 
-One project per repo. No multi-project support, no slugs, no project IDs.
+One project per repo. The migration repo is shared state between all execution paths — catalog files are the source of truth that every stage reads and writes.
 
-### Directory Layout
+### Core Layout
 
 ```text
-manifest.json                  # dialect config (default: tsql)
-catalog/
+manifest.json                       # source metadata (technology, dialect, database, schemas)
+catalog/                            # shared state — all stages read/write here
   tables/
-    dbo.FactSales.json         # table catalog (keys, FKs, PII, profile answers)
-    dbo.DimCustomer.json
+    <schema>.<table>.json           # columns, keys, FKs, PII, profile answers, scoping results
   procedures/
-    dbo.usp_Load_FactSales.json  # procedure catalog (statements, writer refs)
-ddl/
-  tables.sql                   # CREATE TABLE statements (filenames are conventional — loader detects object types from CREATE statements)
-  procedures.sql               # CREATE PROCEDURE bodies
+    <schema>.<proc>.json            # params, references, resolved statements
+  views/
+    <schema>.<view>.json
+  functions/
+    <schema>.<func>.json
+ddl/                                # extracted DDL — read-only after setup-ddl
+  tables.sql
+  procedures.sql
   views.sql
   functions.sql
-artifacts/
-  scoping-agent/
-    {run_id}.input.json        # agent input committed before dispatch
-    {run_id}.json              # agent output, immutable, committed by GHA or local agent
-  profiler-agent/
-    {run_id}.input.json
-    {run_id}.json
-  model-generator-agent/
-    {run_id}.input.json
-    {run_id}.json
-  test-generator-agent/
-    {run_id}.input.json
-    {run_id}.json
-dbt/
-  models/                      # generated dbt models and schema files
+test-specs/                         # test-generator output → model-generator input
+  <item_id>.json                    # branch manifest, unit_tests[], ground truth
+dbt/                                # generated dbt project
+  models/
+    staging/
+      sources.yml                   # generated by init-dbt from catalog
+    ...
 ```
 
-Catalog files (`catalog/tables/`, `catalog/procedures/`) are the shared state between all execution paths. They are read and written by the deterministic Python skills.
+### Batch Artifacts
 
----
-
-## DDL Extraction
-
-The `setup-ddl` CLI extracts DDL and builds catalog files from MCP query results. This runs once at project setup. Source metadata (technology, dialect, schemas) is recorded in `manifest.json` at the project root.
-
----
-
-## Pipeline
-
-Four stages, executed in order:
+The `artifacts/` directory exists only for batch and GHA execution paths. It is the audit trail for agent runs — the interactive path does not use it.
 
 ```text
-Scoping ──► Profiling ──► Migration ──► Test Generation
+artifacts/
+  <agent-name>/
+    <run_id>.input.json             # committed before dispatch (what was requested)
+    <run_id>.json                   # committed after completion (what was produced)
 ```
 
-Each stage reads upstream catalog/artifact data and produces its own output. See [Agent Contracts](../agent-contract/README.md) for per-agent input/output schemas.
-
-| Stage | Agent | What it does | Status |
-|---|---|---|---|
-| Scoping | `scoping-agent` | Discover writers for each table via catalog refs + AST fallback | Implemented |
-| Profiling | `profiler-agent` | Classify tables, identify keys/watermarks/FKs/PII | Implemented |
-| Migration | `model-generator-agent` | Generate dbt models from proc bodies + profile answers | Implemented |
-| Test Generation | `test-generator-agent` | Generate schema tests and unit test fixtures | **Not yet implemented** |
+Each agent gets its own subdirectory. Input is committed before the agent starts; output is committed after it finishes. Run files are append-only — a later run supersedes prior runs for the same table. The interactive path writes directly to catalog and test-specs, skipping artifacts entirely.
 
 ---
 
-## Interactive Migration
+## Execution Paths
 
-The FDE uses Claude Code skills directly. The `/migrate-table` orchestrator command drives the full pipeline for a single table with approval gates at every step.
+Three paths, one pipeline. All share the same deterministic Python CLIs and agent contracts — the difference is orchestration.
 
-Flow:
-
-1. `/discover-objects` -- list tables, pick one
-2. `/discover-objects show` -- statement breakdown, resolve `claude` statements via LLM + FDE confirmation
-3. `/profile-table` -- catalog signals + LLM inference, FDE approves candidates
-4. `/generate-model` -- generate dbt model, FDE approves before file write
-
-Each step reads from and writes to catalog files in the migration repo. The FDE reviews and edits before approving.
-
----
-
-## Batch Execution
-
-> **Not yet implemented.** The `migrate-util` CLI and GHA dispatch workflows described below are planned but not built.
-
-### Local Batch
-
-```bash
-migrate-util scope --table dbo.FactSales
-migrate-util profile --table dbo.FactSales
-migrate-util migrate --table dbo.FactSales
+```text
+┌─────────────────────────────────────────────────────────┐
+│                   Migration Repository                  │
+│        (1 project = 1 repo, all state in catalog)       │
+└────────────────────────┬────────────────────────────────┘
+                         │
+        ┌────────────────┼────────────────┐
+        │                │                │
+   Interactive      Local Batch       GHA Batch
+   (skills +        (migrate-util     (migrate-util
+    approval)        --table)          dispatch --all)
+        │                │                │
+        ▼                ▼                ▼
+   FDE approves      Autonomous       Autonomous
+   every step        single-table     full-scope
 ```
 
-Runs the agent pipeline for a single table locally. No approval gates -- the agent runs autonomously and commits results to the migration repo.
+| Path | Entry point | Approval gates | Runs where | Status |
+|---|---|---|---|---|
+| Interactive | Claude Code skills | Yes — every step | Local terminal | Implemented |
+| Local batch | `migrate-util <stage> --table X` | None — agent runs autonomously | Local terminal | **Not yet implemented** |
+| GHA batch | `migrate-util dispatch <stage> --all` | None — commits input, triggers workflow | GitHub Actions | **Not yet implemented** |
 
-### GHA Dispatch
+### Interactive Flow
 
-```bash
-migrate-util dispatch scope --all
-migrate-util dispatch profile --all
-```
+The FDE drives the pipeline one table at a time using Claude Code skills:
 
-Commits an `{action}/{run_id}.input.json` to the migration repo and triggers a `workflow_dispatch` on the corresponding GHA workflow. The workflow:
+1. `/discover-objects` — list tables, pick one, resolve writer
+2. `/profile-table` — catalog signals + LLM inference, FDE approves
+3. `/generate-tests` — branch analysis, fixture synthesis, sandbox execution, ground truth capture
+4. `/generate-model` — generate dbt model from profile + test spec, FDE approves before file write
 
-1. Clones the migration repo.
-2. Installs genai-toolbox binary; starts DDL file MCP in HTTP mode on `localhost:5000`.
-3. Installs Claude Code CLI with the `ad-migration` plugin.
-4. Runs the agent.
-5. Creates branch `run/{run_id}`, commits output JSON, merges into `main`, deletes the run branch.
+Each step reads from and writes to catalog files. The FDE reviews and edits before approving.
+
+### Batch Execution
+
+> **Not yet implemented.** The `migrate-util` CLI and GHA dispatch workflows are planned but not built.
+
+**Local batch:** runs the agent pipeline for a single table locally, autonomously committing results.
+
+**GHA batch:** commits `artifacts/<agent>/<run_id>.input.json`, triggers a `workflow_dispatch` on the corresponding GHA workflow. The workflow clones the repo, starts the MCP server, runs the agent, and commits output.
 
 ---
 
@@ -167,42 +193,6 @@ Commits an `{action}/{run_id}.input.json` to the migration repo and triggers a `
 
 > **Not yet implemented.** Depends on the `migrate-util` CLI.
 
-Status is derived entirely from artifact JSONs in the migration repo. No SQLite, no separate status table.
+Status is derived from catalog files and batch artifact JSONs. No SQLite, no separate status table.
 
-```bash
-migrate-util status
-migrate-util status --table dbo.FactSales
-```
-
-For each table, `status` scans `artifacts/{action}/` directories, finds the latest run per table per stage, and reports:
-
-| Field | Source |
-|---|---|
-| Stage completion | Presence of `{run_id}.json` output file |
-| Success/failure | `status` field in the output JSON |
-| Staleness | Compare upstream artifact timestamps (a profile run older than its scope input is stale) |
-
-Last run per table wins -- a later run supersedes all prior runs for that table.
-
----
-
-## Agent Execution Model
-
-> **GHA dispatch not yet implemented.** The per-agent workflow design below is planned.
-
-One GitHub Actions workflow file per agent. Each workflow run corresponds to exactly one agent and one batch of tables.
-
-### Agent Plugin
-
-The repo root is a Claude Code marketplace package containing three plugins (bootstrap, migration, ground-truth-harness). See `AGENTS.md` for repo structure and `repo-map.json` for the full module/entrypoint map.
-
-### Workflow Steps (planned)
-
-1. Clone the migration repo.
-2. Install genai-toolbox binary; start DDL file MCP in HTTP mode on `localhost:5000`.
-3. Install Claude Code CLI.
-4. Run agent via the `ad-migration` plugin.
-5. Create branch `run/{run_id}`.
-6. Commit output JSON to `artifacts/{action}/{run_id}.json` on that branch.
-7. Merge `run/{run_id}` into `main` (each run touches a unique file path -- no conflicts).
-8. Delete the `run/{run_id}` branch.
+For each table, `status` finds the latest run per stage and reports completion, success/failure (`status` field), and staleness (upstream artifact newer than downstream).
