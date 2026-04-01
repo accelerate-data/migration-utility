@@ -59,8 +59,12 @@ The skill writes `test-specs/<item_id>.json` with branch manifest and fixtures b
 For each item that completed step 2, launch a review sub-agent in isolated context:
 
 ```text
-You are a test reviewer. Run the ground-truth-harness:reviewing-tests skill for <item_id> --iteration 1.
-The skill handles its own context assembly. Return your verdict as a TestReviewResult JSON block.
+Run the ground-truth-harness:reviewing-tests skill for <item_id> --iteration 1.
+The worktree is at <worktree-path>.
+The test spec is at <worktree-path>/test-specs/<item_id>.json.
+Write the TestReviewResult JSON to .migration-runs/<item_id>.review.json.
+On failure, write result with status: "error" and error details.
+Return the TestReviewResult JSON.
 ```
 
 Parse the returned TestReviewResult JSON:
