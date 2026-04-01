@@ -181,7 +181,14 @@ Then:
 cd <project-root>/dbt && dbt compile
 ```
 
-If `dbt deps` fails, check whether `dbt` is installed and the adapter package is available. Tell the user which package to install if missing.
+If `dbt deps` fails, check whether `dbt` is installed and the adapter package is available. Use this mapping to tell the user which package to install:
+
+| Target | Adapter package |
+|---|---|
+| Fabric Lakehouse | `dbt-fabric` |
+| Spark | `dbt-spark` |
+| Snowflake | `dbt-snowflake` |
+| DuckDB | `dbt-duckdb` |
 
 If `dbt compile` fails for non-DuckDB targets (due to placeholder credentials), that is expected. Tell the user to update `profiles.yml` with real credentials before running `dbt compile` again.
 
@@ -212,14 +219,14 @@ dbt project scaffolded at <project-root>/dbt/
 
 Next steps:
   1. Update profiles.yml with your connection credentials (unless DuckDB)
-  2. Run /scoping, /profiling, and /generating-model to migrate stored procedures to dbt models
+  2. Run /scope, /profile, /generate-tests, and /generate-model to migrate stored procedures to dbt models
 ```
 
 ## Idempotency
 
 If `dbt/` already exists:
 
-1. Read existing `dbt_project.yml` to confirm it was created by this command.
+1. Confirm `dbt_project.yml` exists — that is sufficient to detect an existing project.
 2. Regenerate `sources.yml` from current catalog (may have new tables from a re-run of setup-ddl).
 3. Do not overwrite `profiles.yml` (user may have added real credentials).
 4. Do not overwrite existing model files in `models/staging/` or `models/marts/`.

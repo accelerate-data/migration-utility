@@ -61,7 +61,7 @@ List user databases on the server:
 SELECT name FROM sys.databases WHERE database_id > 4 ORDER BY name
 ```
 
-Use `AskUserQuestion` to present the list with a `None — exit` option. If the user picks `None`, stop immediately with no further action. Once a database is selected, run `USE [<database>]` before all subsequent queries to set the database context.
+Present the list ask them to pick 1. Do not proceed without a selected database. Once a database is selected, run `USE [<database>]` before all subsequent queries to set the database context.
 
 ## Step 2 — Select schemas
 
@@ -83,6 +83,8 @@ ORDER BY s.name
 ```
 
 Present the results with an `all` option. If `all` is selected, do not add a schema filter to subsequent queries. Store the selected schemas for filtering in subsequent steps.
+
+When substituting `<selected-schemas>` into SQL `IN` clauses, quote each schema name as a string literal: `IN ('dbo', 'silver', 'bronze')`. Never use unquoted identifiers in `IN` clauses.
 
 ## Step 3 — Extraction preview + confirm
 
@@ -311,6 +313,7 @@ BEGIN TRY
     WHERE SCHEMA_NAME(t.schema_id) IN (<selected-schemas>)
 END TRY
 BEGIN CATCH
+    SELECT 'change_tracking' AS signal, ERROR_MESSAGE() AS error_message
 END CATCH
 ```
 
@@ -325,6 +328,7 @@ BEGIN TRY
     WHERE t.is_ms_shipped = 0 AND SCHEMA_NAME(t.schema_id) IN (<selected-schemas>)
 END TRY
 BEGIN CATCH
+    SELECT 'sensitivity' AS signal, ERROR_MESSAGE() AS error_message
 END CATCH
 ```
 
@@ -406,6 +410,7 @@ BEGIN
         ) ref;
     END TRY
     BEGIN CATCH
+        INSERT INTO @result VALUES (@schema, @name, '', '', '', 'ERROR: ' + ERROR_MESSAGE(), 0, 0, 0, 0, 0, 0, 0);
     END CATCH
     FETCH NEXT FROM cur INTO @schema, @name;
 END;
