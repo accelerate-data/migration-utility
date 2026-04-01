@@ -125,7 +125,7 @@ Augmented entries are tagged `"detection": "ast_scan"`. Dynamic SQL (`EXEC(@sql)
 
 ### Step 9 — Report
 
-Summary of files written (DDL counts, catalog counts, manifest path). Tells the user they can now run `discover` or the `scoping-agent`.
+Summary of files written (DDL counts, catalog counts, manifest path). Tells the user they can now run `discover` or the `scoping` agent.
 
 ---
 

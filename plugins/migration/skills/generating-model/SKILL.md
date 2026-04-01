@@ -283,7 +283,7 @@ If compile fails with a **connection error** (adapter cannot reach the warehouse
 
 | Subcommand | Schema reference |
 |---|---|
-| `context` | See `docs/design/agent-contract/model-generator-agent.md` section "AssembleContext" |
+| `context` | See `docs/design/agent-contract/model-generator.md` section "AssembleContext" |
 | `write` | `{ "written": [...], "status": "ok" }` |
 
 ## Error handling

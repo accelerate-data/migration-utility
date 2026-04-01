@@ -1,5 +1,5 @@
 ---
-name: profiler-agent
+name: profiler
 description: Batch profiling agent that produces migration profile candidates for each table. Runs profile.py for context, applies LLM reasoning for the six profiling questions, and writes results into catalog files.
 model: claude-sonnet-4-6
 maxTurns: 30
@@ -68,7 +68,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" profile write \
   --profile '<json>'
 ```
 
-The profile JSON must include `status`, `writer`, and the profiling answers. All enum values must be from the allowed sets defined in `docs/design/agent-contract/profiler-agent.md`.
+The profile JSON must include `status`, `writer`, and the profiling answers. All enum values must be from the allowed sets defined in `docs/design/agent-contract/profiler.md`.
 
 No approval gates in batch mode -- write directly after reasoning.
 

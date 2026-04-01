@@ -1,5 +1,5 @@
 ---
-name: scoping-agent
+name: scoping
 description: Identifies writer procedures from catalog data and writes scoping results to catalog/tables/<table>.json. Use when scoping a migration item.
 model: claude-sonnet-4-6
 maxTurns: 30

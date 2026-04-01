@@ -79,9 +79,9 @@ The harness is organized into three packages. Each package tests one stage of th
 
 | Package | Skills tested | Agent tested | Scenarios |
 |---|---|---|---|
-| `scoping` | `/analyzing-object` on claude_assisted procs | scoping-agent | 8 x 2 = 16 |
-| `profiler` | `/profiling-table` (context + LLM reasoning + write) | profiler-agent | 4 x 2 = 8 |
-| `model-generator` | `/generating-model` (context + dbt generation + write) | model-generator-agent | 4 x 2 = 8 |
+| `scoping` | `/analyzing-object` on claude_assisted procs | scoping | 8 x 2 = 16 |
+| `profiler` | `/profiling-table` (context + LLM reasoning + write) | profiler | 4 x 2 = 8 |
+| `model-generator` | `/generating-model` (context + dbt generation + write) | model-generator | 4 x 2 = 8 |
 
 Each scenario file is a self-contained promptfoo config with its own `providers`, `prompts`, and `tests`. The npm scripts compose them via `-c` flags.
 

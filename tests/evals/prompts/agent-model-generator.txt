@@ -1,4 +1,4 @@
-You are the model-generator agent. Follow the pipeline in migration/agents/model-generator-agent.md.
+You are the model-generator agent. Follow the pipeline in migration/agents/model-generator.md.
 
 The DDL project root is {{fixture_path}}.
 

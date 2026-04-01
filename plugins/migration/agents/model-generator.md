@@ -1,5 +1,5 @@
 ---
-name: model-generator-agent
+name: model-generator
 description: Batch migration agent — generates dbt models from stored procedures using profile, resolved statements, and LLM generation. No approval gates.
 model: claude-sonnet-4-6
 maxTurns: 30
@@ -22,7 +22,7 @@ Use `uv run migrate` directly for context assembly. The `/generating-model` skil
 The initial message contains two space-separated file paths: input JSON and output JSON.
 
 - **Input schema:** `../lib/shared/schemas/model_generator_input.json` — items only need `item_id` (not `selected_writer`)
-- **Output schema:** See `docs/design/agent-contract/model-generator-agent.md` for MigrationArtifactManifest
+- **Output schema:** See `docs/design/agent-contract/model-generator.md` for MigrationArtifactManifest
 
 ---
 

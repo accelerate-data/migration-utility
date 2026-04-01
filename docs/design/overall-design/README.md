@@ -166,10 +166,11 @@ Three paths, one pipeline. All share the same deterministic Python CLIs and agen
 
 The FDE drives the pipeline one table at a time using Claude Code skills:
 
-1. `/discover-objects` — list tables, pick one, resolve writer
-2. `/profile-table` — catalog signals + LLM inference, FDE approves
-3. `/generate-tests` — branch analysis, fixture synthesis, sandbox execution, ground truth capture
-4. `/generate-model` — generate dbt model from profile + test spec, FDE approves before file write
+1. `/listing-objects` — list tables, pick one
+2. `/scoping-table` — discover writers, resolve via `/analyzing-object`, FDE confirms
+3. `/profiling-table` — catalog signals + LLM inference, FDE approves
+4. `/generate-tests` — branch analysis, fixture synthesis, sandbox execution, ground truth capture
+5. `/generating-model` — generate dbt model from profile + test spec, FDE approves before file write
 
 Each step reads from and writes to catalog files. The FDE reviews and edits before approving.
 

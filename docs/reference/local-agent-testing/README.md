@@ -7,7 +7,7 @@ together only in Layer 4.
 Design references:
 
 - Overall pipeline: `docs/design/overall-design/README.md` — Agent Execution Model
-- Agent contract: `docs/design/agent-contract/scoping-agent.md`
+- Agent contract: `docs/design/agent-contract/scoping.md`
 
 ---
 

@@ -7,7 +7,7 @@ with `bronze` and `silver` schemas as the shared test corpus for all agent integ
 
 - Bronze tables are copied from `AdventureWorks2022` using `SELECT TOP … INTO` to keep size
   manageable.
-- Silver tables and stored procedures are authored explicitly to cover the MoSCoW scoping-agent
+- Silver tables and stored procedures are authored explicitly to cover the MoSCoW scoping
   scenarios — they are not derived from an existing DW schema.
 
 This approach gives full control over scenario coverage without the complexity of reverse-engineering
@@ -19,7 +19,7 @@ scenarios without significant modification.
 
 ## Scenario Coverage
 
-Each silver table targets exactly one scoping-agent scenario. See the reference doc for the full
+Each silver table targets exactly one scoping scenario. See the reference doc for the full
 scenario table and instructions to publish or pull the pre-built image:
 [Test Database Image](../../reference/test-db-image/README.md)
 

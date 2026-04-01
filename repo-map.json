@@ -97,7 +97,7 @@
     },
     "migration_agents": {
       "path": "plugins/migration/agents/",
-      "description": "Agent definitions: scoping-agent.md (catalog-based writer detection via discover refs, writes scoping results to catalog and produces scoping_summary), model-generator-agent.md (batch dbt model generation — delegates to /generating-model skill per item), profiler-agent.md (batch profiling — context assembly, LLM reasoning, catalog write-back)."
+      "description": "Agent definitions: scoping.md (catalog-based writer detection via discover refs, writes scoping results to catalog and produces scoping_summary), model-generator.md (batch dbt model generation — delegates to /generating-model skill per item), profiler.md (batch profiling — context assembly, LLM reasoning, catalog write-back)."
     },
     "migration_commands": {
       "path": "plugins/migration/commands/",
