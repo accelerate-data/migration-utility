@@ -314,6 +314,16 @@ Never set `status: "ok"` if `errors[]` is non-empty or a required step was skipp
 
 Never stop the batch on a single item failure. Process all items and report aggregate results. On skill failure, record the error code and continue to the next item.
 
+## Cleanup
+
+After the PR is merged:
+
+1. Delete the remote branch: `git push origin --delete run/<command>-batch-N`.
+2. Remove the worktree: `git worktree remove ../worktrees/run/<command>-batch-N`.
+3. Delete the local branch: `git branch -d run/<command>-batch-N`.
+
+If the FDE asks to close, merge, or clean up a batch run, perform all three steps.
+
 ## Relationship to Skills
 
 Skills define per-table processing rules. Commands reference skills when constructing sub-agent prompts. The skill is unaware of whether it was invoked directly by the FDE or by a command's sub-agent — suppress user gates when running in batch.
