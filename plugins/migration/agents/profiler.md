@@ -1,6 +1,6 @@
 ---
 name: profiler
-description: Batch profiling agent — produces migration profiles for each table by delegating to /profiling-table skill. No approval gates.
+description: Batch profiling agent — produces migration profiles for each table. Delegates to /profiling-table skill per item. No approval gates.
 model: claude-sonnet-4-6
 maxTurns: 30
 tools:
@@ -26,13 +26,10 @@ The initial message contains two space-separated file paths: input JSON and outp
 
 ## Prerequisites
 
-Before processing items:
+See [common-prerequisites.md](common-prerequisites.md) for batch-wide and per-item checks (manifest, catalog file existence).
 
-1. Read `manifest.json` from the current working directory for `technology` and `dialect`. If missing or unreadable, fail **all** items with code `MANIFEST_NOT_FOUND` and write output immediately.
+Additional per-item check:
 
-Per item, before Step 1:
-
-- Check `catalog/tables/<item_id>.json` exists. If missing, skip this item with `CATALOG_FILE_MISSING` in `errors[]`.
 - Check `scoping.selected_writer` is set. If scoping section is missing or `selected_writer` is null, skip this item with `SCOPING_NOT_COMPLETED` in `errors[]`.
 
 ---
@@ -41,16 +38,7 @@ Per item, before Step 1:
 
 ### Step 1 — Profile Table (Skill Delegation)
 
-For each item in `items[]`, follow the `/profiling-table` skill pipeline. The skill handles context assembly (via `profile context`), LLM profiling (Q1-Q6 from `profiling-signals.md`), and catalog persistence (via `profile write`).
-
-**Batch overrides — do not use `AskUserQuestion`:**
-
-- Make all profiling decisions deterministically
-- If a required question (Q1 classification, Q2 primary key, Q5 watermark) cannot be answered, set `status: "partial"` and record the unresolved questions as `PARTIAL_PROFILE` warnings — do not stop
-- Auto-approve all profiles — write directly without confirmation
-- On `profile write` failure, record `PROFILE_WRITE_FAILED` and continue
-
-If any step in the skill pipeline fails, record `status: "error"` with the appropriate error code and continue to the next item.
+For each item in `items[]`, invoke `/profiling-table --table <item_id>`. Suppress user gates — make all decisions deterministically. On failure, record `status: "error"` and continue to the next item.
 
 ### Step 2 — Record Result
 
@@ -123,5 +111,4 @@ Every entry in `errors[]` or `warnings[]` uses this format:
 | `CATALOG_FILE_MISSING` | error | catalog/tables/<item_id>.json not found — skip item |
 | `SCOPING_NOT_COMPLETED` | error | scoping section missing or no selected_writer — skip item |
 | `PROFILING_FAILED` | error | `/profiling-table` skill pipeline failed — skip item |
-| `PROFILE_WRITE_FAILED` | error | `profile write` CLI failed — skip item |
 | `PARTIAL_PROFILE` | warning | LLM could not answer a required question — item proceeds with partial |

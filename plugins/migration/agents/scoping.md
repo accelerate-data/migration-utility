@@ -1,6 +1,6 @@
 ---
 name: scoping
-description: Batch scoping agent — identifies writer procedures for each table and persists scoping results to catalog. Delegates to /scoping-table skill per item. No approval gates.
+description: Batch scoping agent — identifies writer procedures for each table. Delegates to /scoping-table skill per item. No approval gates.
 model: claude-sonnet-4-6
 maxTurns: 30
 tools:
@@ -26,13 +26,7 @@ The initial message contains two space-separated file paths: input JSON and outp
 
 ## Prerequisites
 
-Before processing items:
-
-- Read `manifest.json` from the current working directory for `technology` and `dialect`. If missing or unreadable, fail **all** items with code `MANIFEST_NOT_FOUND` and write summary output immediately.
-
-Per item, before Step 1:
-
-- Check `catalog/tables/<item_id>.json` exists. If missing, skip this item with `CATALOG_FILE_MISSING` in `errors[]`.
+See [common-prerequisites.md](common-prerequisites.md) for batch-wide and per-item checks (manifest, catalog file existence).
 
 ---
 
@@ -40,16 +34,7 @@ Per item, before Step 1:
 
 ### Step 1 — Scope Table (Skill Delegation)
 
-For each item in `items[]`, follow the `/scoping-table` skill pipeline. The skill handles writer discovery (via `discover refs`), procedure analysis (via `/analyzing-object` per candidate), resolution rules, and catalog persistence (via `discover write-scoping`).
-
-**Batch overrides — do not use `AskUserQuestion`:**
-
-- If one writer is found, select it deterministically — do not confirm with user
-- If multiple writers are found, select the first candidate with `is_updated=true` in catalog `referenced_by`. If ambiguous, set status `ambiguous_multi_writer` and continue
-- If no writers are found, set status `no_writer_found` and continue
-- On `/analyzing-object` failure for a candidate, mark it `BLOCKED` and continue with remaining candidates
-
-If any step in the skill pipeline fails, record `status: "error"` with the appropriate error code and continue to the next item.
+For each item in `items[]`, invoke `/scoping-table --table <item_id>`. Suppress user gates — make all decisions deterministically. On failure, record `status: "error"` and continue to the next item.
 
 ### Step 2 — Collect Result
 
@@ -90,14 +75,7 @@ The full scoping data lives in the catalog files, not duplicated in the summary 
 
 ## Error Handling
 
-| Situation | Action |
-|---|---|
-| `/scoping-table` skill fails for item | `status: "error"`, record error, skip to next item |
-| `/analyzing-object` fails for a candidate | Mark candidate `BLOCKED`, continue with remaining candidates |
-| `discover refs` returns no writers | `status: "no_writer_found"`, record in result, continue |
-| Multiple writers, cannot resolve | `status: "ambiguous_multi_writer"`, record in result, continue |
-
-Never stop the batch on a single item failure. Process all items and report aggregate results.
+Never stop the batch on a single item failure. Process all items and report aggregate results. On skill failure, record the error code and continue.
 
 ---
 
@@ -119,4 +97,3 @@ Every entry in `errors[]` or `warnings[]` uses this format:
 | `MANIFEST_NOT_FOUND` | error | manifest.json missing — all items fail |
 | `CATALOG_FILE_MISSING` | error | catalog/tables/<item_id>.json not found — skip item |
 | `SCOPING_FAILED` | error | `/scoping-table` skill pipeline failed — skip item |
-| `CANDIDATE_BLOCKED` | warning | `/analyzing-object` failed for a candidate — candidate skipped |

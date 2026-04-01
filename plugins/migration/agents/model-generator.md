@@ -1,6 +1,6 @@
 ---
 name: model-generator
-description: Batch migration agent — generates dbt models from stored procedures using profile, resolved statements, and LLM generation. No approval gates.
+description: Batch migration agent — generates dbt models from stored procedures. Delegates to /generating-model skill per item. No approval gates.
 model: claude-sonnet-4-6
 maxTurns: 30
 tools:
@@ -11,9 +11,7 @@ tools:
 
 # Model Generator Agent
 
-Generate dbt models for a batch of table/writer pairs. Delegates dbt generation to the `/generating-model` skill per item, running in batch mode without approval gates.
-
-Use `uv run migrate` directly for context assembly. The `/generating-model` skill handles generation, validation, and artifact writes.
+Generate dbt models for a batch of table/writer pairs. Delegates per-item generation to the `/generating-model` skill.
 
 ---
 
@@ -28,14 +26,14 @@ The initial message contains two space-separated file paths: input JSON and outp
 
 ## Prerequisites
 
-Before processing items:
+See [common-prerequisites.md](common-prerequisites.md) for batch-wide and per-item checks (manifest, catalog file existence).
 
-1. Read `manifest.json` from the current working directory for `technology` and `dialect`. If missing or unreadable, fail **all** items with code `MANIFEST_NOT_FOUND` and write output immediately.
-2. Check `dbt_project.yml` exists at `./dbt/` (or `$DBT_PROJECT_PATH`). If missing, fail **all** items with code `DBT_PROJECT_MISSING` and write output immediately.
+Additional batch-wide check:
 
-Per item, before Step 1:
+- Check `dbt_project.yml` exists at `./dbt/` (or `$DBT_PROJECT_PATH`). If missing, fail **all** items with code `DBT_PROJECT_MISSING` and write output immediately.
 
-- Check `catalog/tables/<item_id>.json` exists. If missing, skip this item with `CATALOG_FILE_MISSING` in `errors[]`.
+Additional per-item checks:
+
 - Check `scoping.selected_writer` is set. If missing, skip this item with `SCOPING_NOT_COMPLETED` in `errors[]`.
 - Check `profile` exists and `profile.status` is `"ok"`. If missing or not ok, skip this item with `PROFILE_NOT_COMPLETED` in `errors[]`.
 
@@ -43,33 +41,11 @@ Per item, before Step 1:
 
 ## Pipeline
 
-### Step 1 — Assemble Context
+### Step 1 — Generate Model (Skill Delegation)
 
-For each item in `items[]`, run:
+For each item in `items[]`, invoke `/generating-model --table <item_id>`. Suppress user gates — make all decisions deterministically. On failure, record `status: "error"` and continue to the next item.
 
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" migrate context \
-  --table <item_id>
-```
-
-The command reads `selected_writer` from the catalog scoping section — no `--writer` argument needed.
-
-Parse the JSON output. If the command fails (exit code 1 or 2), record `status: "error"` with the error message and continue to the next item.
-
-### Step 2 — Generate, Validate, and Write (Skill Delegation)
-
-Follow the `/generating-model` skill pipeline (Steps 2–8) for this item. Skip Step 1 of the skill (context assembly) — the agent already performed it above. The skill defines the full dbt generation algorithm: model structure decisions, CTE generation, equivalence checks, schema YAML, artifact writes, and `dbt compile` validation.
-
-**Batch overrides — do not use `AskUserQuestion`:**
-
-- Make all model structure and materialization decisions deterministically
-- Accept equivalence warnings and proceed (record as `EQUIVALENCE_GAP` warning)
-- Auto-approve all artifacts — write directly without confirmation
-- On `dbt compile` failure: attempt fix (max 2 attempts), then record as `DBT_COMPILE_FAILED` and continue
-
-If any step in the skill pipeline fails, record `status: "error"` with the appropriate error code and continue to the next item.
-
-### Step 3 — Record Result
+### Step 2 — Record Result
 
 For each item, record:
 
@@ -109,15 +85,7 @@ For each item, record:
 
 ## Error Handling
 
-| Situation | Action |
-|---|---|
-| `migrate context` fails | `status: "error"`, record error, skip to next item |
-| LLM generation produces empty SQL | `status: "error"`, record error, skip |
-| Equivalence check finds gaps | `status: "partial"` after revision attempts, record warnings |
-| `migrate write` fails | `status: "error"`, record error, skip |
-| `dbt compile` fails after retries | `status: "partial"`, record compile errors |
-
-Never stop the batch on a single item failure. Process all items and report aggregate results.
+Never stop the batch on a single item failure. Process all items and report aggregate results. On skill failure, record the error code and continue.
 
 ---
 
@@ -163,8 +131,6 @@ Every entry in `errors[]` or `warnings[]` uses this format:
 | `CATALOG_FILE_MISSING` | error | catalog/tables/<item_id>.json not found — skip item |
 | `SCOPING_NOT_COMPLETED` | error | scoping section missing or no selected_writer — skip item |
 | `PROFILE_NOT_COMPLETED` | error | profile section missing or status != ok — skip item |
-| `CONTEXT_ASSEMBLY_FAILED` | error | `migrate context` CLI failed — skip item |
-| `MODEL_GENERATION_FAILED` | error | LLM produced empty or invalid model SQL — skip item |
+| `GENERATION_FAILED` | error | `/generating-model` skill pipeline failed — skip item |
 | `EQUIVALENCE_GAP` | warning | semantic gap found between proc and generated model — item proceeds as partial |
-| `ARTIFACT_WRITE_FAILED` | error | `migrate write` CLI failed — skip item |
 | `DBT_COMPILE_FAILED` | warning | `dbt compile` failed after retries — item proceeds as partial |
