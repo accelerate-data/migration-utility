@@ -52,7 +52,17 @@ On failure, write result with status: "error" and error details.
 Return the item result JSON.
 ```
 
-### Step 3 — Summarize
+### Step 3 — Revert errored items
+
+For each item with `status: "error"`, revert any files the skill may have partially written:
+
+```bash
+git checkout -- dbt/models/staging/<model_name>.sql dbt/models/staging/_<model_name>.yml
+```
+
+Derive `<model_name>` from the item_id using the same `stg_<table>` convention. Ignore errors from `git checkout` (the files may not exist yet for new models — use `rm -f` instead if the model was newly created and has no prior version).
+
+### Step 4 — Summarize
 
 1. Read each `.migration-runs/<schema.table>.json`.
 2. Write `.migration-runs/summary.json` with `{total, ok, partial, error}` counts and per-item status.

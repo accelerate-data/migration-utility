@@ -248,6 +248,17 @@ def run_context(
 # ── Write artifacts ───────────────────────────────────────────────────────────
 
 
+def _atomic_write(path: Path, content: str) -> None:
+    """Write content to path via tmp-then-rename for crash safety."""
+    tmp_path = path.with_name(path.name + ".tmp")
+    try:
+        tmp_path.write_text(content, encoding="utf-8")
+        tmp_path.replace(path)
+    except OSError:
+        tmp_path.unlink(missing_ok=True)
+        raise
+
+
 def run_write(
     table_fqn: str,
     project_root: Path,
@@ -284,11 +295,11 @@ def run_write(
     yml_path = staging_dir / f"_{model_name}.yml"
 
     written: list[str] = []
-    sql_path.write_text(model_sql, encoding="utf-8")
+    _atomic_write(sql_path, model_sql)
     written.append(str(sql_path.relative_to(dbt_project_path)))
 
     if schema_yml and schema_yml.strip():
-        yml_path.write_text(schema_yml, encoding="utf-8")
+        _atomic_write(yml_path, schema_yml)
         written.append(str(yml_path.relative_to(dbt_project_path)))
 
     return {"written": written, "status": "ok"}

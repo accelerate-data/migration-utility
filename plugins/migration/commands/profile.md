@@ -47,7 +47,17 @@ On failure, write result with status: "error" and error details.
 Return the item result JSON.
 ```
 
-### Step 3 — Summarize
+### Step 3 — Revert errored items
+
+For each item with `status: "error"`, revert any files the skill may have partially modified:
+
+```bash
+git checkout -- catalog/tables/<item_id>.json
+```
+
+Ignore errors from `git checkout` (the file may not have been modified).
+
+### Step 4 — Summarize
 
 1. Read each `.migration-runs/<schema.table>.json`.
 2. Write `.migration-runs/summary.json` with `{total, ok, partial, error}` counts and per-item status.

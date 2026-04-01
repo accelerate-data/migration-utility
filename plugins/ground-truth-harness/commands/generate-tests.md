@@ -85,7 +85,17 @@ If `execute-spec` exits non-zero or individual scenarios fail:
 - **Non-zero exit (full failure):** record `status: "error"` with code `SCENARIO_EXECUTION_FAILED` for the item and continue to the next item.
 - **Partial scenario failures** (exit 0 but some scenarios report errors in the output): record `status: "partial"` with a `SCENARIO_EXECUTION_FAILED` warning listing which scenarios failed. The item proceeds with the successfully captured expectations.
 
-### Step 5 — Summarize
+### Step 5 — Revert errored items
+
+For each item with `status: "error"`, revert any files the skill may have partially written:
+
+```bash
+git checkout -- test-specs/<item_id>.json
+```
+
+Ignore errors from `git checkout` (the file may not exist yet — use `rm -f` instead if the test-spec was newly created and has no prior version).
+
+### Step 6 — Summarize
 
 1. Read each `.migration-runs/<schema.table>.json`.
 2. Write `.migration-runs/summary.json` with `{total, ok, partial, error}` counts and per-item status.

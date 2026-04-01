@@ -170,10 +170,16 @@ def scan_routing_flags(definition: str) -> dict[str, bool]:
 
 def _write_json(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(data, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    tmp_path = path.with_suffix(".json.tmp")
+    try:
+        tmp_path.write_text(
+            json.dumps(data, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        tmp_path.replace(path)
+    except OSError:
+        tmp_path.unlink(missing_ok=True)
+        raise
 
 
 def ensure_references(data: dict[str, Any]) -> dict[str, Any]:
