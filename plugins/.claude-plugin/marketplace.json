@@ -13,7 +13,7 @@
     {
       "name": "migration",
       "source": "./migration",
-      "description": "DDL analysis and migration pipeline: scoping, discovery, and DDL extraction for Fabric Warehouse to dbt."
+      "description": "Migration pipeline: scoping, profiling, and dbt model generation for Fabric Warehouse stored procedures."
     },
     {
       "name": "ground-truth-harness",

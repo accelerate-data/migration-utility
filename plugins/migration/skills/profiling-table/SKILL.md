@@ -18,6 +18,7 @@ Profile a single table for migration by assembling context, reasoning over six p
 
 1. Read `manifest.json` from the current working directory to confirm a valid project root. If missing, tell the user to run `setup-ddl` first.
 2. Confirm `catalog/tables/<table>.json` exists. If missing, tell the user to run `/listing-objects list tables` to see available tables and stop.
+3. Read `catalog/tables/<table>.json` and confirm `scoping.selected_writer` is set. If missing, tell the user to run `/scoping-table <table>` first and stop.
 
 ## Pipeline
 
@@ -55,12 +56,15 @@ Wait for explicit user approval before proceeding to Step 4.
 
 ### Step 4 -- Write to Catalog (Deterministic)
 
-After user approval (with any edits):
+After user approval (with any edits), write the profile JSON to a temp file to avoid shell escaping issues:
 
 ```bash
+mkdir -p .staging
+# Write profile JSON to .staging/profile.json (avoids shell quoting breakage from apostrophes in rationale text)
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" profile write \
   --table <table> \
-  --profile '<json>'
+  --profile-file .staging/profile.json
+rm -rf .staging
 ```
 
 The profile JSON must match the `profile_section` schema in `lib/shared/schemas/table_catalog.json`. Required fields: `status`, `writer`. All enum values must be from the allowed sets. Each decision point must include a `rationale` field (1–2 sentences): `classification.rationale`, `primary_key.rationale`, `natural_key.rationale`, `watermark.rationale`, and per-entry `rationale` in `foreign_keys[]` and `pii_actions[]`.

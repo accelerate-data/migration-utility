@@ -153,7 +153,24 @@ where <watermark_column> > (select max(<watermark_column>) from {{ this }})
 {% endif %}
 ```
 
-For snapshot models, use the dbt snapshot block pattern instead of a model.
+For snapshot models, generate a dbt snapshot block instead of a model file. Place the file in `snapshots/` (not `models/staging/`):
+
+```sql
+{% snapshot <model_name>_snapshot %}
+
+{{ config(
+    target_schema='snapshots',
+    unique_key='<pk_column>',
+    strategy='timestamp',
+    updated_at='<watermark_column>',
+) }}
+
+select * from {{ source('<source_name>', '<table_name>') }}
+
+{% endsnapshot %}
+```
+
+If the profile has no watermark column, use `strategy='check'` with `check_cols='all'` (or a specific column list if the profile identifies mutable columns). The snapshot file replaces the `.sql` model — do not generate both.
 
 ## Step 4: Logical equivalence check
 
@@ -243,6 +260,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" migrate write \
   --table <table_fqn> \
   --model-sql-file .staging/model.sql \
   --schema-yml-file .staging/schema.yml
+rm -rf .staging
 ```
 
 The dbt project path is resolved automatically from `$DBT_PROJECT_PATH` or defaults to `./dbt` relative to the project root. Pass `--dbt-project-path <path>` only if you need to override this.
@@ -282,7 +300,7 @@ If compile fails with a **connection error** (adapter cannot reach the warehouse
 2. Run `dbt parse` in the dbt project directory
 3. `dbt parse` validates YAML syntax, Jinja syntax, and ref/source graph integrity without a connection
 4. Report parse results (pass or fail with errors)
-5. If parse fails, offer to fix (same 2-attempt cycle as compile)
+5. If parse fails, offer to fix (same 3-attempt cycle as compile)
 
 ## Output schemas
 

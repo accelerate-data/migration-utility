@@ -22,7 +22,7 @@ Identify which procedures write to each table. Launches one sub-agent per table 
 
 1. Read worktree base path from `.claude/rules/git-workflow.md`.
 2. Generate run slug: `feature/scope-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters after `feature/`).
-3. Create worktree: `mkdir -p <base>/feature && git worktree add <base>/<slug> -b <slug>`.
+3. Create worktree: `mkdir -p <base>/feature && git worktree add <base>/<slug> -b <slug>`. If the worktree and branch already exist, reuse them — do not fail.
 4. In the worktree, clear `.migration-runs/` and write `meta.json`:
 
 ```json
@@ -74,13 +74,15 @@ Return the item result JSON.
    | silver.DimDate | error | CATALOG_FILE_MISSING |
    ```
 
-### Cleanup
+5. After the PR is created, tell the user:
 
-After PR is merged:
+   ```text
+   PR #<number> is open: <pr_url>
+   Branch: <branch>
+   Worktree: <worktree-path>
 
-1. `git push origin --delete <branch>`
-2. `git worktree remove <worktree-path>`
-3. `git branch -d <branch>`
+   Once the PR is merged, run /cleanup-worktrees to remove the worktree and branches.
+   ```
 
 ## Item Result Schema
 

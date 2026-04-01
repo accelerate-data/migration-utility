@@ -25,7 +25,7 @@ Generate dbt models for a batch of tables. Launches one sub-agent per table in p
 
 1. Read worktree base path from `.claude/rules/git-workflow.md`.
 2. Generate run slug: `feature/generate-model-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters after `feature/`).
-3. Create worktree: `mkdir -p <base>/feature && git worktree add <base>/<slug> -b <slug>`.
+3. Create worktree: `mkdir -p <base>/feature && git worktree add <base>/<slug> -b <slug>`. If the worktree and branch already exist, reuse them — do not fail.
 4. In the worktree, clear `.migration-runs/` and write `meta.json`:
 
 ```json
@@ -44,7 +44,7 @@ Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
 ```text
 Run the migration:generating-model skill for <schema.table>.
 The worktree is at <worktree-path>.
-Skip the Step 4 and Step 6 approval prompts — proceed automatically.
+Skip the Step 4 user confirmation prompt and the Step 6 approval prompt — proceed automatically. Still run the full equivalence analysis in Step 4.
 Equivalence warnings: proceed and write the model. Record each gap as EQUIVALENCE_GAP warning.
 dbt compile failure: attempt up to 3 self-corrections. If still failing, write as-is with DBT_COMPILE_FAILED warning.
 Write the item result JSON to .migration-runs/<schema.table>.json.
@@ -80,13 +80,15 @@ Return the item result JSON.
    | silver.DimDate | error | — | — | PROFILE_NOT_COMPLETED |
    ```
 
-### Cleanup
+5. After the PR is created, tell the user:
 
-After PR is merged:
+   ```text
+   PR #<number> is open: <pr_url>
+   Branch: <branch>
+   Worktree: <worktree-path>
 
-1. `git push origin --delete <branch>`
-2. `git worktree remove <worktree-path>`
-3. `git branch -d <branch>`
+   Once the PR is merged, run /cleanup-worktrees to remove the worktree and branches.
+   ```
 
 ## Review Loops (placeholder)
 
@@ -119,7 +121,7 @@ Future implementation will add:
       }
     },
     "execution": {
-      "dbt_compile_passed": true,
+      "dbt_compile": "passed|parse_only|not_attempted|failed",
       "dbt_errors": []
     },
     "warnings": [],

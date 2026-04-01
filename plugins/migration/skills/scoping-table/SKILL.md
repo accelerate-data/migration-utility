@@ -56,7 +56,7 @@ Run the migration:analyzing-object skill for <writer>.
 Return the analysis result JSON.
 ```
 
-Do NOT inline call graph resolution, statement classification, or any procedure analysis logic here. The `analyzing-object` skill owns that entire flow. Wait for the sub-agent to complete before proceeding to the next candidate.
+Do NOT inline call graph resolution, statement classification, or any procedure analysis logic here. The `analyzing-object` skill owns that entire flow. Launch all candidate sub-agents in parallel — they are independent of each other.
 
 ### Step 4 -- Present writer candidates
 

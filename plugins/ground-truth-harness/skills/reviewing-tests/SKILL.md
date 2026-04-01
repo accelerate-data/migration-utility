@@ -75,7 +75,7 @@ Rules:
 
 - A scenario may cover multiple branches.
 - A branch may require multiple scenarios to cover fully.
-- Map by analyzing the `given` fixture rows and `expect.rows` against the proc logic — not by trusting scenario names or descriptions alone.
+- Map by analyzing the `given` fixture rows against the proc logic — not by trusting scenario names or descriptions alone.
 
 ## Step 4: Score coverage
 

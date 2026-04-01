@@ -24,6 +24,12 @@ Before starting, verify:
 
    `MSSQL_DB` must be set (use `master` if no specific default is needed) — genai-toolbox binds it at connection init. Confirm `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, and `SA_PASSWORD` are set. If any are missing, tell the user and stop.
 
+## Safety
+
+- Use `mssql:mssql-execute-sql` for all SQL Server queries — never use native tools to connect to the database directly.
+- The `{{.sql}}` parameter in the `mssql` MCP tool accepts arbitrary T-SQL. Do not pass user-supplied raw SQL strings through it without review.
+- Do not log `SA_PASSWORD` or any connection string values.
+
 ## Preamble — confirm project root
 
 1. Run `pwd` and show the resolved path. Ask the user: "Is this the correct project root?" If the user says no, tell them to `cd` to the correct directory and re-run the skill. Stop.
@@ -502,7 +508,4 @@ Tell the user they can now run `discover` or the `scoping` agent against the pro
 
 ## Constraints
 
-- Use `mssql:mssql-execute-sql` for all SQL Server queries — never use native tools to connect to the database directly.
 - Use the `setup-ddl` CLI tool for all data processing and file writing — never generate or run ad-hoc scripts, and never process query results inline. The agent's role is to run SQL via MCP, save results to `.staging/`, and call the CLI tool.
-- The `{{.sql}}` parameter in the `mssql` MCP tool accepts arbitrary T-SQL. This is intentional for the controlled migration context. Do not pass user-supplied raw SQL strings through it without review.
-- Do not log `SA_PASSWORD` or any connection string values.

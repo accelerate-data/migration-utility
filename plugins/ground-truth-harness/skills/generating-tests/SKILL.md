@@ -22,7 +22,7 @@ This skill produces scenarios only — no proc execution, no ground truth captur
 ## Before invoking
 
 1. Read `manifest.json` from the current working directory to confirm a valid project root. If missing, tell the user to run `setup-ddl` first.
-2. Confirm `catalog/tables/<table>.json` exists. If missing, tell the user to run `/listing-objects list tables` to see available tables and stop.
+2. Confirm `catalog/tables/<item_id>.json` exists. If missing, tell the user to run `/listing-objects list tables` to see available tables and stop.
 
 ## Step 1: Assemble context
 
@@ -162,6 +162,7 @@ The `/generate-tests` command adds `expect.rows` to each `unit_tests[]` entry af
 |---|---|---|
 | All branches have scenarios | `complete` | `ok` |
 | Branches remain after review loop | `partial` | `partial` |
+| Generation failed (context assembly, branch extraction, or fixture synthesis error) | — | `error` |
 
 ## Boundary Rules
 

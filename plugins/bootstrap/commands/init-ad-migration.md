@@ -5,7 +5,7 @@ description: Checks prerequisites, installs missing deps, scaffolds project file
 
 # Initialize ad-migration plugin
 
-Verify and set up all prerequisites before using `listing-objects`, `scoping-table`, `/setup-ddl`, or the `scoping` agent. Then scaffold the project directory for both agents and human developers.
+Verify and set up all prerequisites before using `listing-objects`, `scoping-table`, or `/setup-ddl`. Then scaffold the project directory for both agents and human developers.
 
 ## Step 1: Pre-check
 
@@ -138,7 +138,7 @@ Tell the user:
 | `init scaffold-project` | non-zero | File IO failure. Surface error message, stop |
 | `init scaffold-project` | 0 + `files_skipped` non-empty | Files already exist. Report which were skipped — not an error |
 | `init scaffold-hooks` | non-zero | Hook creation or git config failed. Surface error message |
-| `uv run ... python3 -c "import ..."` | non-zero | Shared deps not synced. Tell user to run `cd lib && uv sync` |
+| `uv run ... python3 -c "import ..."` | non-zero | Shared deps not synced. Tell user to run `uv sync --project "${CLAUDE_PLUGIN_ROOT}/../../lib"` |
 
 ## Idempotency
 
