@@ -131,6 +131,15 @@ Tell the user:
 - **toolbox installed and all MSSQL vars set**: ready to run `/setup-ddl` to extract DDL from the live database.
 - **toolbox missing or MSSQL vars unset**: DDL file mode (`listing-objects`, `scoping-table`, `scoping`) is fully available. Live-database skills (`/setup-ddl`) require both `toolbox` and all four MSSQL env vars. If using direnv, fill in `.envrc` and run `direnv allow`. Then install `toolbox` from the genai-toolbox releases page.
 
+## Error handling
+
+| Command | Exit code | Action |
+|---|---|---|
+| `init scaffold-project` | non-zero | File IO failure. Surface error message, stop |
+| `init scaffold-project` | 0 + `files_skipped` non-empty | Files already exist. Report which were skipped — not an error |
+| `init scaffold-hooks` | non-zero | Hook creation or git config failed. Surface error message |
+| `uv run ... python3 -c "import ..."` | non-zero | Shared deps not synced. Tell user to run `cd lib && uv sync` |
+
 ## Idempotency
 
 Safe to re-run. Each step checks current state before acting:

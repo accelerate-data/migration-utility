@@ -41,3 +41,9 @@ Confirm the sandbox has been removed. If the database did not exist, report that
 |---|---|---|
 | `test-harness sandbox-down` | 1 | Drop failed (connection error, permissions). Report error from JSON output |
 | `test-harness sandbox-down` | 0 + database not found | Already cleaned up. Report as success, not an error |
+
+Errors in JSON output use this format:
+
+```json
+{"code": "SANDBOX_DOWN_FAILED", "message": "timeout"}
+```

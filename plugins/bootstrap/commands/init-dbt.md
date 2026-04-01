@@ -222,6 +222,15 @@ Next steps:
   2. Run /scope, /profile, /generate-tests, and /generate-model to migrate stored procedures to dbt models
 ```
 
+## Error handling
+
+| Command | Exit code | Action |
+|---|---|---|
+| `dbt deps` | non-zero | Adapter package missing. Tell user which package to install (see mapping above) |
+| `dbt compile` | non-zero (non-DuckDB) | Expected if credentials are placeholders. Tell user to update `profiles.yml` |
+| `dbt compile` | non-zero (DuckDB) | Real failure — surface error output |
+| `git commit` | non-zero | Not a git repo or nothing to commit. Skip silently |
+
 ## Idempotency
 
 If `dbt/` already exists:

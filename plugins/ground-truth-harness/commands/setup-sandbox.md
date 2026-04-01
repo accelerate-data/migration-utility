@@ -78,6 +78,12 @@ If there were errors, list them and recommend checking the source database conne
 | `test-harness sandbox-up` | 0 + `status: "partial"` | Some tables/procs failed to clone. Report which ones failed, sandbox is still usable |
 | `test-harness --help` | non-zero | CLI not installed. Tell user to run `uv sync` in the lib directory |
 
+Errors in JSON output use this format:
+
+```json
+{"code": "TABLE_CLONE_FAILED", "message": "Failed to clone [silver].[DimProduct]: ..."}
+```
+
 ## Idempotency
 
 Safe to re-run. The CLI drops and recreates the sandbox database if it already exists for the given run ID.
