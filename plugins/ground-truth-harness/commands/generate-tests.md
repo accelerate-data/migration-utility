@@ -1,48 +1,144 @@
 ---
 name: generate-tests
 description: >
-  Multi-table test generation command. Delegates per-item work to
-  /generating-tests skill with /reviewing-tests review loop.
+  Multi-table test generation command. Delegates scenario generation to
+  /generating-tests skill with /reviewing-tests review loop, then
+  bulk-executes approved scenarios to capture ground truth.
 user-invocable: true
 argument-hint: "<schema.table> [schema.table ...]"
 ---
 
 # Generate Tests
 
-Given a batch of target tables, generate ground truth test fixtures for each. Delegates per-item test generation to the `/generating-tests` skill and includes a `/reviewing-tests` review loop.
+Generate test scenarios, review for coverage, then bulk-execute approved scenarios to capture ground truth. Launches one sub-agent per table in parallel, each running `ground-truth-harness:generating-tests`. Review runs as a separate sub-agent via `ground-truth-harness:reviewing-tests`.
 
-This command follows the shared lifecycle in `.claude/rules/command-lifecycle.md`.
+## Guards
 
-## Additional Batch-wide Guard
-
-Before processing any items (after common guards):
-
-- Check sandbox exists via `uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" test-harness sandbox-status`. If missing, fail **all** items with code `SANDBOX_NOT_FOUND` and write output immediately.
-
-## Additional Per-item Guards
-
-Before running the skill for each item (after common guards):
-
-- Check `scoping.selected_writer` is set. If missing, skip this item with `SCOPING_NOT_COMPLETED` in `errors[]`.
-- Check `profile` exists and `profile.status` is `"ok"`. If missing or not ok, skip this item with `PROFILE_NOT_COMPLETED` in `errors[]`.
+- `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
+- `manifest.json` must have `sandbox.run_id`. If missing, fail all items with `SANDBOX_RUN_ID_MISSING` and tell user to run `/setup-sandbox`.
+- Check sandbox exists via `uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" test-harness sandbox-status`. If not found, fail all items with `SANDBOX_NOT_RUNNING` and tell user to check the sandbox with `/setup-sandbox` (it may have been torn down or the database dropped).
+- Per item: `catalog/tables/<item_id>.json` must exist. If missing, skip with `CATALOG_FILE_MISSING`.
+- Per item: `scoping.selected_writer` must be set. If missing, skip with `SCOPING_NOT_COMPLETED`.
+- Per item: `profile` must exist with `status: "ok"`. If missing, skip with `PROFILE_NOT_COMPLETED`.
 
 ## Pipeline
 
-### Step 1 — Generate Tests (Skill Delegation)
+### Step 1 — Setup
 
-For each item, invoke `/generating-tests --table <item_id>`. Suppress user gates — make all decisions deterministically. On failure, record `status: "error"` and continue to the next item.
+1. Read worktree base path from `.claude/rules/git-workflow.md`.
+2. Generate run slug: `feature/generate-tests-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters after `feature/`).
+3. Create worktree: `mkdir -p <base>/feature && git worktree add <base>/<slug> -b <slug>`. If the worktree and branch already exist, reuse them — do not fail.
+4. In the worktree, clear `.migration-runs/` and write `meta.json`:
 
-### Step 2 — Review Tests (Skill Delegation)
+```json
+{
+  "command": "generate-tests",
+  "tables": ["silver.DimCustomer", "silver.DimProduct"],
+  "worktree": "../worktrees/feature/generate-tests-silver-dimcustomer-silver-dimproduct",
+  "started_at": "2026-04-01T12:00:00Z"
+}
+```
 
-For each item that completed step 1 successfully, invoke `/reviewing-tests --table <item_id>`.
+### Step 2 — Generate scenarios per table
 
-- If verdict is `approved` or `approved_with_warnings`: proceed to record result.
-- If verdict is `revision_requested`: re-invoke `/generating-tests --table <item_id>` with the reviewer's `feedback_for_generator` as additional context. Then re-invoke `/reviewing-tests`. Maximum 2 review iterations per item.
-- On review failure, record `status: "partial"` and continue.
+Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
 
-### Step 3 — Record Result
+```text
+Run the ground-truth-harness:generating-tests skill for <schema.table>.
+The worktree is at <worktree-path>.
+Skip the Step 4 approval prompt — the review loop handles quality gating.
+Write the item result JSON to .migration-runs/<schema.table>.json.
+On failure, write result with status: "error" and error details.
+Return the item result JSON.
+```
 
-Write the item result to `.migration-runs/results/<item_id>.json`:
+The skill writes `test-specs/<item_id>.json` with branch manifest and fixtures but no `expect.rows`.
+
+### Step 3 — Review scenarios (sub-agent)
+
+For each item that completed step 2, launch a review sub-agent in isolated context:
+
+```text
+Run the ground-truth-harness:reviewing-tests skill for <item_id> --iteration 1.
+The worktree is at <worktree-path>.
+The test spec is at <worktree-path>/test-specs/<item_id>.json.
+Write the TestReviewResult JSON to .migration-runs/<item_id>.review.json.
+On failure, write result with status: "error" and error details.
+Return the TestReviewResult JSON.
+```
+
+Parse the returned TestReviewResult JSON:
+
+- `approved` or `approved_with_warnings`: proceed to step 4.
+- `revision_requested`: pass `feedback_for_generator` to a new `ground-truth-harness:generating-tests` sub-agent (include the feedback JSON in the prompt — see the skill's "Handling reviewer feedback" section), then launch review sub-agent with `--iteration 2`. Maximum 2 review iterations per item.
+- On review failure: record `status: "partial"` and continue.
+
+### Step 4 — Capture ground truth
+
+For each item with approved scenarios:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" test-harness execute-spec \
+  --spec test-specs/<item_id>.json
+```
+
+The CLI reads `sandbox.run_id` from `manifest.json`, executes all scenarios, captures ground truth, and writes `expect.rows` back into the file.
+
+If `execute-spec` exits non-zero or individual scenarios fail:
+
+- **Non-zero exit (full failure):** record `status: "error"` with code `SCENARIO_EXECUTION_FAILED` for the item and continue to the next item.
+- **Partial scenario failures** (exit 0 but some scenarios report errors in the output): record `status: "partial"` with a `SCENARIO_EXECUTION_FAILED` warning listing which scenarios failed. The item proceeds with the successfully captured expectations.
+
+### Step 5 — Revert errored items
+
+For each item with `status: "error"`, revert any files the skill may have partially written:
+
+```bash
+git checkout -- test-specs/<item_id>.json
+```
+
+Ignore errors from `git checkout` (the file may not exist yet — use `rm -f` instead if the test-spec was newly created and has no prior version).
+
+### Step 6 — Summarize
+
+1. Read each `.migration-runs/<schema.table>.json`.
+2. Write `.migration-runs/summary.json` with `{total, ok, partial, error}` counts and per-item status.
+3. Present human-readable summary:
+
+   ```text
+   generate-tests complete — N tables processed
+
+     ✓ silver.DimCustomer    ok
+     ~ silver.DimProduct     partial (COVERAGE_PARTIAL)
+     ✗ silver.DimDate        error (PROFILE_NOT_COMPLETED)
+
+     ok: 1 | partial: 1 | error: 1
+   ```
+
+4. If all items errored, skip commit/PR — report errors only and stop.
+5. Ask the user: commit and open PR? Stage only files changed by successful items (test-spec JSON files). Do not stage `.migration-runs/`. PR body format:
+
+   ```markdown
+   ## Test Generation — N tables
+
+   | Table | Status | Branches | Scenarios | Coverage | Review |
+   |---|---|---|---|---|---|
+   | silver.DimCustomer | ok | 8 | 8 | complete | approved |
+   | silver.DimProduct | partial | 6 | 4 | partial | approved_with_warnings |
+   | silver.DimDate | error | — | — | — | PROFILE_NOT_COMPLETED |
+   ```
+
+6. After the PR is created, tell the user:
+
+   ```text
+   PR #<number> is open: <pr_url>
+   Branch: <branch>
+   Worktree: <worktree-path>
+
+   Once the PR is merged, run /cleanup-worktrees to remove the worktree and branches.
+   ```
+
+## Item Result Schema
 
 ```json
 {
@@ -53,6 +149,8 @@ Write the item result to `.migration-runs/results/<item_id>.json`:
     "coverage": "complete|partial",
     "branch_count": 8,
     "scenario_count": 7,
+    "scenarios_executed": 7,
+    "scenarios_failed": 0,
     "review_iterations": 1,
     "review_verdict": "approved|approved_with_warnings"
   },
@@ -66,10 +164,18 @@ Write the item result to `.migration-runs/results/<item_id>.json`:
 | Code | Severity | When |
 |---|---|---|
 | `MANIFEST_NOT_FOUND` | error | manifest.json missing — all items fail |
-| `SANDBOX_NOT_FOUND` | error | Sandbox database not running — all items fail |
+| `SANDBOX_RUN_ID_MISSING` | error | manifest.json has no `sandbox.run_id` — run `/setup-sandbox` first |
+| `SANDBOX_NOT_RUNNING` | error | sandbox-status check failed — sandbox may have been torn down or DB dropped |
 | `CATALOG_FILE_MISSING` | error | catalog/tables/\<item_id>.json not found — skip item |
 | `SCOPING_NOT_COMPLETED` | error | scoping section missing or no selected_writer — skip item |
 | `PROFILE_NOT_COMPLETED` | error | profile section missing or status != ok — skip item |
 | `TEST_GENERATION_FAILED` | error | `/generating-tests` skill pipeline failed — skip item |
 | `REVIEW_KICKED_BACK` | warning | reviewer requested revision — item retried |
 | `COVERAGE_PARTIAL` | warning | not all branches covered after max iterations — item proceeds as partial |
+| `SCENARIO_EXECUTION_FAILED` | warning | one or more scenarios failed during ground truth capture — item proceeds with partial expectations |
+
+Each entry in `errors[]` or `warnings[]`:
+
+```json
+{"code": "COVERAGE_PARTIAL", "message": "2 of 8 branches uncovered for silver.dimproduct after 2 review iterations.", "item_id": "silver.dimproduct", "severity": "warning"}
+```

@@ -3,25 +3,21 @@ name: scoping-table
 description: >
   Writer discovery, scope resolution, and catalog persistence for a single table. Finds which stored procedures write to the table, delegates each candidate to /analyzing-object for full procedure analysis, then lets the user confirm the selected writer and persists the scoping decision to the table catalog file.
 user-invocable: true
-argument-hint: "--table <fqn>"
+argument-hint: "<schema.table>"
 ---
 
-# Scope Table
+# Scoping Table
 
 Discover writers for a table, analyze each candidate, resolve which writer owns the table, and persist the scoping decision to the catalog.
 
 ## Arguments
 
-Parse `$ARGUMENTS` for `--table`. Use `AskUserQuestion` if `--table` is missing.
-
-| Option | Required | Description |
-|---|---|---|
-| `--table` | yes | Fully-qualified table name (e.g. `silver.DimCustomer`, `[dbo].[FactSales]`) |
+`$ARGUMENTS` is the fully-qualified table name (e.g. `silver.DimCustomer`, `[dbo].[FactSales]`). Ask the user if missing.
 
 ## Before invoking
 
 1. Read `manifest.json` from the current working directory to confirm a valid project root. If missing, stop and tell the user to run `setup-ddl` first.
-2. Confirm `catalog/tables/<table>.json` exists. If missing, stop and tell the user to run `/listing-objects --type tables` first.
+2. Confirm `catalog/tables/<table>.json` exists. If missing, tell the user to run `/listing-objects list tables` to see available tables and stop.
 
 ## Pipeline
 
@@ -44,17 +40,23 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover refs \
   --name <table>
 ```
 
-Extract the `writers` array from the output. If no writers are found, report `no_writer_found`, persist that scoping to the catalog (Step 6), and stop.
+Extract the `writers` array from the output. If no writers are found, persist `no_writer_found` to catalog and stop:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-scoping \
+  --name <table> --scoping '{"status": "no_writer_found", "selected_writer": null, "selected_writer_rationale": "No procedures found that write to this table."}'
+```
 
 ### Step 3 -- Analyze each writer candidate
 
-For each writer candidate, delegate to the analyzing-object skill:
+For each writer candidate, launch a sub-agent to run the analyzing-object skill:
 
 ```text
-/analyzing-object --name <writer>
+Run the migration:analyzing-object skill for <writer>.
+Return the analysis result JSON.
 ```
 
-Do NOT inline call graph resolution, statement classification, or any procedure analysis logic here. The `/analyzing-object` skill owns that entire flow. Wait for it to complete before proceeding to the next candidate.
+Do NOT inline call graph resolution, statement classification, or any procedure analysis logic here. The `analyzing-object` skill owns that entire flow. Launch all candidate sub-agents in parallel — they are independent of each other.
 
 ### Step 4 -- Present writer candidates
 
@@ -88,19 +90,23 @@ Wait for explicit user confirmation before proceeding to Step 6.
 
 ### Step 6 -- Persist scoping to catalog
 
+Write the scoping JSON to a temp file to avoid shell quoting issues (rationale text may contain apostrophes):
+
 ```bash
+mkdir -p .staging
+# Write scoping JSON to .staging/scoping.json
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-scoping \
-  --name <table> --scoping '<json>'
+  --name <table> --scoping-file .staging/scoping.json; rm -rf .staging
 ```
 
 The scoping JSON must include the selected writer (or `no_writer_found` status) and a `selected_writer_rationale` field (1–2 sentences explaining why this writer was chosen over alternatives, or why no writer / ambiguous). If the write exits non-zero, report the error and ask the user to correct.
 
 ## Error handling
 
-| Condition | Action |
-|---|---|
-| `manifest.json` missing | Stop, tell user to run `setup-ddl` |
-| `catalog/tables/<table>.json` missing | Stop, tell user to run `discover list --type tables` |
-| `discover refs` exits non-zero | Report error, stop |
-| `/analyzing-object` fails for a candidate | Log the failure, mark that candidate as `BLOCKED`, continue with remaining candidates |
-| `discover write-scoping` exits non-zero | Report validation errors, ask user to correct |
+| Command | Exit code | Action |
+|---|---|---|
+| `discover refs` | 1 | Object not found or catalog file missing. Report and stop |
+| `discover refs` | 2 | Catalog directory unreadable (IO error). Report and stop |
+| `/analyzing-object` | skill failure | Log failure, mark candidate `BLOCKED`, continue with remaining |
+| `discover write-scoping` | 1 | Validation failure. Report errors, ask user to correct |
+| `discover write-scoping` | 2 | Invalid JSON or IO error. Report and stop |

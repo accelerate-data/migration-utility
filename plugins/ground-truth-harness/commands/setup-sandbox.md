@@ -1,6 +1,7 @@
 ---
 name: setup-sandbox
-description: Creates a throwaway sandbox database by cloning schema from the source SQL Server. Checks prerequisites, generates a run ID, and calls the test-harness CLI.
+description: Creates a throwaway sandbox database by cloning schema from the source SQL Server. Checks prerequisites and calls the test-harness CLI. Persists sandbox info to manifest.json.
+user-invocable: true
 ---
 
 # Set Up Sandbox
@@ -45,20 +46,20 @@ Sandbox setup:
 
 If any required item is missing, explain what needs to be fixed and stop. Do not proceed without all prerequisites met.
 
-Ask the user if they want to proceed. If the user provides a run ID, use it. Otherwise generate a new UUID.
+Ask the user if they want to proceed.
 
 ## Step 4: Execute
 
 After the user confirms:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" test-harness sandbox-up \
-  --run-id <uuid>
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" test-harness sandbox-up
 ```
 
-Parse the JSON output and report:
+The CLI generates a run ID, creates the sandbox, and writes `sandbox.run_id` and `sandbox.database` into `manifest.json`. Parse the JSON output and report:
 
 - Sandbox database name
+- Run ID (persisted in manifest)
 - Number of tables cloned
 - Number of procedures cloned
 - Any errors or warnings
@@ -68,6 +69,20 @@ Parse the JSON output and report:
 Tell the user the sandbox is ready and provide the run ID for use with `/generate-tests` or `test-harness execute`.
 
 If there were errors, list them and recommend checking the source database connectivity.
+
+## Error handling
+
+| Command | Exit code | Action |
+|---|---|---|
+| `test-harness sandbox-up` | 1 | Sandbox creation or schema cloning failed. Report errors from JSON output |
+| `test-harness sandbox-up` | 0 + `status: "partial"` | Some tables/procs failed to clone. Report which ones failed, sandbox is still usable |
+| `test-harness --help` | non-zero | CLI not installed. Tell user to run `uv sync` in the lib directory |
+
+Errors in JSON output use this format:
+
+```json
+{"code": "TABLE_CLONE_FAILED", "message": "Failed to clone [silver].[DimProduct]: ..."}
+```
 
 ## Idempotency
 

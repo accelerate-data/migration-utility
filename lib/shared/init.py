@@ -2,7 +2,7 @@
 
 Two subcommands:
 
-    scaffold-project   Write CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, .claude/rules/command-lifecycle.md
+    scaffold-project   Write CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, .claude/rules/git-workflow.md
     scaffold-hooks     Write .githooks/pre-commit and configure git hooks path
 
 Both are idempotent: existing files are merged or skipped, never overwritten.
@@ -66,9 +66,13 @@ See `repo-map.json` for the full directory structure and agent notes.
 | Skill | Purpose |
 |---|---|
 | `/setup-ddl` | Extract DDL from live SQL Server and write local artifact files |
-| `/listing-objects` | Browse the DDL catalog — list objects by type |
-| `/generating-model` | Generate dbt models from stored procedures |
+| `/listing-objects` | Browse the DDL catalog — list, show, refs |
+| `/scoping-table` | Writer discovery and resolution for a single table |
+| `/analyzing-object` | Deep-dive procedure analysis — call graph, statements, migration guidance |
 | `/profiling-table` | Interactive single-table profiling with approval gates |
+| `/generating-tests` | Generate ground truth test fixtures for a table |
+| `/reviewing-tests` | Quality gate for test generation output |
+| `/generate-model` | Generate dbt models from stored procedures |
 
 ## MCP Servers
 
@@ -76,6 +80,10 @@ See `repo-map.json` for the full directory structure and agent notes.
 |---|---|---|
 | `ddl_mcp` | stdio | Structured DDL parsing from local `.sql` files |
 | `mssql` | HTTP (genai-toolbox) | Live SQL Server queries |
+
+## Git Workflow
+
+Worktree conventions and PR format are in `.claude/rules/git-workflow.md`.
 
 ## Guardrails
 
@@ -147,7 +155,7 @@ These values are passed to the `mssql` MCP server at startup via environment inh
 2. **`/setup-ddl`** — extract DDL from live SQL Server into local artifact files
 3. **`/listing-objects`** — browse the DDL catalog (list objects by type)
 4. **`/profiling-table`** — profile individual tables interactively
-5. **`/generating-model`** — generate dbt models from stored procedures
+5. **`/generate-model`** — generate dbt models from stored procedures
 
 ## Directory Structure
 
@@ -203,6 +211,9 @@ GITIGNORE_ENTRIES = [
     "# Staging files from setup-ddl (intermediate MCP query results)",
     ".staging/",
     "",
+    "# Batch command run metadata",
+    ".migration-runs/",
+    "",
     "# Python",
     "__pycache__/",
     "*.pyc",
@@ -233,120 +244,18 @@ export MSSQL_DB=
 export SA_PASSWORD=
 """
 
-COMMAND_LIFECYCLE_MD = """\
-# Command Lifecycle
+GIT_WORKFLOW_MD = """\
+# Git Workflow
 
-Every stage-specific command (`/scoping`, `/profiling`, `/generating-tests`, `/generating-model`) follows this shared lifecycle. Individual commands add stage-specific guards and delegation rules on top.
+## Worktrees
 
-## Invocation
+Worktree base path: `{worktree_base}`
 
-```text
-/<command> <schema.table> [schema.table ...]
-```
+Commands create worktrees at `<base>/<run-slug>` where `<run-slug>` is generated from the command name and table names (e.g. `scope-dimcustomer-dimproduct`).
 
-Table names are fully-qualified (`schema.table`). Single table = one sub-agent, FDE reviews inline. Multiple tables = parallel sub-agents, FDE reviews summary at end.
+## Cleanup
 
-## Common Guards
-
-### Batch-wide
-
-Before processing any items:
-
-1. Read `manifest.json` from the current working directory. If missing or unreadable, fail **all** items with code `MANIFEST_NOT_FOUND` and write output immediately.
-
-### Per-item
-
-Before running the skill for each item:
-
-1. Check `catalog/tables/<item_id>.json` exists. If missing, skip this item with `CATALOG_FILE_MISSING` in `errors[]`.
-
-## Git Lifecycle
-
-### Branching
-
-1. **Single table** — run on the current branch.
-2. **Multiple tables** — create branch `run/<command>-batch-N` (N = next unused integer).
-
-### Execution
-
-1. Clear `.migration-runs/`, write `meta.json` with `{stage, tables, started_at}`.
-2. Spawn one sub-agent per table. Each follows the corresponding skill's per-table rules.
-3. Each sub-agent commits its artifacts on success (one commit per table).
-4. Each sub-agent writes its result to `.migration-runs/results/<schema>.<table>.json`.
-
-### Commit Messages
-
-Format: `<command>(<schema>.<table>): <one-line summary>`
-
-Example: `scoping(silver.DimCustomer): resolve 3 writers, 1 ambiguous`
-
-### Error Handling
-
-After all sub-agents finish, the command reads `.migration-runs/results/` for the success/error list. For each errored table, revert its commit:
-
-```bash
-git revert --no-edit <sha>
-```
-
-The FDE sees a clean branch with only succeeded tables. Errored table diagnostics remain in `.migration-runs/results/` for inspection.
-
-### PR Strategy
-
-1. Aggregate results into `.migration-runs/summary.json`.
-2. Present summary to FDE.
-3. Ask FDE: open PR?
-
-PR body includes:
-
-- Stage and table list from `meta.json`
-- Per-table status (success/skipped/error) from `summary.json`
-- Diagnostics summary for tables with warnings
-
-PRs target the repo's default branch. The FDE reviews and merges — the command does not auto-merge.
-
-### Interactive Mode
-
-Interactive skills (single-table, FDE-driven) follow the same one-commit-per-table rule. The FDE commits on approval. Interactive skills do not open PRs automatically — the FDE manages PRs as part of their normal workflow.
-
-## Run Log Structure
-
-```text
-.migration-runs/
-  meta.json                        # stage, tables, started_at
-  results/
-    <schema>.<table>.json          # one per item — sub-agent writes on completion
-  summary.json                     # command writes after all sub-agents finish
-```
-
-- Cleared at the start of each command invocation.
-- `.gitignore`d — never committed.
-- No run IDs, no nesting.
-- Consumed at commit/PR time for rich commit messages and PR bodies.
-
-## Error and Warning Format
-
-Every entry in `errors[]` or `warnings[]` uses this structure:
-
-```json
-{
-  "item_id": "silver.dimcustomer",
-  "code": "CATALOG_FILE_MISSING",
-  "message": "catalog/tables/silver.dimcustomer.json not found.",
-  "severity": "error"
-}
-```
-
-## Output Integrity
-
-Never set `status: "ok"` if `errors[]` is non-empty or a required step was skipped. The `status` field must reflect the actual outcome.
-
-## Skip-and-Continue
-
-Never stop the batch on a single item failure. Process all items and report aggregate results. On skill failure, record the error code and continue to the next item.
-
-## Relationship to Skills
-
-Skills define per-table processing rules. Commands reference skills when constructing sub-agent prompts. The skill is unaware of whether it was invoked directly by the FDE or by a command's sub-agent — suppress user gates when running in batch.
+Run `/cleanup-worktrees` after PRs are merged to remove worktrees and branches.
 """
 
 PRE_COMMIT_HOOK = """\
@@ -478,17 +387,18 @@ def run_scaffold_project(project_root: Path) -> dict[str, Any]:
     else:
         files_skipped.append(".envrc")
 
-    # .claude/rules/command-lifecycle.md
-    lifecycle_path = project_root / ".claude" / "rules" / "command-lifecycle.md"
-    if not lifecycle_path.exists():
-        lifecycle_path.parent.mkdir(parents=True, exist_ok=True)
-        lifecycle_path.write_text(COMMAND_LIFECYCLE_MD, encoding="utf-8")
-        files_created.append(".claude/rules/command-lifecycle.md")
+    # .claude/rules/git-workflow.md
+    workflow_path = project_root / ".claude" / "rules" / "git-workflow.md"
+    if not workflow_path.exists():
+        workflow_path.parent.mkdir(parents=True, exist_ok=True)
+        content = GIT_WORKFLOW_MD.format(worktree_base="../worktrees")
+        workflow_path.write_text(content, encoding="utf-8")
+        files_created.append(".claude/rules/git-workflow.md")
         logger.info(
-            "event=scaffold_file file=.claude/rules/command-lifecycle.md status=created"
+            "event=scaffold_file file=.claude/rules/git-workflow.md status=created"
         )
     else:
-        files_skipped.append(".claude/rules/command-lifecycle.md")
+        files_skipped.append(".claude/rules/git-workflow.md")
 
     return {
         "files_created": files_created,
@@ -546,7 +456,7 @@ def scaffold_project(
         help="Project root directory (defaults to CWD)",
     ),
 ) -> None:
-    """Scaffold CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, and .claude/rules/command-lifecycle.md."""
+    """Scaffold CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, and .claude/rules/git-workflow.md."""
     if project_root is None:
         project_root = Path.cwd()
     result = run_scaffold_project(project_root)

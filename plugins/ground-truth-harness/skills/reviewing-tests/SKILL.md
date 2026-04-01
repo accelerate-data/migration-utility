@@ -3,23 +3,24 @@ name: reviewing-tests
 description: >
   Reviews test generation output for coverage and quality. Independently
   enumerates branches, scores coverage, and reviews fixture quality.
-  Invoked by the /generate-tests command, not directly by FDE.
-user-invocable: false
-argument-hint: "[--table <fqn>]"
+  Invoked by the /generate-tests command, not directly by the user.
+user-invocable: true
+argument-hint: "<schema.table>"
 ---
 
-# Review Tests
+# Reviewing Tests
 
 Quality gate for test generation output. Independently enumerates conditional branches from the stored procedure, maps the test generator's scenarios against the reviewer's own branch list, scores coverage, reviews fixture quality, and issues a verdict.
 
 ## Arguments
 
-Parse `$ARGUMENTS` for `--table`. The value is the fully qualified table name (the `item_id`).
+`$ARGUMENTS` is the fully-qualified table name (the `item_id`), optionally followed by `--iteration <N>` (1-based). Defaults to 1 if not provided. The `/generate-tests` command passes the current iteration number.
 
 ## Before invoking
 
-1. Read `manifest.json` from the current working directory to confirm a valid project root. If missing, stop and tell the caller that the project is not initialized.
-2. Confirm `test-specs/<item_id>.json` exists. If missing, stop and report: "No test spec found for `<item_id>`. Run `/generating-tests` first."
+1. Read `manifest.json` from the current working directory to confirm a valid project root. If missing, tell the caller that the project is not initialized and stop.
+2. Confirm `catalog/tables/<item_id>.json` exists. If missing, stop — this skill only operates on tables.
+3. Confirm `test-specs/<item_id>.json` exists. If missing, tell the caller to run `/generating-tests` first and stop.
 
 ## Step 1: Assemble context
 
@@ -74,7 +75,7 @@ Rules:
 
 - A scenario may cover multiple branches.
 - A branch may require multiple scenarios to cover fully.
-- Map by analyzing the `given` fixture rows and `expect.rows` against the proc logic — not by trusting scenario names or descriptions alone.
+- Map by analyzing the `given` fixture rows against the proc logic — not by trusting scenario names or descriptions alone.
 
 ## Step 4: Score coverage
 
@@ -82,8 +83,12 @@ Compute coverage:
 
 - **total_branches**: count of branches from the reviewer's enumeration.
 - **covered_branches**: count of branches with at least one mapped scenario.
-- **score**: `complete` if all branches are covered, `partial` otherwise.
-- **uncovered**: list of branch objects (`id`, `description`) that have zero mapped scenarios.
+- **untestable_branches**: count of branches marked untestable (see below).
+- **score**: `complete` if all testable branches are covered (covered + untestable = total), `partial` otherwise.
+- **uncovered**: list of branch objects (`id`, `description`) that have zero mapped scenarios and are not untestable.
+- **untestable**: list of branch objects (`id`, `description`, `rationale`) that cannot be tested with static fixtures.
+
+A branch is **untestable** when it depends on runtime state that static fixtures cannot reproduce: `GETDATE()`/`SYSDATETIME()` comparisons, dynamic SQL with variable table/column targets, external service calls, or non-deterministic functions. Each untestable classification requires a `rationale` explaining why. Do not use untestable as a catch-all — if a branch can be tested by carefully constructed fixture data, it is testable.
 
 ## Step 5: Review fixture quality
 
@@ -93,7 +98,6 @@ For each test scenario in `unit_tests[]`, assess these dimensions:
 - **Scenario isolation:** Does each scenario test one branch clearly, or are multiple branches tangled in a way that makes failure diagnosis ambiguous?
 - **FK consistency:** Do foreign key values in fixture rows align across source tables within each scenario? A row referencing `customer_key = 42` in the fact table should have a matching `customer_key = 42` in the dimension fixture.
 - **Edge cases:** Are boundary values present where appropriate (NULLs, empty strings, MAX values, zero-row inputs)?
-- **Ground truth plausibility:** Does `expect.rows` look consistent with the proc logic and the `given` inputs? The ground truth was captured from actual proc execution, so it is factual — but check that the fixture inputs logically produce the expected output.
 
 Record each issue with the scenario name, a description of the concern, and a severity (`warning` or `error`).
 
@@ -103,13 +107,13 @@ Apply the following verdict rules:
 
 | Condition | Action |
 |---|---|
-| Coverage complete + quality acceptable | **Approve** — set `status` to `approved` |
-| Coverage gaps identified | **Kick back** — set `status` to `revision_requested`, populate `feedback_for_generator.uncovered_branches` with the branch IDs that lack scenarios |
+| All testable branches covered + quality acceptable | **Approve** — set `status` to `approved`. If untestable branches exist, include them in the output for documentation |
+| Testable coverage gaps identified | **Kick back** — set `status` to `revision_requested`, populate `feedback_for_generator.uncovered_branches` with the branch IDs that lack scenarios (exclude untestable branches) |
 | Quality issues found | **Kick back** — set `status` to `revision_requested`, populate `feedback_for_generator.quality_fixes` with specific remediation instructions per scenario |
 | Both coverage gaps and quality issues | **Kick back** — set `status` to `revision_requested`, populate both feedback fields |
-| Max review iterations reached (2) | **Approve with warnings** — set `status` to `approved`, add a warning entry flagging the item for human review |
+| Iteration 2 and issues remain | **Approve with warnings** — set `status` to `approved_with_warnings`, add a warning entry flagging the item for human review |
 
-Maximum review / generator iterations: 2 (configurable). If this is the second review pass and issues remain, approve with warnings rather than looping further.
+Maximum review iterations: 2. If `--iteration 2` and issues remain, approve with warnings rather than looping further.
 
 ## Output schema (TestReviewResult)
 
@@ -118,7 +122,7 @@ Emit the following JSON structure as the skill's output:
 ```json
 {
   "item_id": "silver.dimproduct",
-  "status": "approved|revision_requested|error",
+  "status": "approved|approved_with_warnings|revision_requested|error",
   "reviewer_branch_manifest": [
     {
       "id": "merge_not_matched_insert",
@@ -129,12 +133,20 @@ Emit the following JSON structure as the skill's output:
   ],
   "coverage": {
     "total_branches": 8,
-    "covered_branches": 7,
+    "covered_branches": 6,
+    "untestable_branches": 1,
     "score": "partial",
     "uncovered": [
       {
         "id": "left_join_null_category",
         "description": "LEFT JOIN to category table — no matching category (NULL right side)"
+      }
+    ],
+    "untestable": [
+      {
+        "id": "getdate_expiry_check",
+        "description": "WHERE ExpiryDate < GETDATE() — runtime date comparison",
+        "rationale": "Branch depends on current system time; static fixtures cannot control GETDATE() output"
       }
     ]
   },
@@ -186,6 +198,8 @@ Test reviewer must not:
 
 ## Error handling
 
-- `migrate context` exits 1 → a prerequisite is missing (no profile, no writer, no statements). Report which prerequisite is missing and set `status` to `error` with an entry in `errors[]` using code `CONTEXT_PREREQUISITE_MISSING`.
-- `migrate context` exits 2 → IO or parse error. Surface the CLI error message and set `status` to `error` with an entry in `errors[]` using code `CONTEXT_IO_ERROR`.
-- `test-specs/<item_id>.json` missing → stop before review. Tell the caller to run `/generating-tests` first. Set `status` to `error` with code `TEST_SPEC_MISSING`.
+| Command | Exit code | Action |
+|---|---|---|
+| `migrate context` | 1 | Prerequisite missing. Report which and set `status: "error"` with code `CONTEXT_PREREQUISITE_MISSING` |
+| `migrate context` | 2 | IO/parse error. Surface error message and set `status: "error"` with code `CONTEXT_IO_ERROR` |
+| `test-specs/<item_id>.json` | missing | Tell caller to run `/generating-tests` first. Set `status: "error"` with code `TEST_SPEC_MISSING` |

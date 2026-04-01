@@ -24,7 +24,7 @@ import json
 import logging
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, NoReturn, Optional
 
 import typer
 
@@ -101,7 +101,7 @@ def _find_entry(
     return None
 
 
-def _catalog_error(type_label: str, norm: str) -> None:
+def _catalog_error(type_label: str, norm: str) -> NoReturn:
     """Raise CatalogFileMissingError for missing catalog file."""
     raise CatalogFileMissingError(type_label, norm)
 
@@ -122,7 +122,6 @@ def _show_table(project_root: Path, norm: str) -> dict[str, Any]:
     table_cat = load_table_catalog(project_root, norm)
     if table_cat is None:
         _catalog_error("table", norm)
-        assert False, "unreachable"  # _catalog_error always raises
     return {"columns": table_cat.get("columns", [])}
 
 
@@ -133,7 +132,6 @@ def _show_procedure(
     proc_cat = load_proc_catalog(project_root, norm)
     if proc_cat is None:
         _catalog_error("procedure", norm)
-        assert False, "unreachable"  # _catalog_error always raises
 
     params = proc_cat.get("params", [])
 
@@ -187,7 +185,6 @@ def _show_view_or_function(
     obj_cat = cat_loader(project_root, norm)
     if obj_cat is None:
         _catalog_error(type_label, norm)
-        assert False, "unreachable"  # _catalog_error always raises
 
     cat_refs = obj_cat.get("references", {})
     tables_in_scope = cat_refs.get("tables", {}).get("in_scope", [])
@@ -345,7 +342,7 @@ def run_write_scoping(
     # Atomic write (same pattern as write_proc_statements)
     catalog_dir = project_root / "catalog" / "tables"
     cat_path = catalog_dir / f"{table_norm}.json"
-    tmp_path = cat_path.with_suffix(".tmp")
+    tmp_path = cat_path.with_suffix(".json.tmp")
     tmp_path.write_text(json.dumps(cat, indent=2) + "\n")
     tmp_path.rename(cat_path)
 
@@ -437,9 +434,15 @@ def refs(
 def write_statements(
     project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
     name: str = typer.Option(..., help="Fully-qualified procedure name (schema.Name)"),
-    statements: str = typer.Option(..., help="JSON array of resolved statement objects"),
+    statements: str = typer.Option("", help="JSON array of resolved statement objects"),
+    statements_file: Optional[Path] = typer.Option(None, "--statements-file", help="Path to file containing statements JSON"),
 ) -> None:
     """Persist resolved statements into a procedure catalog file."""
+    if statements_file:
+        statements = statements_file.read_text(encoding="utf-8")
+    if not statements:
+        logger.error("event=command_failed error=no statements provided (use --statements or --statements-file)")
+        raise typer.Exit(code=1)
     project_root = resolve_project_root(project_root)
     try:
         stmts = json.loads(statements)
@@ -461,9 +464,15 @@ def write_statements(
 def write_scoping(
     project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
     name: str = typer.Option(..., help="Fully qualified table name"),
-    scoping: str = typer.Option(..., help="Scoping JSON"),
+    scoping: str = typer.Option("", help="Scoping JSON"),
+    scoping_file: Optional[Path] = typer.Option(None, "--scoping-file", help="Path to file containing scoping JSON"),
 ) -> None:
     """Persist scoping results to a table catalog file."""
+    if scoping_file:
+        scoping = scoping_file.read_text(encoding="utf-8")
+    if not scoping:
+        logger.error("event=command_failed error=no scoping provided (use --scoping or --scoping-file)")
+        raise typer.Exit(code=1)
     project_root = resolve_project_root(project_root)
     try:
         scoping_data = json.loads(scoping)

@@ -73,26 +73,14 @@ def _extract_calls(raw_ddl: str) -> list[str]:
     return sorted(calls)
 
 
-def _table_in_scope(
-    in_scope_list: list[dict[str, Any]], table_fqn: str,
+def _fqn_in_scope(
+    in_scope_list: list[dict[str, Any]], fqn: str,
 ) -> bool:
-    """Check if a table FQN is already in an in_scope list."""
-    for entry in in_scope_list:
-        entry_fqn = normalize(f"{entry['schema']}.{entry['name']}")
-        if entry_fqn == table_fqn:
-            return True
-    return False
-
-
-def _proc_in_scope(
-    in_scope_list: list[dict[str, Any]], proc_fqn: str,
-) -> bool:
-    """Check if a procedure FQN is already in an in_scope list."""
-    for entry in in_scope_list:
-        entry_fqn = normalize(f"{entry['schema']}.{entry['name']}")
-        if entry_fqn == proc_fqn:
-            return True
-    return False
+    """Check if a normalized FQN is already in an in_scope list."""
+    return any(
+        normalize(f"{e['schema']}.{e['name']}") == fqn
+        for e in in_scope_list
+    )
 
 
 def _make_ast_ref_entry(
@@ -208,7 +196,7 @@ def _augment_proc_catalogs(
         proc_modified = False
 
         for table_fqn in sorted(direct_writers.get(proc_fqn, set())):
-            if not _table_in_scope(tables_in_scope, table_fqn):
+            if not _fqn_in_scope(tables_in_scope, table_fqn):
                 schema, name = fqn_parts(table_fqn)
                 tables_in_scope.append(_make_ast_ref_entry(schema, name, is_updated=True))
                 proc_modified = True
@@ -216,7 +204,7 @@ def _augment_proc_catalogs(
                 logger.info("event=enrich_add_direct proc=%s table=%s detection=ast_scan", proc_fqn, table_fqn)
 
         for table_fqn in sorted(indirect_writers.get(proc_fqn, set())):
-            if not _table_in_scope(tables_in_scope, table_fqn):
+            if not _fqn_in_scope(tables_in_scope, table_fqn):
                 schema, name = fqn_parts(table_fqn)
                 tables_in_scope.append(_make_ast_ref_entry(schema, name, is_updated=True))
                 proc_modified = True
@@ -262,7 +250,7 @@ def _flip_to_table_catalogs(
             procs_in_scope = table_data["referenced_by"]["procedures"]["in_scope"]
             proc_schema, proc_name = fqn_parts(proc_fqn)
 
-            if not _proc_in_scope(procs_in_scope, proc_fqn):
+            if not _fqn_in_scope(procs_in_scope, proc_fqn):
                 procs_in_scope.append(_make_ast_ref_entry(proc_schema, proc_name, is_updated=True))
                 procs_in_scope.sort(key=lambda e: f"{e['schema']}.{e['name']}".lower())
                 tables_augmented.add(table_fqn)

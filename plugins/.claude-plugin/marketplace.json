@@ -8,17 +8,17 @@
     {
       "name": "bootstrap",
       "source": "./bootstrap",
-      "description": "Prerequisite setup and initialization wizard for the ad-migration workbench."
+      "description": "Prerequisite setup, DDL extraction, and project initialization for the migration CLI."
     },
     {
       "name": "migration",
       "source": "./migration",
-      "description": "DDL analysis and migration pipeline: scoping, discovery, and DDL extraction for Fabric Warehouse to dbt."
+      "description": "Migration pipeline: scoping, profiling, and dbt model generation for Fabric Warehouse stored procedures."
     },
     {
       "name": "ground-truth-harness",
       "source": "./ground-truth-harness",
-      "description": "Ground-truth harness for migrated dbt models (not yet implemented)."
+      "description": "Ground-truth test generation and sandbox execution for stored procedure migrations."
     }
   ]
 }

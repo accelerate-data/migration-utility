@@ -248,6 +248,17 @@ def run_context(
 # ── Write artifacts ───────────────────────────────────────────────────────────
 
 
+def _atomic_write(path: Path, content: str) -> None:
+    """Write content to path via tmp-then-rename for crash safety."""
+    tmp_path = path.with_name(path.name + ".tmp")
+    try:
+        tmp_path.write_text(content, encoding="utf-8")
+        tmp_path.replace(path)
+    except OSError:
+        tmp_path.unlink(missing_ok=True)
+        raise
+
+
 def run_write(
     table_fqn: str,
     project_root: Path,
@@ -284,11 +295,11 @@ def run_write(
     yml_path = staging_dir / f"_{model_name}.yml"
 
     written: list[str] = []
-    sql_path.write_text(model_sql, encoding="utf-8")
+    _atomic_write(sql_path, model_sql)
     written.append(str(sql_path.relative_to(dbt_project_path)))
 
     if schema_yml and schema_yml.strip():
-        yml_path.write_text(schema_yml, encoding="utf-8")
+        _atomic_write(yml_path, schema_yml)
         written.append(str(yml_path.relative_to(dbt_project_path)))
 
     return {"written": written, "status": "ok"}
@@ -321,10 +332,19 @@ def write(
     table: str = typer.Option(..., help="Fully-qualified target table name (schema.table)"),
     project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
     dbt_project_path: Optional[Path] = typer.Option(None, "--dbt-project-path", help="Path to dbt project (default: $DBT_PROJECT_PATH or ./dbt)"),
-    model_sql: str = typer.Option(..., help="Generated dbt model SQL"),
-    schema_yml: str = typer.Option("", help="Generated schema YAML"),
+    model_sql: str = typer.Option("", help="Generated dbt model SQL (inline string)"),
+    schema_yml: str = typer.Option("", help="Generated schema YAML (inline string)"),
+    model_sql_file: Optional[Path] = typer.Option(None, "--model-sql-file", help="Path to file containing generated dbt model SQL"),
+    schema_yml_file: Optional[Path] = typer.Option(None, "--schema-yml-file", help="Path to file containing generated schema YAML"),
 ) -> None:
     """Write generated dbt model SQL + schema YAML to dbt project."""
+    if model_sql_file:
+        model_sql = model_sql_file.read_text(encoding="utf-8")
+    if schema_yml_file:
+        schema_yml = schema_yml_file.read_text(encoding="utf-8")
+    if not model_sql:
+        logger.error("event=write_failed table=%s error=no model SQL provided (use --model-sql or --model-sql-file)", table)
+        raise typer.Exit(code=1)
     project_root = resolve_project_root(project_root)
     if dbt_project_path is None:
         dbt_project_path = resolve_dbt_project_path(project_root)

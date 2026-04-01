@@ -1,11 +1,12 @@
 ---
 name: init-ad-migration
 description: Checks prerequisites, installs missing deps, scaffolds project files (CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, .githooks), and hands off to /setup-ddl.
+user-invocable: true
 ---
 
 # Initialize ad-migration plugin
 
-Verify and set up all prerequisites before using `listing-objects`, `scoping-table`, `/setup-ddl`, or the `scoping` agent. Then scaffold the project directory for both agents and human developers.
+Verify and set up all prerequisites before using `listing-objects`, `scoping-table`, or `/setup-ddl`. Then scaffold the project directory for both agents and human developers.
 
 ## Step 1: Pre-check
 
@@ -98,7 +99,7 @@ uv sync --project "${CLAUDE_PLUGIN_ROOT}/../../lib"
 
 ## Step 5: Scaffold project files
 
-Run the `init` CLI to scaffold the project directory. This creates CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, .claude/rules/command-lifecycle.md, and .githooks/pre-commit — all idempotently.
+Run the `init` CLI to scaffold the project directory. This creates CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, .claude/rules/git-workflow.md, and .githooks/pre-commit — all idempotently.
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" init scaffold-project --project-root .
@@ -131,10 +132,19 @@ Tell the user:
 - **toolbox installed and all MSSQL vars set**: ready to run `/setup-ddl` to extract DDL from the live database.
 - **toolbox missing or MSSQL vars unset**: DDL file mode (`listing-objects`, `scoping-table`, `scoping`) is fully available. Live-database skills (`/setup-ddl`) require both `toolbox` and all four MSSQL env vars. If using direnv, fill in `.envrc` and run `direnv allow`. Then install `toolbox` from the genai-toolbox releases page.
 
+## Error handling
+
+| Command | Exit code | Action |
+|---|---|---|
+| `init scaffold-project` | non-zero | File IO failure. Surface error message, stop |
+| `init scaffold-project` | 0 + `files_skipped` non-empty | Files already exist. Report which were skipped — not an error |
+| `init scaffold-hooks` | non-zero | Hook creation or git config failed. Surface error message |
+| `uv run ... python3 -c "import ..."` | non-zero | Shared deps not synced. Tell user to run `uv sync --project "${CLAUDE_PLUGIN_ROOT}/../../lib"` |
+
 ## Idempotency
 
 Safe to re-run. Each step checks current state before acting:
 
 - Checks in Step 2 re-evaluate actual environment state.
-- Step 5 uses the `init` CLI which is fully idempotent: existing CLAUDE.md is checked for missing sections (not overwritten), README.md and repo-map.json are skipped if present, .gitignore gets only missing entries appended, .envrc is skipped if present, .claude/rules/command-lifecycle.md is skipped if present, .githooks/pre-commit is skipped if present.
+- Step 5 uses the `init` CLI which is fully idempotent: existing CLAUDE.md is checked for missing sections (not overwritten), README.md and repo-map.json are skipped if present, .gitignore gets only missing entries appended, .envrc is skipped if present, .claude/rules/git-workflow.md is skipped if present, .githooks/pre-commit is skipped if present.
 - Step 6 only commits if there are staged changes.

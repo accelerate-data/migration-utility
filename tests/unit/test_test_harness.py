@@ -223,6 +223,37 @@ class TestSqlServerSandboxUp:
 # ── Sandbox down (mocked) ────────────────────────────────────────────────────
 
 
+class TestSqlServerSandboxStatus:
+    """Test sandbox_status checks database existence via mocked _connect."""
+
+    def test_sandbox_status_exists(self) -> None:
+        backend = _make_backend()
+        default_cursor = MagicMock()
+        default_cursor.fetchone.return_value = (1,)  # DB_ID returns non-None
+
+        fake_connect = _mock_connect_factory(default_cursor=default_cursor)
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            result = backend.sandbox_status(run_id="test-run-id")
+
+        assert result["status"] == "ok"
+        assert result["exists"] is True
+        assert result["run_id"] == "test-run-id"
+
+    def test_sandbox_status_not_found(self) -> None:
+        backend = _make_backend()
+        default_cursor = MagicMock()
+        default_cursor.fetchone.return_value = (None,)  # DB_ID returns None
+
+        fake_connect = _mock_connect_factory(default_cursor=default_cursor)
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            result = backend.sandbox_status(run_id="test-run-id")
+
+        assert result["status"] == "not_found"
+        assert result["exists"] is False
+
+
 class TestSqlServerSandboxDown:
     def test_sandbox_down_drops_database(self) -> None:
         backend = _make_backend()
@@ -347,6 +378,59 @@ class TestSchemaValidation:
             "errors": [{"code": "SANDBOX_DOWN_FAILED", "message": "timeout"}],
         }
         assert_valid_schema(data, "sandbox_down_output.json")
+
+    def test_sandbox_status_output_exists(self, assert_valid_schema) -> None:
+        data = {
+            "run_id": "abc-123",
+            "sandbox_database": "__test_abc_123",
+            "status": "ok",
+            "exists": True,
+        }
+        assert_valid_schema(data, "sandbox_status_output.json")
+
+    def test_sandbox_status_output_not_found(self, assert_valid_schema) -> None:
+        data = {
+            "run_id": "abc-123",
+            "sandbox_database": "__test_abc_123",
+            "status": "not_found",
+            "exists": False,
+        }
+        assert_valid_schema(data, "sandbox_status_output.json")
+
+    def test_test_spec_per_item_valid(self, assert_valid_schema) -> None:
+        data = {
+            "item_id": "silver.dimproduct",
+            "status": "ok",
+            "coverage": "complete",
+            "branch_manifest": [
+                {
+                    "id": "merge_matched_update",
+                    "statement_index": 0,
+                    "description": "MERGE WHEN MATCHED → UPDATE",
+                    "scenarios": ["test_merge_matched"],
+                }
+            ],
+            "unit_tests": [
+                {
+                    "name": "test_merge_matched",
+                    "model": "stg_dimproduct",
+                    "given": [
+                        {
+                            "input": "source('bronze', 'product')",
+                            "rows": [{"product_id": 1}],
+                        }
+                    ],
+                    "expect": {
+                        "rows": [{"product_key": 1}],
+                    },
+                }
+            ],
+            "uncovered_branches": [],
+            "warnings": [],
+            "validation": {"passed": True, "issues": []},
+            "errors": [],
+        }
+        assert_valid_schema(data, "test_spec.json")
 
     def test_test_spec_output_valid(self, assert_valid_schema) -> None:
         data = {

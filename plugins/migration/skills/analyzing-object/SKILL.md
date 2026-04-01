@@ -1,30 +1,25 @@
 ---
 name: analyzing-object
 description: >
-  Analyse a stored procedure, view, or function for migration. Resolves call graphs, classifies statements, produces a logic summary and migration guidance, and persists results to catalog.
+  Analyse a stored procedure for migration. Resolves call graphs, classifies statements, produces a logic summary and migration guidance, and persists results to catalog. Procedures only — use /listing-objects for views and functions.
 user-invocable: true
-argument-hint: "--name <fqn>"
+argument-hint: "<schema.procedure>"
 ---
 
 # Analyzing Object
 
-Deep-dive analysis of a single stored procedure, view, or function. Produces call graph, statement classification, logic summary, migration guidance, and persists resolved statements to catalog.
+Deep-dive analysis of a single stored procedure. Produces call graph, statement classification, logic summary, migration guidance, and persists resolved statements to catalog.
 
 ## Arguments
 
-Parse `$ARGUMENTS` for the required option:
-
-| Option | Required | Values |
-|---|---|---|
-| `--name` | yes | Fully-qualified object name (e.g. `dbo.usp_load_DimCustomer`, `silver.vw_CustomerSales`) |
-
-If `--name` is missing, use `AskUserQuestion` to prompt for it.
+`$ARGUMENTS` is the fully-qualified procedure name (e.g. `dbo.usp_load_DimCustomer`). Ask the user if missing.
 
 ## Before invoking
 
-Read `manifest.json` from the current working directory to confirm it is a valid project root and to understand the source technology and dialect. If the manifest is missing, stop and tell the user to run `setup-ddl` first.
+1. Read `manifest.json` from the current working directory to confirm a valid project root. If missing, tell the user to run `setup-ddl` first.
+2. Confirm the object is a procedure by checking that `catalog/procedures/<name>.json` exists. If the object is a view, function, or table, tell the user to use `/listing-objects show <name>` instead and stop.
 
-## Procedures
+## Pipeline
 
 Follow these steps in order. Do not abbreviate — every step must complete before moving to the next.
 
@@ -93,46 +88,23 @@ After presenting the analysis to the user, persist resolved statements to catalo
 
 No `claude` actions are written to catalog — all must be resolved before persisting.
 
+Write the statements JSON to a temp file to avoid shell quoting issues (rationale text may contain apostrophes):
+
 ```bash
+mkdir -p .staging
+# Write statements JSON to .staging/statements.json
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-statements \
-  --name <procedure_name> --statements '<json>'
+  --name <procedure_name> --statements-file .staging/statements.json; rm -rf .staging
 ```
-
-See [`references/procedure-analysis-flow.md`](references/procedure-analysis-flow.md) for the full canonical flow.
-
-## Views
-
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover show \
-  --name <view>
-```
-
-Show refs and the view definition:
-
-```text
-silver.vw_CustomerSales (view)
-
-  Reads from: silver.DimCustomer, silver.FactSales
-
-  Definition:
-    SELECT c.FirstName, SUM(f.Amount) AS TotalSales
-    FROM silver.DimCustomer c
-    JOIN silver.FactSales f ON c.CustomerKey = f.CustomerKey
-    GROUP BY c.FirstName
-```
-
-## Functions
-
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover show \
-  --name <function>
-```
-
-Show refs and the function definition. Present the return type and any referenced objects.
 
 ## Error handling
 
-- If `discover show` exits with code 2, the catalog directory could not be read (missing path, IO error, no catalog). Report the error and stop.
-- Procedures with `parse_error` set are still loaded — not skipped. Their `raw_ddl` is preserved for inspection. Report the parse error to the user and proceed with `raw_ddl`-based analysis.
-- If call graph resolution hits a circular reference, stop recursion and report the cycle.
-- If dynamic SQL cannot be reconstructed (variable target table, external input), report as unresolvable and note what can be determined.
+| Command | Exit code | Action |
+|---|---|---|
+| `discover show` | 1 | Object not found or catalog file missing. Report and stop |
+| `discover show` | 2 | Catalog directory unreadable (IO error). Report and stop |
+| `discover show` | 0 + `parse_error` set | Still loaded — `raw_ddl` preserved. Report parse error, proceed with `raw_ddl`-based analysis |
+| `discover write-statements` | 1 | Procedure not found or invalid statements. Report validation error |
+| `discover write-statements` | 2 | Invalid JSON input. Report and stop |
+| call graph resolution | — | Circular reference: stop recursion and report the cycle |
+| dynamic SQL reconstruction | — | Unresolvable (variable target, external input): report as unresolvable |

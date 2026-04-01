@@ -339,6 +339,42 @@ class SqlServerSandbox(SandboxBackend):
                 "errors": [{"code": "SANDBOX_DOWN_FAILED", "message": str(exc)}],
             }
 
+    def sandbox_status(self, run_id: str) -> dict[str, Any]:
+        _validate_run_id(run_id)
+        sandbox_db = self.sandbox_db_name(run_id)
+        logger.info("event=sandbox_status run_id=%s sandbox_db=%s", run_id, sandbox_db)
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT DB_ID(?)", sandbox_db)
+                exists = cursor.fetchone()[0] is not None
+
+            if exists:
+                logger.info("event=sandbox_status_complete run_id=%s exists=true", run_id)
+                return {
+                    "run_id": run_id,
+                    "sandbox_database": sandbox_db,
+                    "status": "ok",
+                    "exists": True,
+                }
+            logger.info("event=sandbox_status_complete run_id=%s exists=false", run_id)
+            return {
+                "run_id": run_id,
+                "sandbox_database": sandbox_db,
+                "status": "not_found",
+                "exists": False,
+            }
+        except pyodbc.Error as exc:
+            logger.error("event=sandbox_status_failed run_id=%s error=%s", run_id, exc)
+            return {
+                "run_id": run_id,
+                "sandbox_database": sandbox_db,
+                "status": "error",
+                "exists": False,
+                "errors": [{"code": "SANDBOX_STATUS_FAILED", "message": str(exc)}],
+            }
+
     def execute_scenario(
         self,
         run_id: str,

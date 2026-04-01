@@ -94,7 +94,6 @@ Structured JSON output from the `discover` CLI subcommands, consumed by skills a
 | Schema | Agent | Required fields |
 |---|---|---|
 | [profiler_input.json](profiler_input.json) | Profiler | `schema_version`, `run_id`, `items[].item_id` |
-| [test_generator_input.json](test_generator_input.json) | Test Generator | `schema_version`, `run_id`, `items[].item_id` |
 | [model_generator_input.json](model_generator_input.json) | Model Generator | `schema_version`, `run_id`, `items[].item_id` |
 
 ## Agent output schemas
@@ -110,3 +109,5 @@ Structured JSON output from the `discover` CLI subcommands, consumed by skills a
 | Schema | Skill / Command | Notes |
 |---|---|---|
 | [profile_context.json](profile_context.json) | `profile.py context` | Deterministic context assembly for LLM profiling: table, writer, catalog signals, writer references, proc body, columns, related procedures |
+| [test_spec.json](test_spec.json) | `/generating-tests` skill | Per-item test spec written to `test-specs/<item_id>.json`: branch manifest, unit tests with fixtures and ground truth, coverage status |
+| [sandbox_status_output.json](sandbox_status_output.json) | `test-harness sandbox-status` | Sandbox existence check result: run_id, database name, exists boolean |

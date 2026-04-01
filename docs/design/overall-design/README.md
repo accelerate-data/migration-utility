@@ -4,9 +4,9 @@ Migration utility for stored-procedure-to-dbt conversion: Claude Code plugin com
 
 ## Supported Sources
 
-| Technology | `technology` value | Import format | Test generator access |
+| Technology | `technology` value | DDL extraction | Test generator access |
 |---|---|---|---|
-| SQL Server | `sql_server` | `.dacpac` | Docker + SQL Server container (GH Actions) |
+| SQL Server | `sql_server` | Live MCP (`mssql-execute-sql`) | Docker + SQL Server container (GH Actions) |
 | Fabric Warehouse | `fabric_warehouse` | `.zip` (DDL export) | T-SQL cloud endpoint |
 | Fabric Lakehouse | `fabric_lakehouse` | `.zip` (DDL export) | Spark SQL |
 | Snowflake | `snowflake` | `.zip` (DDL export) | SQL cloud connection |
@@ -22,7 +22,7 @@ Four commands prepare a migration repo before any per-table work begins. Steps 1
 | 1. Scaffold project | `/init-ad-migration` | Plugin command | Plugin loaded, uv, Python 3.11+ | `CLAUDE.md`, `README.md`, `repo-map.json`, `.gitignore`, `.githooks/` |
 | 2. Extract DDL + catalog | `/setup-ddl` | Skill (interactive) | toolbox on PATH, MSSQL env vars (`MSSQL_HOST`, `MSSQL_PORT`, `SA_PASSWORD`) | `manifest.json`, `ddl/*.sql`, `catalog/**/*.json` |
 | 3. Scaffold dbt project | `/init-dbt` | Plugin command | `manifest.json`, populated `catalog/tables/` | `dbt/` project tree with `sources.yml` |
-| 4. Create test sandbox | `test-harness sandbox-up` | CLI (`uv run`) | `manifest.json`, MSSQL env vars | `__test_<run_id>` throwaway database |
+| 4. Create test sandbox | `/setup-sandbox` | Plugin command | `manifest.json`, MSSQL env vars | `__test_<run_id>` throwaway database |
 
 ### Prerequisites
 
@@ -34,11 +34,11 @@ Four commands prepare a migration repo before any per-table work begins. Steps 1
 
 **`/init-ad-migration`** — checks prerequisites (uv, Python, toolbox, MSSQL vars, git, direnv), presents a plan, then scaffolds project files and configures git hooks. Entry point for every new migration project.
 
-**`/setup-ddl`** — connects to a live SQL Server via MCP, extracts DDL for user-selected databases and schemas, builds catalog files with 12 signal queries (PKs, FKs, identity, CDC, change tracking, sensitivity, DMF refs), and runs AST enrichment. All downstream stages depend on the catalog this produces.
+**`/setup-ddl`** — connects to a live SQL Server via MCP, extracts DDL for a user-selected database and schemas, builds catalog files with 12 signal queries (PKs, FKs, identity, CDC, change tracking, sensitivity, DMF refs), and runs AST enrichment. All downstream stages depend on the catalog this produces.
 
 **`/init-dbt`** — reads `manifest.json` and catalog to scaffold a dbt project with adapter-specific `profiles.yml` and `sources.yml` generated from catalog tables. User picks target platform (Fabric Lakehouse, Spark, Snowflake, DuckDB). Idempotent — regenerates `sources.yml` on re-run, never overwrites `profiles.yml`.
 
-**`test-harness sandbox-up`** — creates a throwaway database (`__test_<run_id>`) by cloning schema and procedures from the source SQL Server. Used by the test generator to execute procs and capture ground truth. Torn down after test generation via `test-harness sandbox-down`.
+**`/setup-sandbox`** — checks prerequisites, then calls `test-harness sandbox-up` to create a throwaway database (`__test_<run_id>`) by cloning schema and procedures from the source SQL Server. Persists the sandbox `run_id` and database name to `manifest.json`. Used by the test generator to execute procs and capture ground truth. Torn down via `/teardown-sandbox`.
 
 ---
 
@@ -47,50 +47,50 @@ Four commands prepare a migration repo before any per-table work begins. Steps 1
 Per-table pipeline with two quality-gate review loops:
 
 ```mermaid
-flowchart LR
+flowchart TD
     scope[Scoping] --> profile[Profiling]
     profile --> sandbox[Sandbox Up]
-
-    sandbox --> gen[Test Generator]
+    sandbox --> gen_entry[ ]:::hidden
 
     subgraph test_loop["Test Loop (≤2 review iterations)"]
-        gen --> reviewer[Test Reviewer]
+        gen[Test Generator] --> reviewer[Test Reviewer]
         reviewer -->|revision requested| gen
     end
 
+    gen_entry --> gen
     reviewer -->|approved| specs[test-specs/]
 
-    specs --> model[Model Generator]
-
-    subgraph migrate_loop["Migration Loop"]
-        model --> dbt["dbt test (≤3 self-corrections)"]
+    subgraph migrate_loop["Migration Loop (≤2 review iterations)"]
+        model[Model Generator] --> dbt["dbt test (≤3 self-corrections)"]
         dbt --> code_rev[Code Reviewer]
-        code_rev -->|revision requested ≤2| model
+        code_rev -->|revision requested| model
     end
 
+    specs --> model
     code_rev -->|approved| done[Done]
+
+    classDef hidden display:none;
 ```
 
-| Path | Entry point | Approval gates | Runs where | Status |
-|---|---|---|---|---|
-| Interactive | FDE uses skills (`/listing-objects`, `/scoping-table`, `/profiling-table`, `/generating-model`) | Yes — every step | Local terminal | Implemented |
-| Multi-table | FDE uses commands (`/scoping`, `/profiling`, `/generating-tests`, `/generating-model`) | FDE reviews summary at end | Local terminal | **Not yet implemented** |
+| Path | Entry point | Approval gates | Runs where |
+|---|---|---|---|
+| Interactive | FDE uses skills (`/listing-objects`, `/scoping-table`, `/profiling-table`, `/generating-tests`, `/generating-model`) | Yes — every step | Local terminal |
+| Multi-table | FDE uses commands (`/scope`, `/profile`, `/generate-tests`, `/generate-model`) | FDE reviews summary at end | Local terminal |
 
 ### Stages
 
 | Stage | Executor | Role |
 |---|---|---|
-| Scoping | `/scoping` command | Delegates to `/scoping-table` per table. Discovers writers, analyzes candidates via `/analyzing-object`, writes `selected_writer` to catalog. |
-| Profiling | `/profiling` command | Delegates to `/profiling-table` per table. Classifies table, identifies keys, watermark, FKs, PII. Writes profile answers to catalog. |
-| Sandbox Up | `test-harness sandbox-up` (CLI) | Create throwaway database for ground-truth capture. Not an agent. |
-| Test Generation | `/generating-tests` command | Enumerates proc branches, synthesizes fixtures, executes proc in sandbox, captures ground truth, writes `test-specs/<item_id>.json`. Review loop independently enumerates branches, scores coverage, reviews fixture quality. Kicks back for missing branches or quality issues. **Max 2 review iterations.** |
-| Migration | `/generating-model` command | Reads profile + test spec, generates dbt model + schema YAML (with `unit_tests:` rendered from test spec), runs `dbt test`, self-corrects up to **3 iterations**. Code review loop checks standards, correctness, test integration. Kicks back for issues. **Max 2 review iterations.** |
+| Scoping | `/scope` command | Delegates to `/scoping-table` per table. Discovers writers, analyzes candidates via `/analyzing-object`, writes `selected_writer` to catalog. |
+| Profiling | `/profile` command | Delegates to `/profiling-table` per table. Classifies table, identifies keys, watermark, FKs, PII. Writes profile answers to catalog. |
+| Sandbox Up | `/setup-sandbox` command | Create throwaway database for ground-truth capture. Wraps `test-harness sandbox-up` CLI, persists sandbox metadata to `manifest.json`. |
+| Test Generation | `/generate-tests` command | Enumerates proc branches, synthesizes fixtures, executes proc in sandbox, captures ground truth, writes `test-specs/<item_id>.json`. Review loop independently enumerates branches, scores coverage, reviews fixture quality. Kicks back for missing branches or quality issues. **Max 2 review iterations.** |
+| Migration | `/generate-model` command | Reads profile + test spec, generates dbt model + schema YAML (with `unit_tests:` rendered from test spec), runs `dbt test`, self-corrects up to **3 iterations**. Code review loop checks standards, correctness, test integration. Kicks back for issues. **Max 2 review iterations.** |
 
 **Key design decisions:**
 
 - Test generation runs BEFORE migration — the model-generator consumes the approved test spec and must pass `dbt test` against it.
-- Sandbox is a CLI step, not an agent — it's deterministic infrastructure.
-- Review agents are pure quality gates — they don't generate artifacts or modify files.
+- Review skills are pure quality gates — they don't generate artifacts or modify files.
 
 Full per-skill contracts (input/output schemas, pipeline steps, boundary rules): [Skill Contracts](../skill-contract/README.md).
 
@@ -137,10 +137,10 @@ Commands write directly to catalog files, test-specs, and dbt models via sub-age
 
 Each pipeline stage has a skill (single-table, interactive) and a command (multi-table, parallel sub-agents). The skill defines the per-table processing rules. The command orchestrates multiple tables by spawning one sub-agent per table, each following the skill's rules.
 
-| Entry point | Tables | Approval | Status |
-|---|---|---|---|
-| Skill (`/scoping-table`, `/profiling-table`, etc.) | One | FDE reviews inline | Implemented |
-| Command (`/scoping`, `/profiling`, etc.) | Multiple | FDE reviews summary at end | **Not yet implemented** |
+| Entry point | Tables | Approval |
+|---|---|---|
+| Skill (`/scoping-table`, `/profiling-table`, etc.) | One | FDE reviews inline |
+| Command (`/scope`, `/profile`, etc.) | Multiple | FDE reviews summary at end |
 
 ### Interactive (skills)
 
@@ -156,8 +156,6 @@ Each step reads from and writes to catalog files. The FDE reviews and edits befo
 
 ### Multi-table (commands)
 
-> **Not yet implemented.**
-
 The FDE passes multiple table names to a command:
 
 ```text
@@ -166,10 +164,10 @@ The FDE passes multiple table names to a command:
 
 Each command:
 
-1. Creates a branch (e.g. `run/scoping-batch-1`)
+1. Creates a worktree (e.g. `../worktrees/scope-silver-dimcustomer-silver-dimproduct`) so the FDE can run multiple commands in parallel
 2. Spawns one sub-agent per table in parallel — each sub-agent follows the skill's processing rules
 3. Sub-agents run autonomously (skip-and-continue on errors)
-4. Collects per-table results into `.migration-runs/results/`
+4. Collects per-table results into `.migration-runs/`
 5. Aggregates `.migration-runs/summary.json`
 6. Presents summary to FDE, asks: commit + PR?
 
@@ -180,8 +178,7 @@ Run summaries are collected in `.migration-runs/` (`.gitignore`d). Cleared at th
 ```text
 .migration-runs/
   meta.json                        # stage, tables, started_at
-  results/
-    <schema>.<table>.json          # one per item — sub-agent writes on completion
+  <schema>.<table>.json            # one per item — sub-agent writes on completion
   summary.json                     # command writes after all sub-agents finish
 ```
 
@@ -204,19 +201,17 @@ Diagnostics (errors, warnings) are stored per-table in catalog files as `diagnos
 | Mode | Branch pattern | Created by |
 |---|---|---|
 | Interactive (skill) | FDE's current branch | FDE |
-| Multi-table (command) | `run/<command>-batch-N` | Command, before spawning sub-agents |
+| Multi-table (command) | `<command>-<table1>-<table2>-...` (truncated to 60 chars) | Command, before spawning sub-agents |
 
-Commands auto-increment `N` by scanning existing `run/` branches. Single-table skill invocations don't create branches — the FDE works on whatever branch they're already on.
+Single-table skill invocations don't create branches — the FDE works on whatever branch they're already on.
 
 ### Commit Granularity
 
-One commit per table. Each sub-agent commits its own artifacts on success. On error, the command reverts that table's commit — no file-path cleanup needed.
-
-Interactive skills follow the same rule: one commit per table, on FDE approval.
+One commit per table, on FDE approval. Commands aggregate results into `.migration-runs/summary.json` and present to the FDE before committing.
 
 ### Error Handling
 
-After all sub-agents finish, the command reads `.migration-runs/results/` for the success/error list. For each errored table, `git revert --no-edit <sha>` removes its partial work. The FDE sees a clean branch with only succeeded tables.
+Sub-agents skip errored tables and continue. The command collects per-table status in `.migration-runs/` and surfaces errors in the summary. The FDE decides what to commit.
 
 ### Commit Messages
 

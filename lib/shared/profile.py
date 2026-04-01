@@ -236,7 +236,7 @@ def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> d
     """Validate and merge a profile section into a table catalog file.
 
     Returns a confirmation dict on success.
-    Raises typer.Exit(1) on validation failure, typer.Exit(2) on IO error.
+    Raises ValueError on validation failure, OSError/json.JSONDecodeError on IO error.
     """
     table_norm = normalize(table)
 
@@ -254,7 +254,7 @@ def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> d
         existing = json.loads(catalog_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
         logger.error("event=write_failed operation=read_catalog table=%s error=%s", table_norm, exc)
-        raise typer.Exit(code=2) from exc
+        raise
 
     # Merge profile section
     existing["profile"] = profile_json
@@ -270,7 +270,7 @@ def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> d
     except OSError as exc:
         tmp_path.unlink(missing_ok=True)
         logger.error("event=write_failed operation=atomic_write table=%s error=%s", table_norm, exc)
-        raise typer.Exit(code=2) from exc
+        raise
 
     logger.info("event=write_complete table=%s catalog_path=%s", table_norm, catalog_path)
     return {
@@ -306,9 +306,15 @@ def context(
 def write(
     project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
     table: str = typer.Option(..., help="Fully-qualified table name (schema.Name)"),
-    profile: str = typer.Option(..., help="Profile JSON string"),
+    profile: str = typer.Option("", help="Profile JSON string"),
+    profile_file: Optional[Path] = typer.Option(None, "--profile-file", help="Path to file containing profile JSON"),
 ) -> None:
     """Validate and merge a profile section into a table catalog file."""
+    if profile_file:
+        profile = profile_file.read_text(encoding="utf-8")
+    if not profile:
+        logger.error("event=write_failed table=%s error=no profile provided (use --profile or --profile-file)", table)
+        raise typer.Exit(code=1)
     project_root = resolve_project_root(project_root)
     try:
         profile_data = json.loads(profile)

@@ -111,6 +111,29 @@ def sandbox_down(
 
 
 @app.command()
+def sandbox_status(
+    run_id: str = typer.Option(..., help="UUID of the sandbox to check"),
+    project_root: str = typer.Option(".", help="Project root directory"),
+) -> None:
+    """Check whether a sandbox database exists."""
+    logger.info("event=cli_invoked command=sandbox_status run_id=%s", run_id)
+    root = resolve_project_root(Path(project_root))
+    manifest = _load_manifest(root)
+    backend = _create_backend(manifest)
+
+    try:
+        result = backend.sandbox_status(run_id=run_id)
+    except (ValueError, KeyError) as exc:
+        _error_exit("SANDBOX_STATUS_INVALID_INPUT", str(exc), exc)
+    typer.echo(json.dumps(result, indent=2))
+    logger.info("event=cli_complete command=sandbox_status run_id=%s status=%s", run_id, result.get("status"))
+    if result.get("status") == "error":
+        raise typer.Exit(code=1)
+    if not result.get("exists"):
+        raise typer.Exit(code=1)
+
+
+@app.command()
 def execute(
     run_id: str = typer.Option(..., help="UUID of the sandbox"),
     scenario: str = typer.Option(..., help="Path to scenario JSON file"),

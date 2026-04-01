@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "test_spec.json",
+  "title": "TestSpec",
+  "description": "Per-item test spec written to test-specs/<item_id>.json by the /generating-tests skill. Branch-covering dbt unit test fixtures with ground truth.",
+  "type": "object",
+  "required": ["item_id", "status", "coverage", "branch_manifest", "unit_tests", "uncovered_branches", "warnings", "validation", "errors"],
+  "properties": {
+    "item_id": { "type": "string", "description": "Fully qualified table name: <schema>.<table>." },
+    "status": { "type": "string", "enum": ["ok", "partial", "error"] },
+    "coverage": { "type": "string", "enum": ["complete", "partial"] },
+    "branch_manifest": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/branch_entry" }
+    },
+    "unit_tests": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/unit_test_entry" }
+    },
+    "uncovered_branches": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Branch IDs that lack scenarios after max iterations."
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "$ref": "common.json#/$defs/diagnostics_entry" }
+    },
+    "validation": { "$ref": "common.json#/$defs/validation_section" },
+    "errors": {
+      "type": "array",
+      "items": { "$ref": "common.json#/$defs/diagnostics_entry" }
+    }
+  },
+  "$defs": {
+    "branch_entry": {
+      "type": "object",
+      "required": ["id", "statement_index", "description", "scenarios"],
+      "properties": {
+        "id": { "type": "string", "description": "Stable branch identifier (e.g. merge_matched_update)." },
+        "statement_index": { "type": "integer", "minimum": 0 },
+        "description": { "type": "string" },
+        "scenarios": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Test names that exercise this branch."
+        }
+      }
+    },
+    "unit_test_entry": {
+      "type": "object",
+      "required": ["name", "model", "given"],
+      "properties": {
+        "name": { "type": "string", "description": "Test name: test_<load_pattern>_<scenario_description>." },
+        "model": { "type": "string", "description": "dbt model name, deterministic from table FQN." },
+        "given": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/given_entry" },
+          "minItems": 1
+        },
+        "expect": { "$ref": "#/$defs/expect_entry" }
+      }
+    },
+    "given_entry": {
+      "type": "object",
+      "required": ["input", "rows"],
+      "properties": {
+        "input": { "type": "string", "description": "dbt ref(...) or source(...) expression." },
+        "rows": {
+          "type": "array",
+          "items": { "type": "object", "additionalProperties": true },
+          "minItems": 1
+        }
+      }
+    },
+    "expect_entry": {
+      "type": "object",
+      "required": ["rows"],
+      "properties": {
+        "rows": {
+          "type": "array",
+          "items": { "type": "object", "additionalProperties": true },
+          "minItems": 1
+        }
+      }
+    }
+  }
+}
