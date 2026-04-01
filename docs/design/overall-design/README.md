@@ -71,15 +71,21 @@ flowchart LR
     code_rev -->|approved| done[Done]
 ```
 
+| Path | Entry point | Approval gates | Runs where | Status |
+|---|---|---|---|---|
+| Interactive | FDE opens Claude Code, uses skills (`/listing-objects`, `/scoping-table`, `/profiling-table`, `/generating-model`) | Yes -- every step | Local terminal | Implemented |
+| Local batch | `migrate-util scope --table X` | None -- agent runs autonomously | Local terminal | **Not yet implemented** |
+| GHA batch | `migrate-util dispatch scope --all` | None -- commits input, triggers GHA workflow | GitHub Actions | **Not yet implemented** |
+
 ### Stages
 
 | Stage | Executor | Role |
 |---|---|---|
-| Scoping | `scoping-agent` | Discover which stored procedure writes each table. Reads catalog refs, falls back to AST analysis. Writes `selected_writer` to catalog. |
-| Profiling | `profiler-agent` | Classify table, identify keys, watermark, FKs, PII. Writes profile answers to catalog. |
+| Scoping | `scoping` | Delegates to `/scoping-table` per table. Discovers writers, analyzes candidates via `/analyzing-object`, writes `selected_writer` to catalog. |
+| Profiling | `profiler` | Delegates to `/profiling-table` per table. Classifies table, identifies keys, watermark, FKs, PII. Writes profile answers to catalog. |
 | Sandbox Up | `test-harness sandbox-up` (CLI) | Create throwaway database for ground-truth capture. Not an agent. |
 | Test Generation | `test-generator-agent` + `test-reviewer-agent` | Generator enumerates proc branches, synthesizes fixtures, executes proc in sandbox, captures ground truth, writes `test-specs/<item_id>.json`. Reviewer independently enumerates branches, scores coverage, reviews fixture quality. Kicks back for missing branches or quality issues. **Max 2 review iterations.** |
-| Migration | `model-generator-agent` + `code-reviewer-agent` | Model generator reads profile + test spec, generates dbt model + schema YAML (with `unit_tests:` rendered from test spec), runs `dbt test`, self-corrects up to **3 iterations**. Code reviewer checks standards, correctness, test integration. Kicks back for issues. **Max 2 review iterations.** |
+| Migration | `model-generator` + `code-reviewer` | Model generator reads profile + test spec, generates dbt model + schema YAML (with `unit_tests:` rendered from test spec), runs `dbt test`, self-corrects up to **3 iterations**. Code reviewer checks standards, correctness, test integration. Kicks back for issues. **Max 2 review iterations.** |
 
 **Key design decisions:**
 

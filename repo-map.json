@@ -93,7 +93,7 @@
     },
     "migration_skills": {
       "path": "plugins/migration/skills/",
-      "description": "Skill definitions: discover-objects/ (DDL exploration — list/show/refs from catalog; show for tables includes full scoping flow with writer discovery and catalog persistence), generate-model/ (dbt model generation from stored procedures), profile-table/ (interactive single-table profiling with approval gates). setup-ddl is in the bootstrap sub-plugin."
+      "description": "Skill definitions: listing-objects/ (catalog browsing — list objects by type), scoping-table/ (table scoping — writer discovery, statement resolution, catalog persistence), analyzing-object/ (object analysis — show details, refs, statement classification), generating-model/ (dbt model generation from stored procedures), profiling-table/ (interactive single-table profiling with approval gates). setup-ddl is in the bootstrap sub-plugin."
     },
     "migration_agents": {
       "path": "plugins/migration/agents/",
@@ -109,7 +109,7 @@
     },
     "tests_evals": {
       "path": "tests/evals/",
-      "description": "Promptfoo eval harness for non-interactive agent and skill testing against MigrationTest schema. Three packages: scoping (8 scenarios x skill + agent), profiler (4 scenarios), model-generator (4 scenarios). Run via: cd tests/evals && npx promptfoo eval. See docs/design/eval-harness/README.md."
+      "description": "Promptfoo eval harness for non-interactive agent and skill testing against MigrationTest schema. Three packages: scoping (8 scenarios x analyzing-object skill + agent), profiler (4 scenarios x profiling-table skill + agent), model-generator (4 scenarios x generating-model skill + agent). Run via: cd tests/evals && npx promptfoo eval. See docs/design/eval-harness/README.md."
     },
     "tests_ddl_mcp": {
       "path": "mcp/ddl/tests/",

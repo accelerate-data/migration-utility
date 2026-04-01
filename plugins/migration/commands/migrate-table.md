@@ -44,9 +44,9 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover list \
 
 If `--table` was provided, skip the picker. Otherwise, present the table list and use `AskUserQuestion` to let the user pick.
 
-#### 1b. Scope table via `/discover-objects show`
+#### 1b. Scope table via `/scoping-table`
 
-Run `/discover-objects show --name <selected_table>`. This performs the full scoping flow: shows columns, discovers writer candidates via `refs`, resolves statements for each candidate, presents candidates for user selection, and persists scoping to catalog via `discover write-scoping`.
+Run `/scoping-table --name <selected_table>`. This performs the full scoping flow: shows columns, discovers writer candidates via `refs`, resolves statements for each candidate, presents candidates for user selection, and persists scoping to catalog via `discover write-scoping`.
 
 **Gate (interactive):** User confirms the selected writer procedure.
 
@@ -54,7 +54,7 @@ Run `/discover-objects show --name <selected_table>`. This performs the full sco
 
 ### Stage 2: Profile
 
-Run the `/profile-table` skill against the selected table. The writer is read from the catalog scoping section — no need to pass `--writer`. This assembles catalog signals, runs LLM profiling (classification, keys, watermark, PII), and writes results to catalog.
+Run the `/profiling-table` skill against the selected table. The writer is read from the catalog scoping section — no need to pass `--writer`. This assembles catalog signals, runs LLM profiling (classification, keys, watermark, PII), and writes results to catalog.
 
 **Gate (interactive):** User approves profile answers (classification, primary key, watermark, foreign keys, PII actions).
 
@@ -62,7 +62,7 @@ Run the `/profile-table` skill against the selected table. The writer is read fr
 
 ### Stage 3: Migrate
 
-Run the `/generate-model` skill against the selected table. The writer is read from the catalog scoping section — no need to pass `--writer`. This assembles migration context, generates dbt SQL via LLM, runs logical equivalence check, and writes artifacts.
+Run the `/generating-model` skill against the selected table. The writer is read from the catalog scoping section — no need to pass `--writer`. This assembles migration context, generates dbt SQL via LLM, runs logical equivalence check, and writes artifacts.
 
 **Gate (interactive):** User approves generated dbt model and schema YAML before writing.
 

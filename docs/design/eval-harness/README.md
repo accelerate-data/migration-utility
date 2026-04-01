@@ -23,7 +23,7 @@ Skills and agents share the same DDL project fixture but are tested separately b
 
 | Dimension | Skill | Agent |
 |---|---|---|
-| Invocation | `/discover-objects show --name <proc>` | Two file paths (input JSON, output JSON) |
+| Invocation | `/analyzing-object --name <proc>` | Two file paths (input JSON, output JSON) |
 | Output | Human-formatted text | Structured JSON |
 | Approval gates | Interactive (simulated as non-interactive) | None |
 | Assertions | `icontains` for text sections | JSON schema validation, field values |
@@ -47,21 +47,21 @@ tests/evals/
   assertions/
     validate-candidate-writers.js      # JSON schema validation (draft 2020-12)
   prompts/
-    skill-discover-objects-show.txt     # prompt template for discover-objects show skill
+    skill-analyzing-object.txt          # prompt template for analyzing-object skill
     agent-scoping.txt                  # prompt template for scoping agent
-    skill-profile-table.txt             # prompt template for profile-table skill
+    skill-profiling-table.txt            # prompt template for profiling-table skill
     agent-profiler.txt                 # prompt template for profiler agent
-    skill-generate-model.txt            # prompt template for generate-model skill
+    skill-generating-model.txt           # prompt template for generating-model skill
     agent-model-generator.txt          # prompt template for model-generator agent
   packages/
     scoping/
-      skill-discover-objects-show.yaml  # 8 skill scenarios (self-contained config)
+      skill-analyzing-object.yaml       # 8 skill scenarios (self-contained config)
       agent-scoping.yaml               # 8 agent scenarios (self-contained config)
     profiler/
-      skill-profile-table.yaml          # 4 skill scenarios
+      skill-profiling-table.yaml         # 4 skill scenarios
       agent-profiler.yaml              # 4 agent scenarios
     model-generator/
-      skill-generate-model.yaml        # 4 skill scenarios
+      skill-generating-model.yaml       # 4 skill scenarios
       agent-model-generator.yaml       # 4 agent scenarios
   fixtures/
     migration-test/                    # extracted DDL project (one-time)
@@ -79,9 +79,9 @@ The harness is organized into three packages. Each package tests one stage of th
 
 | Package | Skills tested | Agent tested | Scenarios |
 |---|---|---|---|
-| `scoping` | `/discover-objects show` on claude_assisted procs | scoping-agent | 8 x 2 = 16 |
-| `profiler` | `/profile-table` (context + LLM reasoning + write) | profiler-agent | 4 x 2 = 8 |
-| `model-generator` | `/generate-model` (context + dbt generation + write) | model-generator-agent | 4 x 2 = 8 |
+| `scoping` | `/analyzing-object` on claude_assisted procs | scoping-agent | 8 x 2 = 16 |
+| `profiler` | `/profiling-table` (context + LLM reasoning + write) | profiler-agent | 4 x 2 = 8 |
+| `model-generator` | `/generating-model` (context + dbt generation + write) | model-generator-agent | 4 x 2 = 8 |
 
 Each scenario file is a self-contained promptfoo config with its own `providers`, `prompts`, and `tests`. The npm scripts compose them via `-c` flags.
 
@@ -279,10 +279,10 @@ The exact extraction steps depend on how the migration project is configured. Se
 1. **Add the procedure and target table** to `scripts/sql/create-migration-test-db.sql`.
 2. **Rebuild the Docker image** and re-run `create-migration-test-db.sql` against it.
 3. **Re-extract the fixture** (see [Extracting the fixture](#extracting-the-fixture)).
-4. **Add a test case** to both `packages/scoping/skill-discover-objects-show.yaml` and `packages/scoping/agent-scoping.yaml`:
+4. **Add a test case** to both `packages/scoping/skill-analyzing-object.yaml` and `packages/scoping/agent-scoping.yaml`:
 
 ```yaml
-# In skill-discover-objects-show.yaml
+# In skill-analyzing-object.yaml
 - description: "my-new-scenario — <what it tests>"
   vars:
     target_table: "silver.MyNewTable"

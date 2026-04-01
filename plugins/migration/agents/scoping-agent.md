@@ -65,7 +65,7 @@ For each candidate writer:
 
 4. **Classify statements**: check `classification`:
    - `deterministic` with `statements` populated — statements are pre-classified, no further action needed.
-   - `claude_assisted` or `statements` is null — read `raw_ddl` and classify each statement as `migrate` or `skip`. See `../skills/discover-objects/references/tsql-parse-classification.md` for the classification guide. If the proc calls other procs (EXEC), run `discover show` on each and follow recursively. Add `LLM_ANALYSIS_REQUIRED` warning.
+   - `claude_assisted` or `statements` is null — read `raw_ddl` and classify each statement as `migrate` or `skip`. See `../skills/analyzing-object/references/tsql-parse-classification.md` for the classification guide. If the proc calls other procs (EXEC), run `discover show` on each and follow recursively. Add `LLM_ANALYSIS_REQUIRED` warning.
 
 5. **Persist statements**: run `discover write-statements --name <writer> --statements '<json>'` to write resolved statements to catalog. Deterministic statements get `source: "ast"`, LLM-resolved statements get `source: "llm"`. No `claude` actions are persisted — all must be resolved.
 

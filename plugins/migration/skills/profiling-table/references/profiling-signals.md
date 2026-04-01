@@ -1,6 +1,6 @@
 # Profiling Signals
 
-Operational reference for answering the six profiling questions. Used by both the `/profile-table` skill and the profiler agent.
+Operational reference for answering the six profiling questions. Used by both the `/profiling-table` skill and the profiler agent.
 
 **Key principle:** Catalog signals are facts, not candidates. If the catalog declares a PK, that is the PK. The LLM fills in what the catalog does not answer.
 
