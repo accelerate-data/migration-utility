@@ -9,35 +9,69 @@ argument-hint: "<schema.table> [schema.table ...]"
 
 # Profile
 
-Given a batch of target tables, produce migration profile candidates for each table and write them into the table catalog files. Delegates per-item profiling to the `/profiling-table` skill.
+Produce migration profiles for each table. Launches one sub-agent per table in parallel, each running `migration:profiling-table`.
 
-## Additional Per-item Guard
+## Guards
 
-Before running the skill for each item:
-
-- Check `scoping.selected_writer` is set in the catalog file. If scoping section is missing or `selected_writer` is null, skip this item with `SCOPING_NOT_COMPLETED` in `errors[]`.
+- `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
+- Per item: `catalog/tables/<item_id>.json` must exist. If missing, skip with `CATALOG_FILE_MISSING`.
+- Per item: `scoping.selected_writer` must be set. If missing, skip with `SCOPING_NOT_COMPLETED`.
 
 ## Pipeline
 
-### Step 1 — Profile Table (Skill Delegation)
+### Step 1 — Setup
 
-For each item, invoke `/profiling-table <item_id>`. On failure, record `status: "error"` and continue to the next item.
-
-### Step 2 — Record Result
-
-Write the item result to `.migration-runs/<item_id>.json`:
+1. Read worktree base path from `.claude/rules/git-workflow.md`.
+2. Generate run slug: `profile-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters if too long).
+3. Create worktree: `git worktree add <base>/<slug> -b <slug>`.
+4. In the worktree, clear `.migration-runs/` and write `meta.json`:
 
 ```json
 {
-  "item_id": "<table_fqn>",
-  "status": "ok|partial|error",
-  "catalog_path": "catalog/tables/<item_id>.json",
-  "warnings": [],
-  "errors": []
+  "command": "profile",
+  "tables": ["silver.DimCustomer", "silver.DimProduct"],
+  "worktree": "../worktrees/profile-silver-dimcustomer-silver-dimproduct",
+  "started_at": "2026-04-01T12:00:00Z"
 }
 ```
 
-The actual profile data lives in the catalog file, not duplicated in the run log.
+### Step 2 — Run migration:profiling-table per table
+
+Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
+
+```text
+Run the migration:profiling-table skill for <schema.table>.
+The worktree is at <worktree-path>.
+Write the item result JSON to .migration-runs/<schema.table>.json.
+On failure, write result with status: "error" and error details.
+Return the item result JSON.
+```
+
+### Step 3 — Summarize
+
+1. Read each `.migration-runs/<schema.table>.json`.
+2. Write `.migration-runs/summary.json` with `{total, ok, partial, error}` counts and per-item status.
+3. Present human-readable summary:
+
+   ```text
+   profile complete — N tables processed
+
+     ok      silver.DimCustomer
+     partial silver.DimProduct     (PARTIAL_PROFILE)
+     error   silver.DimDate        (CATALOG_FILE_MISSING)
+
+     ok: 1 | partial: 1 | error: 1
+   ```
+
+4. Ask FDE: commit and open PR? PR body should include a summary line and a per-table results table (not raw JSON).
+
+### Cleanup
+
+After PR is merged:
+
+1. `git push origin --delete <branch>`
+2. `git worktree remove <worktree-path>`
+3. `git branch -d <branch>`
 
 ## `source` Field Semantics
 
@@ -50,6 +84,20 @@ The actual profile data lives in the catalog file, not duplicated in the run log
 - `ok` — required questions answered (classification, primary_key, watermark).
 - `partial` — one or more required questions unanswered.
 - `error` — runtime failure prevented profiling.
+
+## Item Result Schema
+
+```json
+{
+  "item_id": "<table_fqn>",
+  "status": "ok|partial|error",
+  "catalog_path": "catalog/tables/<item_id>.json",
+  "warnings": [],
+  "errors": []
+}
+```
+
+The actual profile data lives in the catalog file, not duplicated in the run log.
 
 ## Error and Warning Codes
 

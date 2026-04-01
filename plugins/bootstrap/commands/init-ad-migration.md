@@ -98,7 +98,7 @@ uv sync --project "${CLAUDE_PLUGIN_ROOT}/../../lib"
 
 ## Step 5: Scaffold project files
 
-Run the `init` CLI to scaffold the project directory. This creates CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, .claude/rules/command-lifecycle.md, and .githooks/pre-commit — all idempotently.
+Run the `init` CLI to scaffold the project directory. This creates CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, .claude/rules/git-workflow.md, and .githooks/pre-commit — all idempotently.
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" init scaffold-project --project-root .
@@ -136,5 +136,5 @@ Tell the user:
 Safe to re-run. Each step checks current state before acting:
 
 - Checks in Step 2 re-evaluate actual environment state.
-- Step 5 uses the `init` CLI which is fully idempotent: existing CLAUDE.md is checked for missing sections (not overwritten), README.md and repo-map.json are skipped if present, .gitignore gets only missing entries appended, .envrc is skipped if present, .claude/rules/command-lifecycle.md is skipped if present, .githooks/pre-commit is skipped if present.
+- Step 5 uses the `init` CLI which is fully idempotent: existing CLAUDE.md is checked for missing sections (not overwritten), README.md and repo-map.json are skipped if present, .gitignore gets only missing entries appended, .envrc is skipped if present, .claude/rules/git-workflow.md is skipped if present, .githooks/pre-commit is skipped if present.
 - Step 6 only commits if there are staged changes.

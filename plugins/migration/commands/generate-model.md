@@ -9,35 +9,84 @@ argument-hint: "<schema.table> [schema.table ...]"
 
 # Generate Model
 
-Generate dbt models for a batch of table/writer pairs. Delegates per-item generation to the `/generating-model` skill.
+Generate dbt models for a batch of tables. Launches one sub-agent per table in parallel, each running `migration:generating-model`.
 
-## Additional Batch-wide Guard
+## Guards
 
-Before processing any items:
-
-- Check `dbt_project.yml` exists at `./dbt/` (or `$DBT_PROJECT_PATH`). If missing, fail **all** items with code `DBT_PROJECT_MISSING` and write output immediately.
-
-## Additional Per-item Guards
-
-Before running the skill for each item:
-
-- Check `scoping.selected_writer` is set. If missing, skip this item with `SCOPING_NOT_COMPLETED` in `errors[]`.
-- Check `profile` exists and `profile.status` is `"ok"`. If missing or not ok, skip this item with `PROFILE_NOT_COMPLETED` in `errors[]`.
+- `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
+- `dbt_project.yml` must exist at `./dbt/`. If missing, fail all items with `DBT_PROJECT_MISSING`.
+- Per item: `catalog/tables/<item_id>.json` must exist. If missing, skip with `CATALOG_FILE_MISSING`.
+- Per item: `scoping.selected_writer` must be set. If missing, skip with `SCOPING_NOT_COMPLETED`.
+- Per item: `profile` must exist with `status: "ok"`. If missing, skip with `PROFILE_NOT_COMPLETED`.
 
 ## Pipeline
 
-### Step 1 — Generate Model (Skill Delegation)
+### Step 1 — Setup
 
-For each item, invoke `/generating-model <item_id>`:
+1. Read worktree base path from `.claude/rules/git-workflow.md`.
+2. Generate run slug: `generate-model-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters if too long).
+3. Create worktree: `git worktree add <base>/<slug> -b <slug>`.
+4. In the worktree, clear `.migration-runs/` and write `meta.json`:
 
-- **Equivalence warnings**: proceed and write the model. Record each gap as an `EQUIVALENCE_GAP` warning in the item result. The FDE reviews gaps in the summary.
-- **dbt compile failure**: attempt up to 3 self-corrections. If still failing, write the model as-is and record `DBT_COMPILE_FAILED` as a warning.
+```json
+{
+  "command": "generate-model",
+  "tables": ["silver.DimCustomer", "silver.DimProduct"],
+  "worktree": "../worktrees/generate-model-silver-dimcustomer-silver-dimproduct",
+  "started_at": "2026-04-01T12:00:00Z"
+}
+```
 
-On skill failure, record `status: "error"` and continue to the next item.
+### Step 2 — Run migration:generating-model per table
 
-### Step 2 — Record Result
+Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
 
-Write the item result to `.migration-runs/<item_id>.json`:
+```text
+Run the migration:generating-model skill for <schema.table>.
+The worktree is at <worktree-path>.
+Write the item result JSON to .migration-runs/<schema.table>.json.
+On failure, write result with status: "error" and error details.
+Return the item result JSON.
+
+Notes:
+- Equivalence warnings: proceed and write the model. Record each gap as EQUIVALENCE_GAP warning.
+- dbt compile failure: attempt up to 3 self-corrections. If still failing, write as-is with DBT_COMPILE_FAILED warning.
+```
+
+### Step 3 — Summarize
+
+1. Read each `.migration-runs/<schema.table>.json`.
+2. Write `.migration-runs/summary.json` with `{total, ok, partial, error}` counts and per-item status.
+3. Present human-readable summary:
+
+   ```text
+   generate-model complete — N tables processed
+
+     ✓ silver.DimCustomer    ok
+     ~ silver.DimProduct     partial (EQUIVALENCE_GAP)
+     ✗ silver.DimDate        error (PROFILE_NOT_COMPLETED)
+
+     ok: 1 | partial: 1 | error: 1
+   ```
+
+4. Ask FDE: commit and open PR? PR body should include a summary line and a per-table results table (not raw JSON).
+
+### Cleanup
+
+After PR is merged:
+
+1. `git push origin --delete <branch>`
+2. `git worktree remove <worktree-path>`
+3. `git branch -d <branch>`
+
+## Review Loops (placeholder)
+
+Future implementation will add:
+
+- **Code-reviewer sub-agent loop** — max 2 review iterations per item.
+- **dbt self-correction bound** — max 3 compile-fix iterations per item.
+
+## Item Result Schema
 
 ```json
 {
@@ -69,13 +118,6 @@ Write the item result to `.migration-runs/<item_id>.json`:
   }
 }
 ```
-
-## Review Loops (placeholder)
-
-Future implementation will add:
-
-- **Code-reviewer sub-agent loop** — max 2 review iterations per item.
-- **dbt self-correction bound** — max 3 compile-fix iterations per item.
 
 ## Error and Warning Codes
 

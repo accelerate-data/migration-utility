@@ -97,7 +97,7 @@
     },
     "migration_commands": {
       "path": "plugins/migration/commands/",
-      "description": "Stage-specific commands: scope.md (writer discovery), profile.md (migration profiling), generate-model.md (dbt model generation). Each follows the shared command lifecycle in .claude/rules/command-lifecycle.md."
+      "description": "Stage-specific commands: scope.md (writer discovery), profile.md (migration profiling), generate-model.md (dbt model generation). Each is self-contained with sub-agent orchestration, worktree setup, and result summarization."
     },
     "tests_migration": {
       "path": "tests/unit/",

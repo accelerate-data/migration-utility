@@ -14,7 +14,7 @@ import pytest
 
 from shared.init import (
     CLAUDE_MD,
-    COMMAND_LIFECYCLE_MD,
+    GIT_WORKFLOW_MD,
     GITIGNORE_ENTRIES,
     PRE_COMMIT_HOOK,
     README_MD,
@@ -35,7 +35,7 @@ class TestScaffoldProject:
         assert "repo-map.json" in result["files_created"]
         assert ".gitignore" in result["files_created"]
         assert ".envrc" in result["files_created"]
-        assert ".claude/rules/command-lifecycle.md" in result["files_created"]
+        assert ".claude/rules/git-workflow.md" in result["files_created"]
         assert result["files_updated"] == []
         assert result["files_skipped"] == []
 
@@ -47,9 +47,9 @@ class TestScaffoldProject:
         assert ".mcp.json" in (tmp_path / ".gitignore").read_text()
         assert ".envrc" in (tmp_path / ".gitignore").read_text()
         assert "MSSQL_HOST" in (tmp_path / ".envrc").read_text()
-        lifecycle = (tmp_path / ".claude" / "rules" / "command-lifecycle.md").read_text()
-        assert "MANIFEST_NOT_FOUND" in lifecycle
-        assert ".migration-runs/" in lifecycle
+        workflow = (tmp_path / ".claude" / "rules" / "git-workflow.md").read_text()
+        assert "Worktree" in workflow
+        assert "../worktrees" in workflow
 
     def test_idempotent_skips_existing_files(self, tmp_path: Path) -> None:
         # First run creates everything
