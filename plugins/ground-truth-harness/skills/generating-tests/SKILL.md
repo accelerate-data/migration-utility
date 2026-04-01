@@ -17,7 +17,7 @@ Test generation runs BEFORE migration. The test spec is an independent artifact 
 
 ## Arguments
 
-`$ARGUMENTS` is the fully-qualified table name. Use `AskUserQuestion` if missing.
+`$ARGUMENTS` is the fully-qualified table name. Ask the user if missing.
 
 ## Before invoking
 
@@ -115,7 +115,7 @@ Show the user:
 3. Captured ground truth (expected outputs per scenario)
 4. Any uncovered branches or warnings
 
-Use `AskUserQuestion`: "Approve this test spec? (y/n/edit)"
+Ask the user: "Approve this test spec? (y/n/edit)"
 
 If the user requests edits, apply them and re-capture ground truth for affected scenarios only. Then present the updated spec for re-approval.
 

@@ -15,7 +15,7 @@ Generate a dbt model from a profiled stored procedure. Reads deterministic conte
 
 ## Arguments
 
-`$ARGUMENTS` is the fully-qualified table name. Use `AskUserQuestion` if missing. The writer is read from the catalog scoping section (`catalog/tables/<table>.json` → `scoping.selected_writer`).
+`$ARGUMENTS` is the fully-qualified table name. Ask the user if missing. The writer is read from the catalog scoping section (`catalog/tables/<table>.json` → `scoping.selected_writer`).
 
 ## Before invoking
 
@@ -185,7 +185,7 @@ Equivalence check found 2 warnings:
 Proceed with these differences? (y/n)
 ```
 
-Use `AskUserQuestion` and wait. If the user says no, revise the model.
+Ask the user and wait. If the user says no, revise the model.
 
 ## Step 5: Build schema.yml
 
@@ -226,7 +226,7 @@ Show the user:
 3. Equivalence check results (if any warnings)
 4. Materialization and config decisions
 
-Use `AskUserQuestion`: "Approve this model to write to the dbt project? (y/n/edit)"
+Ask the user: "Approve this model to write to the dbt project? (y/n/edit)"
 
 If the user requests edits, apply them and re-run the equivalence check on the edited version.
 

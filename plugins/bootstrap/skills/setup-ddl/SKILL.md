@@ -26,7 +26,7 @@ Before starting, verify:
 
 ## Preamble — confirm project root
 
-1. Run `pwd` and show the resolved path. Use `AskUserQuestion` to ask: "Is this the correct project root?" If the user says no, tell them to `cd` to the correct directory and re-run the skill. Stop.
+1. Run `pwd` and show the resolved path. Ask the user: "Is this the correct project root?" If the user says no, tell them to `cd` to the correct directory and re-run the skill. Stop.
 
 2. Check whether `manifest.json` exists in the current directory:
 
@@ -45,7 +45,7 @@ If `ddl/` or `catalog/` already exists in the project root, warn the user:
 
 > Re-running will **fully rebuild** both `ddl/` and `catalog/`. All previously extracted files will be replaced.
 
-Use `AskUserQuestion` to get confirmation before proceeding. If they decline, stop immediately.
+Ask the user for confirmation before proceeding. If they decline, stop immediately.
 
 ## Workflow
 
@@ -82,7 +82,7 @@ GROUP BY s.name
 ORDER BY s.name
 ```
 
-Use `AskUserQuestion` (with `multiSelect: true`) to present the results with an `all` option. If `all` is selected, do not add a schema filter to subsequent queries. Store the selected schemas for filtering in subsequent steps.
+Present the results with an `all` option. If `all` is selected, do not add a schema filter to subsequent queries. Store the selected schemas for filtering in subsequent steps.
 
 ## Step 3 — Extraction preview + confirm
 
@@ -133,7 +133,7 @@ Schemas: <selected-schemas>
   for all procedures, views, and functions.
 ```
 
-Use `AskUserQuestion` to get confirmation before extraction proceeds. If they decline, stop immediately — no files are written.
+Ask the user for confirmation before extraction proceeds. If they decline, stop immediately — no files are written.
 
 ## Step 4 — Write manifest
 

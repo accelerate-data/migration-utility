@@ -12,7 +12,7 @@ Deep-dive analysis of a single stored procedure. Produces call graph, statement 
 
 ## Arguments
 
-`$ARGUMENTS` is the fully-qualified procedure name (e.g. `dbo.usp_load_DimCustomer`). Use `AskUserQuestion` if missing.
+`$ARGUMENTS` is the fully-qualified procedure name (e.g. `dbo.usp_load_DimCustomer`). Ask the user if missing.
 
 ## Before invoking
 

@@ -12,7 +12,7 @@ Discover writers for a table, analyze each candidate, resolve which writer owns 
 
 ## Arguments
 
-`$ARGUMENTS` is the fully-qualified table name (e.g. `silver.DimCustomer`, `[dbo].[FactSales]`). Use `AskUserQuestion` if missing.
+`$ARGUMENTS` is the fully-qualified table name (e.g. `silver.DimCustomer`, `[dbo].[FactSales]`). Ask the user if missing.
 
 ## Before invoking
 

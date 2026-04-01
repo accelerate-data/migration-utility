@@ -12,7 +12,7 @@ Profile a single table for migration by assembling context, reasoning over six p
 
 ## Arguments
 
-`$ARGUMENTS` is the fully-qualified table name. Use `AskUserQuestion` if missing. The writer is read from the catalog scoping section (`catalog/tables/<table>.json` → `scoping.selected_writer`).
+`$ARGUMENTS` is the fully-qualified table name. Ask the user if missing. The writer is read from the catalog scoping section (`catalog/tables/<table>.json` → `scoping.selected_writer`).
 
 ## Before invoking
 

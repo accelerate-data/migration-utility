@@ -28,7 +28,7 @@ Which target platform are you migrating to?
 Enter your choice (1-4):
 ```
 
-Use `AskUserQuestion` and wait for a response. Do not proceed without an explicit selection.
+Ask the user and wait for a response. Do not proceed without an explicit selection.
 
 ## Step 3: Scaffold dbt project
 
