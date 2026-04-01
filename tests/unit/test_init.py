@@ -14,6 +14,7 @@ import pytest
 
 from shared.init import (
     CLAUDE_MD,
+    COMMAND_LIFECYCLE_MD,
     GITIGNORE_ENTRIES,
     PRE_COMMIT_HOOK,
     README_MD,
@@ -34,6 +35,7 @@ class TestScaffoldProject:
         assert "repo-map.json" in result["files_created"]
         assert ".gitignore" in result["files_created"]
         assert ".envrc" in result["files_created"]
+        assert ".claude/rules/command-lifecycle.md" in result["files_created"]
         assert result["files_updated"] == []
         assert result["files_skipped"] == []
 
@@ -45,6 +47,9 @@ class TestScaffoldProject:
         assert ".mcp.json" in (tmp_path / ".gitignore").read_text()
         assert ".envrc" in (tmp_path / ".gitignore").read_text()
         assert "MSSQL_HOST" in (tmp_path / ".envrc").read_text()
+        lifecycle = (tmp_path / ".claude" / "rules" / "command-lifecycle.md").read_text()
+        assert "MANIFEST_NOT_FOUND" in lifecycle
+        assert ".migration-runs/" in lifecycle
 
     def test_idempotent_skips_existing_files(self, tmp_path: Path) -> None:
         # First run creates everything
@@ -53,7 +58,7 @@ class TestScaffoldProject:
         result = run_scaffold_project(tmp_path)
         assert result["files_created"] == []
         assert result["files_updated"] == []
-        assert len(result["files_skipped"]) == 5
+        assert len(result["files_skipped"]) == 6
 
     def test_merges_missing_gitignore_entries(self, tmp_path: Path) -> None:
         # Create a partial .gitignore
