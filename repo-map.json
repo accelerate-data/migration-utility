@@ -105,7 +105,7 @@
     },
     "tests_evals": {
       "path": "tests/evals/",
-      "description": "Promptfoo eval harness for non-interactive agent and skill testing against MigrationTest schema. Three packages: scoping (8 scenarios x analyzing-object skill + agent), profiler (4 scenarios x profiling-table skill + agent), model-generator (4 scenarios x generating-model skill + agent). Run via: cd tests/evals && npx promptfoo eval. See docs/design/eval-harness/README.md."
+      "description": "Promptfoo eval harness for skill testing against MigrationTest schema. Three packages: scoping (8 scenarios x analyzing-object skill), profiler (4 scenarios x profiling-table skill), model-generator (4 scenarios x generating-model skill). Run via: cd tests/evals && npx promptfoo eval. See docs/design/eval-harness/README.md."
     },
     "tests_ddl_mcp": {
       "path": "mcp/ddl/tests/",
