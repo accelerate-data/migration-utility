@@ -240,9 +240,11 @@ Field requirements:
 - `severity`: `error` or `warning`.
 - `details`: optional structured context object.
 
-## Error Handling
+## Error handling
 
-- `migrate context` exits 1 if table has no profile or writer has no statements — tell user which prerequisite is missing (run scoping and profiling first).
-- `migrate context` exits 2 on IO/parse errors — surface the error message verbatim.
-- `test-harness execute` exits 1 on scenario execution failure — record the error in the test spec, continue to the next scenario. Do not abort.
-- `test-harness sandbox-status` exits 1 if sandbox not found — tell user to run `/setup-sandbox`.
+| Condition | Action |
+|---|---|
+| `migrate context` exits 1 | No profile or no statements. Tell user to run scoping and profiling first |
+| `migrate context` exits 2 | IO/parse error. Surface the error message |
+| `test-harness execute` exits 1 | Scenario execution failure. Record error in test spec, continue to next scenario |
+| `test-harness sandbox-status` exits 1 | Sandbox not found. Tell user to run `/setup-sandbox` |

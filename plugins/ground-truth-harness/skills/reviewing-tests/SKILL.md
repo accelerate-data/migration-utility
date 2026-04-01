@@ -187,6 +187,8 @@ Test reviewer must not:
 
 ## Error handling
 
-- `migrate context` exits 1 → a prerequisite is missing (no profile, no writer, no statements). Report which prerequisite is missing and set `status` to `error` with an entry in `errors[]` using code `CONTEXT_PREREQUISITE_MISSING`.
-- `migrate context` exits 2 → IO or parse error. Surface the CLI error message and set `status` to `error` with an entry in `errors[]` using code `CONTEXT_IO_ERROR`.
-- `test-specs/<item_id>.json` missing → stop before review. Tell the caller to run `/generating-tests` first. Set `status` to `error` with code `TEST_SPEC_MISSING`.
+| Condition | Action |
+|---|---|
+| `migrate context` exits 1 | Prerequisite missing. Report which and set `status: "error"` with code `CONTEXT_PREREQUISITE_MISSING` |
+| `migrate context` exits 2 | IO/parse error. Surface error message and set `status: "error"` with code `CONTEXT_IO_ERROR` |
+| `test-specs/<item_id>.json` missing | Tell caller to run `/generating-tests` first. Set `status: "error"` with code `TEST_SPEC_MISSING` |

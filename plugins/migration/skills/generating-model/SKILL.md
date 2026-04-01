@@ -289,7 +289,9 @@ If compile fails with a **connection error** (adapter cannot reach the warehouse
 
 ## Error handling
 
-- `migrate context` exits 1 if table has no profile or writer has no statements — tell user which prerequisite is missing
-- `migrate context` exits 2 on IO/parse errors — surface the error message
-- `migrate write` exits 1 on validation failure (empty SQL) — tell user to regenerate
-- `migrate write` exits 2 on IO error (missing dbt project) — tell user to run `/init-dbt`
+| Condition | Action |
+|---|---|
+| `migrate context` exits 1 | No profile or no statements. Tell user which prerequisite is missing |
+| `migrate context` exits 2 | IO/parse error. Surface the error message |
+| `migrate write` exits 1 | Validation failure (empty SQL). Tell user to regenerate |
+| `migrate write` exits 2 | IO error (missing dbt project). Tell user to run `/init-dbt` |

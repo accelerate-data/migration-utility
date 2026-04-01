@@ -95,10 +95,12 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-statements \
 
 ## Error handling
 
-- `discover show` exit code 1: object not found or catalog file missing for that object. Report which object was not found and stop.
-- `discover show` exit code 2: catalog directory unreadable (missing path, IO error). Report the error and stop.
-- `discover write-statements` exit code 1: procedure not found or invalid statements JSON. Report the validation error.
-- `discover write-statements` exit code 2: invalid JSON input. Report and stop.
-- Procedures with `parse_error`: still loaded — `raw_ddl` preserved. Report the parse error and proceed with `raw_ddl`-based analysis.
-- Circular call graph: stop recursion and report the cycle.
-- Unresolvable dynamic SQL (variable target table, external input): report as unresolvable.
+| Condition | Action |
+|---|---|
+| `discover show` exits 1 | Object not found or catalog file missing. Report and stop |
+| `discover show` exits 2 | Catalog directory unreadable (IO error). Report and stop |
+| `discover write-statements` exits 1 | Procedure not found or invalid statements. Report validation error |
+| `discover write-statements` exits 2 | Invalid JSON input. Report and stop |
+| Procedure has `parse_error` | Still loaded — `raw_ddl` preserved. Report parse error, proceed with `raw_ddl`-based analysis |
+| Circular call graph | Stop recursion and report the cycle |
+| Unresolvable dynamic SQL | Report as unresolvable |
