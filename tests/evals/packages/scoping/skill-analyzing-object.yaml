@@ -1,8 +1,8 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
-description: "Discover show skill — claude_assisted procedure analysis"
+description: "Analyzing-object skill — claude_assisted procedure analysis"
 
 prompts:
-  - file://../../prompts/skill-discover-objects-show.txt
+  - file://../../prompts/skill-analyzing-object.txt
 
 providers:
   - id: anthropic:claude-agent-sdk
