@@ -153,3 +153,9 @@ After PR is merged:
 | `REVIEW_KICKED_BACK` | warning | reviewer requested revision — item retried |
 | `COVERAGE_PARTIAL` | warning | not all branches covered after max iterations — item proceeds as partial |
 | `SCENARIO_EXECUTION_FAILED` | warning | one or more scenarios failed during ground truth capture — item proceeds with partial expectations |
+
+Each entry in `errors[]` or `warnings[]`:
+
+```json
+{"code": "COVERAGE_PARTIAL", "message": "2 of 8 branches uncovered for silver.dimproduct after 2 review iterations.", "item_id": "silver.dimproduct", "severity": "warning"}
+```

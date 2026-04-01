@@ -104,3 +104,9 @@ The full scoping data lives in the catalog files, not duplicated in the run log.
 | `MANIFEST_NOT_FOUND` | error | manifest.json missing — all items fail |
 | `CATALOG_FILE_MISSING` | error | catalog/tables/\<item_id>.json not found — skip item |
 | `SCOPING_FAILED` | error | `/scoping-table` skill pipeline failed — skip item |
+
+Each entry in `errors[]` or `warnings[]`:
+
+```json
+{"code": "CATALOG_FILE_MISSING", "message": "catalog/tables/silver.dimdate.json not found.", "item_id": "silver.dimdate", "severity": "error"}
+```

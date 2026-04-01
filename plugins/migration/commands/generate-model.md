@@ -141,3 +141,9 @@ Future implementation will add:
 | `GENERATION_FAILED` | error | `/generating-model` skill pipeline failed — skip item |
 | `EQUIVALENCE_GAP` | warning | semantic gap found between proc and generated model — item proceeds as partial |
 | `DBT_COMPILE_FAILED` | warning | `dbt compile` failed after retries — item proceeds as partial |
+
+Each entry in `errors[]` or `warnings[]`:
+
+```json
+{"code": "EQUIVALENCE_GAP", "message": "Missing column 'legacy_flag' in generated model for silver.dimcustomer.", "item_id": "silver.dimcustomer", "severity": "warning"}
+```

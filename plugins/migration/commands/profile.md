@@ -118,3 +118,9 @@ The actual profile data lives in the catalog file, not duplicated in the run log
 | `SCOPING_NOT_COMPLETED` | error | scoping section missing or no selected_writer — skip item |
 | `PROFILING_FAILED` | error | `/profiling-table` skill pipeline failed — skip item |
 | `PARTIAL_PROFILE` | warning | LLM could not answer a required question — item proceeds as partial |
+
+Each entry in `errors[]` or `warnings[]`:
+
+```json
+{"code": "PARTIAL_PROFILE", "message": "Could not determine watermark column for silver.dimcustomer.", "item_id": "silver.dimcustomer", "severity": "warning"}
+```
