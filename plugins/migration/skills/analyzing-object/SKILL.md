@@ -1,24 +1,25 @@
 ---
 name: analyzing-object
 description: >
-  Analyse a stored procedure, view, or function for migration. Resolves call graphs, classifies statements, produces a logic summary and migration guidance, and persists results to catalog.
+  Analyse a stored procedure for migration. Resolves call graphs, classifies statements, produces a logic summary and migration guidance, and persists results to catalog. Procedures only — use /listing-objects for views and functions.
 user-invocable: true
-argument-hint: "<schema.object>"
+argument-hint: "<schema.procedure>"
 ---
 
 # Analyzing Object
 
-Deep-dive analysis of a single stored procedure, view, or function. Produces call graph, statement classification, logic summary, migration guidance, and persists resolved statements to catalog.
+Deep-dive analysis of a single stored procedure. Produces call graph, statement classification, logic summary, migration guidance, and persists resolved statements to catalog.
 
 ## Arguments
 
-`$ARGUMENTS` is the fully-qualified object name (e.g. `dbo.usp_load_DimCustomer`, `silver.vw_CustomerSales`). Use `AskUserQuestion` if missing.
+`$ARGUMENTS` is the fully-qualified procedure name (e.g. `dbo.usp_load_DimCustomer`). Use `AskUserQuestion` if missing.
 
 ## Before invoking
 
-Read `manifest.json` from the current working directory to confirm it is a valid project root and to understand the source technology and dialect. If the manifest is missing, stop and tell the user to run `setup-ddl` first.
+1. Read `manifest.json` from the current working directory to confirm a valid project root. If missing, tell the user to run `setup-ddl` first.
+2. Confirm the object is a procedure by checking that `catalog/procedures/<name>.json` exists. If the object is a view, function, or table, tell the user to use `/listing-objects show <name>` instead and stop.
 
-## Procedures
+## Pipeline
 
 Follow these steps in order. Do not abbreviate — every step must complete before moving to the next.
 
@@ -93,36 +94,6 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-statements \
 ```
 
 See [`references/procedure-analysis-flow.md`](references/procedure-analysis-flow.md) for the full canonical flow.
-
-## Views
-
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover show \
-  --name <view>
-```
-
-Show refs and the view definition:
-
-```text
-silver.vw_CustomerSales (view)
-
-  Reads from: silver.DimCustomer, silver.FactSales
-
-  Definition:
-    SELECT c.FirstName, SUM(f.Amount) AS TotalSales
-    FROM silver.DimCustomer c
-    JOIN silver.FactSales f ON c.CustomerKey = f.CustomerKey
-    GROUP BY c.FirstName
-```
-
-## Functions
-
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover show \
-  --name <function>
-```
-
-Show refs and the function definition. Present the return type and any referenced objects.
 
 ## Error handling
 

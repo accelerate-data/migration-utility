@@ -16,7 +16,8 @@ Profile a single table for migration by assembling context, reasoning over six p
 
 ## Before invoking
 
-Read `manifest.json` from the current working directory to confirm a valid project root. If missing, stop and tell the user to run `setup-ddl` first.
+1. Read `manifest.json` from the current working directory to confirm a valid project root. If missing, tell the user to run `setup-ddl` first.
+2. Confirm `catalog/tables/<table>.json` exists. If missing, tell the user to run `/listing-objects list tables` to see available tables and stop.
 
 ## Pipeline
 

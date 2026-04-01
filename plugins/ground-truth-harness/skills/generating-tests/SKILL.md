@@ -21,8 +21,9 @@ Test generation runs BEFORE migration. The test spec is an independent artifact 
 
 ## Before invoking
 
-1. Read `manifest.json` from the current working directory to confirm a valid project root. If missing, stop and tell the user to run `setup-ddl` first.
-2. Check the sandbox exists:
+1. Read `manifest.json` from the current working directory to confirm a valid project root. If missing, tell the user to run `setup-ddl` first.
+2. Confirm `catalog/tables/<table>.json` exists. If missing, tell the user to run `/listing-objects list tables` to see available tables and stop.
+3. Check the sandbox exists:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" test-harness sandbox-status

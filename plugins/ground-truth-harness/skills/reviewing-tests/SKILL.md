@@ -18,8 +18,9 @@ Quality gate for test generation output. Independently enumerates conditional br
 
 ## Before invoking
 
-1. Read `manifest.json` from the current working directory to confirm a valid project root. If missing, stop and tell the caller that the project is not initialized.
-2. Confirm `test-specs/<item_id>.json` exists. If missing, stop and report: "No test spec found for `<item_id>`. Run `/generating-tests` first."
+1. Read `manifest.json` from the current working directory to confirm a valid project root. If missing, tell the caller that the project is not initialized and stop.
+2. Confirm `catalog/tables/<item_id>.json` exists. If missing, stop — this skill only operates on tables.
+3. Confirm `test-specs/<item_id>.json` exists. If missing, tell the caller to run `/generating-tests` first and stop.
 
 ## Step 1: Assemble context
 
