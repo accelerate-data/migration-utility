@@ -27,9 +27,15 @@ For each item, invoke `/profiling-table <item_id>`. Suppress user gates — make
 
 Write the item result to `.migration-runs/<item_id>.json`:
 
-- `item_id` — the table FQN
-- `status` — `ok`, `partial`, or `error`
-- `catalog_path` — path to the catalog file
+```json
+{
+  "item_id": "<table_fqn>",
+  "status": "ok|partial|error",
+  "catalog_path": "catalog/tables/<item_id>.json",
+  "warnings": [],
+  "errors": []
+}
+```
 
 The actual profile data lives in the catalog file, not duplicated in the run log.
 

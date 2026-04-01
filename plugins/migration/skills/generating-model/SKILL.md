@@ -267,7 +267,7 @@ If compile fails with a **non-connection error** (syntax, bad ref, macro resolut
 
 1. Show the full error output to the user
 2. Offer to fix: "Compile failed. Want me to fix the model? (y/n)"
-3. If yes, revise the model SQL, re-run `migrate write`, and re-run `dbt compile` (max 2 fix attempts)
+3. If yes, revise the model SQL, re-run `migrate write`, and re-run `dbt compile` (max 3 fix attempts)
 4. If still failing after 2 attempts, report the errors and leave the model as-is
 
 ### Fallback to dbt parse

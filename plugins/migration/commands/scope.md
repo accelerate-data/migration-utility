@@ -21,11 +21,18 @@ For each item, invoke `/scoping-table <item_id>`. Suppress user gates — make a
 
 After the skill completes for an item, read `catalog/tables/<item_id>.json` to confirm scoping was persisted. Write the item result to `.migration-runs/<item_id>.json`:
 
-- `item_id` — the table FQN
-- `status` — `resolved`, `ambiguous_multi_writer`, `no_writer_found`, or `error`
-- `catalog_path` — path to the catalog file
+```json
+{
+  "item_id": "<table_fqn>",
+  "status": "resolved|ambiguous_multi_writer|no_writer_found|error",
+  "selected_writer": "<writer_fqn or null>",
+  "catalog_path": "catalog/tables/<item_id>.json",
+  "warnings": [],
+  "errors": []
+}
+```
 
-The full scoping data lives in the catalog files, not duplicated in the run log. The result file is for aggregation and status tracking.
+The full scoping data lives in the catalog files, not duplicated in the run log.
 
 ## Error and Warning Codes
 

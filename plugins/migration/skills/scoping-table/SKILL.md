@@ -40,7 +40,12 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover refs \
   --name <table>
 ```
 
-Extract the `writers` array from the output. If no writers are found, report `no_writer_found`, persist that scoping to the catalog (Step 6), and stop.
+Extract the `writers` array from the output. If no writers are found, persist `no_writer_found` to catalog and stop:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-scoping \
+  --name <table> --scoping '{"status": "no_writer_found", "selected_writer": null, "selected_writer_rationale": "No procedures found that write to this table."}'
+```
 
 ### Step 3 -- Analyze each writer candidate
 
