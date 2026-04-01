@@ -3,8 +3,9 @@ name: generating-model
 description: >
   Generates a dbt model from a stored procedure. Invoke when the user asks to
   "migrate a procedure", "generate a dbt model", "convert SP to dbt", or
-  "create a model for <table>". Requires catalog profile and resolved
-  statements from prior discover + profile stages.
+  "create a model for <table>". Requires catalog profile, resolved
+  statements from prior discover + profile stages, and an approved test spec
+  from the test-generation stage.
 user-invocable: true
 argument-hint: "<schema.table>"
 ---
@@ -22,6 +23,7 @@ Generate a dbt model from a profiled stored procedure. Reads deterministic conte
 1. Read `manifest.json` from the current working directory to confirm a valid project root. If missing, tell the user to run `setup-ddl` first.
 2. Confirm `catalog/tables/<table>.json` exists. If missing, tell the user to run `/listing-objects list tables` to see available tables and stop.
 3. Confirm a dbt project exists (look for `dbt_project.yml` in `./dbt/` relative to the project root). If missing, tell the user to run `/init-dbt` first.
+4. Confirm `test-specs/<item_id>.json` exists (derive `<item_id>` from the table FQN — e.g., `silver.dimproduct`). If missing, stop and tell the user to run the test-generation stage first (`/generating-tests`). There is no test-less path — the test spec is mandatory.
 
 ## Step 1: Assemble context
 
@@ -206,7 +208,9 @@ Ask the user and wait. If the user says no, revise the model.
 
 ## Step 5: Build schema.yml
 
-Render `schema_tests` from context into a dbt schema YAML:
+### 5a — Schema tests
+
+Render `schema_tests` from context into the `columns:` section of the schema YAML:
 
 ```yaml
 version: 2
@@ -233,6 +237,40 @@ models:
 ```
 
 Include `recency` test for incremental models if watermark is present.
+
+### 5b — Render test-spec unit tests
+
+Read `test-specs/<item_id>.json` and render every entry in `unit_tests[]` into a `unit_tests:` block in the schema YAML, at the same level as `columns:` under the model. Preserve every scenario exactly — none may be dropped or modified.
+
+```yaml
+    unit_tests:
+      - name: test_merge_matched_existing_product_updated
+        model: stg_dimproduct
+        given:
+          - input: source('bronze', 'product')
+            rows:
+              - { product_id: 1, product_name: "Widget", list_price: 99.99 }
+          - input: ref('stg_dimproduct')
+            rows:
+              - { product_key: 1, product_name: "Old Widget", list_price: 50.00 }
+        expect:
+          rows:
+            - { product_key: 1, product_name: "Widget", list_price: 99.99 }
+```
+
+### 5c — Identify coverage gaps and create additional tests
+
+After rendering the test-spec's unit tests, analyze the generated model's logic for branches not covered by existing scenarios. Look for:
+
+- JOIN conditions with no matching/non-matching test case
+- CASE/WHEN arms not exercised
+- NULL handling paths (COALESCE, ISNULL replacements)
+- Incremental filter (`is_incremental()`) boundary cases
+- Empty source table edge cases
+
+Generate 1-3 additional unit test scenarios for uncovered branches. Add them to the `unit_tests:` block alongside the test-spec scenarios. Use the naming convention `test_gap_<description>` to distinguish LLM-generated tests from ground-truth test-spec tests.
+
+Gap tests follow the same structure as test-spec tests (`name`, `model`, `given[]`, `expect`). Since there is no ground-truth execution for gap tests, derive `expect.rows` from the model's logic — these are best-effort expectations that `dbt test` will validate.
 
 ## Step 6: Present for approval
 
@@ -266,7 +304,9 @@ The dbt project path is resolved automatically from `$DBT_PROJECT_PATH` or defau
 
 Report the written file paths to the user.
 
-## Step 8: Validate with dbt compile
+## Step 8: Compile and test
+
+### 8a — Compile
 
 Run `dbt compile` to verify the generated model compiles:
 
@@ -274,38 +314,45 @@ Run `dbt compile` to verify the generated model compiles:
 cd "${DBT_PROJECT_PATH:-./dbt}" && dbt compile --select <model_name>
 ```
 
-### On success
-
-Report to the user:
-
-```text
-dbt compile passed for <model_name>.
-```
-
-### On compile failure
-
-If compile fails with a **non-connection error** (syntax, bad ref, macro resolution):
-
-1. Show the full error output to the user
-2. Offer to fix: "Compile failed. Want me to fix the model? (y/n)"
-3. If yes, revise the model SQL, re-run `migrate write`, and re-run `dbt compile` (max 3 fix attempts)
-4. If still failing after 3 attempts, report the errors and leave the model as-is
-
-### Fallback to dbt parse
-
-If compile fails with a **connection error** (adapter cannot reach the warehouse — look for "Could not connect", "Login failed", "Connection refused", or similar adapter errors in output):
+If compile fails with a **connection error** (adapter cannot reach the warehouse — look for "Could not connect", "Login failed", "Connection refused", or similar adapter errors):
 
 1. Tell the user: "No warehouse connection available. Falling back to offline validation."
-2. Run `dbt parse` in the dbt project directory
-3. `dbt parse` validates YAML syntax, Jinja syntax, and ref/source graph integrity without a connection
-4. Report parse results (pass or fail with errors)
-5. If parse fails, offer to fix (same 3-attempt cycle as compile)
+2. Run `dbt parse` in the dbt project directory instead.
+3. Report parse results. If parse fails, attempt to fix (max 3 iterations as below). Skip `dbt test` — unit tests require compilation.
+
+If compile fails with a **non-connection error** (syntax, bad ref, macro resolution), proceed to the self-correction loop in 8c.
+
+### 8b — Run unit tests
+
+On compile success, run unit tests:
+
+```bash
+cd "${DBT_PROJECT_PATH:-./dbt}" && dbt test --select <model_name>
+```
+
+If all tests pass, report success and proceed to the next step.
+
+### 8c — Self-correction loop (max 3 iterations)
+
+If compile or test fails:
+
+1. Analyze the failure output — identify which test failed and why (wrong column, missing row, type mismatch, etc.).
+2. Revise the model SQL to fix the issue. Do not modify test-spec unit tests — they are ground truth. Gap tests (`test_gap_*`) may be revised if their expectations were incorrect.
+3. Re-run `migrate write` with the revised SQL and schema YAML.
+4. Re-run `dbt compile` and `dbt test`.
+5. Repeat up to 3 iterations total.
+
+After 3 failed iterations:
+
+- Report the failing test names and error details to the user.
+- Leave the model as-is with `status: "partial"`.
+- Record failures in `execution.dbt_errors[]`.
 
 ## Output schemas
 
 | Subcommand | Schema reference |
 |---|---|
-| `context` | See `docs/design/agent-contract/model-generator.md` section "AssembleContext" |
+| `context` | See `docs/design/skill-contract/model-generator.md` section "AssembleContext" |
 | `write` | `{ "written": [...], "status": "ok" }` |
 
 ## Error handling

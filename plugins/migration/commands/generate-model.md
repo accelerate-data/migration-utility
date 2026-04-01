@@ -2,7 +2,8 @@
 name: generate-model
 description: >
   Batch model generation command — generates dbt models from stored procedures.
-  Delegates per-item generation to the /generating-model skill.
+  Delegates per-item generation to the /generating-model skill with
+  /reviewing-model review loop.
 user-invocable: true
 argument-hint: "<schema.table> [schema.table ...]"
 ---
@@ -18,6 +19,7 @@ Generate dbt models for a batch of tables. Launches one sub-agent per table in p
 - Per item: `catalog/tables/<item_id>.json` must exist. If missing, skip with `CATALOG_FILE_MISSING`.
 - Per item: `scoping.selected_writer` must be set. If missing, skip with `SCOPING_NOT_COMPLETED`.
 - Per item: `profile` must exist with `status: "ok"`. If missing, skip with `PROFILE_NOT_COMPLETED`.
+- Per item: `test-specs/<item_id>.json` must exist. If missing, skip with `TEST_SPEC_NOT_FOUND`.
 
 ## Pipeline
 
@@ -46,13 +48,21 @@ Run the migration:generating-model skill for <schema.table>.
 The worktree is at <worktree-path>.
 Skip the Step 4 user confirmation prompt and the Step 6 approval prompt — proceed automatically. Still run the full equivalence analysis in Step 4.
 Equivalence warnings: proceed and write the model. Record each gap as EQUIVALENCE_GAP warning.
-dbt compile failure: attempt up to 3 self-corrections. If still failing, write as-is with DBT_COMPILE_FAILED warning.
+dbt compile/test failure: attempt up to 3 self-corrections. If still failing, write as-is with DBT_TEST_FAILED warning.
 Write the item result JSON to .migration-runs/<schema.table>.json.
 On failure, write result with status: "error" and error details.
 Return the item result JSON.
 ```
 
-### Step 3 — Revert errored items
+### Step 3 — Review Model
+
+For each item that completed Step 2 successfully (dbt tests passing), invoke `/reviewing-model --table <item_id>`.
+
+- If verdict is `approved`: proceed to revert/summarize.
+- If verdict is `revision_requested`: re-invoke `/generating-model` for the item with the reviewer's `feedback_for_model_generator` as additional context. The model-generator must re-run `dbt test` to confirm unit tests still pass after revisions. Then re-invoke `/reviewing-model`. Maximum 2 review iterations per item.
+- On review failure or max iterations reached, approve with warnings and proceed.
+
+### Step 4 — Revert errored items
 
 For each item with `status: "error"`, revert any files the skill may have partially written:
 
@@ -62,7 +72,7 @@ git checkout -- dbt/models/staging/<model_name>.sql dbt/models/staging/_<model_n
 
 Derive `<model_name>` from the item_id using the same `stg_<table>` convention. Ignore errors from `git checkout` (the files may not exist yet for new models — use `rm -f` instead if the model was newly created and has no prior version).
 
-### Step 4 — Summarize
+### Step 5 — Summarize
 
 1. Read each `.migration-runs/<schema.table>.json`.
 2. Write `.migration-runs/summary.json` with `{total, ok, partial, error}` counts and per-item status.
@@ -101,13 +111,6 @@ Derive `<model_name>` from the item_id using the same `stg_<table>` convention. 
    Once the PR is merged, run /cleanup-worktrees to remove the worktree and branches.
    ```
 
-## Review Loops (placeholder)
-
-Future implementation will add:
-
-- **Code-reviewer sub-agent loop** — max 2 review iterations per item.
-- **dbt self-correction bound** — max 3 compile-fix iterations per item.
-
 ## Item Result Schema
 
 ```json
@@ -128,12 +131,19 @@ Future implementation will add:
       },
       "model_yaml": {
         "has_model_description": true,
-        "schema_tests_rendered": ["..."]
+        "schema_tests_rendered": ["..."],
+        "has_unit_tests": true
       }
     },
     "execution": {
-      "dbt_compile": "passed|parse_only|not_attempted|failed",
+      "dbt_compile_passed": true,
+      "dbt_test_passed": true,
+      "self_correction_iterations": 0,
       "dbt_errors": []
+    },
+    "review": {
+      "iterations": 1,
+      "verdict": "approved|approved_with_warnings"
     },
     "warnings": [],
     "errors": []
@@ -150,9 +160,13 @@ Future implementation will add:
 | `CATALOG_FILE_MISSING` | error | catalog/tables/\<item_id>.json not found — skip item |
 | `SCOPING_NOT_COMPLETED` | error | scoping section missing or no selected_writer — skip item |
 | `PROFILE_NOT_COMPLETED` | error | profile section missing or status != ok — skip item |
+| `TEST_SPEC_NOT_FOUND` | error | test-specs/\<item_id>.json not found — skip item |
 | `GENERATION_FAILED` | error | `/generating-model` skill pipeline failed — skip item |
 | `EQUIVALENCE_GAP` | warning | semantic gap found between proc and generated model — item proceeds as partial |
 | `DBT_COMPILE_FAILED` | warning | `dbt compile` failed after retries — item proceeds as partial |
+| `DBT_TEST_FAILED` | warning | `dbt test` failed after 3 self-correction iterations — item proceeds as partial |
+| `REVIEW_KICKED_BACK` | warning | reviewer requested revision — item retried |
+| `REVIEW_APPROVED_WITH_WARNINGS` | warning | reviewer approved with remaining issues after max iterations — item proceeds |
 
 Each entry in `errors[]` or `warnings[]`:
 

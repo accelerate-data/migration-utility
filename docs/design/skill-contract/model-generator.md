@@ -62,6 +62,10 @@ Render `schema_tests` from context into `.yml`:
 
 Merge `unit_tests[]` from `test-specs/<item_id>.json` into the schema YAML as a `unit_tests:` block. Every scenario from the test spec must be rendered — none may be dropped or modified.
 
+### 4b. IdentifyCoverageGaps (LLM)
+
+After rendering the test-spec's unit tests, analyze the generated model's logic for branches not covered by existing scenarios (additional JOIN conditions, CASE arms, NULL handling paths, incremental filter boundaries, empty source tables). Generate 1-3 additional unit test scenarios with the naming convention `test_gap_<description>`. Gap tests use LLM-derived expectations (not ground truth) — `dbt test` validates them. Test-spec tests are ground truth and must never be modified; gap tests may be revised during self-correction.
+
 ### 5. WriteArtifacts (Deterministic — `migrate.py write`)
 
 Run `uv run migrate write --table <item_id> --dbt-project-path <path> --model-sql '<sql>' --schema-yml '<yml>'`.
