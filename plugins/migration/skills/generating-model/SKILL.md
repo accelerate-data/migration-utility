@@ -20,7 +20,7 @@ Generate a dbt model from a profiled stored procedure. Reads deterministic conte
 ## Before invoking
 
 1. Read `manifest.json` from the current working directory to confirm a valid project root. If missing, stop and tell the user to run `setup-ddl` first.
-2. Confirm a dbt project exists (look for `dbt_project.yml` in `./dbt/` relative to the project root or ask the user for `--dbt-project-path`). If missing, tell the user to run `/init-dbt` first.
+2. Confirm a dbt project exists (look for `dbt_project.yml` in `./dbt/` relative to the project root). If missing, tell the user to run `/init-dbt` first.
 
 ## Step 1: Assemble context
 
