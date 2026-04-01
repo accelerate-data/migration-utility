@@ -14,7 +14,7 @@ Profile a single table for migration by assembling context, reasoning over six p
 
 Parse `$ARGUMENTS` for `--table` and optionally `--writer`. Use `AskUserQuestion` if `--table` is missing. If `--writer` is not provided, the writer is read from the catalog scoping section of the table's catalog file (`catalog/tables/<table>.json` → `scoping.selected_writer`).
 
-## Before invoking any subcommand
+## Before invoking
 
 Read `manifest.json` from the current working directory to confirm a valid project root. If missing, stop and tell the user to run `setup-ddl` first.
 
