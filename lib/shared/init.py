@@ -323,10 +323,6 @@ After the PR is merged:
 3. Delete the local branch: `git branch -d run/<command>-batch-N`.
 
 If the FDE asks to close, merge, or clean up a batch run, perform all three steps.
-
-## Relationship to Skills
-
-Skills define per-table processing rules. Commands reference skills when constructing sub-agent prompts. The skill is unaware of whether it was invoked directly by the FDE or by a command — approval gates work the same either way.
 """
 
 PRE_COMMIT_HOOK = """\
