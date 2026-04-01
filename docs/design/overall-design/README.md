@@ -81,8 +81,6 @@ flowchart LR
 | Test Generation | `test-generator-agent` + `test-reviewer-agent` | Generator enumerates proc branches, synthesizes fixtures, executes proc in sandbox, captures ground truth, writes `test-specs/<item_id>.json`. Reviewer independently enumerates branches, scores coverage, reviews fixture quality. Kicks back for missing branches or quality issues. **Max 2 review iterations.** |
 | Migration | `model-generator-agent` + `code-reviewer-agent` | Model generator reads profile + test spec, generates dbt model + schema YAML (with `unit_tests:` rendered from test spec), runs `dbt test`, self-corrects up to **3 iterations**. Code reviewer checks standards, correctness, test integration. Kicks back for issues. **Max 2 review iterations.** |
 
-Sandbox teardown (`test-harness sandbox-down`) is run manually after test generation completes — it is cleanup, not a pipeline stage.
-
 **Key design decisions:**
 
 - Test generation runs BEFORE migration — the model-generator consumes the approved test spec and must pass `dbt test` against it.
@@ -124,9 +122,9 @@ dbt/                                # generated dbt project
     ...
 ```
 
-### No artifacts directory
+### Status Updates
 
-Agents write directly to catalog files, test-specs, and dbt models. There is no separate `artifacts/` directory for input/output JSON. The catalog IS the pipeline state. Run metadata (timing, cost, per-item status) is tracked in a transient `.migration-status.json` that is `.gitignore`d — it is consumed at commit/PR time to generate rich commit messages and PR bodies, then discarded.
+Agents write directly to catalog files, test-specs, and dbt models. The catalog IS the pipeline state. Run metadata (timing, cost, per-item status) is tracked in a transient `.migration-status.json` that is `.gitignore`d — it is consumed at commit/PR time to generate rich commit messages and PR bodies, then discarded.
 
 ---
 
