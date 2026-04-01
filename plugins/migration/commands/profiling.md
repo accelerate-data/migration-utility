@@ -11,8 +11,6 @@ argument-hint: "<schema.table> [schema.table ...]"
 
 Given a batch of target tables, produce migration profile candidates for each table and write them into the table catalog files. Delegates per-item profiling to the `/profiling-table` skill.
 
-This command follows the shared lifecycle in `.claude/rules/command-lifecycle.md`.
-
 ## Additional Per-item Guard
 
 Before running the skill for each item (after common guards):

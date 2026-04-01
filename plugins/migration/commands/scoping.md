@@ -11,8 +11,6 @@ argument-hint: "<schema.table> [schema.table ...]"
 
 Given a batch of target tables, identify which procedures write to each and select the single writer when resolvable. Delegates per-item scoping to the `/scoping-table` skill.
 
-This command follows the shared lifecycle in `.claude/rules/command-lifecycle.md`.
-
 ## Pipeline
 
 ### Step 1 — Scope Table (Skill Delegation)

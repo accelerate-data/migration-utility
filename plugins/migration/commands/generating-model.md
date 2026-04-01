@@ -11,8 +11,6 @@ argument-hint: "<schema.table> [schema.table ...]"
 
 Generate dbt models for a batch of table/writer pairs. Delegates per-item generation to the `/generating-model` skill.
 
-This command follows the shared lifecycle in `.claude/rules/command-lifecycle.md`.
-
 ## Additional Batch-wide Guard
 
 Before processing any items (after common guards):

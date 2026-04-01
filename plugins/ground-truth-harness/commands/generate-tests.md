@@ -11,8 +11,6 @@ argument-hint: "<schema.table> [schema.table ...]"
 
 Given a batch of target tables, generate ground truth test fixtures for each. Delegates per-item test generation to the `/generating-tests` skill and includes a `/reviewing-tests` review loop.
 
-This command follows the shared lifecycle in `.claude/rules/command-lifecycle.md`.
-
 ## Additional Batch-wide Guard
 
 Before processing any items (after common guards):
