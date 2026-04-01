@@ -194,3 +194,53 @@ Consumed at commit/PR time for rich messages, stays local.
 No separate status store. Durable status is git — catalog files, test-specs, and dbt models are committed artifacts. To see what's done, read the repo.
 
 Diagnostics (errors, warnings) are stored per-table in catalog files as `diagnostics_entry` arrays — they travel with the table through the pipeline. Run summaries are ephemeral and collected in `.migration-runs/` (see Execution Model above).
+
+---
+
+## Git and PR Strategy
+
+### Branching
+
+| Mode | Branch pattern | Created by |
+|---|---|---|
+| Interactive (skill) | FDE's current branch | FDE |
+| Multi-table (command) | `run/<command>-batch-N` | Command, before spawning sub-agents |
+
+Commands auto-increment `N` by scanning existing `run/` branches. Single-table skill invocations don't create branches — the FDE works on whatever branch they're already on.
+
+### Commit Granularity
+
+One commit per table. Each sub-agent commits its own artifacts on success. On error, the command reverts that table's commit — no file-path cleanup needed.
+
+Interactive skills follow the same rule: one commit per table, on FDE approval.
+
+### Error Handling
+
+After all sub-agents finish, the command reads `.migration-runs/results/` for the success/error list. For each errored table, `git revert --no-edit <sha>` removes its partial work. The FDE sees a clean branch with only succeeded tables.
+
+### Commit Messages
+
+```text
+<command>(<schema>.<table>): <one-line summary>
+```
+
+### PR Strategy
+
+Commands open one PR per batch. The PR body includes:
+
+- Stage and table list from `meta.json`
+- Per-table status (success/skipped/error) from `summary.json`
+- Diagnostics summary for any tables with warnings
+
+PRs target the repo's default branch. The FDE reviews and merges — the command does not auto-merge.
+
+Interactive skills do not open PRs automatically. The FDE manages PRs as part of their normal workflow.
+
+### What Gets Committed
+
+| Committed (durable) | Never committed (ephemeral) |
+|---|---|
+| `catalog/tables/*.json`, `catalog/procedures/*.json` | `.migration-runs/` (`.gitignore`d) |
+| `test-specs/*.json` | |
+| `dbt/models/**/*.sql`, `dbt/models/**/*.yml` | |
+| `ddl/*.sql` (from setup, not per-batch) | |

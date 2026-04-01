@@ -37,7 +37,7 @@ uv run --project lib <command> [subcommand] --option value
 
 ### Invocation model
 
-CLIs are the deterministic bottom layer in a three-tier stack:
+CLIs are the deterministic bottom layer in a five-tier stack:
 
 | Layer | Role | Calls CLIs? |
 |---|---|---|
