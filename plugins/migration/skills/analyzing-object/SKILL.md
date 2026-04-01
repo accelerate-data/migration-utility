@@ -3,7 +3,7 @@ name: analyzing-object
 description: >
   Analyse a stored procedure, view, or function for migration. Resolves call graphs, classifies statements, produces a logic summary and migration guidance, and persists results to catalog.
 user-invocable: true
-argument-hint: "--name <fqn>"
+argument-hint: "<schema.object>"
 ---
 
 # Analyzing Object
@@ -12,13 +12,7 @@ Deep-dive analysis of a single stored procedure, view, or function. Produces cal
 
 ## Arguments
 
-Parse `$ARGUMENTS` for the required option:
-
-| Option | Required | Values |
-|---|---|---|
-| `--name` | yes | Fully-qualified object name (e.g. `dbo.usp_load_DimCustomer`, `silver.vw_CustomerSales`) |
-
-If `--name` is missing, use `AskUserQuestion` to prompt for it.
+`$ARGUMENTS` is the fully-qualified object name (e.g. `dbo.usp_load_DimCustomer`, `silver.vw_CustomerSales`). Use `AskUserQuestion` if missing.
 
 ## Before invoking
 

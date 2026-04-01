@@ -5,7 +5,7 @@ description: >
   enumerates branches, scores coverage, and reviews fixture quality.
   Invoked by the /generate-tests command, not directly by FDE.
 user-invocable: false
-argument-hint: "[--table <fqn>]"
+argument-hint: "<schema.table>"
 ---
 
 # Review Tests
@@ -14,7 +14,7 @@ Quality gate for test generation output. Independently enumerates conditional br
 
 ## Arguments
 
-Parse `$ARGUMENTS` for `--table`. The value is the fully qualified table name (the `item_id`).
+`$ARGUMENTS` is the fully-qualified table name (the `item_id`).
 
 ## Before invoking
 

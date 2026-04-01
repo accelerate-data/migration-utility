@@ -6,7 +6,7 @@ description: >
   "capture ground truth", or "test <table>". Requires catalog scoping
   and profile from prior stages. Sandbox must be running.
 user-invocable: true
-argument-hint: "[--table <fqn>]"
+argument-hint: "<schema.table>"
 ---
 
 # Generate Tests
@@ -17,7 +17,7 @@ Test generation runs BEFORE migration. The test spec is an independent artifact 
 
 ## Arguments
 
-Parse `$ARGUMENTS` for `--table`. Use `AskUserQuestion` if `--table` is missing.
+`$ARGUMENTS` is the fully-qualified table name. Use `AskUserQuestion` if missing.
 
 ## Before invoking
 

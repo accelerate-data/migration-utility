@@ -3,7 +3,7 @@ name: profiling-table
 description: >
   Profile a single table for migration. Assembles deterministic context from catalog and DDL, reasons over the six profiling questions using what-to-profile-and-why.md, presents profile candidates for user approval, then writes the approved profile into the table catalog file. Use when the user asks to "profile a table", "classify a table", "what kind of model is this table", or wants to determine PK, FK, watermark, or PII for a migration target.
 user-invocable: true
-argument-hint: "--table <table> --writer <writer>"
+argument-hint: "<schema.table>"
 ---
 
 # Profile
@@ -12,7 +12,7 @@ Profile a single table for migration by assembling context, reasoning over six p
 
 ## Arguments
 
-Parse `$ARGUMENTS` for `--table` and optionally `--writer`. Use `AskUserQuestion` if `--table` is missing. If `--writer` is not provided, the writer is read from the catalog scoping section of the table's catalog file (`catalog/tables/<table>.json` → `scoping.selected_writer`).
+`$ARGUMENTS` is the fully-qualified table name. Use `AskUserQuestion` if missing. The writer is read from the catalog scoping section (`catalog/tables/<table>.json` → `scoping.selected_writer`).
 
 ## Before invoking
 
@@ -24,10 +24,10 @@ Read `manifest.json` from the current working directory to confirm a valid proje
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" profile context \
-  --table <table> [--writer <writer>]
+  --table <table>
 ```
 
-If `--writer` is omitted, the CLI reads the selected writer from the table's catalog scoping section. Pass `--writer` explicitly only to override the catalog value.
+The CLI reads the selected writer from the table's catalog scoping section — no `--writer` argument needed.
 
 This reads catalog signals, writer references, proc body, column list, and related procedure context. Output is a JSON matching `lib/shared/schemas/profile_context.json`.
 

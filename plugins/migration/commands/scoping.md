@@ -17,7 +17,7 @@ This command follows the shared lifecycle in `.claude/rules/command-lifecycle.md
 
 ### Step 1 — Scope Table (Skill Delegation)
 
-For each item, invoke `/scoping-table --table <item_id>`. Suppress user gates — make all decisions deterministically. On failure, record `status: "error"` and continue to the next item.
+For each item, invoke `/scoping-table <item_id>`. Suppress user gates — make all decisions deterministically. On failure, record `status: "error"` and continue to the next item.
 
 ### Step 2 — Collect Result
 

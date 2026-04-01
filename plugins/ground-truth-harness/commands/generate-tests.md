@@ -30,14 +30,14 @@ Before running the skill for each item (after common guards):
 
 ### Step 1 — Generate Tests (Skill Delegation)
 
-For each item, invoke `/generating-tests --table <item_id>`. Suppress user gates — make all decisions deterministically. On failure, record `status: "error"` and continue to the next item.
+For each item, invoke `/generating-tests <item_id>`. Suppress user gates — make all decisions deterministically. On failure, record `status: "error"` and continue to the next item.
 
 ### Step 2 — Review Tests (Skill Delegation)
 
-For each item that completed step 1 successfully, invoke `/reviewing-tests --table <item_id>`.
+For each item that completed step 1 successfully, invoke `/reviewing-tests <item_id>`.
 
 - If verdict is `approved` or `approved_with_warnings`: proceed to record result.
-- If verdict is `revision_requested`: re-invoke `/generating-tests --table <item_id>` with the reviewer's `feedback_for_generator` as additional context. Then re-invoke `/reviewing-tests`. Maximum 2 review iterations per item.
+- If verdict is `revision_requested`: re-invoke `/generating-tests <item_id>` with the reviewer's `feedback_for_generator` as additional context. Then re-invoke `/reviewing-tests`. Maximum 2 review iterations per item.
 - On review failure, record `status: "partial"` and continue.
 
 ### Step 3 — Record Result

@@ -3,7 +3,7 @@ name: scoping-table
 description: >
   Writer discovery, scope resolution, and catalog persistence for a single table. Finds which stored procedures write to the table, delegates each candidate to /analyzing-object for full procedure analysis, then lets the user confirm the selected writer and persists the scoping decision to the table catalog file.
 user-invocable: true
-argument-hint: "--table <fqn>"
+argument-hint: "<schema.table>"
 ---
 
 # Scope Table
@@ -12,11 +12,7 @@ Discover writers for a table, analyze each candidate, resolve which writer owns 
 
 ## Arguments
 
-Parse `$ARGUMENTS` for `--table`. Use `AskUserQuestion` if `--table` is missing.
-
-| Option | Required | Description |
-|---|---|---|
-| `--table` | yes | Fully-qualified table name (e.g. `silver.DimCustomer`, `[dbo].[FactSales]`) |
+`$ARGUMENTS` is the fully-qualified table name (e.g. `silver.DimCustomer`, `[dbo].[FactSales]`). Use `AskUserQuestion` if missing.
 
 ## Before invoking
 

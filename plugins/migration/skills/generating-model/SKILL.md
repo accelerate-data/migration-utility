@@ -6,7 +6,7 @@ description: >
   "create a model for <table>". Requires catalog profile and resolved
   statements from prior discover + profile stages.
 user-invocable: true
-argument-hint: "[--table <fqn>] [--writer <fqn>]"
+argument-hint: "<schema.table>"
 ---
 
 # Migrate
@@ -15,7 +15,7 @@ Generate a dbt model from a profiled stored procedure. Reads deterministic conte
 
 ## Arguments
 
-Parse `$ARGUMENTS` for `--table` and optionally `--writer`. Use `AskUserQuestion` if `--table` is missing. If `--writer` is not provided, the writer is read from the catalog scoping section of the table's catalog file (`catalog/tables/<table>.json` → `scoping.selected_writer`).
+`$ARGUMENTS` is the fully-qualified table name. Use `AskUserQuestion` if missing. The writer is read from the catalog scoping section (`catalog/tables/<table>.json` → `scoping.selected_writer`).
 
 ## Before invoking
 
@@ -26,10 +26,10 @@ Parse `$ARGUMENTS` for `--table` and optionally `--writer`. Use `AskUserQuestion
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" migrate context \
-  --table <table_fqn> [--writer <writer_fqn>]
+  --table <table_fqn>
 ```
 
-If `--writer` is omitted, the CLI reads the selected writer from the table's catalog scoping section. Pass `--writer` explicitly only to override the catalog value.
+The CLI reads the selected writer from the table's catalog scoping section — no `--writer` argument needed.
 
 Read the output JSON. It contains:
 

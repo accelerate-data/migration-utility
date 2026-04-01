@@ -30,7 +30,7 @@ Before running the skill for each item (after common guards):
 
 ### Step 1 — Generate Model (Skill Delegation)
 
-For each item, invoke `/generating-model --table <item_id>`. Suppress user gates — make all decisions deterministically. On failure, record `status: "error"` and continue to the next item.
+For each item, invoke `/generating-model <item_id>`. Suppress user gates — make all decisions deterministically. On failure, record `status: "error"` and continue to the next item.
 
 ### Step 2 — Record Result
 
