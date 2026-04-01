@@ -68,7 +68,7 @@ Return the item result JSON.
      ok: 1 | partial: 1 | error: 1
    ```
 
-4. Ask FDE: commit and open PR? PR body format:
+4. Ask the user: commit and open PR? PR body format:
 
    ```markdown
    ## Model Generation — N tables

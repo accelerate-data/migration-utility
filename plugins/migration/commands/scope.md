@@ -62,7 +62,7 @@ Return the item result JSON.
      resolved: 2 | error: 1
    ```
 
-4. Ask FDE: commit and open PR? PR body format:
+4. Ask the user: commit and open PR? PR body format:
 
    ```markdown
    ## Scoping — N tables
