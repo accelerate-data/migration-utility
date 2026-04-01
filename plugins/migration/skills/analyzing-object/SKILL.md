@@ -94,8 +94,7 @@ Write the statements JSON to a temp file to avoid shell quoting issues (rational
 mkdir -p .staging
 # Write statements JSON to .staging/statements.json
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-statements \
-  --name <procedure_name> --statements-file .staging/statements.json
-rm -rf .staging
+  --name <procedure_name> --statements-file .staging/statements.json; rm -rf .staging
 ```
 
 ## Error handling

@@ -259,8 +259,7 @@ mkdir -p .staging
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" migrate write \
   --table <table_fqn> \
   --model-sql-file .staging/model.sql \
-  --schema-yml-file .staging/schema.yml
-rm -rf .staging
+  --schema-yml-file .staging/schema.yml; rm -rf .staging
 ```
 
 The dbt project path is resolved automatically from `$DBT_PROJECT_PATH` or defaults to `./dbt` relative to the project root. Pass `--dbt-project-path <path>` only if you need to override this.

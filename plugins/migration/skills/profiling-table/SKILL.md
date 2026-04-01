@@ -63,8 +63,7 @@ mkdir -p .staging
 # Write profile JSON to .staging/profile.json (avoids shell quoting breakage from apostrophes in rationale text)
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" profile write \
   --table <table> \
-  --profile-file .staging/profile.json
-rm -rf .staging
+  --profile-file .staging/profile.json; rm -rf .staging
 ```
 
 The profile JSON must match the `profile_section` schema in `lib/shared/schemas/table_catalog.json`. Required fields: `status`, `writer`. All enum values must be from the allowed sets. Each decision point must include a `rationale` field (1–2 sentences): `classification.rationale`, `primary_key.rationale`, `natural_key.rationale`, `watermark.rationale`, and per-entry `rationale` in `foreign_keys[]` and `pii_actions[]`.

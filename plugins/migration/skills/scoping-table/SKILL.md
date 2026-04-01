@@ -96,8 +96,7 @@ Write the scoping JSON to a temp file to avoid shell quoting issues (rationale t
 mkdir -p .staging
 # Write scoping JSON to .staging/scoping.json
 uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-scoping \
-  --name <table> --scoping-file .staging/scoping.json
-rm -rf .staging
+  --name <table> --scoping-file .staging/scoping.json; rm -rf .staging
 ```
 
 The scoping JSON must include the selected writer (or `no_writer_found` status) and a `selected_writer_rationale` field (1–2 sentences explaining why this writer was chosen over alternatives, or why no writer / ambiguous). If the write exits non-zero, report the error and ask the user to correct.
