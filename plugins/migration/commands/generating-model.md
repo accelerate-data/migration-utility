@@ -32,7 +32,7 @@ For each item, invoke `/generating-model <item_id>`. Suppress user gates — mak
 
 ### Step 2 — Record Result
 
-Write the item result to `.migration-runs/results/<item_id>.json`:
+Write the item result to `.migration-runs/<item_id>.json`:
 
 ```json
 {

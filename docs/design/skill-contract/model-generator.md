@@ -82,7 +82,7 @@ Run `uv run migrate write --table <item_id> --dbt-project-path <path> --model-sq
 
 ## Output Structure
 
-Per-item output written to `.migration-runs/results/`:
+Per-item output written to `.migration-runs/`:
 
 ```json
 {

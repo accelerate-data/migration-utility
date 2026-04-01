@@ -19,7 +19,7 @@ For each item, invoke `/scoping-table <item_id>`. Suppress user gates — make a
 
 ### Step 2 — Collect Result
 
-After the skill completes for an item, read `catalog/tables/<item_id>.json` to confirm scoping was persisted. Write the item result to `.migration-runs/results/<item_id>.json`:
+After the skill completes for an item, read `catalog/tables/<item_id>.json` to confirm scoping was persisted. Write the item result to `.migration-runs/<item_id>.json`:
 
 - `item_id` — the table FQN
 - `status` — `resolved`, `ambiguous_multi_writer`, `no_writer_found`, or `error`

@@ -25,7 +25,7 @@ For each item, invoke `/profiling-table <item_id>`. Suppress user gates — make
 
 ### Step 2 — Record Result
 
-Write the item result to `.migration-runs/results/<item_id>.json`:
+Write the item result to `.migration-runs/<item_id>.json`:
 
 - `item_id` — the table FQN
 - `status` — `ok`, `partial`, or `error`

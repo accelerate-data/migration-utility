@@ -166,10 +166,10 @@ The FDE passes multiple table names to a command:
 
 Each command:
 
-1. Creates a branch (e.g. `run/scoping-batch-1`)
+1. Creates a worktree (e.g. `../worktrees/run/scope-batch-1`) so the FDE can run multiple commands in parallel
 2. Spawns one sub-agent per table in parallel — each sub-agent follows the skill's processing rules
 3. Sub-agents run autonomously (skip-and-continue on errors)
-4. Collects per-table results into `.migration-runs/results/`
+4. Collects per-table results into `.migration-runs/`
 5. Aggregates `.migration-runs/summary.json`
 6. Presents summary to FDE, asks: commit + PR?
 
@@ -180,8 +180,7 @@ Run summaries are collected in `.migration-runs/` (`.gitignore`d). Cleared at th
 ```text
 .migration-runs/
   meta.json                        # stage, tables, started_at
-  results/
-    <schema>.<table>.json          # one per item — sub-agent writes on completion
+  <schema>.<table>.json            # one per item — sub-agent writes on completion
   summary.json                     # command writes after all sub-agents finish
 ```
 
@@ -216,7 +215,7 @@ Interactive skills follow the same rule: one commit per table, on FDE approval.
 
 ### Error Handling
 
-After all sub-agents finish, the command reads `.migration-runs/results/` for the success/error list. For each errored table, `git revert --no-edit <sha>` removes its partial work. The FDE sees a clean branch with only succeeded tables.
+After all sub-agents finish, the command reads `.migration-runs/` for the success/error list. For each errored table, `git revert --no-edit <sha>` removes its partial work. The FDE sees a clean branch with only succeeded tables.
 
 ### Commit Messages
 

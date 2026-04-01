@@ -40,7 +40,7 @@ For each item that completed step 1 successfully, invoke `/reviewing-tests <item
 
 ### Step 3 — Record Result
 
-Write the item result to `.migration-runs/results/<item_id>.json`:
+Write the item result to `.migration-runs/<item_id>.json`:
 
 ```json
 {
