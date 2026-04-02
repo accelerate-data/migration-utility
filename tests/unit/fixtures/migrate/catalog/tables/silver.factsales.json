@@ -46,7 +46,11 @@
   },
   "profile": {
     "status": "ok",
-    "classification": "fact_transaction",
+    "writer": "dbo.usp_load_fact_sales",
+    "classification": {
+      "resolved_kind": "fact_transaction",
+      "source": "catalog"
+    },
     "primary_key": {
       "columns": ["sale_id"],
       "primary_key_type": "surrogate"
@@ -57,8 +61,7 @@
     "foreign_keys": [
       {
         "column": "customer_sk",
-        "references_schema": "silver",
-        "references_table": "DimCustomer",
+        "references_source_relation": "silver.dimcustomer",
         "references_column": "customer_sk"
       }
     ],

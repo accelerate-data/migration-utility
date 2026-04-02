@@ -36,7 +36,11 @@
   },
   "profile": {
     "status": "ok",
-    "classification": "dim_full_reload",
+    "writer": "dbo.usp_load_dim_product",
+    "classification": {
+      "resolved_kind": "dim_non_scd",
+      "source": "catalog"
+    },
     "primary_key": {
       "columns": ["product_sk"],
       "primary_key_type": "surrogate"

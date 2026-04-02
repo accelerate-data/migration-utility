@@ -41,7 +41,11 @@
   },
   "profile": {
     "status": "ok",
-    "classification": "dim_scd2",
+    "writer": "dbo.usp_load_dim_customer",
+    "classification": {
+      "resolved_kind": "dim_scd2",
+      "source": "catalog"
+    },
     "primary_key": {
       "columns": ["customer_sk"],
       "primary_key_type": "surrogate"
@@ -49,7 +53,7 @@
     "watermark": null,
     "foreign_keys": [],
     "pii_actions": [
-      { "column": "email", "action": "mask" }
+      { "column": "email", "suggested_action": "mask" }
     ]
   }
 }

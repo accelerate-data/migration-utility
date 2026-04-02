@@ -75,8 +75,8 @@ def derive_materialization(profile: dict[str, Any]) -> str:
     - No watermark (or watermark column is null/empty) → ``table``
     - Otherwise → ``incremental``
     """
-    classification = profile.get("classification", "")
-    if classification == "dim_scd2":
+    classification = profile.get("classification") or {}
+    if classification.get("resolved_kind") == "dim_scd2":
         return "snapshot"
     watermark = profile.get("watermark")
     if watermark and watermark.get("column"):
@@ -112,13 +112,10 @@ def derive_schema_tests(profile: dict[str, Any]) -> dict[str, Any]:
         ri_tests = []
         for fk in fks:
             col = fk.get("column", "")
-            ref_table = fk.get("references_table", "")
+            ref_relation = fk.get("references_source_relation", "")
             ref_col = fk.get("references_column", "")
-            ref_schema = fk.get("references_schema", "")
-            if col and ref_table:
-                # Build ref() target from schema + table
-                ref_name = normalize(f"{ref_schema}.{ref_table}") if ref_schema else ref_table
-                model_ref = f"ref('{_model_name_from_table(ref_name)}')"
+            if col and ref_relation:
+                model_ref = f"ref('{_model_name_from_table(ref_relation)}')"
                 ri_tests.append({
                     "column": col,
                     "to": model_ref,
@@ -136,7 +133,7 @@ def derive_schema_tests(profile: dict[str, Any]) -> dict[str, Any]:
     pii_actions = profile.get("pii_actions", [])
     if pii_actions:
         tests["pii"] = [
-            {"column": p.get("column", ""), "action": p.get("action", "mask")}
+            {"column": p.get("column", ""), "suggested_action": p.get("suggested_action", "mask")}
             for p in pii_actions
             if p.get("column")
         ]

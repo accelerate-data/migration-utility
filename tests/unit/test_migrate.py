@@ -54,27 +54,27 @@ class TestDeriveMaterialization:
     """Materialization derivation from profile classification and watermark."""
 
     def test_dim_scd2_returns_snapshot(self) -> None:
-        profile = {"classification": "dim_scd2", "watermark": {"column": "valid_from"}}
+        profile = {"classification": {"resolved_kind": "dim_scd2"}, "watermark": {"column": "valid_from"}}
         assert derive_materialization(profile) == "snapshot"
 
     def test_dim_scd2_without_watermark_returns_snapshot(self) -> None:
-        profile = {"classification": "dim_scd2", "watermark": None}
+        profile = {"classification": {"resolved_kind": "dim_scd2"}, "watermark": None}
         assert derive_materialization(profile) == "snapshot"
 
     def test_fact_with_watermark_returns_incremental(self) -> None:
-        profile = {"classification": "fact_transaction", "watermark": {"column": "load_date"}}
+        profile = {"classification": {"resolved_kind": "fact_transaction"}, "watermark": {"column": "load_date"}}
         assert derive_materialization(profile) == "incremental"
 
     def test_no_watermark_returns_table(self) -> None:
-        profile = {"classification": "dim_full_reload", "watermark": None}
+        profile = {"classification": {"resolved_kind": "dim_non_scd"}, "watermark": None}
         assert derive_materialization(profile) == "table"
 
     def test_empty_watermark_column_returns_table(self) -> None:
-        profile = {"classification": "fact_periodic_snapshot", "watermark": {"column": ""}}
+        profile = {"classification": {"resolved_kind": "fact_periodic_snapshot"}, "watermark": {"column": ""}}
         assert derive_materialization(profile) == "table"
 
     def test_missing_watermark_key_returns_table(self) -> None:
-        profile = {"classification": "fact_periodic_snapshot"}
+        profile = {"classification": {"resolved_kind": "fact_periodic_snapshot"}}
         assert derive_materialization(profile) == "table"
 
 
@@ -109,8 +109,7 @@ class TestDeriveSchemaTests:
             "foreign_keys": [
                 {
                     "column": "customer_sk",
-                    "references_schema": "silver",
-                    "references_table": "DimCustomer",
+                    "references_source_relation": "silver.dimcustomer",
                     "references_column": "customer_sk",
                 }
             ],
@@ -135,13 +134,13 @@ class TestDeriveSchemaTests:
     def test_pii_produces_meta_tags(self) -> None:
         profile = {
             "pii_actions": [
-                {"column": "email", "action": "mask"},
-                {"column": "ssn", "action": "redact"},
+                {"column": "email", "suggested_action": "mask"},
+                {"column": "ssn", "suggested_action": "redact"},
             ]
         }
         tests = derive_schema_tests(profile)
         assert len(tests["pii"]) == 2
-        assert tests["pii"][0] == {"column": "email", "action": "mask"}
+        assert tests["pii"][0] == {"column": "email", "suggested_action": "mask"}
 
     def test_empty_profile_returns_empty_tests(self) -> None:
         tests = derive_schema_tests({})
@@ -159,7 +158,7 @@ class TestRunContext:
 
         assert result["table"] == "silver.factsales"
         assert result["writer"] == "dbo.usp_load_fact_sales"
-        assert result["profile"]["classification"] == "fact_transaction"
+        assert result["profile"]["classification"]["resolved_kind"] == "fact_transaction"
         assert result["materialization"] == "incremental"
         assert len(result["statements"]) >= 1
         assert result["statements"][0]["action"] == "migrate"
