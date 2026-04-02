@@ -73,6 +73,16 @@ def _extract_calls(raw_ddl: str) -> list[str]:
     return sorted(calls)
 
 
+def _enrich_skip_reason(proc_cat: dict[str, Any] | None) -> str | None:
+    """Return the reason enrichment should skip this procedure, if any."""
+    if proc_cat is None:
+        return None
+
+    if proc_cat.get("mode") == "llm_required":
+        return "needs_llm"
+    return None
+
+
 def _fqn_in_scope(
     in_scope_list: list[dict[str, Any]], fqn: str,
 ) -> bool:
@@ -107,7 +117,7 @@ def _scan_ast_refs(
 ) -> tuple[dict[str, ObjectRefs], dict[str, list[str]]]:
     """Extract AST refs and EXEC calls for eligible procedures.
 
-    Skips procs with ``needs_llm: true`` or ``needs_enrich: false``.
+    Skips only procs that require LLM routing.
     Returns ``(ast_refs, ast_calls)``.
     """
     ast_refs: dict[str, ObjectRefs] = {}
@@ -115,11 +125,9 @@ def _scan_ast_refs(
 
     for proc_fqn, entry in ddl_catalog.procedures.items():
         proc_cat = load_proc_catalog(project_root, proc_fqn)
-        if proc_cat and proc_cat.get("needs_llm"):
-            logger.debug("event=enrich_skip proc=%s reason=needs_llm", proc_fqn)
-            continue
-        if proc_cat and not proc_cat.get("needs_enrich", True):
-            logger.debug("event=enrich_skip proc=%s reason=already_enriched", proc_fqn)
+        skip_reason = _enrich_skip_reason(proc_cat)
+        if skip_reason is not None:
+            logger.debug("event=enrich_skip proc=%s reason=%s", proc_fqn, skip_reason)
             continue
 
         try:
@@ -216,7 +224,10 @@ def _augment_proc_catalogs(
             tables_in_scope.sort(key=lambda e: f"{e['schema']}.{e['name']}".lower())
             write_object_catalog(
                 project_root, "procedures", proc_fqn, proc_data["references"],
-                needs_llm=proc_data.get("needs_llm", False), needs_enrich=False,
+                needs_llm=proc_data.get("needs_llm", False),
+                needs_enrich=False,
+                mode=proc_data.get("mode"),
+                routing_reasons=proc_data.get("routing_reasons"),
             )
 
     return procedures_augmented, entries_added

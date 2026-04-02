@@ -97,6 +97,9 @@ GO
     })
     _write_catalog_json(tmp_path, "procedures", "dbo.usp_create_snapshot", {
         "references": proc_refs,
+        "mode": "deterministic",
+        "routing_reasons": [],
+        "needs_enrich": True,
     })
 
     # Table catalog: silver.Snapshot exists but has no referenced_by for the proc
@@ -158,6 +161,8 @@ GO
     })
     _write_catalog_json(tmp_path, "procedures", "dbo.usp_load_data", {
         "references": proc_b_refs,
+        "mode": "deterministic",
+        "routing_reasons": [],
     })
 
     # Proc A: DMF only shows the call to proc B, NOT the indirect write to silver.Target
@@ -170,6 +175,9 @@ GO
     })
     _write_catalog_json(tmp_path, "procedures", "dbo.usp_orchestrator", {
         "references": proc_a_refs,
+        "mode": "call_graph_enrich",
+        "routing_reasons": ["static_exec"],
+        "needs_enrich": False,
     })
 
     # Table: silver.Target has referenced_by for proc B only
@@ -232,6 +240,8 @@ GO
     })
     _write_catalog_json(tmp_path, "procedures", "dbo.usp_simple_insert", {
         "references": proc_refs,
+        "mode": "deterministic",
+        "routing_reasons": [],
     })
 
     return tmp_path
@@ -267,6 +277,9 @@ GO
     # DMF has nothing for this proc (dynamic SQL is invisible)
     _write_catalog_json(tmp_path, "procedures", "dbo.usp_dynamic", {
         "references": _empty_references(),
+        "mode": "llm_required",
+        "routing_reasons": ["dynamic_sql_variable"],
+        "needs_llm": True,
     })
 
     return tmp_path
@@ -326,6 +339,8 @@ def test_enrich_detects_exec_chain(tmp_path: Path) -> None:
     assert len(target_entries) == 1
     assert target_entries[0]["detection"] == "ast_scan"
     assert target_entries[0]["is_updated"] is True
+    assert proc_data["mode"] == "call_graph_enrich"
+    assert proc_data["routing_reasons"] == ["static_exec"]
 
     # Table catalog should have proc A in referenced_by
     table_data = _read_catalog_json(ddl, "tables", "silver.target")

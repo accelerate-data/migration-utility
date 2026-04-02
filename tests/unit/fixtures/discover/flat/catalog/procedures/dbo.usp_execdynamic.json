@@ -19,5 +19,6 @@
   },
   "params": [],
   "needs_llm": true,
-  "needs_enrich": true
+  "mode": "llm_required",
+  "routing_reasons": ["dynamic_sql_variable"]
 }

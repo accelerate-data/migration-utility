@@ -86,11 +86,11 @@ def test_if_else_dual_merge():
     assert "bronze.product" in reads
 
 
-@pytest.mark.xfail(reason="TRY/CATCH blocks are not parsed by sqlglot — writes inside are needs_llm")
 def test_try_catch():
     writes, reads = _refs_from_fixture("dbo.usp_trycatchload")
     assert "silver.dimproduct" in writes
     assert "bronze.product" in reads
+    assert "dbo.config" in writes
 
 
 def test_correlated_subquery():
@@ -144,14 +144,12 @@ def test_window_function():
     assert "bronze.product" in reads
 
 
-@pytest.mark.xfail(reason="WHILE blocks are not parsed by sqlglot — DML inside is needs_llm")
 def test_while_loop():
     writes, reads = _refs_from_fixture("dbo.usp_whileloop")
     assert "bronze.product" in writes  # DELETE FROM bronze.Product
     assert "dbo.config" in writes
 
 
-@pytest.mark.xfail(reason="Nested TRY/CATCH + IF/ELSE not parsed by sqlglot — needs_llm")
 def test_nested_control_flow():
     writes, reads = _refs_from_fixture("dbo.usp_nestedcontrolflow")
     assert "silver.dimproduct" in writes
@@ -197,7 +195,7 @@ def test_cte_with_subquery():
     assert "bronze.geography" in reads
 
 
-# ── EXEC patterns (Claude path — verify no false positives) ──────────────────
+# ── EXEC patterns ─────────────────────────────────────────────────────────────
 
 
 def test_exec_simple_has_exec_flag():
@@ -205,7 +203,7 @@ def test_exec_simple_has_exec_flag():
     entry = catalog.procedures["dbo.usp_execsimple"]
     from shared.loader import extract_refs
     refs = extract_refs(entry)
-    assert refs.needs_llm is True
+    assert refs.needs_llm is False
     assert refs.writes_to == []
     assert refs.reads_from == []
 
@@ -224,6 +222,18 @@ def test_exec_sp_executesql_has_exec_flag():
     from shared.loader import extract_refs
     refs = extract_refs(entry)
     assert refs.needs_llm is True
+
+
+def test_exec_sp_executesql_literal_is_not_llm():
+    raw_ddl = _make_proc("""
+        EXEC sp_executesql N'INSERT INTO silver.DimProduct (ProductAlternateKey)
+            SELECT CAST(ProductID AS NVARCHAR(25)) FROM bronze.Product';
+    """)
+    stmts, needs_llm = parse_body_statements(raw_ddl)
+    refs = collect_refs_from_statements(stmts)
+    assert needs_llm is False
+    assert refs.writes_to == []
+    assert refs.reads_from == []
 
 
 def test_deterministic_proc_no_exec_flag():

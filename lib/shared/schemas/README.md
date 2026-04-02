@@ -26,7 +26,7 @@ Per-object catalog files produced by `setup-ddl` and consumed by `listing-object
 |---|---|---|
 | [manifest.json](manifest.json) | Extraction manifest | technology, dialect, source_database, extracted_schemas, extracted_at |
 | [table_catalog.json](table_catalog.json) | Table | `columns`, PKs, FKs, auto_increment_columns, change_capture (opt), sensitivity (opt), `referenced_by`, `profile`, `scoping` |
-| [procedure_catalog.json](procedure_catalog.json) | Procedure | `params`, `references`, `referenced_by`, `statements`, `needs_llm`, `needs_enrich` |
+| [procedure_catalog.json](procedure_catalog.json) | Procedure | `params`, `references`, `referenced_by`, `statements`, `needs_llm`, `needs_enrich`, `mode`, `routing_reasons` |
 | [view_catalog.json](view_catalog.json) | View | `references`, `referenced_by` |
 | [function_catalog.json](function_catalog.json) | Function | `references`, `referenced_by` |
 

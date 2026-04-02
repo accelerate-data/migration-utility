@@ -4,7 +4,7 @@ Exhaustive classification of T-SQL patterns encountered in stored procedure migr
 
 ## Architecture
 
-Classification is driven by catalog routing flags set at setup-ddl time, not by AST node types at query time.
+Classification is driven by catalog routing summary fields set at setup-ddl time, not by AST node types at query time.
 
 ```text
 Stored Procedure DDL
@@ -13,29 +13,35 @@ Stored Procedure DDL
   scan_routing_flags(definition)          ← catalog.py, runs during setup-ddl
         │
         ▼
-  catalog/procedures/<proc>.json          ← persisted flags: needs_llm, needs_enrich
+  catalog/procedures/<proc>.json          ← persisted routing summary:
+                                             mode, routing_reasons,
+                                             needs_llm, needs_enrich
         │
-        ├── needs_llm = False → discover show: "deterministic"
+        ├── mode != llm_required → discover show: "deterministic"
         │     extract_refs() may still parse body for statement breakdown
         │
-        └── needs_llm = True  → discover show: "claude_assisted"
+        └── mode = llm_required → discover show: "claude_assisted"
               statements = null; raw_ddl preserved for Claude
 ```
 
-Procs with `needs_enrich = True` (but `needs_llm = False`) are deterministic — `catalog_enrich.py` resolves their references post-parse via BFS call graph traversal.
+`needs_llm` and `needs_enrich` remain for backward compatibility, but `mode` and `routing_reasons` are now the canonical explanation.
+
+Procs with `needs_enrich = True` (but `mode != llm_required`) are deterministic — `catalog_enrich.py` resolves their references post-parse via BFS call graph traversal.
 
 ## Decision Rule
 
-`scan_routing_flags()` in `catalog.py` applies two regexes to the procedure definition text:
+`scan_routing_flags()` in `catalog.py` builds a routing summary from masked procedure text:
 
-- **`_NEEDS_LLM_RE`** matches: `EXEC(@sql)` (dynamic execution), `BEGIN TRY`, `WHILE`, `IF` → sets `needs_llm = True` → classification: `claude_assisted`
-- **`_NEEDS_ENRICH_RE`** matches: static `EXEC dbo.proc` (excludes `sp_executesql` and dynamic `EXEC(@var)`), `SELECT INTO`, `TRUNCATE` → sets `needs_enrich = True` → classification: `deterministic` (enriched by `catalog_enrich.py`)
-- **Neither flag** → pure sqlglot deterministic path. `extract_refs` handles everything.
+- **Control flow**: `IF`, `WHILE`, and `BEGIN TRY` add routing reasons like `if_else`, `while_loop`, and `try_catch`, but no longer force `needs_llm = True`
+- **Static EXEC / enrich-only patterns**: static `EXEC dbo.proc`, `SELECT INTO`, and `TRUNCATE` keep `needs_enrich = True`
+- **Dynamic SQL variable execution**: `EXEC(@sql)` and `EXEC sp_executesql @sql` set `needs_llm = True` and `mode = llm_required`
+- **Dynamic SQL literal execution**: `EXEC sp_executesql N'...'` is tracked distinctly as `dynamic_sql_literal`
+- **Neither LLM nor enrich flags** → pure sqlglot deterministic path. `extract_refs` handles everything.
 
-`discover show` maps these flags to the `classification` field:
+`discover show` maps the routing summary to the `classification` field:
 
 - `classification: "deterministic"` + populated `statements` → fully parsed (with or without enrichment)
-- `classification: "claude_assisted"` → needs LLM reasoning from raw DDL
+- `classification: "claude_assisted"` → `mode = llm_required` or parse-error fallback
 
 Note: `parse_error` is a separate orthogonal field that records whether the `CREATE PROCEDURE` block itself failed to parse at DDL load time.
 
@@ -107,7 +113,7 @@ These statements are parsed by sqlglot but classified as `skip` — they don't p
 | BEGIN/COMMIT/ROLLBACK | `BEGIN TRAN ... COMMIT` | Transaction control — dbt manages transactions |
 | DROP/CREATE INDEX | `DROP INDEX ix_1 ON silver.T; CREATE INDEX ...` | Index management — `classify_statement` returns `skip` for both `exp.Drop` and `exp.Create` (kind=INDEX) |
 
-Note: `IF EXISTS (SELECT 1 FROM dbo.T)` is **not** skip-only. The `\bIF\b` pattern in `_NEEDS_LLM_RE` matches all `IF` statements including `IF EXISTS`, so procs containing `IF EXISTS` are classified `claude_assisted`. See control flow patterns 45-48 below.
+Note: `IF EXISTS (SELECT 1 FROM dbo.T)` is **not** skip-only as a procedure-level routing decision. The condition itself is not a model read, but control flow no longer automatically forces `claude_assisted`. See control flow patterns 45-48 below.
 
 ### Enrichment-resolved — deterministic after `catalog_enrich.py` (patterns 49-57)
 
@@ -124,26 +130,30 @@ These patterns produce `Command` nodes in sqlglot but set `needs_enrich = True` 
 | 53 | EXECUTE keyword | `EXECUTE dbo.usp_Load` | Same as EXEC | (covered by `usp_ExecSimple`) |
 | 54 | EXEC with return value | `EXEC @rc = dbo.usp_Load` | Same — return variable prefix | `usp_ExecWithReturn` |
 
-**sp_executesql with static SQL (57):** `sp_executesql` is excluded from both `_NEEDS_LLM_RE` and `_NEEDS_ENRICH_RE` by negative lookahead. DMF resolves the embedded SQL.
+**sp_executesql with static SQL (57):** static literal execution is tracked distinctly as `dynamic_sql_literal`. DMF remains the preferred resolution path when available.
 
 | # | Pattern | Example | Resolution | Test fixture |
 |---|---|---|---|---|
-| 57 | sp_executesql static | `EXEC sp_executesql N'INSERT INTO dbo.T ...'` | DMF resolves embedded SQL | `usp_ExecSpExecutesql` |
+| 57 | sp_executesql static | `EXEC sp_executesql N'INSERT INTO dbo.T ...'` | `dynamic_sql_literal`; DMF preferred when available | `usp_ExecSpExecutesql` |
 
-### Claude-assisted — control flow and dynamic SQL (patterns 45-48, 55-56, 58-60)
+### Deterministic — control-flow fallback (patterns 45-48)
 
-These patterns set `needs_llm = True` via `_NEEDS_LLM_RE` or are out of scope. The proc's `raw_ddl` is passed to Claude for analysis.
+These patterns no longer force `needs_llm = True`. The control-flow wrapper is segmented first, then leaf statements inside the branches are passed to sqlglot.
 
-**Control flow patterns (45-48):** `_NEEDS_LLM_RE` matches `IF`, `BEGIN TRY`, and `WHILE`. DML nested inside these blocks is not reliably extracted by sqlglot.
+**Control flow patterns (45-48):** `routing_reasons` captures the wrapper shape while `loader_parse.py` flattens recoverable leaf SQL inside the branches.
 
-| # | Pattern | Example | Why Claude | Test fixture |
+| # | Pattern | Example | Resolution | Test fixture |
 |---|---|---|---|---|
-| 45 | IF/ELSE BEGIN END | Control flow wrapping DML | `\bIF\b` → `needs_llm` — DML inside branches not reliably extracted | `usp_ConditionalMerge` |
-| 46 | BEGIN TRY/CATCH | Error handling wrapping DML | `\bBEGIN\s+TRY\b` → `needs_llm` — DML inside not extracted | `usp_TryCatchLoad` |
-| 47 | WHILE BEGIN END | Loop wrapping DML | `\bWHILE\b` → `needs_llm` — DML inside not extracted | `usp_WhileLoop` |
-| 48 | Nested control flow | IF inside WHILE inside TRY/CATCH | Multiple `needs_llm` matches — DML inside not extracted | `usp_NestedControlFlow` |
+| 45 | IF/ELSE BEGIN END | Control flow wrapping DML | `control_flow_fallback` — segment branches, parse leaf DML with sqlglot | `usp_ConditionalMerge` |
+| 46 | BEGIN TRY/CATCH | Error handling wrapping DML | `control_flow_fallback` — segment TRY and CATCH blocks, parse leaf DML with sqlglot | `usp_TryCatchLoad` |
+| 47 | WHILE BEGIN END | Loop wrapping DML | `control_flow_fallback` — segment loop body, parse leaf DML with sqlglot | `usp_WhileLoop` |
+| 48 | Nested control flow | IF inside WHILE inside TRY/CATCH | `control_flow_fallback` unless a subtree is unsupported or hits guardrails | `usp_NestedControlFlow` |
 
-Note: `IF EXISTS (SELECT 1 FROM ...)` also matches `\bIF\b` and sets `needs_llm = True`. The regex does not distinguish simple condition checks from control flow branches that wrap DML.
+Note: `IF EXISTS (SELECT 1 FROM ...)` still adds the `if_else` routing reason, but the enclosing proc is deterministic when the branch bodies are recoverable.
+
+### Claude-assisted — out-of-scope EXEC and dynamic SQL (patterns 55-56, 58-60)
+
+These patterns still set `needs_llm = True` or are out of scope. The proc's `raw_ddl` is passed to Claude for analysis.
 
 **Cross-database/linked server EXEC (55-56):** Out of scope — flagged as errors.
 
@@ -172,5 +182,4 @@ When a proc is `claude_assisted`, Claude reads `raw_ddl` and classifies each sta
 
 - **EXEC call graph**: sqlglot produces `Command` nodes for all EXEC variants. The `calls` field in `ObjectRefs` is always empty at the AST layer. However, `catalog_enrich.py` extracts EXEC-based call edges via `_extract_calls()` and materializes indirect write targets into catalog files. The enrichment path compensates for this limitation post-parse (see patterns 49-54).
 - **Dynamic SQL**: `EXEC (@sql)` and `sp_executesql @var` cannot be resolved statically. Only Claude can reason about what SQL might be constructed at runtime (see patterns 58-60).
-- **sp_executesql @var routing gap**: `sp_executesql` is excluded from both `_NEEDS_LLM_RE` and `_NEEDS_ENRICH_RE`, so `EXEC sp_executesql @sql` (pattern 58) sets neither flag. The SQL is genuinely dynamic, but the proc will be classified `deterministic`. This case requires manual review or a future regex refinement.
-- **IF condition tables**: Tables referenced only in `IF EXISTS (SELECT ... FROM table)` conditions are not captured in `reads_from`. These are condition checks, not data reads for the model. However, the proc is still classified `claude_assisted` because `\bIF\b` matches `_NEEDS_LLM_RE`.
+- **IF condition tables**: Tables referenced only in `IF EXISTS (SELECT ... FROM table)` conditions are not captured in `reads_from`. These are condition checks, not data reads for the model. The proc can still be deterministic if the branch bodies are recoverable.

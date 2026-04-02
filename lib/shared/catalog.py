@@ -28,25 +28,35 @@ from typing import Any
 from shared.dmf_processing import empty_scoped
 from shared.env_config import resolve_catalog_dir
 from shared.name_resolver import fqn_parts, normalize
+from shared.tsql_utils import mask_tsql
 
 # ── Routing flag patterns ────────────────────────────────────────────────────
 
-_NEEDS_LLM_RE = re.compile(
-    r"\bEXEC(?:UTE)?\s*\("    # EXEC(@sql) — dynamic execution
-    r"|\bBEGIN\s+TRY\b"       # TRY/CATCH block
-    r"|\bWHILE\b"             # WHILE loop
-    r"|\bIF\b",               # IF/ELSE branch
-    re.IGNORECASE,
+_CONTROL_FLOW_REASONS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"\bIF\b", re.IGNORECASE), "if_else"),
+    (re.compile(r"\bWHILE\b", re.IGNORECASE), "while_loop"),
+    (re.compile(r"\bBEGIN\s+TRY\b", re.IGNORECASE), "try_catch"),
 )
 
-_NEEDS_ENRICH_RE = re.compile(
-    r"^(?!.*\bINSERT\b).*\bINTO\s+[\[\w#@]"                  # SELECT INTO (excludes INSERT INTO lines)
-    r"|\bTRUNCATE\b"                                          # TRUNCATE TABLE
-    r"|\bEXEC(?:UTE)?\s+(?!sp_executesql\b)(?![@(])[\[\w]",  # static EXEC (not dynamic, not sp_executesql)
+_SELECT_INTO_RE = re.compile(
+    r"^(?!.*\bINSERT\b).*\bINTO\s+[\[\w#@]",
     re.IGNORECASE | re.MULTILINE,
 )
-
-
+_TRUNCATE_RE = re.compile(r"\bTRUNCATE\b", re.IGNORECASE)
+_STATIC_EXEC_RE = re.compile(
+    r"\bEXEC(?:UTE)?\s+(?!sp_executesql\b)(?![@(])[\[\w]",
+    re.IGNORECASE,
+)
+_DYNAMIC_EXEC_RE = re.compile(r"\bEXEC(?:UTE)?\s*\(", re.IGNORECASE)
+_SP_EXECUTESQL_RE = re.compile(r"\bEXEC(?:UTE)?\s+sp_executesql\b", re.IGNORECASE)
+_SP_EXECUTESQL_LITERAL_RE = re.compile(
+    r"\bEXEC(?:UTE)?\s+sp_executesql\s+N?'(?:''|[^'])*'",
+    re.IGNORECASE | re.DOTALL,
+)
+_SP_EXECUTESQL_VARIABLE_RE = re.compile(
+    r"\bEXEC(?:UTE)?\s+sp_executesql\s+@",
+    re.IGNORECASE,
+)
 # ── Schemas (TypedDict-style, but plain dicts in practice) ──────────────────
 #
 # We define the shapes here as documentation.  At runtime everything is
@@ -149,19 +159,53 @@ def read_selected_writer(project_root: Path, table_fqn: str) -> str | None:
 
 
 def scan_routing_flags(definition: str) -> dict[str, bool]:
-    """Scan a proc/view/function body and return routing flags.
+    """Scan a proc/view/function body and return routing summary fields.
 
-    Returns ``{"needs_llm": bool, "needs_enrich": bool}``.
-
-    ``needs_llm``: set when sqlglot cannot fully resolve the body — dynamic
-    ``EXEC(@var)``, ``TRY/CATCH``, ``WHILE``, or ``IF/ELSE`` branching.
-
-    ``needs_enrich``: set when DMF left gaps AST can fill — ``SELECT INTO``,
-    ``TRUNCATE``, or static ``EXEC`` call chains.
+    Returns the backward-compatible flags plus the canonical routing summary:
+    ``{"needs_llm", "needs_enrich", "mode", "routing_reasons"}``.
     """
+    masked = mask_tsql(definition)
+    reasons: list[str] = []
+
+    for pattern, reason in _CONTROL_FLOW_REASONS:
+        if pattern.search(masked):
+            reasons.append(reason)
+
+    has_dynamic_exec = bool(_DYNAMIC_EXEC_RE.search(masked))
+    has_sp_executesql_literal = bool(_SP_EXECUTESQL_LITERAL_RE.search(masked))
+    has_sp_executesql_variable = bool(_SP_EXECUTESQL_VARIABLE_RE.search(masked))
+    has_static_exec = bool(_STATIC_EXEC_RE.search(masked))
+    has_select_into = bool(_SELECT_INTO_RE.search(masked))
+    has_truncate = bool(_TRUNCATE_RE.search(masked))
+
+    if has_dynamic_exec or has_sp_executesql_variable:
+        reasons.append("dynamic_sql_variable")
+    elif has_sp_executesql_literal or _SP_EXECUTESQL_RE.search(masked):
+        reasons.append("dynamic_sql_literal")
+
+    if has_static_exec:
+        reasons.append("static_exec")
+
+    routing_reasons = sorted(set(reasons))
+    needs_llm = "dynamic_sql_variable" in routing_reasons
+    needs_enrich = has_static_exec or has_select_into or has_truncate
+
+    if needs_llm:
+        mode = "llm_required"
+    elif "dynamic_sql_literal" in routing_reasons:
+        mode = "dynamic_sql_literal"
+    elif "static_exec" in routing_reasons and needs_enrich:
+        mode = "call_graph_enrich"
+    elif any(reason in routing_reasons for reason in ("if_else", "while_loop", "try_catch")):
+        mode = "control_flow_fallback"
+    else:
+        mode = "deterministic"
+
     return {
-        "needs_llm": bool(_NEEDS_LLM_RE.search(definition)),
-        "needs_enrich": bool(_NEEDS_ENRICH_RE.search(definition)),
+        "needs_llm": needs_llm,
+        "needs_enrich": needs_enrich,
+        "mode": mode,
+        "routing_reasons": routing_reasons,
     }
 
 
@@ -281,6 +325,8 @@ def write_object_catalog(
     *,
     needs_llm: bool = False,
     needs_enrich: bool = False,
+    mode: str | None = None,
+    routing_reasons: list[str] | None = None,
     params: list[dict[str, Any]] | None = None,
 ) -> Path:
     """Write a proc/view/function catalog file.  Returns the written path."""
@@ -293,7 +339,10 @@ def write_object_catalog(
         data["needs_llm"] = True
     if needs_enrich:
         data["needs_enrich"] = True
+    if mode is not None:
+        data["mode"] = mode
+    if routing_reasons is not None:
+        data["routing_reasons"] = routing_reasons
     p = _object_path(project_root, object_type, norm)
     _write_json(p, data)
     return p
-

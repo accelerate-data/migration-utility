@@ -3,7 +3,7 @@
   "title": "DiscoverShowOutput",
   "description": "Output of 'discover show'. Emitted to stdout as a single JSON line. Reads all metadata from catalog files; AST parsing only for statement breakdown on deterministic procedures.",
   "type": "object",
-  "required": ["name", "type", "raw_ddl", "columns", "params", "refs", "statements", "classification", "parse_error"],
+  "required": ["name", "type", "raw_ddl", "columns", "params", "refs", "routing_reasons", "statements", "classification", "parse_error"],
   "properties": {
     "name": {
       "type": "string",
@@ -34,6 +34,11 @@
         { "$ref": "#/$defs/basic_refs" },
         { "type": "null" }
       ]
+    },
+    "routing_reasons": {
+      "type": "array",
+      "description": "Canonical routing reasons from the procedure catalog. Empty for non-procedures or legacy catalogs without routing summary.",
+      "items": { "type": "string" }
     },
     "statements": {
       "description": "Per-statement breakdown with action classification. Populated for deterministic procedures; null for claude_assisted or non-procedures.",

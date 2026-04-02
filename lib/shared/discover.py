@@ -155,10 +155,14 @@ def _show_procedure(
         "uses_functions": sorted(set(funcs)),
     }
 
-    needs_llm = proc_cat.get("needs_llm", False)
+    routing_mode = proc_cat.get("mode")
+    routing_reasons = proc_cat.get("routing_reasons", [])
     parse_error = entry.parse_error
 
-    if needs_llm or parse_error:
+    if parse_error:
+        classification = "claude_assisted"
+        statements = None
+    elif routing_mode == "llm_required":
         classification = "claude_assisted"
         statements = None
     else:
@@ -173,6 +177,7 @@ def _show_procedure(
         "params": params,
         "refs": refs_dict,
         "classification": classification,
+        "routing_reasons": routing_reasons,
         "statements": statements,
     }
 
@@ -227,6 +232,7 @@ def run_show(project_root: Path, name: str) -> dict[str, Any]:
         "columns": [],
         "params": [],
         "refs": None,
+        "routing_reasons": [],
         "statements": None,
         "classification": None,
         "parse_error": entry.parse_error,
