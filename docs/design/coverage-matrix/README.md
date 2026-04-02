@@ -21,7 +21,22 @@ This document defines the recommended coverage shape, not the behavior itself. B
 |---|---|
 | Unit | Python tests over fixture DDL, direct library calls, or isolated helpers. |
 | Integration | Docker SQL Server-backed tests against live SQL Server behavior. |
-| Eval | Promptfoo-based non-interactive skill coverage. |
+| Promptfoo | Non-interactive LLM eval coverage via Promptfoo. |
+
+## Phase Coverage
+
+Recommended ownership by phase is intentionally overlapping where the same phase needs both deterministic contract coverage and LLM-quality coverage.
+
+| Phase | Unit | Integration | Promptfoo | Notes |
+|---|---|---|---|---|
+| Scoping | Gap | Gap | Gap | Balanced approach. Unit should cover writer-resolution helpers and catalog effects, integration should cover live SQL Server boundary behavior, and Promptfoo should cover representative outcome shapes rather than every parser pattern. |
+| Profiling | Gap | N/A | Gap | Unit should cover context assembly, validation, and catalog write-back. Promptfoo should cover the quality of profiling decisions across workflow-relevant statement families. |
+| Ground-truth generation | Gap | Gap | N/A | Unit should cover harness plumbing and result shaping; integration should cover sandbox execution and captured output against live SQL Server behavior. |
+| Test generation | Gap | N/A | Gap | Unit should cover deterministic contracts such as schema and fixture plumbing. Promptfoo should cover branch selection, scenario synthesis, and review behavior. |
+| Test review | N/A | N/A | Gap | Reviewer quality is primarily an LLM concern. |
+| Model generation | Gap | N/A | Gap | Unit should cover context assembly, derived contracts, and artifact writing. Promptfoo should cover SQL translation quality, materialization choices, and rendered test artifacts. |
+| Model review | N/A | N/A | Gap | Reviewer quality is primarily an LLM concern. |
+| Command workflows (`scope`, `profile`, `generate-model`) | Gap | N/A | Gap | Unit should cover deterministic result shaping where present. Promptfoo should cover command guards, per-item aggregation, and summary behavior. |
 
 ## Statement Coverage
 
@@ -122,24 +137,6 @@ Recommended ownership:
 |---|---|---|---|
 | Docker SQL Server-backed statement classification boundaries | Gap | Integration | Current integration marker coverage is concentrated in [`tests/unit/test_test_harness_integration.py`](../../../tests/unit/test_test_harness_integration.py). | No SQL Server-backed tests currently assert `setup-ddl`, `catalog_enrich`, or `discover show` behavior at the live-system boundaries. |
 
-## Phase Coverage
-
-The phase matrix below maps the major migration phases to their recommended automated coverage.
-
-Recommended ownership:
-
-- Each phase should have automated coverage for its deterministic contracts and write-back behavior where applicable.
-- Integration coverage should be limited to boundary seams that depend on live SQL Server, sandbox execution, or cross-process behavior.
-
-| Phase | Status | Recommended coverage type | Evidence | Main gaps |
-|---|---|---|---|---|
-| Scoping | Gap | Unit, integration, eval | [`docs/design/eval-harness/README.md`](../eval-harness/README.md), [`tests/evals/packages/scoping/skill-analyzing-object.yaml`](../../../tests/evals/packages/scoping/skill-analyzing-object.yaml) | Coverage exists for selected scenarios, but there is no phase-level matrix proving the distinct scoping outcome families are covered end to end. |
-| Profiling | Gap | Unit, eval | [`tests/unit/test_profile.py`](../../../tests/unit/test_profile.py), [`tests/evals/packages/profiler/skill-profiling-table.yaml`](../../../tests/evals/packages/profiler/skill-profiling-table.yaml) | Context assembly and write-back are covered, but automated coverage does not yet span the full set of workflow-relevant inputs called out by the design docs. |
-| Model generation | Gap | Unit, eval | [`tests/unit/test_migrate.py`](../../../tests/unit/test_migrate.py), [`tests/evals/packages/model-generator/skill-generating-model.yaml`](../../../tests/evals/packages/model-generator/skill-generating-model.yaml) | Context assembly and artifact writing are covered, but automated coverage does not yet span the full set of workflow-relevant inputs called out by the design docs. |
-| Ground-truth generation | Gap | Unit, integration | [`tests/unit/test_test_harness.py`](../../../tests/unit/test_test_harness.py), [`tests/unit/test_test_harness_integration.py`](../../../tests/unit/test_test_harness_integration.py) | Harness-level capture is covered, but automated coverage does not yet connect migration-phase inputs to generated scenarios and captured outputs. |
-| Test generation | Gap | - | The design contract exists in [`docs/design/skill-contract/test-generator.md`](../skill-contract/test-generator.md). | No automated phase suite was found for `/generating-tests`, and `docs/requirements/decisions.md` currently describes the phase as not yet implemented. |
-| Code review gate | Gap | - | The design contract exists in [`docs/design/skill-contract/code-reviewer.md`](../skill-contract/code-reviewer.md). | No automated phase suite was found. |
-
 ## Known Limitations vs Accidental Gaps
 
 ### Intentional known limitations
@@ -156,7 +153,7 @@ Recommended ownership:
 | Deterministic patterns | Most documented patterns from 19 onward have fixtures but no direct automated assertions. |
 | Static EXEC variants | Bracketed, params, output, and return-value EXEC variants are documented but not directly asserted. |
 | SQL Server-backed statement integration | No integration suite currently ties live SQL Server extraction and enrichment behavior back to the statement matrix. |
-| Phase-by-classification audit | Existing phase tests are not mapped to representative deterministic, enrichment-resolved, and Claude-assisted cases. |
+| Phase-by-harness audit | The repo does not yet have explicit coverage closure for each phase across unit, integration, and Promptfoo where those harnesses are appropriate. |
 | Test generation phase | No automated suite currently validates the phase described in the design contract. |
 
 ## How To Maintain This Matrix
