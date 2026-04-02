@@ -17,5 +17,8 @@
     "ajv": "latest",
     "ajv-formats": "^3.0.1",
     "promptfoo": "latest"
+  },
+  "overrides": {
+    "@anthropic-ai/sdk": ">=0.81.0"
   }
 }
