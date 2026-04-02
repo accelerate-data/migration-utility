@@ -17,6 +17,7 @@ Rules:
 
 - Rows are statement-by-statement, keyed to the pattern numbers in [T-SQL Parse Classification](../tsql-parse-classification/README.md).
 - Cells are marked `Yes` only when the repo has explicit automated coverage for that statement in that phase.
-- Blank cells mean no explicit coverage was found during the audit.
+- Cells are marked `Gap` when that layer should cover the statement in that phase but no explicit automated coverage exists yet.
+- Cells are marked `N/A` when that layer is not the right place to cover the statement in that phase.
 - The matrix is coverage-oriented, not evidence-oriented. It answers which statements are tested by which layer.
 - `Unit`, `Integration`, and `Promptfoo` are separate because they cover different failure modes and should produce separate gap issues.
