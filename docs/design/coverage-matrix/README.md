@@ -1,19 +1,18 @@
 # Coverage Matrix
 
-Current audit of automated coverage across two dimensions:
+Recommended automated coverage across two dimensions:
 
 1. statement coverage against the T-SQL parse-classification design
 2. phase coverage across the migration pipeline
 
-This document is an audit artifact, not a source of truth for behavior. Behavior remains defined by the design docs and the tests themselves.
+This document defines the recommended coverage shape, not the behavior itself. Behavior remains defined by the design docs and the tests themselves.
 
 ## Status Legend
 
 | Status | Meaning |
 |---|---|
-| Covered | Automated tests directly exercise the documented scenario or phase behavior. |
-| Partial | There is some automated coverage, but not enough to claim the documented scenario or phase is fully covered. |
-| Gap | No direct automated coverage was found. |
+| Covered | The recommended automated coverage exists. |
+| Gap | The recommended automated coverage does not yet exist. |
 | Intentional limitation | Current behavior is documented as a limitation and should be treated explicitly in tests. |
 
 ## Coverage Types
@@ -28,9 +27,14 @@ This document is an audit artifact, not a source of truth for behavior. Behavior
 
 The statement matrix below maps the scenarios documented in [T-SQL Parse Classification](../tsql-parse-classification/README.md) to current automated coverage.
 
+Recommended ownership:
+
+- Statement breadth belongs in unit tests.
+- Integration tests should cover live SQL Server boundaries, DMF-dependent behavior, enrichment seams, and cross-process wiring.
+
 ### Deterministic Patterns
 
-| Pattern(s) | Fixture(s) | Status | Coverage type | Evidence |
+| Pattern(s) | Fixture(s) | Status | Recommended coverage type | Evidence |
 |---|---|---|---|---|
 | 1, 6 | `usp_LoadDimProduct` | Covered | Unit | [`tests/unit/test_extract_refs.py`](../../../tests/unit/test_extract_refs.py) |
 | 2 | `usp_SimpleUpdate` | Covered | Unit | [`tests/unit/test_extract_refs.py`](../../../tests/unit/test_extract_refs.py) |
@@ -43,7 +47,7 @@ The statement matrix below maps the scenarios documented in [T-SQL Parse Classif
 | 10 | `usp_LoadWithMultiCTE` | Covered | Unit | [`tests/unit/test_extract_refs.py`](../../../tests/unit/test_extract_refs.py) |
 | 11 | `usp_SequentialWith` | Covered | Unit | [`tests/unit/test_extract_refs.py`](../../../tests/unit/test_extract_refs.py) |
 | 12 | `usp_LoadWithCase` | Covered | Unit | [`tests/unit/test_extract_refs.py`](../../../tests/unit/test_extract_refs.py) |
-| 13 | `usp_LoadWithLeftJoin` | Partial | Unit | Listed in [`tests/unit/test_discover.py`](../../../tests/unit/test_discover.py), but no direct ref/assertion coverage was found. |
+| 13 | `usp_LoadWithLeftJoin` | Gap | Unit | Listed in [`tests/unit/test_discover.py`](../../../tests/unit/test_discover.py), but no direct ref/assertion coverage was found. |
 | 14 | `usp_RightOuterJoin` | Covered | Unit | [`tests/unit/test_extract_refs.py`](../../../tests/unit/test_extract_refs.py) |
 | 15 | `usp_SubqueryInWhere` | Covered | Unit | [`tests/unit/test_extract_refs.py`](../../../tests/unit/test_extract_refs.py) |
 | 16 | `usp_CorrelatedSubquery` | Covered | Unit | [`tests/unit/test_extract_refs.py`](../../../tests/unit/test_extract_refs.py) |
@@ -77,12 +81,12 @@ The statement matrix below maps the scenarios documented in [T-SQL Parse Classif
 
 ### Skip-only Statements
 
-| Statement type | Status | Coverage type | Evidence |
+| Statement type | Status | Recommended coverage type | Evidence |
 |---|---|---|---|
 | `TRUNCATE` split behavior | Covered | Unit | [`tests/unit/test_discover.py`](../../../tests/unit/test_discover.py), [`tests/unit/test_extract_refs.py`](../../../tests/unit/test_extract_refs.py) |
 | `DROP/CREATE INDEX` skip behavior | Covered | Unit | [`tests/unit/test_extract_refs.py`](../../../tests/unit/test_extract_refs.py) |
-| `SET` | Partial | Unit | Empty-proc and harness-adjacent cases exist, but no direct skip classification assertion was found. |
-| `DECLARE` | Partial | Unit | Appears in fixture procedures, but no direct skip classification assertion was found. |
+| `SET` | Gap | Unit | Empty-proc and harness-adjacent cases exist, but no direct skip classification assertion was found. |
+| `DECLARE` | Gap | Unit | Appears in fixture procedures, but no direct skip classification assertion was found. |
 | `RETURN` | Gap | - | No direct automated assertion was found. |
 | `PRINT` | Gap | - | No direct automated assertion was found. |
 | `RAISERROR` | Gap | - | No direct automated assertion was found. |
@@ -91,17 +95,17 @@ The statement matrix below maps the scenarios documented in [T-SQL Parse Classif
 
 ### Enrichment-resolved Patterns
 
-| Pattern(s) | Fixture(s) | Status | Coverage type | Evidence |
+| Pattern(s) | Fixture(s) | Status | Recommended coverage type | Evidence |
 |---|---|---|---|---|
 | 49, 53 | `usp_ExecSimple` | Covered | Unit | [`tests/unit/test_discover.py`](../../../tests/unit/test_discover.py), [`tests/unit/test_catalog_enrich.py`](../../../tests/unit/test_catalog_enrich.py) |
-| 50 | `usp_ExecBracketed` | Partial | Unit | Routing fixture exists and catalog fixture is present, but no direct automated assertion was found. |
-| 51, 52 | `usp_ExecWithParams` | Partial | Unit | Routing fixture exists and catalog fixture is present, but no direct automated assertion was found. |
-| 54 | `usp_ExecWithReturn` | Partial | Unit | Routing fixture exists and catalog fixture is present, but no direct automated assertion was found. |
-| 57 static `sp_executesql` | `usp_ExecSpExecutesql` | Partial | Unit | Routing assertions exist in [`tests/unit/test_catalog.py`](../../../tests/unit/test_catalog.py), but no end-to-end deterministic `discover show` or enrichment assertion was found. |
+| 50 | `usp_ExecBracketed` | Gap | Unit | Routing fixture exists and catalog fixture is present, but no direct automated assertion was found. |
+| 51, 52 | `usp_ExecWithParams` | Gap | Unit | Routing fixture exists and catalog fixture is present, but no direct automated assertion was found. |
+| 54 | `usp_ExecWithReturn` | Gap | Unit | Routing fixture exists and catalog fixture is present, but no direct automated assertion was found. |
+| 57 static `sp_executesql` | `usp_ExecSpExecutesql` | Gap | Unit | Routing assertions exist in [`tests/unit/test_catalog.py`](../../../tests/unit/test_catalog.py), but no end-to-end deterministic `discover show` or enrichment assertion was found. |
 
 ### Claude-assisted and Out-of-scope Patterns
 
-| Pattern(s) | Fixture(s) | Status | Coverage type | Evidence |
+| Pattern(s) | Fixture(s) | Status | Recommended coverage type | Evidence |
 |---|---|---|---|---|
 | 45 | `usp_ConditionalMerge` | Covered | Unit | [`tests/unit/test_discover.py`](../../../tests/unit/test_discover.py), [`tests/unit/test_extract_refs.py`](../../../tests/unit/test_extract_refs.py) |
 | 46 | `usp_TryCatchLoad` | Covered | Unit | [`tests/unit/test_extract_refs.py`](../../../tests/unit/test_extract_refs.py), documented xfail for extraction limits |
@@ -114,20 +118,25 @@ The statement matrix below maps the scenarios documented in [T-SQL Parse Classif
 
 ### Statement-level Integration Coverage
 
-| Area | Status | Evidence | Main gap |
+| Area | Status | Recommended coverage type | Evidence | Main gap |
 |---|---|---|---|
-| Docker SQL Server-backed statement classification | Gap | Current integration marker coverage is concentrated in [`tests/unit/test_test_harness_integration.py`](../../../tests/unit/test_test_harness_integration.py). | No SQL Server-backed tests currently assert `setup-ddl`, `catalog_enrich`, or `discover show` behavior against the statement matrix. |
+| Docker SQL Server-backed statement classification boundaries | Gap | Integration | Current integration marker coverage is concentrated in [`tests/unit/test_test_harness_integration.py`](../../../tests/unit/test_test_harness_integration.py). | No SQL Server-backed tests currently assert `setup-ddl`, `catalog_enrich`, or `discover show` behavior at the live-system boundaries. |
 
 ## Phase Coverage
 
-The phase matrix below maps the major migration phases to current automated coverage.
+The phase matrix below maps the major migration phases to their recommended automated coverage.
 
-| Phase | Current status | Coverage type | Evidence | Main gaps |
+Recommended ownership:
+
+- Each phase should have representative unit coverage for deterministic, enrichment-resolved, and Claude-assisted inputs.
+- Integration coverage should be limited to boundary seams that depend on live SQL Server, sandbox execution, or cross-process behavior.
+
+| Phase | Status | Recommended coverage type | Evidence | Main gaps |
 |---|---|---|---|---|
-| Scoping | Partial | Eval | [`docs/design/eval-harness/README.md`](../eval-harness/README.md), [`tests/evals/packages/scoping/skill-analyzing-object.yaml`](../../../tests/evals/packages/scoping/skill-analyzing-object.yaml) | Eval coverage exists for representative scenarios, but there is no durable audit tying statement classes to scoping outcomes and no Python integration suite covering the phase end to end. |
-| Profiling | Covered for current fixture set, Partial overall | Unit, Eval | [`tests/unit/test_profile.py`](../../../tests/unit/test_profile.py), [`tests/evals/packages/profiler/skill-profiling-table.yaml`](../../../tests/evals/packages/profiler/skill-profiling-table.yaml) | Rich context and write-back are covered, but representative coverage by statement-class bucket is not explicitly mapped. |
-| Model generation | Covered for current fixture set, Partial overall | Unit, Eval | [`tests/unit/test_migrate.py`](../../../tests/unit/test_migrate.py), [`tests/evals/packages/model-generator/skill-generating-model.yaml`](../../../tests/evals/packages/model-generator/skill-generating-model.yaml) | Current tests cover context assembly and artifact writing, but not a representative matrix across deterministic, enrichment-resolved, and Claude-assisted inputs. |
-| Ground-truth generation | Partial | Unit, Integration | [`tests/unit/test_test_harness.py`](../../../tests/unit/test_test_harness.py), [`tests/unit/test_test_harness_integration.py`](../../../tests/unit/test_test_harness_integration.py) | Ground-truth capture is covered at the sandbox/harness layer, but there is no automated phase coverage connecting classified migration inputs to generated scenarios and captured outputs. |
+| Scoping | Gap | Representative unit, selected eval, selected integration | [`docs/design/eval-harness/README.md`](../eval-harness/README.md), [`tests/evals/packages/scoping/skill-analyzing-object.yaml`](../../../tests/evals/packages/scoping/skill-analyzing-object.yaml) | Eval coverage exists for representative scenarios, but there is no durable audit tying statement classes to scoping outcomes and no focused Python suite for the recommended representative buckets. |
+| Profiling | Gap | Representative unit, selected eval | [`tests/unit/test_profile.py`](../../../tests/unit/test_profile.py), [`tests/evals/packages/profiler/skill-profiling-table.yaml`](../../../tests/evals/packages/profiler/skill-profiling-table.yaml) | Rich context and write-back are covered, but representative coverage by statement-class bucket is not explicitly mapped. |
+| Model generation | Gap | Representative unit, selected eval | [`tests/unit/test_migrate.py`](../../../tests/unit/test_migrate.py), [`tests/evals/packages/model-generator/skill-generating-model.yaml`](../../../tests/evals/packages/model-generator/skill-generating-model.yaml) | Current tests cover context assembly and artifact writing, but not a representative matrix across deterministic, enrichment-resolved, and Claude-assisted inputs. |
+| Ground-truth generation | Gap | Representative unit, selected integration | [`tests/unit/test_test_harness.py`](../../../tests/unit/test_test_harness.py), [`tests/unit/test_test_harness_integration.py`](../../../tests/unit/test_test_harness_integration.py) | Ground-truth capture is covered at the sandbox/harness layer, but there is no automated phase coverage connecting classified migration inputs to generated scenarios and captured outputs. |
 | Test generation | Gap | - | The design contract exists in [`docs/design/skill-contract/test-generator.md`](../skill-contract/test-generator.md). | No automated phase suite was found for `/generating-tests`, and `docs/requirements/decisions.md` currently describes the phase as not yet implemented. |
 | Code review gate | Gap | - | The design contract exists in [`docs/design/skill-contract/code-reviewer.md`](../skill-contract/code-reviewer.md). | No automated phase suite was found. |
 
@@ -140,7 +149,7 @@ The phase matrix below maps the major migration phases to current automated cove
 | Dynamic `sp_executesql @sql` routing gap | [T-SQL Parse Classification](../tsql-parse-classification/README.md) documents the limitation; [`tests/unit/test_catalog.py`](../../../tests/unit/test_catalog.py) locks current routing behavior. |
 | sqlglot extraction inside `TRY/CATCH`, `WHILE`, and nested control flow | [`tests/unit/test_extract_refs.py`](../../../tests/unit/test_extract_refs.py) marks these with `xfail`, and [T-SQL Parse Classification](../tsql-parse-classification/README.md) documents the Claude-assisted path. |
 
-### Accidental coverage gaps
+### Gap tags
 
 | Area | Gap |
 |---|---|
