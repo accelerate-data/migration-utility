@@ -21,3 +21,4 @@ Rules:
 - Cells are marked `N/A` when that layer is not the right place to cover the statement in that phase.
 - The matrix is coverage-oriented, not evidence-oriented. It answers which statements are tested by which layer.
 - `Unit`, `Integration`, and `Promptfoo` are separate because they cover different failure modes and should produce separate gap issues.
+- `Promptfoo=Yes` means a promptfoo eval exercises this statement pattern in this phase's context — not necessarily that the LLM is invoked for that pattern specifically. For phases with mixed deterministic/LLM paths (such as scoping), a deterministic pattern can be marked `Yes` if it appears inside procedures that the LLM analyzes during that phase.
