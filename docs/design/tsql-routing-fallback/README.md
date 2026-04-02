@@ -18,14 +18,15 @@ The segmenter builds a block tree. `sqlglot` then parses the leaf statements ins
 
 ## Why
 
-The current routing is too coarse:
+The current routing already separates three paths via `scan_routing_flags()` in `catalog.py`:
 
-- static `EXEC dbo.proc` is a call-graph problem, not an LLM problem
-- `IF / ELSE` and `TRY / CATCH` are control-flow wrappers around ordinary DML
-- `EXEC (@sql)` is dynamic SQL and may genuinely need Claude
-- operational statements (`SET`, `DECLARE`, index management) should be skipped without affecting routing
+- `needs_llm` → dynamic `EXEC(@sql)`, `IF`, `WHILE`, `BEGIN TRY` → `claude_assisted`
+- `needs_enrich` → static `EXEC dbo.proc`, `SELECT INTO`, `TRUNCATE` → deterministic after `catalog_enrich.py`
+- neither → pure sqlglot deterministic
 
-These cases need different fallback behavior and different provenance in the catalog.
+Static EXEC and enrichment-resolved patterns are already handled correctly. The problem is that **control-flow constructs** (`IF / ELSE`, `TRY / CATCH`, `WHILE`) are over-routed: `\bIF\b` in `_NEEDS_LLM_RE` matches all `IF` statements, including simple guards around ordinary DML. These are control-flow wrappers, not genuinely dynamic — their branch bodies often contain standard DML that sqlglot can parse if extracted.
+
+The goal is to recover deterministic extraction from control-flow wrappers by segmenting the block structure before routing, rather than collapsing all control flow into `needs_llm`.
 
 ## Architecture
 
@@ -63,7 +64,7 @@ Replace `needs_llm` / `needs_enrich` as the only internal routing primitives wit
 }
 ```
 
-`needs_llm` and `needs_enrich` remain in catalog files for backward compatibility. `mode` and `routing_reasons` become the canonical explanation.
+`needs_llm` and `needs_enrich` remain in catalog files for backward compatibility. `mode` and `routing_reasons` become the canonical explanation. Both new fields must be optional in `procedure_catalog.json` so existing catalog files without them remain valid.
 
 ### Modes
 
@@ -169,14 +170,17 @@ If a subtree exceeds limits, mark only that subtree with `depth_limit_exceeded` 
 
 ## Dynamic SQL
 
-Dynamic SQL splits into two categories:
+Dynamic SQL splits into three categories:
 
-| Pattern | Handling |
-|---|---|
-| `EXEC sp_executesql N'INSERT ...'` | Parse the embedded literal SQL offline |
-| `EXEC (@sql)` / `EXEC sp_executesql @sql` | Require Claude unless full reconstruction is deterministic |
+| Pattern | Current routing | Proposed handling |
+|---|---|---|
+| `EXEC sp_executesql N'INSERT ...'` | Neither flag (DMF resolves it) | Keep DMF resolution. Only parse the embedded literal offline if DMF data is unavailable. |
+| `EXEC sp_executesql @sql` | Neither flag (known routing gap) | `dynamic_sql_variable` → `llm_required`. Closes the existing gap where variable sp_executesql sets neither `needs_llm` nor `needs_enrich`. |
+| `EXEC (@sql)` | `needs_llm` | `dynamic_sql_variable` → `llm_required` |
 
-Variable reconstruction may be added later for simple concatenation, but it is not part of the initial design. The initial design only parses embedded literal SQL that is directly visible.
+Note: `sp_executesql` with a static literal (pattern 57 in the parse classification doc) is already resolved by DMF in the current pipeline. The `dynamic_sql_literal` routing reason applies only when DMF data is absent and the literal is visible for offline parsing.
+
+Variable reconstruction may be added later for simple concatenation, but it is not part of the initial design.
 
 ## Segmenter Requirements
 
@@ -195,25 +199,38 @@ It does not need to understand table names, expressions, or DML semantics. Its o
 
 ### `catalog.py`
 
-- replace `scan_routing_flags()` with a richer routing summary builder
-- continue writing compatibility flags to catalog JSON
+- replace `scan_routing_flags()` with a richer routing summary builder that produces `mode` and `routing_reasons`
+- continue writing `needs_llm` / `needs_enrich` compatibility flags to catalog JSON
+
+### New module: `block_segmenter.py`
+
+- new file in `lib/shared/` for the T-SQL block-tree segmenter
+- separate from `loader_parse.py` to keep segmentation concerns distinct from sqlglot parsing
+- `loader_parse.py` retains `classify_statement()` for leaf nodes and `extract_refs()` for DML extraction
 
 ### `loader_parse.py`
 
-- add block-tree segmentation
-- add recursive extraction over the block tree
+- add recursive extraction over the block tree (consumes segmenter output)
 - keep `classify_statement()` for leaf nodes
 
 ### `catalog_enrich.py`
 
-- continue to own static `EXEC` call-graph traversal
-- consume `routing_reasons` instead of re-inferring static `EXEC` from regex alone
+- continue to own static `EXEC` call-graph traversal via BFS
+- the outer skip guard already uses `needs_llm`/`needs_enrich` flags from catalog; `_extract_calls()` internally uses its own `_EXEC_PROC_RE` regex for call-edge discovery
+- consume `routing_reasons` to replace the internal regex with the pre-computed routing signal
 
 ### `discover.py`
 
-- surface `routing_reasons`
+- surface `routing_reasons` in `discover show` output
 - keep `classification` for current CLI compatibility
-- only return `claude_assisted` when the stored routing mode is `llm_required`
+- map `llm_required` mode → `claude_assisted`
+- preserve the existing `parse_error` → `claude_assisted` branch (currently at `discover.py:161`). A proc with a parse error must remain `claude_assisted` regardless of routing mode
+
+### `procedure_catalog.json` schema
+
+- add optional `mode` field (string enum)
+- add optional `routing_reasons` field (array of strings)
+- both fields are optional to preserve backward compatibility with existing catalog files
 
 ## Rollout
 
