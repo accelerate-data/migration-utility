@@ -73,6 +73,21 @@ def _extract_calls(raw_ddl: str) -> list[str]:
     return sorted(calls)
 
 
+def _should_enrich(proc_cat: dict[str, Any] | None) -> bool:
+    """Decide whether a procedure is eligible for offline enrichment."""
+    if proc_cat is None:
+        return True
+
+    if proc_cat.get("mode") == "llm_required" or proc_cat.get("needs_llm"):
+        return False
+
+    routing_reasons = set(proc_cat.get("routing_reasons", []))
+    if proc_cat.get("mode") is not None:
+        return bool(proc_cat.get("needs_enrich")) or "static_exec" in routing_reasons
+
+    return proc_cat.get("needs_enrich", True)
+
+
 def _fqn_in_scope(
     in_scope_list: list[dict[str, Any]], fqn: str,
 ) -> bool:
@@ -115,10 +130,10 @@ def _scan_ast_refs(
 
     for proc_fqn, entry in ddl_catalog.procedures.items():
         proc_cat = load_proc_catalog(project_root, proc_fqn)
-        if proc_cat and proc_cat.get("needs_llm"):
+        if proc_cat and (proc_cat.get("mode") == "llm_required" or proc_cat.get("needs_llm")):
             logger.debug("event=enrich_skip proc=%s reason=needs_llm", proc_fqn)
             continue
-        if proc_cat and not proc_cat.get("needs_enrich", True):
+        if not _should_enrich(proc_cat):
             logger.debug("event=enrich_skip proc=%s reason=already_enriched", proc_fqn)
             continue
 
@@ -216,7 +231,10 @@ def _augment_proc_catalogs(
             tables_in_scope.sort(key=lambda e: f"{e['schema']}.{e['name']}".lower())
             write_object_catalog(
                 project_root, "procedures", proc_fqn, proc_data["references"],
-                needs_llm=proc_data.get("needs_llm", False), needs_enrich=False,
+                needs_llm=proc_data.get("needs_llm", False),
+                needs_enrich=False,
+                mode=proc_data.get("mode"),
+                routing_reasons=proc_data.get("routing_reasons"),
             )
 
     return procedures_augmented, entries_added

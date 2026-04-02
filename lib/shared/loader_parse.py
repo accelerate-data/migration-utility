@@ -13,6 +13,18 @@ from typing import Any
 import sqlglot
 import sqlglot.expressions as exp
 
+from shared.block_segmenter import (
+    BlockNode,
+    IfNode,
+    SegmentNode,
+    SegmenterError,
+    SegmenterLimitError,
+    StatementNode,
+    TryCatchNode,
+    WhileNode,
+    segment_sql,
+)
+from shared.catalog import scan_routing_flags
 from shared.loader_data import DdlEntry, DdlParseError, ObjectRefs
 from shared.name_resolver import normalize
 
@@ -151,13 +163,12 @@ def _table_fqn(table: exp.Table) -> str:
 
 
 def parse_body_statements(raw_ddl: str, dialect: str = "tsql") -> tuple[list[Any], bool]:
-    """Parse procedure body with a single sqlglot pass.
+    """Parse procedure body, flattening recoverable control-flow branches.
 
     Returns (statements, needs_llm):
-      - statements: successfully parsed AST nodes (partial — may miss
-        control-flow-wrapped DML)
-      - needs_llm: True if any statement was unparseable (Command/If nodes
-        found), signalling that the LLM should read the raw DDL
+      - statements: successfully parsed AST nodes from recoverable leaf SQL
+      - needs_llm: True if any leaf statement remains unresolved and requires
+        LLM analysis
     """
     m = _BODY_RE.search(raw_ddl)
     if not m:
@@ -166,16 +177,51 @@ def parse_body_statements(raw_ddl: str, dialect: str = "tsql") -> tuple[list[Any
     if not body:
         return [], False
 
-    stmts = sqlglot.parse(body, dialect=dialect, error_level=sqlglot.ErrorLevel.WARN)
+    try:
+        nodes = segment_sql(body)
+    except SegmenterLimitError:
+        return [], True
+    except SegmenterError:
+        return [], True
+
     parsed: list[Any] = []
     needs_llm = False
-    for s in stmts:
-        if s is None:
+    for leaf_sql in _flatten_leaf_sql(nodes):
+        routing = scan_routing_flags(leaf_sql)
+        if routing["needs_llm"] or "static_exec" in routing["routing_reasons"] or "dynamic_sql_literal" in routing["routing_reasons"]:
+            if routing["needs_llm"]:
+                needs_llm = True
             continue
-        if isinstance(s, (exp.Command, exp.If)):
-            needs_llm = True
-        parsed.append(s)
+
+        stmts = sqlglot.parse(leaf_sql, dialect=dialect, error_level=sqlglot.ErrorLevel.WARN)
+        for stmt in stmts:
+            if stmt is None:
+                continue
+            if isinstance(stmt, exp.Command):
+                needs_llm = True
+                continue
+            parsed.append(stmt)
+
     return parsed, needs_llm
+
+
+def _flatten_leaf_sql(nodes: list[SegmentNode]) -> list[str]:
+    leaf_sql: list[str] = []
+    for node in nodes:
+        if isinstance(node, StatementNode):
+            if node.sql.strip():
+                leaf_sql.append(node.sql.strip())
+        elif isinstance(node, BlockNode):
+            leaf_sql.extend(_flatten_leaf_sql(node.children))
+        elif isinstance(node, IfNode):
+            leaf_sql.extend(_flatten_leaf_sql(node.true_branch))
+            leaf_sql.extend(_flatten_leaf_sql(node.false_branch))
+        elif isinstance(node, WhileNode):
+            leaf_sql.extend(_flatten_leaf_sql(node.body))
+        elif isinstance(node, TryCatchNode):
+            leaf_sql.extend(_flatten_leaf_sql(node.try_branch))
+            leaf_sql.extend(_flatten_leaf_sql(node.catch_branch))
+    return leaf_sql
 
 
 # Node type → operation name, used for write_operations mapping
@@ -324,13 +370,14 @@ def extract_refs(entry: DdlEntry, dialect: str = "tsql") -> ObjectRefs:
     Raises:
         DdlParseError: if the entry has no AST and no raw_ddl to fall back on.
     """
+    routing = scan_routing_flags(entry.raw_ddl)
     has_exec = bool(_EXEC_RE.search(entry.raw_ddl))
 
     # For entries with AS BEGIN...END bodies, parse the body statements
     body_stmts, body_needs_llm = parse_body_statements(entry.raw_ddl, dialect=dialect)
     if body_stmts:
         refs = collect_refs_from_statements(body_stmts, dialect=dialect)
-        refs.needs_llm = body_needs_llm or has_exec
+        refs.needs_llm = body_needs_llm or routing["needs_llm"]
         if has_exec:
             _add_exec_statements(entry.raw_ddl, refs)
         return refs
@@ -340,7 +387,7 @@ def extract_refs(entry: DdlEntry, dialect: str = "tsql") -> ObjectRefs:
         raise DdlParseError("Cannot extract refs: DDL block failed to parse (ast is None)")
 
     refs = collect_refs_from_statements([entry.ast], dialect=dialect)
-    refs.needs_llm = has_exec
+    refs.needs_llm = routing["needs_llm"]
     if has_exec:
         _add_exec_statements(entry.raw_ddl, refs)
     return refs

@@ -8,6 +8,7 @@ importable: uv run --project <shared> pytest tests/ad-migration/migration/
 from __future__ import annotations
 
 import tempfile
+import json
 from pathlib import Path
 
 import pytest
@@ -169,6 +170,7 @@ def test_show_deterministic_has_statements(assert_valid_schema) -> None:
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadDimProduct")
     assert_valid_schema(result, "discover_show_output.json")
     assert result["classification"] == "deterministic"
+    assert result["routing_reasons"] == []
     assert result["statements"] is not None
     actions = {s["action"] for s in result["statements"]}
     assert "migrate" in actions
@@ -178,6 +180,7 @@ def test_show_static_exec_is_deterministic() -> None:
     """Static EXEC procs are deterministic — catalog-enrich resolves them."""
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecSimple")
     assert result["classification"] == "deterministic"
+    assert result["routing_reasons"] == []
     assert result["statements"] is not None
 
 
@@ -185,8 +188,29 @@ def test_show_dynamic_exec_is_claude_assisted() -> None:
     """Dynamic EXEC(@var) procs are claude_assisted — LLM reads raw_ddl."""
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecDynamic")
     assert result["classification"] == "claude_assisted"
+    assert result["routing_reasons"] == []
     assert result["statements"] is None
     assert "needs_llm" not in result
+
+
+def test_show_uses_routing_mode_and_reasons(tmp_path, assert_valid_schema) -> None:
+    import shutil
+
+    shutil.copytree(_FLAT_FIXTURES / "ddl", tmp_path / "ddl")
+    shutil.copytree(_FLAT_FIXTURES / "catalog", tmp_path / "catalog")
+
+    proc_path = tmp_path / "catalog" / "procedures" / "dbo.usp_conditionalmerge.json"
+    proc_cat = json.loads(proc_path.read_text(encoding="utf-8"))
+    proc_cat["needs_llm"] = False
+    proc_cat["mode"] = "control_flow_fallback"
+    proc_cat["routing_reasons"] = ["if_else"]
+    proc_path.write_text(json.dumps(proc_cat, indent=2) + "\n", encoding="utf-8")
+
+    result = discover.run_show(tmp_path, "dbo.usp_ConditionalMerge")
+    assert_valid_schema(result, "discover_show_output.json")
+    assert result["classification"] == "deterministic"
+    assert result["routing_reasons"] == ["if_else"]
+    assert result["statements"] is not None
 
 
 def test_show_statements_truncate_is_skip() -> None:

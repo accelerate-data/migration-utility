@@ -387,6 +387,8 @@ class TestWriteCatalog:
 
         proc_cat = json.loads((output / "catalog" / "procedures" / "dbo.usp_dynamic.json").read_text())
         assert proc_cat.get("needs_llm") is True
+        assert proc_cat.get("mode") == "llm_required"
+        assert proc_cat.get("routing_reasons") == ["dynamic_sql_variable"]
 
 
 # ── Unit: schema/name fields in catalog output ───────────────────────────────

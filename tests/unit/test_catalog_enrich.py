@@ -170,6 +170,9 @@ GO
     })
     _write_catalog_json(tmp_path, "procedures", "dbo.usp_orchestrator", {
         "references": proc_a_refs,
+        "mode": "call_graph_enrich",
+        "routing_reasons": ["static_exec"],
+        "needs_enrich": False,
     })
 
     # Table: silver.Target has referenced_by for proc B only
@@ -326,6 +329,8 @@ def test_enrich_detects_exec_chain(tmp_path: Path) -> None:
     assert len(target_entries) == 1
     assert target_entries[0]["detection"] == "ast_scan"
     assert target_entries[0]["is_updated"] is True
+    assert proc_data["mode"] == "call_graph_enrich"
+    assert proc_data["routing_reasons"] == ["static_exec"]
 
     # Table catalog should have proc A in referenced_by
     table_data = _read_catalog_json(ddl, "tables", "silver.target")

@@ -29,6 +29,28 @@
       "type": "boolean",
       "description": "True when body contains SELECT INTO, TRUNCATE, or static EXEC chains. Flipped to false by catalog-enrich."
     },
+    "mode": {
+      "type": "string",
+      "enum": ["deterministic", "control_flow_fallback", "call_graph_enrich", "dynamic_sql_literal", "llm_required"],
+      "description": "Canonical routing mode for this procedure. Optional for backward compatibility with older catalogs."
+    },
+    "routing_reasons": {
+      "type": "array",
+      "description": "Canonical routing reasons detected for this procedure. Optional for backward compatibility with older catalogs.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "if_else",
+          "while_loop",
+          "try_catch",
+          "static_exec",
+          "dynamic_sql_literal",
+          "dynamic_sql_variable",
+          "unsupported_syntax",
+          "depth_limit_exceeded"
+        ]
+      }
+    },
     "references": {
       "type": "object",
       "description": "Outbound: what this procedure depends on.",

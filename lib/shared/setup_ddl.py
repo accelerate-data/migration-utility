@@ -180,15 +180,14 @@ def _apply_sensitivity_rows(signals: dict[str, dict[str, Any]], rows: list) -> N
 
 def _build_routing_flags(
     definitions_rows: list, scan_routing_flags: Any,
-) -> dict[str, dict[str, bool]]:
-    result: dict[str, dict[str, bool]] = {}
+) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
     for row in definitions_rows:
         definition = row.get("definition")
         if definition:
             fqn = normalize(f"{row['schema_name']}.{row['object_name']}")
             flags = scan_routing_flags(definition)
-            if flags["needs_llm"] or flags["needs_enrich"]:
-                result[fqn] = flags
+            result[fqn] = flags
     return result
 
 

@@ -313,6 +313,8 @@ def test_scan_routing_flags_exec_dynamic_needs_llm() -> None:
     flags = scan_routing_flags("EXEC(@sql)")
     assert flags["needs_llm"] is True
     assert flags["needs_enrich"] is False
+    assert flags["mode"] == "llm_required"
+    assert flags["routing_reasons"] == ["dynamic_sql_variable"]
 
     flags = scan_routing_flags("EXECUTE(@sql)")
     assert flags["needs_llm"] is True
@@ -323,25 +325,40 @@ def test_scan_routing_flags_exec_dynamic_needs_llm() -> None:
 
 def test_scan_routing_flags_try_catch_needs_llm() -> None:
     flags = scan_routing_flags("BEGIN TRY\n  INSERT INTO dbo.T1 VALUES(1);\nEND TRY BEGIN CATCH END CATCH")
-    assert flags["needs_llm"] is True
+    assert flags["needs_llm"] is False
     assert flags["needs_enrich"] is False
+    assert flags["mode"] == "control_flow_fallback"
+    assert flags["routing_reasons"] == ["try_catch"]
 
 
 def test_scan_routing_flags_while_needs_llm() -> None:
     flags = scan_routing_flags("WHILE @i < 10 BEGIN SET @i = @i + 1; END")
-    assert flags["needs_llm"] is True
+    assert flags["needs_llm"] is False
+    assert flags["mode"] == "control_flow_fallback"
+    assert flags["routing_reasons"] == ["while_loop"]
 
 
 def test_scan_routing_flags_if_needs_llm() -> None:
     flags = scan_routing_flags("IF EXISTS (SELECT 1 FROM dbo.T) INSERT INTO dbo.T2 VALUES(1)")
-    assert flags["needs_llm"] is True
+    assert flags["needs_llm"] is False
+    assert flags["mode"] == "control_flow_fallback"
+    assert flags["routing_reasons"] == ["if_else"]
 
 
 def test_scan_routing_flags_sp_executesql_no_flags() -> None:
-    # sp_executesql is resolved by DMF — no flags needed
     flags = scan_routing_flags("EXEC sp_executesql @sql")
+    assert flags["needs_llm"] is True
+    assert flags["needs_enrich"] is False
+    assert flags["mode"] == "llm_required"
+    assert flags["routing_reasons"] == ["dynamic_sql_variable"]
+
+
+def test_scan_routing_flags_sp_executesql_literal() -> None:
+    flags = scan_routing_flags("EXEC sp_executesql N'INSERT INTO dbo.T VALUES (1)'")
     assert flags["needs_llm"] is False
     assert flags["needs_enrich"] is False
+    assert flags["mode"] == "dynamic_sql_literal"
+    assert flags["routing_reasons"] == ["dynamic_sql_literal"]
 
 
 def test_scan_routing_flags_select_into_needs_enrich() -> None:
@@ -349,6 +366,7 @@ def test_scan_routing_flags_select_into_needs_enrich() -> None:
     flags = scan_routing_flags("SELECT id, val\nINTO dbo.target\nFROM dbo.source")
     assert flags["needs_enrich"] is True
     assert flags["needs_llm"] is False
+    assert flags["mode"] == "deterministic"
 
     # INSERT INTO must NOT match
     flags2 = scan_routing_flags("INSERT INTO dbo.target SELECT id FROM dbo.source")
@@ -359,12 +377,15 @@ def test_scan_routing_flags_truncate_needs_enrich() -> None:
     flags = scan_routing_flags("TRUNCATE TABLE dbo.target; INSERT INTO dbo.target SELECT * FROM dbo.src")
     assert flags["needs_enrich"] is True
     assert flags["needs_llm"] is False
+    assert flags["mode"] == "deterministic"
 
 
 def test_scan_routing_flags_static_exec_needs_enrich() -> None:
     flags = scan_routing_flags("EXEC dbo.usp_helper")
     assert flags["needs_enrich"] is True
     assert flags["needs_llm"] is False
+    assert flags["mode"] == "call_graph_enrich"
+    assert flags["routing_reasons"] == ["static_exec"]
 
     flags = scan_routing_flags("EXECUTE schema.usp_other @param = 1")
     assert flags["needs_enrich"] is True
@@ -374,6 +395,8 @@ def test_scan_routing_flags_pure_dml_no_flags() -> None:
     flags = scan_routing_flags("INSERT INTO dbo.T1 SELECT * FROM dbo.T2")
     assert flags["needs_llm"] is False
     assert flags["needs_enrich"] is False
+    assert flags["mode"] == "deterministic"
+    assert flags["routing_reasons"] == []
 
 
 def test_write_object_catalog_with_needs_llm_flag() -> None:
@@ -422,6 +445,29 @@ def test_write_object_catalog_no_flags() -> None:
         assert loaded is not None
         assert "needs_llm" not in loaded
         assert "needs_enrich" not in loaded
+
+
+def test_write_object_catalog_with_routing_summary() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        ddl_path = Path(tmp)
+        refs = {
+            "tables": {"in_scope": [], "out_of_scope": []},
+            "views": {"in_scope": [], "out_of_scope": []},
+            "functions": {"in_scope": [], "out_of_scope": []},
+            "procedures": {"in_scope": [], "out_of_scope": []},
+        }
+        write_object_catalog(
+            ddl_path,
+            "procedures",
+            "dbo.usp_route",
+            refs,
+            mode="control_flow_fallback",
+            routing_reasons=["if_else", "static_exec"],
+        )
+        loaded = load_proc_catalog(ddl_path, "dbo.usp_route")
+        assert loaded is not None
+        assert loaded["mode"] == "control_flow_fallback"
+        assert loaded["routing_reasons"] == ["if_else", "static_exec"]
 
 
 # ── Cross-database / cross-server scoping ─────────────────────────────────
