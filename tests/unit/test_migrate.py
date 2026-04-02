@@ -47,6 +47,36 @@ def dbt_project(tmp_path: Path) -> Path:
     return dbt
 
 
+def _append_procedure(project_root: Path, ddl_sql: str) -> None:
+    ddl_path = project_root / "ddl" / "procedures.sql"
+    existing = ddl_path.read_text()
+    ddl_path.write_text(f"{existing.rstrip()}\nGO\n{ddl_sql.strip()}\nGO\n")
+
+
+def _write_catalog(path: Path, payload: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2) + "\n")
+
+
+def _seed_migrate_fixture(
+    project_root: Path,
+    table_fqn: str,
+    writer_fqn: str,
+    proc_sql: str,
+    proc_catalog: dict[str, object],
+    table_catalog: dict[str, object],
+) -> None:
+    _append_procedure(project_root, proc_sql)
+    _write_catalog(
+        project_root / "catalog" / "procedures" / f"{writer_fqn.lower()}.json",
+        proc_catalog,
+    )
+    _write_catalog(
+        project_root / "catalog" / "tables" / f"{table_fqn.lower()}.json",
+        table_catalog,
+    )
+
+
 # ── derive_materialization ────────────────────────────────────────────────────
 
 
@@ -158,6 +188,7 @@ class TestRunContext:
 
         assert result["table"] == "silver.factsales"
         assert result["writer"] == "dbo.usp_load_fact_sales"
+        assert result["classification"] == "deterministic"
         assert result["profile"]["classification"]["resolved_kind"] == "fact_transaction"
         assert result["materialization"] == "incremental"
         assert len(result["statements"]) >= 1
@@ -225,6 +256,213 @@ class TestRunContext:
 
         with pytest.raises(CatalogFileMissingError):
             run_context(ddl_path, "silver.FactSales", "dbo.usp_load_fact_sales")
+
+    def test_truncate_insert_context_includes_skip_and_migrate_statements(self, ddl_path: Path) -> None:
+        _seed_migrate_fixture(
+            ddl_path,
+            "silver.dimcurrency",
+            "dbo.usp_load_dim_currency",
+            """
+CREATE PROCEDURE [dbo].[usp_load_dim_currency]
+AS
+BEGIN
+    TRUNCATE TABLE [silver].[DimCurrency];
+    INSERT INTO [silver].[DimCurrency] (currency_key)
+    SELECT CurrencyCode FROM [bronze].[Currency];
+END
+            """,
+            {
+                "schema": "dbo",
+                "name": "usp_load_dim_currency",
+                "mode": "deterministic",
+                "references": {
+                    "tables": {
+                        "in_scope": [
+                            {"schema": "silver", "name": "DimCurrency", "is_selected": False, "is_updated": True},
+                            {"schema": "bronze", "name": "Currency", "is_selected": True, "is_updated": False},
+                        ],
+                        "out_of_scope": [],
+                    },
+                    "views": {"in_scope": [], "out_of_scope": []},
+                    "functions": {"in_scope": [], "out_of_scope": []},
+                    "procedures": {"in_scope": [], "out_of_scope": []},
+                },
+                "statements": [
+                    {"type": "TruncateTable", "action": "skip", "source": "ast", "sql": "TRUNCATE TABLE [silver].[DimCurrency]"},
+                    {
+                        "type": "Insert",
+                        "action": "migrate",
+                        "source": "ast",
+                        "sql": "INSERT INTO [silver].[DimCurrency] (currency_key) SELECT CurrencyCode FROM [bronze].[Currency]",
+                    },
+                ],
+            },
+            {
+                "schema": "silver",
+                "name": "dimcurrency",
+                "columns": [{"name": "currency_key", "data_type": "NVARCHAR(10)", "is_nullable": False}],
+                "primary_keys": [],
+                "unique_indexes": [],
+                "foreign_keys": [],
+                "auto_increment_columns": [],
+                "change_capture": None,
+                "sensitivity_classifications": [],
+                "referenced_by": {
+                    "procedures": {
+                        "in_scope": [
+                            {"schema": "dbo", "name": "usp_load_dim_currency", "is_selected": False, "is_updated": True}
+                        ],
+                        "out_of_scope": [],
+                    },
+                    "views": {"in_scope": [], "out_of_scope": []},
+                    "functions": {"in_scope": [], "out_of_scope": []},
+                },
+                "profile": {
+                    "status": "ok",
+                    "writer": "dbo.usp_load_dim_currency",
+                    "classification": {"resolved_kind": "dim_non_scd", "source": "catalog"},
+                    "primary_key": {"columns": ["currency_key"], "primary_key_type": "natural"},
+                    "watermark": None,
+                    "foreign_keys": [],
+                    "pii_actions": [],
+                },
+            },
+        )
+
+        result = run_context(ddl_path, "silver.dimcurrency", "dbo.usp_load_dim_currency")
+
+        assert result["classification"] == "deterministic"
+        assert result["materialization"] == "table"
+        assert [stmt["action"] for stmt in result["statements"]] == ["skip", "migrate"]
+
+    def test_exec_only_orchestrator_context_allows_empty_statements(self, ddl_path: Path) -> None:
+        _seed_migrate_fixture(
+            ddl_path,
+            "silver.factorders",
+            "dbo.usp_load_fact_orders",
+            """
+CREATE PROCEDURE [dbo].[usp_load_fact_orders]
+AS
+BEGIN
+    EXEC [dbo].[usp_stage_fact_orders];
+END
+            """,
+            {
+                "schema": "dbo",
+                "name": "usp_load_fact_orders",
+                "mode": "call_graph_enrich",
+                "references": {
+                    "tables": {"in_scope": [], "out_of_scope": []},
+                    "views": {"in_scope": [], "out_of_scope": []},
+                    "functions": {"in_scope": [], "out_of_scope": []},
+                    "procedures": {
+                        "in_scope": [{"schema": "dbo", "name": "usp_stage_fact_orders"}],
+                        "out_of_scope": [],
+                    },
+                },
+                "statements": [],
+            },
+            {
+                "schema": "silver",
+                "name": "factorders",
+                "columns": [{"name": "order_id", "data_type": "BIGINT", "is_nullable": False}],
+                "primary_keys": [],
+                "unique_indexes": [],
+                "foreign_keys": [],
+                "auto_increment_columns": [],
+                "change_capture": None,
+                "sensitivity_classifications": [],
+                "referenced_by": {
+                    "procedures": {
+                        "in_scope": [
+                            {"schema": "dbo", "name": "usp_load_fact_orders", "is_selected": False, "is_updated": True}
+                        ],
+                        "out_of_scope": [],
+                    },
+                    "views": {"in_scope": [], "out_of_scope": []},
+                    "functions": {"in_scope": [], "out_of_scope": []},
+                },
+                "profile": {
+                    "status": "ok",
+                    "writer": "dbo.usp_load_fact_orders",
+                    "classification": {"resolved_kind": "fact_transaction", "source": "catalog"},
+                    "primary_key": {"columns": ["order_id"], "primary_key_type": "natural"},
+                    "watermark": None,
+                    "foreign_keys": [],
+                    "pii_actions": [],
+                },
+            },
+        )
+
+        result = run_context(ddl_path, "silver.factorders", "dbo.usp_load_fact_orders")
+
+        assert result["classification"] == "deterministic"
+        assert result["statements"] == []
+        assert result["source_tables"] == []
+
+    def test_dynamic_sp_executesql_context_is_claude_assisted(self, ddl_path: Path) -> None:
+        _seed_migrate_fixture(
+            ddl_path,
+            "silver.dimgeography",
+            "dbo.usp_load_dim_geography",
+            """
+CREATE PROCEDURE [dbo].[usp_load_dim_geography]
+AS
+BEGIN
+    DECLARE @sql NVARCHAR(MAX);
+    SET @sql = N'INSERT INTO [silver].[DimGeography] (geo_key) SELECT GeographyKey FROM [bronze].[Geography]';
+    EXEC sp_executesql @sql;
+END
+            """,
+            {
+                "schema": "dbo",
+                "name": "usp_load_dim_geography",
+                "mode": "llm_required",
+                "routing_reasons": ["dynamic_sql_variable"],
+                "references": {
+                    "tables": {"in_scope": [], "out_of_scope": []},
+                    "views": {"in_scope": [], "out_of_scope": []},
+                    "functions": {"in_scope": [], "out_of_scope": []},
+                    "procedures": {"in_scope": [], "out_of_scope": []},
+                },
+                "statements": [],
+            },
+            {
+                "schema": "silver",
+                "name": "dimgeography",
+                "columns": [{"name": "geo_key", "data_type": "INT", "is_nullable": False}],
+                "primary_keys": [],
+                "unique_indexes": [],
+                "foreign_keys": [],
+                "auto_increment_columns": [],
+                "change_capture": None,
+                "sensitivity_classifications": [],
+                "referenced_by": {
+                    "procedures": {
+                        "in_scope": [
+                            {"schema": "dbo", "name": "usp_load_dim_geography", "is_selected": False, "is_updated": True}
+                        ],
+                        "out_of_scope": [],
+                    },
+                    "views": {"in_scope": [], "out_of_scope": []},
+                    "functions": {"in_scope": [], "out_of_scope": []},
+                },
+                "profile": {
+                    "status": "ok",
+                    "writer": "dbo.usp_load_dim_geography",
+                    "classification": {"resolved_kind": "dim_non_scd", "source": "catalog"},
+                    "primary_key": {"columns": ["geo_key"], "primary_key_type": "natural"},
+                    "watermark": None,
+                    "foreign_keys": [],
+                    "pii_actions": [],
+                },
+            },
+        )
+
+        result = run_context(ddl_path, "silver.dimgeography", "dbo.usp_load_dim_geography")
+
+        assert result["classification"] == "claude_assisted"
+        assert result["statements"] == []
 
 
 # ── run_write ─────────────────────────────────────────────────────────────────

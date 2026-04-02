@@ -44,7 +44,8 @@ _SELECT_INTO_RE = re.compile(
 )
 _TRUNCATE_RE = re.compile(r"\bTRUNCATE\b", re.IGNORECASE)
 _STATIC_EXEC_RE = re.compile(
-    r"\bEXEC(?:UTE)?\s+(?!sp_executesql\b)(?![@(])[\[\w]",
+    r"\bEXEC(?:UTE)?\s+(?:@\w+\s*=\s*)?(?!sp_executesql\b)(?!\()"
+    r"(?:\[[^\]]+\]|\w+)(?:\s*\.\s*(?:\[[^\]]+\]|\w+)){0,3}",
     re.IGNORECASE,
 )
 _DYNAMIC_EXEC_RE = re.compile(r"\bEXEC(?:UTE)?\s*\(", re.IGNORECASE)
@@ -55,6 +56,19 @@ _SP_EXECUTESQL_LITERAL_RE = re.compile(
 )
 _SP_EXECUTESQL_VARIABLE_RE = re.compile(
     r"\bEXEC(?:UTE)?\s+sp_executesql\s+@",
+    re.IGNORECASE,
+)
+_CROSS_DB_EXEC_RE = re.compile(
+    r"\bEXEC(?:UTE)?\s+(?:@\w+\s*=\s*)?"
+    r"(?!sp_executesql\b)"
+    r"(?:\[[^\]]+\]|\w+)\s*\.\s*(?:\[[^\]]+\]|\w+)\s*\.\s*(?:\[[^\]]+\]|\w+)"
+    r"(?!\s*\.)",
+    re.IGNORECASE,
+)
+_LINKED_SERVER_EXEC_RE = re.compile(
+    r"\bEXEC(?:UTE)?\s+(?:@\w+\s*=\s*)?"
+    r"(?!sp_executesql\b)"
+    r"(?:\[[^\]]+\]|\w+)\s*\.\s*(?:\[[^\]]+\]|\w+)\s*\.\s*(?:\[[^\]]+\]|\w+)\s*\.\s*(?:\[[^\]]+\]|\w+)",
     re.IGNORECASE,
 )
 # ── Schemas (TypedDict-style, but plain dicts in practice) ──────────────────
@@ -174,9 +188,11 @@ def scan_routing_flags(definition: str) -> dict[str, bool]:
     has_dynamic_exec = bool(_DYNAMIC_EXEC_RE.search(masked))
     has_sp_executesql_literal = bool(_SP_EXECUTESQL_LITERAL_RE.search(masked))
     has_sp_executesql_variable = bool(_SP_EXECUTESQL_VARIABLE_RE.search(masked))
-    has_static_exec = bool(_STATIC_EXEC_RE.search(masked))
+    has_static_exec = bool(_STATIC_EXEC_RE.search(definition))
     has_select_into = bool(_SELECT_INTO_RE.search(masked))
     has_truncate = bool(_TRUNCATE_RE.search(masked))
+    has_linked_server_exec = bool(_LINKED_SERVER_EXEC_RE.search(definition))
+    has_cross_db_exec = bool(_CROSS_DB_EXEC_RE.search(definition)) and not has_linked_server_exec
 
     if has_dynamic_exec or has_sp_executesql_variable:
         reasons.append("dynamic_sql_variable")
@@ -185,6 +201,10 @@ def scan_routing_flags(definition: str) -> dict[str, bool]:
 
     if has_static_exec:
         reasons.append("static_exec")
+    if has_cross_db_exec:
+        reasons.append("cross_db_exec")
+    if has_linked_server_exec:
+        reasons.append("linked_server_exec")
 
     routing_reasons = sorted(set(reasons))
     needs_llm = "dynamic_sql_variable" in routing_reasons
