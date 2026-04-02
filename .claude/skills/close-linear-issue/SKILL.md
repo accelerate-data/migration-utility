@@ -75,7 +75,7 @@ Direct merge execution is allowed.
 
 1. First merge action (if PR is open): rebase branch onto `origin/main`.
 2. Resolve conflicts when mechanical; escalate to user when judgment is needed.
-3. Run `cd app && npx tsc --noEmit`.
+3. Run the repo-specific validation command(s) from `AGENTS.md` / `repo-map.json` for the changed area. Do not assume an `app/` directory exists.
 4. Push with `--force-with-lease` if rebase changed history.
 5. Apply required checks policy above.
 6. Merge PR (prefer squash).

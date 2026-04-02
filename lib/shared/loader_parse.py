@@ -127,6 +127,8 @@ def classify_statement(stmt: Any) -> str:
     if stmt is None:
         return "skip"
     if isinstance(stmt, exp.Command):
+        if str(stmt.args.get("this", "")).upper() == "PRINT":
+            return "skip"
         return "claude"
     if isinstance(stmt, _MIGRATE_TYPES):
         return "migrate"
@@ -246,7 +248,11 @@ def _collect_write_refs(
             add_write(_table_fqn(target), "INSERT")
 
     for node in stmt.find_all(exp.Update):
-        target = node.find(exp.Table)
+        target = node.this
+        if isinstance(target, exp.Table) and not _is_real_table(target):
+            from_clause = node.args.get("from")
+            if isinstance(from_clause, exp.From) and isinstance(from_clause.this, exp.Table):
+                target = from_clause.this
         if target and _is_real_table(target):
             add_write(_table_fqn(target), "UPDATE")
 

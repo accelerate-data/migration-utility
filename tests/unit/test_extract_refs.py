@@ -8,15 +8,19 @@ SQL fixtures live in fixtures/discover/flat/*.sql.
 
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 
 import pytest
+import sqlglot
 
+from shared.catalog import scan_routing_flags
 from shared.loader import (
     collect_refs_from_statements,
     load_directory,
     parse_body_statements,
 )
+from shared.loader_parse import classify_statement
 
 FIXTURES = Path(__file__).parent / "fixtures" / "discover" / "flat"
 
@@ -32,9 +36,20 @@ def _refs_from_proc(body: str) -> tuple[list[str], list[str]]:
     return refs.writes_to, refs.reads_from
 
 
+def _ops_from_proc(body: str) -> dict[str, list[str]]:
+    raw_ddl = _make_proc(body)
+    stmts, _needs_llm = parse_body_statements(raw_ddl)
+    refs = collect_refs_from_statements(stmts)
+    return refs.write_operations
+
+
+@lru_cache(maxsize=1)
+def _catalog():
+    return load_directory(FIXTURES)
+
+
 def _refs_from_fixture(proc_name: str) -> tuple[list[str], list[str]]:
-    catalog = load_directory(FIXTURES)
-    entry = catalog.procedures[proc_name]
+    entry = _catalog().procedures[proc_name]
     stmts, _needs_llm = parse_body_statements(entry.raw_ddl)
     refs = collect_refs_from_statements(stmts)
     return refs.writes_to, refs.reads_from
@@ -144,6 +159,83 @@ def test_window_function():
     assert "bronze.product" in reads
 
 
+@pytest.mark.parametrize(
+    ("proc_name", "expected_writes", "expected_reads"),
+    [
+        ("dbo.usp_loadwithleftjoin", ["silver.dimproduct"], ["bronze.product", "dbo.config"]),
+        ("dbo.usp_unionall", ["silver.dimproduct"], ["bronze.product"]),
+        ("dbo.usp_union", ["silver.dimproduct"], ["bronze.product"]),
+        ("dbo.usp_intersect", ["silver.dimproduct"], ["bronze.product"]),
+        ("dbo.usp_except", ["silver.dimproduct"], ["bronze.product"]),
+        ("dbo.usp_unionallincte", ["silver.dimproduct"], ["bronze.product"]),
+        ("dbo.usp_innerjoin", ["silver.dimproduct"], ["bronze.product", "dbo.config"]),
+        ("dbo.usp_fullouterjoin", ["silver.dimproduct"], ["bronze.product", "dbo.config"]),
+        ("dbo.usp_crossjoin", ["dbo.config"], ["bronze.product"]),
+        ("dbo.usp_crossapply", ["silver.dimproduct"], ["bronze.product", "dbo.config"]),
+        ("dbo.usp_outerapply", ["silver.dimproduct"], ["bronze.product", "dbo.config"]),
+        ("dbo.usp_selfjoin", ["dbo.config"], ["bronze.product"]),
+        ("dbo.usp_derivedtable", ["silver.dimproduct"], ["bronze.product", "dbo.config"]),
+        ("dbo.usp_scalarsubquery", ["silver.dimproduct"], ["bronze.product", "dbo.config"]),
+        ("dbo.usp_existssubquery", ["silver.dimproduct"], ["bronze.product", "dbo.config"]),
+        ("dbo.usp_notexistssubquery", ["silver.dimproduct"], ["bronze.product"]),
+        ("dbo.usp_insubquery", ["silver.dimproduct"], ["bronze.product", "dbo.config"]),
+        ("dbo.usp_notinsubquery", ["silver.dimproduct"], ["bronze.product"]),
+        ("dbo.usp_recursivecte", ["silver.dimproduct"], ["bronze.product"]),
+        ("dbo.usp_updatewithcte", ["silver.dimproduct"], ["bronze.product"]),
+        ("dbo.usp_deletewithcte", ["silver.dimproduct"], []),
+        ("dbo.usp_mergewithcte", ["silver.dimproduct"], ["bronze.product"]),
+        ("dbo.usp_groupingsets", ["dbo.config"], ["bronze.product"]),
+        ("dbo.usp_cube", ["dbo.config"], ["bronze.product"]),
+        ("dbo.usp_rollup", ["dbo.config"], ["bronze.product"]),
+        ("dbo.usp_pivot", ["dbo.config"], ["bronze.product"]),
+        ("dbo.usp_unpivot", ["dbo.config"], ["bronze.product"]),
+    ],
+)
+def test_ref_extraction_for_missing_statement_patterns(
+    proc_name: str,
+    expected_writes: list[str],
+    expected_reads: list[str],
+) -> None:
+    writes, reads = _refs_from_fixture(proc_name)
+    assert writes == expected_writes
+    assert reads == expected_reads
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SET NOCOUNT ON",
+        "DECLARE @x INT",
+        "RETURN",
+        "PRINT 'hello'",
+        "RAISERROR ('bad', 16, 1)",
+        "THROW 50000, 'bad', 1",
+        "BEGIN TRANSACTION",
+        "COMMIT",
+        "ROLLBACK",
+    ],
+)
+def test_skip_only_statements_classify_as_skip(sql: str) -> None:
+    stmt = sqlglot.parse_one(sql, dialect="tsql", error_level=sqlglot.ErrorLevel.WARN)
+    assert classify_statement(stmt) == "skip"
+
+
+def test_truncate_plus_insert_tracks_both_write_operations() -> None:
+    writes, reads = _refs_from_proc("""
+        TRUNCATE TABLE silver.DimProduct;
+        INSERT INTO silver.DimProduct (ProductKey)
+        SELECT ProductID FROM bronze.Product;
+    """)
+    write_ops = _ops_from_proc("""
+        TRUNCATE TABLE silver.DimProduct;
+        INSERT INTO silver.DimProduct (ProductKey)
+        SELECT ProductID FROM bronze.Product;
+    """)
+    assert writes == ["silver.dimproduct"]
+    assert reads == ["bronze.product"]
+    assert write_ops == {"silver.dimproduct": ["TRUNCATE", "INSERT"]}
+
+
 def test_while_loop():
     writes, reads = _refs_from_fixture("dbo.usp_whileloop")
     assert "bronze.product" in writes  # DELETE FROM bronze.Product
@@ -199,8 +291,7 @@ def test_cte_with_subquery():
 
 
 def test_exec_simple_has_exec_flag():
-    catalog = load_directory(FIXTURES)
-    entry = catalog.procedures["dbo.usp_execsimple"]
+    entry = _catalog().procedures["dbo.usp_execsimple"]
     from shared.loader import extract_refs
     refs = extract_refs(entry)
     assert refs.needs_llm is False
@@ -209,16 +300,14 @@ def test_exec_simple_has_exec_flag():
 
 
 def test_exec_dynamic_has_exec_flag():
-    catalog = load_directory(FIXTURES)
-    entry = catalog.procedures["dbo.usp_execdynamic"]
+    entry = _catalog().procedures["dbo.usp_execdynamic"]
     from shared.loader import extract_refs
     refs = extract_refs(entry)
     assert refs.needs_llm is True
 
 
 def test_exec_sp_executesql_has_exec_flag():
-    catalog = load_directory(FIXTURES)
-    entry = catalog.procedures["dbo.usp_execspexecutesql"]
+    entry = _catalog().procedures["dbo.usp_execspexecutesql"]
     from shared.loader import extract_refs
     refs = extract_refs(entry)
     assert refs.needs_llm is True
@@ -237,11 +326,31 @@ def test_exec_sp_executesql_literal_is_not_llm():
 
 
 def test_deterministic_proc_no_exec_flag():
-    catalog = load_directory(FIXTURES)
-    entry = catalog.procedures["dbo.usp_loaddimproduct"]
+    entry = _catalog().procedures["dbo.usp_loaddimproduct"]
     from shared.loader import extract_refs
     refs = extract_refs(entry)
     assert refs.needs_llm is False
+
+
+@pytest.mark.parametrize(
+    ("sql", "expected_reason"),
+    [
+        ("EXEC [schema].[proc]", "static_exec"),
+        ("EXEC proc @result OUTPUT", "static_exec"),
+        ("EXEC @rc = proc", "static_exec"),
+        ("EXEC OtherDB.dbo.proc", "cross_db_exec"),
+        ("EXEC [Server].db.dbo.proc", "linked_server_exec"),
+        ("EXEC ('INSERT INTO ' + @table)", "dynamic_sql_variable"),
+    ],
+)
+def test_exec_routing_flags_cover_missing_variants(sql: str, expected_reason: str) -> None:
+    flags = scan_routing_flags(sql)
+    assert expected_reason in flags["routing_reasons"]
+
+    if expected_reason == "dynamic_sql_variable":
+        assert flags["needs_llm"] is True
+    else:
+        assert flags["needs_enrich"] is True
 
 
 # ── Per-block error handling ──────────────────────────────────────────────────
