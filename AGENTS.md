@@ -94,7 +94,7 @@ See `.claude/rules/coding-conventions.md` for canonical error-handling policy.
 | Artifact | Update when |
 |---|---|
 | `AGENTS.md` | A fact is durable, non-obvious, and won't be obvious from code |
-| `repo-map.json` | File added/removed/renamed in `commands/`, `stores/`, `routes/`, `components/`, `lib/`, `skills/`, `agents/` -- entrypoint, module, or package structure changes |
+| `repo-map.json` | Any repo-map entry becomes stale: entrypoints, commands, modules, package structure, test/eval layout, plugin/skill layout, or referenced documentation indexes change |
 
 Update stale entries in the same commit that introduced the structural change.
 

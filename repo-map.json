@@ -57,7 +57,7 @@
   "modules": {
     "plugin_marketplace": {
       "path": "plugins/.claude-plugin/marketplace.json",
-      "description": "Plugin marketplace manifest defining 3 sub-plugins: bootstrap, migration, ground-truth-harness. Each plugin has a 'source' key pointing to its workbench directory."
+      "description": "Plugin marketplace manifest for the bootstrap, migration, and ground-truth-harness sub-plugins. Each plugin has a 'source' key pointing to its workbench directory."
     },
     "plugin_bootstrap": {
       "path": "plugins/bootstrap/",
@@ -81,7 +81,7 @@
     },
     "shared_schemas": {
       "path": "lib/shared/schemas/",
-      "description": "JSON Schema files (21 total). Catalog schemas: table_catalog, procedure_catalog, view_catalog, function_catalog, manifest. Agent I/O: scoping_summary, profiler_input, model_generator_input, fixture_manifest, migration_artifact_manifest, profile_context. Skill output: test_spec (per-item test spec). Test harness: test_harness_execute_output, test_spec_output (batch envelope), sandbox_up_output, sandbox_down_output, sandbox_status_output. Discover CLI output: discover_list_output, discover_show_output, discover_refs_output. Shared defs: common.json."
+      "description": "JSON Schema files for catalog objects, agent I/O, skill output, test harness output, discover CLI output, and shared definitions. See this directory for the current schema set."
     },
     "ddl_mcp": {
       "path": "mcp/ddl/",
@@ -105,7 +105,7 @@
     },
     "tests_evals": {
       "path": "tests/evals/",
-      "description": "Promptfoo eval harness for skill testing against MigrationTest schema. Three packages: scoping (8 scenarios x analyzing-object skill), profiler (4 scenarios x profiling-table skill), model-generator (4 scenarios x generating-model skill). Run via: cd tests/evals && npx promptfoo eval. See docs/design/eval-harness/README.md."
+      "description": "Promptfoo eval harness for skill testing against MigrationTest schema. Includes scoping, profiler, and model-generator packages. Run via: cd tests/evals && npx promptfoo eval. See docs/design/eval-harness/README.md."
     },
     "tests_ddl_mcp": {
       "path": "mcp/ddl/tests/",
@@ -117,7 +117,7 @@
     },
     "docs": {
       "path": "docs/",
-      "description": "Documentation. Sub-directories: design/ (agent-contract, cli-design, eval-harness, overall-design, setup-ddl, test-scenario, tsql-parse-classification), reference/ (agent-instructions-governance, local-agent-testing, running-tests, setup-docker, test-db-image), requirements/."
+      "description": "Documentation. Use docs/design/README.md as the index for design topics. reference/ contains operator and contributor docs, and requirements/ contains product requirements."
     }
   },
   "key_directories": {
@@ -128,8 +128,8 @@
     "tests/evals/": "Promptfoo eval harness for agent and skill testing (scoping, profiler, model-generator packages)",
     "mcp/ddl/tests/": "Python pytest tests for the DDL MCP server",
     "docs/design/": "Architecture decision records and design specs",
-    ".claude/rules/": "Shared agent rules (4 policy files: coding-conventions, git-workflow, logging-policy, codex-execution-policy)",
-    ".claude/skills/": "Workflow playbooks for Claude Code CLI skills (5 skills)"
+    ".claude/rules/": "Shared agent rules such as coding-conventions, git-workflow, logging-policy, and codex-execution-policy",
+    ".claude/skills/": "Workflow playbooks for repo-local Claude Code skills"
   },
   "commands": {
     "test_migration_python": "cd lib && uv run pytest",
@@ -167,6 +167,6 @@
     "parse_errors": "sqlglot parse failures are hard errors (DdlParseError). The loader does not silently skip unparseable DDL.",
     "python_tests": "Two pytest suites: (1) shared lib — cd lib && uv run pytest; integration tests: uv run pytest -m integration. (2) DDL MCP server — cd mcp/ddl && uv run pytest.",
     "mssql_env_vars": "Live SQL Server access requires MSSQL_HOST, MSSQL_PORT, MSSQL_DB, SA_PASSWORD exported before launching claude.",
-    "update_repo_map": "Refresh this file whenever you change architecture, entrypoints, commands, modules, or package structure."
+    "update_repo_map": "Refresh this file whenever any entry here becomes stale, especially after architecture, entrypoint, command, module, package, test/eval layout, or documentation-index changes."
   }
 }
