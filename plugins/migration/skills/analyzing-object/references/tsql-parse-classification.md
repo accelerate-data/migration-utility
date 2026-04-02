@@ -1,6 +1,6 @@
 # T-SQL Statement Classification
 
-When `discover show` returns `statements: null` (claude_assisted procs), read `raw_ddl` and classify each statement as `migrate` or `skip`.
+This reference is for true Claude fallback cases. Use it when `discover show` still returns `statements: null` for a `claude_assisted` proc. After VU-821, control-flow wrappers like `IF/ELSE`, `WHILE`, and `TRY/CATCH` are often handled deterministically before this skill is needed.
 
 ## migrate — becomes the dbt model
 
@@ -15,14 +15,14 @@ When `discover show` returns `statements: null` (claude_assisted procs), read `r
 | CTE + UPDATE | `WITH cte AS (...) UPDATE t SET col = cte.val FROM silver.T t JOIN cte ON ...` | CTE defines the source; UPDATE is the migrate statement |
 | CTE + DELETE | `WITH cte AS (...) DELETE FROM silver.T WHERE id IN (SELECT id FROM cte)` | CTE defines the filter; DELETE is the migrate statement |
 | CTE + MERGE | `WITH src AS (...) MERGE INTO silver.T USING src ON ...` | CTE defines the USING source; MERGE is the migrate statement |
-| EXEC / EXECUTE (static) | `EXEC dbo.usp_Load` or `EXECUTE dbo.usp_Load` | Follow the called proc — run `discover show` on it to get its refs. `EXECUTE` is the unabbreviated form of `EXEC` — classify identically. |
+| EXEC / EXECUTE (static) | `EXEC dbo.usp_Load` or `EXECUTE dbo.usp_Load` | Usually handled deterministically via catalog enrichment. If this skill sees one, follow the called proc — run `discover show` on it to get its refs. `EXECUTE` is the unabbreviated form of `EXEC` — classify identically. |
 | EXEC (bracketed) | `EXEC [silver].[usp_Load]` | Same as static — bracket notation is just quoting |
-| EXEC with params | `EXEC dbo.usp_Load @Mode = 1` | Follow the called proc; parameters don't change classification |
-| EXEC with OUTPUT | `EXEC dbo.usp_Load @Result OUTPUT` | Follow the called proc; OUTPUT param doesn't change classification |
-| EXEC with return | `EXEC @rc = dbo.usp_Load` | Follow the called proc; return variable prefix doesn't change classification |
+| EXEC with params | `EXEC dbo.usp_Load @Mode = 1` | Usually deterministic via enrichment; if reached here, follow the called proc. Parameters don't change classification. |
+| EXEC with OUTPUT | `EXEC dbo.usp_Load @Result OUTPUT` | Usually deterministic via enrichment; if reached here, follow the called proc. |
+| EXEC with return | `EXEC @rc = dbo.usp_Load` | Usually deterministic via enrichment; if reached here, follow the called proc. |
 | EXEC cross-database | `EXEC OtherDB.dbo.usp_Load` | **Flag as error** — 3-part name is out of scope for this migration |
 | EXEC linked server | `EXEC [Server].db.dbo.usp_Load` | **Flag as error** — 4-part name (linked server) is out of scope |
-| sp_executesql (literal) | `EXEC sp_executesql N'INSERT INTO dbo.T ...'` | SQL is visible in the string literal — classify the embedded DML directly |
+| sp_executesql (literal) | `EXEC sp_executesql N'INSERT INTO dbo.T ...'` | Often resolvable without Claude. If this skill sees one, classify the embedded literal DML directly. |
 | sp_executesql (variable) | `EXEC sp_executesql @sql` | Read variable assignments to find the SQL string and classify the embedded DML |
 | EXEC (dynamic) | `EXEC (@sql)` / `EXEC ('INSERT INTO ' + @table)` | Read variable assignments to find the SQL string and classify the embedded DML |
 
@@ -42,7 +42,7 @@ When `discover show` returns `statements: null` (claude_assisted procs), read `r
 
 ## Reading control flow
 
-When the proc has IF/ELSE, TRY/CATCH, or WHILE:
+If a proc reaches this skill with unresolved control flow:
 
 1. **Trace all branches** — DML may appear in both the IF and ELSE paths, or inside TRY only
 2. **Classify each DML statement** in every branch using the tables above
