@@ -132,6 +132,24 @@ class TestExecuteScenario:
     def _unique_run_id(self) -> str:
         return uuid.uuid4().hex[:12]
 
+    def _create_temp_proc(self, backend: SqlServerSandbox, proc_name: str, body: str) -> None:
+        with backend._connect(database=backend.database) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"""
+                CREATE OR ALTER PROCEDURE [silver].[{proc_name}]
+                AS
+                BEGIN
+                    {body}
+                END
+                """
+            )
+
+    def _drop_temp_proc(self, backend: SqlServerSandbox, proc_name: str) -> None:
+        with backend._connect(database=backend.database) as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"DROP PROCEDURE IF EXISTS [silver].[{proc_name}]")
+
     def test_execute_inserts_and_captures_ground_truth(self) -> None:
         backend = _make_backend()
         run_id = self._unique_run_id()
@@ -229,3 +247,71 @@ class TestExecuteScenario:
             assert result["row_count"] >= 0
         finally:
             backend.sandbox_down(run_id=run_id)
+
+    def test_execute_cross_database_exec_returns_clear_error(self) -> None:
+        backend = _make_backend()
+        run_id = self._unique_run_id()
+        proc_name = f"usp_remote_cross_db_{self._unique_run_id()}"
+
+        self._create_temp_proc(backend, proc_name, "EXEC OtherDB.dbo.usp_Load;")
+
+        try:
+            up_result = backend.sandbox_up(run_id=run_id, schemas=["silver"])
+            assert up_result["status"] in ("ok", "partial")
+
+            result = backend.execute_scenario(
+                run_id=run_id,
+                scenario={
+                    "name": "test_cross_database_exec",
+                    "target_table": "[silver].[DimCurrency]",
+                    "procedure": f"[silver].[{proc_name}]",
+                    "given": [],
+                },
+            )
+
+            assert result["status"] == "error"
+            assert result["errors"] == [{
+                "code": "REMOTE_EXEC_UNSUPPORTED",
+                "message": (
+                    "Sandbox cannot execute cross-database procedure call "
+                    f"OtherDB.dbo.usp_Load from [silver].[{proc_name}]. "
+                    "The sandbox only clones objects from the source database."
+                ),
+            }]
+        finally:
+            backend.sandbox_down(run_id=run_id)
+            self._drop_temp_proc(backend, proc_name)
+
+    def test_execute_linked_server_exec_returns_clear_error(self) -> None:
+        backend = _make_backend()
+        run_id = self._unique_run_id()
+        proc_name = f"usp_remote_linked_server_{self._unique_run_id()}"
+
+        self._create_temp_proc(backend, proc_name, "EXEC [LinkedServer].db.dbo.usp_Load;")
+
+        try:
+            up_result = backend.sandbox_up(run_id=run_id, schemas=["silver"])
+            assert up_result["status"] in ("ok", "partial")
+
+            result = backend.execute_scenario(
+                run_id=run_id,
+                scenario={
+                    "name": "test_linked_server_exec",
+                    "target_table": "[silver].[DimCurrency]",
+                    "procedure": f"[silver].[{proc_name}]",
+                    "given": [],
+                },
+            )
+
+            assert result["status"] == "error"
+            assert result["errors"] == [{
+                "code": "REMOTE_EXEC_UNSUPPORTED",
+                "message": (
+                    "Sandbox cannot execute linked-server procedure call "
+                    f"[LinkedServer].db.dbo.usp_Load from [silver].[{proc_name}]. "
+                    "The sandbox only clones objects from the source database."
+                ),
+            }]
+        finally:
+            backend.sandbox_down(run_id=run_id)
+            self._drop_temp_proc(backend, proc_name)

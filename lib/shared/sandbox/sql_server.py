@@ -19,6 +19,16 @@ _RUN_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 _IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_ ]*$")
 # Bracket-quoted identifiers may additionally contain hyphens
 _BRACKETED_IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_ -]*$")
+_REMOTE_EXEC_RE = re.compile(
+    r"\bEXEC(?:UTE)?\s+"
+    r"(?:@\w+\s*=\s*)?"
+    r"(?!sp_executesql\b)(?![@(])"
+    r"(?P<target>"
+    r"(?:\[[^\]]+\]|[a-zA-Z_][a-zA-Z0-9_ ]*)"
+    r"(?:\.(?:\[[^\]]+\]|[a-zA-Z_][a-zA-Z0-9_ ]*)){2,3}"
+    r")",
+    re.IGNORECASE,
+)
 
 
 def _validate_run_id(run_id: str) -> None:
@@ -67,6 +77,41 @@ def _validate_sandbox_db_name(sandbox_db: str) -> None:
     """
     if not re.match(r"^__test_[a-zA-Z0-9_]{1,128}$", sandbox_db):
         raise ValueError(f"Invalid sandbox database name: {sandbox_db!r}")
+
+
+def _split_identifier_parts(identifier: str) -> list[str]:
+    parts: list[str] = []
+    current: list[str] = []
+    in_brackets = False
+
+    for char in identifier:
+        if char == "[":
+            in_brackets = True
+        elif char == "]":
+            in_brackets = False
+        elif char == "." and not in_brackets:
+            part = "".join(current).strip()
+            if part:
+                parts.append(part.strip("[]"))
+            current = []
+            continue
+        current.append(char)
+
+    part = "".join(current).strip()
+    if part:
+        parts.append(part.strip("[]"))
+    return parts
+
+
+def _detect_remote_exec_target(definition: str) -> dict[str, str] | None:
+    for match in _REMOTE_EXEC_RE.finditer(definition):
+        target = match.group("target")
+        part_count = len(_split_identifier_parts(target))
+        if part_count == 3:
+            return {"kind": "cross-database", "target": target}
+        if part_count == 4:
+            return {"kind": "linked-server", "target": target}
+    return None
 
 
 class SqlServerSandbox(SandboxBackend):
@@ -419,6 +464,38 @@ class SqlServerSandbox(SandboxBackend):
                 cursor = conn.cursor()
 
                 try:
+                    cursor.execute("SELECT OBJECT_DEFINITION(OBJECT_ID(?))", procedure)
+                    proc_definition_row = cursor.fetchone()
+                    proc_definition = proc_definition_row[0] if proc_definition_row else None
+                    remote_exec = (
+                        _detect_remote_exec_target(proc_definition)
+                        if proc_definition else None
+                    )
+                    if remote_exec:
+                        target = remote_exec["target"]
+                        kind = remote_exec["kind"]
+                        logger.error(
+                            "event=scenario_remote_exec_unsupported run_id=%s scenario=%s "
+                            "procedure=%s target=%s kind=%s",
+                            run_id, scenario_name, procedure, target, kind,
+                        )
+                        return {
+                            "schema_version": "1.0",
+                            "run_id": run_id,
+                            "scenario_name": scenario_name,
+                            "status": "error",
+                            "ground_truth_rows": [],
+                            "row_count": 0,
+                            "errors": [{
+                                "code": "REMOTE_EXEC_UNSUPPORTED",
+                                "message": (
+                                    f"Sandbox cannot execute {kind} procedure call "
+                                    f"{target} from {procedure}. The sandbox only clones "
+                                    "objects from the source database."
+                                ),
+                            }],
+                        }
+
                     for fixture in given:
                         table = fixture["table"]
                         rows = fixture.get("rows", [])

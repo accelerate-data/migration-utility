@@ -14,7 +14,12 @@ import pytest
 
 from shared.sandbox import get_backend
 from shared.sandbox.base import SandboxBackend
-from shared.sandbox.sql_server import SqlServerSandbox, _validate_identifier, _validate_run_id
+from shared.sandbox.sql_server import (
+    SqlServerSandbox,
+    _detect_remote_exec_target,
+    _validate_identifier,
+    _validate_run_id,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures" / "test_harness"
 
@@ -276,11 +281,81 @@ class TestSqlServerSandboxDown:
 
 
 class TestSqlServerExecuteScenario:
+    def test_detect_remote_exec_target_cross_database(self) -> None:
+        definition = """
+        CREATE PROCEDURE [silver].[usp_load_dimproduct]
+        AS
+        BEGIN
+            EXEC OtherDB.dbo.usp_load;
+        END
+        """
+
+        assert _detect_remote_exec_target(definition) == {
+            "kind": "cross-database",
+            "target": "OtherDB.dbo.usp_load",
+        }
+
+    def test_detect_remote_exec_target_linked_server(self) -> None:
+        definition = """
+        CREATE PROCEDURE [silver].[usp_load_dimproduct]
+        AS
+        BEGIN
+            EXEC [LinkedServer].db.dbo.usp_load;
+        END
+        """
+
+        assert _detect_remote_exec_target(definition) == {
+            "kind": "linked-server",
+            "target": "[LinkedServer].db.dbo.usp_load",
+        }
+
+    def test_execute_remote_exec_returns_clear_error(self) -> None:
+        backend = _make_backend()
+        sandbox_cursor = MagicMock()
+        sandbox_cursor.fetchone.return_value = (
+            """
+            CREATE PROCEDURE [silver].[usp_load_dimproduct]
+            AS
+            BEGIN
+                EXEC OtherDB.dbo.usp_load;
+            END
+            """,
+        )
+
+        fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+
+        scenario = {
+            "name": "test_remote_exec",
+            "target_table": "[silver].[DimProduct]",
+            "procedure": "[silver].[usp_load_dimproduct]",
+            "given": [],
+        }
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+
+        assert result["status"] == "error"
+        assert result["errors"] == [{
+            "code": "REMOTE_EXEC_UNSUPPORTED",
+            "message": (
+                "Sandbox cannot execute cross-database procedure call "
+                "OtherDB.dbo.usp_load from [silver].[usp_load_dimproduct]. "
+                "The sandbox only clones objects from the source database."
+            ),
+        }]
+        sandbox_cursor.execute.assert_called_once_with(
+            "SELECT OBJECT_DEFINITION(OBJECT_ID(?))",
+            "[silver].[usp_load_dimproduct]",
+        )
+
     def test_execute_captures_ground_truth(self) -> None:
         backend = _make_backend()
         sandbox_cursor = MagicMock()
         sandbox_cursor.description = [("id",), ("name",)]
         sandbox_cursor.fetchall.return_value = [(1, "Widget")]
+        sandbox_cursor.fetchone.return_value = (
+            "CREATE PROCEDURE [dbo].[usp_load_dimproduct] AS BEGIN SELECT 1 END",
+        )
 
         fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
 
