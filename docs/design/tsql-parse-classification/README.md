@@ -1,35 +1,40 @@
 # T-SQL Parse Classification
 
-Exhaustive classification of T-SQL patterns encountered in stored procedure migration. Each pattern is routed to either the deterministic sqlglot path or the Claude-assisted path.
+Exhaustive classification of T-SQL patterns encountered in stored procedure migration. Each pattern is routed to the deterministic sqlglot path, the enrichment path, or the Claude-assisted path.
 
 ## Architecture
+
+Classification is driven by catalog routing flags set at setup-ddl time, not by AST node types at query time.
 
 ```text
 Stored Procedure DDL
         │
         ▼
-  parse_body_statements()
+  scan_routing_flags(definition)          ← catalog.py, runs during setup-ddl
         │
         ▼
-  Single sqlglot.parse() call
+  catalog/procedures/<proc>.json          ← persisted flags: needs_llm, needs_enrich
         │
-        ├── All statements are real AST nodes → classification: "deterministic"
-        │     extract_refs() populates writes_to / reads_from
+        ├── needs_llm = False → discover show: "deterministic"
+        │     extract_refs() may still parse body for statement breakdown
         │
-        └── Any Command or If nodes found → classification: "claude_assisted"
-              needs_llm = True; raw_ddl preserved for Claude to analyse
+        └── needs_llm = True  → discover show: "claude_assisted"
+              statements = null; raw_ddl preserved for Claude
 ```
+
+Procs with `needs_enrich = True` (but `needs_llm = False`) are deterministic — `catalog_enrich.py` resolves their references post-parse via BFS call graph traversal.
 
 ## Decision Rule
 
-After body parsing, check the statement list:
+`scan_routing_flags()` in `catalog.py` applies two regexes to the procedure definition text:
 
-- **No `Command` or `If` nodes** → deterministic. `extract_refs` handles everything.
-- **Any `exp.Command` or `exp.If` nodes** → Claude-assisted. The proc contains dynamic SQL, procedure calls, or control flow that sqlglot cannot fully parse. `raw_ddl` is passed to Claude for analysis.
+- **`_NEEDS_LLM_RE`** matches: `EXEC(@sql)` (dynamic execution), `BEGIN TRY`, `WHILE`, `IF` → sets `needs_llm = True` → classification: `claude_assisted`
+- **`_NEEDS_ENRICH_RE`** matches: static `EXEC dbo.proc` (excludes `sp_executesql` and dynamic `EXEC(@var)`), `SELECT INTO`, `TRUNCATE` → sets `needs_enrich = True` → classification: `deterministic` (enriched by `catalog_enrich.py`)
+- **Neither flag** → pure sqlglot deterministic path. `extract_refs` handles everything.
 
-The `discover show` command signals this via the `classification` field:
+`discover show` maps these flags to the `classification` field:
 
-- `classification: "deterministic"` + populated `statements` → fully parsed
+- `classification: "deterministic"` + populated `statements` → fully parsed (with or without enrichment)
 - `classification: "claude_assisted"` → needs LLM reasoning from raw DDL
 
 Note: `parse_error` is a separate orthogonal field that records whether the `CREATE PROCEDURE` block itself failed to parse at DDL load time.
@@ -100,38 +105,60 @@ These statements are parsed by sqlglot but classified as `skip` — they don't p
 | RAISERROR | `RAISERROR('Error', 16, 1)` | Error handling |
 | THROW | `THROW 50001, 'msg', 1` | Error handling (modern syntax) |
 | BEGIN/COMMIT/ROLLBACK | `BEGIN TRAN ... COMMIT` | Transaction control — dbt manages transactions |
-| IF EXISTS (check only) | `IF EXISTS (SELECT 1 FROM dbo.T)` | Condition check, not a data read for the model |
 | DROP/CREATE INDEX | `DROP INDEX ix_1 ON silver.T; CREATE INDEX ...` | Index management — `classify_statement` returns `skip` for both `exp.Drop` and `exp.Create` (kind=INDEX) |
 
-### Claude-assisted — control flow and EXEC (patterns 45-60)
+Note: `IF EXISTS (SELECT 1 FROM dbo.T)` is **not** skip-only. The `\bIF\b` pattern in `_NEEDS_LLM_RE` matches all `IF` statements including `IF EXISTS`, so procs containing `IF EXISTS` are classified `claude_assisted`. See control flow patterns 45-48 below.
 
-These patterns produce `Command` or `If` nodes that cannot be fully resolved statically. The proc's `raw_ddl` is passed to Claude for analysis.
+### Enrichment-resolved — deterministic after `catalog_enrich.py` (patterns 49-57)
 
-**Control flow patterns (45-48):** sqlglot parses `IF`, `TRY/CATCH`, and `WHILE` blocks into `Command` or `If` AST nodes. DML nested inside these blocks is not reliably extracted. The proc is flagged `needs_llm = True` and Claude reads the raw DDL.
+These patterns produce `Command` nodes in sqlglot but set `needs_enrich = True` (not `needs_llm`), so they remain **deterministic** in `discover show`. After setup-ddl, `catalog_enrich.py` resolves their references via BFS call graph traversal and materializes indirect write targets into catalog files.
 
-| # | Pattern | Example | Why Claude | Test fixture |
+**Static EXEC patterns (49-54):** `_NEEDS_ENRICH_RE` matches static procedure calls. The call target is known at parse time — enrichment follows the graph.
+
+| # | Pattern | Example | Resolution | Test fixture |
 |---|---|---|---|---|
-| 45 | IF/ELSE BEGIN END | Control flow wrapping DML | `exp.If` node — DML inside branches not reliably extracted | `usp_ConditionalMerge` |
-| 46 | BEGIN TRY/CATCH | Error handling wrapping DML | `exp.Command` node — DML inside not extracted | `usp_TryCatchLoad` |
-| 47 | WHILE BEGIN END | Loop wrapping DML | `exp.Command` node — DML inside not extracted | `usp_WhileLoop` |
-| 48 | Nested control flow | IF inside WHILE inside TRY/CATCH | Multiple Command/If nodes — DML inside not extracted | `usp_NestedControlFlow` |
-
-**EXEC/dynamic SQL patterns (49-60):** These produce `Command` nodes for procedure calls or dynamic SQL that cannot be resolved statically.
-
-| # | Pattern | Example | Why Claude | Test fixture |
-|---|---|---|---|---|
-| 49 | EXEC proc | `EXEC dbo.usp_Load` | Call target is another proc — need to follow the graph | `usp_ExecSimple` |
+| 49 | EXEC proc | `EXEC dbo.usp_Load` | `catalog_enrich.py` BFS call graph | `usp_ExecSimple` |
 | 50 | EXEC bracketed | `EXEC [silver].[usp_Load]` | Same — bracket notation | `usp_ExecBracketed` |
-| 51 | EXEC with params | `EXEC dbo.usp_Load @Mode = 1` | Call target with parameters | `usp_ExecWithParams` |
-| 52 | EXEC with OUTPUT | `EXEC dbo.usp_Load @Result OUTPUT` | Call target with output param | (covered by `usp_ExecWithParams`) |
+| 51 | EXEC with params | `EXEC dbo.usp_Load @Mode = 1` | Same — params don't affect target | `usp_ExecWithParams` |
+| 52 | EXEC with OUTPUT | `EXEC dbo.usp_Load @Result OUTPUT` | Same — output param | (covered by `usp_ExecWithParams`) |
 | 53 | EXECUTE keyword | `EXECUTE dbo.usp_Load` | Same as EXEC | (covered by `usp_ExecSimple`) |
-| 54 | EXEC with return value | `EXEC @rc = dbo.usp_Load` | Return variable prefix | `usp_ExecWithReturn` |
+| 54 | EXEC with return value | `EXEC @rc = dbo.usp_Load` | Same — return variable prefix | `usp_ExecWithReturn` |
+
+**sp_executesql with static SQL (57):** `sp_executesql` is excluded from both `_NEEDS_LLM_RE` and `_NEEDS_ENRICH_RE` by negative lookahead. DMF resolves the embedded SQL.
+
+| # | Pattern | Example | Resolution | Test fixture |
+|---|---|---|---|---|
+| 57 | sp_executesql static | `EXEC sp_executesql N'INSERT INTO dbo.T ...'` | DMF resolves embedded SQL | `usp_ExecSpExecutesql` |
+
+### Claude-assisted — control flow and dynamic SQL (patterns 45-48, 55-56, 58-60)
+
+These patterns set `needs_llm = True` via `_NEEDS_LLM_RE` or are out of scope. The proc's `raw_ddl` is passed to Claude for analysis.
+
+**Control flow patterns (45-48):** `_NEEDS_LLM_RE` matches `IF`, `BEGIN TRY`, and `WHILE`. DML nested inside these blocks is not reliably extracted by sqlglot.
+
+| # | Pattern | Example | Why Claude | Test fixture |
+|---|---|---|---|---|
+| 45 | IF/ELSE BEGIN END | Control flow wrapping DML | `\bIF\b` → `needs_llm` — DML inside branches not reliably extracted | `usp_ConditionalMerge` |
+| 46 | BEGIN TRY/CATCH | Error handling wrapping DML | `\bBEGIN\s+TRY\b` → `needs_llm` — DML inside not extracted | `usp_TryCatchLoad` |
+| 47 | WHILE BEGIN END | Loop wrapping DML | `\bWHILE\b` → `needs_llm` — DML inside not extracted | `usp_WhileLoop` |
+| 48 | Nested control flow | IF inside WHILE inside TRY/CATCH | Multiple `needs_llm` matches — DML inside not extracted | `usp_NestedControlFlow` |
+
+Note: `IF EXISTS (SELECT 1 FROM ...)` also matches `\bIF\b` and sets `needs_llm = True`. The regex does not distinguish simple condition checks from control flow branches that wrap DML.
+
+**Cross-database/linked server EXEC (55-56):** Out of scope — flagged as errors.
+
+| # | Pattern | Example | Why Claude | Test fixture |
+|---|---|---|---|---|
 | 55 | EXEC cross-database | `EXEC OtherDB.dbo.usp_Load` | 3-part name, out of scope | (flagged as cross-DB error) |
 | 56 | EXEC linked server | `EXEC [Server].db.dbo.usp_Load` | 4-part name, out of scope | (flagged as cross-DB error) |
-| 57 | sp_executesql static | `EXEC sp_executesql N'INSERT INTO dbo.T ...'` | SQL in string literal | `usp_ExecSpExecutesql` |
-| 58 | sp_executesql dynamic | `EXEC sp_executesql @sql` | Variable SQL | `usp_ExecSpExecutesql` |
-| 59 | EXEC variable SQL | `EXEC (@sql)` | Runtime string | `usp_ExecDynamic` |
-| 60 | EXEC concat | `EXEC ('INSERT INTO ' + @table)` | Runtime string building | (covered by `usp_ExecDynamic`) |
+
+**Dynamic SQL patterns (58-60):** Runtime-constructed SQL that cannot be resolved statically.
+
+| # | Pattern | Example | Why Claude | Test fixture |
+|---|---|---|---|---|
+| 58 | sp_executesql dynamic | `EXEC sp_executesql @sql` | Variable SQL — cannot resolve statically | `usp_ExecSpExecutesql` |
+| 59 | EXEC variable SQL | `EXEC (@sql)` | `\bEXEC\s*\(` → `needs_llm` — runtime string | `usp_ExecDynamic` |
+| 60 | EXEC concat | `EXEC ('INSERT INTO ' + @table)` | Same — runtime string building | (covered by `usp_ExecDynamic`) |
 
 ## TRUNCATE Split Behavior
 
@@ -143,6 +170,7 @@ When a proc is `claude_assisted`, Claude reads `raw_ddl` and classifies each sta
 
 ## Known Limitations
 
-- **EXEC call graph**: sqlglot produces `Command` nodes for all EXEC variants. The `calls` field in `ObjectRefs` is always empty at the AST layer. However, `catalog_enrich.py` extracts EXEC-based call edges via `_extract_calls()` and materializes indirect write targets into catalog files. The enrichment path compensates for this limitation post-parse.
-- **Dynamic SQL**: `EXEC (@sql)` and `sp_executesql @var` cannot be resolved statically. Only Claude can reason about what SQL might be constructed at runtime.
-- **IF condition tables**: Tables referenced only in `IF EXISTS (SELECT ... FROM table)` conditions are not captured in `reads_from`. These are condition checks, not data reads for the model.
+- **EXEC call graph**: sqlglot produces `Command` nodes for all EXEC variants. The `calls` field in `ObjectRefs` is always empty at the AST layer. However, `catalog_enrich.py` extracts EXEC-based call edges via `_extract_calls()` and materializes indirect write targets into catalog files. The enrichment path compensates for this limitation post-parse (see patterns 49-54).
+- **Dynamic SQL**: `EXEC (@sql)` and `sp_executesql @var` cannot be resolved statically. Only Claude can reason about what SQL might be constructed at runtime (see patterns 58-60).
+- **sp_executesql @var routing gap**: `sp_executesql` is excluded from both `_NEEDS_LLM_RE` and `_NEEDS_ENRICH_RE`, so `EXEC sp_executesql @sql` (pattern 58) sets neither flag. The SQL is genuinely dynamic, but the proc will be classified `deterministic`. This case requires manual review or a future regex refinement.
+- **IF condition tables**: Tables referenced only in `IF EXISTS (SELECT ... FROM table)` conditions are not captured in `reads_from`. These are condition checks, not data reads for the model. However, the proc is still classified `claude_assisted` because `\bIF\b` matches `_NEEDS_LLM_RE`.
