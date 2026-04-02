@@ -23,6 +23,7 @@ Use `docs/design/` for architecture and implementation design details.
 - [Skill Contract](skill-contract/README.md) — per-table processing rules for each pipeline stage (scoping, profiler, test-generator, test-reviewer, model-generator, code-reviewer)
 - [Setup DDL](setup-ddl/README.md) — step-by-step logic for DDL extraction, catalog signal queries, DMF reference extraction, and AST enrichment
 - [T-SQL Parse Classification](tsql-parse-classification/README.md) — exhaustive pattern list, deterministic (sqlglot) vs Claude-assisted routing
+- [Coverage Matrix](coverage-matrix/README.md) — audit of current statement and phase coverage against the design docs and automated tests
 - [T-SQL Routing Fallback](tsql-routing-fallback/README.md) — staged routing, recursive control-flow segmentation, and narrower Claude escalation
 - [CLI Design](cli-design/README.md) — framework choice, registered commands, I/O contract, exit codes, and testability pattern
 - [Eval Harness](eval-harness/README.md) — Promptfoo-based non-interactive testing for agents and skills against the MigrationTest schema
