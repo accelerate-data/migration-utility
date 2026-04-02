@@ -9,7 +9,7 @@ providers:
     config:
       model: claude-sonnet-4-6
       working_dir: ../..
-      max_turns: 30
+      max_turns: 60
       permission_mode: bypassPermissions
       allow_dangerously_skip_permissions: true
       append_allowed_tools:
@@ -27,8 +27,67 @@ defaultTest:
       value: file://../../assertions/check-dbt-model.js
 
 tests:
-  # ── simple INSERT → table materialization ─────────────────────
-  - description: "simple-insert-table — DimProduct MERGE → dbt model"
+  # ── insert-select ─────────────────────────────────────────────
+  - description: "insert-select — simple INSERT...SELECT becomes dbt select"
     vars:
-      target_table: "silver.DimProduct"
-      writer: "silver.usp_load_DimProduct"
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_model_terms: "materialized='table',source(,select"
+
+  # ── update with join ──────────────────────────────────────────
+  - description: "update-join — UPDATE join produces valid rewritten model"
+    vars:
+      target_table: "silver.UpdateJoinTarget"
+      writer: "silver.usp_load_UpdateJoinTarget"
+      expected_model_terms: "current_timestamp,source("
+
+  # ── delete with where ─────────────────────────────────────────
+  - description: "delete-where — DELETE with WHERE becomes keep-rows select"
+    vars:
+      target_table: "silver.DeleteWhereTarget"
+      writer: "silver.usp_load_DeleteWhereTarget"
+      expected_model_terms: "materialized='table',where"
+      forbidden_model_terms: "delete from"
+
+  # ── select into ───────────────────────────────────────────────
+  - description: "select-into — SELECT INTO recognized as staging table model"
+    vars:
+      target_table: "silver.SelectIntoTarget"
+      writer: "silver.usp_load_SelectIntoTarget"
+      expected_model_terms: "materialized='table',with,final as"
+      forbidden_model_terms: "select into"
+
+  # ── single cte ────────────────────────────────────────────────
+  - description: "single-cte — CTE restructured into import/logical/final"
+    vars:
+      target_table: "silver.SingleCteTarget"
+      writer: "silver.usp_load_SingleCteTarget"
+      expected_model_terms: "with,final as"
+
+  # ── correlated subquery ───────────────────────────────────────
+  - description: "correlated-subquery — correlated subquery preserved as valid dbt logic"
+    vars:
+      target_table: "silver.CorrelatedSubqueryTarget"
+      writer: "silver.usp_load_CorrelatedSubqueryTarget"
+      expected_model_terms: "with,select"
+
+  # ── union all ─────────────────────────────────────────────────
+  - description: "union-all — UNION ALL preserved in generated sql"
+    vars:
+      target_table: "silver.UnionAllTarget"
+      writer: "silver.usp_load_UnionAllTarget"
+      expected_model_terms: "union all"
+
+  # ── grouping sets ─────────────────────────────────────────────
+  - description: "grouping-sets — GROUPING SETS preserved when supported by generated sql"
+    vars:
+      target_table: "silver.GroupingSetsTarget"
+      writer: "silver.usp_load_GroupingSetsTarget"
+      expected_model_terms: "grouping sets"
+
+  # ── pivot ─────────────────────────────────────────────────────
+  - description: "pivot — PIVOT translated to conditional aggregation"
+    vars:
+      target_table: "silver.PivotTarget"
+      writer: "silver.usp_load_PivotTarget"
+      expected_model_terms: "case when"

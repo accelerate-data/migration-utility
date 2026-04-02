@@ -1,12 +1,30 @@
 // Validates that dbt model artifacts were written.
 // Usage: type: javascript, value: file://../../assertions/check-dbt-model.js
-// Expects context.vars: { fixture_path, target_table }
+// Expects context.vars:
+// {
+//   fixture_path,
+//   target_table,
+//   expected_model_terms?,
+//   forbidden_model_terms?,
+//   expected_output_terms?
+// }
 const fs = require('fs');
 const path = require('path');
+
+function normalizeTerms(value) {
+  if (!value) return [];
+  return String(value)
+    .split(',')
+    .map((term) => term.trim().toLowerCase())
+    .filter(Boolean);
+}
 
 module.exports = (output, context) => {
   const fixturePath = context.vars.fixture_path;
   const table = context.vars.target_table;
+  const expectedModelTerms = normalizeTerms(context.vars.expected_model_terms);
+  const forbiddenModelTerms = normalizeTerms(context.vars.forbidden_model_terms);
+  const expectedOutputTerms = normalizeTerms(context.vars.expected_output_terms);
 
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
   const dbtDir = path.resolve(repoRoot, fixturePath, 'dbt');
@@ -51,6 +69,28 @@ module.exports = (output, context) => {
   const modelContent = fs.readFileSync(matchingFiles[0], 'utf8');
   if (!modelContent.includes('config(')) {
     return { pass: false, score: 0, reason: `Model file ${matchingFiles[0]} missing config() block` };
+  }
+
+  const normalizedModel = modelContent.toLowerCase();
+  for (const term of expectedModelTerms) {
+    if (!normalizedModel.includes(term)) {
+      return { pass: false, score: 0, reason: `Expected model term '${term}' not found in ${path.basename(matchingFiles[0])}` };
+    }
+  }
+
+  for (const term of forbiddenModelTerms) {
+    if (normalizedModel.includes(term)) {
+      return { pass: false, score: 0, reason: `Forbidden model term '${term}' found in ${path.basename(matchingFiles[0])}` };
+    }
+  }
+
+  if (expectedOutputTerms.length > 0) {
+    const outputStr = String(output || '').toLowerCase();
+    for (const term of expectedOutputTerms) {
+      if (!outputStr.includes(term)) {
+        return { pass: false, score: 0, reason: `Expected output term '${term}' not found in final response` };
+      }
+    }
   }
 
   return { pass: true, score: 1, reason: `dbt model written: ${path.basename(matchingFiles[0])}` };

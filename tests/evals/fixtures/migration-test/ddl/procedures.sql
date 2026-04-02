@@ -1,5 +1,22 @@
 
 -- ============================================================
+-- SCENARIO: cross-db exec — writer delegates to another database
+-- usp_load_DimCrossDbProfile only EXECs a cross-database
+-- procedure, so the profiler cannot inspect the write pattern.
+-- Profile status stays partial because the proc body is opaque.
+-- ============================================================
+CREATE   PROCEDURE silver.usp_load_DimCrossDbProfile
+AS
+BEGIN
+    SET NOCOUNT ON;
+    -- All write logic is in a cross-database procedure; body is opaque
+    EXEC [ArchiveDB].[silver].[usp_stage_DimCrossDbProfile];
+END;
+
+GO
+
+
+-- ============================================================
 -- SCENARIO: partial (dynamic SQL only — no static write visible)
 -- ============================================================
 CREATE   PROCEDURE silver.usp_load_DimCurrency
@@ -267,3 +284,43 @@ END;
 
 GO
 
+
+
+-- ============================================================
+-- SCENARIO: exec-call-chain — load proc delegates to stage proc
+-- ============================================================
+CREATE PROCEDURE [silver].[usp_load_FactExecProfile]
+AS
+BEGIN
+    SET NOCOUNT ON;
+    EXEC silver.usp_stage_FactExecProfile;
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: exec-call-chain — stage proc performs the actual INSERT
+-- ============================================================
+CREATE PROCEDURE [silver].[usp_stage_FactExecProfile]
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO silver.FactExecProfile (
+        ProcedureKey,
+        ExecutionDate,
+        DurationMs,
+        RowsAffected,
+        StatusCode
+    )
+    SELECT
+        p.ProcedureKey,
+        e.ExecutionDate,
+        e.DurationMs,
+        e.RowsAffected,
+        e.StatusCode
+    FROM bronze.ExecLog e
+    JOIN silver.DimProcedure p ON e.ProcedureName = p.ProcedureName;
+END;
+
+GO

@@ -165,6 +165,7 @@ def scan_routing_flags(definition: str) -> dict[str, bool]:
     ``{"needs_llm", "needs_enrich", "mode", "routing_reasons"}``.
     """
     masked = mask_tsql(definition)
+    masked_for_exec = mask_tsql(definition, mask_bracketed_identifiers=False)
     reasons: list[str] = []
 
     for pattern, reason in _CONTROL_FLOW_REASONS:
@@ -174,7 +175,7 @@ def scan_routing_flags(definition: str) -> dict[str, bool]:
     has_dynamic_exec = bool(_DYNAMIC_EXEC_RE.search(masked))
     has_sp_executesql_literal = bool(_SP_EXECUTESQL_LITERAL_RE.search(masked))
     has_sp_executesql_variable = bool(_SP_EXECUTESQL_VARIABLE_RE.search(masked))
-    has_static_exec = bool(_STATIC_EXEC_RE.search(masked))
+    has_static_exec = bool(_STATIC_EXEC_RE.search(masked_for_exec))
     has_select_into = bool(_SELECT_INTO_RE.search(masked))
     has_truncate = bool(_TRUNCATE_RE.search(masked))
 

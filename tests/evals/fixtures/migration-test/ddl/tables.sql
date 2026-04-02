@@ -159,6 +159,17 @@ CREATE TABLE [bronze].[StateProvince] (
 );
 GO
  
+CREATE TABLE [silver].[DimCrossDbProfile] (
+    [CrossDbProfileKey] int IDENTITY(1,1) NOT NULL,
+    [ProfileCode] nvarchar(20) NOT NULL,
+    [ProfileName] nvarchar(100) NOT NULL,
+    [ProfileCategory] nvarchar(50) NULL,
+    [ActiveFlag] bit NOT NULL,
+    [LoadedAt] datetime NULL
+    ,CONSTRAINT [PK_DimCrossDbProfile] PRIMARY KEY ([CrossDbProfileKey])
+);
+GO
+
 CREATE TABLE [silver].[DimCurrency] (
     [CurrencyKey] int IDENTITY(1,1) NOT NULL,
     [CurrencyAlternateKey] nchar(3) NOT NULL,
@@ -269,3 +280,14 @@ CREATE TABLE [silver].[FactInternetSales] (
 );
 GO
  
+
+CREATE TABLE [silver].[FactExecProfile] (
+    [ExecProfileKey] int IDENTITY(1,1) NOT NULL,
+    [ProcedureKey] int NOT NULL,
+    [ExecutionDate] datetime NOT NULL,
+    [DurationMs] bigint NOT NULL,
+    [RowsAffected] int NOT NULL,
+    [StatusCode] tinyint NOT NULL
+    ,CONSTRAINT [PK_FactExecProfile] PRIMARY KEY ([ExecProfileKey])
+);
+GO

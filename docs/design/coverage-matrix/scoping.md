@@ -53,16 +53,16 @@ Current automated statement coverage for the scoping phase. The phase boundary h
 | 52 | `EXEC proc` with `OUTPUT` | Gap | N/A | N/A |
 | 53 | `EXECUTE proc` keyword form | Yes | N/A | N/A |
 | 54 | `EXEC @rc = proc` | Gap | N/A | N/A |
-| 57 | Static `sp_executesql` | Gap | N/A | N/A |
+| 57 | Static `sp_executesql` | Yes | N/A | N/A |
 | 45 | `IF / ELSE` control flow | Yes | N/A | N/A |
 | 46 | `TRY / CATCH` | Yes | N/A | N/A |
 | 47 | `WHILE` loop | Yes | N/A | N/A |
 | 48 | Nested control flow | Yes | N/A | N/A |
 | 55 | Cross-database `EXEC` | Gap | N/A | Yes |
-| 56 | Linked-server `EXEC` | Gap | N/A | N/A |
+| 56 | Linked-server `EXEC` | Yes | N/A | Yes |
 | 58 | Dynamic `sp_executesql` | Yes | N/A | Yes |
-| 59 | `EXEC (@sql)` | Yes | N/A | N/A |
-| 60 | `EXEC ('...' + @var)` | Gap | N/A | N/A |
+| 59 | `EXEC (@sql)` | Yes | N/A | Yes |
+| 60 | `EXEC ('...' + @var)` | Yes | N/A | Yes |
 | S1 | `SET` | Gap | N/A | N/A |
 | S2 | `DECLARE` | Gap | N/A | N/A |
 | S3 | `RETURN` | Gap | N/A | N/A |
@@ -70,4 +70,4 @@ Current automated statement coverage for the scoping phase. The phase boundary h
 | S5 | `RAISERROR` | Gap | N/A | N/A |
 | S6 | `THROW` | Gap | N/A | N/A |
 | S7 | `BEGIN / COMMIT / ROLLBACK` | Gap | N/A | N/A |
-| S8 | `DROP / CREATE INDEX` | Gap | N/A | N/A |
+| S8 | `DROP / CREATE INDEX` | Yes | N/A | N/A |

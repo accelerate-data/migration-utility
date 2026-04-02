@@ -163,8 +163,8 @@ def test_get_dependencies_ast_excludes_comment_only(ddl_dir: Path) -> None:
     assert "silver.usp_comment_only" not in matches
 
 
-def test_get_dependencies_exec_procs_need_llm(ddl_dir: Path) -> None:
-    """Procedures with EXEC return needs_llm=True instead of raising."""
+def test_get_dependencies_exec_procs_need_enrich(ddl_dir: Path) -> None:
+    """Static EXEC procs route to call-graph enrichment instead of raising."""
     catalog = load_directory(ddl_dir)
     from shared.loader import extract_refs
     from shared.name_resolver import normalize
@@ -173,7 +173,7 @@ def test_get_dependencies_exec_procs_need_llm(ddl_dir: Path) -> None:
     entry = catalog.procedures.get(exec_proc)
     assert entry is not None
     refs = extract_refs(entry)
-    assert refs.needs_llm is True
+    assert refs.needs_llm is False
 
 
 # ── get_table_schema — structured JSON ───────────────────────────────────────

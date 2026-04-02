@@ -391,6 +391,22 @@ def test_scan_routing_flags_static_exec_needs_enrich() -> None:
     assert flags["needs_enrich"] is True
 
 
+def test_scan_routing_flags_linked_server_exec_needs_enrich() -> None:
+    flags = scan_routing_flags("EXEC [LinkedSrv].[SalesDb].[dbo].[usp_remote_load]")
+    assert flags["needs_enrich"] is True
+    assert flags["needs_llm"] is False
+    assert flags["mode"] == "call_graph_enrich"
+    assert flags["routing_reasons"] == ["static_exec"]
+
+
+def test_scan_routing_flags_exec_concat_needs_llm() -> None:
+    flags = scan_routing_flags("EXEC ('SELECT * FROM dbo.T WHERE id = ' + CAST(@id AS NVARCHAR(12)))")
+    assert flags["needs_llm"] is True
+    assert flags["needs_enrich"] is False
+    assert flags["mode"] == "llm_required"
+    assert flags["routing_reasons"] == ["dynamic_sql_variable"]
+
+
 def test_scan_routing_flags_pure_dml_no_flags() -> None:
     flags = scan_routing_flags("INSERT INTO dbo.T1 SELECT * FROM dbo.T2")
     assert flags["needs_llm"] is False

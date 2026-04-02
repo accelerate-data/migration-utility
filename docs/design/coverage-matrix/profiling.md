@@ -4,13 +4,13 @@ Current automated statement coverage for the profiling phase. The phase boundary
 
 | # | Statement | Unit | Integration | Promptfoo |
 |---|---|---|---|---|
-| 1 | `INSERT ... SELECT` | Yes | N/A | N/A |
+| 1 | `INSERT ... SELECT` | Yes | N/A | Yes |
 | 2 | `UPDATE` with join | N/A | N/A | N/A |
 | 3 | `DELETE` with `WHERE` | N/A | N/A | N/A |
 | 4 | `DELETE TOP` | N/A | N/A | N/A |
 | 5 | `TRUNCATE TABLE` | N/A | N/A | N/A |
 | 6 | `TRUNCATE` + `INSERT` | N/A | N/A | Yes |
-| 7 | `MERGE INTO` | Yes | N/A | Gap |
+| 7 | `MERGE INTO` | Yes | N/A | Yes |
 | 8 | `SELECT INTO` | N/A | N/A | N/A |
 | 9 | Single CTE | N/A | N/A | N/A |
 | 10 | Multi-level CTE | N/A | N/A | N/A |
@@ -47,7 +47,7 @@ Current automated statement coverage for the profiling phase. The phase boundary
 | 42 | `ROLLUP` | N/A | N/A | N/A |
 | 43 | `PIVOT` | N/A | N/A | N/A |
 | 44 | `UNPIVOT` | N/A | N/A | N/A |
-| 49 | `EXEC proc` | Yes | N/A | Gap |
+| 49 | `EXEC proc` | Yes | N/A | Yes |
 | 50 | `EXEC [schema].[proc]` | N/A | N/A | N/A |
 | 51 | `EXEC proc` with params | N/A | N/A | N/A |
 | 52 | `EXEC proc` with `OUTPUT` | N/A | N/A | N/A |
@@ -58,9 +58,9 @@ Current automated statement coverage for the profiling phase. The phase boundary
 | 46 | `TRY / CATCH` | N/A | N/A | N/A |
 | 47 | `WHILE` loop | N/A | N/A | N/A |
 | 48 | Nested control flow | N/A | N/A | N/A |
-| 55 | Cross-database `EXEC` | N/A | N/A | Gap |
+| 55 | Cross-database `EXEC` | N/A | N/A | Yes |
 | 56 | Linked-server `EXEC` | N/A | N/A | N/A |
-| 58 | Dynamic `sp_executesql` | Gap | N/A | Gap |
+| 58 | Dynamic `sp_executesql` | N/A | N/A | Gap |
 | 59 | `EXEC (@sql)` | N/A | N/A | N/A |
 | 60 | `EXEC ('...' + @var)` | N/A | N/A | N/A |
 | S1 | `SET` | N/A | N/A | N/A |

@@ -9,7 +9,7 @@ providers:
     config:
       model: claude-sonnet-4-6
       working_dir: ../..
-      max_turns: 30
+      max_turns: 80
       permission_mode: bypassPermissions
       allow_dangerously_skip_permissions: true
       append_allowed_tools:
@@ -43,6 +43,7 @@ tests:
   - description: "call-graph — FactInternetSales EXEC orchestrator"
     vars:
       target_table: "silver.usp_load_FactInternetSales"
+      allow_zero_migrate: "true"
 
   # ── dynamic-sql: sp_executesql only ───────────────────────────
   - description: "dynamic-sql — DimCurrency sp_executesql"
@@ -70,3 +71,25 @@ tests:
   - description: "resolved — FactInternetSales staging leaf (TRUNCATE+INSERT)"
     vars:
       target_table: "silver.usp_stage_FactInternetSales"
+
+  # ── linked-server EXEC stays out of scope ─────────────────────
+  - description: "linked-server-exec — out-of-scope remote execution"
+    vars:
+      target_table: "silver.usp_scope_LinkedServerExec"
+      allow_zero_migrate: "true"
+      expected_source: "llm"
+      expected_rationale_terms: "linked,out-of-scope"
+
+  # ── EXEC(@sql) requires LLM classification ────────────────────
+  - description: "exec-variable — dynamic EXEC(@sql) classified by llm"
+    vars:
+      target_table: "silver.usp_scope_ExecVariable"
+      expected_source: "llm"
+      expected_statement_terms: "insert into silver.execvariabletarget"
+
+  # ── EXEC('...' + @var) also requires LLM classification ──────
+  - description: "exec-concat — concatenated EXEC classified by llm"
+    vars:
+      target_table: "silver.usp_scope_ExecConcat"
+      expected_source: "llm"
+      expected_statement_terms: "insert into silver.execconcattarget"
