@@ -1,0 +1,22 @@
+# Coverage Matrix
+
+Statement coverage is tracked by phase so gaps can be filed directly against the workflow stage that is missing coverage.
+
+The phase documents in this directory are the source of truth for current automated coverage:
+
+- [Statement Inventory](statement-inventory.md) — canonical list of statement patterns and classification buckets from the parse-classification design
+- [Scoping Coverage](scoping.md)
+- [Profiling Coverage](profiling.md)
+- [Ground-Truth Generation Coverage](ground-truth-generation.md)
+- [Test Generation Coverage](test-generation.md)
+- [Test Review Coverage](test-review.md)
+- [Model Generation Coverage](model-generation.md)
+- [Code Review Coverage](code-review.md)
+
+Rules:
+
+- Rows are statement-by-statement, keyed to the pattern numbers in [T-SQL Parse Classification](../tsql-parse-classification/README.md).
+- Cells are marked `Yes` only when the repo has explicit automated coverage for that statement in that phase.
+- Blank cells mean no explicit coverage was found during the audit.
+- The matrix is coverage-oriented, not evidence-oriented. It answers which statements are tested by which layer.
+- `Unit`, `Integration`, and `Promptfoo` are separate because they cover different failure modes and should produce separate gap issues.
