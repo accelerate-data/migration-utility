@@ -28,6 +28,7 @@ from typing import Any
 from shared.dmf_processing import empty_scoped
 from shared.env_config import resolve_catalog_dir
 from shared.name_resolver import fqn_parts, normalize
+from shared.tsql_utils import mask_tsql
 
 # ── Routing flag patterns ────────────────────────────────────────────────────
 
@@ -56,68 +57,6 @@ _SP_EXECUTESQL_VARIABLE_RE = re.compile(
     r"\bEXEC(?:UTE)?\s+sp_executesql\s+@",
     re.IGNORECASE,
 )
-
-
-def _mask_tsql(sql: str) -> str:
-    """Mask strings, comments, and bracketed identifiers while preserving indices."""
-    chars = list(sql)
-    i = 0
-    while i < len(chars):
-        ch = chars[i]
-        nxt = chars[i + 1] if i + 1 < len(chars) else ""
-
-        if ch == "'" :
-            chars[i] = " "
-            i += 1
-            while i < len(chars):
-                if chars[i] == "'":
-                    chars[i] = " "
-                    if i + 1 < len(chars) and chars[i + 1] == "'":
-                        chars[i + 1] = " "
-                        i += 2
-                        continue
-                    i += 1
-                    break
-                chars[i] = " "
-                i += 1
-            continue
-
-        if ch == "[":
-            chars[i] = " "
-            i += 1
-            while i < len(chars):
-                chars[i] = " "
-                if sql[i] == "]":
-                    i += 1
-                    break
-                i += 1
-            continue
-
-        if ch == "-" and nxt == "-":
-            chars[i] = chars[i + 1] = " "
-            i += 2
-            while i < len(chars) and chars[i] != "\n":
-                chars[i] = " "
-                i += 1
-            continue
-
-        if ch == "/" and nxt == "*":
-            chars[i] = chars[i + 1] = " "
-            i += 2
-            while i < len(chars) - 1:
-                if sql[i] == "*" and sql[i + 1] == "/":
-                    chars[i] = chars[i + 1] = " "
-                    i += 2
-                    break
-                chars[i] = " "
-                i += 1
-            continue
-
-        i += 1
-
-    return "".join(chars)
-
-
 # ── Schemas (TypedDict-style, but plain dicts in practice) ──────────────────
 #
 # We define the shapes here as documentation.  At runtime everything is
@@ -225,7 +164,7 @@ def scan_routing_flags(definition: str) -> dict[str, bool]:
     Returns the backward-compatible flags plus the canonical routing summary:
     ``{"needs_llm", "needs_enrich", "mode", "routing_reasons"}``.
     """
-    masked = _mask_tsql(definition)
+    masked = mask_tsql(definition)
     reasons: list[str] = []
 
     for pattern, reason in _CONTROL_FLOW_REASONS:

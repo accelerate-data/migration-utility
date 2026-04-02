@@ -73,19 +73,14 @@ def _extract_calls(raw_ddl: str) -> list[str]:
     return sorted(calls)
 
 
-def _should_enrich(proc_cat: dict[str, Any] | None) -> bool:
-    """Decide whether a procedure is eligible for offline enrichment."""
+def _enrich_skip_reason(proc_cat: dict[str, Any] | None) -> str | None:
+    """Return the reason enrichment should skip this procedure, if any."""
     if proc_cat is None:
-        return True
+        return None
 
-    if proc_cat.get("mode") == "llm_required" or proc_cat.get("needs_llm"):
-        return False
-
-    routing_reasons = set(proc_cat.get("routing_reasons", []))
-    if proc_cat.get("mode") is not None:
-        return bool(proc_cat.get("needs_enrich")) or "static_exec" in routing_reasons
-
-    return proc_cat.get("needs_enrich", True)
+    if proc_cat.get("mode") == "llm_required":
+        return "needs_llm"
+    return None
 
 
 def _fqn_in_scope(
@@ -122,7 +117,7 @@ def _scan_ast_refs(
 ) -> tuple[dict[str, ObjectRefs], dict[str, list[str]]]:
     """Extract AST refs and EXEC calls for eligible procedures.
 
-    Skips procs with ``needs_llm: true`` or ``needs_enrich: false``.
+    Skips only procs that require LLM routing.
     Returns ``(ast_refs, ast_calls)``.
     """
     ast_refs: dict[str, ObjectRefs] = {}
@@ -130,11 +125,9 @@ def _scan_ast_refs(
 
     for proc_fqn, entry in ddl_catalog.procedures.items():
         proc_cat = load_proc_catalog(project_root, proc_fqn)
-        if proc_cat and (proc_cat.get("mode") == "llm_required" or proc_cat.get("needs_llm")):
-            logger.debug("event=enrich_skip proc=%s reason=needs_llm", proc_fqn)
-            continue
-        if not _should_enrich(proc_cat):
-            logger.debug("event=enrich_skip proc=%s reason=already_enriched", proc_fqn)
+        skip_reason = _enrich_skip_reason(proc_cat)
+        if skip_reason is not None:
+            logger.debug("event=enrich_skip proc=%s reason=%s", proc_fqn, skip_reason)
             continue
 
         try:

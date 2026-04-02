@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from shared.tsql_utils import mask_tsql
+
 
 class SegmenterError(ValueError):
     """Raised when the segmenter cannot classify a control-flow structure."""
@@ -71,63 +73,10 @@ _STATEMENT_STARTERS = {
 }
 
 
-def _mask_tsql(sql: str) -> str:
-    chars = list(sql)
-    i = 0
-    while i < len(chars):
-        ch = chars[i]
-        nxt = chars[i + 1] if i + 1 < len(chars) else ""
-        if ch == "'":
-            chars[i] = " "
-            i += 1
-            while i < len(chars):
-                if chars[i] == "'":
-                    chars[i] = " "
-                    if i + 1 < len(chars) and chars[i + 1] == "'":
-                        chars[i + 1] = " "
-                        i += 2
-                        continue
-                    i += 1
-                    break
-                chars[i] = " "
-                i += 1
-            continue
-        if ch == "[":
-            chars[i] = " "
-            i += 1
-            while i < len(chars):
-                chars[i] = " "
-                if sql[i] == "]":
-                    i += 1
-                    break
-                i += 1
-            continue
-        if ch == "-" and nxt == "-":
-            chars[i] = chars[i + 1] = " "
-            i += 2
-            while i < len(chars) and chars[i] != "\n":
-                chars[i] = " "
-                i += 1
-            continue
-        if ch == "/" and nxt == "*":
-            chars[i] = chars[i + 1] = " "
-            i += 2
-            while i < len(chars) - 1:
-                if sql[i] == "*" and sql[i + 1] == "/":
-                    chars[i] = chars[i + 1] = " "
-                    i += 2
-                    break
-                chars[i] = " "
-                i += 1
-            continue
-        i += 1
-    return "".join(chars)
-
-
 class _Parser:
     def __init__(self, sql: str, *, max_depth: int, max_nodes: int) -> None:
         self.sql = sql
-        self.masked = _mask_tsql(sql)
+        self.masked = mask_tsql(sql)
         self.upper = self.masked.upper()
         self.max_depth = max_depth
         self.max_nodes = max_nodes
@@ -157,42 +106,25 @@ class _Parser:
             nodes.extend(unit_nodes)
 
     def _parse_unit(self, pos: int, *, depth: int) -> tuple[list[SegmentNode], int]:
-        if self._match_phrase(pos, ("BEGIN", "TRY")):
-            node, end = self._parse_try_catch(pos, depth=depth)
-            return [node], end
-        if self._match_keyword(pos, "IF"):
-            node, end = self._parse_if(pos, depth=depth)
-            return [node], end
-        if self._match_keyword(pos, "WHILE"):
-            node, end = self._parse_while(pos, depth=depth)
-            return [node], end
-        if self._match_keyword(pos, "BEGIN"):
-            node, end = self._parse_begin_block(pos, depth=depth)
-            return [node], end
-        node, end = self._parse_statement(pos, stop_keywords=())
-        return [node], end
+        return self._parse_node(pos, depth=depth, stop_keywords=())
 
     def _parse_if(self, pos: int, *, depth: int) -> tuple[IfNode, int]:
-        branch_start = self._find_branch_start(pos + 2)
-        condition_sql = self.sql[pos + 2:branch_start].strip()
+        branch_start = self._find_branch_start(pos + len("IF"))
+        condition_sql = self.sql[pos + len("IF"):branch_start].strip()
         true_branch, next_pos = self._parse_branch(branch_start, depth=depth + 1)
         next_pos = self._skip_ws(next_pos)
         false_branch: list[SegmentNode] = []
         if self._match_keyword(next_pos, "ELSE"):
-            false_branch, next_pos = self._parse_branch(next_pos + 4, depth=depth + 1)
+            false_branch, next_pos = self._parse_branch(next_pos + len("ELSE"), depth=depth + 1)
         return self._record(IfNode(condition_sql=condition_sql, true_branch=true_branch, false_branch=false_branch)), next_pos
 
     def _parse_while(self, pos: int, *, depth: int) -> tuple[WhileNode, int]:
-        branch_start = self._find_branch_start(pos + 5)
-        condition_sql = self.sql[pos + 5:branch_start].strip()
+        branch_start = self._find_branch_start(pos + len("WHILE"))
+        condition_sql = self.sql[pos + len("WHILE"):branch_start].strip()
         body, next_pos = self._parse_branch(branch_start, depth=depth + 1)
         return self._record(WhileNode(condition_sql=condition_sql, body=body)), next_pos
 
     def _parse_try_catch(self, pos: int, *, depth: int) -> tuple[TryCatchNode, int]:
-        node, end = self._parse_try_catch_end(pos, depth=depth)
-        return node, end
-
-    def _parse_try_catch_end(self, pos: int, *, depth: int) -> tuple[TryCatchNode, int]:
         try_body_start = self._skip_ws(pos + len("BEGIN TRY"))
         try_branch, next_pos = self._parse_segments(try_body_start, end_keywords=("END TRY",), depth=depth + 1)
         if not self._match_phrase(next_pos, ("END", "TRY")):
@@ -214,6 +146,11 @@ class _Parser:
         return self._record(BlockNode(children=children)), end_pos + len("END")
 
     def _parse_branch(self, pos: int, *, depth: int) -> tuple[list[SegmentNode], int]:
+        return self._parse_node(pos, depth=depth, stop_keywords=("ELSE", "END"))
+
+    def _parse_node(
+        self, pos: int, *, depth: int, stop_keywords: tuple[str, ...],
+    ) -> tuple[list[SegmentNode], int]:
         pos = self._skip_ws(pos)
         if self._match_phrase(pos, ("BEGIN", "TRY")):
             node, end = self._parse_try_catch(pos, depth=depth)
@@ -227,7 +164,7 @@ class _Parser:
         if self._match_keyword(pos, "BEGIN"):
             node, end = self._parse_begin_block(pos, depth=depth)
             return [node], end
-        node, end = self._parse_statement(pos, stop_keywords=("ELSE", "END"))
+        node, end = self._parse_statement(pos, stop_keywords=stop_keywords)
         return [node], end
 
     def _parse_statement(

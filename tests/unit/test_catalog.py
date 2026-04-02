@@ -399,6 +399,14 @@ def test_scan_routing_flags_pure_dml_no_flags() -> None:
     assert flags["routing_reasons"] == []
 
 
+def test_scan_routing_flags_ignores_keywords_in_unterminated_block_comment() -> None:
+    flags = scan_routing_flags("/* IF WHILE BEGIN TRY dynamic tail")
+    assert flags["needs_llm"] is False
+    assert flags["needs_enrich"] is False
+    assert flags["mode"] == "deterministic"
+    assert flags["routing_reasons"] == []
+
+
 def test_write_object_catalog_with_needs_llm_flag() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         ddl_path = Path(tmp)

@@ -97,6 +97,9 @@ GO
     })
     _write_catalog_json(tmp_path, "procedures", "dbo.usp_create_snapshot", {
         "references": proc_refs,
+        "mode": "deterministic",
+        "routing_reasons": [],
+        "needs_enrich": True,
     })
 
     # Table catalog: silver.Snapshot exists but has no referenced_by for the proc
@@ -158,6 +161,8 @@ GO
     })
     _write_catalog_json(tmp_path, "procedures", "dbo.usp_load_data", {
         "references": proc_b_refs,
+        "mode": "deterministic",
+        "routing_reasons": [],
     })
 
     # Proc A: DMF only shows the call to proc B, NOT the indirect write to silver.Target
@@ -235,6 +240,8 @@ GO
     })
     _write_catalog_json(tmp_path, "procedures", "dbo.usp_simple_insert", {
         "references": proc_refs,
+        "mode": "deterministic",
+        "routing_reasons": [],
     })
 
     return tmp_path
@@ -270,6 +277,9 @@ GO
     # DMF has nothing for this proc (dynamic SQL is invisible)
     _write_catalog_json(tmp_path, "procedures", "dbo.usp_dynamic", {
         "references": _empty_references(),
+        "mode": "llm_required",
+        "routing_reasons": ["dynamic_sql_variable"],
+        "needs_llm": True,
     })
 
     return tmp_path

@@ -188,7 +188,7 @@ def test_show_dynamic_exec_is_claude_assisted() -> None:
     """Dynamic EXEC(@var) procs are claude_assisted — LLM reads raw_ddl."""
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecDynamic")
     assert result["classification"] == "claude_assisted"
-    assert result["routing_reasons"] == []
+    assert result["routing_reasons"] == ["dynamic_sql_variable"]
     assert result["statements"] is None
     assert "needs_llm" not in result
 

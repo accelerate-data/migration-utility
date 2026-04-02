@@ -3,7 +3,7 @@
   "title": "ProcedureCatalog",
   "description": "Per-procedure catalog file produced by setup-ddl. Contains outbound references and inbound callers.",
   "type": "object",
-  "required": ["schema", "name", "references"],
+  "required": ["schema", "name", "references", "mode", "routing_reasons"],
   "properties": {
     "schema": { "type": "string", "description": "Schema name, e.g. silver" },
     "name": { "type": "string", "description": "Object name, e.g. usp_load_DimCustomer" },
@@ -32,11 +32,11 @@
     "mode": {
       "type": "string",
       "enum": ["deterministic", "control_flow_fallback", "call_graph_enrich", "dynamic_sql_literal", "llm_required"],
-      "description": "Canonical routing mode for this procedure. Optional for backward compatibility with older catalogs."
+      "description": "Canonical routing mode for this procedure."
     },
     "routing_reasons": {
       "type": "array",
-      "description": "Canonical routing reasons detected for this procedure. Optional for backward compatibility with older catalogs.",
+      "description": "Canonical routing reasons detected for this procedure.",
       "items": {
         "type": "string",
         "enum": [

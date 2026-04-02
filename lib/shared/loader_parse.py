@@ -18,7 +18,6 @@ from shared.block_segmenter import (
     IfNode,
     SegmentNode,
     SegmenterError,
-    SegmenterLimitError,
     StatementNode,
     TryCatchNode,
     WhileNode,
@@ -179,8 +178,6 @@ def parse_body_statements(raw_ddl: str, dialect: str = "tsql") -> tuple[list[Any
 
     try:
         nodes = segment_sql(body)
-    except SegmenterLimitError:
-        return [], True
     except SegmenterError:
         return [], True
 
