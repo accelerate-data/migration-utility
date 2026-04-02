@@ -6,6 +6,7 @@ write/read/function references from procedure bodies.
 
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Callable
 from typing import Any
@@ -26,6 +27,8 @@ from shared.block_segmenter import (
 from shared.catalog import scan_routing_flags
 from shared.loader_data import DdlEntry, DdlParseError, ObjectRefs
 from shared.name_resolver import normalize
+
+logger = logging.getLogger(__name__)
 
 
 # ── Constants ─────────────────────────────────────────────────────────────────
@@ -178,7 +181,8 @@ def parse_body_statements(raw_ddl: str, dialect: str = "tsql") -> tuple[list[Any
 
     try:
         nodes = segment_sql(body)
-    except SegmenterError:
+    except SegmenterError as exc:
+        logger.debug("event=segment_fallback reason=segmenter_error error=%s", exc)
         return [], True
 
     parsed: list[Any] = []

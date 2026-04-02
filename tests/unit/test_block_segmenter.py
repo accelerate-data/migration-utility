@@ -89,6 +89,16 @@ def test_segment_sql_while_begin_block() -> None:
     ]
 
 
+def test_segment_sql_while_single_statement_body() -> None:
+    nodes = segment_sql("WHILE @i < 10 SET @i = @i + 1;")
+
+    assert len(nodes) == 1
+    while_node = nodes[0]
+    assert isinstance(while_node, WhileNode)
+    assert while_node.condition_sql == "@i < 10"
+    assert _collect_statement_sql(while_node.body) == ["SET @i = @i + 1"]
+
+
 def test_segment_sql_try_catch_nested_if() -> None:
     nodes = segment_sql(
         """
