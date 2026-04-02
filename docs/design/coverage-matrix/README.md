@@ -23,22 +23,6 @@ This document defines the recommended coverage shape, not the behavior itself. B
 | Integration | Docker SQL Server-backed tests against live SQL Server behavior. |
 | Eval | Promptfoo-based non-interactive skill coverage. |
 
-## Coverage Ownership
-
-Recommended ownership by test type:
-
-- Unit tests own full statement-family coverage at the parser and classification layer.
-- Integration tests own live-system boundaries only: DMF behavior, enrichment seams, sandbox execution, and cross-process wiring.
-- Promptfoo evals own LLM behavior coverage.
-
-Recommended ownership by workflow phase:
-
-- Scoping eval coverage is scenario-first: one Promptfoo scenario per distinct outcome shape is sufficient.
-- Profiling eval coverage is statement-family-first: Promptfoo should cover the full set of statement families that materially change profiling reasoning.
-- Test generation and test review eval coverage are statement-family-first.
-- Model generation and model review eval coverage are statement-family-first.
-- Command eval coverage is phase-first: guards, aggregation, summaries, and result handling.
-
 ## Statement Coverage
 
 The statement matrix below maps the scenarios documented in [T-SQL Parse Classification](../tsql-parse-classification/README.md) to current automated coverage.
@@ -47,7 +31,6 @@ Recommended ownership:
 
 - Statement breadth belongs in unit tests.
 - Integration tests should cover live SQL Server boundaries, DMF-dependent behavior, enrichment seams, and cross-process wiring.
-- Promptfoo evals are only needed when a statement family changes LLM routing, reasoning, or output shape.
 
 ### Deterministic Patterns
 
@@ -145,33 +128,17 @@ The phase matrix below maps the major migration phases to their recommended auto
 
 Recommended ownership:
 
-- Scoping should have targeted Promptfoo scenarios for each distinct outcome shape.
-- Profiling, test generation/review, and model generation/review should have Promptfoo coverage across the full statement-family set that materially changes LLM behavior.
-- Each phase should still have unit coverage for deterministic contracts and write-back behavior where applicable.
+- Each phase should have automated coverage for its deterministic contracts and write-back behavior where applicable.
 - Integration coverage should be limited to boundary seams that depend on live SQL Server, sandbox execution, or cross-process behavior.
 
 | Phase | Status | Recommended coverage type | Evidence | Main gaps |
 |---|---|---|---|---|
-| Scoping | Gap | Representative unit, selected eval, selected integration | [`docs/design/eval-harness/README.md`](../eval-harness/README.md), [`tests/evals/packages/scoping/skill-analyzing-object.yaml`](../../../tests/evals/packages/scoping/skill-analyzing-object.yaml) | Eval coverage exists for representative scenarios, but there is no durable audit tying statement classes to scoping outcomes and no focused Python suite for the recommended representative buckets. |
-| Profiling | Gap | Representative unit, selected eval | [`tests/unit/test_profile.py`](../../../tests/unit/test_profile.py), [`tests/evals/packages/profiler/skill-profiling-table.yaml`](../../../tests/evals/packages/profiler/skill-profiling-table.yaml) | Rich context and write-back are covered, but representative coverage by statement-class bucket is not explicitly mapped. |
-| Model generation | Gap | Representative unit, selected eval | [`tests/unit/test_migrate.py`](../../../tests/unit/test_migrate.py), [`tests/evals/packages/model-generator/skill-generating-model.yaml`](../../../tests/evals/packages/model-generator/skill-generating-model.yaml) | Current tests cover context assembly and artifact writing, but not a representative matrix across deterministic, enrichment-resolved, and Claude-assisted inputs. |
-| Ground-truth generation | Gap | Representative unit, selected integration | [`tests/unit/test_test_harness.py`](../../../tests/unit/test_test_harness.py), [`tests/unit/test_test_harness_integration.py`](../../../tests/unit/test_test_harness_integration.py) | Ground-truth capture is covered at the sandbox/harness layer, but there is no automated phase coverage connecting classified migration inputs to generated scenarios and captured outputs. |
+| Scoping | Gap | Unit, integration, eval | [`docs/design/eval-harness/README.md`](../eval-harness/README.md), [`tests/evals/packages/scoping/skill-analyzing-object.yaml`](../../../tests/evals/packages/scoping/skill-analyzing-object.yaml) | Coverage exists for selected scenarios, but there is no phase-level matrix proving the distinct scoping outcome families are covered end to end. |
+| Profiling | Gap | Unit, eval | [`tests/unit/test_profile.py`](../../../tests/unit/test_profile.py), [`tests/evals/packages/profiler/skill-profiling-table.yaml`](../../../tests/evals/packages/profiler/skill-profiling-table.yaml) | Context assembly and write-back are covered, but automated coverage does not yet span the full set of workflow-relevant inputs called out by the design docs. |
+| Model generation | Gap | Unit, eval | [`tests/unit/test_migrate.py`](../../../tests/unit/test_migrate.py), [`tests/evals/packages/model-generator/skill-generating-model.yaml`](../../../tests/evals/packages/model-generator/skill-generating-model.yaml) | Context assembly and artifact writing are covered, but automated coverage does not yet span the full set of workflow-relevant inputs called out by the design docs. |
+| Ground-truth generation | Gap | Unit, integration | [`tests/unit/test_test_harness.py`](../../../tests/unit/test_test_harness.py), [`tests/unit/test_test_harness_integration.py`](../../../tests/unit/test_test_harness_integration.py) | Harness-level capture is covered, but automated coverage does not yet connect migration-phase inputs to generated scenarios and captured outputs. |
 | Test generation | Gap | - | The design contract exists in [`docs/design/skill-contract/test-generator.md`](../skill-contract/test-generator.md). | No automated phase suite was found for `/generating-tests`, and `docs/requirements/decisions.md` currently describes the phase as not yet implemented. |
 | Code review gate | Gap | - | The design contract exists in [`docs/design/skill-contract/code-reviewer.md`](../skill-contract/code-reviewer.md). | No automated phase suite was found. |
-
-## Eval Coverage
-
-The eval matrix below captures the recommended Promptfoo ownership model.
-
-| Phase | Eval strategy | Status | Evidence | Main gaps |
-|---|---|---|---|---|
-| Scoping | Targeted scenario coverage by outcome shape | Gap | [`tests/evals/packages/scoping/skill-analyzing-object.yaml`](../../../tests/evals/packages/scoping/skill-analyzing-object.yaml) | Existing scenarios cover several outcomes, but the matrix is not yet explicit and command-level scoping coverage is absent. |
-| Profiling | Full statement-family coverage | Gap | [`tests/evals/packages/profiler/skill-profiling-table.yaml`](../../../tests/evals/packages/profiler/skill-profiling-table.yaml) | Current profiler evals are few and do not cover the full statement-family set that changes LLM reasoning. |
-| Test generation | Full statement-family coverage | Gap | [`docs/design/skill-contract/test-generator.md`](../skill-contract/test-generator.md) | No Promptfoo package exists yet. |
-| Test review | Full statement-family coverage | Gap | [`docs/design/skill-contract/test-reviewer.md`](../skill-contract/test-reviewer.md) | No Promptfoo package exists yet. |
-| Model generation | Full statement-family coverage | Gap | [`tests/evals/packages/model-generator/skill-generating-model.yaml`](../../../tests/evals/packages/model-generator/skill-generating-model.yaml) | Current model-generator evals are too narrow for full statement-family coverage. |
-| Model review | Full statement-family coverage | Gap | [`docs/design/skill-contract/code-reviewer.md`](../skill-contract/code-reviewer.md) | No Promptfoo package exists yet. |
-| Commands (`scope`, `profile`, `generate-model`) | Targeted phase and summary coverage | Gap | [`docs/design/command-design/README.md`](../command-design/README.md) | No command-level Promptfoo coverage was found. |
 
 ## Known Limitations vs Accidental Gaps
 
@@ -191,7 +158,6 @@ The eval matrix below captures the recommended Promptfoo ownership model.
 | SQL Server-backed statement integration | No integration suite currently ties live SQL Server extraction and enrichment behavior back to the statement matrix. |
 | Phase-by-classification audit | Existing phase tests are not mapped to representative deterministic, enrichment-resolved, and Claude-assisted cases. |
 | Test generation phase | No automated suite currently validates the phase described in the design contract. |
-| Promptfoo ownership model | Current eval docs and issue scope do not yet clearly separate scenario-first scoping coverage from statement-family-first downstream eval coverage. |
 
 ## How To Maintain This Matrix
 
