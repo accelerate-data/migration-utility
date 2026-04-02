@@ -217,7 +217,7 @@ It does not need to understand table names, expressions, or DML semantics. Its o
 
 - continue to own static `EXEC` call-graph traversal via BFS
 - the outer skip guard already uses `needs_llm`/`needs_enrich` flags from catalog; `_extract_calls()` internally uses its own `_EXEC_PROC_RE` regex for call-edge discovery
-- consume `routing_reasons` to replace the internal regex with the pre-computed routing signal
+- use `routing_reasons` to gate whether call-graph enrichment runs (replaces the `needs_enrich` skip guard), but keep `_extract_calls()` and `_EXEC_PROC_RE` for concrete callee extraction — `routing_reasons` signals that static EXEC exists, not which procedures are called
 
 ### `discover.py`
 
