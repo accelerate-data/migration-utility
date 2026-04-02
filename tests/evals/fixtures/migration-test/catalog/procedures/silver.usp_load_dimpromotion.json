@@ -125,5 +125,17 @@
       "in_scope": [],
       "out_of_scope": []
     }
-  }
+  },
+  "statements": [
+    {
+      "type": "Delete",
+      "action": "migrate",
+      "sql": "DELETE FROM silver.vw_DimPromotion"
+    },
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "sql": "INSERT INTO silver.vw_DimPromotion (PromotionAlternateKey, EnglishPromotionName, DiscountPct, EnglishPromotionType, EnglishPromotionCategory, StartDate, EndDate, MinQty, MaxQty) SELECT p.PromotionID, p.Description, p.DiscountPct, p.PromotionType, p.PromotionCategory, p.StartDate, p.EndDate, p.MinQty, p.MaxQty FROM bronze.Promotion p"
+    }
+  ]
 }

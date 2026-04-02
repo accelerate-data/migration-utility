@@ -126,5 +126,17 @@
       "in_scope": [],
       "out_of_scope": []
     }
-  }
+  },
+  "statements": [
+    {
+      "type": "TruncateTable",
+      "action": "skip",
+      "sql": "TRUNCATE TABLE silver.DimEmployee"
+    },
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "sql": "INSERT INTO silver.DimEmployee (EmployeeAlternateKey, FirstName, LastName, Title, HireDate, Gender, MaritalStatus, SalariedFlag, CurrentFlag) SELECT e.NationalIDNumber, SUBSTRING(e.LoginID, CHARINDEX(N'\\', e.LoginID) + 1, 50), e.JobTitle, e.JobTitle, e.HireDate, e.Gender, e.MaritalStatus, e.SalariedFlag, e.CurrentFlag FROM bronze.Employee e"
+    }
+  ]
 }

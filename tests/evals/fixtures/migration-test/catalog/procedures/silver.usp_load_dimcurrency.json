@@ -25,5 +25,12 @@
       "in_scope": [],
       "out_of_scope": []
     }
-  }
+  },
+  "statements": [
+    {
+      "type": "TruncateTable",
+      "action": "skip",
+      "sql": "TRUNCATE TABLE silver.DimCurrency"
+    }
+  ]
 }
