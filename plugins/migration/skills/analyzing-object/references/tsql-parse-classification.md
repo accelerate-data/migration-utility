@@ -1,6 +1,6 @@
 # T-SQL Statement Classification
 
-This reference is for true Claude fallback cases. Use it when `discover show` still returns `statements: null` for a `claude_assisted` proc. After VU-821, control-flow wrappers like `IF/ELSE`, `WHILE`, and `TRY/CATCH` are often handled deterministically before this skill is needed.
+This reference is for true Claude fallback cases. Use it when `discover show` still returns `statements: null` for a `claude_assisted` proc. Control-flow wrappers like `IF/ELSE`, `WHILE`, and `TRY/CATCH` are often handled deterministically before this skill is needed.
 
 ## migrate — becomes the dbt model
 
