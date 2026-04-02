@@ -58,8 +58,8 @@ Current automated statement coverage for ground-truth generation. The phase boun
 | 46 | `TRY / CATCH` | N/A | N/A | N/A |
 | 47 | `WHILE` loop | N/A | N/A | N/A |
 | 48 | Nested control flow | N/A | N/A | N/A |
-| 55 | Cross-database `EXEC` | N/A | N/A | N/A |
-| 56 | Linked-server `EXEC` | N/A | N/A | N/A |
+| 55 | Cross-database `EXEC` | Yes | Yes | N/A |
+| 56 | Linked-server `EXEC` | Yes | Yes | N/A |
 | 58 | Dynamic `sp_executesql` | N/A | Yes | N/A |
 | 59 | `EXEC (@sql)` | N/A | N/A | N/A |
 | 60 | `EXEC ('...' + @var)` | N/A | N/A | N/A |
