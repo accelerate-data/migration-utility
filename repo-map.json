@@ -140,6 +140,8 @@
     "test_migration_python_integration": "cd lib && uv run pytest -m integration",
     "test_mcp_ddl": "cd mcp/ddl && uv run pytest",
     "test_harness_help": "cd lib && uv run test-harness --help",
+    "test_harness_execute_spec": "cd lib && uv run test-harness execute-spec --spec <path> [--run-id <id>]",
+    "test_harness_convert_dbt": "cd lib && uv run test-harness convert-dbt --spec <json-path> --output <yml-path>",
     "lint_md": "markdownlint <file>",
     "eval_all": "cd tests/evals && npm run eval",
     "eval_analyzing_object": "cd tests/evals && npm run eval:analyzing-object",
