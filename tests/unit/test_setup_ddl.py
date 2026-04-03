@@ -423,3 +423,219 @@ class TestCatalogSchemaNameFields:
         data = json.loads((tmp_path / "catalog" / "views" / "dbo.vw_sales.json").read_text())
         assert data["schema"] == "dbo"
         assert data["name"] == "vw_sales"
+
+
+# ── Unit: diff-aware reexport ────────────────────────────────────────────────
+
+
+def _make_staging(staging: Path, *, definition: str = "CREATE PROC dbo.usp_a AS INSERT INTO dbo.T1 (id) VALUES (1)") -> None:
+    """Write a minimal set of staging files for write-catalog tests."""
+    _write_json(staging / "table_columns.json", [
+        {"schema_name": "dbo", "table_name": "T1", "column_name": "id", "column_id": 1,
+         "type_name": "int", "max_length": 4, "precision": 10, "scale": 0,
+         "is_nullable": False, "is_identity": False},
+    ])
+    _write_json(staging / "pk_unique.json", [])
+    _write_json(staging / "foreign_keys.json", [])
+    _write_json(staging / "identity_columns.json", [])
+    _write_json(staging / "cdc.json", [])
+    _write_json(staging / "object_types.json", [
+        {"schema_name": "dbo", "name": "T1", "type": "U"},
+        {"schema_name": "dbo", "name": "usp_a", "type": "P"},
+    ])
+    _write_json(staging / "definitions.json", [
+        {"schema_name": "dbo", "object_name": "usp_a", "definition": definition},
+    ])
+    _write_json(staging / "proc_dmf.json", [
+        {"referencing_schema": "dbo", "referencing_name": "usp_a",
+         "referenced_schema": "dbo", "referenced_entity": "T1",
+         "referenced_minor_name": "id", "referenced_class_desc": "OBJECT_OR_COLUMN",
+         "is_selected": False, "is_updated": True, "is_select_all": False,
+         "is_insert_all": False, "is_all_columns_found": True,
+         "is_caller_dependent": False, "is_ambiguous": False},
+    ])
+    _write_json(staging / "view_dmf.json", [])
+    _write_json(staging / "func_dmf.json", [])
+    _write_json(staging / "proc_params.json", [])
+
+
+class TestWriteCatalogDiffAware:
+    """Verify diff-aware reexport preserves unchanged catalogs and rewrites changed ones."""
+
+    def test_first_run_writes_all_with_hash(self, tmp_path):
+        staging = tmp_path / "staging"
+        output = tmp_path / "output"
+        _make_staging(staging)
+
+        result = _run_cli([
+            "write-catalog",
+            "--staging-dir", str(staging),
+            "--project-root", str(output),
+            "--database", "TestDB",
+        ])
+        assert result.returncode == 0, result.stderr
+        counts = json.loads(result.stdout)
+        assert counts["new"] >= 2  # table + proc
+        assert counts["unchanged"] == 0
+        assert counts["changed"] == 0
+        assert counts["removed"] == 0
+
+        # Verify ddl_hash is written
+        table_cat = json.loads((output / "catalog" / "tables" / "dbo.t1.json").read_text())
+        assert "ddl_hash" in table_cat
+        assert len(table_cat["ddl_hash"]) == 64
+
+        proc_cat = json.loads((output / "catalog" / "procedures" / "dbo.usp_a.json").read_text())
+        assert "ddl_hash" in proc_cat
+        assert len(proc_cat["ddl_hash"]) == 64
+
+    def test_rerun_same_data_preserves_catalogs(self, tmp_path):
+        staging = tmp_path / "staging"
+        output = tmp_path / "output"
+        _make_staging(staging)
+
+        # First run
+        _run_cli([
+            "write-catalog",
+            "--staging-dir", str(staging),
+            "--project-root", str(output),
+            "--database", "TestDB",
+        ])
+
+        # Inject LLM-enriched section into table catalog
+        table_path = output / "catalog" / "tables" / "dbo.t1.json"
+        table_cat = json.loads(table_path.read_text())
+        table_cat["scoping"] = {"status": "resolved", "selected_writer": "dbo.usp_a"}
+        table_path.write_text(json.dumps(table_cat, indent=2) + "\n")
+
+        # Inject statements into proc catalog
+        proc_path = output / "catalog" / "procedures" / "dbo.usp_a.json"
+        proc_cat = json.loads(proc_path.read_text())
+        proc_cat["statements"] = [{"type": "Insert", "action": "migrate"}]
+        proc_path.write_text(json.dumps(proc_cat, indent=2) + "\n")
+
+        # Second run with identical staging data
+        result = _run_cli([
+            "write-catalog",
+            "--staging-dir", str(staging),
+            "--project-root", str(output),
+            "--database", "TestDB",
+        ])
+        assert result.returncode == 0, result.stderr
+        counts = json.loads(result.stdout)
+        assert counts["unchanged"] >= 2
+        assert counts["changed"] == 0
+        assert counts["new"] == 0
+        assert counts["removed"] == 0
+
+        # Verify LLM sections survived
+        table_cat = json.loads(table_path.read_text())
+        assert table_cat["scoping"]["status"] == "resolved"
+
+        proc_cat = json.loads(proc_path.read_text())
+        assert proc_cat["statements"] == [{"type": "Insert", "action": "migrate"}]
+
+    def test_changed_definition_rewrites_catalog(self, tmp_path):
+        staging = tmp_path / "staging"
+        output = tmp_path / "output"
+        _make_staging(staging)
+
+        # First run
+        _run_cli([
+            "write-catalog",
+            "--staging-dir", str(staging),
+            "--project-root", str(output),
+            "--database", "TestDB",
+        ])
+
+        # Save original hash
+        proc_path = output / "catalog" / "procedures" / "dbo.usp_a.json"
+        original_hash = json.loads(proc_path.read_text())["ddl_hash"]
+
+        # Second run with changed definition
+        _make_staging(staging, definition="CREATE PROC dbo.usp_a AS INSERT INTO dbo.T1 (id) VALUES (999)")
+
+        result = _run_cli([
+            "write-catalog",
+            "--staging-dir", str(staging),
+            "--project-root", str(output),
+            "--database", "TestDB",
+        ])
+        assert result.returncode == 0, result.stderr
+        counts = json.loads(result.stdout)
+        assert counts["changed"] >= 1
+
+        new_hash = json.loads(proc_path.read_text())["ddl_hash"]
+        assert new_hash != original_hash
+
+    def test_removed_object_flagged_stale(self, tmp_path):
+        staging = tmp_path / "staging"
+        output = tmp_path / "output"
+        _make_staging(staging)
+
+        # First run
+        _run_cli([
+            "write-catalog",
+            "--staging-dir", str(staging),
+            "--project-root", str(output),
+            "--database", "TestDB",
+        ])
+
+        # Second run without the proc (remove from definitions and object_types)
+        _write_json(staging / "definitions.json", [])
+        _write_json(staging / "object_types.json", [
+            {"schema_name": "dbo", "name": "T1", "type": "U"},
+        ])
+        _write_json(staging / "proc_dmf.json", [])
+
+        result = _run_cli([
+            "write-catalog",
+            "--staging-dir", str(staging),
+            "--project-root", str(output),
+            "--database", "TestDB",
+        ])
+        assert result.returncode == 0, result.stderr
+        counts = json.loads(result.stdout)
+        assert counts["removed"] >= 1
+
+        # Verify stale flag
+        proc_cat = json.loads((output / "catalog" / "procedures" / "dbo.usp_a.json").read_text())
+        assert proc_cat.get("stale") is True
+
+    def test_new_object_gets_fresh_catalog(self, tmp_path):
+        staging = tmp_path / "staging"
+        output = tmp_path / "output"
+        _make_staging(staging)
+
+        # First run
+        _run_cli([
+            "write-catalog",
+            "--staging-dir", str(staging),
+            "--project-root", str(output),
+            "--database", "TestDB",
+        ])
+
+        # Add a new proc
+        defs = json.loads((staging / "definitions.json").read_text())
+        defs.append({"schema_name": "dbo", "object_name": "usp_b",
+                      "definition": "CREATE PROC dbo.usp_b AS SELECT 1"})
+        _write_json(staging / "definitions.json", defs)
+
+        otypes = json.loads((staging / "object_types.json").read_text())
+        otypes.append({"schema_name": "dbo", "name": "usp_b", "type": "P"})
+        _write_json(staging / "object_types.json", otypes)
+
+        result = _run_cli([
+            "write-catalog",
+            "--staging-dir", str(staging),
+            "--project-root", str(output),
+            "--database", "TestDB",
+        ])
+        assert result.returncode == 0, result.stderr
+        counts = json.loads(result.stdout)
+        assert counts["new"] >= 1
+
+        new_proc = json.loads((output / "catalog" / "procedures" / "dbo.usp_b.json").read_text())
+        assert "ddl_hash" in new_proc
+        assert new_proc["schema"] == "dbo"
+        assert new_proc["name"] == "usp_b"

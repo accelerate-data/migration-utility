@@ -291,6 +291,8 @@ def write_table_catalog(
     table_fqn: str,
     signals: dict[str, Any],
     referenced_by: dict[str, dict[str, list[dict[str, Any]]]] | None = None,
+    *,
+    ddl_hash: str | None = None,
 ) -> Path:
     """Write a table catalog file.  Returns the written path."""
     fqn = normalize(table_fqn)
@@ -305,6 +307,8 @@ def write_table_catalog(
         "sensitivity_classifications": [],
     }
     data: dict[str, Any] = {"schema": schema, "name": name, **defaults, **signals}
+    if ddl_hash is not None:
+        data["ddl_hash"] = ddl_hash
     if referenced_by is not None:
         data["referenced_by"] = referenced_by
     else:
@@ -349,11 +353,14 @@ def write_object_catalog(
     mode: str | None = None,
     routing_reasons: list[str] | None = None,
     params: list[dict[str, Any]] | None = None,
+    ddl_hash: str | None = None,
 ) -> Path:
     """Write a proc/view/function catalog file.  Returns the written path."""
     norm = normalize(fqn)
     schema, name = fqn_parts(norm)
     data: dict[str, Any] = {"schema": schema, "name": name, "references": references}
+    if ddl_hash is not None:
+        data["ddl_hash"] = ddl_hash
     if params is not None:
         data["params"] = params
     if needs_llm:
