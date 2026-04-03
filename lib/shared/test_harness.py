@@ -188,5 +188,95 @@ def execute(
         raise typer.Exit(code=1)
 
 
+@app.command()
+def execute_spec(
+    spec: str = typer.Option(..., help="Path to test spec JSON file"),
+    run_id: str | None = typer.Option(None, help="UUID of the sandbox"),
+    project_root: str = typer.Option(".", help="Project root directory"),
+) -> None:
+    """Bulk-execute all scenarios in a test spec and write expect.rows back."""
+    logger.info("event=cli_invoked command=execute_spec")
+    root = resolve_project_root(Path(project_root))
+    run_id = _resolve_run_id(run_id, root)
+    logger.info("event=cli_resolved command=execute_spec run_id=%s spec=%s", run_id, spec)
+    manifest = _load_manifest(root)
+    backend = _create_backend(manifest)
+
+    spec_path = Path(spec)
+    try:
+        with spec_path.open() as f:
+            spec_data = json.load(f)
+    except FileNotFoundError:
+        _error_exit("SPEC_NOT_FOUND", f"Test spec file not found: {spec}")
+    except json.JSONDecodeError as exc:
+        _error_exit("SPEC_INVALID_JSON", f"Test spec file is not valid JSON: {exc}", exc)
+
+    unit_tests = spec_data.get("unit_tests", [])
+    if not unit_tests:
+        _error_exit("SPEC_EMPTY", "Test spec has no unit_tests entries")
+
+    results: list[dict[str, Any]] = []
+    ok_count = 0
+    failed_count = 0
+
+    for test_entry in unit_tests:
+        scenario = {
+            "name": test_entry["name"],
+            "target_table": test_entry["target_table"],
+            "procedure": test_entry["procedure"],
+            "given": test_entry["given"],
+        }
+
+        try:
+            result = backend.execute_scenario(run_id=run_id, scenario=scenario)
+        except (ValueError, KeyError) as exc:
+            result = {
+                "scenario_name": test_entry["name"],
+                "status": "error",
+                "ground_truth_rows": [],
+                "row_count": 0,
+                "errors": [{"code": "EXECUTE_INVALID_INPUT", "message": str(exc)}],
+            }
+
+        results.append({
+            "scenario_name": result.get("scenario_name", test_entry["name"]),
+            "status": result["status"],
+            "row_count": result.get("row_count", 0),
+            "errors": result.get("errors", []),
+        })
+
+        if result["status"] == "ok":
+            test_entry["expect"] = {"rows": result["ground_truth_rows"]}
+            ok_count += 1
+        else:
+            failed_count += 1
+            logger.warning(
+                "event=scenario_failed command=execute_spec run_id=%s scenario=%s errors=%s",
+                run_id, test_entry["name"], result.get("errors"),
+            )
+
+    # Write updated spec back with expect.rows populated
+    with spec_path.open("w") as f:
+        json.dump(spec_data, f, indent=2)
+
+    output = {
+        "schema_version": "1.0",
+        "run_id": run_id,
+        "spec_path": str(spec_path),
+        "total": len(unit_tests),
+        "ok": ok_count,
+        "failed": failed_count,
+        "results": results,
+    }
+
+    typer.echo(json.dumps(output, indent=2))
+    logger.info(
+        "event=cli_complete command=execute_spec run_id=%s total=%d ok=%d failed=%d",
+        run_id, len(unit_tests), ok_count, failed_count,
+    )
+    if ok_count == 0:
+        raise typer.Exit(code=1)
+
+
 if __name__ == "__main__":
     app()
