@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import struct
 from collections.abc import Callable
 from contextlib import contextmanager
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -18,7 +20,10 @@ from shared.sandbox import get_backend
 from shared.sandbox.base import SandboxBackend
 from shared.sandbox.sql_server import (
     SqlServerSandbox,
+    _decode_money,
+    _decode_smallmoney,
     _detect_remote_exec_target,
+    _serialize_rows,
     _validate_identifier,
     _validate_run_id,
 )
@@ -387,6 +392,86 @@ class TestSqlServerExecuteScenario:
 
         with pytest.raises(KeyError, match="procedure"):
             backend.execute_scenario(run_id="test-run", scenario=scenario)
+
+
+# ── MONEY decoding ────────────────────────────────────────────────────────────
+
+
+class TestMoneyDecoding:
+    """Test _decode_money and _decode_smallmoney byte converters."""
+
+    def test_decode_money_positive(self) -> None:
+        # $10.00 = 100000 as int64
+        raw = struct.pack("<q", 100000)
+        assert _decode_money(raw) == Decimal("10.0000")
+
+    def test_decode_money_negative(self) -> None:
+        # -$5.50 = -55000 as int64
+        raw = struct.pack("<q", -55000)
+        assert _decode_money(raw) == Decimal("-5.5000")
+
+    def test_decode_money_zero(self) -> None:
+        raw = struct.pack("<q", 0)
+        assert _decode_money(raw) == Decimal("0")
+
+    def test_decode_money_fractional(self) -> None:
+        # $123.4567 = 1234567 as int64
+        raw = struct.pack("<q", 1234567)
+        assert _decode_money(raw) == Decimal("123.4567")
+
+    def test_decode_smallmoney_positive(self) -> None:
+        # $25.99 = 259900 as int32
+        raw = struct.pack("<i", 259900)
+        assert _decode_smallmoney(raw) == Decimal("25.9900")
+
+    def test_decode_smallmoney_negative(self) -> None:
+        raw = struct.pack("<i", -10000)
+        assert _decode_smallmoney(raw) == Decimal("-1.0000")
+
+
+# ── Row serialization ─────────────────────────────────────────────────────────
+
+
+class TestSerializeRows:
+    """Test _serialize_rows handles MONEY, Decimal, and primitive types."""
+
+    def test_primitives_pass_through(self) -> None:
+        rows = [{"id": 1, "name": "Widget", "active": True, "deleted": None, "rate": 3.14}]
+        result = _serialize_rows(rows)
+        assert result == rows
+
+    def test_decimal_to_string(self) -> None:
+        rows = [{"price": Decimal("10.0000"), "tax": Decimal("0.8500")}]
+        result = _serialize_rows(rows)
+        assert result == [{"price": "10.0000", "tax": "0.8500"}]
+
+    def test_money_bytes_8_decoded(self) -> None:
+        # 8-byte MONEY: $42.50 = 425000 as int64
+        raw = struct.pack("<q", 425000)
+        rows = [{"amount": raw}]
+        result = _serialize_rows(rows)
+        assert Decimal(result[0]["amount"]) == Decimal("42.5")
+
+    def test_smallmoney_bytes_4_decoded(self) -> None:
+        # 4-byte SMALLMONEY: $9.99 = 99900 as int32
+        raw = struct.pack("<i", 99900)
+        rows = [{"fee": raw}]
+        result = _serialize_rows(rows)
+        assert Decimal(result[0]["fee"]) == Decimal("9.99")
+
+    def test_other_bytes_hex_encoded(self) -> None:
+        # Non-4/8 byte values get hex-encoded
+        raw = b"\xde\xad"
+        rows = [{"data": raw}]
+        result = _serialize_rows(rows)
+        assert result == [{"data": "dead"}]
+
+    def test_datetime_to_string(self) -> None:
+        from datetime import datetime
+        dt = datetime(2024, 1, 15, 10, 30, 0)
+        rows = [{"created": dt}]
+        result = _serialize_rows(rows)
+        assert result == [{"created": "2024-01-15 10:30:00"}]
 
 
 # ── Schema validation ────────────────────────────────────────────────────────

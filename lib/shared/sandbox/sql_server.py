@@ -5,13 +5,39 @@ from __future__ import annotations
 import logging
 import os
 import re
+import struct
 from collections.abc import Generator
 from contextlib import contextmanager
+from decimal import Decimal
 from typing import Any
 
 import pyodbc
 
 from shared.sandbox.base import SandboxBackend
+
+# SQL Server type codes for MONEY/SMALLMONEY (pyodbc-specific)
+_SQL_SS_MONEY = -200
+_SQL_SS_SMALLMONEY = -201
+
+
+def _decode_money(raw: bytes) -> Decimal:
+    """Decode an 8-byte SQL Server MONEY value to Decimal.
+
+    MONEY is stored as an 8-byte little-endian signed integer representing
+    the value multiplied by 10 000.
+    """
+    (val,) = struct.unpack("<q", raw)
+    return Decimal(val) / Decimal(10000)
+
+
+def _decode_smallmoney(raw: bytes) -> Decimal:
+    """Decode a 4-byte SQL Server SMALLMONEY value to Decimal.
+
+    SMALLMONEY is stored as a 4-byte little-endian signed integer
+    representing the value multiplied by 10 000.
+    """
+    (val,) = struct.unpack("<i", raw)
+    return Decimal(val) / Decimal(10000)
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +198,8 @@ class SqlServerSandbox(SandboxBackend):
             f"TrustServerCertificate=yes;"
         )
         conn = pyodbc.connect(conn_str, autocommit=True)
+        conn.add_output_converter(_SQL_SS_MONEY, _decode_money)
+        conn.add_output_converter(_SQL_SS_SMALLMONEY, _decode_smallmoney)
         try:
             yield conn
         finally:
@@ -548,16 +576,35 @@ class SqlServerSandbox(SandboxBackend):
             }
 
 
+def _serialize_value(v: Any) -> int | float | str | bool | None:
+    """Convert a single pyodbc column value to a JSON-serializable type.
+
+    Primitive types (int, float, str, bool, None) pass through unchanged.
+    Decimal values are coerced to str to preserve exact precision.
+    bytes values are decoded as MONEY (8-byte) or SMALLMONEY (4-byte)
+    when the length matches, otherwise coerced to str.
+    All other non-primitive types are coerced to str.
+    """
+    if isinstance(v, (int, float, str, bool, type(None))):
+        return v
+    if isinstance(v, Decimal):
+        return str(v)
+    if isinstance(v, bytes):
+        if len(v) == 8:
+            return str(_decode_money(v))
+        if len(v) == 4:
+            return str(_decode_smallmoney(v))
+        return v.hex()
+    return str(v)
+
+
 def _serialize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Ensure all values are JSON-serializable.
 
-    Primitive types (int, float, str, bool, None) pass through unchanged.
-    Non-primitive types (datetime, Decimal, bytes, etc.) are coerced to str.
+    Primitive types pass through unchanged. Decimal and MONEY-packed bytes
+    are converted to decimal strings. Other non-primitives are coerced to str.
     """
     return [
-        {
-            k: v if isinstance(v, (int, float, str, bool, type(None))) else str(v)
-            for k, v in row.items()
-        }
+        {k: _serialize_value(v) for k, v in row.items()}
         for row in rows
     ]
