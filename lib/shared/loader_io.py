@@ -61,6 +61,34 @@ def read_manifest(project_root: Path) -> dict[str, Any]:
     return {"dialect": "tsql"}
 
 
+def write_manifest_sandbox(project_root: Path, run_id: str, database: str) -> None:
+    """Persist sandbox run_id and database name into manifest.json."""
+    manifest_file = Path(project_root) / "manifest.json"
+    manifest = read_manifest(project_root)
+    manifest["sandbox"] = {"run_id": run_id, "database": database}
+    manifest_file.write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    logger.info(
+        "event=manifest_update operation=write_sandbox run_id=%s database=%s",
+        run_id,
+        database,
+    )
+
+
+def clear_manifest_sandbox(project_root: Path) -> None:
+    """Remove the sandbox key from manifest.json."""
+    manifest_file = Path(project_root) / "manifest.json"
+    manifest = read_manifest(project_root)
+    manifest.pop("sandbox", None)
+    manifest_file.write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    logger.info("event=manifest_update operation=clear_sandbox")
+
+
 # ── Directory loading ────────────────────────────────────────────────────────
 
 
