@@ -1135,3 +1135,300 @@ class TestFullPipelineIntegration:
             assert len(reloaded["unit_tests"]) == 2
         finally:
             backend.sandbox_down(run_id=run_id)
+
+
+# ── Trigger disabling integration ────────────────────────────────────────────
+
+
+@skip_no_mssql
+class TestTriggerDisablingIntegration:
+    """Verify triggers are disabled so they don't cause spurious failures."""
+
+    def _unique_run_id(self) -> str:
+        return uuid.uuid4().hex[:12]
+
+    def test_trigger_on_target_table_does_not_block_execution(self) -> None:
+        """A trigger that references a nonexistent table should not fail.
+
+        Creates a trigger on a sandbox target table that would normally
+        error out. With DISABLE TRIGGER ALL, the proc executes cleanly.
+        """
+        backend = _make_backend()
+        run_id = self._unique_run_id()
+        trigger_name = f"trg_test_{self._unique_run_id()}"
+
+        try:
+            up = backend.sandbox_up(run_id=run_id, schemas=["bronze", "silver"])
+            assert up["status"] in ("ok", "partial")
+            sandbox_db = backend.sandbox_db_name(run_id)
+
+            # Create a trigger in the sandbox that references a nonexistent table.
+            # Without DISABLE TRIGGER, any INSERT into DimProduct would fail.
+            with backend._connect(database=sandbox_db) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    f"""
+                    CREATE TRIGGER [{trigger_name}]
+                    ON [silver].[DimProduct]
+                    AFTER INSERT
+                    AS
+                    BEGIN
+                        INSERT INTO [dbo].[NonExistentAuditLog] (msg)
+                        SELECT 'trigger fired' FROM inserted;
+                    END
+                    """
+                )
+
+            # Execute scenario — trigger should be disabled so it doesn't fire
+            result = backend.execute_scenario(
+                run_id=run_id,
+                scenario={
+                    "name": "test_trigger_disabled",
+                    "target_table": "[silver].[DimProduct]",
+                    "procedure": "[silver].[usp_load_DimProduct]",
+                    "given": [
+                        {
+                            "table": "[bronze].[Product]",
+                            "rows": [
+                                {
+                                    "ProductID": 1111,
+                                    "ProductName": "Trigger Test",
+                                    "ProductNumber": "TT-001",
+                                    "MakeFlag": 1,
+                                    "FinishedGoodsFlag": 1,
+                                    "SafetyStockLevel": 10,
+                                    "ReorderPoint": 5,
+                                    "StandardCost": 5.00,
+                                    "ListPrice": 10.00,
+                                    "DaysToManufacture": 0,
+                                    "SellStartDate": "2024-01-01",
+                                    "ModifiedDate": "2024-01-01",
+                                }
+                            ],
+                        },
+                    ],
+                },
+            )
+
+            assert result["status"] == "ok", (
+                f"Trigger should be disabled: {result['errors']}"
+            )
+            assert result["row_count"] >= 1
+        finally:
+            backend.sandbox_down(run_id=run_id)
+
+    def test_trigger_on_source_table_does_not_block_insertion(self) -> None:
+        """A trigger on a source/fixture table should not block fixture INSERT."""
+        backend = _make_backend()
+        run_id = self._unique_run_id()
+        trigger_name = f"trg_src_{self._unique_run_id()}"
+
+        try:
+            up = backend.sandbox_up(run_id=run_id, schemas=["bronze", "silver"])
+            assert up["status"] in ("ok", "partial")
+            sandbox_db = backend.sandbox_db_name(run_id)
+
+            # Create a trigger on the source table in the sandbox
+            with backend._connect(database=sandbox_db) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    f"""
+                    CREATE TRIGGER [{trigger_name}]
+                    ON [bronze].[Product]
+                    AFTER INSERT
+                    AS
+                    BEGIN
+                        INSERT INTO [dbo].[NonExistentLog] (data)
+                        SELECT 'bad trigger' FROM inserted;
+                    END
+                    """
+                )
+
+            result = backend.execute_scenario(
+                run_id=run_id,
+                scenario={
+                    "name": "test_source_trigger_disabled",
+                    "target_table": "[silver].[DimProduct]",
+                    "procedure": "[silver].[usp_load_DimProduct]",
+                    "given": [
+                        {
+                            "table": "[bronze].[Product]",
+                            "rows": [
+                                {
+                                    "ProductID": 2222,
+                                    "ProductName": "Source Trigger Test",
+                                    "ProductNumber": "ST-001",
+                                    "MakeFlag": 1,
+                                    "FinishedGoodsFlag": 1,
+                                    "SafetyStockLevel": 10,
+                                    "ReorderPoint": 5,
+                                    "StandardCost": 3.00,
+                                    "ListPrice": 6.00,
+                                    "DaysToManufacture": 0,
+                                    "SellStartDate": "2024-01-01",
+                                    "ModifiedDate": "2024-01-01",
+                                }
+                            ],
+                        },
+                    ],
+                },
+            )
+
+            assert result["status"] == "ok", (
+                f"Source trigger should be disabled: {result['errors']}"
+            )
+        finally:
+            backend.sandbox_down(run_id=run_id)
+
+
+# ── Data type + MERGE integration ────────────────────────────────────────────
+
+
+@skip_no_mssql
+class TestDataTypeAndMergeIntegration:
+    """Verify ground truth captures diverse data types and MERGE behavior."""
+
+    def _unique_run_id(self) -> str:
+        return uuid.uuid4().hex[:12]
+
+    def test_ground_truth_captures_diverse_data_types(self) -> None:
+        """DimProduct has INT identity, NVARCHAR, MONEY, DATETIME, NCHAR columns.
+
+        Verify the ground truth rows serialize all types correctly.
+        """
+        backend = _make_backend()
+        run_id = self._unique_run_id()
+
+        try:
+            up = backend.sandbox_up(run_id=run_id, schemas=["bronze", "silver"])
+            assert up["status"] in ("ok", "partial")
+
+            result = backend.execute_scenario(
+                run_id=run_id,
+                scenario={
+                    "name": "test_diverse_types",
+                    "target_table": "[silver].[DimProduct]",
+                    "procedure": "[silver].[usp_load_DimProduct]",
+                    "given": [
+                        {
+                            "table": "[bronze].[Product]",
+                            "rows": [
+                                {
+                                    "ProductID": 7070,
+                                    "ProductName": "Type Test Widget",
+                                    "ProductNumber": "TW-001",
+                                    "MakeFlag": 1,
+                                    "FinishedGoodsFlag": 0,
+                                    "Color": "Silver",
+                                    "SafetyStockLevel": 500,
+                                    "ReorderPoint": 250,
+                                    "StandardCost": 123.4500,
+                                    "ListPrice": 249.9900,
+                                    "Size": "L",
+                                    "ProductLine": "R",
+                                    "Class": "H",
+                                    "Style": "U",
+                                    "DaysToManufacture": 3,
+                                    "SellStartDate": "2024-06-15",
+                                    "SellEndDate": "2025-12-31",
+                                    "DiscontinuedDate": None,
+                                    "ModifiedDate": "2024-06-15",
+                                }
+                            ],
+                        },
+                    ],
+                },
+            )
+
+            assert result["status"] == "ok", f"Failed: {result['errors']}"
+            assert result["row_count"] >= 1
+
+            row = result["ground_truth_rows"][0]
+            # INT identity — auto-generated
+            assert isinstance(row["ProductKey"], int)
+            # NVARCHAR
+            assert row["EnglishProductName"] == "Type Test Widget"
+            # MONEY → string (Decimal serialization)
+            from decimal import Decimal
+            assert Decimal(row["StandardCost"]) == Decimal("123.4500")
+            assert Decimal(row["ListPrice"]) == Decimal("249.9900")
+            # NVARCHAR(15)
+            assert row["Color"] == "Silver"
+            # NCHAR(2) — may be padded
+            assert row["ProductLine"].strip() == "R"
+            # Status derived from CASE WHEN (SellEndDate is set → 'Outdated')
+            assert row["Status"] == "Outdated"
+        finally:
+            backend.sandbox_down(run_id=run_id)
+
+    def test_merge_matched_updates_existing_row(self) -> None:
+        """Pre-seed target table, run MERGE, verify the row is updated."""
+        backend = _make_backend()
+        run_id = self._unique_run_id()
+
+        try:
+            up = backend.sandbox_up(run_id=run_id, schemas=["bronze", "silver"])
+            assert up["status"] in ("ok", "partial")
+
+            # Scenario: existing DimProduct row + bronze row with same alternate key
+            # The MERGE should UPDATE the existing row
+            result = backend.execute_scenario(
+                run_id=run_id,
+                scenario={
+                    "name": "test_merge_matched_update",
+                    "target_table": "[silver].[DimProduct]",
+                    "procedure": "[silver].[usp_load_DimProduct]",
+                    "given": [
+                        {
+                            "table": "[silver].[DimProduct]",
+                            "rows": [
+                                {
+                                    "ProductKey": 100,
+                                    "ProductAlternateKey": "8080",
+                                    "EnglishProductName": "Old Name",
+                                    "Color": "Red",
+                                    "Status": "Current",
+                                }
+                            ],
+                        },
+                        {
+                            "table": "[bronze].[Product]",
+                            "rows": [
+                                {
+                                    "ProductID": 8080,
+                                    "ProductName": "New Name",
+                                    "ProductNumber": "NN-001",
+                                    "MakeFlag": 1,
+                                    "FinishedGoodsFlag": 1,
+                                    "Color": "Blue",
+                                    "SafetyStockLevel": 10,
+                                    "ReorderPoint": 5,
+                                    "StandardCost": 20.00,
+                                    "ListPrice": 40.00,
+                                    "DaysToManufacture": 1,
+                                    "SellStartDate": "2024-01-01",
+                                    "ModifiedDate": "2024-01-01",
+                                }
+                            ],
+                        },
+                    ],
+                },
+            )
+
+            assert result["status"] == "ok", f"Failed: {result['errors']}"
+            assert result["row_count"] >= 1
+
+            # Find the row with our known alternate key
+            matched_rows = [
+                r for r in result["ground_truth_rows"]
+                if r.get("ProductAlternateKey") == "8080"
+            ]
+            assert len(matched_rows) == 1, (
+                f"Expected exactly 1 row with AK=8080, got {len(matched_rows)}"
+            )
+            row = matched_rows[0]
+            # MERGE MATCHED should have updated the name and color
+            assert row["EnglishProductName"] == "New Name"
+            assert row["Color"] == "Blue"
+        finally:
+            backend.sandbox_down(run_id=run_id)

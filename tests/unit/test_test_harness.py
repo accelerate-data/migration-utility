@@ -407,8 +407,8 @@ class TestIdentityInsert:
         )
         # identity column lookup returns SalesOrderID as identity
         sandbox_cursor.fetchall.side_effect = [
-            [("SalesOrderID",)],       # _get_identity_columns
             [("[bronze].[SalesOrderHeader]",)],  # sys.tables (trigger disable)
+            [("SalesOrderID",)],       # _get_identity_columns
             [(1, "Widget", 100)],       # SELECT * FROM target
         ]
         sandbox_cursor.description = [("SalesOrderID",), ("Name",), ("Amount",)]
@@ -446,8 +446,8 @@ class TestIdentityInsert:
             "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
         )
         sandbox_cursor.fetchall.side_effect = [
-            [],                         # _get_identity_columns: no identity cols
             [("[bronze].[Product]",)],  # sys.tables (trigger disable)
+            [],                         # _get_identity_columns: no identity cols
             [(1, "Widget")],            # SELECT * FROM target
         ]
         sandbox_cursor.description = [("id",), ("name",)]
@@ -482,9 +482,9 @@ class TestIdentityInsert:
         )
         # Two tables: first has identity, second does not
         sandbox_cursor.fetchall.side_effect = [
+            [("[bronze].[SalesOrderHeader]",), ("[bronze].[SalesOrderDetail]",)],  # sys.tables (trigger disable)
             [("OrderID",)],             # _get_identity_columns for table 1
             [],                         # _get_identity_columns for table 2
-            [("[bronze].[SalesOrderHeader]",), ("[bronze].[SalesOrderDetail]",)],  # sys.tables
             [(1, "result")],            # SELECT * FROM target
         ]
         sandbox_cursor.description = [("id",), ("value",)]
@@ -535,8 +535,8 @@ class TestFkConstraintDisabling:
             "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
         )
         sandbox_cursor.fetchall.side_effect = [
-            [],                         # _get_identity_columns
             [("[bronze].[Product]",)],  # sys.tables (trigger disable)
+            [],                         # _get_identity_columns
             [(1, "Widget")],            # SELECT * FROM target
         ]
         sandbox_cursor.description = [("id",), ("name",)]
@@ -586,7 +586,7 @@ class TestFkConstraintDisabling:
             "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
         )
         sandbox_cursor.fetchall.side_effect = [
-            [("[silver].[DimProduct]",)],   # sys.tables (trigger disable)
+            [("[silver].[DimProduct]",)],   # sys.tables (trigger disable — before FK)
             [(1, "Widget")],                # SELECT * FROM target
         ]
         sandbox_cursor.description = [("id",), ("name",)]
@@ -623,10 +623,10 @@ class TestTriggerDisabling:
         sandbox_cursor.fetchone.return_value = (
             "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
         )
-        # Calls: identity_cols, sys.tables list, SELECT * result
+        # Calls: sys.tables, identity_cols, SELECT * result
         sandbox_cursor.fetchall.side_effect = [
+            [("[bronze].[Product]",), ("[silver].[DimProduct]",), ("[dbo].[Config]",)],  # sys.tables (trigger disable)
             [],                                          # _get_identity_columns
-            [("[bronze].[Product]",), ("[silver].[DimProduct]",), ("[dbo].[Config]",)],  # sys.tables
             [(1, "Widget")],                             # SELECT * FROM target
         ]
         sandbox_cursor.description = [("id",), ("name",)]
@@ -664,8 +664,8 @@ class TestTriggerDisabling:
             "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
         )
         sandbox_cursor.fetchall.side_effect = [
+            [("[silver].[T1]",)],                        # sys.tables (trigger disable)
             [],                                          # _get_identity_columns
-            [("[silver].[T1]",)],                        # sys.tables
             [(1, "Widget")],                             # SELECT * FROM target
         ]
         sandbox_cursor.description = [("id",), ("name",)]

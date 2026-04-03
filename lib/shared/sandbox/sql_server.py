@@ -517,6 +517,26 @@ class SqlServerSandbox(SandboxBackend):
                             }],
                         }
 
+                    # Disable triggers on ALL user tables in the sandbox
+                    # before any INSERTs. Triggers may reference objects
+                    # that don't exist in the sandbox, causing spurious
+                    # failures during both fixture insertion and proc
+                    # execution.
+                    cursor.execute(
+                        "SELECT QUOTENAME(s.name) + '.' + QUOTENAME(t.name) "
+                        "FROM sys.tables t "
+                        "JOIN sys.schemas s ON t.schema_id = s.schema_id "
+                        "WHERE t.is_ms_shipped = 0"
+                    )
+                    all_tables = [row[0] for row in cursor.fetchall()]
+                    for tbl in all_tables:
+                        cursor.execute(f"DISABLE TRIGGER ALL ON {tbl}")
+                    if all_tables:
+                        logger.info(
+                            "event=triggers_disabled run_id=%s count=%d",
+                            run_id, len(all_tables),
+                        )
+
                     # Disable FK constraints on all fixture tables so
                     # fixture rows can reference parent keys that may not
                     # exist in the sandbox (e.g. NOT NULL FK defaults).
@@ -576,26 +596,6 @@ class SqlServerSandbox(SandboxBackend):
                     for table in fk_disabled_tables:
                         cursor.execute(
                             f"ALTER TABLE {table} CHECK CONSTRAINT ALL"
-                        )
-
-                    # Disable triggers on ALL user tables in the sandbox.
-                    # Triggers may exist on source tables, target tables,
-                    # or intermediate tables the proc touches internally.
-                    # They may reference objects that don't exist in the
-                    # sandbox, causing spurious failures.
-                    cursor.execute(
-                        "SELECT QUOTENAME(s.name) + '.' + QUOTENAME(t.name) "
-                        "FROM sys.tables t "
-                        "JOIN sys.schemas s ON t.schema_id = s.schema_id "
-                        "WHERE t.is_ms_shipped = 0"
-                    )
-                    all_tables = [row[0] for row in cursor.fetchall()]
-                    for tbl in all_tables:
-                        cursor.execute(f"DISABLE TRIGGER ALL ON {tbl}")
-                    if all_tables:
-                        logger.info(
-                            "event=triggers_disabled run_id=%s count=%d",
-                            run_id, len(all_tables),
                         )
 
                     cursor.execute(f"EXEC {procedure}")
