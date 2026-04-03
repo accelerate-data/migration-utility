@@ -104,6 +104,26 @@ def _split_identifier_parts(identifier: str) -> list[str]:
     return parts
 
 
+def _get_identity_columns(cursor: Any, table: str) -> set[str]:
+    """Return the set of identity column names for *table* in the current DB.
+
+    Queries ``sys.columns`` for ``is_identity = 1``.  Returns an empty set
+    if the table has no identity columns or the query fails.
+    """
+    try:
+        cursor.execute(
+            "SELECT c.name FROM sys.columns c "
+            "WHERE c.object_id = OBJECT_ID(?) AND c.is_identity = 1",
+            table,
+        )
+        return {row[0] for row in cursor.fetchall()}
+    except Exception:  # noqa: BLE001 — non-critical; caller falls back to plain INSERT
+        logger.debug(
+            "event=identity_column_lookup_failed table=%s", table,
+        )
+        return set()
+
+
 def _detect_remote_exec_target(definition: str) -> dict[str, str] | None:
     for match in _REMOTE_EXEC_RE.finditer(definition):
         target = match.group("target")
@@ -497,17 +517,86 @@ class SqlServerSandbox(SandboxBackend):
                             }],
                         }
 
+                    # Disable triggers on ALL user tables in the sandbox
+                    # before any INSERTs. Triggers may reference objects
+                    # that don't exist in the sandbox, causing spurious
+                    # failures during both fixture insertion and proc
+                    # execution.
+                    cursor.execute(
+                        "SELECT QUOTENAME(s.name) + '.' + QUOTENAME(t.name) "
+                        "FROM sys.tables t "
+                        "JOIN sys.schemas s ON t.schema_id = s.schema_id "
+                        "WHERE t.is_ms_shipped = 0"
+                    )
+                    all_tables = [row[0] for row in cursor.fetchall()]
+                    for tbl in all_tables:
+                        cursor.execute(f"DISABLE TRIGGER ALL ON {tbl}")
+                    if all_tables:
+                        logger.info(
+                            "event=triggers_disabled run_id=%s count=%d",
+                            run_id, len(all_tables),
+                        )
+
+                    # Disable FK constraints on all fixture tables so
+                    # fixture rows can reference parent keys that may not
+                    # exist in the sandbox (e.g. NOT NULL FK defaults).
+                    fk_disabled_tables: list[str] = []
+                    for fixture in given:
+                        table = fixture["table"]
+                        if fixture.get("rows"):
+                            cursor.execute(
+                                f"ALTER TABLE {table} NOCHECK CONSTRAINT ALL"
+                            )
+                            fk_disabled_tables.append(table)
+                    if fk_disabled_tables:
+                        logger.info(
+                            "event=fk_constraints_disabled run_id=%s tables=%s",
+                            run_id, fk_disabled_tables,
+                        )
+
                     for fixture in given:
                         table = fixture["table"]
                         rows = fixture.get("rows", [])
                         if not rows:
                             continue
                         columns = list(rows[0].keys())
+
+                        # Detect identity columns so we can toggle
+                        # IDENTITY_INSERT for explicit-value inserts.
+                        identity_cols = _get_identity_columns(cursor, table)
+                        needs_identity_insert = bool(
+                            identity_cols & {c for c in columns}
+                        )
+
+                        if needs_identity_insert:
+                            cursor.execute(
+                                f"SET IDENTITY_INSERT {table} ON"
+                            )
+                            logger.info(
+                                "event=identity_insert_enabled run_id=%s "
+                                "table=%s columns=%s",
+                                run_id,
+                                table,
+                                sorted(identity_cols & {c for c in columns}),
+                            )
+
                         col_list = ", ".join(f"[{c}]" for c in columns)
                         placeholders = ", ".join("?" for _ in columns)
                         insert_sql = f"INSERT INTO {table} ({col_list}) VALUES ({placeholders})"
                         value_lists = [[row[c] for c in columns] for row in rows]
                         cursor.executemany(insert_sql, value_lists)
+
+                        if needs_identity_insert:
+                            cursor.execute(
+                                f"SET IDENTITY_INSERT {table} OFF"
+                            )
+
+                    # Re-enable FK constraints before executing the proc
+                    # so the procedure runs under normal constraint rules.
+                    for table in fk_disabled_tables:
+                        cursor.execute(
+                            f"ALTER TABLE {table} CHECK CONSTRAINT ALL"
+                        )
 
                     cursor.execute(f"EXEC {procedure}")
 

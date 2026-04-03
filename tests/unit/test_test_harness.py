@@ -20,6 +20,7 @@ from shared.sandbox.base import SandboxBackend
 from shared.sandbox.sql_server import (
     SqlServerSandbox,
     _detect_remote_exec_target,
+    _get_identity_columns,
     _serialize_rows,
     _validate_identifier,
     _validate_run_id,
@@ -391,6 +392,305 @@ class TestSqlServerExecuteScenario:
             backend.execute_scenario(run_id="test-run", scenario=scenario)
 
 
+# ── IDENTITY_INSERT handling ──────────────────────────────────────────────────
+
+
+class TestIdentityInsert:
+    """Test IDENTITY_INSERT toggling in execute_scenario fixture insertion."""
+
+    def test_identity_insert_enabled_when_fixture_has_identity_column(self) -> None:
+        backend = _make_backend()
+        sandbox_cursor = MagicMock()
+        # First call: OBJECT_DEFINITION lookup (proc check)
+        sandbox_cursor.fetchone.return_value = (
+            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
+        )
+        # identity column lookup returns SalesOrderID as identity
+        sandbox_cursor.fetchall.side_effect = [
+            [("[bronze].[SalesOrderHeader]",)],  # sys.tables (trigger disable)
+            [("SalesOrderID",)],       # _get_identity_columns
+            [(1, "Widget", 100)],       # SELECT * FROM target
+        ]
+        sandbox_cursor.description = [("SalesOrderID",), ("Name",), ("Amount",)]
+
+        fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+
+        scenario = {
+            "name": "test_identity",
+            "target_table": "[silver].[FactSales]",
+            "procedure": "[dbo].[usp_load]",
+            "given": [
+                {
+                    "table": "[bronze].[SalesOrderHeader]",
+                    "rows": [{"SalesOrderID": 1, "Status": 5}],
+                }
+            ],
+        }
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+
+        assert result["status"] == "ok"
+
+        # Verify SET IDENTITY_INSERT ON/OFF were called
+        execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
+        identity_on = [c for c in execute_calls if "IDENTITY_INSERT" in c and "ON" in c and "OFF" not in c]
+        identity_off = [c for c in execute_calls if "IDENTITY_INSERT" in c and "OFF" in c]
+        assert len(identity_on) == 1, f"Expected 1 IDENTITY_INSERT ON, got {identity_on}"
+        assert len(identity_off) == 1, f"Expected 1 IDENTITY_INSERT OFF, got {identity_off}"
+
+    def test_no_identity_insert_when_no_identity_columns(self) -> None:
+        backend = _make_backend()
+        sandbox_cursor = MagicMock()
+        sandbox_cursor.fetchone.return_value = (
+            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
+        )
+        sandbox_cursor.fetchall.side_effect = [
+            [("[bronze].[Product]",)],  # sys.tables (trigger disable)
+            [],                         # _get_identity_columns: no identity cols
+            [(1, "Widget")],            # SELECT * FROM target
+        ]
+        sandbox_cursor.description = [("id",), ("name",)]
+
+        fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+
+        scenario = {
+            "name": "test_no_identity",
+            "target_table": "[silver].[DimProduct]",
+            "procedure": "[dbo].[usp_load]",
+            "given": [
+                {
+                    "table": "[bronze].[Product]",
+                    "rows": [{"name": "Widget"}],
+                }
+            ],
+        }
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+
+        assert result["status"] == "ok"
+        execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
+        identity_calls = [c for c in execute_calls if "IDENTITY_INSERT" in c]
+        assert len(identity_calls) == 0, f"Unexpected IDENTITY_INSERT calls: {identity_calls}"
+
+    def test_identity_insert_toggles_per_table(self) -> None:
+        backend = _make_backend()
+        sandbox_cursor = MagicMock()
+        sandbox_cursor.fetchone.return_value = (
+            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
+        )
+        # Two tables: first has identity, second does not
+        sandbox_cursor.fetchall.side_effect = [
+            [("[bronze].[SalesOrderHeader]",), ("[bronze].[SalesOrderDetail]",)],  # sys.tables (trigger disable)
+            [("OrderID",)],             # _get_identity_columns for table 1
+            [],                         # _get_identity_columns for table 2
+            [(1, "result")],            # SELECT * FROM target
+        ]
+        sandbox_cursor.description = [("id",), ("value",)]
+
+        fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+
+        scenario = {
+            "name": "test_multi_table",
+            "target_table": "[silver].[FactSales]",
+            "procedure": "[dbo].[usp_load]",
+            "given": [
+                {
+                    "table": "[bronze].[SalesOrderHeader]",
+                    "rows": [{"OrderID": 1, "Status": 5}],
+                },
+                {
+                    "table": "[bronze].[SalesOrderDetail]",
+                    "rows": [{"LineItem": "A", "Qty": 10}],
+                },
+            ],
+        }
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+
+        assert result["status"] == "ok"
+        execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
+        # Only table 1 should have IDENTITY_INSERT
+        identity_on = [c for c in execute_calls if "IDENTITY_INSERT" in c and "SalesOrderHeader" in c and "ON" in c and "OFF" not in c]
+        identity_off = [c for c in execute_calls if "IDENTITY_INSERT" in c and "SalesOrderHeader" in c and "OFF" in c]
+        assert len(identity_on) == 1
+        assert len(identity_off) == 1
+        # Table 2 should NOT have IDENTITY_INSERT
+        detail_identity = [c for c in execute_calls if "IDENTITY_INSERT" in c and "SalesOrderDetail" in c]
+        assert len(detail_identity) == 0
+
+
+# ── FK constraint disabling ───────────────────────────────────────────────────
+
+
+class TestFkConstraintDisabling:
+    """Test FK constraints are disabled/re-enabled around fixture insertion."""
+
+    def test_fk_nocheck_wraps_fixture_insertion(self) -> None:
+        backend = _make_backend()
+        sandbox_cursor = MagicMock()
+        sandbox_cursor.fetchone.return_value = (
+            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
+        )
+        sandbox_cursor.fetchall.side_effect = [
+            [("[bronze].[Product]",)],  # sys.tables (trigger disable)
+            [],                         # _get_identity_columns
+            [(1, "Widget")],            # SELECT * FROM target
+        ]
+        sandbox_cursor.description = [("id",), ("name",)]
+
+        fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+
+        scenario = {
+            "name": "test_fk_disable",
+            "target_table": "[silver].[DimProduct]",
+            "procedure": "[dbo].[usp_load]",
+            "given": [
+                {
+                    "table": "[bronze].[Product]",
+                    "rows": [{"id": 1, "name": "Widget"}],
+                }
+            ],
+        }
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+
+        assert result["status"] == "ok"
+        execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
+
+        # NOCHECK before inserts
+        nocheck = [c for c in execute_calls if "NOCHECK CONSTRAINT ALL" in c]
+        assert len(nocheck) == 1, f"Expected 1 NOCHECK, got {nocheck}"
+        assert "[bronze].[Product]" in nocheck[0]
+
+        # CHECK re-enabled before EXEC
+        check = [c for c in execute_calls if "CHECK CONSTRAINT ALL" in c and "NOCHECK" not in c]
+        assert len(check) == 1, f"Expected 1 CHECK, got {check}"
+
+        # Verify ordering: NOCHECK < executemany (INSERT) < CHECK < EXEC
+        nocheck_idx = next(i for i, c in enumerate(execute_calls) if "NOCHECK" in c)
+        check_idx = next(i for i, c in enumerate(execute_calls) if "CHECK CONSTRAINT ALL" in c and "NOCHECK" not in c)
+        exec_idx = next(i for i, c in enumerate(execute_calls) if "EXEC [dbo]" in c)
+        assert nocheck_idx < check_idx < exec_idx
+
+        # executemany is called separately — verify it happened
+        assert sandbox_cursor.executemany.called
+
+    def test_fk_nocheck_skipped_for_empty_fixtures(self) -> None:
+        backend = _make_backend()
+        sandbox_cursor = MagicMock()
+        sandbox_cursor.fetchone.return_value = (
+            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
+        )
+        sandbox_cursor.fetchall.side_effect = [
+            [("[silver].[DimProduct]",)],   # sys.tables (trigger disable — before FK)
+            [(1, "Widget")],                # SELECT * FROM target
+        ]
+        sandbox_cursor.description = [("id",), ("name",)]
+
+        fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+
+        scenario = {
+            "name": "test_empty",
+            "target_table": "[silver].[DimProduct]",
+            "procedure": "[dbo].[usp_load]",
+            "given": [
+                {"table": "[bronze].[Product]", "rows": []},
+            ],
+        }
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+
+        assert result["status"] == "ok"
+        execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
+        nocheck = [c for c in execute_calls if "NOCHECK" in c]
+        assert len(nocheck) == 0, "No NOCHECK for empty fixture rows"
+
+
+# ── Trigger disabling ─────────────────────────────────────────────────────────
+
+
+class TestTriggerDisabling:
+    """Test triggers are disabled on all sandbox tables."""
+
+    def test_triggers_disabled_on_all_sandbox_tables(self) -> None:
+        backend = _make_backend()
+        sandbox_cursor = MagicMock()
+        sandbox_cursor.fetchone.return_value = (
+            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
+        )
+        # Calls: sys.tables, identity_cols, SELECT * result
+        sandbox_cursor.fetchall.side_effect = [
+            [("[bronze].[Product]",), ("[silver].[DimProduct]",), ("[dbo].[Config]",)],  # sys.tables (trigger disable)
+            [],                                          # _get_identity_columns
+            [(1, "Widget")],                             # SELECT * FROM target
+        ]
+        sandbox_cursor.description = [("id",), ("name",)]
+
+        fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+
+        scenario = {
+            "name": "test_triggers",
+            "target_table": "[silver].[DimProduct]",
+            "procedure": "[dbo].[usp_load]",
+            "given": [
+                {
+                    "table": "[bronze].[Product]",
+                    "rows": [{"id": 1, "name": "Widget"}],
+                }
+            ],
+        }
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+
+        assert result["status"] == "ok"
+        execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
+
+        disable_trigger = [c for c in execute_calls if "DISABLE TRIGGER ALL" in c]
+        assert len(disable_trigger) == 3, (
+            f"Expected DISABLE TRIGGER on all 3 sandbox tables, got {disable_trigger}"
+        )
+
+    def test_triggers_disabled_before_exec(self) -> None:
+        """DISABLE TRIGGER must happen before EXEC procedure."""
+        backend = _make_backend()
+        sandbox_cursor = MagicMock()
+        sandbox_cursor.fetchone.return_value = (
+            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
+        )
+        sandbox_cursor.fetchall.side_effect = [
+            [("[silver].[T1]",)],                        # sys.tables (trigger disable)
+            [],                                          # _get_identity_columns
+            [(1, "Widget")],                             # SELECT * FROM target
+        ]
+        sandbox_cursor.description = [("id",), ("name",)]
+
+        fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+
+        scenario = {
+            "name": "test_order",
+            "target_table": "[silver].[T1]",
+            "procedure": "[dbo].[usp_load]",
+            "given": [
+                {"table": "[bronze].[S1]", "rows": [{"id": 1}]},
+            ],
+        }
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+
+        assert result["status"] == "ok"
+        execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
+        disable_idx = next(i for i, c in enumerate(execute_calls) if "DISABLE TRIGGER" in c)
+        exec_idx = next(i for i, c in enumerate(execute_calls) if "EXEC [dbo]" in c)
+        assert disable_idx < exec_idx
+
+
 # ── MONEY decoding ────────────────────────────────────────────────────────────
 
 
@@ -537,10 +837,11 @@ class TestSchemaValidation:
             "unit_tests": [
                 {
                     "name": "test_merge_matched",
-                    "model": "stg_dimproduct",
+                    "target_table": "[silver].[DimProduct]",
+                    "procedure": "[silver].[usp_load_DimProduct]",
                     "given": [
                         {
-                            "input": "source('bronze', 'product')",
+                            "table": "[bronze].[Product]",
                             "rows": [{"product_id": 1}],
                         }
                     ],
@@ -576,10 +877,11 @@ class TestSchemaValidation:
                     "unit_tests": [
                         {
                             "name": "test_merge_matched",
-                            "model": "stg_dimproduct",
+                            "target_table": "[silver].[DimProduct]",
+                            "procedure": "[silver].[usp_load_DimProduct]",
                             "given": [
                                 {
-                                    "input": "source('bronze', 'product')",
+                                    "table": "[bronze].[Product]",
                                     "rows": [{"product_id": 1}],
                                 }
                             ],
@@ -875,3 +1177,343 @@ class TestCLIStatusFallback:
         assert result.exit_code == 1
         output = json.loads(result.output)
         assert output["errors"][0]["code"] == "MISSING_RUN_ID"
+
+
+# ── execute-spec CLI ─────────────────────────────────────────────────────────
+
+
+def _write_test_spec(path: Path, unit_tests: list[dict[str, Any]]) -> Path:
+    """Write a minimal test spec JSON file and return its path."""
+    spec = {
+        "item_id": "silver.dimproduct",
+        "status": "ok",
+        "coverage": "complete",
+        "branch_manifest": [],
+        "unit_tests": unit_tests,
+        "uncovered_branches": [],
+        "warnings": [],
+        "validation": {"passed": True, "issues": []},
+        "errors": [],
+    }
+    spec_path = path / "test-specs" / "silver.dimproduct.json"
+    spec_path.parent.mkdir(parents=True, exist_ok=True)
+    spec_path.write_text(json.dumps(spec, indent=2))
+    return spec_path
+
+
+class TestCLIExecuteSpec:
+    """E2E: invoke execute-spec via CliRunner, verify expect.rows written back."""
+
+    def test_execute_spec_writes_expect_rows(self, tmp_path: Path) -> None:
+        from typer.testing import CliRunner
+
+        from shared.test_harness import app
+
+        _write_fixture_manifest(tmp_path)
+        write_manifest_sandbox(tmp_path, "e2e-run", "__test_e2e_run")
+
+        unit_tests = [
+            {
+                "name": "test_merge_matched",
+                "target_table": "[silver].[DimProduct]",
+                "procedure": "[silver].[usp_load_DimProduct]",
+                "given": [
+                    {"table": "[bronze].[Product]", "rows": [{"id": 1}]},
+                ],
+            }
+        ]
+        spec_path = _write_test_spec(tmp_path, unit_tests)
+        runner = CliRunner()
+
+        backend_mock = MagicMock()
+        backend_mock.execute_scenario.return_value = {
+            "schema_version": "1.0",
+            "run_id": "e2e-run",
+            "scenario_name": "test_merge_matched",
+            "status": "ok",
+            "ground_truth_rows": [{"ProductKey": 1, "Name": "Widget"}],
+            "row_count": 1,
+            "errors": [],
+        }
+
+        with (
+            patch("shared.test_harness.resolve_project_root", return_value=tmp_path),
+            patch("shared.test_harness._create_backend", return_value=backend_mock),
+            patch.dict(os.environ, _cli_env(tmp_path)),
+        ):
+            result = runner.invoke(app, [
+                "execute-spec",
+                "--spec", str(spec_path),
+                "--project-root", str(tmp_path),
+            ])
+
+        assert result.exit_code == 0
+        output = json.loads(result.output)
+        assert output["ok"] == 1
+        assert output["failed"] == 0
+
+        # Verify spec file was updated with expect.rows
+        updated_spec = json.loads(spec_path.read_text())
+        assert updated_spec["unit_tests"][0]["expect"] == {
+            "rows": [{"ProductKey": 1, "Name": "Widget"}],
+        }
+
+    def test_execute_spec_partial_failure(self, tmp_path: Path) -> None:
+        from typer.testing import CliRunner
+
+        from shared.test_harness import app
+
+        _write_fixture_manifest(tmp_path)
+        write_manifest_sandbox(tmp_path, "e2e-run", "__test_e2e_run")
+
+        unit_tests = [
+            {
+                "name": "test_ok",
+                "target_table": "[silver].[DimProduct]",
+                "procedure": "[silver].[usp_load]",
+                "given": [{"table": "[bronze].[Product]", "rows": [{"id": 1}]}],
+            },
+            {
+                "name": "test_fail",
+                "target_table": "[silver].[DimProduct]",
+                "procedure": "[silver].[usp_load]",
+                "given": [{"table": "[bronze].[Product]", "rows": [{"id": 2}]}],
+            },
+        ]
+        spec_path = _write_test_spec(tmp_path, unit_tests)
+        runner = CliRunner()
+
+        backend_mock = MagicMock()
+        backend_mock.execute_scenario.side_effect = [
+            {
+                "scenario_name": "test_ok",
+                "status": "ok",
+                "ground_truth_rows": [{"id": 1}],
+                "row_count": 1,
+                "errors": [],
+            },
+            {
+                "scenario_name": "test_fail",
+                "status": "error",
+                "ground_truth_rows": [],
+                "row_count": 0,
+                "errors": [{"code": "SCENARIO_FAILED", "message": "insert failed"}],
+            },
+        ]
+
+        with (
+            patch("shared.test_harness.resolve_project_root", return_value=tmp_path),
+            patch("shared.test_harness._create_backend", return_value=backend_mock),
+            patch.dict(os.environ, _cli_env(tmp_path)),
+        ):
+            result = runner.invoke(app, [
+                "execute-spec",
+                "--spec", str(spec_path),
+                "--project-root", str(tmp_path),
+            ])
+
+        assert result.exit_code == 0  # partial success → exit 0
+        output = json.loads(result.output)
+        assert output["ok"] == 1
+        assert output["failed"] == 1
+
+    def test_execute_spec_all_fail_exits_1(self, tmp_path: Path) -> None:
+        from typer.testing import CliRunner
+
+        from shared.test_harness import app
+
+        _write_fixture_manifest(tmp_path)
+        write_manifest_sandbox(tmp_path, "e2e-run", "__test_e2e_run")
+
+        unit_tests = [
+            {
+                "name": "test_fail",
+                "target_table": "[silver].[DimProduct]",
+                "procedure": "[silver].[usp_load]",
+                "given": [{"table": "[bronze].[Product]", "rows": [{"id": 1}]}],
+            },
+        ]
+        spec_path = _write_test_spec(tmp_path, unit_tests)
+        runner = CliRunner()
+
+        backend_mock = MagicMock()
+        backend_mock.execute_scenario.return_value = {
+            "scenario_name": "test_fail",
+            "status": "error",
+            "ground_truth_rows": [],
+            "row_count": 0,
+            "errors": [{"code": "SCENARIO_FAILED", "message": "connection refused"}],
+        }
+
+        with (
+            patch("shared.test_harness.resolve_project_root", return_value=tmp_path),
+            patch("shared.test_harness._create_backend", return_value=backend_mock),
+            patch.dict(os.environ, _cli_env(tmp_path)),
+        ):
+            result = runner.invoke(app, [
+                "execute-spec",
+                "--spec", str(spec_path),
+                "--project-root", str(tmp_path),
+            ])
+
+        assert result.exit_code == 1
+
+    def test_execute_spec_output_schema(self, assert_valid_schema) -> None:
+        data = {
+            "schema_version": "1.0",
+            "run_id": "abc-123",
+            "spec_path": "test-specs/silver.dimproduct.json",
+            "total": 2,
+            "ok": 1,
+            "failed": 1,
+            "results": [
+                {
+                    "scenario_name": "test_merge_matched",
+                    "status": "ok",
+                    "row_count": 1,
+                    "errors": [],
+                },
+                {
+                    "scenario_name": "test_merge_not_matched",
+                    "status": "error",
+                    "row_count": 0,
+                    "errors": [{"code": "SCENARIO_FAILED", "message": "insert failed"}],
+                },
+            ],
+        }
+        assert_valid_schema(data, "execute_spec_output.json")
+
+
+# ── dbt YAML conversion ──────────────────────────────────────────────────────
+
+
+class TestDbtConversion:
+    """Test bracket-to-dbt mapping, model name derivation, and YAML output."""
+
+    def test_bracket_to_source(self) -> None:
+        from shared.test_harness import _bracket_to_dbt
+
+        assert _bracket_to_dbt("[bronze].[SalesOrderHeader]") == "source('bronze', 'SalesOrderHeader')"
+
+    def test_bracket_to_ref(self) -> None:
+        from shared.test_harness import _bracket_to_dbt
+
+        assert _bracket_to_dbt("[silver].[stg_DimProduct]") == "ref('stg_DimProduct')"
+
+    def test_dbo_maps_to_source(self) -> None:
+        from shared.test_harness import _bracket_to_dbt
+
+        assert _bracket_to_dbt("[dbo].[Product]") == "source('dbo', 'Product')"
+
+    def test_gold_maps_to_ref(self) -> None:
+        from shared.test_harness import _bracket_to_dbt
+
+        assert _bracket_to_dbt("[gold].[FactSales]") == "ref('FactSales')"
+
+    def test_passthrough_non_bracket(self) -> None:
+        from shared.test_harness import _bracket_to_dbt
+
+        assert _bracket_to_dbt("silver.DimProduct") == "silver.DimProduct"
+
+    def test_derive_model_name(self) -> None:
+        from shared.test_harness import _derive_model_name
+
+        assert _derive_model_name("[silver].[DimProduct]") == "stg_dimproduct"
+
+    def test_derive_model_name_dot_fallback(self) -> None:
+        from shared.test_harness import _derive_model_name
+
+        assert _derive_model_name("silver.DimProduct") == "stg_dimproduct"
+
+    def test_convert_spec_to_dbt(self) -> None:
+        from shared.test_harness import convert_spec_to_dbt
+
+        spec_data = {
+            "item_id": "silver.dimproduct",
+            "unit_tests": [
+                {
+                    "name": "test_merge_matched",
+                    "target_table": "[silver].[DimProduct]",
+                    "procedure": "[silver].[usp_load_DimProduct]",
+                    "given": [
+                        {
+                            "table": "[bronze].[Product]",
+                            "rows": [{"ProductID": 1, "Name": "Widget"}],
+                        }
+                    ],
+                    "expect": {
+                        "rows": [{"ProductKey": 1, "ProductName": "Widget"}],
+                    },
+                }
+            ],
+        }
+
+        result = convert_spec_to_dbt(spec_data)
+        assert len(result["unit_tests"]) == 1
+
+        test = result["unit_tests"][0]
+        assert test["name"] == "test_merge_matched"
+        assert test["model"] == "stg_dimproduct"
+        assert test["given"][0]["input"] == "source('bronze', 'Product')"
+        assert test["given"][0]["rows"] == [{"ProductID": 1, "Name": "Widget"}]
+        assert test["expect"]["rows"] == [{"ProductKey": 1, "ProductName": "Widget"}]
+
+    def test_convert_spec_uses_existing_model_field(self) -> None:
+        from shared.test_harness import convert_spec_to_dbt
+
+        spec_data = {
+            "unit_tests": [
+                {
+                    "name": "test_custom_model",
+                    "target_table": "[silver].[DimProduct]",
+                    "procedure": "[silver].[usp_load]",
+                    "model": "custom_model_name",
+                    "given": [
+                        {"table": "[bronze].[Product]", "rows": [{"id": 1}]},
+                    ],
+                }
+            ],
+        }
+
+        result = convert_spec_to_dbt(spec_data)
+        assert result["unit_tests"][0]["model"] == "custom_model_name"
+
+    def test_convert_dbt_cli_writes_yaml(self, tmp_path: Path) -> None:
+        import yaml as yaml_mod
+
+        from typer.testing import CliRunner
+
+        from shared.test_harness import app
+
+        spec = {
+            "item_id": "silver.dimproduct",
+            "unit_tests": [
+                {
+                    "name": "test_merge",
+                    "target_table": "[silver].[DimProduct]",
+                    "procedure": "[silver].[usp_load]",
+                    "given": [
+                        {"table": "[bronze].[Product]", "rows": [{"id": 1}]},
+                    ],
+                    "expect": {"rows": [{"key": 1}]},
+                }
+            ],
+        }
+        spec_path = tmp_path / "spec.json"
+        spec_path.write_text(json.dumps(spec))
+        output_path = tmp_path / "output.yml"
+
+        runner = CliRunner()
+        result = runner.invoke(app, [
+            "convert-dbt",
+            "--spec", str(spec_path),
+            "--output", str(output_path),
+        ])
+
+        assert result.exit_code == 0
+        assert output_path.exists()
+
+        dbt_data = yaml_mod.safe_load(output_path.read_text())
+        assert len(dbt_data["unit_tests"]) == 1
+        assert dbt_data["unit_tests"][0]["model"] == "stg_dimproduct"
+        assert dbt_data["unit_tests"][0]["given"][0]["input"] == "source('bronze', 'Product')"

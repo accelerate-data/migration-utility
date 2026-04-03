@@ -43,6 +43,10 @@ Read the output JSON. It contains:
 - `source_tables` — tables read by the writer
 - `schema_tests` — deterministic test specs (entity integrity, referential integrity, recency, PII)
 
+**Source table catalog lookup:** For each table in `source_tables`, read `catalog/tables/<schema>.<table>.json` to get the full column list with `is_nullable`, `is_identity`, and type metadata. Also read `auto_increment_columns` to identify identity columns. This metadata is required for Step 3 (NOT NULL column coverage).
+
+Record the `selected_writer` procedure name from the catalog's `scoping` section — this becomes the `procedure` field in the test spec.
+
 ## Step 2: Extract branches
 
 For each statement where `action == migrate`, identify all conditional branches. Use the proc body and statement SQL to enumerate every code path that produces different output behavior.
@@ -70,6 +74,42 @@ For each branch, generate minimum synthetic input rows (1-3 per source table):
 - Use column types from catalog to generate type-appropriate values.
 - Parameters are ignored or flagged — rare in warehouse procs, typically orchestration concerns.
 
+### Columns to exclude from fixtures
+
+Never include these columns in fixture rows — they will cause INSERT failures:
+
+- **Computed columns**: Columns defined with `AS <expression>` in the DDL. Detect them from the `CREATE TABLE` statement in catalog DDL or from the proc context. SQL Server rejects explicit values for computed columns.
+- **Identity columns not needed by the scenario**: Columns listed in `auto_increment_columns` where the scenario does not need to control the specific key value. Omit them and let SQL Server auto-generate. Only include identity columns when the scenario requires a specific value (e.g., to set up a MERGE MATCHED condition with a known key).
+
+### NOT NULL column coverage
+
+For every source table in `given[]`, include **all** columns where `is_nullable == false` in the fixture rows — except computed columns and identity columns that the scenario does not need.
+
+For columns that are NOT NULL but not referenced by the procedure SQL, use sensible type-appropriate defaults:
+
+| SQL Type Pattern | Default Value |
+|---|---|
+| INT, BIGINT, SMALLINT, TINYINT | `0` |
+| NVARCHAR, VARCHAR, CHAR, NCHAR | `""` (empty string) |
+| DATETIME, DATETIME2, DATE, SMALLDATETIME | `"1900-01-01"` |
+| BIT | `0` |
+| DECIMAL, NUMERIC, MONEY, SMALLMONEY | `0.00` |
+| FLOAT, REAL | `0.0` |
+| UNIQUEIDENTIFIER | `"00000000-0000-0000-0000-000000000000"` |
+| VARBINARY, BINARY | `""` (empty string) |
+
+When a NOT NULL column also has a foreign key constraint, prefer a value that matches a row in the referenced table within the same scenario. If the referenced table is not part of the scenario fixtures, use the type default above — the sandbox disables FK constraints during fixture insertion so orphaned FK values will not cause failures.
+
+### CHECK constraint compliance
+
+If the DDL or proc context reveals CHECK constraints on a source table, generate fixture values that satisfy them. Common patterns:
+
+- Range constraints (`CHECK (Qty >= 0)`) — use a value within the range
+- Enum constraints (`CHECK (Status IN ('A','B','C'))`) — pick a valid value
+- Cross-column constraints (`CHECK (EndDate > StartDate)`) — ensure consistency
+
+Do not generate values that violate CHECK constraints — the sandbox does not disable CHECK constraints because violations indicate wrong fixture data.
+
 ## Step 4: Present for approval
 
 Show the user:
@@ -84,15 +124,19 @@ Ask the user: "Approve these test scenarios? (y/n/edit)". If the user requests e
 
 Write `test-specs/<item_id>.json` with the TestSpec schema. The `expect` field is omitted — ground truth is captured later by the command after review approval.
 
+**CLI-ready format:** The test spec uses bracket-quoted SQL identifiers for direct consumption by `test-harness execute`. The `/generate-tests` command converts to dbt YAML after ground truth capture.
+
 Naming conventions:
 
 - Test name: `test_<load_pattern>_<scenario_description>`
-- Model name is deterministic from table FQN: `silver.dimproduct` → `stg_dimproduct`
-- `given[].input` uses `source()` for bronze tables and `ref()` for silver/gold tables
+- `target_table`: bracket-quoted FQN of the target table, e.g. `[silver].[DimProduct]`
+- `procedure`: bracket-quoted FQN of the writer procedure from catalog scoping, e.g. `[silver].[usp_load_DimProduct]`
+- `given[].table`: bracket-quoted SQL identifier, e.g. `[bronze].[SalesOrderHeader]`
 
 ## Step 6: Validate output
 
-- Every `unit_tests[]` entry has at least one `given` input with rows.
+- Every `unit_tests[]` entry has at least one `given` entry with rows.
+- Every `given[].rows` entry includes all NOT NULL non-identity columns for that source table.
 - Set `coverage` field: `complete` when all branches have scenarios, `partial` otherwise.
 - Set `status`: `ok | partial | error`.
 
@@ -116,18 +160,19 @@ Written to `test-specs/<item_id>.json` (before ground truth capture):
   "unit_tests": [
     {
       "name": "test_merge_matched_existing_product_updated",
-      "model": "stg_dimproduct",
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]",
       "given": [
         {
-          "input": "source('bronze', 'product')",
+          "table": "[bronze].[Product]",
           "rows": [
-            { "product_id": 1, "product_name": "Widget", "list_price": 99.99 }
+            { "ProductID": 1, "Name": "Widget", "ListPrice": 99.99, "ModifiedDate": "2024-01-15", "rowguid": "A0000000-0000-0000-0000-000000000001" }
           ]
         },
         {
-          "input": "ref('stg_dimproduct')",
+          "table": "[silver].[DimProduct]",
           "rows": [
-            { "product_key": 1, "product_name": "Old Widget", "list_price": 50.00 }
+            { "ProductKey": 1, "ProductName": "Old Widget", "ListPrice": 50.00 }
           ]
         }
       ]
@@ -143,17 +188,19 @@ Written to `test-specs/<item_id>.json` (before ground truth capture):
 }
 ```
 
-The `/generate-tests` command adds `expect.rows` to each `unit_tests[]` entry after bulk-executing scenarios in the sandbox.
+The `/generate-tests` command adds `expect.rows` to each `unit_tests[]` entry after bulk-executing scenarios in the sandbox, then converts to dbt YAML for commit.
 
 ### unit_tests[] Entry Schema
 
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `name` | string | yes | Test name — convention: `test_<load_pattern>_<scenario_description>` |
-| `model` | string | yes | dbt model name, deterministic from table FQN |
-| `given` | object[] | yes | One entry per mocked input relation |
-| `given[].input` | string | yes | dbt `ref(...)` or `source(...)` expression |
-| `given[].rows` | object[] | yes | Synthetic fixture input rows as column->value maps |
+| `target_table` | string | yes | Bracket-quoted target table identifier, e.g. `[silver].[DimProduct]` |
+| `procedure` | string | yes | Bracket-quoted stored procedure identifier, e.g. `[silver].[usp_load_DimProduct]` |
+| `model` | string | no | dbt model name — optional; used during dbt YAML conversion |
+| `given` | object[] | yes | One entry per fixture source table |
+| `given[].table` | string | yes | Bracket-quoted SQL identifier for the fixture table |
+| `given[].rows` | object[] | yes | Synthetic fixture input rows as column→value maps (includes all NOT NULL non-identity columns) |
 | `expect.rows` | object[] | no | Ground truth output rows — added by command after execution |
 
 ## Coverage and Status Rules
@@ -170,7 +217,7 @@ Test generator must not:
 
 - Execute stored procedures or access the sandbox
 - Generate dbt SQL model files
-- Render YAML — `unit_tests[]` is structured JSON; the model-generator renders YAML
+- Render YAML — `unit_tests[]` is structured JSON; dbt YAML conversion happens post-execution
 - Make materialization or business key decisions
 - Score its own coverage authoritatively — the test reviewer does that
 
