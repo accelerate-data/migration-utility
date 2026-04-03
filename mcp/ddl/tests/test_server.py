@@ -164,7 +164,7 @@ def test_get_dependencies_ast_excludes_comment_only(ddl_dir: Path) -> None:
 
 
 def test_get_dependencies_exec_procs_need_enrich(ddl_dir: Path) -> None:
-    """Static EXEC procs route to call-graph enrichment instead of raising."""
+    """Procedures with static EXEC stay deterministic and request enrichment."""
     catalog = load_directory(ddl_dir)
     from shared.loader import extract_refs
     from shared.name_resolver import normalize
@@ -174,6 +174,8 @@ def test_get_dependencies_exec_procs_need_enrich(ddl_dir: Path) -> None:
     assert entry is not None
     refs = extract_refs(entry)
     assert refs.needs_llm is False
+    assert refs.writes_to == []
+    assert refs.reads_from == []
 
 
 # ── get_table_schema — structured JSON ───────────────────────────────────────

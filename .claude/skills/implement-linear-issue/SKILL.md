@@ -185,7 +185,7 @@ When ALL are true: estimate is XS or S (1-2 points), changes are isolated to one
 
 - Implement directly (single agent).
 - Handle tests and logging inline.
-- Run `cd app && npx tsc --noEmit` before committing.
+- Run the repo-specific validation command(s) from `AGENTS.md` / `repo-map.json` before committing. Do not assume an `app/` directory exists.
 - Only the **code reviewed** and **final validation** quality gates apply.
 - Code review and PR creation are never skipped.
 
@@ -235,7 +235,7 @@ Add targeted tests for changed behavior only. Update/remove obsolete tests.
 
 ### Tests passing
 
-1. `cd app && npx tsc --noEmit`
+1. Run the repo-specific validation command(s) from `AGENTS.md` / `repo-map.json`. Do not assume an `app/` directory exists.
 2. Test commands based on changed areas per repo guidelines.
 
 ### Logging compliant
