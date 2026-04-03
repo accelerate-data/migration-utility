@@ -65,6 +65,11 @@ class TestHashTableSignals:
         s2 = {"primary_keys": [], "columns": []}
         assert hash_table_signals(s1) == hash_table_signals(s2)
 
+    def test_list_order_irrelevant(self) -> None:
+        s1 = {"columns": [{"name": "id", "sql_type": "INT"}, {"name": "name", "sql_type": "NVARCHAR(50)"}]}
+        s2 = {"columns": [{"name": "name", "sql_type": "NVARCHAR(50)"}, {"name": "id", "sql_type": "INT"}]}
+        assert hash_table_signals(s1) == hash_table_signals(s2)
+
     def test_different_signals_different_hash(self) -> None:
         s1 = {"columns": [{"name": "id"}]}
         s2 = {"columns": [{"name": "name"}]}

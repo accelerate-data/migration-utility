@@ -277,7 +277,9 @@ def run_assemble_tables(input_path: Path, project_root: Path) -> dict[str, Any]:
 
 def _mark_stale(project_root: Path, removed_fqns: set[str]) -> None:
     """Set ``stale: true`` on catalog files for objects no longer in the source."""
-    catalog_dir = project_root / "catalog"
+    from shared.env_config import resolve_catalog_dir
+
+    catalog_dir = resolve_catalog_dir(project_root)
     for fqn in sorted(removed_fqns):
         for bucket in ("tables", "procedures", "views", "functions"):
             p = catalog_dir / bucket / f"{fqn}.json"
