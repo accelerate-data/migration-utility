@@ -396,7 +396,7 @@ def test_scan_routing_flags_linked_server_exec_needs_enrich() -> None:
     assert flags["needs_enrich"] is True
     assert flags["needs_llm"] is False
     assert flags["mode"] == "call_graph_enrich"
-    assert flags["routing_reasons"] == ["static_exec"]
+    assert flags["routing_reasons"] == ["linked_server_exec", "static_exec"]
 
 
 def test_scan_routing_flags_exec_concat_needs_llm() -> None:
