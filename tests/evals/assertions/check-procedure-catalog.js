@@ -1,14 +1,38 @@
 // Validates that a procedure catalog file was written with resolved statements.
 // Usage: type: javascript, value: file://../../assertions/check-procedure-catalog.js
-// Expects context.vars: { fixture_path, target_table, expected_action?, expected_content? }
+// Expects context.vars:
+// {
+//   fixture_path,
+//   target_table,
+//   expected_action?,
+//   expected_content?,
+//   expected_output_terms?,
+//   expected_statement_terms?,
+//   expected_rationale_terms?,
+//   allow_zero_migrate?,
+//   expected_source?
+// }
 const fs = require('fs');
 const path = require('path');
+
+function normalizeTerms(value) {
+  if (!value) return [];
+  return String(value)
+    .split(',')
+    .map((term) => term.trim().toLowerCase())
+    .filter(Boolean);
+}
 
 module.exports = (output, context) => {
   const fixturePath = context.vars.fixture_path;
   const proc = context.vars.target_table;
   const expectedAction = context.vars.expected_action;
   const expectedContent = context.vars.expected_content;
+  const expectedOutputTerms = normalizeTerms(context.vars.expected_output_terms);
+  const expectedStatementTerms = normalizeTerms(context.vars.expected_statement_terms);
+  const expectedRationaleTerms = normalizeTerms(context.vars.expected_rationale_terms);
+  const allowZeroMigrate = String(context.vars.allow_zero_migrate || '').toLowerCase() === 'true';
+  const expectedSource = context.vars.expected_source;
 
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
   // Procedure catalog files use lowercase names
@@ -38,7 +62,7 @@ module.exports = (output, context) => {
 
   // Check at least one migrate statement exists
   const migrateCount = catalog.statements.filter(s => s.action === 'migrate').length;
-  if (migrateCount === 0) {
+  if (!allowZeroMigrate && migrateCount === 0) {
     return { pass: false, score: 0, reason: 'No migrate statements found — expected at least one' };
   }
 
@@ -56,6 +80,40 @@ module.exports = (output, context) => {
     for (const term of expectedContent.split(',').map(t => t.trim().toLowerCase())) {
       if (!catalogStr.includes(term)) {
         return { pass: false, score: 0, reason: `Expected content '${term}' not found in procedure catalog` };
+      }
+    }
+  }
+
+  if (expectedSource) {
+    const hasSource = catalog.statements.some(s => s.source === expectedSource);
+    if (!hasSource) {
+      return { pass: false, score: 0, reason: `Expected source '${expectedSource}' not found in statements` };
+    }
+  }
+
+  if (expectedStatementTerms.length > 0) {
+    const statementStr = JSON.stringify(catalog.statements).toLowerCase();
+    for (const term of expectedStatementTerms) {
+      if (!statementStr.includes(term)) {
+        return { pass: false, score: 0, reason: `Expected statement term '${term}' not found in resolved statements` };
+      }
+    }
+  }
+
+  if (expectedRationaleTerms.length > 0) {
+    const rationaleText = catalog.statements.map((statement) => statement.rationale || '').join(' ').toLowerCase();
+    for (const term of expectedRationaleTerms) {
+      if (!rationaleText.includes(term)) {
+        return { pass: false, score: 0, reason: `Expected rationale term '${term}' not found in resolved statements` };
+      }
+    }
+  }
+
+  if (expectedOutputTerms.length > 0) {
+    const outputStr = String(output || '').toLowerCase();
+    for (const term of expectedOutputTerms) {
+      if (!outputStr.includes(term)) {
+        return { pass: false, score: 0, reason: `Expected output term '${term}' not found in final response` };
       }
     }
   }

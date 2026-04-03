@@ -1,0 +1,265 @@
+{
+  "item_id": "silver.dimproduct",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {
+      "id": "merge_matched_update",
+      "statement_index": 0,
+      "description": "MERGE WHEN MATCHED updates an existing product row in the source procedure",
+      "testable_in_dbt": false,
+      "scenarios": []
+    },
+    {
+      "id": "merge_not_matched_by_target_insert",
+      "statement_index": 0,
+      "description": "MERGE WHEN NOT MATCHED BY TARGET inserts a new product row in the source procedure",
+      "testable_in_dbt": false,
+      "scenarios": []
+    },
+    {
+      "id": "case_status_obsolete",
+      "statement_index": 0,
+      "description": "CASE branch maps DiscontinuedDate IS NOT NULL to Status = 'Obsolete'",
+      "scenarios": [
+        "test_status_obsolete_when_discontinued"
+      ]
+    },
+    {
+      "id": "case_status_outdated",
+      "statement_index": 0,
+      "description": "CASE branch maps SellEndDate IS NOT NULL and DiscontinuedDate IS NULL to Status = 'Outdated'",
+      "scenarios": [
+        "test_status_outdated_when_sell_end_present"
+      ]
+    },
+    {
+      "id": "case_status_current",
+      "statement_index": 0,
+      "description": "CASE branch maps DiscontinuedDate IS NULL and SellEndDate IS NULL to Status = 'Current'",
+      "scenarios": [
+        "test_status_current_when_active_product"
+      ]
+    },
+    {
+      "id": "coalesce_color_null",
+      "statement_index": 0,
+      "description": "COALESCE maps NULL Color to empty string",
+      "scenarios": [
+        "test_color_defaults_to_empty_string_when_null"
+      ]
+    },
+    {
+      "id": "coalesce_color_not_null",
+      "statement_index": 0,
+      "description": "COALESCE preserves non-null Color values",
+      "scenarios": [
+        "test_status_current_when_active_product"
+      ]
+    },
+    {
+      "id": "empty_source_bronze_product",
+      "statement_index": 0,
+      "description": "Empty bronze.Product input yields an empty staged result",
+      "scenarios": [
+        "test_empty_source_returns_no_rows"
+      ]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_status_current_when_active_product",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "input": "source('bronze', 'product')",
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Road-150",
+              "StandardCost": 10.0,
+              "ListPrice": 25.0,
+              "Color": "Red",
+              "Size": "M",
+              "ProductLine": "R",
+              "Class": "H",
+              "Style": "U",
+              "SellStartDate": "2024-01-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150",
+            "StandardCost": 10.0,
+            "ListPrice": 25.0,
+            "Color": "Red",
+            "Size": "M",
+            "ProductLine": "R",
+            "Class": "H",
+            "Style": "U",
+            "StartDate": "2024-01-01",
+            "EndDate": null,
+            "Status": "Current"
+          }
+        ]
+      }
+    },
+    {
+      "name": "test_status_obsolete_when_discontinued",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "input": "source('bronze', 'product')",
+          "rows": [
+            {
+              "ProductID": 2,
+              "ProductName": "Mountain-200",
+              "StandardCost": 20.0,
+              "ListPrice": 45.0,
+              "Color": "Blue",
+              "Size": "L",
+              "ProductLine": "M",
+              "Class": "M",
+              "Style": "U",
+              "SellStartDate": "2024-02-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": "2024-03-15"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "2",
+            "EnglishProductName": "Mountain-200",
+            "StandardCost": 20.0,
+            "ListPrice": 45.0,
+            "Color": "Blue",
+            "Size": "L",
+            "ProductLine": "M",
+            "Class": "M",
+            "Style": "U",
+            "StartDate": "2024-02-01",
+            "EndDate": null,
+            "Status": "Obsolete"
+          }
+        ]
+      }
+    },
+    {
+      "name": "test_status_outdated_when_sell_end_present",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "input": "source('bronze', 'product')",
+          "rows": [
+            {
+              "ProductID": 3,
+              "ProductName": "Touring-300",
+              "StandardCost": 15.0,
+              "ListPrice": 30.0,
+              "Color": "Green",
+              "Size": "S",
+              "ProductLine": "T",
+              "Class": "L",
+              "Style": "W",
+              "SellStartDate": "2023-05-01",
+              "SellEndDate": "2024-01-31",
+              "DiscontinuedDate": null
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "3",
+            "EnglishProductName": "Touring-300",
+            "StandardCost": 15.0,
+            "ListPrice": 30.0,
+            "Color": "Green",
+            "Size": "S",
+            "ProductLine": "T",
+            "Class": "L",
+            "Style": "W",
+            "StartDate": "2023-05-01",
+            "EndDate": "2024-01-31",
+            "Status": "Outdated"
+          }
+        ]
+      }
+    },
+    {
+      "name": "test_color_defaults_to_empty_string_when_null",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "input": "source('bronze', 'product')",
+          "rows": [
+            {
+              "ProductID": 4,
+              "ProductName": "Helmet-400",
+              "StandardCost": 5.0,
+              "ListPrice": 12.0,
+              "Color": null,
+              "Size": "XS",
+              "ProductLine": "A",
+              "Class": "E",
+              "Style": "U",
+              "SellStartDate": "2024-04-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "4",
+            "EnglishProductName": "Helmet-400",
+            "StandardCost": 5.0,
+            "ListPrice": 12.0,
+            "Color": "",
+            "Size": "XS",
+            "ProductLine": "A",
+            "Class": "E",
+            "Style": "U",
+            "StartDate": "2024-04-01",
+            "EndDate": null,
+            "Status": "Current"
+          }
+        ]
+      }
+    },
+    {
+      "name": "test_empty_source_returns_no_rows",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "input": "source('bronze', 'product')",
+          "rows": []
+        }
+      ],
+      "expect": {
+        "rows": []
+      }
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [
+    "MERGE matched/update and insert-only distinctions are source-procedure behaviors that collapse into the staged SELECT model, so dbt unit tests cover the transformation branches instead."
+  ],
+  "validation": {
+    "status": "ok",
+    "summary": []
+  },
+  "errors": []
+}

@@ -186,5 +186,31 @@
       "in_scope": [],
       "out_of_scope": []
     }
+  },
+  "profile": {
+    "status": "ok",
+    "writer": "silver.usp_load_DimCustomer_Full",
+    "classification": {
+      "resolved_kind": "dim_non_scd",
+      "source": "catalog+llm",
+      "rationale": "The full-load writer truncates and reloads a customer dimension projection without SCD history columns or versioning logic, so the table profiles as a non-SCD dimension."
+    },
+    "primary_key": {
+      "columns": [
+        "CustomerKey"
+      ],
+      "primary_key_type": "surrogate",
+      "source": "catalog",
+      "rationale": "CustomerKey is the declared primary key and uses the table identity mechanism, which makes it the surrogate key."
+    },
+    "natural_key": {
+      "columns": [
+        "CustomerAlternateKey"
+      ],
+      "source": "llm",
+      "rationale": "The writer derives CustomerAlternateKey from bronze.Customer.CustomerID and uses it as the stable business identifier in the dimensional projection."
+    },
+    "foreign_keys": [],
+    "pii_actions": []
   }
 }

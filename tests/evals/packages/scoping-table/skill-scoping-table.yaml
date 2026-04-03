@@ -1,0 +1,77 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "Scoping-table skill — writer discovery and scope resolution for tables"
+
+prompts:
+  - file://../../prompts/skill-scoping-table.txt
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    config:
+      model: claude-sonnet-4-6
+      working_dir: ../..
+      max_turns: 80
+      permission_mode: bypassPermissions
+      allow_dangerously_skip_permissions: true
+      append_allowed_tools:
+        - Read
+        - Write
+        - Bash
+        - Glob
+        - Grep
+
+defaultTest:
+  vars:
+    fixture_path: "tests/evals/fixtures/migration-test"
+  assert:
+    - type: javascript
+      value: file://../../assertions/check-table-scoping.js
+
+tests:
+  # ── truncate-insert: DimCustomer multi-writer resolution ────
+  - description: "truncate-insert — DimCustomer multi-writer resolution"
+    vars:
+      target_table: "silver.DimCustomer"
+      expected_status: "resolved"
+      expected_writer: "dimcustomer_full"
+
+  # ── merge: DimProduct single MERGE writer ───────────────────
+  - description: "merge — DimProduct single MERGE writer"
+    vars:
+      target_table: "silver.DimProduct"
+      expected_status: "resolved"
+      expected_writer: "dimproduct"
+
+  # ── exec-orchestrator: FactInternetSales EXEC chain writer ──
+  - description: "exec-orchestrator — FactInternetSales EXEC chain writer"
+    vars:
+      target_table: "silver.FactInternetSales"
+      expected_status: "resolved"
+      expected_writer: "factinternetsales"
+
+  # ── cross-db-exec: DimCrossDbProfile cross-database delegation
+  - description: "cross-db-exec — DimCrossDbProfile cross-database delegation"
+    vars:
+      target_table: "silver.DimCrossDbProfile"
+      expected_status: "resolved"
+      expected_writer: "dimcrossdbprofile"
+
+  # ── dynamic-sp-executesql: DimCurrency dynamic SQL writer ───
+  - description: "dynamic-sp-executesql — DimCurrency dynamic SQL writer"
+    vars:
+      target_table: "silver.DimCurrency"
+      expected_status: "resolved"
+      expected_writer: "dimcurrency"
+
+  # ── exec-variable: ExecVariableTarget dynamic EXEC(@sql) ────
+  - description: "exec-variable — ExecVariableTarget dynamic EXEC(@sql)"
+    vars:
+      target_table: "silver.ExecVariableTarget"
+      expected_status: "resolved"
+      expected_writer: "execvariable"
+
+  # ── exec-concat: ExecConcatTarget concatenated EXEC ─────────
+  - description: "exec-concat — ExecConcatTarget concatenated EXEC"
+    vars:
+      target_table: "silver.ExecConcatTarget"
+      expected_status: "resolved"
+      expected_writer: "execconcat"

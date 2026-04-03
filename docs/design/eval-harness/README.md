@@ -16,7 +16,7 @@ DDL project fixture (tests/evals/fixtures/migration-test/)
 Claude Code agent ──► reads fixture ──► calls Python CLIs ──► produces output
         │
         ▼  (Promptfoo validates output)
-Assertions: JSON schema (draft 2020-12), status enums, text sections
+Assertions: custom JS validators check catalog JSON, dbt models, test specs, reviews
 ```
 
 Skills are tested via Promptfoo scenarios that invoke them non-interactively and validate their output.
@@ -36,41 +36,65 @@ Skills are tested via Promptfoo scenarios that invoke them non-interactively and
 ```text
 tests/evals/
   package.json                         # promptfoo + ajv, npm run scripts
+  promptfooconfig.yaml                 # aggregate suite config for `npx promptfoo eval`
   .gitignore                           # node_modules/, output/
   assertions/
-    validate-candidate-writers.js      # JSON schema validation (draft 2020-12)
+    check-procedure-catalog.js         # validates procedure catalog statements
+    check-table-profile.js             # validates table profile classification
+    check-dbt-model.js                 # validates generated dbt model SQL
+    check-test-spec.js                 # validates generated test specifications
+    check-test-review.js               # validates test review results
+    check-model-review.js              # validates model review results
+    check-table-scoping.js             # validates table scoping decisions
   prompts/
-    skill-analyzing-object.txt          # prompt template for analyzing-object skill
-    skill-profiling-table.txt            # prompt template for profiling-table skill
-    skill-generating-model.txt           # prompt template for generating-model skill
+    skill-analyzing-object.txt         # prompt template for analyzing-object skill
+    skill-profiling-table.txt          # prompt template for profiling-table skill
+    skill-generating-model.txt         # prompt template for generating-model skill
+    skill-generating-tests.txt         # prompt template for generating-tests skill
+    skill-reviewing-tests.txt          # prompt template for reviewing-tests skill
+    skill-reviewing-model.txt          # prompt template for reviewing-model skill
+    skill-scoping-table.txt            # prompt template for scoping-table skill
   packages/
-    scoping/
-      skill-analyzing-object.yaml       # 8 skill scenarios (self-contained config)
+    analyzing-object/
+      skill-analyzing-object.yaml      # 11 scenarios
     profiler/
-      skill-profiling-table.yaml         # 4 skill scenarios
+      skill-profiling-table.yaml       # 4 scenarios
     model-generator/
-      skill-generating-model.yaml       # 4 skill scenarios
+      skill-generating-model.yaml      # 16 scenarios
+    test-generator/
+      skill-generating-tests.yaml      # 3 scenarios
+    test-review/
+      skill-reviewing-tests.yaml       # 2 scenarios
+    code-review/
+      skill-reviewing-model.yaml       # 3 scenarios
+    scoping-table/
+      skill-scoping-table.yaml         # 7 scenarios
   fixtures/
     migration-test/                    # extracted DDL project (one-time)
       manifest.json
       ddl/
       catalog/
-    README.md                          # extraction instructions
+      dbt/                             # pre-seeded dbt models and test specs
+      test-specs/                      # pre-seeded test specifications
 ```
 
 ---
 
 ## Packages
 
-The harness is organized into three packages. Each package tests one stage of the migration pipeline and can be run independently.
+The harness is organized into package-local Promptfoo configs plus one aggregate top-level config.
 
-| Package | Skills tested | Scenarios |
+| Package | Skill | Scenarios |
 |---|---|---|
-| `scoping` | `/analyzing-object` on claude_assisted procs | 8 |
-| `profiler` | `/profiling-table` (context + LLM reasoning + write) | 4 |
-| `model-generator` | `/generating-model` (context + dbt generation + write) | 4 |
+| `analyzing-object` | `/analyzing-object` | 11 |
+| `profiler` | `/profiling-table` | 4 |
+| `model-generator` | `/generating-model` | 16 |
+| `test-generator` | `/generating-tests` | 3 |
+| `test-review` | `/reviewing-tests` | 2 |
+| `code-review` | `/reviewing-model` | 3 |
+| `scoping-table` | `/scoping-table` | 7 |
 
-Each scenario file is a self-contained promptfoo config with its own `providers`, `prompts`, and `tests`. The npm scripts compose them via `-c` flags.
+Use `promptfooconfig.yaml` for the full suite. Package YAML files remain available for focused runs.
 
 ---
 
@@ -84,16 +108,17 @@ cd tests/evals
 # Install dependencies (first time only)
 npm install
 
-# Full suite — all packages
+# Full suite — all packages (44 scenarios)
 npm run eval
 
 # Single package
-npm run eval:scoping
+npm run eval:analyzing-object
 npm run eval:profiler
 npm run eval:model-generator
-
-# Single scenario file
-npm run eval:scoping:skill
+npm run eval:test-generator
+npm run eval:test-review
+npm run eval:code-review
+npm run eval:scoping-table
 
 # View results in browser
 npm run view
@@ -103,7 +128,7 @@ npm run view
 
 ### Idempotency
 
-Every npm eval script restores fixtures before and after each run (`git checkout -- fixtures/ && git clean -fd fixtures/`). This ensures each run starts from a clean state regardless of whether the previous run modified catalog files (via `discover write-statements`, `profile write`, etc.).
+Every npm eval script restores fixtures before and after each run (`git checkout -- fixtures/ && git clean -fd fixtures/`). This ensures each run starts from a clean state regardless of whether the previous run modified catalog files or dbt/test artifacts.
 
 All eval scripts use `--no-cache` to force fresh LLM invocations.
 
@@ -111,75 +136,121 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 
 ## Scenarios
 
-### Scoping scenarios (from MigrationTest)
+### Analyzing-object (11 scenarios)
 
-Each scenario targets a table from the MigrationTest schema. The expected status is determined by the procedures that write to that table.
+Each scenario targets a stored procedure and validates persisted statement analysis.
 
-| Scenario ID | Target table | Procedure(s) | Expected status |
+| Scenario | Target procedure | Pattern |
+|---|---|---|
+| resolved — DimProduct | silver.usp_load_DimProduct | Direct MERGE writer |
+| ambiguous — DimCustomer Full | silver.usp_load_DimCustomer_Full | TRUNCATE+INSERT full-load |
+| resolved — DimCustomer Delta | silver.usp_load_DimCustomer_Delta | MERGE delta writer |
+| call-graph — FactInternetSales | silver.usp_load_FactInternetSales | EXEC orchestrator |
+| resolved — staging leaf | silver.usp_stage_FactInternetSales | TRUNCATE+INSERT leaf proc |
+| dynamic-sql — DimCurrency | silver.usp_load_DimCurrency | Dynamic sp_executesql |
+| error — DimEmployee | silver.usp_load_DimEmployee | Cross-database reference |
+| writer-through-view — DimPromotion | silver.usp_load_DimPromotion | Updateable view writer |
+| linked-server-exec | silver.usp_scope_LinkedServerExec | Linked-server EXEC (out of scope) |
+| exec-variable | silver.usp_scope_ExecVariable | EXEC(@sql) dynamic SQL |
+| exec-concat | silver.usp_scope_ExecConcat | EXEC('...' + @var) concatenated |
+
+### Profiler (4 scenarios)
+
+| Scenario | Target table | Writer | Key assertion |
 |---|---|---|---|
-| `resolved` | silver.DimProduct | usp_load_DimProduct | `resolved` |
-| `ambiguous-multi-writer` | silver.DimCustomer | usp_load_DimCustomer_Full + Delta | `ambiguous_multi_writer` |
-| `call-graph` | silver.FactInternetSales | usp_load → usp_stage | `resolved` |
-| `no-writer-found` | silver.DimGeography | (none) | `no_writer_found` |
-| `partial` | silver.DimCurrency | usp_load_DimCurrency | `partial` |
-| `error-cross-db` | silver.DimEmployee | usp_load_DimEmployee | `error` |
-| `writer-through-view` | silver.DimPromotion | usp_load_DimPromotion | `resolved` |
-| `mv-as-target` | silver.DimSalesTerritory | (TBD) | `resolved` |
+| fact-rich-catalog | silver.FactInternetSales | usp_stage_FactInternetSales | fact_transaction classification |
+| dim-merge | silver.DimProduct | usp_load_DimProduct | Valid classification kind |
+| exec-call-chain | silver.FactExecProfile | usp_load_FactExecProfile | fact_transaction, status ok |
+| cross-db-exec | silver.DimCrossDbProfile | usp_load_DimCrossDbProfile | Cross-database mention |
 
-### Profiler scenarios
+### Model-generator (16 scenarios)
 
-| Scenario ID | Target table | Key LLM inference |
+| Scenario | Target table | Pattern |
 |---|---|---|
-| `fact-rich-catalog` | silver.FactInternetSales | `fact_transaction`, watermark, PK from catalog |
-| `dim-scd2` | (requires SCD2 fixture) | `dim_scd2`, date columns |
-| `dim-full-reload` | silver.DimProduct | `dim_full_reload`, null watermark |
-| `pii-detection` | (requires PII fixture) | PII actions populated |
+| insert-select | silver.InsertSelectTarget | Simple INSERT...SELECT |
+| update-join | silver.UpdateJoinTarget | UPDATE with join |
+| delete-where | silver.DeleteWhereTarget | DELETE with WHERE (graceful no-model) |
+| select-into | silver.SelectIntoTarget | SELECT INTO |
+| single-cte | silver.SingleCteTarget | CTE restructured |
+| correlated-subquery | silver.CorrelatedSubqueryTarget | Correlated subquery |
+| union-all | silver.UnionAllTarget | UNION ALL preserved |
+| grouping-sets | silver.GroupingSetsTarget | GROUPING SETS / GROUP BY |
+| pivot | silver.PivotTarget | PIVOT to conditional aggregation |
+| window-functions | silver.FactInternetSales | Window expressions preserved |
+| outer-apply | silver.DimCustomer | OUTER APPLY rewrite |
+| truncate-insert | silver.DimCustomer | Full-reload materialization |
+| exec-orchestrator | silver.FactInternetSales | Orchestration (graceful no-model) |
+| dynamic-sp-executesql | silver.DimCurrency | Dynamic SQL (graceful no-model) |
 
-### Model-generator scenarios
+### Test-generator (3 scenarios)
 
-| Scenario ID | Target table | Key model assertion |
+| Scenario | Target table | Key assertion |
 |---|---|---|
-| `simple-insert-table` | silver.DimProduct | `materialized='table'` |
-| `incremental-watermark` | silver.FactInternetSales | `is_incremental()` block |
-| `snapshot-scd2` | (requires SCD2 fixture) | Snapshot config |
-| `merge-incremental` | silver.DimProduct | Incremental + merge key |
+| merge-branches — DimProduct | silver.DimProduct | Branch manifest with 5+ branches |
+| exec-call-chain — FactInternetSales | silver.FactInternetSales | Transitive writer logic |
+| dynamic-sql — DimCurrency | silver.DimCurrency | Dynamic SQL warning |
+
+### Test-review (2 scenarios)
+
+| Scenario | Target table | Key assertion |
+|---|---|---|
+| approved — DimProduct | silver.DimProduct | Approved with covered branches |
+| revision-requested — DimCustomer | silver.DimCustomer | Revision requested |
+
+### Code-review (3 scenarios)
+
+| Scenario | Target table | Key assertion |
+|---|---|---|
+| approved — DimProduct MERGE | silver.DimProduct | Approved status |
+| approved — InsertSelectTarget DML | silver.InsertSelectTarget | Correctness passed |
+| revision-requested — DimCustomer | silver.DimCustomer | Flags issues |
+
+### Scoping-table (7 scenarios)
+
+| Scenario | Target table | Expected writer |
+|---|---|---|
+| truncate-insert — DimCustomer | silver.DimCustomer | usp_load_DimCustomer_Full |
+| merge — DimProduct | silver.DimProduct | usp_load_DimProduct |
+| exec-orchestrator — FactInternetSales | silver.FactInternetSales | usp_load_FactInternetSales |
+| cross-db-exec — DimCrossDbProfile | silver.DimCrossDbProfile | usp_load_DimCrossDbProfile |
+| dynamic-sp-executesql — DimCurrency | silver.DimCurrency | usp_load_DimCurrency |
+| exec-variable — ExecVariableTarget | silver.ExecVariableTarget | usp_scope_ExecVariable |
+| exec-concat — ExecConcatTarget | silver.ExecConcatTarget | usp_scope_ExecConcat |
 
 ---
 
 ## Writing assertions
 
+Each assertion is a custom JavaScript module that reads persisted artifacts (catalog JSON, test specs, dbt models) and validates structural properties.
+
 ### What to assert
 
-- **Section presence** — output contains Call Graph, Logic Summary, Migration Guidance
-- **Status enums** — `resolved`, `ambiguous_multi_writer`, `no_writer_found`, `error`
-- **Deterministic fields** — `selected_writer`, classification values
+- **Catalog structure** — statements exist, source fields set, status enums correct
+- **Profile classification** — `resolved_kind` is a valid enum, source is `catalog`/`llm`/`catalog+llm`
+- **Model artifacts** — dbt SQL contains expected terms, forbidden terms absent
+- **Test specs** — branch counts, scenario counts, status/coverage enums
+- **Review results** — status enum matches expected range
+- **Scoping decisions** — writer selected, status resolved
 
 ### What NOT to assert
 
 - **Free-text rationale** — LLM wording varies between runs
 - **Exact ordering** — of candidates, warnings, or dependency lists
+- **Exact status for review evals** — accept comma-separated status ranges (e.g., `approved,approved_with_warnings`)
 - **Token-level output** — prompt phrasing changes cause harmless variation
-- **Tool usage** — tool calls are in SDK metadata, not in the output text
 
-### Assertion patterns
+### Assertion pattern
 
-Skill scenarios use case-insensitive text containment:
+All assertions follow the same pattern — custom JS modules referenced from YAML:
 
 ```yaml
 defaultTest:
   assert:
-    - type: icontains
-      value: "Call Graph"
-    - type: icontains
-      value: "Logic Summary"
-tests:
-  - description: "resolved — DimProduct"
-    assert:
-      - type: icontains
-        value: "Migration Guidance"
-      - type: icontains
-        value: "MERGE"
+    - type: javascript
+      value: file://../../assertions/check-procedure-catalog.js
 ```
+
+Each module receives `(output, context)` and returns `{pass, score, reason}`.
 
 ---
 
@@ -195,18 +266,16 @@ fixtures/migration-test/
     procedures.sql                 # CREATE PROCEDURE statements
     views.sql                      # CREATE VIEW statements
   catalog/
-    tables/<schema>.<table>.json   # per-table catalog (columns, PKs, FKs, referenced_by)
+    tables/<schema>.<table>.json   # per-table catalog (columns, PKs, FKs, referenced_by, profile, scoping)
     procedures/<schema>.<proc>.json # per-proc catalog (references, statements)
     views/<schema>.<view>.json     # per-view catalog
+  dbt/
+    models/staging/                # pre-seeded dbt models and YAML configs
+  test-specs/
+    <schema>.<table>.json          # pre-seeded test specifications
 ```
 
-The scoping package uses the base extracted fixture. The profiler package needs the catalog enriched with resolved `statements` (post-scoping). The model-generator package needs the catalog enriched with `profile` sections (post-profiling). These are layered snapshots stored as sibling directories if needed:
-
-```text
-fixtures/
-  migration-test/                  # base extraction (scoping)
-  migration-test-profiled/         # after scoping + profiling (model-generator)
-```
+All packages use the same fixture directory. The fixture includes pre-seeded artifacts (dbt models, test specs, profiles) so that downstream evals (test-generator, test-review, code-review) can run without depending on upstream skill output.
 
 ---
 
@@ -225,7 +294,6 @@ export MSSQL_DB=MigrationTest
 export SA_PASSWORD=<your-password>
 
 # 3. Run setup-ddl to extract DDL and build catalog
-#    (from a project directory pointed at MigrationTest)
 cd <migration-project-root>
 claude --plugin-dir plugins/ -p "/setup-ddl"
 
@@ -242,55 +310,23 @@ The exact extraction steps depend on how the migration project is configured. Se
 
 ## Maintaining scenarios
 
-### Adding a new scoping scenario
+### Adding a scenario
 
-1. **Add the procedure and target table** to `scripts/sql/create-migration-test-db.sql`.
-2. **Rebuild the Docker image** and re-run `create-migration-test-db.sql` against it.
-3. **Re-extract the fixture** (see [Extracting the fixture](#extracting-the-fixture)).
-4. **Add a test case** to `packages/scoping/skill-analyzing-object.yaml`:
-
-```yaml
-- description: "my-new-scenario — <what it tests>"
-  vars:
-    target_table: "silver.MyNewTable"
-  assert:
-    - type: icontains
-      value: "Migration Guidance"
-```
-
-### Adding a profiler or model-generator scenario
-
-Same steps, but:
-
-- The fixture must include the appropriate pipeline stage data (statements for profiler, profiles for model-generator).
-- Add the test case to the corresponding package's scenario files.
-- Profiler assertions check `classification.resolved_kind`, `watermark`, `primary_key`, `pii_actions`.
-- Model-generator assertions check `materialization`, artifact paths, `dbt_compile_passed`.
+1. **Add the procedure and target table** to `tests/evals/fixtures/migration-test/ddl/procedures.sql` and corresponding catalog JSON.
+2. **Add a test case** to the appropriate package YAML and to `promptfooconfig.yaml`.
+3. **Run the affected package** to verify: `npm run eval:<package>`.
 
 ### Updating an existing scenario
 
-1. Modify the procedure in `create-migration-test-db.sql`.
-2. Re-extract the fixture.
-3. Update the assertions in the scenario YAML if the expected behavior changed.
-4. Run the affected package: `npm run eval:scoping` (or `eval:profiler`, `eval:model-generator`).
-
-### Refreshing the fixture after schema changes
-
-```bash
-# Re-run the SQL script against Docker
-sqlcmd -S localhost,1433 -U sa -P '<password>' -d master -i scripts/sql/create-migration-test-db.sql
-
-# Re-extract (see Extracting the fixture above)
-
-# Verify scenarios still pass
-cd tests/evals && npm run eval
-```
+1. Modify the fixture (catalog JSON, DDL, dbt models, test specs).
+2. Update assertions in the YAML if expected behavior changed.
+3. Run the affected package.
 
 ---
 
 ## Provider configuration
 
-Each scenario file inlines the `anthropic:claude-agent-sdk` provider:
+Each package inlines the `anthropic:claude-agent-sdk` provider with package-specific `max_turns`:
 
 ```yaml
 providers:
@@ -298,22 +334,20 @@ providers:
     config:
       model: claude-sonnet-4-6
       working_dir: ../..
-      max_turns: 30
+      max_turns: 80          # varies: 60-80 depending on package
       permission_mode: bypassPermissions
       allow_dangerously_skip_permissions: true
       append_allowed_tools:
         - Read
-        - Write
+        - Write              # omitted for test-review and code-review
         - Bash
         - Glob
         - Grep
 ```
 
-- `model` — matches agent definitions (sonnet for evals, override per scenario if needed)
-- `working_dir: ../..` — repo root relative to `tests/evals/`, gives the agent filesystem access
-- `max_turns: 30` — matches agent maxTurns config
-- `permission_mode: bypassPermissions` — no interactive permission prompts
-- `append_allowed_tools` — Read, Write, Bash, Glob, Grep (the tools agents/skills use)
+- `working_dir: ../..` — repo root relative to `tests/evals/packages/<pkg>/`
+- `max_turns` — 80 for analyzing-object and scoping-table (sub-agent delegation), 60-70 for others
+- `test-review` and `code-review` omit Write from allowed tools (read-only review)
 
 ---
 
@@ -321,8 +355,8 @@ providers:
 
 Each scenario invokes Claude with tool use. At current pricing, expect roughly $0.10-0.50 per scenario depending on agent complexity and turn count.
 
-- Full suite (16 scenarios): ~$2-8 per run
-- Single package: ~$1-3 per run
+- Full suite (44 scenarios): ~$6-22 per run
+- Single package: ~$1-5 per run
 - Single scenario: ~$0.10-0.50
 
-Run selectively during development. Use `npm run eval:scoping:skill` to test a single file rather than the full suite.
+Run selectively during development. Use `npm run eval:<package>` to test a single package rather than the full suite.

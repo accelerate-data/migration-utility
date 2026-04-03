@@ -9,7 +9,7 @@ providers:
     config:
       model: claude-sonnet-4-6
       working_dir: ../..
-      max_turns: 30
+      max_turns: 60
       permission_mode: bypassPermissions
       allow_dangerously_skip_permissions: true
       append_allowed_tools:
@@ -33,8 +33,24 @@ tests:
       target_table: "silver.FactInternetSales"
       writer: "silver.usp_stage_FactInternetSales"
 
-  # ── dim full reload ───────────────────────────────────────────
-  - description: "dim-full-reload — DimProduct TRUNCATE+INSERT"
+  # ── dim merge ─────────────────────────────────────────────────
+  - description: "dim-merge — DimProduct MERGE INTO"
     vars:
       target_table: "silver.DimProduct"
       writer: "silver.usp_load_DimProduct"
+
+  # ── exec call chain includes related-procedure context ───────
+  - description: "exec-call-chain — FactExecProfile surfaces helper proc context"
+    vars:
+      target_table: "silver.FactExecProfile"
+      writer: "silver.usp_load_FactExecProfile"
+      expected_kind: "fact_transaction"
+      expected_status: "ok"
+
+  # ── cross-db exec reports partial limitation ──────────────────
+  - description: "cross-db-exec — DimCrossDbProfile stays partial with limitation"
+    vars:
+      target_table: "silver.DimCrossDbProfile"
+      writer: "silver.usp_load_DimCrossDbProfile"
+      expected_status: "ok,partial"
+      expected_output_terms: "cross-database"

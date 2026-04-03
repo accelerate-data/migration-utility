@@ -1,0 +1,75 @@
+{
+  "schema": "silver",
+  "name": "groupingsetstarget",
+  "columns": [
+    {
+      "name": "GroupKey",
+      "sql_type": "NVARCHAR(20)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "ProductCount",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [
+    {
+      "constraint_name": "PK_GroupingSetsTarget",
+      "columns": [
+        "GroupKey"
+      ]
+    }
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "usp_load_groupingsetstarget",
+          "is_selected": true,
+          "is_updated": true
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_load_GroupingSetsTarget"
+  },
+  "profile": {
+    "status": "ok",
+    "writer": "silver.usp_load_GroupingSetsTarget",
+    "classification": {
+      "resolved_kind": "fact_aggregate",
+      "source": "catalog+llm",
+      "rationale": "Grouping sets produce aggregate rows at multiple grains, which maps to an aggregate fact."
+    },
+    "primary_key": {
+      "columns": [
+        "GroupKey"
+      ],
+      "primary_key_type": "natural",
+      "source": "catalog",
+      "rationale": "GroupKey is the declared primary key."
+    },
+    "foreign_keys": [],
+    "pii_actions": []
+  }
+}

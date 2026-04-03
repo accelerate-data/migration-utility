@@ -1,0 +1,533 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "Full promptfoo suite for migration eval harness"
+
+prompts:
+  - id: analyzing-object
+    label: analyzing-object
+    raw: file://prompts/skill-analyzing-object.txt
+  - id: profiler
+    label: profiler
+    raw: file://prompts/skill-profiling-table.txt
+  - id: model-generator
+    label: model-generator
+    raw: file://prompts/skill-generating-model.txt
+  - id: test-generator
+    label: test-generator
+    raw: file://prompts/skill-generating-tests.txt
+  - id: test-review
+    label: test-review
+    raw: file://prompts/skill-reviewing-tests.txt
+  - id: code-review
+    label: code-review
+    raw: file://prompts/skill-reviewing-model.txt
+  - id: scoping-table
+    label: scoping-table
+    raw: file://prompts/skill-scoping-table.txt
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    config:
+      model: claude-sonnet-4-6
+      working_dir: .
+      max_turns: 80
+      permission_mode: bypassPermissions
+      allow_dangerously_skip_permissions: true
+      append_allowed_tools:
+        - Read
+        - Write
+        - Bash
+        - Glob
+        - Grep
+
+tests:
+  - description: "resolved — DimProduct single MERGE writer"
+    prompts: ["analyzing-object"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.usp_load_DimProduct"
+      expected_content: "merge"
+    assert:
+      - type: javascript
+        value: file://assertions/check-procedure-catalog.js
+
+  - description: "ambiguous — DimCustomer Full + Delta writers"
+    prompts: ["analyzing-object"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.usp_load_DimCustomer_Full"
+      expected_content: "truncate"
+    assert:
+      - type: javascript
+        value: file://assertions/check-procedure-catalog.js
+
+  - description: "call-graph — FactInternetSales EXEC orchestrator"
+    prompts: ["analyzing-object"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.usp_load_FactInternetSales"
+      allow_zero_migrate: "true"
+    assert:
+      - type: javascript
+        value: file://assertions/check-procedure-catalog.js
+
+  - description: "dynamic-sql — DimCurrency sp_executesql"
+    prompts: ["analyzing-object"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.usp_load_DimCurrency"
+    assert:
+      - type: javascript
+        value: file://assertions/check-procedure-catalog.js
+
+  - description: "error — DimEmployee cross-database reference"
+    prompts: ["analyzing-object"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.usp_load_DimEmployee"
+    assert:
+      - type: javascript
+        value: file://assertions/check-procedure-catalog.js
+
+  - description: "writer-through-view — DimPromotion via updateable view"
+    prompts: ["analyzing-object"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.usp_load_DimPromotion"
+      expected_content: "vw_dimpromotion"
+    assert:
+      - type: javascript
+        value: file://assertions/check-procedure-catalog.js
+
+  - description: "resolved — DimCustomer Delta MERGE writer"
+    prompts: ["analyzing-object"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.usp_load_DimCustomer_Delta"
+      expected_content: "merge"
+    assert:
+      - type: javascript
+        value: file://assertions/check-procedure-catalog.js
+
+  - description: "resolved — FactInternetSales staging leaf (TRUNCATE+INSERT)"
+    prompts: ["analyzing-object"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.usp_stage_FactInternetSales"
+    assert:
+      - type: javascript
+        value: file://assertions/check-procedure-catalog.js
+
+  - description: "linked-server-exec — out-of-scope remote execution"
+    prompts: ["analyzing-object"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.usp_scope_LinkedServerExec"
+      allow_zero_migrate: "true"
+      expected_source: "llm"
+      expected_rationale_terms: "linked"
+    assert:
+      - type: javascript
+        value: file://assertions/check-procedure-catalog.js
+
+  - description: "exec-variable — dynamic EXEC(@sql) classified by llm"
+    prompts: ["analyzing-object"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.usp_scope_ExecVariable"
+      expected_source: "llm"
+      expected_statement_terms: "insert into silver.execvariabletarget"
+    assert:
+      - type: javascript
+        value: file://assertions/check-procedure-catalog.js
+
+  - description: "exec-concat — concatenated EXEC classified by llm"
+    prompts: ["analyzing-object"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.usp_scope_ExecConcat"
+      expected_source: "llm"
+      expected_statement_terms: "insert into silver.execconcattarget"
+    assert:
+      - type: javascript
+        value: file://assertions/check-procedure-catalog.js
+
+  - description: "fact-rich-catalog — FactInternetSales"
+    prompts: ["profiler"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.FactInternetSales"
+      writer: "silver.usp_stage_FactInternetSales"
+    assert:
+      - type: javascript
+        value: file://assertions/check-table-profile.js
+
+  - description: "dim-merge — DimProduct MERGE INTO"
+    prompts: ["profiler"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+    assert:
+      - type: javascript
+        value: file://assertions/check-table-profile.js
+
+  - description: "exec-call-chain — FactExecProfile surfaces helper proc context"
+    prompts: ["profiler"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.FactExecProfile"
+      writer: "silver.usp_load_FactExecProfile"
+      expected_kind: "fact_transaction"
+      expected_status: "ok"
+    assert:
+      - type: javascript
+        value: file://assertions/check-table-profile.js
+
+  - description: "cross-db-exec — DimCrossDbProfile stays partial with limitation"
+    prompts: ["profiler"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.DimCrossDbProfile"
+      writer: "silver.usp_load_DimCrossDbProfile"
+      expected_status: "ok,partial"
+      expected_output_terms: "cross-database"
+    assert:
+      - type: javascript
+        value: file://assertions/check-table-profile.js
+
+  - description: "insert-select — simple INSERT...SELECT becomes dbt select"
+    prompts: ["model-generator"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_model_terms: "materialized='table',source(,select"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "update-join — UPDATE join produces valid rewritten model"
+    prompts: ["model-generator"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.UpdateJoinTarget"
+      writer: "silver.usp_load_UpdateJoinTarget"
+      expected_model_terms: "current_timestamp,source("
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "delete-where — DELETE with WHERE becomes keep-rows select"
+    prompts: ["model-generator"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.DeleteWhereTarget"
+      writer: "silver.usp_load_DeleteWhereTarget"
+      graceful_no_model: "true"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "select-into — SELECT INTO recognized as staging table model"
+    prompts: ["model-generator"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.SelectIntoTarget"
+      writer: "silver.usp_load_SelectIntoTarget"
+      expected_model_terms: "materialized='table',with,final as"
+      forbidden_model_terms: "select into"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "single-cte — CTE restructured into import/logical/final"
+    prompts: ["model-generator"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.SingleCteTarget"
+      writer: "silver.usp_load_SingleCteTarget"
+      expected_model_terms: "with,final as"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "correlated-subquery — correlated subquery preserved as valid dbt logic"
+    prompts: ["model-generator"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.CorrelatedSubqueryTarget"
+      writer: "silver.usp_load_CorrelatedSubqueryTarget"
+      expected_model_terms: "with,select"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "union-all — UNION ALL preserved in generated sql"
+    prompts: ["model-generator"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.UnionAllTarget"
+      writer: "silver.usp_load_UnionAllTarget"
+      expected_model_terms: "union all"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "grouping-sets — GROUPING SETS preserved when supported by generated sql"
+    prompts: ["model-generator"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.GroupingSetsTarget"
+      writer: "silver.usp_load_GroupingSetsTarget"
+      expected_model_terms: "group by"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "pivot — PIVOT translated to conditional aggregation"
+    prompts: ["model-generator"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.PivotTarget"
+      writer: "silver.usp_load_PivotTarget"
+      expected_model_terms: "case when"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "window-functions — FactInternetSales preserves analytic window expressions"
+    prompts: ["model-generator"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.FactInternetSales"
+      writer: "silver.usp_stage_FactInternetSales"
+      expected_model_terms: "count(*) over,partition by"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "outer-apply — DimCustomer full reload rewrites APPLY logic"
+    prompts: ["model-generator"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.DimCustomer"
+      writer: "silver.usp_load_DimCustomer_Full"
+      expected_model_terms: "materialized='table',min(orderdate)"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "truncate-insert — DimCustomer full reload stays table materialized"
+    prompts: ["model-generator"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.DimCustomer"
+      writer: "silver.usp_load_DimCustomer_Full"
+      expected_model_terms: "materialized='table'"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "exec-orchestrator — FactInternetSales orchestration handled gracefully"
+    prompts: ["model-generator"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.FactInternetSales"
+      writer: "silver.usp_load_FactInternetSales"
+      graceful_no_model: "true"
+      expected_output_terms: "orchestration,usp_stage_factinternetsales"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "dynamic-sp-executesql — DimCurrency dynamic SQL handled gracefully"
+    prompts: ["model-generator"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.DimCurrency"
+      writer: "silver.usp_load_DimCurrency"
+      graceful_no_model: "true"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "merge-branches — DimProduct enumerates matched and not-matched MERGE arms"
+    prompts: ["test-generator"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 5
+      min_scenario_count: 4
+      expected_output_terms: "branch_manifest,unit_tests"
+    assert:
+      - type: javascript
+        value: file://assertions/check-test-spec.js
+
+  - description: "exec-call-chain — FactInternetSales scenarios follow transitive writer logic"
+    prompts: ["test-generator"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.FactInternetSales"
+      writer: "silver.usp_load_FactInternetSales"
+      expected_status: "ok"
+      expected_coverage: "complete"
+      min_branch_count: 5
+      min_scenario_count: 5
+      expected_output_terms: "salesorderheader,salesorderdetail"
+    assert:
+      - type: javascript
+        value: file://assertions/check-test-spec.js
+
+  - description: "dynamic-sql-untestable — DimCurrency records untestable dynamic SQL rationale"
+    prompts: ["test-generator"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.DimCurrency"
+      writer: "silver.usp_load_DimCurrency"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      expected_warning_terms: "dynamic"
+      expected_output_terms: "dynamic"
+    assert:
+      - type: javascript
+        value: file://assertions/check-test-spec.js
+
+  - description: "approved — DimProduct complete branch coverage and realistic fixtures"
+    prompts: ["test-review"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      iteration_suffix: ""
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      expected_status: "approved"
+      min_covered_branches: 2
+    assert:
+      - type: javascript
+        value: file://assertions/check-test-review.js
+
+  - description: "revision-requested — DimCustomer incomplete coverage and poor fixture quality"
+    prompts: ["test-review"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      iteration_suffix: ""
+      target_table: "silver.DimCustomer"
+      writer: "silver.usp_load_DimCustomer_Full"
+      expected_status: "revision_requested"
+    assert:
+      - type: javascript
+        value: file://assertions/check-test-review.js
+
+  - description: "approved — clean MERGE model passes standards and integration checks"
+    prompts: ["code-review"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      expected_status: "approved,approved_with_warnings,revision_requested"
+    assert:
+      - type: javascript
+        value: file://assertions/check-model-review.js
+
+  - description: "approved — standard DML model with source/ref usage passes review"
+    prompts: ["code-review"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_status: "approved,approved_with_warnings,revision_requested"
+    assert:
+      - type: javascript
+        value: file://assertions/check-model-review.js
+
+  - description: "revision-requested — incorrect materialization and missing tests are flagged"
+    prompts: ["code-review"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.DimCustomer"
+      writer: "silver.usp_load_DimCustomer_Full"
+      expected_status: "approved,approved_with_warnings,revision_requested"
+    assert:
+      - type: javascript
+        value: file://assertions/check-model-review.js
+
+  # ── scoping-table ────────────────────────────────────────────
+
+  - description: "truncate-insert — DimCustomer multi-writer resolution"
+    prompts: ["scoping-table"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.DimCustomer"
+      expected_status: "resolved"
+      expected_writer: "dimcustomer_full"
+    assert:
+      - type: javascript
+        value: file://assertions/check-table-scoping.js
+
+  - description: "merge — DimProduct single MERGE writer"
+    prompts: ["scoping-table"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.DimProduct"
+      expected_status: "resolved"
+      expected_writer: "dimproduct"
+    assert:
+      - type: javascript
+        value: file://assertions/check-table-scoping.js
+
+  - description: "exec-orchestrator — FactInternetSales EXEC chain writer"
+    prompts: ["scoping-table"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.FactInternetSales"
+      expected_status: "resolved"
+      expected_writer: "factinternetsales"
+    assert:
+      - type: javascript
+        value: file://assertions/check-table-scoping.js
+
+  - description: "cross-db-exec — DimCrossDbProfile cross-database delegation"
+    prompts: ["scoping-table"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.DimCrossDbProfile"
+      expected_status: "resolved"
+      expected_writer: "dimcrossdbprofile"
+    assert:
+      - type: javascript
+        value: file://assertions/check-table-scoping.js
+
+  - description: "dynamic-sp-executesql — DimCurrency dynamic SQL writer"
+    prompts: ["scoping-table"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.DimCurrency"
+      expected_status: "resolved"
+      expected_writer: "dimcurrency"
+    assert:
+      - type: javascript
+        value: file://assertions/check-table-scoping.js
+
+  - description: "exec-variable — ExecVariableTarget dynamic EXEC(@sql)"
+    prompts: ["scoping-table"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.ExecVariableTarget"
+      expected_status: "resolved"
+      expected_writer: "execvariable"
+    assert:
+      - type: javascript
+        value: file://assertions/check-table-scoping.js
+
+  - description: "exec-concat — ExecConcatTarget concatenated EXEC"
+    prompts: ["scoping-table"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.ExecConcatTarget"
+      expected_status: "resolved"
+      expected_writer: "execconcat"
+    assert:
+      - type: javascript
+        value: file://assertions/check-table-scoping.js

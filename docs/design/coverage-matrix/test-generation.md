@@ -10,7 +10,7 @@ Current automated statement coverage for the test-generator phase. The phase bou
 | 4 | `DELETE TOP` | N/A | N/A | Gap |
 | 5 | `TRUNCATE TABLE` | N/A | N/A | Gap |
 | 6 | `TRUNCATE` + `INSERT` | N/A | N/A | Gap |
-| 7 | `MERGE INTO` | N/A | N/A | Gap |
+| 7 | `MERGE INTO` | N/A | N/A | Yes |
 | 8 | `SELECT INTO` | N/A | N/A | Gap |
 | 9 | Single CTE | N/A | N/A | Gap |
 | 10 | Multi-level CTE | N/A | N/A | Gap |
@@ -47,7 +47,7 @@ Current automated statement coverage for the test-generator phase. The phase bou
 | 42 | `ROLLUP` | N/A | N/A | Gap |
 | 43 | `PIVOT` | N/A | N/A | Gap |
 | 44 | `UNPIVOT` | N/A | N/A | Gap |
-| 49 | `EXEC proc` | N/A | N/A | Gap |
+| 49 | `EXEC proc` | N/A | N/A | Yes |
 | 50 | `EXEC [schema].[proc]` | N/A | N/A | Gap |
 | 51 | `EXEC proc` with params | N/A | N/A | Gap |
 | 52 | `EXEC proc` with `OUTPUT` | N/A | N/A | Gap |
@@ -60,7 +60,7 @@ Current automated statement coverage for the test-generator phase. The phase bou
 | 48 | Nested control flow | N/A | N/A | Gap |
 | 55 | Cross-database `EXEC` | N/A | N/A | Gap |
 | 56 | Linked-server `EXEC` | N/A | N/A | Gap |
-| 58 | Dynamic `sp_executesql` | N/A | N/A | Gap |
+| 58 | Dynamic `sp_executesql` | N/A | N/A | Yes |
 | 59 | `EXEC (@sql)` | N/A | N/A | Gap |
 | 60 | `EXEC ('...' + @var)` | N/A | N/A | Gap |
 | S1 | `SET` | N/A | N/A | N/A |

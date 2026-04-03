@@ -1,0 +1,14 @@
+{
+  "item_id": "silver.pivottarget",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [],
+  "unit_tests": [],
+  "uncovered_branches": [],
+  "warnings": [],
+  "validation": {
+    "status": "ok",
+    "summary": []
+  },
+  "errors": []
+}

@@ -4,13 +4,13 @@ Current automated statement coverage for the code-review phase. The phase bounda
 
 | # | Statement | Unit | Integration | Promptfoo |
 |---|---|---|---|---|
-| 1 | `INSERT ... SELECT` | N/A | N/A | Gap |
+| 1 | `INSERT ... SELECT` | N/A | N/A | Yes |
 | 2 | `UPDATE` with join | N/A | N/A | Gap |
 | 3 | `DELETE` with `WHERE` | N/A | N/A | Gap |
 | 4 | `DELETE TOP` | N/A | N/A | Gap |
 | 5 | `TRUNCATE TABLE` | N/A | N/A | Gap |
-| 6 | `TRUNCATE` + `INSERT` | N/A | N/A | Gap |
-| 7 | `MERGE INTO` | N/A | N/A | Gap |
+| 6 | `TRUNCATE` + `INSERT` | N/A | N/A | Yes |
+| 7 | `MERGE INTO` | N/A | N/A | Yes |
 | 8 | `SELECT INTO` | N/A | N/A | Gap |
 | 9 | Single CTE | N/A | N/A | Gap |
 | 10 | Multi-level CTE | N/A | N/A | Gap |
@@ -30,7 +30,7 @@ Current automated statement coverage for the code-review phase. The phase bounda
 | 25 | `FULL OUTER JOIN` | N/A | N/A | Gap |
 | 26 | `CROSS JOIN` | N/A | N/A | Gap |
 | 27 | `CROSS APPLY` | N/A | N/A | Gap |
-| 28 | `OUTER APPLY` | N/A | N/A | Gap |
+| 28 | `OUTER APPLY` | N/A | N/A | Yes |
 | 29 | Self-join | N/A | N/A | Gap |
 | 30 | Derived table in `FROM` | N/A | N/A | Gap |
 | 31 | Scalar subquery in `SELECT` | N/A | N/A | Gap |

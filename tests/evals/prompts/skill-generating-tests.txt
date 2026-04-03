@@ -1,0 +1,15 @@
+CRITICAL OUTPUT REQUIREMENT: Your FINAL text response must be a single JSON object matching the test-spec shape written to `test-specs/<item_id>.json`.
+
+You are running in a DDL project directory at {{fixture_path}}.
+
+Read the skill instructions at plugins/ground-truth-harness/skills/generating-tests/SKILL.md and follow them for table {{target_table}}.
+
+Wherever the skill references `${CLAUDE_PLUGIN_ROOT}/../../lib`, use `lib` instead (the lib directory is at the repo root).
+
+When assembling migration context for this eval, pass `--writer {{writer}}` to `migrate context` so the scenario uses the intended procedure even if the table catalog points at a different selected writer.
+
+If that writer is orchestration-only and delegates to an in-scope helper procedure, follow the transitive dependency to the leaf writer and generate scenarios from the leaf procedure's migrate statements instead of stopping at the orchestrator.
+
+If the writer body is orchestration-only or dynamic-SQL-only and static migrate statements are unavailable, classify the uncovered logic as untestable with a clear rationale instead of failing the run.
+
+Do not ask for user confirmation — proceed automatically. Write the final test spec to `test-specs/<item_id>.json` and then return that JSON object as your final response.

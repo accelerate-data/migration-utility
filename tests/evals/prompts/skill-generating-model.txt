@@ -1,4 +1,6 @@
-CRITICAL OUTPUT REQUIREMENT: Your FINAL text response must contain the generated dbt model SQL with a `config(` block, source/ref macros, and CTE structure. Do not end with just a write confirmation.
+CRITICAL OUTPUT REQUIREMENT:
+- If the requested writer is migratable, your FINAL text response must contain the generated dbt model SQL with a `config(` block, source/ref macros, and CTE structure. Do not end with just a write confirmation.
+- If the requested writer is orchestration-only or dynamic-SQL-only and no trustworthy dbt model can be produced, do not fabricate artifacts. In that case, your FINAL text response must clearly explain why no model should be generated.
 
 You are running in a DDL project directory at {{fixture_path}}.
 
@@ -6,6 +8,15 @@ Read the skill instructions at plugins/migration/skills/generating-model/SKILL.m
 
 Wherever the skill references `${CLAUDE_PLUGIN_ROOT}/../../lib`, use `lib` instead (the lib directory is at the repo root).
 
-After ALL tool calls are complete (context assembly, model generation, and artifact writing), your FINAL message must present the COMPLETE generated dbt model including the full SQL with config( block, source/ref macros, and CTE structure.
+When assembling migration context for this eval, pass `--writer {{writer}}` to `migrate context` so the scenario uses the intended procedure even if the table catalog points at a different selected writer.
+
+If the requested writer is orchestration-only or dynamic-SQL-only and cannot be migrated into a trustworthy dbt model, do not fabricate artifacts. Explain the limitation clearly in the final response instead.
+For graceful no-model outcomes, cite the concrete blocker from the best available evidence:
+- If the DDL shows `EXEC sp_executesql` or other dynamic SQL, mention that explicitly in the final rationale.
+- If the DDL shows an orchestration wrapper that delegates to another writer, mention the delegated writer explicitly in the final rationale.
+
+After ALL tool calls are complete:
+- For migratable writers, your FINAL message must present the COMPLETE generated dbt model including the full SQL with config( block, source/ref macros, and CTE structure.
+- For non-migratable writers, your FINAL message must present the complete rationale for the graceful no-model outcome.
 
 Do not ask for user confirmation — proceed automatically.

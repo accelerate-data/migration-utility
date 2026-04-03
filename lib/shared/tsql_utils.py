@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 
-def mask_tsql(sql: str) -> str:
-    """Mask strings, comments, and bracketed identifiers while preserving indices."""
+def mask_tsql(sql: str, *, mask_bracketed_identifiers: bool = True) -> str:
+    """Mask strings/comments and optionally bracketed identifiers while preserving indices."""
     chars = list(sql)
     i = 0
     while i < len(chars):
@@ -27,7 +27,7 @@ def mask_tsql(sql: str) -> str:
                 i += 1
             continue
 
-        if ch == "[":
+        if mask_bracketed_identifiers and ch == "[":
             chars[i] = " "
             i += 1
             while i < len(chars):

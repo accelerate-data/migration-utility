@@ -1,0 +1,11 @@
+You are running in a DDL project directory at {{fixture_path}}.
+
+Read the skill definition at plugins/migration/skills/scoping-table/SKILL.md and follow it exactly. The table to scope is {{target_table}}.
+
+Wherever the skill references `${CLAUDE_PLUGIN_ROOT}/../../lib`, use `lib` instead (the lib directory is at the repo root).
+
+When the skill asks for user confirmation to select a writer, auto-confirm the selection. Do not wait for user input.
+
+If multiple writer candidates are found, select the one that performs the primary write operation (INSERT, MERGE, or TRUNCATE+INSERT pattern) rather than delta/incremental writers.
+
+CRITICAL OUTPUT REQUIREMENT: Your final response must include the scoping status and selected writer.

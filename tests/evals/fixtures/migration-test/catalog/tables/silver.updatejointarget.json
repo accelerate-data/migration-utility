@@ -1,0 +1,88 @@
+{
+  "schema": "silver",
+  "name": "updatejointarget",
+  "columns": [
+    {
+      "name": "ProductAlternateKey",
+      "sql_type": "NVARCHAR(25)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "EnglishProductName",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "LastSeenDate",
+      "sql_type": "DATETIME",
+      "is_nullable": false,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [
+    {
+      "constraint_name": "PK_UpdateJoinTarget",
+      "columns": [
+        "ProductAlternateKey"
+      ]
+    }
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "usp_load_updatejointarget",
+          "is_selected": true,
+          "is_updated": true
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_load_UpdateJoinTarget"
+  },
+  "profile": {
+    "status": "ok",
+    "writer": "silver.usp_load_UpdateJoinTarget",
+    "classification": {
+      "resolved_kind": "fact_transaction",
+      "source": "catalog+llm",
+      "rationale": "The update join advances a mutable transaction-style table and stamps a watermark."
+    },
+    "primary_key": {
+      "columns": [
+        "ProductAlternateKey"
+      ],
+      "primary_key_type": "natural",
+      "source": "catalog",
+      "rationale": "ProductAlternateKey is the declared primary key."
+    },
+    "watermark": {
+      "columns": [
+        "LastSeenDate"
+      ],
+      "source": "llm",
+      "rationale": "LastSeenDate records the latest refresh time."
+    },
+    "foreign_keys": [],
+    "pii_actions": []
+  }
+}

@@ -4,7 +4,7 @@ Current automated statement coverage for ground-truth generation. The phase boun
 
 | # | Statement | Unit | Integration | Promptfoo |
 |---|---|---|---|---|
-| 1 | `INSERT ... SELECT` | N/A | Gap | N/A |
+| 1 | `INSERT ... SELECT` | N/A | N/A | N/A |
 | 2 | `UPDATE` with join | N/A | N/A | N/A |
 | 3 | `DELETE` with `WHERE` | N/A | N/A | N/A |
 | 4 | `DELETE TOP` | N/A | N/A | N/A |
@@ -58,8 +58,8 @@ Current automated statement coverage for ground-truth generation. The phase boun
 | 46 | `TRY / CATCH` | N/A | N/A | N/A |
 | 47 | `WHILE` loop | N/A | N/A | N/A |
 | 48 | Nested control flow | N/A | N/A | N/A |
-| 55 | Cross-database `EXEC` | Yes | Yes | N/A |
-| 56 | Linked-server `EXEC` | Yes | Yes | N/A |
+| 55 | Cross-database `EXEC` | N/A | Yes | N/A |
+| 56 | Linked-server `EXEC` | N/A | Yes | N/A |
 | 58 | Dynamic `sp_executesql` | N/A | Yes | N/A |
 | 59 | `EXEC (@sql)` | N/A | N/A | N/A |
 | 60 | `EXEC ('...' + @var)` | N/A | N/A | N/A |

@@ -1,0 +1,83 @@
+{
+  "schema": "silver",
+  "name": "unionalltarget",
+  "columns": [
+    {
+      "name": "ProductAlternateKey",
+      "sql_type": "NVARCHAR(25)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "EnglishProductName",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "Segment",
+      "sql_type": "NVARCHAR(20)",
+      "is_nullable": false,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [
+    {
+      "constraint_name": "PK_UnionAllTarget",
+      "columns": [
+        "ProductAlternateKey",
+        "Segment"
+      ]
+    }
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "usp_load_unionalltarget",
+          "is_selected": true,
+          "is_updated": true
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_load_UnionAllTarget"
+  },
+  "profile": {
+    "status": "ok",
+    "writer": "silver.usp_load_UnionAllTarget",
+    "classification": {
+      "resolved_kind": "dim_non_scd",
+      "source": "catalog+llm",
+      "rationale": "Union branches still materialize a non-SCD lookup-style target."
+    },
+    "primary_key": {
+      "columns": [
+        "ProductAlternateKey",
+        "Segment"
+      ],
+      "primary_key_type": "natural",
+      "source": "catalog",
+      "rationale": "The composite primary key is declared across ProductAlternateKey and Segment."
+    },
+    "foreign_keys": [],
+    "pii_actions": []
+  }
+}
