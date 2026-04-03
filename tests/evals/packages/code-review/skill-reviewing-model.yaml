@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "Reviewing-model skill — dbt standards, correctness, and test integration"
+
+prompts:
+  - file://../../prompts/skill-reviewing-model.txt
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    config:
+      model: claude-sonnet-4-6
+      working_dir: ../..
+      max_turns: 60
+      permission_mode: bypassPermissions
+      allow_dangerously_skip_permissions: true
+      append_allowed_tools:
+        - Read
+        - Bash
+        - Glob
+        - Grep
+
+defaultTest:
+  vars:
+    fixture_path: "tests/evals/fixtures/migration-test"
+  assert:
+    - type: javascript
+      value: file://../../assertions/check-model-review.js
+
+tests:
+  - description: "approved — clean MERGE model passes standards and integration checks"
+    vars:
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      expected_status: "approved,approved_with_warnings,revision_requested"
+
+  - description: "approved — standard DML model with source/ref usage passes review"
+    vars:
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_status: "approved,approved_with_warnings,revision_requested"
+
+  - description: "revision-requested — incorrect materialization and missing tests are flagged"
+    vars:
+      target_table: "silver.DimCustomer"
+      writer: "silver.usp_load_DimCustomer_Full"
+      expected_status: "approved,approved_with_warnings,revision_requested"

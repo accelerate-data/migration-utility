@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-02T03:55:00Z",
+  "generated_at": "2026-04-02T10:00:00Z",
   "repo_root": "migration-utility",
   "primary_languages": ["TypeScript", "Python", "Markdown"],
   "package_managers": [
@@ -36,6 +36,10 @@
     {
       "name": "pytest (ddl-mcp)",
       "scope": "MCP DDL server tests in mcp/ddl/tests/. Run via: cd mcp/ddl && uv run pytest"
+    },
+    {
+      "name": "promptfoo",
+      "scope": "LLM eval harness in tests/evals/. Run via: cd tests/evals && npm run eval"
     }
   ],
   "applications": [
@@ -105,7 +109,7 @@
     },
     "tests_evals": {
       "path": "tests/evals/",
-      "description": "Promptfoo eval harness for skill testing against MigrationTest schema. Includes scoping, profiler, and model-generator packages. Run via: cd tests/evals && npx promptfoo eval. See docs/design/eval-harness/README.md."
+      "description": "Promptfoo eval harness for skill testing against MigrationTest schema. Includes analyzing-object, profiler, model-generator, test-generator, test-review, code-review, and scoping-table packages plus a top-level promptfooconfig.yaml for full-suite runs. Run via: cd tests/evals && npm run eval. See docs/design/eval-harness/README.md."
     },
     "tests_ddl_mcp": {
       "path": "mcp/ddl/tests/",
@@ -125,7 +129,7 @@
     "lib/": "Python DDL analysis library (uv project, sqlglot-based)",
     "lib/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
     "tests/unit/": "Python pytest tests for shared library (discover, catalog, catalog_enrich, extract_refs, integration)",
-    "tests/evals/": "Promptfoo eval harness for agent and skill testing (scoping, profiler, model-generator packages)",
+    "tests/evals/": "Promptfoo eval harness for agent and skill testing (analyzing-object, profiler, model-generator, test-generator, test-review, code-review, scoping-table packages)",
     "mcp/ddl/tests/": "Python pytest tests for the DDL MCP server",
     "docs/design/": "Architecture decision records and design specs",
     ".claude/rules/": "Shared agent rules such as coding-conventions, git-workflow, logging-policy, and codex-execution-policy",
@@ -138,9 +142,13 @@
     "test_harness_help": "cd lib && uv run test-harness --help",
     "lint_md": "markdownlint <file>",
     "eval_all": "cd tests/evals && npm run eval",
-    "eval_scoping": "cd tests/evals && npm run eval:scoping",
+    "eval_analyzing_object": "cd tests/evals && npm run eval:analyzing-object",
     "eval_profiler": "cd tests/evals && npm run eval:profiler",
-    "eval_model_generator": "cd tests/evals && npm run eval:model-generator"
+    "eval_model_generator": "cd tests/evals && npm run eval:model-generator",
+    "eval_test_generator": "cd tests/evals && npm run eval:test-generator",
+    "eval_test_review": "cd tests/evals && npm run eval:test-review",
+    "eval_code_review": "cd tests/evals && npm run eval:code-review",
+    "eval_scoping_table": "cd tests/evals && npm run eval:scoping-table"
   },
   "conventions": {
     "typescript_files": "kebab-case (scope-selector.tsx, candidacy-table.tsx)",

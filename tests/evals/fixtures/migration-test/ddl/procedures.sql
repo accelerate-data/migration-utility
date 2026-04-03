@@ -1,5 +1,186 @@
 
 -- ============================================================
+-- SCENARIO: single CTE — INSERT via WITH clause (active filter)
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_SingleCteTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.SingleCteTarget;
+    WITH active_products AS (
+        SELECT
+            CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey,
+            ProductName                     AS EnglishProductName
+        FROM bronze.Product
+        WHERE SellEndDate IS NULL
+    )
+    INSERT INTO silver.SingleCteTarget (ProductAlternateKey, EnglishProductName)
+    SELECT ProductAlternateKey, EnglishProductName
+    FROM active_products;
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: INSERT INTO ... SELECT — simple full-refresh insert
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_InsertSelectTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.InsertSelectTarget;
+    INSERT INTO silver.InsertSelectTarget (ProductAlternateKey, EnglishProductName)
+    SELECT
+        CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey,
+        ProductName                     AS EnglishProductName
+    FROM bronze.Product;
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: SELECT INTO — full-refresh via SELECT INTO pattern
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_SelectIntoTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.SelectIntoTarget;
+    SELECT
+        CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey,
+        ProductName AS EnglishProductName
+    INTO silver.SelectIntoTarget
+    FROM bronze.Product;
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: UPDATE ... FROM JOIN — rewrite as source-driven select
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_UpdateJoinTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE tgt
+    SET
+        tgt.EnglishProductName = src.ProductName,
+        tgt.LastSeenDate = GETDATE()
+    FROM silver.UpdateJoinTarget AS tgt
+    INNER JOIN bronze.Product AS src
+        ON tgt.ProductAlternateKey = CAST(src.ProductID AS NVARCHAR(25));
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: DELETE ... WHERE — keep-rows projection
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_DeleteWhereTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DELETE FROM silver.DeleteWhereTarget
+    WHERE IsRetired = 1;
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: correlated subquery — preserve MAX-per-name filter
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_CorrelatedSubqueryTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.CorrelatedSubqueryTarget;
+    INSERT INTO silver.CorrelatedSubqueryTarget (ProductAlternateKey, EnglishProductName)
+    SELECT
+        CAST(p.ProductID AS NVARCHAR(25)),
+        p.ProductName
+    FROM bronze.Product AS p
+    WHERE p.ProductID = (
+        SELECT MAX(p2.ProductID)
+        FROM bronze.Product AS p2
+        WHERE p2.ProductName = p.ProductName
+    );
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: UNION ALL — preserve segmented branches
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_UnionAllTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.UnionAllTarget;
+    INSERT INTO silver.UnionAllTarget (ProductAlternateKey, EnglishProductName, Segment)
+    SELECT CAST(ProductID AS NVARCHAR(25)), ProductName, 'red'
+    FROM bronze.Product
+    WHERE Color = 'Red'
+    UNION ALL
+    SELECT CAST(ProductID AS NVARCHAR(25)), ProductName, 'other'
+    FROM bronze.Product
+    WHERE Color <> 'Red' OR Color IS NULL;
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: GROUPING SETS — subtotal plus grand total
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_GroupingSetsTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.GroupingSetsTarget;
+    INSERT INTO silver.GroupingSetsTarget (GroupKey, ProductCount)
+    SELECT
+        COALESCE(Color, 'all'),
+        COUNT(*)
+    FROM bronze.Product
+    GROUP BY GROUPING SETS ((Color), ());
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: PIVOT — color counts become columns
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_PivotTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.PivotTarget;
+    INSERT INTO silver.PivotTarget (MetricName, RedCount, BlackCount, SilverCount)
+    SELECT
+        'product_counts',
+        ISNULL([Red], 0),
+        ISNULL([Black], 0),
+        ISNULL([Silver], 0)
+    FROM (
+        SELECT Color, ProductID
+        FROM bronze.Product
+    ) AS src
+    PIVOT (
+        COUNT(ProductID) FOR Color IN ([Red], [Black], [Silver])
+    ) AS p;
+END;
+
+GO
+
+
+-- ============================================================
 -- SCENARIO: cross-db exec — writer delegates to another database
 -- usp_load_DimCrossDbProfile only EXECs a cross-database
 -- procedure, so the profiler cannot inspect the write pattern.

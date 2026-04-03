@@ -6,7 +6,8 @@
 //   target_table,
 //   expected_model_terms?,
 //   forbidden_model_terms?,
-//   expected_output_terms?
+//   expected_output_terms?,
+//   graceful_no_model?
 // }
 const fs = require('fs');
 const path = require('path');
@@ -25,13 +26,28 @@ module.exports = (output, context) => {
   const expectedModelTerms = normalizeTerms(context.vars.expected_model_terms);
   const forbiddenModelTerms = normalizeTerms(context.vars.forbidden_model_terms);
   const expectedOutputTerms = normalizeTerms(context.vars.expected_output_terms);
+  const gracefulNoModel = String(context.vars.graceful_no_model || '').toLowerCase() === 'true';
 
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
   const dbtDir = path.resolve(repoRoot, fixturePath, 'dbt');
+  const outputStr = String(output || '').toLowerCase();
+
+  const assertExpectedOutputTerms = () => {
+    for (const term of expectedOutputTerms) {
+      if (!outputStr.includes(term)) {
+        return { pass: false, score: 0, reason: `Expected output term '${term}' not found in final response` };
+      }
+    }
+    return null;
+  };
 
   if (!fs.existsSync(dbtDir)) {
+    if (gracefulNoModel) {
+      const failure = assertExpectedOutputTerms();
+      return failure || { pass: true, score: 1, reason: 'Graceful no-model response accepted (no dbt project present)' };
+    }
     // Check if output text contains model SQL as fallback
-    if (output && output.toLowerCase().includes('config(') && output.toLowerCase().includes('select')) {
+    if (outputStr.includes('config(') && outputStr.includes('select')) {
       return { pass: true, score: 1, reason: 'dbt model SQL found in output text (no dbt project to write to)' };
     }
     return { pass: false, score: 0, reason: `dbt directory not found at ${dbtDir} and no model SQL in output` };
@@ -40,7 +56,11 @@ module.exports = (output, context) => {
   // Look for model files in the dbt directory
   const modelsDir = path.resolve(dbtDir, 'models');
   if (!fs.existsSync(modelsDir)) {
-    if (output && output.toLowerCase().includes('config(')) {
+    if (gracefulNoModel) {
+      const failure = assertExpectedOutputTerms();
+      return failure || { pass: true, score: 1, reason: 'Graceful no-model response accepted (no models dir present)' };
+    }
+    if (outputStr.includes('config(')) {
       return { pass: true, score: 1, reason: 'dbt model SQL found in output (models dir not yet created)' };
     }
     return { pass: false, score: 0, reason: 'No models directory found in dbt project' };
@@ -59,7 +79,11 @@ module.exports = (output, context) => {
 
   const matchingFiles = allFiles.filter(f => f.toLowerCase().includes(tableName));
   if (matchingFiles.length === 0) {
-    if (output && output.toLowerCase().includes('config(')) {
+    if (gracefulNoModel) {
+      const failure = assertExpectedOutputTerms();
+      return failure || { pass: true, score: 1, reason: `Graceful no-model response accepted for '${tableName}'` };
+    }
+    if (outputStr.includes('config(')) {
       return { pass: true, score: 1, reason: 'dbt model SQL found in output (no matching file written yet)' };
     }
     return { pass: false, score: 0, reason: `No SQL file matching '${tableName}' found in ${modelsDir}` };
@@ -85,11 +109,9 @@ module.exports = (output, context) => {
   }
 
   if (expectedOutputTerms.length > 0) {
-    const outputStr = String(output || '').toLowerCase();
-    for (const term of expectedOutputTerms) {
-      if (!outputStr.includes(term)) {
-        return { pass: false, score: 0, reason: `Expected output term '${term}' not found in final response` };
-      }
+    const failure = assertExpectedOutputTerms();
+    if (failure) {
+      return failure;
     }
   }
 

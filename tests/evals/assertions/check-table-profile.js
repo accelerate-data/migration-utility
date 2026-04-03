@@ -54,8 +54,11 @@ module.exports = (output, context) => {
 
   const profile = catalog.profile;
 
-  if (expectedStatus && profile.status !== expectedStatus) {
-    return { pass: false, score: 0, reason: `Expected profile.status='${expectedStatus}', got '${profile.status}'` };
+  if (expectedStatus) {
+    const validStatuses = normalizeTerms(expectedStatus);
+    if (!validStatuses.includes((profile.status || '').toLowerCase())) {
+      return { pass: false, score: 0, reason: `Expected profile.status in [${validStatuses.join(', ')}], got '${profile.status}'` };
+    }
   }
 
   // Check classification exists and is valid

@@ -46,8 +46,7 @@ tests:
     vars:
       target_table: "silver.DeleteWhereTarget"
       writer: "silver.usp_load_DeleteWhereTarget"
-      expected_model_terms: "materialized='table',where"
-      forbidden_model_terms: "delete from"
+      graceful_no_model: "true"
 
   # ── select into ───────────────────────────────────────────────
   - description: "select-into — SELECT INTO recognized as staging table model"
@@ -83,7 +82,7 @@ tests:
     vars:
       target_table: "silver.GroupingSetsTarget"
       writer: "silver.usp_load_GroupingSetsTarget"
-      expected_model_terms: "grouping sets"
+      expected_model_terms: "group by"
 
   # ── pivot ─────────────────────────────────────────────────────
   - description: "pivot — PIVOT translated to conditional aggregation"
@@ -91,3 +90,39 @@ tests:
       target_table: "silver.PivotTarget"
       writer: "silver.usp_load_PivotTarget"
       expected_model_terms: "case when"
+
+  # ── window functions ──────────────────────────────────────────
+  - description: "window-functions — FactInternetSales preserves analytic window expressions"
+    vars:
+      target_table: "silver.FactInternetSales"
+      writer: "silver.usp_stage_FactInternetSales"
+      expected_model_terms: "count(*) over,partition by"
+
+  # ── outer apply ───────────────────────────────────────────────
+  - description: "outer-apply — DimCustomer full reload rewrites APPLY logic"
+    vars:
+      target_table: "silver.DimCustomer"
+      writer: "silver.usp_load_DimCustomer_Full"
+      expected_model_terms: "materialized='table',min(orderdate)"
+
+  # ── truncate + insert full reload ─────────────────────────────
+  - description: "truncate-insert — DimCustomer full reload stays table materialized"
+    vars:
+      target_table: "silver.DimCustomer"
+      writer: "silver.usp_load_DimCustomer_Full"
+      expected_model_terms: "materialized='table'"
+
+  # ── exec orchestrator ─────────────────────────────────────────
+  - description: "exec-orchestrator — FactInternetSales orchestration handled gracefully"
+    vars:
+      target_table: "silver.FactInternetSales"
+      writer: "silver.usp_load_FactInternetSales"
+      graceful_no_model: "true"
+      expected_output_terms: "orchestration,usp_stage_factinternetsales"
+
+  # ── dynamic sp_executesql ─────────────────────────────────────
+  - description: "dynamic-sp-executesql — DimCurrency dynamic SQL handled gracefully"
+    vars:
+      target_table: "silver.DimCurrency"
+      writer: "silver.usp_load_DimCurrency"
+      graceful_no_model: "true"

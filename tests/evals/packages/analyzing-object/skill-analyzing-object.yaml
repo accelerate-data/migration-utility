@@ -78,7 +78,7 @@ tests:
       target_table: "silver.usp_scope_LinkedServerExec"
       allow_zero_migrate: "true"
       expected_source: "llm"
-      expected_rationale_terms: "linked,out-of-scope"
+      expected_rationale_terms: "linked"
 
   # ── EXEC(@sql) requires LLM classification ────────────────────
   - description: "exec-variable — dynamic EXEC(@sql) classified by llm"

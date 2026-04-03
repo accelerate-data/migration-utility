@@ -5,11 +5,15 @@
   "scripts": {
     "prerestore": "git checkout -- fixtures/",
     "postrestore": "git checkout -- fixtures/ && git clean -fd fixtures/",
-    "eval": "npm run eval:scoping && npm run eval:profiler && npm run eval:model-generator",
-    "eval:scoping": "npm run prerestore && promptfoo eval --no-cache -c packages/scoping/skill-analyzing-object.yaml; npm run postrestore",
-    "eval:scoping:skill": "npm run prerestore && promptfoo eval --no-cache -c packages/scoping/skill-analyzing-object.yaml; npm run postrestore",
+    "eval": "npm run prerestore && promptfoo eval --no-cache; npm run postrestore",
+    "eval:analyzing-object": "npm run prerestore && promptfoo eval --no-cache -c packages/analyzing-object/skill-analyzing-object.yaml; npm run postrestore",
+    "eval:analyzing-object:skill": "npm run prerestore && promptfoo eval --no-cache -c packages/analyzing-object/skill-analyzing-object.yaml; npm run postrestore",
     "eval:profiler": "npm run prerestore && promptfoo eval --no-cache -c packages/profiler/skill-profiling-table.yaml; npm run postrestore",
     "eval:model-generator": "npm run prerestore && promptfoo eval --no-cache -c packages/model-generator/skill-generating-model.yaml; npm run postrestore",
+    "eval:test-generator": "npm run prerestore && promptfoo eval --no-cache -c packages/test-generator/skill-generating-tests.yaml; npm run postrestore",
+    "eval:test-review": "npm run prerestore && promptfoo eval --no-cache -c packages/test-review/skill-reviewing-tests.yaml; npm run postrestore",
+    "eval:code-review": "npm run prerestore && promptfoo eval --no-cache -c packages/code-review/skill-reviewing-model.yaml; npm run postrestore",
+    "eval:scoping-table": "npm run prerestore && promptfoo eval --no-cache -c packages/scoping-table/skill-scoping-table.yaml; npm run postrestore",
     "view": "promptfoo view"
   },
   "dependencies": {

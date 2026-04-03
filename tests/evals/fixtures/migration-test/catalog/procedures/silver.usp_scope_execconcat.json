@@ -3,7 +3,18 @@
   "name": "usp_scope_execconcat",
   "references": {
     "tables": {
-      "in_scope": [],
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "ExecConcatTarget",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {"name": "ProductAlternateKey", "is_selected": false, "is_updated": true},
+            {"name": "EnglishProductName", "is_selected": false, "is_updated": true}
+          ]
+        }
+      ],
       "out_of_scope": []
     },
     "views": {

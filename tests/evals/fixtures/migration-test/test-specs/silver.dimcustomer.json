@@ -1,0 +1,80 @@
+{
+  "item_id": "silver.dimcustomer",
+  "status": "partial",
+  "coverage": "partial",
+  "branch_manifest": [
+    {
+      "id": "truncate_before_reload",
+      "statement_index": 0,
+      "description": "TRUNCATE clears existing customer rows before reload",
+      "scenarios": [
+        "test_full_reload_existing_rows_cleared"
+      ]
+    },
+    {
+      "id": "outer_apply_first_purchase",
+      "statement_index": 1,
+      "description": "OUTER APPLY derives DateFirstPurchase from the minimum order date",
+      "scenarios": []
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_full_reload_existing_rows_cleared",
+      "model": "stg_dimcustomer",
+      "given": [
+        {
+          "input": "source('bronze', 'customer')",
+          "rows": [
+            {
+              "CustomerID": 101,
+              "PersonID": 1001
+            }
+          ]
+        },
+        {
+          "input": "source('bronze', 'person')",
+          "rows": [
+            {
+              "BusinessEntityID": 1001,
+              "FirstName": "Ada",
+              "MiddleName": null,
+              "LastName": "Lovelace",
+              "Title": "Ms",
+              "EmailPromotion": -5
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "CustomerAlternateKey": "101",
+            "FirstName": "Ada",
+            "LastName": "Lovelace",
+            "EmailPromotion": -5
+          }
+        ]
+      }
+    }
+  ],
+  "uncovered_branches": [
+    "outer_apply_first_purchase"
+  ],
+  "warnings": [
+    {
+      "code": "FIXTURE_UNREALISTIC",
+      "message": "EmailPromotion uses an unrealistic negative value in test_full_reload_existing_rows_cleared.",
+      "item_id": "silver.dimcustomer",
+      "severity": "warning",
+      "details": {
+        "scenario": "test_full_reload_existing_rows_cleared"
+      }
+    }
+  ],
+  "validation": {
+    "status": "ok",
+    "summary": []
+  },
+  "errors": []
+}

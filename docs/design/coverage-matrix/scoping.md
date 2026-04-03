@@ -1,6 +1,6 @@
 # Scoping Coverage
 
-Current automated statement coverage for the scoping phase. The phase boundary here includes deterministic writer discovery, statement classification surfaced by `discover`, routing flags, and enrichment-aware resolution used by scoping.
+Current automated statement coverage for the scoping phase. The phase boundary here includes deterministic writer discovery, statement classification surfaced by `discover`, routing flags, and enrichment-aware resolution used by scoping. The Promptfoo column covers both procedure-level analysis (analyzing-object skill) and table-level writer discovery (scoping-table skill).
 
 | # | Statement | Unit | Integration | Promptfoo |
 |---|---|---|---|---|
