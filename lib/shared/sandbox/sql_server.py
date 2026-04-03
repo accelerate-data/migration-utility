@@ -104,6 +104,26 @@ def _split_identifier_parts(identifier: str) -> list[str]:
     return parts
 
 
+def _get_identity_columns(cursor: Any, table: str) -> set[str]:
+    """Return the set of identity column names for *table* in the current DB.
+
+    Queries ``sys.columns`` for ``is_identity = 1``.  Returns an empty set
+    if the table has no identity columns or the query fails.
+    """
+    try:
+        cursor.execute(
+            "SELECT c.name FROM sys.columns c "
+            "WHERE c.object_id = OBJECT_ID(?) AND c.is_identity = 1",
+            table,
+        )
+        return {row[0] for row in cursor.fetchall()}
+    except Exception:  # noqa: BLE001 — non-critical; caller falls back to plain INSERT
+        logger.debug(
+            "event=identity_column_lookup_failed table=%s", table,
+        )
+        return set()
+
+
 def _detect_remote_exec_target(definition: str) -> dict[str, str] | None:
     for match in _REMOTE_EXEC_RE.finditer(definition):
         target = match.group("target")
@@ -503,11 +523,36 @@ class SqlServerSandbox(SandboxBackend):
                         if not rows:
                             continue
                         columns = list(rows[0].keys())
+
+                        # Detect identity columns so we can toggle
+                        # IDENTITY_INSERT for explicit-value inserts.
+                        identity_cols = _get_identity_columns(cursor, table)
+                        needs_identity_insert = bool(
+                            identity_cols & {c for c in columns}
+                        )
+
+                        if needs_identity_insert:
+                            cursor.execute(
+                                f"SET IDENTITY_INSERT {table} ON"
+                            )
+                            logger.info(
+                                "event=identity_insert_enabled run_id=%s "
+                                "table=%s columns=%s",
+                                run_id,
+                                table,
+                                sorted(identity_cols & {c for c in columns}),
+                            )
+
                         col_list = ", ".join(f"[{c}]" for c in columns)
                         placeholders = ", ".join("?" for _ in columns)
                         insert_sql = f"INSERT INTO {table} ({col_list}) VALUES ({placeholders})"
                         value_lists = [[row[c] for c in columns] for row in rows]
                         cursor.executemany(insert_sql, value_lists)
+
+                        if needs_identity_insert:
+                            cursor.execute(
+                                f"SET IDENTITY_INSERT {table} OFF"
+                            )
 
                     cursor.execute(f"EXEC {procedure}")
 

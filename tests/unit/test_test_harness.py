@@ -20,6 +20,7 @@ from shared.sandbox.base import SandboxBackend
 from shared.sandbox.sql_server import (
     SqlServerSandbox,
     _detect_remote_exec_target,
+    _get_identity_columns,
     _serialize_rows,
     _validate_identifier,
     _validate_run_id,
@@ -389,6 +390,134 @@ class TestSqlServerExecuteScenario:
 
         with pytest.raises(KeyError, match="procedure"):
             backend.execute_scenario(run_id="test-run", scenario=scenario)
+
+
+# ── IDENTITY_INSERT handling ──────────────────────────────────────────────────
+
+
+class TestIdentityInsert:
+    """Test IDENTITY_INSERT toggling in execute_scenario fixture insertion."""
+
+    def test_identity_insert_enabled_when_fixture_has_identity_column(self) -> None:
+        backend = _make_backend()
+        sandbox_cursor = MagicMock()
+        # First call: OBJECT_DEFINITION lookup (proc check)
+        sandbox_cursor.fetchone.return_value = (
+            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
+        )
+        # identity column lookup returns SalesOrderID as identity
+        # fetchall calls: 1=identity cols, 2=SELECT * result
+        sandbox_cursor.fetchall.side_effect = [
+            [("SalesOrderID",)],       # _get_identity_columns
+            [(1, "Widget", 100)],       # SELECT * FROM target
+        ]
+        sandbox_cursor.description = [("SalesOrderID",), ("Name",), ("Amount",)]
+
+        fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+
+        scenario = {
+            "name": "test_identity",
+            "target_table": "[silver].[FactSales]",
+            "procedure": "[dbo].[usp_load]",
+            "given": [
+                {
+                    "table": "[bronze].[SalesOrderHeader]",
+                    "rows": [{"SalesOrderID": 1, "Status": 5}],
+                }
+            ],
+        }
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+
+        assert result["status"] == "ok"
+
+        # Verify SET IDENTITY_INSERT ON/OFF were called
+        execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
+        identity_on = [c for c in execute_calls if "IDENTITY_INSERT" in c and "ON" in c and "OFF" not in c]
+        identity_off = [c for c in execute_calls if "IDENTITY_INSERT" in c and "OFF" in c]
+        assert len(identity_on) == 1, f"Expected 1 IDENTITY_INSERT ON, got {identity_on}"
+        assert len(identity_off) == 1, f"Expected 1 IDENTITY_INSERT OFF, got {identity_off}"
+
+    def test_no_identity_insert_when_no_identity_columns(self) -> None:
+        backend = _make_backend()
+        sandbox_cursor = MagicMock()
+        sandbox_cursor.fetchone.return_value = (
+            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
+        )
+        sandbox_cursor.fetchall.side_effect = [
+            [],                         # _get_identity_columns: no identity cols
+            [(1, "Widget")],            # SELECT * FROM target
+        ]
+        sandbox_cursor.description = [("id",), ("name",)]
+
+        fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+
+        scenario = {
+            "name": "test_no_identity",
+            "target_table": "[silver].[DimProduct]",
+            "procedure": "[dbo].[usp_load]",
+            "given": [
+                {
+                    "table": "[bronze].[Product]",
+                    "rows": [{"name": "Widget"}],
+                }
+            ],
+        }
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+
+        assert result["status"] == "ok"
+        execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
+        identity_calls = [c for c in execute_calls if "IDENTITY_INSERT" in c]
+        assert len(identity_calls) == 0, f"Unexpected IDENTITY_INSERT calls: {identity_calls}"
+
+    def test_identity_insert_toggles_per_table(self) -> None:
+        backend = _make_backend()
+        sandbox_cursor = MagicMock()
+        sandbox_cursor.fetchone.return_value = (
+            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
+        )
+        # Two tables: first has identity, second does not
+        sandbox_cursor.fetchall.side_effect = [
+            [("OrderID",)],             # _get_identity_columns for table 1
+            [],                         # _get_identity_columns for table 2
+            [(1, "result")],            # SELECT * FROM target
+        ]
+        sandbox_cursor.description = [("id",), ("value",)]
+
+        fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+
+        scenario = {
+            "name": "test_multi_table",
+            "target_table": "[silver].[FactSales]",
+            "procedure": "[dbo].[usp_load]",
+            "given": [
+                {
+                    "table": "[bronze].[SalesOrderHeader]",
+                    "rows": [{"OrderID": 1, "Status": 5}],
+                },
+                {
+                    "table": "[bronze].[SalesOrderDetail]",
+                    "rows": [{"LineItem": "A", "Qty": 10}],
+                },
+            ],
+        }
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+
+        assert result["status"] == "ok"
+        execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
+        # Only table 1 should have IDENTITY_INSERT
+        identity_on = [c for c in execute_calls if "IDENTITY_INSERT" in c and "SalesOrderHeader" in c and "ON" in c and "OFF" not in c]
+        identity_off = [c for c in execute_calls if "IDENTITY_INSERT" in c and "SalesOrderHeader" in c and "OFF" in c]
+        assert len(identity_on) == 1
+        assert len(identity_off) == 1
+        # Table 2 should NOT have IDENTITY_INSERT
+        detail_identity = [c for c in execute_calls if "IDENTITY_INSERT" in c and "SalesOrderDetail" in c]
+        assert len(detail_identity) == 0
 
 
 # ── MONEY decoding ────────────────────────────────────────────────────────────
