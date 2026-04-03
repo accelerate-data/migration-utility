@@ -30,26 +30,41 @@ def _write_object_catalogs(
     rflags: dict[str, dict[str, bool]],
     pparams: dict[str, list[dict[str, Any]]],
     object_types: dict[str, str] | None,
+    *,
+    write_filter: set[str] | None = None,
+    hashes: dict[str, str] | None = None,
 ) -> int:
     """Write catalog files for one object type (procs, views, or functions).
 
     Includes backfill for objects with no DMF refs.
+    When *write_filter* is set, only FQNs in the filter are written.
     Returns count of files written.
     """
     def _empty_refs() -> dict[str, dict[str, list[dict[str, Any]]]]:
         return {"tables": empty_scoped(), "views": empty_scoped(),
                 "functions": empty_scoped(), "procedures": empty_scoped()}
 
+    _hashes = hashes or {}
     count = 0
     for fqn, refs in dmf_refs.items():
+        if write_filter is not None and fqn not in write_filter:
+            continue
         params = pparams.get(fqn) if object_type == "procedures" else None
-        write_object_catalog(project_root, object_type, fqn, refs, **rflags.get(fqn, {}), params=params)
+        write_object_catalog(
+            project_root, object_type, fqn, refs,
+            **rflags.get(fqn, {}), params=params, ddl_hash=_hashes.get(fqn),
+        )
         count += 1
 
     for fqn, bucket in (object_types or {}).items():
         if bucket == object_type and fqn not in dmf_refs:
+            if write_filter is not None and fqn not in write_filter:
+                continue
             params = pparams.get(fqn) if object_type == "procedures" else None
-            write_object_catalog(project_root, object_type, fqn, _empty_refs(), **rflags.get(fqn, {}), params=params)
+            write_object_catalog(
+                project_root, object_type, fqn, _empty_refs(),
+                **rflags.get(fqn, {}), params=params, ddl_hash=_hashes.get(fqn),
+            )
             count += 1
 
     return count
@@ -89,8 +104,14 @@ def write_catalog_files(
     routing_flags: dict[str, dict[str, bool]] | None = None,
     database: str = "",
     proc_params: dict[str, list[dict[str, Any]]] | None = None,
+    write_filter: set[str] | None = None,
+    hashes: dict[str, str] | None = None,
 ) -> dict[str, int]:
     """Process raw extraction data and write all catalog JSON files.
+
+    When *write_filter* is set, only FQNs in the filter are written (changed +
+    new objects for diff-aware reexport).  Pass ``None`` to write everything
+    (backward-compatible default).
 
     Returns counts: ``{tables: N, procedures: N, views: N, functions: N}``.
     """
@@ -102,18 +123,35 @@ def write_catalog_files(
     func_refs = process_dmf_results(func_dmf_rows, object_types, database=database)
 
     counts = {
-        "procedures": _write_object_catalogs(project_root, proc_refs, "procedures", rflags, pparams, object_types),
-        "views": _write_object_catalogs(project_root, view_refs, "views", rflags, pparams, object_types),
-        "functions": _write_object_catalogs(project_root, func_refs, "functions", rflags, pparams, object_types),
+        "procedures": _write_object_catalogs(
+            project_root, proc_refs, "procedures", rflags, pparams, object_types,
+            write_filter=write_filter, hashes=hashes,
+        ),
+        "views": _write_object_catalogs(
+            project_root, view_refs, "views", rflags, pparams, object_types,
+            write_filter=write_filter, hashes=hashes,
+        ),
+        "functions": _write_object_catalogs(
+            project_root, func_refs, "functions", rflags, pparams, object_types,
+            write_filter=write_filter, hashes=hashes,
+        ),
     }
 
     table_referenced_by = _build_table_referenced_by(proc_refs, view_refs, func_refs)
+    _hashes = hashes or {}
 
     known_tables = {fqn for fqn, bucket in (object_types or {}).items() if bucket == "tables"}
     all_table_fqns = set(table_signals.keys()) | set(table_referenced_by.keys()) | known_tables
     counts["tables"] = 0
     for table_fqn in sorted(all_table_fqns):
-        write_table_catalog(project_root, table_fqn, table_signals.get(table_fqn, {}), table_referenced_by.get(table_fqn))
+        if write_filter is not None and table_fqn not in write_filter:
+            continue
+        write_table_catalog(
+            project_root, table_fqn,
+            table_signals.get(table_fqn, {}),
+            table_referenced_by.get(table_fqn),
+            ddl_hash=_hashes.get(table_fqn),
+        )
         counts["tables"] += 1
 
     return counts

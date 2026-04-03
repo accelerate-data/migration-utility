@@ -7,6 +7,8 @@
   "properties": {
     "schema": { "type": "string", "description": "Schema name, e.g. silver" },
     "name": { "type": "string", "description": "Object name, e.g. vw_CustomerSales" },
+    "ddl_hash": { "type": "string", "description": "SHA-256 of normalized source DDL. Used for diff-aware reexport." },
+    "stale": { "type": "boolean", "description": "True when the object was present in a prior extraction but absent in the latest." },
     "references": {
       "type": "object",
       "description": "Outbound: what this view depends on.",

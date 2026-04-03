@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import json
 import logging
-import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -276,9 +275,38 @@ def run_assemble_tables(input_path: Path, project_root: Path) -> dict[str, Any]:
     return {"file": str(out_path), "count": len(blocks)}
 
 
+def _mark_stale(project_root: Path, removed_fqns: set[str]) -> None:
+    """Set ``stale: true`` on catalog files for objects no longer in the source."""
+    catalog_dir = project_root / "catalog"
+    for fqn in sorted(removed_fqns):
+        for bucket in ("tables", "procedures", "views", "functions"):
+            p = catalog_dir / bucket / f"{fqn}.json"
+            if p.exists():
+                try:
+                    data = json.loads(p.read_text(encoding="utf-8"))
+                    data["stale"] = True
+                    tmp = p.with_suffix(".json.tmp")
+                    tmp.write_text(
+                        json.dumps(data, indent=2, ensure_ascii=False) + "\n",
+                        encoding="utf-8",
+                    )
+                    tmp.replace(p)
+                except (json.JSONDecodeError, OSError) as exc:
+                    logger.warning("event=mark_stale_error fqn=%s error=%s", fqn, exc)
+                    continue
+                logger.warning("event=catalog_stale_object fqn=%s bucket=%s", fqn, bucket)
+                break
+
+
 def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> dict[str, Any]:
-    """Process staging JSON files and write all catalog JSON files."""
+    """Process staging JSON files and write all catalog JSON files.
+
+    Uses diff-aware logic: computes DDL hashes from staging data, compares
+    against hashes stored in existing catalog files, and only rewrites
+    changed or new objects.  Removed objects are flagged as stale.
+    """
     from shared.catalog import scan_routing_flags
+    from shared.catalog_diff import classify_objects, compute_object_hashes, load_existing_hashes
     from shared.catalog_dmf import write_catalog_files
 
     # ── Load staging files ────────────────────────────────────────────────
@@ -310,12 +338,26 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
     routing_flags = _build_routing_flags(definitions_rows, scan_routing_flags)
     proc_params = _build_proc_params(proc_params_rows)
 
-    # ── Write catalog files ───────────────────────────────────────────────
+    # ── Diff-aware classification ─────────────────────────────────────────
+    fresh_hashes = compute_object_hashes(definitions_rows, table_signals, object_types)
+    existing_hashes = load_existing_hashes(project_root)
+    diff = classify_objects(fresh_hashes, existing_hashes)
+
+    logger.info(
+        "event=catalog_diff unchanged=%d changed=%d new=%d removed=%d",
+        len(diff.unchanged), len(diff.changed), len(diff.new), len(diff.removed),
+    )
+
+    # ── Mark removed objects as stale ─────────────────────────────────────
+    if diff.removed:
+        _mark_stale(project_root, diff.removed)
+
+    # ── Ensure catalog subdirectories exist (without wiping) ──────────────
     for subdir in ("tables", "procedures", "views", "functions"):
-        d = project_root / "catalog" / subdir
-        if d.exists():
-            shutil.rmtree(d)
-        d.mkdir(parents=True, exist_ok=True)
+        (project_root / "catalog" / subdir).mkdir(parents=True, exist_ok=True)
+
+    # ── Write only changed + new objects ──────────────────────────────────
+    write_filter = diff.changed | diff.new
 
     counts = write_catalog_files(
         project_root,
@@ -327,7 +369,14 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
         routing_flags=routing_flags,
         database=database,
         proc_params=proc_params,
+        write_filter=write_filter,
+        hashes=fresh_hashes,
     )
+
+    counts["unchanged"] = len(diff.unchanged)
+    counts["changed"] = len(diff.changed)
+    counts["new"] = len(diff.new)
+    counts["removed"] = len(diff.removed)
 
     return counts
 
