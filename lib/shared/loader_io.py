@@ -61,9 +61,17 @@ def read_manifest(project_root: Path) -> dict[str, Any]:
     return {"dialect": "tsql"}
 
 
+def _require_manifest_file(project_root: Path) -> Path:
+    """Return manifest.json path, raising if it does not exist on disk."""
+    manifest_file = Path(project_root) / "manifest.json"
+    if not manifest_file.exists():
+        raise FileNotFoundError(f"manifest.json not found in {project_root}")
+    return manifest_file
+
+
 def write_manifest_sandbox(project_root: Path, run_id: str, database: str) -> None:
     """Persist sandbox run_id and database name into manifest.json."""
-    manifest_file = Path(project_root) / "manifest.json"
+    manifest_file = _require_manifest_file(project_root)
     manifest = read_manifest(project_root)
     manifest["sandbox"] = {"run_id": run_id, "database": database}
     manifest_file.write_text(
@@ -79,7 +87,7 @@ def write_manifest_sandbox(project_root: Path, run_id: str, database: str) -> No
 
 def clear_manifest_sandbox(project_root: Path) -> None:
     """Remove the sandbox key from manifest.json."""
-    manifest_file = Path(project_root) / "manifest.json"
+    manifest_file = _require_manifest_file(project_root)
     manifest = read_manifest(project_root)
     manifest.pop("sandbox", None)
     manifest_file.write_text(

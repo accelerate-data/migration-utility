@@ -111,9 +111,10 @@ def sandbox_down(
     project_root: str = typer.Option(".", help="Project root directory"),
 ) -> None:
     """Drop a sandbox database."""
+    logger.info("event=cli_invoked command=sandbox_down")
     root = resolve_project_root(Path(project_root))
     run_id = _resolve_run_id(run_id, root)
-    logger.info("event=cli_invoked command=sandbox_down run_id=%s", run_id)
+    logger.info("event=cli_resolved command=sandbox_down run_id=%s", run_id)
     manifest = _load_manifest(root)
     backend = _create_backend(manifest)
 
@@ -135,9 +136,10 @@ def sandbox_status(
     project_root: str = typer.Option(".", help="Project root directory"),
 ) -> None:
     """Check whether a sandbox database exists."""
+    logger.info("event=cli_invoked command=sandbox_status")
     root = resolve_project_root(Path(project_root))
     run_id = _resolve_run_id(run_id, root)
-    logger.info("event=cli_invoked command=sandbox_status run_id=%s", run_id)
+    logger.info("event=cli_resolved command=sandbox_status run_id=%s", run_id)
     manifest = _load_manifest(root)
     backend = _create_backend(manifest)
 
@@ -160,9 +162,10 @@ def execute(
     project_root: str = typer.Option(".", help="Project root directory"),
 ) -> None:
     """Execute a test scenario in the sandbox and capture ground truth."""
+    logger.info("event=cli_invoked command=execute")
     root = resolve_project_root(Path(project_root))
     run_id = _resolve_run_id(run_id, root)
-    logger.info("event=cli_invoked command=execute run_id=%s scenario=%s", run_id, scenario)
+    logger.info("event=cli_resolved command=execute run_id=%s scenario=%s", run_id, scenario)
     manifest = _load_manifest(root)
     backend = _create_backend(manifest)
 
