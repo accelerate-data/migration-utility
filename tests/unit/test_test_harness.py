@@ -537,10 +537,11 @@ class TestSchemaValidation:
             "unit_tests": [
                 {
                     "name": "test_merge_matched",
-                    "model": "stg_dimproduct",
+                    "target_table": "[silver].[DimProduct]",
+                    "procedure": "[silver].[usp_load_DimProduct]",
                     "given": [
                         {
-                            "input": "source('bronze', 'product')",
+                            "table": "[bronze].[Product]",
                             "rows": [{"product_id": 1}],
                         }
                     ],
@@ -576,10 +577,11 @@ class TestSchemaValidation:
                     "unit_tests": [
                         {
                             "name": "test_merge_matched",
-                            "model": "stg_dimproduct",
+                            "target_table": "[silver].[DimProduct]",
+                            "procedure": "[silver].[usp_load_DimProduct]",
                             "given": [
                                 {
-                                    "input": "source('bronze', 'product')",
+                                    "table": "[bronze].[Product]",
                                     "rows": [{"product_id": 1}],
                                 }
                             ],

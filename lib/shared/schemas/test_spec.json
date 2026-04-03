@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "test_spec.json",
   "title": "TestSpec",
-  "description": "Per-item test spec written to test-specs/<item_id>.json by the /generating-tests skill. Branch-covering dbt unit test fixtures with ground truth.",
+  "description": "Per-item test spec written to test-specs/<item_id>.json by the /generating-tests skill. CLI-ready branch-covering fixtures with ground truth. Uses bracket-quoted SQL identifiers for sandbox execution; dbt YAML conversion happens post-execution.",
   "type": "object",
   "required": ["item_id", "status", "coverage", "branch_manifest", "unit_tests", "uncovered_branches", "warnings", "validation", "errors"],
   "properties": {
@@ -49,10 +49,12 @@
     },
     "unit_test_entry": {
       "type": "object",
-      "required": ["name", "model", "given"],
+      "required": ["name", "target_table", "procedure", "given"],
       "properties": {
         "name": { "type": "string", "description": "Test name: test_<load_pattern>_<scenario_description>." },
-        "model": { "type": "string", "description": "dbt model name, deterministic from table FQN." },
+        "target_table": { "type": "string", "description": "Bracket-quoted target table identifier, e.g. [silver].[DimProduct]." },
+        "procedure": { "type": "string", "description": "Bracket-quoted stored procedure identifier, e.g. [silver].[usp_load_DimProduct]." },
+        "model": { "type": "string", "description": "dbt model name, deterministic from table FQN. Optional in CLI-ready format; used during dbt YAML conversion." },
         "given": {
           "type": "array",
           "items": { "$ref": "#/$defs/given_entry" },
@@ -63,9 +65,9 @@
     },
     "given_entry": {
       "type": "object",
-      "required": ["input", "rows"],
+      "required": ["table", "rows"],
       "properties": {
-        "input": { "type": "string", "description": "dbt ref(...) or source(...) expression." },
+        "table": { "type": "string", "description": "Bracket-quoted SQL identifier for the fixture table, e.g. [bronze].[SalesOrderHeader]." },
         "rows": {
           "type": "array",
           "items": { "type": "object", "additionalProperties": true },
