@@ -66,7 +66,23 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" profile write \
   --profile-file .staging/profile.json; rm -rf .staging
 ```
 
-The profile JSON must match the `profile_section` schema in `lib/shared/schemas/table_catalog.json`. Required fields: `status`, `writer`. All enum values must be from the allowed sets. Each decision point must include a `rationale` field (1–2 sentences): `classification.rationale`, `primary_key.rationale`, `natural_key.rationale`, `watermark.rationale`, and per-entry `rationale` in `foreign_keys[]` and `pii_actions[]`.
+The profile JSON must match the `profile_section` schema in `lib/shared/schemas/table_catalog.json`. Required fields: `status`, `writer`. Each decision point must include a `rationale` field (1–2 sentences): `classification.rationale`, `primary_key.rationale`, `natural_key.rationale`, `watermark.rationale`, and per-entry `rationale` in `foreign_keys[]` and `pii_actions[]`.
+
+All enum values must be from the allowed sets below (canonical source: `lib/shared/profile.py`):
+
+| Field | Valid values |
+|---|---|
+| `status` | `ok`, `partial`, `error` |
+| `classification.resolved_kind` | `dim_non_scd`, `dim_scd1`, `dim_scd2`, `dim_junk`, `fact_transaction`, `fact_periodic_snapshot`, `fact_accumulating_snapshot`, `fact_aggregate` |
+| `classification.source` | `catalog`, `llm`, `catalog+llm` |
+| `primary_key.primary_key_type` | `surrogate`, `natural`, `composite`, `unknown` |
+| `primary_key.source` | `catalog`, `llm`, `catalog+llm` |
+| `natural_key.source` | `catalog`, `llm`, `catalog+llm` |
+| `watermark.source` | `catalog`, `llm`, `catalog+llm` |
+| `foreign_keys[*].fk_type` | `standard`, `role_playing`, `degenerate` |
+| `foreign_keys[*].source` | `catalog`, `llm`, `catalog+llm` |
+| `pii_actions[*].suggested_action` | `mask`, `drop`, `tokenize`, `keep` |
+| `pii_actions[*].source` | `catalog`, `llm`, `catalog+llm` |
 
 If the write exits non-zero, report the validation errors and ask the user to correct.
 
