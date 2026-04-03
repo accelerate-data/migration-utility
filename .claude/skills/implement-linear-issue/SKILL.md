@@ -53,6 +53,8 @@ Use these exact tools/commands:
 
 Required fields for `save_issue`: `id`, `state`; include `assignee: "me"` when moving to active work.
 
+**Markdown formatting:** When passing `description` to `save_issue`, use literal newlines and special characters — never use `\n` escape sequences or escaped brackets like `\[x\]`. The Linear API stores escape sequences verbatim, which breaks rendered markdown.
+
 **Fallback:** if a required tool fails after one retry, stop and report the exact failed step.
 
 ---

@@ -253,6 +253,7 @@ Present the parent + children plan to the user. Show title, estimate, milestone,
 
 - Never inline long command/test output into Linear issue fields.
 - Keep Linear descriptions concise and product-facing.
+- **Markdown formatting:** When passing the `description` to `save_issue`, use literal newlines and special characters — never use `\n` escape sequences or escaped brackets like `\[x\]`. The Linear API stores escape sequences verbatim, which breaks rendered markdown.
 
 ---
 

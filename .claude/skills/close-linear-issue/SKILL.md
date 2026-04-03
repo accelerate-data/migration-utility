@@ -25,6 +25,7 @@ Required fields:
 
 - Linear close: `save_issue` with `id` + `state: "Done"`, plus closing comment containing PR URL and merge commit.
 - PR data: fetch with `gh pr view --json number,url,body,state,mergeCommit,statusCheckRollup,baseRefName,headRefName`.
+- **Markdown formatting:** When passing `description` to `save_issue`, use literal newlines and special characters — never use `\n` escape sequences or escaped brackets like `\[x\]`. The Linear API stores escape sequences verbatim, which breaks rendered markdown.
 
 Fallback behavior:
 
