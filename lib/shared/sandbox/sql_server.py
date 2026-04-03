@@ -578,6 +578,26 @@ class SqlServerSandbox(SandboxBackend):
                             f"ALTER TABLE {table} CHECK CONSTRAINT ALL"
                         )
 
+                    # Disable triggers on ALL user tables in the sandbox.
+                    # Triggers may exist on source tables, target tables,
+                    # or intermediate tables the proc touches internally.
+                    # They may reference objects that don't exist in the
+                    # sandbox, causing spurious failures.
+                    cursor.execute(
+                        "SELECT QUOTENAME(s.name) + '.' + QUOTENAME(t.name) "
+                        "FROM sys.tables t "
+                        "JOIN sys.schemas s ON t.schema_id = s.schema_id "
+                        "WHERE t.is_ms_shipped = 0"
+                    )
+                    all_tables = [row[0] for row in cursor.fetchall()]
+                    for tbl in all_tables:
+                        cursor.execute(f"DISABLE TRIGGER ALL ON {tbl}")
+                    if all_tables:
+                        logger.info(
+                            "event=triggers_disabled run_id=%s count=%d",
+                            run_id, len(all_tables),
+                        )
+
                     cursor.execute(f"EXEC {procedure}")
 
                     cursor.execute(f"SELECT * FROM {target_table}")

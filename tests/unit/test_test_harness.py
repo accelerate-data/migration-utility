@@ -406,9 +406,9 @@ class TestIdentityInsert:
             "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
         )
         # identity column lookup returns SalesOrderID as identity
-        # fetchall calls: 1=identity cols, 2=SELECT * result
         sandbox_cursor.fetchall.side_effect = [
             [("SalesOrderID",)],       # _get_identity_columns
+            [("[bronze].[SalesOrderHeader]",)],  # sys.tables (trigger disable)
             [(1, "Widget", 100)],       # SELECT * FROM target
         ]
         sandbox_cursor.description = [("SalesOrderID",), ("Name",), ("Amount",)]
@@ -447,6 +447,7 @@ class TestIdentityInsert:
         )
         sandbox_cursor.fetchall.side_effect = [
             [],                         # _get_identity_columns: no identity cols
+            [("[bronze].[Product]",)],  # sys.tables (trigger disable)
             [(1, "Widget")],            # SELECT * FROM target
         ]
         sandbox_cursor.description = [("id",), ("name",)]
@@ -483,6 +484,7 @@ class TestIdentityInsert:
         sandbox_cursor.fetchall.side_effect = [
             [("OrderID",)],             # _get_identity_columns for table 1
             [],                         # _get_identity_columns for table 2
+            [("[bronze].[SalesOrderHeader]",), ("[bronze].[SalesOrderDetail]",)],  # sys.tables
             [(1, "result")],            # SELECT * FROM target
         ]
         sandbox_cursor.description = [("id",), ("value",)]
@@ -534,6 +536,7 @@ class TestFkConstraintDisabling:
         )
         sandbox_cursor.fetchall.side_effect = [
             [],                         # _get_identity_columns
+            [("[bronze].[Product]",)],  # sys.tables (trigger disable)
             [(1, "Widget")],            # SELECT * FROM target
         ]
         sandbox_cursor.description = [("id",), ("name",)]
@@ -582,7 +585,10 @@ class TestFkConstraintDisabling:
         sandbox_cursor.fetchone.return_value = (
             "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
         )
-        sandbox_cursor.fetchall.return_value = [(1, "Widget")]
+        sandbox_cursor.fetchall.side_effect = [
+            [("[silver].[DimProduct]",)],   # sys.tables (trigger disable)
+            [(1, "Widget")],                # SELECT * FROM target
+        ]
         sandbox_cursor.description = [("id",), ("name",)]
 
         fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
@@ -603,6 +609,86 @@ class TestFkConstraintDisabling:
         execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
         nocheck = [c for c in execute_calls if "NOCHECK" in c]
         assert len(nocheck) == 0, "No NOCHECK for empty fixture rows"
+
+
+# ── Trigger disabling ─────────────────────────────────────────────────────────
+
+
+class TestTriggerDisabling:
+    """Test triggers are disabled on all sandbox tables."""
+
+    def test_triggers_disabled_on_all_sandbox_tables(self) -> None:
+        backend = _make_backend()
+        sandbox_cursor = MagicMock()
+        sandbox_cursor.fetchone.return_value = (
+            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
+        )
+        # Calls: identity_cols, sys.tables list, SELECT * result
+        sandbox_cursor.fetchall.side_effect = [
+            [],                                          # _get_identity_columns
+            [("[bronze].[Product]",), ("[silver].[DimProduct]",), ("[dbo].[Config]",)],  # sys.tables
+            [(1, "Widget")],                             # SELECT * FROM target
+        ]
+        sandbox_cursor.description = [("id",), ("name",)]
+
+        fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+
+        scenario = {
+            "name": "test_triggers",
+            "target_table": "[silver].[DimProduct]",
+            "procedure": "[dbo].[usp_load]",
+            "given": [
+                {
+                    "table": "[bronze].[Product]",
+                    "rows": [{"id": 1, "name": "Widget"}],
+                }
+            ],
+        }
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+
+        assert result["status"] == "ok"
+        execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
+
+        disable_trigger = [c for c in execute_calls if "DISABLE TRIGGER ALL" in c]
+        assert len(disable_trigger) == 3, (
+            f"Expected DISABLE TRIGGER on all 3 sandbox tables, got {disable_trigger}"
+        )
+
+    def test_triggers_disabled_before_exec(self) -> None:
+        """DISABLE TRIGGER must happen before EXEC procedure."""
+        backend = _make_backend()
+        sandbox_cursor = MagicMock()
+        sandbox_cursor.fetchone.return_value = (
+            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
+        )
+        sandbox_cursor.fetchall.side_effect = [
+            [],                                          # _get_identity_columns
+            [("[silver].[T1]",)],                        # sys.tables
+            [(1, "Widget")],                             # SELECT * FROM target
+        ]
+        sandbox_cursor.description = [("id",), ("name",)]
+
+        fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+
+        scenario = {
+            "name": "test_order",
+            "target_table": "[silver].[T1]",
+            "procedure": "[dbo].[usp_load]",
+            "given": [
+                {"table": "[bronze].[S1]", "rows": [{"id": 1}]},
+            ],
+        }
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+
+        assert result["status"] == "ok"
+        execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
+        disable_idx = next(i for i, c in enumerate(execute_calls) if "DISABLE TRIGGER" in c)
+        exec_idx = next(i for i, c in enumerate(execute_calls) if "EXEC [dbo]" in c)
+        assert disable_idx < exec_idx
 
 
 # ── MONEY decoding ────────────────────────────────────────────────────────────
