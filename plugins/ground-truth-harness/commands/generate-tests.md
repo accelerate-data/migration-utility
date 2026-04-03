@@ -99,6 +99,22 @@ git checkout -- test-specs/<item_id>.json
 
 Ignore errors from `git checkout` (the file may not exist yet — use `rm -f` instead if the test-spec was newly created and has no prior version).
 
+### Step 5.5 — Convert to dbt YAML
+
+For each item with `status: "ok"` or `status: "partial"` (i.e., ground truth was captured):
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" test-harness convert-dbt \
+  --spec test-specs/<item_id>.json \
+  --output test-specs/<item_id>.yml
+```
+
+This converts the CLI-ready JSON (with `expect.rows`) to dbt unit test YAML format:
+
+- `given[].table` bracket-quoted identifiers become `source()`/`ref()` expressions
+- `target_table` is mapped to a dbt `model` name (e.g. `[silver].[DimProduct]` → `stg_dimproduct`)
+- The committed artifact is the `.yml` file; the intermediate `.json` is not staged
+
 ### Step 6 — Summarize
 
 1. Read each `.migration-runs/<schema.table>.json`.
@@ -116,7 +132,7 @@ Ignore errors from `git checkout` (the file may not exist yet — use `rm -f` in
    ```
 
 4. If all items errored, skip commit/PR — report errors only and stop.
-5. Ask the user: commit and open PR? Stage only files changed by successful items (test-spec JSON files). Do not stage `.migration-runs/`. PR body format:
+5. Ask the user: commit and open PR? Stage only dbt YAML files from successful items (`test-specs/<item_id>.yml`). Do not stage `.migration-runs/` or intermediate JSON files. PR body format:
 
    ```markdown
    ## Test Generation — N tables
