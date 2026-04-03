@@ -14,7 +14,7 @@ from typing import Any, NoReturn
 import typer
 
 from shared.env_config import resolve_project_root
-from shared.loader_io import read_manifest
+from shared.loader_io import clear_manifest_sandbox, read_manifest, write_manifest_sandbox
 from shared.sandbox import get_backend
 from shared.sandbox.base import SandboxBackend
 
@@ -46,6 +46,20 @@ def _create_backend(manifest: dict[str, Any]) -> SandboxBackend:
         return backend_cls.from_env(manifest)
     except ValueError as exc:
         _error_exit("MISSING_ENV_VARS", str(exc), exc)
+
+
+def _resolve_run_id(run_id: str | None, project_root: Path) -> str:
+    """Return run_id if provided, otherwise fall back to manifest.sandbox.run_id."""
+    if run_id is not None:
+        return run_id
+    manifest = read_manifest(project_root)
+    sandbox = manifest.get("sandbox")
+    if not sandbox:
+        _error_exit(
+            "MISSING_RUN_ID",
+            "No --run-id provided and no sandbox section in manifest.json",
+        )
+    return sandbox["run_id"]
 
 
 def _error_exit(code: str, message: str, exc: Exception | None = None) -> NoReturn:
@@ -83,6 +97,8 @@ def sandbox_up(
         )
     except (ValueError, KeyError) as exc:
         _error_exit("SANDBOX_UP_INVALID_INPUT", str(exc), exc)
+    if result.get("status") != "error":
+        write_manifest_sandbox(root, run_id, result["sandbox_database"])
     typer.echo(json.dumps(result, indent=2))
     logger.info("event=cli_complete command=sandbox_up run_id=%s status=%s", run_id, result.get("status"))
     if result.get("status") == "error":
@@ -91,12 +107,14 @@ def sandbox_up(
 
 @app.command()
 def sandbox_down(
-    run_id: str = typer.Option(..., help="UUID of the sandbox to tear down"),
+    run_id: str | None = typer.Option(None, help="UUID of the sandbox to tear down"),
     project_root: str = typer.Option(".", help="Project root directory"),
 ) -> None:
     """Drop a sandbox database."""
-    logger.info("event=cli_invoked command=sandbox_down run_id=%s", run_id)
+    logger.info("event=cli_invoked command=sandbox_down")
     root = resolve_project_root(Path(project_root))
+    run_id = _resolve_run_id(run_id, root)
+    logger.info("event=cli_resolved command=sandbox_down run_id=%s", run_id)
     manifest = _load_manifest(root)
     backend = _create_backend(manifest)
 
@@ -104,6 +122,8 @@ def sandbox_down(
         result = backend.sandbox_down(run_id=run_id)
     except (ValueError, KeyError) as exc:
         _error_exit("SANDBOX_DOWN_INVALID_INPUT", str(exc), exc)
+    if result.get("status") != "error":
+        clear_manifest_sandbox(root)
     typer.echo(json.dumps(result, indent=2))
     logger.info("event=cli_complete command=sandbox_down run_id=%s status=%s", run_id, result.get("status"))
     if result.get("status") == "error":
@@ -112,12 +132,14 @@ def sandbox_down(
 
 @app.command()
 def sandbox_status(
-    run_id: str = typer.Option(..., help="UUID of the sandbox to check"),
+    run_id: str | None = typer.Option(None, help="UUID of the sandbox to check"),
     project_root: str = typer.Option(".", help="Project root directory"),
 ) -> None:
     """Check whether a sandbox database exists."""
-    logger.info("event=cli_invoked command=sandbox_status run_id=%s", run_id)
+    logger.info("event=cli_invoked command=sandbox_status")
     root = resolve_project_root(Path(project_root))
+    run_id = _resolve_run_id(run_id, root)
+    logger.info("event=cli_resolved command=sandbox_status run_id=%s", run_id)
     manifest = _load_manifest(root)
     backend = _create_backend(manifest)
 
@@ -135,13 +157,15 @@ def sandbox_status(
 
 @app.command()
 def execute(
-    run_id: str = typer.Option(..., help="UUID of the sandbox"),
+    run_id: str | None = typer.Option(None, help="UUID of the sandbox"),
     scenario: str = typer.Option(..., help="Path to scenario JSON file"),
     project_root: str = typer.Option(".", help="Project root directory"),
 ) -> None:
     """Execute a test scenario in the sandbox and capture ground truth."""
-    logger.info("event=cli_invoked command=execute run_id=%s scenario=%s", run_id, scenario)
+    logger.info("event=cli_invoked command=execute")
     root = resolve_project_root(Path(project_root))
+    run_id = _resolve_run_id(run_id, root)
+    logger.info("event=cli_resolved command=execute run_id=%s scenario=%s", run_id, scenario)
     manifest = _load_manifest(root)
     backend = _create_backend(manifest)
 

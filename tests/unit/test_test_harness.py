@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 from collections.abc import Callable
@@ -12,6 +13,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from shared.loader_io import clear_manifest_sandbox, read_manifest, write_manifest_sandbox
 from shared.sandbox import get_backend
 from shared.sandbox.base import SandboxBackend
 from shared.sandbox.sql_server import (
@@ -570,3 +572,259 @@ class TestCLIManifestRouting:
 
         with pytest.raises(Exit):
             _load_manifest(tmp_path)
+
+
+# ── Manifest sandbox persistence ──────────────────────────────────────────────
+
+
+def _write_fixture_manifest(dest: Path) -> None:
+    """Copy the standard test manifest fixture to dest."""
+    shutil.copy(FIXTURES / "manifest.json", dest / "manifest.json")
+
+
+class TestWriteManifestSandbox:
+    def test_persist_sandbox_to_manifest(self, tmp_path: Path) -> None:
+        _write_fixture_manifest(tmp_path)
+        write_manifest_sandbox(tmp_path, "run-123", "__test_run_123")
+
+        manifest = read_manifest(tmp_path)
+        assert manifest["sandbox"] == {"run_id": "run-123", "database": "__test_run_123"}
+        # Original fields are preserved
+        assert manifest["technology"] == "sql_server"
+        assert manifest["extracted_schemas"] == ["dbo", "silver"]
+
+    def test_persist_overwrites_existing_sandbox(self, tmp_path: Path) -> None:
+        _write_fixture_manifest(tmp_path)
+        write_manifest_sandbox(tmp_path, "old-run", "__test_old_run")
+        write_manifest_sandbox(tmp_path, "new-run", "__test_new_run")
+
+        manifest = read_manifest(tmp_path)
+        assert manifest["sandbox"]["run_id"] == "new-run"
+
+
+class TestClearManifestSandbox:
+    def test_clear_removes_sandbox_key(self, tmp_path: Path) -> None:
+        _write_fixture_manifest(tmp_path)
+        write_manifest_sandbox(tmp_path, "run-123", "__test_run_123")
+        clear_manifest_sandbox(tmp_path)
+
+        manifest = read_manifest(tmp_path)
+        assert "sandbox" not in manifest
+        # Original fields are preserved
+        assert manifest["technology"] == "sql_server"
+
+    def test_clear_noop_when_no_sandbox(self, tmp_path: Path) -> None:
+        _write_fixture_manifest(tmp_path)
+        clear_manifest_sandbox(tmp_path)
+
+        manifest = read_manifest(tmp_path)
+        assert "sandbox" not in manifest
+
+
+class TestResolveRunId:
+    def test_explicit_run_id_takes_precedence(self, tmp_path: Path) -> None:
+        from shared.test_harness import _resolve_run_id
+
+        _write_fixture_manifest(tmp_path)
+        write_manifest_sandbox(tmp_path, "manifest-run", "__test_manifest_run")
+
+        assert _resolve_run_id("explicit-run", tmp_path) == "explicit-run"
+
+    def test_falls_back_to_manifest(self, tmp_path: Path) -> None:
+        from shared.test_harness import _resolve_run_id
+
+        _write_fixture_manifest(tmp_path)
+        write_manifest_sandbox(tmp_path, "manifest-run", "__test_manifest_run")
+
+        assert _resolve_run_id(None, tmp_path) == "manifest-run"
+
+    def test_missing_run_id_and_no_sandbox_exits(self, tmp_path: Path) -> None:
+        from click.exceptions import Exit
+
+        from shared.test_harness import _resolve_run_id
+
+        _write_fixture_manifest(tmp_path)
+
+        with pytest.raises(Exit):
+            _resolve_run_id(None, tmp_path)
+
+
+# ── E2E CLI invocation ────────────────────────────────────────────────────────
+
+
+def _cli_env(tmp_path: Path) -> dict[str, str]:
+    """Env vars needed for SqlServerSandbox.from_env in CLI tests."""
+    return {
+        "MSSQL_HOST": "localhost",
+        "MSSQL_PORT": "1433",
+        "SA_PASSWORD": "TestPass123",
+        "MSSQL_DB": "TestDB",
+    }
+
+
+class TestCLISandboxUpPersists:
+    """E2E: invoke sandbox-up via CliRunner and verify manifest.json is updated."""
+
+    def test_sandbox_up_writes_manifest(self, tmp_path: Path) -> None:
+        from typer.testing import CliRunner
+
+        from shared.test_harness import app
+
+        _write_fixture_manifest(tmp_path)
+        runner = CliRunner()
+
+        backend_mock = MagicMock()
+        backend_mock.sandbox_up.return_value = {
+            "run_id": "e2e-run",
+            "sandbox_database": "__test_e2e_run",
+            "status": "ok",
+            "tables_cloned": ["dbo.Product"],
+            "procedures_cloned": [],
+            "errors": [],
+        }
+
+        with (
+            patch("shared.test_harness.resolve_project_root", return_value=tmp_path),
+            patch("shared.test_harness._create_backend", return_value=backend_mock),
+            patch.dict(os.environ, _cli_env(tmp_path)),
+        ):
+            result = runner.invoke(app, ["sandbox-up", "--run-id", "e2e-run", "--project-root", str(tmp_path)])
+
+        assert result.exit_code == 0
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert manifest["sandbox"] == {"run_id": "e2e-run", "database": "__test_e2e_run"}
+
+    def test_sandbox_up_error_does_not_write_manifest(self, tmp_path: Path) -> None:
+        from typer.testing import CliRunner
+
+        from shared.test_harness import app
+
+        _write_fixture_manifest(tmp_path)
+        runner = CliRunner()
+
+        backend_mock = MagicMock()
+        backend_mock.sandbox_up.return_value = {
+            "run_id": "e2e-run",
+            "sandbox_database": "__test_e2e_run",
+            "status": "error",
+            "tables_cloned": [],
+            "procedures_cloned": [],
+            "errors": [{"code": "CONNECT_FAILED", "message": "timeout"}],
+        }
+
+        with (
+            patch("shared.test_harness.resolve_project_root", return_value=tmp_path),
+            patch("shared.test_harness._create_backend", return_value=backend_mock),
+            patch.dict(os.environ, _cli_env(tmp_path)),
+        ):
+            result = runner.invoke(app, ["sandbox-up", "--run-id", "e2e-run", "--project-root", str(tmp_path)])
+
+        assert result.exit_code == 1
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert "sandbox" not in manifest
+
+
+class TestCLISandboxDownClears:
+    """E2E: invoke sandbox-down via CliRunner and verify manifest.json is cleared."""
+
+    def test_sandbox_down_clears_manifest(self, tmp_path: Path) -> None:
+        from typer.testing import CliRunner
+
+        from shared.test_harness import app
+
+        _write_fixture_manifest(tmp_path)
+        write_manifest_sandbox(tmp_path, "e2e-run", "__test_e2e_run")
+        runner = CliRunner()
+
+        backend_mock = MagicMock()
+        backend_mock.sandbox_down.return_value = {
+            "run_id": "e2e-run",
+            "sandbox_database": "__test_e2e_run",
+            "status": "ok",
+        }
+
+        with (
+            patch("shared.test_harness.resolve_project_root", return_value=tmp_path),
+            patch("shared.test_harness._create_backend", return_value=backend_mock),
+            patch.dict(os.environ, _cli_env(tmp_path)),
+        ):
+            result = runner.invoke(app, ["sandbox-down", "--project-root", str(tmp_path)])
+
+        assert result.exit_code == 0
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert "sandbox" not in manifest
+
+    def test_sandbox_down_reads_run_id_from_manifest(self, tmp_path: Path) -> None:
+        from typer.testing import CliRunner
+
+        from shared.test_harness import app
+
+        _write_fixture_manifest(tmp_path)
+        write_manifest_sandbox(tmp_path, "manifest-run", "__test_manifest_run")
+        runner = CliRunner()
+
+        backend_mock = MagicMock()
+        backend_mock.sandbox_down.return_value = {
+            "run_id": "manifest-run",
+            "sandbox_database": "__test_manifest_run",
+            "status": "ok",
+        }
+
+        with (
+            patch("shared.test_harness.resolve_project_root", return_value=tmp_path),
+            patch("shared.test_harness._create_backend", return_value=backend_mock),
+            patch.dict(os.environ, _cli_env(tmp_path)),
+        ):
+            result = runner.invoke(app, ["sandbox-down", "--project-root", str(tmp_path)])
+
+        assert result.exit_code == 0
+        backend_mock.sandbox_down.assert_called_once_with(run_id="manifest-run")
+
+
+class TestCLIStatusFallback:
+    """E2E: invoke sandbox-status without --run-id, verify manifest fallback."""
+
+    def test_sandbox_status_uses_manifest_run_id(self, tmp_path: Path) -> None:
+        from typer.testing import CliRunner
+
+        from shared.test_harness import app
+
+        _write_fixture_manifest(tmp_path)
+        write_manifest_sandbox(tmp_path, "manifest-run", "__test_manifest_run")
+        runner = CliRunner()
+
+        backend_mock = MagicMock()
+        backend_mock.sandbox_status.return_value = {
+            "run_id": "manifest-run",
+            "sandbox_database": "__test_manifest_run",
+            "status": "ok",
+            "exists": True,
+        }
+
+        with (
+            patch("shared.test_harness.resolve_project_root", return_value=tmp_path),
+            patch("shared.test_harness._create_backend", return_value=backend_mock),
+            patch.dict(os.environ, _cli_env(tmp_path)),
+        ):
+            result = runner.invoke(app, ["sandbox-status", "--project-root", str(tmp_path)])
+
+        assert result.exit_code == 0
+        backend_mock.sandbox_status.assert_called_once_with(run_id="manifest-run")
+
+    def test_sandbox_status_no_run_id_no_manifest_exits(self, tmp_path: Path) -> None:
+        from typer.testing import CliRunner
+
+        from shared.test_harness import app
+
+        _write_fixture_manifest(tmp_path)
+        runner = CliRunner()
+
+        with (
+            patch("shared.test_harness.resolve_project_root", return_value=tmp_path),
+            patch.dict(os.environ, _cli_env(tmp_path)),
+        ):
+            result = runner.invoke(app, ["sandbox-status", "--project-root", str(tmp_path)])
+
+        assert result.exit_code == 1
+        output = json.loads(result.output)
+        assert output["errors"][0]["code"] == "MISSING_RUN_ID"
