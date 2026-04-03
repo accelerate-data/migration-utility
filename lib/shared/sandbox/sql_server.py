@@ -7,6 +7,7 @@ import os
 import re
 from collections.abc import Generator
 from contextlib import contextmanager
+from decimal import Decimal
 from typing import Any
 
 import pyodbc
@@ -552,12 +553,22 @@ def _serialize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Ensure all values are JSON-serializable.
 
     Primitive types (int, float, str, bool, None) pass through unchanged.
-    Non-primitive types (datetime, Decimal, bytes, etc.) are coerced to str.
+    Decimal values (including MONEY/SMALLMONEY, which pyodbc returns as
+    Decimal with ODBC Driver 17/18) are coerced to str to preserve exact
+    precision.  bytes are hex-encoded.  All other non-primitive types
+    (datetime, etc.) are coerced to str.
     """
-    return [
-        {
-            k: v if isinstance(v, (int, float, str, bool, type(None))) else str(v)
-            for k, v in row.items()
-        }
-        for row in rows
-    ]
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        serialized: dict[str, Any] = {}
+        for k, v in row.items():
+            if isinstance(v, (int, float, str, bool, type(None))):
+                serialized[k] = v
+            elif isinstance(v, Decimal):
+                serialized[k] = str(v)
+            elif isinstance(v, bytes):
+                serialized[k] = v.hex()
+            else:
+                serialized[k] = str(v)
+        out.append(serialized)
+    return out

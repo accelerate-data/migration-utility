@@ -315,3 +315,58 @@ class TestExecuteScenario:
         finally:
             backend.sandbox_down(run_id=run_id)
             self._drop_temp_proc(backend, proc_name)
+
+    def test_execute_money_columns_return_decimal_strings(self) -> None:
+        """MONEY/SMALLMONEY columns must be decimal strings, not base64/bytes."""
+        backend = _make_backend()
+        run_id = self._unique_run_id()
+        table_name = f"__money_test_{self._unique_run_id()}"
+        proc_name = f"usp_money_test_{self._unique_run_id()}"
+
+        try:
+            # Create a temp table with MONEY columns in the source DB
+            with backend._connect(database=backend.database) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    f"CREATE TABLE silver.[{table_name}] ("
+                    "  id INT PRIMARY KEY,"
+                    "  price MONEY,"
+                    "  fee SMALLMONEY"
+                    ")"
+                )
+                cursor.execute(
+                    f"CREATE PROCEDURE silver.[{proc_name}] AS BEGIN "
+                    f"  INSERT INTO silver.[{table_name}] (id, price, fee) "
+                    "  VALUES (1, 42.50, 9.99) "
+                    "END"
+                )
+
+            up_result = backend.sandbox_up(run_id=run_id, schemas=["silver"])
+            assert up_result["status"] in ("ok", "partial")
+
+            result = backend.execute_scenario(
+                run_id=run_id,
+                scenario={
+                    "name": "test_money_columns",
+                    "target_table": f"[silver].[{table_name}]",
+                    "procedure": f"[silver].[{proc_name}]",
+                    "given": [],
+                },
+            )
+
+            assert result["status"] == "ok"
+            assert result["row_count"] == 1
+            row = result["ground_truth_rows"][0]
+
+            # Values must be parseable as Decimal, not base64 garbage
+            from decimal import Decimal
+            price = Decimal(row["price"])
+            fee = Decimal(row["fee"])
+            assert price == Decimal("42.50")
+            assert fee == Decimal("9.99")
+        finally:
+            backend.sandbox_down(run_id=run_id)
+            with backend._connect(database=backend.database) as conn:
+                cursor = conn.cursor()
+                cursor.execute(f"DROP PROCEDURE IF EXISTS silver.[{proc_name}]")
+                cursor.execute(f"DROP TABLE IF EXISTS silver.[{table_name}]")

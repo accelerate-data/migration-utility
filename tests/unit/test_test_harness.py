@@ -7,6 +7,7 @@ import os
 import shutil
 from collections.abc import Callable
 from contextlib import contextmanager
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -19,6 +20,7 @@ from shared.sandbox.base import SandboxBackend
 from shared.sandbox.sql_server import (
     SqlServerSandbox,
     _detect_remote_exec_target,
+    _serialize_rows,
     _validate_identifier,
     _validate_run_id,
 )
@@ -387,6 +389,51 @@ class TestSqlServerExecuteScenario:
 
         with pytest.raises(KeyError, match="procedure"):
             backend.execute_scenario(run_id="test-run", scenario=scenario)
+
+
+# ── MONEY decoding ────────────────────────────────────────────────────────────
+
+
+class TestSerializeRows:
+    """Test _serialize_rows handles Decimal (MONEY/SMALLMONEY), bytes, and primitives."""
+
+    def test_primitives_pass_through(self) -> None:
+        rows = [{"id": 1, "name": "Widget", "active": True, "deleted": None, "rate": 3.14}]
+        result = _serialize_rows(rows)
+        assert result == rows
+
+    def test_decimal_to_string(self) -> None:
+        """pyodbc returns MONEY/SMALLMONEY as Decimal with ODBC Driver 17/18."""
+        rows = [{"price": Decimal("10.5000"), "tax": Decimal("0.8500")}]
+        result = _serialize_rows(rows)
+        assert result == [{"price": "10.5000", "tax": "0.8500"}]
+
+    def test_decimal_negative(self) -> None:
+        rows = [{"balance": Decimal("-42.1234")}]
+        result = _serialize_rows(rows)
+        assert result == [{"balance": "-42.1234"}]
+
+    def test_decimal_zero(self) -> None:
+        rows = [{"amount": Decimal("0.0000")}]
+        result = _serialize_rows(rows)
+        assert result == [{"amount": "0.0000"}]
+
+    def test_bytes_hex_encoded(self) -> None:
+        rows = [{"data": b"\xde\xad\xbe\xef"}]
+        result = _serialize_rows(rows)
+        assert result == [{"data": "deadbeef"}]
+
+    def test_datetime_to_string(self) -> None:
+        from datetime import datetime
+        dt = datetime(2024, 1, 15, 10, 30, 0)
+        rows = [{"created": dt}]
+        result = _serialize_rows(rows)
+        assert result == [{"created": "2024-01-15 10:30:00"}]
+
+    def test_mixed_types(self) -> None:
+        rows = [{"id": 1, "price": Decimal("25.9900"), "name": "Widget", "blob": b"\x00\x01"}]
+        result = _serialize_rows(rows)
+        assert result == [{"id": 1, "price": "25.9900", "name": "Widget", "blob": "0001"}]
 
 
 # ── Schema validation ────────────────────────────────────────────────────────
