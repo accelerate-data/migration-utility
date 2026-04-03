@@ -577,6 +577,72 @@ class TestNotNullConstraintIntegration:
         finally:
             backend.sandbox_down(run_id=run_id)
 
+    def test_orphaned_fk_value_succeeds_with_nocheck(self) -> None:
+        """Insert fixture with FK value referencing a nonexistent parent row.
+
+        silver.FactInternetSales has ProductKey FK → silver.DimProduct.
+        If we insert a FactInternetSales row with ProductKey=99999 but
+        no matching DimProduct row, the insert would fail without NOCHECK.
+        """
+        backend = _make_backend()
+        run_id = self._unique_run_id()
+        proc_name = f"usp_fk_test_{self._unique_run_id()}"
+
+        try:
+            # Create a simple proc that selects from FactInternetSales
+            with backend._connect(database=backend.database) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    f"""
+                    CREATE OR ALTER PROCEDURE [silver].[{proc_name}]
+                    AS
+                    BEGIN
+                        SET NOCOUNT ON;
+                        -- no-op: just verify fixtures were inserted
+                        SELECT * FROM [silver].[FactInternetSales];
+                    END
+                    """
+                )
+
+            up = backend.sandbox_up(run_id=run_id, schemas=["bronze", "silver"])
+            assert up["status"] in ("ok", "partial")
+
+            # Insert with orphaned FK — ProductKey=99999 has no parent row
+            result = backend.execute_scenario(
+                run_id=run_id,
+                scenario={
+                    "name": "test_orphaned_fk",
+                    "target_table": "[silver].[FactInternetSales]",
+                    "procedure": f"[silver].[{proc_name}]",
+                    "given": [
+                        {
+                            "table": "[silver].[FactInternetSales]",
+                            "rows": [
+                                {
+                                    "SalesOrderNumber": "SO99999",
+                                    "SalesOrderLineNumber": 1,
+                                    "ProductKey": 99999,
+                                    "CustomerKey": 99999,
+                                    "OrderQuantity": 1,
+                                    "UnitPrice": 10.00,
+                                    "SalesAmount": 10.00,
+                                }
+                            ],
+                        },
+                    ],
+                },
+            )
+
+            assert result["status"] == "ok", (
+                f"Orphaned FK insert should succeed with NOCHECK: {result['errors']}"
+            )
+            assert result["row_count"] == 1
+        finally:
+            backend.sandbox_down(run_id=run_id)
+            with backend._connect(database=backend.database) as conn:
+                cursor = conn.cursor()
+                cursor.execute(f"DROP PROCEDURE IF EXISTS [silver].[{proc_name}]")
+
     def test_all_not_null_columns_succeeds(self) -> None:
         """Including all NOT NULL columns (with sensible defaults) succeeds.
 

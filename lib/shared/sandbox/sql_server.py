@@ -517,6 +517,23 @@ class SqlServerSandbox(SandboxBackend):
                             }],
                         }
 
+                    # Disable FK constraints on all fixture tables so
+                    # fixture rows can reference parent keys that may not
+                    # exist in the sandbox (e.g. NOT NULL FK defaults).
+                    fk_disabled_tables: list[str] = []
+                    for fixture in given:
+                        table = fixture["table"]
+                        if fixture.get("rows"):
+                            cursor.execute(
+                                f"ALTER TABLE {table} NOCHECK CONSTRAINT ALL"
+                            )
+                            fk_disabled_tables.append(table)
+                    if fk_disabled_tables:
+                        logger.info(
+                            "event=fk_constraints_disabled run_id=%s tables=%s",
+                            run_id, fk_disabled_tables,
+                        )
+
                     for fixture in given:
                         table = fixture["table"]
                         rows = fixture.get("rows", [])
@@ -553,6 +570,13 @@ class SqlServerSandbox(SandboxBackend):
                             cursor.execute(
                                 f"SET IDENTITY_INSERT {table} OFF"
                             )
+
+                    # Re-enable FK constraints before executing the proc
+                    # so the procedure runs under normal constraint rules.
+                    for table in fk_disabled_tables:
+                        cursor.execute(
+                            f"ALTER TABLE {table} CHECK CONSTRAINT ALL"
+                        )
 
                     cursor.execute(f"EXEC {procedure}")
 

@@ -74,9 +74,16 @@ For each branch, generate minimum synthetic input rows (1-3 per source table):
 - Use column types from catalog to generate type-appropriate values.
 - Parameters are ignored or flagged — rare in warehouse procs, typically orchestration concerns.
 
+### Columns to exclude from fixtures
+
+Never include these columns in fixture rows — they will cause INSERT failures:
+
+- **Computed columns**: Columns defined with `AS <expression>` in the DDL. Detect them from the `CREATE TABLE` statement in catalog DDL or from the proc context. SQL Server rejects explicit values for computed columns.
+- **Identity columns not needed by the scenario**: Columns listed in `auto_increment_columns` where the scenario does not need to control the specific key value. Omit them and let SQL Server auto-generate. Only include identity columns when the scenario requires a specific value (e.g., to set up a MERGE MATCHED condition with a known key).
+
 ### NOT NULL column coverage
 
-For every source table in `given[]`, include **all** columns where `is_nullable == false` in the fixture rows. Exclude columns listed in `auto_increment_columns` — identity columns are auto-generated and the sandbox handles `IDENTITY_INSERT` automatically when explicit values are provided.
+For every source table in `given[]`, include **all** columns where `is_nullable == false` in the fixture rows — except computed columns and identity columns that the scenario does not need.
 
 For columns that are NOT NULL but not referenced by the procedure SQL, use sensible type-appropriate defaults:
 
@@ -91,7 +98,17 @@ For columns that are NOT NULL but not referenced by the procedure SQL, use sensi
 | UNIQUEIDENTIFIER | `"00000000-0000-0000-0000-000000000000"` |
 | VARBINARY, BINARY | `""` (empty string) |
 
-When a NOT NULL column also has a foreign key constraint, prefer a value that matches a row in the referenced table within the same scenario. If the referenced table is not part of the scenario fixtures, use the type default above and document the risk in `warnings[]`.
+When a NOT NULL column also has a foreign key constraint, prefer a value that matches a row in the referenced table within the same scenario. If the referenced table is not part of the scenario fixtures, use the type default above — the sandbox disables FK constraints during fixture insertion so orphaned FK values will not cause failures.
+
+### CHECK constraint compliance
+
+If the DDL or proc context reveals CHECK constraints on a source table, generate fixture values that satisfy them. Common patterns:
+
+- Range constraints (`CHECK (Qty >= 0)`) — use a value within the range
+- Enum constraints (`CHECK (Status IN ('A','B','C'))`) — pick a valid value
+- Cross-column constraints (`CHECK (EndDate > StartDate)`) — ensure consistency
+
+Do not generate values that violate CHECK constraints — the sandbox does not disable CHECK constraints because violations indicate wrong fixture data.
 
 ## Step 4: Present for approval
 

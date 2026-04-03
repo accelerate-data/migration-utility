@@ -520,6 +520,91 @@ class TestIdentityInsert:
         assert len(detail_identity) == 0
 
 
+# ── FK constraint disabling ───────────────────────────────────────────────────
+
+
+class TestFkConstraintDisabling:
+    """Test FK constraints are disabled/re-enabled around fixture insertion."""
+
+    def test_fk_nocheck_wraps_fixture_insertion(self) -> None:
+        backend = _make_backend()
+        sandbox_cursor = MagicMock()
+        sandbox_cursor.fetchone.return_value = (
+            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
+        )
+        sandbox_cursor.fetchall.side_effect = [
+            [],                         # _get_identity_columns
+            [(1, "Widget")],            # SELECT * FROM target
+        ]
+        sandbox_cursor.description = [("id",), ("name",)]
+
+        fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+
+        scenario = {
+            "name": "test_fk_disable",
+            "target_table": "[silver].[DimProduct]",
+            "procedure": "[dbo].[usp_load]",
+            "given": [
+                {
+                    "table": "[bronze].[Product]",
+                    "rows": [{"id": 1, "name": "Widget"}],
+                }
+            ],
+        }
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+
+        assert result["status"] == "ok"
+        execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
+
+        # NOCHECK before inserts
+        nocheck = [c for c in execute_calls if "NOCHECK CONSTRAINT ALL" in c]
+        assert len(nocheck) == 1, f"Expected 1 NOCHECK, got {nocheck}"
+        assert "[bronze].[Product]" in nocheck[0]
+
+        # CHECK re-enabled before EXEC
+        check = [c for c in execute_calls if "CHECK CONSTRAINT ALL" in c and "NOCHECK" not in c]
+        assert len(check) == 1, f"Expected 1 CHECK, got {check}"
+
+        # Verify ordering: NOCHECK < executemany (INSERT) < CHECK < EXEC
+        nocheck_idx = next(i for i, c in enumerate(execute_calls) if "NOCHECK" in c)
+        check_idx = next(i for i, c in enumerate(execute_calls) if "CHECK CONSTRAINT ALL" in c and "NOCHECK" not in c)
+        exec_idx = next(i for i, c in enumerate(execute_calls) if "EXEC [dbo]" in c)
+        assert nocheck_idx < check_idx < exec_idx
+
+        # executemany is called separately — verify it happened
+        assert sandbox_cursor.executemany.called
+
+    def test_fk_nocheck_skipped_for_empty_fixtures(self) -> None:
+        backend = _make_backend()
+        sandbox_cursor = MagicMock()
+        sandbox_cursor.fetchone.return_value = (
+            "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
+        )
+        sandbox_cursor.fetchall.return_value = [(1, "Widget")]
+        sandbox_cursor.description = [("id",), ("name",)]
+
+        fake_connect = _mock_connect_factory(sandbox_cursor=sandbox_cursor)
+
+        scenario = {
+            "name": "test_empty",
+            "target_table": "[silver].[DimProduct]",
+            "procedure": "[dbo].[usp_load]",
+            "given": [
+                {"table": "[bronze].[Product]", "rows": []},
+            ],
+        }
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+
+        assert result["status"] == "ok"
+        execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
+        nocheck = [c for c in execute_calls if "NOCHECK" in c]
+        assert len(nocheck) == 0, "No NOCHECK for empty fixture rows"
+
+
 # ── MONEY decoding ────────────────────────────────────────────────────────────
 
 
