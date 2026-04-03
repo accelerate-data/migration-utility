@@ -222,18 +222,17 @@ def execute_spec(
     failed_count = 0
 
     for test_entry in unit_tests:
-        scenario = {
-            "name": test_entry["name"],
-            "target_table": test_entry["target_table"],
-            "procedure": test_entry["procedure"],
-            "given": test_entry["given"],
-        }
-
         try:
+            scenario = {
+                "name": test_entry["name"],
+                "target_table": test_entry["target_table"],
+                "procedure": test_entry["procedure"],
+                "given": test_entry["given"],
+            }
             result = backend.execute_scenario(run_id=run_id, scenario=scenario)
         except (ValueError, KeyError) as exc:
             result = {
-                "scenario_name": test_entry["name"],
+                "scenario_name": test_entry.get("name", "unknown"),
                 "status": "error",
                 "ground_truth_rows": [],
                 "row_count": 0,
@@ -241,7 +240,7 @@ def execute_spec(
             }
 
         results.append({
-            "scenario_name": result.get("scenario_name", test_entry["name"]),
+            "scenario_name": result.get("scenario_name", test_entry.get("name", "unknown")),
             "status": result["status"],
             "row_count": result.get("row_count", 0),
             "errors": result.get("errors", []),
@@ -251,6 +250,7 @@ def execute_spec(
             test_entry["expect"] = {"rows": result["ground_truth_rows"]}
             ok_count += 1
         else:
+            test_entry.pop("expect", None)  # clear stale ground truth
             failed_count += 1
             logger.warning(
                 "event=scenario_failed command=execute_spec run_id=%s scenario=%s errors=%s",
