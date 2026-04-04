@@ -1,0 +1,11 @@
+models:
+  - name: stg_dimcustomer
+    description: Staged DimCustomer
+    columns:
+      - name: CustomerKey
+        tests:
+          - not_null
+    unit_tests:
+      - name: test_existing_customer_update
+        given: []
+        expect: []

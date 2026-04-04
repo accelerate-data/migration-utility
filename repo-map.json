@@ -56,7 +56,8 @@
     "migrate_cli": "lib/shared/migrate.py",
     "init_cli": "lib/shared/init.py",
     "profile_cli": "lib/shared/profile.py",
-    "test_harness_cli": "lib/shared/test_harness.py"
+    "test_harness_cli": "lib/shared/test_harness.py",
+    "migrate_util_cli": "lib/shared/dry_run.py"
   },
   "modules": {
     "plugin_marketplace": {
@@ -81,7 +82,7 @@
     },
     "shared_python": {
       "path": "lib/shared/",
-      "description": "Python library for DDL analysis. Modules: loader.py (DDL parsing facade), loader_data.py (data structures for parsed DDL entries), loader_io.py (DDL file I/O), loader_parse.py (control-flow-aware leaf parsing and reference extraction), block_segmenter.py (T-SQL control-flow block segmentation for IF/ELSE, WHILE, TRY/CATCH, BEGIN/END), tsql_utils.py (shared T-SQL masking helpers for routing scans and segmentation), discover.py (catalog-mandatory list/show/refs CLI), init.py (migration project scaffolding — CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, .githooks), catalog.py (catalog JSON I/O and routing summary generation), catalog_dmf.py (write_catalog_files orchestration), catalog_diff.py (diff-aware classification of catalog objects — hash comparison and unchanged/changed/new/removed classification), catalog_enrich.py (offline AST enrichment CLI — BFS call graph, SELECT INTO/TRUNCATE detection), ddl_hash.py (deterministic DDL hashing — whitespace-normalized SHA-256 for definitions and canonical JSON for table signals), setup_ddl.py (DDL setup orchestration with diff-aware reexport), migrate.py (migration context assembly + dbt artifact writer CLI), profile.py (profiling context assembly + write-back CLI), test_harness.py (sandbox lifecycle CLI — reads manifest, routes to technology-specific backend), env_config.py (git-repo assertion, project-root/dbt-path/ddl-dir/catalog-dir resolution with env-var overrides), dmf_processing.py (DMF row processing helpers), sql_types.py (SQL type mappings), name_resolver.py (FQN normalization)."
+      "description": "Python library for DDL analysis. Modules: loader.py (DDL parsing facade), loader_data.py (data structures for parsed DDL entries), loader_io.py (DDL file I/O), loader_parse.py (control-flow-aware leaf parsing and reference extraction), block_segmenter.py (T-SQL control-flow block segmentation for IF/ELSE, WHILE, TRY/CATCH, BEGIN/END), tsql_utils.py (shared T-SQL masking helpers for routing scans and segmentation), discover.py (catalog-mandatory list/show/refs CLI), init.py (migration project scaffolding — CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, .githooks), catalog.py (catalog JSON I/O and routing summary generation), catalog_dmf.py (write_catalog_files orchestration), catalog_diff.py (diff-aware classification of catalog objects — hash comparison and unchanged/changed/new/removed classification), catalog_enrich.py (offline AST enrichment CLI — BFS call graph, SELECT INTO/TRUNCATE detection), ddl_hash.py (deterministic DDL hashing — whitespace-normalized SHA-256 for definitions and canonical JSON for table signals), setup_ddl.py (DDL setup orchestration with diff-aware reexport), migrate.py (migration context assembly + dbt artifact writer CLI), profile.py (profiling context assembly + write-back CLI), test_harness.py (sandbox lifecycle CLI — reads manifest, routes to technology-specific backend), dry_run.py (migration stage prerequisite checker — guards + catalog/dbt content reader for /status plugin command), env_config.py (git-repo assertion, project-root/dbt-path/ddl-dir/catalog-dir resolution with env-var overrides), dmf_processing.py (DMF row processing helpers), sql_types.py (SQL type mappings), name_resolver.py (FQN normalization)."
     },
     "shared_schemas": {
       "path": "lib/shared/schemas/",
@@ -101,11 +102,11 @@
     },
     "migration_commands": {
       "path": "plugins/migration/commands/",
-      "description": "Stage-specific commands: scope.md (writer discovery), profile.md (migration profiling), generate-model.md (dbt model generation). Each is self-contained with sub-agent orchestration, worktree setup, and result summarization."
+      "description": "Stage-specific commands: scope.md (writer discovery), profile.md (migration profiling), generate-model.md (dbt model generation), status.md (migration status dashboard — calls migrate-util dry-run CLI, interprets results with LLM). Each is self-contained with sub-agent orchestration, worktree setup, and result summarization."
     },
     "tests_migration": {
       "path": "tests/unit/",
-      "description": "Python pytest suite: test_discover.py, test_catalog.py, test_catalog_enrich.py, test_catalog_diff.py, test_catalog_diff_integration.py, test_ddl_hash.py, test_extract_refs.py, test_setup_ddl.py, test_init.py, test_smoke.py, test_migrate.py, test_profile.py, test_env_config.py, test_test_harness.py. Fixtures: ddl/, ddl_unparseable/, discover/flat/ (with catalog/ subdirectory), discover/unparseable/, catalog/ (table and procedure JSON fixtures), migrate/ (DDL, catalog with procedures/tables, dbt project fixture, manifest.json), profile/ (DDL, catalog with procedures/tables, manifest.json), test_harness/ (manifest.json for sandbox tests), sql/ (Docker SQL Server setup scripts)."
+      "description": "Python pytest suite: test_discover.py, test_catalog.py, test_catalog_enrich.py, test_catalog_diff.py, test_catalog_diff_integration.py, test_ddl_hash.py, test_extract_refs.py, test_setup_ddl.py, test_init.py, test_smoke.py, test_migrate.py, test_profile.py, test_env_config.py, test_test_harness.py, test_dry_run.py. Fixtures: ddl/, ddl_unparseable/, discover/flat/ (with catalog/ subdirectory), discover/unparseable/, catalog/ (table and procedure JSON fixtures), migrate/ (DDL, catalog with procedures/tables, dbt project fixture, manifest.json), profile/ (DDL, catalog with procedures/tables, manifest.json), test_harness/ (manifest.json for sandbox tests), dry_run/ (manifest, catalog, procedures, test-specs, dbt project with compiled artifacts), sql/ (Docker SQL Server setup scripts)."
     },
     "tests_evals": {
       "path": "tests/evals/",
@@ -142,6 +143,7 @@
     "test_harness_help": "cd lib && uv run test-harness --help",
     "test_harness_execute_spec": "cd lib && uv run test-harness execute-spec --spec <path> [--run-id <id>]",
     "test_harness_convert_dbt": "cd lib && uv run test-harness convert-dbt --spec <json-path> --output <yml-path>",
+    "migrate_util_dry_run": "cd lib && uv run migrate-util dry-run <table> <stage> [--detail]",
     "lint_md": "markdownlint <file>",
     "eval_all": "cd tests/evals && npm run eval",
     "eval_analyzing_object": "cd tests/evals && npm run eval:analyzing-object",

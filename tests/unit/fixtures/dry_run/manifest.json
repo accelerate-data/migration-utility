@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "technology": "sql_server",
+  "dialect": "tsql",
+  "source_database": "TestDB",
+  "extracted_schemas": ["silver"],
+  "extracted_at": "2026-04-01T00:00:00Z",
+  "sandbox": {
+    "run_id": "abc123",
+    "database": "__test_abc123"
+  }
+}

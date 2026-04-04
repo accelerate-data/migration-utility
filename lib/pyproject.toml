@@ -28,6 +28,7 @@ migrate = "shared.migrate:app"
 profile = "shared.profile:app"
 setup-ddl = "shared.setup_ddl:app"
 test-harness = "shared.test_harness:app"
+migrate-util = "shared.dry_run:app"
 
 [tool.pytest.ini_options]
 testpaths = ["../tests/unit"]

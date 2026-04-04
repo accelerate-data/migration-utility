@@ -1,0 +1,10 @@
+{
+  "schema": "dbo",
+  "name": "usp_load_dimcustomer",
+  "statements": [
+    {"index": 0, "action": "migrate", "source": "ast", "sql": "MERGE silver.DimCustomer AS tgt USING bronze.customerraw AS src ON tgt.CustomerID = src.CustomerID WHEN MATCHED THEN UPDATE SET ..."},
+    {"index": 1, "action": "migrate", "source": "ast", "sql": "INSERT INTO silver.DimCustomer SELECT ..."},
+    {"index": 2, "action": "skip", "source": "ast", "sql": "PRINT 'Done'"}
+  ],
+  "references": []
+}
