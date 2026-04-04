@@ -50,14 +50,20 @@ _TECH_DIALECT = {
 
 def _read_json(path: Path) -> Any:
     """Read and parse a JSON file."""
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError(f"Corrupt JSON in {path}: {exc}") from exc
 
 
 def _read_json_optional(path: Path) -> Any:
     """Read a JSON file if it exists, else return empty list/dict."""
     if not path.exists():
         return []
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError(f"Corrupt JSON in {path}: {exc}") from exc
 
 
 # ── write-catalog helpers ────────────────────────────────────────────────────
@@ -429,7 +435,7 @@ def assemble_modules(
         result = run_assemble_modules(input, project_root, type)
     except ValueError as exc:
         typer.echo(str(exc), err=True)
-        raise typer.Exit(1) from exc
+        raise typer.Exit(2 if "Corrupt JSON" in str(exc) else 1) from exc
     typer.echo(json.dumps(result))
 
 
@@ -444,7 +450,11 @@ def assemble_tables(
     """Build CREATE TABLE statements from sys.columns metadata and write tables.sql."""
     if project_root is None:
         project_root = Path.cwd()
-    result = run_assemble_tables(input, project_root)
+    try:
+        result = run_assemble_tables(input, project_root)
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(2 if "Corrupt JSON" in str(exc) else 1) from exc
     typer.echo(json.dumps(result))
 
 
@@ -468,7 +478,11 @@ def write_catalog(
     """
     if project_root is None:
         project_root = Path.cwd()
-    result = run_write_catalog(staging_dir, project_root, database)
+    try:
+        result = run_write_catalog(staging_dir, project_root, database)
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(2 if "Corrupt JSON" in str(exc) else 1) from exc
     typer.echo(json.dumps(result))
 
 

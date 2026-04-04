@@ -6,6 +6,7 @@ callers (``from shared.loader import DdlCatalog``, etc.) continue to work.
 
 from shared.loader_data import (  # noqa: F401 — re-export
     CatalogFileMissingError,
+    CatalogLoadError,
     CatalogNotFoundError,
     DdlCatalog,
     DdlEntry,

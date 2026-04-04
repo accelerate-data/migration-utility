@@ -27,6 +27,7 @@ from shared.catalog import (
     write_table_catalog,
 )
 from shared.loader import (
+    CatalogLoadError,
     DdlCatalog,
     DdlParseError,
     ObjectRefs,
@@ -124,7 +125,11 @@ def _scan_ast_refs(
     ast_calls: dict[str, list[str]] = {}
 
     for proc_fqn, entry in ddl_catalog.procedures.items():
-        proc_cat = load_proc_catalog(project_root, proc_fqn)
+        try:
+            proc_cat = load_proc_catalog(project_root, proc_fqn)
+        except CatalogLoadError as exc:
+            logger.warning("event=enrich_skip proc=%s reason=corrupt_catalog error=%s", proc_fqn, exc)
+            continue
         skip_reason = _enrich_skip_reason(proc_cat)
         if skip_reason is not None:
             logger.debug("event=enrich_skip proc=%s reason=%s", proc_fqn, skip_reason)
@@ -195,7 +200,11 @@ def _augment_proc_catalogs(
     all_writer_procs = set(direct_writers.keys()) | set(indirect_writers.keys())
 
     for proc_fqn in sorted(all_writer_procs):
-        proc_data = load_proc_catalog(project_root, proc_fqn)
+        try:
+            proc_data = load_proc_catalog(project_root, proc_fqn)
+        except CatalogLoadError as exc:
+            logger.warning("event=enrich_skip proc=%s reason=corrupt_catalog error=%s", proc_fqn, exc)
+            continue
         if proc_data is None:
             proc_data = {}
         proc_data = ensure_references(proc_data)
@@ -243,7 +252,11 @@ def _flip_to_table_catalogs(
     tables_augmented: set[str] = set()
 
     for proc_fqn in sorted(procedures_augmented):
-        proc_data = load_proc_catalog(project_root, proc_fqn)
+        try:
+            proc_data = load_proc_catalog(project_root, proc_fqn)
+        except CatalogLoadError as exc:
+            logger.warning("event=enrich_skip proc=%s reason=corrupt_catalog error=%s", proc_fqn, exc)
+            continue
         if proc_data is None:
             continue
         tables_in_scope = proc_data.get("references", {}).get("tables", {}).get("in_scope", [])
@@ -253,7 +266,11 @@ def _flip_to_table_catalogs(
                 continue
 
             table_fqn = normalize(f"{table_entry['schema']}.{table_entry['name']}")
-            table_data = load_table_catalog(project_root, table_fqn)
+            try:
+                table_data = load_table_catalog(project_root, table_fqn)
+            except CatalogLoadError as exc:
+                logger.warning("event=enrich_skip table=%s reason=corrupt_catalog error=%s", table_fqn, exc)
+                continue
             if table_data is None:
                 table_data = {}
             table_data = ensure_referenced_by(table_data)

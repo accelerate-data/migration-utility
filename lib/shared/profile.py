@@ -29,6 +29,7 @@ from shared.catalog import (
 )
 from shared.loader import (
     CatalogFileMissingError,
+    CatalogLoadError,
     CatalogNotFoundError,
     DdlParseError,
     load_ddl,
@@ -296,7 +297,7 @@ def context(
     except CatalogFileMissingError as exc:
         logger.error("event=context_failed table=%s writer=%s error=%s", table, writer, exc)
         raise typer.Exit(code=1) from exc
-    except (ValueError, FileNotFoundError, DdlParseError, CatalogNotFoundError) as exc:
+    except (ValueError, FileNotFoundError, DdlParseError, CatalogNotFoundError, CatalogLoadError) as exc:
         logger.error("event=context_failed table=%s writer=%s error=%s", table, writer, exc)
         raise typer.Exit(code=2) from exc
     _emit(result)
@@ -328,7 +329,7 @@ def write(
         logger.error("event=write_failed table=%s error=%s", table, exc)
         _emit({"ok": False, "error": str(exc), "table": normalize(table)})
         raise typer.Exit(code=1) from exc
-    except (FileNotFoundError, OSError) as exc:
+    except (FileNotFoundError, OSError, CatalogLoadError) as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)
         _emit({"ok": False, "error": str(exc), "table": normalize(table)})
         raise typer.Exit(code=2) from exc

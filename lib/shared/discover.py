@@ -38,6 +38,7 @@ from shared.catalog import (
 )
 from shared.loader import (
     CatalogFileMissingError,
+    CatalogLoadError,
     CatalogNotFoundError,
     DdlCatalog,
     DdlEntry,
@@ -394,7 +395,7 @@ def list_objects(
     except (CatalogFileMissingError, ObjectNotFoundError) as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=1) from exc
-    except (FileNotFoundError, DdlParseError, CatalogNotFoundError) as exc:
+    except (FileNotFoundError, DdlParseError, CatalogNotFoundError, CatalogLoadError) as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=2) from exc
     _emit(result)
@@ -412,7 +413,7 @@ def show(
     except (CatalogFileMissingError, ObjectNotFoundError) as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=1) from exc
-    except (FileNotFoundError, DdlParseError, CatalogNotFoundError) as exc:
+    except (FileNotFoundError, DdlParseError, CatalogNotFoundError, CatalogLoadError) as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=2) from exc
     _emit(result)
@@ -430,7 +431,7 @@ def refs(
     except (CatalogFileMissingError, ObjectNotFoundError) as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=1) from exc
-    except (FileNotFoundError, DdlParseError, CatalogNotFoundError) as exc:
+    except (FileNotFoundError, DdlParseError, CatalogNotFoundError, CatalogLoadError) as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=2) from exc
     _emit(result)
@@ -460,6 +461,9 @@ def write_statements(
     except (ObjectNotFoundError, FileNotFoundError) as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=1) from exc
+    except CatalogLoadError as exc:
+        logger.error("event=command_failed error=%s", exc)
+        raise typer.Exit(code=2) from exc
     except ValueError as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=1) from exc
@@ -490,6 +494,9 @@ def write_scoping(
     except (CatalogFileMissingError, ObjectNotFoundError) as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=1) from exc
+    except CatalogLoadError as exc:
+        logger.error("event=command_failed error=%s", exc)
+        raise typer.Exit(code=2) from exc
     except ValueError as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=1) from exc

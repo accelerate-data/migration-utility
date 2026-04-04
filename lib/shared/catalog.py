@@ -27,6 +27,7 @@ from typing import Any
 
 from shared.dmf_processing import empty_scoped
 from shared.env_config import resolve_catalog_dir
+from shared.loader_data import CatalogLoadError
 from shared.name_resolver import fqn_parts, normalize
 from shared.tsql_utils import mask_tsql
 
@@ -135,7 +136,10 @@ def _load_catalog_file(project_root: Path, object_type: str, fqn: str) -> dict[s
     p = _object_path(project_root, object_type, normalize(fqn))
     if not p.exists():
         return None
-    return json.loads(p.read_text(encoding="utf-8"))
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise CatalogLoadError(str(p), exc) from exc
 
 
 def load_table_catalog(project_root: Path, table_fqn: str) -> dict[str, Any] | None:
@@ -336,7 +340,10 @@ def write_proc_statements(
     p = _object_path(project_root, "procedures", norm)
     if not p.exists():
         raise FileNotFoundError(f"Procedure catalog not found: {p}")
-    data = json.loads(p.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise CatalogLoadError(str(p), exc) from exc
     data["statements"] = statements
     _write_json(p, data)
     return p
