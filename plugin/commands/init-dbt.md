@@ -25,9 +25,10 @@ Which target platform are you migrating to?
   1. Fabric Lakehouse (dbt-fabric)
   2. Spark (dbt-spark)
   3. Snowflake (dbt-snowflake)
-  4. DuckDB (dbt-duckdb) — development and CI testing only
+  4. SQL Server (dbt-sqlserver) — development, CI testing, and on-prem
+  5. DuckDB (dbt-duckdb) — local development only
 
-Enter your choice (1-4):
+Enter your choice (1-5):
 ```
 
 Ask the user and wait for a response. Do not proceed without an explicit selection.
@@ -132,6 +133,25 @@ Generate based on the selected target:
       threads: 4
 ```
 
+**SQL Server (dbt-sqlserver):**
+
+```yaml
+<project_slug>:
+  target: dev
+  outputs:
+    dev:
+      type: sqlserver
+      driver: "ODBC Driver 18 for SQL Server"
+      server: "{{ env_var('MSSQL_HOST', 'localhost') }}"
+      port: "{{ env_var('MSSQL_PORT', '1433') | int }}"
+      database: "{{ env_var('MSSQL_DB') }}"
+      user: sa
+      password: "{{ env_var('SA_PASSWORD') }}"
+      schema: dbo
+      trust_cert: true
+      threads: 4
+```
+
 **DuckDB (dbt-duckdb):**
 
 ```yaml
@@ -183,16 +203,17 @@ Then:
 cd <project-root>/dbt && dbt compile
 ```
 
-If `dbt deps` fails, check whether `dbt` is installed and the adapter package is available. Use this mapping to tell the user which package to install:
+If `dbt deps` fails, check whether `dbt` is installed and the adapter package is available. Install dbt with the correct adapter using `uv tool`:
 
-| Target | Adapter package |
+| Target | Install command |
 |---|---|
-| Fabric Lakehouse | `dbt-fabric` |
-| Spark | `dbt-spark` |
-| Snowflake | `dbt-snowflake` |
-| DuckDB | `dbt-duckdb` |
+| Fabric Lakehouse | `uv tool install dbt-core --with dbt-fabric` |
+| Spark | `uv tool install dbt-core --with dbt-spark` |
+| Snowflake | `uv tool install dbt-core --with dbt-snowflake` |
+| SQL Server | `uv tool install dbt-core --with dbt-sqlserver` |
+| DuckDB | `uv tool install dbt-core --with dbt-duckdb` |
 
-If `dbt compile` fails for non-DuckDB targets (due to placeholder credentials), that is expected. Tell the user to update `profiles.yml` with real credentials before running `dbt compile` again.
+If `dbt compile` fails for Fabric/Spark/Snowflake targets (due to placeholder credentials), that is expected. Tell the user to update `profiles.yml` with real credentials before running `dbt compile` again. SQL Server uses `env_var()` for credentials — compile succeeds if MSSQL env vars are set.
 
 If `dbt compile` succeeds, report success.
 
@@ -220,7 +241,7 @@ dbt project scaffolded at <project-root>/dbt/
   Validated:  dbt compile <passed|failed — see above>
 
 Next steps:
-  1. Update profiles.yml with your connection credentials (unless DuckDB)
+  1. Update profiles.yml with your connection credentials (unless SQL Server or DuckDB)
   2. Run /scope, /profile, /generate-tests, and /generate-model to migrate stored procedures to dbt models
 ```
 
