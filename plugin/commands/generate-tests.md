@@ -27,8 +27,18 @@ Generate test scenarios, review for coverage, then bulk-execute approved scenari
 
 1. Read worktree base path from `.claude/rules/git-workflow.md`.
 2. Generate run slug: `feature/generate-tests-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters after `feature/`).
-3. Create worktree: `mkdir -p <base>/feature && git worktree add <base>/<slug> -b <slug>`. If the worktree and branch already exist, reuse them — do not fail.
-4. In the worktree, clear `.migration-runs/` and write `meta.json`:
+3. Check whether the worktree already exists: run `git worktree list --porcelain` and look for `<base>/<slug>`.
+   - **Worktree exists:** check for an open PR via `gh pr list --head <slug> --state open --json number,title,url`.
+     - **Open PR found:** ask the user:
+       > Branch `<slug>` has open PR #N: "\<title>".
+       > - **Continue** — add to the existing branch and update the PR
+       > - **Start fresh** — reset and start over
+     - **No open PR:** ask the user:
+       > Worktree `<slug>` already exists (no open PR).
+       > - **Continue** — keep existing work
+       > - **Start fresh** — reset and start over
+   - **Worktree does not exist:** create it — `mkdir -p <base>/feature && git worktree add <base>/<slug> -b <slug>`, then run `./scripts/setup-worktree.sh <worktree-path>`.
+4. **Start fresh** (or new worktree): clear `.migration-runs/` and write `meta.json` (see below). **Continue**: skip clearing — preserve existing `.migration-runs/` and `meta.json`.
 
 ```json
 {
@@ -134,7 +144,7 @@ This converts the CLI-ready JSON (with `expect.rows`) to dbt unit test YAML form
    ```
 
 4. If all items errored, skip commit/PR — report errors only and stop.
-5. Ask the user: commit and open PR? Stage only dbt YAML files from successful items (`test-specs/<item_id>.yml`). Do not stage `.migration-runs/` or intermediate JSON files. PR body format:
+5. Ask the user: commit and push? Stage only dbt YAML files from successful items (`test-specs/<item_id>.yml`). Do not stage `.migration-runs/` or intermediate JSON files. Check for an existing open PR on the branch via `gh pr list --head <slug> --state open --json number,url`. If one exists, update it with `gh pr edit` instead of creating a new PR. PR body format:
 
    ```markdown
    ## Test Generation — N tables
@@ -146,7 +156,7 @@ This converts the CLI-ready JSON (with `expect.rows`) to dbt unit test YAML form
    | silver.DimDate | error | — | — | — | PROFILE_NOT_COMPLETED |
    ```
 
-6. After the PR is created, tell the user:
+6. After the PR is created or updated, tell the user:
 
    ```text
    PR #<number> is open: <pr_url>

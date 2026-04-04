@@ -32,7 +32,7 @@ The `setup-worktree.sh` script runs after worktree creation and handles two thin
 
 Single-table skill invocations (`/analyzing-table`, `/profiling-table`, etc.) do not create branches. The FDE works on whatever branch they are already on.
 
-Multi-table commands create a new branch and worktree automatically. The branch name is built from the command name and the table names, truncated to 60 characters to stay within git limits.
+Multi-table commands create a branch and worktree automatically. If a worktree already exists for the same slug, the command checks for an open PR on that branch and asks the FDE whether to **continue** (preserve prior work and update the existing PR) or **start fresh** (clear `.migration-runs/` and start over). The branch name is built from the command name and the table names, truncated to 60 characters to stay within git limits.
 
 ## PR format
 
@@ -89,7 +89,7 @@ generate-model(silver.FactSales): generate stg_fact_sales with incremental mater
 | `dbt/models/**/*.yml` | |
 | `ddl/*.sql` (from setup, not per-batch) | |
 
-The `.migration-runs/` directory contains per-command execution metadata (timing, cost, per-item status). It is cleared at the start of each command invocation and never committed. It is consumed at commit/PR time for rich commit messages and PR bodies.
+The `.migration-runs/` directory contains per-command execution metadata (timing, cost, per-item status). When starting fresh (or on first invocation), it is cleared before the command runs. When continuing an existing worktree, it is preserved. It is never committed. It is consumed at commit/PR time for rich commit messages and PR bodies.
 
 ## Cleaning up worktrees
 

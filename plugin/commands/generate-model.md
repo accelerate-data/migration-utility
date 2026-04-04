@@ -29,8 +29,18 @@ Generate dbt models for a batch of tables. Launches one sub-agent per table in p
 
 1. Read worktree base path from `.claude/rules/git-workflow.md`.
 2. Generate run slug: `feature/generate-model-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters after `feature/`).
-3. Create worktree: `mkdir -p <base>/feature && git worktree add <base>/<slug> -b <slug>`. If the worktree and branch already exist, reuse them — do not fail.
-4. In the worktree, clear `.migration-runs/` and write `meta.json`:
+3. Check whether the worktree already exists: run `git worktree list --porcelain` and look for `<base>/<slug>`.
+   - **Worktree exists:** check for an open PR via `gh pr list --head <slug> --state open --json number,title,url`.
+     - **Open PR found:** ask the user:
+       > Branch `<slug>` has open PR #N: "\<title>".
+       > - **Continue** — add to the existing branch and update the PR
+       > - **Start fresh** — reset and start over
+     - **No open PR:** ask the user:
+       > Worktree `<slug>` already exists (no open PR).
+       > - **Continue** — keep existing work
+       > - **Start fresh** — reset and start over
+   - **Worktree does not exist:** create it — `mkdir -p <base>/feature && git worktree add <base>/<slug> -b <slug>`, then run `./scripts/setup-worktree.sh <worktree-path>`.
+4. **Start fresh** (or new worktree): clear `.migration-runs/` and write `meta.json` (see below). **Continue**: skip clearing — preserve existing `.migration-runs/` and `meta.json`.
 
 ```json
 {
@@ -93,7 +103,7 @@ Derive `<model_name>` from the item_id using the same `stg_<table>` convention. 
    ```
 
 4. If all items errored, skip commit/PR — report errors only and stop.
-5. Ask the user: commit and open PR? Stage only files changed by successful items (model SQL and schema YAML files). Do not stage `.migration-runs/`. PR body format:
+5. Ask the user: commit and push? Stage only files changed by successful items (model SQL and schema YAML files). Do not stage `.migration-runs/`. Check for an existing open PR on the branch via `gh pr list --head <slug> --state open --json number,url`. If one exists, update it with `gh pr edit` instead of creating a new PR. PR body format:
 
    ```markdown
    ## Model Generation — N tables
@@ -105,7 +115,7 @@ Derive `<model_name>` from the item_id using the same `stg_<table>` convention. 
    | silver.DimDate | error | — | — | PROFILE_NOT_COMPLETED |
    ```
 
-6. After the PR is created, tell the user:
+6. After the PR is created or updated, tell the user:
 
    ```text
    PR #<number> is open: <pr_url>

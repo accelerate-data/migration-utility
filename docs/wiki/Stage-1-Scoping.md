@@ -25,9 +25,8 @@ The command creates a git worktree to isolate the batch:
 
 - Branch name: `feature/scope-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters after `feature/`)
 - Worktree path: `../worktrees/feature/scope-<slug>`
-- Clears `.migration-runs/` and writes `meta.json` with command metadata
 
-If the worktree and branch already exist, they are reused.
+If the worktree and branch already exist, the command checks for an open PR and asks the FDE to **continue** (preserve `.migration-runs/` and update the existing PR) or **start fresh** (clear `.migration-runs/` and start over). New worktrees clear `.migration-runs/` and write `meta.json` with command metadata.
 
 ### Step 2 -- Per-table scoping
 
