@@ -156,7 +156,8 @@
     "eval_cmd_scope": "cd tests/evals && npm run eval:cmd-scope",
     "eval_cmd_profile": "cd tests/evals && npm run eval:cmd-profile",
     "eval_cmd_generate_model": "cd tests/evals && npm run eval:cmd-generate-model",
-    "eval_cmd_generate_tests": "cd tests/evals && npm run eval:cmd-generate-tests"
+    "eval_cmd_generate_tests": "cd tests/evals && npm run eval:cmd-generate-tests",
+    "eval_cmd_status": "cd tests/evals && npm run eval:cmd-status"
   },
   "conventions": {
     "typescript_files": "kebab-case (scope-selector.tsx, candidacy-table.tsx)",

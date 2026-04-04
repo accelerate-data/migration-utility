@@ -13,8 +13,11 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
 from shared import dry_run
+
+_cli_runner = CliRunner()
 
 _TESTS_DIR = Path(__file__).parent
 _FIXTURES = _TESTS_DIR / "fixtures" / "dry_run"
@@ -656,3 +659,87 @@ def test_case_insensitive_table_name(assert_valid_schema) -> None:
         assert_valid_schema(result, "dry_run_output.json")
         assert result["guards_passed"] is True
         assert result["table"] == "silver.dimcustomer"
+
+
+# ── CliRunner integration tests ──────────────────────────────────────────────
+
+
+def test_cli_dry_run_scope_summary() -> None:
+    """CLI dry-run scope outputs valid JSON to stdout."""
+    tmp, root = _make_project()
+    with tmp:
+        result = _cli_runner.invoke(
+            dry_run.app,
+            ["silver.DimCustomer", "scope", "--project-root", str(root)],
+        )
+        assert result.exit_code == 0
+        output = json.loads(result.stdout)
+        assert output["guards_passed"] is True
+        assert output["stage"] == "scope"
+        assert "content" in output
+
+
+def test_cli_dry_run_detail_flag() -> None:
+    """CLI --detail flag produces full content."""
+    tmp, root = _make_project()
+    with tmp:
+        result = _cli_runner.invoke(
+            dry_run.app,
+            ["silver.DimCustomer", "scope", "--detail", "--project-root", str(root)],
+        )
+        assert result.exit_code == 0
+        output = json.loads(result.stdout)
+        assert output["guards_passed"] is True
+        assert "catalog" in output["content"]
+
+
+def test_cli_dry_run_guard_failure_exit_0() -> None:
+    """CLI returns exit 0 even on guard failure — guards_passed=false in JSON."""
+    tmp, root = _make_project()
+    with tmp:
+        result = _cli_runner.invoke(
+            dry_run.app,
+            ["silver.NonExistent", "scope", "--project-root", str(root)],
+        )
+        assert result.exit_code == 0
+        output = json.loads(result.stdout)
+        assert output["guards_passed"] is False
+
+
+def test_cli_dry_run_invalid_stage() -> None:
+    """CLI rejects invalid stage name."""
+    tmp, root = _make_project()
+    with tmp:
+        result = _cli_runner.invoke(
+            dry_run.app,
+            ["silver.DimCustomer", "bogus", "--project-root", str(root)],
+        )
+        assert result.exit_code != 0
+
+
+def test_cli_dry_run_not_git_repo() -> None:
+    """CLI exits 2 when project root is not a git repo."""
+    tmp = tempfile.TemporaryDirectory()
+    with tmp:
+        root = Path(tmp.name) / "not-a-repo"
+        root.mkdir()
+        result = _cli_runner.invoke(
+            dry_run.app,
+            ["silver.DimCustomer", "scope", "--project-root", str(root)],
+        )
+        assert result.exit_code == 2
+
+
+def test_cli_dry_run_all_stages() -> None:
+    """CLI works for all four stages on a fully-populated fixture."""
+    tmp, root = _make_project()
+    with tmp:
+        for stage in ("scope", "profile", "test-gen", "migrate"):
+            result = _cli_runner.invoke(
+                dry_run.app,
+                ["silver.DimCustomer", stage, "--project-root", str(root)],
+            )
+            assert result.exit_code == 0, f"stage {stage} failed"
+            output = json.loads(result.stdout)
+            assert output["guards_passed"] is True, f"stage {stage} guards failed"
+            assert output["stage"] == stage
