@@ -35,8 +35,8 @@ Extracts the `writers` array from the output. If no writers are found, persists 
 
 For each writer candidate, follows the procedure analysis reference (`references/procedure-analysis.md`). This runs a 6-step pipeline per candidate:
 
-1. **Fetch object data** — `discover show --name <proc>` returns refs, statements, classification, raw_ddl
-2. **Classify statements** — deterministic (AST) or claude_assisted (LLM-based from raw_ddl)
+1. **Fetch object data** — `discover show --name <proc>` returns refs, statements, needs_llm, raw_ddl
+2. **Classify statements** — `needs_llm: false` (AST-parsed) or `needs_llm: true` (LLM-based from raw_ddl)
 3. **Resolve call graph** — follow refs to base tables via recursive `discover show`
 4. **Logic summary** — plain-language explanation of what the procedure does
 5. **Migration guidance** — tag each statement as `migrate` or `skip`

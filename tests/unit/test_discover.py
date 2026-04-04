@@ -169,7 +169,7 @@ def test_discover_cli_list_succeeds_with_unparseable() -> None:
 def test_show_deterministic_has_statements(assert_valid_schema) -> None:
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadDimProduct")
     assert_valid_schema(result, "discover_show_output.json")
-    assert result["classification"] == "deterministic"
+    assert result["needs_llm"] is False
     assert result["routing_reasons"] == []
     assert result["statements"] is not None
     actions = {s["action"] for s in result["statements"]}
@@ -179,18 +179,17 @@ def test_show_deterministic_has_statements(assert_valid_schema) -> None:
 def test_show_static_exec_is_deterministic() -> None:
     """Static EXEC procs are deterministic — catalog-enrich resolves them."""
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecSimple")
-    assert result["classification"] == "deterministic"
+    assert result["needs_llm"] is False
     assert result["routing_reasons"] == []
     assert result["statements"] is not None
 
 
-def test_show_dynamic_exec_is_claude_assisted() -> None:
-    """Dynamic EXEC(@var) procs are claude_assisted — LLM reads raw_ddl."""
+def test_show_dynamic_exec_needs_llm() -> None:
+    """Dynamic EXEC(@var) procs need LLM — reads raw_ddl."""
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecDynamic")
-    assert result["classification"] == "claude_assisted"
+    assert result["needs_llm"] is True
     assert result["routing_reasons"] == ["dynamic_sql_variable"]
     assert result["statements"] is None
-    assert "needs_llm" not in result
 
 
 def test_show_uses_routing_mode_and_reasons(tmp_path, assert_valid_schema) -> None:
@@ -208,7 +207,7 @@ def test_show_uses_routing_mode_and_reasons(tmp_path, assert_valid_schema) -> No
 
     result = discover.run_show(tmp_path, "dbo.usp_ConditionalMerge")
     assert_valid_schema(result, "discover_show_output.json")
-    assert result["classification"] == "deterministic"
+    assert result["needs_llm"] is False
     assert result["routing_reasons"] == ["if_else"]
     assert result["statements"] is not None
 

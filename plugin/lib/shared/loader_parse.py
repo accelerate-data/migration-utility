@@ -118,18 +118,18 @@ def parse_block(block: str, dialect: str = "tsql") -> Any:
 
 
 def classify_statement(stmt: Any) -> str:
-    """Classify a parsed statement as migrate, skip, or claude.
+    """Classify a parsed statement as migrate, skip, or needs_llm.
 
     - migrate: core DML that becomes the dbt model (INSERT, UPDATE, DELETE, MERGE, SELECT INTO)
     - skip: operational DDL or session config (SET, TRUNCATE, DROP/CREATE INDEX, DECLARE)
-    - claude: EXEC/dynamic SQL that needs Claude to resolve
+    - needs_llm: EXEC/dynamic SQL that needs LLM to resolve
     """
     if stmt is None:
         return "skip"
     if isinstance(stmt, exp.Command):
         if str(stmt.args.get("this", "")).upper() == "PRINT":
             return "skip"
-        return "claude"
+        return "needs_llm"
     if isinstance(stmt, _MIGRATE_TYPES):
         return "migrate"
     if isinstance(stmt, exp.Select) and stmt.args.get("into"):
@@ -356,7 +356,7 @@ def _add_exec_statements(raw_ddl: str, refs: ObjectRefs) -> None:
         exec_text = f"EXEC {m.group(1).strip()}"
         refs.statements.append({
             "type": "Command",
-            "action": "claude",
+            "action": "needs_llm",
             "sql": exec_text[:200],
         })
 

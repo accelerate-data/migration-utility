@@ -3,7 +3,7 @@
   "title": "DiscoverShowOutput",
   "description": "Output of 'discover show'. Emitted to stdout as a single JSON line. Reads all metadata from catalog files; AST parsing only for statement breakdown on deterministic procedures.",
   "type": "object",
-  "required": ["name", "type", "raw_ddl", "columns", "params", "refs", "routing_reasons", "statements", "classification", "parse_error"],
+  "required": ["name", "type", "raw_ddl", "columns", "params", "refs", "routing_reasons", "statements", "needs_llm", "parse_error"],
   "properties": {
     "name": {
       "type": "string",
@@ -41,7 +41,7 @@
       "items": { "type": "string" }
     },
     "statements": {
-      "description": "Per-statement breakdown with action classification. Populated for deterministic procedures; null for claude_assisted or non-procedures.",
+      "description": "Per-statement breakdown with action classification. Populated when needs_llm is false; null when needs_llm is true or for non-procedures.",
       "oneOf": [
         {
           "type": "array",
@@ -50,10 +50,9 @@
         { "type": "null" }
       ]
     },
-    "classification": {
-      "type": ["string", "null"],
-      "enum": ["deterministic", "claude_assisted", null],
-      "description": "deterministic: refs and statements are complete. claude_assisted: statements is null, read raw_ddl. null for non-procedure types."
+    "needs_llm": {
+      "type": ["boolean", "null"],
+      "description": "true: statements is null, read raw_ddl for LLM analysis. false: refs and statements are complete. null for non-procedure types."
     },
     "parse_error": {
       "type": ["string", "null"],
@@ -131,8 +130,8 @@
         },
         "action": {
           "type": "string",
-          "enum": ["migrate", "skip", "claude"],
-          "description": "migrate: core DML that becomes the dbt model. skip: operational overhead dbt ignores. claude: needs LLM to follow call graph."
+          "enum": ["migrate", "skip", "needs_llm"],
+          "description": "migrate: core DML that becomes the dbt model. skip: operational overhead dbt ignores. needs_llm: needs LLM to follow call graph."
         },
         "sql": {
           "type": "string",

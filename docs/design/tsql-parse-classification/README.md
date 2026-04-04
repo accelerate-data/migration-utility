@@ -17,14 +17,15 @@ Stored Procedure DDL
                                              mode, routing_reasons,
                                              needs_llm, needs_enrich
         │
-        ├── mode != llm_required → discover show: "deterministic"
-        │     extract_refs() may still parse body for statement breakdown
+        ├── mode != llm_required → discover show: needs_llm = false
+        │     extract_refs() parses body for statement breakdown
+        │     if extract_refs fails or returns needs_llm → needs_llm = true
         │
-        └── mode = llm_required → discover show: "claude_assisted"
-              statements = null; raw_ddl preserved for Claude
+        └── mode = llm_required → discover show: needs_llm = true
+              statements = null; raw_ddl preserved for LLM
 ```
 
-`needs_llm` and `needs_enrich` remain for backward compatibility, but `mode` and `routing_reasons` are now the canonical explanation.
+`needs_llm` and `needs_enrich` remain in catalog files for backward compatibility, but `mode` and `routing_reasons` are the canonical routing explanation. The `discover show` output exposes `needs_llm: bool` (replaces the former `classification` field) and `routing_reasons`.
 
 Procs with `needs_enrich = True` (but `mode != llm_required`) are deterministic — `catalog_enrich.py` resolves their references post-parse via BFS call graph traversal.
 
@@ -38,10 +39,10 @@ Procs with `needs_enrich = True` (but `mode != llm_required`) are deterministic 
 - **Dynamic SQL literal execution**: `EXEC sp_executesql N'...'` is tracked distinctly as `dynamic_sql_literal`
 - **Neither LLM nor enrich flags** → pure sqlglot deterministic path. `extract_refs` handles everything.
 
-`discover show` maps the routing summary to the `classification` field:
+`discover show` maps the routing summary to the `needs_llm` field:
 
-- `classification: "deterministic"` + populated `statements` → fully parsed (with or without enrichment)
-- `classification: "claude_assisted"` → `mode = llm_required` or parse-error fallback
+- `needs_llm: false` + populated `statements` → fully parsed (with or without enrichment)
+- `needs_llm: true` → `mode = llm_required`, parse-error fallback, or `extract_refs` signalled that body parsing was incomplete
 
 Note: `parse_error` is a separate orthogonal field that records whether the `CREATE PROCEDURE` block itself failed to parse at DDL load time.
 
@@ -113,7 +114,7 @@ These statements are parsed by sqlglot but classified as `skip` — they don't p
 | BEGIN/COMMIT/ROLLBACK | `BEGIN TRAN ... COMMIT` | Transaction control — dbt manages transactions |
 | DROP/CREATE INDEX | `DROP INDEX ix_1 ON silver.T; CREATE INDEX ...` | Index management — `classify_statement` returns `skip` for both `exp.Drop` and `exp.Create` (kind=INDEX) |
 
-Note: `IF EXISTS (SELECT 1 FROM dbo.T)` is **not** skip-only as a procedure-level routing decision. The condition itself is not a model read, but control flow no longer automatically forces `claude_assisted`. See control flow patterns 45-48 below.
+Note: `IF EXISTS (SELECT 1 FROM dbo.T)` is **not** skip-only as a procedure-level routing decision. The condition itself is not a model read, but control flow no longer automatically forces `needs_llm: true`. See control flow patterns 45-48 below.
 
 ### Enrichment-resolved — deterministic after `catalog_enrich.py` (patterns 49-57)
 
@@ -176,7 +177,7 @@ These patterns still set `needs_llm = True` or are out of scope. The proc's `raw
 
 ## Migrate vs Skip Classification
 
-When a proc is `claude_assisted`, Claude reads `raw_ddl` and classifies each statement as **migrate** (becomes dbt model SQL) or **skip** (operational overhead that dbt handles or ignores). The full classification reference is at `plugin/skills/scoping-table/references/tsql-parse-classification.md`.
+When a proc has `needs_llm: true`, the LLM reads `raw_ddl` and classifies each statement as **migrate** (becomes dbt model SQL) or **skip** (operational overhead that dbt handles or ignores). The full classification reference is at `plugin/skills/scoping-table/references/tsql-parse-classification.md`.
 
 ## Known Limitations
 
