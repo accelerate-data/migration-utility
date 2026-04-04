@@ -2,9 +2,9 @@ CRITICAL OUTPUT REQUIREMENT: Your FINAL text response must be a single JSON obje
 
 You are running in a DDL project directory at {{fixture_path}}.
 
-Read the skill instructions at plugins/ground-truth-harness/skills/reviewing-tests/SKILL.md and follow them for table {{target_table}}{{iteration_suffix}}.
+Read the skill instructions at plugin/skills/reviewing-tests/SKILL.md and follow them for table {{target_table}}{{iteration_suffix}}.
 
-Wherever the skill references `${CLAUDE_PLUGIN_ROOT}/../../lib`, use `lib` instead (the lib directory is at the repo root).
+Wherever the skill references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead (the lib directory is at `plugin/lib/` in the repo).
 
 When assembling migration context for this eval, pass `--writer {{writer}}` to `migrate context` so the scenario uses the intended procedure even if the table catalog points at a different selected writer.
 

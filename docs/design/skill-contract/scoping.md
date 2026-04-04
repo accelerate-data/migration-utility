@@ -124,7 +124,7 @@ For each resolved item:
 Run:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/../../lib" discover write-statements \
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-statements \
   --name <selected_writer> --statements '<json>'
 ```
 

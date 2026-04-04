@@ -5,13 +5,13 @@
   "package_managers": [
     {
       "name": "uv (shared)",
-      "lockfile": "lib/uv.lock",
-      "manifest": "lib/pyproject.toml"
+      "lockfile": "plugin/lib/uv.lock",
+      "manifest": "plugin/lib/pyproject.toml"
     },
     {
       "name": "uv (ddl-mcp)",
-      "lockfile": "mcp/ddl/uv.lock",
-      "manifest": "mcp/ddl/pyproject.toml"
+      "lockfile": "plugin/mcp/ddl/uv.lock",
+      "manifest": "plugin/mcp/ddl/pyproject.toml"
     }
   ],
   "build_systems": [
@@ -31,11 +31,11 @@
   "test_frameworks": [
     {
       "name": "pytest (shared)",
-      "scope": "Python DDL analysis tests in tests/unit/. Run via: cd lib && uv run pytest"
+      "scope": "Python DDL analysis tests in tests/unit/. Run via: cd plugin/lib && uv run pytest"
     },
     {
       "name": "pytest (ddl-mcp)",
-      "scope": "MCP DDL server tests in mcp/ddl/tests/. Run via: cd mcp/ddl && uv run pytest"
+      "scope": "MCP DDL server tests in plugin/mcp/ddl/tests/. Run via: cd plugin/mcp/ddl && uv run pytest"
     },
     {
       "name": "promptfoo",
@@ -45,64 +45,52 @@
   "applications": [
     {
       "name": "ad-migration plugin",
-      "type": "Claude Code plugin (marketplace)",
-      "description": "DDL analysis and migration pipeline. Three sub-plugins: bootstrap, migration, ground-truth-harness. Loaded via: claude --plugin-dir plugins/"
+      "type": "Claude Code plugin",
+      "description": "DDL analysis and migration pipeline. Single unified plugin with commands and skills. Loaded via: claude --plugin-dir plugin/"
     }
   ],
   "entrypoints": {
-    "ddl_mcp_server": "mcp/ddl/server.py",
-    "discover_cli": "lib/shared/discover.py",
-    "catalog_enrich_cli": "lib/shared/catalog_enrich.py",
-    "migrate_cli": "lib/shared/migrate.py",
-    "init_cli": "lib/shared/init.py",
-    "profile_cli": "lib/shared/profile.py",
-    "test_harness_cli": "lib/shared/test_harness.py",
-    "migrate_util_cli": "lib/shared/dry_run.py"
+    "ddl_mcp_server": "plugin/mcp/ddl/server.py",
+    "discover_cli": "plugin/lib/shared/discover.py",
+    "catalog_enrich_cli": "plugin/lib/shared/catalog_enrich.py",
+    "migrate_cli": "plugin/lib/shared/migrate.py",
+    "init_cli": "plugin/lib/shared/init.py",
+    "profile_cli": "plugin/lib/shared/profile.py",
+    "test_harness_cli": "plugin/lib/shared/test_harness.py",
+    "migrate_util_cli": "plugin/lib/shared/dry_run.py"
   },
   "modules": {
-    "plugin_marketplace": {
-      "path": "plugins/.claude-plugin/marketplace.json",
-      "description": "Plugin marketplace manifest for the bootstrap, migration, and ground-truth-harness sub-plugins. Each plugin has a 'source' key pointing to its workbench directory."
-    },
-    "plugin_bootstrap": {
-      "path": "plugins/bootstrap/",
-      "description": "Bootstrap sub-plugin. Commands: commands/init-ad-migration.md (prerequisite checker and installer), commands/init-dbt.md (dbt project scaffolding with adapter selection and sources.yml generation). Skills: skills/setup-ddl/ (DDL extraction from live SQL Server with catalog signals, DMF references, and AST enrichment)."
-    },
-    "plugin_migration": {
-      "path": "plugins/migration/",
-      "description": "Migration sub-plugin. Contains skills and commands for the migration workflow."
-    },
-    "plugin_ground_truth_harness": {
-      "path": "plugins/ground-truth-harness/",
-      "description": "Ground-truth harness sub-plugin. Commands: commands/setup-sandbox.md (create throwaway sandbox DB by cloning schema from source SQL Server), commands/teardown-sandbox.md (drop sandbox DB), commands/generate-tests.md (multi-table test generation with review loop). Skills: skills/generating-tests/ (single-table test generation with ground truth capture), skills/reviewing-tests/ (LLM quality gate for test specs)."
+    "plugin_manifest": {
+      "path": "plugin/.claude-plugin/plugin.json",
+      "description": "Plugin manifest for the unified ad-migration plugin."
     },
     "sandbox_backends": {
-      "path": "lib/shared/sandbox/",
+      "path": "plugin/lib/shared/sandbox/",
       "description": "Technology-specific sandbox backends for test harness. base.py: abstract SandboxBackend interface. sql_server.py: pyodbc-based SQL Server sandbox lifecycle (schema cloning via SELECT INTO, proc cloning via OBJECT_DEFINITION, scenario execution)."
     },
     "shared_python": {
-      "path": "lib/shared/",
+      "path": "plugin/lib/shared/",
       "description": "Python library for DDL analysis. Modules: loader.py (DDL parsing facade), loader_data.py (data structures for parsed DDL entries), loader_io.py (DDL file I/O), loader_parse.py (control-flow-aware leaf parsing and reference extraction), block_segmenter.py (T-SQL control-flow block segmentation for IF/ELSE, WHILE, TRY/CATCH, BEGIN/END), tsql_utils.py (shared T-SQL masking helpers for routing scans and segmentation), discover.py (catalog-mandatory list/show/refs CLI), init.py (migration project scaffolding — CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, .githooks), catalog.py (catalog JSON I/O and routing summary generation), catalog_dmf.py (write_catalog_files orchestration), catalog_diff.py (diff-aware classification of catalog objects — hash comparison and unchanged/changed/new/removed classification), catalog_enrich.py (offline AST enrichment CLI — BFS call graph, SELECT INTO/TRUNCATE detection), ddl_hash.py (deterministic DDL hashing — whitespace-normalized SHA-256 for definitions and canonical JSON for table signals), setup_ddl.py (DDL setup orchestration with diff-aware reexport), migrate.py (migration context assembly + dbt artifact writer CLI), profile.py (profiling context assembly + write-back CLI), test_harness.py (sandbox lifecycle CLI — reads manifest, routes to technology-specific backend), dry_run.py (migration stage prerequisite checker — guards + catalog/dbt content reader for /status plugin command), env_config.py (git-repo assertion, project-root/dbt-path/ddl-dir/catalog-dir resolution with env-var overrides), dmf_processing.py (DMF row processing helpers), sql_types.py (SQL type mappings), name_resolver.py (FQN normalization)."
     },
     "shared_schemas": {
-      "path": "lib/shared/schemas/",
+      "path": "plugin/lib/shared/schemas/",
       "description": "JSON Schema files for catalog objects, agent I/O, skill output, test harness output, discover CLI output, and shared definitions. See this directory for the current schema set."
     },
     "ddl_mcp": {
-      "path": "mcp/ddl/",
+      "path": "plugin/mcp/ddl/",
       "description": "MCP server for structured DDL parsing. server.py exposes list_tables, get_table_schema, list_procedures, get_procedure_body, get_dependencies, list_views, get_view_body, list_functions, get_function_body."
     },
     "mssql_mcp": {
-      "path": "mcp/mssql/",
+      "path": "plugin/mcp/mssql/",
       "description": "genai-toolbox config for live SQL Server queries. tools.yaml defines mssql-execute-sql tool."
     },
     "migration_skills": {
-      "path": "plugins/migration/skills/",
-      "description": "Skill definitions: listing-objects/ (catalog browsing — list objects by type), scoping-table/ (table scoping — writer discovery, statement resolution, catalog persistence), analyzing-object/ (object analysis — show details, refs, statement classification), generating-model/ (dbt model generation from stored procedures), profiling-table/ (interactive single-table profiling with approval gates). setup-ddl is in the bootstrap sub-plugin."
+      "path": "plugin/skills/",
+      "description": "Skill definitions: listing-objects/ (catalog browsing — list objects by type), scoping-table/ (table scoping — writer discovery, statement resolution, catalog persistence), analyzing-object/ (object analysis — show details, refs, statement classification), generating-model/ (dbt model generation from stored procedures), profiling-table/ (interactive single-table profiling with approval gates), setup-ddl/ (DDL extraction from live SQL Server with catalog signals, DMF references, and AST enrichment), generating-tests/ (single-table test generation with ground truth capture), reviewing-tests/ (LLM quality gate for test specs)."
     },
     "migration_commands": {
-      "path": "plugins/migration/commands/",
-      "description": "Stage-specific commands: scope.md (writer discovery), profile.md (migration profiling), generate-model.md (dbt model generation), status.md (migration status dashboard — calls migrate-util dry-run CLI, interprets results with LLM). Each is self-contained with sub-agent orchestration, worktree setup, and result summarization."
+      "path": "plugin/commands/",
+      "description": "Stage-specific commands: scope.md (writer discovery), profile.md (migration profiling), generate-model.md (dbt model generation), status.md (migration status dashboard — calls migrate-util dry-run CLI, interprets results with LLM), init-ad-migration.md (prerequisite checker and installer), init-dbt.md (dbt project scaffolding), setup-sandbox.md (create throwaway sandbox DB), teardown-sandbox.md (drop sandbox DB), generate-tests.md (multi-table test generation with review loop). Each is self-contained with sub-agent orchestration, worktree setup, and result summarization."
     },
     "tests_migration": {
       "path": "tests/unit/",
@@ -113,7 +101,7 @@
       "description": "Promptfoo eval harness for skill and command testing against MigrationTest schema. Skill packages: analyzing-object, profiler, model-generator, test-generator, test-review, code-review, scoping-table. Command packages: cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests. Top-level promptfooconfig.yaml for full-suite runs. Run via: cd tests/evals && npm run eval. See docs/design/eval-harness/README.md."
     },
     "tests_ddl_mcp": {
-      "path": "mcp/ddl/tests/",
+      "path": "plugin/mcp/ddl/tests/",
       "description": "Python pytest suite for the DDL MCP server. test_server.py tests all MCP tool handlers (list_tables, get_table_schema, list_procedures, get_procedure_body, get_dependencies, list_views, get_view_body, list_functions, get_function_body)."
     },
     "scripts": {
@@ -126,24 +114,24 @@
     }
   },
   "key_directories": {
-    "plugins/": "Claude Code plugin workbenches (bootstrap + migration + ground-truth-harness sub-plugins) with marketplace manifest",
-    "lib/": "Python DDL analysis library (uv project, sqlglot-based)",
-    "lib/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
+    "plugin/": "Unified Claude Code plugin with commands, skills, lib, and MCP servers",
+    "plugin/lib/": "Python DDL analysis library (uv project, sqlglot-based)",
+    "plugin/lib/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
     "tests/unit/": "Python pytest tests for shared library (discover, catalog, catalog_enrich, extract_refs, integration)",
     "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages: analyzing-object, profiler, model-generator, test-generator, test-review, code-review, scoping-table; command packages: cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests)",
-    "mcp/ddl/tests/": "Python pytest tests for the DDL MCP server",
+    "plugin/mcp/ddl/tests/": "Python pytest tests for the DDL MCP server",
     "docs/design/": "Architecture decision records and design specs",
     ".claude/rules/": "Shared agent rules such as coding-conventions, git-workflow, logging-policy, and codex-execution-policy",
     ".claude/skills/": "Workflow playbooks for repo-local Claude Code skills"
   },
   "commands": {
-    "test_migration_python": "cd lib && uv run pytest",
-    "test_migration_python_integration": "cd lib && uv run pytest -m integration",
-    "test_mcp_ddl": "cd mcp/ddl && uv run pytest",
-    "test_harness_help": "cd lib && uv run test-harness --help",
-    "test_harness_execute_spec": "cd lib && uv run test-harness execute-spec --spec <path> [--run-id <id>]",
-    "test_harness_convert_dbt": "cd lib && uv run test-harness convert-dbt --spec <json-path> --output <yml-path>",
-    "migrate_util_dry_run": "cd lib && uv run migrate-util dry-run <table> <stage> [--detail]",
+    "test_migration_python": "cd plugin/lib && uv run pytest",
+    "test_migration_python_integration": "cd plugin/lib && uv run pytest -m integration",
+    "test_mcp_ddl": "cd plugin/mcp/ddl && uv run pytest",
+    "test_harness_help": "cd plugin/lib && uv run test-harness --help",
+    "test_harness_execute_spec": "cd plugin/lib && uv run test-harness execute-spec --spec <path> [--run-id <id>]",
+    "test_harness_convert_dbt": "cd plugin/lib && uv run test-harness convert-dbt --spec <json-path> --output <yml-path>",
+    "migrate_util_dry_run": "cd plugin/lib && uv run migrate-util dry-run <table> <stage> [--detail]",
     "lint_md": "markdownlint <file>",
     "eval_all": "cd tests/evals && npm run eval",
     "eval_analyzing_object": "cd tests/evals && npm run eval:analyzing-object",
@@ -178,11 +166,11 @@
   },
   "notes_for_agents": {
     "startup": "Read this file before exploring code. It is the primary startup context for structure, entrypoints, modules, and commands.",
-    "plugin_loading": "Load the ad-migration plugin with: claude --plugin-dir plugins/ CLAUDE_PLUGIN_ROOT points to the active sub-plugin root (e.g. plugins/bootstrap/ or plugins/migration/).",
+    "plugin_loading": "Load the ad-migration plugin with: claude --plugin-dir plugin/ CLAUDE_PLUGIN_ROOT points to the plugin root (plugin/).",
     "ddl_filenames": "The loader auto-detects object types from CREATE statements — .sql filenames are not significant. Any directory of .sql files works.",
     "catalog_mandatory": "discover.py requires catalog/ files from setup-ddl. Errors if catalog is missing. No AST fallback.",
     "parse_errors": "sqlglot parse failures are hard errors (DdlParseError). The loader does not silently skip unparseable DDL.",
-    "python_tests": "Two pytest suites: (1) shared lib — cd lib && uv run pytest; integration tests: uv run pytest -m integration. (2) DDL MCP server — cd mcp/ddl && uv run pytest.",
+    "python_tests": "Two pytest suites: (1) shared lib — cd plugin/lib && uv run pytest; integration tests: uv run pytest -m integration. (2) DDL MCP server — cd plugin/mcp/ddl && uv run pytest.",
     "mssql_env_vars": "Live SQL Server access requires MSSQL_HOST, MSSQL_PORT, MSSQL_DB, SA_PASSWORD exported before launching claude.",
     "update_repo_map": "Refresh this file whenever any entry here becomes stale, especially after architecture, entrypoint, command, module, package, test/eval layout, or documentation-index changes."
   }

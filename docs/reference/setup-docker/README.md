@@ -73,7 +73,7 @@ docker logs --tail 50 aw-sql
 - Run Python integration tests (ignored by default):
 
 ```bash
-cd lib && uv run pytest -m integration
+cd plugin/lib && uv run pytest -m integration
 ```
 
 - Stop the container when done (optional):
