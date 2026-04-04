@@ -46,7 +46,7 @@
           "schema": "silver",
           "name": "usp_load_dimcurrency",
           "is_selected": false,
-          "is_updated": false
+          "is_updated": true
         }
       ],
       "out_of_scope": []

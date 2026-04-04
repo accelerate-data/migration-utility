@@ -8,7 +8,7 @@
           "schema": "silver",
           "name": "DimCurrency",
           "is_selected": false,
-          "is_updated": false
+          "is_updated": true
         }
       ],
       "out_of_scope": []
@@ -26,6 +26,10 @@
       "out_of_scope": []
     }
   },
+  "needs_llm": true,
+  "needs_enrich": true,
+  "mode": "llm_required",
+  "routing_reasons": ["dynamic_sql_variable"],
   "statements": [
     {
       "type": "TruncateTable",
