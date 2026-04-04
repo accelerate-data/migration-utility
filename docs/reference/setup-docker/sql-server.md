@@ -77,7 +77,7 @@ docker stop aw-sql
 ## Integration Test Command
 
 ```bash
-cd lib && uv run pytest -m integration
+cd plugin/lib && uv run pytest -m integration
 ```
 
 ## Troubleshooting

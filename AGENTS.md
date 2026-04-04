@@ -19,7 +19,7 @@ Adapter files must not duplicate canonical policy unless they are adding agent-s
 
 | Layer | Technology |
 |---|---|
-| Agent runtime | Claude Code CLI (`claude --plugin-dir plugins/ --agent <name>`) |
+| Agent runtime | Claude Code CLI (`claude --plugin-dir plugin/ --agent <name>`) |
 | MCP server | genai-toolbox (HTTP mode on GH Actions, stdio locally) |
 | Runtime | GitHub Actions (headless execution) |
 
@@ -60,14 +60,14 @@ Determine what you changed, then pick the right runner:
 
 | What changed | Tests to run |
 |---|---|
-| Python shared library | `cd lib && uv run pytest` |
-| Python integration (Docker SQL Server) | `cd lib && uv run pytest -m integration` |
-| MCP server | `cd mcp/ddl && uv run pytest` |
+| Python shared library | `cd plugin/lib && uv run pytest` |
+| Python integration (Docker SQL Server) | `cd plugin/lib && uv run pytest -m integration` |
+| MCP server | `cd plugin/mcp/ddl && uv run pytest` |
 | Unsure | all of the above |
 
 When a change depends on local infrastructure (for example SQL Server-backed ignored tests), document in the PR which commands were run and which were not run.
 
-**Stale venv after a repo move:** If `mcp/ddl` tests fail with `cannot execute: No such file or directory`, the `.venv` has a stale interpreter path from a prior directory location. Fix: `rm -rf mcp/ddl/.venv && cd mcp/ddl && uv sync`.
+**Stale venv after a repo move:** If `plugin/mcp/ddl` tests fail with `cannot execute: No such file or directory`, the `.venv` has a stale interpreter path from a prior directory location. Fix: `rm -rf plugin/mcp/ddl/.venv && cd plugin/mcp/ddl && uv sync`.
 
 ## Design Docs
 

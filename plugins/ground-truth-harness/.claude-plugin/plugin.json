@@ -1,8 +1,0 @@
-{
-  "name": "ground-truth-harness",
-  "description": "Ground-truth test generation and sandbox execution for stored procedure migrations.",
-  "version": "1.0.0",
-  "license": "Elastic-2.0",
-  "author": { "name": "Accelerate Data", "url": "https://github.com/accelerate-data" },
-  "repository": "https://github.com/accelerate-data/migration-utility"
-}

@@ -55,11 +55,11 @@ stored in the file.
 First, verify `toolbox` starts correctly from the repo root:
 
 ```bash
-toolbox --stdio --tools-file mcp/mssql/tools.yaml
+toolbox --stdio --tools-file plugin/mcp/mssql/tools.yaml
 # Should hang waiting for stdin input — that means it started correctly. Ctrl-C to exit.
 ```
 
-If that works, the MCP config lives in the plugin at `migration/.mcp.json`.
+If that works, the MCP config lives at `.mcp.json` in the repo root.
 Fill in your password locally — the pre-commit hook will block any commit that includes secrets:
 
 ```bash

@@ -53,13 +53,20 @@ export SA_PASSWORD=<your-password>
 
 ## Loading the Plugin
 
-Launch Claude Code with the ad-migration plugin directory:
+Install from the Vibedata marketplace:
 
 ```bash
-claude --plugin-dir <path-to-ad-migration>
+/plugin marketplace add accelerate-data/vibedata-plugins-official
+/plugin install ad-migration@vibedata-plugins-official
 ```
 
-The plugin directory contains the bootstrap, migration, and ground-truth-harness plugins that provide all pipeline commands.
+Alternatively, for local development, load the plugin directly:
+
+```bash
+claude --plugin-dir plugin/
+```
+
+The `ad-migration` plugin provides all 10 pipeline commands and 9 skills in a single package.
 
 ## Verifying Setup
 

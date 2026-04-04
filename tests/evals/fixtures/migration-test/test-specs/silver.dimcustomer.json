@@ -7,20 +7,32 @@
       "id": "truncate_before_reload",
       "statement_index": 0,
       "description": "TRUNCATE clears existing customer rows before reload",
-      "scenarios": [
-        "test_full_reload_existing_rows_cleared"
-      ]
+      "scenarios": []
     },
     {
-      "id": "outer_apply_first_purchase",
+      "id": "insert_with_outer_apply",
       "statement_index": 1,
-      "description": "OUTER APPLY derives DateFirstPurchase from the minimum order date",
+      "description": "INSERT with OUTER APPLY derives DateFirstPurchase from minimum order date",
       "scenarios": []
+    },
+    {
+      "id": "null_person_handling",
+      "statement_index": 1,
+      "description": "NULL PersonID in Customer table produces NULL name columns via LEFT JOIN to Person",
+      "scenarios": []
+    },
+    {
+      "id": "no_orders_null_date",
+      "statement_index": 1,
+      "description": "Customer with no orders gets NULL DateFirstPurchase from OUTER APPLY",
+      "scenarios": [
+        "test_single_customer_no_orders"
+      ]
     }
   ],
   "unit_tests": [
     {
-      "name": "test_full_reload_existing_rows_cleared",
+      "name": "test_single_customer_no_orders",
       "model": "stg_dimcustomer",
       "given": [
         {
@@ -31,45 +43,47 @@
               "PersonID": 1001
             }
           ]
-        },
-        {
-          "input": "source('bronze', 'person')",
-          "rows": [
-            {
-              "BusinessEntityID": 1001,
-              "FirstName": "Ada",
-              "MiddleName": null,
-              "LastName": "Lovelace",
-              "Title": "Ms",
-              "EmailPromotion": -5
-            }
-          ]
         }
       ],
       "expect": {
         "rows": [
           {
-            "CustomerAlternateKey": "101",
-            "FirstName": "Ada",
-            "LastName": "Lovelace",
-            "EmailPromotion": -5
+            "CustomerAlternateKey": "101"
           }
         ]
       }
     }
   ],
   "uncovered_branches": [
-    "outer_apply_first_purchase"
+    "truncate_before_reload",
+    "insert_with_outer_apply",
+    "null_person_handling"
   ],
   "warnings": [
     {
       "code": "FIXTURE_UNREALISTIC",
-      "message": "EmailPromotion uses an unrealistic negative value in test_full_reload_existing_rows_cleared.",
+      "message": "test_single_customer_no_orders is missing the Person source table entirely — JOIN will fail or produce NULLs for all name columns.",
       "item_id": "silver.dimcustomer",
       "severity": "warning",
       "details": {
-        "scenario": "test_full_reload_existing_rows_cleared"
+        "scenario": "test_single_customer_no_orders"
       }
+    },
+    {
+      "code": "FIXTURE_INCOMPLETE",
+      "message": "Expected output only checks CustomerAlternateKey — 8 other target columns (FirstName, MiddleName, LastName, Title, Gender, MaritalStatus, EmailPromotion, DateFirstPurchase) are not verified.",
+      "item_id": "silver.dimcustomer",
+      "severity": "warning",
+      "details": {
+        "scenario": "test_single_customer_no_orders"
+      }
+    },
+    {
+      "code": "BRANCH_NOT_COVERED",
+      "message": "3 of 4 branches have no scenarios: truncate_before_reload, insert_with_outer_apply, null_person_handling.",
+      "item_id": "silver.dimcustomer",
+      "severity": "warning",
+      "details": {}
     }
   ],
   "validation": {

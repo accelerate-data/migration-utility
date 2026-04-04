@@ -15,19 +15,19 @@ Tests live in `tests/unit/`. They test the shared Python library (DDL parsing, o
 
 ```bash
 # All unit tests
-cd lib && uv run pytest
+cd plugin/lib && uv run pytest
 
 # Single test file
-cd lib && uv run pytest ../tests/unit/test_discover.py -v
+cd plugin/lib && uv run pytest ../tests/unit/test_discover.py -v
 
 # Single test
-cd lib && uv run pytest ../tests/unit/test_smoke.py::test_load_directory_mixed_types_single_file -v
+cd plugin/lib && uv run pytest ../tests/unit/test_smoke.py::test_load_directory_mixed_types_single_file -v
 ```
 
 ## MCP server (DDL)
 
 ```bash
-cd mcp/ddl && uv run pytest
+cd plugin/mcp/ddl && uv run pytest
 ```
 
 ## Integration tests (SQL Server)
@@ -35,13 +35,13 @@ cd mcp/ddl && uv run pytest
 Requires a local SQL Server container (see [Docker Setup](../setup-docker/README.md)).
 
 ```bash
-cd lib && uv run pytest -m integration
+cd plugin/lib && uv run pytest -m integration
 ```
 
 ## Quick reference
 
 | What changed | Command |
 |---|---|
-| Python shared lib (loader, discover, profile, migrate) | `cd lib && uv run pytest` |
-| DDL MCP server | `cd mcp/ddl && uv run pytest` |
-| SQL Server integration | `cd lib && uv run pytest -m integration` |
+| Python shared lib (loader, discover, profile, migrate) | `cd plugin/lib && uv run pytest` |
+| DDL MCP server | `cd plugin/mcp/ddl && uv run pytest` |
+| SQL Server integration | `cd plugin/lib && uv run pytest -m integration` |

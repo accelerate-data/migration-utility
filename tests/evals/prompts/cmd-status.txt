@@ -1,6 +1,6 @@
 You are running in a DDL project directory at {{fixture_path}}.
 
-Read the command definition at plugins/migration/commands/status.md and follow it exactly.
+Read the command definition at plugin/commands/status.md and follow it exactly.
 
 {{#if target_table}}
 Run status for a single table: {{target_table}}
@@ -8,13 +8,13 @@ Run status for a single table: {{target_table}}
 Run status for all tables (no table argument).
 {{/if}}
 
-Wherever the command references `${CLAUDE_PLUGIN_ROOT}/../../lib`, use `lib` instead (the lib directory is at the repo root).
+Wherever the command references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead (the lib directory is at `plugin/lib/` in the repo).
 
 EVAL MODE CONSTRAINTS — follow these exactly:
 - Do NOT run ANY git commands at all. No git worktree, git checkout, git branch, git add, git commit, git stash, or any other git command. This is critical — running git commands will corrupt the eval environment.
 - Operate directly in the fixture directory ({{fixture_path}}).
 - Do NOT ask for any user confirmation — proceed automatically.
-- The migrate-util CLI is available via: uv run --project lib migrate-util dry-run <table> <stage> [--detail|--summary]
+- The migrate-util CLI is available via: uv run --project plugin/lib migrate-util dry-run <table> <stage> [--detail|--summary]
 - Note: the CLI requires the project root to be a git repo. Use --project-root {{fixture_path}} when calling it.
 
 CRITICAL OUTPUT REQUIREMENT: Your FINAL text response must include:

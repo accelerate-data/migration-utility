@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "ddl": {
+      "command": "uv",
+      "args": ["run", "${CLAUDE_PLUGIN_ROOT}/mcp/ddl/server.py"]
+    },
+    "mssql": {
+      "command": "toolbox",
+      "args": ["--tools-file", "${CLAUDE_PLUGIN_ROOT}/mcp/mssql/tools.yaml", "--stdio"]
+    }
+  }
+}

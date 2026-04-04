@@ -54,7 +54,7 @@ uv sync --project lib
 To run the plugin locally:
 
 ```bash
-claude --plugin-dir plugins/
+claude --plugin-dir plugin/
 ```
 
 ---
@@ -83,9 +83,9 @@ See `repo-map.json` for the full structure, entrypoints, and command reference.
 ### Tests
 
 ```bash
-cd lib && uv run pytest                     # shared library
-cd mcp/ddl && uv run pytest                 # DDL MCP server
-cd lib && uv run pytest -m integration      # requires Docker SQL Server
+cd plugin/lib && uv run pytest                     # shared library
+cd plugin/mcp/ddl && uv run pytest                 # DDL MCP server
+cd plugin/lib && uv run pytest -m integration      # requires Docker SQL Server
 ```
 
 ### Lint
