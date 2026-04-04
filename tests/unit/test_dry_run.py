@@ -296,3 +296,363 @@ def test_migrate_detail_dbt_evidence(assert_valid_schema) -> None:
         assert dbt["has_unit_tests"] is True
         assert dbt["compiled_exists"] is True
         assert "stg_dimcustomer" in dbt["model_path"]
+
+
+# ── Corrupted / malformed JSON ───────────────────────────────────────────────
+
+
+def test_corrupt_manifest_json(assert_valid_schema) -> None:
+    """Corrupted manifest.json should fail with MANIFEST_CORRUPT."""
+    tmp, root = _make_project()
+    with tmp:
+        (root / "manifest.json").write_text("NOT JSON{{{", encoding="utf-8")
+        result = dry_run.run_dry_run(root, "silver.DimCustomer", "scope")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is False
+        assert result["guard_results"][-1]["code"] == "MANIFEST_CORRUPT"
+
+
+def test_corrupt_table_catalog_json(assert_valid_schema) -> None:
+    """Corrupted table catalog should fail with CATALOG_FILE_CORRUPT."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat_path.write_text("{broken json", encoding="utf-8")
+        result = dry_run.run_dry_run(root, "silver.DimCustomer", "scope")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is False
+        assert result["guard_results"][-1]["code"] == "CATALOG_FILE_CORRUPT"
+
+
+def test_corrupt_proc_catalog_json(assert_valid_schema) -> None:
+    """Corrupted procedure catalog should fail with STATEMENTS_NOT_RESOLVED."""
+    tmp, root = _make_project()
+    with tmp:
+        proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
+        proc_path.write_text("<<<not json>>>", encoding="utf-8")
+        result = dry_run.run_dry_run(root, "silver.DimCustomer", "profile")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is False
+        assert result["guard_results"][-1]["code"] == "STATEMENTS_NOT_RESOLVED"
+
+
+def test_corrupt_manifest_sandbox_check(assert_valid_schema) -> None:
+    """Corrupted manifest during sandbox check should fail gracefully."""
+    tmp, root = _make_project()
+    with tmp:
+        (root / "manifest.json").write_text("!corrupt!", encoding="utf-8")
+        result = dry_run.run_dry_run(root, "silver.DimCustomer", "scope")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is False
+
+
+# ── Incomplete / partial state scenarios ─────────────────────────────────────
+
+
+def test_scoped_but_not_profiled(assert_valid_schema) -> None:
+    """Table with scoping done but no profile section — profile guard fails."""
+    tmp, root = _make_project()
+    with tmp:
+        # Remove profile section from catalog
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        del cat["profile"]
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+        # Scope should still pass
+        scope_result = dry_run.run_dry_run(root, "silver.DimCustomer", "scope")
+        assert scope_result["guards_passed"] is True
+        # Profile should also pass (guards check scoping + statements, not profile itself)
+        profile_result = dry_run.run_dry_run(root, "silver.DimCustomer", "profile")
+        assert profile_result["guards_passed"] is True
+        # But test-gen should fail — needs profile
+        test_gen_result = dry_run.run_dry_run(root, "silver.DimCustomer", "test-gen")
+        assert_valid_schema(test_gen_result, "dry_run_output.json")
+        assert test_gen_result["guards_passed"] is False
+        assert test_gen_result["guard_results"][-1]["code"] == "PROFILE_NOT_COMPLETED"
+
+
+def test_profile_status_error_blocks_test_gen(assert_valid_schema) -> None:
+    """Profile with status 'error' should block test-gen."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["profile"]["status"] = "error"
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+        result = dry_run.run_dry_run(root, "silver.DimCustomer", "test-gen")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is False
+        assert result["guard_results"][-1]["code"] == "PROFILE_NOT_COMPLETED"
+
+
+def test_profile_partial_allows_test_gen(assert_valid_schema) -> None:
+    """Profile with status 'partial' should still allow test-gen."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["profile"]["status"] = "partial"
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+        result = dry_run.run_dry_run(root, "silver.DimCustomer", "test-gen")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is True
+
+
+def test_ambiguous_multi_writer_blocks_profile(assert_valid_schema) -> None:
+    """Scoping with ambiguous_multi_writer (no selected_writer) blocks profile."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["scoping"]["status"] = "ambiguous_multi_writer"
+        del cat["scoping"]["selected_writer"]
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+        result = dry_run.run_dry_run(root, "silver.DimCustomer", "profile")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is False
+        assert result["guard_results"][-1]["code"] == "SCOPING_NOT_COMPLETED"
+
+
+def test_empty_statements_array_blocks_profile(assert_valid_schema) -> None:
+    """Proc catalog with empty statements array blocks profile."""
+    tmp, root = _make_project()
+    with tmp:
+        proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
+        proc = json.loads(proc_path.read_text(encoding="utf-8"))
+        proc["statements"] = []
+        proc_path.write_text(json.dumps(proc), encoding="utf-8")
+        result = dry_run.run_dry_run(root, "silver.DimCustomer", "profile")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is False
+        assert result["guard_results"][-1]["code"] == "STATEMENTS_NOT_RESOLVED"
+
+
+def test_sandbox_with_missing_run_id(assert_valid_schema) -> None:
+    """Sandbox with database but missing run_id should fail."""
+    tmp, root = _make_project()
+    with tmp:
+        manifest_path = root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        del manifest["sandbox"]["run_id"]
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        result = dry_run.run_dry_run(root, "silver.DimCustomer", "test-gen")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is False
+        assert result["guard_results"][-1]["code"] == "SANDBOX_NOT_CONFIGURED"
+
+
+# ── dbt evidence edge cases ──────────────────────────────────────────────────
+
+
+def test_migrate_no_dbt_model(assert_valid_schema) -> None:
+    """Model missing from dbt/ — evidence shows model and YAML both missing.
+
+    Schema YAML is located relative to the model file, so when the model
+    is absent the YAML lookup also returns None.
+    """
+    tmp, root = _make_project()
+    with tmp:
+        (root / "dbt" / "models" / "staging" / "stg_dimcustomer.sql").unlink()
+        result = dry_run.run_dry_run(root, "silver.DimCustomer", "migrate")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is True
+        content = result["content"]
+        assert content["dbt_model_exists"] is False
+        assert content["schema_yaml_exists"] is False
+
+
+def test_migrate_no_schema_yaml(assert_valid_schema) -> None:
+    """dbt model exists but no schema YAML alongside it."""
+    tmp, root = _make_project()
+    with tmp:
+        (root / "dbt" / "models" / "staging" / "_stg_dimcustomer.yml").unlink()
+        result = dry_run.run_dry_run(root, "silver.DimCustomer", "migrate")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is True
+        content = result["content"]
+        assert content["dbt_model_exists"] is True
+        assert content["schema_yaml_exists"] is False
+        assert content["has_unit_tests"] is False
+
+
+def test_migrate_schema_yaml_without_unit_tests(assert_valid_schema) -> None:
+    """Schema YAML exists but has no unit_tests key."""
+    tmp, root = _make_project()
+    with tmp:
+        yaml_path = root / "dbt" / "models" / "staging" / "_stg_dimcustomer.yml"
+        yaml_path.write_text(
+            "models:\n  - name: stg_dimcustomer\n    description: No tests\n",
+            encoding="utf-8",
+        )
+        result = dry_run.run_dry_run(root, "silver.DimCustomer", "migrate")
+        assert_valid_schema(result, "dry_run_output.json")
+        content = result["content"]
+        assert content["schema_yaml_exists"] is True
+        assert content["has_unit_tests"] is False
+
+
+def test_migrate_no_compiled_artifacts(assert_valid_schema) -> None:
+    """No compiled artifacts in target/ — compiled_exists is False."""
+    tmp, root = _make_project()
+    with tmp:
+        import shutil as _shutil
+        _shutil.rmtree(root / "dbt" / "target")
+        result = dry_run.run_dry_run(root, "silver.DimCustomer", "migrate")
+        assert_valid_schema(result, "dry_run_output.json")
+        content = result["content"]
+        assert content["compiled_exists"] is False
+        assert content["test_results_exist"] is False
+
+
+# ── Profile content: partial / missing questions ─────────────────────────────
+
+
+def test_profile_summary_partial_questions(assert_valid_schema) -> None:
+    """Profile with some questions missing shows them correctly."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["profile"]["status"] = "partial"
+        del cat["profile"]["watermark"]
+        del cat["profile"]["natural_key"]
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+        result = dry_run.run_dry_run(root, "silver.DimCustomer", "profile")
+        assert_valid_schema(result, "dry_run_output.json")
+        content = result["content"]
+        assert content["profile_status"] == "partial"
+        assert content["has_watermark"] is False
+        assert content["questions"]["watermark"] == "missing"
+        assert content["questions"]["natural_key"] == "missing"
+        assert content["questions"]["classification"] == "answered"
+
+
+# ── Multi-table mixed state ──────────────────────────────────────────────────
+
+
+def _add_table_to_project(
+    root: Path,
+    table_fqn: str,
+    *,
+    include_scoping: bool = False,
+    include_profile: bool = False,
+) -> None:
+    """Add a table catalog file to an existing project fixture."""
+    norm = dry_run.normalize(table_fqn)
+    schema, name = dry_run.fqn_parts(norm)
+    cat: dict[str, Any] = {
+        "schema": schema,
+        "name": name,
+        "primary_keys": [],
+        "unique_indexes": [],
+        "foreign_keys": [],
+        "auto_increment_columns": [],
+        "referenced_by": [],
+    }
+    if include_scoping:
+        cat["scoping"] = {
+            "status": "resolved",
+            "selected_writer": f"dbo.usp_load_{name}",
+            "candidates": [
+                {"procedure_name": f"dbo.usp_load_{name}", "dependencies": {"tables": [], "views": [], "functions": []}, "rationale": "test"}
+            ],
+            "warnings": [],
+            "validation": {"passed": True, "issues": []},
+            "errors": [],
+        }
+        # Also create proc catalog with resolved statements
+        proc_dir = root / "catalog" / "procedures"
+        proc_dir.mkdir(parents=True, exist_ok=True)
+        proc_cat = {
+            "schema": "dbo",
+            "name": f"usp_load_{name}",
+            "statements": [{"index": 0, "action": "migrate", "source": "ast", "sql": "INSERT INTO ..."}],
+            "references": [],
+        }
+        (proc_dir / f"dbo.usp_load_{name}.json").write_text(
+            json.dumps(proc_cat), encoding="utf-8",
+        )
+    if include_profile:
+        cat["profile"] = {
+            "status": "ok",
+            "writer": f"dbo.usp_load_{name}",
+            "classification": {"resolved_kind": "fact_transaction", "rationale": "test", "source": "llm"},
+            "primary_key": {"columns": ["id"], "primary_key_type": "surrogate", "source": "llm"},
+            "natural_key": {},
+            "watermark": {"column": "load_date", "rationale": "test", "source": "llm"},
+            "foreign_keys": [],
+            "pii_actions": [],
+            "warnings": [],
+            "errors": [],
+        }
+    (root / "catalog" / "tables" / f"{norm}.json").write_text(
+        json.dumps(cat), encoding="utf-8",
+    )
+
+
+def test_multi_table_at_different_stages(assert_valid_schema) -> None:
+    """Multiple tables at different pipeline stages produce correct results."""
+    tmp, root = _make_project()
+    with tmp:
+        # silver.DimCustomer is fully complete (from fixtures)
+        # Add silver.FactSales — scoped + profiled but no test-spec
+        _add_table_to_project(root, "silver.FactSales", include_scoping=True, include_profile=True)
+        # Add silver.DimDate — only catalog exists (no scoping)
+        _add_table_to_project(root, "silver.DimDate")
+        # Add silver.DimProduct — scoped but not profiled
+        _add_table_to_project(root, "silver.DimProduct", include_scoping=True)
+
+        # DimCustomer: all stages pass
+        r1 = dry_run.run_dry_run(root, "silver.DimCustomer", "migrate")
+        assert_valid_schema(r1, "dry_run_output.json")
+        assert r1["guards_passed"] is True
+
+        # FactSales: scoped + profiled, but test-gen fails (no test-spec... but
+        # test-gen guard checks profile + sandbox, not test-spec)
+        r2 = dry_run.run_dry_run(root, "silver.FactSales", "test-gen")
+        assert_valid_schema(r2, "dry_run_output.json")
+        assert r2["guards_passed"] is True  # has profile + sandbox
+
+        # FactSales: migrate fails — no test-spec
+        r2m = dry_run.run_dry_run(root, "silver.FactSales", "migrate")
+        assert_valid_schema(r2m, "dry_run_output.json")
+        assert r2m["guards_passed"] is False
+        assert r2m["guard_results"][-1]["code"] == "TEST_SPEC_NOT_FOUND"
+
+        # DimDate: scope passes, profile fails (no scoping)
+        r3s = dry_run.run_dry_run(root, "silver.DimDate", "scope")
+        assert r3s["guards_passed"] is True
+        r3p = dry_run.run_dry_run(root, "silver.DimDate", "profile")
+        assert r3p["guards_passed"] is False
+        assert r3p["guard_results"][-1]["code"] == "SCOPING_NOT_COMPLETED"
+
+        # DimProduct: scope passes, profile passes (scoped with statements),
+        # but test-gen fails (no profile section)
+        r4p = dry_run.run_dry_run(root, "silver.DimProduct", "profile")
+        assert r4p["guards_passed"] is True
+        r4t = dry_run.run_dry_run(root, "silver.DimProduct", "test-gen")
+        assert r4t["guards_passed"] is False
+        assert r4t["guard_results"][-1]["code"] == "PROFILE_NOT_COMPLETED"
+
+
+# ── FQN normalization edge cases ─────────────────────────────────────────────
+
+
+def test_bracketed_table_name(assert_valid_schema) -> None:
+    """Bracketed T-SQL identifiers are normalized correctly."""
+    tmp, root = _make_project()
+    with tmp:
+        result = dry_run.run_dry_run(root, "[silver].[DimCustomer]", "scope")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is True
+        assert result["table"] == "silver.dimcustomer"
+
+
+def test_case_insensitive_table_name(assert_valid_schema) -> None:
+    """Mixed-case table names are normalized to lowercase."""
+    tmp, root = _make_project()
+    with tmp:
+        result = dry_run.run_dry_run(root, "SILVER.DIMCUSTOMER", "scope")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is True
+        assert result["table"] == "silver.dimcustomer"

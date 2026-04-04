@@ -78,12 +78,28 @@ def check_manifest(project_root: Path) -> dict[str, Any]:
             "MANIFEST_NOT_FOUND",
             "manifest.json not found in project root.",
         )
+    try:
+        json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        return _guard_fail(
+            "manifest_exists",
+            "MANIFEST_CORRUPT",
+            f"manifest.json is not valid JSON: {exc}",
+        )
     return _guard_ok("manifest_exists")
 
 
 def check_table_catalog(project_root: Path, table_fqn: str) -> dict[str, Any]:
-    """Check catalog/tables/<item_id>.json exists."""
-    cat = load_table_catalog(project_root, table_fqn)
+    """Check catalog/tables/<item_id>.json exists and is valid JSON."""
+    try:
+        cat = load_table_catalog(project_root, table_fqn)
+    except (json.JSONDecodeError, OSError) as exc:
+        norm = normalize(table_fqn)
+        return _guard_fail(
+            "table_catalog_exists",
+            "CATALOG_FILE_CORRUPT",
+            f"catalog/tables/{norm}.json is not valid JSON: {exc}",
+        )
     if cat is None:
         norm = normalize(table_fqn)
         return _guard_fail(
@@ -116,7 +132,14 @@ def check_statements_resolved(project_root: Path, table_fqn: str) -> dict[str, A
             "SCOPING_NOT_COMPLETED",
             "Cannot check statements — no selected_writer.",
         )
-    proc_cat = load_proc_catalog(project_root, writer)
+    try:
+        proc_cat = load_proc_catalog(project_root, writer)
+    except (json.JSONDecodeError, OSError) as exc:
+        return _guard_fail(
+            "statements_resolved",
+            "STATEMENTS_NOT_RESOLVED",
+            f"Procedure catalog for {writer} is not valid JSON: {exc}",
+        )
     if proc_cat is None:
         return _guard_fail(
             "statements_resolved",
@@ -177,7 +200,14 @@ def check_sandbox_metadata(project_root: Path) -> dict[str, Any]:
             "SANDBOX_NOT_CONFIGURED",
             "manifest.json not found.",
         )
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        return _guard_fail(
+            "sandbox_configured",
+            "SANDBOX_NOT_CONFIGURED",
+            f"manifest.json is not valid JSON: {exc}",
+        )
     sandbox = manifest.get("sandbox")
     if not sandbox or not sandbox.get("run_id") or not sandbox.get("database"):
         return _guard_fail(
