@@ -31,7 +31,7 @@ If these are not set, `/setup-ddl` and `/setup-sandbox` will fail. Set them in y
 
 **`CLAUDE_PLUGIN_ROOT` not set**
 
-All plugin commands require the `CLAUDE_PLUGIN_ROOT` environment variable. This is set automatically when loading plugins via `claude --plugin-dir <path>`. If you see this error, ensure you are launching Claude Code with the plugin directory flag.
+All plugin commands require the `CLAUDE_PLUGIN_ROOT` environment variable. This is set automatically when the `ad-migration` plugin is installed via the marketplace or loaded with `claude --plugin-dir plugin/`. If you see this error, ensure the plugin is installed (see [[Installation and Prerequisites]]).
 
 ## Scoping errors
 
