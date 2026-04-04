@@ -32,7 +32,7 @@ The `setup-worktree.sh` script runs after worktree creation and handles two thin
 
 Single-table skill invocations (`/analyzing-table`, `/profiling-table`, etc.) do not create branches. The FDE works on whatever branch they are already on.
 
-Multi-table commands create a branch and worktree automatically. If a worktree already exists for the same slug, the command checks for an open PR on that branch and asks the FDE whether to **continue** (preserve prior work and update the existing PR) or **start fresh** (clear `.migration-runs/` and start over). The branch name is built from the command name and the table names, truncated to 60 characters to stay within git limits.
+Multi-table commands create a branch and worktree automatically. Before creating a new one, the command scans all existing worktrees for open PRs. If any are found, it lists them and asks the FDE whether to **continue on an existing branch** (preserve prior work and update the existing PR) or create a **new worktree**. This lets the FDE build up a single PR across multiple command invocations — for example, scoping table A, then adding table B to the same branch. The branch name is built from the command name and the table names, truncated to 60 characters to stay within git limits.
 
 ## PR format
 

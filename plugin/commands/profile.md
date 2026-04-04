@@ -23,18 +23,17 @@ Produce migration profiles for each table. Launches one sub-agent per table in p
 
 1. Read worktree base path from `.claude/rules/git-workflow.md`.
 2. Generate run slug: `feature/profile-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters after `feature/`).
-3. Check whether the worktree already exists: run `git worktree list --porcelain` and look for `<base>/<slug>`.
-   - **Worktree exists:** check for an open PR via `gh pr list --head <slug> --state open --json number,title,url`.
-     - **Open PR found:** ask the user:
-       > Branch `<slug>` has open PR #N: "\<title>".
-       > - **Continue** — add to the existing branch and update the PR
-       > - **Start fresh** — reset and start over
-     - **No open PR:** ask the user:
-       > Worktree `<slug>` already exists (no open PR).
-       > - **Continue** — keep existing work
-       > - **Start fresh** — reset and start over
-   - **Worktree does not exist:** create it — `mkdir -p <base>/feature && git worktree add <base>/<slug> -b <slug>`, then run `./scripts/setup-worktree.sh <worktree-path>`.
-4. **Start fresh** (or new worktree): clear `.migration-runs/` and write `meta.json` (see below). **Continue**: skip clearing — preserve existing `.migration-runs/` and `meta.json`.
+3. Scan for existing worktrees with open PRs: run `git worktree list --porcelain` to find all worktrees under `<base>/`. For each worktree branch, check for an open PR via `gh pr list --head <branch> --state open --json number,title,url`.
+   - **One or more worktrees with open PRs found:** list them and ask the user:
+     > Existing worktrees with open PRs:
+     >
+     > 1. `feature/scope-silver-dimcustomer` — PR #42: "Scoping — 1 table"
+     > 2. `feature/profile-silver-dimcustomer` — PR #43: "Profiling — 1 table"
+     >
+     > - **Continue on #N** — add to that branch and update its PR
+     > - **New worktree** — create `<slug>` and start fresh
+   - **No worktrees with open PRs:** create the new worktree — `mkdir -p <base>/feature && git worktree add <base>/<slug> -b <slug>`, then run `./scripts/setup-worktree.sh <worktree-path>`.
+4. **New worktree**: clear `.migration-runs/` and write `meta.json` (see below). **Continue on existing**: skip clearing — preserve existing `.migration-runs/` and `meta.json`.
 
 ```json
 {
