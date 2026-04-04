@@ -23,7 +23,7 @@ import pytest
 
 pytestmark = pytest.mark.integration
 
-SHARED_DIR = Path(__file__).parent.parent.parent / "lib"
+SHARED_DIR = Path(__file__).parent.parent.parent / "plugin" / "lib"
 
 
 def _have_mssql_env() -> bool:

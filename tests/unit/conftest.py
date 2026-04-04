@@ -7,10 +7,10 @@ import pytest
 from referencing import Registry, Resource
 from referencing.jsonschema import DRAFT202012
 
-# Ensure lib/ is on the path so tests can import shared.* directly.
-sys.path.insert(0, str(Path(__file__).parents[2] / "lib"))
+# Ensure plugin/lib/ is on the path so tests can import shared.* directly.
+sys.path.insert(0, str(Path(__file__).parents[2] / "plugin" / "lib"))
 
-SCHEMA_DIR = Path(__file__).parents[2] / "lib" / "shared" / "schemas"
+SCHEMA_DIR = Path(__file__).parents[2] / "plugin" / "lib" / "shared" / "schemas"
 
 
 def _build_registry() -> Registry:

@@ -14,6 +14,7 @@ import pytest
 
 SHARED_DIR = (
     Path(__file__).parent.parent.parent
+    / "plugin"
     / "lib"
 )
 
