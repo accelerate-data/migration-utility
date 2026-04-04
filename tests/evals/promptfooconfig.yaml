@@ -23,6 +23,18 @@ prompts:
   - id: scoping-table
     label: scoping-table
     raw: file://prompts/skill-scoping-table.txt
+  - id: cmd-scope
+    label: cmd-scope
+    raw: file://prompts/cmd-scope.txt
+  - id: cmd-profile
+    label: cmd-profile
+    raw: file://prompts/cmd-profile.txt
+  - id: cmd-generate-model
+    label: cmd-generate-model
+    raw: file://prompts/cmd-generate-model.txt
+  - id: cmd-generate-tests
+    label: cmd-generate-tests
+    raw: file://prompts/cmd-generate-tests.txt
 
 providers:
   - id: anthropic:claude-agent-sdk
