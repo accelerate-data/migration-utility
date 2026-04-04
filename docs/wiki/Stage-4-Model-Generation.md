@@ -1,4 +1,4 @@
-# Stage 7 -- Model Generation
+# Stage 4 -- Model Generation
 
 The `/generate-model` command generates dbt models from stored procedures using the profile and test spec data. It includes a self-correction loop for `dbt test` failures and a code review loop for quality. This is the final migration stage before PR review and merge.
 

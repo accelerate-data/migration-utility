@@ -81,4 +81,4 @@ cleanup-worktrees complete
 ## Related pages
 
 - [[Git Workflow]] -- how worktrees and branches are created
-- [[Stage 6 Test Generation]] -- when the sandbox is used
+- [[Stage 3 Test Generation]] -- when the sandbox is used

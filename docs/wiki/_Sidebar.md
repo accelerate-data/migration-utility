@@ -4,21 +4,19 @@
 - [[Installation and Prerequisites]]
 - [[Quickstart]]
 
-**Pipeline Stages**
+**Project Setup**
 
 - [[Stage 1 Project Init]]
 - [[Stage 2 DDL Extraction]]
 - [[Stage 3 dbt Scaffolding]]
-- [[Stage 4 Scoping]]
-- [[Stage 5 Profiling]]
-- [[Stage 6 Test Generation]]
-- [[Stage 7 Model Generation]]
+- [[Stage 4 Sandbox Setup]]
 
-**Monitoring and Cleanup**
+**Per-Table Migration**
 
-- [[Status Dashboard]]
-- [[Git Workflow]]
-- [[Cleanup and Teardown]]
+- [[Stage 1 Scoping]]
+- [[Stage 2 Profiling]]
+- [[Stage 3 Test Generation]]
+- [[Stage 4 Model Generation]]
 
 **Skill Reference**
 
@@ -31,8 +29,14 @@
 - [[Skill Generating Model]]
 - [[Skill Reviewing Model]]
 
+**Operations**
+
+- [[Status Dashboard]]
+- [[Git Workflow]]
+- [[Browsing the Catalog]]
+- [[Cleanup and Teardown]]
+
 **Reference**
 
-- [[Browsing the Catalog]]
 - [[Glossary]]
 - [[Troubleshooting and Error Codes]]
