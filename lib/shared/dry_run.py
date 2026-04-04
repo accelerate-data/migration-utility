@@ -34,6 +34,7 @@ from shared.catalog import (
     read_selected_writer,
 )
 from shared.env_config import resolve_dbt_project_path, resolve_project_root
+from shared.loader_data import CatalogLoadError
 from shared.name_resolver import fqn_parts, normalize
 
 logger = logging.getLogger(__name__)
@@ -93,7 +94,7 @@ def check_table_catalog(project_root: Path, table_fqn: str) -> dict[str, Any]:
     """Check catalog/tables/<item_id>.json exists and is valid JSON."""
     try:
         cat = load_table_catalog(project_root, table_fqn)
-    except (json.JSONDecodeError, OSError) as exc:
+    except (json.JSONDecodeError, OSError, CatalogLoadError) as exc:
         norm = normalize(table_fqn)
         return _guard_fail(
             "table_catalog_exists",
@@ -134,7 +135,7 @@ def check_statements_resolved(project_root: Path, table_fqn: str) -> dict[str, A
         )
     try:
         proc_cat = load_proc_catalog(project_root, writer)
-    except (json.JSONDecodeError, OSError) as exc:
+    except (json.JSONDecodeError, OSError, CatalogLoadError) as exc:
         return _guard_fail(
             "statements_resolved",
             "STATEMENTS_NOT_RESOLVED",

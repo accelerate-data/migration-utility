@@ -32,6 +32,15 @@ class CatalogFileMissingError(Exception):
         self.fqn = fqn
 
 
+class CatalogLoadError(Exception):
+    """Raised when a catalog JSON file exists but cannot be decoded."""
+
+    def __init__(self, path: str, cause: Exception) -> None:
+        super().__init__(f"Corrupt catalog JSON at {path}: {cause}")
+        self.path = path
+        self.cause = cause
+
+
 class ProfileMissingError(Exception):
     """Raised when a table catalog file has no profile section."""
 

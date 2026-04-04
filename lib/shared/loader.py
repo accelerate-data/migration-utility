@@ -6,6 +6,7 @@ callers (``from shared.loader import DdlCatalog``, etc.) continue to work.
 
 from shared.loader_data import (  # noqa: F401 — re-export
     CatalogFileMissingError,
+    CatalogLoadError,
     CatalogNotFoundError,
     DdlCatalog,
     DdlEntry,
@@ -35,6 +36,7 @@ from shared.loader_parse import (  # noqa: F401 — re-export
 
 __all__ = [
     "CatalogFileMissingError",
+    "CatalogLoadError",
     "CatalogNotFoundError",
     "DdlCatalog",
     "DdlEntry",

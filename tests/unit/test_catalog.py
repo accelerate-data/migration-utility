@@ -5,6 +5,9 @@ from __future__ import annotations
 import json
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
+
+import pytest
 
 from shared.catalog import (
     has_catalog,
@@ -12,10 +15,13 @@ from shared.catalog import (
     load_proc_catalog,
     load_table_catalog,
     load_view_catalog,
+    read_selected_writer,
     scan_routing_flags,
     write_object_catalog,
+    write_proc_statements,
     write_table_catalog,
 )
+from shared.loader_data import CatalogLoadError
 from shared.dmf_processing import (
     flip_references,
     process_dmf_results,
@@ -551,3 +557,125 @@ def test_process_dmf_results_same_database_is_in_scope() -> None:
     refs = result["dbo.usp_load"]
     assert len(refs["tables"]["in_scope"]) == 1
     assert refs["tables"]["out_of_scope"] == []
+
+
+# ── Corrupt JSON / CatalogLoadError ──────────────────────────────────────
+
+
+def _write_corrupt(tmp: Path, object_type: str, fqn: str, content: str | bytes) -> None:
+    """Write corrupt content to the appropriate catalog path."""
+    d = tmp / "catalog" / object_type
+    d.mkdir(parents=True, exist_ok=True)
+    p = d / f"{fqn}.json"
+    if isinstance(content, bytes):
+        p.write_bytes(content)
+    else:
+        p.write_text(content, encoding="utf-8")
+
+
+def test_load_table_catalog_truncated_json_raises() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write_corrupt(root, "tables", "dbo.broken", '{"primary_keys": [')
+        with pytest.raises(CatalogLoadError) as exc_info:
+            load_table_catalog(root, "dbo.broken")
+        assert "dbo.broken" in exc_info.value.path
+
+
+def test_load_proc_catalog_empty_file_raises() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write_corrupt(root, "procedures", "dbo.broken", "")
+        with pytest.raises(CatalogLoadError):
+            load_proc_catalog(root, "dbo.broken")
+
+
+def test_load_view_catalog_binary_garbage_raises() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write_corrupt(root, "views", "dbo.broken", b"\x80\x81\x82\x83")
+        with pytest.raises(CatalogLoadError):
+            load_view_catalog(root, "dbo.broken")
+
+
+def test_load_function_catalog_corrupt_raises() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write_corrupt(root, "functions", "dbo.broken", "{not valid")
+        with pytest.raises(CatalogLoadError):
+            load_function_catalog(root, "dbo.broken")
+
+
+def test_load_catalog_valid_json_array_loads() -> None:
+    """A valid JSON array (not object) should load without crash."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write_corrupt(root, "tables", "dbo.arr", '[1, 2, 3]')
+        result = load_table_catalog(root, "dbo.arr")
+        assert result == [1, 2, 3]
+
+
+def test_write_proc_statements_corrupt_existing_raises() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write_corrupt(root, "procedures", "dbo.broken", "{truncated")
+        with pytest.raises(CatalogLoadError):
+            write_proc_statements(root, "dbo.broken", [{"type": "insert"}])
+
+
+def test_read_selected_writer_corrupt_table_catalog_raises() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write_corrupt(root, "tables", "dbo.broken", "{not json")
+        with pytest.raises(CatalogLoadError):
+            read_selected_writer(root, "dbo.broken")
+
+
+# ── Cross-cutting edge cases ─────────────────────────────────────────────
+
+
+def test_load_catalog_whitespace_only_raises() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write_corrupt(root, "tables", "dbo.ws", "   \n  \t  ")
+        with pytest.raises(CatalogLoadError):
+            load_table_catalog(root, "dbo.ws")
+
+
+def test_load_catalog_null_literal_loads() -> None:
+    """A file containing just 'null' is valid JSON."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write_corrupt(root, "tables", "dbo.nullval", "null")
+        result = load_table_catalog(root, "dbo.nullval")
+        assert result is None
+
+
+def test_load_catalog_bom_prefix_raises_with_path() -> None:
+    """UTF-8 BOM prefix produces a clear CatalogLoadError with file path."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        bom_content = '\ufeff{"key": "value"}'
+        _write_corrupt(root, "tables", "dbo.bom", bom_content)
+        with pytest.raises(CatalogLoadError) as exc_info:
+            load_table_catalog(root, "dbo.bom")
+        assert "dbo.bom" in exc_info.value.path
+
+
+def test_load_catalog_trailing_comma_raises() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write_corrupt(root, "tables", "dbo.comma", '{"a": 1,}')
+        with pytest.raises(CatalogLoadError) as exc_info:
+            load_table_catalog(root, "dbo.comma")
+        assert "dbo.comma" in exc_info.value.path
+
+
+def test_load_catalog_oserror_propagates() -> None:
+    """An OSError reading a catalog file should propagate (not masked by JSONDecodeError catch)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write_corrupt(root, "tables", "dbo.locked", '{"ok": true}')
+        with patch("pathlib.Path.read_text", side_effect=OSError("locked")):
+            with pytest.raises(OSError, match="locked"):
+                load_table_catalog(root, "dbo.locked")
