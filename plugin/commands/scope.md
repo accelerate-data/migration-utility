@@ -36,7 +36,9 @@ Identify which procedures write to each table. Launches one sub-agent per table 
 
 ### Step 2 — Run migration:scoping-table per table
 
-Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
+**Single-table path (1 table):** Run `migration:scoping-table` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.json`. Then continue to Step 3.
+
+**Multi-table path (2+ tables):** Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
 
 ```text
 Run the migration:scoping-table skill for <schema.table>.
