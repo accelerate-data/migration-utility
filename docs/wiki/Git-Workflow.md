@@ -15,7 +15,7 @@ Worktrees are created at `../worktrees/<branchName>` relative to the repo root. 
 For batch command worktrees, the branch name is derived from the command and tables:
 
 ```text
-../worktrees/run/scope-batch-1
+../worktrees/feature/scope-silver-dimcustomer-silver-dimproduct
 ```
 
 The `setup-worktree.sh` script runs after worktree creation and handles two things:
