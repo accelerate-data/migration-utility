@@ -86,11 +86,11 @@
     },
     "migration_skills": {
       "path": "plugin/skills/",
-      "description": "Skill definitions: listing-objects/ (catalog browsing — list objects by type), scoping-table/ (table scoping — writer discovery, procedure analysis via reference, statement resolution, catalog persistence), generating-model/ (dbt model generation from stored procedures), profiling-table/ (interactive single-table profiling with approval gates), setup-ddl/ (DDL extraction from live SQL Server with catalog signals, DMF references, and AST enrichment), generating-tests/ (single-table test generation with ground truth capture), reviewing-tests/ (LLM quality gate for test specs)."
+      "description": "Skill definitions: listing-objects/ (catalog browsing — list objects by type), scoping-table/ (table scoping — writer discovery, procedure analysis via reference, statement resolution, catalog persistence), generating-model/ (dbt model generation from stored procedures), profiling-table/ (interactive single-table profiling with approval gates), generating-tests/ (single-table test generation with ground truth capture), reviewing-tests/ (LLM quality gate for test specs)."
     },
     "migration_commands": {
       "path": "plugin/commands/",
-      "description": "Stage-specific commands: scope.md (writer discovery), profile.md (migration profiling), generate-model.md (dbt model generation), status.md (migration status dashboard — calls migrate-util dry-run CLI, interprets results with LLM), init-ad-migration.md (prerequisite checker and installer), init-dbt.md (dbt project scaffolding), setup-sandbox.md (create throwaway sandbox DB), teardown-sandbox.md (drop sandbox DB), generate-tests.md (multi-table test generation with review loop). Each is self-contained with sub-agent orchestration, worktree setup, and result summarization."
+      "description": "Stage-specific commands: setup-ddl.md (DDL extraction from live SQL Server with catalog signals, DMF references, and AST enrichment), scope.md (writer discovery), profile.md (migration profiling), generate-model.md (dbt model generation), status.md (migration status dashboard — calls migrate-util dry-run CLI, interprets results with LLM), init-ad-migration.md (prerequisite checker and installer), init-dbt.md (dbt project scaffolding), setup-sandbox.md (create throwaway sandbox DB), teardown-sandbox.md (drop sandbox DB), generate-tests.md (multi-table test generation with review loop). Each is self-contained with sub-agent orchestration, worktree setup, and result summarization."
     },
     "tests_migration": {
       "path": "tests/unit/",
