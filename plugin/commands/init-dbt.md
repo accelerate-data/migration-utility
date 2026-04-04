@@ -241,7 +241,10 @@ dbt project scaffolded at <project-root>/dbt/
   Validated:  dbt compile <passed|failed — see above>
 
 Next steps:
-  1. Update profiles.yml with your connection credentials (unless SQL Server or DuckDB)
+  1. Update profiles.yml with your connection credentials
+     - Fabric/Spark/Snowflake: replace placeholder values with real credentials
+     - SQL Server: credentials read from MSSQL_HOST, MSSQL_PORT, MSSQL_DB, SA_PASSWORD env vars (set during /init-ad-migration)
+     - DuckDB: no credentials needed
   2. Run /scope, /profile, /generate-tests, and /generate-model to migrate stored procedures to dbt models
 ```
 
