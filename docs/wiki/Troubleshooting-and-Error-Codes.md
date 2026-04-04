@@ -39,14 +39,14 @@ These errors indicate that scoping has not been completed for a table.
 
 | Code | Message | Command | Fix |
 |---|---|---|---|
-| `SCOPING_NOT_COMPLETED` | `scoping.selected_writer` missing in catalog | `/status`, profile/test-gen/migrate guards | Run `/scope <table>` or `/scoping-table <table>` to discover and resolve the writer |
+| `SCOPING_NOT_COMPLETED` | `scoping.selected_writer` missing in catalog | `/status`, profile/test-gen/migrate guards | Run `/scope <table>` or `/analyzing-table <table>` to discover and resolve the writer |
 | `STATEMENTS_NOT_RESOLVED` | One or more statements not resolved to `migrate` or `skip` | `/status`, profile/test-gen/migrate guards | Run `/scope <table>` to resolve remaining statements. Use `/listing-objects show <proc>` to inspect unresolved statements |
 
 ### Common scoping issues
 
 **No writer candidates found**
 
-If `/scoping-table` finds no procedures that write to the table, the table may be populated by an ETL process outside of stored procedures (e.g. ADF copy activity, SSIS). Check `/listing-objects refs <table>` to verify.
+If `/analyzing-table` finds no procedures that write to the table, the table may be populated by an ETL process outside of stored procedures (e.g. ADF copy activity, SSIS). Check `/listing-objects refs <table>` to verify.
 
 **Multiple writer candidates**
 

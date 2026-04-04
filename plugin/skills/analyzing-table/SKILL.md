@@ -1,5 +1,5 @@
 ---
-name: scoping-table
+name: analyzing-table
 description: >
   Writer discovery, procedure analysis, scope resolution, and catalog persistence for a single table. Finds which stored procedures write to the table, analyzes each candidate via the procedure-analysis reference, then lets the user confirm the selected writer and persists the scoping decision to the table catalog file.
 user-invocable: true

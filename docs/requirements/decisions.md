@@ -150,7 +150,7 @@ Each stage produces immutable JSON artifacts committed to the migration repo by 
 
 **Decision:**
 
-- **Interactive path:** FDE uses Claude Code skills (`/listing-objects`, `/scoping-table`, `/profiling-table`, `/generating-model`) with approval gates at every step.
+- **Interactive path:** FDE uses Claude Code skills (`/listing-objects`, `/analyzing-table`, `/profiling-table`, `/generating-model`) with approval gates at every step.
 - **Agent execution (headless, planned):** one GitHub Actions workflow file per agent. A `migrate-util` CLI triggers runs via `workflow_dispatch`.
 
 **Rationale:** GitHub Actions eliminates hosting infrastructure. `workflow_dispatch` gives deterministic control over what runs when. Branch-per-run avoids merge conflicts (unique file paths).

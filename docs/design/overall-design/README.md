@@ -74,14 +74,14 @@ flowchart TD
 
 | Path | Entry point | Approval gates | Runs where |
 |---|---|---|---|
-| Interactive | FDE uses skills (`/listing-objects`, `/scoping-table`, `/profiling-table`, `/generating-tests`, `/generating-model`) | Yes — every step | Local terminal |
+| Interactive | FDE uses skills (`/listing-objects`, `/analyzing-table`, `/profiling-table`, `/generating-tests`, `/generating-model`) | Yes — every step | Local terminal |
 | Multi-table | FDE uses commands (`/scope`, `/profile`, `/generate-tests`, `/generate-model`) | FDE reviews summary at end | Local terminal |
 
 ### Stages
 
 | Stage | Executor | Role |
 |---|---|---|
-| Scoping | `/scope` command | Delegates to `/scoping-table` per table. Discovers writers, analyzes candidates via procedure-analysis reference, writes `selected_writer` to catalog. |
+| Scoping | `/scope` command | Delegates to `/analyzing-table` per table. Discovers writers, analyzes candidates via procedure-analysis reference, writes `selected_writer` to catalog. |
 | Profiling | `/profile` command | Delegates to `/profiling-table` per table. Classifies table, identifies keys, watermark, FKs, PII. Writes profile answers to catalog. |
 | Sandbox Up | `/setup-sandbox` command | Create throwaway database for ground-truth capture. Wraps `test-harness sandbox-up` CLI, persists sandbox metadata to `manifest.json`. |
 | Test Generation | `/generate-tests` command | Enumerates proc branches, synthesizes fixtures, executes proc in sandbox, captures ground truth, writes `test-specs/<item_id>.json`. Review loop independently enumerates branches, scores coverage, reviews fixture quality. Kicks back for missing branches or quality issues. **Max 2 review iterations.** |
@@ -139,7 +139,7 @@ Each pipeline stage has a skill (single-table, interactive) and a command (multi
 
 | Entry point | Tables | Approval |
 |---|---|---|
-| Skill (`/scoping-table`, `/profiling-table`, etc.) | One | FDE reviews inline |
+| Skill (`/analyzing-table`, `/profiling-table`, etc.) | One | FDE reviews inline |
 | Command (`/scope`, `/profile`, etc.) | Multiple | FDE reviews summary at end |
 
 ### Interactive (skills)
@@ -147,7 +147,7 @@ Each pipeline stage has a skill (single-table, interactive) and a command (multi
 The FDE drives the pipeline one table at a time:
 
 1. `/listing-objects` — list tables, pick one
-2. `/scoping-table` — discover writers, analyze candidates, FDE confirms
+2. `/analyzing-table` — discover writers, analyze candidates, FDE confirms
 3. `/profiling-table` — catalog signals + LLM inference, FDE approves
 4. `/generating-tests` — branch analysis, fixture synthesis, sandbox execution, ground truth capture
 5. `/generating-model` — generate dbt model from profile + test spec, FDE approves before file write

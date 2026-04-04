@@ -177,7 +177,7 @@ These patterns still set `needs_llm = True` or are out of scope. The proc's `raw
 
 ## Migrate vs Skip Classification
 
-When a proc has `needs_llm: true`, the LLM reads `raw_ddl` and classifies each statement as **migrate** (becomes dbt model SQL) or **skip** (operational overhead that dbt handles or ignores). The full classification reference is at `plugin/skills/scoping-table/references/tsql-parse-classification.md`.
+When a proc has `needs_llm: true`, the LLM reads `raw_ddl` and classifies each statement as **migrate** (becomes dbt model SQL) or **skip** (operational overhead that dbt handles or ignores). The full classification reference is at `plugin/skills/analyzing-table/references/tsql-parse-classification.md`.
 
 ## Known Limitations
 

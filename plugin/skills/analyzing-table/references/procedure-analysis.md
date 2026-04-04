@@ -2,7 +2,7 @@
 
 Deep-dive analysis of a single stored procedure. Produces call graph, statement classification, logic summary, migration guidance, and persists resolved statements to catalog.
 
-The procedure name is the candidate writer identified by the parent scoping-table skill.
+The procedure name is the candidate writer identified by the parent analyzing-table skill.
 
 ## Pipeline
 

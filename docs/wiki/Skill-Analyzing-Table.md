@@ -7,7 +7,7 @@ Discovers which stored procedures write to a target table, analyzes each candida
 ## Invocation
 
 ```text
-/scoping-table <schema.table>
+/analyzing-table <schema.table>
 ```
 
 Argument is the fully-qualified table name (e.g., `silver.DimCustomer`, `[dbo].[FactSales]`). The skill asks if missing.
@@ -166,4 +166,4 @@ Written during procedure analysis (Step 3). Each statement has `action` (migrate
 | Procedure analysis failure | Could not analyze a candidate procedure | Candidate is marked `BLOCKED`; remaining candidates continue. If all candidates fail, `status` is set to `error` |
 | `discover write-scoping` exit code 1 | Validation failure (invalid JSON, missing fields) | Check scoping JSON structure against the schema above |
 | `discover write-scoping` exit code 2 | Invalid JSON or IO error | Verify the `.staging/scoping.json` file was written correctly |
-| No writers detected but proc clearly writes | Writer uses dynamic SQL that catalog queries cannot resolve | Known limitation of `sys.dm_sql_referenced_entities`. Run `/scoping-table` on the suspected table and manually scope |
+| No writers detected but proc clearly writes | Writer uses dynamic SQL that catalog queries cannot resolve | Known limitation of `sys.dm_sql_referenced_entities`. Run `/analyzing-table` on the suspected table and manually scope |

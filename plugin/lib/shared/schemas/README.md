@@ -20,7 +20,7 @@ Catalog and agent schemas reference these via `$ref: "common.json#/$defs/<name>"
 
 ## Catalog schemas
 
-Per-object catalog files produced by `setup-ddl` and consumed by `listing-objects`, `scoping-table`, `profiling-table`, and downstream agents/skills.
+Per-object catalog files produced by `setup-ddl` and consumed by `listing-objects`, `analyzing-table`, `profiling-table`, and downstream agents/skills.
 
 | Schema | Object type | Key fields |
 |---|---|---|
@@ -62,7 +62,7 @@ Per-object catalog files produced by `setup-ddl` and consumed by `listing-object
 | `references` / `referenced_by` (catalog-query-sourced) | `sys.dm_sql_referenced_entities` per proc/view/function | setup-ddl |
 | `references` / `referenced_by` (AST-augmented) | sqlglot scan of proc bodies for CTAS, SELECT INTO, EXEC targets | setup-ddl |
 | `profile` section | `/profiling-table` skill or profiler agent | After setup-ddl, during profiling |
-| `scoping` section | scoping agent or `/scoping-table` | After setup-ddl, during scoping |
+| `scoping` section | scoping agent or `/analyzing-table` | After setup-ddl, during scoping |
 | manifest.json | Written by setup-ddl at extraction time | setup-ddl |
 
 ### Detection field

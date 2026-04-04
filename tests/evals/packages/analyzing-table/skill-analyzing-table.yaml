@@ -2,7 +2,7 @@
 description: "Scoping-table skill — writer discovery, procedure analysis, and scope resolution for tables"
 
 prompts:
-  - file://../../prompts/skill-scoping-table.txt
+  - file://../../prompts/skill-analyzing-table.txt
 
 providers:
   - id: anthropic:claude-agent-sdk

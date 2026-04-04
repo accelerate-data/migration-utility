@@ -49,7 +49,7 @@ Model Generation (/generate-model)
 
 | Mode | Entry point | Tables | Approval |
 |---|---|---|---|
-| Interactive | Skills (`/scoping-table`, `/profiling-table`, etc.) | One at a time | FDE reviews each step inline |
+| Interactive | Skills (`/analyzing-table`, `/profiling-table`, etc.) | One at a time | FDE reviews each step inline |
 | Multi-table | Commands (`/scope`, `/profile`, etc.) | Multiple in parallel | FDE reviews summary at end |
 
 **Example (multi-table):**

@@ -113,7 +113,7 @@
     },
     "scoping": {
       "type": "object",
-      "description": "Writer selection results from scoping agent or /scoping-table. Written by discover write-scoping.",
+      "description": "Writer selection results from scoping agent or /analyzing-table. Written by discover write-scoping.",
       "properties": {
         "status": {
           "type": "string",

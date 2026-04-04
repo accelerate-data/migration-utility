@@ -11,7 +11,7 @@
     "eval:test-generator": "npm run prerestore && promptfoo eval --no-cache -c packages/test-generator/skill-generating-tests.yaml; npm run postrestore",
     "eval:test-review": "npm run prerestore && promptfoo eval --no-cache -c packages/test-review/skill-reviewing-tests.yaml; npm run postrestore",
     "eval:code-review": "npm run prerestore && promptfoo eval --no-cache -c packages/code-review/skill-reviewing-model.yaml; npm run postrestore",
-    "eval:scoping-table": "npm run prerestore && promptfoo eval --no-cache -c packages/scoping-table/skill-scoping-table.yaml; npm run postrestore",
+    "eval:analyzing-table": "npm run prerestore && promptfoo eval --no-cache -c packages/analyzing-table/skill-analyzing-table.yaml; npm run postrestore",
     "eval:cmd-scope": "npm run prerestore && promptfoo eval --no-cache -c packages/cmd-scope/cmd-scope.yaml; npm run postrestore",
     "eval:cmd-profile": "npm run prerestore && promptfoo eval --no-cache -c packages/cmd-profile/cmd-profile.yaml; npm run postrestore",
     "eval:cmd-generate-model": "npm run prerestore && promptfoo eval --no-cache -c packages/cmd-generate-model/cmd-generate-model.yaml; npm run postrestore",

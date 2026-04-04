@@ -1,6 +1,6 @@
 You are running in a DDL project directory at {{fixture_path}}.
 
-Read the skill definition at plugin/skills/scoping-table/SKILL.md and follow it exactly. The table to scope is {{target_table}}.
+Read the skill definition at plugin/skills/analyzing-table/SKILL.md and follow it exactly. The table to scope is {{target_table}}.
 
 Wherever the skill references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead (the lib directory is at `plugin/lib/` in the repo).
 

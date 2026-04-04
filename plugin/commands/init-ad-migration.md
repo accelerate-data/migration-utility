@@ -6,7 +6,7 @@ user-invocable: true
 
 # Initialize ad-migration plugin
 
-Verify and set up all prerequisites before using `listing-objects`, `scoping-table`, or `/setup-ddl`. Then scaffold the project directory for both agents and human developers.
+Verify and set up all prerequisites before using `listing-objects`, `analyzing-table`, or `/setup-ddl`. Then scaffold the project directory for both agents and human developers.
 
 ## Step 1: Pre-check
 
@@ -130,7 +130,7 @@ Then tell the user: **"Restart Claude to pick up the new project instructions."*
 Tell the user:
 
 - **toolbox installed and all MSSQL vars set**: ready to run `/setup-ddl` to extract DDL from the live database.
-- **toolbox missing or MSSQL vars unset**: DDL file mode (`listing-objects`, `scoping-table`, `scoping`) is fully available. Live-database skills (`/setup-ddl`) require both `toolbox` and all four MSSQL env vars. If using direnv, fill in `.envrc` and run `direnv allow`. Then install `toolbox` from the genai-toolbox releases page.
+- **toolbox missing or MSSQL vars unset**: DDL file mode (`listing-objects`, `analyzing-table`, `scoping`) is fully available. Live-database skills (`/setup-ddl`) require both `toolbox` and all four MSSQL env vars. If using direnv, fill in `.envrc` and run `direnv allow`. Then install `toolbox` from the genai-toolbox releases page.
 
 ## Error handling
 
