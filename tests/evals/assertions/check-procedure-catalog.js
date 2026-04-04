@@ -3,6 +3,7 @@
 // Expects context.vars:
 // {
 //   fixture_path,
+//   target_procedure? — preferred; falls back to target_table,
 //   target_table,
 //   expected_action?,
 //   expected_content?,
@@ -25,7 +26,7 @@ function normalizeTerms(value) {
 
 module.exports = (output, context) => {
   const fixturePath = context.vars.fixture_path;
-  const proc = context.vars.target_table;
+  const proc = context.vars.target_procedure || context.vars.target_table;
   const expectedAction = context.vars.expected_action;
   const expectedContent = context.vars.expected_content;
   const expectedOutputTerms = normalizeTerms(context.vars.expected_output_terms);

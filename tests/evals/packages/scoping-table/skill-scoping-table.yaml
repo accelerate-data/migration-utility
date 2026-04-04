@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
-description: "Scoping-table skill — writer discovery and scope resolution for tables"
+description: "Scoping-table skill — writer discovery, procedure analysis, and scope resolution for tables"
 
 prompts:
   - file://../../prompts/skill-scoping-table.txt
@@ -25,33 +25,42 @@ defaultTest:
   assert:
     - type: javascript
       value: file://../../assertions/check-table-scoping.js
+    - type: javascript
+      value: file://../../assertions/check-procedure-catalog.js
 
 tests:
   # ── truncate-insert: DimCustomer multi-writer resolution ────
   - description: "truncate-insert — DimCustomer multi-writer resolution"
     vars:
       target_table: "silver.DimCustomer"
+      target_procedure: "silver.usp_load_DimCustomer_Full"
       expected_status: "resolved"
       expected_writer: "dimcustomer_full"
+      expected_content: "truncate"
 
   # ── merge: DimProduct single MERGE writer ───────────────────
   - description: "merge — DimProduct single MERGE writer"
     vars:
       target_table: "silver.DimProduct"
+      target_procedure: "silver.usp_load_DimProduct"
       expected_status: "resolved"
       expected_writer: "dimproduct"
+      expected_content: "merge"
 
   # ── exec-orchestrator: FactInternetSales EXEC chain writer ──
   - description: "exec-orchestrator — FactInternetSales EXEC chain writer"
     vars:
       target_table: "silver.FactInternetSales"
+      target_procedure: "silver.usp_load_FactInternetSales"
       expected_status: "resolved"
       expected_writer: "factinternetsales"
+      allow_zero_migrate: "true"
 
   # ── cross-db-exec: DimCrossDbProfile cross-database delegation
   - description: "cross-db-exec — DimCrossDbProfile cross-database delegation"
     vars:
       target_table: "silver.DimCrossDbProfile"
+      target_procedure: "silver.usp_load_DimCrossDbProfile"
       expected_status: "resolved"
       expected_writer: "dimcrossdbprofile"
 
@@ -59,6 +68,7 @@ tests:
   - description: "dynamic-sp-executesql — DimCurrency dynamic SQL writer"
     vars:
       target_table: "silver.DimCurrency"
+      target_procedure: "silver.usp_load_DimCurrency"
       expected_status: "resolved"
       expected_writer: "dimcurrency"
 
@@ -66,12 +76,18 @@ tests:
   - description: "exec-variable — ExecVariableTarget dynamic EXEC(@sql)"
     vars:
       target_table: "silver.ExecVariableTarget"
+      target_procedure: "silver.usp_scope_ExecVariable"
       expected_status: "resolved"
       expected_writer: "execvariable"
+      expected_source: "llm"
+      expected_statement_terms: "insert into silver.execvariabletarget"
 
   # ── exec-concat: ExecConcatTarget concatenated EXEC ─────────
   - description: "exec-concat — ExecConcatTarget concatenated EXEC"
     vars:
       target_table: "silver.ExecConcatTarget"
+      target_procedure: "silver.usp_scope_ExecConcat"
       expected_status: "resolved"
       expected_writer: "execconcat"
+      expected_source: "llm"
+      expected_statement_terms: "insert into silver.execconcattarget"

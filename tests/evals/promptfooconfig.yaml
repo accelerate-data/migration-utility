@@ -2,9 +2,6 @@
 description: "Full promptfoo suite for migration eval harness"
 
 prompts:
-  - id: analyzing-object
-    label: analyzing-object
-    raw: file://prompts/skill-analyzing-object.txt
   - id: profiler
     label: profiler
     raw: file://prompts/skill-profiling-table.txt
@@ -52,117 +49,6 @@ providers:
         - Grep
 
 tests:
-  - description: "resolved — DimProduct single MERGE writer"
-    prompts: ["analyzing-object"]
-    vars:
-      fixture_path: "tests/evals/fixtures/migration-test"
-      target_table: "silver.usp_load_DimProduct"
-      expected_content: "merge"
-    assert:
-      - type: javascript
-        value: file://assertions/check-procedure-catalog.js
-
-  - description: "ambiguous — DimCustomer Full + Delta writers"
-    prompts: ["analyzing-object"]
-    vars:
-      fixture_path: "tests/evals/fixtures/migration-test"
-      target_table: "silver.usp_load_DimCustomer_Full"
-      expected_content: "truncate"
-    assert:
-      - type: javascript
-        value: file://assertions/check-procedure-catalog.js
-
-  - description: "call-graph — FactInternetSales EXEC orchestrator"
-    prompts: ["analyzing-object"]
-    vars:
-      fixture_path: "tests/evals/fixtures/migration-test"
-      target_table: "silver.usp_load_FactInternetSales"
-      allow_zero_migrate: "true"
-    assert:
-      - type: javascript
-        value: file://assertions/check-procedure-catalog.js
-
-  - description: "dynamic-sql — DimCurrency sp_executesql"
-    prompts: ["analyzing-object"]
-    vars:
-      fixture_path: "tests/evals/fixtures/migration-test"
-      target_table: "silver.usp_load_DimCurrency"
-    assert:
-      - type: javascript
-        value: file://assertions/check-procedure-catalog.js
-
-  - description: "error — DimEmployee cross-database reference"
-    prompts: ["analyzing-object"]
-    vars:
-      fixture_path: "tests/evals/fixtures/migration-test"
-      target_table: "silver.usp_load_DimEmployee"
-    assert:
-      - type: javascript
-        value: file://assertions/check-procedure-catalog.js
-
-  - description: "writer-through-view — DimPromotion via updateable view"
-    prompts: ["analyzing-object"]
-    vars:
-      fixture_path: "tests/evals/fixtures/migration-test"
-      target_table: "silver.usp_load_DimPromotion"
-      expected_content: "vw_dimpromotion"
-    assert:
-      - type: javascript
-        value: file://assertions/check-procedure-catalog.js
-
-  - description: "resolved — DimCustomer Delta MERGE writer"
-    prompts: ["analyzing-object"]
-    vars:
-      fixture_path: "tests/evals/fixtures/migration-test"
-      target_table: "silver.usp_load_DimCustomer_Delta"
-      expected_content: "merge"
-    assert:
-      - type: javascript
-        value: file://assertions/check-procedure-catalog.js
-
-  - description: "resolved — FactInternetSales staging leaf (TRUNCATE+INSERT)"
-    prompts: ["analyzing-object"]
-    vars:
-      fixture_path: "tests/evals/fixtures/migration-test"
-      target_table: "silver.usp_stage_FactInternetSales"
-    assert:
-      - type: javascript
-        value: file://assertions/check-procedure-catalog.js
-
-  - description: "linked-server-exec — out-of-scope remote execution"
-    prompts: ["analyzing-object"]
-    vars:
-      fixture_path: "tests/evals/fixtures/migration-test"
-      target_table: "silver.usp_scope_LinkedServerExec"
-      allow_zero_migrate: "true"
-      expected_source: "llm"
-      expected_rationale_terms: "linked"
-    assert:
-      - type: javascript
-        value: file://assertions/check-procedure-catalog.js
-
-  - description: "exec-variable — dynamic EXEC(@sql) classified by llm"
-    prompts: ["analyzing-object"]
-    vars:
-      fixture_path: "tests/evals/fixtures/migration-test"
-      target_table: "silver.usp_scope_ExecVariable"
-      expected_source: "llm"
-      expected_statement_terms: "insert into silver.execvariabletarget"
-    assert:
-      - type: javascript
-        value: file://assertions/check-procedure-catalog.js
-
-  - description: "exec-concat — concatenated EXEC classified by llm"
-    prompts: ["analyzing-object"]
-    vars:
-      fixture_path: "tests/evals/fixtures/migration-test"
-      target_table: "silver.usp_scope_ExecConcat"
-      expected_source: "llm"
-      expected_statement_terms: "insert into silver.execconcattarget"
-    assert:
-      - type: javascript
-        value: file://assertions/check-procedure-catalog.js
-
   - description: "fact-rich-catalog — FactInternetSales"
     prompts: ["profiler"]
     vars:
@@ -472,74 +358,102 @@ tests:
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.DimCustomer"
+      target_procedure: "silver.usp_load_DimCustomer_Full"
       expected_status: "resolved"
       expected_writer: "dimcustomer_full"
+      expected_content: "truncate"
     assert:
       - type: javascript
         value: file://assertions/check-table-scoping.js
+      - type: javascript
+        value: file://assertions/check-procedure-catalog.js
 
   - description: "merge — DimProduct single MERGE writer"
     prompts: ["scoping-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.DimProduct"
+      target_procedure: "silver.usp_load_DimProduct"
       expected_status: "resolved"
       expected_writer: "dimproduct"
+      expected_content: "merge"
     assert:
       - type: javascript
         value: file://assertions/check-table-scoping.js
+      - type: javascript
+        value: file://assertions/check-procedure-catalog.js
 
   - description: "exec-orchestrator — FactInternetSales EXEC chain writer"
     prompts: ["scoping-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.FactInternetSales"
+      target_procedure: "silver.usp_load_FactInternetSales"
       expected_status: "resolved"
       expected_writer: "factinternetsales"
+      allow_zero_migrate: "true"
     assert:
       - type: javascript
         value: file://assertions/check-table-scoping.js
+      - type: javascript
+        value: file://assertions/check-procedure-catalog.js
 
   - description: "cross-db-exec — DimCrossDbProfile cross-database delegation"
     prompts: ["scoping-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.DimCrossDbProfile"
+      target_procedure: "silver.usp_load_DimCrossDbProfile"
       expected_status: "resolved"
       expected_writer: "dimcrossdbprofile"
     assert:
       - type: javascript
         value: file://assertions/check-table-scoping.js
+      - type: javascript
+        value: file://assertions/check-procedure-catalog.js
 
   - description: "dynamic-sp-executesql — DimCurrency dynamic SQL writer"
     prompts: ["scoping-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.DimCurrency"
+      target_procedure: "silver.usp_load_DimCurrency"
       expected_status: "resolved"
       expected_writer: "dimcurrency"
     assert:
       - type: javascript
         value: file://assertions/check-table-scoping.js
+      - type: javascript
+        value: file://assertions/check-procedure-catalog.js
 
   - description: "exec-variable — ExecVariableTarget dynamic EXEC(@sql)"
     prompts: ["scoping-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.ExecVariableTarget"
+      target_procedure: "silver.usp_scope_ExecVariable"
       expected_status: "resolved"
       expected_writer: "execvariable"
+      expected_source: "llm"
+      expected_statement_terms: "insert into silver.execvariabletarget"
     assert:
       - type: javascript
         value: file://assertions/check-table-scoping.js
+      - type: javascript
+        value: file://assertions/check-procedure-catalog.js
 
   - description: "exec-concat — ExecConcatTarget concatenated EXEC"
     prompts: ["scoping-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.ExecConcatTarget"
+      target_procedure: "silver.usp_scope_ExecConcat"
       expected_status: "resolved"
       expected_writer: "execconcat"
+      expected_source: "llm"
+      expected_statement_terms: "insert into silver.execconcattarget"
     assert:
       - type: javascript
         value: file://assertions/check-table-scoping.js
+      - type: javascript
+        value: file://assertions/check-procedure-catalog.js
