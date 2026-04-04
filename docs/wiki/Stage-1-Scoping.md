@@ -1,4 +1,4 @@
-# Stage 4 -- Scoping
+# Stage 1 -- Scoping
 
 The `/scope` command identifies which stored procedures write to each target table. It launches one sub-agent per table in parallel, each running the `/scoping-table` skill.
 
@@ -94,4 +94,4 @@ The scoping result is written directly to the table's catalog file as `scoping.s
 
 ## Next Step
 
-Proceed to [[Stage 5 Profiling]] to classify tables and identify keys, watermarks, and PII.
+Proceed to [[Stage 2 Profiling]] to classify tables and identify keys, watermarks, and PII.

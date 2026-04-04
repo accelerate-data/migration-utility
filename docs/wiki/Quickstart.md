@@ -47,7 +47,7 @@ See [[Stage 3 dbt Scaffolding]] for details.
 
 Discovers which stored procedures write to each table. Launches one sub-agent per table in parallel, analyzes candidate writers, and writes the `selected_writer` to each table's catalog file. Opens a PR with the results.
 
-See [[Stage 4 Scoping]] for details.
+See [[Stage 1 Scoping]] for details.
 
 ## Step 5 -- Profile tables
 
@@ -57,7 +57,7 @@ See [[Stage 4 Scoping]] for details.
 
 Classifies each table (dimension vs. fact, SCD type), identifies primary keys, foreign keys, natural keys, watermark columns, and PII. Writes profile answers to catalog files and opens a PR.
 
-See [[Stage 5 Profiling]] for details.
+See [[Stage 2 Profiling]] for details.
 
 ## Step 6 -- Create sandbox
 
@@ -67,7 +67,7 @@ See [[Stage 5 Profiling]] for details.
 
 Creates a throwaway database (`__test_<run_id>`) by cloning schema and procedures from your source SQL Server. The sandbox is used by the test generator to execute procs and capture ground truth output.
 
-See [[Stage 6 Test Generation]] for details.
+See [[Stage 4 Sandbox Setup]] for details.
 
 ## Step 7 -- Generate tests
 
@@ -77,7 +77,7 @@ See [[Stage 6 Test Generation]] for details.
 
 Enumerates branches in each stored procedure, synthesizes fixture data, executes the proc in the sandbox, and captures ground truth output. Includes a review loop for coverage quality. Opens a PR with the approved test specs.
 
-See [[Stage 6 Test Generation]] for details.
+See [[Stage 3 Test Generation]] for details.
 
 ## Step 8 -- Generate dbt models
 
@@ -87,7 +87,7 @@ See [[Stage 6 Test Generation]] for details.
 
 Generates dbt models from the stored procedures using the profile and test spec. Runs `dbt test` with up to 3 self-corrections, then a code review loop with up to 2 iterations. Opens a PR with the generated models.
 
-See [[Stage 7 Model Generation]] for details.
+See [[Stage 4 Model Generation]] for details.
 
 ## Step 9 -- Tear down sandbox
 
@@ -97,7 +97,7 @@ See [[Stage 7 Model Generation]] for details.
 
 Drops the throwaway sandbox database. This is a destructive operation and requires confirmation.
 
-See [[Stage 6 Test Generation]] for details.
+See [[Stage 3 Test Generation]] for details.
 
 ## What's Next
 

@@ -132,9 +132,10 @@ The `migrate-util dry-run` CLI uses these exit codes:
 
 - [[Status Dashboard]] -- running guard checks and viewing recommendations
 - [[Stage 1 Project Init]] -- project initialization and DDL extraction
-- [[Stage 4 Scoping]] -- writer discovery and statement resolution
-- [[Stage 5 Profiling]] -- table classification and profiling questions
-- [[Stage 6 Test Generation]] -- sandbox setup and test spec creation
-- [[Stage 7 Model Generation]] -- dbt model generation
+- [[Stage 1 Scoping]] -- writer discovery and statement resolution
+- [[Stage 2 Profiling]] -- table classification and profiling questions
+- [[Stage 3 Test Generation]] -- test spec creation
+- [[Stage 4 Sandbox Setup]] -- sandbox database setup
+- [[Stage 4 Model Generation]] -- dbt model generation
 - [[Cleanup and Teardown]] -- sandbox teardown and worktree cleanup
 - [[Glossary]] -- definitions of terms used in error messages

@@ -1,4 +1,4 @@
-# Stage 5 -- Profiling
+# Stage 2 -- Profiling
 
 The `/profile` command produces migration profiles for each table by answering six profiling questions. It launches one sub-agent per table in parallel, each running the `/profiling-table` skill.
 
@@ -116,4 +116,4 @@ The command then asks whether to commit and open a PR with the profiled catalog 
 
 ## Next Step
 
-Proceed to [[Stage 6 Test Generation]] to create a sandbox, generate test scenarios, and capture ground truth.
+Proceed to [[Stage 3 Test Generation]] to generate test scenarios and capture ground truth.

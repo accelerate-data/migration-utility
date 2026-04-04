@@ -95,4 +95,4 @@ If `dbt/` already exists:
 
 ## Next Step
 
-Proceed to [[Stage 4 Scoping]] to discover which stored procedures write to your target tables.
+Proceed to [[Stage 4 Sandbox Setup]] to create the throwaway test database, then [[Stage 1 Scoping]] to discover which stored procedures write to your target tables.

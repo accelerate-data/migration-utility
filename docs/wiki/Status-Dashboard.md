@@ -115,8 +115,8 @@ The `migrate-util dry-run` CLI uses these exit codes:
 ## Related pages
 
 - [[Stage 1 Project Init]] -- fixing `MANIFEST_NOT_FOUND` and `CATALOG_FILE_MISSING`
-- [[Stage 4 Scoping]] -- fixing `SCOPING_NOT_COMPLETED` and `STATEMENTS_NOT_RESOLVED`
-- [[Stage 5 Profiling]] -- fixing `PROFILE_NOT_COMPLETED`
-- [[Stage 6 Test Generation]] -- fixing `SANDBOX_NOT_CONFIGURED` and `TEST_SPEC_NOT_FOUND`
-- [[Stage 7 Model Generation]] -- dbt model generation
+- [[Stage 1 Scoping]] -- fixing `SCOPING_NOT_COMPLETED` and `STATEMENTS_NOT_RESOLVED`
+- [[Stage 2 Profiling]] -- fixing `PROFILE_NOT_COMPLETED`
+- [[Stage 3 Test Generation]] -- fixing `SANDBOX_NOT_CONFIGURED` and `TEST_SPEC_NOT_FOUND`
+- [[Stage 4 Model Generation]] -- dbt model generation
 - [[Troubleshooting and Error Codes]] -- full error code index
