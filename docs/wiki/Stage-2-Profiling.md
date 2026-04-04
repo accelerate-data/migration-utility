@@ -102,7 +102,7 @@ profile complete -- 3 tables processed
   ok: 1 | partial: 1 | error: 1
 ```
 
-The command then asks whether to commit and open a PR with the profiled catalog files.
+The command then asks whether to commit and open a PR.
 
 ## Error Codes
 

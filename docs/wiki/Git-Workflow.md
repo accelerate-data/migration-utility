@@ -15,7 +15,7 @@ Worktrees are created at `../worktrees/<branchName>` relative to the repo root. 
 For batch command worktrees, the branch name is derived from the command and tables:
 
 ```text
-../worktrees/run/scope-batch-1
+../worktrees/feature/scope-silver-dimcustomer-silver-dimproduct
 ```
 
 The `setup-worktree.sh` script runs after worktree creation and handles two things:
@@ -32,7 +32,7 @@ The `setup-worktree.sh` script runs after worktree creation and handles two thin
 
 Single-table skill invocations (`/analyzing-table`, `/profiling-table`, etc.) do not create branches. The FDE works on whatever branch they are already on.
 
-Multi-table commands create a new branch and worktree automatically. The branch name is built from the command name and the table names, truncated to 60 characters to stay within git limits.
+Multi-table commands create a branch and worktree automatically. Before creating a new one, the command scans for existing worktrees. If any are found, it lists them and asks the FDE whether to **continue on an existing worktree** (preserve prior work) or create a **new worktree**. This lets the FDE build up work across multiple command invocations — for example, scoping table A, then adding table B on the same branch. The branch name is built from the command name and the table names, truncated to 60 characters to stay within git limits.
 
 ## PR format
 
@@ -47,7 +47,6 @@ PRs target the repo's default branch. The FDE reviews and merges -- commands do 
 
 Command-generated PRs include:
 
-- Stage and table list from `meta.json`
 - Per-table status (success/skipped/error) from `summary.json`
 - Diagnostics summary for any tables with warnings
 
@@ -89,7 +88,7 @@ generate-model(silver.FactSales): generate stg_fact_sales with incremental mater
 | `dbt/models/**/*.yml` | |
 | `ddl/*.sql` (from setup, not per-batch) | |
 
-The `.migration-runs/` directory contains per-command execution metadata (timing, cost, per-item status). It is cleared at the start of each command invocation and never committed. It is consumed at commit/PR time for rich commit messages and PR bodies.
+The `.migration-runs/` directory contains per-command execution metadata (timing, cost, per-item status). Each file includes a Unix epoch suffix (e.g. `silver.dimcustomer.1743868200.json`) so runs accumulate without overwriting. It is never committed. The latest run's summary is consumed at commit/PR time for rich commit messages and PR bodies.
 
 ## Cleaning up worktrees
 

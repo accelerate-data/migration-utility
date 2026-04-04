@@ -27,23 +27,17 @@ Generate dbt models for a batch of tables. Launches one sub-agent per table in p
 
 ### Step 1 — Setup
 
-1. Read worktree base path from `.claude/rules/git-workflow.md`.
-2. Generate run slug: `feature/generate-model-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters after `feature/`).
-3. Create worktree: `mkdir -p <base>/feature && git worktree add <base>/<slug> -b <slug>`. If the worktree and branch already exist, reuse them — do not fail.
-4. In the worktree, clear `.migration-runs/` and write `meta.json`:
-
-```json
-{
-  "command": "generate-model",
-  "tables": ["silver.DimCustomer", "silver.DimProduct"],
-  "worktree": "../worktrees/feature/generate-model-silver-dimcustomer-silver-dimproduct",
-  "started_at": "2026-04-01T12:00:00Z"
-}
-```
+1. Generate run slug: `generate-model-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters).
+2. Check for existing worktrees. If any exist, list them as options alongside creating a new one and ask the user to pick:
+   > 1. `feature/scope-silver-dimcustomer`
+   > 2. `feature/profile-silver-dimcustomer`
+   > 3. **New worktree**
+   If none exist, create a new worktree and branch per `.claude/rules/git-workflow.md`.
+3. Generate a run epoch: seconds since Unix epoch (e.g. `1743868200`). All run artifacts use this as a filename suffix.
 
 ### Step 2 — Run migration:generating-model per table
 
-**Single-table path (1 table):** Run `migration:generating-model` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.json`. Then continue to Step 3.
+**Single-table path (1 table):** Run `migration:generating-model` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<epoch>.json`. Then continue to Step 3.
 
 **Multi-table path (2+ tables):** Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
 
@@ -53,7 +47,7 @@ The worktree is at <worktree-path>.
 Skip the Step 4 user confirmation prompt and the Step 6 approval prompt — proceed automatically. Still run the full equivalence analysis in Step 4.
 Equivalence warnings: proceed and write the model. Record each gap as EQUIVALENCE_GAP warning.
 dbt compile/test failure: attempt up to 3 self-corrections. If still failing, write as-is with DBT_TEST_FAILED warning.
-Write the item result JSON to .migration-runs/<schema.table>.json.
+Write the item result JSON to .migration-runs/<schema.table>.<epoch>.json.
 On failure, write result with status: "error" and error details.
 Return the item result JSON.
 ```
@@ -78,8 +72,8 @@ Derive `<model_name>` from the item_id using the same `stg_<table>` convention. 
 
 ### Step 5 — Summarize
 
-1. Read each `.migration-runs/<schema.table>.json`.
-2. Write `.migration-runs/summary.json` with `{total, ok, partial, error}` counts and per-item status.
+1. Read each `.migration-runs/<schema.table>.<epoch>.json`.
+2. Write `.migration-runs/summary.<epoch>.json` with `{total, ok, partial, error}` counts and per-item status.
 3. Present human-readable summary:
 
    ```text
@@ -93,7 +87,7 @@ Derive `<model_name>` from the item_id using the same `stg_<table>` convention. 
    ```
 
 4. If all items errored, skip commit/PR — report errors only and stop.
-5. Ask the user: commit and open PR? Stage only files changed by successful items (model SQL and schema YAML files). Do not stage `.migration-runs/`. PR body format:
+5. Ask the user: commit and push? Stage only files changed by successful items (model SQL and schema YAML files). Do not stage `.migration-runs/`. Check for an existing open PR on the branch via `gh pr list --head <slug> --state open --json number,url`. If one exists, update it with `gh pr edit` instead of creating a new PR. PR body format:
 
    ```markdown
    ## Model Generation — N tables
@@ -105,7 +99,7 @@ Derive `<model_name>` from the item_id using the same `stg_<table>` convention. 
    | silver.DimDate | error | — | — | PROFILE_NOT_COMPLETED |
    ```
 
-6. After the PR is created, tell the user:
+6. After the PR is created or updated, tell the user:
 
    ```text
    PR #<number> is open: <pr_url>

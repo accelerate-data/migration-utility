@@ -1,6 +1,6 @@
 # Stage 4 -- Sandbox Setup
 
-Creates a throwaway database (`__test_<run_id>`) by cloning schema and procedures from the source SQL Server.
+Creates a throwaway database (`__test_<random_hex>`) by cloning schema and procedures from the source SQL Server.
 
 ## Prerequisites
 

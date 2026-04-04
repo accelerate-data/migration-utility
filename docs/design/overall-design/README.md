@@ -173,16 +173,15 @@ Each command:
 
 ### Run log (ephemeral)
 
-Run summaries are collected in `.migration-runs/` (`.gitignore`d). Cleared at the start of each command invocation.
+Run artifacts are collected in `.migration-runs/` (`.gitignore`d). Each file includes a Unix epoch suffix so runs accumulate without overwriting.
 
 ```text
 .migration-runs/
-  meta.json                        # stage, tables, started_at
-  <schema>.<table>.json            # one per item — sub-agent writes on completion
-  summary.json                     # command writes after all sub-agents finish
+  <schema>.<table>.<epoch>.json    # one per item per run
+  summary.<epoch>.json             # command writes after all sub-agents finish
 ```
 
-Consumed at commit/PR time for rich messages, stays local.
+The latest run's summary is consumed at commit/PR time for rich messages. Stays local.
 
 ---
 
@@ -223,7 +222,6 @@ Sub-agents skip errored tables and continue. The command collects per-table stat
 
 Commands open one PR per batch. The PR body includes:
 
-- Stage and table list from `meta.json`
 - Per-table status (success/skipped/error) from `summary.json`
 - Diagnostics summary for any tables with warnings
 

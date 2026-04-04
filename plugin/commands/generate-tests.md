@@ -25,23 +25,17 @@ Generate test scenarios, review for coverage, then bulk-execute approved scenari
 
 ### Step 1 — Setup
 
-1. Read worktree base path from `.claude/rules/git-workflow.md`.
-2. Generate run slug: `feature/generate-tests-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters after `feature/`).
-3. Create worktree: `mkdir -p <base>/feature && git worktree add <base>/<slug> -b <slug>`. If the worktree and branch already exist, reuse them — do not fail.
-4. In the worktree, clear `.migration-runs/` and write `meta.json`:
-
-```json
-{
-  "command": "generate-tests",
-  "tables": ["silver.DimCustomer", "silver.DimProduct"],
-  "worktree": "../worktrees/feature/generate-tests-silver-dimcustomer-silver-dimproduct",
-  "started_at": "2026-04-01T12:00:00Z"
-}
-```
+1. Generate run slug: `generate-tests-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters).
+2. Check for existing worktrees. If any exist, list them as options alongside creating a new one and ask the user to pick:
+   > 1. `feature/scope-silver-dimcustomer`
+   > 2. `feature/profile-silver-dimcustomer`
+   > 3. **New worktree**
+   If none exist, create a new worktree and branch per `.claude/rules/git-workflow.md`.
+3. Generate a run epoch: seconds since Unix epoch (e.g. `1743868200`). All run artifacts use this as a filename suffix.
 
 ### Step 2 — Generate scenarios per table
 
-**Single-table path (1 table):** Run `ground-truth-harness:generating-tests` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.json`. Then continue to Step 3.
+**Single-table path (1 table):** Run `ground-truth-harness:generating-tests` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<epoch>.json`. Then continue to Step 3.
 
 **Multi-table path (2+ tables):** Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
 
@@ -49,7 +43,7 @@ Generate test scenarios, review for coverage, then bulk-execute approved scenari
 Run the ground-truth-harness:generating-tests skill for <schema.table>.
 The worktree is at <worktree-path>.
 Skip the Step 4 approval prompt — the review loop handles quality gating.
-Write the item result JSON to .migration-runs/<schema.table>.json.
+Write the item result JSON to .migration-runs/<schema.table>.<epoch>.json.
 On failure, write result with status: "error" and error details.
 Return the item result JSON.
 ```
@@ -64,7 +58,7 @@ For each item that completed step 2, launch a review sub-agent in isolated conte
 Run the ground-truth-harness:reviewing-tests skill for <item_id> --iteration 1.
 The worktree is at <worktree-path>.
 The test spec is at <worktree-path>/test-specs/<item_id>.json.
-Write the TestReviewResult JSON to .migration-runs/<item_id>.review.json.
+Write the TestReviewResult JSON to .migration-runs/<item_id>.review.<epoch>.json.
 On failure, write result with status: "error" and error details.
 Return the TestReviewResult JSON.
 ```
@@ -119,8 +113,8 @@ This converts the CLI-ready JSON (with `expect.rows`) to dbt unit test YAML form
 
 ### Step 6 — Summarize
 
-1. Read each `.migration-runs/<schema.table>.json`.
-2. Write `.migration-runs/summary.json` with `{total, ok, partial, error}` counts and per-item status.
+1. Read each `.migration-runs/<schema.table>.<epoch>.json`.
+2. Write `.migration-runs/summary.<epoch>.json` with `{total, ok, partial, error}` counts and per-item status.
 3. Present human-readable summary:
 
    ```text
@@ -134,7 +128,7 @@ This converts the CLI-ready JSON (with `expect.rows`) to dbt unit test YAML form
    ```
 
 4. If all items errored, skip commit/PR — report errors only and stop.
-5. Ask the user: commit and open PR? Stage only dbt YAML files from successful items (`test-specs/<item_id>.yml`). Do not stage `.migration-runs/` or intermediate JSON files. PR body format:
+5. Ask the user: commit and push? Stage only dbt YAML files from successful items (`test-specs/<item_id>.yml`). Do not stage `.migration-runs/` or intermediate JSON files. Check for an existing open PR on the branch via `gh pr list --head <slug> --state open --json number,url`. If one exists, update it with `gh pr edit` instead of creating a new PR. PR body format:
 
    ```markdown
    ## Test Generation — N tables
@@ -146,7 +140,7 @@ This converts the CLI-ready JSON (with `expect.rows`) to dbt unit test YAML form
    | silver.DimDate | error | — | — | — | PROFILE_NOT_COMPLETED |
    ```
 
-6. After the PR is created, tell the user:
+6. After the PR is created or updated, tell the user:
 
    ```text
    PR #<number> is open: <pr_url>
