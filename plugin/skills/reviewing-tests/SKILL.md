@@ -98,6 +98,7 @@ For each test scenario in `unit_tests[]`, assess these dimensions:
 - **Scenario isolation:** Does each scenario test one branch clearly, or are multiple branches tangled in a way that makes failure diagnosis ambiguous?
 - **FK consistency:** Do foreign key values in fixture rows align across source tables within each scenario? A row referencing `customer_key = 42` in the fact table should have a matching `customer_key = 42` in the dimension fixture.
 - **Edge cases:** Are boundary values present where appropriate (NULLs, empty strings, MAX values, zero-row inputs)?
+- **NOT NULL completeness:** For every source table in `given[]`, load the catalog column list from `source_tables` in the context output. Check that every column where `is_nullable` is false and `is_identity` is false appears in `rows[0]`. Missing NOT NULL columns will cause SQL Server INSERT failures at execution time. Severity: `error` (not warning — these always fail).
 
 Record each issue with the scenario name, a description of the concern, and a severity (`warning` or `error`).
 
