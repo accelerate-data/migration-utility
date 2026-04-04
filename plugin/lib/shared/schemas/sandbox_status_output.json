@@ -4,9 +4,8 @@
   "title": "SandboxStatusOutput",
   "description": "Output of the test-harness sandbox-status command — checks whether a sandbox database exists.",
   "type": "object",
-  "required": ["run_id", "sandbox_database", "status", "exists"],
+  "required": ["sandbox_database", "status", "exists"],
   "properties": {
-    "run_id": { "type": "string" },
     "sandbox_database": { "type": "string" },
     "status": { "type": "string", "enum": ["ok", "not_found", "error"] },
     "exists": { "type": "boolean" },

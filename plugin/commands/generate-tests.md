@@ -15,7 +15,7 @@ Generate test scenarios, review for coverage, then bulk-execute approved scenari
 ## Guards
 
 - `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
-- `manifest.json` must have `sandbox.run_id`. If missing, fail all items with `SANDBOX_RUN_ID_MISSING` and tell user to run `/setup-sandbox`.
+- `manifest.json` must have `sandbox.database`. If missing, fail all items with `SANDBOX_NOT_CONFIGURED` and tell user to run `/setup-sandbox`.
 - Check sandbox exists via `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-status`. If not found, fail all items with `SANDBOX_NOT_RUNNING` and tell user to check the sandbox with `/setup-sandbox` (it may have been torn down or the database dropped).
 - Per item: `catalog/tables/<item_id>.json` must exist. If missing, skip with `CATALOG_FILE_MISSING`.
 - Per item: `scoping.selected_writer` must be set. If missing, skip with `SCOPING_NOT_COMPLETED`.
@@ -84,7 +84,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness execute-spec \
   --spec test-specs/<item_id>.json
 ```
 
-The CLI reads `sandbox.run_id` from `manifest.json`, executes all scenarios, captures ground truth, and writes `expect.rows` back into the file.
+The CLI reads `sandbox.database` from `manifest.json`, executes all scenarios, captures ground truth, and writes `expect.rows` back into the file.
 
 If `execute-spec` exits non-zero or individual scenarios fail:
 
@@ -182,7 +182,7 @@ This converts the CLI-ready JSON (with `expect.rows`) to dbt unit test YAML form
 | Code | Severity | When |
 |---|---|---|
 | `MANIFEST_NOT_FOUND` | error | manifest.json missing — all items fail |
-| `SANDBOX_RUN_ID_MISSING` | error | manifest.json has no `sandbox.run_id` — run `/setup-sandbox` first |
+| `SANDBOX_NOT_CONFIGURED` | error | manifest.json has no `sandbox.database` — run `/setup-sandbox` first |
 | `SANDBOX_NOT_RUNNING` | error | sandbox-status check failed — sandbox may have been torn down or DB dropped |
 | `CATALOG_FILE_MISSING` | error | catalog/tables/\<item_id>.json not found — skip item |
 | `SCOPING_NOT_COMPLETED` | error | scoping section missing or no selected_writer — skip item |

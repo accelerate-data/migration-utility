@@ -4,10 +4,9 @@
   "title": "TestHarnessExecuteOutput",
   "description": "Output of the test-harness execute command — ground truth captured from one scenario.",
   "type": "object",
-  "required": ["schema_version", "run_id", "scenario_name", "status", "ground_truth_rows", "row_count", "errors"],
+  "required": ["schema_version", "scenario_name", "status", "ground_truth_rows", "row_count", "errors"],
   "properties": {
     "schema_version": { "type": "string", "const": "1.0" },
-    "run_id": { "type": "string" },
     "scenario_name": { "type": "string" },
     "status": { "type": "string", "enum": ["ok", "error"] },
     "ground_truth_rows": {

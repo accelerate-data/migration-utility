@@ -4,10 +4,9 @@
   "title": "TestSpecOutput",
   "description": "Batch output of the /generate-tests command — wraps per-item test specs with run metadata and summary.",
   "type": "object",
-  "required": ["schema_version", "run_id", "results", "summary"],
+  "required": ["schema_version", "results", "summary"],
   "properties": {
     "schema_version": { "type": "string", "const": "1.0" },
-    "run_id": { "type": "string" },
     "results": {
       "type": "array",
       "items": { "$ref": "test_spec.json" }

@@ -193,7 +193,7 @@ def check_profile_ok(project_root: Path, table_fqn: str) -> dict[str, Any]:
 
 
 def check_sandbox_metadata(project_root: Path) -> dict[str, Any]:
-    """Check manifest.json has sandbox metadata (run_id + database)."""
+    """Check manifest.json has sandbox metadata (database name)."""
     manifest_path = project_root / "manifest.json"
     if not manifest_path.exists():
         return _guard_fail(
@@ -210,11 +210,11 @@ def check_sandbox_metadata(project_root: Path) -> dict[str, Any]:
             f"manifest.json is not valid JSON: {exc}",
         )
     sandbox = manifest.get("sandbox")
-    if not sandbox or not sandbox.get("run_id") or not sandbox.get("database"):
+    if not sandbox or not sandbox.get("database"):
         return _guard_fail(
             "sandbox_configured",
             "SANDBOX_NOT_CONFIGURED",
-            "Sandbox metadata (run_id, database) missing from manifest.",
+            "Sandbox metadata (database) missing from manifest.",
         )
     return _guard_ok("sandbox_configured")
 

@@ -4,10 +4,10 @@
   "title": "ExecuteSpecOutput",
   "description": "Output of the test-harness execute-spec command — per-scenario results from bulk execution.",
   "type": "object",
-  "required": ["schema_version", "run_id", "spec_path", "total", "ok", "failed", "results"],
+  "required": ["schema_version", "sandbox_database", "spec_path", "total", "ok", "failed", "results"],
   "properties": {
     "schema_version": { "type": "string", "const": "1.0" },
-    "run_id": { "type": "string" },
+    "sandbox_database": { "type": "string" },
     "spec_path": { "type": "string" },
     "total": { "type": "integer", "minimum": 0 },
     "ok": { "type": "integer", "minimum": 0 },

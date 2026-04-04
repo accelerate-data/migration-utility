@@ -6,7 +6,7 @@ user-invocable: true
 
 # Set Up Sandbox
 
-Create a throwaway sandbox database (`__test_<run_id>`) by cloning schema from the source database. The sandbox is used by the test generator to execute stored procedures and capture ground truth output.
+Create a throwaway sandbox database by cloning schema from the source database. The sandbox is used by the test generator to execute stored procedures and capture ground truth output. The database name is auto-generated (`__test_<random_hex>`).
 
 ## Step 1: Pre-check
 
@@ -50,24 +50,22 @@ Ask the user if they want to proceed.
 
 ## Step 4: Execute
 
-After the user confirms, generate a run ID and invoke the CLI:
+After the user confirms, invoke the CLI:
 
 ```bash
-RUN_ID=$(python -c "import uuid; print(uuid.uuid4())")
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-up --run-id "$RUN_ID"
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-up
 ```
 
-The CLI creates the sandbox and writes `sandbox.run_id` and `sandbox.database` into `manifest.json`. Parse the JSON output and report:
+The CLI auto-generates a random database name, creates the sandbox, and writes `sandbox.database` into `manifest.json`. Parse the JSON output and report:
 
-- Sandbox database name
-- Run ID (persisted in manifest)
+- Sandbox database name (persisted in manifest)
 - Number of tables cloned
 - Number of procedures cloned
 - Any errors or warnings
 
 ## Step 5: Report
 
-Tell the user the sandbox is ready and provide the run ID for use with `/generate-tests` or `test-harness execute`.
+Tell the user the sandbox is ready and provide the database name for use with `/generate-tests` or `test-harness execute`.
 
 If there were errors, list them and recommend checking the source database connectivity.
 

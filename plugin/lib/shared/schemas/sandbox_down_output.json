@@ -4,9 +4,8 @@
   "title": "SandboxDownOutput",
   "description": "Output of the test-harness sandbox-down command — sandbox teardown result.",
   "type": "object",
-  "required": ["run_id", "sandbox_database", "status"],
+  "required": ["sandbox_database", "status"],
   "properties": {
-    "run_id": { "type": "string" },
     "sandbox_database": { "type": "string" },
     "status": { "type": "string", "enum": ["ok", "error"] },
     "errors": {

@@ -36,10 +36,9 @@
     "sandbox": {
       "type": "object",
       "properties": {
-        "run_id": { "type": "string" },
         "database": { "type": "string" }
       },
-      "required": ["run_id", "database"],
+      "required": ["database"],
       "additionalProperties": false
     }
   }

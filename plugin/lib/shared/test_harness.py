@@ -21,7 +21,7 @@ from shared.sandbox import get_backend
 from shared.sandbox.base import SandboxBackend
 
 logger = logging.getLogger(__name__)
-app = typer.Typer(name="test-harness", no_args_is_help=True)
+app = typer.Typer(name="test-harness", no_args_is_help=True, add_completion=False, pretty_exceptions_enable=False)
 
 
 def _load_manifest(project_root: Path) -> dict[str, Any]:
@@ -50,18 +50,16 @@ def _create_backend(manifest: dict[str, Any]) -> SandboxBackend:
         _error_exit("MISSING_ENV_VARS", str(exc), exc)
 
 
-def _resolve_run_id(run_id: str | None, project_root: Path) -> str:
-    """Return run_id if provided, otherwise fall back to manifest.sandbox.run_id."""
-    if run_id is not None:
-        return run_id
+def _resolve_sandbox_db(project_root: Path) -> str:
+    """Read sandbox.database from manifest, or fail with SANDBOX_NOT_CONFIGURED."""
     manifest = read_manifest(project_root)
     sandbox = manifest.get("sandbox")
-    if not sandbox:
+    if not sandbox or not sandbox.get("database"):
         _error_exit(
-            "MISSING_RUN_ID",
-            "No --run-id provided and no sandbox section in manifest.json",
+            "SANDBOX_NOT_CONFIGURED",
+            "No sandbox configured in manifest.json. Run /setup-sandbox first.",
         )
-    return sandbox["run_id"]
+    return sandbox["database"]
 
 
 def _error_exit(code: str, message: str, exc: Exception | None = None) -> NoReturn:
@@ -76,11 +74,10 @@ def _error_exit(code: str, message: str, exc: Exception | None = None) -> NoRetu
 
 @app.command()
 def sandbox_up(
-    run_id: str = typer.Option(..., help="UUID for the sandbox run"),
     project_root: str = typer.Option(".", help="Project root directory"),
 ) -> None:
     """Create a sandbox database and clone schema from the source."""
-    logger.info("event=cli_invoked command=sandbox_up run_id=%s", run_id)
+    logger.info("event=cli_invoked command=sandbox_up")
     root = resolve_project_root(Path(project_root))
     manifest = _load_manifest(root)
     backend = _create_backend(manifest)
@@ -94,63 +91,60 @@ def sandbox_up(
 
     try:
         result = backend.sandbox_up(
-            run_id=run_id,
             schemas=schemas,
         )
     except (ValueError, KeyError) as exc:
         _error_exit("SANDBOX_UP_INVALID_INPUT", str(exc), exc)
     if result.get("status") != "error":
-        write_manifest_sandbox(root, run_id, result["sandbox_database"])
+        write_manifest_sandbox(root, result["sandbox_database"])
     typer.echo(json.dumps(result, indent=2))
-    logger.info("event=cli_complete command=sandbox_up run_id=%s status=%s", run_id, result.get("status"))
+    logger.info("event=cli_complete command=sandbox_up sandbox_db=%s status=%s", result.get("sandbox_database"), result.get("status"))
     if result.get("status") == "error":
         raise typer.Exit(code=1)
 
 
 @app.command()
 def sandbox_down(
-    run_id: str | None = typer.Option(None, help="UUID of the sandbox to tear down"),
     project_root: str = typer.Option(".", help="Project root directory"),
 ) -> None:
     """Drop a sandbox database."""
     logger.info("event=cli_invoked command=sandbox_down")
     root = resolve_project_root(Path(project_root))
-    run_id = _resolve_run_id(run_id, root)
-    logger.info("event=cli_resolved command=sandbox_down run_id=%s", run_id)
+    sandbox_db = _resolve_sandbox_db(root)
+    logger.info("event=cli_resolved command=sandbox_down sandbox_db=%s", sandbox_db)
     manifest = _load_manifest(root)
     backend = _create_backend(manifest)
 
     try:
-        result = backend.sandbox_down(run_id=run_id)
+        result = backend.sandbox_down(sandbox_db=sandbox_db)
     except (ValueError, KeyError) as exc:
         _error_exit("SANDBOX_DOWN_INVALID_INPUT", str(exc), exc)
     if result.get("status") != "error":
         clear_manifest_sandbox(root)
     typer.echo(json.dumps(result, indent=2))
-    logger.info("event=cli_complete command=sandbox_down run_id=%s status=%s", run_id, result.get("status"))
+    logger.info("event=cli_complete command=sandbox_down sandbox_db=%s status=%s", sandbox_db, result.get("status"))
     if result.get("status") == "error":
         raise typer.Exit(code=1)
 
 
 @app.command()
 def sandbox_status(
-    run_id: str | None = typer.Option(None, help="UUID of the sandbox to check"),
     project_root: str = typer.Option(".", help="Project root directory"),
 ) -> None:
     """Check whether a sandbox database exists."""
     logger.info("event=cli_invoked command=sandbox_status")
     root = resolve_project_root(Path(project_root))
-    run_id = _resolve_run_id(run_id, root)
-    logger.info("event=cli_resolved command=sandbox_status run_id=%s", run_id)
+    sandbox_db = _resolve_sandbox_db(root)
+    logger.info("event=cli_resolved command=sandbox_status sandbox_db=%s", sandbox_db)
     manifest = _load_manifest(root)
     backend = _create_backend(manifest)
 
     try:
-        result = backend.sandbox_status(run_id=run_id)
+        result = backend.sandbox_status(sandbox_db=sandbox_db)
     except (ValueError, KeyError) as exc:
         _error_exit("SANDBOX_STATUS_INVALID_INPUT", str(exc), exc)
     typer.echo(json.dumps(result, indent=2))
-    logger.info("event=cli_complete command=sandbox_status run_id=%s status=%s", run_id, result.get("status"))
+    logger.info("event=cli_complete command=sandbox_status sandbox_db=%s status=%s", sandbox_db, result.get("status"))
     if result.get("status") == "error":
         raise typer.Exit(code=1)
     if not result.get("exists"):
@@ -159,15 +153,14 @@ def sandbox_status(
 
 @app.command()
 def execute(
-    run_id: str | None = typer.Option(None, help="UUID of the sandbox"),
     scenario: str = typer.Option(..., help="Path to scenario JSON file"),
     project_root: str = typer.Option(".", help="Project root directory"),
 ) -> None:
     """Execute a test scenario in the sandbox and capture ground truth."""
     logger.info("event=cli_invoked command=execute")
     root = resolve_project_root(Path(project_root))
-    run_id = _resolve_run_id(run_id, root)
-    logger.info("event=cli_resolved command=execute run_id=%s scenario=%s", run_id, scenario)
+    sandbox_db = _resolve_sandbox_db(root)
+    logger.info("event=cli_resolved command=execute sandbox_db=%s scenario=%s", sandbox_db, scenario)
     manifest = _load_manifest(root)
     backend = _create_backend(manifest)
 
@@ -181,11 +174,11 @@ def execute(
         _error_exit("SCENARIO_INVALID_JSON", f"Scenario file is not valid JSON: {exc}", exc)
 
     try:
-        result = backend.execute_scenario(run_id=run_id, scenario=scenario_data)
+        result = backend.execute_scenario(sandbox_db=sandbox_db, scenario=scenario_data)
     except (ValueError, KeyError) as exc:
         _error_exit("EXECUTE_INVALID_INPUT", str(exc), exc)
     typer.echo(json.dumps(result, indent=2))
-    logger.info("event=cli_complete command=execute run_id=%s status=%s", run_id, result.get("status"))
+    logger.info("event=cli_complete command=execute sandbox_db=%s status=%s", sandbox_db, result.get("status"))
     if result.get("status") == "error":
         raise typer.Exit(code=1)
 
@@ -193,14 +186,13 @@ def execute(
 @app.command()
 def execute_spec(
     spec: str = typer.Option(..., help="Path to test spec JSON file"),
-    run_id: str | None = typer.Option(None, help="UUID of the sandbox"),
     project_root: str = typer.Option(".", help="Project root directory"),
 ) -> None:
     """Bulk-execute all scenarios in a test spec and write expect.rows back."""
     logger.info("event=cli_invoked command=execute_spec")
     root = resolve_project_root(Path(project_root))
-    run_id = _resolve_run_id(run_id, root)
-    logger.info("event=cli_resolved command=execute_spec run_id=%s spec=%s", run_id, spec)
+    sandbox_db = _resolve_sandbox_db(root)
+    logger.info("event=cli_resolved command=execute_spec sandbox_db=%s spec=%s", sandbox_db, spec)
     manifest = _load_manifest(root)
     backend = _create_backend(manifest)
 
@@ -229,7 +221,7 @@ def execute_spec(
                 "procedure": test_entry["procedure"],
                 "given": test_entry["given"],
             }
-            result = backend.execute_scenario(run_id=run_id, scenario=scenario)
+            result = backend.execute_scenario(sandbox_db=sandbox_db, scenario=scenario)
         except (ValueError, KeyError) as exc:
             result = {
                 "scenario_name": test_entry.get("name", "unknown"),
@@ -253,8 +245,8 @@ def execute_spec(
             test_entry.pop("expect", None)  # clear stale ground truth
             failed_count += 1
             logger.warning(
-                "event=scenario_failed command=execute_spec run_id=%s scenario=%s errors=%s",
-                run_id, test_entry["name"], result.get("errors"),
+                "event=scenario_failed command=execute_spec sandbox_db=%s scenario=%s errors=%s",
+                sandbox_db, test_entry["name"], result.get("errors"),
             )
 
     # Write updated spec back with expect.rows populated
@@ -263,7 +255,7 @@ def execute_spec(
 
     output = {
         "schema_version": "1.0",
-        "run_id": run_id,
+        "sandbox_database": sandbox_db,
         "spec_path": str(spec_path),
         "total": len(unit_tests),
         "ok": ok_count,
@@ -273,8 +265,8 @@ def execute_spec(
 
     typer.echo(json.dumps(output, indent=2))
     logger.info(
-        "event=cli_complete command=execute_spec run_id=%s total=%d ok=%d failed=%d",
-        run_id, len(unit_tests), ok_count, failed_count,
+        "event=cli_complete command=execute_spec sandbox_db=%s total=%d ok=%d failed=%d",
+        sandbox_db, len(unit_tests), ok_count, failed_count,
     )
     if ok_count == 0:
         raise typer.Exit(code=1)
