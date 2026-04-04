@@ -70,18 +70,17 @@ def _require_manifest_file(project_root: Path) -> Path:
     return manifest_file
 
 
-def write_manifest_sandbox(project_root: Path, run_id: str, database: str) -> None:
-    """Persist sandbox run_id and database name into manifest.json."""
+def write_manifest_sandbox(project_root: Path, database: str) -> None:
+    """Persist sandbox database name into manifest.json."""
     manifest_file = _require_manifest_file(project_root)
     manifest = read_manifest(project_root)
-    manifest["sandbox"] = {"run_id": run_id, "database": database}
+    manifest["sandbox"] = {"database": database}
     manifest_file.write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
     logger.info(
-        "event=manifest_update operation=write_sandbox run_id=%s database=%s",
-        run_id,
+        "event=manifest_update operation=write_sandbox database=%s",
         database,
     )
 

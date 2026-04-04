@@ -14,7 +14,7 @@ If `CLAUDE_PLUGIN_ROOT` is not set, stop and tell the user to load the plugin wi
 
 ## Step 2: Read sandbox from manifest
 
-Read `manifest.json` and check for `sandbox.run_id`. If missing, tell the user no sandbox exists and stop.
+Read `manifest.json` and check for `sandbox.database`. If missing, tell the user no sandbox exists and stop.
 
 Show the user which database will be dropped (`sandbox.database` from manifest) and ask for confirmation. This is a destructive operation.
 
@@ -26,7 +26,7 @@ After the user confirms:
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-down
 ```
 
-The CLI reads the run ID from `manifest.json`, drops the database, and clears the `sandbox` section from the manifest.
+The CLI reads the sandbox database name from `manifest.json`, drops the database, and clears the `sandbox` section from the manifest.
 
 ## Step 4: Report
 

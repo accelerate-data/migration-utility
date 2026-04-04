@@ -4,9 +4,8 @@
   "title": "SandboxUpOutput",
   "description": "Output of the test-harness sandbox-up command — sandbox creation and schema cloning result.",
   "type": "object",
-  "required": ["run_id", "sandbox_database", "status", "tables_cloned", "procedures_cloned", "errors"],
+  "required": ["sandbox_database", "status", "tables_cloned", "procedures_cloned", "errors"],
   "properties": {
-    "run_id": { "type": "string" },
     "sandbox_database": { "type": "string" },
     "status": { "type": "string", "enum": ["ok", "partial", "error"] },
     "tables_cloned": {

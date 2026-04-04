@@ -20,10 +20,11 @@ from shared.sandbox.base import SandboxBackend
 from shared.sandbox.sql_server import (
     SqlServerSandbox,
     _detect_remote_exec_target,
+    _generate_sandbox_db_name,
     _get_identity_columns,
     _serialize_rows,
     _validate_identifier,
-    _validate_run_id,
+    _validate_sandbox_db_name,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures" / "test_harness"
@@ -46,40 +47,21 @@ class TestBackendRegistry:
             get_backend("snowflake_streaming")
 
 
-# ── Sandbox database naming ──────────────────────────────────────────────────
+# ── Sandbox database name generation ─────────────────────────────────────────
 
 
-class TestSandboxDbName:
-    def test_name_format(self) -> None:
-        name = SandboxBackend.sandbox_db_name("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
-        assert name == "__test_a1b2c3d4_e5f6_7890_abcd_ef1234567890"
+class TestSandboxDbNameGeneration:
+    def test_name_has_correct_prefix(self) -> None:
+        name = _generate_sandbox_db_name()
+        assert name.startswith("__test_")
 
-    def test_name_without_dashes(self) -> None:
-        name = SandboxBackend.sandbox_db_name("abc123")
-        assert name == "__test_abc123"
+    def test_name_is_unique(self) -> None:
+        names = {_generate_sandbox_db_name() for _ in range(10)}
+        assert len(names) == 10
 
-
-# ── Run ID validation ────────────────────────────────────────────────────────
-
-
-class TestRunIdValidation:
-    def test_valid_uuid(self) -> None:
-        _validate_run_id("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
-
-    def test_valid_alphanumeric(self) -> None:
-        _validate_run_id("test_run_123")
-
-    def test_rejects_sql_injection(self) -> None:
-        with pytest.raises(ValueError, match="Invalid run_id"):
-            _validate_run_id("x'; DROP DATABASE master; --")
-
-    def test_rejects_empty(self) -> None:
-        with pytest.raises(ValueError, match="Invalid run_id"):
-            _validate_run_id("")
-
-    def test_rejects_special_chars(self) -> None:
-        with pytest.raises(ValueError, match="Invalid run_id"):
-            _validate_run_id("run id with spaces")
+    def test_name_passes_validation(self) -> None:
+        name = _generate_sandbox_db_name()
+        _validate_sandbox_db_name(name)  # should not raise
 
 
 # ── Identifier validation ────────────────────────────────────────────────────
@@ -214,15 +196,14 @@ class TestSqlServerSandboxUp:
 
         with patch.object(backend, "_connect", side_effect=fake_connect):
             result = backend.sandbox_up(
-                run_id="test-run-id",
                 schemas=["dbo", "silver"],
             )
 
         assert result["status"] in ("ok", "partial")
-        assert result["run_id"] == "test-run-id"
-        assert "__test_" in result["sandbox_database"]
+        assert result["sandbox_database"].startswith("__test_")
         assert result["tables_cloned"] == ["dbo.Product", "silver.DimProduct"]
         assert result["procedures_cloned"] == ["dbo.usp_load"]
+        assert "run_id" not in result
 
         calls = [str(c) for c in default_cursor.execute.call_args_list]
         create_db_calls = [c for c in calls if "CREATE DATABASE" in c]
@@ -244,11 +225,11 @@ class TestSqlServerSandboxStatus:
         fake_connect = _mock_connect_factory(default_cursor=default_cursor)
 
         with patch.object(backend, "_connect", side_effect=fake_connect):
-            result = backend.sandbox_status(run_id="test-run-id")
+            result = backend.sandbox_status(sandbox_db="__test_abc123")
 
         assert result["status"] == "ok"
         assert result["exists"] is True
-        assert result["run_id"] == "test-run-id"
+        assert "run_id" not in result
 
     def test_sandbox_status_not_found(self) -> None:
         backend = _make_backend()
@@ -258,7 +239,7 @@ class TestSqlServerSandboxStatus:
         fake_connect = _mock_connect_factory(default_cursor=default_cursor)
 
         with patch.object(backend, "_connect", side_effect=fake_connect):
-            result = backend.sandbox_status(run_id="test-run-id")
+            result = backend.sandbox_status(sandbox_db="__test_abc123")
 
         assert result["status"] == "not_found"
         assert result["exists"] is False
@@ -272,10 +253,10 @@ class TestSqlServerSandboxDown:
         fake_connect = _mock_connect_factory(default_cursor=default_cursor)
 
         with patch.object(backend, "_connect", side_effect=fake_connect):
-            result = backend.sandbox_down(run_id="test-run-id")
+            result = backend.sandbox_down(sandbox_db="__test_abc123")
 
         assert result["status"] == "ok"
-        assert result["run_id"] == "test-run-id"
+        assert "run_id" not in result
 
         calls = [str(c) for c in default_cursor.execute.call_args_list]
         drop_calls = [c for c in calls if "DROP DATABASE" in c]
@@ -337,7 +318,7 @@ class TestSqlServerExecuteScenario:
         }
 
         with patch.object(backend, "_connect", side_effect=fake_connect):
-            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+            result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
         assert result["status"] == "error"
         assert result["errors"] == [{
@@ -377,19 +358,20 @@ class TestSqlServerExecuteScenario:
         }
 
         with patch.object(backend, "_connect", side_effect=fake_connect):
-            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+            result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
         assert result["status"] == "ok"
         assert result["row_count"] == 1
         assert result["ground_truth_rows"] == [{"id": 1, "name": "Widget"}]
         assert result["scenario_name"] == "test_insert_new_product"
+        assert "run_id" not in result
 
     def test_execute_missing_required_key_raises(self) -> None:
         backend = _make_backend()
         scenario = {"name": "incomplete", "target_table": "[dbo].[T]"}
 
         with pytest.raises(KeyError, match="procedure"):
-            backend.execute_scenario(run_id="test-run", scenario=scenario)
+            backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
 
 # ── IDENTITY_INSERT handling ──────────────────────────────────────────────────
@@ -428,7 +410,7 @@ class TestIdentityInsert:
         }
 
         with patch.object(backend, "_connect", side_effect=fake_connect):
-            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+            result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
         assert result["status"] == "ok"
 
@@ -467,7 +449,7 @@ class TestIdentityInsert:
         }
 
         with patch.object(backend, "_connect", side_effect=fake_connect):
-            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+            result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
         assert result["status"] == "ok"
         execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
@@ -508,7 +490,7 @@ class TestIdentityInsert:
         }
 
         with patch.object(backend, "_connect", side_effect=fake_connect):
-            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+            result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
         assert result["status"] == "ok"
         execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
@@ -556,7 +538,7 @@ class TestFkConstraintDisabling:
         }
 
         with patch.object(backend, "_connect", side_effect=fake_connect):
-            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+            result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
         assert result["status"] == "ok"
         execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
@@ -603,7 +585,7 @@ class TestFkConstraintDisabling:
         }
 
         with patch.object(backend, "_connect", side_effect=fake_connect):
-            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+            result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
         assert result["status"] == "ok"
         execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
@@ -646,7 +628,7 @@ class TestTriggerDisabling:
         }
 
         with patch.object(backend, "_connect", side_effect=fake_connect):
-            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+            result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
         assert result["status"] == "ok"
         execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
@@ -682,7 +664,7 @@ class TestTriggerDisabling:
         }
 
         with patch.object(backend, "_connect", side_effect=fake_connect):
-            result = backend.execute_scenario(run_id="test-run", scenario=scenario)
+            result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
         assert result["status"] == "ok"
         execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
@@ -743,7 +725,6 @@ class TestSchemaValidation:
     def test_execute_output_valid(self, assert_valid_schema) -> None:
         data = {
             "schema_version": "1.0",
-            "run_id": "abc-123",
             "scenario_name": "test_scenario",
             "status": "ok",
             "ground_truth_rows": [{"id": 1, "name": "Widget"}],
@@ -755,7 +736,6 @@ class TestSchemaValidation:
     def test_execute_output_error(self, assert_valid_schema) -> None:
         data = {
             "schema_version": "1.0",
-            "run_id": "abc-123",
             "scenario_name": "test_scenario",
             "status": "error",
             "ground_truth_rows": [],
@@ -766,7 +746,6 @@ class TestSchemaValidation:
 
     def test_sandbox_up_output_ok(self, assert_valid_schema) -> None:
         data = {
-            "run_id": "abc-123",
             "sandbox_database": "__test_abc_123",
             "status": "ok",
             "tables_cloned": ["dbo.Product"],
@@ -777,7 +756,6 @@ class TestSchemaValidation:
 
     def test_sandbox_up_output_error(self, assert_valid_schema) -> None:
         data = {
-            "run_id": "abc-123",
             "sandbox_database": "__test_abc_123",
             "status": "error",
             "tables_cloned": [],
@@ -788,7 +766,6 @@ class TestSchemaValidation:
 
     def test_sandbox_down_output_ok(self, assert_valid_schema) -> None:
         data = {
-            "run_id": "abc-123",
             "sandbox_database": "__test_abc_123",
             "status": "ok",
         }
@@ -796,7 +773,6 @@ class TestSchemaValidation:
 
     def test_sandbox_down_output_error(self, assert_valid_schema) -> None:
         data = {
-            "run_id": "abc-123",
             "sandbox_database": "__test_abc_123",
             "status": "error",
             "errors": [{"code": "SANDBOX_DOWN_FAILED", "message": "timeout"}],
@@ -805,7 +781,6 @@ class TestSchemaValidation:
 
     def test_sandbox_status_output_exists(self, assert_valid_schema) -> None:
         data = {
-            "run_id": "abc-123",
             "sandbox_database": "__test_abc_123",
             "status": "ok",
             "exists": True,
@@ -814,7 +789,6 @@ class TestSchemaValidation:
 
     def test_sandbox_status_output_not_found(self, assert_valid_schema) -> None:
         data = {
-            "run_id": "abc-123",
             "sandbox_database": "__test_abc_123",
             "status": "not_found",
             "exists": False,
@@ -860,7 +834,6 @@ class TestSchemaValidation:
     def test_test_spec_output_valid(self, assert_valid_schema) -> None:
         data = {
             "schema_version": "1.0",
-            "run_id": "abc-123",
             "results": [
                 {
                     "item_id": "silver.dimproduct",
@@ -934,27 +907,27 @@ def _write_fixture_manifest(dest: Path) -> None:
 class TestWriteManifestSandbox:
     def test_persist_sandbox_to_manifest(self, tmp_path: Path) -> None:
         _write_fixture_manifest(tmp_path)
-        write_manifest_sandbox(tmp_path, "run-123", "__test_run_123")
+        write_manifest_sandbox(tmp_path, "__test_run_123")
 
         manifest = read_manifest(tmp_path)
-        assert manifest["sandbox"] == {"run_id": "run-123", "database": "__test_run_123"}
+        assert manifest["sandbox"] == {"database": "__test_run_123"}
         # Original fields are preserved
         assert manifest["technology"] == "sql_server"
         assert manifest["extracted_schemas"] == ["dbo", "silver"]
 
     def test_persist_overwrites_existing_sandbox(self, tmp_path: Path) -> None:
         _write_fixture_manifest(tmp_path)
-        write_manifest_sandbox(tmp_path, "old-run", "__test_old_run")
-        write_manifest_sandbox(tmp_path, "new-run", "__test_new_run")
+        write_manifest_sandbox(tmp_path, "__test_old_run")
+        write_manifest_sandbox(tmp_path, "__test_new_run")
 
         manifest = read_manifest(tmp_path)
-        assert manifest["sandbox"]["run_id"] == "new-run"
+        assert manifest["sandbox"]["database"] == "__test_new_run"
 
 
 class TestClearManifestSandbox:
     def test_clear_removes_sandbox_key(self, tmp_path: Path) -> None:
         _write_fixture_manifest(tmp_path)
-        write_manifest_sandbox(tmp_path, "run-123", "__test_run_123")
+        write_manifest_sandbox(tmp_path, "__test_run_123")
         clear_manifest_sandbox(tmp_path)
 
         manifest = read_manifest(tmp_path)
@@ -970,32 +943,24 @@ class TestClearManifestSandbox:
         assert "sandbox" not in manifest
 
 
-class TestResolveRunId:
-    def test_explicit_run_id_takes_precedence(self, tmp_path: Path) -> None:
-        from shared.test_harness import _resolve_run_id
+class TestResolveSandboxDb:
+    def test_reads_database_from_manifest(self, tmp_path: Path) -> None:
+        from shared.test_harness import _resolve_sandbox_db
 
         _write_fixture_manifest(tmp_path)
-        write_manifest_sandbox(tmp_path, "manifest-run", "__test_manifest_run")
+        write_manifest_sandbox(tmp_path, "__test_manifest_run")
 
-        assert _resolve_run_id("explicit-run", tmp_path) == "explicit-run"
+        assert _resolve_sandbox_db(tmp_path) == "__test_manifest_run"
 
-    def test_falls_back_to_manifest(self, tmp_path: Path) -> None:
-        from shared.test_harness import _resolve_run_id
-
-        _write_fixture_manifest(tmp_path)
-        write_manifest_sandbox(tmp_path, "manifest-run", "__test_manifest_run")
-
-        assert _resolve_run_id(None, tmp_path) == "manifest-run"
-
-    def test_missing_run_id_and_no_sandbox_exits(self, tmp_path: Path) -> None:
+    def test_missing_sandbox_exits(self, tmp_path: Path) -> None:
         from click.exceptions import Exit
 
-        from shared.test_harness import _resolve_run_id
+        from shared.test_harness import _resolve_sandbox_db
 
         _write_fixture_manifest(tmp_path)
 
         with pytest.raises(Exit):
-            _resolve_run_id(None, tmp_path)
+            _resolve_sandbox_db(tmp_path)
 
 
 # ── E2E CLI invocation ────────────────────────────────────────────────────────
@@ -1024,7 +989,6 @@ class TestCLISandboxUpPersists:
 
         backend_mock = MagicMock()
         backend_mock.sandbox_up.return_value = {
-            "run_id": "e2e-run",
             "sandbox_database": "__test_e2e_run",
             "status": "ok",
             "tables_cloned": ["dbo.Product"],
@@ -1037,11 +1001,11 @@ class TestCLISandboxUpPersists:
             patch("shared.test_harness._create_backend", return_value=backend_mock),
             patch.dict(os.environ, _cli_env(tmp_path)),
         ):
-            result = runner.invoke(app, ["sandbox-up", "--run-id", "e2e-run", "--project-root", str(tmp_path)])
+            result = runner.invoke(app, ["sandbox-up", "--project-root", str(tmp_path)])
 
         assert result.exit_code == 0
         manifest = json.loads((tmp_path / "manifest.json").read_text())
-        assert manifest["sandbox"] == {"run_id": "e2e-run", "database": "__test_e2e_run"}
+        assert manifest["sandbox"] == {"database": "__test_e2e_run"}
 
     def test_sandbox_up_error_does_not_write_manifest(self, tmp_path: Path) -> None:
         from typer.testing import CliRunner
@@ -1053,7 +1017,6 @@ class TestCLISandboxUpPersists:
 
         backend_mock = MagicMock()
         backend_mock.sandbox_up.return_value = {
-            "run_id": "e2e-run",
             "sandbox_database": "__test_e2e_run",
             "status": "error",
             "tables_cloned": [],
@@ -1066,7 +1029,7 @@ class TestCLISandboxUpPersists:
             patch("shared.test_harness._create_backend", return_value=backend_mock),
             patch.dict(os.environ, _cli_env(tmp_path)),
         ):
-            result = runner.invoke(app, ["sandbox-up", "--run-id", "e2e-run", "--project-root", str(tmp_path)])
+            result = runner.invoke(app, ["sandbox-up", "--project-root", str(tmp_path)])
 
         assert result.exit_code == 1
         manifest = json.loads((tmp_path / "manifest.json").read_text())
@@ -1082,12 +1045,11 @@ class TestCLISandboxDownClears:
         from shared.test_harness import app
 
         _write_fixture_manifest(tmp_path)
-        write_manifest_sandbox(tmp_path, "e2e-run", "__test_e2e_run")
+        write_manifest_sandbox(tmp_path, "__test_e2e_run")
         runner = CliRunner()
 
         backend_mock = MagicMock()
         backend_mock.sandbox_down.return_value = {
-            "run_id": "e2e-run",
             "sandbox_database": "__test_e2e_run",
             "status": "ok",
         }
@@ -1103,18 +1065,17 @@ class TestCLISandboxDownClears:
         manifest = json.loads((tmp_path / "manifest.json").read_text())
         assert "sandbox" not in manifest
 
-    def test_sandbox_down_reads_run_id_from_manifest(self, tmp_path: Path) -> None:
+    def test_sandbox_down_reads_sandbox_db_from_manifest(self, tmp_path: Path) -> None:
         from typer.testing import CliRunner
 
         from shared.test_harness import app
 
         _write_fixture_manifest(tmp_path)
-        write_manifest_sandbox(tmp_path, "manifest-run", "__test_manifest_run")
+        write_manifest_sandbox(tmp_path, "__test_manifest_run")
         runner = CliRunner()
 
         backend_mock = MagicMock()
         backend_mock.sandbox_down.return_value = {
-            "run_id": "manifest-run",
             "sandbox_database": "__test_manifest_run",
             "status": "ok",
         }
@@ -1127,24 +1088,23 @@ class TestCLISandboxDownClears:
             result = runner.invoke(app, ["sandbox-down", "--project-root", str(tmp_path)])
 
         assert result.exit_code == 0
-        backend_mock.sandbox_down.assert_called_once_with(run_id="manifest-run")
+        backend_mock.sandbox_down.assert_called_once_with(sandbox_db="__test_manifest_run")
 
 
 class TestCLIStatusFallback:
-    """E2E: invoke sandbox-status without --run-id, verify manifest fallback."""
+    """E2E: invoke sandbox-status, verify manifest-based sandbox_db resolution."""
 
-    def test_sandbox_status_uses_manifest_run_id(self, tmp_path: Path) -> None:
+    def test_sandbox_status_uses_manifest_sandbox_db(self, tmp_path: Path) -> None:
         from typer.testing import CliRunner
 
         from shared.test_harness import app
 
         _write_fixture_manifest(tmp_path)
-        write_manifest_sandbox(tmp_path, "manifest-run", "__test_manifest_run")
+        write_manifest_sandbox(tmp_path, "__test_manifest_run")
         runner = CliRunner()
 
         backend_mock = MagicMock()
         backend_mock.sandbox_status.return_value = {
-            "run_id": "manifest-run",
             "sandbox_database": "__test_manifest_run",
             "status": "ok",
             "exists": True,
@@ -1158,9 +1118,9 @@ class TestCLIStatusFallback:
             result = runner.invoke(app, ["sandbox-status", "--project-root", str(tmp_path)])
 
         assert result.exit_code == 0
-        backend_mock.sandbox_status.assert_called_once_with(run_id="manifest-run")
+        backend_mock.sandbox_status.assert_called_once_with(sandbox_db="__test_manifest_run")
 
-    def test_sandbox_status_no_run_id_no_manifest_exits(self, tmp_path: Path) -> None:
+    def test_sandbox_status_no_sandbox_in_manifest_exits(self, tmp_path: Path) -> None:
         from typer.testing import CliRunner
 
         from shared.test_harness import app
@@ -1176,7 +1136,7 @@ class TestCLIStatusFallback:
 
         assert result.exit_code == 1
         output = json.loads(result.output)
-        assert output["errors"][0]["code"] == "MISSING_RUN_ID"
+        assert output["errors"][0]["code"] == "SANDBOX_NOT_CONFIGURED"
 
 
 # ── execute-spec CLI ─────────────────────────────────────────────────────────
@@ -1210,7 +1170,7 @@ class TestCLIExecuteSpec:
         from shared.test_harness import app
 
         _write_fixture_manifest(tmp_path)
-        write_manifest_sandbox(tmp_path, "e2e-run", "__test_e2e_run")
+        write_manifest_sandbox(tmp_path, "__test_e2e_run")
 
         unit_tests = [
             {
@@ -1228,7 +1188,6 @@ class TestCLIExecuteSpec:
         backend_mock = MagicMock()
         backend_mock.execute_scenario.return_value = {
             "schema_version": "1.0",
-            "run_id": "e2e-run",
             "scenario_name": "test_merge_matched",
             "status": "ok",
             "ground_truth_rows": [{"ProductKey": 1, "Name": "Widget"}],
@@ -1264,7 +1223,7 @@ class TestCLIExecuteSpec:
         from shared.test_harness import app
 
         _write_fixture_manifest(tmp_path)
-        write_manifest_sandbox(tmp_path, "e2e-run", "__test_e2e_run")
+        write_manifest_sandbox(tmp_path, "__test_e2e_run")
 
         unit_tests = [
             {
@@ -1323,7 +1282,7 @@ class TestCLIExecuteSpec:
         from shared.test_harness import app
 
         _write_fixture_manifest(tmp_path)
-        write_manifest_sandbox(tmp_path, "e2e-run", "__test_e2e_run")
+        write_manifest_sandbox(tmp_path, "__test_e2e_run")
 
         unit_tests = [
             {
@@ -1361,7 +1320,7 @@ class TestCLIExecuteSpec:
     def test_execute_spec_output_schema(self, assert_valid_schema) -> None:
         data = {
             "schema_version": "1.0",
-            "run_id": "abc-123",
+            "sandbox_database": "__test_abc123",
             "spec_path": "test-specs/silver.dimproduct.json",
             "total": 2,
             "ok": 1,
@@ -1519,7 +1478,7 @@ class TestDbtConversion:
         assert dbt_data["unit_tests"][0]["given"][0]["input"] == "source('bronze', 'Product')"
 
 
-# ── Corrupt JSON tests ──────────────────────────────────────────────────
+# ── Corrupt JSON tests ──────────────────────────────────────────────
 
 
 class TestCorruptJsonHandling:
@@ -1533,7 +1492,7 @@ class TestCorruptJsonHandling:
 
         (tmp_path / "manifest.json").write_text("{truncated", encoding="utf-8")
         runner = CliRunner()
-        result = runner.invoke(app, ["sandbox-up", "--run-id", "test-run", "--project-root", str(tmp_path)])
+        result = runner.invoke(app, ["sandbox-up", "--project-root", str(tmp_path)])
         assert result.exit_code == 1
 
     def test_sandbox_status_corrupt_manifest_exit_1(self, tmp_path: Path) -> None:
@@ -1544,7 +1503,8 @@ class TestCorruptJsonHandling:
 
         (tmp_path / "manifest.json").write_text("{truncated", encoding="utf-8")
         runner = CliRunner()
-        result = runner.invoke(app, ["sandbox-status", "--run-id", "test-run", "--project-root", str(tmp_path)])
+        # sandbox-status reads sandbox.database from manifest, which will fail
+        result = runner.invoke(app, ["sandbox-status", "--project-root", str(tmp_path)])
         assert result.exit_code == 1
 
     def test_execute_spec_corrupt_json_exit_1(self, tmp_path: Path) -> None:
@@ -1555,10 +1515,13 @@ class TestCorruptJsonHandling:
 
         spec = tmp_path / "corrupt-spec.json"
         spec.write_text("{not valid json", encoding="utf-8")
-        (tmp_path / "manifest.json").write_text('{"dialect":"tsql","technology":"sql_server"}', encoding="utf-8")
+        (tmp_path / "manifest.json").write_text(
+            json.dumps({"dialect": "tsql", "technology": "sql_server", "sandbox": {"database": "__test_abc123"}}),
+            encoding="utf-8",
+        )
         runner = CliRunner()
         result = runner.invoke(app, [
-            "execute-spec", "--spec", str(spec), "--run-id", "test-run", "--project-root", str(tmp_path),
+            "execute-spec", "--spec", str(spec), "--project-root", str(tmp_path),
         ])
         assert result.exit_code == 1
 
@@ -1570,10 +1533,13 @@ class TestCorruptJsonHandling:
 
         spec = tmp_path / "empty-spec.json"
         spec.write_text('{"model": "stg_test"}', encoding="utf-8")
-        (tmp_path / "manifest.json").write_text('{"dialect":"tsql","technology":"sql_server"}', encoding="utf-8")
+        (tmp_path / "manifest.json").write_text(
+            json.dumps({"dialect": "tsql", "technology": "sql_server", "sandbox": {"database": "__test_abc123"}}),
+            encoding="utf-8",
+        )
         runner = CliRunner()
         result = runner.invoke(app, [
-            "execute-spec", "--spec", str(spec), "--run-id", "test-run", "--project-root", str(tmp_path),
+            "execute-spec", "--spec", str(spec), "--project-root", str(tmp_path),
         ])
         assert result.exit_code == 1
 

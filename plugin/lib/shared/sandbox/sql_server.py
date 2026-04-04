@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
 from decimal import Decimal
@@ -16,7 +17,6 @@ from shared.sandbox.base import SandboxBackend
 
 logger = logging.getLogger(__name__)
 
-_RUN_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 _IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_ ]*$")
 # Bracket-quoted identifiers may additionally contain hyphens
 _BRACKETED_IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_ -]*$")
@@ -30,15 +30,6 @@ _REMOTE_EXEC_RE = re.compile(
     r")",
     re.IGNORECASE,
 )
-
-
-def _validate_run_id(run_id: str) -> None:
-    """Validate run_id contains only safe characters."""
-    if not _RUN_ID_RE.match(run_id):
-        raise ValueError(
-            f"Invalid run_id: {run_id!r}. "
-            f"Must match [a-zA-Z0-9_-] and be 1-64 characters."
-        )
 
 
 def _validate_identifier(name: str) -> None:
@@ -70,14 +61,18 @@ def _validate_identifier(name: str) -> None:
 
 
 def _validate_sandbox_db_name(sandbox_db: str) -> None:
-    """Validate a derived sandbox database name is safe for interpolation.
+    """Validate a sandbox database name is safe for interpolation.
 
-    Sandbox names are derived from validated run_ids via sandbox_db_name(),
-    but this provides defense-in-depth against future callers that skip
-    run_id validation.
+    Sandbox names follow the pattern __test_<hex> and must only contain
+    safe characters.
     """
     if not re.match(r"^__test_[a-zA-Z0-9_]{1,128}$", sandbox_db):
         raise ValueError(f"Invalid sandbox database name: {sandbox_db!r}")
+
+
+def _generate_sandbox_db_name() -> str:
+    """Generate a random sandbox database name."""
+    return f"__test_{uuid.uuid4().hex[:12]}"
 
 
 def _split_identifier_parts(identifier: str) -> list[str]:
@@ -199,7 +194,7 @@ class SqlServerSandbox(SandboxBackend):
             conn.close()
 
     def _create_sandbox_db(
-        self, sandbox_db: str, run_id: str,
+        self, sandbox_db: str,
     ) -> None:
         """Create the sandbox database, dropping it first if it exists."""
         _validate_sandbox_db_name(sandbox_db)
@@ -214,7 +209,7 @@ class SqlServerSandbox(SandboxBackend):
                 )
                 cursor.execute(f"DROP DATABASE {quoted}")
             cursor.execute(f"CREATE DATABASE {quoted}")
-            logger.info("event=database_created run_id=%s db=%s", run_id, sandbox_db)
+            logger.info("event=database_created sandbox_db=%s", sandbox_db)
 
     def _create_schemas(
         self, sandbox_cursor: pyodbc.Cursor, schemas: list[str],
@@ -313,19 +308,17 @@ class SqlServerSandbox(SandboxBackend):
 
     def sandbox_up(
         self,
-        run_id: str,
         schemas: list[str],
     ) -> dict[str, Any]:
-        _validate_run_id(run_id)
         _validate_identifier(self.database)
-        sandbox_db = self.sandbox_db_name(run_id)
+        sandbox_db = _generate_sandbox_db_name()
 
         logger.info(
-            "event=sandbox_up run_id=%s sandbox_db=%s source=%s schemas=%s",
-            run_id, sandbox_db, self.database, schemas,
+            "event=sandbox_up sandbox_db=%s source=%s schemas=%s",
+            sandbox_db, self.database, schemas,
         )
 
-        self._create_sandbox_db(sandbox_db, run_id)
+        self._create_sandbox_db(sandbox_db)
 
         errors: list[dict[str, str]] = []
         tables_cloned: list[str] = []
@@ -352,9 +345,8 @@ class SqlServerSandbox(SandboxBackend):
                 errors.extend(p_errors)
 
         except pyodbc.Error as exc:
-            logger.error("event=sandbox_up_failed run_id=%s error=%s", run_id, exc)
+            logger.error("event=sandbox_up_failed sandbox_db=%s error=%s", sandbox_db, exc)
             return {
-                "run_id": run_id,
                 "sandbox_database": sandbox_db,
                 "status": "error",
                 "tables_cloned": tables_cloned,
@@ -364,12 +356,11 @@ class SqlServerSandbox(SandboxBackend):
 
         status = "ok" if not errors else "partial"
         logger.info(
-            "event=sandbox_up_complete run_id=%s status=%s "
+            "event=sandbox_up_complete sandbox_db=%s status=%s "
             "tables=%d procedures=%d errors=%d",
-            run_id, status, len(tables_cloned), len(procedures_cloned), len(errors),
+            sandbox_db, status, len(tables_cloned), len(procedures_cloned), len(errors),
         )
         return {
-            "run_id": run_id,
             "sandbox_database": sandbox_db,
             "status": status,
             "tables_cloned": tables_cloned,
@@ -377,13 +368,11 @@ class SqlServerSandbox(SandboxBackend):
             "errors": errors,
         }
 
-    def sandbox_down(self, run_id: str) -> dict[str, Any]:
-        _validate_run_id(run_id)
-        sandbox_db = self.sandbox_db_name(run_id)
-        logger.info("event=sandbox_down run_id=%s sandbox_db=%s", run_id, sandbox_db)
+    def sandbox_down(self, sandbox_db: str) -> dict[str, Any]:
+        _validate_sandbox_db_name(sandbox_db)
+        logger.info("event=sandbox_down sandbox_db=%s", sandbox_db)
 
         try:
-            _validate_sandbox_db_name(sandbox_db)
             quoted = f"[{sandbox_db}]"
             with self._connect() as conn:
                 cursor = conn.cursor()
@@ -394,21 +383,19 @@ class SqlServerSandbox(SandboxBackend):
                         f"ALTER DATABASE {quoted} SET SINGLE_USER WITH ROLLBACK IMMEDIATE"
                     )
                     cursor.execute(f"DROP DATABASE {quoted}")
-            logger.info("event=sandbox_down_complete run_id=%s", run_id)
-            return {"run_id": run_id, "sandbox_database": sandbox_db, "status": "ok"}
+            logger.info("event=sandbox_down_complete sandbox_db=%s", sandbox_db)
+            return {"sandbox_database": sandbox_db, "status": "ok"}
         except pyodbc.Error as exc:
-            logger.error("event=sandbox_down_failed run_id=%s error=%s", run_id, exc)
+            logger.error("event=sandbox_down_failed sandbox_db=%s error=%s", sandbox_db, exc)
             return {
-                "run_id": run_id,
                 "sandbox_database": sandbox_db,
                 "status": "error",
                 "errors": [{"code": "SANDBOX_DOWN_FAILED", "message": str(exc)}],
             }
 
-    def sandbox_status(self, run_id: str) -> dict[str, Any]:
-        _validate_run_id(run_id)
-        sandbox_db = self.sandbox_db_name(run_id)
-        logger.info("event=sandbox_status run_id=%s sandbox_db=%s", run_id, sandbox_db)
+    def sandbox_status(self, sandbox_db: str) -> dict[str, Any]:
+        _validate_sandbox_db_name(sandbox_db)
+        logger.info("event=sandbox_status sandbox_db=%s", sandbox_db)
 
         try:
             with self._connect() as conn:
@@ -417,24 +404,21 @@ class SqlServerSandbox(SandboxBackend):
                 exists = cursor.fetchone()[0] is not None
 
             if exists:
-                logger.info("event=sandbox_status_complete run_id=%s exists=true", run_id)
+                logger.info("event=sandbox_status_complete sandbox_db=%s exists=true", sandbox_db)
                 return {
-                    "run_id": run_id,
                     "sandbox_database": sandbox_db,
                     "status": "ok",
                     "exists": True,
                 }
-            logger.info("event=sandbox_status_complete run_id=%s exists=false", run_id)
+            logger.info("event=sandbox_status_complete sandbox_db=%s exists=false", sandbox_db)
             return {
-                "run_id": run_id,
                 "sandbox_database": sandbox_db,
                 "status": "not_found",
                 "exists": False,
             }
         except pyodbc.Error as exc:
-            logger.error("event=sandbox_status_failed run_id=%s error=%s", run_id, exc)
+            logger.error("event=sandbox_status_failed sandbox_db=%s error=%s", sandbox_db, exc)
             return {
-                "run_id": run_id,
                 "sandbox_database": sandbox_db,
                 "status": "error",
                 "exists": False,
@@ -443,11 +427,10 @@ class SqlServerSandbox(SandboxBackend):
 
     def execute_scenario(
         self,
-        run_id: str,
+        sandbox_db: str,
         scenario: dict[str, Any],
     ) -> dict[str, Any]:
-        _validate_run_id(run_id)
-        sandbox_db = self.sandbox_db_name(run_id)
+        _validate_sandbox_db_name(sandbox_db)
 
         scenario_name = scenario.get("name", "unnamed")
         for key in ("target_table", "procedure", "given"):
@@ -474,8 +457,8 @@ class SqlServerSandbox(SandboxBackend):
                         )
 
         logger.info(
-            "event=execute_scenario run_id=%s scenario=%s procedure=%s",
-            run_id, scenario_name, procedure,
+            "event=execute_scenario sandbox_db=%s scenario=%s procedure=%s",
+            sandbox_db, scenario_name, procedure,
         )
 
         result_rows: list[dict[str, Any]] = []
@@ -496,13 +479,12 @@ class SqlServerSandbox(SandboxBackend):
                         target = remote_exec["target"]
                         kind = remote_exec["kind"]
                         logger.error(
-                            "event=scenario_remote_exec_unsupported run_id=%s scenario=%s "
+                            "event=scenario_remote_exec_unsupported sandbox_db=%s scenario=%s "
                             "procedure=%s target=%s kind=%s",
-                            run_id, scenario_name, procedure, target, kind,
+                            sandbox_db, scenario_name, procedure, target, kind,
                         )
                         return {
                             "schema_version": "1.0",
-                            "run_id": run_id,
                             "scenario_name": scenario_name,
                             "status": "error",
                             "ground_truth_rows": [],
@@ -533,8 +515,8 @@ class SqlServerSandbox(SandboxBackend):
                         cursor.execute(f"DISABLE TRIGGER ALL ON {tbl}")
                     if all_tables:
                         logger.info(
-                            "event=triggers_disabled run_id=%s count=%d",
-                            run_id, len(all_tables),
+                            "event=triggers_disabled sandbox_db=%s count=%d",
+                            sandbox_db, len(all_tables),
                         )
 
                     # Disable FK constraints on all fixture tables so
@@ -550,8 +532,8 @@ class SqlServerSandbox(SandboxBackend):
                             fk_disabled_tables.append(table)
                     if fk_disabled_tables:
                         logger.info(
-                            "event=fk_constraints_disabled run_id=%s tables=%s",
-                            run_id, fk_disabled_tables,
+                            "event=fk_constraints_disabled sandbox_db=%s tables=%s",
+                            sandbox_db, fk_disabled_tables,
                         )
 
                     for fixture in given:
@@ -573,9 +555,9 @@ class SqlServerSandbox(SandboxBackend):
                                 f"SET IDENTITY_INSERT {table} ON"
                             )
                             logger.info(
-                                "event=identity_insert_enabled run_id=%s "
+                                "event=identity_insert_enabled sandbox_db=%s "
                                 "table=%s columns=%s",
-                                run_id,
+                                sandbox_db,
                                 table,
                                 sorted(identity_cols & {c for c in columns}),
                             )
@@ -609,12 +591,11 @@ class SqlServerSandbox(SandboxBackend):
                     conn.rollback()
 
             logger.info(
-                "event=scenario_complete run_id=%s scenario=%s rows=%d",
-                run_id, scenario_name, len(result_rows),
+                "event=scenario_complete sandbox_db=%s scenario=%s rows=%d",
+                sandbox_db, scenario_name, len(result_rows),
             )
             return {
                 "schema_version": "1.0",
-                "run_id": run_id,
                 "scenario_name": scenario_name,
                 "status": "ok",
                 "ground_truth_rows": _serialize_rows(result_rows),
@@ -624,12 +605,11 @@ class SqlServerSandbox(SandboxBackend):
 
         except pyodbc.Error as exc:
             logger.error(
-                "event=scenario_failed run_id=%s scenario=%s error=%s",
-                run_id, scenario_name, exc,
+                "event=scenario_failed sandbox_db=%s scenario=%s error=%s",
+                sandbox_db, scenario_name, exc,
             )
             return {
                 "schema_version": "1.0",
-                "run_id": run_id,
                 "scenario_name": scenario_name,
                 "status": "error",
                 "ground_truth_rows": [],
