@@ -36,7 +36,7 @@ Generate dbt models for a batch of tables. Launches one sub-agent per table in p
    >
    > - **Continue on #N** — add to that branch
    > - **New worktree** — create a new worktree from the slug
-   If none exist, proceed to step 3.
+   If none exist, proceed to the **New worktree** path below.
 3. **New worktree**: create the worktree and branch per `.claude/rules/git-workflow.md`, then clear `.migration-runs/`. **Continue on existing**: skip clearing — preserve existing `.migration-runs/`.
 
 ### Step 2 — Run migration:generating-model per table
