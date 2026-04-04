@@ -306,7 +306,7 @@ def run_write_statements(
     """Persist resolved statements into a procedure catalog file.
 
     All statements must have ``action`` set to ``migrate`` or ``skip`` —
-    unresolved ``claude`` actions are rejected.
+    unresolved ``needs_llm`` actions are rejected.
 
     Returns a dict with ``written`` (path) and ``statement_count``.
     """

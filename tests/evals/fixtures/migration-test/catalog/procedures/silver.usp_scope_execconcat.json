@@ -41,7 +41,7 @@
       "action": "migrate",
       "source": "llm",
       "sql": "INSERT INTO silver.ExecConcatTarget (ProductAlternateKey, EnglishProductName) SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product",
-      "rationale": "Dynamic SQL is built with concatenation before EXEC, so claude_assisted resolution is required to recover the final statement."
+      "rationale": "Dynamic SQL is built with concatenation before EXEC, so LLM-assisted resolution is required to recover the final statement."
     }
   ]
 }

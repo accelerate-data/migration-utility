@@ -118,7 +118,7 @@ None. This skill is strictly read-only.
     { "type": "Command", "action": "skip", "sql": "TRUNCATE TABLE [silver].[DimCustomer]" },
     { "type": "Insert", "action": "migrate", "sql": "INSERT INTO [silver].[DimCustomer] SELECT ..." }
   ],
-  "classification": "deterministic",
+  "needs_llm": false,
   "parse_error": null
 }
 ```

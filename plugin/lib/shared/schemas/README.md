@@ -86,7 +86,7 @@ Structured JSON output from the `discover` CLI subcommands, consumed by skills a
 | Schema | Subcommand | Notes |
 |---|---|---|
 | [discover_list_output.json](discover_list_output.json) | `discover list` | `{objects: [string]}` |
-| [discover_show_output.json](discover_show_output.json) | `discover show` | columns, params, refs (from catalog), statements (AST, deterministic only), classification |
+| [discover_show_output.json](discover_show_output.json) | `discover show` | columns, params, refs (from catalog), statements (AST, deterministic only), needs_llm |
 | [discover_refs_output.json](discover_refs_output.json) | `discover refs` | readers, writers with `is_updated`/`is_selected` from catalog. No confidence scoring. |
 
 ## Agent input schemas

@@ -400,7 +400,7 @@ END
         assert result["statements"] == []
         assert result["source_tables"] == []
 
-    def test_dynamic_sp_executesql_context_is_claude_assisted(self, ddl_path: Path) -> None:
+    def test_dynamic_sp_executesql_context_needs_llm(self, ddl_path: Path) -> None:
         _seed_migrate_fixture(
             ddl_path,
             "silver.dimgeography",
