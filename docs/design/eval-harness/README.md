@@ -1,6 +1,6 @@
 # Eval Harness
 
-Non-interactive test harness for agents and skills. Uses [Promptfoo](https://github.com/promptfoo/promptfoo) with the `anthropic:claude-agent-sdk` provider to invoke Claude Code against the MigrationTest schema, then validates structured output.
+Non-interactive test harness for skills and commands. Uses [Promptfoo](https://github.com/promptfoo/promptfoo) with the `anthropic:claude-agent-sdk` provider to invoke Claude Code against the MigrationTest schema, then validates structured output.
 
 ---
 
@@ -19,7 +19,7 @@ Claude Code agent ──► reads fixture ──► calls Python CLIs ──► 
 Assertions: custom JS validators check catalog JSON, dbt models, test specs, reviews
 ```
 
-Skills are tested via Promptfoo scenarios that invoke them non-interactively and validate their output.
+Skills are tested via Promptfoo scenarios that invoke them non-interactively and validate their output. Commands (multi-table batch orchestrators) are tested via separate command eval packages that exercise parallel dispatch, error handling, review loops, and summary aggregation.
 
 ---
 
@@ -46,6 +46,7 @@ tests/evals/
     check-test-review.js               # validates test review results
     check-model-review.js              # validates model review results
     check-table-scoping.js             # validates table scoping decisions
+    check-command-summary.js           # validates command orchestration summary
   prompts/
     skill-analyzing-object.txt         # prompt template for analyzing-object skill
     skill-profiling-table.txt          # prompt template for profiling-table skill
@@ -54,6 +55,10 @@ tests/evals/
     skill-reviewing-tests.txt          # prompt template for reviewing-tests skill
     skill-reviewing-model.txt          # prompt template for reviewing-model skill
     skill-scoping-table.txt            # prompt template for scoping-table skill
+    cmd-scope.txt                      # prompt template for /scope command
+    cmd-profile.txt                    # prompt template for /profile command
+    cmd-generate-model.txt             # prompt template for /generate-model command
+    cmd-generate-tests.txt             # prompt template for /generate-tests command
   packages/
     analyzing-object/
       skill-analyzing-object.yaml      # 11 scenarios
@@ -69,6 +74,14 @@ tests/evals/
       skill-reviewing-model.yaml       # 3 scenarios
     scoping-table/
       skill-scoping-table.yaml         # 7 scenarios
+    cmd-scope/
+      cmd-scope.yaml                   # 2 scenarios
+    cmd-profile/
+      cmd-profile.yaml                 # 2 scenarios
+    cmd-generate-model/
+      cmd-generate-model.yaml          # 3 scenarios
+    cmd-generate-tests/
+      cmd-generate-tests.yaml          # 3 scenarios
   fixtures/
     migration-test/                    # extracted DDL project (one-time)
       manifest.json
@@ -84,6 +97,10 @@ tests/evals/
 
 The harness is organized into package-local Promptfoo configs plus one aggregate top-level config.
 
+### Skill packages
+
+Test individual skills in isolation (single-table, no orchestration).
+
 | Package | Skill | Scenarios |
 |---|---|---|
 | `analyzing-object` | `/analyzing-object` | 11 |
@@ -94,7 +111,18 @@ The harness is organized into package-local Promptfoo configs plus one aggregate
 | `code-review` | `/reviewing-model` | 3 |
 | `scoping-table` | `/scoping-table` | 7 |
 
-Use `promptfooconfig.yaml` for the full suite. Package YAML files remain available for focused runs.
+### Command packages
+
+Test batch command orchestration (multi-table dispatch, error handling, review loops, summary aggregation). Command evals suppress git operations and worktree creation — the agent operates directly on the fixture directory.
+
+| Package | Command | Scenarios |
+|---|---|---|
+| `cmd-scope` | `/scope` | 2 |
+| `cmd-profile` | `/profile` | 2 |
+| `cmd-generate-model` | `/generate-model` | 3 |
+| `cmd-generate-tests` | `/generate-tests` | 3 |
+
+Use `promptfooconfig.yaml` for the full suite (skill scenarios only). Command packages are run individually via `npm run eval:cmd-*`.
 
 ---
 
@@ -108,10 +136,10 @@ cd tests/evals
 # Install dependencies (first time only)
 npm install
 
-# Full suite — all packages (44 scenarios)
+# Full skill suite — all skill packages (46 scenarios)
 npm run eval
 
-# Single package
+# Single skill package
 npm run eval:analyzing-object
 npm run eval:profiler
 npm run eval:model-generator
@@ -119,6 +147,12 @@ npm run eval:test-generator
 npm run eval:test-review
 npm run eval:code-review
 npm run eval:scoping-table
+
+# Command packages (10 scenarios total, run individually)
+npm run eval:cmd-scope
+npm run eval:cmd-profile
+npm run eval:cmd-generate-model
+npm run eval:cmd-generate-tests
 
 # View results in browser
 npm run view
@@ -217,6 +251,36 @@ Each scenario targets a stored procedure and validates persisted statement analy
 | exec-variable — ExecVariableTarget | silver.ExecVariableTarget | usp_scope_ExecVariable |
 | exec-concat — ExecConcatTarget | silver.ExecConcatTarget | usp_scope_ExecConcat |
 
+### Command: scope (2 scenarios)
+
+| Scenario | Tables | Key assertion |
+|---|---|---|
+| happy-path — both resolve | DimProduct + DimCustomer | Summary shows 2 resolved, `check-table-scoping.js` validates artifact |
+| error+clean — missing catalog | DimDate + DimProduct | CATALOG_FILE_MISSING for DimDate, DimProduct still resolves |
+
+### Command: profile (2 scenarios)
+
+| Scenario | Tables | Key assertion |
+|---|---|---|
+| happy-path — both profile ok | InsertSelectTarget + UpdateJoinTarget | Summary shows 2 ok, `check-table-profile.js` validates artifact |
+| error+clean — no scoping | DimProduct + InsertSelectTarget | SCOPING_NOT_COMPLETED for DimProduct, InsertSelectTarget still ok |
+
+### Command: generate-model (3 scenarios)
+
+| Scenario | Tables | Key assertion |
+|---|---|---|
+| happy-path — both generate | InsertSelectTarget + UpdateJoinTarget | Summary shows 2 ok, `check-dbt-model.js` validates artifact |
+| review-revision cycle | CorrelatedSubqueryTarget | Review loop invoked, final status ok |
+| error+clean — no scoping | DimProduct + InsertSelectTarget | SCOPING_NOT_COMPLETED for DimProduct, InsertSelectTarget ok |
+
+### Command: generate-tests (3 scenarios)
+
+| Scenario | Tables | Key assertion |
+|---|---|---|
+| happy-path — both generate specs | InsertSelectTarget + UpdateJoinTarget | Summary shows 2 ok |
+| review-revision cycle | CorrelatedSubqueryTarget | Review loop invoked, final status ok |
+| error+clean — no scoping | DimProduct + InsertSelectTarget | SCOPING_NOT_COMPLETED for DimProduct, InsertSelectTarget ok |
+
 ---
 
 ## Writing assertions
@@ -231,6 +295,7 @@ Each assertion is a custom JavaScript module that reads persisted artifacts (cat
 - **Test specs** — branch counts, scenario counts, status/coverage enums
 - **Review results** — status enum matches expected range
 - **Scoping decisions** — writer selected, status resolved
+- **Command summaries** — per-item statuses in output text, error codes present for failed items
 
 ### What NOT to assert
 
@@ -346,17 +411,18 @@ providers:
 ```
 
 - `working_dir: ../..` — repo root relative to `tests/evals/packages/<pkg>/`
-- `max_turns` — 80 for analyzing-object and scoping-table (sub-agent delegation), 60-70 for others
+- `max_turns` — 80 for analyzing-object, scoping-table, cmd-scope, cmd-profile; 100 for cmd-generate-tests; 120 for cmd-generate-model; 60-70 for other skill packages
 - `test-review` and `code-review` omit Write from allowed tools (read-only review)
 
 ---
 
 ## Cost awareness
 
-Each scenario invokes Claude with tool use. At current pricing, expect roughly $0.10-0.50 per scenario depending on agent complexity and turn count.
+Each scenario invokes Claude with tool use. At current pricing, expect roughly $0.10-0.50 per scenario depending on agent complexity and turn count. Command evals are more expensive per scenario (~$0.50-1.00) due to multi-table orchestration and review loops.
 
-- Full suite (44 scenarios): ~$6-22 per run
-- Single package: ~$1-5 per run
-- Single scenario: ~$0.10-0.50
+- Full skill suite (46 scenarios): ~$6-23 per run
+- All command evals (10 scenarios): ~$5-10 per run
+- Single skill package: ~$1-5 per run
+- Single command package: ~$1-3 per run
 
-Run selectively during development. Use `npm run eval:<package>` to test a single package rather than the full suite.
+Run selectively during development. Use `npm run eval:<package>` to test a single package rather than the full suite. Command evals should be run from an isolated worktree to avoid branch-switching interference from other sessions.
