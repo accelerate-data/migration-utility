@@ -1,8 +1,8 @@
-# Skill: Setup DDL
+# Command: Setup DDL
 
 ## Purpose
 
-Extracts DDL and catalog metadata from a live SQL Server (or Fabric Warehouse) and writes local artifact files that downstream skills consume. Produces `manifest.json`, per-object DDL files in `ddl/`, and per-object catalog JSON files in `catalog/`. This is the first skill in the pipeline and must complete before any discovery, scoping, or profiling work.
+Extracts DDL and catalog metadata from a live SQL Server (or Fabric Warehouse) and writes local artifact files that downstream skills consume. Produces `manifest.json`, per-object DDL files in `ddl/`, and per-object catalog JSON files in `catalog/`. This is the first command in the pipeline and must complete before any discovery, scoping, or profiling work.
 
 ## Invocation
 
@@ -10,7 +10,7 @@ Extracts DDL and catalog metadata from a live SQL Server (or Fabric Warehouse) a
 /setup-ddl
 ```
 
-No arguments. The skill runs an interactive workflow that prompts for database and schema selection before extracting anything.
+No arguments. The command runs an interactive workflow that prompts for database and schema selection before extracting anything.
 
 Trigger phrases: "set up DDL", "extract DDL from SQL Server", "populate DDL", "connect to the remote database and get DDL", "pull DDL from the source database".
 

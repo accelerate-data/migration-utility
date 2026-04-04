@@ -14,7 +14,7 @@ Argument is the fully-qualified table name (e.g., `silver.DimCustomer`, `[dbo].[
 
 ## Prerequisites
 
-- `manifest.json` must exist in the project root. If missing, run [[Skill Setup DDL]] first.
+- `manifest.json` must exist in the project root. If missing, run [[Command Setup DDL]] first.
 - `catalog/tables/<table>.json` must exist. If missing, run `/listing-objects list tables` to see available tables.
 
 ## Pipeline

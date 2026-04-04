@@ -22,8 +22,8 @@ Trigger phrases: "list tables", "list procedures", "show me object X", "what ref
 
 ## Prerequisites
 
-- `manifest.json` must exist in the project root. If missing, run [[Skill Setup DDL]] first.
-- Catalog files must exist in `catalog/` (produced by [[Skill Setup DDL]]).
+- `manifest.json` must exist in the project root. If missing, run [[Command Setup DDL]] first.
+- Catalog files must exist in `catalog/` (produced by [[Command Setup DDL]]).
 
 ## Pipeline
 

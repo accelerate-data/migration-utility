@@ -18,9 +18,12 @@
 - [[Stage 3 Test Generation]]
 - [[Stage 4 Model Generation]]
 
+**Command Reference**
+
+- [[Command Setup DDL]]
+
 **Skill Reference**
 
-- [[Skill Setup DDL]]
 - [[Skill Listing Objects]]
 - [[Skill Scoping Table]]
 - [[Skill Profiling Table]]

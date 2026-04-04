@@ -14,7 +14,7 @@ Argument is the fully-qualified table name (the `item_id`). The writer procedure
 
 ## Prerequisites
 
-- `manifest.json` must exist in the project root. If missing, run [[Skill Setup DDL]] first.
+- `manifest.json` must exist in the project root. If missing, run [[Command Setup DDL]] first.
 - `catalog/tables/<item_id>.json` must exist. If missing, run `/listing-objects list tables` to see available tables.
 - The table must have been scoped ([[Skill Scoping Table]]) and profiled ([[Skill Profiling Table]]) before test generation.
 
