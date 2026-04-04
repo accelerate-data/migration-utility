@@ -4,7 +4,7 @@ Two cleanup commands remove resources created during the migration pipeline: `/c
 
 ## `/teardown-sandbox`
 
-Drops the throwaway sandbox database (`__test_<run_id>`) that was created by `/setup-sandbox` during test generation.
+Drops the throwaway sandbox database that was created by `/setup-sandbox` during test generation.
 
 ### When to run
 
@@ -12,7 +12,7 @@ Run `/teardown-sandbox` after test generation is complete for all tables in the 
 
 ### How it works
 
-1. Reads `manifest.json` to find the `sandbox.run_id` and `sandbox.database` fields
+1. Reads `manifest.json` to find the `sandbox.database` field
 2. Shows the user which database will be dropped and asks for confirmation (this is a destructive operation)
 3. Runs `test-harness sandbox-down` to drop the database
 4. Clears the `sandbox` section from `manifest.json`

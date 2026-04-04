@@ -129,7 +129,7 @@
     "test_migration_python_integration": "cd plugin/lib && uv run pytest -m integration",
     "test_mcp_ddl": "cd plugin/mcp/ddl && uv run pytest",
     "test_harness_help": "cd plugin/lib && uv run test-harness --help",
-    "test_harness_execute_spec": "cd plugin/lib && uv run test-harness execute-spec --spec <path> [--run-id <id>]",
+    "test_harness_execute_spec": "cd plugin/lib && uv run test-harness execute-spec --spec <path>",
     "test_harness_convert_dbt": "cd plugin/lib && uv run test-harness convert-dbt --spec <json-path> --output <yml-path>",
     "migrate_util_dry_run": "cd plugin/lib && uv run migrate-util dry-run <table> <stage> [--detail]",
     "lint_md": "markdownlint <file>",

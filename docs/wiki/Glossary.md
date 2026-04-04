@@ -38,7 +38,7 @@ Domain terms used across the migration utility wiki.
 
 - **ground truth** -- actual output rows produced by executing a stored procedure in the sandbox with test fixtures. These rows are the expected results that the generated dbt model must reproduce. Captured during test generation and stored in the test spec.
 
-- **sandbox** -- a throwaway database (`__test_<run_id>`) created by `/setup-sandbox` for executing stored procedures during test generation. Cloned from the source SQL Server's schema and procedures. Torn down via `/teardown-sandbox` after test generation is complete.
+- **sandbox** -- a throwaway database (`__test_<random_hex>`) created by `/setup-sandbox` for executing stored procedures during test generation. Cloned from the source SQL Server's schema and procedures. Torn down via `/teardown-sandbox` after test generation is complete.
 
 ## Migration
 

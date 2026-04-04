@@ -22,7 +22,7 @@ Four commands prepare a migration repo before any per-table work begins. Steps 1
 | 1. Scaffold project | `/init-ad-migration` | Plugin command | Plugin loaded, uv, Python 3.11+ | `CLAUDE.md`, `README.md`, `repo-map.json`, `.gitignore`, `.githooks/` |
 | 2. Extract DDL + catalog | `/setup-ddl` | Skill (interactive) | toolbox on PATH, MSSQL env vars (`MSSQL_HOST`, `MSSQL_PORT`, `SA_PASSWORD`) | `manifest.json`, `ddl/*.sql`, `catalog/**/*.json` |
 | 3. Scaffold dbt project | `/init-dbt` | Plugin command | `manifest.json`, populated `catalog/tables/` | `dbt/` project tree with `sources.yml` |
-| 4. Create test sandbox | `/setup-sandbox` | Plugin command | `manifest.json`, MSSQL env vars | `__test_<run_id>` throwaway database |
+| 4. Create test sandbox | `/setup-sandbox` | Plugin command | `manifest.json`, MSSQL env vars | `__test_<random_hex>` throwaway database |
 
 ### Prerequisites
 
@@ -38,7 +38,7 @@ Four commands prepare a migration repo before any per-table work begins. Steps 1
 
 **`/init-dbt`** — reads `manifest.json` and catalog to scaffold a dbt project with adapter-specific `profiles.yml` and `sources.yml` generated from catalog tables. User picks target platform (Fabric Lakehouse, Spark, Snowflake, DuckDB). Idempotent — regenerates `sources.yml` on re-run, never overwrites `profiles.yml`.
 
-**`/setup-sandbox`** — checks prerequisites, then calls `test-harness sandbox-up` to create a throwaway database (`__test_<run_id>`) by cloning schema and procedures from the source SQL Server. Persists the sandbox `run_id` and database name to `manifest.json`. Used by the test generator to execute procs and capture ground truth. Torn down via `/teardown-sandbox`.
+**`/setup-sandbox`** — checks prerequisites, then calls `test-harness sandbox-up` to create a throwaway database (`__test_<random_hex>`) by cloning schema and procedures from the source SQL Server. Persists the sandbox database name to `manifest.json`. Used by the test generator to execute procs and capture ground truth. Torn down via `/teardown-sandbox`.
 
 ---
 

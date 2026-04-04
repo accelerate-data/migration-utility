@@ -14,8 +14,8 @@ Creates a throwaway database (`__test_<run_id>`) by cloning schema and procedure
 1. Verifies all prerequisites and presents a status summary
 2. Asks for confirmation before proceeding
 3. Runs `test-harness sandbox-up` to create the throwaway database
-4. Persists `sandbox.run_id` and `sandbox.database` to `manifest.json`
-5. Reports the sandbox database name, run ID, and clone statistics
+4. Persists `sandbox.database` to `manifest.json`
+5. Reports the sandbox database name and clone statistics
 
 ## Invocation
 

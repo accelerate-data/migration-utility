@@ -65,7 +65,7 @@ See [[Stage 2 Profiling]] for details.
 /setup-sandbox
 ```
 
-Creates a throwaway database (`__test_<run_id>`) by cloning schema and procedures from your source SQL Server. The sandbox is used by the test generator to execute procs and capture ground truth output.
+Creates a throwaway database (`__test_<random_hex>`) by cloning schema and procedures from your source SQL Server. The sandbox is used by the test generator to execute procs and capture ground truth output.
 
 See [[Stage 4 Sandbox Setup]] for details.
 
