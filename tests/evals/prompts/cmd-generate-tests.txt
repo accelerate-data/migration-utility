@@ -5,13 +5,14 @@ Read the command definition at plugins/ground-truth-harness/commands/generate-te
 Wherever the command references `${CLAUDE_PLUGIN_ROOT}/../../lib`, use `lib` instead (the lib directory is at the repo root).
 
 EVAL MODE CONSTRAINTS — follow these exactly:
-- Do NOT create a git worktree. Operate directly in the fixture directory ({{fixture_path}}).
-- Do NOT run git worktree add, mkdir for worktrees, or any git branch creation.
+- Do NOT run ANY git commands at all. No git worktree, git checkout, git branch, git add, git commit, git stash, or any other git command. This is critical — running git commands will corrupt the eval environment.
+- Operate directly in the fixture directory ({{fixture_path}}).
 - Write .migration-runs/ artifacts directly to {{fixture_path}}/.migration-runs/.
+- Skip Step 1 (Setup) entirely — there is no worktree. Start directly at Step 2.
 - Process each table sequentially in the same agent turn (not truly parallel sub-agents).
 - Perform the review loop per generate-tests.md (up to 2 iterations per table using the reviewing-tests skill).
 - SKIP the sandbox guard checks (sandbox.run_id and sandbox-status). The sandbox is not available in eval mode.
-- SKIP Step 4 (execute-spec) and Step 5.5 (convert-dbt) entirely. The goal of this eval is to assess generation and review quality only.
+- SKIP Step 4 (execute-spec), Step 5 (Revert errored items), and Step 5.5 (convert-dbt) entirely. The goal of this eval is to assess generation and review quality only.
 - Do NOT ask the user to commit or open a PR. After presenting the summary, stop.
 - Do NOT ask for any user confirmation — proceed automatically.
 
