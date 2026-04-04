@@ -25,6 +25,17 @@ Run all checks silently — do not change anything yet.
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness --help
 ```
 
+5. Check `dbt/profiles.yml` exists. If it does, read the adapter `type:` from the active profile output and compare against the `technology` in `manifest.json`:
+
+| manifest.technology | Expected dbt adapter |
+|---|---|
+| `sql_server` | `sqlserver` |
+| `fabric_warehouse` | `fabric` |
+| `fabric_lakehouse` | `fabric` or `spark` |
+| `snowflake` | `snowflake` |
+
+If the adapter doesn't match the manifest technology, warn the user: "dbt profile uses `<adapter>` but manifest technology is `<technology>`. Run `/init-dbt` to reconfigure the dbt target." This is a warning, not a blocker — the sandbox itself doesn't depend on dbt.
+
 ## Step 3: Present plan
 
 Show the user what was found:
@@ -36,6 +47,7 @@ Sandbox setup:
   source_database:   AdventureWorksDW (or whatever value)
   extracted_schemas: [dbo, silver, bronze]
   test-harness CLI:  ✓ available  /  ✗ not found
+  dbt profile:       ✓ sqlserver (matches manifest)  /  ⚠ duckdb (mismatch)  /  — not found
 
   SQL Server credentials:
   MSSQL_HOST:   ✓ set  /  — not set
