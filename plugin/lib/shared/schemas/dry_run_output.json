@@ -25,7 +25,7 @@
     },
     "content": {
       "type": "object",
-      "description": "Stage-specific content. Present only when guards_passed is true. Shape varies by stage and --detail/--summary mode.",
+      "description": "Stage-specific content. Present only when guards_passed is true. Shape varies by stage and --detail mode.",
       "additionalProperties": true
     }
   }

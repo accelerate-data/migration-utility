@@ -36,7 +36,7 @@ For each table, iterate stages in order: `scope`, `profile`, `test-gen`, `migrat
 For each stage, run:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util dry-run <table> <stage> --summary
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util dry-run <table> <stage>
 ```
 
 Parse the JSON output. If `guards_passed` is `true` and the content shows the stage is complete (has meaningful output — e.g. scoping has `selected_writer`, profile has `status: ok|partial`, test-gen has `test_spec_status`, migrate has `dbt_model_exists`), record the stage as complete and continue to the next stage.
