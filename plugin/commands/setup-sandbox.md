@@ -50,13 +50,14 @@ Ask the user if they want to proceed.
 
 ## Step 4: Execute
 
-After the user confirms:
+After the user confirms, generate a run ID and invoke the CLI:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-up
+RUN_ID=$(python -c "import uuid; print(uuid.uuid4())")
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-up --run-id "$RUN_ID"
 ```
 
-The CLI generates a run ID, creates the sandbox, and writes `sandbox.run_id` and `sandbox.database` into `manifest.json`. Parse the JSON output and report:
+The CLI creates the sandbox and writes `sandbox.run_id` and `sandbox.database` into `manifest.json`. Parse the JSON output and report:
 
 - Sandbox database name
 - Run ID (persisted in manifest)
