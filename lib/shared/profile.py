@@ -253,7 +253,9 @@ def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> d
 
     try:
         existing = json.loads(catalog_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as exc:
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise CatalogLoadError(str(catalog_path), exc) from exc
+    except OSError as exc:
         logger.error("event=write_failed operation=read_catalog table=%s error=%s", table_norm, exc)
         raise
 
@@ -325,10 +327,6 @@ def write(
 
     try:
         result = run_write(project_root, table, profile_data)
-    except json.JSONDecodeError as exc:
-        logger.error("event=write_failed table=%s error=%s", table, exc)
-        _emit({"ok": False, "error": str(exc), "table": normalize(table)})
-        raise typer.Exit(code=2) from exc
     except (ValueError, CatalogFileMissingError) as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)
         _emit({"ok": False, "error": str(exc), "table": normalize(table)})

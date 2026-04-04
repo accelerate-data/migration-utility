@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from shared.loader_data import (
+    CatalogLoadError,
     CatalogNotFoundError,
     DdlCatalog,
     DdlEntry,
@@ -282,7 +283,10 @@ def load_catalog(output_dir: Path | str) -> DdlCatalog:
     if not catalog_path.exists():
         raise FileNotFoundError(f"catalog.json not found in {out}")
 
-    doc = json.loads(catalog_path.read_text(encoding="utf-8"))
+    try:
+        doc = json.loads(catalog_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise CatalogLoadError(str(catalog_path), exc) from exc
     objects = doc.get("objects", {})
 
     result = DdlCatalog()

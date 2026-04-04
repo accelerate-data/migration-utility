@@ -36,6 +36,7 @@ from shared.loader_parse import (  # noqa: F401 — re-export
 
 __all__ = [
     "CatalogFileMissingError",
+    "CatalogLoadError",
     "CatalogNotFoundError",
     "DdlCatalog",
     "DdlEntry",
