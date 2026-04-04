@@ -118,7 +118,7 @@ None. This skill is strictly read-only.
     { "type": "Command", "action": "skip", "sql": "TRUNCATE TABLE [silver].[DimCustomer]" },
     { "type": "Insert", "action": "migrate", "sql": "INSERT INTO [silver].[DimCustomer] SELECT ..." }
   ],
-  "classification": "deterministic",
+  "needs_llm": false,
   "parse_error": null
 }
 ```
@@ -132,8 +132,8 @@ None. This skill is strictly read-only.
 | `params` | array | Procedure parameters (populated for procedures; empty for other types). Fields: `name`, `sql_type`, `is_output`, `has_default` |
 | `refs` | object or null | For procedures: `reads_from`, `writes_to`, `write_operations`, `uses_functions`. For views/functions: `reads_from`, `writes_to`. `null` if no references section |
 | `routing_reasons` | string[] | Canonical routing reasons from procedure catalog. Empty for non-procedures |
-| `statements` | array or null | Per-statement breakdown. Populated for deterministic procedures; `null` for `claude_assisted` or non-procedures |
-| `classification` | string or null | `deterministic`, `claude_assisted`, or `null` for non-procedures |
+| `statements` | array or null | Per-statement breakdown. Populated when `needs_llm` is false; `null` when `needs_llm` is true or for non-procedures |
+| `needs_llm` | boolean or null | `true`: LLM must read `raw_ddl`. `false`: statements are complete. `null` for non-procedures |
 | `parse_error` | string or null | Error message if sqlglot could not parse the body |
 
 **Statement entry fields:**
@@ -141,7 +141,7 @@ None. This skill is strictly read-only.
 | Field | Type | Description |
 |---|---|---|
 | `type` | string | sqlglot AST node class name (e.g., `Insert`, `Update`, `Command`) |
-| `action` | string | Enum: `migrate`, `skip`, `claude` |
+| `action` | string | Enum: `migrate`, `skip`, `needs_llm` |
 | `sql` | string | SQL text of the statement (truncated to 200 chars) |
 
 ### `discover refs` output (`discover_refs_output.json`)

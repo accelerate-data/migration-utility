@@ -2,7 +2,7 @@
 
 Deep-dive analysis of a single stored procedure. Produces call graph, statement classification, logic summary, migration guidance, and persists resolved statements to catalog.
 
-The procedure name is the candidate writer identified by the parent scoping-table skill.
+The procedure name is the candidate writer identified by the parent analyzing-table skill.
 
 ## Pipeline
 
@@ -15,14 +15,15 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show \
   --name <proc>
 ```
 
-This returns `refs`, `statements`, `classification`, and `raw_ddl`.
+This returns `refs`, `statements`, `needs_llm`, and `raw_ddl`.
 
 ### Step 2 — Classify statements
 
-Check the `classification` field:
+Check the `needs_llm` field and `statements` array:
 
-- **`deterministic`** with `statements` populated — `refs` and `statements` are pre-classified by the AST. Use them alongside the body as the authoritative source of truth.
-- **`claude_assisted`** or `statements` is null — classify each statement yourself from `raw_ddl`. See [`tsql-parse-classification.md`](tsql-parse-classification.md) for classification guidance.
+- **`needs_llm: false`** with `statements` populated and no `action: "needs_llm"` entries — `refs` and `statements` are pre-classified by the AST. Use them alongside the body as the authoritative source of truth.
+- **`needs_llm: false`** but `statements` is null, empty, or contains `action: "needs_llm"` entries — safety-net fallback. Treat as needs_llm: classify each statement yourself from `raw_ddl`. See [`tsql-parse-classification.md`](tsql-parse-classification.md) for classification guidance.
+- **`needs_llm: true`** or `statements` is null — classify each statement yourself from `raw_ddl`. See [`tsql-parse-classification.md`](tsql-parse-classification.md) for classification guidance.
 
 ### Step 3 — Resolve call graph
 
@@ -63,15 +64,15 @@ Migration Guidance
 
 After presenting the analysis, persist resolved statements to catalog.
 
-**Deterministic procedures** (`classification: deterministic`, no `claude` actions in statements): all statements are already classified by the AST. Persist immediately after presenting Migration Guidance — no additional user confirmation needed. All statements get `source: "ast"`.
+**Deterministic procedures** (`needs_llm: false`, no `action: "needs_llm"` entries in statements): all statements are already classified by the AST. Persist immediately after presenting Migration Guidance — no additional user confirmation needed. All statements get `source: "ast"`.
 
-**Claude-assisted procedures** (`classification: claude_assisted` or statements containing `action: "claude"`):
+**LLM-assisted procedures** (`needs_llm: true` or statements containing `action: "needs_llm"`):
 
-1. Read `raw_ddl` and analyse each `claude` statement — follow the call graph, resolve dynamic SQL, and classify as `migrate` or `skip`.
+1. Read `raw_ddl` and analyse each `needs_llm` statement — follow the call graph, resolve dynamic SQL, and classify as `migrate` or `skip`.
 2. Present the full resolved statement list for confirmation. Show each statement with its proposed action and rationale.
 3. After confirmation (with any edits), persist. All resolved statements get `source: "llm"`. Each statement must include a `rationale` field (1-2 sentences) explaining why it is `migrate` or `skip`.
 
-No `claude` actions are written to catalog — all must be resolved before persisting.
+No `needs_llm` actions are written to catalog — all must be resolved before persisting.
 
 Write the statements JSON to a temp file to avoid shell quoting issues (rationale text may contain apostrophes):
 

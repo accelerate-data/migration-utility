@@ -138,7 +138,7 @@ def test_profile_guards_fail_unresolved_statements(assert_valid_schema) -> None:
         # Mutate proc catalog to have an unresolved statement
         proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
         proc = json.loads(proc_path.read_text(encoding="utf-8"))
-        proc["statements"].append({"index": 3, "action": "claude", "source": "llm", "sql": "EXEC dbo.other_proc"})
+        proc["statements"].append({"index": 3, "action": "needs_llm", "source": "llm", "sql": "EXEC dbo.other_proc"})
         proc_path.write_text(json.dumps(proc), encoding="utf-8")
         result = dry_run.run_dry_run(root, "silver.DimCustomer", "profile")
         assert_valid_schema(result, "dry_run_output.json")

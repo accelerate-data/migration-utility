@@ -20,7 +20,7 @@ The segmenter builds a block tree. `sqlglot` then parses the leaf statements ins
 
 The current routing already separates three paths via `scan_routing_flags()` in `catalog.py`:
 
-- `needs_llm` → dynamic `EXEC(@sql)`, `IF`, `WHILE`, `BEGIN TRY` → `claude_assisted`
+- `needs_llm` → dynamic `EXEC(@sql)`, `IF`, `WHILE`, `BEGIN TRY` → `needs_llm: true`
 - `needs_enrich` → static `EXEC dbo.proc`, `SELECT INTO`, `TRUNCATE` → deterministic after `catalog_enrich.py`
 - neither → pure sqlglot deterministic
 
@@ -221,10 +221,9 @@ It does not need to understand table names, expressions, or DML semantics. Its o
 
 ### `discover.py`
 
-- surface `routing_reasons` in `discover show` output
-- keep `classification` for current CLI compatibility
-- map `llm_required` mode → `claude_assisted`
-- preserve the existing `parse_error` → `claude_assisted` branch (currently at `discover.py:161`). A proc with a parse error must remain `claude_assisted` regardless of routing mode
+- surface `routing_reasons` and `needs_llm: bool` in `discover show` output
+- map `llm_required` mode → `needs_llm: true`; also propagate `needs_llm` from `extract_refs` when body parsing is incomplete
+- preserve the existing `parse_error` → `needs_llm: true` branch. A proc with a parse error must remain `needs_llm: true` regardless of routing mode
 
 ### `procedure_catalog.json` schema
 

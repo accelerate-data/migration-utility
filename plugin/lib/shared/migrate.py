@@ -167,14 +167,12 @@ def _load_proc_statements(project_root: Path, writer_fqn: str) -> list[dict[str,
     return statements
 
 
-def _classify_proc(project_root: Path, writer_fqn: str) -> str:
-    """Classify a procedure for migration context consumers."""
+def _classify_proc(project_root: Path, writer_fqn: str) -> bool:
+    """Return True if the procedure needs LLM analysis."""
     cat = load_proc_catalog(project_root, writer_fqn)
     if cat is None:
         raise CatalogFileMissingError("procedure", writer_fqn)
-    if cat.get("mode") == "llm_required":
-        return "claude_assisted"
-    return "deterministic"
+    return cat.get("mode") == "llm_required"
 
 
 def _load_proc_body(project_root: Path, writer_fqn: str) -> str:
@@ -234,7 +232,7 @@ def run_context(
 
     profile = _load_table_profile(project_root, table_norm)
     statements = _load_proc_statements(project_root, writer_norm)
-    classification = _classify_proc(project_root, writer_norm)
+    needs_llm = _classify_proc(project_root, writer_norm)
     proc_body = _load_proc_body(project_root, writer_norm)
     columns = _load_table_columns(project_root, table_norm)
     source_tables = _collect_source_tables(project_root, writer_norm)
@@ -244,7 +242,7 @@ def run_context(
     return {
         "table": table_norm,
         "writer": writer_norm,
-        "classification": classification,
+        "needs_llm": needs_llm,
         "profile": profile,
         "materialization": materialization,
         "statements": statements,

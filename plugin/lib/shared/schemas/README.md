@@ -20,7 +20,7 @@ Catalog and agent schemas reference these via `$ref: "common.json#/$defs/<name>"
 
 ## Catalog schemas
 
-Per-object catalog files produced by `setup-ddl` and consumed by `listing-objects`, `scoping-table`, `profiling-table`, and downstream agents/skills.
+Per-object catalog files produced by `setup-ddl` and consumed by `listing-objects`, `analyzing-table`, `profiling-table`, and downstream agents/skills.
 
 | Schema | Object type | Key fields |
 |---|---|---|
@@ -62,7 +62,7 @@ Per-object catalog files produced by `setup-ddl` and consumed by `listing-object
 | `references` / `referenced_by` (catalog-query-sourced) | `sys.dm_sql_referenced_entities` per proc/view/function | setup-ddl |
 | `references` / `referenced_by` (AST-augmented) | sqlglot scan of proc bodies for CTAS, SELECT INTO, EXEC targets | setup-ddl |
 | `profile` section | `/profiling-table` skill or profiler agent | After setup-ddl, during profiling |
-| `scoping` section | scoping agent or `/scoping-table` | After setup-ddl, during scoping |
+| `scoping` section | scoping agent or `/analyzing-table` | After setup-ddl, during scoping |
 | manifest.json | Written by setup-ddl at extraction time | setup-ddl |
 
 ### Detection field
@@ -86,7 +86,7 @@ Structured JSON output from the `discover` CLI subcommands, consumed by skills a
 | Schema | Subcommand | Notes |
 |---|---|---|
 | [discover_list_output.json](discover_list_output.json) | `discover list` | `{objects: [string]}` |
-| [discover_show_output.json](discover_show_output.json) | `discover show` | columns, params, refs (from catalog), statements (AST, deterministic only), classification |
+| [discover_show_output.json](discover_show_output.json) | `discover show` | columns, params, refs (from catalog), statements (AST, deterministic only), needs_llm |
 | [discover_refs_output.json](discover_refs_output.json) | `discover refs` | readers, writers with `is_updated`/`is_selected` from catalog. No confidence scoring. |
 
 ## Agent input schemas

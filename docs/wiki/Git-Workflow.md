@@ -30,7 +30,7 @@ The `setup-worktree.sh` script runs after worktree creation and handles two thin
 | Interactive (skill) | FDE's current branch | FDE manages manually |
 | Multi-table (command) | `<command>-<table1>-<table2>-...` (truncated to 60 chars) | Command, before spawning sub-agents |
 
-Single-table skill invocations (`/scoping-table`, `/profiling-table`, etc.) do not create branches. The FDE works on whatever branch they are already on.
+Single-table skill invocations (`/analyzing-table`, `/profiling-table`, etc.) do not create branches. The FDE works on whatever branch they are already on.
 
 Multi-table commands create a new branch and worktree automatically. The branch name is built from the command name and the table names, truncated to 60 characters to stay within git limits.
 

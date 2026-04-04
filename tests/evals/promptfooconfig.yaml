@@ -17,9 +17,9 @@ prompts:
   - id: code-review
     label: code-review
     raw: file://prompts/skill-reviewing-model.txt
-  - id: scoping-table
-    label: scoping-table
-    raw: file://prompts/skill-scoping-table.txt
+  - id: analyzing-table
+    label: analyzing-table
+    raw: file://prompts/skill-analyzing-table.txt
   - id: cmd-scope
     label: cmd-scope
     raw: file://prompts/cmd-scope.txt
@@ -351,10 +351,10 @@ tests:
       - type: javascript
         value: file://assertions/check-model-review.js
 
-  # ── scoping-table ────────────────────────────────────────────
+  # ── analyzing-table ────────────────────────────────────────────
 
   - description: "truncate-insert — DimCustomer multi-writer resolution"
-    prompts: ["scoping-table"]
+    prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.DimCustomer"
@@ -369,7 +369,7 @@ tests:
         value: file://assertions/check-procedure-catalog.js
 
   - description: "merge — DimProduct single MERGE writer"
-    prompts: ["scoping-table"]
+    prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.DimProduct"
@@ -384,7 +384,7 @@ tests:
         value: file://assertions/check-procedure-catalog.js
 
   - description: "exec-orchestrator — FactInternetSales EXEC chain writer"
-    prompts: ["scoping-table"]
+    prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.FactInternetSales"
@@ -399,7 +399,7 @@ tests:
         value: file://assertions/check-procedure-catalog.js
 
   - description: "cross-db-exec — DimCrossDbProfile cross-database delegation"
-    prompts: ["scoping-table"]
+    prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.DimCrossDbProfile"
@@ -413,7 +413,7 @@ tests:
         value: file://assertions/check-procedure-catalog.js
 
   - description: "dynamic-sp-executesql — DimCurrency dynamic SQL writer"
-    prompts: ["scoping-table"]
+    prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.DimCurrency"
@@ -427,7 +427,7 @@ tests:
         value: file://assertions/check-procedure-catalog.js
 
   - description: "exec-variable — ExecVariableTarget dynamic EXEC(@sql)"
-    prompts: ["scoping-table"]
+    prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.ExecVariableTarget"
@@ -443,7 +443,7 @@ tests:
         value: file://assertions/check-procedure-catalog.js
 
   - description: "exec-concat — ExecConcatTarget concatenated EXEC"
-    prompts: ["scoping-table"]
+    prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.ExecConcatTarget"

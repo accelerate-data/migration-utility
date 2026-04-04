@@ -55,10 +55,10 @@ module.exports = (output, context) => {
     return { pass: false, score: 0, reason: 'No statements found in procedure catalog' };
   }
 
-  // Check all statements have been resolved (no "claude" actions remaining)
-  const unresolvedCount = catalog.statements.filter(s => s.action === 'claude').length;
+  // Check all statements have been resolved (no "needs_llm" actions remaining)
+  const unresolvedCount = catalog.statements.filter(s => s.action === 'needs_llm').length;
   if (unresolvedCount > 0) {
-    return { pass: false, score: 0, reason: `${unresolvedCount} unresolved 'claude' actions remain in statements` };
+    return { pass: false, score: 0, reason: `${unresolvedCount} unresolved 'needs_llm' actions remain in statements` };
   }
 
   // Check at least one migrate statement exists

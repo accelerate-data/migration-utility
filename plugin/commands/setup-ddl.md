@@ -1,6 +1,6 @@
 # Setting Up DDL
 
-Extract DDL from a live SQL Server and write local artifact files that the `ddl` MCP server used by `listing-objects`/`scoping-table` skills to read the schema.
+Extract DDL from a live SQL Server and write local artifact files that the `ddl` MCP server used by `listing-objects`/`analyzing-table` skills to read the schema.
 
 ## Prerequisites
 

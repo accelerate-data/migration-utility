@@ -7,7 +7,7 @@ Discovers which stored procedures write to a target table, analyzes each candida
 ## Invocation
 
 ```text
-/scoping-table <schema.table>
+/analyzing-table <schema.table>
 ```
 
 Argument is the fully-qualified table name (e.g., `silver.DimCustomer`, `[dbo].[FactSales]`). The skill asks if missing.
@@ -35,8 +35,8 @@ Extracts the `writers` array from the output. If no writers are found, persists 
 
 For each writer candidate, follows the procedure analysis reference (`references/procedure-analysis.md`). This runs a 6-step pipeline per candidate:
 
-1. **Fetch object data** — `discover show --name <proc>` returns refs, statements, classification, raw_ddl
-2. **Classify statements** — deterministic (AST) or claude_assisted (LLM-based from raw_ddl)
+1. **Fetch object data** — `discover show --name <proc>` returns refs, statements, needs_llm, raw_ddl
+2. **Classify statements** — `needs_llm: false` (AST-parsed) or `needs_llm: true` (LLM-based from raw_ddl)
 3. **Resolve call graph** — follow refs to base tables via recursive `discover show`
 4. **Logic summary** — plain-language explanation of what the procedure does
 5. **Migration guidance** — tag each statement as `migrate` or `skip`
@@ -166,4 +166,4 @@ Written during procedure analysis (Step 3). Each statement has `action` (migrate
 | Procedure analysis failure | Could not analyze a candidate procedure | Candidate is marked `BLOCKED`; remaining candidates continue. If all candidates fail, `status` is set to `error` |
 | `discover write-scoping` exit code 1 | Validation failure (invalid JSON, missing fields) | Check scoping JSON structure against the schema above |
 | `discover write-scoping` exit code 2 | Invalid JSON or IO error | Verify the `.staging/scoping.json` file was written correctly |
-| No writers detected but proc clearly writes | Writer uses dynamic SQL that catalog queries cannot resolve | Known limitation of `sys.dm_sql_referenced_entities`. Run `/scoping-table` on the suspected table and manually scope |
+| No writers detected but proc clearly writes | Writer uses dynamic SQL that catalog queries cannot resolve | Known limitation of `sys.dm_sql_referenced_entities`. Run `/analyzing-table` on the suspected table and manually scope |

@@ -8,7 +8,7 @@ Commands are plugin command files (`.md` files), not skills. They run inside the
 
 | Command | Plugin | Skill per table | Notes |
 |---|---|---|---|
-| `/scope` | `migration` | `/scoping-table` | |
+| `/scope` | `migration` | `/analyzing-table` | |
 | `/profile` | `migration` | `/profiling-table` | |
 | `/generate-tests` | `ground-truth-harness` | `/generating-tests` | Includes test-reviewer sub-agent loop |
 | `/generate-model` | `migration` | `/generating-model` | Includes code-reviewer sub-agent loop |

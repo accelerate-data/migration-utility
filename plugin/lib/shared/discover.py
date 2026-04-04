@@ -161,23 +161,24 @@ def _show_procedure(
     parse_error = entry.parse_error
 
     if parse_error:
-        classification = "claude_assisted"
+        needs_llm = True
         statements = None
     elif routing_mode == "llm_required":
-        classification = "claude_assisted"
+        needs_llm = True
         statements = None
     else:
         try:
             obj_refs_for_stmts = extract_refs(entry)
             statements = obj_refs_for_stmts.statements
+            needs_llm = obj_refs_for_stmts.needs_llm
         except DdlParseError:
+            needs_llm = True
             statements = None
-        classification = "deterministic"
 
     return {
         "params": params,
         "refs": refs_dict,
-        "classification": classification,
+        "needs_llm": needs_llm,
         "routing_reasons": routing_reasons,
         "statements": statements,
     }
@@ -235,7 +236,7 @@ def run_show(project_root: Path, name: str) -> dict[str, Any]:
         "refs": None,
         "routing_reasons": [],
         "statements": None,
-        "classification": None,
+        "needs_llm": None,
         "parse_error": entry.parse_error,
         **extra,
     }
@@ -305,7 +306,7 @@ def run_write_statements(
     """Persist resolved statements into a procedure catalog file.
 
     All statements must have ``action`` set to ``migrate`` or ``skip`` —
-    unresolved ``claude`` actions are rejected.
+    unresolved ``needs_llm`` actions are rejected.
 
     Returns a dict with ``written`` (path) and ``statement_count``.
     """

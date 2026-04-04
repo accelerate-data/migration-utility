@@ -69,7 +69,7 @@ A typical exploration session before scoping:
    /listing-objects show dbo.usp_load_dimcustomer
    ```
 
-5. **Decide what to scope** based on the catalog state, then proceed to `/scoping-table` or `/scope`.
+5. **Decide what to scope** based on the catalog state, then proceed to `/analyzing-table` or `/scope`.
 
 ## When to use
 

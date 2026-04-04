@@ -96,7 +96,7 @@ These are the error codes returned by `migrate-util dry-run` when a guard fails:
 | `MANIFEST_CORRUPT` | `manifest_exists` | `manifest.json` is not valid JSON | Re-run `/setup-ddl` or manually fix the file |
 | `CATALOG_FILE_MISSING` | `table_catalog_exists` | `catalog/tables/<table>.json` not found | Run `/setup-ddl` to populate the catalog |
 | `CATALOG_FILE_CORRUPT` | `table_catalog_exists` | Table catalog file is not valid JSON | Re-run `/setup-ddl` or manually fix the file |
-| `SCOPING_NOT_COMPLETED` | `selected_writer_set` | No `selected_writer` in the table's scoping section | Run `/scope <table>` or `/scoping-table <table>` |
+| `SCOPING_NOT_COMPLETED` | `selected_writer_set` | No `selected_writer` in the table's scoping section | Run `/scope <table>` or `/analyzing-table <table>` |
 | `STATEMENTS_NOT_RESOLVED` | `statements_resolved` | One or more statements not resolved to `migrate` or `skip` | Run `/scope <table>` to resolve remaining statements |
 | `PROFILE_NOT_COMPLETED` | `profile_completed` | Profile section missing or status is not `ok`/`partial` | Run `/profile <table>` or `/profiling-table <table>` |
 | `SANDBOX_NOT_CONFIGURED` | `sandbox_configured` | Sandbox metadata (`database`) missing from manifest | Run `/setup-sandbox` to create the test database |

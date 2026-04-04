@@ -53,7 +53,7 @@ tests/evals/
     skill-generating-tests.txt         # prompt template for generating-tests skill
     skill-reviewing-tests.txt          # prompt template for reviewing-tests skill
     skill-reviewing-model.txt          # prompt template for reviewing-model skill
-    skill-scoping-table.txt            # prompt template for scoping-table skill
+    skill-analyzing-table.txt            # prompt template for analyzing-table skill
     cmd-scope.txt                      # prompt template for /scope command
     cmd-profile.txt                    # prompt template for /profile command
     cmd-generate-model.txt             # prompt template for /generate-model command
@@ -69,8 +69,8 @@ tests/evals/
       skill-reviewing-tests.yaml       # 2 scenarios
     code-review/
       skill-reviewing-model.yaml       # 3 scenarios
-    scoping-table/
-      skill-scoping-table.yaml         # 7 scenarios
+    analyzing-table/
+      skill-analyzing-table.yaml         # 7 scenarios
     cmd-scope/
       cmd-scope.yaml                   # 2 scenarios
     cmd-profile/
@@ -105,7 +105,7 @@ Test individual skills in isolation (single-table, no orchestration).
 | `test-generator` | `/generating-tests` | 3 |
 | `test-review` | `/reviewing-tests` | 2 |
 | `code-review` | `/reviewing-model` | 3 |
-| `scoping-table` | `/scoping-table` | 7 (validates both scoping decisions and procedure catalog) |
+| `analyzing-table` | `/analyzing-table` | 7 (validates both scoping decisions and procedure catalog) |
 
 ### Command packages
 
@@ -141,7 +141,7 @@ npm run eval:model-generator
 npm run eval:test-generator
 npm run eval:test-review
 npm run eval:code-review
-npm run eval:scoping-table
+npm run eval:analyzing-table
 
 # Command packages (10 scenarios total, run individually)
 npm run eval:cmd-scope
@@ -388,7 +388,7 @@ providers:
 ```
 
 - `working_dir: ../..` — repo root relative to `tests/evals/packages/<pkg>/`
-- `max_turns` — 80 for scoping-table, cmd-scope, cmd-profile; 100 for cmd-generate-tests; 120 for cmd-generate-model; 60-70 for other skill packages
+- `max_turns` — 80 for analyzing-table, cmd-scope, cmd-profile; 100 for cmd-generate-tests; 120 for cmd-generate-model; 60-70 for other skill packages
 - `test-review` and `code-review` omit Write from allowed tools (read-only review)
 
 ---

@@ -13,7 +13,7 @@ The `/setup-ddl` skill connects to a live SQL Server via MCP, extracts DDL for s
 | Mode | Requirements | How it works |
 |---|---|---|
 | Live DB (default) | `toolbox` + MSSQL env vars | Connects to SQL Server via MCP, runs all queries live |
-| DDL file import | None | Uses `listing-objects`, `scoping-table`, and `scoping` skills against local DDL files |
+| DDL file import | None | Uses `listing-objects`, `analyzing-table`, and `scoping` skills against local DDL files |
 
 This page covers the live DB mode. DDL file mode is available when `toolbox` or MSSQL credentials are not configured.
 

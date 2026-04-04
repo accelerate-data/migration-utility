@@ -117,9 +117,9 @@ Only persist for procs not already in catalog (idempotent) — if the proc alrea
 
 For each resolved item:
 
-1. If `discover show` returned `classification: deterministic` — all statements already have `action: migrate|skip`. Write them to catalog with `source: "ast"`.
+1. If `discover show` returned `needs_llm: false` — all statements already have `action: migrate|skip`. Write them to catalog with `source: "ast"`.
 
-2. If `discover show` returned `classification: claude_assisted` — the LLM analysis in Step 2 resolved all `claude` actions to `migrate` or `skip`. Write the resolved statements to catalog with `source: "llm"`.
+2. If `discover show` returned `needs_llm: true` — the LLM analysis in Step 2 resolved all `needs_llm` actions to `migrate` or `skip`. Write the resolved statements to catalog with `source: "llm"`.
 
 Run:
 

@@ -188,7 +188,7 @@ class TestRunContext:
 
         assert result["table"] == "silver.factsales"
         assert result["writer"] == "dbo.usp_load_fact_sales"
-        assert result["classification"] == "deterministic"
+        assert result["needs_llm"] is False
         assert result["profile"]["classification"]["resolved_kind"] == "fact_transaction"
         assert result["materialization"] == "incremental"
         assert len(result["statements"]) >= 1
@@ -331,7 +331,7 @@ END
 
         result = run_context(ddl_path, "silver.dimcurrency", "dbo.usp_load_dim_currency")
 
-        assert result["classification"] == "deterministic"
+        assert result["needs_llm"] is False
         assert result["materialization"] == "table"
         assert [stmt["action"] for stmt in result["statements"]] == ["skip", "migrate"]
 
@@ -396,11 +396,11 @@ END
 
         result = run_context(ddl_path, "silver.factorders", "dbo.usp_load_fact_orders")
 
-        assert result["classification"] == "deterministic"
+        assert result["needs_llm"] is False
         assert result["statements"] == []
         assert result["source_tables"] == []
 
-    def test_dynamic_sp_executesql_context_is_claude_assisted(self, ddl_path: Path) -> None:
+    def test_dynamic_sp_executesql_context_needs_llm(self, ddl_path: Path) -> None:
         _seed_migrate_fixture(
             ddl_path,
             "silver.dimgeography",
@@ -461,7 +461,7 @@ END
 
         result = run_context(ddl_path, "silver.dimgeography", "dbo.usp_load_dim_geography")
 
-        assert result["classification"] == "claude_assisted"
+        assert result["needs_llm"] is True
         assert result["statements"] == []
 
 

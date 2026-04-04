@@ -41,7 +41,7 @@
       "action": "migrate",
       "source": "llm",
       "sql": "INSERT INTO silver.ExecVariableTarget (ProductAlternateKey, EnglishProductName) SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product",
-      "rationale": "Dynamic SQL is assembled through a variable assignment before EXEC, so the statement needs claude_assisted reconstruction."
+      "rationale": "Dynamic SQL is assembled through a variable assignment before EXEC, so the statement needs LLM-assisted reconstruction."
     }
   ]
 }

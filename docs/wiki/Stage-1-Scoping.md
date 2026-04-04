@@ -1,6 +1,6 @@
 # Stage 1 -- Scoping
 
-The `/scope` command identifies which stored procedures write to each target table. It launches one sub-agent per table in parallel, each running the `/scoping-table` skill.
+The `/scope` command identifies which stored procedures write to each target table. It launches one sub-agent per table in parallel, each running the `/analyzing-table` skill.
 
 ## Prerequisites
 
@@ -31,7 +31,7 @@ If the worktree and branch already exist, they are reused.
 
 ### Step 2 -- Per-table scoping
 
-One sub-agent per table runs in parallel. Each sub-agent follows the `/scoping-table` skill pipeline:
+One sub-agent per table runs in parallel. Each sub-agent follows the `/analyzing-table` skill pipeline:
 
 1. Reads catalog signals (`referenced_by` in the table's catalog file) to identify candidate writer procedures
 2. For each candidate, follows the procedure analysis reference to analyze the procedure's code (call graph, statement classification, persistence) and determine whether it actually writes to the target table
@@ -90,7 +90,7 @@ The scoping result is written directly to the table's catalog file as `scoping.s
 |---|---|
 | `MANIFEST_NOT_FOUND` | `manifest.json` missing -- all items fail |
 | `CATALOG_FILE_MISSING` | Catalog file not found for a table -- item skipped |
-| `SCOPING_FAILED` | `/scoping-table` skill pipeline failed -- item skipped |
+| `SCOPING_FAILED` | `/analyzing-table` skill pipeline failed -- item skipped |
 
 ## Next Step
 

@@ -2,14 +2,14 @@
 name: scope
 description: >
   Batch scoping command — identifies writer procedures for each table.
-  Delegates per-item scoping to the /scoping-table skill.
+  Delegates per-item scoping to the /analyzing-table skill.
 user-invocable: true
 argument-hint: "<schema.table> [schema.table ...]"
 ---
 
 # Scope
 
-Identify which procedures write to each table. Launches one sub-agent per table in parallel, each running `migration:scoping-table`.
+Identify which procedures write to each table. Launches one sub-agent per table in parallel, each running `migration:analyzing-table`.
 
 ## Guards
 
@@ -34,14 +34,14 @@ Identify which procedures write to each table. Launches one sub-agent per table 
 }
 ```
 
-### Step 2 — Run migration:scoping-table per table
+### Step 2 — Run migration:analyzing-table per table
 
-**Single-table path (1 table):** Run `migration:scoping-table` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.json`. Then continue to Step 3.
+**Single-table path (1 table):** Run `migration:analyzing-table` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.json`. Then continue to Step 3.
 
 **Multi-table path (2+ tables):** Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
 
 ```text
-Run the migration:scoping-table skill for <schema.table>.
+Run the migration:analyzing-table skill for <schema.table>.
 The worktree is at <worktree-path>.
 Write the item result JSON to .migration-runs/<schema.table>.json.
 On failure, write result with status: "error" and error details.
@@ -118,7 +118,7 @@ The full scoping data lives in the catalog files, not duplicated in the run log.
 |---|---|---|
 | `MANIFEST_NOT_FOUND` | error | manifest.json missing — all items fail |
 | `CATALOG_FILE_MISSING` | error | catalog/tables/\<item_id>.json not found — skip item |
-| `SCOPING_FAILED` | error | `/scoping-table` skill pipeline failed — skip item |
+| `SCOPING_FAILED` | error | `/analyzing-table` skill pipeline failed — skip item |
 
 Each entry in `errors[]` or `warnings[]`:
 
