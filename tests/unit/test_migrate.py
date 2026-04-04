@@ -542,6 +542,22 @@ class TestRunWrite:
         assert result["status"] == "ok"
         assert (dbt / "models" / "staging" / "stg_factsales.sql").exists()
 
+    def test_write_nonexistent_project_exits_2(self, tmp_path: Path) -> None:
+        """CLI write to nonexistent dbt project exits with code 2."""
+        from typer.testing import CliRunner
+
+        from shared.migrate import app
+
+        runner = CliRunner()
+        nonexistent = tmp_path / "no_such_dir"
+        result = runner.invoke(app, [
+            "write",
+            "--table", "silver.FactSales",
+            "--dbt-project-path", str(nonexistent),
+            "--model-sql", "select 1",
+        ])
+        assert result.exit_code == 2
+
 
 # ── Corrupt catalog JSON tests ──────────────────────────────────────────
 
