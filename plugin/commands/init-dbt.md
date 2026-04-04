@@ -210,7 +210,7 @@ If `dbt deps` fails, check whether `dbt` is installed and the adapter package is
 | Fabric Lakehouse | `uv tool install dbt-core --with dbt-fabric` |
 | Spark | `uv tool install dbt-core --with dbt-spark` |
 | Snowflake | `uv tool install dbt-core --with dbt-snowflake` |
-| SQL Server | `uv tool install dbt-core --with dbt-sqlserver` |
+| SQL Server | `uv tool install dbt-core --with dbt-sqlserver --with pyodbc` |
 | DuckDB | `uv tool install dbt-core --with dbt-duckdb` |
 
 If `dbt compile` fails for Fabric/Spark/Snowflake targets (due to placeholder credentials), that is expected. Tell the user to update `profiles.yml` with real credentials before running `dbt compile` again. SQL Server uses `env_var()` for credentials — compile succeeds if MSSQL env vars are set.
