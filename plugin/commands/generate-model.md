@@ -27,28 +27,17 @@ Generate dbt models for a batch of tables. Launches one sub-agent per table in p
 
 ### Step 1 — Setup
 
-1. Read worktree base path from `.claude/rules/git-workflow.md`.
-2. Generate run slug: `feature/generate-model-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters after `feature/`).
-3. Scan for existing worktrees: run `git worktree list --porcelain` to find all worktrees under `<base>/` (excluding the main working tree).
-   - **One or more worktrees found:** list them and ask the user:
-     > Existing worktrees:
-     >
-     > 1. `feature/scope-silver-dimcustomer`
-     > 2. `feature/profile-silver-dimcustomer`
-     >
-     > - **Continue on #N** — add to that branch
-     > - **New worktree** — create `<slug>` and start fresh
-   - **No worktrees found:** create the new worktree — `mkdir -p <base>/feature && git worktree add <base>/<slug> -b <slug>`, then run `./scripts/setup-worktree.sh <worktree-path>`.
-4. **New worktree**: clear `.migration-runs/` and write `meta.json` (see below). **Continue on existing**: skip clearing — preserve existing `.migration-runs/` and `meta.json`.
-
-```json
-{
-  "command": "generate-model",
-  "tables": ["silver.DimCustomer", "silver.DimProduct"],
-  "worktree": "../worktrees/feature/generate-model-silver-dimcustomer-silver-dimproduct",
-  "started_at": "2026-04-01T12:00:00Z"
-}
-```
+1. Generate run slug: `generate-model-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters).
+2. Check for existing worktrees. If any exist, list them and ask the user:
+   > Existing worktrees:
+   >
+   > 1. `feature/scope-silver-dimcustomer`
+   > 2. `feature/profile-silver-dimcustomer`
+   >
+   > - **Continue on #N** — add to that branch
+   > - **New worktree** — create a new worktree from the slug
+   If none exist, proceed to step 3.
+3. **New worktree**: create the worktree and branch per `.claude/rules/git-workflow.md`, then clear `.migration-runs/`. **Continue on existing**: skip clearing — preserve existing `.migration-runs/`.
 
 ### Step 2 — Run migration:generating-model per table
 

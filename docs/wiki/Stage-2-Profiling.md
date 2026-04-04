@@ -102,7 +102,7 @@ profile complete -- 3 tables processed
   ok: 1 | partial: 1 | error: 1
 ```
 
-The command then asks whether to commit and open a PR. If an existing open PR is found on the branch, it is updated instead of creating a new one.
+The command then asks whether to commit and open a PR.
 
 ## Error Codes
 

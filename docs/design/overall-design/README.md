@@ -177,7 +177,6 @@ Run summaries are collected in `.migration-runs/` (`.gitignore`d). Cleared at th
 
 ```text
 .migration-runs/
-  meta.json                        # stage, tables, started_at
   <schema>.<table>.json            # one per item — sub-agent writes on completion
   summary.json                     # command writes after all sub-agents finish
 ```
@@ -223,7 +222,6 @@ Sub-agents skip errored tables and continue. The command collects per-table stat
 
 Commands open one PR per batch. The PR body includes:
 
-- Stage and table list from `meta.json`
 - Per-table status (success/skipped/error) from `summary.json`
 - Diagnostics summary for any tables with warnings
 

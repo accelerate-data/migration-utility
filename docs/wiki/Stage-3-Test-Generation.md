@@ -20,7 +20,7 @@ Generates test scenarios for each table, reviews them for coverage, then execute
 
 ### Pipeline
 
-The command creates a worktree (or reuses an existing one) and launches one sub-agent per table in parallel.
+The command launches one sub-agent per table in parallel.
 
 **Step 1 -- Scenario generation.** Each sub-agent runs the `/generating-tests` skill, which:
 

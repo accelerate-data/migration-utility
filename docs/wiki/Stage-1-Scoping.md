@@ -19,14 +19,9 @@ Single-table invocation works the same way -- it is just a batch of one.
 
 ## How It Works
 
-### Step 1 -- Worktree setup
+### Step 1 -- Setup
 
-The command creates a git worktree to isolate the batch:
-
-- Branch name: `feature/scope-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters after `feature/`)
-- Worktree path: `../worktrees/feature/scope-<slug>`
-
-Before creating a new worktree, the command scans for any existing worktrees and offers to continue on one of them. New worktrees clear `.migration-runs/` and write `meta.json` with command metadata.
+The command sets up an isolated worktree for the batch. If existing worktrees are found, the FDE can choose to continue on one of them instead of creating a new one.
 
 ### Step 2 -- Per-table scoping
 

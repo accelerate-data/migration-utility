@@ -47,7 +47,6 @@ PRs target the repo's default branch. The FDE reviews and merges -- commands do 
 
 Command-generated PRs include:
 
-- Stage and table list from `meta.json`
 - Per-table status (success/skipped/error) from `summary.json`
 - Diagnostics summary for any tables with warnings
 

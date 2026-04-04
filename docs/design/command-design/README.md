@@ -32,7 +32,7 @@ Every command follows the same lifecycle:
 
 1. Accept table names from FDE.
 2. Create a worktree: `git worktree add ../worktrees/run/<command>-batch-N`. Isolates the batch so the FDE can run multiple commands in parallel.
-3. Clear `.migration-runs/`, write `meta.json`.
+3. Clear `.migration-runs/`.
 4. Spawn one sub-agent per table in parallel.
 5. Each sub-agent follows the corresponding skill's per-table processing rules.
 6. Sub-agents run autonomously; on error, skip the table and continue.
@@ -45,7 +45,6 @@ Every command follows the same lifecycle:
 
 ```text
 .migration-runs/
-  meta.json                        # stage, tables, started_at
   <schema>.<table>.json            # one per item — sub-agent writes on completion
   summary.json                     # command writes after all sub-agents finish
 ```
