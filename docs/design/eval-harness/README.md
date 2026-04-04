@@ -48,7 +48,6 @@ tests/evals/
     check-table-scoping.js             # validates table scoping decisions
     check-command-summary.js           # validates command orchestration summary
   prompts/
-    skill-analyzing-object.txt         # prompt template for analyzing-object skill
     skill-profiling-table.txt          # prompt template for profiling-table skill
     skill-generating-model.txt         # prompt template for generating-model skill
     skill-generating-tests.txt         # prompt template for generating-tests skill
@@ -60,8 +59,6 @@ tests/evals/
     cmd-generate-model.txt             # prompt template for /generate-model command
     cmd-generate-tests.txt             # prompt template for /generate-tests command
   packages/
-    analyzing-object/
-      skill-analyzing-object.yaml      # 11 scenarios
     profiler/
       skill-profiling-table.yaml       # 4 scenarios
     model-generator/
@@ -103,13 +100,12 @@ Test individual skills in isolation (single-table, no orchestration).
 
 | Package | Skill | Scenarios |
 |---|---|---|
-| `analyzing-object` | `/analyzing-object` | 11 |
 | `profiler` | `/profiling-table` | 4 |
 | `model-generator` | `/generating-model` | 16 |
 | `test-generator` | `/generating-tests` | 3 |
 | `test-review` | `/reviewing-tests` | 2 |
 | `code-review` | `/reviewing-model` | 3 |
-| `scoping-table` | `/scoping-table` | 7 |
+| `scoping-table` | `/scoping-table` | 7 (validates both scoping decisions and procedure catalog) |
 
 ### Command packages
 
@@ -136,11 +132,10 @@ cd tests/evals
 # Install dependencies (first time only)
 npm install
 
-# Full skill suite — all skill packages (46 scenarios)
+# Full skill suite — all skill packages (35 scenarios)
 npm run eval
 
 # Single skill package
-npm run eval:analyzing-object
 npm run eval:profiler
 npm run eval:model-generator
 npm run eval:test-generator
@@ -169,24 +164,6 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 ---
 
 ## Scenarios
-
-### Analyzing-object (11 scenarios)
-
-Each scenario targets a stored procedure and validates persisted statement analysis.
-
-| Scenario | Target procedure | Pattern |
-|---|---|---|
-| resolved — DimProduct | silver.usp_load_DimProduct | Direct MERGE writer |
-| ambiguous — DimCustomer Full | silver.usp_load_DimCustomer_Full | TRUNCATE+INSERT full-load |
-| resolved — DimCustomer Delta | silver.usp_load_DimCustomer_Delta | MERGE delta writer |
-| call-graph — FactInternetSales | silver.usp_load_FactInternetSales | EXEC orchestrator |
-| resolved — staging leaf | silver.usp_stage_FactInternetSales | TRUNCATE+INSERT leaf proc |
-| dynamic-sql — DimCurrency | silver.usp_load_DimCurrency | Dynamic sp_executesql |
-| error — DimEmployee | silver.usp_load_DimEmployee | Cross-database reference |
-| writer-through-view — DimPromotion | silver.usp_load_DimPromotion | Updateable view writer |
-| linked-server-exec | silver.usp_scope_LinkedServerExec | Linked-server EXEC (out of scope) |
-| exec-variable | silver.usp_scope_ExecVariable | EXEC(@sql) dynamic SQL |
-| exec-concat | silver.usp_scope_ExecConcat | EXEC('...' + @var) concatenated |
 
 ### Profiler (4 scenarios)
 
@@ -411,7 +388,7 @@ providers:
 ```
 
 - `working_dir: ../..` — repo root relative to `tests/evals/packages/<pkg>/`
-- `max_turns` — 80 for analyzing-object, scoping-table, cmd-scope, cmd-profile; 100 for cmd-generate-tests; 120 for cmd-generate-model; 60-70 for other skill packages
+- `max_turns` — 80 for scoping-table, cmd-scope, cmd-profile; 100 for cmd-generate-tests; 120 for cmd-generate-model; 60-70 for other skill packages
 - `test-review` and `code-review` omit Write from allowed tools (read-only review)
 
 ---
@@ -420,7 +397,7 @@ providers:
 
 Each scenario invokes Claude with tool use. At current pricing, expect roughly $0.10-0.50 per scenario depending on agent complexity and turn count. Command evals are more expensive per scenario (~$0.50-1.00) due to multi-table orchestration and review loops.
 
-- Full skill suite (46 scenarios): ~$6-23 per run
+- Full skill suite (35 scenarios): ~$5-18 per run
 - All command evals (10 scenarios): ~$5-10 per run
 - Single skill package: ~$1-5 per run
 - Single command package: ~$1-3 per run
