@@ -21,14 +21,10 @@ Identify which procedures write to each table. Launches one sub-agent per table 
 ### Step 1 — Setup
 
 1. Generate run slug: `scope-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters).
-2. Check for existing worktrees. If any exist, list them and ask the user:
-   > Existing worktrees:
-   >
+2. Check for existing worktrees. If any exist, list them as options alongside creating a new one and ask the user to pick:
    > 1. `feature/scope-silver-dimcustomer`
    > 2. `feature/profile-silver-dimcustomer`
-   >
-   > - **Continue on #N** — add to that branch
-   > - **New worktree** — create a new worktree from the slug
+   > 3. **New worktree**
    If none exist, create a new worktree and branch per `.claude/rules/git-workflow.md`.
 3. Generate a run epoch: seconds since Unix epoch (e.g. `1743868200`). All run artifacts use this as a filename suffix.
 
