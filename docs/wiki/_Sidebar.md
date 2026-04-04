@@ -25,7 +25,6 @@
 - [[Skill Setup DDL]]
 - [[Skill Listing Objects]]
 - [[Skill Scoping Table]]
-- [[Skill Analyzing Object]]
 - [[Skill Profiling Table]]
 - [[Skill Generating Tests]]
 - [[Skill Reviewing Tests]]

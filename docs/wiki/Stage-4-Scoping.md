@@ -34,7 +34,7 @@ If the worktree and branch already exist, they are reused.
 One sub-agent per table runs in parallel. Each sub-agent follows the `/scoping-table` skill pipeline:
 
 1. Reads catalog signals (`referenced_by` in the table's catalog file) to identify candidate writer procedures
-2. For each candidate, dispatches `/analyzing-object` to analyze the procedure's code and determine whether it actually writes to the target table
+2. For each candidate, follows the procedure analysis reference to analyze the procedure's code (call graph, statement classification, persistence) and determine whether it actually writes to the target table
 3. Resolves the `selected_writer` from the analysis results
 
 ### Step 3 -- Revert errored items
