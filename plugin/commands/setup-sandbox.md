@@ -19,12 +19,7 @@ Run all checks silently — do not change anything yet.
 1. Check `manifest.json` exists in the current working directory. Read it to confirm `technology` and `source_database` are present.
 2. Check that `extracted_schemas` in the manifest is a non-empty array.
 3. Check whether each MSSQL environment variable is set (non-empty): `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD`. Do not print their values.
-4. Verify the test-harness CLI is available:
-
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness --help
-```
-
+4. Verify the test-harness CLI is available: `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness --help`
 5. Check `dbt/profiles.yml` exists. If it does, read the adapter `type:` from the active profile output and compare against the `technology` in `manifest.json`:
 
 | manifest.technology | Expected dbt adapter |
