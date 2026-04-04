@@ -86,7 +86,7 @@
     },
     "migration_skills": {
       "path": "plugin/skills/",
-      "description": "Skill definitions: listing-objects/ (catalog browsing — list objects by type), scoping-table/ (table scoping — writer discovery, statement resolution, catalog persistence), analyzing-object/ (object analysis — show details, refs, statement classification), generating-model/ (dbt model generation from stored procedures), profiling-table/ (interactive single-table profiling with approval gates), setup-ddl/ (DDL extraction from live SQL Server with catalog signals, DMF references, and AST enrichment), generating-tests/ (single-table test generation with ground truth capture), reviewing-tests/ (LLM quality gate for test specs)."
+      "description": "Skill definitions: listing-objects/ (catalog browsing — list objects by type), scoping-table/ (table scoping — writer discovery, procedure analysis via reference, statement resolution, catalog persistence), generating-model/ (dbt model generation from stored procedures), profiling-table/ (interactive single-table profiling with approval gates), setup-ddl/ (DDL extraction from live SQL Server with catalog signals, DMF references, and AST enrichment), generating-tests/ (single-table test generation with ground truth capture), reviewing-tests/ (LLM quality gate for test specs)."
     },
     "migration_commands": {
       "path": "plugin/commands/",
@@ -98,7 +98,7 @@
     },
     "tests_evals": {
       "path": "tests/evals/",
-      "description": "Promptfoo eval harness for skill and command testing against MigrationTest schema. Skill packages: analyzing-object, profiler, model-generator, test-generator, test-review, code-review, scoping-table. Command packages: cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests. Top-level promptfooconfig.yaml for full-suite runs. Run via: cd tests/evals && npm run eval. See docs/design/eval-harness/README.md."
+      "description": "Promptfoo eval harness for skill and command testing against MigrationTest schema. Skill packages: profiler, model-generator, test-generator, test-review, code-review, scoping-table. Command packages: cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests. Top-level promptfooconfig.yaml for full-suite runs. Run via: cd tests/evals && npm run eval. See docs/design/eval-harness/README.md."
     },
     "tests_ddl_mcp": {
       "path": "plugin/mcp/ddl/tests/",
@@ -118,7 +118,7 @@
     "plugin/lib/": "Python DDL analysis library (uv project, sqlglot-based)",
     "plugin/lib/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
     "tests/unit/": "Python pytest tests for shared library (discover, catalog, catalog_enrich, extract_refs, integration)",
-    "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages: analyzing-object, profiler, model-generator, test-generator, test-review, code-review, scoping-table; command packages: cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests)",
+    "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages: profiler, model-generator, test-generator, test-review, code-review, scoping-table; command packages: cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests)",
     "plugin/mcp/ddl/tests/": "Python pytest tests for the DDL MCP server",
     "docs/design/": "Architecture decision records and design specs",
     ".claude/rules/": "Shared agent rules such as coding-conventions, git-workflow, logging-policy, and codex-execution-policy",
@@ -134,7 +134,6 @@
     "migrate_util_dry_run": "cd plugin/lib && uv run migrate-util dry-run <table> <stage> [--detail]",
     "lint_md": "markdownlint <file>",
     "eval_all": "cd tests/evals && npm run eval",
-    "eval_analyzing_object": "cd tests/evals && npm run eval:analyzing-object",
     "eval_profiler": "cd tests/evals && npm run eval:profiler",
     "eval_model_generator": "cd tests/evals && npm run eval:model-generator",
     "eval_test_generator": "cd tests/evals && npm run eval:test-generator",
