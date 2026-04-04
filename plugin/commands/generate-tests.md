@@ -34,8 +34,7 @@ Generate test scenarios, review for coverage, then bulk-execute approved scenari
    >
    > - **Continue on #N** — add to that branch
    > - **New worktree** — create a new worktree from the slug
-   If none exist, proceed to the **New worktree** path below.
-3. **New worktree**: create the worktree and branch per `.claude/rules/git-workflow.md`, then clear `.migration-runs/`. **Continue on existing**: skip clearing — preserve existing `.migration-runs/`.
+   If none exist, create a new worktree and branch per `.claude/rules/git-workflow.md`.
 
 ### Step 2 — Generate scenarios per table
 

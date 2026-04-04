@@ -88,7 +88,7 @@ generate-model(silver.FactSales): generate stg_fact_sales with incremental mater
 | `dbt/models/**/*.yml` | |
 | `ddl/*.sql` (from setup, not per-batch) | |
 
-The `.migration-runs/` directory contains per-command execution metadata (timing, cost, per-item status). When starting fresh (or on first invocation), it is cleared before the command runs. When continuing an existing worktree, it is preserved. It is never committed. It is consumed at commit/PR time for rich commit messages and PR bodies.
+The `.migration-runs/` directory contains per-command execution metadata (timing, cost, per-item status). Per-item result files are overwritten on each run. It is never committed. It is consumed at commit/PR time for rich commit messages and PR bodies.
 
 ## Cleaning up worktrees
 

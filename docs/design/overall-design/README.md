@@ -173,7 +173,7 @@ Each command:
 
 ### Run log (ephemeral)
 
-Run summaries are collected in `.migration-runs/` (`.gitignore`d). Cleared at the start of each command invocation.
+Run summaries are collected in `.migration-runs/` (`.gitignore`d). Per-item result files are overwritten on each run.
 
 ```text
 .migration-runs/

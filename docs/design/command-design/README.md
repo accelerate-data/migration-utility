@@ -49,7 +49,7 @@ Every command follows the same lifecycle:
   summary.json                     # command writes after all sub-agents finish
 ```
 
-- Cleared at the start of each command invocation.
+- Per-item result files are overwritten on each run.
 - `.gitignore`d — never committed.
 - No run IDs, no nesting.
 - Consumed at commit/PR time for rich commit messages and PR bodies.
