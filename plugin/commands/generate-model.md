@@ -16,6 +16,8 @@ Generate dbt models for a batch of tables. Launches one sub-agent per table in p
 
 - `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
 - `dbt_project.yml` must exist at `./dbt/`. If missing, fail all items with `DBT_PROJECT_MISSING`.
+- `dbt/profiles.yml` must exist. If missing, fail all items with `DBT_PROFILE_MISSING` and tell the user to run `/init-dbt`.
+- `dbt debug` must show "Connection test: OK". If it fails, fail all items with `DBT_CONNECTION_FAILED` and tell the user to check credentials — for SQL Server: `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD` env vars; for other adapters: update `profiles.yml` placeholder values.
 - Per item: `catalog/tables/<item_id>.json` must exist. If missing, skip with `CATALOG_FILE_MISSING`.
 - Per item: `scoping.selected_writer` must be set. If missing, skip with `SCOPING_NOT_COMPLETED`.
 - Per item: `profile` must exist with `status: "ok"`. If missing, skip with `PROFILE_NOT_COMPLETED`.
@@ -157,6 +159,8 @@ Derive `<model_name>` from the item_id using the same `stg_<table>` convention. 
 |---|---|---|
 | `MANIFEST_NOT_FOUND` | error | manifest.json missing — all items fail |
 | `DBT_PROJECT_MISSING` | error | dbt_project.yml not found — all items fail |
+| `DBT_PROFILE_MISSING` | error | dbt/profiles.yml not found — run `/init-dbt` — all items fail |
+| `DBT_CONNECTION_FAILED` | error | `dbt debug` connection test failed — check credentials — all items fail |
 | `CATALOG_FILE_MISSING` | error | catalog/tables/\<item_id>.json not found — skip item |
 | `SCOPING_NOT_COMPLETED` | error | scoping section missing or no selected_writer — skip item |
 | `PROFILE_NOT_COMPLETED` | error | profile section missing or status != ok — skip item |

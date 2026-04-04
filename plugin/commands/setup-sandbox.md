@@ -20,19 +20,8 @@ Run all checks silently — do not change anything yet.
 2. Check that `extracted_schemas` in the manifest is a non-empty array.
 3. Check whether each MSSQL environment variable is set (non-empty): `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD`. Do not print their values.
 4. Verify the test-harness CLI is available: `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness --help`
-5. Check `dbt/profiles.yml` exists. This is **required** — without it, `/generate-tests` and `/generate-model` will fail on `dbt compile`/`dbt test`. If missing, stop and tell the user: "No `dbt/profiles.yml` found. Run `/init-dbt` to scaffold the dbt project and select a target platform before setting up the sandbox."
-6. If `dbt/profiles.yml` exists, read the adapter `type:` from the active profile and compare against `technology` in `manifest.json`:
-
-| manifest.technology | Expected dbt adapter |
-|---|---|
-| `sql_server` | `sqlserver` |
-| `fabric_warehouse` | `fabric` |
-| `fabric_lakehouse` | `fabric` or `spark` |
-| `snowflake` | `snowflake` |
-
-If the adapter doesn't match, warn the user: "dbt profile uses `<adapter>` but manifest technology is `<technology>`. Run `/init-dbt` to reconfigure the dbt target." This is a warning, not a blocker — the sandbox itself doesn't depend on dbt, but downstream commands will use the wrong dialect.
-
-7. Verify dbt can connect with the configured credentials: `cd dbt && dbt debug`. Check that the output shows "Connection test: OK". If it fails, stop and tell the user to check their credentials — for SQL Server this means verifying `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, and `SA_PASSWORD` env vars; for other adapters, check `profiles.yml` placeholder values.
+5. Check `dbt/profiles.yml` exists. This is **required** — without it, `/generate-tests` and `/generate-model` will fail on `dbt compile`/`dbt test`. If missing, stop and tell the user: "No `dbt/profiles.yml` found. Run `/init-dbt` to scaffold the dbt project and select a target platform before setting up the sandbox." If present, read the adapter `type:` and compare against `technology` in `manifest.json` — `sql_server` expects `sqlserver`, `fabric_warehouse` expects `fabric`, `fabric_lakehouse` expects `fabric` or `spark`, `snowflake` expects `snowflake`. Warn on mismatch but don't block.
+6. Verify dbt can connect: `cd dbt && dbt debug`. Check the output shows "Connection test: OK". If it fails, stop and tell the user to check credentials — for SQL Server this means `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD` env vars; for other adapters, update placeholder values in `profiles.yml`.
 
 ## Step 3: Present plan
 
