@@ -18,7 +18,7 @@ The `/generate-model` command generates dbt models from stored procedures using 
 
 ### Step 1 -- Worktree setup
 
-Creates a git worktree with branch `feature/generate-model-<table1>-<table2>-...` (truncated to 60 characters after `feature/`). If the worktree already exists, the command asks the FDE to **continue** or **start fresh** (see [[Git Workflow]]). New worktrees and fresh starts clear `.migration-runs/` and write `meta.json`.
+Creates a git worktree with branch `feature/generate-model-<table1>-<table2>-...` (truncated to 60 characters after `feature/`). Before creating a new worktree, the command scans for existing worktrees and offers to continue on one of them. New worktrees clear `.migration-runs/` and write `meta.json`.
 
 ### Step 2 -- Model generation
 
