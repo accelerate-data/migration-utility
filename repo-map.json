@@ -109,7 +109,7 @@
     },
     "tests_evals": {
       "path": "tests/evals/",
-      "description": "Promptfoo eval harness for skill testing against MigrationTest schema. Includes analyzing-object, profiler, model-generator, test-generator, test-review, code-review, and scoping-table packages plus a top-level promptfooconfig.yaml for full-suite runs. Run via: cd tests/evals && npm run eval. See docs/design/eval-harness/README.md."
+      "description": "Promptfoo eval harness for skill and command testing against MigrationTest schema. Skill packages: analyzing-object, profiler, model-generator, test-generator, test-review, code-review, scoping-table. Command packages: cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests. Top-level promptfooconfig.yaml for full-suite runs. Run via: cd tests/evals && npm run eval. See docs/design/eval-harness/README.md."
     },
     "tests_ddl_mcp": {
       "path": "mcp/ddl/tests/",
@@ -129,7 +129,7 @@
     "lib/": "Python DDL analysis library (uv project, sqlglot-based)",
     "lib/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
     "tests/unit/": "Python pytest tests for shared library (discover, catalog, catalog_enrich, extract_refs, integration)",
-    "tests/evals/": "Promptfoo eval harness for agent and skill testing (analyzing-object, profiler, model-generator, test-generator, test-review, code-review, scoping-table packages)",
+    "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages: analyzing-object, profiler, model-generator, test-generator, test-review, code-review, scoping-table; command packages: cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests)",
     "mcp/ddl/tests/": "Python pytest tests for the DDL MCP server",
     "docs/design/": "Architecture decision records and design specs",
     ".claude/rules/": "Shared agent rules such as coding-conventions, git-workflow, logging-policy, and codex-execution-policy",
@@ -150,7 +150,11 @@
     "eval_test_generator": "cd tests/evals && npm run eval:test-generator",
     "eval_test_review": "cd tests/evals && npm run eval:test-review",
     "eval_code_review": "cd tests/evals && npm run eval:code-review",
-    "eval_scoping_table": "cd tests/evals && npm run eval:scoping-table"
+    "eval_scoping_table": "cd tests/evals && npm run eval:scoping-table",
+    "eval_cmd_scope": "cd tests/evals && npm run eval:cmd-scope",
+    "eval_cmd_profile": "cd tests/evals && npm run eval:cmd-profile",
+    "eval_cmd_generate_model": "cd tests/evals && npm run eval:cmd-generate-model",
+    "eval_cmd_generate_tests": "cd tests/evals && npm run eval:cmd-generate-tests"
   },
   "conventions": {
     "typescript_files": "kebab-case (scope-selector.tsx, candidacy-table.tsx)",
