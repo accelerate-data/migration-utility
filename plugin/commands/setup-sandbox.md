@@ -20,7 +20,8 @@ Run all checks silently — do not change anything yet.
 2. Check that `extracted_schemas` in the manifest is a non-empty array.
 3. Check whether each MSSQL environment variable is set (non-empty): `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD`. Do not print their values.
 4. Verify the test-harness CLI is available: `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness --help`
-5. Check `dbt/profiles.yml` exists. If it does, read the adapter `type:` from the active profile output and compare against the `technology` in `manifest.json`:
+5. Check `dbt/profiles.yml` exists. This is **required** — without it, `/generate-tests` and `/generate-model` will fail on `dbt compile`/`dbt test`. If missing, stop and tell the user: "No `dbt/profiles.yml` found. Run `/init-dbt` to scaffold the dbt project and select a target platform before setting up the sandbox."
+6. If `dbt/profiles.yml` exists, read the adapter `type:` from the active profile and compare against `technology` in `manifest.json`:
 
 | manifest.technology | Expected dbt adapter |
 |---|---|
@@ -29,7 +30,9 @@ Run all checks silently — do not change anything yet.
 | `fabric_lakehouse` | `fabric` or `spark` |
 | `snowflake` | `snowflake` |
 
-If the adapter doesn't match the manifest technology, warn the user: "dbt profile uses `<adapter>` but manifest technology is `<technology>`. Run `/init-dbt` to reconfigure the dbt target." This is a warning, not a blocker — the sandbox itself doesn't depend on dbt.
+If the adapter doesn't match, warn the user: "dbt profile uses `<adapter>` but manifest technology is `<technology>`. Run `/init-dbt` to reconfigure the dbt target." This is a warning, not a blocker — the sandbox itself doesn't depend on dbt, but downstream commands will use the wrong dialect.
+
+7. Verify dbt can connect with the configured credentials: `cd dbt && dbt debug`. Check that the output shows "Connection test: OK". If it fails, stop and tell the user to check their credentials — for SQL Server this means verifying `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, and `SA_PASSWORD` env vars; for other adapters, check `profiles.yml` placeholder values.
 
 ## Step 3: Present plan
 
@@ -42,7 +45,8 @@ Sandbox setup:
   source_database:   AdventureWorksDW (or whatever value)
   extracted_schemas: [dbo, silver, bronze]
   test-harness CLI:  ✓ available  /  ✗ not found
-  dbt profile:       ✓ sqlserver (matches manifest)  /  ⚠ duckdb (mismatch)  /  — not found
+  dbt profile:       ✓ sqlserver (matches manifest)  /  ⚠ duckdb (mismatch)  /  ✗ not found (run /init-dbt)
+  dbt connection:    ✓ OK  /  ✗ failed (check credentials)
 
   SQL Server credentials:
   MSSQL_HOST:   ✓ set  /  — not set
