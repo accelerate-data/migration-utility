@@ -639,3 +639,37 @@ class TestWriteCatalogDiffAware:
         assert "ddl_hash" in new_proc
         assert new_proc["schema"] == "dbo"
         assert new_proc["name"] == "usp_b"
+
+
+# ── Corrupt JSON input tests ────────────────────────────────────────────
+
+
+def test_assemble_modules_corrupt_input_exit_2(tmp_path: Path) -> None:
+    """assemble-modules with corrupt JSON input exits 2."""
+    corrupt = tmp_path / "corrupt.json"
+    corrupt.write_text("{not valid json", encoding="utf-8")
+    project = tmp_path / "project"
+    (project / "ddl").mkdir(parents=True)
+    (project / "manifest.json").write_text('{"dialect":"tsql"}', encoding="utf-8")
+    result = _run_cli([
+        "assemble-modules",
+        "--input", str(corrupt),
+        "--project-root", str(project),
+        "--type", "procedures",
+    ])
+    assert result.returncode == 2
+
+
+def test_assemble_tables_corrupt_input_exit_2(tmp_path: Path) -> None:
+    """assemble-tables with corrupt JSON input exits 2."""
+    corrupt = tmp_path / "corrupt.json"
+    corrupt.write_text("{not valid json", encoding="utf-8")
+    project = tmp_path / "project"
+    (project / "ddl").mkdir(parents=True)
+    (project / "manifest.json").write_text('{"dialect":"tsql"}', encoding="utf-8")
+    result = _run_cli([
+        "assemble-tables",
+        "--input", str(corrupt),
+        "--project-root", str(project),
+    ])
+    assert result.returncode == 2

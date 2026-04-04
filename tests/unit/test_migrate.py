@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from shared.loader import CatalogFileMissingError, ProfileMissingError
+from shared.loader import CatalogFileMissingError, CatalogLoadError, ProfileMissingError
 from shared.migrate import (
     derive_materialization,
     derive_schema_tests,
@@ -541,3 +541,22 @@ class TestRunWrite:
         result = run_write("silver.FactSales", Path("/tmp"), dbt, "select 1", "")
         assert result["status"] == "ok"
         assert (dbt / "models" / "staging" / "stg_factsales.sql").exists()
+
+
+# ── Corrupt catalog JSON tests ──────────────────────────────────────────
+
+
+def test_context_corrupt_table_catalog_raises(ddl_path: Path) -> None:
+    """context with corrupt table catalog raises CatalogLoadError."""
+    cat_path = ddl_path / "catalog" / "tables" / "silver.factsales.json"
+    cat_path.write_text("{truncated", encoding="utf-8")
+    with pytest.raises(CatalogLoadError):
+        run_context(ddl_path, "silver.FactSales", "dbo.usp_load_fact_sales")
+
+
+def test_context_corrupt_proc_catalog_raises(ddl_path: Path) -> None:
+    """context with corrupt procedure catalog raises CatalogLoadError."""
+    cat_path = ddl_path / "catalog" / "procedures" / "dbo.usp_load_fact_sales.json"
+    cat_path.write_text("{truncated", encoding="utf-8")
+    with pytest.raises(CatalogLoadError):
+        run_context(ddl_path, "silver.FactSales", "dbo.usp_load_fact_sales")

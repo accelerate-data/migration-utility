@@ -17,7 +17,7 @@ import pytest
 from typer.testing import CliRunner
 
 from shared import profile
-from shared.loader import CatalogFileMissingError
+from shared.loader import CatalogFileMissingError, CatalogLoadError
 
 _cli_runner = CliRunner()
 
@@ -371,3 +371,42 @@ def test_write_cli_emits_error_json_on_validation_failure() -> None:
         assert output["table"] == "silver.factsales"
     finally:
         tmp.cleanup()
+
+
+# ── Corrupt catalog JSON tests ──────────────────────────────────────────
+
+
+def test_context_corrupt_table_catalog_raises() -> None:
+    """context with corrupt table catalog raises CatalogLoadError."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "ddl").mkdir()
+        (root / "ddl" / "tables.sql").write_text("CREATE TABLE silver.FactSales (Id INT)\nGO\n", encoding="utf-8")
+        (root / "ddl" / "procedures.sql").write_text("CREATE PROCEDURE dbo.usp_load AS SELECT 1\nGO\n", encoding="utf-8")
+        (root / "catalog" / "tables").mkdir(parents=True)
+        (root / "catalog" / "tables" / "silver.factsales.json").write_text("{truncated", encoding="utf-8")
+        (root / "catalog" / "procedures").mkdir(parents=True)
+        (root / "catalog" / "procedures" / "dbo.usp_load.json").write_text(
+            '{"references":{"tables":{"in_scope":[{"schema":"silver","name":"FactSales","is_selected":false,"is_updated":true}],"out_of_scope":[]},"views":{"in_scope":[],"out_of_scope":[]},"functions":{"in_scope":[],"out_of_scope":[]},"procedures":{"in_scope":[],"out_of_scope":[]}}}',
+            encoding="utf-8",
+        )
+        with pytest.raises(CatalogLoadError):
+            profile.run_context(root, "silver.FactSales", "dbo.usp_load")
+
+
+def test_context_corrupt_proc_catalog_raises() -> None:
+    """context with corrupt procedure catalog raises CatalogLoadError."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "ddl").mkdir()
+        (root / "ddl" / "tables.sql").write_text("CREATE TABLE silver.T (Id INT)\nGO\n", encoding="utf-8")
+        (root / "ddl" / "procedures.sql").write_text("CREATE PROCEDURE dbo.usp_load AS SELECT 1\nGO\n", encoding="utf-8")
+        (root / "catalog" / "tables").mkdir(parents=True)
+        (root / "catalog" / "tables" / "silver.t.json").write_text(
+            '{"columns":[],"primary_keys":[],"unique_indexes":[],"foreign_keys":[],"auto_increment_columns":[],"change_capture":null,"sensitivity_classifications":[],"referenced_by":{"procedures":{"in_scope":[],"out_of_scope":[]},"views":{"in_scope":[],"out_of_scope":[]},"functions":{"in_scope":[],"out_of_scope":[]}}}',
+            encoding="utf-8",
+        )
+        (root / "catalog" / "procedures").mkdir(parents=True)
+        (root / "catalog" / "procedures" / "dbo.usp_load.json").write_text("{truncated", encoding="utf-8")
+        with pytest.raises(CatalogLoadError):
+            profile.run_context(root, "silver.T", "dbo.usp_load")

@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from shared import discover
-from shared.loader import CatalogNotFoundError, DdlParseError, ObjectNotFoundError
+from shared.loader import CatalogLoadError, CatalogNotFoundError, DdlParseError, ObjectNotFoundError
 
 _TESTS_DIR = Path(__file__).parent
 _FLAT_FIXTURES = _TESTS_DIR / "fixtures" / "discover" / "flat"
@@ -287,3 +287,46 @@ def test_refs_errors_without_catalog() -> None:
         )
         with pytest.raises(CatalogNotFoundError):
             discover.run_refs(p, "dbo.T")
+
+
+# ── Corrupt catalog JSON tests ──────────────────────────────────────────
+
+
+def _make_project_with_corrupt_catalog(tmp: Path, object_type: str, fqn: str) -> Path:
+    """Set up a minimal project with one corrupt catalog file."""
+    ddl_dir = tmp / "ddl"
+    ddl_dir.mkdir()
+    (ddl_dir / "tables.sql").write_text(
+        "CREATE TABLE dbo.T (Id INT)\nGO\n", encoding="utf-8",
+    )
+    (ddl_dir / "procedures.sql").write_text(
+        "CREATE PROCEDURE dbo.usp_test AS SELECT 1\nGO\n", encoding="utf-8",
+    )
+    cat_dir = tmp / "catalog" / object_type
+    cat_dir.mkdir(parents=True)
+    (cat_dir / f"{fqn}.json").write_text("{truncated", encoding="utf-8")
+    return tmp
+
+
+def test_show_corrupt_catalog_raises_catalog_load_error() -> None:
+    """show with corrupt catalog JSON raises CatalogLoadError."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _make_project_with_corrupt_catalog(Path(tmp), "tables", "dbo.t")
+        with pytest.raises(CatalogLoadError):
+            discover.run_show(root, "dbo.T")
+
+
+def test_refs_corrupt_table_catalog_raises() -> None:
+    """refs with corrupt table catalog raises CatalogLoadError."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _make_project_with_corrupt_catalog(Path(tmp), "tables", "dbo.t")
+        with pytest.raises(CatalogLoadError):
+            discover.run_refs(root, "dbo.T")
+
+
+def test_write_statements_corrupt_proc_catalog_raises() -> None:
+    """write-statements with corrupt existing proc catalog raises CatalogLoadError."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _make_project_with_corrupt_catalog(Path(tmp), "procedures", "dbo.usp_test")
+        with pytest.raises(CatalogLoadError):
+            discover.run_write_statements(root, "dbo.usp_test", [{"action": "migrate", "id": "1"}])
