@@ -30,17 +30,18 @@ Identify which procedures write to each table. Launches one sub-agent per table 
    > - **Continue on #N** — add to that branch
    > - **New worktree** — create a new worktree from the slug
    If none exist, create a new worktree and branch per `.claude/rules/git-workflow.md`.
+3. Generate a run epoch: seconds since Unix epoch (e.g. `1743868200`). All run artifacts use this as a filename suffix.
 
 ### Step 2 — Run migration:analyzing-table per table
 
-**Single-table path (1 table):** Run `migration:analyzing-table` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.json`. Then continue to Step 3.
+**Single-table path (1 table):** Run `migration:analyzing-table` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<epoch>.json`. Then continue to Step 3.
 
 **Multi-table path (2+ tables):** Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
 
 ```text
 Run the migration:analyzing-table skill for <schema.table>.
 The worktree is at <worktree-path>.
-Write the item result JSON to .migration-runs/<schema.table>.json.
+Write the item result JSON to .migration-runs/<schema.table>.<epoch>.json.
 On failure, write result with status: "error" and error details.
 Return the item result JSON.
 ```
@@ -57,8 +58,8 @@ Ignore errors from `git checkout` (the file may not have been modified).
 
 ### Step 4 — Summarize
 
-1. Read each `.migration-runs/<schema.table>.json`.
-2. Write `.migration-runs/summary.json` with `{total, ok, partial, error}` counts and per-item status.
+1. Read each `.migration-runs/<schema.table>.<epoch>.json`.
+2. Write `.migration-runs/summary.<epoch>.json` with `{total, ok, partial, error}` counts and per-item status.
 3. Present human-readable summary:
 
    ```text

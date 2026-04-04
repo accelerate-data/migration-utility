@@ -35,10 +35,11 @@ Generate test scenarios, review for coverage, then bulk-execute approved scenari
    > - **Continue on #N** — add to that branch
    > - **New worktree** — create a new worktree from the slug
    If none exist, create a new worktree and branch per `.claude/rules/git-workflow.md`.
+3. Generate a run epoch: seconds since Unix epoch (e.g. `1743868200`). All run artifacts use this as a filename suffix.
 
 ### Step 2 — Generate scenarios per table
 
-**Single-table path (1 table):** Run `ground-truth-harness:generating-tests` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.json`. Then continue to Step 3.
+**Single-table path (1 table):** Run `ground-truth-harness:generating-tests` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<epoch>.json`. Then continue to Step 3.
 
 **Multi-table path (2+ tables):** Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
 
@@ -46,7 +47,7 @@ Generate test scenarios, review for coverage, then bulk-execute approved scenari
 Run the ground-truth-harness:generating-tests skill for <schema.table>.
 The worktree is at <worktree-path>.
 Skip the Step 4 approval prompt — the review loop handles quality gating.
-Write the item result JSON to .migration-runs/<schema.table>.json.
+Write the item result JSON to .migration-runs/<schema.table>.<epoch>.json.
 On failure, write result with status: "error" and error details.
 Return the item result JSON.
 ```
@@ -61,7 +62,7 @@ For each item that completed step 2, launch a review sub-agent in isolated conte
 Run the ground-truth-harness:reviewing-tests skill for <item_id> --iteration 1.
 The worktree is at <worktree-path>.
 The test spec is at <worktree-path>/test-specs/<item_id>.json.
-Write the TestReviewResult JSON to .migration-runs/<item_id>.review.json.
+Write the TestReviewResult JSON to .migration-runs/<item_id>.review.<epoch>.json.
 On failure, write result with status: "error" and error details.
 Return the TestReviewResult JSON.
 ```
@@ -116,8 +117,8 @@ This converts the CLI-ready JSON (with `expect.rows`) to dbt unit test YAML form
 
 ### Step 6 — Summarize
 
-1. Read each `.migration-runs/<schema.table>.json`.
-2. Write `.migration-runs/summary.json` with `{total, ok, partial, error}` counts and per-item status.
+1. Read each `.migration-runs/<schema.table>.<epoch>.json`.
+2. Write `.migration-runs/summary.<epoch>.json` with `{total, ok, partial, error}` counts and per-item status.
 3. Present human-readable summary:
 
    ```text

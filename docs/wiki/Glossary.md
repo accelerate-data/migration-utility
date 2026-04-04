@@ -10,7 +10,7 @@ Domain terms used across the migration utility wiki.
 
 - **item_id** -- the canonical identifier for one table migration: `<schema>.<table>` (e.g. `silver.DimCustomer`). One table equals one migration item equals one dbt model. Used as the filename stem in catalog files, test specs, and run logs.
 
-- **run log** -- the `.migration-runs/` directory containing ephemeral per-command execution metadata (timing, cost, per-item status). Per-item result files are overwritten on each run. `.gitignore`d and never committed. Consumed at commit/PR time for rich messages.
+- **run log** -- the `.migration-runs/` directory containing ephemeral per-command execution metadata (timing, cost, per-item status). Each file includes a Unix epoch suffix so runs accumulate without overwriting. `.gitignore`d and never committed. Consumed at commit/PR time for rich messages.
 
 - **worktree** -- a git worktree created by batch commands for parallel execution. Lives at `../worktrees/<branchName>` relative to the repo root. Allows the FDE to run multiple batch commands simultaneously without conflicts.
 

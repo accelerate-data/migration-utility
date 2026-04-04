@@ -37,10 +37,11 @@ Generate dbt models for a batch of tables. Launches one sub-agent per table in p
    > - **Continue on #N** — add to that branch
    > - **New worktree** — create a new worktree from the slug
    If none exist, create a new worktree and branch per `.claude/rules/git-workflow.md`.
+3. Generate a run epoch: seconds since Unix epoch (e.g. `1743868200`). All run artifacts use this as a filename suffix.
 
 ### Step 2 — Run migration:generating-model per table
 
-**Single-table path (1 table):** Run `migration:generating-model` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.json`. Then continue to Step 3.
+**Single-table path (1 table):** Run `migration:generating-model` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<epoch>.json`. Then continue to Step 3.
 
 **Multi-table path (2+ tables):** Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
 
@@ -50,7 +51,7 @@ The worktree is at <worktree-path>.
 Skip the Step 4 user confirmation prompt and the Step 6 approval prompt — proceed automatically. Still run the full equivalence analysis in Step 4.
 Equivalence warnings: proceed and write the model. Record each gap as EQUIVALENCE_GAP warning.
 dbt compile/test failure: attempt up to 3 self-corrections. If still failing, write as-is with DBT_TEST_FAILED warning.
-Write the item result JSON to .migration-runs/<schema.table>.json.
+Write the item result JSON to .migration-runs/<schema.table>.<epoch>.json.
 On failure, write result with status: "error" and error details.
 Return the item result JSON.
 ```
@@ -75,8 +76,8 @@ Derive `<model_name>` from the item_id using the same `stg_<table>` convention. 
 
 ### Step 5 — Summarize
 
-1. Read each `.migration-runs/<schema.table>.json`.
-2. Write `.migration-runs/summary.json` with `{total, ok, partial, error}` counts and per-item status.
+1. Read each `.migration-runs/<schema.table>.<epoch>.json`.
+2. Write `.migration-runs/summary.<epoch>.json` with `{total, ok, partial, error}` counts and per-item status.
 3. Present human-readable summary:
 
    ```text

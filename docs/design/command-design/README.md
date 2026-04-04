@@ -45,14 +45,14 @@ Every command follows the same lifecycle:
 
 ```text
 .migration-runs/
-  <schema>.<table>.json            # one per item — sub-agent writes on completion
-  summary.json                     # command writes after all sub-agents finish
+  <schema>.<table>.<epoch>.json    # one per item per run — sub-agent writes on completion
+  summary.<epoch>.json             # command writes after all sub-agents finish
 ```
 
-- Per-item result files are overwritten on each run.
+- `<epoch>` is seconds since Unix epoch, generated once per command invocation.
+- Files accumulate across runs — nothing is overwritten.
 - `.gitignore`d — never committed.
-- No run IDs, no nesting.
-- Consumed at commit/PR time for rich commit messages and PR bodies.
+- The latest run's summary is consumed at commit/PR time for rich commit messages and PR bodies.
 
 ## Relationship to Skills
 

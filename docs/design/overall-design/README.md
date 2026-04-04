@@ -173,15 +173,15 @@ Each command:
 
 ### Run log (ephemeral)
 
-Run summaries are collected in `.migration-runs/` (`.gitignore`d). Per-item result files are overwritten on each run.
+Run artifacts are collected in `.migration-runs/` (`.gitignore`d). Each file includes a Unix epoch suffix so runs accumulate without overwriting.
 
 ```text
 .migration-runs/
-  <schema>.<table>.json            # one per item — sub-agent writes on completion
-  summary.json                     # command writes after all sub-agents finish
+  <schema>.<table>.<epoch>.json    # one per item per run
+  summary.<epoch>.json             # command writes after all sub-agents finish
 ```
 
-Consumed at commit/PR time for rich messages, stays local.
+The latest run's summary is consumed at commit/PR time for rich messages. Stays local.
 
 ---
 
