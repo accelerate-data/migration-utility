@@ -74,7 +74,7 @@
     },
     "statements": {
       "type": "array",
-      "description": "Resolved statement classification. Written by scoping agent or /analyzing-object skill after all claude actions are resolved to migrate or skip.",
+      "description": "Resolved statement classification. Written by the scoping-table skill (procedure analysis reference) after all claude actions are resolved to migrate or skip.",
       "items": {
         "type": "object",
         "required": ["action", "source", "sql"],

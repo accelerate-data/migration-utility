@@ -67,8 +67,7 @@ See `repo-map.json` for the full directory structure and agent notes.
 |---|---|
 | `/setup-ddl` | Extract DDL from live SQL Server and write local artifact files |
 | `/listing-objects` | Browse the DDL catalog — list, show, refs |
-| `/scoping-table` | Writer discovery and resolution for a single table |
-| `/analyzing-object` | Deep-dive procedure analysis — call graph, statements, migration guidance |
+| `/scoping-table` | Writer discovery, procedure analysis, scope resolution, and catalog persistence |
 | `/profiling-table` | Interactive single-table profiling with approval gates |
 | `/generating-tests` | Generate ground truth test fixtures for a table |
 | `/reviewing-tests` | Quality gate for test generation output |

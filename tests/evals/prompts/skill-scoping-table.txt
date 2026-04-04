@@ -8,4 +8,6 @@ When the skill asks for user confirmation to select a writer, auto-confirm the s
 
 If multiple writer candidates are found, select the one that performs the primary write operation (INSERT, MERGE, or TRUNCATE+INSERT pattern) rather than delta/incremental writers.
 
+Complete all steps in the procedure analysis reference (references/procedure-analysis.md) including persisting resolved statements to catalog — do not ask for confirmation on statement persistence.
+
 CRITICAL OUTPUT REQUIREMENT: Your final response must include the scoping status and selected writer.

@@ -20,7 +20,7 @@ Catalog and agent schemas reference these via `$ref: "common.json#/$defs/<name>"
 
 ## Catalog schemas
 
-Per-object catalog files produced by `setup-ddl` and consumed by `listing-objects`, `scoping-table`, `analyzing-object`, `profiling-table`, and downstream agents/skills.
+Per-object catalog files produced by `setup-ddl` and consumed by `listing-objects`, `scoping-table`, `profiling-table`, and downstream agents/skills.
 
 | Schema | Object type | Key fields |
 |---|---|---|

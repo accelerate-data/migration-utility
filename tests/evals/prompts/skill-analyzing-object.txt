@@ -1,7 +1,0 @@
-You are running in a DDL project directory at {{fixture_path}}.
-
-Read the skill instructions at plugin/skills/analyzing-object/SKILL.md and follow all steps to analyse the object {{target_table}}.
-
-Wherever the skill references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead (the lib directory is at `plugin/lib/` in the repo).
-
-Do not ask for user confirmation — proceed automatically. Complete all steps including persisting resolved statements to catalog.

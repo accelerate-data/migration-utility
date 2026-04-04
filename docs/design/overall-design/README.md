@@ -81,7 +81,7 @@ flowchart TD
 
 | Stage | Executor | Role |
 |---|---|---|
-| Scoping | `/scope` command | Delegates to `/scoping-table` per table. Discovers writers, analyzes candidates via `/analyzing-object`, writes `selected_writer` to catalog. |
+| Scoping | `/scope` command | Delegates to `/scoping-table` per table. Discovers writers, analyzes candidates via procedure-analysis reference, writes `selected_writer` to catalog. |
 | Profiling | `/profile` command | Delegates to `/profiling-table` per table. Classifies table, identifies keys, watermark, FKs, PII. Writes profile answers to catalog. |
 | Sandbox Up | `/setup-sandbox` command | Create throwaway database for ground-truth capture. Wraps `test-harness sandbox-up` CLI, persists sandbox metadata to `manifest.json`. |
 | Test Generation | `/generate-tests` command | Enumerates proc branches, synthesizes fixtures, executes proc in sandbox, captures ground truth, writes `test-specs/<item_id>.json`. Review loop independently enumerates branches, scores coverage, reviews fixture quality. Kicks back for missing branches or quality issues. **Max 2 review iterations.** |
@@ -147,7 +147,7 @@ Each pipeline stage has a skill (single-table, interactive) and a command (multi
 The FDE drives the pipeline one table at a time:
 
 1. `/listing-objects` — list tables, pick one
-2. `/scoping-table` — discover writers, resolve via `/analyzing-object`, FDE confirms
+2. `/scoping-table` — discover writers, analyze candidates, FDE confirms
 3. `/profiling-table` — catalog signals + LLM inference, FDE approves
 4. `/generating-tests` — branch analysis, fixture synthesis, sandbox execution, ground truth capture
 5. `/generating-model` — generate dbt model from profile + test spec, FDE approves before file write

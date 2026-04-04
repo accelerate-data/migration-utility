@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Discovers which stored procedures write to a target table, delegates each candidate to [[Skill Analyzing Object]] for full procedure analysis, resolves which writer owns the table, and persists the scoping decision to the table catalog file. This skill determines the `selected_writer` that all downstream skills (profiling, test generation, model generation) depend on.
+Discovers which stored procedures write to a target table, analyzes each candidate via the procedure analysis reference (call graph resolution, statement classification, persistence), resolves which writer owns the table, and persists the scoping decision to the table catalog file. This skill determines the `selected_writer` that all downstream skills (profiling, test generation, model generation) depend on.
 
 ## Invocation
 
@@ -33,7 +33,16 @@ Extracts the `writers` array from the output. If no writers are found, persists 
 
 ### 3. Analyze each writer candidate
 
-Launches a sub-agent for each writer candidate to run [[Skill Analyzing Object]]. All candidates are analyzed in parallel -- they are independent of each other. The analyzing-object skill owns the full call graph resolution and statement classification flow.
+For each writer candidate, follows the procedure analysis reference (`references/procedure-analysis.md`). This runs a 6-step pipeline per candidate:
+
+1. **Fetch object data** — `discover show --name <proc>` returns refs, statements, classification, raw_ddl
+2. **Classify statements** — deterministic (AST) or claude_assisted (LLM-based from raw_ddl)
+3. **Resolve call graph** — follow refs to base tables via recursive `discover show`
+4. **Logic summary** — plain-language explanation of what the procedure does
+5. **Migration guidance** — tag each statement as `migrate` or `skip`
+6. **Persist resolved statements** — write to `catalog/procedures/<proc>.json`
+
+If there are multiple candidates, they are analyzed sequentially.
 
 ### 4. Present writer candidates
 
@@ -80,7 +89,7 @@ uv run --project <shared-path> discover write-scoping \
 |---|---|
 | `manifest.json` | Project root validation |
 | `catalog/tables/<table>.json` | Column list and existing catalog state |
-| `catalog/procedures/<writer>.json` | Read indirectly via `/analyzing-object` sub-agent |
+| `catalog/procedures/<writer>.json` | Read during procedure analysis (Step 3) |
 
 ## Writes
 
@@ -97,6 +106,10 @@ uv run --project <shared-path> discover write-scoping \
 | `candidates[].rationale` | string | yes | Why this candidate was considered |
 | `warnings` | array | no | Diagnostics entries (code, message, severity) |
 | `errors` | array | no | Diagnostics entries (code, message, severity) |
+
+### `statements` in `catalog/procedures/<writer>.json`
+
+Written during procedure analysis (Step 3). Each statement has `action` (migrate/skip), `source` (ast/llm), `sql`, and optionally `rationale`.
 
 ### `scoping` status values
 
@@ -150,7 +163,7 @@ uv run --project <shared-path> discover write-scoping \
 |---|---|---|
 | `discover refs` exit code 1 | Object not found or catalog file missing | Verify the table name with `/listing-objects list tables` |
 | `discover refs` exit code 2 | Catalog directory unreadable (IO error) | Check file permissions on `catalog/` |
-| `/analyzing-object` skill failure | Sub-agent could not analyze a candidate procedure | Candidate is marked `BLOCKED`; remaining candidates continue. If all candidates fail, `status` is set to `error` |
+| Procedure analysis failure | Could not analyze a candidate procedure | Candidate is marked `BLOCKED`; remaining candidates continue. If all candidates fail, `status` is set to `error` |
 | `discover write-scoping` exit code 1 | Validation failure (invalid JSON, missing fields) | Check scoping JSON structure against the schema above |
 | `discover write-scoping` exit code 2 | Invalid JSON or IO error | Verify the `.staging/scoping.json` file was written correctly |
-| No writers detected but proc clearly writes | Writer uses dynamic SQL that catalog queries cannot resolve | Known limitation of `sys.dm_sql_referenced_entities`. Use [[Skill Analyzing Object]] directly on the suspected proc and manually scope |
+| No writers detected but proc clearly writes | Writer uses dynamic SQL that catalog queries cannot resolve | Known limitation of `sys.dm_sql_referenced_entities`. Run `/scoping-table` on the suspected table and manually scope |

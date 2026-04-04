@@ -11,7 +11,7 @@ The shared Python CLIs (`discover.py`, `profile.py`, `migrate.py`, `test_harness
 
 ## Flow
 
-1. **Scoping:** scoping skill calls `discover refs` per table for catalog-based writer identification (`is_updated=true`), procedure analysis (via `/analyzing-object`), and writer resolution. Writes scoping results to `catalog/tables/<table>.json` (scoping section) and resolved statements to `catalog/procedures/<writer>.json`.
+1. **Scoping:** scoping skill calls `discover refs` per table for catalog-based writer identification (`is_updated=true`), procedure analysis (via procedure-analysis reference), and writer resolution. Writes scoping results to `catalog/tables/<table>.json` (scoping section) and resolved statements to `catalog/procedures/<writer>.json`.
 2. **Profiling:** profiler skill assembles context, applies LLM reasoning over the six profiling questions, and persists results to catalog. FDE reviews before proceeding.
 3. **Sandbox setup:** `test-harness sandbox-up` creates a throwaway database by cloning schema and procedures from a live SQL Server. This is a CLI command, not a skill. Requires live DB connection.
 4. **Test generation:** test generator skill reads the same context as the model-generator (proc body, statements, profile, columns, source tables). It enumerates branches, synthesizes fixtures, executes the proc in the sandbox via MCP to capture ground truth, and writes `unit_tests:` JSON to `test-specs/<item_id>.json`. The test reviewer skill independently enumerates branches, scores coverage, and reviews fixture quality. It can kick back to the test generator for missing branches or quality issues. Maximum 2 review / generator iterations. When procs need parameters, the skill infers defaults or asks the FDE inline.

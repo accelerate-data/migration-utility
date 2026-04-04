@@ -1,23 +1,8 @@
----
-name: analyzing-object
-description: >
-  Analyse a stored procedure for migration. Resolves call graphs, classifies statements, produces a logic summary and migration guidance, and persists results to catalog. Procedures only — use /listing-objects for views and functions.
-user-invocable: true
-argument-hint: "<schema.procedure>"
----
-
-# Analyzing Object
+# Procedure Analysis
 
 Deep-dive analysis of a single stored procedure. Produces call graph, statement classification, logic summary, migration guidance, and persists resolved statements to catalog.
 
-## Arguments
-
-`$ARGUMENTS` is the fully-qualified procedure name (e.g. `dbo.usp_load_DimCustomer`). Ask the user if missing.
-
-## Before invoking
-
-1. Read `manifest.json` from the current working directory to confirm a valid project root. If missing, tell the user to run `setup-ddl` first.
-2. Confirm the object is a procedure by checking that `catalog/procedures/<name>.json` exists. If the object is a view, function, or table, tell the user to use `/listing-objects show <name>` instead and stop.
+The procedure name is the candidate writer identified by the parent scoping-table skill.
 
 ## Pipeline
 
@@ -37,7 +22,7 @@ This returns `refs`, `statements`, `classification`, and `raw_ddl`.
 Check the `classification` field:
 
 - **`deterministic`** with `statements` populated — `refs` and `statements` are pre-classified by the AST. Use them alongside the body as the authoritative source of truth.
-- **`claude_assisted`** or `statements` is null — classify each statement yourself from `raw_ddl`. See [`references/tsql-parse-classification.md`](references/tsql-parse-classification.md) for classification guidance.
+- **`claude_assisted`** or `statements` is null — classify each statement yourself from `raw_ddl`. See [`tsql-parse-classification.md`](tsql-parse-classification.md) for classification guidance.
 
 ### Step 3 — Resolve call graph
 
@@ -76,7 +61,7 @@ Migration Guidance
 
 ### Step 6 — Persist resolved statements
 
-After presenting the analysis to the user, persist resolved statements to catalog.
+After presenting the analysis, persist resolved statements to catalog.
 
 **Deterministic procedures** (`classification: deterministic`, no `claude` actions in statements): all statements are already classified by the AST. Persist immediately after presenting Migration Guidance — no additional user confirmation needed. All statements get `source: "ast"`.
 
@@ -84,7 +69,7 @@ After presenting the analysis to the user, persist resolved statements to catalo
 
 1. Read `raw_ddl` and analyse each `claude` statement — follow the call graph, resolve dynamic SQL, and classify as `migrate` or `skip`.
 2. Present the full resolved statement list for confirmation. Show each statement with its proposed action and rationale.
-3. After confirmation (with any edits), persist. All resolved statements get `source: "llm"`. Each statement must include a `rationale` field (1–2 sentences) explaining why it is `migrate` or `skip`.
+3. After confirmation (with any edits), persist. All resolved statements get `source: "llm"`. Each statement must include a `rationale` field (1-2 sentences) explaining why it is `migrate` or `skip`.
 
 No `claude` actions are written to catalog — all must be resolved before persisting.
 

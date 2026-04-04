@@ -1,7 +1,7 @@
 ---
 name: scoping-table
 description: >
-  Writer discovery, scope resolution, and catalog persistence for a single table. Finds which stored procedures write to the table, delegates each candidate to /analyzing-object for full procedure analysis, then lets the user confirm the selected writer and persists the scoping decision to the table catalog file.
+  Writer discovery, procedure analysis, scope resolution, and catalog persistence for a single table. Finds which stored procedures write to the table, analyzes each candidate via the procedure-analysis reference, then lets the user confirm the selected writer and persists the scoping decision to the table catalog file.
 user-invocable: true
 argument-hint: "<schema.table>"
 ---
@@ -49,14 +49,9 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
 
 ### Step 3 -- Analyze each writer candidate
 
-For each writer candidate, launch a sub-agent to run the analyzing-object skill:
+For each writer candidate, read and follow the [procedure analysis reference](references/procedure-analysis.md). Run all 6 steps (fetch, classify, resolve call graph, logic summary, migration guidance, persist) for each candidate before moving to Step 4.
 
-```text
-Run the migration:analyzing-object skill for <writer>.
-Return the analysis result JSON.
-```
-
-Do NOT inline call graph resolution, statement classification, or any procedure analysis logic here. The `analyzing-object` skill owns that entire flow. Launch all candidate sub-agents in parallel — they are independent of each other.
+If there are multiple candidates, analyze them sequentially — each candidate's analysis must complete before starting the next.
 
 ### Step 4 -- Present writer candidates
 
@@ -107,6 +102,6 @@ The scoping JSON must include the selected writer (or `no_writer_found` status) 
 |---|---|---|
 | `discover refs` | 1 | Object not found or catalog file missing. Report and stop |
 | `discover refs` | 2 | Catalog directory unreadable (IO error). Report and stop |
-| `/analyzing-object` | skill failure | Log failure, mark candidate `BLOCKED`, continue with remaining |
+| procedure analysis | reference failure | Log failure, mark candidate `BLOCKED`, continue with remaining |
 | `discover write-scoping` | 1 | Validation failure. Report errors, ask user to correct |
 | `discover write-scoping` | 2 | Invalid JSON or IO error. Report and stop |
