@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "generate-model command — multi-table generation + review loop orchestration"
+
+prompts:
+  - file://../../prompts/cmd-generate-model.txt
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    config:
+      model: claude-sonnet-4-6
+      working_dir: ../..
+      max_turns: 120
+      permission_mode: bypassPermissions
+      allow_dangerously_skip_permissions: true
+      append_allowed_tools:
+        - Read
+        - Write
+        - Bash
+        - Glob
+        - Grep
+
+defaultTest:
+  vars:
+    fixture_path: "tests/evals/fixtures/migration-test"
+  assert:
+    - type: javascript
+      value: file://../../assertions/check-command-summary.js
+
+tests:
+  # ── happy path: 2 tables, both generate dbt models ──────────
+  - description: "happy-path — InsertSelectTarget + UpdateJoinTarget both generate models"
+    vars:
+      target_tables: "silver.InsertSelectTarget silver.UpdateJoinTarget"
+      target_table: "silver.InsertSelectTarget"
+      expected_total: "2"
+      expected_ok_count: "2"
+      expected_error_count: "0"
+      expected_item_statuses: '{"silver.InsertSelectTarget": "ok", "silver.UpdateJoinTarget": "ok"}'
+      expected_output_terms: "ok"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-dbt-model.js
+
+  # ── review-revision: single table triggers review feedback ───
+  - description: "review-revision — CorrelatedSubqueryTarget goes through review cycle"
+    vars:
+      target_tables: "silver.CorrelatedSubqueryTarget"
+      target_table: "silver.CorrelatedSubqueryTarget"
+      expected_total: "1"
+      expected_item_statuses: '{"silver.CorrelatedSubqueryTarget": "ok"}'
+      expected_output_terms: "review"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-dbt-model.js
+
+  # ── error + clean: missing-scoping table + good table ────────
+  - description: "error+clean — DimProduct (no scoping) + InsertSelectTarget (ok)"
+    vars:
+      target_tables: "silver.DimProduct silver.InsertSelectTarget"
+      expected_total: "2"
+      expected_ok_count: "1"
+      expected_error_count: "1"
+      expected_item_statuses: '{"silver.DimProduct": "error", "silver.InsertSelectTarget": "ok"}'
+      expected_error_codes: "scoping_not_completed"
+      expected_output_terms: "error"

@@ -1,0 +1,47 @@
+{
+  "schema": "silver",
+  "name": "DimCustomer",
+  "primary_keys": [{"constraint_name": "PK_DimCustomer", "columns": ["CustomerKey"]}],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [{"column": "CustomerKey", "seed": 1, "increment": 1}],
+  "referenced_by": [
+    {
+      "referencing_schema": "dbo",
+      "referencing_name": "usp_load_dimcustomer",
+      "referencing_type": "procedure",
+      "is_selected": false,
+      "is_updated": true
+    }
+  ],
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "dbo.usp_load_dimcustomer",
+    "candidates": [
+      {
+        "procedure_name": "dbo.usp_load_dimcustomer",
+        "dependencies": {"tables": ["bronze.customerraw"], "views": [], "functions": []},
+        "rationale": "is_updated=true in catalog."
+      }
+    ],
+    "warnings": [],
+    "validation": {"passed": true, "issues": []},
+    "errors": []
+  },
+  "profile": {
+    "status": "ok",
+    "writer": "dbo.usp_load_dimcustomer",
+    "classification": {"resolved_kind": "dim_scd1", "rationale": "MERGE with UPDATE.", "source": "llm"},
+    "primary_key": {"columns": ["CustomerKey"], "primary_key_type": "surrogate", "source": "catalog"},
+    "natural_key": {"columns": ["CustomerID"], "rationale": "MERGE ON clause.", "source": "llm"},
+    "watermark": {"column": "ModifiedDate", "rationale": "WHERE ModifiedDate > @last_run.", "source": "llm"},
+    "foreign_keys": [
+      {"column": "GeographyKey", "references_source_relation": "dbo.DimGeography", "references_column": "GeographyKey", "fk_type": "standard", "source": "llm"}
+    ],
+    "pii_actions": [
+      {"column": "EmailAddress", "entity": "email", "suggested_action": "mask", "source": "llm"}
+    ],
+    "warnings": [],
+    "errors": []
+  }
+}

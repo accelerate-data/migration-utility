@@ -1,0 +1,17 @@
+You are running in a DDL project directory at {{fixture_path}}.
+
+Read the command definition at plugins/migration/commands/profile.md and follow it exactly for these tables: {{target_tables}}.
+
+Wherever the command references `${CLAUDE_PLUGIN_ROOT}/../../lib`, use `lib` instead (the lib directory is at the repo root).
+
+EVAL MODE CONSTRAINTS — follow these exactly:
+- Do NOT create a git worktree. Operate directly in the fixture directory ({{fixture_path}}).
+- Do NOT run git worktree add, mkdir for worktrees, or any git branch creation.
+- Write .migration-runs/ artifacts directly to {{fixture_path}}/.migration-runs/.
+- Process each table sequentially in the same agent turn (not truly parallel sub-agents).
+- Do NOT ask the user to commit or open a PR. After presenting the summary, stop.
+- Do NOT ask for any user confirmation — proceed automatically.
+
+After processing all tables, write .migration-runs/summary.json and present the human-readable summary in the format specified in profile.md.
+
+CRITICAL OUTPUT REQUIREMENT: Your FINAL text response must include the summary table with each table's status (ok/partial/error) and the total counts line (e.g. "ok: 2 | partial: 0 | error: 0").

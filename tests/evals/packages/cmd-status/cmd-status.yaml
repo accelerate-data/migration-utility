@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "status command — migration progress dashboard with per-table stage readiness"
+
+prompts:
+  - file://../../prompts/cmd-status.txt
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    config:
+      model: claude-sonnet-4-6
+      working_dir: ../..
+      max_turns: 80
+      permission_mode: bypassPermissions
+      allow_dangerously_skip_permissions: true
+      append_allowed_tools:
+        - Read
+        - Write
+        - Bash
+        - Glob
+        - Grep
+
+defaultTest:
+  vars:
+    fixture_path: "tests/evals/fixtures/migration-test"
+  assert:
+    - type: javascript
+      value: file://../../assertions/check-status-output.js
+
+tests:
+  # ── single table: fully scoped + profiled, no test-spec ─────
+  - description: "single-table — InsertSelectTarget (scoped + profiled, no sandbox)"
+    vars:
+      target_table: "silver.InsertSelectTarget"
+      expected_stage_statuses: '{"scope": "resolved", "profile": "ok"}'
+      expected_blocked_stage: "test-gen"
+      expected_output_terms: "scope,profile,test-gen,blocked"
+      expected_recommendation: "sandbox"
+
+  # ── single table: no scoping at all ─────────────────────────
+  - description: "single-table — DimCurrency (catalog only, no scoping)"
+    vars:
+      target_table: "silver.DimCurrency"
+      expected_blocked_stage: "profile"
+      expected_output_terms: "scope,pending"
+      expected_recommendation: "scope"
+
+  # ── single table: has profile but no scoping section ────────
+  - description: "single-table — DimProduct (profile exists but no scoping section)"
+    vars:
+      target_table: "silver.DimProduct"
+      expected_blocked_stage: "profile"
+      expected_output_terms: "scope"
+
+  # ── all tables: summary across mixed stages ─────────────────
+  - description: "all-tables — summary report across all catalog tables"
+    vars:
+      expected_output_terms: "scope,profile,test-gen,migrate"

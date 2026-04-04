@@ -1,0 +1,20 @@
+You are running in a DDL project directory at {{fixture_path}}.
+
+Read the command definition at plugins/ground-truth-harness/commands/generate-tests.md and follow it exactly for these tables: {{target_tables}}.
+
+Wherever the command references `${CLAUDE_PLUGIN_ROOT}/../../lib`, use `lib` instead (the lib directory is at the repo root).
+
+EVAL MODE CONSTRAINTS — follow these exactly:
+- Do NOT create a git worktree. Operate directly in the fixture directory ({{fixture_path}}).
+- Do NOT run git worktree add, mkdir for worktrees, or any git branch creation.
+- Write .migration-runs/ artifacts directly to {{fixture_path}}/.migration-runs/.
+- Process each table sequentially in the same agent turn (not truly parallel sub-agents).
+- Perform the review loop per generate-tests.md (up to 2 iterations per table using the reviewing-tests skill).
+- SKIP the sandbox guard checks (sandbox.run_id and sandbox-status). The sandbox is not available in eval mode.
+- SKIP Step 4 (execute-spec) and Step 5.5 (convert-dbt) entirely. The goal of this eval is to assess generation and review quality only.
+- Do NOT ask the user to commit or open a PR. After presenting the summary, stop.
+- Do NOT ask for any user confirmation — proceed automatically.
+
+After processing all tables, write .migration-runs/summary.json and present the human-readable summary in the format specified in generate-tests.md.
+
+CRITICAL OUTPUT REQUIREMENT: Your FINAL text response must include the summary table with each table's status and the total counts line (e.g. "ok: 2 | partial: 0 | error: 0").

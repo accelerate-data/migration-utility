@@ -1,0 +1,55 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "scope command — multi-table parallel writer discovery orchestration"
+
+prompts:
+  - file://../../prompts/cmd-scope.txt
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    config:
+      model: claude-sonnet-4-6
+      working_dir: ../..
+      max_turns: 80
+      permission_mode: bypassPermissions
+      allow_dangerously_skip_permissions: true
+      append_allowed_tools:
+        - Read
+        - Write
+        - Bash
+        - Glob
+        - Grep
+
+defaultTest:
+  vars:
+    fixture_path: "tests/evals/fixtures/migration-test"
+  assert:
+    - type: javascript
+      value: file://../../assertions/check-command-summary.js
+
+tests:
+  # ── happy path: 2 tables, both resolve ──────────────────────
+  - description: "happy-path — DimProduct + DimCustomer both resolve"
+    vars:
+      target_tables: "silver.DimProduct silver.DimCustomer"
+      target_table: "silver.DimProduct"
+      expected_total: "2"
+      expected_ok_count: "2"
+      expected_error_count: "0"
+      expected_item_statuses: '{"silver.DimProduct": "resolved", "silver.DimCustomer": "resolved"}'
+      expected_output_terms: "resolved"
+      expected_status: "resolved"
+      expected_writer: "dimproduct"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-table-scoping.js
+
+  # ── error + clean: nonexistent table + DimProduct ───────────
+  - description: "error+clean — DimDate (missing catalog) + DimProduct (resolves)"
+    vars:
+      target_tables: "silver.DimDate silver.DimProduct"
+      expected_total: "2"
+      expected_ok_count: "1"
+      expected_error_count: "1"
+      expected_item_statuses: '{"silver.DimDate": "error", "silver.DimProduct": "resolved"}'
+      expected_error_codes: "catalog_file_missing"
+      expected_output_terms: "resolved,error"

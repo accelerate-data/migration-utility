@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "dry_run_output.json",
+  "title": "DryRunOutput",
+  "description": "Output of migrate-util dry-run for a single (table, stage) pair. Guards are checked in order; content is populated only when all guards pass.",
+  "type": "object",
+  "required": ["table", "stage", "guards_passed", "guard_results"],
+  "properties": {
+    "table": { "type": "string", "description": "Fully qualified table name (schema.table)." },
+    "stage": { "type": "string", "enum": ["scope", "profile", "test-gen", "migrate"] },
+    "guards_passed": { "type": "boolean", "description": "True when every guard for this stage passed." },
+    "guard_results": {
+      "type": "array",
+      "description": "Ordered list of guard check results. Short-circuits on first failure.",
+      "items": {
+        "type": "object",
+        "required": ["check", "passed"],
+        "properties": {
+          "check": { "type": "string", "description": "Guard name, e.g. manifest_exists." },
+          "passed": { "type": "boolean" },
+          "code": { "type": "string", "description": "Error code when passed is false." },
+          "message": { "type": "string", "description": "Human-readable failure reason." }
+        }
+      }
+    },
+    "content": {
+      "type": "object",
+      "description": "Stage-specific content. Present only when guards_passed is true. Shape varies by stage and --detail/--summary mode.",
+      "additionalProperties": true
+    }
+  }
+}
