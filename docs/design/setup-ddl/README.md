@@ -6,7 +6,7 @@
 
 ## Architecture
 
-The skill (`bootstrap/skills/setup-ddl/SKILL.md`) drives the interaction. It runs SQL via the `mssql` MCP tool, saves raw results as JSON to `.staging/`, then calls the `setup-ddl` CLI (`lib/shared/setup_ddl.py`) for deterministic file processing. The agent never processes query results inline — it acts as a relay between MCP and CLI.
+The command (`plugin/commands/setup-ddl.md`) drives the interaction. It runs SQL via the `mssql` MCP tool, saves raw results as JSON to `.staging/`, then calls the `setup-ddl` CLI (`lib/shared/setup_ddl.py`) for deterministic file processing. The agent never processes query results inline — it acts as a relay between MCP and CLI.
 
 ```text
 User ← Agent (SKILL.md) → mssql MCP → SQL Server
