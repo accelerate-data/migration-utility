@@ -72,7 +72,7 @@ These errors relate to sandbox setup and test spec creation.
 
 | Code | Message | Command | Fix |
 |---|---|---|---|
-| `SANDBOX_NOT_CONFIGURED` | Sandbox metadata (`run_id`, `database`) missing from manifest | `/status`, test-gen/migrate guards | Run `/setup-sandbox` to create the throwaway test database |
+| `SANDBOX_NOT_CONFIGURED` | Sandbox metadata (`database`) missing from manifest | `/status`, test-gen/migrate guards | Run `/setup-sandbox` to create the throwaway test database |
 | `TEST_SPEC_NOT_FOUND` | `test-specs/<table>.json` not found | `/status`, migrate guards | Run `/generate-tests <table>` or `/generating-tests <table>` |
 | `SANDBOX_DOWN_FAILED` | Sandbox teardown failed | `/teardown-sandbox` | Check SQL Server connectivity and permissions. Verify the database exists |
 

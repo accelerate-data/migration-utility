@@ -129,10 +129,10 @@ If the catalog directory is missing, returns a zeroed summary instead of exiting
 
 | Subcommand | Key options | Returns |
 |---|---|---|
-| `sandbox-up` | `--run-id` (UUID), `--project-root` | `{"status": "ok", "database": ..., "tables_cloned": N, "procedures_cloned": N}` |
-| `sandbox-down` | `--run-id`, `--project-root` | `{"status": "ok"}` |
-| `sandbox-status` | `--run-id`, `--project-root` | `{"run_id": ..., "database": ..., "exists": bool}` (schema: `sandbox_status_output.json`) |
-| `execute` | `--run-id`, `--scenario` (file path to JSON), `--project-root` | Ground-truth result JSON (schema: `test_harness_execute_output.json`) |
+| `sandbox-up` | `--project-root` | `{"status": "ok", "database": ..., "tables_cloned": N, "procedures_cloned": N}` |
+| `sandbox-down` | `--project-root` | `{"status": "ok"}` |
+| `sandbox-status` | `--project-root` | `{"database": ..., "exists": bool}` (schema: `sandbox_status_output.json`) |
+| `execute` | `--scenario` (file path to JSON), `--project-root` | Ground-truth result JSON (schema: `test_harness_execute_output.json`) |
 
 Reads `manifest.json` to determine technology and routes to a technology-specific backend (`sql_server`, `fabric_warehouse`). Requires `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD` environment variables for SQL Server backends.
 

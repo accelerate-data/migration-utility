@@ -8,7 +8,7 @@ Generates test scenarios for each table, reviews them for coverage, then execute
 
 ### Prerequisites
 
-- `manifest.json` with `sandbox.run_id` (run `/setup-sandbox` first)
+- `manifest.json` with `sandbox.database` (run `/setup-sandbox` first)
 - Sandbox database must exist (checked via `test-harness sandbox-status`)
 - Per table: catalog file, `scoping.selected_writer`, and `profile` with `status: "ok"` must all be present
 
@@ -88,7 +88,7 @@ Only dbt YAML files (`test-specs/<item_id>.yml`) from successful items are stage
 | Code | When |
 |---|---|
 | `MANIFEST_NOT_FOUND` | `manifest.json` missing -- all items fail |
-| `SANDBOX_RUN_ID_MISSING` | No `sandbox.run_id` in manifest -- run `/setup-sandbox` first |
+| `SANDBOX_NOT_CONFIGURED` | No `sandbox.database` in manifest -- run `/setup-sandbox` first |
 | `SANDBOX_NOT_RUNNING` | Sandbox database not found -- may have been torn down |
 | `CATALOG_FILE_MISSING` | Catalog file not found -- item skipped |
 | `SCOPING_NOT_COMPLETED` | No `selected_writer` -- item skipped |
@@ -104,7 +104,7 @@ Drops the throwaway sandbox database when you are finished with test generation.
 
 ### What it does
 
-1. Reads `sandbox.run_id` from `manifest.json`
+1. Reads `sandbox.database` from `manifest.json`
 2. Shows which database will be dropped and asks for confirmation (this is destructive)
 3. Runs `test-harness sandbox-down` to drop the database
 4. Clears the `sandbox` section from `manifest.json`

@@ -99,7 +99,7 @@ These are the error codes returned by `migrate-util dry-run` when a guard fails:
 | `SCOPING_NOT_COMPLETED` | `selected_writer_set` | No `selected_writer` in the table's scoping section | Run `/scope <table>` or `/scoping-table <table>` |
 | `STATEMENTS_NOT_RESOLVED` | `statements_resolved` | One or more statements not resolved to `migrate` or `skip` | Run `/scope <table>` to resolve remaining statements |
 | `PROFILE_NOT_COMPLETED` | `profile_completed` | Profile section missing or status is not `ok`/`partial` | Run `/profile <table>` or `/profiling-table <table>` |
-| `SANDBOX_NOT_CONFIGURED` | `sandbox_configured` | Sandbox metadata (`run_id`, `database`) missing from manifest | Run `/setup-sandbox` to create the test database |
+| `SANDBOX_NOT_CONFIGURED` | `sandbox_configured` | Sandbox metadata (`database`) missing from manifest | Run `/setup-sandbox` to create the test database |
 | `TEST_SPEC_NOT_FOUND` | `test_spec_exists` | `test-specs/<table>.json` not found | Run `/generate-tests <table>` or `/generating-tests <table>` |
 
 ## Exit codes

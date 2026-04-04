@@ -110,4 +110,4 @@ Structured JSON output from the `discover` CLI subcommands, consumed by skills a
 |---|---|---|
 | [profile_context.json](profile_context.json) | `profile.py context` | Deterministic context assembly for LLM profiling: table, writer, catalog signals, writer references, proc body, columns, related procedures |
 | [test_spec.json](test_spec.json) | `/generating-tests` skill | Per-item test spec written to `test-specs/<item_id>.json`: branch manifest, unit tests with fixtures and ground truth, coverage status |
-| [sandbox_status_output.json](sandbox_status_output.json) | `test-harness sandbox-status` | Sandbox existence check result: run_id, database name, exists boolean |
+| [sandbox_status_output.json](sandbox_status_output.json) | `test-harness sandbox-status` | Sandbox existence check result: database name, exists boolean |

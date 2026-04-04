@@ -130,7 +130,7 @@ This skill reads from a live SQL Server via the `mssql` MCP tool. No local catal
 | `source_database` | string | yes | Name of the source database |
 | `extracted_schemas` | string[] | yes | List of schemas included in the extraction |
 | `extracted_at` | string | yes | ISO 8601 timestamp of extraction |
-| `sandbox` | object | no | Sandbox metadata (`run_id`, `database`) -- added later by the test harness |
+| `sandbox` | object | no | Sandbox metadata (`database`) -- added later by the test harness |
 
 Technology-to-dialect mapping:
 

@@ -269,7 +269,7 @@ def test_test_gen_detail_content(assert_valid_schema) -> None:
         assert_valid_schema(result, "dry_run_output.json")
         content = result["content"]
         assert content["test_spec"]["item_id"] == "silver.dimcustomer"
-        assert content["sandbox"]["run_id"] == "abc123"
+        assert content["sandbox"]["database"] == "__test_abc123"
 
 
 # ── Content tests: migrate ───────────────────────────────────────────────────
@@ -430,13 +430,13 @@ def test_empty_statements_array_blocks_profile(assert_valid_schema) -> None:
         assert result["guard_results"][-1]["code"] == "STATEMENTS_NOT_RESOLVED"
 
 
-def test_sandbox_with_missing_run_id(assert_valid_schema) -> None:
-    """Sandbox with database but missing run_id should fail."""
+def test_sandbox_with_missing_database(assert_valid_schema) -> None:
+    """Sandbox section present but missing database should fail."""
     tmp, root = _make_project()
     with tmp:
         manifest_path = root / "manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        del manifest["sandbox"]["run_id"]
+        manifest["sandbox"] = {}
         manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
         result = dry_run.run_dry_run(root, "silver.DimCustomer", "test-gen")
         assert_valid_schema(result, "dry_run_output.json")
