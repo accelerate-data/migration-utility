@@ -560,3 +560,23 @@ def test_context_corrupt_proc_catalog_raises(ddl_path: Path) -> None:
     cat_path.write_text("{truncated", encoding="utf-8")
     with pytest.raises(CatalogLoadError):
         run_context(ddl_path, "silver.FactSales", "dbo.usp_load_fact_sales")
+
+
+def test_context_missing_profile_section_raises(ddl_path: Path) -> None:
+    """context with table catalog missing profile section raises ProfileMissingError."""
+    cat_path = ddl_path / "catalog" / "tables" / "silver.factsales.json"
+    cat = json.loads(cat_path.read_text())
+    cat.pop("profile", None)
+    cat_path.write_text(json.dumps(cat, indent=2) + "\n")
+    with pytest.raises(ProfileMissingError):
+        run_context(ddl_path, "silver.FactSales", "dbo.usp_load_fact_sales")
+
+
+def test_write_does_not_read_catalog(tmp_path: Path) -> None:
+    """write only writes dbt artifacts — corrupt catalog does not affect it."""
+    dbt = tmp_path / "dbt"
+    dbt.mkdir()
+    (dbt / "dbt_project.yml").write_text("name: test\nversion: '1.0.0'\nconfig-version: 2\n")
+    (dbt / "models" / "staging").mkdir(parents=True)
+    result = run_write("silver.FactSales", Path("/tmp"), dbt, "select 1", "")
+    assert result["status"] == "ok"

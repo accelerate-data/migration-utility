@@ -456,3 +456,73 @@ def test_enrich_skips_corrupt_proc_catalog(tmp_path: Path) -> None:
 
     result = enrich_catalog(ddl)
     assert result["procedures_augmented"] >= 0
+
+
+def test_enrich_skips_corrupt_table_catalog(tmp_path: Path) -> None:
+    """Enrichment skips corrupt table catalogs in flip-to-table phase."""
+    ddl = tmp_path / "project"
+    (ddl / "ddl").mkdir(parents=True)
+    # Proc that writes to a table with corrupt catalog
+    _write_sql(ddl / "ddl", "procedures.sql",
+        "CREATE PROCEDURE dbo.usp_writer AS INSERT INTO silver.Corrupt SELECT 1\nGO\n"
+    )
+    _write_sql(ddl / "ddl", "tables.sql",
+        "CREATE TABLE silver.Corrupt (Id INT)\nGO\n"
+    )
+    _write_catalog_json(ddl, "procedures", "dbo.usp_writer", {
+        "references": {
+            "tables": {"in_scope": [], "out_of_scope": []},
+            "views": {"in_scope": [], "out_of_scope": []},
+            "functions": {"in_scope": [], "out_of_scope": []},
+            "procedures": {"in_scope": [], "out_of_scope": []},
+        },
+    })
+    # Corrupt table catalog
+    cat_dir = ddl / "catalog" / "tables"
+    cat_dir.mkdir(parents=True, exist_ok=True)
+    (cat_dir / "silver.corrupt.json").write_text("{truncated", encoding="utf-8")
+    (ddl / "manifest.json").write_text('{"dialect":"tsql"}', encoding="utf-8")
+
+    # Should complete without error — corrupt table catalog is skipped in flip phase
+    result = enrich_catalog(ddl)
+    assert result["procedures_augmented"] >= 0
+
+
+def test_enrich_partial_corruption_enriches_valid(tmp_path: Path) -> None:
+    """One corrupt catalog among several: valid procs still get enriched."""
+    ddl = tmp_path / "project"
+    (ddl / "ddl").mkdir(parents=True)
+    _write_sql(ddl / "ddl", "procedures.sql",
+        "CREATE PROCEDURE dbo.usp_good AS INSERT INTO silver.T1 SELECT 1 FROM silver.T2\nGO\n"
+        "CREATE PROCEDURE dbo.usp_bad AS SELECT 1\nGO\n"
+    )
+    _write_sql(ddl / "ddl", "tables.sql",
+        "CREATE TABLE silver.T1 (Id INT)\nGO\n"
+        "CREATE TABLE silver.T2 (Id INT)\nGO\n"
+    )
+    # Valid proc catalog
+    _write_catalog_json(ddl, "procedures", "dbo.usp_good", {
+        "references": {
+            "tables": {"in_scope": [], "out_of_scope": []},
+            "views": {"in_scope": [], "out_of_scope": []},
+            "functions": {"in_scope": [], "out_of_scope": []},
+            "procedures": {"in_scope": [], "out_of_scope": []},
+        },
+    })
+    # Corrupt proc catalog
+    cat_dir = ddl / "catalog" / "procedures"
+    (cat_dir / "dbo.usp_bad.json").write_text("{truncated", encoding="utf-8")
+    # Table catalogs
+    for t in ("silver.t1", "silver.t2"):
+        _write_catalog_json(ddl, "tables", t, {
+            "referenced_by": {
+                "procedures": {"in_scope": [], "out_of_scope": []},
+                "views": {"in_scope": [], "out_of_scope": []},
+                "functions": {"in_scope": [], "out_of_scope": []},
+            },
+        })
+    (ddl / "manifest.json").write_text('{"dialect":"tsql"}', encoding="utf-8")
+
+    result = enrich_catalog(ddl)
+    # The valid proc should still be processed despite the corrupt one
+    assert result["procedures_augmented"] >= 1

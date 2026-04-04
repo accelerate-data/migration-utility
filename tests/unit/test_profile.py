@@ -410,3 +410,34 @@ def test_context_corrupt_proc_catalog_raises() -> None:
         (root / "catalog" / "procedures" / "dbo.usp_load.json").write_text("{truncated", encoding="utf-8")
         with pytest.raises(CatalogLoadError):
             profile.run_context(root, "silver.T", "dbo.usp_load")
+
+
+def test_write_corrupt_existing_table_catalog_exit_2() -> None:
+    """write with corrupt existing table catalog exits code 2."""
+    tmp, ddl_path = _make_writable_copy()
+    try:
+        subprocess.run(["git", "init"], cwd=ddl_path, capture_output=True, check=True)
+        cat_path = ddl_path / "catalog" / "tables" / "silver.factsales.json"
+        cat_path.write_text("{truncated", encoding="utf-8")
+        good_profile = json.dumps({"status": "ok", "writer": "dbo.usp_load_fact_sales"})
+        result = _cli_runner.invoke(
+            profile.app,
+            ["write", "--project-root", str(ddl_path), "--table", "silver.FactSales", "--profile", good_profile],
+        )
+        assert result.exit_code == 2
+    finally:
+        tmp.cleanup()
+
+
+def test_write_invalid_profile_json_arg_exit_2() -> None:
+    """write with invalid JSON string argument exits code 2."""
+    tmp, ddl_path = _make_writable_copy()
+    try:
+        subprocess.run(["git", "init"], cwd=ddl_path, capture_output=True, check=True)
+        result = _cli_runner.invoke(
+            profile.app,
+            ["write", "--project-root", str(ddl_path), "--table", "silver.FactSales", "--profile", "{not json"],
+        )
+        assert result.exit_code == 2
+    finally:
+        tmp.cleanup()

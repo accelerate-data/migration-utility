@@ -330,3 +330,19 @@ def test_write_statements_corrupt_proc_catalog_raises() -> None:
         root = _make_project_with_corrupt_catalog(Path(tmp), "procedures", "dbo.usp_test")
         with pytest.raises(CatalogLoadError):
             discover.run_write_statements(root, "dbo.usp_test", [{"action": "migrate", "id": "1"}])
+
+
+def test_list_succeeds_despite_corrupt_catalog() -> None:
+    """list does not read catalog JSON, so corrupt catalogs don't affect it."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _make_project_with_corrupt_catalog(Path(tmp), "tables", "dbo.t")
+        result = discover.run_list(root, discover.ObjectType.tables)
+        assert "dbo.t" in result["objects"]
+
+
+def test_write_scoping_corrupt_table_catalog_raises() -> None:
+    """write-scoping with corrupt existing table catalog raises CatalogLoadError."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _make_project_with_corrupt_catalog(Path(tmp), "tables", "dbo.t")
+        with pytest.raises(CatalogLoadError):
+            discover.run_write_scoping(root, "dbo.T", {"status": "resolved", "selected_writer": "dbo.usp_load"})
