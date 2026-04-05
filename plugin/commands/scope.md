@@ -13,8 +13,9 @@ Identify which procedures write to each table. Launches one sub-agent per table 
 
 ## Guards
 
-- `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
-- Per item: `catalog/tables/<item_id>.json` must exist. If missing, skip with `CATALOG_FILE_MISSING`.
+- `manifest.json` must exist. If missing, tell the user to run `/setup-ddl` first.
+
+Per-item guards are checked by the skill via `migrate-util guard`.
 
 ## Pipeline
 

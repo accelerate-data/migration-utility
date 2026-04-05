@@ -1,9 +1,12 @@
 """dry_run.py — Migration stage prerequisite checker and content reader.
 
-Standalone CLI with one subcommand:
+Standalone CLI with two subcommands:
 
     dry-run   Check guards for a (table, stage) pair and return
               eligibility + catalog/dbt content as JSON.
+
+    guard     Check guards only (no content collection). Returns
+              pass/fail JSON for use by skills and plugin commands.
 
 Designed for consumption by the /status plugin command which adds LLM
 reasoning on top of the deterministic output.
@@ -44,7 +47,7 @@ app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
-STAGES = ("scope", "profile", "test-gen", "migrate")
+STAGES = ("scope", "profile", "test-gen", "refactor", "migrate")
 
 PROFILE_QUESTIONS = (
     "classification",
@@ -232,6 +235,44 @@ def check_test_spec(project_root: Path, table_fqn: str) -> dict[str, Any]:
     return _guard_ok("test_spec_exists")
 
 
+def check_refactor_complete(project_root: Path, table_fqn: str) -> dict[str, Any]:
+    """Check refactor section exists with status ok."""
+    cat = load_table_catalog(project_root, table_fqn)
+    if cat is None:
+        return _guard_fail(
+            "refactor_completed",
+            "REFACTOR_NOT_COMPLETED",
+            "Table catalog not found.",
+        )
+    refactor = cat.get("refactor")
+    if refactor is None:
+        return _guard_fail(
+            "refactor_completed",
+            "REFACTOR_NOT_COMPLETED",
+            "Refactor section missing from catalog.",
+        )
+    status = refactor.get("status")
+    if status != "ok":
+        return _guard_fail(
+            "refactor_completed",
+            "REFACTOR_NOT_COMPLETED",
+            f"Refactor status is '{status}', expected ok.",
+        )
+    return _guard_ok("refactor_completed")
+
+
+def check_dbt_project(project_root: Path) -> dict[str, Any]:
+    """Check dbt_project.yml exists in the dbt project directory."""
+    dbt_root = resolve_dbt_project_path(project_root)
+    if not (dbt_root / "dbt_project.yml").exists():
+        return _guard_fail(
+            "dbt_project_exists",
+            "DBT_PROJECT_MISSING",
+            "dbt_project.yml not found. Run /init-dbt first.",
+        )
+    return _guard_ok("dbt_project_exists")
+
+
 # ── Guard runner ─────────────────────────────────────────────────────────────
 
 # Stage → ordered list of guard callables.
@@ -256,7 +297,49 @@ _STAGE_GUARDS: dict[str, list[tuple[str, ...]]] = {
         ("check_profile_ok",),
         ("check_sandbox_metadata",),
     ],
+    "refactor": [
+        ("check_manifest",),
+        ("check_table_catalog",),
+        ("check_selected_writer",),
+        ("check_statements_resolved",),
+        ("check_profile_ok",),
+        ("check_sandbox_metadata",),
+        ("check_test_spec",),
+    ],
     "migrate": [
+        ("check_manifest",),
+        ("check_table_catalog",),
+        ("check_selected_writer",),
+        ("check_statements_resolved",),
+        ("check_profile_ok",),
+        ("check_sandbox_metadata",),
+        ("check_test_spec",),
+        ("check_refactor_complete",),
+    ],
+    # Skill-specific guard sets (not pipeline stages, but callable via guard CLI)
+    "generating-model": [
+        ("check_manifest",),
+        ("check_table_catalog",),
+        ("check_selected_writer",),
+        ("check_statements_resolved",),
+        ("check_profile_ok",),
+        ("check_sandbox_metadata",),
+        ("check_test_spec",),
+        ("check_refactor_complete",),
+        ("check_dbt_project",),
+    ],
+    "reviewing-model": [
+        ("check_manifest",),
+        ("check_table_catalog",),
+        ("check_selected_writer",),
+        ("check_statements_resolved",),
+        ("check_profile_ok",),
+        ("check_sandbox_metadata",),
+        ("check_test_spec",),
+        ("check_refactor_complete",),
+        ("check_dbt_project",),
+    ],
+    "reviewing-tests": [
         ("check_manifest",),
         ("check_table_catalog",),
         ("check_selected_writer",),
@@ -275,10 +358,14 @@ _GUARD_FNS = {
     "check_profile_ok": check_profile_ok,
     "check_sandbox_metadata": check_sandbox_metadata,
     "check_test_spec": check_test_spec,
+    "check_refactor_complete": check_refactor_complete,
+    "check_dbt_project": check_dbt_project,
 }
 
 # Guards that only need project_root (no table_fqn).
-_PROJECT_ONLY_GUARDS = frozenset({"check_manifest", "check_sandbox_metadata"})
+_PROJECT_ONLY_GUARDS = frozenset({
+    "check_manifest", "check_sandbox_metadata", "check_dbt_project",
+})
 
 
 def run_guards(
@@ -571,6 +658,29 @@ def test_gen_summary(project_root: Path, table_fqn: str) -> dict[str, Any]:
     }
 
 
+# ── Stage content: refactor ──────────────────────────────────────────────────
+
+
+def refactor_detail(project_root: Path, table_fqn: str) -> dict[str, Any]:
+    """Test-gen summary + full refactor section from catalog."""
+    cat = load_table_catalog(project_root, table_fqn) or {}
+    refactor = cat.get("refactor") or {}
+    return {
+        "test_gen": test_gen_summary(project_root, table_fqn),
+        "refactor": refactor,
+    }
+
+
+def refactor_summary(project_root: Path, table_fqn: str) -> dict[str, Any]:
+    """Compact refactor status."""
+    cat = load_table_catalog(project_root, table_fqn) or {}
+    refactor = cat.get("refactor") or {}
+    return {
+        "refactor_status": refactor.get("status"),
+        "has_refactored_sql": bool(refactor.get("refactored_sql_hash")),
+    }
+
+
 # ── Stage content: migrate ───────────────────────────────────────────────────
 
 
@@ -602,6 +712,7 @@ _CONTENT_COLLECTORS: dict[str, dict[str, Any]] = {
     "scope": {"detail": scope_detail, "summary": scope_summary},
     "profile": {"detail": profile_detail, "summary": profile_summary},
     "test-gen": {"detail": test_gen_detail, "summary": test_gen_summary},
+    "refactor": {"detail": refactor_detail, "summary": refactor_summary},
     "migrate": {"detail": migrate_detail, "summary": migrate_summary},
 }
 
@@ -644,7 +755,23 @@ class Stage(str, Enum):
     scope = "scope"
     profile = "profile"
     test_gen = "test-gen"
+    refactor = "refactor"
     migrate = "migrate"
+
+
+class GuardStage(str, Enum):
+    """Stages accepted by the guard subcommand.
+
+    Includes pipeline stages plus skill-specific guard sets.
+    """
+    scope = "scope"
+    profile = "profile"
+    test_gen = "test-gen"
+    refactor = "refactor"
+    migrate = "migrate"
+    generating_model = "generating-model"
+    reviewing_model = "reviewing-model"
+    reviewing_tests = "reviewing-tests"
 
 
 def _emit(data: Any) -> None:
@@ -671,3 +798,29 @@ def dry_run_cmd(
 
     result = run_dry_run(root, table, stage.value, detail=detail)
     _emit(result)
+
+
+@app.command("guard")
+def guard_cmd(
+    table: str = typer.Argument(..., help="Fully-qualified table name (schema.Name)"),
+    stage: GuardStage = typer.Argument(..., help="Stage or skill name to check guards for"),
+    project_root: Optional[Path] = typer.Option(
+        None, "--project-root", help="Project root directory",
+    ),
+) -> None:
+    """Check guards only (no content collection). Returns pass/fail JSON."""
+    try:
+        root = resolve_project_root(project_root)
+    except RuntimeError as exc:
+        logger.error("event=project_root_error error=%s", exc)
+        _emit({"error": str(exc)})
+        raise typer.Exit(code=2) from exc
+
+    norm = normalize(table)
+    guards_passed, guard_results = run_guards(root, norm, stage.value)
+    _emit({
+        "table": norm,
+        "stage": stage.value,
+        "passed": guards_passed,
+        "guard_results": guard_results,
+    })

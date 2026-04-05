@@ -20,10 +20,13 @@ Generate a dbt model from a profiled stored procedure. Reads deterministic conte
 
 ## Before invoking
 
-1. Read `manifest.json` from the current working directory to confirm a valid project root. If missing, tell the user to run `setup-ddl` first.
-2. Confirm `catalog/tables/<table>.json` exists. If missing, tell the user to run `/listing-objects list tables` to see available tables and stop.
-3. Confirm a dbt project exists (look for `dbt_project.yml` in `./dbt/` relative to the project root). If missing, tell the user to run `/init-dbt` first.
-4. Confirm `test-specs/<item_id>.json` exists (derive `<item_id>` from the table FQN — e.g., `silver.dimproduct`). If missing, stop and tell the user to run the test-generation stage first (`/generating-tests`). There is no test-less path — the test spec is mandatory.
+Run the stage guard:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <table_fqn> generating-model
+```
+
+If `passed` is `false`, report the failing guard's `code` and `message` to the user and stop.
 
 ## Step 1: Assemble context
 

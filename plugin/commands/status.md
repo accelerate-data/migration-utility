@@ -31,7 +31,7 @@ Extract item IDs from filenames (strip `.json` suffix).
 
 ### Step 2 — Collect status per table
 
-For each table, iterate stages in order: `scope`, `profile`, `test-gen`, `migrate`.
+For each table, iterate stages in order: `scope`, `profile`, `test-gen`, `refactor`, `migrate`.
 
 For each stage, run:
 
@@ -39,7 +39,7 @@ For each stage, run:
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util dry-run <table> <stage>
 ```
 
-Parse the JSON output. If `guards_passed` is `true` and the content shows the stage is complete (has meaningful output — e.g. scoping has `selected_writer`, profile has `status: ok|partial`, test-gen has `test_spec_status`, migrate has `dbt_model_exists`), record the stage as complete and continue to the next stage.
+Parse the JSON output. If `guards_passed` is `true` and the content shows the stage is complete (has meaningful output — e.g. scoping has `selected_writer`, profile has `status: ok|partial`, test-gen has `test_spec_status`, refactor has `refactor_status`, migrate has `dbt_model_exists`), record the stage as complete and continue to the next stage.
 
 If `guards_passed` is `false`, record the table as blocked at that stage. Stop iterating stages for that table — subsequent stages are implicitly blocked.
 
@@ -50,14 +50,14 @@ Present a human-readable summary:
 ```text
 migration status — N tables
 
-  Table                   scope      profile    test-gen   migrate
-  ────────────────────────────────────────────────────────────────
-  silver.DimCustomer      resolved   ok         ok         pending
-  silver.DimProduct       resolved   partial    blocked    blocked
-  silver.DimDate          resolved   pending    blocked    blocked
-  silver.FactSales        pending    blocked    blocked    blocked
+  Table                   scope      profile    test-gen   refactor   migrate
+  ──────────────────────────────────────────────────────────────────────────
+  silver.DimCustomer      resolved   ok         ok         ok         pending
+  silver.DimProduct       resolved   partial    blocked    blocked    blocked
+  silver.DimDate          resolved   pending    blocked    blocked    blocked
+  silver.FactSales        pending    blocked    blocked    blocked    blocked
 
-  scope: 3/4 | profile: 2/4 | test-gen: 1/4 | migrate: 0/4
+  scope: 3/4 | profile: 2/4 | test-gen: 1/4 | refactor: 1/4 | migrate: 0/4
 ```
 
 Stage status values:
@@ -86,7 +86,7 @@ After the summary table, provide LLM analysis:
 
 ### Step 1 — Collect detailed status
 
-For each stage in order (`scope`, `profile`, `test-gen`, `migrate`), run:
+For each stage in order (`scope`, `profile`, `test-gen`, `refactor`, `migrate`), run:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util dry-run <table> <stage> --detail
@@ -120,9 +120,13 @@ status for silver.DimCustomer
     branches: 4, tests: 6
     sandbox: __test_abc123
 
+  refactor ✓
+    status: ok
+    has_refactored_sql: true
+
   migrate ✗ — pending
-    guard failed: TEST_SPEC_NOT_FOUND
-    → Run /generating-tests silver.DimCustomer
+    guard failed: REFACTOR_NOT_COMPLETED
+    → Run /refactoring-sql silver.DimCustomer
 ```
 
 For the first failing stage, explain what prerequisite is missing and suggest the specific command to run.
@@ -132,6 +136,7 @@ For completed stages, show the key signals from the `--detail` content:
 - **scope:** selected_writer, candidate count, statement resolution counts
 - **profile:** status, resolved_kind, primary_key type, watermark column, FK count, PII count, questions answered/total
 - **test-gen:** status, coverage, branch count, test count, sandbox database
+- **refactor:** status, has_refactored_sql
 - **migrate:** dbt model exists, schema YAML has unit_tests, compiled, test results
 
 ### Step 3 — Recommend next action

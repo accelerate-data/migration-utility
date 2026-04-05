@@ -22,7 +22,13 @@ Read-only catalog viewer. Displays whatever state exists in the catalog — colu
 
 ## Before invoking
 
-Read `manifest.json` from the current working directory to confirm a valid project root. If missing, tell the user to run `setup-ddl` first.
+Run the stage guard:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <table_fqn> scope
+```
+
+If `passed` is `false`, report the failing guard's `code` and `message` to the user and stop.
 
 ## Output schemas
 

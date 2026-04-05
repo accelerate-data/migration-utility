@@ -18,9 +18,13 @@ Quality gate for model generation output. Reviews the generated dbt model SQL an
 
 ## Before invoking
 
-1. Read `manifest.json` from the current working directory to confirm a valid project root. If missing, stop and tell the caller that the project is not initialized.
-2. Confirm the generated model SQL exists at the expected path (e.g., `dbt/models/staging/stg_<table>.sql`). If missing, stop and report: "No generated model found for `<item_id>`."
-3. Confirm `test-specs/<item_id>.json` exists. If missing, stop and report: "No test spec found for `<item_id>`."
+Run the stage guard:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <table_fqn> reviewing-model
+```
+
+If `passed` is `false`, report the failing guard's `code` and `message` to the user and stop.
 
 ## Step 1: Assemble context
 

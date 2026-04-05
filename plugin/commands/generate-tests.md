@@ -17,9 +17,8 @@ Generate test scenarios, review for coverage, then bulk-execute approved scenari
 - `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
 - `manifest.json` must have `sandbox.database`. If missing, fail all items with `SANDBOX_NOT_CONFIGURED` and tell user to run `/setup-sandbox`.
 - Check sandbox exists via `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-status`. If not found, fail all items with `SANDBOX_NOT_RUNNING` and tell user to check the sandbox with `/setup-sandbox` (it may have been torn down or the database dropped).
-- Per item: `catalog/tables/<item_id>.json` must exist. If missing, skip with `CATALOG_FILE_MISSING`.
-- Per item: `scoping.selected_writer` must be set. If missing, skip with `SCOPING_NOT_COMPLETED`.
-- Per item: `profile` must exist with `status: "ok"`. If missing, skip with `PROFILE_NOT_COMPLETED`.
+
+Per-item guards are checked by the skill via `migrate-util guard`.
 
 ## Pipeline
 

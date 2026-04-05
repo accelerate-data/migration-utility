@@ -14,8 +14,8 @@ Produce migration profiles for each table. Launches one sub-agent per table in p
 ## Guards
 
 - `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
-- Per item: `catalog/tables/<item_id>.json` must exist. If missing, skip with `CATALOG_FILE_MISSING`.
-- Per item: `scoping.selected_writer` must be set. If missing, skip with `SCOPING_NOT_COMPLETED`.
+
+Per-item guards are checked by the skill via `migrate-util guard`.
 
 ## Pipeline
 

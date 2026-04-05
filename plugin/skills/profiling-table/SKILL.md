@@ -16,9 +16,13 @@ Profile a single table for migration by assembling context, reasoning over six p
 
 ## Before invoking
 
-1. Read `manifest.json` from the current working directory to confirm a valid project root. If missing, tell the user to run `setup-ddl` first.
-2. Confirm `catalog/tables/<table>.json` exists. If missing, tell the user to run `/listing-objects list tables` to see available tables and stop.
-3. Read `catalog/tables/<table>.json` and confirm `scoping.selected_writer` is set. If missing, tell the user to run `/analyzing-table <table>` first and stop.
+Run the stage guard:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <table_fqn> profile
+```
+
+If `passed` is `false`, report the failing guard's `code` and `message` to the user and stop.
 
 ## Pipeline
 

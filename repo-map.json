@@ -133,6 +133,7 @@
     "test_harness_execute_spec": "cd plugin/lib && uv run test-harness execute-spec --spec <path>",
     "test_harness_convert_dbt": "cd plugin/lib && uv run test-harness convert-dbt --spec <json-path> --output <yml-path>",
     "migrate_util_dry_run": "cd plugin/lib && uv run migrate-util dry-run <table> <stage> [--detail]",
+    "migrate_util_guard": "cd plugin/lib && uv run migrate-util guard <table> <stage>",
     "generate_sources": "cd plugin/lib && uv run generate-sources [--write] [--strict] [--project-root <path>]",
     "lint_md": "markdownlint <file>",
     "eval_all": "cd tests/evals && npm run eval",
