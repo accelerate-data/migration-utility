@@ -187,6 +187,10 @@
       "out_of_scope": []
     }
   },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_load_DimCustomer_Full"
+  },
   "profile": {
     "status": "ok",
     "writer": "silver.usp_load_DimCustomer_Full",

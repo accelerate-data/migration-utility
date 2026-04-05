@@ -6,6 +6,17 @@ Read the skill instructions at plugin/skills/profiling-table/SKILL.md and follow
 
 Wherever the skill references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead (the lib directory is at `plugin/lib/` in the repo).
 
+IMPORTANT PATH RULE: All CLI commands (guard, profile context, profile write, etc.) default to using the current working directory as the project root. Since the fixture catalog lives at {{fixture_path}}, you MUST pass `--project-root {{fixture_path}}` to every CLI invocation so reads and writes target the correct catalog directory. For example:
+```
+uv run --project plugin/lib profile context --table <table> --project-root {{fixture_path}}
+uv run --project plugin/lib profile write --table <table> --profile-file {{fixture_path}}/.staging/profile.json --project-root {{fixture_path}}
+uv run --project plugin/lib migrate-util guard <table> profile --project-root {{fixture_path}}
+```
+When writing staging files (like .staging/profile.json), create the .staging directory inside {{fixture_path}} so paths are consistent:
+```
+mkdir -p {{fixture_path}}/.staging
+```
+
 After ALL tool calls are complete (context assembly, profiling reasoning, and catalog write), your FINAL message must present the COMPLETE profile including Classification, Primary key, Foreign keys, Watermark column, and PII findings.
 
 Do not ask for user confirmation — proceed automatically.

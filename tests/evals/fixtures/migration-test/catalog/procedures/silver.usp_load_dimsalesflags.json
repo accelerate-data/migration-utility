@@ -1,0 +1,111 @@
+{
+  "schema": "silver",
+  "name": "usp_load_dimsalesflags",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "SalesOrderHeader",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "Freight",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "OnlineOrderFlag",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ShipMethodID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "Status",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "SubTotal",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "TaxAmt",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "TotalDue",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "DimSalesFlags",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "IsDiscounted",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "IsGiftWrapped",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "IsOnlineOrder",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "IsReturnable",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "IsRushShipment",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "statements": [
+    {
+      "type": "TruncateTable",
+      "action": "skip",
+      "sql": "TRUNCATE TABLE silver.DimSalesFlags"
+    },
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "sql": "INSERT INTO silver.DimSalesFlags (IsOnlineOrder, IsRushShipment, IsGiftWrapped, IsDiscounted, IsReturnable) SELECT DISTINCT h.OnlineOrderFlag, CASE WHEN h.ShipMethodID = 1 THEN 1 ELSE 0 END, 0, CASE WHEN h.SubTotal <> h.TotalDue - h.TaxAmt - h.Freight THEN 1 ELSE 0 END, CASE WHEN h.Status IN (1, 2) THEN 1 ELSE 0 END FROM bronze.SalesOrderHeader h"
+    }
+  ]
+}

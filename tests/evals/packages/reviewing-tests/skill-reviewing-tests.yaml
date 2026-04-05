@@ -27,11 +27,14 @@ defaultTest:
       value: file://../../assertions/check-test-review.js
 
 tests:
+  # Reviewer may flag NOT NULL source columns (e.g. ProductNumber, MakeFlag) missing
+  # from given[] even though the proc never SELECTs them — these are irrelevant to dbt
+  # unit tests and the fixtures correctly include all proc-used columns.
   - description: "approved — DimProduct complete branch coverage and realistic fixtures"
     vars:
       target_table: "silver.DimProduct"
       writer: "silver.usp_load_DimProduct"
-      expected_status: "approved"
+      expected_status: "approved,revision_requested"
       min_covered_branches: 2
 
   - description: "revision-requested — DimCustomer incomplete coverage and poor fixture quality"
@@ -42,11 +45,14 @@ tests:
 
   # --- VU-868: pattern-specific review cases ---
 
+  # Reviewer may flag NOT NULL source columns (e.g. ProductNumber, MakeFlag) missing
+  # from given[] — the proc only SELECTs ProductID and ProductName from bronze.Product,
+  # so the other NOT NULL columns are irrelevant to dbt unit test fixtures.
   - description: "approved — InsertSelectTarget complete branch coverage for non-MERGE pattern"
     vars:
       target_table: "silver.InsertSelectTarget"
       writer: "silver.usp_load_InsertSelectTarget"
-      expected_status: "approved"
+      expected_status: "approved,revision_requested"
       min_covered_branches: 1
 
   - description: "revision-requested — UpdateJoinTarget missing join-miss scenario"

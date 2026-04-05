@@ -172,6 +172,11 @@
       "out_of_scope": []
     }
   },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_load_DimProduct",
+    "selected_writer_rationale": "Single MERGE writer for DimProduct."
+  },
   "profile": {
     "status": "ok",
     "writer": "silver.usp_load_dimproduct",

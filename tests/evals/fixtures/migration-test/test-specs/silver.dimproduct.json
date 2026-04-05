@@ -76,6 +76,11 @@
             {
               "ProductID": 1,
               "ProductName": "Road-150",
+              "ProductNumber": "PR-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
               "StandardCost": 10.0,
               "ListPrice": 25.0,
               "Color": "Red",
@@ -83,9 +88,11 @@
               "ProductLine": "R",
               "Class": "H",
               "Style": "U",
+              "DaysToManufacture": 1,
               "SellStartDate": "2024-01-01",
               "SellEndDate": null,
-              "DiscontinuedDate": null
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-01-01"
             }
           ],
           "table": "[bronze].[Product]"
@@ -121,6 +128,11 @@
             {
               "ProductID": 2,
               "ProductName": "Mountain-200",
+              "ProductNumber": "PR-002",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
               "StandardCost": 20.0,
               "ListPrice": 45.0,
               "Color": "Blue",
@@ -128,9 +140,11 @@
               "ProductLine": "M",
               "Class": "M",
               "Style": "U",
+              "DaysToManufacture": 2,
               "SellStartDate": "2024-02-01",
               "SellEndDate": null,
-              "DiscontinuedDate": "2024-03-15"
+              "DiscontinuedDate": "2024-03-15",
+              "ModifiedDate": "2024-02-01"
             }
           ],
           "table": "[bronze].[Product]"
@@ -166,6 +180,11 @@
             {
               "ProductID": 3,
               "ProductName": "Touring-300",
+              "ProductNumber": "PR-003",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
               "StandardCost": 15.0,
               "ListPrice": 30.0,
               "Color": "Green",
@@ -173,9 +192,11 @@
               "ProductLine": "T",
               "Class": "L",
               "Style": "W",
+              "DaysToManufacture": 1,
               "SellStartDate": "2023-05-01",
               "SellEndDate": "2024-01-31",
-              "DiscontinuedDate": null
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2023-05-01"
             }
           ],
           "table": "[bronze].[Product]"
@@ -211,6 +232,11 @@
             {
               "ProductID": 4,
               "ProductName": "Helmet-400",
+              "ProductNumber": "PR-004",
+              "MakeFlag": 0,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
               "StandardCost": 5.0,
               "ListPrice": 12.0,
               "Color": null,
@@ -218,9 +244,11 @@
               "ProductLine": "A",
               "Class": "E",
               "Style": "U",
+              "DaysToManufacture": 0,
               "SellStartDate": "2024-04-01",
               "SellEndDate": null,
-              "DiscontinuedDate": null
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-04-01"
             }
           ],
           "table": "[bronze].[Product]"

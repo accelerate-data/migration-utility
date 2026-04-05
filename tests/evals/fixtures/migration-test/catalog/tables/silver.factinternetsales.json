@@ -201,6 +201,11 @@
       "out_of_scope": []
     }
   },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_stage_FactInternetSales",
+    "selected_writer_rationale": "Stage procedure is the direct writer for FactInternetSales."
+  },
   "profile": {
     "status": "ok",
     "writer": "silver.usp_stage_factinternetsales",

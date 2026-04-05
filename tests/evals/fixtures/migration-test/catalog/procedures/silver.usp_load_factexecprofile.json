@@ -16,17 +16,27 @@
               "is_updated": false
             },
             {
-              "name": "ProductAlternateKey",
+              "name": "ProcedureKey",
               "is_selected": false,
               "is_updated": true
             },
             {
-              "name": "EnglishProductName",
+              "name": "ExecutionDate",
               "is_selected": false,
               "is_updated": true
             },
             {
-              "name": "LoadDate",
+              "name": "DurationMs",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "RowsAffected",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "StatusCode",
               "is_selected": false,
               "is_updated": true
             }

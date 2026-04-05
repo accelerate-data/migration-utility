@@ -1,0 +1,169 @@
+{
+  "schema": "silver",
+  "name": "usp_load_factresellersales",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "SalesOrderDetail",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "LineTotal",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "OrderQty",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "SalesOrderID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "UnitPrice",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "bronze",
+          "name": "SalesOrderHeader",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "CustomerID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "DueDate",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "Freight",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "OrderDate",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "SalesOrderID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ShipDate",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "TaxAmt",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "FactResellerSales",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "CustomerKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "DueDateKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "Freight",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "OrderDateKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "OrderQuantity",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ProductKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "SalesAmount",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ShipDateKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "TaxAmt",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "UnitPrice",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "statements": [
+    {
+      "type": "TruncateTable",
+      "action": "skip",
+      "sql": "TRUNCATE TABLE silver.FactResellerSales"
+    },
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "sql": "INSERT INTO silver.FactResellerSales (ProductKey, OrderDateKey, ShipDateKey, DueDateKey, CustomerKey, OrderQuantity, UnitPrice, SalesAmount, TaxAmt, Freight) SELECT d.ProductID AS ProductKey, CAST(FORMAT(h.OrderDate, 'yyyyMMdd') AS INT) AS OrderDateKey, CAST(FORMAT(ISNULL(h.ShipDate, h.OrderDate), 'yyyyMMdd') AS INT) AS ShipDateKey, CAST(FORMAT(h.DueDate, 'yyyyMMdd') AS INT) AS DueDateKey, h.CustomerID AS CustomerKey, d.OrderQty AS OrderQuantity, d.UnitPrice, d.LineTotal AS SalesAmount, CAST(h.TaxAmt / NULLIF(COUNT(*) OVER (PARTITION BY h.SalesOrderID), 0) AS MONEY) AS TaxAmt, CAST(h.Freight / NULLIF(COUNT(*) OVER (PARTITION BY h.SalesOrderID), 0) AS MONEY) AS Freight FROM bronze.SalesOrderHeader h JOIN bronze.SalesOrderDetail d ON h.SalesOrderID = d.SalesOrderID"
+    }
+  ]
+}

@@ -30,7 +30,17 @@
           "rows": [
             {
               "ProductID": 1,
-              "ProductName": "Road-150"
+              "ProductName": "Road-150",
+              "ProductNumber": "PR-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 10.0,
+              "ListPrice": 25.0,
+              "DaysToManufacture": 1,
+              "SellStartDate": "2024-01-01",
+              "ModifiedDate": "2024-01-01"
             }
           ],
           "table": "[bronze].[Product]"
@@ -55,11 +65,31 @@
           "rows": [
             {
               "ProductID": 1,
-              "ProductName": "Road-150"
+              "ProductName": "Road-150",
+              "ProductNumber": "PR-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 10.0,
+              "ListPrice": 25.0,
+              "DaysToManufacture": 1,
+              "SellStartDate": "2024-01-01",
+              "ModifiedDate": "2024-01-01"
             },
             {
               "ProductID": 2,
-              "ProductName": "Mountain-200"
+              "ProductName": "Mountain-200",
+              "ProductNumber": "PR-002",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 20.0,
+              "ListPrice": 45.0,
+              "DaysToManufacture": 2,
+              "SellStartDate": "2024-02-01",
+              "ModifiedDate": "2024-02-01"
             }
           ],
           "table": "[bronze].[Product]"

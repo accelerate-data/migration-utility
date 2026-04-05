@@ -1,0 +1,106 @@
+{
+  "schema": "silver",
+  "name": "usp_load_factinventorysnapshot",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "Product",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "ProductID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ReorderPoint",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "SafetyStockLevel",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "StandardCost",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "FactInventorySnapshot",
+          "is_selected": true,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "ProductKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ReorderPoint",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "SnapshotDate",
+              "is_selected": true,
+              "is_updated": true
+            },
+            {
+              "name": "UnitCost",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "UnitsOnHand",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "UnitsOnOrder",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "WarehouseKey",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "statements": [
+    {
+      "type": "Delete",
+      "action": "skip",
+      "sql": "DELETE FROM silver.FactInventorySnapshot WHERE SnapshotDate = CAST(GETDATE() AS DATE)"
+    },
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "sql": "INSERT INTO silver.FactInventorySnapshot (ProductKey, WarehouseKey, SnapshotDate, UnitsOnHand, UnitsOnOrder, ReorderPoint, UnitCost) SELECT p.ProductID AS ProductKey, 1 AS WarehouseKey, CAST(GETDATE() AS DATE) AS SnapshotDate, p.SafetyStockLevel AS UnitsOnHand, p.ReorderPoint AS UnitsOnOrder, p.ReorderPoint, p.StandardCost AS UnitCost FROM bronze.Product p"
+    }
+  ]
+}

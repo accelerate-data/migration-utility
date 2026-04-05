@@ -52,8 +52,11 @@ module.exports = (output, context) => {
   const expectedFeedbackTerms = normalizeTerms(context.vars.expected_feedback_terms);
   const expectedIssueTerms = normalizeTerms(context.vars.expected_issue_terms);
 
-  if (expectedStatus && review.status !== expectedStatus) {
-    return { pass: false, score: 0, reason: `Expected status '${expectedStatus}', got '${review.status}'` };
+  if (expectedStatus) {
+    const allowedStatuses = expectedStatus.split(',').map(s => s.trim());
+    if (!allowedStatuses.includes(review.status)) {
+      return { pass: false, score: 0, reason: `Expected status '${expectedStatus}', got '${review.status}'` };
+    }
   }
 
   const coveredBranches = Number(review.coverage?.covered_branches || 0);

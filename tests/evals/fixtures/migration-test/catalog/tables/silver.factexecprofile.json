@@ -9,20 +9,32 @@
       "is_identity": true
     },
     {
-      "name": "ProductAlternateKey",
-      "sql_type": "NVARCHAR(25)",
+      "name": "ProcedureKey",
+      "sql_type": "INT",
       "is_nullable": false,
       "is_identity": false
     },
     {
-      "name": "EnglishProductName",
-      "sql_type": "NVARCHAR(50)",
-      "is_nullable": false,
-      "is_identity": false
-    },
-    {
-      "name": "LoadDate",
+      "name": "ExecutionDate",
       "sql_type": "DATETIME",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "DurationMs",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "RowsAffected",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "StatusCode",
+      "sql_type": "INT",
       "is_nullable": false,
       "is_identity": false
     }
@@ -95,17 +107,18 @@
     },
     "natural_key": {
       "columns": [
-        "ProductAlternateKey"
+        "ProcedureKey",
+        "ExecutionDate"
       ],
       "source": "llm",
-      "rationale": "ProductAlternateKey identifies the product grain of each inserted row."
+      "rationale": "ProcedureKey and ExecutionDate together identify the grain of each execution profile row."
     },
     "watermark": {
       "columns": [
-        "LoadDate"
+        "ExecutionDate"
       ],
       "source": "llm",
-      "rationale": "LoadDate records the insertion timestamp for each transaction-style load."
+      "rationale": "ExecutionDate records the execution timestamp for each transaction-style load."
     },
     "foreign_keys": [],
     "pii_actions": []
