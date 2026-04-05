@@ -33,7 +33,7 @@ module.exports = (output, context) => {
   // Helper: check if the LLM output text contains both SQL blocks as fallback
   const outputStr = String(output || '').toLowerCase();
   const outputHasExtracted = outputStr.includes('extracted') && outputStr.includes('select');
-  const outputHasRefactored = outputStr.includes('with') && (outputStr.includes('select * from final') || outputStr.includes('select *\nfrom final'));
+  const outputHasRefactored = outputStr.includes('with') && outputStr.includes('select') && (outputStr.includes('final') || outputStr.includes('cte'));
   const outputFallback = outputHasExtracted && outputHasRefactored;
 
   if (!fs.existsSync(catalogPath)) {
