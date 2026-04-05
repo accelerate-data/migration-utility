@@ -30,13 +30,13 @@
       "model": "stg_updatejointarget",
       "given": [
         {
-          "input": "source('bronze', 'product')",
           "rows": [
             {
               "ProductID": 1,
               "ProductName": "Road-150-Updated"
             }
-          ]
+          ],
+          "table": "[bronze].[Product]"
         }
       ],
       "expect": {
@@ -46,7 +46,9 @@
             "EnglishProductName": "Road-150-Updated"
           }
         ]
-      }
+      },
+      "target_table": "[silver].[UpdateJoinTarget]",
+      "procedure": "[silver].[usp_load_UpdateJoinTarget]"
     }
   ],
   "uncovered_branches": [

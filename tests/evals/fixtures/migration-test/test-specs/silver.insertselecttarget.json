@@ -27,13 +27,13 @@
       "model": "stg_insertselecttarget",
       "given": [
         {
-          "input": "source('bronze', 'product')",
           "rows": [
             {
               "ProductID": 1,
               "ProductName": "Road-150"
             }
-          ]
+          ],
+          "table": "[bronze].[Product]"
         }
       ],
       "expect": {
@@ -43,39 +43,57 @@
             "EnglishProductName": "Road-150"
           }
         ]
-      }
+      },
+      "target_table": "[silver].[InsertSelectTarget]",
+      "procedure": "[silver].[usp_load_InsertSelectTarget]"
     },
     {
       "name": "test_insert_select_multiple_rows",
       "model": "stg_insertselecttarget",
       "given": [
         {
-          "input": "source('bronze', 'product')",
           "rows": [
-            { "ProductID": 1, "ProductName": "Road-150" },
-            { "ProductID": 2, "ProductName": "Mountain-200" }
-          ]
+            {
+              "ProductID": 1,
+              "ProductName": "Road-150"
+            },
+            {
+              "ProductID": 2,
+              "ProductName": "Mountain-200"
+            }
+          ],
+          "table": "[bronze].[Product]"
         }
       ],
       "expect": {
         "rows": [
-          { "ProductAlternateKey": "1", "EnglishProductName": "Road-150" },
-          { "ProductAlternateKey": "2", "EnglishProductName": "Mountain-200" }
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150"
+          },
+          {
+            "ProductAlternateKey": "2",
+            "EnglishProductName": "Mountain-200"
+          }
         ]
-      }
+      },
+      "target_table": "[silver].[InsertSelectTarget]",
+      "procedure": "[silver].[usp_load_InsertSelectTarget]"
     },
     {
       "name": "test_empty_source_returns_no_rows",
       "model": "stg_insertselecttarget",
       "given": [
         {
-          "input": "source('bronze', 'product')",
-          "rows": []
+          "rows": [],
+          "table": "[bronze].[Product]"
         }
       ],
       "expect": {
         "rows": []
-      }
+      },
+      "target_table": "[silver].[InsertSelectTarget]",
+      "procedure": "[silver].[usp_load_InsertSelectTarget]"
     }
   ],
   "uncovered_branches": [],
