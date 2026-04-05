@@ -1,21 +1,21 @@
 {
   "schema": "silver",
-  "name": "dimcurrency",
+  "name": "whiletarget",
   "columns": [
     {
-      "name": "CurrencyKey",
+      "name": "BatchId",
       "sql_type": "INT",
-      "is_nullable": false,
-      "is_identity": true
-    },
-    {
-      "name": "CurrencyAlternateKey",
-      "sql_type": "NCHAR(3)",
       "is_nullable": false,
       "is_identity": false
     },
     {
-      "name": "CurrencyName",
+      "name": "ProductAlternateKey",
+      "sql_type": "NVARCHAR(25)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "EnglishProductName",
       "sql_type": "NVARCHAR(50)",
       "is_nullable": false,
       "is_identity": false
@@ -23,20 +23,16 @@
   ],
   "primary_keys": [
     {
-      "constraint_name": "PK__DimCurre__DC9C5DF033ED6A78",
+      "constraint_name": "PK_WhileTarget",
       "columns": [
-        "CurrencyKey"
+        "BatchId",
+        "ProductAlternateKey"
       ]
     }
   ],
   "unique_indexes": [],
   "foreign_keys": [],
-  "auto_increment_columns": [
-    {
-      "column": "CurrencyKey",
-      "mechanism": "identity"
-    }
-  ],
+  "auto_increment_columns": [],
   "change_capture": null,
   "sensitivity_classifications": [],
   "referenced_by": {
@@ -44,8 +40,8 @@
       "in_scope": [
         {
           "schema": "silver",
-          "name": "usp_load_dimcurrency",
-          "is_selected": false,
+          "name": "usp_load_whiletarget",
+          "is_selected": true,
           "is_updated": true
         }
       ],
@@ -62,23 +58,24 @@
   },
   "scoping": {
     "status": "resolved",
-    "selected_writer": "silver.usp_load_DimCurrency"
+    "selected_writer": "silver.usp_load_WhileTarget"
   },
   "profile": {
-    "status": "partial",
-    "writer": "silver.usp_load_DimCurrency",
+    "status": "ok",
+    "writer": "silver.usp_load_WhileTarget",
     "classification": {
       "resolved_kind": "dim_non_scd",
       "source": "catalog+llm",
-      "rationale": "Dynamic sp_executesql loads currency reference data via TRUNCATE+INSERT; profile is partial because write logic is not statically visible."
+      "rationale": "WHILE loop batches product rows into numbered batches for staged loading."
     },
     "primary_key": {
       "columns": [
-        "CurrencyKey"
+        "BatchId",
+        "ProductAlternateKey"
       ],
-      "primary_key_type": "surrogate",
+      "primary_key_type": "natural",
       "source": "catalog",
-      "rationale": "CurrencyKey is an identity-generated surrogate key."
+      "rationale": "Composite key of BatchId and ProductAlternateKey uniquely identifies each batched row."
     },
     "foreign_keys": [],
     "pii_actions": []

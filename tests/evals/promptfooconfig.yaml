@@ -2,20 +2,20 @@
 description: "Full promptfoo suite for migration eval harness"
 
 prompts:
-  - id: profiler
-    label: profiler
+  - id: profiling-table
+    label: profiling-table
     raw: file://prompts/skill-profiling-table.txt
-  - id: model-generator
-    label: model-generator
+  - id: generating-model
+    label: generating-model
     raw: file://prompts/skill-generating-model.txt
-  - id: test-generator
-    label: test-generator
+  - id: generating-tests
+    label: generating-tests
     raw: file://prompts/skill-generating-tests.txt
-  - id: test-review
-    label: test-review
+  - id: reviewing-tests
+    label: reviewing-tests
     raw: file://prompts/skill-reviewing-tests.txt
-  - id: code-review
-    label: code-review
+  - id: reviewing-model
+    label: reviewing-model
     raw: file://prompts/skill-reviewing-model.txt
   - id: analyzing-table
     label: analyzing-table
@@ -50,7 +50,7 @@ providers:
 
 tests:
   - description: "fact-rich-catalog — FactInternetSales"
-    prompts: ["profiler"]
+    prompts: ["profiling-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.FactInternetSales"
@@ -60,7 +60,7 @@ tests:
         value: file://assertions/check-table-profile.js
 
   - description: "dim-merge — DimProduct MERGE INTO"
-    prompts: ["profiler"]
+    prompts: ["profiling-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.DimProduct"
@@ -70,7 +70,7 @@ tests:
         value: file://assertions/check-table-profile.js
 
   - description: "exec-call-chain — FactExecProfile surfaces helper proc context"
-    prompts: ["profiler"]
+    prompts: ["profiling-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.FactExecProfile"
@@ -82,7 +82,7 @@ tests:
         value: file://assertions/check-table-profile.js
 
   - description: "cross-db-exec — DimCrossDbProfile stays partial with limitation"
-    prompts: ["profiler"]
+    prompts: ["profiling-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.DimCrossDbProfile"
@@ -94,7 +94,7 @@ tests:
         value: file://assertions/check-table-profile.js
 
   - description: "insert-select — simple INSERT...SELECT becomes dbt select"
-    prompts: ["model-generator"]
+    prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.InsertSelectTarget"
@@ -105,7 +105,7 @@ tests:
         value: file://assertions/check-dbt-model.js
 
   - description: "update-join — UPDATE join produces valid rewritten model"
-    prompts: ["model-generator"]
+    prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.UpdateJoinTarget"
@@ -116,7 +116,7 @@ tests:
         value: file://assertions/check-dbt-model.js
 
   - description: "delete-where — DELETE with WHERE becomes keep-rows select"
-    prompts: ["model-generator"]
+    prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.DeleteWhereTarget"
@@ -127,7 +127,7 @@ tests:
         value: file://assertions/check-dbt-model.js
 
   - description: "select-into — SELECT INTO recognized as staging table model"
-    prompts: ["model-generator"]
+    prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.SelectIntoTarget"
@@ -139,7 +139,7 @@ tests:
         value: file://assertions/check-dbt-model.js
 
   - description: "single-cte — CTE restructured into import/logical/final"
-    prompts: ["model-generator"]
+    prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.SingleCteTarget"
@@ -150,7 +150,7 @@ tests:
         value: file://assertions/check-dbt-model.js
 
   - description: "correlated-subquery — correlated subquery preserved as valid dbt logic"
-    prompts: ["model-generator"]
+    prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.CorrelatedSubqueryTarget"
@@ -161,7 +161,7 @@ tests:
         value: file://assertions/check-dbt-model.js
 
   - description: "union-all — UNION ALL preserved in generated sql"
-    prompts: ["model-generator"]
+    prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.UnionAllTarget"
@@ -172,7 +172,7 @@ tests:
         value: file://assertions/check-dbt-model.js
 
   - description: "grouping-sets — GROUPING SETS preserved when supported by generated sql"
-    prompts: ["model-generator"]
+    prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.GroupingSetsTarget"
@@ -183,7 +183,7 @@ tests:
         value: file://assertions/check-dbt-model.js
 
   - description: "pivot — PIVOT translated to conditional aggregation"
-    prompts: ["model-generator"]
+    prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.PivotTarget"
@@ -194,7 +194,7 @@ tests:
         value: file://assertions/check-dbt-model.js
 
   - description: "window-functions — FactInternetSales preserves analytic window expressions"
-    prompts: ["model-generator"]
+    prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.FactInternetSales"
@@ -205,7 +205,7 @@ tests:
         value: file://assertions/check-dbt-model.js
 
   - description: "outer-apply — DimCustomer full reload rewrites APPLY logic"
-    prompts: ["model-generator"]
+    prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.DimCustomer"
@@ -216,7 +216,7 @@ tests:
         value: file://assertions/check-dbt-model.js
 
   - description: "truncate-insert — DimCustomer full reload stays table materialized"
-    prompts: ["model-generator"]
+    prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.DimCustomer"
@@ -227,7 +227,7 @@ tests:
         value: file://assertions/check-dbt-model.js
 
   - description: "exec-orchestrator — FactInternetSales orchestration handled gracefully"
-    prompts: ["model-generator"]
+    prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.FactInternetSales"
@@ -239,7 +239,7 @@ tests:
         value: file://assertions/check-dbt-model.js
 
   - description: "dynamic-sp-executesql — DimCurrency dynamic SQL handled gracefully"
-    prompts: ["model-generator"]
+    prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.DimCurrency"
@@ -250,7 +250,7 @@ tests:
         value: file://assertions/check-dbt-model.js
 
   - description: "merge-branches — DimProduct enumerates matched and not-matched MERGE arms"
-    prompts: ["test-generator"]
+    prompts: ["generating-tests"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.DimProduct"
@@ -265,7 +265,7 @@ tests:
         value: file://assertions/check-test-spec.js
 
   - description: "exec-call-chain — FactInternetSales scenarios follow transitive writer logic"
-    prompts: ["test-generator"]
+    prompts: ["generating-tests"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.FactInternetSales"
@@ -280,7 +280,7 @@ tests:
         value: file://assertions/check-test-spec.js
 
   - description: "dynamic-sql-untestable — DimCurrency records untestable dynamic SQL rationale"
-    prompts: ["test-generator"]
+    prompts: ["generating-tests"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.DimCurrency"
@@ -294,7 +294,7 @@ tests:
         value: file://assertions/check-test-spec.js
 
   - description: "approved — DimProduct complete branch coverage and realistic fixtures"
-    prompts: ["test-review"]
+    prompts: ["reviewing-tests"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       iteration_suffix: ""
@@ -307,7 +307,7 @@ tests:
         value: file://assertions/check-test-review.js
 
   - description: "revision-requested — DimCustomer incomplete coverage and poor fixture quality"
-    prompts: ["test-review"]
+    prompts: ["reviewing-tests"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       iteration_suffix: ""
@@ -319,7 +319,7 @@ tests:
         value: file://assertions/check-test-review.js
 
   - description: "approved — clean MERGE model passes standards and integration checks"
-    prompts: ["code-review"]
+    prompts: ["reviewing-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.DimProduct"
@@ -330,7 +330,7 @@ tests:
         value: file://assertions/check-model-review.js
 
   - description: "approved — standard DML model with source/ref usage passes review"
-    prompts: ["code-review"]
+    prompts: ["reviewing-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.InsertSelectTarget"
@@ -341,7 +341,7 @@ tests:
         value: file://assertions/check-model-review.js
 
   - description: "revision-requested — incorrect materialization and missing tests are flagged"
-    prompts: ["code-review"]
+    prompts: ["reviewing-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
       target_table: "silver.DimCustomer"

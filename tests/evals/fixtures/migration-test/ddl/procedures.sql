@@ -181,6 +181,80 @@ GO
 
 
 -- ============================================================
+-- SCENARIO: IF/ELSE — conditional insert based on price threshold
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_IfElseTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.IfElseTarget;
+    IF (SELECT AVG(ListPrice) FROM bronze.Product) > 100
+    BEGIN
+        INSERT INTO silver.IfElseTarget (ProductAlternateKey, EnglishProductName, PriceCategory)
+        SELECT
+            CAST(ProductID AS NVARCHAR(25)),
+            ProductName,
+            'Premium'
+        FROM bronze.Product
+        WHERE ListPrice > 100;
+    END
+    ELSE
+    BEGIN
+        INSERT INTO silver.IfElseTarget (ProductAlternateKey, EnglishProductName, PriceCategory)
+        SELECT
+            CAST(ProductID AS NVARCHAR(25)),
+            ProductName,
+            'Standard'
+        FROM bronze.Product;
+    END;
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: WHILE — batched insert with loop counter
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_WhileTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.WhileTarget;
+    DECLARE @BatchId INT = 1;
+    DECLARE @MaxBatch INT = (SELECT CEILING(COUNT(*) / 100.0) FROM bronze.Product);
+    WHILE @BatchId <= @MaxBatch
+    BEGIN
+        INSERT INTO silver.WhileTarget (BatchId, ProductAlternateKey, EnglishProductName)
+        SELECT
+            @BatchId,
+            CAST(ProductID AS NVARCHAR(25)),
+            ProductName
+        FROM bronze.Product
+        ORDER BY ProductID
+        OFFSET (@BatchId - 1) * 100 ROWS FETCH NEXT 100 ROWS ONLY;
+        SET @BatchId = @BatchId + 1;
+    END;
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: static sp_executesql — literal SQL string passed directly
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_StaticSpExecTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.StaticSpExecTarget;
+    EXEC sp_executesql N'INSERT INTO silver.StaticSpExecTarget (ProductAlternateKey, EnglishProductName)
+        SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product';
+END;
+
+GO
+
+
+-- ============================================================
 -- SCENARIO: cross-db exec — writer delegates to another database
 -- usp_load_DimCrossDbProfile only EXECs a cross-database
 -- procedure, so the profiler cannot inspect the write pattern.

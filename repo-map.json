@@ -98,7 +98,7 @@
     },
     "tests_evals": {
       "path": "tests/evals/",
-      "description": "Promptfoo eval harness for skill and command testing against MigrationTest schema. Skill packages: profiler, model-generator, test-generator, test-review, code-review, analyzing-table. Command packages: cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests. Top-level promptfooconfig.yaml for full-suite runs. Run via: cd tests/evals && npm run eval. See docs/design/eval-harness/README.md."
+      "description": "Promptfoo eval harness for skill and command testing against MigrationTest schema. Skill packages: profiling-table, generating-model, generating-tests, reviewing-tests, reviewing-model, analyzing-table. Command packages: cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests. Top-level promptfooconfig.yaml for full-suite runs. Run via: cd tests/evals && npm run eval. See docs/design/eval-harness/README.md."
     },
     "tests_ddl_mcp": {
       "path": "plugin/mcp/ddl/tests/",
@@ -118,7 +118,7 @@
     "plugin/lib/": "Python DDL analysis library (uv project, sqlglot-based)",
     "plugin/lib/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
     "tests/unit/": "Python pytest tests for shared library (discover, catalog, catalog_enrich, extract_refs, integration)",
-    "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages: profiler, model-generator, test-generator, test-review, code-review, analyzing-table; command packages: cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests)",
+    "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages: profiling-table, generating-model, generating-tests, reviewing-tests, reviewing-model, analyzing-table; command packages: cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests)",
     "plugin/mcp/ddl/tests/": "Python pytest tests for the DDL MCP server",
     "docs/design/": "Architecture decision records and design specs",
     ".claude/rules/": "Shared agent rules such as coding-conventions, git-workflow, logging-policy, and codex-execution-policy",
@@ -134,11 +134,11 @@
     "migrate_util_dry_run": "cd plugin/lib && uv run migrate-util dry-run <table> <stage> [--detail]",
     "lint_md": "markdownlint <file>",
     "eval_all": "cd tests/evals && npm run eval",
-    "eval_profiler": "cd tests/evals && npm run eval:profiler",
-    "eval_model_generator": "cd tests/evals && npm run eval:model-generator",
-    "eval_test_generator": "cd tests/evals && npm run eval:test-generator",
-    "eval_test_review": "cd tests/evals && npm run eval:test-review",
-    "eval_code_review": "cd tests/evals && npm run eval:code-review",
+    "eval_profiling_table": "cd tests/evals && npm run eval:profiling-table",
+    "eval_generating_model": "cd tests/evals && npm run eval:generating-model",
+    "eval_generating_tests": "cd tests/evals && npm run eval:generating-tests",
+    "eval_reviewing_tests": "cd tests/evals && npm run eval:reviewing-tests",
+    "eval_reviewing_model": "cd tests/evals && npm run eval:reviewing-model",
     "eval_analyzing_table": "cd tests/evals && npm run eval:analyzing-table",
     "eval_cmd_scope": "cd tests/evals && npm run eval:cmd-scope",
     "eval_cmd_profile": "cd tests/evals && npm run eval:cmd-profile",

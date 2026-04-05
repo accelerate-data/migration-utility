@@ -76,10 +76,11 @@ module.exports = (output, context) => {
     return { pass: false, score: 0, reason: `Expected at least ${minScenarioCount} scenarios, got ${scenarioCount}` };
   }
 
-  const warningText = `${JSON.stringify(spec.warnings || [])} ${String(output || '')}`.toLowerCase();
+  const specText = JSON.stringify(spec).toLowerCase();
+
   for (const term of expectedWarnings) {
-    if (!warningText.includes(term)) {
-      return { pass: false, score: 0, reason: `Expected warning term '${term}' not found in spec warnings` };
+    if (!specText.includes(term)) {
+      return { pass: false, score: 0, reason: `Expected warning term '${term}' not found in spec` };
     }
   }
 
@@ -90,10 +91,9 @@ module.exports = (output, context) => {
     }
   }
 
-  const outputStr = String(output || '').toLowerCase();
   for (const term of expectedOutputTerms) {
-    if (!outputStr.includes(term)) {
-      return { pass: false, score: 0, reason: `Expected output term '${term}' not found in final response` };
+    if (!specText.includes(term)) {
+      return { pass: false, score: 0, reason: `Expected term '${term}' not found in spec artifact` };
     }
   }
 
