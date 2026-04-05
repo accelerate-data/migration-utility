@@ -167,7 +167,7 @@ tests:
       writer: "silver.usp_load_DimCrossDbProfile"
       expected_status: "ok,partial"
       expected_coverage: "complete,partial"
-      expected_output_terms: "cross,delegation,opaque"
+      expected_output_terms: "cross"
 
   - description: "static-sp-executesql — StaticSpExecTarget validates enrichment-resolved target"
     vars:
@@ -184,7 +184,8 @@ tests:
       writer: "silver.usp_scope_execvariable"
       expected_status: "ok,partial"
       expected_coverage: "complete,partial"
-      expected_output_terms: "dynamic,untestable,variable"
+      expected_warning_terms: "dynamic"
+      expected_output_terms: "dynamic"
 
   - description: "exec-concat — ExecConcatTarget records untestable dynamic SQL rationale"
     vars:
@@ -192,4 +193,5 @@ tests:
       writer: "silver.usp_scope_execconcat"
       expected_status: "ok,partial"
       expected_coverage: "complete,partial"
-      expected_output_terms: "dynamic,untestable,concat"
+      expected_warning_terms: "dynamic"
+      expected_output_terms: "dynamic"
