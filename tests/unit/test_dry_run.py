@@ -13,9 +13,11 @@ import tempfile
 from pathlib import Path
 
 import pytest
+import yaml
 from typer.testing import CliRunner
 
 from shared import dry_run
+from shared import generate_sources as gen_src
 
 _cli_runner = CliRunner()
 
@@ -743,3 +745,193 @@ def test_cli_dry_run_all_stages() -> None:
             output = json.loads(result.stdout)
             assert output["guards_passed"] is True, f"stage {stage} guards failed"
             assert output["stage"] == stage
+
+
+# ── generate-sources tests ──────────────────────────────────────────────────
+
+
+def _add_source_table(root: Path, schema: str, name: str) -> None:
+    """Add a table with no_writer_found scoping (a true source)."""
+    norm = f"{schema.lower()}.{name.lower()}"
+    cat = {
+        "schema": schema,
+        "name": name,
+        "primary_keys": [],
+        "unique_indexes": [],
+        "foreign_keys": [],
+        "auto_increment_columns": [],
+        "referenced_by": [],
+        "scoping": {
+            "status": "no_writer_found",
+            "selected_writer": None,
+            "selected_writer_rationale": "No procedures found that write to this table.",
+        },
+    }
+    (root / "catalog" / "tables" / f"{norm}.json").write_text(
+        json.dumps(cat), encoding="utf-8",
+    )
+
+
+def test_generate_sources_only_includes_no_writer_found() -> None:
+    """Only tables with no_writer_found are included in sources."""
+    tmp, root = _make_project()
+    with tmp:
+        # silver.DimCustomer has scoping.status == "resolved" (from fixture)
+        # Add a source table
+        _add_source_table(root, "bronze", "CustomerRaw")
+
+        result = gen_src.generate_sources(root)
+        assert "bronze.customerraw" in result["included"]
+        assert "silver.dimcustomer" in result["excluded"]
+        assert result["incomplete"] == []
+        assert result["sources"] is not None
+        # Only bronze schema should appear in sources
+        schema_names = [s["name"] for s in result["sources"]["sources"]]
+        assert "bronze" in schema_names
+        assert "silver" not in schema_names
+
+
+def test_generate_sources_excludes_resolved_tables() -> None:
+    """Tables with resolved status are excluded."""
+    tmp, root = _make_project()
+    with tmp:
+        result = gen_src.generate_sources(root)
+        # Only silver.DimCustomer in fixture, it's resolved
+        assert result["excluded"] == ["silver.dimcustomer"]
+        assert result["included"] == []
+        assert result["sources"] is None
+
+
+def test_generate_sources_detects_incomplete_scoping() -> None:
+    """Tables without scoping section are flagged as incomplete."""
+    tmp, root = _make_project()
+    with tmp:
+        _add_table_to_project(root, "silver.DimDate")  # no scoping
+        result = gen_src.generate_sources(root)
+        assert "silver.dimdate" in result["incomplete"]
+
+
+def test_generate_sources_mixed_statuses() -> None:
+    """Mixed resolved, no_writer_found, and incomplete tables."""
+    tmp, root = _make_project()
+    with tmp:
+        # silver.DimCustomer: resolved (from fixture)
+        _add_source_table(root, "bronze", "CustomerRaw")  # no_writer_found
+        _add_source_table(root, "bronze", "OrderRaw")  # no_writer_found
+        _add_table_to_project(root, "silver.DimDate")  # no scoping
+
+        result = gen_src.generate_sources(root)
+        assert sorted(result["included"]) == ["bronze.customerraw", "bronze.orderraw"]
+        assert result["excluded"] == ["silver.dimcustomer"]
+        assert result["incomplete"] == ["silver.dimdate"]
+        # Sources should have only bronze schema
+        assert len(result["sources"]["sources"]) == 1
+        assert result["sources"]["sources"][0]["name"] == "bronze"
+        assert len(result["sources"]["sources"][0]["tables"]) == 2
+
+
+def test_generate_sources_empty_catalog() -> None:
+    """Empty catalog/tables/ produces empty result."""
+    tmp, root = _make_bare_project()
+    with tmp:
+        # bare project has silver.DimDate without scoping
+        # Remove it to test truly empty
+        for f in (root / "catalog" / "tables").glob("*.json"):
+            f.unlink()
+        result = gen_src.generate_sources(root)
+        assert result["sources"] is None
+        assert result["included"] == []
+        assert result["excluded"] == []
+        assert result["incomplete"] == []
+
+
+def test_generate_sources_multiple_schemas() -> None:
+    """Sources from multiple schemas are grouped correctly."""
+    tmp, root = _make_project()
+    with tmp:
+        _add_source_table(root, "bronze", "CustomerRaw")
+        _add_source_table(root, "staging", "LookupRegion")
+
+        result = gen_src.generate_sources(root)
+        schema_names = [s["name"] for s in result["sources"]["sources"]]
+        assert sorted(schema_names) == ["bronze", "staging"]
+
+
+def test_write_sources_yml() -> None:
+    """write_sources_yml creates the YAML file on disk."""
+    tmp, root = _make_project()
+    with tmp:
+        _add_source_table(root, "bronze", "CustomerRaw")
+        result = gen_src.write_sources_yml(root)
+        assert result["path"] is not None
+        sources_path = Path(result["path"])
+        assert sources_path.exists()
+        content = yaml.safe_load(sources_path.read_text(encoding="utf-8"))
+        assert content["version"] == 2
+        assert len(content["sources"]) == 1
+        assert content["sources"][0]["name"] == "bronze"
+
+
+def test_write_sources_yml_no_sources() -> None:
+    """write_sources_yml writes nothing when all tables are resolved."""
+    tmp, root = _make_project()
+    with tmp:
+        result = gen_src.write_sources_yml(root)
+        assert result["path"] is None
+        assert result["sources"] is None
+
+
+def test_cli_generate_sources() -> None:
+    """CLI generate-sources outputs valid JSON."""
+    tmp, root = _make_project()
+    with tmp:
+        _add_source_table(root, "bronze", "CustomerRaw")
+        result = _cli_runner.invoke(
+            gen_src.app,
+            ["--project-root", str(root)],
+        )
+        assert result.exit_code == 0
+        output = json.loads(result.stdout)
+        assert "bronze.customerraw" in output["included"]
+
+
+def test_cli_generate_sources_strict_blocks_on_incomplete() -> None:
+    """CLI --strict exits 1 when incomplete scoping exists."""
+    tmp, root = _make_project()
+    with tmp:
+        _add_table_to_project(root, "silver.DimDate")  # no scoping
+        result = _cli_runner.invoke(
+            gen_src.app,
+            ["--strict", "--project-root", str(root)],
+        )
+        assert result.exit_code == 1
+        output = json.loads(result.stdout)
+        assert output["error"] == "INCOMPLETE_SCOPING"
+        assert "silver.dimdate" in output["incomplete"]
+
+
+def test_cli_generate_sources_strict_passes_when_complete() -> None:
+    """CLI --strict exits 0 when all tables have complete scoping."""
+    tmp, root = _make_project()
+    with tmp:
+        _add_source_table(root, "bronze", "CustomerRaw")
+        result = _cli_runner.invoke(
+            gen_src.app,
+            ["--strict", "--project-root", str(root)],
+        )
+        assert result.exit_code == 0
+
+
+def test_cli_generate_sources_write() -> None:
+    """CLI --write creates sources.yml on disk."""
+    tmp, root = _make_project()
+    with tmp:
+        _add_source_table(root, "bronze", "CustomerRaw")
+        result = _cli_runner.invoke(
+            gen_src.app,
+            ["--write", "--project-root", str(root)],
+        )
+        assert result.exit_code == 0
+        output = json.loads(result.stdout)
+        assert output["path"] is not None
+        assert Path(output["path"]).exists()

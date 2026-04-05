@@ -75,7 +75,9 @@ After the summary table, provide LLM analysis:
    - "All scoped tables have resolved writers, profiling is the bottleneck"
    - "3 tables have partial profiles — consider re-running /profile for them"
 
-2. **Next action:** recommend the single most impactful next step. Examples:
+2. **Sources staleness check:** if `dbt/models/staging/sources.yml` exists and any table has incomplete scoping (not `resolved` or `no_writer_found`), show a note: "sources.yml may be stale — N tables have incomplete scoping. Re-run `/init-dbt` after scoping is complete."
+
+3. **Next action:** recommend the single most impactful next step. Examples:
    - "Run `/profile silver.DimDate silver.FactSales` to unblock 2 tables"
    - "Run `/setup-sandbox` then `/generate-tests` for the 3 profiled tables"
    - "All tables are ready for migration — run `/generate-model` on the batch"
