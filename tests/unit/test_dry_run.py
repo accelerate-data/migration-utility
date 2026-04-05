@@ -797,6 +797,20 @@ def test_migrate_guards_fail_refactor_partial(assert_valid_schema) -> None:
         assert result["guard_results"][-1]["code"] == "REFACTOR_NOT_COMPLETED"
 
 
+def test_migrate_guards_fail_refactor_error(assert_valid_schema) -> None:
+    """Migrate guard fails when refactor status is error (could not proceed)."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["refactor"]["status"] = "error"
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+        result = dry_run.run_dry_run(root, "silver.DimCustomer", "migrate")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is False
+        assert result["guard_results"][-1]["code"] == "REFACTOR_NOT_COMPLETED"
+
+
 # ── Content tests: refactor ─────────────────────────────────────────────────
 
 
@@ -865,6 +879,32 @@ def test_guard_cli_skill_stage() -> None:
         # generating-model requires dbt_project — fixture has it
         assert output["passed"] is True
         assert output["stage"] == "generating-model"
+
+
+def test_guard_cli_invalid_stage() -> None:
+    """Guard CLI rejects invalid stage name."""
+    tmp, root = _make_project()
+    with tmp:
+        result = _cli_runner.invoke(
+            dry_run.app,
+            ["guard", "silver.DimCustomer", "bogus", "--project-root", str(root)],
+        )
+        assert result.exit_code != 0
+
+
+def test_guard_cli_dbt_project_missing() -> None:
+    """Guard CLI fails for generating-model when dbt_project.yml is missing."""
+    tmp, root = _make_project()
+    with tmp:
+        (root / "dbt" / "dbt_project.yml").unlink()
+        result = _cli_runner.invoke(
+            dry_run.app,
+            ["guard", "silver.DimCustomer", "generating-model", "--project-root", str(root)],
+        )
+        assert result.exit_code == 0
+        output = json.loads(result.stdout)
+        assert output["passed"] is False
+        assert output["guard_results"][-1]["code"] == "DBT_PROJECT_MISSING"
 
 
 # ── generate-sources tests ──────────────────────────────────────────────────
