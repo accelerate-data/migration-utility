@@ -216,5 +216,15 @@
     },
     "foreign_keys": [],
     "pii_actions": []
-  }
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_load_DimCustomer_Full"
+  },
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT CAST(c.CustomerID AS NVARCHAR(15)) AS CustomerAlternateKey, p.FirstName, p.MiddleName, p.LastName, p.Title, NULL AS Gender, NULL AS MaritalStatus, p.EmailPromotion, CAST(h.MinOrderDate AS DATE) AS DateFirstPurchase FROM [bronze].[Customer] c JOIN [bronze].[Person] p ON c.PersonID = p.BusinessEntityID OUTER APPLY (SELECT MIN(OrderDate) AS MinOrderDate FROM [bronze].[SalesOrderHeader] sh WHERE sh.CustomerID = c.CustomerID) h",
+    "refactored_sql": "with source_customer as (\n    select * from [bronze].[Customer]\n),\n\nsource_person as (\n    select * from [bronze].[Person]\n),\n\nsource_orders as (\n    select * from [bronze].[SalesOrderHeader]\n),\n\ncustomer_person as (\n    select\n        cast(c.CustomerID as nvarchar(15)) as CustomerAlternateKey,\n        p.FirstName,\n        p.MiddleName,\n        p.LastName,\n        p.Title,\n        null as Gender,\n        null as MaritalStatus,\n        p.EmailPromotion,\n        c.CustomerID\n    from source_customer as c\n    inner join source_person as p\n        on c.PersonID = p.BusinessEntityID\n),\n\norder_dates as (\n    select\n        CustomerID,\n        min(OrderDate) as MinOrderDate\n    from source_orders\n    group by CustomerID\n),\n\nfinal as (\n    select\n        cp.CustomerAlternateKey,\n        cp.FirstName,\n        cp.MiddleName,\n        cp.LastName,\n        cp.Title,\n        cp.Gender,\n        cp.MaritalStatus,\n        cp.EmailPromotion,\n        cast(od.MinOrderDate as date) as DateFirstPurchase\n    from customer_person as cp\n    left join order_dates as od\n        on cp.CustomerID = od.CustomerID\n)\n\nselect * from final"
+  },
+  "statements": []
 }

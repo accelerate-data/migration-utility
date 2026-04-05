@@ -82,3 +82,10 @@ These scenarios test CTE-shape inputs and dbt output mechanics, not DML patterns
 |---|---|---|
 | modular-split | `ref('stg_*')` in mart, stg_ file created | Yes |
 | style-compliance | Lowercase keywords, no uppercase DML | Yes |
+| single-source-table | Single import CTE → stg_ with `source()` | Yes |
+| multi-source-split | Multi-source refactored SQL → mart with `ref()` calls | Yes |
+| table-materialization | dim_scd1 profile → `materialized='table'` | Yes |
+| incremental-materialization | Watermark profile → `materialized='incremental'` | Yes |
+| etl-columns | Generated model includes `_dbt_run_id` | Yes |
+| yaml-rendered | Schema YAML with `version: 2` and description | Yes |
+| stg-no-business-logic | Staging model has no joins/where/case | Yes |

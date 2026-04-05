@@ -42,3 +42,49 @@ tests:
       writer: "silver.usp_load_InsertSelectTarget"
       expected_model_terms: "with,select,from,materialized="
       forbidden_model_terms: "SELECT,FROM,INSERT,UPDATE"
+
+  # --- VU-878: CTE-shape and materialization scenarios ---
+
+  # ── single-source table materialization ─────────────────────
+  - description: "single-source-table — SelectIntoTarget single import CTE produces stg_ + mart"
+    vars:
+      target_table: "silver.SelectIntoTarget"
+      writer: "silver.usp_load_SelectIntoTarget"
+      expected_stg_files: "stg_selectintotarget"
+      expected_stg_terms: "source("
+      forbidden_stg_terms: "join,group by"
+
+  # ── multi-source split ──────────────────────────────────────
+  - description: "multi-source-split — DimCustomer multi-source refactored SQL produces mart with ref() calls"
+    vars:
+      target_table: "silver.DimCustomer"
+      writer: "silver.usp_load_DimCustomer_Full"
+      expected_model_terms: "ref(,materialized="
+
+  # ── table materialization (dim_scd1) ─────────────────────────
+  - description: "table-materialization — DimProduct dim_scd1 generates table-materialized model"
+    vars:
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      expected_model_terms: "materialized='table',ref("
+
+  # ── incremental materialization (watermark) ──────────────────
+  - description: "incremental-materialization — UpdateJoinTarget with watermark generates incremental model"
+    vars:
+      target_table: "silver.UpdateJoinTarget"
+      writer: "silver.usp_load_UpdateJoinTarget"
+      expected_model_terms: "materialized='incremental'"
+
+  # ── etl control columns ─────────────────────────────────────
+  - description: "etl-columns — generated model includes _dbt_run_id ETL control column"
+    vars:
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_model_terms: "_dbt_run_id"
+
+  # ── yaml schema rendered ─────────────────────────────────────
+  - description: "yaml-rendered — generated output includes schema YAML with version and description"
+    vars:
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_output_terms: "version: 2,description"

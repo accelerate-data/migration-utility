@@ -79,3 +79,12 @@ tests:
       target_table: "silver.DimCurrency"
       writer: "silver.usp_load_DimCurrency"
       expected_status: "approved"
+
+  # --- VU-878: fixture quality review scenarios ---
+
+  - description: "not-null-flagged — InsertSelectTarget reviewer catches missing NOT NULL columns"
+    vars:
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_status: "revision_requested"
+      expected_issue_terms: "not null"

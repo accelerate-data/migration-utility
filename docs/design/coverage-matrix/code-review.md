@@ -83,3 +83,8 @@ Remaining eval scenarios focus on standards codes (MOD_004, MDL_005), feedback s
 | MOD_004 standards code | Missing ephemeral → feedback with stable code | Yes |
 | MDL_005 standards code | Missing `_dbt_run_id` → feedback with stable code | Yes |
 | feedback-structure | Feedback items have code + ack_required fields | Yes |
+| happy-path | Clean model passes review | Yes |
+| correctness-check | Reviewer validates model against proc_body | Yes |
+| SQL_001 standards code | Uppercase keyword flagged with stable code | Yes |
+| test-integration | Unit test rendering validated | Yes |
+| materialization-check | Profile-derived materialization validated | Yes |

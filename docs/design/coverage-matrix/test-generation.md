@@ -71,3 +71,10 @@ Current automated statement coverage for the test-generator phase. The phase bou
 | S6 | `THROW` | N/A | N/A | N/A |
 | S7 | `BEGIN / COMMIT / ROLLBACK` | N/A | N/A | N/A |
 | S8 | `DROP / CREATE INDEX` | N/A | N/A | N/A |
+
+## Test-generation eval scenarios (non-pattern-based)
+
+| Scenario | What it tests | Status |
+|---|---|---|
+| not-null-coverage | Fixtures include NOT NULL columns (ProductNumber, MakeFlag) | Yes |
+| multi-source-fk | Multi-source fixtures with FK alignment across tables | Yes |

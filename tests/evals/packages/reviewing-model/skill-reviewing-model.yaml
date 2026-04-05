@@ -62,3 +62,39 @@ tests:
       target_table: "silver.DimCustomer"
       writer: "silver.usp_load_DimCustomer_Full"
       expected_status: "approved,approved_with_warnings,revision_requested"
+
+  # --- VU-878: correctness, test-integration, and standards scenarios ---
+
+  - description: "happy-path — SelectIntoTarget clean staging model passes review"
+    vars:
+      target_table: "silver.SelectIntoTarget"
+      writer: "silver.usp_load_SelectIntoTarget"
+      expected_status: "approved,approved_with_warnings"
+
+  - description: "correctness-check — UpdateJoinTarget reviewer validates model against proc_body"
+    vars:
+      target_table: "silver.UpdateJoinTarget"
+      writer: "silver.usp_load_UpdateJoinTarget"
+      expected_status: "approved,approved_with_warnings,revision_requested"
+      expect_correctness_passed: "false"
+
+  - description: "standards-sql-001 — UpdateJoinTarget model has uppercase keyword flagged"
+    vars:
+      target_table: "silver.UpdateJoinTarget"
+      writer: "silver.usp_load_UpdateJoinTarget"
+      expected_status: "approved,approved_with_warnings,revision_requested"
+      expected_feedback_codes: "SQL_001"
+
+  - description: "test-integration — DimProduct reviewer checks unit tests rendered in YAML"
+    vars:
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      expected_status: "approved,approved_with_warnings,revision_requested"
+      expect_test_integration_passed: "false"
+
+  - description: "materialization-check — UpdateJoinTarget profile-derived materialization validated"
+    vars:
+      target_table: "silver.UpdateJoinTarget"
+      writer: "silver.usp_load_UpdateJoinTarget"
+      expected_status: "approved,approved_with_warnings,revision_requested"
+      expected_feedback_codes: "MDL"
