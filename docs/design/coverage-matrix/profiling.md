@@ -9,7 +9,7 @@ Current automated statement coverage for the profiling phase. The phase boundary
 | 3 | `DELETE` with `WHERE` | N/A | N/A | N/A |
 | 4 | `DELETE TOP` | N/A | N/A | N/A |
 | 5 | `TRUNCATE TABLE` | N/A | N/A | N/A |
-| 6 | `TRUNCATE` + `INSERT` | N/A | N/A | Yes |
+| 6 | `TRUNCATE` + `INSERT` | Yes | N/A | Yes |
 | 7 | `MERGE INTO` | Yes | N/A | Yes |
 | 8 | `SELECT INTO` | N/A | N/A | N/A |
 | 9 | Single CTE | N/A | N/A | N/A |

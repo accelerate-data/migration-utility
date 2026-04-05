@@ -1,0 +1,36 @@
+{
+  "schema": "dbo",
+  "name": "usp_truncate_insert_dim_product",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "DimProduct",
+          "is_selected": false,
+          "is_updated": true,
+          "is_insert_all": false
+        },
+        {
+          "schema": "bronze",
+          "name": "ProductStaging",
+          "is_selected": true,
+          "is_updated": false
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  }
+}
