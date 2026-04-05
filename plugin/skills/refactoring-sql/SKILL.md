@@ -2,17 +2,17 @@
 name: refactoring-sql
 description: >
   Refactors raw T-SQL stored procedure SQL into an import/logical/final CTE
-  pattern. Uses two isolated sub-agents to avoid context pollution: one extracts
-  the core SELECT from the proc, the other restructures it into CTEs. Proves
-  equivalence via sandbox execution. Invoke when the user asks to "refactor SQL",
-  "restructure to CTEs", or "prepare SQL for migration".
+  pattern. Invokes /extracting-sql and /restructuring-sql in parallel as isolated
+  forked sub-skills, then proves equivalence via sandbox execution. Invoke when
+  the user asks to "refactor SQL", "restructure to CTEs", or "prepare SQL for
+  migration".
 user-invocable: true
 argument-hint: "<schema.table>"
 ---
 
 # Refactoring SQL
 
-Restructure a stored procedure's SQL into import/logical/final CTEs while proving the refactored SQL produces identical results. Uses two isolated sub-agents to produce independent outputs, then compares them in the sandbox. The output stays in T-SQL — dbt Jinja conversion happens in the downstream `generating-model` skill.
+Restructure a stored procedure's SQL into import/logical/final CTEs while proving the refactored SQL produces identical results. Delegates to two forked sub-skills that produce independent outputs, then compares them in the sandbox. The output stays in T-SQL — dbt Jinja conversion happens in the downstream `generating-model` skill.
 
 ## Arguments
 
@@ -28,109 +28,20 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <table_fqn> refa
 
 If `passed` is `false`, report the failing guard's `code` and `message` to the user and stop.
 
-## Step 1: Assemble context
+## Step 1: Prepare staging
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" refactor context \
-  --table <table_fqn>
+mkdir -p .staging
 ```
 
-Read the output JSON. It contains:
+## Step 2: Invoke sub-skills in parallel
 
-- `proc_body` -- full original procedure SQL
-- `profile` -- classification, keys, watermark, PII answers
-- `statements` -- resolved statement list with action (migrate/skip) and SQL
-- `columns` -- target table column list
-- `source_tables` -- tables read by the writer
-- `test_spec` -- full test-spec JSON with fixtures and expect.rows
-- `sandbox` -- sandbox database metadata
+Invoke `/extracting-sql $ARGUMENTS` and `/restructuring-sql $ARGUMENTS` in parallel. The `context: fork` on each skill runs them in isolated contexts with no shared conversation history — this is required so the equivalence comparison is meaningful.
 
-Record the `writer` field -- this is the procedure FQN.
+Wait for both to complete. Each sub-skill assembles its own context and writes its output:
 
-## Step 2: Launch two sub-agents in parallel
-
-Launch both sub-agents simultaneously. They must not see each other's output -- this prevents context pollution so the equivalence comparison is meaningful. Both agents use [references/sp-migration-ref.md](references/sp-migration-ref.md) for DML extraction and CTE restructuring rules.
-
-### Sub-agent A: Extract core SELECT
-
-Launch a sub-agent with this prompt (include the full `proc_body`, `statements`, and `columns` from context):
-
-```text
-You are extracting the core transformation logic from a T-SQL stored procedure
-as a pure SELECT statement.
-
-Read the references/sp-migration-ref.md reference for extraction rules per DML type.
-
-Procedure body:
-<proc_body>
-
-Resolved statements (action=migrate only):
-<statements>
-
-Target table columns:
-<columns>
-
-Instructions:
-1. Identify the DML pattern(s) in the migrate statements (INSERT...SELECT, MERGE,
-   UPDATE, DELETE, temp table chains, cursor loops, dynamic SQL)
-2. Apply the extraction rules from references/sp-migration-ref.md for each pattern
-3. Produce a single pure T-SQL SELECT statement that returns exactly the rows
-   and columns the procedure would write to the target table
-4. Keep T-SQL syntax (ISNULL, CONVERT, etc.) -- no dialect conversion
-5. Replace procedure parameters with literal defaults where possible
-
-Return ONLY the extracted SELECT SQL, nothing else.
-```
-
-The sub-agent writes the result to `.staging/extracted.sql`.
-
-### Sub-agent B: Refactor into CTEs
-
-Launch a sub-agent with this prompt (include the full `proc_body`, `statements`, `columns`, `source_tables`, and `profile` from context):
-
-```text
-You are restructuring a T-SQL stored procedure into a clean CTE-based SELECT
-following the import/logical/final CTE pattern.
-
-Procedure body:
-<proc_body>
-
-Resolved statements (action=migrate only):
-<statements>
-
-Target table columns:
-<columns>
-
-Source tables:
-<source_tables>
-
-Profile:
-<profile>
-
-Instructions:
-1. Analyse the procedure's data flow: source tables read, transformations applied,
-   target table written
-2. Restructure into import CTE -> logical CTE -> final CTE pattern:
-
-   Import CTEs: One per source table. SELECT * (or needed columns) from the
-   bracket-quoted table reference. Name descriptively after the source.
-
-   Logical CTEs: One transformation step per CTE. Each does one thing: join,
-   filter, aggregate, or transform. Names describe the transformation.
-
-   Final CTE: Assembles the final column list matching the target table.
-
-3. End with: SELECT * FROM final
-4. Keep T-SQL syntax (ISNULL, CONVERT, etc.) -- no dialect conversion
-5. Replace procedure parameters with literal defaults where possible
-6. Flatten nested subqueries into sequential CTEs
-7. Temp tables become logical CTEs
-8. Cursor loops become set-based operations (window functions, JOINs)
-
-Return ONLY the refactored CTE SELECT SQL, nothing else.
-```
-
-The sub-agent writes the result to `.staging/refactored.sql`.
+- `.staging/extracted.sql` — core SELECT produced by `/extracting-sql`
+- `.staging/refactored.sql` — CTE-structured SELECT produced by `/restructuring-sql`
 
 ## Step 3: Equivalence audit
 
@@ -155,7 +66,7 @@ Read the output JSON. For each scenario:
 If any scenario fails (`equivalent: false`):
 
 1. Analyse the diff: which rows differ and why (missing join, wrong filter, dropped column, type mismatch)
-2. Revise **only the refactored CTE SQL** (sub-agent B's output) to fix the semantic gap. The extracted SQL (sub-agent A's output) is the ground truth -- never modify it.
+2. Revise **only the refactored CTE SQL** (`.staging/refactored.sql`) to fix the semantic gap. The extracted SQL (`.staging/extracted.sql`) is the ground truth -- never modify it.
 3. Rewrite `.staging/refactored.sql`
 4. Re-run `compare-sql`
 5. Repeat up to 3 times total
@@ -186,15 +97,15 @@ rm -rf .staging
 
 Present:
 
-1. The extracted core SELECT (sub-agent A output)
-2. The refactored CTE SQL (sub-agent B output)
+1. The extracted core SELECT (`.staging/extracted.sql`)
+2. The refactored CTE SQL (`.staging/refactored.sql`)
 3. CTE structure summary (import CTEs, logical CTEs, final)
 4. Equivalence audit results (per-scenario pass/fail)
 5. Any remaining diffs if status is partial
 
 ## References
 
-- [references/sp-migration-ref.md](references/sp-migration-ref.md) — DML extraction rules per statement type (INSERT, MERGE, UPDATE, etc.) and CTE restructuring patterns for sub-agents A and B
+- [references/sp-migration-ref.md](references/sp-migration-ref.md) — DML extraction rules per statement type (INSERT, MERGE, UPDATE, etc.) and CTE restructuring patterns; used by `/extracting-sql` and `/restructuring-sql`
 
 ## Error handling
 
