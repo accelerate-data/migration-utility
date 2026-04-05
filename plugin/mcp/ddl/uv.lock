@@ -793,6 +793,8 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "jsonschema", marker = "extra == 'dev'", specifier = ">=4.18" },
+    { name = "oracledb", marker = "extra == 'dev'", specifier = ">=2.0" },
+    { name = "oracledb", marker = "extra == 'oracle'", specifier = ">=2.0" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pyodbc", marker = "extra == 'dev'", specifier = ">=5.0" },
     { name = "pyodbc", marker = "extra == 'export'", specifier = ">=5.0" },
@@ -801,7 +803,7 @@ requires-dist = [
     { name = "sqlglot", specifier = ">=25.0,<26" },
     { name = "typer", specifier = ">=0.12" },
 ]
-provides-extras = ["dev", "export"]
+provides-extras = ["dev", "export", "oracle"]
 
 [[package]]
 name = "shellingham"
