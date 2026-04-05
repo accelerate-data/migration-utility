@@ -239,11 +239,24 @@ class TestWriteManifest:
         manifest = json.loads((tmp_path / "manifest.json").read_text())
         assert manifest["dialect"] == "tsql"
 
-    def test_invalid_technology_rejected(self, tmp_path):
+    def test_oracle_dialect(self, tmp_path):
         result = _run_cli([
             "write-manifest",
             "--project-root", str(tmp_path),
             "--technology", "oracle",
+            "--database", "TestDB",
+            "--schemas", "SH",
+        ])
+        assert result.returncode == 0
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert manifest["dialect"] == "oracle"
+        assert manifest["technology"] == "oracle"
+
+    def test_invalid_technology_rejected(self, tmp_path):
+        result = _run_cli([
+            "write-manifest",
+            "--project-root", str(tmp_path),
+            "--technology", "postgres",
             "--database", "TestDB",
             "--schemas", "dbo",
         ])
@@ -674,3 +687,67 @@ def test_assemble_tables_corrupt_input_exit_2(tmp_path: Path) -> None:
         "--project-root", str(project),
     ])
     assert result.returncode == 2
+
+
+# ── Unit: write-partial-manifest ────────────────────────────────────────────
+
+
+class TestWritePartialManifest:
+    def test_writes_partial_manifest(self, tmp_path):
+        result = _run_cli([
+            "write-partial-manifest",
+            "--project-root", str(tmp_path),
+            "--technology", "oracle",
+        ])
+        assert result.returncode == 0
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert manifest["schema_version"] == "1.0"
+        assert manifest["technology"] == "oracle"
+        assert manifest["dialect"] == "oracle"
+        # Partial manifest should NOT have database or schema fields
+        assert "source_database" not in manifest
+        assert "extracted_schemas" not in manifest
+        assert "extracted_at" not in manifest
+
+    def test_partial_manifest_sql_server(self, tmp_path):
+        result = _run_cli([
+            "write-partial-manifest",
+            "--project-root", str(tmp_path),
+            "--technology", "sql_server",
+        ])
+        assert result.returncode == 0
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert manifest["technology"] == "sql_server"
+        assert manifest["dialect"] == "tsql"
+
+    def test_partial_manifest_invalid_technology(self, tmp_path):
+        result = _run_cli([
+            "write-partial-manifest",
+            "--project-root", str(tmp_path),
+            "--technology", "postgres",
+        ])
+        assert result.returncode != 0
+
+    def test_full_manifest_enriches_partial(self, tmp_path):
+        # Write partial first
+        _run_cli([
+            "write-partial-manifest",
+            "--project-root", str(tmp_path),
+            "--technology", "oracle",
+        ])
+        # Then enrich with full manifest
+        result = _run_cli([
+            "write-manifest",
+            "--project-root", str(tmp_path),
+            "--technology", "oracle",
+            "--database", "FREEPDB1",
+            "--schemas", "SH,HR",
+        ])
+        assert result.returncode == 0
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        # All fields present
+        assert manifest["technology"] == "oracle"
+        assert manifest["dialect"] == "oracle"
+        assert manifest["source_database"] == "FREEPDB1"
+        assert manifest["extracted_schemas"] == ["SH", "HR"]
+        assert "extracted_at" in manifest
