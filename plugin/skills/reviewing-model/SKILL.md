@@ -80,11 +80,11 @@ Evaluate the generated model SQL and schema YAML against the reference files. Ea
 
 | Area | Reference file | Key checks |
 |---|---|---|
-| SQL style | `references/sql-style.md` | Lowercase keywords (`SQL_001`), indentation (`SQL_002`), trailing commas (`SQL_003`), one column per line (`SQL_004`), table alias prefixes (`SQL_005`), no `SELECT *` in marts (`SQL_006`) |
-| CTE structure | `references/cte-structure.md` | Import CTEs first (`CTE_001`), final CTE named `final` (`CTE_002`), `select * from final` last (`CTE_003`), single-purpose CTEs (`CTE_004`), no nested CTEs (`CTE_006`) |
-| Model naming | `references/model-naming.md` | Correct layer prefix (`MDL_001`–`MDL_003`), `snake_case` names (`MDL_004`), `_dbt_run_id` present (`MDL_005`), `_loaded_at` rules (`MDL_006`, `MDL_007`), locked columns unchanged (`MDL_008`) |
-| YAML style | `references/yaml-style.md` | `version: 2` at top (`YML_004`), model description present (`YML_002`), PK column descriptions present (`YML_003`), 2-space indentation (`YML_001`) |
-| Modularity | `references/modularity.md` | No joins in staging (`MOD_001`), mart refs use `ref()` not `source()` (`MOD_002`), one staging model per source table (`MOD_003`), staging materialized as ephemeral (`MOD_004`), business logic in mart not staging (`MOD_005`) |
+| SQL style | [references/sql-style.md](references/sql-style.md) | Lowercase keywords (`SQL_001`), indentation (`SQL_002`), trailing commas (`SQL_003`), one column per line (`SQL_004`), table alias prefixes (`SQL_005`), no `SELECT *` in marts (`SQL_006`) |
+| CTE structure | [references/cte-structure.md](references/cte-structure.md) | Import CTEs first (`CTE_001`), final CTE named `final` (`CTE_002`), `select * from final` last (`CTE_003`), single-purpose CTEs (`CTE_004`), no nested CTEs (`CTE_006`) |
+| Model naming | [references/model-naming.md](references/model-naming.md) | Correct layer prefix (`MDL_001`–`MDL_003`), `snake_case` names (`MDL_004`), `_dbt_run_id` present (`MDL_005`), `_loaded_at` rules (`MDL_006`, `MDL_007`), locked columns unchanged (`MDL_008`) |
+| YAML style | [references/yaml-style.md](references/yaml-style.md) | `version: 2` at top (`YML_004`), model description present (`YML_002`), PK column descriptions present (`YML_003`), 2-space indentation (`YML_001`) |
+| Modularity | [references/modularity.md](references/modularity.md) | No joins in staging (`MOD_001`), mart refs use `ref()` not `source()` (`MOD_002`), one staging model per source table (`MOD_003`), staging materialized as ephemeral (`MOD_004`), business logic in mart not staging (`MOD_005`) |
 
 ## Step 4: Check test integration
 
@@ -196,6 +196,14 @@ Emit the following JSON structure as the skill's output:
 `ack_required` is `true` for `error` and `warning` severity; `false` for `info` severity.
 
 `acknowledgements` is present on resubmission only — a flat map of `{ "<code>": "fixed" | "ignored: <reason>" }`.
+
+## References
+
+- [references/sql-style.md](references/sql-style.md) — SQL formatting rules with stable codes (SQL_001–SQL_013): keywords, indentation, commas, aliases, JOIN style
+- [references/cte-structure.md](references/cte-structure.md) — CTE pattern rules (CTE_001–CTE_008): import-first order, `final` naming, single-purpose CTEs, no nesting
+- [references/model-naming.md](references/model-naming.md) — layer prefix, snake_case, `_dbt_run_id` and `_loaded_at` ETL control column rules (MDL_001–MDL_013)
+- [references/yaml-style.md](references/yaml-style.md) — YAML formatting rules (YML_001–YML_008): `version: 2`, required descriptions, indentation
+- [references/modularity.md](references/modularity.md) — staging/mart separation rules (MOD_001–MOD_008): no joins in staging, ephemeral materialization, mart uses `ref()` not `source()`
 
 ## Boundary rules
 

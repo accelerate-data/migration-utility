@@ -101,6 +101,11 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
 
 The scoping JSON must include the selected writer (or `no_writer_found` status) and a `selected_writer_rationale` field (1–2 sentences explaining why this writer was chosen over alternatives, or why no writer / ambiguous). If the write exits non-zero, report the error and ask the user to correct.
 
+## References
+
+- [references/procedure-analysis.md](references/procedure-analysis.md) — six-step deep-dive pipeline: fetch, classify, call graph, logic summary, migration guidance, persist
+- [references/tsql-parse-classification.md](references/tsql-parse-classification.md) — LLM fallback classification tables for migrate/skip statements, control flow, and dynamic SQL
+
 ## Error handling
 
 | Command | Exit code | Action |

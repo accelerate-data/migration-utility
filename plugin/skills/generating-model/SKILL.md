@@ -18,7 +18,7 @@ argument-hint: "<schema.table>"
 
 # Generating Model
 
-Generate a dbt model from a profiled stored procedure. Reads deterministic context from catalog, uses LLM to produce dbt-idiomatic SQL, validates logical equivalence, and writes artifacts to the dbt project.
+Generate a dbt model from a profiled stored procedure. Reads deterministic context from catalog, uses LLM to produce dbt-idiomatic SQL, validates logical equivalence, and writes artifacts to the dbt project. The reviewer will check the output against the same reference files loaded above.
 
 ## Arguments
 
@@ -33,8 +33,6 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <table_fqn> gene
 ```
 
 If `passed` is `false`, report the failing guard's `code` and `message` to the user and stop.
-
-Apply the rules from these reference files when generating SQL, naming models, and writing YAML — the reviewer will check against the same codes.
 
 ## Step 1: Assemble context
 
@@ -60,13 +58,13 @@ Use `refactored_sql` as your sole SQL input. Ignore `proc_body` and `statements`
 
 ## Step 2: Decide model structure
 
-The refactored SQL already has import/logical/final CTE structure. Apply the modular split per `@references/modular-modeling-ref.md`: import CTEs → ephemeral `stg_*` models, logical+final CTEs → mart model.
+The refactored SQL already has import/logical/final CTE structure. Apply the staging/mart split — see [modular-modeling-ref.md](references/modular-modeling-ref.md) for decision rules: import CTEs → ephemeral `stg_*` models, logical+final CTEs → mart model.
 
 Before creating a new `stg_*` model, check `dbt/models/staging/` for an existing one on the same source table. If it exists and its column set is compatible, use `{{ ref() }}` — do not duplicate.
 
 ## Step 3: Generate dbt SQL
 
-Produce two outputs from the `refactored_sql`:
+Produce two outputs from the `refactored_sql`. Apply [sql-style.md](../reviewing-model/references/sql-style.md) (keywords, indentation, commas) and [cte-structure.md](../reviewing-model/references/cte-structure.md) (import/logical/final pattern) throughout. Apply [model-naming.md](../reviewing-model/references/model-naming.md) for layer prefixes, `_dbt_run_id`, and `_loaded_at` rules.
 
 ### Staging models (`stg_<source_table>.sql`)
 
@@ -191,6 +189,8 @@ Proceed with these differences? (y/n)
 Ask the user and wait. If the user says no, revise the model.
 
 ## Step 5: Build schema.yml
+
+Apply [yaml-style.md](../reviewing-model/references/yaml-style.md) (indentation, `version: 2`, required descriptions) throughout.
 
 ### 5a — Schema tests
 
@@ -347,3 +347,11 @@ After 3 failed iterations:
 | `migrate context` | 2 | IO/parse error. Surface the error message |
 | `migrate write` | 1 | Validation failure (empty SQL). Tell user to regenerate |
 | `migrate write` | 2 | IO error (missing dbt project). Tell user to run `/init-dbt` |
+
+## References
+
+- [references/modular-modeling-ref.md](references/modular-modeling-ref.md) — staging/mart split decision rules, file layout, and CTE mapping
+- [../reviewing-model/references/sql-style.md](../reviewing-model/references/sql-style.md) — SQL formatting rules with stable codes (SQL_001–SQL_013): keywords, indentation, commas, aliases
+- [../reviewing-model/references/cte-structure.md](../reviewing-model/references/cte-structure.md) — CTE pattern rules (CTE_001–CTE_008): import-first order, `final` naming, no nested CTEs
+- [../reviewing-model/references/model-naming.md](../reviewing-model/references/model-naming.md) — layer prefix, snake_case, `_dbt_run_id` and `_loaded_at` ETL control column rules (MDL_001–MDL_013)
+- [../reviewing-model/references/yaml-style.md](../reviewing-model/references/yaml-style.md) — YAML formatting rules (YML_001–YML_008): `version: 2`, descriptions, indentation

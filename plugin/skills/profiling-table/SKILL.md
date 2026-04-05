@@ -94,6 +94,10 @@ If the write exits non-zero, report the validation errors and ask the user to co
 
 The `profile` section written to `catalog/tables/<table>.json` follows `table_catalog.json#/$defs/profile_section`.
 
+## References
+
+- [references/profiling-signals.md](references/profiling-signals.md) — six profiling questions (Q1–Q6), signal tables, and pattern matching rules for classification, keys, watermark, and PII
+
 ## Error handling
 
 | Command | Exit code | Action |
