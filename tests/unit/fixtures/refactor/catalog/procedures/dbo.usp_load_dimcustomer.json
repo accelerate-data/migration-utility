@@ -1,0 +1,26 @@
+{
+  "schema": "dbo",
+  "name": "usp_load_dimcustomer",
+  "mode": "llm_required",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {"schema": "bronze", "name": "CustomerRaw", "is_selected": true, "is_updated": false}
+      ],
+      "out_of_scope": []
+    },
+    "views": {"in_scope": [], "out_of_scope": []},
+    "functions": {"in_scope": [], "out_of_scope": []},
+    "procedures": {"in_scope": [], "out_of_scope": []}
+  },
+  "statements": [
+    {
+      "index": 0,
+      "action": "migrate",
+      "sql": "MERGE INTO [silver].[DimCustomer] AS tgt USING [bronze].[CustomerRaw] AS src ON tgt.CustomerID = src.CustomerID WHEN MATCHED THEN UPDATE SET FirstName = src.FirstName, LastName = src.LastName WHEN NOT MATCHED THEN INSERT (CustomerID, FirstName, LastName) VALUES (src.CustomerID, src.FirstName, src.LastName);",
+      "type": "merge"
+    }
+  ],
+  "warnings": [],
+  "errors": []
+}

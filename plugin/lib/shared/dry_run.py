@@ -236,7 +236,7 @@ def check_test_spec(project_root: Path, table_fqn: str) -> dict[str, Any]:
 
 
 def check_refactor_complete(project_root: Path, table_fqn: str) -> dict[str, Any]:
-    """Check refactor section exists with status ok."""
+    """Check refactor section exists with status ok and refactored_sql present."""
     cat = load_table_catalog(project_root, table_fqn)
     if cat is None:
         return _guard_fail(
@@ -257,6 +257,13 @@ def check_refactor_complete(project_root: Path, table_fqn: str) -> dict[str, Any
             "refactor_completed",
             "REFACTOR_NOT_COMPLETED",
             f"Refactor status is '{status}', expected ok.",
+        )
+    sql = refactor.get("refactored_sql")
+    if not sql or not sql.strip():
+        return _guard_fail(
+            "refactor_completed",
+            "REFACTOR_NOT_COMPLETED",
+            "Refactor section has no refactored_sql.",
         )
     return _guard_ok("refactor_completed")
 
@@ -340,6 +347,15 @@ _STAGE_GUARDS: dict[str, list[tuple[str, ...]]] = {
         ("check_dbt_project",),
     ],
     "reviewing-tests": [
+        ("check_manifest",),
+        ("check_table_catalog",),
+        ("check_selected_writer",),
+        ("check_statements_resolved",),
+        ("check_profile_ok",),
+        ("check_sandbox_metadata",),
+        ("check_test_spec",),
+    ],
+    "refactoring-sql": [
         ("check_manifest",),
         ("check_table_catalog",),
         ("check_selected_writer",),
@@ -677,7 +693,8 @@ def refactor_summary(project_root: Path, table_fqn: str) -> dict[str, Any]:
     refactor = cat.get("refactor") or {}
     return {
         "refactor_status": refactor.get("status"),
-        "has_refactored_sql": bool(refactor.get("refactored_sql_hash")),
+        "has_refactored_sql": bool(refactor.get("refactored_sql")),
+        "has_refactored_sql_hash": bool(refactor.get("refactored_sql_hash")),
     }
 
 
@@ -772,6 +789,7 @@ class GuardStage(str, Enum):
     generating_model = "generating-model"
     reviewing_model = "reviewing-model"
     reviewing_tests = "reviewing-tests"
+    refactoring_sql = "refactoring-sql"
 
 
 def _emit(data: Any) -> None:

@@ -119,6 +119,46 @@ def _get_identity_columns(cursor: Any, table: str) -> set[str]:
         return set()
 
 
+def _validate_fixtures(fixtures: list[dict[str, Any]]) -> None:
+    """Validate fixture structure: table names, column names, row consistency."""
+    for fixture in fixtures:
+        _validate_identifier(fixture["table"])
+        rows = fixture.get("rows", [])
+        if rows:
+            columns = set(rows[0].keys())
+            for col_name in columns:
+                _validate_identifier(col_name)
+            for i, row in enumerate(rows[1:], start=1):
+                if set(row.keys()) != columns:
+                    raise ValueError(
+                        f"Fixture row {i} for table {fixture['table']!r} has "
+                        f"different keys than row 0"
+                    )
+
+
+_WRITE_SQL_RE = re.compile(
+    r"\b(INSERT|UPDATE|DELETE|MERGE|EXEC|EXECUTE|CREATE|ALTER|DROP|TRUNCATE)\b",
+    re.IGNORECASE,
+)
+
+
+def _validate_readonly_sql(sql: str) -> None:
+    """Reject SQL that contains write operations.
+
+    The refactored SQL must be a pure SELECT (WITH ... SELECT) statement.
+    Raises ValueError if write keywords are detected.
+    """
+    if not sql or not sql.strip():
+        raise ValueError("Refactored SQL is empty")
+    if _WRITE_SQL_RE.search(sql):
+        match = _WRITE_SQL_RE.search(sql)
+        keyword = match.group(1) if match else "unknown"
+        raise ValueError(
+            f"Refactored SQL contains write operation '{keyword}'. "
+            "Only SELECT/WITH statements are allowed."
+        )
+
+
 def _detect_remote_exec_target(definition: str) -> dict[str, str] | None:
     for match in _REMOTE_EXEC_RE.finditer(definition):
         target = match.group("target")
@@ -425,6 +465,104 @@ class SqlServerSandbox(SandboxBackend):
                 "errors": [{"code": "SANDBOX_STATUS_FAILED", "message": str(exc)}],
             }
 
+    def _seed_fixtures(
+        self,
+        cursor: Any,
+        sandbox_db: str,
+        fixtures: list[dict[str, Any]],
+    ) -> None:
+        """Seed fixture rows into sandbox tables within an existing transaction.
+
+        Handles trigger disabling, FK constraint toggling, and IDENTITY_INSERT.
+        The caller is responsible for opening/rolling-back the transaction.
+        """
+        # Disable triggers on ALL user tables in the sandbox
+        # before any INSERTs. Triggers may reference objects
+        # that don't exist in the sandbox, causing spurious
+        # failures during both fixture insertion and proc
+        # execution.
+        cursor.execute(
+            "SELECT QUOTENAME(s.name) + '.' + QUOTENAME(t.name) "
+            "FROM sys.tables t "
+            "JOIN sys.schemas s ON t.schema_id = s.schema_id "
+            "WHERE t.is_ms_shipped = 0"
+        )
+        all_tables = [row[0] for row in cursor.fetchall()]
+        for tbl in all_tables:
+            cursor.execute(f"DISABLE TRIGGER ALL ON {tbl}")
+        if all_tables:
+            logger.info(
+                "event=triggers_disabled sandbox_db=%s count=%d",
+                sandbox_db, len(all_tables),
+            )
+
+        # Disable FK constraints on all fixture tables so
+        # fixture rows can reference parent keys that may not
+        # exist in the sandbox (e.g. NOT NULL FK defaults).
+        fk_disabled_tables: list[str] = []
+        for fixture in fixtures:
+            table = fixture["table"]
+            if fixture.get("rows"):
+                cursor.execute(
+                    f"ALTER TABLE {table} NOCHECK CONSTRAINT ALL"
+                )
+                fk_disabled_tables.append(table)
+        if fk_disabled_tables:
+            logger.info(
+                "event=fk_constraints_disabled sandbox_db=%s tables=%s",
+                sandbox_db, fk_disabled_tables,
+            )
+
+        for fixture in fixtures:
+            table = fixture["table"]
+            rows = fixture.get("rows", [])
+            if not rows:
+                continue
+            columns = list(rows[0].keys())
+
+            # Detect identity columns so we can toggle
+            # IDENTITY_INSERT for explicit-value inserts.
+            identity_cols = _get_identity_columns(cursor, table)
+            needs_identity_insert = bool(
+                identity_cols & {c for c in columns}
+            )
+
+            if needs_identity_insert:
+                cursor.execute(
+                    f"SET IDENTITY_INSERT {table} ON"
+                )
+                logger.info(
+                    "event=identity_insert_enabled sandbox_db=%s "
+                    "table=%s columns=%s",
+                    sandbox_db,
+                    table,
+                    sorted(identity_cols & {c for c in columns}),
+                )
+
+            col_list = ", ".join(f"[{c}]" for c in columns)
+            placeholders = ", ".join("?" for _ in columns)
+            insert_sql = f"INSERT INTO {table} ({col_list}) VALUES ({placeholders})"
+            value_lists = [[row[c] for c in columns] for row in rows]
+            cursor.executemany(insert_sql, value_lists)
+
+            if needs_identity_insert:
+                cursor.execute(
+                    f"SET IDENTITY_INSERT {table} OFF"
+                )
+
+        # Re-enable FK constraints so subsequent operations
+        # run under normal constraint rules.
+        for table in fk_disabled_tables:
+            cursor.execute(
+                f"ALTER TABLE {table} CHECK CONSTRAINT ALL"
+            )
+
+    @staticmethod
+    def _capture_rows(cursor: Any) -> list[dict[str, Any]]:
+        """Read all rows from the current cursor result set as dicts."""
+        result_columns = [desc[0] for desc in cursor.description]
+        return [dict(zip(result_columns, row)) for row in cursor.fetchall()]
+
     def execute_scenario(
         self,
         sandbox_db: str,
@@ -442,19 +580,7 @@ class SqlServerSandbox(SandboxBackend):
 
         _validate_identifier(target_table)
         _validate_identifier(procedure)
-        for fixture in given:
-            _validate_identifier(fixture["table"])
-            rows = fixture.get("rows", [])
-            if rows:
-                columns = set(rows[0].keys())
-                for col_name in columns:
-                    _validate_identifier(col_name)
-                for i, row in enumerate(rows[1:], start=1):
-                    if set(row.keys()) != columns:
-                        raise ValueError(
-                            f"Fixture row {i} for table {fixture['table']!r} has "
-                            f"different keys than row 0"
-                        )
+        _validate_fixtures(given)
 
         logger.info(
             "event=execute_scenario sandbox_db=%s scenario=%s procedure=%s",
@@ -499,94 +625,12 @@ class SqlServerSandbox(SandboxBackend):
                             }],
                         }
 
-                    # Disable triggers on ALL user tables in the sandbox
-                    # before any INSERTs. Triggers may reference objects
-                    # that don't exist in the sandbox, causing spurious
-                    # failures during both fixture insertion and proc
-                    # execution.
-                    cursor.execute(
-                        "SELECT QUOTENAME(s.name) + '.' + QUOTENAME(t.name) "
-                        "FROM sys.tables t "
-                        "JOIN sys.schemas s ON t.schema_id = s.schema_id "
-                        "WHERE t.is_ms_shipped = 0"
-                    )
-                    all_tables = [row[0] for row in cursor.fetchall()]
-                    for tbl in all_tables:
-                        cursor.execute(f"DISABLE TRIGGER ALL ON {tbl}")
-                    if all_tables:
-                        logger.info(
-                            "event=triggers_disabled sandbox_db=%s count=%d",
-                            sandbox_db, len(all_tables),
-                        )
-
-                    # Disable FK constraints on all fixture tables so
-                    # fixture rows can reference parent keys that may not
-                    # exist in the sandbox (e.g. NOT NULL FK defaults).
-                    fk_disabled_tables: list[str] = []
-                    for fixture in given:
-                        table = fixture["table"]
-                        if fixture.get("rows"):
-                            cursor.execute(
-                                f"ALTER TABLE {table} NOCHECK CONSTRAINT ALL"
-                            )
-                            fk_disabled_tables.append(table)
-                    if fk_disabled_tables:
-                        logger.info(
-                            "event=fk_constraints_disabled sandbox_db=%s tables=%s",
-                            sandbox_db, fk_disabled_tables,
-                        )
-
-                    for fixture in given:
-                        table = fixture["table"]
-                        rows = fixture.get("rows", [])
-                        if not rows:
-                            continue
-                        columns = list(rows[0].keys())
-
-                        # Detect identity columns so we can toggle
-                        # IDENTITY_INSERT for explicit-value inserts.
-                        identity_cols = _get_identity_columns(cursor, table)
-                        needs_identity_insert = bool(
-                            identity_cols & {c for c in columns}
-                        )
-
-                        if needs_identity_insert:
-                            cursor.execute(
-                                f"SET IDENTITY_INSERT {table} ON"
-                            )
-                            logger.info(
-                                "event=identity_insert_enabled sandbox_db=%s "
-                                "table=%s columns=%s",
-                                sandbox_db,
-                                table,
-                                sorted(identity_cols & {c for c in columns}),
-                            )
-
-                        col_list = ", ".join(f"[{c}]" for c in columns)
-                        placeholders = ", ".join("?" for _ in columns)
-                        insert_sql = f"INSERT INTO {table} ({col_list}) VALUES ({placeholders})"
-                        value_lists = [[row[c] for c in columns] for row in rows]
-                        cursor.executemany(insert_sql, value_lists)
-
-                        if needs_identity_insert:
-                            cursor.execute(
-                                f"SET IDENTITY_INSERT {table} OFF"
-                            )
-
-                    # Re-enable FK constraints before executing the proc
-                    # so the procedure runs under normal constraint rules.
-                    for table in fk_disabled_tables:
-                        cursor.execute(
-                            f"ALTER TABLE {table} CHECK CONSTRAINT ALL"
-                        )
+                    self._seed_fixtures(cursor, sandbox_db, given)
 
                     cursor.execute(f"EXEC {procedure}")
 
                     cursor.execute(f"SELECT * FROM {target_table}")
-                    result_columns = [desc[0] for desc in cursor.description]
-                    result_rows = [
-                        dict(zip(result_columns, row)) for row in cursor.fetchall()
-                    ]
+                    result_rows = self._capture_rows(cursor)
                 finally:
                     conn.rollback()
 
@@ -615,6 +659,81 @@ class SqlServerSandbox(SandboxBackend):
                 "ground_truth_rows": [],
                 "row_count": 0,
                 "errors": [{"code": "SCENARIO_FAILED", "message": str(exc)}],
+            }
+
+    def compare_sql(
+        self,
+        sandbox_db: str,
+        procedure: str,
+        target_table: str,
+        refactored_sql: str,
+        fixtures: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        _validate_sandbox_db_name(sandbox_db)
+        _validate_identifier(procedure)
+        _validate_identifier(target_table)
+        _validate_fixtures(fixtures)
+        _validate_readonly_sql(refactored_sql)
+
+        logger.info(
+            "event=compare_sql sandbox_db=%s procedure=%s target_table=%s",
+            sandbox_db, procedure, target_table,
+        )
+
+        try:
+            with self._connect(database=sandbox_db) as conn:
+                conn.autocommit = False
+                cursor = conn.cursor()
+
+                try:
+                    self._seed_fixtures(cursor, sandbox_db, fixtures)
+
+                    # Run original procedure and capture output
+                    cursor.execute(f"EXEC {procedure}")
+                    cursor.execute(f"SELECT * FROM {target_table}")
+                    rows_original = _serialize_rows(self._capture_rows(cursor))
+
+                    # Wipe proc output, then run refactored SQL
+                    cursor.execute(f"DELETE FROM {target_table}")
+                    cursor.execute(refactored_sql)
+                    rows_refactored = _serialize_rows(self._capture_rows(cursor))
+                finally:
+                    conn.rollback()
+
+            # Import here to avoid circular dependency at module level
+            from shared.refactor import symmetric_diff
+
+            diff = symmetric_diff(rows_original, rows_refactored)
+
+            logger.info(
+                "event=compare_sql_complete sandbox_db=%s equivalent=%s "
+                "original_count=%d refactored_count=%d",
+                sandbox_db, diff["equivalent"],
+                diff["a_count"], diff["b_count"],
+            )
+            return {
+                "status": "ok",
+                "equivalent": diff["equivalent"],
+                "original_count": diff["a_count"],
+                "refactored_count": diff["b_count"],
+                "a_minus_b": diff["a_minus_b"],
+                "b_minus_a": diff["b_minus_a"],
+                "errors": [],
+            }
+
+        except pyodbc.Error as exc:
+            logger.error(
+                "event=compare_sql_failed sandbox_db=%s error=%s",
+                sandbox_db, exc,
+            )
+            return {
+                "status": "error",
+                "equivalent": False,
+                "original_count": 0,
+                "refactored_count": 0,
+                "a_minus_b": [],
+                "b_minus_a": [],
+                "errors": [{"code": "COMPARE_SQL_FAILED", "message": str(exc)}],
             }
 
 

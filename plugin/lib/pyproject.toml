@@ -31,6 +31,7 @@ setup-ddl = "shared.setup_ddl:app"
 test-harness = "shared.test_harness:app"
 migrate-util = "shared.dry_run:app"
 generate-sources = "shared.generate_sources:app"
+refactor = "shared.refactor:app"
 
 [tool.pytest.ini_options]
 testpaths = ["../../tests/unit"]

@@ -120,6 +120,10 @@
           "enum": ["ok", "partial", "error"],
           "description": "ok = refactored SQL produced and audit passed; partial = audit failed; error = could not proceed."
         },
+        "refactored_sql": {
+          "type": "string",
+          "description": "Refactored CTE SQL that passed the equivalence audit."
+        },
         "refactored_sql_hash": {
           "type": "string",
           "description": "SHA-256 of the refactored SQL for change detection."
