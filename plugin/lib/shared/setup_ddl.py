@@ -42,6 +42,7 @@ _TECH_DIALECT = {
     "fabric_warehouse": "tsql",
     "fabric_lakehouse": "spark",
     "snowflake": "snowflake",
+    "oracle": "oracle",
 }
 
 
@@ -389,10 +390,14 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
     return counts
 
 
-def run_write_manifest(
-    project_root: Path, technology: str, database: str, schemas: list[str],
+def run_write_partial_manifest(
+    project_root: Path, technology: str,
 ) -> dict[str, Any]:
-    """Write manifest.json to the project root."""
+    """Write a partial manifest.json with technology and dialect only.
+
+    Called by init-ad-migration to record the chosen source technology.
+    setup-ddl later enriches it with database and schema details.
+    """
     if technology not in _TECH_DIALECT:
         raise ValueError(
             f"Unknown technology: {technology}. Must be one of {list(_TECH_DIALECT.keys())}."
@@ -402,13 +407,51 @@ def run_write_manifest(
         "schema_version": "1.0",
         "technology": technology,
         "dialect": _TECH_DIALECT[technology],
+    }
+
+    project_root.mkdir(parents=True, exist_ok=True)
+    out_path = project_root / "manifest.json"
+    out_path.write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    return {"file": str(out_path)}
+
+
+def run_write_manifest(
+    project_root: Path, technology: str, database: str, schemas: list[str],
+) -> dict[str, Any]:
+    """Write manifest.json to the project root.
+
+    If a partial manifest already exists (from init-ad-migration), merges
+    over it. Otherwise creates a fresh manifest.
+    """
+    if technology not in _TECH_DIALECT:
+        raise ValueError(
+            f"Unknown technology: {technology}. Must be one of {list(_TECH_DIALECT.keys())}."
+        )
+
+    out_path = project_root / "manifest.json"
+
+    # Read existing partial manifest if present
+    existing: dict[str, Any] = {}
+    if out_path.exists():
+        try:
+            existing = json.loads(out_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            existing = {}
+
+    manifest = {
+        **existing,
+        "schema_version": "1.0",
+        "technology": technology,
+        "dialect": _TECH_DIALECT[technology],
         "source_database": database,
         "extracted_schemas": schemas,
         "extracted_at": datetime.now(timezone.utc).isoformat(),
     }
 
     project_root.mkdir(parents=True, exist_ok=True)
-    out_path = project_root / "manifest.json"
     out_path.write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
@@ -492,7 +535,7 @@ def write_manifest(
         None, "--project-root",
         help="Project root containing ddl/, catalog/, manifest.json (defaults to CWD)"
     ),
-    technology: str = typer.Option(..., help="Source technology: sql_server, fabric_warehouse, fabric_lakehouse, snowflake"),
+    technology: str = typer.Option(..., help="Source technology: sql_server, fabric_warehouse, fabric_lakehouse, snowflake, oracle"),
     database: str = typer.Option(..., help="Source database name"),
     schemas: str = typer.Option(..., help="Comma-separated list of extracted schemas"),
 ) -> None:
@@ -502,6 +545,25 @@ def write_manifest(
     schema_list = [s.strip() for s in schemas.split(",")]
     try:
         result = run_write_manifest(project_root, technology, database, schema_list)
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(json.dumps(result))
+
+
+@app.command("write-partial-manifest")
+def write_partial_manifest(
+    project_root: Optional[Path] = typer.Option(
+        None, "--project-root",
+        help="Project root directory (defaults to CWD)"
+    ),
+    technology: str = typer.Option(..., help="Source technology: sql_server, fabric_warehouse, fabric_lakehouse, snowflake, oracle"),
+) -> None:
+    """Write a partial manifest.json with technology and dialect only."""
+    if project_root is None:
+        project_root = Path.cwd()
+    try:
+        result = run_write_partial_manifest(project_root, technology)
     except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
