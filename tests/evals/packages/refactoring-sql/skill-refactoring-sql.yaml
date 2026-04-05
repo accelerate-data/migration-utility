@@ -1,0 +1,99 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "Refactoring-sql skill — CTE restructuring with equivalence audit"
+
+prompts:
+  - file://../../prompts/skill-refactoring-sql.txt
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    config:
+      model: claude-sonnet-4-6
+      working_dir: ../..
+      max_turns: 120
+      permission_mode: bypassPermissions
+      allow_dangerously_skip_permissions: true
+      append_allowed_tools:
+        - Read
+        - Write
+        - Bash
+        - Glob
+        - Grep
+
+defaultTest:
+  vars:
+    fixture_path: "tests/evals/fixtures/migration-test"
+  assert:
+    - type: javascript
+      value: file://../../assertions/check-refactored-sql.js
+
+tests:
+  # ── insert-select ─────────────────────────────────────────────
+  - description: "insert-select — simple INSERT...SELECT extracted and refactored"
+    vars:
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_extracted_terms: "select"
+      expected_refactored_terms: "with,final"
+
+  # ── merge using ───────────────────────────────────────────────
+  - description: "merge-using — MERGE USING clause extracted, refactored with import CTEs"
+    vars:
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      expected_extracted_terms: "productalternatekey,isnull"
+      expected_refactored_terms: "with,final,isnull"
+
+  # ── update with join ──────────────────────────────────────────
+  - description: "update-join — UPDATE with JOIN extracted as joined SELECT"
+    vars:
+      target_table: "silver.UpdateJoinTarget"
+      writer: "silver.usp_load_UpdateJoinTarget"
+      expected_extracted_terms: "productname,englishproductname"
+      expected_refactored_terms: "with,final"
+
+  # ── delete with where ─────────────────────────────────────────
+  - description: "delete-where — DELETE inverted to keep-rows SELECT"
+    vars:
+      target_table: "silver.DeleteWhereTarget"
+      writer: "silver.usp_load_DeleteWhereTarget"
+      expected_extracted_terms: "isretired"
+      expected_refactored_terms: "with,final,isretired"
+
+  # ── truncate + insert with outer apply (full reload) ─────────
+  - description: "truncate-insert — DimCustomer full reload extracted with OUTER APPLY"
+    vars:
+      target_table: "silver.DimCustomer"
+      writer: "silver.usp_load_DimCustomer_Full"
+      expected_extracted_terms: "customeralternatekey,firstname,min("
+      expected_refactored_terms: "with,final"
+
+  # ── union all ─────────────────────────────────────────────────
+  - description: "union-all — UNION ALL preserved in both extracted and refactored"
+    vars:
+      target_table: "silver.UnionAllTarget"
+      writer: "silver.usp_load_UnionAllTarget"
+      expected_extracted_terms: "union all"
+      expected_refactored_terms: "with,union all,final"
+
+  # ── window functions ──────────────────────────────────────────
+  - description: "window-functions — FactInternetSales window expressions preserved"
+    vars:
+      target_table: "silver.FactInternetSales"
+      writer: "silver.usp_stage_FactInternetSales"
+      expected_extracted_terms: "count(*) over,partition by"
+      expected_refactored_terms: "with,count(*) over,partition by"
+
+  # ── grouping sets ─────────────────────────────────────────────
+  - description: "grouping-sets — GROUPING SETS preserved in refactored CTEs"
+    vars:
+      target_table: "silver.GroupingSetsTarget"
+      writer: "silver.usp_load_GroupingSetsTarget"
+      expected_extracted_terms: "grouping sets"
+      expected_refactored_terms: "with,grouping sets"
+
+  # ── pivot ─────────────────────────────────────────────────────
+  - description: "pivot — PIVOT pattern handled in CTE restructuring"
+    vars:
+      target_table: "silver.PivotTarget"
+      writer: "silver.usp_load_PivotTarget"
+      expected_refactored_terms: "with,final"

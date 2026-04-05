@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "refactor command — multi-table CTE restructuring orchestration"
+
+prompts:
+  - file://../../prompts/cmd-refactor.txt
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    config:
+      model: claude-sonnet-4-6
+      working_dir: ../..
+      max_turns: 100
+      permission_mode: bypassPermissions
+      allow_dangerously_skip_permissions: true
+      append_allowed_tools:
+        - Read
+        - Write
+        - Bash
+        - Glob
+        - Grep
+
+defaultTest:
+  vars:
+    fixture_path: "tests/evals/fixtures/migration-test"
+  assert:
+    - type: javascript
+      value: file://../../assertions/check-command-summary.js
+
+tests:
+  # ── happy path: 2 tables both refactor ────────────────────────
+  - description: "happy-path — InsertSelectTarget + UpdateJoinTarget both refactor"
+    vars:
+      target_tables: "silver.InsertSelectTarget silver.UpdateJoinTarget"
+      expected_item_statuses: '{"silver.InsertSelectTarget": "ok", "silver.UpdateJoinTarget": "ok"}'
+      expected_output_terms: "ok"
+
+  # ── error + clean: missing prerequisite ────────────────────────
+  - description: "error+clean — DimGeography (no profile) + InsertSelectTarget (ok)"
+    vars:
+      target_tables: "silver.DimGeography silver.InsertSelectTarget"
+      expected_item_statuses: '{"silver.DimGeography": "error", "silver.InsertSelectTarget": "ok"}'
+      expected_error_codes: "profile_not_completed,scoping_not_completed,catalog_file_missing"
+      expected_output_terms: "error"
+
+  # ── guard fails: no scoping ────────────────────────────────────
+  - description: "guard-fail — DimPromotion has no scoping, blocked at guard"
+    vars:
+      target_tables: "silver.DimPromotion"
+      expected_item_statuses: '{"silver.DimPromotion": "error"}'
+      expected_error_codes: "scoping_not_completed,catalog_file_missing"
+
+  # ── partial: complex proc may not fully pass audit ─────────────
+  - description: "partial-ok — DimCurrency dynamic SQL, partial status acceptable"
+    vars:
+      target_tables: "silver.DimCurrency"
+      expected_item_statuses: '{"silver.DimCurrency": "ok,partial,error"}'
+      expected_output_terms: "dynamic"

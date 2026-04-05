@@ -10,6 +10,7 @@ The phase documents in this directory are the source of truth for current automa
 - [Ground-Truth Generation Coverage](ground-truth-generation.md)
 - [Test Generation Coverage](test-generation.md)
 - [Test Review Coverage](test-review.md)
+- [Refactoring Coverage](refactoring.md)
 - [Model Generation Coverage](model-generation.md)
 - [Code Review Coverage](code-review.md)
 

@@ -390,6 +390,7 @@ class TestIdentityInsert:
         # identity column lookup returns SalesOrderID as identity
         sandbox_cursor.fetchall.side_effect = [
             [("[bronze].[SalesOrderHeader]",)],  # sys.tables (trigger disable)
+            [],                         # _get_not_null_defaults
             [("SalesOrderID",)],       # _get_identity_columns
             [(1, "Widget", 100)],       # SELECT * FROM target
         ]
@@ -429,6 +430,7 @@ class TestIdentityInsert:
         )
         sandbox_cursor.fetchall.side_effect = [
             [("[bronze].[Product]",)],  # sys.tables (trigger disable)
+            [],                         # _get_not_null_defaults
             [],                         # _get_identity_columns: no identity cols
             [(1, "Widget")],            # SELECT * FROM target
         ]
@@ -465,7 +467,9 @@ class TestIdentityInsert:
         # Two tables: first has identity, second does not
         sandbox_cursor.fetchall.side_effect = [
             [("[bronze].[SalesOrderHeader]",), ("[bronze].[SalesOrderDetail]",)],  # sys.tables (trigger disable)
+            [],                         # _get_not_null_defaults for table 1
             [("OrderID",)],             # _get_identity_columns for table 1
+            [],                         # _get_not_null_defaults for table 2
             [],                         # _get_identity_columns for table 2
             [(1, "result")],            # SELECT * FROM target
         ]
@@ -518,6 +522,7 @@ class TestFkConstraintDisabling:
         )
         sandbox_cursor.fetchall.side_effect = [
             [("[bronze].[Product]",)],  # sys.tables (trigger disable)
+            [],                         # _get_not_null_defaults
             [],                         # _get_identity_columns
             [(1, "Widget")],            # SELECT * FROM target
         ]
@@ -605,9 +610,10 @@ class TestTriggerDisabling:
         sandbox_cursor.fetchone.return_value = (
             "CREATE PROCEDURE [dbo].[usp_load] AS BEGIN SELECT 1 END",
         )
-        # Calls: sys.tables, identity_cols, SELECT * result
+        # Calls: sys.tables, not_null_defaults, identity_cols, SELECT * result
         sandbox_cursor.fetchall.side_effect = [
             [("[bronze].[Product]",), ("[silver].[DimProduct]",), ("[dbo].[Config]",)],  # sys.tables (trigger disable)
+            [],                                          # _get_not_null_defaults
             [],                                          # _get_identity_columns
             [(1, "Widget")],                             # SELECT * FROM target
         ]
@@ -647,6 +653,7 @@ class TestTriggerDisabling:
         )
         sandbox_cursor.fetchall.side_effect = [
             [("[silver].[T1]",)],                        # sys.tables (trigger disable)
+            [],                                          # _get_not_null_defaults
             [],                                          # _get_identity_columns
             [(1, "Widget")],                             # SELECT * FROM target
         ]

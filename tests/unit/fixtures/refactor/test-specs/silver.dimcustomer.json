@@ -1,0 +1,37 @@
+{
+  "item_id": "silver.dimcustomer",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {"id": "merge_matched_update", "statement_index": 0, "description": "Update existing customer", "scenarios": ["existing_customer"]},
+    {"id": "merge_not_matched_insert", "statement_index": 0, "description": "Insert new customer", "scenarios": ["new_customer"]}
+  ],
+  "unit_tests": [
+    {
+      "name": "test_existing_customer_update",
+      "branch_id": "merge_matched_update",
+      "target_table": "[silver].[DimCustomer]",
+      "procedure": "[dbo].[usp_load_dimcustomer]",
+      "given": [
+        {"table": "[silver].[DimCustomer]", "rows": [{"CustomerKey": 1, "CustomerID": "C001", "FirstName": "Alice", "LastName": "Old"}]},
+        {"table": "[bronze].[CustomerRaw]", "rows": [{"CustomerID": "C001", "FirstName": "Alice", "LastName": "New"}]}
+      ],
+      "expect": {"rows": [{"CustomerKey": 1, "CustomerID": "C001", "FirstName": "Alice", "LastName": "New"}]}
+    },
+    {
+      "name": "test_new_customer_insert",
+      "branch_id": "merge_not_matched_insert",
+      "target_table": "[silver].[DimCustomer]",
+      "procedure": "[dbo].[usp_load_dimcustomer]",
+      "given": [
+        {"table": "[silver].[DimCustomer]", "rows": []},
+        {"table": "[bronze].[CustomerRaw]", "rows": [{"CustomerID": "C002", "FirstName": "Bob", "LastName": "Smith"}]}
+      ],
+      "expect": {"rows": [{"CustomerKey": 1, "CustomerID": "C002", "FirstName": "Bob", "LastName": "Smith"}]}
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [],
+  "validation": {"passed": true, "issues": []},
+  "errors": []
+}

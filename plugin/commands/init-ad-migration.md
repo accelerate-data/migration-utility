@@ -12,7 +12,7 @@ Verify and set up all prerequisites before using `listing-objects`, `analyzing-t
 
 If `CLAUDE_PLUGIN_ROOT` is not set, stop immediately and tell the user to load the plugin with `claude --plugin-dir <path-to-ad-migration>` before running this command.
 
-## Step 1.5: Source selection
+## Step 2: Source selection
 
 Determine which source technology to configure:
 
@@ -28,7 +28,7 @@ Validate the chosen slug against the source registry in `init.py`. If the slug i
 
 Store the chosen slug as `$SOURCE` for the remaining steps.
 
-## Step 2: Gather evidence
+## Step 3: Gather evidence
 
 Run all checks **silently** — do NOT install or change anything yet.
 
@@ -54,7 +54,7 @@ Run all checks **silently** — do NOT install or change anything yet.
 3. Check whether each of the five Oracle environment variables is set (non-empty): `ORACLE_HOST`, `ORACLE_PORT`, `ORACLE_SERVICE`, `ORACLE_USER`, `ORACLE_PASSWORD`. Do not print their values.
 4. If all Oracle env vars are set, verify the Oracle MCP server can start: test that `sql -mcp` exits cleanly (does NOT require a live DB connection — just checks the binary runs).
 
-## Step 3: Present plan
+## Step 4: Present plan
 
 Show the user what was found and what needs to be done, grouped into common and source-specific sections:
 
@@ -103,9 +103,9 @@ If any credential variable is unset, recommend using direnv for credential manag
 
 These values are passed to the MCP server at startup via environment inheritance — they must be set before launching `claude`, not after.
 
-If everything is already set up, say so and skip Step 4 (nothing to install). Proceed directly to Step 5. Otherwise, ask the user to confirm before proceeding.
+If everything is already set up, say so and skip Step 5 (nothing to install). Proceed directly to Step 6. Otherwise, ask the user to confirm before proceeding.
 
-## Step 4: Execute
+## Step 5: Execute
 
 Only after the user confirms, run the needed actions:
 
@@ -147,7 +147,7 @@ uv sync --project "${CLAUDE_PLUGIN_ROOT}/lib" --extra oracle
 
 **direnv missing** (if the user asks how to install it): Direct them to `https://direnv.net` for install instructions. Do not attempt to install it automatically.
 
-## Step 5: Scaffold project files
+## Step 6: Scaffold project files
 
 Run the `init` CLI to scaffold the project directory, passing the chosen technology. This creates CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, .claude/rules/git-workflow.md, and .githooks/pre-commit — all idempotently and parameterized by source.
 
@@ -168,7 +168,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" setup-ddl write-partial-manifest --
 
 This creates `manifest.json` with the chosen technology and dialect. `/setup-ddl` will later enrich it with database and schema details.
 
-## Step 6: Commit
+## Step 7: Commit
 
 If the working directory is a git repository, commit the files created or modified in Step 5:
 
@@ -183,7 +183,7 @@ If not a git repository, skip silently.
 
 Then tell the user: **"Restart Claude to pick up the new project instructions."**
 
-## Step 7: Handoff
+## Step 8: Handoff
 
 Tell the user:
 

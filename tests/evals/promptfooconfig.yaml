@@ -32,6 +32,9 @@ prompts:
   - id: cmd-generate-tests
     label: cmd-generate-tests
     raw: file://prompts/cmd-generate-tests.txt
+  - id: refactoring-sql
+    label: refactoring-sql
+    raw: file://prompts/skill-refactoring-sql.txt
 
 providers:
   - id: anthropic:claude-agent-sdk
@@ -457,3 +460,53 @@ tests:
         value: file://assertions/check-table-scoping.js
       - type: javascript
         value: file://assertions/check-procedure-catalog.js
+
+  # ── refactoring-sql ──────────────────────────────────────────────
+
+  - description: "insert-select — simple INSERT...SELECT extracted and refactored"
+    prompts: ["refactoring-sql"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_extracted_terms: "select"
+      expected_refactored_terms: "with,final"
+    assert:
+      - type: javascript
+        value: file://assertions/check-refactored-sql.js
+
+  - description: "merge-using — MERGE USING clause extracted, refactored with import CTEs"
+    prompts: ["refactoring-sql"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      expected_extracted_terms: "productalternatekey,isnull"
+      expected_refactored_terms: "with,final,isnull"
+    assert:
+      - type: javascript
+        value: file://assertions/check-refactored-sql.js
+
+  - description: "window-functions — FactInternetSales preserves analytic expressions"
+    prompts: ["refactoring-sql"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.FactInternetSales"
+      writer: "silver.usp_stage_FactInternetSales"
+      expected_extracted_terms: "count(*) over,partition by"
+      expected_refactored_terms: "with,count(*) over,partition by"
+    assert:
+      - type: javascript
+        value: file://assertions/check-refactored-sql.js
+
+  - description: "truncate-insert — DimCustomer full reload extracted and CTEd"
+    prompts: ["refactoring-sql"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.DimCustomer"
+      writer: "silver.usp_load_DimCustomer_Full"
+      expected_extracted_terms: "customeralternatekey,firstname"
+      expected_refactored_terms: "with,final"
+    assert:
+      - type: javascript
+        value: file://assertions/check-refactored-sql.js

@@ -36,3 +36,34 @@ class SandboxBackend(ABC):
     @abstractmethod
     def sandbox_status(self, sandbox_db: str) -> dict[str, Any]:
         """Check whether the sandbox database exists and is accessible."""
+
+    @abstractmethod
+    def compare_two_sql(
+        self,
+        sandbox_db: str,
+        sql_a: str,
+        sql_b: str,
+        fixtures: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Seed fixtures, run two SELECT statements, return symmetric diff.
+
+        Within a single transaction (rolled back at the end):
+        1. Seed fixture rows into tables
+        2. Execute sql_a (extracted core SELECT) → capture rows_a
+        3. Execute sql_b (refactored CTE SELECT) → capture rows_b
+        4. Compute symmetric difference (rows_a vs rows_b)
+
+        Both sql_a and sql_b must be pure SELECT/WITH statements.
+
+        Returns::
+
+            {
+                "status": "ok" | "error",
+                "equivalent": bool,
+                "a_count": int,
+                "b_count": int,
+                "a_minus_b": list[dict],  # in A but not B
+                "b_minus_a": list[dict],  # in B but not A
+                "errors": list[dict],
+            }
+        """

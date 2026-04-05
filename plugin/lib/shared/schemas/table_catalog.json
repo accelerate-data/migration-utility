@@ -113,16 +113,20 @@
     },
     "refactor": {
       "type": "object",
-      "description": "Written by the refactoring-sql skill. Contains refactored CTE SQL status.",
+      "description": "Written by the refactoring-sql skill. Contains extracted core SQL and refactored CTE SQL.",
       "properties": {
         "status": {
           "type": "string",
           "enum": ["ok", "partial", "error"],
           "description": "ok = refactored SQL produced and audit passed; partial = audit failed; error = could not proceed."
         },
-        "refactored_sql_hash": {
+        "extracted_sql": {
           "type": "string",
-          "description": "SHA-256 of the refactored SQL for change detection."
+          "description": "Core transformation SELECT extracted from the stored procedure (USING clause for MERGE, SELECT for INSERT...SELECT, etc.)."
+        },
+        "refactored_sql": {
+          "type": "string",
+          "description": "Refactored CTE SQL (import/logical/final pattern) that passed the equivalence audit."
         }
       }
     },

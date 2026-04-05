@@ -375,5 +375,105 @@ def convert_dbt(
     )
 
 
+@app.command()
+def compare_sql(
+    sql_a_file: str = typer.Option(..., help="Path to file containing extracted core SELECT (sql A)"),
+    sql_b_file: str = typer.Option(..., help="Path to file containing refactored CTE SELECT (sql B)"),
+    spec: str = typer.Option(..., help="Path to test spec JSON file"),
+    project_root: str = typer.Option(".", help="Project root directory"),
+) -> None:
+    """Compare two SQL SELECT statements for equivalence per test scenario.
+
+    For each scenario in the spec, seeds fixtures, runs both SELECTs, and
+    computes symmetric diff — all within a single rolled-back transaction.
+    Returns aggregated pass/fail JSON.
+    """
+    logger.info("event=cli_invoked command=compare_sql")
+    root = resolve_project_root(Path(project_root))
+    sandbox_db = _resolve_sandbox_db(root)
+    manifest = _load_manifest(root)
+    backend = _create_backend(manifest)
+
+    # Load both SQL files
+    for label, path_str in [("A", sql_a_file), ("B", sql_b_file)]:
+        if not Path(path_str).exists():
+            _error_exit("SQL_FILE_NOT_FOUND", f"SQL file {label} not found: {path_str}")
+    try:
+        sql_a = Path(sql_a_file).read_text(encoding="utf-8")
+        sql_b = Path(sql_b_file).read_text(encoding="utf-8")
+    except OSError as exc:
+        _error_exit("SQL_FILE_READ_ERROR", f"Cannot read SQL file: {exc}", exc)
+
+    # Load test spec
+    spec_path = Path(spec)
+    try:
+        with spec_path.open() as f:
+            spec_data = json.load(f)
+    except FileNotFoundError:
+        _error_exit("SPEC_NOT_FOUND", f"Test spec file not found: {spec}")
+    except json.JSONDecodeError as exc:
+        _error_exit("SPEC_INVALID_JSON", f"Test spec file is not valid JSON: {exc}", exc)
+
+    unit_tests = spec_data.get("unit_tests", [])
+    if not unit_tests:
+        _error_exit("SPEC_EMPTY", "Test spec has no unit_tests entries")
+
+    results: list[dict[str, Any]] = []
+    passed_count = 0
+    failed_count = 0
+
+    for test_entry in unit_tests:
+        fixtures = test_entry.get("given", [])
+        scenario_name = test_entry.get("name", "unnamed")
+
+        try:
+            result = backend.compare_two_sql(
+                sandbox_db=sandbox_db,
+                sql_a=sql_a,
+                sql_b=sql_b,
+                fixtures=fixtures,
+            )
+        except (ValueError, KeyError) as exc:
+            result = {
+                "status": "error",
+                "equivalent": False,
+                "a_count": 0,
+                "b_count": 0,
+                "a_minus_b": [],
+                "b_minus_a": [],
+                "errors": [{"code": "COMPARE_INVALID_INPUT", "message": str(exc)}],
+            }
+
+        result["scenario_name"] = scenario_name
+        results.append(result)
+
+        if result.get("equivalent"):
+            passed_count += 1
+        else:
+            failed_count += 1
+            logger.warning(
+                "event=compare_scenario_failed command=compare_sql sandbox_db=%s "
+                "scenario=%s errors=%s",
+                sandbox_db, scenario_name, result.get("errors"),
+            )
+
+    output = {
+        "schema_version": "1.0",
+        "sandbox_database": sandbox_db,
+        "total": len(unit_tests),
+        "passed": passed_count,
+        "failed": failed_count,
+        "results": results,
+    }
+
+    typer.echo(json.dumps(output, indent=2))
+    logger.info(
+        "event=cli_complete command=compare_sql sandbox_db=%s total=%d passed=%d failed=%d",
+        sandbox_db, len(unit_tests), passed_count, failed_count,
+    )
+    if passed_count == 0:
+        raise typer.Exit(code=1)
+
+
 if __name__ == "__main__":
     app()
