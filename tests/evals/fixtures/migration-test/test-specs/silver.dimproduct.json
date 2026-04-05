@@ -72,7 +72,6 @@
       "model": "stg_dimproduct",
       "given": [
         {
-          "input": "source('bronze', 'product')",
           "rows": [
             {
               "ProductID": 1,
@@ -88,7 +87,8 @@
               "SellEndDate": null,
               "DiscontinuedDate": null
             }
-          ]
+          ],
+          "table": "[bronze].[Product]"
         }
       ],
       "expect": {
@@ -108,14 +108,15 @@
             "Status": "Current"
           }
         ]
-      }
+      },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
     },
     {
       "name": "test_status_obsolete_when_discontinued",
       "model": "stg_dimproduct",
       "given": [
         {
-          "input": "source('bronze', 'product')",
           "rows": [
             {
               "ProductID": 2,
@@ -131,7 +132,8 @@
               "SellEndDate": null,
               "DiscontinuedDate": "2024-03-15"
             }
-          ]
+          ],
+          "table": "[bronze].[Product]"
         }
       ],
       "expect": {
@@ -151,14 +153,15 @@
             "Status": "Obsolete"
           }
         ]
-      }
+      },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
     },
     {
       "name": "test_status_outdated_when_sell_end_present",
       "model": "stg_dimproduct",
       "given": [
         {
-          "input": "source('bronze', 'product')",
           "rows": [
             {
               "ProductID": 3,
@@ -174,7 +177,8 @@
               "SellEndDate": "2024-01-31",
               "DiscontinuedDate": null
             }
-          ]
+          ],
+          "table": "[bronze].[Product]"
         }
       ],
       "expect": {
@@ -194,14 +198,15 @@
             "Status": "Outdated"
           }
         ]
-      }
+      },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
     },
     {
       "name": "test_color_defaults_to_empty_string_when_null",
       "model": "stg_dimproduct",
       "given": [
         {
-          "input": "source('bronze', 'product')",
           "rows": [
             {
               "ProductID": 4,
@@ -217,7 +222,8 @@
               "SellEndDate": null,
               "DiscontinuedDate": null
             }
-          ]
+          ],
+          "table": "[bronze].[Product]"
         }
       ],
       "expect": {
@@ -237,29 +243,37 @@
             "Status": "Current"
           }
         ]
-      }
+      },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
     },
     {
       "name": "test_empty_source_returns_no_rows",
       "model": "stg_dimproduct",
       "given": [
         {
-          "input": "source('bronze', 'product')",
-          "rows": []
+          "rows": [],
+          "table": "[bronze].[Product]"
         }
       ],
       "expect": {
         "rows": []
-      }
+      },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
     }
   ],
   "uncovered_branches": [],
   "warnings": [
-    "MERGE matched/update and insert-only distinctions are source-procedure behaviors that collapse into the staged SELECT model, so dbt unit tests cover the transformation branches instead."
+    {
+      "code": "info",
+      "message": "MERGE matched/update and insert-only distinctions are source-procedure behaviors that collapse into the staged SELECT model, so dbt unit tests cover the transformation branches instead.",
+      "severity": "warning"
+    }
   ],
   "validation": {
-    "status": "ok",
-    "summary": []
+    "passed": true,
+    "issues": []
   },
   "errors": []
 }

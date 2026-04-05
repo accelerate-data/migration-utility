@@ -24,14 +24,14 @@
       "model": "stg_ifelsetarget",
       "given": [
         {
-          "input": "source('bronze', 'product')",
           "rows": [
             {
               "ProductID": 1,
               "ProductName": "Road-150",
               "ListPrice": 200.0
             }
-          ]
+          ],
+          "table": "[bronze].[Product]"
         }
       ],
       "expect": {
@@ -42,7 +42,9 @@
             "PriceCategory": "Premium"
           }
         ]
-      }
+      },
+      "target_table": "[silver].[IfElseTarget]",
+      "procedure": "[silver].[usp_load_IfElseTarget]"
     }
   ],
   "uncovered_branches": [
@@ -58,8 +60,8 @@
     }
   ],
   "validation": {
-    "status": "ok",
-    "summary": []
+    "passed": true,
+    "issues": []
   },
   "errors": []
 }

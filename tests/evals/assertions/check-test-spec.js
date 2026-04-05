@@ -93,15 +93,20 @@ module.exports = (output, context) => {
 
   const specText = JSON.stringify(spec).toLowerCase();
 
+  // Search warnings[].message specifically to avoid synonym-variation false negatives
+  const warningMessages = (spec.warnings || []).map((w) => (w.message || '').toLowerCase()).join(' ');
+  const warningText = JSON.stringify(spec.warnings || []).toLowerCase();
   for (const term of expectedWarnings) {
-    if (!specText.includes(term)) {
-      return { pass: false, score: 0, reason: `Expected warning term '${term}' not found in spec` };
+    if (!warningMessages.includes(term) && !warningText.includes(term)) {
+      return { pass: false, score: 0, reason: `Expected warning term '${term}' not found in spec warnings` };
     }
   }
 
+  // Search errors[].message specifically
+  const errorMessages = (spec.errors || []).map((e) => (e.message || '').toLowerCase()).join(' ');
   const errorText = JSON.stringify(spec.errors || []).toLowerCase();
   for (const term of expectedErrors) {
-    if (!errorText.includes(term)) {
+    if (!errorMessages.includes(term) && !errorText.includes(term)) {
       return { pass: false, score: 0, reason: `Expected error term '${term}' not found in spec errors` };
     }
   }

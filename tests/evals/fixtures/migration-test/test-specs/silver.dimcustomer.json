@@ -36,13 +36,13 @@
       "model": "stg_dimcustomer",
       "given": [
         {
-          "input": "source('bronze', 'customer')",
           "rows": [
             {
               "CustomerID": 101,
               "PersonID": 1001
             }
-          ]
+          ],
+          "table": "[bronze].[Customer]"
         }
       ],
       "expect": {
@@ -51,7 +51,9 @@
             "CustomerAlternateKey": "101"
           }
         ]
-      }
+      },
+      "target_table": "[silver].[DimCustomer]",
+      "procedure": "[silver].[usp_load_DimCustomer_Full]"
     }
   ],
   "uncovered_branches": [
@@ -62,7 +64,7 @@
   "warnings": [
     {
       "code": "FIXTURE_UNREALISTIC",
-      "message": "test_single_customer_no_orders is missing the Person source table entirely — JOIN will fail or produce NULLs for all name columns.",
+      "message": "test_single_customer_no_orders is missing the Person source table entirely \u2014 JOIN will fail or produce NULLs for all name columns.",
       "item_id": "silver.dimcustomer",
       "severity": "warning",
       "details": {
@@ -71,7 +73,7 @@
     },
     {
       "code": "FIXTURE_INCOMPLETE",
-      "message": "Expected output only checks CustomerAlternateKey — 8 other target columns (FirstName, MiddleName, LastName, Title, Gender, MaritalStatus, EmailPromotion, DateFirstPurchase) are not verified.",
+      "message": "Expected output only checks CustomerAlternateKey \u2014 8 other target columns (FirstName, MiddleName, LastName, Title, Gender, MaritalStatus, EmailPromotion, DateFirstPurchase) are not verified.",
       "item_id": "silver.dimcustomer",
       "severity": "warning",
       "details": {
@@ -87,8 +89,8 @@
     }
   ],
   "validation": {
-    "status": "ok",
-    "summary": []
+    "passed": true,
+    "issues": []
   },
   "errors": []
 }

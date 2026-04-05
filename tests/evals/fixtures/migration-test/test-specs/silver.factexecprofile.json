@@ -27,7 +27,6 @@
       "model": "stg_factexecprofile",
       "given": [
         {
-          "input": "source('bronze', 'execlog')",
           "rows": [
             {
               "ProcedureName": "usp_load_DimProduct",
@@ -36,16 +35,17 @@
               "RowsAffected": 42,
               "StatusCode": 0
             }
-          ]
+          ],
+          "table": "[bronze].[ExecLog]"
         },
         {
-          "input": "ref('dim_procedure')",
           "rows": [
             {
               "ProcedureName": "usp_load_DimProduct",
               "ProcedureKey": 101
             }
-          ]
+          ],
+          "table": "[silver].[DimProcedure]"
         }
       ],
       "expect": {
@@ -58,14 +58,15 @@
             "StatusCode": 0
           }
         ]
-      }
+      },
+      "target_table": "[silver].[FactExecProfile]",
+      "procedure": "[silver].[usp_load_FactExecProfile]"
     },
     {
       "name": "test_exec_chain_join_miss",
       "model": "stg_factexecprofile",
       "given": [
         {
-          "input": "source('bronze', 'execlog')",
           "rows": [
             {
               "ProcedureName": "usp_unknown_proc",
@@ -74,40 +75,45 @@
               "RowsAffected": 0,
               "StatusCode": 1
             }
-          ]
+          ],
+          "table": "[bronze].[ExecLog]"
         },
         {
-          "input": "ref('dim_procedure')",
-          "rows": []
+          "rows": [],
+          "table": "[silver].[DimProcedure]"
         }
       ],
       "expect": {
         "rows": []
-      }
+      },
+      "target_table": "[silver].[FactExecProfile]",
+      "procedure": "[silver].[usp_load_FactExecProfile]"
     },
     {
       "name": "test_empty_source",
       "model": "stg_factexecprofile",
       "given": [
         {
-          "input": "source('bronze', 'execlog')",
-          "rows": []
+          "rows": [],
+          "table": "[bronze].[ExecLog]"
         },
         {
-          "input": "ref('dim_procedure')",
-          "rows": []
+          "rows": [],
+          "table": "[silver].[DimProcedure]"
         }
       ],
       "expect": {
         "rows": []
-      }
+      },
+      "target_table": "[silver].[FactExecProfile]",
+      "procedure": "[silver].[usp_load_FactExecProfile]"
     }
   ],
   "uncovered_branches": [],
   "warnings": [],
   "validation": {
-    "status": "ok",
-    "summary": []
+    "passed": true,
+    "issues": []
   },
   "errors": []
 }

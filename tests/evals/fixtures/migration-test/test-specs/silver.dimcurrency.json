@@ -6,8 +6,7 @@
     {
       "id": "dynamic_sql_insert",
       "statement_index": 0,
-      "description": "Dynamic sp_executesql builds and executes INSERT INTO silver.DimCurrency from bronze.Currency",
-      "testable_in_dbt": false,
+      "description": "INSERT INTO silver.DimCurrency (CurrencyAlternateKey, CurrencyName) executed via sp_executesql with a string variable — SQL is not statically resolvable at fixture-generation time",
       "scenarios": []
     }
   ],
@@ -17,19 +16,20 @@
   ],
   "warnings": [
     {
-      "code": "DYNAMIC_SQL_UNTESTABLE",
-      "message": "Write logic is embedded in a dynamic sp_executesql variable — SQL is not statically visible for fixture generation. Rationale recorded for reviewer acceptance.",
+      "code": "dynamic_sql_untestable",
+      "message": "Write logic is embedded in sp_executesql called with a NVARCHAR variable (@sql), not a literal string. The INSERT SQL is not statically visible to the scoping agent, so fixture-based testing cannot reproduce this branch. Additionally, the recovered SQL references a cross-database table (MigrationTest.bronze.Currency) which is outside sandbox scope.",
       "item_id": "silver.dimcurrency",
-      "severity": "info",
+      "severity": "warning",
       "details": {
-        "routing": "dynamic_sql_variable",
-        "recovered_sql": "INSERT INTO silver.DimCurrency (CurrencyAlternateKey, CurrencyName) SELECT CurrencyCode, CurrencyName FROM MigrationTest.bronze.Currency"
+        "routing_reason": "dynamic_sql_variable",
+        "recovered_sql": "INSERT INTO silver.DimCurrency (CurrencyAlternateKey, CurrencyName) SELECT CurrencyCode, CurrencyName FROM MigrationTest.bronze.Currency",
+        "cross_database_reference": "MigrationTest.bronze.Currency"
       }
     }
   ],
   "validation": {
-    "status": "ok",
-    "summary": []
+    "passed": true,
+    "issues": []
   },
   "errors": []
 }
