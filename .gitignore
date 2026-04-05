@@ -40,3 +40,9 @@ __pycache__/
 .pytest_cache/
 .venv/
 *.egg-info/
+
+# dbt runtime artifacts
+.user.yml
+dbt_packages/
+logs/
+target/
