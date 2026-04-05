@@ -99,6 +99,52 @@ def _split_identifier_parts(identifier: str) -> list[str]:
     return parts
 
 
+_TYPE_DEFAULTS: dict[str, Any] = {
+    "int": 0, "bigint": 0, "smallint": 0, "tinyint": 0,
+    "bit": 0, "float": 0.0, "real": 0.0,
+    "decimal": 0, "numeric": 0, "money": 0, "smallmoney": 0,
+    "nvarchar": "", "varchar": "", "nchar": "", "char": "",
+    "ntext": "", "text": "",
+    "datetime": "1900-01-01", "datetime2": "1900-01-01",
+    "smalldatetime": "1900-01-01", "date": "1900-01-01",
+    "time": "00:00:00",
+    "uniqueidentifier": "00000000-0000-0000-0000-000000000000",
+    "varbinary": b"", "binary": b"", "image": b"",
+    "xml": "",
+}
+
+
+def _get_not_null_defaults(cursor: Any, table: str) -> dict[str, Any]:
+    """Return defaults for NOT NULL columns that lack a DEFAULT constraint.
+
+    Queries INFORMATION_SCHEMA.COLUMNS to find NOT NULL columns without
+    defaults, then maps each to a type-appropriate zero/empty value.
+    Identity columns are excluded (they auto-generate).
+    """
+    try:
+        cursor.execute(
+            "SELECT c.COLUMN_NAME, c.DATA_TYPE "
+            "FROM INFORMATION_SCHEMA.COLUMNS c "
+            "WHERE c.TABLE_SCHEMA + '.' + c.TABLE_NAME = ? "
+            "   OR '[' + c.TABLE_SCHEMA + '].[' + c.TABLE_NAME + ']' = ? "
+            "AND c.IS_NULLABLE = 'NO' "
+            "AND c.COLUMN_DEFAULT IS NULL "
+            "AND COLUMNPROPERTY(OBJECT_ID(?), c.COLUMN_NAME, 'IsIdentity') = 0",
+            table, table, table,
+        )
+        defaults: dict[str, Any] = {}
+        for col_name, data_type in cursor.fetchall():
+            base_type = data_type.lower()
+            if base_type in _TYPE_DEFAULTS:
+                defaults[col_name] = _TYPE_DEFAULTS[base_type]
+            else:
+                defaults[col_name] = ""
+        return defaults
+    except Exception:  # noqa: BLE001
+        logger.debug("event=not_null_defaults_lookup_failed table=%s", table)
+        return {}
+
+
 def _get_identity_columns(cursor: Any, table: str) -> set[str]:
     """Return the set of identity column names for *table* in the current DB.
 
@@ -518,13 +564,31 @@ class SqlServerSandbox(SandboxBackend):
             rows = fixture.get("rows", [])
             if not rows:
                 continue
-            columns = list(rows[0].keys())
+            fixture_columns = set(rows[0].keys())
+
+            # Auto-fill NOT NULL columns missing from the fixture.
+            # This lets fixtures specify only the columns the test
+            # cares about — the sandbox fills in safe defaults for
+            # the rest.
+            not_null_defaults = _get_not_null_defaults(cursor, table)
+            fill_cols = {
+                col: default
+                for col, default in not_null_defaults.items()
+                if col not in fixture_columns
+            }
+            if fill_cols:
+                logger.info(
+                    "event=auto_fill_not_null sandbox_db=%s table=%s columns=%s",
+                    sandbox_db, table, sorted(fill_cols.keys()),
+                )
+
+            columns = list(fixture_columns | fill_cols.keys())
 
             # Detect identity columns so we can toggle
             # IDENTITY_INSERT for explicit-value inserts.
             identity_cols = _get_identity_columns(cursor, table)
             needs_identity_insert = bool(
-                identity_cols & {c for c in columns}
+                identity_cols & fixture_columns
             )
 
             if needs_identity_insert:
@@ -536,13 +600,16 @@ class SqlServerSandbox(SandboxBackend):
                     "table=%s columns=%s",
                     sandbox_db,
                     table,
-                    sorted(identity_cols & {c for c in columns}),
+                    sorted(identity_cols & fixture_columns),
                 )
 
             col_list = ", ".join(f"[{c}]" for c in columns)
             placeholders = ", ".join("?" for _ in columns)
             insert_sql = f"INSERT INTO {table} ({col_list}) VALUES ({placeholders})"
-            value_lists = [[row[c] for c in columns] for row in rows]
+            value_lists = [
+                [row.get(c, fill_cols.get(c)) for c in columns]
+                for row in rows
+            ]
             cursor.executemany(insert_sql, value_lists)
 
             if needs_identity_insert:

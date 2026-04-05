@@ -10,7 +10,7 @@ user-invocable: true
 argument-hint: "<schema.table>"
 ---
 
-@sp-migration-ref.md
+@references/sp-migration-ref.md
 
 # Refactoring SQL
 
@@ -61,7 +61,7 @@ Launch a sub-agent with this prompt (include the full `proc_body`, `statements`,
 You are extracting the core transformation logic from a T-SQL stored procedure
 as a pure SELECT statement.
 
-Read the sp-migration-ref.md reference for extraction rules per DML type.
+Read the references/sp-migration-ref.md reference for extraction rules per DML type.
 
 Procedure body:
 <proc_body>
@@ -75,7 +75,7 @@ Target table columns:
 Instructions:
 1. Identify the DML pattern(s) in the migrate statements (INSERT...SELECT, MERGE,
    UPDATE, DELETE, temp table chains, cursor loops, dynamic SQL)
-2. Apply the extraction rules from sp-migration-ref.md for each pattern
+2. Apply the extraction rules from references/sp-migration-ref.md for each pattern
 3. Produce a single pure T-SQL SELECT statement that returns exactly the rows
    and columns the procedure would write to the target table
 4. Keep T-SQL syntax (ISNULL, CONVERT, etc.) -- no dialect conversion
