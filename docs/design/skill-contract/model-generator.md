@@ -1,11 +1,13 @@
 # Model Generator Skill Contract
 
-The model-generator skill reads approved profile and resolved statements from catalog files, consumes the approved test spec from `test-specs/` (mandatory — test generation runs before migration), then generates dbt project artifacts. After generating the model, the model-generator runs `dbt test` against the test spec's `unit_tests:` and self-corrects until tests pass (or max iterations reached). The model-generator may also create additional tests beyond the spec. The code reviewer then reviews the output.
+The model-generator skill reads approved profile and resolved statements from catalog files, consumes the approved test spec from `test-specs/` (mandatory — test generation runs before migration), then generates dbt project artifacts. The generator uses `refactored_sql` (CTE-structured SQL from the refactor stage) as its sole SQL input and applies a staging/mart split: import CTEs become ephemeral `stg_*` models, logical+final CTEs become the mart model. After generating the model, the model-generator runs `dbt test` against the test spec's `unit_tests:` and self-corrects until tests pass (or max iterations reached). The model-generator may also create additional tests beyond the spec. The code reviewer then reviews the output.
 
 ## Philosophy and Boundary
 
 - Model generator owns artifact generation (`.sql`, `.yml`, and related dbt resources).
 - Model generator reads approved profile from `catalog/tables/<item_id>.json` and resolved statements from `catalog/procedures/<writer>.json`. It derives materialization deterministically from profile classification and generates schema tests from profile answers.
+- Model generator uses `refactored_sql` as its sole SQL input. `proc_body` and `statements` are ignored during generation — they exist in context for the reviewer's correctness checks.
+- Model generator applies a staging/mart split: import CTEs from `refactored_sql` become ephemeral `stg_*` models, logical+final CTEs become the mart model. Before creating a new `stg_*` model, existing staging models are checked for reuse.
 - Model generator reads the approved test spec from `test-specs/<item_id>.json` and renders `unit_tests[]` into the schema YAML alongside schema tests.
 - After generating artifacts, the model-generator runs `dbt test` against the unit tests. If tests fail, the model-generator revises the model and re-tests. Maximum self-correction iterations: 3.
 - Model generator fetches direct facts (schema, column types, relation metadata) using tools.
@@ -20,26 +22,25 @@ Run `uv run migrate context --table <item_id>`.
 
 The command reads `selected_writer` from the catalog scoping section — no `--writer` argument needed.
 
-Outputs: profile (classification, keys, watermark, PII), derived materialization, resolved statements, full proc body, target table columns, source tables, and deterministic schema tests.
+Outputs: profile (classification, keys, watermark, PII), derived materialization, resolved statements, full proc body, target table columns, source tables, deterministic schema tests, and `refactored_sql` (cleaned, CTE-structured SQL from the refactor stage).
 
 ### 2. GenerateModel (LLM)
 
-Using the context output, the original proc body, and the resolved `migrate` statements, generate a dbt model:
+Using `refactored_sql` as the sole SQL input, apply the staging/mart split:
 
-1. Decide model structure from proc complexity:
-   - Single INSERT from sources -> one staging model
-   - Multiple INSERTs to same table -> one model with UNION ALL
-   - Temp table chains or multi-step logic -> staging + intermediate models with `ref()`
-   - Nested subqueries -> flatten into sequential CTE chain
-2. Generate dbt SQL using the import CTE -> logical CTE -> final CTE pattern:
-   - Import CTEs: all `{{ ref() }}` and `{{ source() }}` at the top
-   - Logical CTEs: one transformation step per CTE, descriptive names
-   - Final CTE: clean SELECT from the last logical CTE
-3. Apply dbt patterns: `{{ config(materialized=...) }}`, `{{ var('param', default) }}` for proc parameters, `{{ ref() }}`/`{{ source() }}` for table references
+1. **Staging models (`stg_<source_table>.sql`)** — one per import CTE in `refactored_sql`. Each is `materialized='ephemeral'` and does `select * from {{ source('<schema>', '<table>') }}` with light transforms only. Before creating a new staging model, check `dbt/models/staging/` for an existing one on the same source table — reuse via `{{ ref() }}` if compatible.
+2. **Mart model (`<target_table>.sql`)** — replaces import CTEs with `{{ ref('stg_...') }}` calls; logical and final CTEs stay as-is. Config block uses the profile-derived materialization.
+
+Apply style guides throughout:
+
+- [sql-style.md](../../../plugin/skills/reviewing-model/references/sql-style.md) — keywords, indentation, commas, aliases
+- [cte-structure.md](../../../plugin/skills/reviewing-model/references/cte-structure.md) — import-first order, `final` naming, no nested CTEs
+- [model-naming.md](../../../plugin/skills/reviewing-model/references/model-naming.md) — layer prefixes, `_dbt_run_id`, `_loaded_at` rules
+- [modular-modeling-ref.md](../../../plugin/skills/generating-model/references/modular-modeling-ref.md) — staging/mart split decision rules
 
 ### 3. LogicalEquivalenceCheck (LLM)
 
-Compare the generated model against the original `migrate` statements:
+Compare the generated model against `refactored_sql`:
 
 - Same source tables read?
 - Same columns selected/written?
@@ -60,6 +61,8 @@ Render `schema_tests` from context into `.yml`:
 - PII -> column-level `meta` tags
 - Model and column descriptions
 
+Apply [yaml-style.md](../../../plugin/skills/reviewing-model/references/yaml-style.md) (indentation, `version: 2`, required descriptions) throughout.
+
 Merge `unit_tests[]` from `test-specs/<item_id>.json` into the schema YAML as a `unit_tests:` block. Every scenario from the test spec must be rendered — none may be dropped or modified.
 
 ### 4b. IdentifyCoverageGaps (LLM)
@@ -68,7 +71,17 @@ After rendering the test-spec's unit tests, analyze the generated model's logic 
 
 ### 5. WriteArtifacts (Deterministic — `migrate.py write`)
 
-Run `uv run migrate write --table <item_id> --dbt-project-path <path> --model-sql '<sql>' --schema-yml '<yml>'`.
+Write SQL and YAML to temporary files, then call the write CLI:
+
+```bash
+mkdir -p .staging
+uv run migrate write \
+  --table <item_id> \
+  --model-sql-file .staging/model.sql \
+  --schema-yml-file .staging/schema.yml; rm -rf .staging
+```
+
+The dbt project path is resolved from `$DBT_PROJECT_PATH` or defaults to `./dbt`.
 
 ### 6. CompileAndTest
 
@@ -76,6 +89,8 @@ Run `uv run migrate write --table <item_id> --dbt-project-path <path> --model-sq
 2. Run `dbt test --select <model_name>` to execute unit tests from the test spec.
 3. If unit tests fail: analyze failures, revise the model (return to Step 2), and re-test.
 4. Maximum self-correction iterations: 3. If tests still fail after 3 attempts, set `status: "partial"` and record failures.
+
+If compile fails with a connection error, fall back to `dbt parse` for offline validation and skip unit tests.
 
 ### 7. HandleErrors
 
@@ -97,6 +112,7 @@ Per-item output written to `.migration-runs/`:
     "model_name": "fct_fact_sales",
     "artifact_paths": {
       "model_sql": "models/gold/fct_fact_sales.sql",
+      "staging_sql": ["models/staging/stg_source_a.sql", "models/staging/stg_source_b.sql"],
       "model_yaml": "models/gold/fct_fact_sales.yml",
       "source_yaml": "models/sources/warehouse_sources.yml"
     },
@@ -136,7 +152,8 @@ Per-item output written to `.migration-runs/`:
 
 ## Required Model Generator Guarantees
 
-- Generated dbt artifacts must reflect profile answers and resolved statements faithfully.
+- Generated dbt artifacts must reflect profile answers and `refactored_sql` faithfully.
+- Staging/mart split follows the rules in `modular-modeling-ref.md`: import CTEs become ephemeral `stg_*` models, logical+final CTEs become the mart model.
 - Schema tests are derived deterministically from profile (PK, FK, watermark, PII) and rendered into column/model-level dbt tests in `model_yaml`.
 - `unit_tests[]` from `test-specs/<item_id>.json` is rendered into `unit_tests:` blocks in `model_yaml`. All scenarios must be present — none dropped.
 - All unit tests must pass before the model-generator reports `status: "ok"`.
