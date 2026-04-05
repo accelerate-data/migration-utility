@@ -111,6 +111,21 @@
       "description": "Written by the /profiling-table skill or profiler agent. Not present after setup-ddl, only after profiling.",
       "$ref": "#/$defs/profile_section"
     },
+    "refactor": {
+      "type": "object",
+      "description": "Written by the refactoring-sql skill. Contains refactored CTE SQL status.",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["ok", "partial", "error"],
+          "description": "ok = refactored SQL produced and audit passed; partial = audit failed; error = could not proceed."
+        },
+        "refactored_sql_hash": {
+          "type": "string",
+          "description": "SHA-256 of the refactored SQL for change detection."
+        }
+      }
+    },
     "scoping": {
       "type": "object",
       "description": "Writer selection results from scoping agent or /analyzing-table. Written by discover write-scoping.",

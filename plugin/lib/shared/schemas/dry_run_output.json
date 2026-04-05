@@ -7,7 +7,7 @@
   "required": ["table", "stage", "guards_passed", "guard_results"],
   "properties": {
     "table": { "type": "string", "description": "Fully qualified table name (schema.table)." },
-    "stage": { "type": "string", "enum": ["scope", "profile", "test-gen", "migrate"] },
+    "stage": { "type": "string", "enum": ["scope", "profile", "test-gen", "refactor", "migrate"] },
     "guards_passed": { "type": "boolean", "description": "True when every guard for this stage passed." },
     "guard_results": {
       "type": "array",

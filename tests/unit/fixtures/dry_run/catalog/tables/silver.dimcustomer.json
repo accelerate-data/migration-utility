@@ -43,5 +43,9 @@
     ],
     "warnings": [],
     "errors": []
+  },
+  "refactor": {
+    "status": "ok",
+    "refactored_sql_hash": "abc123def456"
   }
 }

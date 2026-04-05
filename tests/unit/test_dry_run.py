@@ -673,7 +673,7 @@ def test_cli_dry_run_scope_summary() -> None:
     with tmp:
         result = _cli_runner.invoke(
             dry_run.app,
-            ["silver.DimCustomer", "scope", "--project-root", str(root)],
+            ["dry-run", "silver.DimCustomer", "scope", "--project-root", str(root)],
         )
         assert result.exit_code == 0
         output = json.loads(result.stdout)
@@ -688,7 +688,7 @@ def test_cli_dry_run_detail_flag() -> None:
     with tmp:
         result = _cli_runner.invoke(
             dry_run.app,
-            ["silver.DimCustomer", "scope", "--detail", "--project-root", str(root)],
+            ["dry-run", "silver.DimCustomer", "scope", "--detail", "--project-root", str(root)],
         )
         assert result.exit_code == 0
         output = json.loads(result.stdout)
@@ -702,7 +702,7 @@ def test_cli_dry_run_guard_failure_exit_0() -> None:
     with tmp:
         result = _cli_runner.invoke(
             dry_run.app,
-            ["silver.NonExistent", "scope", "--project-root", str(root)],
+            ["dry-run", "silver.NonExistent", "scope", "--project-root", str(root)],
         )
         assert result.exit_code == 0
         output = json.loads(result.stdout)
@@ -715,7 +715,7 @@ def test_cli_dry_run_invalid_stage() -> None:
     with tmp:
         result = _cli_runner.invoke(
             dry_run.app,
-            ["silver.DimCustomer", "bogus", "--project-root", str(root)],
+            ["dry-run", "silver.DimCustomer", "bogus", "--project-root", str(root)],
         )
         assert result.exit_code != 0
 
@@ -728,24 +728,143 @@ def test_cli_dry_run_not_git_repo() -> None:
         root.mkdir()
         result = _cli_runner.invoke(
             dry_run.app,
-            ["silver.DimCustomer", "scope", "--project-root", str(root)],
+            ["dry-run", "silver.DimCustomer", "scope", "--project-root", str(root)],
         )
         assert result.exit_code == 2
 
 
 def test_cli_dry_run_all_stages() -> None:
-    """CLI works for all four stages on a fully-populated fixture."""
+    """CLI works for all five stages on a fully-populated fixture."""
     tmp, root = _make_project()
     with tmp:
-        for stage in ("scope", "profile", "test-gen", "migrate"):
+        for stage in ("scope", "profile", "test-gen", "refactor", "migrate"):
             result = _cli_runner.invoke(
                 dry_run.app,
-                ["silver.DimCustomer", stage, "--project-root", str(root)],
+                ["dry-run", "silver.DimCustomer", stage, "--project-root", str(root)],
             )
             assert result.exit_code == 0, f"stage {stage} failed"
             output = json.loads(result.stdout)
             assert output["guards_passed"] is True, f"stage {stage} guards failed"
             assert output["stage"] == stage
+
+
+# ── Guard tests: refactor ────────────────────────────────────────────────────
+
+
+def test_refactor_guards_pass(assert_valid_schema) -> None:
+    tmp, root = _make_project()
+    with tmp:
+        result = dry_run.run_dry_run(root, "silver.DimCustomer", "refactor")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is True
+
+
+def test_refactor_guards_fail_no_test_spec(assert_valid_schema) -> None:
+    tmp, root = _make_project()
+    with tmp:
+        (root / "test-specs" / "silver.dimcustomer.json").unlink()
+        result = dry_run.run_dry_run(root, "silver.DimCustomer", "refactor")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is False
+        assert result["guard_results"][-1]["code"] == "TEST_SPEC_NOT_FOUND"
+
+
+def test_migrate_guards_fail_no_refactor(assert_valid_schema) -> None:
+    """Migrate guard fails when refactor section is missing."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        del cat["refactor"]
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+        result = dry_run.run_dry_run(root, "silver.DimCustomer", "migrate")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is False
+        assert result["guard_results"][-1]["code"] == "REFACTOR_NOT_COMPLETED"
+
+
+def test_migrate_guards_fail_refactor_partial(assert_valid_schema) -> None:
+    """Migrate guard fails when refactor status is partial (audit failed)."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["refactor"]["status"] = "partial"
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+        result = dry_run.run_dry_run(root, "silver.DimCustomer", "migrate")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is False
+        assert result["guard_results"][-1]["code"] == "REFACTOR_NOT_COMPLETED"
+
+
+# ── Content tests: refactor ─────────────────────────────────────────────────
+
+
+def test_refactor_summary_content(assert_valid_schema) -> None:
+    tmp, root = _make_project()
+    with tmp:
+        result = dry_run.run_dry_run(root, "silver.DimCustomer", "refactor")
+        assert_valid_schema(result, "dry_run_output.json")
+        content = result["content"]
+        assert content["refactor_status"] == "ok"
+        assert content["has_refactored_sql"] is True
+
+
+def test_refactor_detail_content(assert_valid_schema) -> None:
+    tmp, root = _make_project()
+    with tmp:
+        result = dry_run.run_dry_run(root, "silver.DimCustomer", "refactor", detail=True)
+        assert_valid_schema(result, "dry_run_output.json")
+        content = result["content"]
+        assert content["refactor"]["status"] == "ok"
+        assert "test_gen" in content
+
+
+# ── Guard CLI tests ─────────────────────────────────────────────────────────
+
+
+def test_guard_cli_subcommand() -> None:
+    """Guard CLI returns pass/fail JSON."""
+    tmp, root = _make_project()
+    with tmp:
+        result = _cli_runner.invoke(
+            dry_run.app,
+            ["guard", "silver.DimCustomer", "scope", "--project-root", str(root)],
+        )
+        assert result.exit_code == 0
+        output = json.loads(result.stdout)
+        assert output["passed"] is True
+        assert output["table"] == "silver.dimcustomer"
+        assert output["stage"] == "scope"
+        assert len(output["guard_results"]) > 0
+
+
+def test_guard_cli_failure() -> None:
+    """Guard CLI returns passed=false for missing table."""
+    tmp, root = _make_project()
+    with tmp:
+        result = _cli_runner.invoke(
+            dry_run.app,
+            ["guard", "silver.NonExistent", "scope", "--project-root", str(root)],
+        )
+        assert result.exit_code == 0
+        output = json.loads(result.stdout)
+        assert output["passed"] is False
+
+
+def test_guard_cli_skill_stage() -> None:
+    """Guard CLI accepts skill-specific stage names like generating-model."""
+    tmp, root = _make_project()
+    with tmp:
+        result = _cli_runner.invoke(
+            dry_run.app,
+            ["guard", "silver.DimCustomer", "generating-model", "--project-root", str(root)],
+        )
+        assert result.exit_code == 0
+        output = json.loads(result.stdout)
+        # generating-model requires dbt_project — fixture has it
+        assert output["passed"] is True
+        assert output["stage"] == "generating-model"
 
 
 # ── generate-sources tests ──────────────────────────────────────────────────
