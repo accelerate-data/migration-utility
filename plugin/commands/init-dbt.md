@@ -14,7 +14,13 @@ Scaffold a complete dbt project for the migration target, generate sources from 
 1. Check that `manifest.json` exists in the DDL artifacts directory (the project root or `$ARGUMENTS` if a path was provided). If missing, stop and tell the user to run `/setup-ddl` first.
 2. Read `manifest.json` to confirm `technology` and `dialect` — this describes the **source** system, not the target.
 3. Confirm a `catalog/tables/` directory exists with at least one `.json` file. If empty, warn that `sources.yml` will be empty.
-4. Read every `.json` file in `catalog/tables/` and check `scoping.status`. Every table must have a status of either `resolved` or `no_writer_found`. If any table has `ambiguous_multi_writer`, `error`, or no `scoping` section at all, stop and list the unresolved tables. Tell the user to run `/analyzing-table <table>` on each one before proceeding.
+4. Verify all tables have completed scoping by running:
+
+   ```bash
+   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" generate-sources --strict
+   ```
+
+   If exit code is 1 (incomplete scoping), the JSON output lists the unresolved tables. Stop and tell the user to run `/analyzing-table <table>` on each one before proceeding.
 
 ## Step 2: Ask for target platform
 
@@ -175,22 +181,13 @@ packages:
 
 ## Step 4: Generate sources.yml
 
-Read every `.json` file in `catalog/tables/`. Only include tables where `scoping.status == "no_writer_found"` — these are true external sources with no procedure writing to them. Tables with `scoping.status == "resolved"` are procedure targets and will become dbt models (referenced via `{{ ref() }}`), so they must not appear in sources.
+Run the deterministic CLI to generate and write `sources.yml`:
 
-Group the remaining tables by schema. If a schema has no tables after filtering, omit it entirely. Generate `models/staging/sources.yml`:
-
-```yaml
-version: 2
-
-sources:
-  - name: <schema_name>
-    description: "Source tables from <schema_name> schema"
-    tables:
-      - name: <table_name>
-        description: "<table_name> from source system"
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" generate-sources --write --strict
 ```
 
-Each table file has `schema` and `name` fields (or derive from filename `<schema>.<name>.json`).
+This reads every `.json` file in `catalog/tables/`, includes only tables where `scoping.status == "no_writer_found"` (true external sources), and excludes tables with `scoping.status == "resolved"` (procedure targets that become dbt models via `{{ ref() }}`). The output JSON reports `included`, `excluded`, and `incomplete` table lists plus the written file path.
 
 ## Step 5: Install and validate
 
@@ -265,7 +262,7 @@ Next steps:
 If `dbt/` already exists:
 
 1. Confirm `dbt_project.yml` exists — that is sufficient to detect an existing project.
-2. Regenerate `sources.yml` from current catalog, applying the same `scoping.status == "no_writer_found"` filter (may have new tables or updated scoping results from a re-run of setup-ddl + analyzing-table).
+2. Regenerate `sources.yml` by re-running `generate-sources --write --strict` (may have new tables or updated scoping results from a re-run of setup-ddl + analyzing-table).
 3. Do not overwrite `profiles.yml` (user may have added real credentials).
 4. Do not overwrite existing model files in `models/staging/` or `models/marts/`.
 5. Re-run `dbt deps` and `dbt compile`.
