@@ -39,6 +39,7 @@ module.exports = (output, context) => {
   const expectTestIntegrationPassed = String(context.vars.expect_test_integration_passed || '').toLowerCase();
   const expectedFeedbackTerms = normalizeTerms(context.vars.expected_feedback_terms);
   const expectedIssueTerms = normalizeTerms(context.vars.expected_issue_terms);
+  const expectedFeedbackCodes = normalizeTerms(context.vars.expected_feedback_codes);
 
   if (expectedStatuses.length > 0 && !expectedStatuses.includes(String(review.status || '').toLowerCase())) {
     return {
@@ -69,10 +70,31 @@ module.exports = (output, context) => {
     }
   }
 
-  const feedbackText = JSON.stringify(review.feedback_for_model_generator || []).toLowerCase();
+  // Validate feedback item structure when feedback is present
+  const feedbackItems = review.feedback_for_model_generator || [];
+  for (const item of feedbackItems) {
+    if (typeof item !== 'object' || !item.code || typeof item.ack_required !== 'boolean') {
+      return { pass: false, score: 0, reason: `feedback_for_model_generator items must be objects with 'code' and 'ack_required' fields; got: ${JSON.stringify(item)}` };
+    }
+    if (item.severity === 'info' && item.ack_required !== false) {
+      return { pass: false, score: 0, reason: `feedback item with severity='info' must have ack_required=false; got: ${JSON.stringify(item)}` };
+    }
+    if ((item.severity === 'error' || item.severity === 'warning') && item.ack_required !== true) {
+      return { pass: false, score: 0, reason: `feedback item with severity='${item.severity}' must have ack_required=true; got: ${JSON.stringify(item)}` };
+    }
+  }
+
+  const feedbackText = JSON.stringify(feedbackItems).toLowerCase();
   for (const term of expectedFeedbackTerms) {
     if (!feedbackText.includes(term)) {
       return { pass: false, score: 0, reason: `Expected feedback term '${term}' not found in model-review feedback` };
+    }
+  }
+
+  const feedbackCodes = feedbackItems.map(i => String(i.code || '').toLowerCase());
+  for (const code of expectedFeedbackCodes) {
+    if (!feedbackCodes.includes(code)) {
+      return { pass: false, score: 0, reason: `Expected feedback code '${code}' not found in feedback items; got: [${feedbackCodes.join(', ')}]` };
     }
   }
 

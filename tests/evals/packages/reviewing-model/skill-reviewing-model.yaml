@@ -75,3 +75,26 @@ tests:
       target_table: "silver.DimCurrency"
       writer: "silver.usp_load_DimCurrency"
       expected_status: "approved,approved_with_warnings,revision_requested"
+
+  # --- VU-877: stable codes, tiered feedback, ack_required ---
+
+  - description: "standards-codes — DimProduct staging model missing ephemeral materialization flagged with MOD_004"
+    vars:
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      expected_status: "approved,approved_with_warnings,revision_requested"
+      expect_standards_passed: "false"
+      expected_feedback_codes: "MOD_004"
+
+  - description: "standards-codes — any model missing _dbt_run_id flagged with MDL_005"
+    vars:
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_status: "approved,approved_with_warnings,revision_requested"
+      expected_feedback_codes: "MDL_005"
+
+  - description: "feedback-structure — all feedback items are objects with code and ack_required"
+    vars:
+      target_table: "silver.DimCustomer"
+      writer: "silver.usp_load_DimCustomer_Full"
+      expected_status: "approved,approved_with_warnings,revision_requested"

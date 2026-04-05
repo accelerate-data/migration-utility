@@ -22,7 +22,22 @@
     },
     "feedback_for_model_generator": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "object",
+        "required": ["code", "message", "severity", "ack_required"],
+        "properties": {
+          "code": { "type": "string", "description": "Stable machine-readable code from a reference file (e.g. SQL_001)." },
+          "message": { "type": "string" },
+          "severity": { "type": "string", "enum": ["error", "warning", "info"] },
+          "ack_required": { "type": "boolean", "description": "true for error/warning; false for info." }
+        },
+        "additionalProperties": false
+      }
+    },
+    "acknowledgements": {
+      "type": "object",
+      "description": "Present on resubmission only. Maps feedback code to 'fixed' or 'ignored: <reason>'.",
+      "additionalProperties": { "type": "string" }
     },
     "warnings": {
       "type": "array",

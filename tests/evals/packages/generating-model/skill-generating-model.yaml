@@ -169,3 +169,12 @@ tests:
       writer: "silver.usp_load_InsertSelectTarget"
       expected_model_terms: "ref('stg_insertselecttarget'),materialized='table'"
       expected_stg_files: "stg_insertselecttarget"
+
+
+  # ── style compliance ─────────────────────────────────────────
+  - description: "style-compliance — generated model uses lowercase keywords and snake_case names"
+    vars:
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_model_terms: "with,select,from,materialized="
+      forbidden_model_terms: "SELECT,FROM,INSERT,UPDATE"
