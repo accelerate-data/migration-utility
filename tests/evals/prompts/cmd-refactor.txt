@@ -1,0 +1,13 @@
+You are running in a DDL project directory at {{fixture_path}}.
+
+Read the command instructions at plugin/commands/refactor.md and execute the refactor command for tables: {{target_tables}}.
+
+Wherever the command references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead.
+
+IMPORTANT: Skip worktree creation and git operations — operate directly on the fixture directory. Skip sandbox `compare-sql` — perform logical equivalence checks instead. Skip PR creation.
+
+For each table, run the /refactoring-sql skill (sequentially since sub-agents are not available in eval). Write results to `.migration-runs/` and present the final summary.
+
+After ALL tool calls are complete, present the command summary showing per-table status.
+
+Do not ask for user confirmation — proceed automatically.

@@ -17,6 +17,8 @@
     "eval:cmd-generate-model": "npm run prerestore && promptfoo eval --no-cache -c packages/cmd-generate-model/cmd-generate-model.yaml; npm run postrestore",
     "eval:cmd-generate-tests": "npm run prerestore && promptfoo eval --no-cache -c packages/cmd-generate-tests/cmd-generate-tests.yaml; npm run postrestore",
     "eval:cmd-status": "npm run prerestore && promptfoo eval --no-cache -c packages/cmd-status/cmd-status.yaml; npm run postrestore",
+    "eval:refactoring-sql": "npm run prerestore && promptfoo eval --no-cache -c packages/refactoring-sql/skill-refactoring-sql.yaml; npm run postrestore",
+    "eval:cmd-refactor": "npm run prerestore && promptfoo eval --no-cache -c packages/cmd-refactor/cmd-refactor.yaml; npm run postrestore",
     "view": "promptfoo view"
   },
   "dependencies": {

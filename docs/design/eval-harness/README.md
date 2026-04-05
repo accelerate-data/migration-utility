@@ -50,6 +50,7 @@ tests/evals/
     check-command-summary.js           # validates command orchestration summary
     check-status-output.js             # validates /status command output
     check-model-generator-input.js     # validates model-generator input manifest
+    check-refactored-sql.js            # validates refactored SQL extraction and CTE structure
     validate-candidate-writers.js      # validates candidate writers against schema
   prompts/
     skill-profiling-table.txt          # prompt template for profiling-table skill
@@ -58,10 +59,12 @@ tests/evals/
     skill-reviewing-tests.txt          # prompt template for reviewing-tests skill
     skill-reviewing-model.txt          # prompt template for reviewing-model skill
     skill-analyzing-table.txt            # prompt template for analyzing-table skill
+    skill-refactoring-sql.txt          # prompt template for refactoring-sql skill
     cmd-scope.txt                      # prompt template for /scope command
     cmd-profile.txt                    # prompt template for /profile command
     cmd-generate-model.txt             # prompt template for /generate-model command
     cmd-generate-tests.txt             # prompt template for /generate-tests command
+    cmd-refactor.txt                   # prompt template for /refactor command
   packages/
     profiler/
       skill-profiling-table.yaml       # 5 scenarios
@@ -112,6 +115,7 @@ Test individual skills in isolation (single-table, no orchestration).
 | `reviewing-tests` | `/reviewing-tests` | 7 |
 | `reviewing-model` | `/reviewing-model` | 8 |
 | `analyzing-table` | `/analyzing-table` | 8 (validates both scoping decisions and procedure catalog) |
+| `refactoring-sql` | `/refactoring-sql` | 10 (DML extraction + CTE restructuring) |
 
 ### Command packages
 
@@ -124,6 +128,7 @@ Test batch command orchestration (multi-table dispatch, error handling, review l
 | `cmd-generate-model` | `/generate-model` | 3 |
 | `cmd-generate-tests` | `/generate-tests` | 3 |
 | `cmd-status` | `/status` | 4 |
+| `cmd-refactor` | `/refactor` | 4 |
 
 Use `promptfooconfig.yaml` for the full suite (skill scenarios only). Command packages are run individually via `npm run eval:cmd-*`.
 
@@ -149,6 +154,7 @@ npm run eval:test-generator
 npm run eval:test-review
 npm run eval:code-review
 npm run eval:analyzing-table
+npm run eval:refactoring-sql
 
 # Command packages (14 scenarios total, run individually)
 npm run eval:cmd-scope
@@ -156,6 +162,7 @@ npm run eval:cmd-profile
 npm run eval:cmd-generate-model
 npm run eval:cmd-generate-tests
 npm run eval:cmd-status
+npm run eval:cmd-refactor
 
 # View results in browser
 npm run view
@@ -253,6 +260,21 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 | exec-concat — ExecConcatTarget | silver.ExecConcatTarget | usp_scope_ExecConcat |
 | linked-server-exec — LinkedServerExecTarget | silver.LinkedServerExecTarget | (no writer — skip) |
 
+### Refactoring-sql (10 scenarios)
+
+| Scenario | Target table | Pattern | Key assertion |
+|---|---|---|---|
+| insert-select | silver.InsertSelectTarget | INSERT...SELECT | Extracted SELECT + CTE refactored |
+| merge-using | silver.DimProduct | MERGE USING | USING clause extracted, import CTEs |
+| update-join | silver.UpdateJoinTarget | UPDATE SET | CASE expression in extraction |
+| delete-where | silver.DeleteWhereTarget | DELETE WHERE | Inverted to keep-rows SELECT |
+| truncate-insert | silver.DimCustomer | TRUNCATE+INSERT | Full reload extracted and CTEd |
+| union-all | silver.UnionAllTarget | UNION ALL | Preserved in both outputs |
+| window-functions | silver.FactInternetSales | Window functions | COUNT OVER preserved |
+| outer-apply | silver.DimCustomer | OUTER APPLY | Rewritten in CTEs |
+| grouping-sets | silver.GroupingSetsTarget | GROUPING SETS | Preserved in CTEs |
+| pivot | silver.PivotTarget | PIVOT | Handled in CTE restructuring |
+
 ### Command: scope (2 scenarios)
 
 | Scenario | Tables | Key assertion |
@@ -282,6 +304,15 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 | happy-path — both generate specs | InsertSelectTarget + UpdateJoinTarget | Summary shows 2 ok |
 | review-revision cycle | CorrelatedSubqueryTarget | Review loop invoked, final status ok |
 | error+clean — no scoping | DimProduct + InsertSelectTarget | SCOPING_NOT_COMPLETED for DimProduct, InsertSelectTarget ok |
+
+### Command: refactor (4 scenarios)
+
+| Scenario | Tables | Key assertion |
+|---|---|---|
+| happy-path — both refactor | InsertSelectTarget + UpdateJoinTarget | Summary shows 2 ok |
+| error+clean — no test-spec | DimProduct + InsertSelectTarget | TEST_SPEC_NOT_FOUND for DimProduct |
+| guard-fail — no profile | DimGeography | PROFILE_NOT_COMPLETED |
+| partial-ok — dynamic SQL | DimCurrency | Partial status acceptable |
 
 ### Command: status (4 scenarios)
 
@@ -321,6 +352,7 @@ Review assertions and standalone schemas use **full-schema validation** since th
 | `check-test-review.js` | `test_review_output.json` | Full schema |
 | `check-command-summary.js` | `scoping_summary.json` | Full schema (when summary has `schema_version`) |
 | `check-status-output.js` | `dry_run_output.json` | Full schema (per dry-run file) |
+| `check-refactored-sql.js` | `table_catalog.json` | Section: `properties/refactor` |
 | `check-model-generator-input.js` | `model_generator_input.json` | Full schema |
 | `validate-candidate-writers.js` | `candidate_writers.json` | Full schema |
 
@@ -463,8 +495,8 @@ providers:
 
 Each scenario invokes Claude with tool use. At current pricing, expect roughly $0.10-0.50 per scenario depending on agent complexity and turn count. Command evals are more expensive per scenario (~$0.50-1.00) due to multi-table orchestration and review loops.
 
-- Full skill suite (35 scenarios): ~$5-18 per run
-- All command evals (10 scenarios): ~$5-10 per run
+- Full skill suite (45 scenarios): ~$5-22 per run
+- All command evals (14 scenarios): ~$5-14 per run
 - Single skill package: ~$1-5 per run
 - Single command package: ~$1-3 per run
 
