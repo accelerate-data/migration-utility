@@ -1,3 +1,5 @@
 node_modules/
 output/
 .promptfoo/
+fixtures/migration-test/test-review-results/
+fixtures/migration-test/model-review-results/

@@ -1,3 +1,6 @@
+const fs = require('fs');
+const path = require('path');
+
 function extractJsonObject(output) {
   const text = String(output || '').trim();
   const fencedMatches = Array.from(text.matchAll(/```json\s*([\s\S]*?)```/gi));
@@ -21,11 +24,28 @@ function normalizeTerms(value) {
 }
 
 module.exports = (output, context) => {
+  const fixturePath = context.vars.fixture_path;
+  const table = String(context.vars.target_table || '').toLowerCase();
+  const repoRoot = path.resolve(__dirname, '..', '..', '..');
+  const resultPath = path.resolve(repoRoot, fixturePath, 'test-review-results', `${table}.json`);
+
   let review;
   try {
     review = extractJsonObject(output);
-  } catch (error) {
-    return { pass: false, score: 0, reason: error.message };
+  } catch (_) {
+    // fall through to file-based lookup
+  }
+
+  if (fs.existsSync(resultPath)) {
+    try {
+      review = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
+    } catch (error) {
+      return { pass: false, score: 0, reason: `Failed to parse review artifact: ${error.message}` };
+    }
+  }
+
+  if (!review) {
+    return { pass: false, score: 0, reason: 'No review JSON found in output or artifact file' };
   }
 
   const expectedStatus = context.vars.expected_status;
