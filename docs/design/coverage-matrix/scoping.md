@@ -53,7 +53,7 @@ Current automated statement coverage for the scoping phase. The phase boundary h
 | 52 | `EXEC proc` with `OUTPUT` | Yes | N/A | N/A |
 | 53 | `EXECUTE proc` keyword form | Yes | N/A | N/A |
 | 54 | `EXEC @rc = proc` | Yes | N/A | N/A |
-| 57 | Static `sp_executesql` | Gap | N/A | N/A |
+| 57 | Static `sp_executesql` | Yes | N/A | N/A |
 | 45 | `IF / ELSE` control flow | Yes | N/A | N/A |
 | 46 | `TRY / CATCH` | Yes | N/A | N/A |
 | 47 | `WHILE` loop | Yes | N/A | N/A |

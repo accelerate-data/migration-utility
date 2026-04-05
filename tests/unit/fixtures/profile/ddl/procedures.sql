@@ -55,3 +55,24 @@ BEGIN
     VALUES (@message, GETDATE());
 END
 GO
+
+CREATE PROCEDURE dbo.usp_truncate_insert_dim_product
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    TRUNCATE TABLE silver.DimProduct;
+
+    INSERT INTO silver.DimProduct (
+        product_key, product_name, category, subcategory, brand, load_date
+    )
+    SELECT
+        p.product_id,
+        p.product_name,
+        p.category,
+        p.subcategory,
+        p.brand,
+        GETDATE()
+    FROM bronze.ProductStaging p;
+END
+GO

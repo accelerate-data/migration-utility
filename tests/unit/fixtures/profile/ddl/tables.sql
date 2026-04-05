@@ -19,3 +19,13 @@ CREATE TABLE silver.DimCustomer (
     region NVARCHAR(50) NULL
 )
 GO
+
+CREATE TABLE silver.DimProduct (
+    product_key BIGINT NOT NULL,
+    product_name NVARCHAR(100) NOT NULL,
+    category NVARCHAR(50) NULL,
+    subcategory NVARCHAR(50) NULL,
+    brand NVARCHAR(50) NULL,
+    load_date DATETIME2 NOT NULL
+)
+GO

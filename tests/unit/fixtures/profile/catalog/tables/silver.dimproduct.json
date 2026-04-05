@@ -1,0 +1,40 @@
+{
+  "schema": "silver",
+  "name": "DimProduct",
+  "columns": [
+    { "name": "product_key", "sql_type": "BIGINT", "is_nullable": false, "is_identity": false },
+    { "name": "product_name", "sql_type": "NVARCHAR(100)", "is_nullable": false, "is_identity": false },
+    { "name": "category", "sql_type": "NVARCHAR(50)", "is_nullable": true, "is_identity": false },
+    { "name": "subcategory", "sql_type": "NVARCHAR(50)", "is_nullable": true, "is_identity": false },
+    { "name": "brand", "sql_type": "NVARCHAR(50)", "is_nullable": true, "is_identity": false },
+    { "name": "load_date", "sql_type": "DATETIME2", "is_nullable": false, "is_identity": false }
+  ],
+  "primary_keys": [],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "dbo",
+          "name": "usp_truncate_insert_dim_product",
+          "is_selected": false,
+          "is_updated": true,
+          "is_insert_all": false
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  }
+}

@@ -441,3 +441,18 @@ def test_write_invalid_profile_json_arg_exit_2() -> None:
         assert result.exit_code == 2
     finally:
         tmp.cleanup()
+
+
+# ── Context: TRUNCATE+INSERT pattern (statement 6) ──────────────────────────
+
+
+def test_context_truncate_insert_proc_body(assert_valid_schema) -> None:
+    """Context for a TRUNCATE+INSERT procedure includes both statements."""
+    result = profile.run_context(
+        _PROFILE_FIXTURES, "silver.DimProduct", "dbo.usp_truncate_insert_dim_product",
+    )
+    assert_valid_schema(result, "profile_context.json")
+    assert result["table"] == "silver.dimproduct"
+    assert result["writer"] == "dbo.usp_truncate_insert_dim_product"
+    assert "TRUNCATE TABLE silver.DimProduct" in result["proc_body"]
+    assert "INSERT INTO silver.DimProduct" in result["proc_body"]
