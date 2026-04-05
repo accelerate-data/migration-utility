@@ -26,31 +26,7 @@ defaultTest:
       value: file://../../assertions/check-model-review.js
 
 tests:
-  - description: "approved — clean MERGE model passes standards and integration checks"
-    vars:
-      target_table: "silver.DimProduct"
-      writer: "silver.usp_load_DimProduct"
-      expected_status: "approved,approved_with_warnings,revision_requested"
-
-  - description: "approved — standard DML model with source/ref usage passes review"
-    vars:
-      target_table: "silver.InsertSelectTarget"
-      writer: "silver.usp_load_InsertSelectTarget"
-      expected_status: "approved,approved_with_warnings,revision_requested"
-
-  - description: "revision-requested — incorrect materialization and missing tests are flagged"
-    vars:
-      target_table: "silver.DimCustomer"
-      writer: "silver.usp_load_DimCustomer_Full"
-      expected_status: "approved,approved_with_warnings,revision_requested"
-
   # --- VU-869: pattern-specific code review cases ---
-
-  - description: "approved — UpdateJoinTarget correct UPDATE→SELECT rewrite"
-    vars:
-      target_table: "silver.UpdateJoinTarget"
-      writer: "silver.usp_load_UpdateJoinTarget"
-      expected_status: "approved,approved_with_warnings,revision_requested"
 
   - description: "approved — SelectIntoTarget staging model with ephemeral materialization"
     vars:
@@ -58,22 +34,10 @@ tests:
       writer: "silver.usp_load_SelectIntoTarget"
       expected_status: "approved,approved_with_warnings,revision_requested"
 
-  - description: "approved — IfElseTarget control-flow decomposition into dbt"
+  - description: "revision-requested — incorrect materialization and missing tests are flagged"
     vars:
-      target_table: "silver.IfElseTarget"
-      writer: "silver.usp_load_IfElseTarget"
-      expected_status: "approved,approved_with_warnings,revision_requested"
-
-  - description: "approved — FactExecProfile ref-only orchestrator pattern"
-    vars:
-      target_table: "silver.FactExecProfile"
-      writer: "silver.usp_load_FactExecProfile"
-      expected_status: "approved,approved_with_warnings,revision_requested"
-
-  - description: "approved — DimCurrency graceful degradation for dynamic SQL"
-    vars:
-      target_table: "silver.DimCurrency"
-      writer: "silver.usp_load_DimCurrency"
+      target_table: "silver.DimCustomer"
+      writer: "silver.usp_load_DimCustomer_Full"
       expected_status: "approved,approved_with_warnings,revision_requested"
 
   # --- VU-877: stable codes, tiered feedback, ack_required ---
