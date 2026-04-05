@@ -13,6 +13,13 @@
         "MSSQL_PORT": "1433",
         "MSSQL_DB": "AdventureWorks2022"
       }
+    },
+    "oracle": {
+      "command": "/opt/homebrew/Caskroom/sqlcl/26.1.0.086.1709/sqlcl/bin/sql",
+      "args": [
+        "-mcp",
+        "sh/sh@localhost:1521/FREEPDB1"
+      ]
     }
   }
 }

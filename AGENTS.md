@@ -21,6 +21,7 @@ Adapter files must not duplicate canonical policy unless they are adding agent-s
 |---|---|
 | Agent runtime | Claude Code CLI (`claude --plugin-dir plugin/ --agent <name>`) |
 | MCP server | genai-toolbox (HTTP mode on GH Actions, stdio locally) |
+| MCP server (Oracle) | SQLcl `-mcp` (stdio, local only) |
 | Runtime | GitHub Actions (headless execution) |
 
 **Source scope:** Fabric Warehouse (T-SQL stored procedures via ADF pipelines). Lakehouse/Spark is post-MVP.
@@ -113,6 +114,26 @@ Use these repo-local skills when requests match:
 - `.claude/skills/close-linear-issue/SKILL.md` — close/complete/ship/merge a Linear issue
 - `.claude/skills/shadcn-ui/SKILL.md` — shadcn/ui component work
 - `.claude/skills/explaining-code/SKILL.md` — explain code with diagrams/teaching-style breakdowns
+
+## MCP Servers
+
+### SQL Server (mssql)
+
+Configured in `.mcp.json` via genai-toolbox. Uses `SA_PASSWORD` from `.env`. Tool: `mcp__mssql__mssql-execute-sql`.
+
+### Oracle
+
+Configured in `.mcp.json` via SQLcl `-mcp`. Requires Java 11+ and SQLcl installed locally (`brew install --cask sqlcl`).
+
+The Oracle MCP server does **not** auto-connect on startup. At the beginning of each session, run:
+
+```text
+mcp__oracle__run-sqlcl: connect sh/sh@localhost:1521/FREEPDB1
+```
+
+After connecting, use `mcp__oracle__run-sql` for queries and `mcp__oracle__schema-information` for metadata.
+
+Setup: see `docs/reference/setup-oracle/README.md`.
 
 ## Logging
 

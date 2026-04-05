@@ -13,14 +13,22 @@ Container conventions used by this repo:
 - Oracle image: `container-registry.oracle.com/database/free:latest`
 - Pluggable database: `FREEPDB1`
 
+## Prerequisites
+
+| Tool | Install | Required for |
+|---|---|---|
+| Docker Desktop | [docker.com](https://www.docker.com/products/docker-desktop/) | Container |
+| uv | `curl -LsSf https://astral.sh/uv/install.sh \| sh` | CSV data loader |
+| Java 11+ | `brew install --cask oracle-jdk` | SQLcl MCP server |
+| SQLcl | `brew install --cask sqlcl` | MCP server (optional, for agent access) |
+
 ## One-time setup (per machine)
 
 - Install Docker Desktop and make sure it is running.
 
-- Run the setup script:
+- Run the setup script from the repo root:
 
 ```bash
-cd /Users/hbanerjee/src/migration-utility
 ORACLE_PWD='P@ssw0rd123' ./scripts/setup-oracle.sh
 ```
 
@@ -95,6 +103,18 @@ The setup script reads:
   - Database is still initializing. Wait for `DATABASE IS READY TO USE` in logs.
 - `ORA-01017: invalid username/password`:
   - SH password is `sh`. SYS password is your `ORACLE_PWD`.
+
+## MCP server (agent access)
+
+The Oracle MCP server is configured in `.mcp.json` using SQLcl's `-mcp` mode. It requires Java 11+ and SQLcl installed on the host (not in the container).
+
+The server does not auto-connect. At the start of each Claude Code session, connect via:
+
+```text
+mcp__oracle__run-sqlcl: connect sh/sh@localhost:1521/FREEPDB1
+```
+
+Then use `mcp__oracle__run-sql` for queries and `mcp__oracle__schema-information` for metadata.
 
 ## SH schema tables
 
