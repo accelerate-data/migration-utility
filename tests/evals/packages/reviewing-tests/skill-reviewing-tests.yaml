@@ -67,11 +67,11 @@ tests:
       writer: "silver.usp_load_IfElseTarget"
       expected_status: "revision_requested"
 
-  - description: "approved — FactExecProfile covers transitive writer chain"
+  - description: "revision-requested — FactExecProfile catalog/DDL column mismatch and missing source catalog"
     vars:
       target_table: "silver.FactExecProfile"
       writer: "silver.usp_load_FactExecProfile"
-      expected_status: "approved"
+      expected_status: "revision_requested"
       min_covered_branches: 1
 
   - description: "approved — DimCurrency partial coverage with untestable dynamic SQL rationale"
