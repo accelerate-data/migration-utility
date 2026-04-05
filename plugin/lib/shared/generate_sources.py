@@ -72,9 +72,9 @@ def generate_sources(project_root: Path) -> dict[str, Any]:
             )
             continue
 
-        schema = cat.get("schema", "")
+        schema = cat.get("schema", "").lower()
         name = cat.get("name", "")
-        fqn = f"{schema.lower()}.{name.lower()}"
+        fqn = f"{schema}.{name.lower()}"
 
         scoping = cat.get("scoping") or {}
         status = scoping.get("status")
@@ -168,10 +168,15 @@ def main(
         _emit({"error": str(exc)})
         raise typer.Exit(code=2) from exc
 
-    if write:
-        result = write_sources_yml(root)
-    else:
-        result = generate_sources(root)
+    try:
+        if write:
+            result = write_sources_yml(root)
+        else:
+            result = generate_sources(root)
+    except OSError as exc:
+        logger.error("event=generate_sources_io_error error=%s", exc)
+        _emit({"error": "IO_ERROR", "message": str(exc)})
+        raise typer.Exit(code=2) from exc
 
     if strict and result["incomplete"]:
         _emit({
