@@ -1,27 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-
-function extractJsonObject(output) {
-  const text = String(output || '').trim();
-  const fencedMatches = Array.from(text.matchAll(/```json\s*([\s\S]*?)```/gi));
-  if (fencedMatches.length > 0) {
-    return JSON.parse(fencedMatches.at(-1)[1]);
-  }
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start === -1 || end === -1 || end <= start) {
-    throw new Error('No JSON object found in output');
-  }
-  return JSON.parse(text.slice(start, end + 1));
-}
-
-function normalizeTerms(value) {
-  if (!value) return [];
-  return String(value)
-    .split(',')
-    .map((term) => term.trim().toLowerCase())
-    .filter(Boolean);
-}
+const { validateSchema, extractJsonObject, normalizeTerms } = require('./schema-helpers');
 
 module.exports = (output, context) => {
   const fixturePath = context.vars.fixture_path;
@@ -46,6 +25,26 @@ module.exports = (output, context) => {
 
   if (!review) {
     return { pass: false, score: 0, reason: 'No review JSON found in output or artifact file' };
+  }
+
+  // Schema validation gate
+  const schemaResult = validateSchema(review, 'test_review_output.json');
+  if (!schemaResult.valid) {
+    return { pass: false, score: 0, reason: `Test review schema validation failed: ${schemaResult.errors}` };
+  }
+
+  // Cross-artifact: item_id should match target_table
+  if (review.item_id && table) {
+    const reviewItem = review.item_id.toLowerCase();
+    const tableNorm = table.replace(/^[^.]+\./, '');
+    const reviewItemShort = reviewItem.replace(/^[^.]+\./, '');
+    if (reviewItemShort !== tableNorm && reviewItem !== table) {
+      return {
+        pass: false,
+        score: 0,
+        reason: `Cross-artifact mismatch: review.item_id='${review.item_id}' vs target_table='${context.vars.target_table}'`
+      };
+    }
   }
 
   const expectedStatus = context.vars.expected_status;

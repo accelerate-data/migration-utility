@@ -11,14 +11,7 @@
 // }
 const fs = require('fs');
 const path = require('path');
-
-function normalizeTerms(value) {
-  if (!value) return [];
-  return String(value)
-    .split(',')
-    .map((term) => term.trim().toLowerCase())
-    .filter(Boolean);
-}
+const { normalizeTerms } = require('./schema-helpers');
 
 module.exports = (output, context) => {
   const fixturePath = context.vars.fixture_path;

@@ -15,14 +15,7 @@
 // }
 const fs = require('fs');
 const path = require('path');
-
-function normalizeTerms(value) {
-  if (!value) return [];
-  return String(value)
-    .split(',')
-    .map((term) => term.trim().toLowerCase())
-    .filter(Boolean);
-}
+const { validateSchema, normalizeTerms } = require('./schema-helpers');
 
 module.exports = (output, context) => {
   const fixturePath = context.vars.fixture_path;
@@ -48,6 +41,16 @@ module.exports = (output, context) => {
     catalog = JSON.parse(fs.readFileSync(catalogFile, 'utf8'));
   } catch (e) {
     return { pass: false, score: 0, reason: `Failed to parse catalog: ${e.message}` };
+  }
+
+  // Schema validation of resolved statements
+  const schemaResult = validateSection(
+    catalog.statements || [],
+    'procedure_catalog.json',
+    'properties/statements'
+  );
+  if (!schemaResult.valid) {
+    return { pass: false, score: 0, reason: `Procedure statements schema validation failed: ${schemaResult.errors}` };
   }
 
   // Check statements exist
