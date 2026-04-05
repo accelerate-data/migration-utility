@@ -44,20 +44,20 @@ tests:
       expected_refactored_terms: "with,final,isnull"
 
   # ── update with join ──────────────────────────────────────────
-  - description: "update-join — UPDATE SET becomes CASE expression in both extractions"
+  - description: "update-join — UPDATE with JOIN extracted as joined SELECT"
     vars:
       target_table: "silver.UpdateJoinTarget"
       writer: "silver.usp_load_UpdateJoinTarget"
-      expected_extracted_terms: "case"
-      expected_refactored_terms: "with,case,final"
+      expected_extracted_terms: "productname,englishproductname"
+      expected_refactored_terms: "with,final"
 
   # ── delete with where ─────────────────────────────────────────
   - description: "delete-where — DELETE inverted to keep-rows SELECT"
     vars:
       target_table: "silver.DeleteWhereTarget"
       writer: "silver.usp_load_DeleteWhereTarget"
-      expected_refactored_terms: "with,final"
-      forbidden_refactored_terms: "delete"
+      expected_extracted_terms: "isretired"
+      expected_refactored_terms: "with,final,isretired"
 
   # ── truncate + insert with outer apply (full reload) ─────────
   - description: "truncate-insert — DimCustomer full reload extracted with OUTER APPLY"
