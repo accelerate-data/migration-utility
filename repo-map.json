@@ -88,7 +88,7 @@
     },
     "migration_skills": {
       "path": "plugin/skills/",
-      "description": "Skill definitions: listing-objects/ (catalog browsing — list objects by type), analyzing-table/ (table scoping — writer discovery, procedure analysis via reference, statement resolution, catalog persistence), generating-model/ (dbt model generation from stored procedures), profiling-table/ (interactive single-table profiling with approval gates), generating-tests/ (single-table test generation with ground truth capture), reviewing-tests/ (LLM quality gate for test specs), refactoring-sql/ (CTE restructuring with equivalence audit)."
+      "description": "Skill definitions: listing-objects/ (catalog browsing — list objects by type), analyzing-table/ (table scoping — writer discovery, procedure analysis via reference, statement resolution, catalog persistence), generating-model/ (dbt model generation from refactored SQL, staging + mart split), profiling-table/ (interactive single-table profiling with approval gates), generating-tests/ (single-table test generation with ground truth capture), reviewing-tests/ (LLM quality gate for test specs), reviewing-model/ (dbt model review with structured feedback, stable reference codes, and acknowledgements protocol; references/ contains style guidelines), refactoring-sql/ (CTE restructuring with equivalence audit)."
     },
     "migration_commands": {
       "path": "plugin/commands/",
