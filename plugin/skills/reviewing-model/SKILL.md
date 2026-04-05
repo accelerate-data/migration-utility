@@ -49,13 +49,14 @@ Read the output JSON. It contains:
 - `materialization` — derived materialization
 - `columns` — target table column list
 - `source_tables` — tables read by the writer
+- `refactored_sql` — intermediate refactored SQL (present but **not used** — see below)
 
 Also read:
 
 - The generated model SQL and schema YAML from the dbt project.
 - The approved test spec from `test-specs/<item_id>.json`.
 
-Do NOT use `refactored_sql` — the reviewer validates the generated model directly against the original proc DDL (`proc_body`).
+Do NOT use `refactored_sql`. It is an intermediate artifact produced by the refactor stage. The reviewer validates the generated dbt model directly against the original proc DDL (`proc_body`). Ground truth is always the original proc.
 
 ## Step 2: Check correctness
 
@@ -98,7 +99,7 @@ Evaluate the generated model SQL and schema YAML against the reference files. Ea
 |------|-----------------|
 | `error` | Must fix before approval |
 | `warning` | Model-generator must respond with `fixed` or `ignored: <reason>` |
-| `info` | Model-generator must respond with `fixed` or `ignored: <reason>`; ignoring is always acceptable |
+| `info` | Acknowledgement optional; ignoring is always acceptable |
 
 ## Step 5: Verdict
 
@@ -152,6 +153,12 @@ Emit the following JSON structure as the skill's output:
       "message": "Final CTE must be named 'final' — currently named 'output'",
       "severity": "error",
       "ack_required": true
+    },
+    {
+      "code": "SQL_013",
+      "message": "Line 12 exceeds 80 characters",
+      "severity": "info",
+      "ack_required": false
     }
   ],
   "acknowledgements": {
@@ -185,6 +192,8 @@ Emit the following JSON structure as the skill's output:
   "ack_required": true
 }
 ```
+
+`ack_required` is `true` for `error` and `warning` severity; `false` for `info` severity.
 
 `acknowledgements` is present on resubmission only — a flat map of `{ "<code>": "fixed" | "ignored: <reason>" }`.
 

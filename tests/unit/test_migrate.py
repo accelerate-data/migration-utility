@@ -638,8 +638,8 @@ def test_load_refactored_sql_returns_sql_when_status_ok(tmp_path: Path) -> None:
     assert result == "SELECT 1"
 
 
-def test_load_refactored_sql_raises_when_missing(tmp_path: Path) -> None:
-    """Catalog without refactor section raises CatalogFileMissingError."""
+def test_load_refactored_sql_returns_none_when_refactor_section_absent(tmp_path: Path) -> None:
+    """Catalog without refactor section returns None (guard enforces presence at runtime)."""
     table_dir = tmp_path / "catalog" / "tables"
     table_dir.mkdir(parents=True)
     (tmp_path / "manifest.json").write_text("{}")
@@ -648,5 +648,18 @@ def test_load_refactored_sql_raises_when_missing(tmp_path: Path) -> None:
         "name": "mytable",
     }))
 
-    with pytest.raises(CatalogFileMissingError):
-        _load_refactored_sql(tmp_path, "silver.mytable")
+    assert _load_refactored_sql(tmp_path, "silver.mytable") is None
+
+
+def test_load_refactored_sql_returns_none_when_refactored_sql_field_absent(tmp_path: Path) -> None:
+    """Refactor section present but refactored_sql field missing returns None."""
+    table_dir = tmp_path / "catalog" / "tables"
+    table_dir.mkdir(parents=True)
+    (tmp_path / "manifest.json").write_text("{}")
+    (table_dir / "silver.mytable.json").write_text(json.dumps({
+        "schema": "silver",
+        "name": "mytable",
+        "refactor": {"status": "partial"},
+    }))
+
+    assert _load_refactored_sql(tmp_path, "silver.mytable") is None

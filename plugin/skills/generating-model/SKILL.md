@@ -120,7 +120,9 @@ where <watermark_column> > (select max(<watermark_column>) from {{ this }})
 {% endif %}
 ```
 
-For snapshot models, generate a dbt snapshot block instead of a model file. Place the file in `snapshots/` (not `models/staging/`):
+For snapshot models, generate a dbt snapshot block instead of a model file. Place the file in `snapshots/` (not `models/staging/`). The snapshot file replaces the `.sql` model — do not generate both.
+
+**When the profile has a watermark column** — use `strategy='timestamp'`:
 
 ```sql
 {% snapshot <model_name>_snapshot %}
@@ -137,7 +139,24 @@ select * from {{ source('<source_name>', '<table_name>') }}
 {% endsnapshot %}
 ```
 
-If the profile has no watermark column, use `strategy='check'` with `check_cols='all'` (or a specific column list if the profile identifies mutable columns). The snapshot file replaces the `.sql` model — do not generate both.
+**When the profile has no watermark column** — use `strategy='check'`:
+
+```sql
+{% snapshot <model_name>_snapshot %}
+
+{{ config(
+    target_schema='snapshots',
+    unique_key='<pk_column>',
+    strategy='check',
+    check_cols='all',
+) }}
+
+select * from {{ source('<source_name>', '<table_name>') }}
+
+{% endsnapshot %}
+```
+
+Use a specific column list for `check_cols` if the profile identifies mutable columns.
 
 ## Step 4: Logical equivalence check
 

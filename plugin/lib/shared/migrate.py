@@ -192,18 +192,20 @@ def _load_table_columns(project_root: Path, table_fqn: str) -> list[dict[str, An
     return []
 
 
-def _load_refactored_sql(project_root: Path, table_fqn: str) -> str:
-    """Load refactored_sql from the table catalog's refactor section."""
+def _load_refactored_sql(project_root: Path, table_fqn: str) -> str | None:
+    """Load refactored_sql from the table catalog's refactor section.
+
+    Returns ``None`` when the refactor section is absent or incomplete.
+    The generating-model guard (``check_refactor_complete``) ensures this
+    field is always populated before the generating-model skill runs.
+    """
     cat = load_table_catalog(project_root, table_fqn)
     if cat is None:
-        raise CatalogFileMissingError("refactored_sql", table_fqn)
+        return None
     refactor = cat.get("refactor")
     if not refactor:
-        raise CatalogFileMissingError("refactored_sql", table_fqn)
-    refactored_sql = refactor.get("refactored_sql")
-    if not refactored_sql:
-        raise CatalogFileMissingError("refactored_sql", table_fqn)
-    return refactored_sql
+        return None
+    return refactor.get("refactored_sql") or None
 
 
 def _collect_source_tables(

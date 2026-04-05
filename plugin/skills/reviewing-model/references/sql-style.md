@@ -15,5 +15,5 @@ Source: https://docs.getdbt.com/best-practices/how-we-style/2-how-we-style-our-s
 | SQL_009 | Write explicit join types (`inner join`, `left join`) rather than bare `join` | warning |
 | SQL_010 | Favor `union all` over `union` unless duplicate removal is specifically required | warning |
 | SQL_011 | Place regular fields before aggregates and window functions in SELECT | info |
-| SQL_012 | Group by numeric references (e.g., `group by 1, 2`) rather than column names | info |
+| SQL_012 | Group by column name rather than numeric position references (e.g., `group by customer_id` not `group by 1`) | warning |
 | SQL_013 | Lines of SQL should be no longer than 80 characters | info |
