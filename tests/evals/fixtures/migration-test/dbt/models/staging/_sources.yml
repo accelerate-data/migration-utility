@@ -54,4 +54,12 @@ sources:
             data_type: timestamp
           - name: ModifiedDate
             data_type: timestamp
+      - name: currency
+        columns:
+          - name: CurrencyCode
+            data_type: nchar(3)
+          - name: CurrencyName
+            data_type: nvarchar(50)
+          - name: ModifiedDate
+            data_type: timestamp
       - name: customer
