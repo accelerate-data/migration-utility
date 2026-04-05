@@ -8,12 +8,6 @@ user-invocable: false
 argument-hint: "<schema.table>"
 ---
 
-@references/sql-style.md
-@references/cte-structure.md
-@references/model-naming.md
-@references/yaml-style.md
-@references/modularity.md
-
 # Review Model
 
 Quality gate for model generation output. Reviews the generated dbt model SQL and schema YAML for standards compliance, correctness against the original proc context, and test integration with the approved test spec. Issues a verdict: approve or kick back with specific fixes.

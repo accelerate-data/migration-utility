@@ -10,8 +10,6 @@ user-invocable: true
 argument-hint: "<schema.table>"
 ---
 
-@references/sp-migration-ref.md
-
 # Refactoring SQL
 
 Restructure a stored procedure's SQL into import/logical/final CTEs while proving the refactored SQL produces identical results. Uses two isolated sub-agents to produce independent outputs, then compares them in the sandbox. The output stays in T-SQL — dbt Jinja conversion happens in the downstream `generating-model` skill.

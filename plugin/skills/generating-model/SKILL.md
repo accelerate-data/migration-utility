@@ -10,12 +10,6 @@ user-invocable: true
 argument-hint: "<schema.table>"
 ---
 
-@references/modular-modeling-ref.md
-@../reviewing-model/references/sql-style.md
-@../reviewing-model/references/cte-structure.md
-@../reviewing-model/references/model-naming.md
-@../reviewing-model/references/yaml-style.md
-
 # Generating Model
 
 Generate a dbt model from a profiled stored procedure. Reads deterministic context from catalog, uses LLM to produce dbt-idiomatic SQL, validates logical equivalence, and writes artifacts to the dbt project. The reviewer will check the output against the same reference files loaded above.
