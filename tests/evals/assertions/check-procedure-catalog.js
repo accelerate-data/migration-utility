@@ -15,7 +15,7 @@
 // }
 const fs = require('fs');
 const path = require('path');
-const { validateSchema, normalizeTerms } = require('./schema-helpers');
+const { validateSection, normalizeTerms } = require('./schema-helpers');
 
 module.exports = (output, context) => {
   const fixturePath = context.vars.fixture_path;
