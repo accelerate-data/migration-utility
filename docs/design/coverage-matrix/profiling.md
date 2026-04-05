@@ -2,11 +2,13 @@
 
 Current automated statement coverage for the profiling phase. The phase boundary here includes profile context assembly and Promptfoo evaluation of the profiling skill.
 
+## Statement Coverage
+
 | # | Statement | Unit | Integration | Promptfoo |
 |---|---|---|---|---|
 | 1 | `INSERT ... SELECT` | Yes | N/A | Yes |
-| 2 | `UPDATE` with join | N/A | N/A | N/A |
-| 3 | `DELETE` with `WHERE` | N/A | N/A | N/A |
+| 2 | `UPDATE` with join | N/A | N/A | Yes |
+| 3 | `DELETE` with `WHERE` | N/A | N/A | Yes |
 | 4 | `DELETE TOP` | N/A | N/A | N/A |
 | 5 | `TRUNCATE TABLE` | N/A | N/A | N/A |
 | 6 | `TRUNCATE` + `INSERT` | Yes | N/A | Yes |
@@ -18,7 +20,7 @@ Current automated statement coverage for the profiling phase. The phase boundary
 | 12 | `CASE WHEN` | N/A | N/A | N/A |
 | 13 | `LEFT OUTER JOIN` | N/A | N/A | N/A |
 | 14 | `RIGHT OUTER JOIN` | N/A | N/A | N/A |
-| 15 | Subquery in `WHERE` | N/A | N/A | N/A |
+| 15 | Subquery in `WHERE` | N/A | N/A | Yes |
 | 16 | Correlated subquery | N/A | N/A | N/A |
 | 17 | Window functions | N/A | N/A | N/A |
 | 19 | `UNION ALL` | N/A | N/A | N/A |
@@ -34,8 +36,8 @@ Current automated statement coverage for the profiling phase. The phase boundary
 | 29 | Self-join | N/A | N/A | N/A |
 | 30 | Derived table in `FROM` | N/A | N/A | N/A |
 | 31 | Scalar subquery in `SELECT` | N/A | N/A | N/A |
-| 32 | `EXISTS` subquery | N/A | N/A | N/A |
-| 33 | `NOT EXISTS` subquery | N/A | N/A | N/A |
+| 32 | `EXISTS` subquery | N/A | N/A | Yes |
+| 33 | `NOT EXISTS` subquery | N/A | N/A | Yes |
 | 34 | `IN` subquery | N/A | N/A | N/A |
 | 35 | `NOT IN` subquery | N/A | N/A | N/A |
 | 36 | Recursive CTE | N/A | N/A | N/A |
@@ -54,7 +56,7 @@ Current automated statement coverage for the profiling phase. The phase boundary
 | 53 | `EXECUTE proc` keyword form | N/A | N/A | N/A |
 | 54 | `EXEC @rc = proc` | N/A | N/A | N/A |
 | 57 | Static `sp_executesql` | N/A | N/A | N/A |
-| 45 | `IF / ELSE` control flow | N/A | N/A | N/A |
+| 45 | `IF / ELSE` control flow | N/A | N/A | Yes |
 | 46 | `TRY / CATCH` | N/A | N/A | N/A |
 | 47 | `WHILE` loop | N/A | N/A | N/A |
 | 48 | Nested control flow | N/A | N/A | N/A |
@@ -71,3 +73,26 @@ Current automated statement coverage for the profiling phase. The phase boundary
 | S6 | `THROW` | N/A | N/A | N/A |
 | S7 | `BEGIN / COMMIT / ROLLBACK` | N/A | N/A | N/A |
 | S8 | `DROP / CREATE INDEX` | N/A | N/A | N/A |
+
+## Classification Coverage
+
+| Kind | Promptfoo | Scenario |
+|---|---|---|
+| `dim_non_scd` | Yes | DimCustomer (truncate-insert), DimContact (PII) |
+| `dim_scd1` | Yes | DimProduct (MERGE) |
+| `dim_scd2` | Yes | DimEmployeeSCD2 (expire-insert) |
+| `dim_junk` | Yes | DimSalesFlags (flag combos) |
+| `fact_transaction` | Yes | FactInternetSales, FactResellerSales (role-playing FKs), FactProductSalesDelta (watermark) |
+| `fact_periodic_snapshot` | Yes | FactInventorySnapshot (SnapshotDate) |
+| `fact_accumulating_snapshot` | Yes | FactOrderFulfillment (milestones) |
+| `fact_aggregate` | N/A | N/A |
+
+## Profiling Decision Coverage
+
+| Decision | Promptfoo | Scenario |
+|---|---|---|
+| PII detection (pii_actions) | Yes | DimContact (email, phone, SSN, birthdate) |
+| Role-playing FK (fk_type) | Yes | FactResellerSales (3 date keys → DimDate) |
+| Watermark (WHERE-based) | Yes | FactProductSalesDelta (ModifiedDate) |
+| Watermark (column name) | Yes | FactInventorySnapshot (SnapshotDate) |
+| Cross-artifact consistency | Yes | All scenarios (scoping.writer vs profile.writer) |

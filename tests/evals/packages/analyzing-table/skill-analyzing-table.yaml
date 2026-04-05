@@ -100,3 +100,19 @@ tests:
       expected_status: "resolved,no_writer_found"
       allow_zero_migrate: "true"
       expected_action: "skip"
+
+  # ── Tier 3: 3+ multi-writer disambiguation ────────────────
+  - description: "multi-writer-3 — DimMultiWriter 3-writer disambiguation"
+    vars:
+      target_table: "silver.DimMultiWriter"
+      target_procedure: "silver.usp_load_DimMultiWriter_Full"
+      expected_status: "resolved"
+      expected_writer: "dimmultiwriter_full"
+
+  # ── Tier 3: IF/ELSE dynamic SQL branching ─────────────────
+  - description: "if-else-dynamic — DimDynamicBranch conditional sp_executesql"
+    vars:
+      target_table: "silver.DimDynamicBranch"
+      target_procedure: "silver.usp_load_DimDynamicBranch"
+      expected_status: "resolved"
+      expected_writer: "dimdynamicbranch"

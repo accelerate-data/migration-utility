@@ -674,3 +674,342 @@ BEGIN
 END;
 
 GO
+
+
+-- ============================================================
+-- SCENARIO: SCD Type 2 — MERGE with expire + insert pattern
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_DimEmployeeSCD2
+AS
+BEGIN
+    SET NOCOUNT ON;
+    -- Expire changed rows
+    UPDATE tgt
+    SET tgt.ValidTo = GETDATE(),
+        tgt.IsCurrent = 0
+    FROM silver.DimEmployeeSCD2 AS tgt
+    INNER JOIN bronze.Employee AS src
+        ON tgt.EmployeeNaturalKey = src.NationalIDNumber
+    WHERE tgt.IsCurrent = 1
+      AND (tgt.JobTitle <> src.JobTitle OR tgt.Department <> src.MaritalStatus);
+
+    -- Insert new current rows for changed employees
+    INSERT INTO silver.DimEmployeeSCD2 (
+        EmployeeNaturalKey, FirstName, LastName, JobTitle, Department,
+        ValidFrom, ValidTo, IsCurrent)
+    SELECT
+        src.NationalIDNumber,
+        SUBSTRING(src.LoginID, CHARINDEX(N'\', src.LoginID) + 1, 50),
+        src.JobTitle,
+        src.JobTitle,
+        src.MaritalStatus,
+        GETDATE(),
+        CAST('9999-12-31' AS DATETIME2),
+        1
+    FROM bronze.Employee AS src
+    LEFT JOIN silver.DimEmployeeSCD2 AS tgt
+        ON src.NationalIDNumber = tgt.EmployeeNaturalKey
+       AND tgt.IsCurrent = 1
+    WHERE tgt.EmployeeSCD2Key IS NULL;
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: periodic snapshot — daily inventory snapshot
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_FactInventorySnapshot
+AS
+BEGIN
+    SET NOCOUNT ON;
+    -- Full refresh for today's snapshot
+    DELETE FROM silver.FactInventorySnapshot
+    WHERE SnapshotDate = CAST(GETDATE() AS DATE);
+
+    INSERT INTO silver.FactInventorySnapshot (
+        ProductKey, WarehouseKey, SnapshotDate,
+        UnitsOnHand, UnitsOnOrder, ReorderPoint, UnitCost)
+    SELECT
+        p.ProductID        AS ProductKey,
+        1                  AS WarehouseKey,
+        CAST(GETDATE() AS DATE) AS SnapshotDate,
+        p.SafetyStockLevel AS UnitsOnHand,
+        p.ReorderPoint     AS UnitsOnOrder,
+        p.ReorderPoint,
+        p.StandardCost     AS UnitCost
+    FROM bronze.Product p;
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: PII-rich dimension — contact info with sensitive data
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_DimContact
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.DimContact;
+    INSERT INTO silver.DimContact (
+        ContactAlternateKey, FirstName, LastName,
+        EmailAddress, PhoneNumber, SocialSecurityNumber,
+        BirthDate, StreetAddress, City, PostalCode)
+    SELECT
+        CAST(c.CustomerID AS NVARCHAR(15)),
+        p.FirstName,
+        p.LastName,
+        LOWER(p.FirstName + '.' + p.LastName + '@example.com'),
+        '555-' + RIGHT('0000' + CAST(c.CustomerID AS VARCHAR), 4) + '-' + RIGHT('0000' + CAST(c.CustomerID AS VARCHAR), 4),
+        RIGHT('000' + CAST(c.CustomerID % 1000 AS VARCHAR), 3) + '-' + RIGHT('00' + CAST((c.CustomerID / 1000) % 100 AS VARCHAR), 2) + '-' + RIGHT('0000' + CAST(c.CustomerID AS VARCHAR), 4),
+        DATEADD(DAY, -(c.CustomerID % 10000), GETDATE()),
+        CAST(c.CustomerID AS NVARCHAR) + ' Main Street',
+        'Anytown',
+        RIGHT('00000' + CAST(c.CustomerID % 100000 AS VARCHAR), 5)
+    FROM bronze.Customer c
+    JOIN bronze.Person p ON c.PersonID = p.BusinessEntityID;
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: accumulating snapshot — order fulfillment milestones
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_FactOrderFulfillment
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Insert new orders (OrderDate known, others NULL)
+    INSERT INTO silver.FactOrderFulfillment (
+        SalesOrderNumber, CustomerKey, ProductKey,
+        OrderDate, OrderAmount)
+    SELECT
+        h.SalesOrderNumber,
+        h.CustomerID,
+        d.ProductID,
+        h.OrderDate,
+        d.LineTotal
+    FROM bronze.SalesOrderHeader h
+    JOIN bronze.SalesOrderDetail d ON h.SalesOrderID = d.SalesOrderID
+    WHERE NOT EXISTS (
+        SELECT 1 FROM silver.FactOrderFulfillment f
+        WHERE f.SalesOrderNumber = h.SalesOrderNumber);
+
+    -- Update ship milestone
+    UPDATE f
+    SET f.ShipDate = h.ShipDate
+    FROM silver.FactOrderFulfillment f
+    JOIN bronze.SalesOrderHeader h ON f.SalesOrderNumber = h.SalesOrderNumber
+    WHERE f.ShipDate IS NULL AND h.ShipDate IS NOT NULL;
+
+    -- Update delivery milestone (estimated from ShipDate)
+    UPDATE silver.FactOrderFulfillment
+    SET DeliveryDate = DATEADD(DAY, 5, ShipDate)
+    WHERE DeliveryDate IS NULL AND ShipDate IS NOT NULL;
+
+    -- Update invoice milestone
+    UPDATE silver.FactOrderFulfillment
+    SET InvoiceDate = DeliveryDate
+    WHERE InvoiceDate IS NULL AND DeliveryDate IS NOT NULL;
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: role-playing FKs — reseller sales with 3 date keys
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_FactResellerSales
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.FactResellerSales;
+    INSERT INTO silver.FactResellerSales (
+        ProductKey, OrderDateKey, ShipDateKey, DueDateKey,
+        CustomerKey, OrderQuantity, UnitPrice,
+        SalesAmount, TaxAmt, Freight)
+    SELECT
+        d.ProductID             AS ProductKey,
+        CAST(FORMAT(h.OrderDate, 'yyyyMMdd') AS INT) AS OrderDateKey,
+        CAST(FORMAT(ISNULL(h.ShipDate, h.OrderDate), 'yyyyMMdd') AS INT) AS ShipDateKey,
+        CAST(FORMAT(h.DueDate, 'yyyyMMdd') AS INT)   AS DueDateKey,
+        h.CustomerID            AS CustomerKey,
+        d.OrderQty              AS OrderQuantity,
+        d.UnitPrice,
+        d.LineTotal             AS SalesAmount,
+        CAST(h.TaxAmt / NULLIF(COUNT(*) OVER (PARTITION BY h.SalesOrderID), 0) AS MONEY) AS TaxAmt,
+        CAST(h.Freight / NULLIF(COUNT(*) OVER (PARTITION BY h.SalesOrderID), 0) AS MONEY) AS Freight
+    FROM bronze.SalesOrderHeader h
+    JOIN bronze.SalesOrderDetail d ON h.SalesOrderID = d.SalesOrderID;
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: incremental load with WHERE watermark
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_FactProductSalesDelta
+    @LastLoadDate DATETIME = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF @LastLoadDate IS NULL
+        SET @LastLoadDate = DATEADD(DAY, -1, GETDATE());
+
+    INSERT INTO silver.FactProductSalesDelta (
+        ProductKey, CustomerKey, SalesAmount, OrderDate, ModifiedDate)
+    SELECT
+        d.ProductID,
+        h.CustomerID,
+        d.LineTotal,
+        h.OrderDate,
+        h.ModifiedDate
+    FROM bronze.SalesOrderHeader h
+    JOIN bronze.SalesOrderDetail d ON h.SalesOrderID = d.SalesOrderID
+    WHERE h.ModifiedDate > @LastLoadDate;
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: junk dimension — all flag combinations
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_DimSalesFlags
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.DimSalesFlags;
+    INSERT INTO silver.DimSalesFlags (
+        IsOnlineOrder, IsRushShipment, IsGiftWrapped,
+        IsDiscounted, IsReturnable)
+    SELECT DISTINCT
+        h.OnlineOrderFlag,
+        CASE WHEN h.ShipMethodID = 1 THEN 1 ELSE 0 END,
+        0,
+        CASE WHEN h.SubTotal <> h.TotalDue - h.TaxAmt - h.Freight THEN 1 ELSE 0 END,
+        CASE WHEN h.Status IN (1, 2) THEN 1 ELSE 0 END
+    FROM bronze.SalesOrderHeader h;
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: 3+ multi-writer — three procs that all write to same target
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_DimMultiWriter_Full
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.DimMultiWriter;
+    INSERT INTO silver.DimMultiWriter (
+        AlternateKey, DisplayName, Category, IsActive, ModifiedDate)
+    SELECT
+        CAST(ProductID AS NVARCHAR(20)),
+        ProductName,
+        ISNULL(ProductLine, 'Unknown'),
+        CASE WHEN DiscontinuedDate IS NULL THEN 1 ELSE 0 END,
+        ModifiedDate
+    FROM bronze.Product;
+END;
+
+GO
+
+
+CREATE PROCEDURE silver.usp_load_DimMultiWriter_Delta
+AS
+BEGIN
+    SET NOCOUNT ON;
+    MERGE silver.DimMultiWriter AS tgt
+    USING (
+        SELECT
+            CAST(ProductID AS NVARCHAR(20)) AS AlternateKey,
+            ProductName AS DisplayName,
+            ISNULL(ProductLine, 'Unknown') AS Category,
+            CASE WHEN DiscontinuedDate IS NULL THEN 1 ELSE 0 END AS IsActive,
+            ModifiedDate
+        FROM bronze.Product
+    ) AS src ON tgt.AlternateKey = src.AlternateKey
+    WHEN MATCHED THEN UPDATE SET
+        tgt.DisplayName = src.DisplayName,
+        tgt.Category = src.Category,
+        tgt.IsActive = src.IsActive,
+        tgt.ModifiedDate = src.ModifiedDate
+    WHEN NOT MATCHED BY TARGET THEN INSERT (
+        AlternateKey, DisplayName, Category, IsActive, ModifiedDate)
+    VALUES (
+        src.AlternateKey, src.DisplayName, src.Category, src.IsActive, src.ModifiedDate);
+END;
+
+GO
+
+
+CREATE PROCEDURE silver.usp_load_DimMultiWriter_Archive
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE silver.DimMultiWriter
+    SET IsActive = 0,
+        ModifiedDate = GETDATE()
+    WHERE AlternateKey IN (
+        SELECT CAST(ProductID AS NVARCHAR(20))
+        FROM bronze.Product
+        WHERE DiscontinuedDate IS NOT NULL
+    );
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: IF/ELSE dynamic SQL — conditional INSERT target
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_DimDynamicBranch
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @sql NVARCHAR(MAX);
+    DECLARE @mode INT;
+    SELECT @mode = CASE WHEN COUNT(*) > 0 THEN 1 ELSE 2 END
+    FROM silver.DimDynamicBranch;
+
+    IF @mode = 1
+    BEGIN
+        SET @sql = N'
+            MERGE silver.DimDynamicBranch AS tgt
+            USING (
+                SELECT
+                    CountryRegionCode AS BranchCode,
+                    CountryRegionName AS BranchName,
+                    ''Global'' AS Region,
+                    GETDATE() AS LoadedAt
+                FROM bronze.CountryRegion
+            ) AS src ON tgt.BranchCode = src.BranchCode
+            WHEN MATCHED THEN UPDATE SET
+                tgt.BranchName = src.BranchName,
+                tgt.LoadedAt = src.LoadedAt
+            WHEN NOT MATCHED BY TARGET THEN INSERT (
+                BranchCode, BranchName, Region, LoadedAt)
+            VALUES (src.BranchCode, src.BranchName, src.Region, src.LoadedAt)';
+        EXEC sp_executesql @sql;
+    END
+    ELSE
+    BEGIN
+        SET @sql = N'
+            INSERT INTO silver.DimDynamicBranch (BranchCode, BranchName, Region, LoadedAt)
+            SELECT
+                CountryRegionCode,
+                CountryRegionName,
+                ''Global'',
+                GETDATE()
+            FROM bronze.CountryRegion';
+        EXEC sp_executesql @sql;
+    END;
+END;
+
+GO

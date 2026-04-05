@@ -7,7 +7,10 @@
 //   expected_kind?,
 //   expected_status?,
 //   expected_source?,
-//   expected_output_terms?
+//   expected_output_terms?,
+//   expected_pii_columns?,
+//   expected_fk_type?,
+//   expected_watermark_column?
 // }
 const fs = require('fs');
 const path = require('path');
@@ -98,6 +101,37 @@ module.exports = (output, context) => {
       if (!outputStr.includes(term)) {
         return { pass: false, score: 0, reason: `Expected output term '${term}' not found in final response` };
       }
+    }
+  }
+
+  // Check expected PII columns appear in profile.pii_actions[].column
+  const expectedPiiColumns = normalizeTerms(context.vars.expected_pii_columns);
+  if (expectedPiiColumns.length > 0) {
+    const piiActions = Array.isArray(profile.pii_actions) ? profile.pii_actions : [];
+    const actualPiiColumns = piiActions.map(a => (a.column || '').toLowerCase());
+    for (const col of expectedPiiColumns) {
+      if (!actualPiiColumns.includes(col)) {
+        return { pass: false, score: 0, reason: `Expected PII column '${col}' not found in profile.pii_actions` };
+      }
+    }
+  }
+
+  // Check expected foreign key type appears in profile.foreign_keys[].fk_type
+  const expectedFkType = context.vars.expected_fk_type;
+  if (expectedFkType) {
+    const foreignKeys = Array.isArray(profile.foreign_keys) ? profile.foreign_keys : [];
+    const found = foreignKeys.some(fk => (fk.fk_type || '').toLowerCase() === expectedFkType.toLowerCase());
+    if (!found) {
+      return { pass: false, score: 0, reason: `Expected fk_type '${expectedFkType}' not found in profile.foreign_keys` };
+    }
+  }
+
+  // Check expected watermark column matches profile.watermark.column
+  const expectedWatermarkColumn = context.vars.expected_watermark_column;
+  if (expectedWatermarkColumn) {
+    const actualWatermark = (profile.watermark && profile.watermark.column) || '';
+    if (actualWatermark.toLowerCase() !== expectedWatermarkColumn.toLowerCase()) {
+      return { pass: false, score: 0, reason: `Expected watermark column '${expectedWatermarkColumn}', got '${actualWatermark}'` };
     }
   }
 

@@ -333,3 +333,142 @@ CREATE TABLE [silver].[StaticSpExecTarget] (
     [EnglishProductName] nvarchar(50) NOT NULL
 );
 GO
+
+-- silver.DimDate (lookup reference for role-playing FK tests)
+CREATE TABLE [silver].[DimDate] (
+    [DateKey] int NOT NULL,
+    [FullDate] date NOT NULL,
+    [DayOfWeek] tinyint NOT NULL,
+    [MonthNumber] tinyint NOT NULL,
+    [Quarter] tinyint NOT NULL,
+    [Year] smallint NOT NULL,
+    [MonthName] nvarchar(20) NOT NULL,
+    [DayName] nvarchar(20) NOT NULL
+    ,CONSTRAINT [PK_DimDate] PRIMARY KEY ([DateKey])
+);
+GO
+
+-- silver.DimEmployeeSCD2 (SCD Type 2 dimension)
+CREATE TABLE [silver].[DimEmployeeSCD2] (
+    [EmployeeSCD2Key] int IDENTITY(1,1) NOT NULL,
+    [EmployeeNaturalKey] nvarchar(15) NOT NULL,
+    [FirstName] nvarchar(50) NOT NULL,
+    [LastName] nvarchar(50) NOT NULL,
+    [JobTitle] nvarchar(50) NOT NULL,
+    [Department] nvarchar(50) NULL,
+    [ValidFrom] datetime2 NOT NULL,
+    [ValidTo] datetime2 NOT NULL,
+    [IsCurrent] bit NOT NULL
+    ,CONSTRAINT [PK_DimEmployeeSCD2] PRIMARY KEY ([EmployeeSCD2Key])
+);
+GO
+
+-- silver.FactInventorySnapshot (periodic snapshot)
+CREATE TABLE [silver].[FactInventorySnapshot] (
+    [ProductKey] int NOT NULL,
+    [WarehouseKey] int NOT NULL,
+    [SnapshotDate] date NOT NULL,
+    [UnitsOnHand] int NOT NULL,
+    [UnitsOnOrder] int NOT NULL,
+    [ReorderPoint] int NOT NULL,
+    [UnitCost] money NOT NULL
+    ,CONSTRAINT [PK_FactInventorySnapshot] PRIMARY KEY ([ProductKey], [WarehouseKey], [SnapshotDate])
+);
+GO
+
+-- silver.DimContact (PII-rich dimension)
+CREATE TABLE [silver].[DimContact] (
+    [ContactKey] int IDENTITY(1,1) NOT NULL,
+    [ContactAlternateKey] nvarchar(15) NOT NULL,
+    [FirstName] nvarchar(50) NOT NULL,
+    [LastName] nvarchar(50) NOT NULL,
+    [EmailAddress] nvarchar(100) NULL,
+    [PhoneNumber] nvarchar(25) NULL,
+    [SocialSecurityNumber] nvarchar(11) NULL,
+    [BirthDate] date NULL,
+    [StreetAddress] nvarchar(200) NULL,
+    [City] nvarchar(50) NULL,
+    [PostalCode] nvarchar(15) NULL
+    ,CONSTRAINT [PK_DimContact] PRIMARY KEY ([ContactKey])
+);
+GO
+
+-- silver.FactOrderFulfillment (accumulating snapshot)
+CREATE TABLE [silver].[FactOrderFulfillment] (
+    [OrderFulfillmentKey] int IDENTITY(1,1) NOT NULL,
+    [SalesOrderNumber] nvarchar(25) NOT NULL,
+    [CustomerKey] int NOT NULL,
+    [ProductKey] int NOT NULL,
+    [OrderDate] datetime NOT NULL,
+    [ShipDate] datetime NULL,
+    [DeliveryDate] datetime NULL,
+    [InvoiceDate] datetime NULL,
+    [OrderAmount] money NOT NULL,
+    [ShippingCost] money NULL
+    ,CONSTRAINT [PK_FactOrderFulfillment] PRIMARY KEY ([OrderFulfillmentKey])
+);
+GO
+
+-- silver.FactResellerSales (role-playing FK fact)
+CREATE TABLE [silver].[FactResellerSales] (
+    [ResellerSalesKey] int IDENTITY(1,1) NOT NULL,
+    [ProductKey] int NOT NULL,
+    [OrderDateKey] int NOT NULL,
+    [ShipDateKey] int NOT NULL,
+    [DueDateKey] int NOT NULL,
+    [CustomerKey] int NOT NULL,
+    [OrderQuantity] smallint NOT NULL,
+    [UnitPrice] money NOT NULL,
+    [SalesAmount] money NOT NULL,
+    [TaxAmt] money NOT NULL,
+    [Freight] money NOT NULL
+    ,CONSTRAINT [PK_FactResellerSales] PRIMARY KEY ([ResellerSalesKey])
+);
+GO
+
+-- silver.FactProductSalesDelta (incremental load with WHERE watermark)
+CREATE TABLE [silver].[FactProductSalesDelta] (
+    [SalesDeltaKey] int IDENTITY(1,1) NOT NULL,
+    [ProductKey] int NOT NULL,
+    [CustomerKey] int NOT NULL,
+    [SalesAmount] money NOT NULL,
+    [OrderDate] datetime NOT NULL,
+    [ModifiedDate] datetime NOT NULL
+    ,CONSTRAINT [PK_FactProductSalesDelta] PRIMARY KEY ([SalesDeltaKey])
+);
+GO
+
+-- silver.DimSalesFlags (junk dimension)
+CREATE TABLE [silver].[DimSalesFlags] (
+    [SalesFlagKey] int IDENTITY(1,1) NOT NULL,
+    [IsOnlineOrder] bit NOT NULL,
+    [IsRushShipment] bit NOT NULL,
+    [IsGiftWrapped] bit NOT NULL,
+    [IsDiscounted] bit NOT NULL,
+    [IsReturnable] bit NOT NULL
+    ,CONSTRAINT [PK_DimSalesFlags] PRIMARY KEY ([SalesFlagKey])
+);
+GO
+
+-- silver.DimMultiWriter (3+ writer disambiguation test)
+CREATE TABLE [silver].[DimMultiWriter] (
+    [MultiWriterKey] int IDENTITY(1,1) NOT NULL,
+    [AlternateKey] nvarchar(20) NOT NULL,
+    [DisplayName] nvarchar(100) NOT NULL,
+    [Category] nvarchar(50) NULL,
+    [IsActive] bit NOT NULL,
+    [ModifiedDate] datetime NOT NULL
+    ,CONSTRAINT [PK_DimMultiWriter] PRIMARY KEY ([MultiWriterKey])
+);
+GO
+
+-- silver.DimDynamicBranch (IF/ELSE dynamic SQL test)
+CREATE TABLE [silver].[DimDynamicBranch] (
+    [DynamicBranchKey] int IDENTITY(1,1) NOT NULL,
+    [BranchCode] nvarchar(20) NOT NULL,
+    [BranchName] nvarchar(100) NOT NULL,
+    [Region] nvarchar(50) NULL,
+    [LoadedAt] datetime NOT NULL
+    ,CONSTRAINT [PK_DimDynamicBranch] PRIMARY KEY ([DynamicBranchKey])
+);
+GO

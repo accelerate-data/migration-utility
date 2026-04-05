@@ -33,6 +33,14 @@ tests:
       target_table: "silver.FactInternetSales"
       writer: "silver.usp_stage_FactInternetSales"
 
+  # ── truncate-insert dim: DimCustomer full-load pattern ────────
+  - description: "truncate-insert — DimCustomer full-load"
+    vars:
+      target_table: "silver.DimCustomer"
+      writer: "silver.usp_load_DimCustomer_Full"
+      expected_kind: "dim_non_scd"
+      expected_status: "ok"
+
   # ── dim merge ─────────────────────────────────────────────────
   - description: "dim-merge — DimProduct MERGE INTO"
     vars:
@@ -62,3 +70,63 @@ tests:
       writer: "silver.usp_load_DimCurrency"
       expected_status: "ok,partial"
       expected_output_terms: "sp_executesql"
+
+  # ── Tier 1: SCD2 dimension ─────────────────────────────────
+  - description: "dim-scd2 — DimEmployeeSCD2 expire-and-insert pattern"
+    vars:
+      target_table: "silver.DimEmployeeSCD2"
+      writer: "silver.usp_load_DimEmployeeSCD2"
+      expected_kind: "dim_scd2"
+      expected_status: "ok"
+
+  # ── Tier 1: periodic snapshot ──────────────────────────────
+  - description: "fact-periodic-snapshot — FactInventorySnapshot daily snapshot"
+    vars:
+      target_table: "silver.FactInventorySnapshot"
+      writer: "silver.usp_load_FactInventorySnapshot"
+      expected_kind: "fact_periodic_snapshot"
+      expected_status: "ok"
+      expected_watermark_column: "SnapshotDate"
+
+  # ── Tier 1: PII detection ─────────────────────────────────
+  - description: "pii-detection — DimContact identifies sensitive columns"
+    vars:
+      target_table: "silver.DimContact"
+      writer: "silver.usp_load_DimContact"
+      expected_kind: "dim_non_scd"
+      expected_status: "ok"
+      expected_pii_columns: "EmailAddress,PhoneNumber,SocialSecurityNumber,BirthDate"
+
+  # ── Tier 2: accumulating snapshot ──────────────────────────
+  - description: "fact-accumulating-snapshot — FactOrderFulfillment milestones"
+    vars:
+      target_table: "silver.FactOrderFulfillment"
+      writer: "silver.usp_load_FactOrderFulfillment"
+      expected_kind: "fact_accumulating_snapshot"
+      expected_status: "ok"
+
+  # ── Tier 2: role-playing foreign keys ──────────────────────
+  - description: "role-playing-fks — FactResellerSales 3 date keys to DimDate"
+    vars:
+      target_table: "silver.FactResellerSales"
+      writer: "silver.usp_load_FactResellerSales"
+      expected_kind: "fact_transaction"
+      expected_status: "ok"
+      expected_fk_type: "role_playing"
+
+  # ── Tier 2: WHERE-based watermark ──────────────────────────
+  - description: "where-watermark — FactProductSalesDelta incremental load"
+    vars:
+      target_table: "silver.FactProductSalesDelta"
+      writer: "silver.usp_load_FactProductSalesDelta"
+      expected_kind: "fact_transaction"
+      expected_status: "ok"
+      expected_watermark_column: "ModifiedDate"
+
+  # ── Tier 3: junk dimension ────────────────────────────────
+  - description: "dim-junk — DimSalesFlags flag combinations"
+    vars:
+      target_table: "silver.DimSalesFlags"
+      writer: "silver.usp_load_DimSalesFlags"
+      expected_kind: "dim_junk"
+      expected_status: "ok"
