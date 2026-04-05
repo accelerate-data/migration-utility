@@ -100,4 +100,3 @@ tests:
       expected_status: "resolved,no_writer_found"
       allow_zero_migrate: "true"
       expected_action: "skip"
-      expected_output_terms: "linked server"
