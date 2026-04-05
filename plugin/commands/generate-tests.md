@@ -49,7 +49,7 @@ Return the item result JSON.
 
 The skill writes `test-specs/<item_id>.json` with branch manifest and fixtures but no `expect.rows`.
 
-### Step 3 — Review scenarios (sub-agent)
+### Step 3 — Review scenarios
 
 For each item that completed step 2, launch a review sub-agent in isolated context:
 

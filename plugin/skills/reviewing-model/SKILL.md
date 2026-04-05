@@ -4,6 +4,7 @@ description: >
   Reviews generated dbt model for standards compliance, correctness relative
   to the original proc, and test integration. Invoked by the /generate-model
   command after dbt tests pass, not directly by FDE.
+context: fork
 user-invocable: false
 argument-hint: "<schema.table>"
 ---
