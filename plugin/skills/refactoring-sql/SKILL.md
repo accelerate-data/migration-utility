@@ -136,7 +136,7 @@ The sub-agent writes the result to `.staging/refactored.sql`.
 
 ## Step 3: Equivalence audit
 
-After both sub-agents complete, run the comparison CLI which seeds fixtures, executes both SELECTs, and computes symmetric diff inside a rolled-back transaction:
+After both sub-agents complete, run the comparison CLI which seeds fixtures, executes both SELECTs, and returns the difference in rows:
 
 ```bash
 mkdir -p .staging
