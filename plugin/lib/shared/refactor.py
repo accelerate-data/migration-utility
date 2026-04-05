@@ -279,8 +279,8 @@ def run_write(
 
     refactor_data: dict[str, Any] = {
         "status": status,
-        "extracted_sql": extracted_sql,
-        "refactored_sql": refactored_sql,
+        "extracted_sql": " ".join(extracted_sql.split()),
+        "refactored_sql": " ".join(refactored_sql.split()),
     }
 
     errors = _validate_refactor(refactor_data)
