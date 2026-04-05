@@ -115,7 +115,7 @@ Test individual skills in isolation (single-table, no orchestration).
 | `reviewing-tests` | `/reviewing-tests` | 7 |
 | `reviewing-model` | `/reviewing-model` | 8 |
 | `analyzing-table` | `/analyzing-table` | 8 (validates both scoping decisions and procedure catalog) |
-| `refactoring-sql` | `/refactoring-sql` | 10 (DML extraction + CTE restructuring) |
+| `refactoring-sql` | `/refactoring-sql` | 9 (DML extraction + CTE restructuring) |
 
 ### Command packages
 
@@ -260,7 +260,7 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 | exec-concat — ExecConcatTarget | silver.ExecConcatTarget | usp_scope_ExecConcat |
 | linked-server-exec — LinkedServerExecTarget | silver.LinkedServerExecTarget | (no writer — skip) |
 
-### Refactoring-sql (10 scenarios)
+### Refactoring-sql (9 scenarios)
 
 | Scenario | Target table | Pattern | Key assertion |
 |---|---|---|---|
@@ -268,10 +268,9 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 | merge-using | silver.DimProduct | MERGE USING | USING clause extracted, import CTEs |
 | update-join | silver.UpdateJoinTarget | UPDATE SET | CASE expression in extraction |
 | delete-where | silver.DeleteWhereTarget | DELETE WHERE | Inverted to keep-rows SELECT |
-| truncate-insert | silver.DimCustomer | TRUNCATE+INSERT | Full reload extracted and CTEd |
+| truncate-insert | silver.DimCustomer | TRUNCATE+INSERT+OUTER APPLY | Full reload with MIN(OrderDate) |
 | union-all | silver.UnionAllTarget | UNION ALL | Preserved in both outputs |
 | window-functions | silver.FactInternetSales | Window functions | COUNT OVER preserved |
-| outer-apply | silver.DimCustomer | OUTER APPLY | Rewritten in CTEs |
 | grouping-sets | silver.GroupingSetsTarget | GROUPING SETS | Preserved in CTEs |
 | pivot | silver.PivotTarget | PIVOT | Handled in CTE restructuring |
 
@@ -310,8 +309,8 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 | Scenario | Tables | Key assertion |
 |---|---|---|
 | happy-path — both refactor | InsertSelectTarget + UpdateJoinTarget | Summary shows 2 ok |
-| error+clean — no test-spec | DimProduct + InsertSelectTarget | TEST_SPEC_NOT_FOUND for DimProduct |
-| guard-fail — no profile | DimGeography | PROFILE_NOT_COMPLETED |
+| error+clean — no profile | DimGeography + InsertSelectTarget | Guard error for DimGeography, ok for InsertSelectTarget |
+| guard-fail — no scoping | DimPromotion | SCOPING_NOT_COMPLETED |
 | partial-ok — dynamic SQL | DimCurrency | Partial status acceptable |
 
 ### Command: status (4 scenarios)

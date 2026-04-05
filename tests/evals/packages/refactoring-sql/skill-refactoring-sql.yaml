@@ -59,12 +59,12 @@ tests:
       expected_refactored_terms: "with,final"
       forbidden_refactored_terms: "delete"
 
-  # ── truncate + insert (full reload) ───────────────────────────
-  - description: "truncate-insert — DimCustomer full reload extracted and CTEd"
+  # ── truncate + insert with outer apply (full reload) ─────────
+  - description: "truncate-insert — DimCustomer full reload extracted with OUTER APPLY"
     vars:
       target_table: "silver.DimCustomer"
       writer: "silver.usp_load_DimCustomer_Full"
-      expected_extracted_terms: "customeralternatekey,firstname"
+      expected_extracted_terms: "customeralternatekey,firstname,min("
       expected_refactored_terms: "with,final"
 
   # ── union all ─────────────────────────────────────────────────
@@ -82,14 +82,6 @@ tests:
       writer: "silver.usp_stage_FactInternetSales"
       expected_extracted_terms: "count(*) over,partition by"
       expected_refactored_terms: "with,count(*) over,partition by"
-
-  # ── outer apply ───────────────────────────────────────────────
-  - description: "outer-apply — DimCustomer OUTER APPLY rewritten in CTEs"
-    vars:
-      target_table: "silver.DimCustomer"
-      writer: "silver.usp_load_DimCustomer_Full"
-      expected_extracted_terms: "min(orderdate)"
-      expected_refactored_terms: "with,final"
 
   # ── grouping sets ─────────────────────────────────────────────
   - description: "grouping-sets — GROUPING SETS preserved in refactored CTEs"

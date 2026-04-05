@@ -35,19 +35,19 @@ tests:
       expected_output_terms: "ok"
 
   # ── error + clean: missing prerequisite ────────────────────────
-  - description: "error+clean — DimProduct (no test-spec) + InsertSelectTarget (ok)"
+  - description: "error+clean — DimGeography (no profile) + InsertSelectTarget (ok)"
     vars:
-      target_tables: "silver.DimProduct silver.InsertSelectTarget"
-      expected_item_statuses: '{"silver.DimProduct": "error", "silver.InsertSelectTarget": "ok"}'
-      expected_error_codes: "test_spec_not_found"
+      target_tables: "silver.DimGeography silver.InsertSelectTarget"
+      expected_item_statuses: '{"silver.DimGeography": "error", "silver.InsertSelectTarget": "ok"}'
+      expected_error_codes: "profile_not_completed,scoping_not_completed,catalog_file_missing"
       expected_output_terms: "error"
 
-  # ── guard fails: no profile ────────────────────────────────────
-  - description: "guard-fail — DimGeography has no profile, blocked at guard"
+  # ── guard fails: no scoping ────────────────────────────────────
+  - description: "guard-fail — DimPromotion has no scoping, blocked at guard"
     vars:
-      target_tables: "silver.DimGeography"
-      expected_item_statuses: '{"silver.DimGeography": "error"}'
-      expected_error_codes: "profile_not_completed"
+      target_tables: "silver.DimPromotion"
+      expected_item_statuses: '{"silver.DimPromotion": "error"}'
+      expected_error_codes: "scoping_not_completed,catalog_file_missing"
 
   # ── partial: complex proc may not fully pass audit ─────────────
   - description: "partial-ok — DimCurrency dynamic SQL, partial status acceptable"

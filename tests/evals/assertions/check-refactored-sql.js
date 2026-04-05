@@ -52,9 +52,9 @@ module.exports = (output, context) => {
   }
 
   // Schema validation of the refactor section
-  const schemaResult = validateSection(catalog, 'table_catalog.json', 'properties/refactor');
-  if (schemaResult && !schemaResult.pass) {
-    return schemaResult;
+  const schemaResult = validateSection(refactor, 'table_catalog.json', 'properties/refactor');
+  if (!schemaResult.valid) {
+    return { pass: false, score: 0, reason: `Refactor section schema validation failed: ${schemaResult.errors}` };
   }
 
   // Status check
