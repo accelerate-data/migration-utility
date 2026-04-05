@@ -161,3 +161,11 @@ tests:
       target_table: "silver.ExecConcatTarget"
       writer: "silver.usp_scope_ExecConcat"
       graceful_no_model: "true"
+
+  # ── modular split ─────────────────────────────────────────────
+  - description: "modular-split — InsertSelectTarget with refactored SQL produces stg_ + mart models"
+    vars:
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_model_terms: "ref('stg_insertselecttarget'),materialized='table'"
+      expected_stg_files: "stg_insertselecttarget"

@@ -18,6 +18,7 @@ import pytest
 
 from shared.loader import CatalogFileMissingError, CatalogLoadError, ProfileMissingError
 from shared.migrate import (
+    _load_refactored_sql,
     derive_materialization,
     derive_schema_tests,
     run_context,
@@ -199,6 +200,8 @@ class TestRunContext:
         assert isinstance(result["source_tables"], list)
         assert "bronze.sales" in result["source_tables"]
         assert "schema_tests" in result
+        assert "refactored_sql" in result
+        assert len(result["refactored_sql"]) > 0
 
     def test_dim_scd2_materialization_snapshot(self, ddl_path: Path) -> None:
         result = run_context(ddl_path, "silver.DimCustomer", "dbo.usp_load_dim_customer")
@@ -317,6 +320,11 @@ END
                     "views": {"in_scope": [], "out_of_scope": []},
                     "functions": {"in_scope": [], "out_of_scope": []},
                 },
+                "refactor": {
+                    "status": "ok",
+                    "extracted_sql": "SELECT CurrencyCode FROM [bronze].[Currency]",
+                    "refactored_sql": "with source_currency as (\n    select * from [bronze].[Currency]\n)\n\nselect * from source_currency",
+                },
                 "profile": {
                     "status": "ok",
                     "writer": "dbo.usp_load_dim_currency",
@@ -382,6 +390,11 @@ END
                     "views": {"in_scope": [], "out_of_scope": []},
                     "functions": {"in_scope": [], "out_of_scope": []},
                 },
+                "refactor": {
+                    "status": "ok",
+                    "extracted_sql": "SELECT order_id FROM [bronze].[Orders]",
+                    "refactored_sql": "with source_orders as (\n    select * from [bronze].[Orders]\n)\n\nselect * from source_orders",
+                },
                 "profile": {
                     "status": "ok",
                     "writer": "dbo.usp_load_fact_orders",
@@ -446,6 +459,11 @@ END
                     },
                     "views": {"in_scope": [], "out_of_scope": []},
                     "functions": {"in_scope": [], "out_of_scope": []},
+                },
+                "refactor": {
+                    "status": "ok",
+                    "extracted_sql": "SELECT GeographyKey FROM [bronze].[Geography]",
+                    "refactored_sql": "with source_geography as (\n    select * from [bronze].[Geography]\n)\n\nselect * from source_geography",
                 },
                 "profile": {
                     "status": "ok",
@@ -596,3 +614,39 @@ def test_write_does_not_read_catalog(tmp_path: Path) -> None:
     (dbt / "models" / "staging").mkdir(parents=True)
     result = run_write("silver.FactSales", Path("/tmp"), dbt, "select 1", "")
     assert result["status"] == "ok"
+
+
+# ── _load_refactored_sql ──────────────────────────────────────────────────────
+
+
+def test_load_refactored_sql_returns_sql_when_status_ok(tmp_path: Path) -> None:
+    """Catalog with refactor.status=ok and refactored_sql returns the SQL string."""
+    table_dir = tmp_path / "catalog" / "tables"
+    table_dir.mkdir(parents=True)
+    (tmp_path / "manifest.json").write_text("{}")
+    (table_dir / "silver.mytable.json").write_text(json.dumps({
+        "schema": "silver",
+        "name": "mytable",
+        "refactor": {
+            "status": "ok",
+            "refactored_sql": "SELECT 1",
+        },
+    }))
+
+    result = _load_refactored_sql(tmp_path, "silver.mytable")
+
+    assert result == "SELECT 1"
+
+
+def test_load_refactored_sql_raises_when_missing(tmp_path: Path) -> None:
+    """Catalog without refactor section raises CatalogFileMissingError."""
+    table_dir = tmp_path / "catalog" / "tables"
+    table_dir.mkdir(parents=True)
+    (tmp_path / "manifest.json").write_text("{}")
+    (table_dir / "silver.mytable.json").write_text(json.dumps({
+        "schema": "silver",
+        "name": "mytable",
+    }))
+
+    with pytest.raises(CatalogFileMissingError):
+        _load_refactored_sql(tmp_path, "silver.mytable")

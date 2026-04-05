@@ -192,6 +192,20 @@ def _load_table_columns(project_root: Path, table_fqn: str) -> list[dict[str, An
     return []
 
 
+def _load_refactored_sql(project_root: Path, table_fqn: str) -> str:
+    """Load refactored_sql from the table catalog's refactor section."""
+    cat = load_table_catalog(project_root, table_fqn)
+    if cat is None:
+        raise CatalogFileMissingError("refactored_sql", table_fqn)
+    refactor = cat.get("refactor")
+    if not refactor:
+        raise CatalogFileMissingError("refactored_sql", table_fqn)
+    refactored_sql = refactor.get("refactored_sql")
+    if not refactored_sql:
+        raise CatalogFileMissingError("refactored_sql", table_fqn)
+    return refactored_sql
+
+
 def _collect_source_tables(
     project_root: Path, writer_fqn: str,
 ) -> list[str]:
@@ -238,6 +252,7 @@ def run_context(
     source_tables = _collect_source_tables(project_root, writer_norm)
     materialization = derive_materialization(profile)
     schema_tests = derive_schema_tests(profile)
+    refactored_sql = _load_refactored_sql(project_root, table_norm)
 
     return {
         "table": table_norm,
@@ -250,6 +265,7 @@ def run_context(
         "columns": columns,
         "source_tables": source_tables,
         "schema_tests": schema_tests,
+        "refactored_sql": refactored_sql,
     }
 
 

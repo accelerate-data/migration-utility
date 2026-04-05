@@ -11,6 +11,10 @@ argument-hint: "<schema.table>"
 ---
 
 @references/modular-modeling-ref.md
+@../reviewing-model/references/sql-style.md
+@../reviewing-model/references/cte-structure.md
+@../reviewing-model/references/model-naming.md
+@../reviewing-model/references/yaml-style.md
 
 # Generating Model
 
@@ -30,6 +34,8 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <table_fqn> gene
 
 If `passed` is `false`, report the failing guard's `code` and `message` to the user and stop.
 
+Apply the rules from these reference files when generating SQL, naming models, and writing YAML — the reviewer will check against the same codes.
+
 ## Step 1: Assemble context
 
 ```bash
@@ -48,101 +54,55 @@ Read the output JSON. It contains:
 - `columns` — target table column list
 - `source_tables` — tables read by the writer
 - `schema_tests` — deterministic test specs (entity integrity, referential integrity, recency, PII)
+- `refactored_sql` — cleaned, CTE-structured SQL produced by the refactor stage
+
+Use `refactored_sql` as your sole SQL input. Ignore `proc_body` and `statements` — they are not relevant to model generation.
 
 ## Step 2: Decide model structure
 
-Analyse the `statements` array and `proc_body` to determine the model structure:
+The refactored SQL already has import/logical/final CTE structure. Apply the modular split per `@references/modular-modeling-ref.md`: import CTEs → ephemeral `stg_*` models, logical+final CTEs → mart model.
 
-| Pattern | Model structure |
-|---|---|
-| Single INSERT from source tables | One staging model |
-| Multiple INSERTs to the same target table | One model with UNION ALL |
-| Multiple INSERTs to different target tables | Separate models (one per target) |
-| Temp table chains (INSERT INTO #temp, then INSERT from #temp) | Staging + intermediate models with `{{ ref() }}` |
-| Nested subqueries in SELECT | Flatten into sequential CTEs |
-| MERGE with complex USING clause | Single model; MERGE semantics become incremental config |
+Before creating a new `stg_*` model, check `dbt/models/staging/` for an existing one on the same source table. If it exists and its column set is compatible, use `{{ ref() }}` — do not duplicate.
 
 ## Step 3: Generate dbt SQL
 
-Follow the **import CTE -> logical CTE -> final CTE** pattern:
+Produce two outputs from the `refactored_sql`:
 
-### Import CTEs
+### Staging models (`stg_<source_table>.sql`)
 
-All external data sources at the top of the model, each in its own CTE:
-
-```sql
-with source_customers as (
-    select * from {{ source('bronze', 'customer') }}
-),
-
-dim_product as (
-    select * from {{ ref('stg_dim_product') }}
-),
-```
-
-Rules for import CTEs:
-
-- Tables in `source_tables` that are raw/bronze use `{{ source('<schema>', '<table>') }}`
-- Tables that are already dbt models (silver/gold, or previously migrated) use `{{ ref('<model_name>') }}`
-- Name the CTE after the source table (descriptive, not `cte1` or `temp`)
-- One CTE per source — never combine multiple sources in one import CTE
-
-### Logical CTEs
-
-One transformation step per CTE, named descriptively:
+One staging model per import CTE in the refactored SQL. Each is `materialized='ephemeral'` and does `select * from {{ source('<schema>', '<table>') }}` with light transforms only.
 
 ```sql
-customers_with_region as (
-    select
-        c.customer_key,
-        c.first_name,
-        g.country as region
-    from source_customers c
-    left join source_geography g
-        on c.customer_key = g.customer_key
-),
+{{ config(materialized='ephemeral') }}
 
-filtered_customers as (
-    select *
-    from customers_with_region
-    where region is not null
-),
+select * from {{ source('<schema>', '<table>') }}
 ```
 
-Rules for logical CTEs:
+### Mart model (`<target_table>.sql`)
 
-- Each CTE does one thing — join, filter, aggregate, or transform
-- CTE names describe the transformation, not `step1`/`step2`
-- Preserve the original SQL semantics (same joins, filters, aggregations)
-- Replace T-SQL syntax with ANSI SQL / Spark SQL equivalents
-- Replace procedure parameters with `{{ var('param_name', 'default_value') }}`
-
-### Final CTE and SELECT
-
-```sql
-final as (
-    select
-        customer_key,
-        first_name,
-        region,
-        current_timestamp() as _loaded_at
-    from filtered_customers
-)
-
-select * from final
-```
-
-### Config block
-
-Add `{{ config() }}` at the top of the model:
+The mart model replaces import CTEs with `{{ ref('stg_...') }}` calls; logical and final CTEs stay as-is. The config block uses the profile-derived materialization.
 
 ```sql
 {{ config(
     materialized='<materialization>'
 ) }}
+
+with <source_table> as (
+    select * from {{ ref('stg_<source_table>') }}
+),
+
+<logical_cte> as (
+    ...
+),
+
+final as (
+    ...
+)
+
+select * from final
 ```
 
-For incremental models, add the watermark:
+For incremental models, add the watermark to the config:
 
 ```sql
 {{ config(
@@ -181,7 +141,7 @@ If the profile has no watermark column, use `strategy='check'` with `check_cols=
 
 ## Step 4: Logical equivalence check
 
-Compare the generated model against the original `migrate` statements. Check each of these:
+Compare the generated model against `refactored_sql`. Check each of these:
 
 | Check | What to compare |
 |---|---|
