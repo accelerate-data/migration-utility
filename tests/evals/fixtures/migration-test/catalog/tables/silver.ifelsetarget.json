@@ -1,0 +1,9 @@
+{
+  "schema": "silver",
+  "name": "IfElseTarget",
+  "columns": [
+    {"name": "ProductAlternateKey", "data_type": "nvarchar(25)"},
+    {"name": "EnglishProductName", "data_type": "nvarchar(50)"},
+    {"name": "ModifiedDate", "data_type": "datetime"}
+  ]
+}

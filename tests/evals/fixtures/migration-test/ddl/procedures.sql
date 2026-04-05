@@ -518,3 +518,85 @@ BEGIN
 END;
 
 GO
+
+
+-- ============================================================
+-- SCENARIO: IF/ELSE — conditional branches write to same target
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_IfElseTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @HasRecords BIT;
+    SELECT @HasRecords = CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END
+    FROM silver.IfElseTarget;
+
+    IF @HasRecords = 1
+    BEGIN
+        UPDATE tgt
+        SET tgt.EnglishProductName = src.ProductName,
+            tgt.ModifiedDate = GETDATE()
+        FROM silver.IfElseTarget AS tgt
+        INNER JOIN bronze.Product AS src
+            ON tgt.ProductAlternateKey = CAST(src.ProductID AS NVARCHAR(25));
+    END
+    ELSE
+    BEGIN
+        INSERT INTO silver.IfElseTarget (ProductAlternateKey, EnglishProductName, ModifiedDate)
+        SELECT
+            CAST(ProductID AS NVARCHAR(25)),
+            ProductName,
+            GETDATE()
+        FROM bronze.Product;
+    END;
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: WHILE loop — iterative batch insert
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_WhileLoopTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @BatchSize INT = 1000;
+    DECLARE @Offset INT = 0;
+    DECLARE @RowCount INT = 1;
+
+    TRUNCATE TABLE silver.WhileLoopTarget;
+
+    WHILE @RowCount > 0
+    BEGIN
+        INSERT INTO silver.WhileLoopTarget (ProductAlternateKey, EnglishProductName)
+        SELECT
+            CAST(ProductID AS NVARCHAR(25)),
+            ProductName
+        FROM bronze.Product
+        ORDER BY ProductID
+        OFFSET @Offset ROWS FETCH NEXT @BatchSize ROWS ONLY;
+
+        SET @RowCount = @@ROWCOUNT;
+        SET @Offset = @Offset + @BatchSize;
+    END;
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: static sp_executesql — literal SQL string resolved
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_StaticSpExecTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.StaticSpExecTarget;
+    EXEC sp_executesql N'
+        INSERT INTO silver.StaticSpExecTarget (ProductAlternateKey, EnglishProductName)
+        SELECT CAST(ProductID AS NVARCHAR(25)), ProductName
+        FROM bronze.Product';
+END;
+
+GO

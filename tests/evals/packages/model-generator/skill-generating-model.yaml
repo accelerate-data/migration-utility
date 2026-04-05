@@ -126,3 +126,38 @@ tests:
       target_table: "silver.DimCurrency"
       writer: "silver.usp_load_DimCurrency"
       graceful_no_model: "true"
+
+  # ── if-else control flow ─────────────────────────────────────
+  - description: "if-else — IfElseTarget conditional branches decomposed into dbt logic"
+    vars:
+      target_table: "silver.IfElseTarget"
+      writer: "silver.usp_load_IfElseTarget"
+      expected_model_terms: "config(,source("
+
+  # ── while loop ───────────────────────────────────────────────
+  - description: "while-loop — WhileLoopTarget iterative pattern handled gracefully"
+    vars:
+      target_table: "silver.WhileLoopTarget"
+      writer: "silver.usp_load_WhileLoopTarget"
+      expected_model_terms: "config(,source("
+
+  # ── static sp_executesql ─────────────────────────────────────
+  - description: "static-sp-executesql — StaticSpExecTarget literal SQL resolved"
+    vars:
+      target_table: "silver.StaticSpExecTarget"
+      writer: "silver.usp_load_StaticSpExecTarget"
+      expected_model_terms: "materialized='table',source("
+
+  # ── exec variable (dynamic @sql) ────────────────────────────
+  - description: "exec-variable-model — ExecVariableTarget dynamic EXEC(@sql) graceful"
+    vars:
+      target_table: "silver.ExecVariableTarget"
+      writer: "silver.usp_scope_ExecVariable"
+      graceful_no_model: "true"
+
+  # ── exec concat (dynamic concatenation) ─────────────────────
+  - description: "exec-concat-model — ExecConcatTarget concatenated EXEC graceful"
+    vars:
+      target_table: "silver.ExecConcatTarget"
+      writer: "silver.usp_scope_ExecConcat"
+      graceful_no_model: "true"
