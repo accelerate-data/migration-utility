@@ -61,4 +61,4 @@ tests:
       target_table: "silver.DimCurrency"
       writer: "silver.usp_load_DimCurrency"
       expected_status: "ok,partial"
-      expected_output_terms: "dynamic"
+      expected_output_terms: "sp_executesql"
