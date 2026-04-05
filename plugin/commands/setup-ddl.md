@@ -498,6 +498,8 @@ Schemas:  <selected-schemas>
 
 Tell the user they can now run `discover` or the `scoping` agent against the project root. The `discover refs` command will automatically use catalog data for instant writer identification.
 
+If `dbt/models/staging/sources.yml` already exists, warn: "sources.yml already exists and may be stale after this extraction. Run `/analyzing-table` on new tables, then re-run `/init-dbt` to regenerate."
+
 **Known limitation:** Procs that write only via dynamic SQL (`EXEC(@sql)`, `sp_executesql`) will not appear in catalog `referenced_by`. This is an inherent offline limitation of `sys.dm_sql_referenced_entities` — it resolves references at definition time, not runtime. These procs require LLM analysis via `discover show`.
 
 ## Constraints
