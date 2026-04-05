@@ -265,11 +265,15 @@
   ],
   "uncovered_branches": [],
   "warnings": [
-    "MERGE matched/update and insert-only distinctions are source-procedure behaviors that collapse into the staged SELECT model, so dbt unit tests cover the transformation branches instead."
+    {
+      "code": "info",
+      "message": "MERGE matched/update and insert-only distinctions are source-procedure behaviors that collapse into the staged SELECT model, so dbt unit tests cover the transformation branches instead.",
+      "severity": "warning"
+    }
   ],
   "validation": {
-    "status": "ok",
-    "summary": []
+    "passed": true,
+    "issues": []
   },
   "errors": []
 }

@@ -4,85 +4,171 @@
   "title": "TestSpec",
   "description": "Per-item test spec written to test-specs/<item_id>.json by the /generating-tests skill. CLI-ready branch-covering fixtures with ground truth. Uses bracket-quoted SQL identifiers for sandbox execution; dbt YAML conversion happens post-execution.",
   "type": "object",
-  "required": ["item_id", "status", "coverage", "branch_manifest", "unit_tests", "uncovered_branches", "warnings", "validation", "errors"],
+  "required": [
+    "item_id",
+    "status",
+    "coverage",
+    "branch_manifest",
+    "unit_tests",
+    "uncovered_branches",
+    "warnings",
+    "validation",
+    "errors"
+  ],
   "properties": {
-    "item_id": { "type": "string", "description": "Fully qualified table name: <schema>.<table>." },
-    "status": { "type": "string", "enum": ["ok", "partial", "error"] },
-    "coverage": { "type": "string", "enum": ["complete", "partial"] },
+    "item_id": {
+      "type": "string",
+      "description": "Fully qualified table name: <schema>.<table>."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "partial",
+        "error"
+      ]
+    },
+    "coverage": {
+      "type": "string",
+      "enum": [
+        "complete",
+        "partial"
+      ]
+    },
     "branch_manifest": {
       "type": "array",
-      "items": { "$ref": "#/$defs/branch_entry" }
+      "items": {
+        "$ref": "#/$defs/branch_entry"
+      }
     },
     "unit_tests": {
       "type": "array",
-      "items": { "$ref": "#/$defs/unit_test_entry" }
+      "items": {
+        "$ref": "#/$defs/unit_test_entry"
+      }
     },
     "uncovered_branches": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "description": "Branch IDs that lack scenarios after max iterations."
     },
     "warnings": {
       "type": "array",
-      "items": { "$ref": "common.json#/$defs/diagnostics_entry" }
+      "items": {
+        "$ref": "common.json#/$defs/diagnostics_entry"
+      }
     },
-    "validation": { "$ref": "common.json#/$defs/validation_section" },
+    "validation": {
+      "$ref": "common.json#/$defs/validation_section"
+    },
     "errors": {
       "type": "array",
-      "items": { "$ref": "common.json#/$defs/diagnostics_entry" }
+      "items": {
+        "$ref": "common.json#/$defs/diagnostics_entry"
+      }
     }
   },
   "$defs": {
     "branch_entry": {
       "type": "object",
-      "required": ["id", "statement_index", "description", "scenarios"],
+      "required": [
+        "id",
+        "statement_index",
+        "description",
+        "scenarios"
+      ],
       "properties": {
-        "id": { "type": "string", "description": "Stable branch identifier (e.g. merge_matched_update)." },
-        "statement_index": { "type": "integer", "minimum": 0 },
-        "description": { "type": "string" },
+        "id": {
+          "type": "string",
+          "description": "Stable branch identifier (e.g. merge_matched_update)."
+        },
+        "statement_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "description": {
+          "type": "string"
+        },
         "scenarios": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Test names that exercise this branch."
         }
       }
     },
     "unit_test_entry": {
       "type": "object",
-      "required": ["name", "target_table", "procedure", "given"],
+      "required": [
+        "name",
+        "target_table",
+        "procedure",
+        "given"
+      ],
       "properties": {
-        "name": { "type": "string", "description": "Test name: test_<load_pattern>_<scenario_description>." },
-        "target_table": { "type": "string", "description": "Bracket-quoted target table identifier, e.g. [silver].[DimProduct]." },
-        "procedure": { "type": "string", "description": "Bracket-quoted stored procedure identifier, e.g. [silver].[usp_load_DimProduct]." },
-        "model": { "type": "string", "description": "dbt model name, deterministic from table FQN. Optional in CLI-ready format; used during dbt YAML conversion." },
+        "name": {
+          "type": "string",
+          "description": "Test name: test_<load_pattern>_<scenario_description>."
+        },
+        "target_table": {
+          "type": "string",
+          "description": "Bracket-quoted target table identifier, e.g. [silver].[DimProduct]."
+        },
+        "procedure": {
+          "type": "string",
+          "description": "Bracket-quoted stored procedure identifier, e.g. [silver].[usp_load_DimProduct]."
+        },
+        "model": {
+          "type": "string",
+          "description": "dbt model name, deterministic from table FQN. Optional in CLI-ready format; used during dbt YAML conversion."
+        },
         "given": {
           "type": "array",
-          "items": { "$ref": "#/$defs/given_entry" },
+          "items": {
+            "$ref": "#/$defs/given_entry"
+          },
           "minItems": 1
         },
-        "expect": { "$ref": "#/$defs/expect_entry" }
+        "expect": {
+          "$ref": "#/$defs/expect_entry"
+        }
       }
     },
     "given_entry": {
       "type": "object",
-      "required": ["table", "rows"],
+      "required": [
+        "table",
+        "rows"
+      ],
       "properties": {
-        "table": { "type": "string", "description": "Bracket-quoted SQL identifier for the fixture table, e.g. [bronze].[SalesOrderHeader]." },
+        "table": {
+          "type": "string",
+          "description": "Bracket-quoted SQL identifier for the fixture table, e.g. [bronze].[SalesOrderHeader]."
+        },
         "rows": {
           "type": "array",
-          "items": { "type": "object", "additionalProperties": true },
-          "minItems": 1
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
         }
       }
     },
     "expect_entry": {
       "type": "object",
-      "required": ["rows"],
+      "required": [
+        "rows"
+      ],
       "properties": {
         "rows": {
           "type": "array",
-          "items": { "type": "object", "additionalProperties": true },
-          "minItems": 1
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
         }
       }
     }

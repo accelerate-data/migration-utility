@@ -6,7 +6,7 @@
     {
       "id": "static_sp_executesql_insert",
       "statement_index": 0,
-      "description": "EXEC sp_executesql with a literal SQL string — INSERT INTO silver.StaticSpExecTarget from bronze.Product after TRUNCATE",
+      "description": "EXEC sp_executesql with a literal SQL string \u2014 INSERT INTO silver.StaticSpExecTarget from bronze.Product after TRUNCATE",
       "scenarios": [
         "test_exec_static_single_row",
         "test_exec_static_multiple_rows",
@@ -30,7 +30,7 @@
               "FinishedGoodsFlag": 1,
               "SafetyStockLevel": 500,
               "ReorderPoint": 375,
-              "StandardCost": 0.00,
+              "StandardCost": 0.0,
               "ListPrice": 3578.27,
               "DaysToManufacture": 2,
               "SellStartDate": "2013-05-30",
@@ -55,7 +55,7 @@
               "FinishedGoodsFlag": 1,
               "SafetyStockLevel": 500,
               "ReorderPoint": 375,
-              "StandardCost": 0.00,
+              "StandardCost": 0.0,
               "ListPrice": 3578.27,
               "DaysToManufacture": 2,
               "SellStartDate": "2013-05-30",
@@ -68,7 +68,7 @@
               "FinishedGoodsFlag": 1,
               "SafetyStockLevel": 500,
               "ReorderPoint": 375,
-              "StandardCost": 0.00,
+              "StandardCost": 0.0,
               "ListPrice": 2319.99,
               "DaysToManufacture": 4,
               "SellStartDate": "2013-05-30",
@@ -93,8 +93,8 @@
   "uncovered_branches": [],
   "warnings": [],
   "validation": {
-    "status": "ok",
-    "summary": []
+    "passed": true,
+    "issues": []
   },
   "errors": []
 }

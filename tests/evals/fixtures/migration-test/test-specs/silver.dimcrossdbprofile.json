@@ -27,8 +27,8 @@
     }
   ],
   "validation": {
-    "status": "ok",
-    "summary": []
+    "passed": true,
+    "issues": []
   },
   "errors": []
 }

@@ -95,8 +95,9 @@ module.exports = (output, context) => {
 
   // Search warnings[].message specifically to avoid synonym-variation false negatives
   const warningMessages = (spec.warnings || []).map((w) => (w.message || '').toLowerCase()).join(' ');
+  const warningText = JSON.stringify(spec.warnings || []).toLowerCase();
   for (const term of expectedWarnings) {
-    if (!warningMessages.includes(term) && !specText.includes(term)) {
+    if (!warningMessages.includes(term) && !warningText.includes(term)) {
       return { pass: false, score: 0, reason: `Expected warning term '${term}' not found in spec warnings` };
     }
   }
