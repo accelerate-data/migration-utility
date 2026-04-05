@@ -2,13 +2,110 @@
   "item_id": "silver.correlatedsubquerytarget",
   "status": "ok",
   "coverage": "complete",
-  "branch_manifest": [],
-  "unit_tests": [],
+  "branch_manifest": [
+    {
+      "id": "correlated_subquery_hit",
+      "statement_index": 0,
+      "description": "Row WHERE ProductID equals MAX(ProductID) for its ProductName group — correlated subquery matches, row is inserted",
+      "scenarios": ["test_insert_correlated_subquery_max_product_inserted"]
+    },
+    {
+      "id": "correlated_subquery_miss",
+      "statement_index": 0,
+      "description": "Row WHERE ProductID is less than MAX(ProductID) for its ProductName group — correlated subquery does not match, row is filtered out",
+      "scenarios": ["test_insert_correlated_subquery_non_max_product_excluded"]
+    },
+    {
+      "id": "empty_source",
+      "statement_index": 0,
+      "description": "Zero rows in bronze.Product — INSERT produces no rows, target remains empty",
+      "scenarios": ["test_insert_correlated_subquery_empty_source_no_rows"]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_insert_correlated_subquery_max_product_inserted",
+      "target_table": "[silver].[CorrelatedSubqueryTarget]",
+      "procedure": "[silver].[usp_load_CorrelatedSubqueryTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 10,
+              "ProductName": "Widget",
+              "ProductNumber": "WG-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 50,
+              "StandardCost": 10.00,
+              "ListPrice": 19.99,
+              "DaysToManufacture": 1,
+              "SellStartDate": "2020-01-01",
+              "ModifiedDate": "2020-01-01"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "test_insert_correlated_subquery_non_max_product_excluded",
+      "target_table": "[silver].[CorrelatedSubqueryTarget]",
+      "procedure": "[silver].[usp_load_CorrelatedSubqueryTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 5,
+              "ProductName": "Gadget",
+              "ProductNumber": "GD-005",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 50,
+              "StandardCost": 5.00,
+              "ListPrice": 9.99,
+              "DaysToManufacture": 1,
+              "SellStartDate": "2020-01-01",
+              "ModifiedDate": "2020-01-01"
+            },
+            {
+              "ProductID": 20,
+              "ProductName": "Gadget",
+              "ProductNumber": "GD-020",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 50,
+              "StandardCost": 5.00,
+              "ListPrice": 9.99,
+              "DaysToManufacture": 1,
+              "SellStartDate": "2020-01-01",
+              "ModifiedDate": "2020-01-01"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "test_insert_correlated_subquery_empty_source_no_rows",
+      "target_table": "[silver].[CorrelatedSubqueryTarget]",
+      "procedure": "[silver].[usp_load_CorrelatedSubqueryTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": []
+        }
+      ]
+    }
+  ],
   "uncovered_branches": [],
   "warnings": [],
   "validation": {
-    "status": "ok",
-    "summary": []
+    "passed": true,
+    "issues": []
   },
   "errors": []
 }

@@ -2,13 +2,70 @@
   "item_id": "silver.deletewheretarget",
   "status": "ok",
   "coverage": "complete",
-  "branch_manifest": [],
-  "unit_tests": [],
+  "branch_manifest": [
+    {
+      "id": "where_passes_retired_row_deleted",
+      "statement_index": 0,
+      "description": "WHERE IsRetired = 1 — matching row is deleted from the target table",
+      "scenarios": ["test_delete_where_retired_row_removed"]
+    },
+    {
+      "id": "where_fails_active_row_kept",
+      "statement_index": 0,
+      "description": "WHERE IsRetired = 0 — non-matching row is not deleted and remains in the target table",
+      "scenarios": ["test_delete_where_active_row_retained"]
+    },
+    {
+      "id": "empty_source_no_op",
+      "statement_index": 0,
+      "description": "Empty target table — DELETE affects zero rows, no error",
+      "scenarios": ["test_delete_where_empty_table_no_op"]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_delete_where_retired_row_removed",
+      "target_table": "[silver].[DeleteWhereTarget]",
+      "procedure": "[silver].[usp_load_DeleteWhereTarget]",
+      "given": [
+        {
+          "table": "[silver].[DeleteWhereTarget]",
+          "rows": [
+            { "ProductAlternateKey": "P001", "EnglishProductName": "Widget A", "IsRetired": 1 }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "test_delete_where_active_row_retained",
+      "target_table": "[silver].[DeleteWhereTarget]",
+      "procedure": "[silver].[usp_load_DeleteWhereTarget]",
+      "given": [
+        {
+          "table": "[silver].[DeleteWhereTarget]",
+          "rows": [
+            { "ProductAlternateKey": "P002", "EnglishProductName": "Widget B", "IsRetired": 0 }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "test_delete_where_empty_table_no_op",
+      "target_table": "[silver].[DeleteWhereTarget]",
+      "procedure": "[silver].[usp_load_DeleteWhereTarget]",
+      "given": [
+        {
+          "table": "[silver].[DeleteWhereTarget]",
+          "rows": []
+        }
+      ]
+    }
+  ],
   "uncovered_branches": [],
   "warnings": [],
   "validation": {
-    "status": "ok",
-    "summary": []
+    "passed": true,
+    "issues": []
   },
   "errors": []
 }

@@ -1,0 +1,108 @@
+{
+  "item_id": "silver.whiletarget",
+  "status": "partial",
+  "coverage": "partial",
+  "branch_manifest": [
+    {
+      "id": "while_loop_skipped",
+      "statement_index": 0,
+      "description": "WHILE loop not entered: bronze.Product is empty so @MaxBatch = CEILING(0/100.0) = 0, @BatchId=1 > 0, body never executes, target stays empty",
+      "scenarios": [
+        "test_while_loop_empty_source_no_rows_inserted"
+      ]
+    },
+    {
+      "id": "while_loop_entry_and_body",
+      "statement_index": 0,
+      "description": "WHILE loop body executed: products exist (< 100), @MaxBatch = 1, batch 1 inserted via OFFSET 0 ROWS FETCH NEXT 100",
+      "scenarios": [
+        "test_while_loop_single_batch_products_inserted"
+      ]
+    },
+    {
+      "id": "while_loop_exit",
+      "statement_index": 0,
+      "description": "WHILE loop exit: after batch 1 completes @BatchId increments to 2, condition 2 <= 1 is false, loop terminates",
+      "scenarios": [
+        "test_while_loop_single_batch_products_inserted"
+      ]
+    },
+    {
+      "id": "while_loop_multiple_batches",
+      "statement_index": 0,
+      "description": "WHILE loop iterates more than once: requires > 100 rows in bronze.Product so @MaxBatch >= 2; second batch uses OFFSET 100 ROWS FETCH NEXT 100",
+      "scenarios": []
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_while_loop_empty_source_no_rows_inserted",
+      "target_table": "[silver].[WhileTarget]",
+      "procedure": "[silver].[usp_load_WhileTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": []
+        }
+      ]
+    },
+    {
+      "name": "test_while_loop_single_batch_products_inserted",
+      "target_table": "[silver].[WhileTarget]",
+      "procedure": "[silver].[usp_load_WhileTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductName": "Road-150 Red",
+              "ProductNumber": "BK-R150-62",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 1059.31,
+              "ListPrice": 3578.27,
+              "DaysToManufacture": 2,
+              "SellStartDate": "2001-07-01",
+              "ModifiedDate": "2004-03-11"
+            },
+            {
+              "ProductName": "Mountain-200 Black",
+              "ProductNumber": "BK-M68B-38",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 1265.62,
+              "ListPrice": 2294.99,
+              "DaysToManufacture": 4,
+              "SellStartDate": "2001-07-01",
+              "ModifiedDate": "2004-03-11"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "uncovered_branches": [
+    "while_loop_multiple_batches"
+  ],
+  "warnings": [
+    {
+      "code": "BRANCH_NOT_COVERED",
+      "message": "while_loop_multiple_batches requires > 100 rows in bronze.Product to force @MaxBatch >= 2; generating 100+ fixture rows is impractical and this branch is left uncovered.",
+      "item_id": "silver.whiletarget",
+      "severity": "warning",
+      "details": {
+        "branch_id": "while_loop_multiple_batches",
+        "reason": "batch_size_too_large_for_fixture"
+      }
+    }
+  ],
+  "validation": {
+    "status": "ok",
+    "summary": []
+  },
+  "errors": []
+}
