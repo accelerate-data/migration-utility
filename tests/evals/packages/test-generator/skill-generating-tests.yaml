@@ -55,3 +55,141 @@ tests:
       expected_coverage: "complete,partial"
       expected_warning_terms: "dynamic"
       expected_output_terms: "dynamic"
+
+  # --- VU-866: core DML patterns ---
+
+  - description: "insert-select — InsertSelectTarget enumerates insert-only branches"
+    vars:
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+
+  - description: "update-join — UpdateJoinTarget enumerates matched and join-miss branches"
+    vars:
+      target_table: "silver.UpdateJoinTarget"
+      writer: "silver.usp_load_UpdateJoinTarget"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+
+  - description: "delete-where — DeleteWhereTarget enumerates kept vs removed branches"
+    vars:
+      target_table: "silver.DeleteWhereTarget"
+      writer: "silver.usp_load_DeleteWhereTarget"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+
+  - description: "truncate-insert — InsertSelectTarget validates full-reload pattern"
+    vars:
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+      expected_output_terms: "truncate,insert"
+
+  - description: "select-into — SelectIntoTarget validates staging table creation pattern"
+    vars:
+      target_table: "silver.SelectIntoTarget"
+      writer: "silver.usp_load_SelectIntoTarget"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+
+  # --- VU-867: composition and control flow ---
+
+  - description: "single-cte — SingleCteTarget validates CTE dependency chain"
+    vars:
+      target_table: "silver.SingleCteTarget"
+      writer: "silver.usp_load_SingleCteTarget"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+
+  - description: "correlated-subquery — CorrelatedSubqueryTarget validates coordinated fixture rows"
+    vars:
+      target_table: "silver.CorrelatedSubqueryTarget"
+      writer: "silver.usp_load_CorrelatedSubqueryTarget"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+
+  - description: "window-functions — FactInternetSales validates partition edge cases"
+    vars:
+      target_table: "silver.FactInternetSales"
+      writer: "silver.usp_load_FactInternetSales"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 2
+      min_scenario_count: 2
+      expected_output_terms: "partition,salesorderheader"
+
+  - description: "outer-apply — DimCustomer validates row-multiplying branch coverage"
+    vars:
+      target_table: "silver.DimCustomer"
+      writer: "silver.usp_load_DimCustomer_Full"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 2
+      min_scenario_count: 1
+
+  - description: "if-else — IfElseTarget validates control-flow branch enumeration"
+    vars:
+      target_table: "silver.IfElseTarget"
+      writer: "silver.usp_load_IfElseTarget"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 2
+      min_scenario_count: 1
+
+  - description: "while-loop — WhileTarget validates loop iteration boundary testing"
+    vars:
+      target_table: "silver.WhileTarget"
+      writer: "silver.usp_load_WhileTarget"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+
+  - description: "cross-db-exec — DimCrossDbProfile validates delegation limitation surfaced"
+    vars:
+      target_table: "silver.DimCrossDbProfile"
+      writer: "silver.usp_load_DimCrossDbProfile"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      expected_output_terms: "cross,delegation,opaque"
+
+  - description: "static-sp-executesql — StaticSpExecTarget validates enrichment-resolved target"
+    vars:
+      target_table: "silver.StaticSpExecTarget"
+      writer: "silver.usp_load_StaticSpExecTarget"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+
+  - description: "exec-variable — ExecVariableTarget records untestable dynamic SQL rationale"
+    vars:
+      target_table: "silver.ExecVariableTarget"
+      writer: "silver.usp_scope_execvariable"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      expected_output_terms: "dynamic,untestable,variable"
+
+  - description: "exec-concat — ExecConcatTarget records untestable dynamic SQL rationale"
+    vars:
+      target_table: "silver.ExecConcatTarget"
+      writer: "silver.usp_scope_execconcat"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      expected_output_terms: "dynamic,untestable,concat"

@@ -1,0 +1,65 @@
+{
+  "item_id": "silver.ifelsetarget",
+  "status": "partial",
+  "coverage": "partial",
+  "branch_manifest": [
+    {
+      "id": "if_premium_path",
+      "statement_index": 0,
+      "description": "IF branch: when AVG(ListPrice) > 100, insert only premium-priced products with PriceCategory='Premium'",
+      "scenarios": [
+        "test_premium_path_high_avg"
+      ]
+    },
+    {
+      "id": "else_standard_path",
+      "statement_index": 1,
+      "description": "ELSE branch: when AVG(ListPrice) <= 100, insert all products with PriceCategory='Standard'",
+      "scenarios": []
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_premium_path_high_avg",
+      "model": "stg_ifelsetarget",
+      "given": [
+        {
+          "input": "source('bronze', 'product')",
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Road-150",
+              "ListPrice": 200.0
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150",
+            "PriceCategory": "Premium"
+          }
+        ]
+      }
+    }
+  ],
+  "uncovered_branches": [
+    "else_standard_path"
+  ],
+  "warnings": [
+    {
+      "code": "BRANCH_NOT_COVERED",
+      "message": "1 of 2 control-flow branches has no scenarios: else_standard_path.",
+      "item_id": "silver.ifelsetarget",
+      "severity": "warning",
+      "details": {}
+    }
+  ],
+  "validation": {
+    "status": "ok",
+    "summary": []
+  },
+  "errors": []
+}

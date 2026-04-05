@@ -1,0 +1,113 @@
+{
+  "item_id": "silver.factexecprofile",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {
+      "id": "exec_chain_insert",
+      "statement_index": 0,
+      "description": "Orchestrator usp_load_FactExecProfile delegates to usp_stage_FactExecProfile which performs INSERT with JOIN",
+      "scenarios": [
+        "test_exec_chain_single_row",
+        "test_exec_chain_join_miss"
+      ]
+    },
+    {
+      "id": "empty_source",
+      "statement_index": 0,
+      "description": "Empty source tables yield no rows in target",
+      "scenarios": [
+        "test_empty_source"
+      ]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_exec_chain_single_row",
+      "model": "stg_factexecprofile",
+      "given": [
+        {
+          "input": "source('bronze', 'execlog')",
+          "rows": [
+            {
+              "ProcedureName": "usp_load_DimProduct",
+              "ExecutionDate": "2024-01-15",
+              "DurationMs": 1500,
+              "RowsAffected": 42,
+              "StatusCode": 0
+            }
+          ]
+        },
+        {
+          "input": "ref('dim_procedure')",
+          "rows": [
+            {
+              "ProcedureName": "usp_load_DimProduct",
+              "ProcedureKey": 101
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProcedureKey": 101,
+            "ExecutionDate": "2024-01-15",
+            "DurationMs": 1500,
+            "RowsAffected": 42,
+            "StatusCode": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "test_exec_chain_join_miss",
+      "model": "stg_factexecprofile",
+      "given": [
+        {
+          "input": "source('bronze', 'execlog')",
+          "rows": [
+            {
+              "ProcedureName": "usp_unknown_proc",
+              "ExecutionDate": "2024-01-15",
+              "DurationMs": 100,
+              "RowsAffected": 0,
+              "StatusCode": 1
+            }
+          ]
+        },
+        {
+          "input": "ref('dim_procedure')",
+          "rows": []
+        }
+      ],
+      "expect": {
+        "rows": []
+      }
+    },
+    {
+      "name": "test_empty_source",
+      "model": "stg_factexecprofile",
+      "given": [
+        {
+          "input": "source('bronze', 'execlog')",
+          "rows": []
+        },
+        {
+          "input": "ref('dim_procedure')",
+          "rows": []
+        }
+      ],
+      "expect": {
+        "rows": []
+      }
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [],
+  "validation": {
+    "status": "ok",
+    "summary": []
+  },
+  "errors": []
+}

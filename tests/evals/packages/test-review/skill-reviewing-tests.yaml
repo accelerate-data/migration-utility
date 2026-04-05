@@ -39,3 +39,37 @@ tests:
       target_table: "silver.DimCustomer"
       writer: "silver.usp_load_DimCustomer_Full"
       expected_status: "revision_requested"
+
+  # --- VU-868: pattern-specific review cases ---
+
+  - description: "approved — InsertSelectTarget complete branch coverage for non-MERGE pattern"
+    vars:
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_status: "approved"
+      min_covered_branches: 1
+
+  - description: "revision-requested — UpdateJoinTarget missing join-miss scenario"
+    vars:
+      target_table: "silver.UpdateJoinTarget"
+      writer: "silver.usp_load_UpdateJoinTarget"
+      expected_status: "revision_requested"
+
+  - description: "revision-requested — IfElseTarget missing one control-flow arm"
+    vars:
+      target_table: "silver.IfElseTarget"
+      writer: "silver.usp_load_IfElseTarget"
+      expected_status: "revision_requested"
+
+  - description: "approved — FactExecProfile covers transitive writer chain"
+    vars:
+      target_table: "silver.FactExecProfile"
+      writer: "silver.usp_load_FactExecProfile"
+      expected_status: "approved"
+      min_covered_branches: 1
+
+  - description: "approved — DimCurrency partial coverage with untestable dynamic SQL rationale"
+    vars:
+      target_table: "silver.DimCurrency"
+      writer: "silver.usp_load_DimCurrency"
+      expected_status: "approved"

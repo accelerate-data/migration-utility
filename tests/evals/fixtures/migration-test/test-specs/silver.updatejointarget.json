@@ -1,11 +1,67 @@
 {
   "item_id": "silver.updatejointarget",
-  "status": "ok",
-  "coverage": "complete",
-  "branch_manifest": [],
-  "unit_tests": [],
-  "uncovered_branches": [],
-  "warnings": [],
+  "status": "partial",
+  "coverage": "partial",
+  "branch_manifest": [
+    {
+      "id": "update_matched_rows",
+      "statement_index": 0,
+      "description": "UPDATE sets EnglishProductName and LastSeenDate for rows matched via INNER JOIN on ProductAlternateKey",
+      "scenarios": [
+        "test_update_matched_row"
+      ]
+    },
+    {
+      "id": "join_miss_no_update",
+      "statement_index": 0,
+      "description": "Target rows with no matching source row are left unchanged (INNER JOIN miss)",
+      "scenarios": []
+    },
+    {
+      "id": "null_join_key",
+      "statement_index": 0,
+      "description": "NULL ProductAlternateKey in target never matches source, row unchanged",
+      "scenarios": []
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_update_matched_row",
+      "model": "stg_updatejointarget",
+      "given": [
+        {
+          "input": "source('bronze', 'product')",
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Road-150-Updated"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150-Updated"
+          }
+        ]
+      }
+    }
+  ],
+  "uncovered_branches": [
+    "join_miss_no_update",
+    "null_join_key"
+  ],
+  "warnings": [
+    {
+      "code": "BRANCH_NOT_COVERED",
+      "message": "2 of 3 branches have no scenarios: join_miss_no_update, null_join_key.",
+      "item_id": "silver.updatejointarget",
+      "severity": "warning",
+      "details": {}
+    }
+  ],
   "validation": {
     "status": "ok",
     "summary": []

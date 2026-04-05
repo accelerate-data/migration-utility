@@ -281,6 +281,29 @@ CREATE TABLE [silver].[FactInternetSales] (
 GO
  
 
+CREATE TABLE [silver].[IfElseTarget] (
+    [ProductAlternateKey] nvarchar(25) NOT NULL,
+    [EnglishProductName] nvarchar(50) NOT NULL,
+    [PriceCategory] nvarchar(20) NOT NULL
+    ,CONSTRAINT [PK_IfElseTarget] PRIMARY KEY ([ProductAlternateKey])
+);
+GO
+
+CREATE TABLE [silver].[WhileTarget] (
+    [BatchId] int NOT NULL,
+    [ProductAlternateKey] nvarchar(25) NOT NULL,
+    [EnglishProductName] nvarchar(50) NOT NULL
+    ,CONSTRAINT [PK_WhileTarget] PRIMARY KEY ([BatchId], [ProductAlternateKey])
+);
+GO
+
+CREATE TABLE [silver].[StaticSpExecTarget] (
+    [ProductAlternateKey] nvarchar(25) NOT NULL,
+    [EnglishProductName] nvarchar(50) NOT NULL
+    ,CONSTRAINT [PK_StaticSpExecTarget] PRIMARY KEY ([ProductAlternateKey])
+);
+GO
+
 CREATE TABLE [silver].[FactExecProfile] (
     [ExecProfileKey] int IDENTITY(1,1) NOT NULL,
     [ProcedureKey] int NOT NULL,

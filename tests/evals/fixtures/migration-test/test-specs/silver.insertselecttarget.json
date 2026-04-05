@@ -2,8 +2,82 @@
   "item_id": "silver.insertselecttarget",
   "status": "ok",
   "coverage": "complete",
-  "branch_manifest": [],
-  "unit_tests": [],
+  "branch_manifest": [
+    {
+      "id": "insert_select_full_reload",
+      "statement_index": 0,
+      "description": "INSERT...SELECT projects all source rows from bronze.Product after TRUNCATE",
+      "scenarios": [
+        "test_insert_select_single_row",
+        "test_insert_select_multiple_rows"
+      ]
+    },
+    {
+      "id": "empty_source",
+      "statement_index": 0,
+      "description": "Empty bronze.Product yields no rows in target",
+      "scenarios": [
+        "test_empty_source_returns_no_rows"
+      ]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_insert_select_single_row",
+      "model": "stg_insertselecttarget",
+      "given": [
+        {
+          "input": "source('bronze', 'product')",
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Road-150"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150"
+          }
+        ]
+      }
+    },
+    {
+      "name": "test_insert_select_multiple_rows",
+      "model": "stg_insertselecttarget",
+      "given": [
+        {
+          "input": "source('bronze', 'product')",
+          "rows": [
+            { "ProductID": 1, "ProductName": "Road-150" },
+            { "ProductID": 2, "ProductName": "Mountain-200" }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          { "ProductAlternateKey": "1", "EnglishProductName": "Road-150" },
+          { "ProductAlternateKey": "2", "EnglishProductName": "Mountain-200" }
+        ]
+      }
+    },
+    {
+      "name": "test_empty_source_returns_no_rows",
+      "model": "stg_insertselecttarget",
+      "given": [
+        {
+          "input": "source('bronze', 'product')",
+          "rows": []
+        }
+      ],
+      "expect": {
+        "rows": []
+      }
+    }
+  ],
   "uncovered_branches": [],
   "warnings": [],
   "validation": {

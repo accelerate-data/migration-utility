@@ -1,0 +1,35 @@
+{
+  "item_id": "silver.dimcurrency",
+  "status": "partial",
+  "coverage": "partial",
+  "branch_manifest": [
+    {
+      "id": "dynamic_sql_insert",
+      "statement_index": 0,
+      "description": "Dynamic sp_executesql builds and executes INSERT INTO silver.DimCurrency from bronze.Currency",
+      "testable_in_dbt": false,
+      "scenarios": []
+    }
+  ],
+  "unit_tests": [],
+  "uncovered_branches": [
+    "dynamic_sql_insert"
+  ],
+  "warnings": [
+    {
+      "code": "DYNAMIC_SQL_UNTESTABLE",
+      "message": "Write logic is embedded in a dynamic sp_executesql variable — SQL is not statically visible for fixture generation. Rationale recorded for reviewer acceptance.",
+      "item_id": "silver.dimcurrency",
+      "severity": "info",
+      "details": {
+        "routing": "dynamic_sql_variable",
+        "recovered_sql": "INSERT INTO silver.DimCurrency (CurrencyAlternateKey, CurrencyName) SELECT CurrencyCode, CurrencyName FROM MigrationTest.bronze.Currency"
+      }
+    }
+  ],
+  "validation": {
+    "status": "ok",
+    "summary": []
+  },
+  "errors": []
+}

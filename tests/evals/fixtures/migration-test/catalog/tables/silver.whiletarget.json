@@ -1,7 +1,13 @@
 {
   "schema": "silver",
-  "name": "staticspexectarget",
+  "name": "whiletarget",
   "columns": [
+    {
+      "name": "BatchId",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": false
+    },
     {
       "name": "ProductAlternateKey",
       "sql_type": "NVARCHAR(25)",
@@ -17,8 +23,9 @@
   ],
   "primary_keys": [
     {
-      "constraint_name": "PK_StaticSpExecTarget",
+      "constraint_name": "PK_WhileTarget",
       "columns": [
+        "BatchId",
         "ProductAlternateKey"
       ]
     }
@@ -33,7 +40,7 @@
       "in_scope": [
         {
           "schema": "silver",
-          "name": "usp_load_staticspexectarget",
+          "name": "usp_load_whiletarget",
           "is_selected": true,
           "is_updated": true
         }
@@ -51,23 +58,24 @@
   },
   "scoping": {
     "status": "resolved",
-    "selected_writer": "silver.usp_load_StaticSpExecTarget"
+    "selected_writer": "silver.usp_load_WhileTarget"
   },
   "profile": {
     "status": "ok",
-    "writer": "silver.usp_load_StaticSpExecTarget",
+    "writer": "silver.usp_load_WhileTarget",
     "classification": {
       "resolved_kind": "dim_non_scd",
       "source": "catalog+llm",
-      "rationale": "Static sp_executesql wraps a simple INSERT...SELECT that can be resolved at parse time."
+      "rationale": "WHILE loop batches product rows into numbered batches for staged loading."
     },
     "primary_key": {
       "columns": [
+        "BatchId",
         "ProductAlternateKey"
       ],
       "primary_key_type": "natural",
       "source": "catalog",
-      "rationale": "ProductAlternateKey is the declared primary key."
+      "rationale": "Composite key of BatchId and ProductAlternateKey uniquely identifies each batched row."
     },
     "foreign_keys": [],
     "pii_actions": []

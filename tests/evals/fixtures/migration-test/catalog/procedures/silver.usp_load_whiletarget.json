@@ -1,6 +1,6 @@
 {
   "schema": "silver",
-  "name": "usp_load_staticspexectarget",
+  "name": "usp_load_whiletarget",
   "references": {
     "tables": {
       "in_scope": [
@@ -16,10 +16,11 @@
         },
         {
           "schema": "silver",
-          "name": "StaticSpExecTarget",
+          "name": "WhileTarget",
           "is_selected": false,
           "is_updated": true,
           "columns": [
+            { "name": "BatchId", "is_selected": false, "is_updated": true },
             { "name": "ProductAlternateKey", "is_selected": false, "is_updated": true },
             { "name": "EnglishProductName", "is_selected": false, "is_updated": true }
           ]
@@ -31,19 +32,20 @@
     "functions": { "in_scope": [], "out_of_scope": [] },
     "procedures": { "in_scope": [], "out_of_scope": [] }
   },
-  "mode": "call_graph_enrich",
+  "mode": "llm_required",
   "routing_reasons": [
     {
-      "routing": "static_exec",
-      "rationale": "Static sp_executesql with literal SQL string — target can be resolved from the string literal during enrichment."
+      "routing": "control_flow",
+      "rationale": "WHILE loop with dynamic batch counter requires LLM-assisted analysis to determine iteration boundaries."
     }
   ],
   "statements": [
     {
-      "type": "Exec",
+      "type": "Insert",
       "action": "migrate",
-      "source": "ast",
-      "sql": "EXEC sp_executesql N'INSERT INTO silver.StaticSpExecTarget (ProductAlternateKey, EnglishProductName) SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product'"
+      "source": "llm",
+      "needs_llm": true,
+      "sql": "INSERT INTO silver.WhileTarget (BatchId, ProductAlternateKey, EnglishProductName) SELECT @BatchId, CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product ORDER BY ProductID OFFSET (@BatchId - 1) * 100 ROWS FETCH NEXT 100 ROWS ONLY"
     }
   ]
 }
