@@ -91,3 +91,13 @@ tests:
       expected_writer: "execconcat"
       expected_source: "llm"
       expected_statement_terms: "insert into silver.execconcattarget"
+
+  # ── linked-server-exec: LinkedServerExecTarget skip ────────
+  - description: "linked-server-exec — LinkedServerExecTarget linked-server EXEC skip"
+    vars:
+      target_table: "silver.LinkedServerExecTarget"
+      target_procedure: "silver.usp_scope_LinkedServerExec"
+      expected_status: "resolved"
+      allow_zero_migrate: "true"
+      expected_action: "skip"
+      expected_rationale_terms: "linked server"
