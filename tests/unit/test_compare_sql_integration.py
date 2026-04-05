@@ -876,6 +876,56 @@ class TestCompareTwoSqlValidation:
         finally:
             backend.sandbox_down(sandbox_db=up["sandbox_database"])
 
+    def test_rejects_invalid_syntax_in_sql_a(self) -> None:
+        """Malformed SQL A is caught by PARSEONLY before execution."""
+        backend = _make_backend()
+        up = backend.sandbox_up(schemas=["bronze"])
+        try:
+            result = backend.compare_two_sql(
+                sandbox_db=up["sandbox_database"],
+                sql_a="SELEC BROKEN SYNTAX FROM",
+                sql_b="SELECT 1 AS x",
+                fixtures=[],
+            )
+            assert result["status"] == "error"
+            assert result["errors"][0]["code"] == "SQL_SYNTAX_ERROR"
+            assert "A" in result["errors"][0]["message"]
+        finally:
+            backend.sandbox_down(sandbox_db=up["sandbox_database"])
+
+    def test_rejects_invalid_syntax_in_sql_b(self) -> None:
+        """Malformed SQL B is caught by PARSEONLY before execution."""
+        backend = _make_backend()
+        up = backend.sandbox_up(schemas=["bronze"])
+        try:
+            result = backend.compare_two_sql(
+                sandbox_db=up["sandbox_database"],
+                sql_a="SELECT 1 AS x",
+                sql_b="WITH broken AS (SELECT FROM WHERE",
+                fixtures=[],
+            )
+            assert result["status"] == "error"
+            assert result["errors"][0]["code"] == "SQL_SYNTAX_ERROR"
+            assert "B" in result["errors"][0]["message"]
+        finally:
+            backend.sandbox_down(sandbox_db=up["sandbox_database"])
+
+    def test_rejects_invalid_syntax_in_both(self) -> None:
+        """When both SQL statements are malformed, one is caught by PARSEONLY."""
+        backend = _make_backend()
+        up = backend.sandbox_up(schemas=["bronze"])
+        try:
+            result = backend.compare_two_sql(
+                sandbox_db=up["sandbox_database"],
+                sql_a="SELECT FROM WHERE GROUP",
+                sql_b="WITH x AS (SELECT FROM WHERE",
+                fixtures=[],
+            )
+            assert result["status"] == "error"
+            assert result["errors"][0]["code"] == "SQL_SYNTAX_ERROR"
+        finally:
+            backend.sandbox_down(sandbox_db=up["sandbox_database"])
+
     def test_rejects_empty_sql(self) -> None:
         """Empty SQL string is rejected."""
         backend = _make_backend()

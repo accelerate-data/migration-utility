@@ -751,6 +751,32 @@ class SqlServerSandbox(SandboxBackend):
                 cursor = conn.cursor()
 
                 try:
+                    # Syntax-check both SQL statements before seeding
+                    # fixtures. PARSEONLY validates syntax without execution.
+                    for label, sql in [("A", sql_a), ("B", sql_b)]:
+                        try:
+                            cursor.execute("SET PARSEONLY ON")
+                            cursor.execute(sql)
+                            cursor.execute("SET PARSEONLY OFF")
+                        except pyodbc.Error as parse_exc:
+                            cursor.execute("SET PARSEONLY OFF")
+                            logger.error(
+                                "event=sql_syntax_error sandbox_db=%s label=%s error=%s",
+                                sandbox_db, label, parse_exc,
+                            )
+                            return {
+                                "status": "error",
+                                "equivalent": False,
+                                "a_count": 0,
+                                "b_count": 0,
+                                "a_minus_b": [],
+                                "b_minus_a": [],
+                                "errors": [{
+                                    "code": "SQL_SYNTAX_ERROR",
+                                    "message": f"SQL {label} has syntax errors: {parse_exc}",
+                                }],
+                            }
+
                     self._seed_fixtures(cursor, sandbox_db, fixtures)
 
                     cursor.execute(sql_a)
