@@ -57,7 +57,8 @@
     "init_cli": "plugin/lib/shared/init.py",
     "profile_cli": "plugin/lib/shared/profile.py",
     "test_harness_cli": "plugin/lib/shared/test_harness.py",
-    "migrate_util_cli": "plugin/lib/shared/dry_run.py"
+    "migrate_util_cli": "plugin/lib/shared/dry_run.py",
+    "generate_sources_cli": "plugin/lib/shared/generate_sources.py"
   },
   "modules": {
     "plugin_manifest": {
@@ -132,6 +133,7 @@
     "test_harness_execute_spec": "cd plugin/lib && uv run test-harness execute-spec --spec <path>",
     "test_harness_convert_dbt": "cd plugin/lib && uv run test-harness convert-dbt --spec <json-path> --output <yml-path>",
     "migrate_util_dry_run": "cd plugin/lib && uv run migrate-util dry-run <table> <stage> [--detail]",
+    "generate_sources": "cd plugin/lib && uv run generate-sources [--write] [--strict] [--project-root <path>]",
     "lint_md": "markdownlint <file>",
     "eval_all": "cd tests/evals && npm run eval",
     "eval_profiling_table": "cd tests/evals && npm run eval:profiling-table",
