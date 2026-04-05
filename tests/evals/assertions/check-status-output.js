@@ -11,16 +11,35 @@
 //   expected_recommendation?    — term that should appear in the recommendation
 // }
 
-function normalizeTerms(value) {
-  if (!value) return [];
-  return String(value)
-    .split(',')
-    .map((term) => term.trim().toLowerCase())
-    .filter(Boolean);
-}
+const fs = require('fs');
+const path = require('path');
+const { validateSchema, normalizeTerms } = require('./schema-helpers');
 
 module.exports = (output, context) => {
   const outputStr = String(output || '').toLowerCase();
+
+  // Validate dry-run output artifacts when present
+  const fixturePath = context.vars.fixture_path;
+  const targetTable = context.vars.target_table;
+  if (fixturePath && targetTable) {
+    const repoRoot = path.resolve(__dirname, '..', '..', '..');
+    const tableName = targetTable.toLowerCase().replace('.', '_');
+    const dryRunDir = path.resolve(repoRoot, fixturePath, '.migration-runs', 'dry-run');
+    if (fs.existsSync(dryRunDir)) {
+      const files = fs.readdirSync(dryRunDir).filter((f) => f.endsWith('.json'));
+      for (const file of files) {
+        try {
+          const data = JSON.parse(fs.readFileSync(path.join(dryRunDir, file), 'utf8'));
+          const schemaResult = validateSchema(data, 'dry_run_output.json');
+          if (!schemaResult.valid) {
+            return { pass: false, score: 0, reason: `Dry-run output ${file} schema validation failed: ${schemaResult.errors}` };
+          }
+        } catch (_) {
+          // skip malformed files
+        }
+      }
+    }
+  }
 
   // Parse expected stage statuses if provided
   if (context.vars.expected_stage_statuses) {

@@ -12,14 +12,7 @@
 // }
 const fs = require('fs');
 const path = require('path');
-
-function normalizeTerms(value) {
-  if (!value) return [];
-  return String(value)
-    .split(',')
-    .map((term) => term.trim().toLowerCase())
-    .filter(Boolean);
-}
+const { validateSchema, normalizeTerms } = require('./schema-helpers');
 
 module.exports = (output, context) => {
   const fixturePath = context.vars.fixture_path;
@@ -67,6 +60,18 @@ module.exports = (output, context) => {
       summary = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
     } catch (_e) {
       // summary.json may be malformed; fall back to text checks
+    }
+  }
+
+  // Schema validation when summary.json exists
+  if (summary) {
+    // Try scoping_summary schema first (has schema_version, run_id, results, summary);
+    // fall back to best-effort count checks if it doesn't match that shape.
+    if (summary.schema_version && summary.results) {
+      const schemaResult = validateSchema(summary, 'scoping_summary.json');
+      if (!schemaResult.valid) {
+        return { pass: false, score: 0, reason: `Summary schema validation failed: ${schemaResult.errors}` };
+      }
     }
   }
 

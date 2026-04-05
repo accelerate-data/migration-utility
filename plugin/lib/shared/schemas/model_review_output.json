@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "model_review_output.json",
+  "title": "ModelReviewOutput",
+  "description": "Output contract for the /reviewing-model skill. Returned as JSON in the LLM response.",
+  "type": "object",
+  "required": ["item_id", "status", "checks", "feedback_for_model_generator", "warnings", "errors"],
+  "properties": {
+    "item_id": { "type": "string", "description": "Fully qualified table name: <schema>.<table>." },
+    "status": {
+      "type": "string",
+      "enum": ["approved", "revision_requested", "approved_with_warnings", "error"]
+    },
+    "checks": {
+      "type": "object",
+      "required": ["standards", "correctness", "test_integration"],
+      "properties": {
+        "standards": { "$ref": "#/$defs/check_result" },
+        "correctness": { "$ref": "#/$defs/check_result" },
+        "test_integration": { "$ref": "#/$defs/check_result" }
+      }
+    },
+    "feedback_for_model_generator": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "$ref": "common.json#/$defs/diagnostics_entry" }
+    },
+    "errors": {
+      "type": "array",
+      "items": { "$ref": "common.json#/$defs/diagnostics_entry" }
+    }
+  },
+  "$defs": {
+    "check_result": {
+      "type": "object",
+      "required": ["passed", "issues"],
+      "properties": {
+        "passed": { "type": "boolean" },
+        "issues": {
+          "type": "array",
+          "items": { "$ref": "common.json#/$defs/diagnostics_entry" }
+        }
+      }
+    }
+  }
+}

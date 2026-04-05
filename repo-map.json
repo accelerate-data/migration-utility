@@ -98,7 +98,7 @@
     },
     "tests_evals": {
       "path": "tests/evals/",
-      "description": "Promptfoo eval harness for skill and command testing against MigrationTest schema. Skill packages: profiling-table, generating-model, generating-tests, reviewing-tests, reviewing-model, analyzing-table. Command packages: cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests. Top-level promptfooconfig.yaml for full-suite runs. Run via: cd tests/evals && npm run eval. See docs/design/eval-harness/README.md."
+      "description": "Promptfoo eval harness for skill and command testing against MigrationTest schema. Skill packages: profiling-table, generating-model, generating-tests, reviewing-tests, reviewing-model, analyzing-table. Command packages: cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests, cmd-status. Assertions use AJV schema validation via shared schema-helpers.js module. Top-level promptfooconfig.yaml for full-suite runs. Run via: cd tests/evals && npm run eval. See docs/design/eval-harness/README.md."
     },
     "tests_ddl_mcp": {
       "path": "plugin/mcp/ddl/tests/",

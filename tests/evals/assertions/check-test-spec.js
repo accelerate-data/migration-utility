@@ -1,27 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-
-function extractJsonObject(output) {
-  const text = String(output || '').trim();
-  const fenced = text.match(/```json\s*([\s\S]*?)```/i);
-  if (fenced) {
-    return JSON.parse(fenced[1]);
-  }
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start === -1 || end === -1 || end <= start) {
-    throw new Error('No JSON object found in output');
-  }
-  return JSON.parse(text.slice(start, end + 1));
-}
-
-function normalizeTerms(value) {
-  if (!value) return [];
-  return String(value)
-    .split(',')
-    .map((term) => term.trim().toLowerCase())
-    .filter(Boolean);
-}
+const { validateSchema, extractJsonObject, normalizeTerms } = require('./schema-helpers');
 
 module.exports = (output, context) => {
   const fixturePath = context.vars.fixture_path;
@@ -49,6 +28,42 @@ module.exports = (output, context) => {
       spec = JSON.parse(fs.readFileSync(specPath, 'utf8'));
     } catch (error) {
       return { pass: false, score: 0, reason: `Failed to parse test spec: ${error.message}` };
+    }
+  }
+
+  // Schema validation gate
+  const schemaResult = validateSchema(spec, 'test_spec.json');
+  if (!schemaResult.valid) {
+    return { pass: false, score: 0, reason: `Test spec schema validation failed: ${schemaResult.errors}` };
+  }
+
+  // Cross-artifact: item_id should match target_table
+  if (spec.item_id && table) {
+    const specItem = spec.item_id.toLowerCase();
+    const tableNorm = table.replace(/^[^.]+\./, '');
+    const specItemShort = specItem.replace(/^[^.]+\./, '');
+    if (specItemShort !== tableNorm && specItem !== table) {
+      return {
+        pass: false,
+        score: 0,
+        reason: `Cross-artifact mismatch: spec.item_id='${spec.item_id}' vs target_table='${context.vars.target_table}'`
+      };
+    }
+  }
+
+  // Cross-artifact: branch_manifest scenarios should reference actual unit_test names
+  if (Array.isArray(spec.branch_manifest) && Array.isArray(spec.unit_tests)) {
+    const testNames = new Set(spec.unit_tests.map((t) => t.name));
+    for (const branch of spec.branch_manifest) {
+      for (const scenario of branch.scenarios || []) {
+        if (!testNames.has(scenario)) {
+          return {
+            pass: false,
+            score: 0,
+            reason: `Cross-artifact mismatch: branch '${branch.id}' references scenario '${scenario}' not found in unit_tests`
+          };
+        }
+      }
     }
   }
 

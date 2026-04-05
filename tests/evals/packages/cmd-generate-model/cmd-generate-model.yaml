@@ -25,6 +25,8 @@ defaultTest:
   assert:
     - type: javascript
       value: file://../../assertions/check-command-summary.js
+    - type: javascript
+      value: file://../../assertions/check-model-generator-input.js
 
 tests:
   # ── happy path: 2 tables, both generate dbt models ──────────

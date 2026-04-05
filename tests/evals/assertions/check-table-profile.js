@@ -11,20 +11,7 @@
 // }
 const fs = require('fs');
 const path = require('path');
-
-const VALID_KINDS = [
-  'fact_transaction', 'fact_periodic_snapshot', 'fact_accumulating_snapshot',
-  'dim_full_reload', 'dim_non_scd', 'dim_scd1', 'dim_scd2', 'dim_junk',
-  'fact_aggregate'
-];
-
-function normalizeTerms(value) {
-  if (!value) return [];
-  return String(value)
-    .split(',')
-    .map((term) => term.trim().toLowerCase())
-    .filter(Boolean);
-}
+const { validateSection, normalizeTerms } = require('./schema-helpers');
 
 module.exports = (output, context) => {
   const fixturePath = context.vars.fixture_path;
@@ -54,6 +41,12 @@ module.exports = (output, context) => {
 
   const profile = catalog.profile;
 
+  // Schema validation of the profile section (validates enums, required fields, and structure)
+  const schemaResult = validateSection(profile, 'table_catalog.json', 'profile_section');
+  if (!schemaResult.valid) {
+    return { pass: false, score: 0, reason: `Profile section schema validation failed: ${schemaResult.errors}` };
+  }
+
   if (expectedStatus) {
     const validStatuses = normalizeTerms(expectedStatus);
     if (!validStatuses.includes((profile.status || '').toLowerCase())) {
@@ -61,18 +54,13 @@ module.exports = (output, context) => {
     }
   }
 
-  // Check classification exists and is valid
+  // Check classification exists (enum validity is enforced by schema)
   if (!profile.classification || !profile.classification.resolved_kind) {
     return { pass: false, score: 0, reason: 'Profile missing classification.resolved_kind' };
   }
 
-  if (!VALID_KINDS.includes(profile.classification.resolved_kind)) {
-    return { pass: false, score: 0, reason: `Invalid classification kind: ${profile.classification.resolved_kind}` };
-  }
-
-  // Check source field
-  if (!profile.classification.source || !['catalog', 'llm', 'catalog+llm'].includes(profile.classification.source)) {
-    return { pass: false, score: 0, reason: `Invalid or missing classification source: ${profile.classification?.source}` };
+  if (!profile.classification.source) {
+    return { pass: false, score: 0, reason: 'Profile missing classification.source' };
   }
 
   if (expectedKind && profile.classification.resolved_kind !== expectedKind) {
@@ -89,6 +77,19 @@ module.exports = (output, context) => {
       score: 0,
       reason: `Expected classification source '${expectedSource}', got '${profile.classification.source}'`
     };
+  }
+
+  // Cross-artifact consistency: scoping.selected_writer should match profile.writer
+  if (catalog.scoping && catalog.scoping.selected_writer && profile.writer) {
+    const scopingWriter = catalog.scoping.selected_writer.toLowerCase();
+    const profileWriter = profile.writer.toLowerCase();
+    if (!scopingWriter.includes(profileWriter) && !profileWriter.includes(scopingWriter)) {
+      return {
+        pass: false,
+        score: 0,
+        reason: `Cross-artifact mismatch: scoping.selected_writer='${catalog.scoping.selected_writer}' vs profile.writer='${profile.writer}'`
+      };
+    }
   }
 
   if (expectedOutputTerms.length > 0) {
