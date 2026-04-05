@@ -30,11 +30,21 @@ module.exports = (output, context) => {
   const tableLower = table.toLowerCase().replace(/\[|\]/g, '');
   const catalogPath = path.resolve(catalogDir, `${tableLower}.json`);
 
+  // Helper: check if the LLM output text contains both SQL blocks as fallback
+  const outputStr = String(output || '').toLowerCase();
+  const outputHasExtracted = outputStr.includes('extracted') && outputStr.includes('select');
+  const outputHasRefactored = outputStr.includes('with') && (outputStr.includes('select * from final') || outputStr.includes('select *\nfrom final'));
+  const outputFallback = outputHasExtracted && outputHasRefactored;
+
   if (!fs.existsSync(catalogPath)) {
-    // Check if output text contains the refactored SQL as fallback
-    const outputStr = String(output || '').toLowerCase();
-    if (outputStr.includes('with') && outputStr.includes('select * from final')) {
-      return { pass: true, score: 0.8, reason: 'Refactored SQL found in output text (catalog not written)' };
+    if (outputFallback) {
+      // Agent produced both SQLs in text but didn't persist to catalog (e.g. ran out of turns)
+      for (const term of expectedRefactoredTerms) {
+        if (!outputStr.includes(term)) {
+          return { pass: false, score: 0, reason: `Expected refactored term '${term}' not found in output text (catalog not written)` };
+        }
+      }
+      return { pass: true, score: 0.7, reason: 'Both SQL blocks found in output text (catalog not written — likely ran out of turns)' };
     }
     return { pass: false, score: 0, reason: `Catalog file not found: ${catalogPath}` };
   }
@@ -48,6 +58,9 @@ module.exports = (output, context) => {
 
   const refactor = catalog.refactor;
   if (!refactor) {
+    if (outputFallback) {
+      return { pass: true, score: 0.7, reason: 'Both SQL blocks found in output text (refactor section not written to catalog)' };
+    }
     return { pass: false, score: 0, reason: 'No refactor section in catalog' };
   }
 

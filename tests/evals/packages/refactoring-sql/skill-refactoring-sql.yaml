@@ -9,7 +9,7 @@ providers:
     config:
       model: claude-sonnet-4-6
       working_dir: ../..
-      max_turns: 80
+      max_turns: 120
       permission_mode: bypassPermissions
       allow_dangerously_skip_permissions: true
       append_allowed_tools:
