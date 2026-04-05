@@ -54,3 +54,11 @@ tests:
       writer: "silver.usp_load_DimCrossDbProfile"
       expected_status: "ok,partial"
       expected_output_terms: "cross-database"
+
+  # ── dynamic sp_executesql reports partial/dynamic limitation ─
+  - description: "dynamic-sp-executesql — DimCurrency dynamic SQL stays partial"
+    vars:
+      target_table: "silver.DimCurrency"
+      writer: "silver.usp_load_DimCurrency"
+      expected_status: "ok,partial"
+      expected_output_terms: "sp_executesql"

@@ -60,9 +60,9 @@ tests/evals/
     cmd-generate-tests.txt             # prompt template for /generate-tests command
   packages/
     profiler/
-      skill-profiling-table.yaml       # 4 scenarios
+      skill-profiling-table.yaml       # 5 scenarios
     model-generator/
-      skill-generating-model.yaml      # 16 scenarios
+      skill-generating-model.yaml      # 19 scenarios
     test-generator/
       skill-generating-tests.yaml      # 3 scenarios
     test-review/
@@ -70,7 +70,7 @@ tests/evals/
     code-review/
       skill-reviewing-model.yaml       # 3 scenarios
     analyzing-table/
-      skill-analyzing-table.yaml         # 7 scenarios
+      skill-analyzing-table.yaml         # 8 scenarios
     cmd-scope/
       cmd-scope.yaml                   # 2 scenarios
     cmd-profile/
@@ -100,12 +100,12 @@ Test individual skills in isolation (single-table, no orchestration).
 
 | Package | Skill | Scenarios |
 |---|---|---|
-| `profiler` | `/profiling-table` | 4 |
-| `model-generator` | `/generating-model` | 16 |
+| `profiler` | `/profiling-table` | 5 |
+| `model-generator` | `/generating-model` | 19 |
 | `test-generator` | `/generating-tests` | 3 |
 | `test-review` | `/reviewing-tests` | 2 |
 | `code-review` | `/reviewing-model` | 3 |
-| `analyzing-table` | `/analyzing-table` | 7 (validates both scoping decisions and procedure catalog) |
+| `analyzing-table` | `/analyzing-table` | 8 (validates both scoping decisions and procedure catalog) |
 
 ### Command packages
 
@@ -132,7 +132,7 @@ cd tests/evals
 # Install dependencies (first time only)
 npm install
 
-# Full skill suite — all skill packages (35 scenarios)
+# Full skill suite — all skill packages (40 scenarios)
 npm run eval
 
 # Single skill package
@@ -165,7 +165,7 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 
 ## Scenarios
 
-### Profiler (4 scenarios)
+### Profiler (5 scenarios)
 
 | Scenario | Target table | Writer | Key assertion |
 |---|---|---|---|
@@ -173,8 +173,9 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 | dim-merge | silver.DimProduct | usp_load_DimProduct | Valid classification kind |
 | exec-call-chain | silver.FactExecProfile | usp_load_FactExecProfile | fact_transaction, status ok |
 | cross-db-exec | silver.DimCrossDbProfile | usp_load_DimCrossDbProfile | Cross-database mention |
+| dynamic-sp-executesql | silver.DimCurrency | usp_load_DimCurrency | ok/partial status, sp_executesql mention |
 
-### Model-generator (16 scenarios)
+### Model-generator (19 scenarios)
 
 | Scenario | Target table | Pattern |
 |---|---|---|
@@ -192,6 +193,11 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 | truncate-insert | silver.DimCustomer | Full-reload materialization |
 | exec-orchestrator | silver.FactInternetSales | Orchestration (graceful no-model) |
 | dynamic-sp-executesql | silver.DimCurrency | Dynamic SQL (graceful no-model) |
+| if-else | silver.IfElseTarget | IF/ELSE control flow decomposition |
+| while-loop | silver.WhileLoopTarget | WHILE loop handling |
+| static-sp-executesql | silver.StaticSpExecTarget | Static sp_executesql resolved |
+| exec-variable-model | silver.ExecVariableTarget | EXEC(@sql) graceful no-model |
+| exec-concat-model | silver.ExecConcatTarget | EXEC concat graceful no-model |
 
 ### Test-generator (3 scenarios)
 
@@ -216,7 +222,7 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 | approved — InsertSelectTarget DML | silver.InsertSelectTarget | Correctness passed |
 | revision-requested — DimCustomer | silver.DimCustomer | Flags issues |
 
-### Scoping-table (7 scenarios)
+### Scoping-table (8 scenarios)
 
 | Scenario | Target table | Expected writer |
 |---|---|---|
@@ -227,6 +233,7 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 | dynamic-sp-executesql — DimCurrency | silver.DimCurrency | usp_load_DimCurrency |
 | exec-variable — ExecVariableTarget | silver.ExecVariableTarget | usp_scope_ExecVariable |
 | exec-concat — ExecConcatTarget | silver.ExecConcatTarget | usp_scope_ExecConcat |
+| linked-server-exec — LinkedServerExecTarget | silver.LinkedServerExecTarget | (no writer — skip) |
 
 ### Command: scope (2 scenarios)
 

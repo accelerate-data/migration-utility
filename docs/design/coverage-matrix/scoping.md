@@ -59,7 +59,7 @@ Current automated statement coverage for the scoping phase. The phase boundary h
 | 47 | `WHILE` loop | Yes | N/A | N/A |
 | 48 | Nested control flow | Yes | N/A | N/A |
 | 55 | Cross-database `EXEC` | Yes | N/A | Yes |
-| 56 | Linked-server `EXEC` | Yes | N/A | Gap |
+| 56 | Linked-server `EXEC` | Yes | N/A | Yes |
 | 58 | Dynamic `sp_executesql` | Yes | N/A | Yes |
 | 59 | `EXEC (@sql)` | Yes | N/A | Yes |
 | 60 | `EXEC ('...' + @var)` | Yes | N/A | Yes |

@@ -60,7 +60,7 @@ Current automated statement coverage for the profiling phase. The phase boundary
 | 48 | Nested control flow | N/A | N/A | N/A |
 | 55 | Cross-database `EXEC` | N/A | N/A | Yes |
 | 56 | Linked-server `EXEC` | N/A | N/A | N/A |
-| 58 | Dynamic `sp_executesql` | N/A | N/A | Gap |
+| 58 | Dynamic `sp_executesql` | N/A | N/A | Yes |
 | 59 | `EXEC (@sql)` | N/A | N/A | N/A |
 | 60 | `EXEC ('...' + @var)` | N/A | N/A | N/A |
 | S1 | `SET` | N/A | N/A | N/A |

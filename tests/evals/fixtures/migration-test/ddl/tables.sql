@@ -291,3 +291,22 @@ CREATE TABLE [silver].[FactExecProfile] (
     ,CONSTRAINT [PK_FactExecProfile] PRIMARY KEY ([ExecProfileKey])
 );
 GO
+
+CREATE TABLE [silver].[IfElseTarget] (
+    [ProductAlternateKey] nvarchar(25) NOT NULL,
+    [EnglishProductName] nvarchar(50) NOT NULL,
+    [ModifiedDate] datetime NOT NULL
+);
+GO
+
+CREATE TABLE [silver].[WhileLoopTarget] (
+    [ProductAlternateKey] nvarchar(25) NOT NULL,
+    [EnglishProductName] nvarchar(50) NOT NULL
+);
+GO
+
+CREATE TABLE [silver].[StaticSpExecTarget] (
+    [ProductAlternateKey] nvarchar(25) NOT NULL,
+    [EnglishProductName] nvarchar(50) NOT NULL
+);
+GO

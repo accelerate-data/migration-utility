@@ -1,0 +1,46 @@
+{
+  "schema": "silver",
+  "name": "usp_load_ifelsetarget",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "IfElseTarget",
+          "is_selected": false,
+          "is_updated": true
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "needs_llm": false,
+  "mode": "deterministic",
+  "routing_reasons": [],
+  "statements": [
+    {
+      "type": "Update",
+      "action": "migrate",
+      "source": "ast",
+      "sql": "UPDATE tgt SET tgt.EnglishProductName = src.ProductName, tgt.ModifiedDate = GETDATE() FROM silver.IfElseTarget AS tgt INNER JOIN bronze.Product AS src ON tgt.ProductAlternateKey = CAST(src.ProductID AS NVARCHAR(25))"
+    },
+    {
+      "type": "InsertSelect",
+      "action": "migrate",
+      "source": "ast",
+      "sql": "INSERT INTO silver.IfElseTarget (ProductAlternateKey, EnglishProductName, ModifiedDate) SELECT CAST(ProductID AS NVARCHAR(25)), ProductName, GETDATE() FROM bronze.Product"
+    }
+  ]
+}

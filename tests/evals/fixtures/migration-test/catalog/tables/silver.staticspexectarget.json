@@ -1,0 +1,8 @@
+{
+  "schema": "silver",
+  "name": "StaticSpExecTarget",
+  "columns": [
+    {"name": "ProductAlternateKey", "data_type": "nvarchar(25)"},
+    {"name": "EnglishProductName", "data_type": "nvarchar(50)"}
+  ]
+}

@@ -47,22 +47,22 @@ Current automated statement coverage for the model-generation phase. The phase b
 | 42 | `ROLLUP` | N/A | N/A | N/A |
 | 43 | `PIVOT` | N/A | N/A | Yes |
 | 44 | `UNPIVOT` | N/A | N/A | N/A |
-| 49 | `EXEC proc` | Yes | N/A | Gap |
+| 49 | `EXEC proc` | Yes | N/A | Yes |
 | 50 | `EXEC [schema].[proc]` | N/A | N/A | N/A |
 | 51 | `EXEC proc` with params | N/A | N/A | N/A |
 | 52 | `EXEC proc` with `OUTPUT` | N/A | N/A | N/A |
 | 53 | `EXECUTE proc` keyword form | N/A | N/A | N/A |
 | 54 | `EXEC @rc = proc` | N/A | N/A | N/A |
-| 57 | Static `sp_executesql` | N/A | N/A | Gap |
-| 45 | `IF / ELSE` control flow | N/A | N/A | Gap |
+| 57 | Static `sp_executesql` | N/A | N/A | Yes |
+| 45 | `IF / ELSE` control flow | N/A | N/A | Yes |
 | 46 | `TRY / CATCH` | N/A | N/A | N/A |
-| 47 | `WHILE` loop | N/A | N/A | Gap |
+| 47 | `WHILE` loop | N/A | N/A | Yes |
 | 48 | Nested control flow | N/A | N/A | N/A |
 | 55 | Cross-database `EXEC` | N/A | N/A | N/A |
 | 56 | Linked-server `EXEC` | N/A | N/A | N/A |
 | 58 | Dynamic `sp_executesql` | Yes | N/A | Yes |
-| 59 | `EXEC (@sql)` | N/A | N/A | Gap |
-| 60 | `EXEC ('...' + @var)` | N/A | N/A | Gap |
+| 59 | `EXEC (@sql)` | N/A | N/A | Yes |
+| 60 | `EXEC ('...' + @var)` | N/A | N/A | Yes |
 | S1 | `SET` | N/A | N/A | N/A |
 | S2 | `DECLARE` | N/A | N/A | N/A |
 | S3 | `RETURN` | N/A | N/A | N/A |
