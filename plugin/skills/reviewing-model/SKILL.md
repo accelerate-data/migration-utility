@@ -8,6 +8,12 @@ user-invocable: false
 argument-hint: "<schema.table>"
 ---
 
+@references/sql-style.md
+@references/cte-structure.md
+@references/model-naming.md
+@references/yaml-style.md
+@references/modularity.md
+
 # Review Model
 
 Quality gate for model generation output. Reviews the generated dbt model SQL and schema YAML for standards compliance, correctness against the original proc context, and test integration with the approved test spec. Issues a verdict: approve or kick back with specific fixes.
@@ -37,7 +43,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate context \
 
 Read the output JSON. It contains:
 
-- `proc_body` — full original procedure SQL
+- `proc_body` — full original procedure SQL (use this as the ground truth for correctness checks)
 - `statements` — resolved statement list with action and SQL
 - `profile` — classification, keys, watermark, PII answers
 - `materialization` — derived materialization
@@ -49,21 +55,11 @@ Also read:
 - The generated model SQL and schema YAML from the dbt project.
 - The approved test spec from `test-specs/<item_id>.json`.
 
-## Step 2: Check standards
+Do NOT use `refactored_sql` — the reviewer validates the generated model directly against the original proc DDL (`proc_body`).
 
-| Check | What to verify |
-|---|---|
-| CTE pattern | Import CTE -> logical CTE -> final CTE structure followed |
-| Import CTEs | All sources use `{{ source() }}` or `{{ ref() }}` — no hardcoded table names |
-| Naming | Model name matches convention (`stg_<table>`), CTE names are descriptive |
-| Config block | `{{ config(materialized=...) }}` present and matches derived materialization |
-| Column naming | snake_case, consistent with target table columns |
-| Schema YAML | Model description, column descriptions, schema tests (PK, FK, recency, PII) all present |
-| Unit tests | `unit_tests:` block present in schema YAML with all scenarios from test spec |
+## Step 2: Check correctness
 
-## Step 3: Check correctness
-
-Compare the generated model against the original proc context:
+Compare the generated model against `proc_body` (the original proc DDL). This is the primary check.
 
 | Check | What to verify |
 |---|---|
@@ -75,6 +71,20 @@ Compare the generated model against the original proc context:
 | MERGE semantics | Incremental config correctly implements MERGE logic |
 | Materialization | Matches derived materialization from profile |
 
+Both Step 2 and Step 3 always run regardless of the other's result.
+
+## Step 3: Check standards
+
+Evaluate the generated model SQL and schema YAML against the reference files. Each issue found must include the stable reference code (e.g., `SQL_001`, `CTE_002`).
+
+| Area | Reference file | Key checks |
+|---|---|---|
+| SQL style | `references/sql-style.md` | Lowercase keywords (`SQL_001`), indentation (`SQL_002`), trailing commas (`SQL_003`), one column per line (`SQL_004`), table alias prefixes (`SQL_005`), no `SELECT *` in marts (`SQL_006`) |
+| CTE structure | `references/cte-structure.md` | Import CTEs first (`CTE_001`), final CTE named `final` (`CTE_002`), `select * from final` last (`CTE_003`), single-purpose CTEs (`CTE_004`), no nested CTEs (`CTE_006`) |
+| Model naming | `references/model-naming.md` | Correct layer prefix (`MDL_001`–`MDL_003`), `snake_case` names (`MDL_004`), `_dbt_run_id` present (`MDL_005`), `_loaded_at` rules (`MDL_006`, `MDL_007`), locked columns unchanged (`MDL_008`) |
+| YAML style | `references/yaml-style.md` | `version: 2` at top (`YML_004`), model description present (`YML_002`), PK column descriptions present (`YML_003`), 2-space indentation (`YML_001`) |
+| Modularity | `references/modularity.md` | No joins in staging (`MOD_001`), mart refs use `ref()` not `source()` (`MOD_002`), one staging model per source table (`MOD_003`), staging materialized as ephemeral (`MOD_004`), business logic in mart not staging (`MOD_005`) |
+
 ## Step 4: Check test integration
 
 - Verify every `unit_tests[]` entry from the test spec is rendered in the schema YAML.
@@ -82,17 +92,25 @@ Compare the generated model against the original proc context:
 - Verify no test scenarios were dropped or modified during rendering.
 - Verify gap tests (`test_gap_*`) have reasonable expectations consistent with the model logic.
 
+## Feedback tiers
+
+| Tier | Action required |
+|------|-----------------|
+| `error` | Must fix before approval |
+| `warning` | Model-generator must respond with `fixed` or `ignored: <reason>` |
+| `info` | Model-generator must respond with `fixed` or `ignored: <reason>`; ignoring is always acceptable |
+
 ## Step 5: Verdict
 
 | Condition | Action |
 |---|---|
 | All checks pass | **Approve** — set `status` to `approved` |
-| Standards issues found | **Kick back** — set `status` to `revision_requested`, populate `feedback_for_model_generator` with specific fixes |
-| Correctness issues found | **Kick back** — set `status` to `revision_requested`, populate `feedback_for_model_generator` with specific discrepancies |
-| Test integration issues found | **Kick back** — set `status` to `revision_requested`, populate `feedback_for_model_generator` with missing/broken test references |
+| Standards issues found | **Kick back** — set `status` to `revision_requested`, populate `feedback_for_model_generator` with objects including stable code and tier |
+| Correctness issues found | **Kick back** — set `status` to `revision_requested`, populate `feedback_for_model_generator` with objects including stable code and tier |
+| Test integration issues found | **Kick back** — set `status` to `revision_requested`, populate `feedback_for_model_generator` with objects including stable code and tier |
 | Max review iterations reached (2) | **Approve with warnings** — set `status` to `approved_with_warnings`, flag remaining issues for human review |
 
-After kicking back, the model-generator revises the model, re-runs `dbt test` to confirm unit tests still pass, and resubmits. Maximum review / model-generator iterations: 2 (configurable).
+After kicking back, the model-generator revises the model, re-runs `dbt test` to confirm unit tests still pass, and resubmits. The resubmission must include an `acknowledgements` block mapping each feedback code to `fixed` or `ignored: <reason>`. Maximum review / model-generator iterations: 2 (configurable).
 
 ## Output schema (ModelReviewResult)
 
@@ -123,8 +141,23 @@ Emit the following JSON structure as the skill's output:
     }
   },
   "feedback_for_model_generator": [
-    "Add import CTE for source('bronze', 'product_category') — proc reads from it via JOIN"
+    {
+      "code": "SQL_001",
+      "message": "Keywords should be lowercase — found uppercase SELECT on line 4",
+      "severity": "error",
+      "ack_required": true
+    },
+    {
+      "code": "CTE_002",
+      "message": "Final CTE must be named 'final' — currently named 'output'",
+      "severity": "error",
+      "ack_required": true
+    }
   ],
+  "acknowledgements": {
+    "SQL_001": "fixed",
+    "CTE_002": "ignored: legacy naming convention required by downstream tool"
+  },
   "warnings": [],
   "errors": []
 }
@@ -141,6 +174,19 @@ Emit the following JSON structure as the skill's output:
   "details": {}
 }
 ```
+
+`feedback_for_model_generator` items use this schema:
+
+```json
+{
+  "code": "SQL_001",
+  "message": "Human-readable description with specific location where possible",
+  "severity": "error|warning|info",
+  "ack_required": true
+}
+```
+
+`acknowledgements` is present on resubmission only — a flat map of `{ "<code>": "fixed" | "ignored: <reason>" }`.
 
 ## Boundary rules
 
