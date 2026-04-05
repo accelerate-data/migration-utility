@@ -39,6 +39,7 @@ tests/evals/
   promptfooconfig.yaml                 # aggregate suite config for `npx promptfoo eval`
   .gitignore                           # node_modules/, output/
   assertions/
+    schema-helpers.js                  # shared AJV validation, JSON extraction, term normalization
     check-procedure-catalog.js         # validates procedure catalog statements
     check-table-profile.js             # validates table profile classification
     check-dbt-model.js                 # validates generated dbt model SQL
@@ -47,6 +48,9 @@ tests/evals/
     check-model-review.js              # validates model review results
     check-table-scoping.js             # validates table scoping decisions
     check-command-summary.js           # validates command orchestration summary
+    check-status-output.js             # validates /status command output
+    check-model-generator-input.js     # validates model-generator input manifest
+    validate-candidate-writers.js      # validates candidate writers against schema
   prompts/
     skill-profiling-table.txt          # prompt template for profiling-table skill
     skill-generating-model.txt         # prompt template for generating-model skill
@@ -65,10 +69,10 @@ tests/evals/
       skill-generating-model.yaml      # 19 scenarios
     test-generator/
       skill-generating-tests.yaml      # 3 scenarios
-    test-review/
-      skill-reviewing-tests.yaml       # 2 scenarios
-    code-review/
-      skill-reviewing-model.yaml       # 3 scenarios
+    reviewing-tests/
+      skill-reviewing-tests.yaml       # 7 scenarios
+    reviewing-model/
+      skill-reviewing-model.yaml       # 8 scenarios
     analyzing-table/
       skill-analyzing-table.yaml         # 8 scenarios
     cmd-scope/
@@ -79,6 +83,8 @@ tests/evals/
       cmd-generate-model.yaml          # 3 scenarios
     cmd-generate-tests/
       cmd-generate-tests.yaml          # 3 scenarios
+    cmd-status/
+      cmd-status.yaml                  # 4 scenarios
   fixtures/
     migration-test/                    # extracted DDL project (one-time)
       manifest.json
@@ -103,8 +109,8 @@ Test individual skills in isolation (single-table, no orchestration).
 | `profiler` | `/profiling-table` | 5 |
 | `model-generator` | `/generating-model` | 19 |
 | `test-generator` | `/generating-tests` | 3 |
-| `test-review` | `/reviewing-tests` | 2 |
-| `code-review` | `/reviewing-model` | 3 |
+| `reviewing-tests` | `/reviewing-tests` | 7 |
+| `reviewing-model` | `/reviewing-model` | 8 |
 | `analyzing-table` | `/analyzing-table` | 8 (validates both scoping decisions and procedure catalog) |
 
 ### Command packages
@@ -117,6 +123,7 @@ Test batch command orchestration (multi-table dispatch, error handling, review l
 | `cmd-profile` | `/profile` | 2 |
 | `cmd-generate-model` | `/generate-model` | 3 |
 | `cmd-generate-tests` | `/generate-tests` | 3 |
+| `cmd-status` | `/status` | 4 |
 
 Use `promptfooconfig.yaml` for the full suite (skill scenarios only). Command packages are run individually via `npm run eval:cmd-*`.
 
@@ -143,11 +150,12 @@ npm run eval:test-review
 npm run eval:code-review
 npm run eval:analyzing-table
 
-# Command packages (10 scenarios total, run individually)
+# Command packages (14 scenarios total, run individually)
 npm run eval:cmd-scope
 npm run eval:cmd-profile
 npm run eval:cmd-generate-model
 npm run eval:cmd-generate-tests
+npm run eval:cmd-status
 
 # View results in browser
 npm run view
@@ -207,20 +215,30 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 | exec-call-chain — FactInternetSales | silver.FactInternetSales | Transitive writer logic |
 | dynamic-sql — DimCurrency | silver.DimCurrency | Dynamic SQL warning |
 
-### Test-review (2 scenarios)
+### Test-review (7 scenarios)
 
 | Scenario | Target table | Key assertion |
 |---|---|---|
 | approved — DimProduct | silver.DimProduct | Approved with covered branches |
 | revision-requested — DimCustomer | silver.DimCustomer | Revision requested |
+| approved — InsertSelectTarget | silver.InsertSelectTarget | Approved, non-MERGE pattern |
+| revision-requested — UpdateJoinTarget | silver.UpdateJoinTarget | Missing join-miss scenario |
+| revision-requested — IfElseTarget | silver.IfElseTarget | Missing control-flow arm |
+| approved — FactExecProfile | silver.FactExecProfile | Transitive writer chain covered |
+| approved — DimCurrency | silver.DimCurrency | Partial coverage with untestable rationale |
 
-### Code-review (3 scenarios)
+### Code-review (8 scenarios)
 
 | Scenario | Target table | Key assertion |
 |---|---|---|
 | approved — DimProduct MERGE | silver.DimProduct | Approved status |
 | approved — InsertSelectTarget DML | silver.InsertSelectTarget | Correctness passed |
 | revision-requested — DimCustomer | silver.DimCustomer | Flags issues |
+| approved — UpdateJoinTarget | silver.UpdateJoinTarget | UPDATE→SELECT rewrite |
+| approved — SelectIntoTarget | silver.SelectIntoTarget | Staging model materialization |
+| approved — IfElseTarget | silver.IfElseTarget | Control-flow decomposition |
+| approved — FactExecProfile | silver.FactExecProfile | Ref-only orchestrator |
+| approved — DimCurrency | silver.DimCurrency | Dynamic SQL graceful degradation |
 
 ### Scoping-table (8 scenarios)
 
@@ -265,20 +283,61 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 | review-revision cycle | CorrelatedSubqueryTarget | Review loop invoked, final status ok |
 | error+clean — no scoping | DimProduct + InsertSelectTarget | SCOPING_NOT_COMPLETED for DimProduct, InsertSelectTarget ok |
 
+### Command: status (4 scenarios)
+
+| Scenario | Target | Key assertion |
+|---|---|---|
+| single-table — InsertSelectTarget | silver.InsertSelectTarget | scope=resolved, profile=ok, test-gen blocked |
+| single-table — DimCurrency | silver.DimCurrency | scope=pending, blocking profile |
+| single-table — DimProduct | silver.DimProduct | scope blocking downstream |
+| all-tables — summary | all catalog tables | stage names present across tables |
+
 ---
 
 ## Writing assertions
 
-Each assertion is a custom JavaScript module that reads persisted artifacts (catalog JSON, test specs, dbt models) and validates structural properties.
+Each assertion is a custom JavaScript module that reads persisted artifacts (catalog JSON, test specs, dbt models) and validates structural properties. Assertions use a two-layer approach: **schema validation** (structural correctness via AJV) followed by **behavioral checks** (expected values, terms, cross-artifact consistency).
+
+### Schema validation
+
+Assertions validate JSON artifacts against schemas in `plugin/lib/shared/schemas/` using AJV (JSON Schema Draft 2020-12). The shared `schema-helpers.js` module provides:
+
+- `validateSchema(data, schemaFileName)` — validates a full object against a named schema
+- `validateSection(data, schemaFileName, sectionPath)` — validates a nested section against a `$defs` entry or property sub-schema
+- `extractJsonObject(output)` — extracts JSON from LLM output text (fenced blocks or raw braces)
+- `normalizeTerms(value)` — splits comma-separated strings into lowercase terms
+
+Catalog assertions use **section-level validation** (not full-catalog validation) because fixtures contain pre-existing data that may not fully validate until the agent processes it. For example, `check-table-profile.js` validates only the `profile` section against the `profile_section` $def, not the entire table catalog.
+
+Review assertions and standalone schemas use **full-schema validation** since the entire JSON is produced by the agent in a single pass.
+
+| Assertion | Schema | Validation level |
+|---|---|---|
+| `check-table-scoping.js` | `table_catalog.json` | Section: `properties/scoping` |
+| `check-table-profile.js` | `table_catalog.json` | Section: `profile_section` ($defs) |
+| `check-procedure-catalog.js` | `procedure_catalog.json` | Section: `properties/statements` |
+| `check-test-spec.js` | `test_spec.json` | Full schema |
+| `check-model-review.js` | `model_review_output.json` | Full schema |
+| `check-test-review.js` | `test_review_output.json` | Full schema |
+| `check-command-summary.js` | `scoping_summary.json` | Full schema (when summary has `schema_version`) |
+| `check-status-output.js` | `dry_run_output.json` | Full schema (per dry-run file) |
+| `check-model-generator-input.js` | `model_generator_input.json` | Full schema |
+| `validate-candidate-writers.js` | `candidate_writers.json` | Full schema |
+
+### Cross-artifact consistency checks
+
+Some assertions verify that handoff contracts between pipeline stages are respected:
+
+- **`check-table-profile.js`** — `scoping.selected_writer` matches `profile.writer` when both exist
+- **`check-test-spec.js`** — `branch_manifest[].scenarios` entries exist in `unit_tests[].name`; `item_id` matches `target_table`
+- **`check-test-review.js`** — `item_id` matches `target_table`
 
 ### What to assert
 
-- **Catalog structure** — statements exist, source fields set, status enums correct
-- **Profile classification** — `resolved_kind` is a valid enum, source is `catalog`/`llm`/`catalog+llm`
+- **Schema conformance** — required fields, enum values, structural correctness (via AJV)
+- **Behavioral correctness** — expected status, classification kind, term presence
+- **Cross-artifact consistency** — handoff values match between pipeline stages
 - **Model artifacts** — dbt SQL contains expected terms, forbidden terms absent
-- **Test specs** — branch counts, scenario counts, status/coverage enums
-- **Review results** — status enum matches expected range
-- **Scoping decisions** — writer selected, status resolved
 - **Command summaries** — per-item statuses in output text, error codes present for failed items
 
 ### What NOT to assert
@@ -299,7 +358,7 @@ defaultTest:
       value: file://../../assertions/check-procedure-catalog.js
 ```
 
-Each module receives `(output, context)` and returns `{pass, score, reason}`.
+Each module receives `(output, context)` and returns `{pass, score, reason}`. Schema validation runs first as a gate — if the structure is invalid, behavioral checks are skipped.
 
 ---
 
