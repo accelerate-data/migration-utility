@@ -18,9 +18,13 @@ Quality gate for test generation output. Independently enumerates conditional br
 
 ## Before invoking
 
-1. Read `manifest.json` from the current working directory to confirm a valid project root. If missing, tell the caller that the project is not initialized and stop.
-2. Confirm `catalog/tables/<item_id>.json` exists. If missing, stop — this skill only operates on tables.
-3. Confirm `test-specs/<item_id>.json` exists. If missing, tell the caller to run `/generating-tests` first and stop.
+Run the stage guard:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <table_fqn> reviewing-tests
+```
+
+If `passed` is `false`, report the failing guard's `code` and `message` to the user and stop.
 
 ## Step 1: Assemble context
 

@@ -18,10 +18,8 @@ Generate dbt models for a batch of tables. Launches one sub-agent per table in p
 - `dbt_project.yml` must exist at `./dbt/`. If missing, fail all items with `DBT_PROJECT_MISSING`.
 - `dbt/profiles.yml` must exist. If missing, fail all items with `DBT_PROFILE_MISSING` and tell the user to run `/init-dbt`.
 - `dbt debug` must show "Connection test: OK". If it fails, fail all items with `DBT_CONNECTION_FAILED` and tell the user to check credentials — for SQL Server: `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD` env vars; for other adapters: update `profiles.yml` placeholder values.
-- Per item: `catalog/tables/<item_id>.json` must exist. If missing, skip with `CATALOG_FILE_MISSING`.
-- Per item: `scoping.selected_writer` must be set. If missing, skip with `SCOPING_NOT_COMPLETED`.
-- Per item: `profile` must exist with `status: "ok"`. If missing, skip with `PROFILE_NOT_COMPLETED`.
-- Per item: `test-specs/<item_id>.json` must exist. If missing, skip with `TEST_SPEC_NOT_FOUND`.
+
+Per-item guards are checked by the skill via `migrate-util guard`.
 
 ## Pipeline
 
