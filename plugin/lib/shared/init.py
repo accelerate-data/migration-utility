@@ -613,6 +613,7 @@ _CLAUDE_MD_REQUIRED_SECTIONS = [
 def run_scaffold_project(project_root: Path, technology: str = "sql_server") -> dict[str, Any]:
     """Scaffold project files. Idempotent: skips existing, merges .gitignore."""
     config = get_source_config(technology)
+    project_root.mkdir(parents=True, exist_ok=True)
     files_created: list[str] = []
     files_updated: list[str] = []
     files_skipped: list[str] = []
