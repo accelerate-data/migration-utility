@@ -47,8 +47,6 @@
   "refactor": {
     "status": "ok",
     "extracted_sql": "SELECT src.CustomerID, src.FirstName, src.LastName FROM [bronze].[CustomerRaw] AS src",
-    "extracted_sql_hash": "aaa111bbb222",
-    "refactored_sql": "WITH source_customers AS (SELECT * FROM [bronze].[CustomerRaw]) SELECT CustomerID, FirstName, LastName FROM source_customers",
-    "refactored_sql_hash": "abc123def456"
+    "refactored_sql": "WITH source_customers AS (SELECT * FROM [bronze].[CustomerRaw]) SELECT CustomerID, FirstName, LastName FROM source_customers"
   }
 }

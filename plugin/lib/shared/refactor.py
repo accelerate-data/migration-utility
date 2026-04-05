@@ -17,7 +17,6 @@ Exit codes:
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 from collections import Counter
@@ -264,12 +263,6 @@ def _validate_refactor(refactor: dict[str, Any]) -> list[str]:
     return errors
 
 
-def _compute_sql_hash(sql: str) -> str:
-    """Compute SHA-256 hash of SQL after whitespace normalization."""
-    normalized = " ".join(sql.split())
-    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
-
-
 def run_write(
     project_root: Path,
     table_fqn: str,
@@ -287,9 +280,7 @@ def run_write(
     refactor_data: dict[str, Any] = {
         "status": status,
         "extracted_sql": extracted_sql,
-        "extracted_sql_hash": _compute_sql_hash(extracted_sql) if extracted_sql else "",
         "refactored_sql": refactored_sql,
-        "refactored_sql_hash": _compute_sql_hash(refactored_sql) if refactored_sql else "",
     }
 
     errors = _validate_refactor(refactor_data)

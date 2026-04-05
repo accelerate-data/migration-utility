@@ -130,16 +130,6 @@ module.exports = (output, context) => {
     }
   }
 
-  // Hash checks
-  if (status === 'ok') {
-    if (!refactor.extracted_sql_hash) {
-      return { pass: false, score: 0, reason: 'extracted_sql_hash is missing' };
-    }
-    if (!refactor.refactored_sql_hash) {
-      return { pass: false, score: 0, reason: 'refactored_sql_hash is missing' };
-    }
-  }
-
   const score = status === 'ok' ? 1 : 0.5;
   return { pass: true, score, reason: `Refactor section valid: status=${status}, extracted_sql present, refactored_sql has CTE structure` };
 };

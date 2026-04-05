@@ -124,17 +124,9 @@
           "type": "string",
           "description": "Core transformation SELECT extracted from the stored procedure (USING clause for MERGE, SELECT for INSERT...SELECT, etc.)."
         },
-        "extracted_sql_hash": {
-          "type": "string",
-          "description": "SHA-256 of the extracted SQL for change detection."
-        },
         "refactored_sql": {
           "type": "string",
           "description": "Refactored CTE SQL (import/logical/final pattern) that passed the equivalence audit."
-        },
-        "refactored_sql_hash": {
-          "type": "string",
-          "description": "SHA-256 of the refactored SQL for change detection."
         }
       }
     },

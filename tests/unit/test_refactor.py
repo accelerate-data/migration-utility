@@ -152,23 +152,7 @@ def test_write_happy_path() -> None:
         cat = json.loads(cat_path.read_text())
         assert cat["refactor"]["status"] == "ok"
         assert "CustomerID" in cat["refactor"]["extracted_sql"]
-        assert cat["refactor"]["extracted_sql_hash"]
         assert "SELECT CustomerID, FirstName FROM src" in cat["refactor"]["refactored_sql"]
-        assert cat["refactor"]["refactored_sql_hash"]
-
-
-def test_write_computes_correct_hash() -> None:
-    """Write produces consistent SHA-256 hash for both SQL fields."""
-    tmp, root = _make_writable_copy()
-    with tmp:
-        extracted = "SELECT CustomerID FROM [bronze].[CustomerRaw]"
-        refactored = "WITH src AS (SELECT * FROM [bronze].[CustomerRaw]) SELECT CustomerID FROM src"
-        refactor.run_write(root, "silver.DimCustomer", extracted, refactored, "ok")
-
-        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
-        cat = json.loads(cat_path.read_text())
-        assert cat["refactor"]["extracted_sql_hash"] == refactor._compute_sql_hash(extracted)
-        assert cat["refactor"]["refactored_sql_hash"] == refactor._compute_sql_hash(refactored)
 
 
 def test_write_validates_status() -> None:
