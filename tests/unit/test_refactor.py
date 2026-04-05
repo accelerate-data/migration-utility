@@ -140,8 +140,9 @@ def test_write_happy_path() -> None:
     with tmp:
         result = refactor.run_write(
             root, "silver.DimCustomer",
-            "WITH src AS (SELECT * FROM [bronze].[CustomerRaw]) SELECT * FROM src",
-            "ok",
+            extracted_sql="SELECT CustomerID, FirstName FROM [bronze].[CustomerRaw]",
+            refactored_sql="WITH src AS (SELECT * FROM [bronze].[CustomerRaw]) SELECT CustomerID, FirstName FROM src",
+            status="ok",
         )
         assert result["ok"] is True
         assert result["table"] == "silver.dimcustomer"
@@ -150,21 +151,24 @@ def test_write_happy_path() -> None:
         cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
         cat = json.loads(cat_path.read_text())
         assert cat["refactor"]["status"] == "ok"
-        assert "SELECT * FROM src" in cat["refactor"]["refactored_sql"]
+        assert "CustomerID" in cat["refactor"]["extracted_sql"]
+        assert cat["refactor"]["extracted_sql_hash"]
+        assert "SELECT CustomerID, FirstName FROM src" in cat["refactor"]["refactored_sql"]
         assert cat["refactor"]["refactored_sql_hash"]
 
 
 def test_write_computes_correct_hash() -> None:
-    """Write produces consistent SHA-256 hash."""
+    """Write produces consistent SHA-256 hash for both SQL fields."""
     tmp, root = _make_writable_copy()
     with tmp:
-        sql = "WITH src AS (SELECT * FROM [bronze].[CustomerRaw]) SELECT * FROM src"
-        refactor.run_write(root, "silver.DimCustomer", sql, "ok")
+        extracted = "SELECT CustomerID FROM [bronze].[CustomerRaw]"
+        refactored = "WITH src AS (SELECT * FROM [bronze].[CustomerRaw]) SELECT CustomerID FROM src"
+        refactor.run_write(root, "silver.DimCustomer", extracted, refactored, "ok")
 
         cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
         cat = json.loads(cat_path.read_text())
-        expected_hash = refactor._compute_sql_hash(sql)
-        assert cat["refactor"]["refactored_sql_hash"] == expected_hash
+        assert cat["refactor"]["extracted_sql_hash"] == refactor._compute_sql_hash(extracted)
+        assert cat["refactor"]["refactored_sql_hash"] == refactor._compute_sql_hash(refactored)
 
 
 def test_write_validates_status() -> None:
@@ -172,15 +176,23 @@ def test_write_validates_status() -> None:
     tmp, root = _make_writable_copy()
     with tmp:
         with pytest.raises(ValueError, match="invalid status"):
-            refactor.run_write(root, "silver.DimCustomer", "SELECT 1", "invalid")
+            refactor.run_write(root, "silver.DimCustomer", "SELECT 1", "SELECT 1", "invalid")
 
 
-def test_write_requires_sql_for_ok_status() -> None:
-    """Write rejects empty SQL when status is ok."""
+def test_write_requires_extracted_sql_for_ok_status() -> None:
+    """Write rejects empty extracted SQL when status is ok."""
+    tmp, root = _make_writable_copy()
+    with tmp:
+        with pytest.raises(ValueError, match="extracted_sql is required"):
+            refactor.run_write(root, "silver.DimCustomer", "", "SELECT 1", "ok")
+
+
+def test_write_requires_refactored_sql_for_ok_status() -> None:
+    """Write rejects empty refactored SQL when status is ok."""
     tmp, root = _make_writable_copy()
     with tmp:
         with pytest.raises(ValueError, match="refactored_sql is required"):
-            refactor.run_write(root, "silver.DimCustomer", "", "ok")
+            refactor.run_write(root, "silver.DimCustomer", "SELECT 1", "", "ok")
 
 
 def test_write_missing_catalog() -> None:
@@ -188,7 +200,7 @@ def test_write_missing_catalog() -> None:
     tmp, root = _make_writable_copy()
     with tmp:
         with pytest.raises(CatalogFileMissingError):
-            refactor.run_write(root, "silver.NoSuchTable", "SELECT 1", "ok")
+            refactor.run_write(root, "silver.NoSuchTable", "SELECT 1", "SELECT 1", "ok")
 
 
 # ── CLI commands ─────────────────────────────────────────────────────────────
@@ -218,6 +230,7 @@ def test_cli_write_success() -> None:
             [
                 "write",
                 "--table", "silver.DimCustomer",
+                "--extracted-sql", "SELECT CustomerID FROM [bronze].[CustomerRaw]",
                 "--refactored-sql", "WITH src AS (SELECT 1) SELECT * FROM src",
                 "--status", "ok",
                 "--project-root", str(root),

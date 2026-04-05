@@ -138,7 +138,7 @@
     "generate_sources": "cd plugin/lib && uv run generate-sources [--write] [--strict] [--project-root <path>]",
     "refactor_context": "cd plugin/lib && uv run refactor context --table <schema.table>",
     "refactor_write": "cd plugin/lib && uv run refactor write --table <schema.table> --refactored-sql-file <path> --status ok|partial|error",
-    "compare_sql": "cd plugin/lib && uv run test-harness compare-sql --procedure <proc> --refactored-sql-file <path> --spec <spec-path> --target-table <table>",
+    "compare_sql": "cd plugin/lib && uv run test-harness compare-sql --sql-a-file <extracted.sql> --sql-b-file <refactored.sql> --spec <spec-path>",
     "lint_md": "markdownlint <file>",
     "eval_all": "cd tests/evals && npm run eval",
     "eval_profiling_table": "cd tests/evals && npm run eval:profiling-table",

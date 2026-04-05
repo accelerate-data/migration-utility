@@ -377,32 +377,32 @@ def convert_dbt(
 
 @app.command()
 def compare_sql(
-    procedure: str = typer.Option(..., help="Fully-qualified procedure name (schema.proc)"),
-    refactored_sql_file: str = typer.Option(..., help="Path to file containing refactored CTE SQL"),
+    sql_a_file: str = typer.Option(..., help="Path to file containing extracted core SELECT (sql A)"),
+    sql_b_file: str = typer.Option(..., help="Path to file containing refactored CTE SELECT (sql B)"),
     spec: str = typer.Option(..., help="Path to test spec JSON file"),
-    target_table: str = typer.Option(..., help="Fully-qualified target table (schema.table)"),
     project_root: str = typer.Option(".", help="Project root directory"),
 ) -> None:
-    """Compare original proc output against refactored SQL for each test scenario.
+    """Compare two SQL SELECT statements for equivalence per test scenario.
 
-    Seeds fixtures, runs original proc, wipes target, runs refactored SQL,
-    computes symmetric diff — all within a single rolled-back transaction per
-    scenario. Returns aggregated pass/fail JSON.
+    For each scenario in the spec, seeds fixtures, runs both SELECTs, and
+    computes symmetric diff — all within a single rolled-back transaction.
+    Returns aggregated pass/fail JSON.
     """
-    logger.info("event=cli_invoked command=compare_sql procedure=%s", procedure)
+    logger.info("event=cli_invoked command=compare_sql")
     root = resolve_project_root(Path(project_root))
     sandbox_db = _resolve_sandbox_db(root)
     manifest = _load_manifest(root)
     backend = _create_backend(manifest)
 
-    # Load refactored SQL
-    sql_path = Path(refactored_sql_file)
+    # Load both SQL files
+    for label, path_str in [("A", sql_a_file), ("B", sql_b_file)]:
+        if not Path(path_str).exists():
+            _error_exit("SQL_FILE_NOT_FOUND", f"SQL file {label} not found: {path_str}")
     try:
-        refactored_sql = sql_path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        _error_exit("SQL_FILE_NOT_FOUND", f"Refactored SQL file not found: {refactored_sql_file}")
+        sql_a = Path(sql_a_file).read_text(encoding="utf-8")
+        sql_b = Path(sql_b_file).read_text(encoding="utf-8")
     except OSError as exc:
-        _error_exit("SQL_FILE_READ_ERROR", f"Cannot read refactored SQL file: {exc}", exc)
+        _error_exit("SQL_FILE_READ_ERROR", f"Cannot read SQL file: {exc}", exc)
 
     # Load test spec
     spec_path = Path(spec)
@@ -427,19 +427,18 @@ def compare_sql(
         scenario_name = test_entry.get("name", "unnamed")
 
         try:
-            result = backend.compare_sql(
+            result = backend.compare_two_sql(
                 sandbox_db=sandbox_db,
-                procedure=procedure,
-                target_table=target_table,
-                refactored_sql=refactored_sql,
+                sql_a=sql_a,
+                sql_b=sql_b,
                 fixtures=fixtures,
             )
         except (ValueError, KeyError) as exc:
             result = {
                 "status": "error",
                 "equivalent": False,
-                "original_count": 0,
-                "refactored_count": 0,
+                "a_count": 0,
+                "b_count": 0,
                 "a_minus_b": [],
                 "b_minus_a": [],
                 "errors": [{"code": "COMPARE_INVALID_INPUT", "message": str(exc)}],
@@ -461,8 +460,6 @@ def compare_sql(
     output = {
         "schema_version": "1.0",
         "sandbox_database": sandbox_db,
-        "procedure": procedure,
-        "target_table": target_table,
         "total": len(unit_tests),
         "passed": passed_count,
         "failed": failed_count,

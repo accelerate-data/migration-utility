@@ -38,32 +38,32 @@ class SandboxBackend(ABC):
         """Check whether the sandbox database exists and is accessible."""
 
     @abstractmethod
-    def compare_sql(
+    def compare_two_sql(
         self,
         sandbox_db: str,
-        procedure: str,
-        target_table: str,
-        refactored_sql: str,
+        sql_a: str,
+        sql_b: str,
         fixtures: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        """Seed fixtures, run original proc and refactored SQL, return diff.
+        """Seed fixtures, run two SELECT statements, return symmetric diff.
 
         Within a single transaction (rolled back at the end):
         1. Seed fixture rows into tables
-        2. EXEC procedure → SELECT * FROM target_table → capture rows_original
-        3. DELETE FROM target_table (wipe proc output)
-        4. Execute refactored CTE SELECT → capture rows_refactored
-        5. Compute symmetric difference (original vs refactored)
+        2. Execute sql_a (extracted core SELECT) → capture rows_a
+        3. Execute sql_b (refactored CTE SELECT) → capture rows_b
+        4. Compute symmetric difference (rows_a vs rows_b)
+
+        Both sql_a and sql_b must be pure SELECT/WITH statements.
 
         Returns::
 
             {
                 "status": "ok" | "error",
                 "equivalent": bool,
-                "original_count": int,
-                "refactored_count": int,
-                "a_minus_b": list[dict],  # in original but not refactored
-                "b_minus_a": list[dict],  # in refactored but not original
+                "a_count": int,
+                "b_count": int,
+                "a_minus_b": list[dict],  # in A but not B
+                "b_minus_a": list[dict],  # in B but not A
                 "errors": list[dict],
             }
         """

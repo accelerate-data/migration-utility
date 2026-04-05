@@ -661,23 +661,21 @@ class SqlServerSandbox(SandboxBackend):
                 "errors": [{"code": "SCENARIO_FAILED", "message": str(exc)}],
             }
 
-    def compare_sql(
+    def compare_two_sql(
         self,
         sandbox_db: str,
-        procedure: str,
-        target_table: str,
-        refactored_sql: str,
+        sql_a: str,
+        sql_b: str,
         fixtures: list[dict[str, Any]],
     ) -> dict[str, Any]:
         _validate_sandbox_db_name(sandbox_db)
-        _validate_identifier(procedure)
-        _validate_identifier(target_table)
         _validate_fixtures(fixtures)
-        _validate_readonly_sql(refactored_sql)
+        _validate_readonly_sql(sql_a)
+        _validate_readonly_sql(sql_b)
 
         logger.info(
-            "event=compare_sql sandbox_db=%s procedure=%s target_table=%s",
-            sandbox_db, procedure, target_table,
+            "event=compare_two_sql sandbox_db=%s",
+            sandbox_db,
         )
 
         try:
@@ -688,34 +686,29 @@ class SqlServerSandbox(SandboxBackend):
                 try:
                     self._seed_fixtures(cursor, sandbox_db, fixtures)
 
-                    # Run original procedure and capture output
-                    cursor.execute(f"EXEC {procedure}")
-                    cursor.execute(f"SELECT * FROM {target_table}")
-                    rows_original = _serialize_rows(self._capture_rows(cursor))
+                    cursor.execute(sql_a)
+                    rows_a = _serialize_rows(self._capture_rows(cursor))
 
-                    # Wipe proc output, then run refactored SQL
-                    cursor.execute(f"DELETE FROM {target_table}")
-                    cursor.execute(refactored_sql)
-                    rows_refactored = _serialize_rows(self._capture_rows(cursor))
+                    cursor.execute(sql_b)
+                    rows_b = _serialize_rows(self._capture_rows(cursor))
                 finally:
                     conn.rollback()
 
-            # Import here to avoid circular dependency at module level
             from shared.refactor import symmetric_diff
 
-            diff = symmetric_diff(rows_original, rows_refactored)
+            diff = symmetric_diff(rows_a, rows_b)
 
             logger.info(
-                "event=compare_sql_complete sandbox_db=%s equivalent=%s "
-                "original_count=%d refactored_count=%d",
+                "event=compare_two_sql_complete sandbox_db=%s equivalent=%s "
+                "a_count=%d b_count=%d",
                 sandbox_db, diff["equivalent"],
                 diff["a_count"], diff["b_count"],
             )
             return {
                 "status": "ok",
                 "equivalent": diff["equivalent"],
-                "original_count": diff["a_count"],
-                "refactored_count": diff["b_count"],
+                "a_count": diff["a_count"],
+                "b_count": diff["b_count"],
                 "a_minus_b": diff["a_minus_b"],
                 "b_minus_a": diff["b_minus_a"],
                 "errors": [],
@@ -723,14 +716,14 @@ class SqlServerSandbox(SandboxBackend):
 
         except pyodbc.Error as exc:
             logger.error(
-                "event=compare_sql_failed sandbox_db=%s error=%s",
+                "event=compare_two_sql_failed sandbox_db=%s error=%s",
                 sandbox_db, exc,
             )
             return {
                 "status": "error",
                 "equivalent": False,
-                "original_count": 0,
-                "refactored_count": 0,
+                "a_count": 0,
+                "b_count": 0,
                 "a_minus_b": [],
                 "b_minus_a": [],
                 "errors": [{"code": "COMPARE_SQL_FAILED", "message": str(exc)}],

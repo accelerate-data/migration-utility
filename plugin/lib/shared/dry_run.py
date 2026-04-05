@@ -258,8 +258,15 @@ def check_refactor_complete(project_root: Path, table_fqn: str) -> dict[str, Any
             "REFACTOR_NOT_COMPLETED",
             f"Refactor status is '{status}', expected ok.",
         )
-    sql = refactor.get("refactored_sql")
-    if not sql or not sql.strip():
+    extracted = refactor.get("extracted_sql")
+    if not extracted or not extracted.strip():
+        return _guard_fail(
+            "refactor_completed",
+            "REFACTOR_NOT_COMPLETED",
+            "Refactor section has no extracted_sql.",
+        )
+    refactored = refactor.get("refactored_sql")
+    if not refactored or not refactored.strip():
         return _guard_fail(
             "refactor_completed",
             "REFACTOR_NOT_COMPLETED",
@@ -693,8 +700,8 @@ def refactor_summary(project_root: Path, table_fqn: str) -> dict[str, Any]:
     refactor = cat.get("refactor") or {}
     return {
         "refactor_status": refactor.get("status"),
+        "has_extracted_sql": bool(refactor.get("extracted_sql")),
         "has_refactored_sql": bool(refactor.get("refactored_sql")),
-        "has_refactored_sql_hash": bool(refactor.get("refactored_sql_hash")),
     }
 
 

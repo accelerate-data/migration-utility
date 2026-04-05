@@ -253,8 +253,12 @@ def _validate_refactor(refactor: dict[str, Any]) -> list[str]:
     elif status not in REFACTOR_STATUSES:
         errors.append(f"invalid status: {status!r}, must be one of {sorted(REFACTOR_STATUSES)}")
 
-    sql = refactor.get("refactored_sql")
-    if status == "ok" and (not sql or not sql.strip()):
+    extracted = refactor.get("extracted_sql")
+    if status == "ok" and (not extracted or not extracted.strip()):
+        errors.append("extracted_sql is required when status is 'ok'")
+
+    refactored = refactor.get("refactored_sql")
+    if status == "ok" and (not refactored or not refactored.strip()):
         errors.append("refactored_sql is required when status is 'ok'")
 
     return errors
@@ -269,6 +273,7 @@ def _compute_sql_hash(sql: str) -> str:
 def run_write(
     project_root: Path,
     table_fqn: str,
+    extracted_sql: str,
     refactored_sql: str,
     status: str,
 ) -> dict[str, Any]:
@@ -281,8 +286,10 @@ def run_write(
 
     refactor_data: dict[str, Any] = {
         "status": status,
+        "extracted_sql": extracted_sql,
+        "extracted_sql_hash": _compute_sql_hash(extracted_sql) if extracted_sql else "",
         "refactored_sql": refactored_sql,
-        "refactored_sql_hash": _compute_sql_hash(refactored_sql),
+        "refactored_sql_hash": _compute_sql_hash(refactored_sql) if refactored_sql else "",
     }
 
     errors = _validate_refactor(refactor_data)
@@ -353,19 +360,23 @@ def write(
     project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
     table: str = typer.Option(..., help="Fully-qualified table name (schema.Name)"),
     status: str = typer.Option(..., help="Refactor status: ok, partial, or error"),
+    extracted_sql: str = typer.Option("", help="Extracted core SQL string"),
+    extracted_sql_file: Optional[Path] = typer.Option(None, "--extracted-sql-file", help="Path to file containing extracted core SQL"),
     refactored_sql: str = typer.Option("", help="Refactored SQL string"),
     refactored_sql_file: Optional[Path] = typer.Option(None, "--refactored-sql-file", help="Path to file containing refactored SQL"),
 ) -> None:
     """Validate and merge a refactor section into a table catalog file."""
+    if extracted_sql_file:
+        extracted_sql = extracted_sql_file.read_text(encoding="utf-8")
     if refactored_sql_file:
         refactored_sql = refactored_sql_file.read_text(encoding="utf-8")
-    if not refactored_sql:
-        logger.error("event=write_failed table=%s error=no refactored SQL provided (use --refactored-sql or --refactored-sql-file)", table)
+    if not extracted_sql and not refactored_sql:
+        logger.error("event=write_failed table=%s error=no SQL provided", table)
         raise typer.Exit(code=1)
     project_root = resolve_project_root(project_root)
 
     try:
-        result = run_write(project_root, table, refactored_sql, status)
+        result = run_write(project_root, table, extracted_sql, refactored_sql, status)
     except (ValueError, CatalogFileMissingError) as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)
         _emit({"ok": False, "error": str(exc), "table": normalize(table)})
