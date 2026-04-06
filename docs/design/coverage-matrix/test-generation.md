@@ -7,7 +7,7 @@ Current automated statement coverage for the test-generator phase. The phase bou
 | 1 | `INSERT ... SELECT` | N/A | N/A | Yes |
 | 2 | `UPDATE` with join | N/A | N/A | Yes |
 | 3 | `DELETE` with `WHERE` | N/A | N/A | Yes |
-| 4 | `DELETE TOP` | N/A | N/A | N/A |
+| 4 | `DELETE TOP` | N/A | N/A | Yes |
 | 5 | `TRUNCATE TABLE` | N/A | N/A | N/A |
 | 6 | `TRUNCATE` + `INSERT` | N/A | N/A | Yes |
 | 7 | `MERGE INTO` | N/A | N/A | Yes |
@@ -38,7 +38,7 @@ Current automated statement coverage for the test-generator phase. The phase bou
 | 33 | `NOT EXISTS` subquery | N/A | N/A | N/A |
 | 34 | `IN` subquery | N/A | N/A | N/A |
 | 35 | `NOT IN` subquery | N/A | N/A | N/A |
-| 36 | Recursive CTE | N/A | N/A | N/A |
+| 36 | Recursive CTE | N/A | N/A | Yes |
 | 37 | `UPDATE` with CTE prefix | N/A | N/A | N/A |
 | 38 | `DELETE` with CTE prefix | N/A | N/A | N/A |
 | 39 | `MERGE` with CTE source | N/A | N/A | N/A |
@@ -55,9 +55,9 @@ Current automated statement coverage for the test-generator phase. The phase bou
 | 54 | `EXEC @rc = proc` | N/A | N/A | N/A |
 | 57 | Static `sp_executesql` | N/A | N/A | Yes |
 | 45 | `IF / ELSE` control flow | N/A | N/A | Yes |
-| 46 | `TRY / CATCH` | N/A | N/A | N/A |
+| 46 | `TRY / CATCH` | N/A | N/A | Yes |
 | 47 | `WHILE` loop | N/A | N/A | Yes |
-| 48 | Nested control flow | N/A | N/A | N/A |
+| 48 | Nested control flow | N/A | N/A | Yes |
 | 55 | Cross-database `EXEC` | N/A | N/A | Yes |
 | 56 | Linked-server `EXEC` | N/A | N/A | N/A |
 | 58 | Dynamic `sp_executesql` | N/A | N/A | Yes |
