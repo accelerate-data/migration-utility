@@ -19,7 +19,15 @@
     "eval:cmd-status": "npm run prerestore && promptfoo eval --no-cache -c packages/cmd-status/cmd-status.yaml; npm run postrestore",
     "eval:refactoring-sql": "npm run prerestore && promptfoo eval --no-cache -c packages/refactoring-sql/skill-refactoring-sql.yaml; npm run postrestore",
     "eval:cmd-refactor": "npm run prerestore && promptfoo eval --no-cache -c packages/cmd-refactor/cmd-refactor.yaml; npm run postrestore",
-    "eval:oracle-regression": "npm run prerestore && promptfoo eval --no-cache -c oracle-regression/promptfooconfig.yaml; npm run postrestore",
+    "prerestore:oracle-regression": "git checkout -- oracle-regression/fixtures/",
+    "postrestore:oracle-regression": "git checkout -- oracle-regression/fixtures/ && git clean -fd oracle-regression/fixtures/",
+    "prerestore:oracle-live": "git checkout -- oracle-live/fixtures/ 2>/dev/null || true",
+    "postrestore:oracle-live": "git clean -fd oracle-live/fixtures/",
+    "prerestore:mssql-live": "git checkout -- mssql-live/fixtures/ 2>/dev/null || true",
+    "postrestore:mssql-live": "git clean -fd mssql-live/fixtures/",
+    "eval:oracle-regression": "npm run prerestore:oracle-regression && promptfoo eval --no-cache -c oracle-regression/promptfooconfig.yaml; npm run postrestore:oracle-regression",
+    "eval:oracle-live": "npm run prerestore:oracle-live && promptfoo eval --no-cache -c oracle-live/promptfooconfig.yaml; npm run postrestore:oracle-live",
+    "eval:mssql-live": "npm run prerestore:mssql-live && promptfoo eval --no-cache -c mssql-live/promptfooconfig.yaml; npm run postrestore:mssql-live",
     "view": "promptfoo view"
   },
   "dependencies": {

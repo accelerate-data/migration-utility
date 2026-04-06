@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "mssql live — setup-ddl extract + scope + profile against Docker SQL Server"
+
+prompts:
+  - id: cmd-live-pipeline
+    label: cmd-live-pipeline
+    raw: file://../prompts/cmd-live-pipeline.txt
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    config:
+      model: claude-sonnet-4-6
+      working_dir: ../..
+      max_turns: 120
+      permission_mode: auto
+      append_allowed_tools:
+        - Read
+        - Write
+        - Bash
+        - Glob
+        - Grep
+
+defaultTest:
+  vars:
+    fixture_path: "tests/evals/mssql-live/fixtures"
+  assert:
+    - type: javascript
+      value: file://../assertions/check-command-summary.js
+
+tests:
+  - description: "mssql live — FactInternetSales: extract → scope → profile"
+    prompts: ["cmd-live-pipeline"]
+    vars:
+      target_tables: "silver.FactInternetSales"
+      target_table: "silver.factinternetsales"
+      extract_flags: "--database MigrationTest --schemas silver"
+      db_env_setup: "export MSSQL_HOST=localhost"
+      expected_item_statuses: '{"silver.FactInternetSales": "resolved"}'
+      expected_status: "resolved"
+      expected_writer: "usp_stage_factinternetsales"
+      expected_output_terms: "resolved"
+    assert:
+      - type: javascript
+        value: file://../assertions/check-table-scoping.js

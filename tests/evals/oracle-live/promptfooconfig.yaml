@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "oracle live — setup-ddl extract + scope + profile against Docker Oracle"
+
+prompts:
+  - id: cmd-live-pipeline
+    label: cmd-live-pipeline
+    raw: file://../prompts/cmd-live-pipeline.txt
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    config:
+      model: claude-sonnet-4-6
+      working_dir: ../..
+      max_turns: 120
+      permission_mode: auto
+      append_allowed_tools:
+        - Read
+        - Write
+        - Bash
+        - Glob
+        - Grep
+
+defaultTest:
+  vars:
+    fixture_path: "tests/evals/oracle-live/fixtures"
+  assert:
+    - type: javascript
+      value: file://../assertions/check-command-summary.js
+
+tests:
+  - description: "oracle live — CHANNEL_SALES_SUMMARY: extract → scope → profile"
+    prompts: ["cmd-live-pipeline"]
+    vars:
+      target_tables: "sh.CHANNEL_SALES_SUMMARY"
+      target_table: "sh.channel_sales_summary"
+      extract_flags: "--schemas SH"
+      db_env_setup: "export ORACLE_USER=sh && export ORACLE_PASSWORD=${ORACLE_PWD} && export ORACLE_DSN=localhost:1521/FREEPDB1"
+      target_procedure: "sh.summarize_channel_sales"
+      expected_item_statuses: '{"sh.CHANNEL_SALES_SUMMARY": "resolved"}'
+      expected_status: "resolved"
+      expected_writer: "summarize_channel_sales"
+      expected_output_terms: "resolved"
+    assert:
+      - type: javascript
+        value: file://../assertions/check-table-scoping.js
+      - type: javascript
+        value: file://../assertions/check-procedure-catalog.js
