@@ -15,7 +15,7 @@ import yaml
 
 from shared.catalog import load_proc_catalog, load_table_catalog, read_selected_writer
 from shared.env_config import resolve_dbt_project_path
-from shared.name_resolver import fqn_parts, normalize
+from shared.name_resolver import fqn_parts, model_name_from_table, normalize
 
 logger = logging.getLogger(__name__)
 
@@ -71,15 +71,6 @@ def _profile_question_status(profile: dict[str, Any]) -> dict[str, str]:
         else:
             result[q] = "answered"
     return result
-
-
-def _model_name_from_table(table_fqn: str) -> str:
-    """Derive a dbt model name from a table FQN.
-
-    ``silver.dim_customer`` → ``stg_dim_customer``
-    """
-    _, name = fqn_parts(normalize(table_fqn))
-    return f"stg_{name}"
 
 
 def _find_dbt_model(dbt_root: Path, model_name: str) -> Path | None:
@@ -143,7 +134,7 @@ def _dbt_evidence(
 ) -> dict[str, Any]:
     """Collect dbt artifact evidence for a table."""
     dbt_root = resolve_dbt_project_path(project_root)
-    model_name = _model_name_from_table(table_fqn)
+    model_name = model_name_from_table(table_fqn)
 
     model_path = _find_dbt_model(dbt_root, model_name)
     schema_yaml_path, has_unit_tests = _find_schema_yaml(model_path)

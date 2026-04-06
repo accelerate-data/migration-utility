@@ -41,25 +41,11 @@ from shared.loader import (
 )
 from shared.cli_utils import emit
 from shared.env_config import resolve_dbt_project_path, resolve_project_root
-from shared.name_resolver import fqn_parts, normalize
+from shared.name_resolver import fqn_parts, model_name_from_table, normalize
 
 logger = logging.getLogger(__name__)
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-
-
-def _model_name_from_table(table_fqn: str) -> str:
-    """Derive a dbt model name from a table FQN.
-
-    ``silver.dim_customer`` → ``stg_dim_customer``
-    ``dbo.fact_sales`` → ``stg_fact_sales``
-    """
-    _, name = fqn_parts(normalize(table_fqn))
-    return f"stg_{name}"
 
 
 # ── Materialization derivation ────────────────────────────────────────────────
@@ -113,7 +99,7 @@ def derive_schema_tests(profile: dict[str, Any]) -> dict[str, Any]:
             ref_relation = fk.get("references_source_relation", "")
             ref_col = fk.get("references_column", "")
             if col and ref_relation:
-                model_ref = f"ref('{_model_name_from_table(ref_relation)}')"
+                model_ref = f"ref('{model_name_from_table(ref_relation)}')"
                 ri_tests.append({
                     "column": col,
                     "to": model_ref,
@@ -304,7 +290,7 @@ def run_write(
         code 2 — IO error (project path missing, write failure)
     """
     table_norm = normalize(table_fqn)
-    model_name = _model_name_from_table(table_norm)
+    model_name = model_name_from_table(table_norm)
 
     # Validation
     if not model_sql or not model_sql.strip():
