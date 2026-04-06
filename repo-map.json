@@ -104,7 +104,7 @@
     },
     "tests_ddl_mcp": {
       "path": "plugin/mcp/ddl/tests/",
-      "description": "Python pytest suite for the DDL MCP server. test_server.py tests all MCP tool handlers (list_tables, get_table_schema, list_procedures, get_procedure_body, get_dependencies, list_views, get_view_body, list_functions, get_function_body)."
+      "description": "Python pytest suite for the DDL MCP server. test_server.py tests all MCP tool handlers. fixtures/oracle/ contains Oracle SH-schema DDL fixtures (tables, procedures, views, manifest.json) for dialect-aware column type tests and live integration tests (@pytest.mark.oracle)."
     },
     "scripts": {
       "path": "scripts/",
@@ -121,7 +121,7 @@
     "plugin/lib/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
     "tests/unit/": "Python pytest tests for shared library (discover, catalog, catalog_enrich, extract_refs, integration)",
     "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages: profiling-table, generating-model, generating-tests, reviewing-tests, reviewing-model, analyzing-table; command packages: cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests)",
-    "plugin/mcp/ddl/tests/": "Python pytest tests for the DDL MCP server",
+    "plugin/mcp/ddl/tests/": "Python pytest tests for the DDL MCP server. fixtures/oracle/ holds Oracle SH-schema DDL fixtures and manifest.",
     "docs/design/": "Architecture decision records and design specs",
     ".claude/rules/": "Shared agent rules such as coding-conventions, git-workflow, logging-policy, and codex-execution-policy",
     ".claude/skills/": "Workflow playbooks for repo-local Claude Code skills"
