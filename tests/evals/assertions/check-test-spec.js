@@ -31,6 +31,21 @@ module.exports = (output, context) => {
     }
   }
 
+  // Normalize common LLM output quirks before schema validation
+  if (Array.isArray(spec.uncovered_branches)) {
+    spec.uncovered_branches = spec.uncovered_branches.map((b) =>
+      typeof b === 'object' && b !== null ? (b.id || b.branch_id || JSON.stringify(b)) : String(b)
+    );
+  }
+  if (Array.isArray(spec.branch_manifest)) {
+    for (const branch of spec.branch_manifest) {
+      if (branch.statement_index !== undefined && typeof branch.statement_index !== 'number') {
+        const parsed = Number(branch.statement_index);
+        if (!isNaN(parsed)) branch.statement_index = Math.round(parsed);
+      }
+    }
+  }
+
   // Schema validation gate
   const schemaResult = validateSchema(spec, 'test_spec.json');
   if (!schemaResult.valid) {

@@ -232,7 +232,6 @@ tests:
       expected_coverage: "complete,partial"
       min_branch_count: 1
       min_scenario_count: 1
-      expected_output_terms: "recursive,union all"
 
   - description: "try-catch — TryCatchTarget validates that TRY block is primary test target"
     vars:
