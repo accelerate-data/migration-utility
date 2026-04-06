@@ -129,6 +129,8 @@ class TestAssembleTables:
         input_file = tmp_path / "input.json"
         _write_json(input_file, rows)
         project_root = tmp_path / "out"
+        project_root.mkdir(parents=True, exist_ok=True)
+        (project_root / "manifest.json").write_text('{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8")
 
         result = _run_cli([
             "assemble-tables",
@@ -154,6 +156,8 @@ class TestAssembleTables:
         input_file = tmp_path / "input.json"
         _write_json(input_file, rows)
         project_root = tmp_path / "out"
+        project_root.mkdir(parents=True, exist_ok=True)
+        (project_root / "manifest.json").write_text('{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8")
 
         result = _run_cli([
             "assemble-tables",
@@ -173,6 +177,8 @@ class TestAssembleTables:
         input_file = tmp_path / "input.json"
         _write_json(input_file, rows)
         project_root = tmp_path / "out"
+        project_root.mkdir(parents=True, exist_ok=True)
+        (project_root / "manifest.json").write_text('{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8")
 
         result = _run_cli([
             "assemble-tables",
@@ -195,6 +201,8 @@ class TestAssembleTables:
         input_file = tmp_path / "input.json"
         _write_json(input_file, rows)
         project_root = tmp_path / "out"
+        project_root.mkdir(parents=True, exist_ok=True)
+        (project_root / "manifest.json").write_text('{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8")
 
         result = _run_cli([
             "assemble-tables",
@@ -1584,7 +1592,7 @@ class TestExtractOracleIntegration:
 
 
 def test_run_assemble_tables_missing_manifest_raises(tmp_path: Path) -> None:
-    """run_assemble_tables propagates FileNotFoundError when manifest.json is absent."""
+    """run_assemble_tables propagates ValueError when manifest.json is absent."""
     import sys
     sys.path.insert(0, str(Path(__file__).parents[2] / "plugin" / "lib"))
     from shared.setup_ddl import run_assemble_tables
@@ -1594,5 +1602,5 @@ def test_run_assemble_tables_missing_manifest_raises(tmp_path: Path) -> None:
     project_root = tmp_path / "project"
     project_root.mkdir()
 
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(ValueError):
         run_assemble_tables(input_file, project_root)
