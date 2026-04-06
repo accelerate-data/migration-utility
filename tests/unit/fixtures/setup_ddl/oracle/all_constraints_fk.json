@@ -1,0 +1,92 @@
+[
+  {
+    "schema_name": "SH",
+    "table_name": "COSTS",
+    "constraint_name": "COSTS_CHANNEL_FK",
+    "column_name": "CHANNEL_ID",
+    "ref_schema": "SH",
+    "ref_table": "CHANNELS",
+    "ref_column": "CHANNEL_ID"
+  },
+  {
+    "schema_name": "SH",
+    "table_name": "COSTS",
+    "constraint_name": "COSTS_PRODUCT_FK",
+    "column_name": "PROD_ID",
+    "ref_schema": "SH",
+    "ref_table": "PRODUCTS",
+    "ref_column": "PROD_ID"
+  },
+  {
+    "schema_name": "SH",
+    "table_name": "COSTS",
+    "constraint_name": "COSTS_PROMO_FK",
+    "column_name": "PROMO_ID",
+    "ref_schema": "SH",
+    "ref_table": "PROMOTIONS",
+    "ref_column": "PROMO_ID"
+  },
+  {
+    "schema_name": "SH",
+    "table_name": "COSTS",
+    "constraint_name": "COSTS_TIME_FK",
+    "column_name": "TIME_ID",
+    "ref_schema": "SH",
+    "ref_table": "TIMES",
+    "ref_column": "TIME_ID"
+  },
+  {
+    "schema_name": "SH",
+    "table_name": "CUSTOMERS",
+    "constraint_name": "CUSTOMERS_COUNTRY_FK",
+    "column_name": "COUNTRY_ID",
+    "ref_schema": "SH",
+    "ref_table": "COUNTRIES",
+    "ref_column": "COUNTRY_ID"
+  },
+  {
+    "schema_name": "SH",
+    "table_name": "SALES",
+    "constraint_name": "SALES_CHANNEL_FK",
+    "column_name": "CHANNEL_ID",
+    "ref_schema": "SH",
+    "ref_table": "CHANNELS",
+    "ref_column": "CHANNEL_ID"
+  },
+  {
+    "schema_name": "SH",
+    "table_name": "SALES",
+    "constraint_name": "SALES_CUSTOMER_FK",
+    "column_name": "CUST_ID",
+    "ref_schema": "SH",
+    "ref_table": "CUSTOMERS",
+    "ref_column": "CUST_ID"
+  },
+  {
+    "schema_name": "SH",
+    "table_name": "SALES",
+    "constraint_name": "SALES_PRODUCT_FK",
+    "column_name": "PROD_ID",
+    "ref_schema": "SH",
+    "ref_table": "PRODUCTS",
+    "ref_column": "PROD_ID"
+  },
+  {
+    "schema_name": "SH",
+    "table_name": "SALES",
+    "constraint_name": "SALES_PROMO_FK",
+    "column_name": "PROMO_ID",
+    "ref_schema": "SH",
+    "ref_table": "PROMOTIONS",
+    "ref_column": "PROMO_ID"
+  },
+  {
+    "schema_name": "SH",
+    "table_name": "SALES",
+    "constraint_name": "SALES_TIME_FK",
+    "column_name": "TIME_ID",
+    "ref_schema": "SH",
+    "ref_table": "TIMES",
+    "ref_column": "TIME_ID"
+  }
+]
