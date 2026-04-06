@@ -100,11 +100,7 @@ git checkout -- test-specs/<item_id>.json test-specs/<item_id>.yml
 
 Use `rm -f` for files that were newly created and have no prior version.
 
-If the item final status is not `error`, auto-commit and push this item's output:
-
-```bash
-/commit test-specs/<item_id>.yml
-```
+If the item final status is not `error`, auto-commit and push: run `/commit test-specs/<item_id>.yml`.
 
 ### Step 6 — Summarize
 

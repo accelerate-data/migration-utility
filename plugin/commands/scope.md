@@ -42,11 +42,7 @@ git checkout -- catalog/tables/<item_id>.json
 
 Ignore errors from `git checkout` (the file may not have been modified).
 
-If the item status is not `error`, auto-commit and push this item's output:
-
-```bash
-/commit catalog/tables/<item_id>.json
-```
+If the item status is not `error`, auto-commit and push: run `/commit catalog/tables/<item_id>.json`.
 
 Then continue to Step 3.
 
@@ -59,7 +55,7 @@ Write the item result JSON to .migration-runs/<schema.table>.<epoch>.json.
 
 After writing the result:
 - If status == "error": run `git checkout -- catalog/tables/<item_id>.json` (ignore errors).
-- If status != "error": run `/commit catalog/tables/<item_id>.json`
+- If status != "error": invoke the /commit command with catalog/tables/<item_id>.json
 
 On failure before writing a result, write result with status: "error" and error details, then revert as above.
 Return the item result JSON.

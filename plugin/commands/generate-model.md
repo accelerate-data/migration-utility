@@ -69,13 +69,9 @@ git checkout -- dbt/models/staging/<model_name>.sql dbt/models/staging/_<model_n
 
 Use `rm -f` instead of `git checkout` for newly created files with no prior version.
 
-If the item final status is not `error`, auto-commit and push this item's output:
+If the item final status is not `error`, auto-commit and push: run `/commit dbt/models/staging/<model_name>.sql dbt/models/staging/_<model_name>.yml`.
 
-```bash
-/commit dbt/models/staging/<model_name>.sql dbt/models/staging/_<model_name>.yml
-```
-
-For multi-table sub-agents: include the commit/revert instructions in the sub-agent prompt at the end of the review loop.
+For multi-table sub-agents: include the commit/revert instructions in the sub-agent prompt at the end of the review loop, using "invoke the /commit command with <files>".
 
 ### Step 4 — Summarize
 
