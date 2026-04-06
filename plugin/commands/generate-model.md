@@ -55,13 +55,11 @@ Return the item result JSON.
 
 For each item, read `.migration-runs/<item_id>.<epoch>.json` from Step 2. If `status` is `error`, skip the item. For each remaining item, invoke `/reviewing-model <item_id>`.
 
-- If verdict is `approved`: proceed to Step 3a.
+- If verdict is `approved`: proceed to commit/revert below.
 - `revision_requested`: invoke `/generating-model <item_id>` with the reviewer's `feedback_for_model_generator` as additional context. The model-generator must re-run `dbt test` to confirm unit tests still pass after revisions. Then invoke `/reviewing-model <item_id>` again. Maximum 2 review iterations per item.
-- On review failure or max iterations reached: approve with warnings and proceed to Step 3a.
+- On review failure or max iterations reached: approve with warnings and proceed to commit/revert below.
 
-**Step 3a — Commit or revert per item (runs after review completes)**
-
-Derive `<model_name>` from item_id using the `stg_<table>` convention.
+Once the review outcome is final for an item, derive `<model_name>` from item_id using the `stg_<table>` convention.
 
 If the item final status is `error`, revert any files the skill may have partially written:
 
@@ -80,7 +78,7 @@ git commit -m "generate-model(<item_id>): <model_name> (<materialization>), revi
 git push origin HEAD -u
 ```
 
-For multi-table sub-agents: include Step 3a instructions in the sub-agent prompt at the end of the review loop.
+For multi-table sub-agents: include the commit/revert instructions in the sub-agent prompt at the end of the review loop.
 
 ### Step 4 — Summarize
 
