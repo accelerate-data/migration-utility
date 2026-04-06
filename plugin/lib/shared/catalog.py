@@ -361,6 +361,8 @@ def write_object_catalog(
     routing_reasons: list[str] | None = None,
     params: list[dict[str, Any]] | None = None,
     ddl_hash: str | None = None,
+    sql: str | None = None,
+    columns: list[dict[str, Any]] | None = None,
 ) -> Path:
     """Write a proc/view/function catalog file.  Returns the written path."""
     norm = normalize(fqn)
@@ -378,6 +380,10 @@ def write_object_catalog(
         data["mode"] = mode
     if routing_reasons is not None:
         data["routing_reasons"] = routing_reasons
+    if sql is not None:
+        data["sql"] = sql
+    if columns is not None:
+        data["columns"] = columns
     p = _object_path(project_root, object_type, norm)
     _write_json(p, data)
     return p

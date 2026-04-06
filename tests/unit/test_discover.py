@@ -345,3 +345,129 @@ def test_write_scoping_corrupt_table_catalog_raises() -> None:
         root = _make_project_with_corrupt_catalog(Path(tmp), "tables", "dbo.t")
         with pytest.raises(CatalogLoadError):
             discover.run_write_scoping(root, "dbo.T", {"status": "resolved", "selected_writer": "dbo.usp_load"})
+
+
+# ── View reference classification tests ─────────────────────────────────────
+
+
+def _make_project_with_proc_view_refs(tmp: Path) -> Path:
+    """Project where a proc references both a table and a view in its catalog."""
+    ddl_dir = tmp / "ddl"
+    ddl_dir.mkdir()
+    (ddl_dir / "procedures.sql").write_text(
+        "CREATE PROCEDURE dbo.usp_LoadData AS BEGIN SELECT 1 END\nGO\n",
+        encoding="utf-8",
+    )
+    (ddl_dir / "tables.sql").write_text(
+        "CREATE TABLE silver.FactSales (Id INT)\nGO\n", encoding="utf-8",
+    )
+    cat_dir = tmp / "catalog"
+    (cat_dir / "procedures").mkdir(parents=True)
+    (cat_dir / "tables").mkdir(parents=True)
+    (cat_dir / "procedures" / "dbo.usp_loaddata.json").write_text(
+        json.dumps({
+            "references": {
+                "tables": {
+                    "in_scope": [
+                        {
+                            "schema": "silver", "name": "FactSales",
+                            "is_selected": True, "is_updated": True,
+                            "is_insert_all": False, "columns": [],
+                        },
+                    ],
+                    "out_of_scope": [],
+                },
+                "views": {
+                    "in_scope": [
+                        {"schema": "dbo", "name": "vw_customer_dim", "is_selected": True, "is_updated": False},
+                    ],
+                    "out_of_scope": [],
+                },
+                "functions": {"in_scope": [], "out_of_scope": []},
+                "procedures": {"in_scope": [], "out_of_scope": []},
+            },
+        }),
+        encoding="utf-8",
+    )
+    (cat_dir / "tables" / "silver.factsales.json").write_text(
+        json.dumps({
+            "columns": [], "primary_keys": [], "unique_indexes": [], "foreign_keys": [],
+            "auto_increment_columns": [], "change_capture": None, "sensitivity_classifications": [],
+            "referenced_by": {
+                "procedures": {"in_scope": [], "out_of_scope": []},
+                "views": {"in_scope": [], "out_of_scope": []},
+                "functions": {"in_scope": [], "out_of_scope": []},
+            },
+        }),
+        encoding="utf-8",
+    )
+    return tmp
+
+
+def test_show_proc_view_refs_not_in_reads_from() -> None:
+    """run_show for a proc with references.views entries does not put views in reads_from.
+
+    Views are classified separately from tables in the proc catalog — this test
+    confirms that run_show does not conflate the two buckets when building the
+    refs.reads_from list.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _make_project_with_proc_view_refs(Path(tmp))
+        result = discover.run_show(root, "dbo.usp_LoadData")
+
+    refs = result["refs"]
+    assert refs is not None
+    # Table that is read should be present
+    assert "silver.factsales" in refs["reads_from"]
+    # The view dependency must NOT appear in the tables reads_from list
+    assert "dbo.vw_customer_dim" not in refs["reads_from"]
+    # The table that is written should be present
+    assert "silver.factsales" in refs["writes_to"]
+
+
+def _make_project_with_view_catalog(tmp: Path) -> Path:
+    """Project with a view catalog entry that has referenced_by.procedures."""
+    ddl_dir = tmp / "ddl"
+    ddl_dir.mkdir()
+    (ddl_dir / "views.sql").write_text(
+        "CREATE VIEW dbo.vw_customer_dim AS SELECT Id FROM dbo.Customer\nGO\n",
+        encoding="utf-8",
+    )
+    cat_dir = tmp / "catalog"
+    (cat_dir / "views").mkdir(parents=True)
+    (cat_dir / "views" / "dbo.vw_customer_dim.json").write_text(
+        json.dumps({
+            "schema": "dbo",
+            "name": "vw_customer_dim",
+            "references": {
+                "tables": {"in_scope": [], "out_of_scope": []},
+                "views": {"in_scope": [], "out_of_scope": []},
+            },
+            "referenced_by": {
+                "procedures": {
+                    "in_scope": [
+                        {
+                            "schema": "dbo", "name": "usp_load_fact_sales",
+                            "is_selected": True, "is_updated": False,
+                        },
+                    ],
+                    "out_of_scope": [],
+                },
+                "views": {"in_scope": [], "out_of_scope": []},
+                "functions": {"in_scope": [], "out_of_scope": []},
+            },
+        }),
+        encoding="utf-8",
+    )
+    return tmp
+
+
+def test_refs_view_catalog_returns_view_type() -> None:
+    """run_refs on a view FQN returns type='view' and the referencing proc as reader."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _make_project_with_view_catalog(Path(tmp))
+        result = discover.run_refs(root, "dbo.vw_customer_dim")
+
+    assert result["source"] == "catalog"
+    assert result["type"] == "view"
+    assert "dbo.usp_load_fact_sales" in result["readers"]

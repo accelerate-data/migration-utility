@@ -356,3 +356,94 @@ class TestDiffAwareReexportIntegration:
                 cursor.execute(restore_def)
 
         conn.close()
+
+
+@skip_no_mssql
+class TestViewCatalogEnrichmentIntegration:
+    """Integration tests for view catalog sql+columns enrichment via setup-ddl."""
+
+    def test_view_catalog_has_sql_and_columns(self) -> None:
+        """setup-ddl write-catalog writes sql and columns into view catalog JSON.
+
+        Creates a temporary test view in the MigrationTest DB, runs write-catalog
+        with view_columns.json extracted via sys.columns, then asserts the view
+        catalog at catalog/views/<fqn>.json has non-empty sql and columns fields.
+        """
+        conn = _connect()
+        database = os.environ.get("MSSQL_DB", "MigrationTest")
+        view_schema = "dbo"
+        view_name = "vw_integration_test_view"
+        fqn = f"{view_schema}.{view_name}"
+
+        # Find a table to base the view on
+        tables = _query_rows(conn, f"""
+            SELECT TOP 1 SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name
+            FROM sys.tables t
+            WHERE SCHEMA_NAME(t.schema_id) = 'dbo'
+              AND t.is_ms_shipped = 0
+        """)
+        if not tables:
+            pytest.skip("No dbo tables found in test DB — cannot create test view")
+
+        source_table = f"[{tables[0]['schema_name']}].[{tables[0]['table_name']}]"
+        cursor = conn.cursor()
+
+        # Drop any leftover view from a previous failed run
+        cursor.execute(f"IF OBJECT_ID('{fqn}', 'V') IS NOT NULL DROP VIEW [{view_schema}].[{view_name}]")
+
+        # Create a simple test view
+        cursor.execute(f"""
+            CREATE VIEW [{view_schema}].[{view_name}] AS
+            SELECT TOP 1 * FROM {source_table}
+        """)
+
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                staging = Path(tmp) / "staging"
+                output = Path(tmp) / "output"
+
+                schemas = view_schema
+
+                # Extract staging data including view_columns.json
+                _extract_staging(conn, staging, database, schemas)
+
+                # Extract view_columns.json (the new staging file added by this feature)
+                schema_filter = f"'{view_schema}'"
+                view_cols = _query_rows(conn, f"""
+                    SELECT SCHEMA_NAME(v.schema_id) AS schema_name,
+                           v.name AS view_name,
+                           c.name AS column_name, c.column_id,
+                           tp.name AS type_name, c.max_length, c.precision, c.scale,
+                           c.is_nullable
+                    FROM sys.views v
+                    JOIN sys.columns c ON c.object_id = v.object_id
+                    JOIN sys.types tp ON tp.user_type_id = c.user_type_id
+                    WHERE v.is_ms_shipped = 0
+                      AND SCHEMA_NAME(v.schema_id) IN ({schema_filter})
+                    ORDER BY schema_name, view_name, c.column_id
+                """)
+                _write_json(staging / "view_columns.json", view_cols)
+
+                counts = _run_write_catalog(staging, output, database)
+                assert counts["views"] > 0, "Expected at least one view catalog to be written"
+
+                # Verify the test view's catalog has sql and columns
+                norm_fqn = f"{view_schema}.{view_name}".lower()
+                cat_path = output / "catalog" / "views" / f"{norm_fqn}.json"
+                assert cat_path.exists(), f"View catalog not found at {cat_path}"
+
+                cat = json.loads(cat_path.read_text(encoding="utf-8"))
+                assert "sql" in cat, "View catalog missing 'sql' field"
+                assert cat["sql"], "View catalog 'sql' field is empty"
+                assert view_name.lower() in cat["sql"].lower(), (
+                    f"View name not found in sql field: {cat['sql'][:200]}"
+                )
+                assert "columns" in cat, "View catalog missing 'columns' field"
+                assert len(cat["columns"]) > 0, "View catalog 'columns' list is empty"
+                for col in cat["columns"]:
+                    assert "name" in col, "Column entry missing 'name'"
+                    assert "sql_type" in col, "Column entry missing 'sql_type'"
+                    assert "is_nullable" in col, "Column entry missing 'is_nullable'"
+        finally:
+            cursor.execute(f"DROP VIEW IF EXISTS [{view_schema}].[{view_name}]")
+            conn.close()

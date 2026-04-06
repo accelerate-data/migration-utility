@@ -260,6 +260,64 @@ def check_dbt_project(project_root: Path) -> dict[str, Any]:
     return _guard_ok("dbt_project_exists")
 
 
+def check_view_dependencies_migrated(project_root: Path, table_fqn: str) -> dict[str, Any]:
+    """Check that all view dependencies of the selected writer proc are migrated.
+
+    Reads the proc catalog's ``references.views.in_scope`` entries and verifies
+    that a ``stg_<view_name>.sql`` file exists in ``dbt/models/staging/`` for
+    each view.  Views not yet migrated are reported so the user can run
+    ``/refactor-view`` first.
+    """
+    writer = read_selected_writer(project_root, table_fqn)
+    if writer is None:
+        return _guard_fail(
+            "view_dependencies_migrated",
+            "SCOPING_NOT_COMPLETED",
+            "Cannot check view dependencies — no selected_writer.",
+        )
+    try:
+        proc_cat = load_proc_catalog(project_root, writer)
+    except (json.JSONDecodeError, OSError, CatalogLoadError) as exc:
+        return _guard_fail(
+            "view_dependencies_migrated",
+            "VIEW_DEP_CHECK_ERROR",
+            f"Could not load procedure catalog for {writer}: {exc}",
+        )
+    if proc_cat is None:
+        return _guard_fail(
+            "view_dependencies_migrated",
+            "VIEW_DEP_CHECK_ERROR",
+            f"Procedure catalog for {writer} not found.",
+        )
+
+    refs = proc_cat.get("references", {})
+    # Older catalog format may have references as a list — treat as no view deps.
+    if not isinstance(refs, dict):
+        return _guard_ok("view_dependencies_migrated")
+    view_entries = refs.get("views", {}).get("in_scope", [])
+    if not view_entries:
+        return _guard_ok("view_dependencies_migrated")
+
+    dbt_root = resolve_dbt_project_path(project_root)
+    staging_dir = dbt_root / "models" / "staging"
+    missing: list[str] = []
+    for entry in view_entries:
+        view_name = entry.get("name", "")
+        stg_file = staging_dir / f"stg_{view_name}.sql"
+        if not stg_file.exists():
+            schema = entry.get("schema", "")
+            missing.append(f"{schema}.{view_name}" if schema else view_name)
+
+    if missing:
+        missing_str = ", ".join(sorted(missing))
+        return _guard_fail(
+            "view_dependencies_migrated",
+            "VIEW_DEPENDENCIES_NOT_MIGRATED",
+            f"View dependencies not yet migrated. Run /refactor-view on: {missing_str}",
+        )
+    return _guard_ok("view_dependencies_migrated")
+
+
 def check_technology(project_root: Path) -> dict[str, Any]:
     """Check manifest.json exists and contains a known technology value."""
     manifest_path = project_root / "manifest.json"
@@ -347,6 +405,7 @@ _STAGE_GUARDS: dict[str, list[tuple[str, ...]]] = {
         ("check_test_spec",),
         ("check_refactor_complete",),
         ("check_dbt_project",),
+        ("check_view_dependencies_migrated",),
     ],
     "reviewing-model": [
         ("check_manifest",),
@@ -358,6 +417,7 @@ _STAGE_GUARDS: dict[str, list[tuple[str, ...]]] = {
         ("check_test_spec",),
         ("check_refactor_complete",),
         ("check_dbt_project",),
+        ("check_view_dependencies_migrated",),
     ],
     "reviewing-tests": [
         ("check_manifest",),
@@ -393,6 +453,7 @@ _GUARD_FNS = {
     "check_refactor_complete": check_refactor_complete,
     "check_dbt_project": check_dbt_project,
     "check_technology": check_technology,
+    "check_view_dependencies_migrated": check_view_dependencies_migrated,
 }
 
 # Guards that only need project_root (no table_fqn).

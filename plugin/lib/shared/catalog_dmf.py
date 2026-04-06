@@ -33,11 +33,14 @@ def _write_object_catalogs(
     *,
     write_filter: set[str] | None = None,
     hashes: dict[str, str] | None = None,
+    view_definitions: dict[str, str] | None = None,
+    view_columns: dict[str, list[dict[str, Any]]] | None = None,
 ) -> int:
     """Write catalog files for one object type (procs, views, or functions).
 
     Includes backfill for objects with no DMF refs.
     When *write_filter* is set, only FQNs in the filter are written.
+    *view_definitions* and *view_columns* are only applied when object_type == "views".
     Returns count of files written.
     """
     def _empty_refs() -> dict[str, dict[str, list[dict[str, Any]]]]:
@@ -45,6 +48,9 @@ def _write_object_catalogs(
                 "functions": empty_scoped(), "procedures": empty_scoped()}
 
     _hashes = hashes or {}
+    _vdefs = view_definitions if object_type == "views" else None
+    _vcols = view_columns if object_type == "views" else None
+
     count = 0
     for fqn, refs in dmf_refs.items():
         if write_filter is not None and fqn not in write_filter:
@@ -53,6 +59,8 @@ def _write_object_catalogs(
         write_object_catalog(
             project_root, object_type, fqn, refs,
             **rflags.get(fqn, {}), params=params, ddl_hash=_hashes.get(fqn),
+            sql=_vdefs.get(fqn) if _vdefs else None,
+            columns=_vcols.get(fqn) if _vcols else None,
         )
         count += 1
 
@@ -64,6 +72,8 @@ def _write_object_catalogs(
             write_object_catalog(
                 project_root, object_type, fqn, _empty_refs(),
                 **rflags.get(fqn, {}), params=params, ddl_hash=_hashes.get(fqn),
+                sql=_vdefs.get(fqn) if _vdefs else None,
+                columns=_vcols.get(fqn) if _vcols else None,
             )
             count += 1
 
@@ -106,12 +116,19 @@ def write_catalog_files(
     proc_params: dict[str, list[dict[str, Any]]] | None = None,
     write_filter: set[str] | None = None,
     hashes: dict[str, str] | None = None,
+    view_definitions: dict[str, str] | None = None,
+    view_columns: dict[str, list[dict[str, Any]]] | None = None,
 ) -> dict[str, int]:
     """Process raw extraction data and write all catalog JSON files.
 
     When *write_filter* is set, only FQNs in the filter are written (changed +
     new objects for diff-aware reexport).  Pass ``None`` to write everything
     (backward-compatible default).
+
+    *view_definitions* maps normalized view FQN → raw DDL string (from
+    OBJECT_DEFINITION).  *view_columns* maps normalized view FQN → list of
+    column dicts (from sys.columns).  Both are written into view catalog files
+    as ``sql`` and ``columns`` fields when provided.
 
     Returns counts: ``{tables: N, procedures: N, views: N, functions: N}``.
     """
@@ -130,6 +147,8 @@ def write_catalog_files(
         "views": _write_object_catalogs(
             project_root, view_refs, "views", rflags, pparams, object_types,
             write_filter=write_filter, hashes=hashes,
+            view_definitions=view_definitions,
+            view_columns=view_columns,
         ),
         "functions": _write_object_catalogs(
             project_root, func_refs, "functions", rflags, pparams, object_types,

@@ -438,6 +438,181 @@ class TestCatalogSchemaNameFields:
         data = json.loads((tmp_path / "catalog" / "views" / "dbo.vw_sales.json").read_text())
         assert data["schema"] == "dbo"
         assert data["name"] == "vw_sales"
+        # No sql or columns written when not provided
+        assert "sql" not in data
+        assert "columns" not in data
+
+    def test_view_catalog_sql_and_columns_written(self, tmp_path):
+        from shared.catalog import write_object_catalog
+        from shared.dmf_processing import empty_scoped
+        refs = {"tables": empty_scoped(), "views": empty_scoped(),
+                "functions": empty_scoped(), "procedures": empty_scoped()}
+        write_object_catalog(
+            tmp_path, "views", "dbo.vw_Sales", refs,
+            sql="CREATE VIEW [dbo].[vw_Sales] AS SELECT id FROM [dbo].[Sales]",
+            columns=[{"name": "id", "sql_type": "INT", "is_nullable": False}],
+        )
+        data = json.loads((tmp_path / "catalog" / "views" / "dbo.vw_sales.json").read_text())
+        assert data["sql"] == "CREATE VIEW [dbo].[vw_Sales] AS SELECT id FROM [dbo].[Sales]"
+        assert len(data["columns"]) == 1
+        assert data["columns"][0]["name"] == "id"
+        assert data["columns"][0]["sql_type"] == "INT"
+        assert data["columns"][0]["is_nullable"] is False
+
+    def test_proc_catalog_unaffected_by_view_fields(self, tmp_path):
+        from shared.catalog import write_object_catalog
+        from shared.dmf_processing import empty_scoped
+        refs = {"tables": empty_scoped(), "views": empty_scoped(),
+                "functions": empty_scoped(), "procedures": empty_scoped()}
+        write_object_catalog(tmp_path, "procedures", "dbo.usp_load", refs)
+        data = json.loads((tmp_path / "catalog" / "procedures" / "dbo.usp_load.json").read_text())
+        assert "sql" not in data
+        assert "columns" not in data
+
+
+# ── Unit: view column map helpers ─────────────────────────────────────────────
+
+
+class TestViewEnrichmentHelpers:
+    """Tests for _build_view_columns_map and _build_view_definitions_map."""
+
+    def test_build_view_columns_map_basic(self):
+        from shared.setup_ddl import _build_view_columns_map
+        rows = [
+            {"schema_name": "dbo", "view_name": "vw_Sales", "column_name": "id",
+             "column_id": 1, "type_name": "int", "max_length": 4, "precision": 10,
+             "scale": 0, "is_nullable": False},
+            {"schema_name": "dbo", "view_name": "vw_Sales", "column_name": "name",
+             "column_id": 2, "type_name": "nvarchar", "max_length": 200, "precision": 0,
+             "scale": 0, "is_nullable": True},
+        ]
+        result = _build_view_columns_map(rows)
+        assert "dbo.vw_sales" in result
+        cols = result["dbo.vw_sales"]
+        assert len(cols) == 2
+        assert cols[0]["name"] == "id"
+        assert cols[0]["is_nullable"] is False
+        assert cols[1]["name"] == "name"
+        assert cols[1]["is_nullable"] is True
+        # column_id sentinel key must not leak into output
+        assert "_column_id" not in cols[0]
+
+    def test_build_view_columns_map_ordering(self):
+        from shared.setup_ddl import _build_view_columns_map
+        rows = [
+            {"schema_name": "dbo", "view_name": "vw_x", "column_name": "z",
+             "column_id": 3, "type_name": "int", "max_length": 4, "precision": 10,
+             "scale": 0, "is_nullable": False},
+            {"schema_name": "dbo", "view_name": "vw_x", "column_name": "a",
+             "column_id": 1, "type_name": "int", "max_length": 4, "precision": 10,
+             "scale": 0, "is_nullable": False},
+        ]
+        result = _build_view_columns_map(rows)
+        cols = result["dbo.vw_x"]
+        assert [c["name"] for c in cols] == ["a", "z"]
+
+    def test_build_view_definitions_map_filters_to_views(self):
+        from shared.setup_ddl import _build_view_definitions_map
+        definitions = [
+            {"schema_name": "dbo", "object_name": "vw_sales",
+             "definition": "CREATE VIEW [dbo].[vw_sales] AS SELECT 1"},
+            {"schema_name": "dbo", "object_name": "usp_load",
+             "definition": "CREATE PROC [dbo].[usp_load] AS SELECT 1"},
+        ]
+        object_types = {"dbo.vw_sales": "views", "dbo.usp_load": "procedures"}
+        result = _build_view_definitions_map(definitions, object_types)
+        assert "dbo.vw_sales" in result
+        assert "dbo.usp_load" not in result
+        assert "CREATE VIEW" in result["dbo.vw_sales"]
+
+    def test_build_view_definitions_map_skips_null_definition(self):
+        from shared.setup_ddl import _build_view_definitions_map
+        definitions = [
+            {"schema_name": "dbo", "object_name": "vw_empty", "definition": None},
+        ]
+        object_types = {"dbo.vw_empty": "views"}
+        result = _build_view_definitions_map(definitions, object_types)
+        assert "dbo.vw_empty" not in result
+
+
+# ── Unit: write-catalog with view enrichment ─────────────────────────────────
+
+
+class TestWriteCatalogViewEnrichment:
+    """Verify write-catalog propagates view sql and columns to catalog files."""
+
+    def _minimal_staging(self, staging: Path, *, with_view: bool = True) -> None:
+        _write_json(staging / "table_columns.json", [])
+        _write_json(staging / "pk_unique.json", [])
+        _write_json(staging / "foreign_keys.json", [])
+        _write_json(staging / "identity_columns.json", [])
+        _write_json(staging / "cdc.json", [])
+        _write_json(staging / "proc_dmf.json", [])
+        _write_json(staging / "func_dmf.json", [])
+        _write_json(staging / "proc_params.json", [])
+        view_obj_type = [{"schema_name": "dbo", "name": "vw_sales", "type": "V"}] if with_view else []
+        _write_json(staging / "object_types.json", view_obj_type)
+        _write_json(staging / "definitions.json", [
+            {"schema_name": "dbo", "object_name": "vw_sales",
+             "definition": "CREATE VIEW [dbo].[vw_sales] AS SELECT id FROM [dbo].[orders]"},
+        ] if with_view else [])
+        _write_json(staging / "view_dmf.json", [])
+
+    def test_view_catalog_gets_sql_from_definitions(self, tmp_path):
+        staging = tmp_path / "staging"
+        output = tmp_path / "output"
+        self._minimal_staging(staging)
+        result = _run_cli([
+            "write-catalog",
+            "--staging-dir", str(staging),
+            "--project-root", str(output),
+            "--database", "TestDB",
+        ])
+        assert result.returncode == 0, result.stderr
+        view_cat = json.loads((output / "catalog" / "views" / "dbo.vw_sales.json").read_text())
+        assert "sql" in view_cat
+        assert "CREATE VIEW" in view_cat["sql"]
+
+    def test_view_catalog_gets_columns_from_view_columns_json(self, tmp_path):
+        staging = tmp_path / "staging"
+        output = tmp_path / "output"
+        self._minimal_staging(staging)
+        _write_json(staging / "view_columns.json", [
+            {"schema_name": "dbo", "view_name": "vw_sales", "column_name": "id",
+             "column_id": 1, "type_name": "int", "max_length": 4, "precision": 10,
+             "scale": 0, "is_nullable": False},
+            {"schema_name": "dbo", "view_name": "vw_sales", "column_name": "amount",
+             "column_id": 2, "type_name": "decimal", "max_length": 9, "precision": 18,
+             "scale": 2, "is_nullable": True},
+        ])
+        result = _run_cli([
+            "write-catalog",
+            "--staging-dir", str(staging),
+            "--project-root", str(output),
+            "--database", "TestDB",
+        ])
+        assert result.returncode == 0, result.stderr
+        view_cat = json.loads((output / "catalog" / "views" / "dbo.vw_sales.json").read_text())
+        assert "columns" in view_cat
+        assert len(view_cat["columns"]) == 2
+        assert view_cat["columns"][0]["name"] == "id"
+        assert view_cat["columns"][1]["name"] == "amount"
+        assert view_cat["columns"][1]["is_nullable"] is True
+
+    def test_view_columns_absent_when_no_view_columns_file(self, tmp_path):
+        staging = tmp_path / "staging"
+        output = tmp_path / "output"
+        self._minimal_staging(staging)
+        # No view_columns.json written — the field should be absent from catalog
+        result = _run_cli([
+            "write-catalog",
+            "--staging-dir", str(staging),
+            "--project-root", str(output),
+            "--database", "TestDB",
+        ])
+        assert result.returncode == 0, result.stderr
+        view_cat = json.loads((output / "catalog" / "views" / "dbo.vw_sales.json").read_text())
+        assert "columns" not in view_cat
 
 
 # ── Unit: diff-aware reexport ────────────────────────────────────────────────
