@@ -34,7 +34,8 @@ from shared.loader import (
     DdlParseError,
     load_ddl,
 )
-from shared.env_config import resolve_project_root
+from shared.cli_utils import emit
+from shared.env_config import resolve_catalog_dir, resolve_project_root
 from shared.name_resolver import normalize
 
 logger = logging.getLogger(__name__)
@@ -64,14 +65,6 @@ SOURCES = frozenset({"catalog", "llm", "catalog+llm"})
 PROFILE_STATUSES = frozenset({"ok", "partial", "error"})
 
 PK_TYPES = frozenset({"surrogate", "natural", "composite", "unknown"})
-
-
-# ── Helpers ──────────────────────────────────────────────────────────────────
-
-
-def _emit(data: Any) -> None:
-    """Write JSON to stdout."""
-    print(json.dumps(data, ensure_ascii=False))
 
 
 # ── Context assembly (importable for testing) ────────────────────────────────
@@ -247,7 +240,7 @@ def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> d
         raise ValueError(f"Profile validation failed for {table_norm}: {'; '.join(errors)}")
 
     # Load existing catalog file
-    catalog_path = project_root / "catalog" / "tables" / f"{table_norm}.json"
+    catalog_path = resolve_catalog_dir(project_root) / "tables" / f"{table_norm}.json"
     if not catalog_path.exists():
         raise CatalogFileMissingError("table", table_norm)
 
@@ -302,7 +295,7 @@ def context(
     except (ValueError, FileNotFoundError, DdlParseError, CatalogNotFoundError, CatalogLoadError) as exc:
         logger.error("event=context_failed table=%s writer=%s error=%s", table, writer, exc)
         raise typer.Exit(code=2) from exc
-    _emit(result)
+    emit(result)
 
 
 @app.command()
@@ -329,13 +322,13 @@ def write(
         result = run_write(project_root, table, profile_data)
     except (ValueError, CatalogFileMissingError) as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)
-        _emit({"ok": False, "error": str(exc), "table": normalize(table)})
+        emit({"ok": False, "error": str(exc), "table": normalize(table)})
         raise typer.Exit(code=1) from exc
     except (FileNotFoundError, OSError, CatalogLoadError) as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)
-        _emit({"ok": False, "error": str(exc), "table": normalize(table)})
+        emit({"ok": False, "error": str(exc), "table": normalize(table)})
         raise typer.Exit(code=2) from exc
-    _emit(result)
+    emit(result)
 
 
 if __name__ == "__main__":

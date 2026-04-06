@@ -37,7 +37,7 @@ from shared.loader import (
     DdlParseError,
     load_directory,
 )
-from shared.env_config import resolve_project_root
+from shared.env_config import resolve_catalog_dir, resolve_project_root
 from shared.name_resolver import fqn_parts, normalize
 
 logger = logging.getLogger(__name__)
@@ -299,7 +299,7 @@ def run_write(
     writer_norm = normalize(writer_fqn)
 
     # Load existing procedure catalog file
-    catalog_path = project_root / "catalog" / "procedures" / f"{writer_norm}.json"
+    catalog_path = resolve_catalog_dir(project_root) / "procedures" / f"{writer_norm}.json"
     if not catalog_path.exists():
         raise CatalogFileMissingError("procedure", writer_norm)
 

@@ -435,6 +435,7 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
     from shared.catalog import scan_routing_flags
     from shared.catalog_diff import classify_objects, compute_object_hashes, load_existing_hashes
     from shared.catalog_dmf import write_catalog_files
+    from shared.env_config import resolve_catalog_dir
 
     # ── Load staging files ────────────────────────────────────────────────
     table_columns_rows = _read_json_optional(staging_dir / "table_columns.json")
@@ -484,7 +485,7 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
 
     # ── Ensure catalog subdirectories exist (without wiping) ──────────────
     for subdir in ("tables", "procedures", "views", "functions"):
-        (project_root / "catalog" / subdir).mkdir(parents=True, exist_ok=True)
+        (resolve_catalog_dir(project_root) / subdir).mkdir(parents=True, exist_ok=True)
 
     # ── Write only changed + new objects ──────────────────────────────────
     write_filter = diff.changed | diff.new

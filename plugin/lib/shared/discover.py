@@ -47,7 +47,8 @@ from shared.loader import (
     extract_refs,
     load_ddl,
 )
-from shared.env_config import resolve_project_root
+from shared.cli_utils import emit
+from shared.env_config import resolve_catalog_dir, resolve_project_root
 from shared.name_resolver import normalize
 
 logger = logging.getLogger(__name__)
@@ -348,7 +349,7 @@ def run_write_scoping(
     cat["scoping"] = scoping
 
     # Atomic write (same pattern as write_proc_statements)
-    catalog_dir = project_root / "catalog" / "tables"
+    catalog_dir = resolve_catalog_dir(project_root) / "tables"
     cat_path = catalog_dir / f"{table_norm}.json"
     tmp_path = cat_path.with_suffix(".json.tmp")
     tmp_path.write_text(json.dumps(cat, indent=2) + "\n")
