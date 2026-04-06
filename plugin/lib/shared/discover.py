@@ -34,6 +34,7 @@ from shared.catalog import (
     load_table_catalog,
     load_view_catalog,
     load_function_catalog,
+    write_json,
     write_proc_statements,
 )
 from shared.loader import (
@@ -75,11 +76,6 @@ def _load(project_root: Path) -> tuple[DdlCatalog, str]:
         CatalogNotFoundError: if catalog/ directory is missing.
     """
     return load_ddl(project_root)
-
-
-def _emit(data: Any) -> None:
-    """Write JSON to stdout."""
-    print(json.dumps(data, ensure_ascii=False))
 
 
 def _bucket(catalog: DdlCatalog, object_type: ObjectType) -> dict[str, DdlEntry]:
@@ -348,12 +344,9 @@ def run_write_scoping(
     # Merge scoping section
     cat["scoping"] = scoping
 
-    # Atomic write (same pattern as write_proc_statements)
     catalog_dir = resolve_catalog_dir(project_root) / "tables"
     cat_path = catalog_dir / f"{table_norm}.json"
-    tmp_path = cat_path.with_suffix(".json.tmp")
-    tmp_path.write_text(json.dumps(cat, indent=2) + "\n")
-    tmp_path.rename(cat_path)
+    write_json(cat_path, cat)
 
     return {"written": str(cat_path), "status": "ok"}
 
@@ -400,7 +393,7 @@ def list_objects(
     except (FileNotFoundError, DdlParseError, CatalogNotFoundError, CatalogLoadError) as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=2) from exc
-    _emit(result)
+    emit(result)
 
 
 @app.command()
@@ -418,7 +411,7 @@ def show(
     except (FileNotFoundError, DdlParseError, CatalogNotFoundError, CatalogLoadError) as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=2) from exc
-    _emit(result)
+    emit(result)
 
 
 @app.command()
@@ -436,7 +429,7 @@ def refs(
     except (FileNotFoundError, DdlParseError, CatalogNotFoundError, CatalogLoadError) as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=2) from exc
-    _emit(result)
+    emit(result)
 
 
 @app.command(name="write-statements")
@@ -469,7 +462,7 @@ def write_statements(
     except ValueError as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=1) from exc
-    _emit(result)
+    emit(result)
 
 
 @app.command(name="write-scoping")
@@ -502,7 +495,7 @@ def write_scoping(
     except ValueError as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=1) from exc
-    _emit(result)
+    emit(result)
 
 
 if __name__ == "__main__":

@@ -240,7 +240,7 @@ def scan_routing_flags(definition: str) -> dict[str, bool]:
 # ── Writing ─────────────────────────────────────────────────────────────────
 
 
-def _write_json(path: Path, data: dict[str, Any]) -> None:
+def write_json(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_suffix(".json.tmp")
     try:
@@ -325,7 +325,7 @@ def write_table_catalog(
             "functions": empty_scoped(),
         })
     p = _object_path(project_root, "tables", fqn)
-    _write_json(p, data)
+    write_json(p, data)
     return p
 
 
@@ -348,7 +348,7 @@ def write_proc_statements(
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise CatalogLoadError(str(p), exc) from exc
     data["statements"] = statements
-    _write_json(p, data)
+    write_json(p, data)
     return p
 
 
@@ -406,7 +406,7 @@ def write_object_catalog(
             data.setdefault("warnings", []).append(warning)
 
     p = _object_path(project_root, object_type, norm)
-    _write_json(p, data)
+    write_json(p, data)
     return p
 
 
@@ -467,7 +467,7 @@ def restore_enriched_fields(
                     data[key] = value
                     changed = True
             if changed:
-                _write_json(p, data)
+                write_json(p, data)
             break  # found the bucket — no need to check others
         else:
             logger.debug("event=catalog_restore_skip fqn=%s reason=not_found_after_reextract", fqn)
