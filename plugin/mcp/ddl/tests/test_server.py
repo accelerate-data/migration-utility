@@ -414,10 +414,18 @@ def test_oracle_or_replace_procedure_is_indexed(oracle_ddl_dir: Path) -> None:
     assert "sh.get_product_count" in catalog.procedures
 
 
-def test_oracle_force_editionable_view_is_indexed(oracle_ddl_dir: Path) -> None:
-    """CREATE OR REPLACE FORCE EDITIONABLE VIEW "SH"."name" is indexed."""
+def test_oracle_or_replace_view_is_indexed(oracle_ddl_dir: Path) -> None:
+    """CREATE OR REPLACE VIEW SH.name is indexed under the normalized key."""
     catalog = load_directory(oracle_ddl_dir)
     assert "sh.profits" in catalog.views
+
+
+def test_oracle_get_view_body_returns_ddl(oracle_ddl_dir: Path) -> None:
+    """get_view_body returns the raw DDL for an Oracle view."""
+    catalog = load_directory(oracle_ddl_dir)
+    entry = catalog.get_view("SH.PROFITS")
+    assert entry is not None
+    assert "PROFITS" in entry.raw_ddl
 
 
 def test_oracle_double_quoted_name_lookup(oracle_ddl_dir: Path) -> None:

@@ -83,7 +83,7 @@ def _extract_definitions(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
         f"""
         SELECT OWNER, OBJECT_NAME, OBJECT_TYPE
         FROM ALL_OBJECTS
-        WHERE OBJECT_TYPE IN ('PROCEDURE', 'VIEW', 'FUNCTION')
+        WHERE OBJECT_TYPE IN ('PROCEDURE', 'FUNCTION')
           AND OWNER IN ({owners})
         ORDER BY OWNER, OBJECT_TYPE, OBJECT_NAME
         """
@@ -111,6 +111,56 @@ def _extract_definitions(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
         except Exception as exc:  # noqa: BLE001
             logger.warning("event=oracle_ddl_skip object=%s error=%s", fqn, exc)
 
+    return rows
+
+
+def _extract_view_ddl(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
+    """Extract view DDL from ALL_VIEWS, reconstructing CREATE OR REPLACE VIEW statements.
+
+    ALL_VIEWS.TEXT is a LONG column containing the view body (the AS SELECT part).
+    We reconstruct the full DDL as: CREATE OR REPLACE VIEW owner.view_name AS <TEXT>.
+
+    Falls back to DBMS_METADATA.GET_DDL per view when TEXT is empty or truncated.
+    """
+    owners = _owners_sql(schemas)
+    cur = conn.cursor()
+    cur.execute(
+        f"""
+        SELECT OWNER, VIEW_NAME, TEXT
+        FROM ALL_VIEWS
+        WHERE OWNER IN ({owners})
+        ORDER BY OWNER, VIEW_NAME
+        """
+    )
+    rows: list[dict[str, Any]] = []
+    for row in _cursor_rows(cur):
+        owner = row["OWNER"]
+        view_name = row["VIEW_NAME"]
+        text = row.get("TEXT") or ""
+        fqn = f"{owner}.{view_name}"
+        if not text.strip():
+            # ALL_VIEWS.TEXT is a LONG column — may be empty when truncated.
+            # Fall back to DBMS_METADATA.GET_DDL which returns a CLOB.
+            try:
+                ddl_cur = conn.cursor()
+                ddl_cur.execute(
+                    "SELECT DBMS_METADATA.GET_DDL('VIEW', :n, :o) FROM DUAL",
+                    n=view_name,
+                    o=owner,
+                )
+                result = ddl_cur.fetchone()
+                definition = result[0].read() if hasattr(result[0], "read") else str(result[0])
+                rows.append({
+                    "schema_name": owner,
+                    "object_name": view_name,
+                    "definition": definition.strip(),
+                })
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("event=oracle_view_skip object=%s error=%s", fqn, exc)
+            continue
+        definition = f"CREATE OR REPLACE VIEW {owner}.{view_name} AS\n{text.strip()}"
+        rows.append({"schema_name": owner, "object_name": view_name, "definition": definition})
+    logger.info("event=oracle_view_ddl count=%d", len(rows))
     return rows
 
 
@@ -349,7 +399,9 @@ def run_oracle_extraction(
 
     conn = _oracle_connect()
     try:
-        _write(staging_dir, "definitions.json", _extract_definitions(conn, schemas))
+        proc_func_defs = _extract_definitions(conn, schemas)
+        view_defs = _extract_view_ddl(conn, schemas)
+        _write(staging_dir, "definitions.json", proc_func_defs + view_defs)
         _write(staging_dir, "table_columns.json", _extract_table_columns(conn, schemas))
         _write(staging_dir, "pk_unique.json", _extract_pk_unique(conn, schemas))
         _write(staging_dir, "foreign_keys.json", _extract_foreign_keys(conn, schemas))
