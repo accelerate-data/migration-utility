@@ -1,14 +1,14 @@
 ---
 name: commit
-description: Stage specific files and create a granular git commit following project conventions
+description: Stage specific files, commit, and push to remote
 user-invocable: true
 argument-hint: "[files or message hint]"
-allowed-tools: Bash(git add:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git commit:*)
+allowed-tools: Bash(git add:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git commit:*), Bash(git push:*), Bash(git branch:*)
 ---
 
 # Commit
 
-Stage specific files and create a single focused commit. Never uses `git add .` or `git add -A`.
+Stage specific files, create a single focused commit, and push to remote. Never uses `git add .` or `git add -A`.
 
 ## Context
 
@@ -22,15 +22,17 @@ Stage specific files and create a single focused commit. Never uses `git add .` 
 1. If `$ARGUMENTS` names specific files, stage only those. Otherwise stage all modified tracked files individually by name — never `git add .`.
 2. Write a concise commit message focused on *why*, not *what*. Follow the style of recent commits above.
 3. Append the co-author trailer:
-   ```
+
+   ```text
    Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
    ```
-4. Create the commit. Do not push. Do not open a PR.
 
-Execute steps 1 and 3 in a single message with parallel tool calls where possible.
+4. Create the commit.
+5. Push to origin with `-u` if the branch is not yet tracking a remote, otherwise `git push`.
 
 ## Constraints
 
 - One concern per commit — if the diff spans unrelated concerns, stage only the files for one concern and tell the user what was left out.
 - Never skip hooks (`--no-verify`).
 - Never amend a published commit.
+- Never force-push.

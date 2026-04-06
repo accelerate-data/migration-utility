@@ -45,13 +45,10 @@ Ignore errors from `git checkout` (the file may not have been modified).
 If the item status is not `error`, auto-commit and push this item's output:
 
 ```bash
-git add catalog/tables/<item_id>.json
-git commit -m "scope(<item_id>): selected writer <writer_fqn>" \
-  --trailer "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
-git push origin HEAD -u
+/commit catalog/tables/<item_id>.json
 ```
 
-If `writer_fqn` is null (no writer found), use `scope(<item_id>): no writer found`. Then continue to Step 3.
+Then continue to Step 3.
 
 **Multi-table path (2+ tables):** Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
 
@@ -62,13 +59,7 @@ Write the item result JSON to .migration-runs/<schema.table>.<epoch>.json.
 
 After writing the result:
 - If status == "error": run `git checkout -- catalog/tables/<item_id>.json` (ignore errors).
-- If status != "error": run:
-    git add catalog/tables/<item_id>.json
-    git commit -m "scope(<item_id>): selected writer <writer_fqn>" \
-      --trailer "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
-    git push origin HEAD
-  (Use `git push origin HEAD -u` on first push if the branch is not yet tracking.)
-  If writer_fqn is null, use: scope(<item_id>): no writer found
+- If status != "error": run `/commit catalog/tables/<item_id>.json`
 
 On failure before writing a result, write result with status: "error" and error details, then revert as above.
 Return the item result JSON.

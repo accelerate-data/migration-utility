@@ -42,10 +42,7 @@ git checkout -- catalog/tables/<item_id>.json
 If the item status is not `error`, auto-commit and push this item's output:
 
 ```bash
-git add catalog/tables/<item_id>.json
-git commit -m "refactor(<item_id>): <cte_count> CTEs, <scenarios_passed>/<scenarios_total> passed" \
-  --trailer "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
-git push origin HEAD -u
+/commit catalog/tables/<item_id>.json
 ```
 
 Then continue to Step 3.
@@ -59,12 +56,7 @@ Write the item result JSON to .migration-runs/<schema.table>.<epoch>.json.
 
 After writing the result:
 - If status == "error": run `git checkout -- catalog/tables/<item_id>.json`.
-- If status != "error": run:
-    git add catalog/tables/<item_id>.json
-    git commit -m "refactor(<item_id>): <cte_count> CTEs, <scenarios_passed>/<scenarios_total> passed" \
-      --trailer "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
-    git push origin HEAD
-  (Use `git push origin HEAD -u` on first push if the branch is not yet tracking.)
+- If status != "error": run `/commit catalog/tables/<item_id>.json`
 
 On failure, write result with status: "error" and error details, then revert as above.
 Return the item result JSON.

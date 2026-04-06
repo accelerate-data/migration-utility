@@ -103,10 +103,7 @@ Use `rm -f` for files that were newly created and have no prior version.
 If the item final status is not `error`, auto-commit and push this item's output:
 
 ```bash
-git add test-specs/<item_id>.yml
-git commit -m "generate-tests(<item_id>): <scenario_count> scenarios, coverage=<coverage>" \
-  --trailer "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
-git push origin HEAD -u
+/commit test-specs/<item_id>.yml
 ```
 
 ### Step 6 — Summarize

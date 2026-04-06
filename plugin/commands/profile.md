@@ -45,13 +45,10 @@ Ignore errors from `git checkout` (the file may not have been modified).
 If the item status is not `error`, auto-commit and push this item's output:
 
 ```bash
-git add catalog/tables/<item_id>.json
-git commit -m "profile(<item_id>): <classification>, pk=<primary_key>" \
-  --trailer "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
-git push origin HEAD -u
+/commit catalog/tables/<item_id>.json
 ```
 
-If classification or primary_key is unknown, use `profile(<item_id>): partial`. Then continue to Step 3.
+Then continue to Step 3.
 
 **Multi-table path (2+ tables):** Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
 
@@ -62,13 +59,7 @@ Write the item result JSON to .migration-runs/<schema.table>.<epoch>.json.
 
 After writing the result:
 - If status == "error": run `git checkout -- catalog/tables/<item_id>.json` (ignore errors).
-- If status != "error": run:
-    git add catalog/tables/<item_id>.json
-    git commit -m "profile(<item_id>): <classification>, pk=<primary_key>" \
-      --trailer "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
-    git push origin HEAD
-  (Use `git push origin HEAD -u` on first push if the branch is not yet tracking.)
-  If classification or primary_key is unknown, use: profile(<item_id>): partial
+- If status != "error": run `/commit catalog/tables/<item_id>.json`
 
 On failure before writing a result, write result with status: "error" and error details, then revert as above.
 Return the item result JSON.

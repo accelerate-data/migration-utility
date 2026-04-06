@@ -72,10 +72,7 @@ Use `rm -f` instead of `git checkout` for newly created files with no prior vers
 If the item final status is not `error`, auto-commit and push this item's output:
 
 ```bash
-git add dbt/models/staging/<model_name>.sql dbt/models/staging/_<model_name>.yml
-git commit -m "generate-model(<item_id>): <model_name> (<materialization>), review=<verdict>" \
-  --trailer "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
-git push origin HEAD -u
+/commit dbt/models/staging/<model_name>.sql dbt/models/staging/_<model_name>.yml
 ```
 
 For multi-table sub-agents: include the commit/revert instructions in the sub-agent prompt at the end of the review loop.
