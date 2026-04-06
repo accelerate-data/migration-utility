@@ -190,6 +190,51 @@ def test_migrate_guards_fail_no_test_spec(assert_valid_schema) -> None:
         assert result["guard_results"][-1]["code"] == "TEST_SPEC_NOT_FOUND"
 
 
+# ── Guard tests: setup-ddl ───────────────────────────────────────────────────
+
+
+def test_setup_ddl_guard_passes() -> None:
+    tmp, root = _make_project()
+    with tmp:
+        passed, results = dry_run.run_guards(root, "silver.Foo", "setup-ddl")
+        assert passed is True
+        assert all(g["passed"] for g in results)
+
+
+def test_setup_ddl_guard_fails_no_manifest() -> None:
+    tmp, root = _make_project()
+    with tmp:
+        (root / "manifest.json").unlink()
+        passed, results = dry_run.run_guards(root, "silver.Foo", "setup-ddl")
+        assert passed is False
+        assert results[-1]["code"] == "MANIFEST_NOT_FOUND"
+        assert "/init-ad-migration" in results[-1]["message"]
+
+
+def test_setup_ddl_guard_fails_no_technology() -> None:
+    tmp, root = _make_project()
+    with tmp:
+        manifest_path = root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        del manifest["technology"]
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        passed, results = dry_run.run_guards(root, "silver.Foo", "setup-ddl")
+        assert passed is False
+        assert results[-1]["code"] == "TECHNOLOGY_NOT_SET"
+
+
+def test_setup_ddl_guard_fails_unknown_technology() -> None:
+    tmp, root = _make_project()
+    with tmp:
+        manifest_path = root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["technology"] = "unknown_db"
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        passed, results = dry_run.run_guards(root, "silver.Foo", "setup-ddl")
+        assert passed is False
+        assert results[-1]["code"] == "TECHNOLOGY_UNKNOWN"
+
+
 # ── Content tests: scope ─────────────────────────────────────────────────────
 
 

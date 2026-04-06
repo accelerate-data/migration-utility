@@ -58,6 +58,10 @@ PROFILE_QUESTIONS = (
     "pii_actions",
 )
 
+KNOWN_TECHNOLOGIES = frozenset({
+    "sql_server", "fabric_warehouse", "fabric_lakehouse", "snowflake", "oracle",
+})
+
 
 # ── Guard helpers ────────────────────────────────────────────────────────────
 
@@ -287,6 +291,39 @@ def check_dbt_project(project_root: Path) -> dict[str, Any]:
     return _guard_ok("dbt_project_exists")
 
 
+def check_technology(project_root: Path) -> dict[str, Any]:
+    """Check manifest.json exists and contains a known technology value."""
+    manifest_path = project_root / "manifest.json"
+    if not manifest_path.exists():
+        return _guard_fail(
+            "technology_configured",
+            "MANIFEST_NOT_FOUND",
+            "manifest.json not found. Run /init-ad-migration to initialise the project.",
+        )
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        return _guard_fail(
+            "technology_configured",
+            "MANIFEST_CORRUPT",
+            f"manifest.json is not valid JSON: {exc}",
+        )
+    technology = manifest.get("technology")
+    if technology is None:
+        return _guard_fail(
+            "technology_configured",
+            "TECHNOLOGY_NOT_SET",
+            "manifest.json has no 'technology' field. Run /init-ad-migration.",
+        )
+    if technology not in KNOWN_TECHNOLOGIES:
+        return _guard_fail(
+            "technology_configured",
+            "TECHNOLOGY_UNKNOWN",
+            f"technology '{technology}' is not recognised. Known: {sorted(KNOWN_TECHNOLOGIES)}.",
+        )
+    return _guard_ok("technology_configured")
+
+
 # ── Guard runner ─────────────────────────────────────────────────────────────
 
 # Stage → ordered list of guard callables.
@@ -371,6 +408,9 @@ _STAGE_GUARDS: dict[str, list[tuple[str, ...]]] = {
         ("check_sandbox_metadata",),
         ("check_test_spec",),
     ],
+    "setup-ddl": [
+        ("check_technology",),
+    ],
 }
 
 _GUARD_FNS = {
@@ -383,11 +423,12 @@ _GUARD_FNS = {
     "check_test_spec": check_test_spec,
     "check_refactor_complete": check_refactor_complete,
     "check_dbt_project": check_dbt_project,
+    "check_technology": check_technology,
 }
 
 # Guards that only need project_root (no table_fqn).
 _PROJECT_ONLY_GUARDS = frozenset({
-    "check_manifest", "check_sandbox_metadata", "check_dbt_project",
+    "check_manifest", "check_sandbox_metadata", "check_dbt_project", "check_technology",
 })
 
 
@@ -797,6 +838,7 @@ class GuardStage(str, Enum):
     reviewing_model = "reviewing-model"
     reviewing_tests = "reviewing-tests"
     refactoring_sql = "refactoring-sql"
+    setup_ddl = "setup-ddl"
 
 
 def _emit(data: Any) -> None:
