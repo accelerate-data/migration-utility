@@ -1,0 +1,319 @@
+{
+  "item_id": "sh.channel_sales_summary",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {
+      "id": "join_channels_sales_match",
+      "statement_index": 1,
+      "description": "INNER JOIN: CHANNELS row has at least one matching SALES row → row included in channel_totals CTE",
+      "scenarios": [
+        "test_insert_select_single_channel_tier_high",
+        "test_insert_select_single_channel_tier_medium",
+        "test_insert_select_single_channel_tier_low",
+        "test_insert_select_channel_no_sales_excluded",
+        "test_insert_select_multiple_channels_aggregated"
+      ]
+    },
+    {
+      "id": "join_channels_no_match",
+      "statement_index": 1,
+      "description": "INNER JOIN: CHANNELS row has no matching SALES rows → channel excluded from channel_totals (no row inserted)",
+      "scenarios": ["test_insert_select_channel_no_sales_excluded"]
+    },
+    {
+      "id": "aggregation_multiple_rows_per_group",
+      "statement_index": 1,
+      "description": "GROUP BY aggregation: multiple SALES rows for one channel → SUM(AMOUNT_SOLD) accumulates correctly",
+      "scenarios": [
+        "test_insert_select_single_channel_tier_high",
+        "test_insert_select_multiple_channels_aggregated"
+      ]
+    },
+    {
+      "id": "aggregation_multiple_groups",
+      "statement_index": 1,
+      "description": "GROUP BY: multiple channels each with sales → multiple rows in channel_totals CTE",
+      "scenarios": ["test_insert_select_multiple_channels_aggregated"]
+    },
+    {
+      "id": "aggregation_empty_source",
+      "statement_index": 1,
+      "description": "Empty SALES table → CTE produces no rows → nothing inserted into CHANNEL_SALES_SUMMARY",
+      "scenarios": ["test_insert_select_empty_sales_no_rows"]
+    },
+    {
+      "id": "tier_high",
+      "statement_index": 2,
+      "description": "IF branch: TOTAL_AMOUNT >= 500000 → v_tier = 'HIGH'",
+      "scenarios": ["test_insert_select_single_channel_tier_high"]
+    },
+    {
+      "id": "tier_medium",
+      "statement_index": 2,
+      "description": "ELSIF branch: 100000 <= TOTAL_AMOUNT < 500000 → v_tier = 'MEDIUM'",
+      "scenarios": ["test_insert_select_single_channel_tier_medium"]
+    },
+    {
+      "id": "tier_low",
+      "statement_index": 2,
+      "description": "ELSE branch: TOTAL_AMOUNT < 100000 → v_tier = 'LOW'",
+      "scenarios": ["test_insert_select_single_channel_tier_low"]
+    },
+    {
+      "id": "merge_matched_update",
+      "statement_index": 2,
+      "description": "MERGE WHEN MATCHED: fires for each inserted row → UPDATE TIER and UPDATED_AT on CHANNEL_SALES_SUMMARY",
+      "scenarios": [
+        "test_insert_select_single_channel_tier_high",
+        "test_insert_select_single_channel_tier_medium",
+        "test_insert_select_single_channel_tier_low",
+        "test_insert_select_multiple_channels_aggregated"
+      ]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_insert_select_single_channel_tier_high",
+      "target_table": "[sh].[CHANNEL_SALES_SUMMARY]",
+      "procedure": "[sh].[SUMMARIZE_CHANNEL_SALES]",
+      "given": [
+        {
+          "table": "[sh].[CHANNELS]",
+          "rows": [
+            {
+              "CHANNEL_ID": 1,
+              "CHANNEL_DESC": "Direct Sales",
+              "CHANNEL_CLASS": "Direct",
+              "CHANNEL_CLASS_ID": 12,
+              "CHANNEL_TOTAL": "Channel total",
+              "CHANNEL_TOTAL_ID": 1
+            }
+          ]
+        },
+        {
+          "table": "[sh].[SALES]",
+          "rows": [
+            {
+              "PROD_ID": 1,
+              "CUST_ID": 1,
+              "TIME_ID": "2024-01-01",
+              "CHANNEL_ID": 1,
+              "PROMO_ID": 999,
+              "QUANTITY_SOLD": 1,
+              "AMOUNT_SOLD": 300000.00
+            },
+            {
+              "PROD_ID": 2,
+              "CUST_ID": 2,
+              "TIME_ID": "2024-01-02",
+              "CHANNEL_ID": 1,
+              "PROMO_ID": 999,
+              "QUANTITY_SOLD": 1,
+              "AMOUNT_SOLD": 300000.00
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "test_insert_select_single_channel_tier_medium",
+      "target_table": "[sh].[CHANNEL_SALES_SUMMARY]",
+      "procedure": "[sh].[SUMMARIZE_CHANNEL_SALES]",
+      "given": [
+        {
+          "table": "[sh].[CHANNELS]",
+          "rows": [
+            {
+              "CHANNEL_ID": 2,
+              "CHANNEL_DESC": "Catalog",
+              "CHANNEL_CLASS": "Indirect",
+              "CHANNEL_CLASS_ID": 6,
+              "CHANNEL_TOTAL": "Channel total",
+              "CHANNEL_TOTAL_ID": 1
+            }
+          ]
+        },
+        {
+          "table": "[sh].[SALES]",
+          "rows": [
+            {
+              "PROD_ID": 1,
+              "CUST_ID": 1,
+              "TIME_ID": "2024-01-01",
+              "CHANNEL_ID": 2,
+              "PROMO_ID": 999,
+              "QUANTITY_SOLD": 1,
+              "AMOUNT_SOLD": 200000.00
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "test_insert_select_single_channel_tier_low",
+      "target_table": "[sh].[CHANNEL_SALES_SUMMARY]",
+      "procedure": "[sh].[SUMMARIZE_CHANNEL_SALES]",
+      "given": [
+        {
+          "table": "[sh].[CHANNELS]",
+          "rows": [
+            {
+              "CHANNEL_ID": 3,
+              "CHANNEL_DESC": "Internet",
+              "CHANNEL_CLASS": "Direct",
+              "CHANNEL_CLASS_ID": 9,
+              "CHANNEL_TOTAL": "Channel total",
+              "CHANNEL_TOTAL_ID": 1
+            }
+          ]
+        },
+        {
+          "table": "[sh].[SALES]",
+          "rows": [
+            {
+              "PROD_ID": 1,
+              "CUST_ID": 1,
+              "TIME_ID": "2024-01-01",
+              "CHANNEL_ID": 3,
+              "PROMO_ID": 999,
+              "QUANTITY_SOLD": 1,
+              "AMOUNT_SOLD": 50000.00
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "test_insert_select_channel_no_sales_excluded",
+      "target_table": "[sh].[CHANNEL_SALES_SUMMARY]",
+      "procedure": "[sh].[SUMMARIZE_CHANNEL_SALES]",
+      "given": [
+        {
+          "table": "[sh].[CHANNELS]",
+          "rows": [
+            {
+              "CHANNEL_ID": 1,
+              "CHANNEL_DESC": "Direct Sales",
+              "CHANNEL_CLASS": "Direct",
+              "CHANNEL_CLASS_ID": 12,
+              "CHANNEL_TOTAL": "Channel total",
+              "CHANNEL_TOTAL_ID": 1
+            },
+            {
+              "CHANNEL_ID": 4,
+              "CHANNEL_DESC": "Partners",
+              "CHANNEL_CLASS": "Indirect",
+              "CHANNEL_CLASS_ID": 6,
+              "CHANNEL_TOTAL": "Channel total",
+              "CHANNEL_TOTAL_ID": 1
+            }
+          ]
+        },
+        {
+          "table": "[sh].[SALES]",
+          "rows": [
+            {
+              "PROD_ID": 1,
+              "CUST_ID": 1,
+              "TIME_ID": "2024-01-01",
+              "CHANNEL_ID": 1,
+              "PROMO_ID": 999,
+              "QUANTITY_SOLD": 1,
+              "AMOUNT_SOLD": 75000.00
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "test_insert_select_empty_sales_no_rows",
+      "target_table": "[sh].[CHANNEL_SALES_SUMMARY]",
+      "procedure": "[sh].[SUMMARIZE_CHANNEL_SALES]",
+      "given": [
+        {
+          "table": "[sh].[CHANNELS]",
+          "rows": [
+            {
+              "CHANNEL_ID": 1,
+              "CHANNEL_DESC": "Direct Sales",
+              "CHANNEL_CLASS": "Direct",
+              "CHANNEL_CLASS_ID": 12,
+              "CHANNEL_TOTAL": "Channel total",
+              "CHANNEL_TOTAL_ID": 1
+            }
+          ]
+        },
+        {
+          "table": "[sh].[SALES]",
+          "rows": []
+        }
+      ]
+    },
+    {
+      "name": "test_insert_select_multiple_channels_aggregated",
+      "target_table": "[sh].[CHANNEL_SALES_SUMMARY]",
+      "procedure": "[sh].[SUMMARIZE_CHANNEL_SALES]",
+      "given": [
+        {
+          "table": "[sh].[CHANNELS]",
+          "rows": [
+            {
+              "CHANNEL_ID": 1,
+              "CHANNEL_DESC": "Direct Sales",
+              "CHANNEL_CLASS": "Direct",
+              "CHANNEL_CLASS_ID": 12,
+              "CHANNEL_TOTAL": "Channel total",
+              "CHANNEL_TOTAL_ID": 1
+            },
+            {
+              "CHANNEL_ID": 2,
+              "CHANNEL_DESC": "Catalog",
+              "CHANNEL_CLASS": "Indirect",
+              "CHANNEL_CLASS_ID": 6,
+              "CHANNEL_TOTAL": "Channel total",
+              "CHANNEL_TOTAL_ID": 1
+            }
+          ]
+        },
+        {
+          "table": "[sh].[SALES]",
+          "rows": [
+            {
+              "PROD_ID": 1,
+              "CUST_ID": 1,
+              "TIME_ID": "2024-01-01",
+              "CHANNEL_ID": 1,
+              "PROMO_ID": 999,
+              "QUANTITY_SOLD": 2,
+              "AMOUNT_SOLD": 600000.00
+            },
+            {
+              "PROD_ID": 2,
+              "CUST_ID": 2,
+              "TIME_ID": "2024-01-01",
+              "CHANNEL_ID": 2,
+              "PROMO_ID": 999,
+              "QUANTITY_SOLD": 1,
+              "AMOUNT_SOLD": 150000.00
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [
+    {
+      "code": "SYSDATE_NONDETERMINISTIC",
+      "message": "UPDATED_AT is set via SYSDATE in both the INSERT and MERGE UPDATE statements. The exact value cannot be asserted with static fixtures. Recommend asserting UPDATED_AT IS NOT NULL or within a recent timestamp window rather than an exact match.",
+      "item_id": "sh.channel_sales_summary",
+      "severity": "warning"
+    }
+  ],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "errors": []
+}

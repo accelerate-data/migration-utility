@@ -17,17 +17,17 @@ module.exports = (output, context) => {
   const specPath = path.resolve(repoRoot, fixturePath, 'test-specs', `${table}.json`);
 
   let spec;
-  try {
-    spec = extractJsonObject(output);
-  } catch (error) {
-    return { pass: false, score: 0, reason: error.message };
-  }
-
   if (fs.existsSync(specPath)) {
     try {
       spec = JSON.parse(fs.readFileSync(specPath, 'utf8'));
     } catch (error) {
       return { pass: false, score: 0, reason: `Failed to parse test spec: ${error.message}` };
+    }
+  } else {
+    try {
+      spec = extractJsonObject(output);
+    } catch (error) {
+      return { pass: false, score: 0, reason: error.message };
     }
   }
 

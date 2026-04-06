@@ -1,0 +1,12 @@
+oracle_regression_test:
+  target: dev
+  outputs:
+    dev:
+      type: oracle
+      user: sh
+      password: sh
+      host: "{{ env_var('ORACLE_HOST', 'localhost') }}"
+      port: "{{ env_var('ORACLE_PORT', '1521') | int }}"
+      service: "{{ env_var('ORACLE_SERVICE', 'FREEPDB1') }}"
+      schema: sh
+      threads: 4
