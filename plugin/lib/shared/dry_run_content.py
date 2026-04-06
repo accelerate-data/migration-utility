@@ -114,8 +114,11 @@ def _find_schema_yaml(model_path: Path) -> tuple[Path | None, bool]:
                 content = yaml.safe_load(candidate.read_text(encoding="utf-8"))
                 has_tests = _yaml_has_unit_tests(content, model_stem)
                 return candidate, has_tests
-            except Exception:
-                logger.debug("event=schema_yaml_parse_error path=%s", candidate)
+            except (yaml.YAMLError, OSError) as exc:
+                logger.warning(
+                    "event=schema_yaml_parse_error component=dry_run_content operation=load_schema path=%s status=failure error=%s",
+                    candidate, exc,
+                )
                 return candidate, False
     return None, False
 
@@ -164,8 +167,11 @@ def _dbt_evidence(
             test_results_exist = any(
                 model_name in r.get("unique_id", "") for r in results
             )
-        except Exception:
-            logger.debug("event=run_results_parse_error path=%s", run_results_path)
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning(
+                "event=run_results_parse_error component=dry_run_content operation=load_run_results path=%s status=failure error=%s",
+                run_results_path, exc,
+            )
 
     return {
         "model_name": model_name,
