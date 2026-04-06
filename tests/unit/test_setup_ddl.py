@@ -1578,3 +1578,21 @@ class TestExtractOracleIntegration:
         content = (tmp_path / "ddl" / "views.sql").read_text(encoding="utf-8")
         assert "FORCE" not in content, "views.sql contains FORCE — extract is using DBMS_METADATA instead of ALL_VIEWS"
         assert "EDITIONABLE" not in content, "views.sql contains EDITIONABLE — extract is using DBMS_METADATA instead of ALL_VIEWS"
+
+
+# ── Unit: run_assemble_tables propagation ────────────────────────────────────
+
+
+def test_run_assemble_tables_missing_manifest_raises(tmp_path: Path) -> None:
+    """run_assemble_tables propagates FileNotFoundError when manifest.json is absent."""
+    import sys
+    sys.path.insert(0, str(Path(__file__).parents[2] / "plugin" / "lib"))
+    from shared.setup_ddl import run_assemble_tables
+
+    input_file = tmp_path / "input.json"
+    input_file.write_text("[]", encoding="utf-8")
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+
+    with pytest.raises(FileNotFoundError):
+        run_assemble_tables(input_file, project_root)

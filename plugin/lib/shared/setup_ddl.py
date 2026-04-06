@@ -353,10 +353,7 @@ def run_assemble_tables(input_path: Path, project_root: Path) -> dict[str, Any]:
     rows = _read_json(input_path)
 
     # Determine quoting style: Oracle uses plain identifiers; T-SQL uses [brackets]
-    try:
-        technology = _require_technology(project_root)
-    except (ValueError, FileNotFoundError):
-        technology = "sql_server"
+    technology = _require_technology(project_root)
     oracle_style = technology == "oracle"
 
     # Group by (schema_name, table_name)
