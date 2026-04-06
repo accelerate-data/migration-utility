@@ -5,15 +5,10 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from shared.db_connect import cursor_to_dicts as _rows_to_dicts
 from shared.db_connect import sql_server_connect as _sql_server_connect
 
 logger = logging.getLogger(__name__)
-
-
-def _rows_to_dicts(cursor: Any) -> list[dict[str, Any]]:
-    """Convert cursor rows to a list of column-keyed dicts."""
-    columns = [col[0] for col in cursor.description]
-    return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
 
 def _write_json(staging_dir: Path, filename: str, rows: list[dict[str, Any]]) -> None:

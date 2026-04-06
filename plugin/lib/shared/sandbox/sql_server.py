@@ -8,12 +8,12 @@ import re
 import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
-from decimal import Decimal
 from typing import Any
 
 import pyodbc
 
-from shared.sandbox.base import SandboxBackend
+from shared.db_connect import cursor_to_dicts
+from shared.sandbox.base import SandboxBackend, serialize_rows, validate_fixture_rows
 
 logger = logging.getLogger(__name__)
 
@@ -171,15 +171,9 @@ def _validate_fixtures(fixtures: list[dict[str, Any]]) -> None:
         _validate_identifier(fixture["table"])
         rows = fixture.get("rows", [])
         if rows:
-            columns = set(rows[0].keys())
-            for col_name in columns:
+            for col_name in rows[0].keys():
                 _validate_identifier(col_name)
-            for i, row in enumerate(rows[1:], start=1):
-                if set(row.keys()) != columns:
-                    raise ValueError(
-                        f"Fixture row {i} for table {fixture['table']!r} has "
-                        f"different keys than row 0"
-                    )
+            validate_fixture_rows(fixture["table"], rows)
 
 
 _WRITE_SQL_RE = re.compile(
@@ -627,8 +621,7 @@ class SqlServerSandbox(SandboxBackend):
     @staticmethod
     def _capture_rows(cursor: Any) -> list[dict[str, Any]]:
         """Read all rows from the current cursor result set as dicts."""
-        result_columns = [desc[0] for desc in cursor.description]
-        return [dict(zip(result_columns, row)) for row in cursor.fetchall()]
+        return cursor_to_dicts(cursor)
 
     def execute_scenario(
         self,
@@ -709,7 +702,7 @@ class SqlServerSandbox(SandboxBackend):
                 "schema_version": "1.0",
                 "scenario_name": scenario_name,
                 "status": "ok",
-                "ground_truth_rows": _serialize_rows(result_rows),
+                "ground_truth_rows": serialize_rows(result_rows),
                 "row_count": len(result_rows),
                 "errors": [],
             }
@@ -780,10 +773,10 @@ class SqlServerSandbox(SandboxBackend):
                     self._seed_fixtures(cursor, sandbox_db, fixtures)
 
                     cursor.execute(sql_a)
-                    rows_a = _serialize_rows(self._capture_rows(cursor))
+                    rows_a = serialize_rows(self._capture_rows(cursor))
 
                     cursor.execute(sql_b)
-                    rows_b = _serialize_rows(self._capture_rows(cursor))
+                    rows_b = serialize_rows(self._capture_rows(cursor))
                 finally:
                     conn.rollback()
 
@@ -823,26 +816,3 @@ class SqlServerSandbox(SandboxBackend):
             }
 
 
-def _serialize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Ensure all values are JSON-serializable.
-
-    Primitive types (int, float, str, bool, None) pass through unchanged.
-    Decimal values (including MONEY/SMALLMONEY, which pyodbc returns as
-    Decimal with ODBC Driver 17/18) are coerced to str to preserve exact
-    precision.  bytes are hex-encoded.  All other non-primitive types
-    (datetime, etc.) are coerced to str.
-    """
-    out: list[dict[str, Any]] = []
-    for row in rows:
-        serialized: dict[str, Any] = {}
-        for k, v in row.items():
-            if isinstance(v, (int, float, str, bool, type(None))):
-                serialized[k] = v
-            elif isinstance(v, Decimal):
-                serialized[k] = str(v)
-            elif isinstance(v, bytes):
-                serialized[k] = v.hex()
-            else:
-                serialized[k] = str(v)
-        out.append(serialized)
-    return out

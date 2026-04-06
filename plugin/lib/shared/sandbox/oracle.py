@@ -25,12 +25,12 @@ import re
 import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
-from decimal import Decimal
 from typing import Any
 
 import oracledb
 
-from shared.sandbox.base import SandboxBackend
+from shared.db_connect import cursor_to_dicts
+from shared.sandbox.base import SandboxBackend, serialize_rows, validate_fixture_rows
 
 logger = logging.getLogger(__name__)
 
@@ -117,15 +117,9 @@ def _validate_fixtures(fixtures: list[dict[str, Any]]) -> None:
         _validate_oracle_identifier(fixture["table"])
         rows = fixture.get("rows", [])
         if rows:
-            columns = set(rows[0].keys())
-            for col_name in columns:
+            for col_name in rows[0].keys():
                 _validate_oracle_identifier(col_name)
-            for i, row in enumerate(rows[1:], start=1):
-                if set(row.keys()) != columns:
-                    raise ValueError(
-                        f"Fixture row {i} for table {fixture['table']!r} has "
-                        f"different keys than row 0"
-                    )
+            validate_fixture_rows(fixture["table"], rows)
 
 
 _WRITE_SQL_RE = re.compile(
@@ -534,8 +528,7 @@ class OracleSandbox(SandboxBackend):
     @staticmethod
     def _capture_rows(cursor: Any) -> list[dict[str, Any]]:
         """Read all rows from the current cursor result set as dicts."""
-        cols = [desc[0] for desc in cursor.description]
-        return [dict(zip(cols, row)) for row in cursor.fetchall()]
+        return cursor_to_dicts(cursor)
 
     def execute_scenario(
         self,
@@ -592,7 +585,7 @@ class OracleSandbox(SandboxBackend):
                 "schema_version": "1.0",
                 "scenario_name": scenario_name,
                 "status": "ok",
-                "ground_truth_rows": _serialize_rows(result_rows),
+                "ground_truth_rows": serialize_rows(result_rows),
                 "row_count": len(result_rows),
                 "errors": [],
             }
@@ -637,9 +630,9 @@ class OracleSandbox(SandboxBackend):
                 try:
                     self._seed_fixtures(cursor, sandbox_db, fixtures)
                     cursor.execute(sql_a)
-                    rows_a = _serialize_rows(self._capture_rows(cursor))
+                    rows_a = serialize_rows(self._capture_rows(cursor))
                     cursor.execute(sql_b)
-                    rows_b = _serialize_rows(self._capture_rows(cursor))
+                    rows_b = serialize_rows(self._capture_rows(cursor))
                 finally:
                     conn.rollback()
 
@@ -675,28 +668,3 @@ class OracleSandbox(SandboxBackend):
             }
 
 
-def _serialize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Ensure all values are JSON-serializable.
-
-    python-oracledb type mapping:
-    - NUMBER → int or float
-    - VARCHAR2/CHAR → str
-    - DATE/TIMESTAMP → datetime.datetime (serialized as str)
-    - CLOB → str (auto-fetched by oracledb)
-    - BLOB/RAW → bytes (hex-encoded)
-    - Decimal → str (exact precision)
-    """
-    out: list[dict[str, Any]] = []
-    for row in rows:
-        serialized: dict[str, Any] = {}
-        for k, v in row.items():
-            if isinstance(v, (int, float, str, bool, type(None))):
-                serialized[k] = v
-            elif isinstance(v, Decimal):
-                serialized[k] = str(v)
-            elif isinstance(v, (bytes, memoryview)):
-                serialized[k] = bytes(v).hex()
-            else:
-                serialized[k] = str(v)
-        out.append(serialized)
-    return out

@@ -10,6 +10,17 @@ import os
 from typing import Any
 
 
+def cursor_to_dicts(cursor: Any) -> list[dict[str, Any]]:
+    """Convert a cursor result set to a list of column-keyed dicts.
+
+    Returns an empty list if the cursor has no result set (description is None).
+    """
+    if cursor.description is None:
+        return []
+    columns = [col[0] for col in cursor.description]
+    return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+
 def sql_server_connect(database: str) -> Any:
     """Open a pyodbc connection to SQL Server.
 

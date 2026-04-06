@@ -23,12 +23,12 @@ from shared.sandbox.oracle import (
     _validate_oracle_identifier,
     _validate_oracle_sandbox_name,
 )
+from shared.sandbox.base import serialize_rows as _serialize_rows
 from shared.sandbox.sql_server import (
     SqlServerSandbox,
     _detect_remote_exec_target,
     _generate_sandbox_db_name,
     _get_identity_columns,
-    _serialize_rows,
     _validate_identifier,
     _validate_sandbox_db_name,
 )

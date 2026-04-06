@@ -7,8 +7,11 @@ sections needed for context assembly.
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from shared.catalog import load_proc_catalog, load_table_catalog
 from shared.loader import (
@@ -16,6 +19,7 @@ from shared.loader import (
     ProfileMissingError,
     load_directory,
 )
+from shared.loader_io import read_manifest
 from shared.name_resolver import normalize
 
 
@@ -77,5 +81,26 @@ def sandbox_metadata(project_root: Path) -> dict[str, Any] | None:
     manifest_path = project_root / "manifest.json"
     if not manifest_path.exists():
         return None
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    try:
+        manifest = read_manifest(project_root)
+    except (ValueError, OSError):
+        return None
     return manifest.get("sandbox")
+
+
+def load_test_spec(project_root: Path, table_fqn: str) -> dict[str, Any] | None:
+    """Load a test spec file if it exists."""
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+    norm = normalize(table_fqn)
+    spec_path = project_root / "test-specs" / f"{norm}.json"
+    if not spec_path.exists():
+        return None
+    try:
+        return json.loads(spec_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.error(
+            "event=load_test_spec_failed operation=load table=%s path=%s error=%s",
+            norm, spec_path, exc,
+        )
+        return None

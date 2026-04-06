@@ -14,7 +14,7 @@ from typing import Any
 import yaml
 
 from shared.catalog import load_proc_catalog, load_table_catalog, read_selected_writer
-from shared.context_helpers import sandbox_metadata
+from shared.context_helpers import load_test_spec, sandbox_metadata
 from shared.env_config import resolve_dbt_project_path
 from shared.name_resolver import fqn_parts, model_name_from_table, normalize
 
@@ -243,19 +243,9 @@ def profile_summary(project_root: Path, table_fqn: str) -> dict[str, Any]:
 # ── Stage content: test-gen ──────────────────────────────────────────────────
 
 
-def _load_test_spec(project_root: Path, table_fqn: str) -> dict[str, Any] | None:
-    """Load a test spec file if it exists."""
-    norm = normalize(table_fqn)
-    spec_path = project_root / "test-specs" / f"{norm}.json"
-    if not spec_path.exists():
-        return None
-    return json.loads(spec_path.read_text(encoding="utf-8"))
-
-
-
 def test_gen_detail(project_root: Path, table_fqn: str) -> dict[str, Any]:
     """Profile summary + full test-spec + sandbox metadata."""
-    spec = _load_test_spec(project_root, table_fqn)
+    spec = load_test_spec(project_root, table_fqn)
     return {
         "profile": profile_summary(project_root, table_fqn),
         "test_spec": spec,
@@ -265,7 +255,7 @@ def test_gen_detail(project_root: Path, table_fqn: str) -> dict[str, Any]:
 
 def test_gen_summary(project_root: Path, table_fqn: str) -> dict[str, Any]:
     """Compact test-gen status."""
-    spec = _load_test_spec(project_root, table_fqn)
+    spec = load_test_spec(project_root, table_fqn)
     sandbox = sandbox_metadata(project_root)
     if spec:
         branches = spec.get("branch_manifest", [])
@@ -336,7 +326,7 @@ def migrate_detail(project_root: Path, table_fqn: str) -> dict[str, Any]:
 def migrate_summary(project_root: Path, table_fqn: str) -> dict[str, Any]:
     """Compact migrate status."""
     evidence = _dbt_evidence(project_root, table_fqn)
-    spec = _load_test_spec(project_root, table_fqn)
+    spec = load_test_spec(project_root, table_fqn)
     return {
         "test_spec_status": spec.get("status") if spec else None,
         "dbt_model_exists": evidence["model_exists"],

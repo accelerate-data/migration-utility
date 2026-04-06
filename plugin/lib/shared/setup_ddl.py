@@ -32,6 +32,8 @@ from typing import Any, Optional
 
 import typer
 
+from shared.catalog import write_json as _write_catalog_json
+from shared.db_connect import cursor_to_dicts as _cursor_to_dicts
 from shared.db_connect import oracle_connect as _oracle_connect
 from shared.db_connect import sql_server_connect as _sql_server_connect
 from shared.name_resolver import normalize
@@ -412,12 +414,7 @@ def _mark_stale(project_root: Path, removed_fqns: set[str]) -> None:
                 try:
                     data = json.loads(p.read_text(encoding="utf-8"))
                     data["stale"] = True
-                    tmp = p.with_suffix(".json.tmp")
-                    tmp.write_text(
-                        json.dumps(data, indent=2, ensure_ascii=False) + "\n",
-                        encoding="utf-8",
-                    )
-                    tmp.replace(p)
+                    _write_catalog_json(p, data)
                 except (json.JSONDecodeError, OSError) as exc:
                     logger.warning("event=mark_stale_error fqn=%s error=%s", fqn, exc)
                     continue
@@ -659,8 +656,7 @@ def run_list_schemas(project_root: Path, database: Optional[str]) -> dict[str, A
                 "FROM ALL_OBJECTS "
                 "ORDER BY OWNER, OBJECT_TYPE, OBJECT_NAME"
             )
-            columns = [desc[0] for desc in cursor.description]
-            rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+            rows = _cursor_to_dicts(cursor)
         finally:
             conn.close()
         schemas = _build_oracle_schema_summary(rows)
