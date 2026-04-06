@@ -21,6 +21,10 @@ Generate dbt models for a batch of tables. Launches one sub-agent per table in p
 
 Per-item guards are checked by the skill via `migrate-util guard`.
 
+## Progress Tracking
+
+Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2, create one task per table with status `pending`. Update each task to `in_progress` before it starts processing, and to `completed` (ok/partial result) or `cancelled` (error — include the error code) when it finishes.
+
 ## Pipeline
 
 ### Step 1 — Setup

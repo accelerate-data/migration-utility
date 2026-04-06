@@ -26,6 +26,10 @@ If `ddl/` or `catalog/` already exists in the project root, warn the user:
 
 Ask for confirmation before proceeding. If they decline, stop immediately.
 
+## Progress Tracking
+
+Use `TaskCreate` and `TaskUpdate` to track the automated phases of this command. After the user confirms and before extraction begins, create tasks for each automated step that will run (e.g. `Extract DDL`). Update each task to `in_progress` when it starts and to `completed` or `cancelled` (include the error reason) when it finishes. Do not create tasks for interactive steps (database/schema selection, confirmation prompts).
+
 ---
 
 ## SQL Server / Fabric Warehouse flow

@@ -9,6 +9,10 @@ argument-hint: "[project-root-path]"
 
 Scaffold a complete dbt project for the migration target, generate sources from catalog, and validate with `dbt compile`.
 
+## Progress Tracking
+
+Use `TaskCreate` and `TaskUpdate` to track the automated phases of this command. After the user selects the target platform (Step 2) and before execution begins, create tasks for `Scaffold dbt project`, `Generate sources.yml`, `Install and validate`, and `Commit`. Update each task to `in_progress` when it starts and to `completed` or `cancelled` (include the error reason) when it finishes. Do not create tasks for interactive steps (platform selection).
+
 ## Step 1: Validate prerequisites
 
 1. Check that `manifest.json` exists in the DDL artifacts directory (the project root or `$ARGUMENTS` if a path was provided). If missing, stop and tell the user to run `/setup-ddl` first.

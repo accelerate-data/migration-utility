@@ -8,6 +8,10 @@ user-invocable: true
 
 Verify and set up all prerequisites before using `listing-objects`, `analyzing-table`, or `/setup-ddl`. Then scaffold the project directory for both agents and human developers.
 
+## Progress Tracking
+
+Use `TaskCreate` and `TaskUpdate` to track the automated phases of this command. After the user confirms (Step 4) and before execution begins, create tasks for each automated step that will run (e.g. `Install dependencies`, `Scaffold project files`, `Commit scaffolding` — only include steps that are actually needed). Update each task to `in_progress` when it starts and to `completed` or `cancelled` (include the error reason) when it finishes. Do not create tasks for interactive steps (source selection, confirmation prompts).
+
 ## Step 1: Pre-check
 
 If `CLAUDE_PLUGIN_ROOT` is not set, stop immediately and tell the user to load the plugin with `claude --plugin-dir <path-to-ad-migration>` before running this command.

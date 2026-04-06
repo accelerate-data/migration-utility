@@ -8,6 +8,10 @@ user-invocable: true
 
 Create a throwaway sandbox database by cloning schema from the source database. The sandbox is used by the test generator to execute stored procedures and capture ground truth output. The database name is auto-generated (`__test_<random_hex>`).
 
+## Progress Tracking
+
+Use `TaskCreate` and `TaskUpdate` to track the automated phases of this command. After the user confirms (Step 3) and before execution begins, create a task for `Create sandbox database`. Update it to `in_progress` when the CLI starts and to `completed` or `cancelled` (include the error reason) when it finishes.
+
 ## Step 1: Pre-check
 
 If `CLAUDE_PLUGIN_ROOT` is not set, stop and tell the user to load the plugin with `claude --plugin-dir <path-to-plugins>`.
