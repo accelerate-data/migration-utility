@@ -526,3 +526,153 @@ def test_enrich_partial_corruption_enriches_valid(tmp_path: Path) -> None:
     result = enrich_catalog(ddl)
     # The valid proc should still be processed despite the corrupt one
     assert result["procedures_augmented"] >= 1
+
+
+# ── View classification via object_types ─────────────────────────────────────
+
+
+def _make_view_classification_project(tmp_path: Path) -> Path:
+    """Set up a project where a proc references a view and a table.
+
+    The proc catalog is pre-populated as if setup-ddl ran: the view is in
+    ``references.views.in_scope`` (correctly classified via object_types).
+    enrich_catalog must not move the view entry into ``references.tables``.
+    """
+    ddl_dir = tmp_path / "ddl"
+    ddl_dir.mkdir()
+
+    _write_sql(ddl_dir, "procedures.sql", """\
+CREATE PROCEDURE [dbo].[usp_load]
+AS
+BEGIN
+    INSERT INTO [silver].[Target] (id, name)
+    SELECT v.id, v.name FROM [silver].[vw_customer] v;
+END
+GO
+""")
+    _write_sql(ddl_dir, "views.sql", """\
+CREATE VIEW [silver].[vw_customer] AS
+SELECT id, name FROM [bronze].[CustomerRaw]
+GO
+""")
+    _write_sql(ddl_dir, "tables.sql", """\
+CREATE TABLE [silver].[Target] (id INT NOT NULL, name NVARCHAR(100) NULL)
+GO
+CREATE TABLE [bronze].[CustomerRaw] (id INT NOT NULL, name NVARCHAR(100) NULL)
+GO
+""")
+
+    # Proc catalog as written by setup-ddl: view correctly in references.views
+    _write_catalog_json(tmp_path, "procedures", "dbo.usp_load", {
+        "references": {
+            "tables": {
+                "in_scope": [
+                    {"schema": "silver", "name": "Target", "is_selected": False, "is_updated": True},
+                ],
+                "out_of_scope": [],
+            },
+            "views": {
+                "in_scope": [
+                    {"schema": "silver", "name": "vw_customer", "is_selected": True, "is_updated": False},
+                ],
+                "out_of_scope": [],
+            },
+            "functions": {"in_scope": [], "out_of_scope": []},
+            "procedures": {"in_scope": [], "out_of_scope": []},
+        },
+        "needs_enrich": True,
+        "mode": "deterministic",
+    })
+
+    # Table catalog for Target (the write target)
+    _write_catalog_json(tmp_path, "tables", "silver.target", {
+        "referenced_by": _empty_referenced_by(),
+    })
+
+    (tmp_path / "manifest.json").write_text('{"dialect":"tsql"}', encoding="utf-8")
+    return tmp_path
+
+
+def test_enrich_preserves_view_classification(tmp_path: Path) -> None:
+    """enrich_catalog does not move view references from references.views to references.tables."""
+    root = _make_view_classification_project(tmp_path)
+    enrich_catalog(root)
+
+    proc_cat = _read_catalog_json(root, "procedures", "dbo.usp_load")
+    assert proc_cat is not None
+
+    views_in_scope = proc_cat["references"]["views"]["in_scope"]
+    tables_in_scope = proc_cat["references"]["tables"]["in_scope"]
+
+    # View must stay in views bucket
+    view_names = [e["name"] for e in views_in_scope]
+    assert "vw_customer" in view_names
+
+    # View must not leak into tables bucket
+    table_names = [e["name"].lower() for e in tables_in_scope]
+    assert "vw_customer" not in table_names
+
+
+def test_dmf_processing_classifies_view_via_object_types() -> None:
+    """process_dmf_results puts a view reference in the views bucket using object_types."""
+    from shared.dmf_processing import process_dmf_results
+
+    rows = [
+        {
+            "referencing_schema": "dbo",
+            "referencing_name": "usp_load",
+            "referenced_schema": "silver",
+            "referenced_entity": "vw_customer",
+            "referenced_minor_name": "",
+            "referenced_class_desc": "OBJECT",  # SQL Server returns OBJECT for views
+            "is_selected": True,
+            "is_updated": False,
+            "is_select_all": False,
+            "is_insert_all": False,
+            "is_all_columns_found": True,
+            "is_caller_dependent": False,
+            "is_ambiguous": False,
+        },
+    ]
+    object_types = {"silver.vw_customer": "views"}
+
+    result = process_dmf_results(rows, object_types, database="TestDB")
+    assert "dbo.usp_load" in result
+    refs = result["dbo.usp_load"]
+
+    # View must be in views bucket
+    view_names = [e["name"] for e in refs["views"]["in_scope"]]
+    assert "vw_customer" in view_names
+
+    # View must not appear in tables bucket
+    table_names = [e["name"] for e in refs["tables"]["in_scope"]]
+    assert "vw_customer" not in table_names
+
+
+def test_dmf_processing_falls_back_to_tables_without_object_types() -> None:
+    """Without object_types, an OBJECT class_desc reference falls back to tables bucket."""
+    from shared.dmf_processing import process_dmf_results
+
+    rows = [
+        {
+            "referencing_schema": "dbo",
+            "referencing_name": "usp_load",
+            "referenced_schema": "silver",
+            "referenced_entity": "vw_customer",
+            "referenced_minor_name": "",
+            "referenced_class_desc": "OBJECT",
+            "is_selected": True,
+            "is_updated": False,
+            "is_select_all": False,
+            "is_insert_all": False,
+            "is_all_columns_found": True,
+            "is_caller_dependent": False,
+            "is_ambiguous": False,
+        },
+    ]
+
+    result = process_dmf_results(rows, object_types=None, database="TestDB")
+    refs = result["dbo.usp_load"]
+    # Without type info, falls back to tables bucket (existing behavior)
+    table_names = [e["name"] for e in refs["tables"]["in_scope"]]
+    assert "vw_customer" in table_names

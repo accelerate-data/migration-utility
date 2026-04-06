@@ -78,16 +78,23 @@ END
 GO
 """
 
+VIEWS_SQL = """\
+CREATE VIEW silver.vw_DimProductSummary AS
+SELECT ProductKey, Name FROM silver.DimProduct WHERE Color IS NOT NULL
+GO
+"""
+
 
 @pytest.fixture()
 def ddl_dir(tmp_path: Path) -> Path:
-    """Temp DDL directory with tables, procedures, and functions."""
+    """Temp DDL directory with tables, procedures, functions, and views."""
     ddl_dir = tmp_path / "ddl"
     ddl_dir.mkdir()
     procs = PROC_WRITER + PROC_READER + PROC_COMMENT_ONLY + PROC_EXEC
     (ddl_dir / "tables.sql").write_text(TABLES_SQL, encoding="utf-8")
     (ddl_dir / "procedures.sql").write_text(procs, encoding="utf-8")
     (ddl_dir / "functions.sql").write_text(FUNCTIONS_SQL, encoding="utf-8")
+    (ddl_dir / "views.sql").write_text(VIEWS_SQL, encoding="utf-8")
     return tmp_path
 
 
@@ -255,4 +262,34 @@ def test_get_function_body_unknown(ddl_dir: Path) -> None:
     """get_function_body returns None for an unknown function name."""
     catalog = load_directory(ddl_dir)
     entry = catalog.get_function("dbo.fnDoesNotExist")
+    assert entry is None
+
+
+# ── list_views / get_view_body ────────────────────────────────────────────────
+
+
+def test_list_views_returns_names(ddl_dir: Path) -> None:
+    """list_views returns normalized view names from views.sql."""
+    catalog = load_directory(ddl_dir)
+    assert "silver.vw_dimproductsummary" in catalog.views
+
+
+def test_list_views_absent_file(ddl_dir_no_functions: Path) -> None:
+    """list_views returns empty dict when views.sql is absent."""
+    catalog = load_directory(ddl_dir_no_functions)
+    assert catalog.views == {}
+
+
+def test_get_view_body_returns_ddl(ddl_dir: Path) -> None:
+    """get_view_body returns the raw DDL for a known view."""
+    catalog = load_directory(ddl_dir)
+    entry = catalog.get_view("silver.vw_DimProductSummary")
+    assert entry is not None
+    assert "vw_DimProductSummary" in entry.raw_ddl
+
+
+def test_get_view_body_unknown(ddl_dir: Path) -> None:
+    """get_view_body returns None for an unknown view name."""
+    catalog = load_directory(ddl_dir)
+    entry = catalog.get_view("silver.vw_DoesNotExist")
     assert entry is None

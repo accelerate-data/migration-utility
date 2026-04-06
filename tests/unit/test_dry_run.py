@@ -952,6 +952,155 @@ def test_guard_cli_dbt_project_missing() -> None:
         assert output["guard_results"][-1]["code"] == "DBT_PROJECT_MISSING"
 
 
+# ── Guard tests: check_view_dependencies_migrated ───────────────────────────
+
+
+def _make_project_with_view_deps(
+    *,
+    view_entries: list[dict],
+    stg_files: list[str] | None = None,
+) -> tuple[tempfile.TemporaryDirectory, Path]:
+    """Create a minimal project for view dependency guard tests.
+
+    *view_entries* is the list for ``references.views.in_scope`` in the proc catalog.
+    *stg_files* lists which ``stg_*.sql`` files to create in ``dbt/models/staging/``.
+    """
+    tmp = tempfile.TemporaryDirectory()
+    root = Path(tmp.name)
+
+    # manifest
+    manifest = {
+        "schema_version": "1.0",
+        "technology": "sql_server",
+        "dialect": "tsql",
+        "source_database": "TestDB",
+        "extracted_schemas": ["silver"],
+        "extracted_at": "2026-04-01T00:00:00Z",
+        "sandbox": {"database": "TestDB_sandbox"},
+    }
+    (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    # table catalog: silver.DimCustomer with selected_writer
+    (root / "catalog" / "tables").mkdir(parents=True)
+    table_cat = {
+        "schema": "silver",
+        "name": "dimcustomer",
+        "scoping": {"status": "resolved", "selected_writer": "dbo.usp_load"},
+        "primary_keys": [],
+        "columns": [],
+        "referenced_by": {},
+    }
+    (root / "catalog" / "tables" / "silver.dimcustomer.json").write_text(
+        json.dumps(table_cat), encoding="utf-8",
+    )
+
+    # proc catalog: dbo.usp_load with given view entries
+    (root / "catalog" / "procedures").mkdir(parents=True)
+    proc_cat = {
+        "schema": "dbo",
+        "name": "usp_load",
+        "references": {
+            "tables": {"in_scope": [], "out_of_scope": []},
+            "views": {"in_scope": view_entries, "out_of_scope": []},
+            "functions": {"in_scope": [], "out_of_scope": []},
+            "procedures": {"in_scope": [], "out_of_scope": []},
+        },
+    }
+    (root / "catalog" / "procedures" / "dbo.usp_load.json").write_text(
+        json.dumps(proc_cat), encoding="utf-8",
+    )
+
+    # dbt project
+    staging_dir = root / "dbt" / "models" / "staging"
+    staging_dir.mkdir(parents=True)
+    (root / "dbt" / "dbt_project.yml").write_text("name: test", encoding="utf-8")
+
+    for stg in (stg_files or []):
+        (staging_dir / stg).write_text("-- generated", encoding="utf-8")
+
+    return tmp, root
+
+
+def test_view_deps_guard_passes_no_views() -> None:
+    """Guard passes when proc has no view dependencies."""
+    tmp, root = _make_project_with_view_deps(view_entries=[])
+    with tmp:
+        from shared.guards import check_view_dependencies_migrated
+        result = check_view_dependencies_migrated(root, "silver.DimCustomer")
+        assert result["passed"] is True
+        assert result["check"] == "view_dependencies_migrated"
+
+
+def test_view_deps_guard_passes_all_migrated() -> None:
+    """Guard passes when all view stg_ files exist."""
+    view_entries = [{"schema": "silver", "name": "vw_customer_base", "is_selected": True, "is_updated": False}]
+    tmp, root = _make_project_with_view_deps(
+        view_entries=view_entries,
+        stg_files=["stg_vw_customer_base.sql"],
+    )
+    with tmp:
+        from shared.guards import check_view_dependencies_migrated
+        result = check_view_dependencies_migrated(root, "silver.DimCustomer")
+        assert result["passed"] is True
+
+
+def test_view_deps_guard_fails_missing_stg_file() -> None:
+    """Guard fails when a dependent view has no stg_ file yet."""
+    view_entries = [{"schema": "silver", "name": "vw_customer_base", "is_selected": True, "is_updated": False}]
+    tmp, root = _make_project_with_view_deps(view_entries=view_entries, stg_files=[])
+    with tmp:
+        from shared.guards import check_view_dependencies_migrated
+        result = check_view_dependencies_migrated(root, "silver.DimCustomer")
+        assert result["passed"] is False
+        assert result["code"] == "VIEW_DEPENDENCIES_NOT_MIGRATED"
+        assert "vw_customer_base" in result["message"]
+        assert "/refactor-view" in result["message"]
+
+
+def test_view_deps_guard_reports_all_missing() -> None:
+    """Guard message lists all missing view stg_ files."""
+    view_entries = [
+        {"schema": "silver", "name": "vw_a", "is_selected": True, "is_updated": False},
+        {"schema": "silver", "name": "vw_b", "is_selected": True, "is_updated": False},
+    ]
+    tmp, root = _make_project_with_view_deps(view_entries=view_entries, stg_files=["stg_vw_a.sql"])
+    with tmp:
+        from shared.guards import check_view_dependencies_migrated
+        result = check_view_dependencies_migrated(root, "silver.DimCustomer")
+        assert result["passed"] is False
+        assert "vw_b" in result["message"]
+        # vw_a was migrated, should not appear in the message
+        assert "vw_a" not in result["message"]
+
+
+def test_view_deps_guard_handles_legacy_list_references() -> None:
+    """Guard passes gracefully for old-format proc catalogs with references as a list."""
+    tmp, root = _make_project_with_view_deps(view_entries=[])
+    with tmp:
+        # Overwrite proc catalog with old list format
+        proc_cat = {"schema": "dbo", "name": "usp_load", "references": []}
+        (root / "catalog" / "procedures" / "dbo.usp_load.json").write_text(
+            json.dumps(proc_cat), encoding="utf-8",
+        )
+        from shared.guards import check_view_dependencies_migrated
+        result = check_view_dependencies_migrated(root, "silver.DimCustomer")
+        assert result["passed"] is True
+
+
+def test_generating_model_guard_includes_view_dep_check() -> None:
+    """generating-model stage guard list includes check_view_dependencies_migrated."""
+    from shared.guards import _STAGE_GUARDS
+    guard_names = [name for (name,) in _STAGE_GUARDS["generating-model"]]
+    assert "check_view_dependencies_migrated" in guard_names
+
+
+def test_reviewing_model_guard_includes_view_dep_check() -> None:
+    """reviewing-model stage guard list includes check_view_dependencies_migrated."""
+    from shared.guards import _STAGE_GUARDS
+    guard_names = [name for (name,) in _STAGE_GUARDS["reviewing-model"]]
+    assert "check_view_dependencies_migrated" in guard_names
+
+
 # ── generate-sources tests ──────────────────────────────────────────────────
 
 
