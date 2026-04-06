@@ -21,6 +21,8 @@ test-results/
 playwright-report/
 playwright-artifacts/
 tests/output/
+tests/evals/model-review-results/
+tests/evals/test-review-results/
 
 # IDE and tool directories
 .vscode/
