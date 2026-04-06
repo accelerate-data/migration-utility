@@ -293,3 +293,88 @@ def test_get_view_body_unknown(ddl_dir: Path) -> None:
     catalog = load_directory(ddl_dir)
     entry = catalog.get_view("silver.vw_DoesNotExist")
     assert entry is None
+
+
+# ── Oracle dialect — column type rendering ────────────────────────────────────
+
+ORACLE_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "oracle"
+
+
+@pytest.fixture()
+def oracle_ddl_dir() -> Path:
+    """Path to the Oracle SH-schema fixture project root."""
+    return ORACLE_FIXTURE_DIR
+
+
+def test_parse_columns_oracle_varchar2(oracle_ddl_dir: Path) -> None:
+    """VARCHAR2 column type is rendered as VARCHAR2 under the oracle dialect."""
+    catalog = load_directory(oracle_ddl_dir)
+    entry = catalog.get_table("SH.CUSTOMERS")
+    assert entry is not None
+
+    cols = {c["name"]: c for c in ddl_server._parse_columns(entry, dialect="oracle")}
+    assert cols["CUST_FIRST_NAME"]["type"] == "VARCHAR2(20)"
+
+
+def test_parse_columns_oracle_number(oracle_ddl_dir: Path) -> None:
+    """NUMBER column type is rendered as NUMBER under the oracle dialect."""
+    catalog = load_directory(oracle_ddl_dir)
+    entry = catalog.get_table("SH.CUSTOMERS")
+    assert entry is not None
+
+    cols = {c["name"]: c for c in ddl_server._parse_columns(entry, dialect="oracle")}
+    assert cols["CUST_ID"]["type"] == "NUMBER"
+
+
+def test_parse_columns_oracle_char(oracle_ddl_dir: Path) -> None:
+    """CHAR column type is rendered as CHAR(1) under the oracle dialect."""
+    catalog = load_directory(oracle_ddl_dir)
+    entry = catalog.get_table("SH.CUSTOMERS")
+    assert entry is not None
+
+    cols = {c["name"]: c for c in ddl_server._parse_columns(entry, dialect="oracle")}
+    assert cols["CUST_GENDER"]["type"] == "CHAR(1)"
+
+
+def test_parse_columns_oracle_no_tsql_types(oracle_ddl_dir: Path) -> None:
+    """Oracle column types contain no T-SQL-specific type names."""
+    catalog = load_directory(oracle_ddl_dir)
+    entry = catalog.get_table("SH.CUSTOMERS")
+    assert entry is not None
+
+    tsql_types = {"NVARCHAR", "INT", "BIGINT", "BIT", "UNIQUEIDENTIFIER"}
+    cols = ddl_server._parse_columns(entry, dialect="oracle")
+    rendered_types = {c["type"] for c in cols}
+    assert tsql_types.isdisjoint(rendered_types)
+
+
+# ── Oracle dialect — integration tests (require Docker Oracle + SH schema) ────
+
+
+@pytest.mark.oracle
+def test_oracle_list_procedures(oracle_ddl_dir: Path) -> None:
+    """list_procedures returns the SH.GET_PRODUCT_COUNT procedure from fixtures."""
+    catalog = load_directory(oracle_ddl_dir)
+    assert "sh.get_product_count" in catalog.procedures
+
+
+@pytest.mark.oracle
+def test_oracle_get_procedure_body(oracle_ddl_dir: Path) -> None:
+    """get_procedure_body returns the raw DDL for the SH procedure."""
+    catalog = load_directory(oracle_ddl_dir)
+    entry = catalog.get_procedure("SH.GET_PRODUCT_COUNT")
+    assert entry is not None
+    assert "GET_PRODUCT_COUNT" in entry.raw_ddl
+
+
+@pytest.mark.oracle
+def test_oracle_get_table_schema_column_types(oracle_ddl_dir: Path) -> None:
+    """get_table_schema for an Oracle project returns correct Oracle column types."""
+    catalog = load_directory(oracle_ddl_dir)
+    entry = catalog.get_table("SH.CUSTOMERS")
+    assert entry is not None
+
+    cols = {c["name"]: c for c in ddl_server._parse_columns(entry, dialect="oracle")}
+    assert cols["CUST_FIRST_NAME"]["type"] == "VARCHAR2(20)"
+    assert cols["CUST_ID"]["type"] == "NUMBER"
+    assert cols["CUST_GENDER"]["type"] == "CHAR(1)"
