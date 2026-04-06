@@ -106,6 +106,8 @@ For multi-table sub-agents: include the commit/revert instructions in the sub-ag
    Once the PR is merged, run /cleanup-worktrees to remove the worktree and branches.
    ```
 
+6. Suggest running `/status` to see overall migration readiness across all tables.
+
 ## Item Result Schema
 
 ```json

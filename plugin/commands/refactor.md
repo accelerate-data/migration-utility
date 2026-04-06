@@ -85,6 +85,8 @@ The skill writes the refactored CTE SQL into the catalog `refactor` section.
    If yes: run `/commit-push-pr refactor <comma-separated list of successfully processed tables>`.
    After the PR is created or updated, tell the user the PR URL, branch, and worktree path.
 
+6. Suggest running `/status` to see overall migration readiness across all tables.
+
 ## Item Result Schema
 
 ```json
