@@ -23,6 +23,11 @@ from shared.dmf_processing import (
 from shared.name_resolver import normalize
 
 
+def _empty_refs() -> dict[str, dict[str, list[dict[str, Any]]]]:
+    return {"tables": empty_scoped(), "views": empty_scoped(),
+            "functions": empty_scoped(), "procedures": empty_scoped()}
+
+
 def _write_object_catalogs(
     project_root: Path,
     dmf_refs: dict[str, dict],
@@ -43,10 +48,6 @@ def _write_object_catalogs(
     *view_definitions* and *view_columns* are only applied when object_type == "views".
     Returns count of files written.
     """
-    def _empty_refs() -> dict[str, dict[str, list[dict[str, Any]]]]:
-        return {"tables": empty_scoped(), "views": empty_scoped(),
-                "functions": empty_scoped(), "procedures": empty_scoped()}
-
     _hashes = hashes or {}
     _vdefs = view_definitions if object_type == "views" else None
     _vcols = view_columns if object_type == "views" else None
