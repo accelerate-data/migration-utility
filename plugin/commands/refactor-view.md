@@ -19,6 +19,10 @@ Convert a SQL Server view to an ephemeral dbt staging model with an import/logic
 - `dbt_project.yml` must exist in the dbt project. If missing, fail with `DBT_PROJECT_MISSING` and tell user to run `/init-dbt`.
 - View catalog file `catalog/views/<schema.view_name>.json` must exist. If missing, fail with `VIEW_CATALOG_MISSING` and tell user to run `/setup-ddl` first.
 
+## Progress Tracking
+
+Use `TaskCreate` and `TaskUpdate` to show live progress. After Step 2 (dependency resolution), create one task per view in the resolved dependency set with status `pending`. Update each task to `in_progress` before it starts processing, and to `completed` (ok/partial result) or `cancelled` (error — include the error code) when it finishes.
+
 ## Pipeline
 
 ### Step 1 — Setup
