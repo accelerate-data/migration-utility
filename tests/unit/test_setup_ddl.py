@@ -1547,3 +1547,34 @@ class TestExtractOracleIntegration:
         data = json.loads(view_files[0].read_text())
         assert "sql" in data, f"View catalog missing 'sql' field: {data.keys()}"
         assert "CREATE OR REPLACE VIEW" in data["sql"]
+
+    def test_sh_views_ddl_contains_select(self, tmp_path):
+        """views.sql from Oracle extract contains a real SELECT body, not just the header."""
+        self._skip_if_missing()
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
+        )
+        result = _run_cli([
+            "extract",
+            "--schemas", "SH",
+            "--project-root", str(tmp_path),
+        ], timeout=120)
+        assert result.returncode == 0, result.stderr
+        content = (tmp_path / "ddl" / "views.sql").read_text(encoding="utf-8")
+        assert "SELECT" in content.upper(), "views.sql has no SELECT — view body was not captured"
+
+    def test_sh_views_no_force_editionable(self, tmp_path):
+        """Oracle extract does not produce FORCE EDITIONABLE DDL (ALL_VIEWS path, not DBMS_METADATA)."""
+        self._skip_if_missing()
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
+        )
+        result = _run_cli([
+            "extract",
+            "--schemas", "SH",
+            "--project-root", str(tmp_path),
+        ], timeout=120)
+        assert result.returncode == 0, result.stderr
+        content = (tmp_path / "ddl" / "views.sql").read_text(encoding="utf-8")
+        assert "FORCE" not in content, "views.sql contains FORCE — extract is using DBMS_METADATA instead of ALL_VIEWS"
+        assert "EDITIONABLE" not in content, "views.sql contains EDITIONABLE — extract is using DBMS_METADATA instead of ALL_VIEWS"
