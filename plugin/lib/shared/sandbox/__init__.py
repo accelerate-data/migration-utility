@@ -16,6 +16,7 @@ _BACKENDS: dict[str, str] = {
     "sql_server": "shared.sandbox.sql_server:SqlServerSandbox",
     # Fabric Warehouse uses the same T-SQL wire protocol; alias until native backend exists
     "fabric_warehouse": "shared.sandbox.sql_server:SqlServerSandbox",
+    "oracle": "shared.sandbox.oracle:OracleSandbox",
 }
 
 
