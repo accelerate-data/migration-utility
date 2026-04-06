@@ -22,7 +22,8 @@ Per-item guards are checked by the skill via `migrate-util guard`.
 ### Step 1 — Setup
 
 1. Generate run slug: `scope-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters).
-2. Check for existing worktrees. If any exist, list them as options alongside creating a new one and ask the user to pick:
+2. Run the `git-checkpoints` skill with the run slug as the argument. If it returns a worktree path, use that path as the working directory for all file writes and git operations in this run.
+   If not on `main` (git-checkpoints returns empty), check for existing worktrees. If any exist, list them as options alongside creating a new one and ask the user to pick:
    > 1. `feature/scope-silver-dimcustomer`
    > 2. `feature/profile-silver-dimcustomer`
    > 3. **New worktree**
@@ -31,21 +32,9 @@ Per-item guards are checked by the skill via `migrate-util guard`.
 
 ### Step 2 — Run migration:analyzing-table per table
 
-**Single-table path (1 table):** Run `migration:analyzing-table` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<epoch>.json`. Then continue to Step 3.
+**Single-table path (1 table):** Run `migration:analyzing-table` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<epoch>.json`.
 
-**Multi-table path (2+ tables):** Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
-
-```text
-Run the migration:analyzing-table skill for <schema.table>.
-The worktree is at <worktree-path>.
-Write the item result JSON to .migration-runs/<schema.table>.<epoch>.json.
-On failure, write result with status: "error" and error details.
-Return the item result JSON.
-```
-
-### Step 3 — Revert errored items
-
-For each item with `status: "error"`, revert any files the skill may have partially modified:
+If the item status is `error`, immediately revert any files the skill may have partially modified:
 
 ```bash
 git checkout -- catalog/tables/<item_id>.json
@@ -53,7 +42,39 @@ git checkout -- catalog/tables/<item_id>.json
 
 Ignore errors from `git checkout` (the file may not have been modified).
 
-### Step 4 — Summarize
+If the item status is not `error`, auto-commit and push this item's output:
+
+```bash
+git add catalog/tables/<item_id>.json
+git commit -m "scope(<item_id>): selected writer <writer_fqn>" \
+  --trailer "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+git push origin HEAD -u
+```
+
+If `writer_fqn` is null (no writer found), use `scope(<item_id>): no writer found`. Then continue to Step 3.
+
+**Multi-table path (2+ tables):** Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
+
+```text
+Run the migration:analyzing-table skill for <schema.table>.
+The worktree is at <worktree-path>.
+Write the item result JSON to .migration-runs/<schema.table>.<epoch>.json.
+
+After writing the result:
+- If status == "error": run `git checkout -- catalog/tables/<item_id>.json` (ignore errors).
+- If status != "error": run:
+    git add catalog/tables/<item_id>.json
+    git commit -m "scope(<item_id>): selected writer <writer_fqn>" \
+      --trailer "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+    git push origin HEAD
+  (Use `git push origin HEAD -u` on first push if the branch is not yet tracking.)
+  If writer_fqn is null, use: scope(<item_id>): no writer found
+
+On failure before writing a result, write result with status: "error" and error details, then revert as above.
+Return the item result JSON.
+```
+
+### Step 3 — Summarize
 
 1. Read each `.migration-runs/<schema.table>.<epoch>.json`.
 2. Write `.migration-runs/summary.<epoch>.json` with `{total, ok, partial, error}` counts and per-item status.
@@ -69,20 +90,14 @@ Ignore errors from `git checkout` (the file may not have been modified).
      resolved: 2 | error: 1
    ```
 
-4. If all items errored, skip commit/PR — report errors only and stop.
-5. Ask the user: commit and push? Stage only files changed by successful items (catalog JSON files). Do not stage `.migration-runs/`. Check for an existing open PR on the branch via `gh pr list --head <slug> --state open --json number,url`. If one exists, update it with `gh pr edit` instead of creating a new PR. PR body format:
+4. If all items errored, report errors only and stop.
+5. Ask the user:
 
-   ```markdown
-   ## Scoping — N tables
+   > All successful items have been committed and pushed.
+   > Raise a PR for this run? (y/n)
 
-   | Table | Status | Writer |
-   |---|---|---|
-   | silver.DimCustomer | resolved | dbo.usp_load_dimcustomer |
-   | silver.DimProduct | resolved | dbo.usp_load_dimproduct |
-   | silver.DimDate | error | CATALOG_FILE_MISSING |
-   ```
-
-6. After the PR is created or updated, tell the user:
+   If yes: run `/commit-push-pr scope <comma-separated list of successfully processed tables>`.
+   After the PR is created or updated, tell the user:
 
    ```text
    PR #<number> is open: <pr_url>

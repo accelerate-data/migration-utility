@@ -170,7 +170,17 @@ This creates `manifest.json` with the chosen technology and dialect. `/setup-ddl
 
 ## Step 7: Commit
 
-If the working directory is a git repository, commit the files created or modified in Step 5:
+If the working directory is a git repository, check the current branch first:
+
+```bash
+git branch --show-current
+```
+
+If on `main`, notify the user:
+
+> ⚠️ Committing init files directly to `main`. Init scaffolding is typically committed to main — this is expected. For migration work that follows, create a feature branch before running `/scope`, `/profile`, or other pipeline commands.
+
+Commit the files created or modified in Step 5:
 
 ```bash
 git add CLAUDE.md README.md .gitignore .githooks/ repo-map.json .claude/ manifest.json

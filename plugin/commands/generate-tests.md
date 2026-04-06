@@ -25,7 +25,8 @@ Per-item guards are checked by the skill via `migrate-util guard`.
 ### Step 1 — Setup
 
 1. Generate run slug: `generate-tests-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters).
-2. Check for existing worktrees. If any exist, list them as options alongside creating a new one and ask the user to pick:
+2. Run the `git-checkpoints` skill with the run slug as the argument. If it returns a worktree path, use that path as the working directory for all file writes and git operations in this run.
+   If not on `main` (git-checkpoints returns empty), check for existing worktrees. If any exist, list them as options alongside creating a new one and ask the user to pick:
    > 1. `feature/scope-silver-dimcustomer`
    > 2. `feature/profile-silver-dimcustomer`
    > 3. **New worktree**
@@ -75,17 +76,7 @@ If `execute-spec` exits non-zero or individual scenarios fail:
 - **Non-zero exit (full failure):** record `status: "error"` with code `SCENARIO_EXECUTION_FAILED` for the item and continue to the next item.
 - **Partial scenario failures** (exit 0 but some scenarios report errors in the output): record `status: "partial"` with a `SCENARIO_EXECUTION_FAILED` warning listing which scenarios failed. The item proceeds with the successfully captured expectations.
 
-### Step 5 — Revert errored items
-
-For each item with `status: "error"`, revert any files the skill may have partially written:
-
-```bash
-git checkout -- test-specs/<item_id>.json
-```
-
-Ignore errors from `git checkout` (the file may not exist yet — use `rm -f` instead if the test-spec was newly created and has no prior version).
-
-### Step 5.5 — Convert to dbt YAML
+### Step 5 — Convert to dbt YAML and commit
 
 For each item with `status: "ok"` or `status: "partial"` (i.e., ground truth was captured):
 
@@ -100,6 +91,23 @@ This converts the CLI-ready JSON (with `expect.rows`) to dbt unit test YAML form
 - `given[].table` bracket-quoted identifiers become `source()`/`ref()` expressions
 - `target_table` is mapped to a dbt `model` name (e.g. `[silver].[DimProduct]` → `stg_dimproduct`)
 - The committed artifact is the `.yml` file; the intermediate `.json` is not staged
+
+After convert-dbt completes, if the item final status is `error`, revert any partially written files:
+
+```bash
+git checkout -- test-specs/<item_id>.json test-specs/<item_id>.yml
+```
+
+Use `rm -f` for files that were newly created and have no prior version.
+
+If the item final status is not `error`, auto-commit and push this item's output:
+
+```bash
+git add test-specs/<item_id>.yml
+git commit -m "generate-tests(<item_id>): <scenario_count> scenarios, coverage=<coverage>" \
+  --trailer "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+git push origin HEAD -u
+```
 
 ### Step 6 — Summarize
 
@@ -117,20 +125,14 @@ This converts the CLI-ready JSON (with `expect.rows`) to dbt unit test YAML form
      ok: 1 | partial: 1 | error: 1
    ```
 
-4. If all items errored, skip commit/PR — report errors only and stop.
-5. Ask the user: commit and push? Stage only dbt YAML files from successful items (`test-specs/<item_id>.yml`). Do not stage `.migration-runs/` or intermediate JSON files. Check for an existing open PR on the branch via `gh pr list --head <slug> --state open --json number,url`. If one exists, update it with `gh pr edit` instead of creating a new PR. PR body format:
+4. If all items errored, report errors only and stop.
+5. Ask the user:
 
-   ```markdown
-   ## Test Generation — N tables
+   > All successful items have been committed and pushed.
+   > Raise a PR for this run? (y/n)
 
-   | Table | Status | Branches | Scenarios | Coverage | Review |
-   |---|---|---|---|---|---|
-   | silver.DimCustomer | ok | 8 | 8 | complete | approved |
-   | silver.DimProduct | partial | 6 | 4 | partial | approved_with_warnings |
-   | silver.DimDate | error | — | — | — | PROFILE_NOT_COMPLETED |
-   ```
-
-6. After the PR is created or updated, tell the user:
+   If yes: run `/commit-push-pr generate-tests <comma-separated list of successfully processed tables>`.
+   After the PR is created or updated, tell the user:
 
    ```text
    PR #<number> is open: <pr_url>

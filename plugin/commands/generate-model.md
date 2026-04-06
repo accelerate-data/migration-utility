@@ -26,7 +26,8 @@ Per-item guards are checked by the skill via `migrate-util guard`.
 ### Step 1 — Setup
 
 1. Generate run slug: `generate-model-<table1>-<table2>-...` (lowercase, dots replaced with hyphens, truncated to 60 characters).
-2. Check for existing worktrees. If any exist, list them as options alongside creating a new one and ask the user to pick:
+2. Run the `git-checkpoints` skill with the run slug as the argument. If it returns a worktree path, use that path as the working directory for all file writes and git operations in this run.
+   If not on `main` (git-checkpoints returns empty), check for existing worktrees. If any exist, list them as options alongside creating a new one and ask the user to pick:
    > 1. `feature/scope-silver-dimcustomer`
    > 2. `feature/profile-silver-dimcustomer`
    > 3. **New worktree**
@@ -35,7 +36,7 @@ Per-item guards are checked by the skill via `migrate-util guard`.
 
 ### Step 2 — Run migration:generating-model per table
 
-**Single-table path (1 table):** Run `migration:generating-model` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<epoch>.json`. Then continue to Step 3.
+**Single-table path (1 table):** Run `migration:generating-model` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<epoch>.json`. Then continue to Step 3 (review).
 
 **Multi-table path (2+ tables):** Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
 
@@ -54,21 +55,34 @@ Return the item result JSON.
 
 For each item, read `.migration-runs/<item_id>.<epoch>.json` from Step 2. If `status` is `error`, skip the item. For each remaining item, invoke `/reviewing-model <item_id>`.
 
-- If verdict is `approved`: proceed to revert/summarize.
+- If verdict is `approved`: proceed to Step 3a.
 - `revision_requested`: invoke `/generating-model <item_id>` with the reviewer's `feedback_for_model_generator` as additional context. The model-generator must re-run `dbt test` to confirm unit tests still pass after revisions. Then invoke `/reviewing-model <item_id>` again. Maximum 2 review iterations per item.
-- On review failure or max iterations reached, approve with warnings and proceed.
+- On review failure or max iterations reached: approve with warnings and proceed to Step 3a.
 
-### Step 4 — Revert errored items
+**Step 3a — Commit or revert per item (runs after review completes)**
 
-For each item with `status: "error"`, revert any files the skill may have partially written:
+Derive `<model_name>` from item_id using the `stg_<table>` convention.
+
+If the item final status is `error`, revert any files the skill may have partially written:
 
 ```bash
 git checkout -- dbt/models/staging/<model_name>.sql dbt/models/staging/_<model_name>.yml
 ```
 
-Derive `<model_name>` from the item_id using the same `stg_<table>` convention. Ignore errors from `git checkout` (the files may not exist yet for new models — use `rm -f` instead if the model was newly created and has no prior version).
+Use `rm -f` instead of `git checkout` for newly created files with no prior version.
 
-### Step 5 — Summarize
+If the item final status is not `error`, auto-commit and push this item's output:
+
+```bash
+git add dbt/models/staging/<model_name>.sql dbt/models/staging/_<model_name>.yml
+git commit -m "generate-model(<item_id>): <model_name> (<materialization>), review=<verdict>" \
+  --trailer "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+git push origin HEAD -u
+```
+
+For multi-table sub-agents: include Step 3a instructions in the sub-agent prompt at the end of the review loop.
+
+### Step 4 — Summarize
 
 1. Read each `.migration-runs/<schema.table>.<epoch>.json`.
 2. Write `.migration-runs/summary.<epoch>.json` with `{total, ok, partial, error}` counts and per-item status.
@@ -84,20 +98,14 @@ Derive `<model_name>` from the item_id using the same `stg_<table>` convention. 
      ok: 1 | partial: 1 | error: 1
    ```
 
-4. If all items errored, skip commit/PR — report errors only and stop.
-5. Ask the user: commit and push? Stage only files changed by successful items (model SQL and schema YAML files). Do not stage `.migration-runs/`. Check for an existing open PR on the branch via `gh pr list --head <slug> --state open --json number,url`. If one exists, update it with `gh pr edit` instead of creating a new PR. PR body format:
+4. If all items errored, report errors only and stop.
+5. Ask the user:
 
-   ```markdown
-   ## Model Generation — N tables
+   > All successful items have been committed and pushed.
+   > Raise a PR for this run? (y/n)
 
-   | Table | Status | Model | Materialized | dbt compile |
-   |---|---|---|---|---|
-   | silver.DimCustomer | ok | stg_dimcustomer | incremental | passed |
-   | silver.DimProduct | partial | stg_dimproduct | table | EQUIVALENCE_GAP |
-   | silver.DimDate | error | — | — | PROFILE_NOT_COMPLETED |
-   ```
-
-6. After the PR is created or updated, tell the user:
+   If yes: run `/commit-push-pr generate-model <comma-separated list of successfully processed tables>`.
+   After the PR is created or updated, tell the user:
 
    ```text
    PR #<number> is open: <pr_url>
