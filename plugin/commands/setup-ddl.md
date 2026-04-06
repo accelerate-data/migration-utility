@@ -18,6 +18,16 @@ Before starting, verify:
 
    `MSSQL_DB` must be set (use `master` if no specific default is needed) — genai-toolbox binds it at connection init. Confirm `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, and `SA_PASSWORD` are set. If any are missing, tell the user and stop.
 
+## Before invoking
+
+Run the stage guard:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard _ setup-ddl
+```
+
+If `passed` is `false`, report the failing guard's `code` and `message` to the user and stop.
+
 ## Safety
 
 - Use `mssql:mssql-execute-sql` for all SQL Server queries — never use native tools to connect to the database directly.
@@ -28,18 +38,14 @@ Before starting, verify:
 
 1. Run `pwd` and show the resolved path. Ask the user: "Is this the correct project root?" If the user says no, tell them to `cd` to the correct directory and re-run the skill. Stop.
 
-2. Check whether `manifest.json` exists in the current directory:
+2. Read `manifest.json`. If `source_database` is set, use it as `<database>` for all subsequent SQL blocks and show the user:
 
-   - **Present** → read `source_database` and `extracted_schemas` from it. Use `source_database` as `<database>` for all subsequent SQL blocks. Show the user:
+   ```text
+   Project root locked to database: <source_database>
+   Previously extracted schemas: <extracted_schemas>
+   ```
 
-     ```text
-     Project root locked to database: <source_database>
-     Previously extracted schemas: <extracted_schemas>
-     ```
-
-     Then **skip Step 1** and proceed directly to **Step 2 — Select schemas**.
-
-   - **Absent** → proceed to Step 1 as normal.
+   Then **skip Step 1** and proceed directly to **Step 2 — Select schemas**. Otherwise proceed to Step 1.
 
 If `ddl/` or `catalog/` already exists in the project root, warn the user:
 
