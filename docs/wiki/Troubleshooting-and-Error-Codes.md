@@ -39,8 +39,8 @@ These errors indicate that scoping has not been completed for a table.
 
 | Code | Message | Command | Fix |
 |---|---|---|---|
-| `SCOPING_NOT_COMPLETED` | `scoping.selected_writer` missing in catalog | `/status`, profile/test-gen/migrate guards | Run `/scope <table>` or `/analyzing-table <table>` to discover and resolve the writer |
-| `STATEMENTS_NOT_RESOLVED` | One or more statements not resolved to `migrate` or `skip` | `/status`, profile/test-gen/migrate guards | Run `/scope <table>` to resolve remaining statements. Use `/listing-objects show <proc>` to inspect unresolved statements |
+| `SCOPING_NOT_COMPLETED` | `scoping.selected_writer` missing in catalog | `/status`, profile/test-gen/refactor/migrate guards | Run `/scope <table>` or `/analyzing-table <table>` to discover and resolve the writer |
+| `STATEMENTS_NOT_RESOLVED` | One or more statements not resolved to `migrate` or `skip` | `/status`, profile/test-gen/refactor/migrate guards | Run `/scope <table>` to resolve remaining statements. Use `/listing-objects show <proc>` to inspect unresolved statements |
 
 ### Common scoping issues
 
@@ -58,7 +58,7 @@ These errors indicate that profiling has not been completed.
 
 | Code | Message | Command | Fix |
 |---|---|---|---|
-| `PROFILE_NOT_COMPLETED` | Profile section missing or status is not `ok`/`partial` | `/status`, test-gen/migrate guards | Run `/profile <table>` or `/profiling-table <table>` |
+| `PROFILE_NOT_COMPLETED` | Profile section missing or status is not `ok`/`partial` | `/status`, test-gen/refactor/migrate guards | Run `/profile <table>` or `/profiling-table <table>` |
 
 ### Common profiling issues
 
@@ -72,8 +72,8 @@ These errors relate to sandbox setup and test spec creation.
 
 | Code | Message | Command | Fix |
 |---|---|---|---|
-| `SANDBOX_NOT_CONFIGURED` | Sandbox metadata (`database`) missing from manifest | `/status`, test-gen/migrate guards | Run `/setup-sandbox` to create the throwaway test database |
-| `TEST_SPEC_NOT_FOUND` | `test-specs/<table>.json` not found | `/status`, migrate guards | Run `/generate-tests <table>` or `/generating-tests <table>` |
+| `SANDBOX_NOT_CONFIGURED` | Sandbox metadata (`database`) missing from manifest | `/status`, test-gen/refactor/migrate guards | Run `/setup-sandbox` to create the throwaway test database |
+| `TEST_SPEC_NOT_FOUND` | `test-specs/<table>.json` not found | `/status`, refactor/migrate guards | Run `/generate-tests <table>` or `/generating-tests <table>` |
 | `SANDBOX_DOWN_FAILED` | Sandbox teardown failed | `/teardown-sandbox` | Check SQL Server connectivity and permissions. Verify the database exists |
 
 ### Common test generation issues
@@ -85,6 +85,20 @@ The sandbox requires a running SQL Server instance. Locally, this is typically a
 **Stored procedure requires parameters**
 
 When a stored procedure needs parameters to execute, the test generator infers defaults or asks the FDE inline. If execution fails, check the procedure's parameter list via `/listing-objects show <proc>` and provide appropriate values.
+
+## SQL refactoring errors
+
+These errors indicate that the refactor stage has not been completed.
+
+| Code | Message | Command | Fix |
+|---|---|---|---|
+| `REFACTOR_NOT_COMPLETED` | Refactor section missing or `refactored_sql` absent | `/status`, migrate guard | Run `/refactor <table>` or `/refactoring-sql <table>` |
+
+### Common refactoring issues
+
+**Audit loop does not converge**
+
+The refactoring skill self-corrects the refactored SQL until the sandbox equivalence audit passes. If the loop does not converge after several iterations, the proc may have side effects (temp tables, dynamic SQL) that complicate equivalence checking. Review the audit output and manually verify the refactored SQL before proceeding.
 
 ## Migration errors
 
@@ -102,21 +116,22 @@ The model generator self-corrects up to 3 iterations when `dbt test` fails. If i
 
 **Model not found in dbt project**
 
-The model generator writes to `dbt/models/staging/`. If the dbt project was not scaffolded, run `/init-dbt` first. Verify with `/status <table>` that the `dbt_model_exists` flag is set.
+The model generator writes to `dbt/models/staging/` and `dbt/models/marts/`. If the dbt project was not scaffolded, run `/init-dbt` first. Verify with `/status <table>` that the `dbt_model_exists` flag is set.
 
 ## Guard check reference
 
 Quick reference for which guards apply to each stage:
 
-| Guard | scope | profile | test-gen | migrate |
-|---|---|---|---|---|
-| `manifest_exists` | yes | yes | yes | yes |
-| `table_catalog_exists` | yes | yes | yes | yes |
-| `selected_writer_set` | | yes | yes | yes |
-| `statements_resolved` | | yes | yes | yes |
-| `profile_completed` | | | yes | yes |
-| `sandbox_configured` | | | yes | yes |
-| `test_spec_exists` | | | | yes |
+| Guard | scope | profile | test-gen | refactor | migrate |
+|---|---|---|---|---|---|
+| `manifest_exists` | yes | yes | yes | yes | yes |
+| `table_catalog_exists` | yes | yes | yes | yes | yes |
+| `selected_writer_set` | | yes | yes | yes | yes |
+| `statements_resolved` | | yes | yes | yes | yes |
+| `profile_completed` | | | yes | yes | yes |
+| `sandbox_configured` | | | yes | yes | yes |
+| `test_spec_exists` | | | | yes | yes |
+| `refactor_completed` | | | | | yes |
 
 ## CLI exit codes
 
@@ -136,6 +151,7 @@ The `migrate-util dry-run` CLI uses these exit codes:
 - [[Stage 2 Profiling]] -- table classification and profiling questions
 - [[Stage 3 Test Generation]] -- test spec creation
 - [[Stage 4 Sandbox Setup]] -- sandbox database setup
+- [[Stage 5 SQL Refactoring]] -- SQL restructuring and equivalence audit
 - [[Stage 4 Model Generation]] -- dbt model generation
 - [[Cleanup and Teardown]] -- sandbox teardown and worktree cleanup
 - [[Glossary]] -- definitions of terms used in error messages

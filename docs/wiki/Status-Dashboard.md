@@ -6,21 +6,21 @@ The `/status` command shows migration progress across all pipeline stages. It ru
 
 ### Batch summary (no arguments)
 
-Running `/status` with no arguments enumerates every table in `catalog/tables/` and checks each one against the four pipeline stages in order: `scope`, `profile`, `test-gen`, `migrate`.
+Running `/status` with no arguments enumerates every table in `catalog/tables/` and checks each one against the five pipeline stages in order: `scope`, `profile`, `test-gen`, `refactor`, `migrate`.
 
 The output is a summary table:
 
 ```text
 migration status -- 4 tables
 
-  Table                   scope      profile    test-gen   migrate
-  ----------------------------------------------------------------
-  silver.DimCustomer      resolved   ok         ok         pending
-  silver.DimProduct       resolved   partial    blocked    blocked
-  silver.DimDate          resolved   pending    blocked    blocked
-  silver.FactSales        pending    blocked    blocked    blocked
+  Table                   scope      profile    test-gen   refactor   migrate
+  --------------------------------------------------------------------------
+  silver.DimCustomer      resolved   ok         ok         ok         pending
+  silver.DimProduct       resolved   partial    blocked    blocked    blocked
+  silver.DimDate          resolved   pending    blocked    blocked    blocked
+  silver.FactSales        pending    blocked    blocked    blocked    blocked
 
-  scope: 3/4 | profile: 2/4 | test-gen: 1/4 | migrate: 0/4
+  scope: 3/4 | profile: 2/4 | test-gen: 1/4 | refactor: 1/4 | migrate: 0/4
 ```
 
 For each table, stages are checked in order. When a stage fails its guards, all subsequent stages are marked `blocked` and no further checks run for that table.
@@ -51,9 +51,13 @@ status for silver.DimCustomer
     branches: 4, tests: 6
     sandbox: __test_abc123
 
+  refactor ✓
+    status: ok
+    has_refactored_sql: true
+
   migrate x -- pending
-    guard failed: TEST_SPEC_NOT_FOUND
-    -> Run /generating-tests silver.DimCustomer
+    guard failed: REFACTOR_NOT_COMPLETED
+    -> Run /refactor silver.DimCustomer
 ```
 
 For completed stages, key signals are shown. For the first failing stage, the failing guard is displayed with a suggested command to fix it.
@@ -63,7 +67,7 @@ For completed stages, key signals are shown. For the first failing stage, the fa
 | Value | Meaning |
 |---|---|
 | `resolved` | Scoping complete -- selected writer and all statements resolved |
-| `ok` | Profile or test-gen completed successfully |
+| `ok` | Profile, test-gen, or refactor completed successfully |
 | `partial` | Profile completed but some questions unanswered |
 | `pending` | This is the next stage to work on |
 | `blocked` | A prior stage has not been completed |
@@ -73,7 +77,7 @@ For completed stages, key signals are shown. For the first failing stage, the fa
 After the summary table, `/status` provides LLM-driven analysis:
 
 - **Patterns** -- cross-table observations like "5 tables blocked at profiling, all missing watermark column" or "all scoped tables have resolved writers, profiling is the bottleneck"
-- **Next action** -- the single most impactful command to run next, e.g. "Run `/profile silver.DimDate silver.FactSales` to unblock 2 tables"
+- **Next action** -- the single most impactful command to run next, e.g. "Run `/refactor silver.DimDate silver.FactSales` to unblock 2 tables"
 
 ## Dry-run guard checks
 
@@ -84,7 +88,8 @@ Each stage has an ordered set of prerequisite guards. Guards run in sequence and
 | `scope` | manifest exists, table catalog exists |
 | `profile` | manifest exists, table catalog exists, selected writer set, statements resolved |
 | `test-gen` | manifest exists, table catalog exists, selected writer set, statements resolved, profile completed, sandbox configured |
-| `migrate` | manifest exists, table catalog exists, selected writer set, statements resolved, profile completed, sandbox configured, test spec exists |
+| `refactor` | manifest exists, table catalog exists, selected writer set, statements resolved, profile completed, sandbox configured, test spec exists |
+| `migrate` | manifest exists, table catalog exists, selected writer set, statements resolved, profile completed, sandbox configured, test spec exists, refactor completed |
 
 ## Error codes
 
@@ -101,6 +106,7 @@ These are the error codes returned by `migrate-util dry-run` when a guard fails:
 | `PROFILE_NOT_COMPLETED` | `profile_completed` | Profile section missing or status is not `ok`/`partial` | Run `/profile <table>` or `/profiling-table <table>` |
 | `SANDBOX_NOT_CONFIGURED` | `sandbox_configured` | Sandbox metadata (`database`) missing from manifest | Run `/setup-sandbox` to create the test database |
 | `TEST_SPEC_NOT_FOUND` | `test_spec_exists` | `test-specs/<table>.json` not found | Run `/generate-tests <table>` or `/generating-tests <table>` |
+| `REFACTOR_NOT_COMPLETED` | `refactor_completed` | Refactor section missing or no `refactored_sql` in catalog | Run `/refactor <table>` or `/refactoring-sql <table>` |
 
 ## Exit codes
 
@@ -118,5 +124,6 @@ The `migrate-util dry-run` CLI uses these exit codes:
 - [[Stage 1 Scoping]] -- fixing `SCOPING_NOT_COMPLETED` and `STATEMENTS_NOT_RESOLVED`
 - [[Stage 2 Profiling]] -- fixing `PROFILE_NOT_COMPLETED`
 - [[Stage 3 Test Generation]] -- fixing `SANDBOX_NOT_CONFIGURED` and `TEST_SPEC_NOT_FOUND`
+- [[Stage 5 SQL Refactoring]] -- fixing `REFACTOR_NOT_COMPLETED`
 - [[Stage 4 Model Generation]] -- dbt model generation
 - [[Troubleshooting and Error Codes]] -- full error code index

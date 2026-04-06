@@ -35,6 +35,12 @@ Test Generation (/generate-tests)
   └─────────────────────────┘
     │
     ▼
+SQL Refactoring (/refactor)
+  ┌─────────────────────────────────────────┐
+  │ restructure into CTEs → audit loop      │  self-corrects until equivalence passes
+  └─────────────────────────────────────────┘
+    │
+    ▼
 Model Generation (/generate-model)
   ┌─────────────────────────┐
   │ generate → dbt test     │  ≤3 self-corrections

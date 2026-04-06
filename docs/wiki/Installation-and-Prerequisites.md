@@ -16,25 +16,39 @@ This page covers the tools, environment variables, and verification steps needed
 
 | Tool | When needed | Purpose |
 |---|---|---|
-| [genai-toolbox](https://github.com/googleapis/genai-toolbox/releases) (`toolbox`) | Live DB extraction via `/setup-ddl` | HTTP-mode MCP server that bridges Claude Code to SQL Server |
+| [genai-toolbox](https://github.com/googleapis/genai-toolbox/releases) (`toolbox`) | Live SQL Server extraction via `/setup-ddl` | HTTP-mode MCP server that bridges Claude Code to SQL Server |
+| [SQLcl](https://www.oracle.com/database/sqldeveloper/technologies/sqlcl/) (`sql`) | Oracle source projects | CLI tool that provides the Oracle MCP server via `sql -mcp`; requires Java 11+ |
+| Java 11+ | Oracle source projects | Runtime required by SQLcl |
 | [direnv](https://direnv.net) | Recommended for all projects | Auto-loads `.envrc` credentials when you enter the project directory; keeps secrets out of shell history |
 
 ## Environment Variables
 
-These four variables configure SQL Server connectivity. They are read by the `mssql` MCP server at startup via environment inheritance, so they must be set **before** launching `claude`.
+The variables required depend on your source technology. The `/init-ad-migration` command scaffolds a `.envrc` with only the variables for the selected source.
+
+### SQL Server
 
 | Variable | Description | Example |
 |---|---|---|
 | `MSSQL_HOST` | SQL Server hostname or IP | `localhost` |
 | `MSSQL_PORT` | SQL Server port | `1433` |
-| `MSSQL_DB` | Default database (use `master` if no specific default) | `AdventureWorksDW` |
+| `MSSQL_DB` | Default database | `AdventureWorksDW` |
 | `SA_PASSWORD` | SQL login password | _(from env)_ |
 
-All four are required for `/setup-ddl`, `/setup-sandbox`, `/generate-tests`, and any other live-database skill. They are not needed for DDL-file-import mode.
+All four are required for `/setup-ddl`, `/setup-sandbox`, `/generate-tests`, `/refactor`, and any other live-database skill.
+
+### Oracle
+
+| Variable | Description | Example |
+|---|---|---|
+| `ORACLE_HOST` | Oracle hostname or IP | `localhost` |
+| `ORACLE_PORT` | Oracle listener port | `1521` |
+| `ORACLE_SERVICE` | Oracle service name | `FREEPDB1` |
+| `ORACLE_USER` | Oracle username | `sh` |
+| `ORACLE_PASSWORD` | Oracle password | _(from env)_ |
 
 ### Setting variables with direnv (recommended)
 
-The `/init-ad-migration` command scaffolds a `.envrc` template. Fill in your values and run:
+The `/init-ad-migration` command scaffolds a `.envrc` template containing only the variables for your selected source. Fill in your values and run:
 
 ```bash
 direnv allow
@@ -45,10 +59,18 @@ direnv allow
 Export them in your shell before launching `claude`:
 
 ```bash
+# SQL Server
 export MSSQL_HOST=localhost
 export MSSQL_PORT=1433
 export MSSQL_DB=AdventureWorksDW
 export SA_PASSWORD=<your-password>
+
+# Oracle
+export ORACLE_HOST=localhost
+export ORACLE_PORT=1521
+export ORACLE_SERVICE=FREEPDB1
+export ORACLE_USER=sh
+export ORACLE_PASSWORD=<your-password>
 ```
 
 ## Loading the Plugin
@@ -66,7 +88,7 @@ Alternatively, for local development, load the plugin directly:
 claude --plugin-dir plugin/
 ```
 
-The `ad-migration` plugin provides all 10 pipeline commands and 9 skills in a single package.
+The `ad-migration` plugin provides all pipeline commands and skills in a single package.
 
 ## Verifying Setup
 
@@ -76,26 +98,7 @@ Run the initialization command inside your Claude Code session:
 /init-ad-migration
 ```
 
-This checks every prerequisite silently and presents a status display:
-
-```text
-Plugin status:
-  uv:          ok installed (x.y.z)  /  not found
-  python:      ok 3.x.x              /  not found or < 3.11
-  shared deps: ok synced             /  not synced
-  ddl_mcp:     ok starts             /  fails
-  toolbox:     ok installed (x.y.z)  /  not found (optional)
-  direnv:      ok installed (x.y.z)  /  not found (recommended)
-  git:         ok repo detected      /  not a git repo (recommended)
-
-  SQL Server credentials (required for /setup-ddl and live-DB skills):
-  MSSQL_HOST:  ok set  /  not set
-  MSSQL_PORT:  ok set  /  not set
-  MSSQL_DB:    ok set  /  not set
-  SA_PASSWORD: ok set  /  not set
-```
-
-Missing required tools trigger an installation flow. Missing optional tools (`toolbox`, `direnv`) and unset MSSQL variables are flagged but do not block setup of the core tools.
+This prompts for source technology selection, then checks every prerequisite silently and presents a status display grouped by source. See [[Stage 1 Project Init]] for full details on the status display format and what each check covers.
 
 ## Next Step
 
