@@ -1062,8 +1062,9 @@ class TestListSchemasSqlServerIntegration:
         assert len(out["schemas"]) > 0
         for entry in out["schemas"]:
             assert "schema" in entry
-            assert "object_count" in entry
-            assert isinstance(entry["object_count"], int)
+            for field in ("tables", "procedures", "views", "functions"):
+                assert field in entry
+                assert isinstance(entry[field], int)
 
 
 # ── Integration: list-schemas Oracle (Docker) ────────────────────────────────
@@ -1085,7 +1086,7 @@ class TestListSchemasOracleIntegration:
         owners = {entry["owner"] for entry in out["schemas"]}
         assert "SH" in owners
         sh_entry = next(e for e in out["schemas"] if e["owner"] == "SH")
-        assert sh_entry["object_count"] > 0
+        assert sh_entry["tables"] > 0
 
 
 # ── Unit: extract arg validation ─────────────────────────────────────────────
