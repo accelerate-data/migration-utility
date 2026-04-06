@@ -1,0 +1,367 @@
+from __future__ import annotations
+
+import json
+import logging
+import os
+from pathlib import Path
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+
+# ── Connection ────────────────────────────────────────────────────────────────
+
+
+def _oracle_connect() -> Any:
+    """Open an oracledb connection to Oracle.
+
+    Reads ORACLE_USER, ORACLE_PASSWORD, ORACLE_DSN from the environment.
+    Raises ValueError if required variables are missing.
+    Raises RuntimeError if oracledb is not installed.
+    """
+    try:
+        import oracledb  # type: ignore[import-untyped]
+    except ImportError as exc:
+        raise RuntimeError(
+            "oracledb is required for Oracle connectivity. "
+            "Install it with: uv pip install oracledb"
+        ) from exc
+
+    user = os.environ.get("ORACLE_USER", "")
+    password = os.environ.get("ORACLE_PASSWORD", "")
+    dsn = os.environ.get("ORACLE_DSN", "")
+
+    missing = [name for name, val in [
+        ("ORACLE_USER", user), ("ORACLE_PASSWORD", password), ("ORACLE_DSN", dsn),
+    ] if not val]
+    if missing:
+        raise ValueError(f"Required environment variables not set: {missing}")
+
+    return oracledb.connect(user=user, password=password, dsn=dsn)
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+
+def _oracle_type_to_class_desc(oracle_type: str) -> str:
+    mapping = {
+        "TABLE": "USER_TABLE",
+        "VIEW": "VIEW",
+        "PROCEDURE": "SQL_STORED_PROCEDURE",
+        "FUNCTION": "SQL_SCALAR_FUNCTION",
+        "PACKAGE": "SQL_STORED_PROCEDURE",
+    }
+    return mapping.get(oracle_type.upper(), oracle_type.upper())
+
+
+def _cursor_rows(cursor: Any) -> list[dict[str, Any]]:
+    """Return all rows from a cursor as a list of dicts keyed by column name."""
+    columns = [col[0] for col in cursor.description]
+    return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+
+def _owners_sql(schemas: list[str]) -> str:
+    for s in schemas:
+        if "'" in s or ";" in s:
+            raise ValueError(f"Invalid schema name: {s!r}")
+    return ", ".join(f"'{s.upper()}'" for s in schemas)
+
+
+def _write(staging_dir: Path, filename: str, rows: list[Any]) -> None:
+    path = staging_dir / filename
+    path.write_text(json.dumps(rows, default=str), encoding="utf-8")
+    logger.info("event=oracle_query file=%s rows=%d", filename, len(rows))
+
+
+# ── Extraction functions ──────────────────────────────────────────────────────
+
+
+def _extract_definitions(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
+    owners = _owners_sql(schemas)
+    cur = conn.cursor()
+    cur.execute(
+        f"""
+        SELECT OWNER, OBJECT_NAME, OBJECT_TYPE
+        FROM ALL_OBJECTS
+        WHERE OBJECT_TYPE IN ('PROCEDURE', 'VIEW', 'FUNCTION')
+          AND OWNER IN ({owners})
+        ORDER BY OWNER, OBJECT_TYPE, OBJECT_NAME
+        """
+    )
+    objects = _cursor_rows(cur)
+
+    rows: list[dict[str, Any]] = []
+    for obj in objects:
+        fqn = f"{obj['OWNER']}.{obj['OBJECT_TYPE']}.{obj['OBJECT_NAME']}"
+        try:
+            ddl_cur = conn.cursor()
+            ddl_cur.execute(
+                "SELECT DBMS_METADATA.GET_DDL(:obj_type, :obj_name, :owner) FROM DUAL",
+                obj_type=obj["OBJECT_TYPE"],
+                obj_name=obj["OBJECT_NAME"],
+                owner=obj["OWNER"],
+            )
+            result = ddl_cur.fetchone()
+            definition = result[0].read() if hasattr(result[0], "read") else str(result[0])
+            rows.append({
+                "schema_name": obj["OWNER"],
+                "object_name": obj["OBJECT_NAME"],
+                "definition": definition,
+            })
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("event=oracle_ddl_skip object=%s error=%s", fqn, exc)
+
+    return rows
+
+
+def _extract_table_columns(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
+    owners = _owners_sql(schemas)
+    cur = conn.cursor()
+    cur.execute(
+        f"""
+        SELECT OWNER, TABLE_NAME, COLUMN_NAME, COLUMN_ID, DATA_TYPE,
+               DATA_LENGTH, DATA_PRECISION, DATA_SCALE, NULLABLE, IDENTITY_COLUMN
+        FROM ALL_TAB_COLUMNS
+        WHERE OWNER IN ({owners})
+        ORDER BY OWNER, TABLE_NAME, COLUMN_ID
+        """
+    )
+    rows = []
+    for row in _cursor_rows(cur):
+        rows.append({
+            "schema_name": row["OWNER"],
+            "table_name": row["TABLE_NAME"],
+            "column_name": row["COLUMN_NAME"],
+            "column_id": row["COLUMN_ID"],
+            "type_name": row["DATA_TYPE"],
+            "max_length": row["DATA_LENGTH"] if row["DATA_LENGTH"] is not None else 0,
+            "precision": row["DATA_PRECISION"] if row["DATA_PRECISION"] is not None else 0,
+            "scale": row["DATA_SCALE"] if row["DATA_SCALE"] is not None else 0,
+            "is_nullable": 1 if row["NULLABLE"] == "Y" else 0,
+            "is_identity": 1 if row.get("IDENTITY_COLUMN") == "YES" else 0,
+            "seed_value": None,
+            "increment_value": None,
+        })
+    return rows
+
+
+def _extract_pk_unique(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
+    owners = _owners_sql(schemas)
+    cur = conn.cursor()
+    cur.execute(
+        f"""
+        SELECT c.OWNER, c.TABLE_NAME, c.CONSTRAINT_NAME, c.CONSTRAINT_TYPE,
+               cc.COLUMN_NAME, cc.POSITION
+        FROM ALL_CONSTRAINTS c
+        JOIN ALL_CONS_COLUMNS cc ON cc.OWNER = c.OWNER
+          AND cc.CONSTRAINT_NAME = c.CONSTRAINT_NAME
+          AND cc.TABLE_NAME = c.TABLE_NAME
+        WHERE c.CONSTRAINT_TYPE IN ('P', 'U')
+          AND c.OWNER IN ({owners})
+        ORDER BY c.OWNER, c.TABLE_NAME, c.CONSTRAINT_NAME, cc.POSITION
+        """
+    )
+    rows = []
+    for row in _cursor_rows(cur):
+        rows.append({
+            "schema_name": row["OWNER"],
+            "table_name": row["TABLE_NAME"],
+            "index_name": row["CONSTRAINT_NAME"],
+            "is_unique": 1,
+            "is_primary_key": 1 if row["CONSTRAINT_TYPE"] == "P" else 0,
+            "column_name": row["COLUMN_NAME"],
+            "key_ordinal": row["POSITION"],
+        })
+    return rows
+
+
+def _extract_foreign_keys(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
+    owners = _owners_sql(schemas)
+    cur = conn.cursor()
+    cur.execute(
+        f"""
+        SELECT c.OWNER, c.TABLE_NAME, c.CONSTRAINT_NAME,
+               cc.COLUMN_NAME, cc.POSITION,
+               rc.OWNER AS REF_OWNER, rc.TABLE_NAME AS REF_TABLE_NAME,
+               rcc.COLUMN_NAME AS REF_COLUMN_NAME
+        FROM ALL_CONSTRAINTS c
+        JOIN ALL_CONS_COLUMNS cc ON cc.OWNER = c.OWNER
+          AND cc.CONSTRAINT_NAME = c.CONSTRAINT_NAME
+        JOIN ALL_CONSTRAINTS rc ON rc.CONSTRAINT_NAME = c.R_CONSTRAINT_NAME
+          AND rc.OWNER = c.R_OWNER
+        JOIN ALL_CONS_COLUMNS rcc ON rcc.OWNER = rc.OWNER
+          AND rcc.CONSTRAINT_NAME = rc.CONSTRAINT_NAME
+          AND rcc.POSITION = cc.POSITION
+        WHERE c.CONSTRAINT_TYPE = 'R'
+          AND c.OWNER IN ({owners})
+        ORDER BY c.OWNER, c.TABLE_NAME, c.CONSTRAINT_NAME, cc.POSITION
+        """
+    )
+    rows = []
+    for row in _cursor_rows(cur):
+        rows.append({
+            "schema_name": row["OWNER"],
+            "table_name": row["TABLE_NAME"],
+            "constraint_name": row["CONSTRAINT_NAME"],
+            "column_name": row["COLUMN_NAME"],
+            "ref_schema": row["REF_OWNER"],
+            "ref_table": row["REF_TABLE_NAME"],
+            "ref_column": row["REF_COLUMN_NAME"],
+        })
+    return rows
+
+
+def _extract_identity_columns(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
+    owners = _owners_sql(schemas)
+    cur = conn.cursor()
+    cur.execute(
+        f"""
+        SELECT OWNER, TABLE_NAME, COLUMN_NAME
+        FROM ALL_TAB_COLUMNS
+        WHERE IDENTITY_COLUMN = 'YES'
+          AND OWNER IN ({owners})
+        """
+    )
+    rows = []
+    for row in _cursor_rows(cur):
+        rows.append({
+            "schema_name": row["OWNER"],
+            "table_name": row["TABLE_NAME"],
+            "column_name": row["COLUMN_NAME"],
+        })
+    return rows
+
+
+def _extract_object_types(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
+    type_map = {
+        "TABLE": "U",
+        "VIEW": "V",
+        "PROCEDURE": "P",
+        "FUNCTION": "FN",
+    }
+    owners = _owners_sql(schemas)
+    cur = conn.cursor()
+    cur.execute(
+        f"""
+        SELECT OWNER, OBJECT_NAME, OBJECT_TYPE
+        FROM ALL_OBJECTS
+        WHERE OBJECT_TYPE IN ('TABLE', 'VIEW', 'PROCEDURE', 'FUNCTION')
+          AND OWNER IN ({owners})
+          AND STATUS = 'VALID'
+        ORDER BY OWNER, OBJECT_TYPE, OBJECT_NAME
+        """
+    )
+    rows = []
+    for row in _cursor_rows(cur):
+        rows.append({
+            "schema_name": row["OWNER"],
+            "name": row["OBJECT_NAME"],
+            "type": type_map.get(row["OBJECT_TYPE"], row["OBJECT_TYPE"]),
+        })
+    return rows
+
+
+_VALID_DEP_TYPES = {"PROCEDURE", "VIEW", "FUNCTION"}
+
+
+def _extract_dmf(conn: Any, schemas: list[str], dep_type: str) -> list[dict[str, Any]]:
+    if dep_type not in _VALID_DEP_TYPES:
+        raise ValueError(f"dep_type must be one of {_VALID_DEP_TYPES}, got: {dep_type!r}")
+    owners = _owners_sql(schemas)
+    cur = conn.cursor()
+    cur.execute(
+        f"""
+        SELECT OWNER, NAME, REFERENCED_OWNER, REFERENCED_NAME, REFERENCED_TYPE
+        FROM ALL_DEPENDENCIES
+        WHERE TYPE = '{dep_type}'
+          AND REFERENCED_TYPE IN ('TABLE', 'VIEW', 'FUNCTION', 'PROCEDURE')
+          AND OWNER IN ({owners})
+        ORDER BY OWNER, NAME
+        """
+    )
+    rows = []
+    for row in _cursor_rows(cur):
+        rows.append({
+            "referencing_schema": row["OWNER"],
+            "referencing_name": row["NAME"],
+            "referenced_schema": row["REFERENCED_OWNER"],
+            "referenced_entity": row["REFERENCED_NAME"],
+            "referenced_minor_name": "",
+            "referenced_class_desc": _oracle_type_to_class_desc(row["REFERENCED_TYPE"]),
+            "is_selected": False,
+            "is_updated": False,
+            "is_select_all": False,
+            "is_insert_all": False,
+            "is_all_columns_found": False,
+            "is_caller_dependent": False,
+            "is_ambiguous": False,
+        })
+    return rows
+
+
+def _extract_proc_params(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
+    owners = _owners_sql(schemas)
+    cur = conn.cursor()
+    cur.execute(
+        f"""
+        SELECT OWNER, OBJECT_NAME, ARGUMENT_NAME, DATA_TYPE, DATA_LENGTH,
+               DATA_PRECISION, DATA_SCALE, IN_OUT, DEFAULTED
+        FROM ALL_ARGUMENTS
+        WHERE PACKAGE_NAME IS NULL
+          AND ARGUMENT_NAME IS NOT NULL
+          AND OWNER IN ({owners})
+        ORDER BY OWNER, OBJECT_NAME, SEQUENCE
+        """
+    )
+    rows = []
+    for row in _cursor_rows(cur):
+        rows.append({
+            "schema_name": row["OWNER"],
+            "proc_name": row["OBJECT_NAME"],
+            "param_name": row["ARGUMENT_NAME"],
+            "type_name": row["DATA_TYPE"],
+            "max_length": row["DATA_LENGTH"] if row["DATA_LENGTH"] is not None else 0,
+            "precision": row["DATA_PRECISION"] if row["DATA_PRECISION"] is not None else 0,
+            "scale": row["DATA_SCALE"] if row["DATA_SCALE"] is not None else 0,
+            "is_output": row["IN_OUT"] in ("OUT", "IN/OUT"),
+            "has_default_value": row["DEFAULTED"] == "Y",
+        })
+    return rows
+
+
+# ── Public entry point ────────────────────────────────────────────────────────
+
+
+def run_oracle_extraction(
+    staging_dir: Path,
+    schemas: list[str],
+) -> None:
+    """Connect to Oracle and run all extraction queries.
+
+    Writes staging JSON files to staging_dir. cdc.json, change_tracking.json,
+    and sensitivity.json are always written as empty lists (Oracle does not
+    support these signals).
+
+    Raises ValueError if connection env vars are missing.
+    Raises RuntimeError if oracledb is not installed.
+    """
+    logger.info("event=oracle_extract schemas=%s", schemas)
+
+    conn = _oracle_connect()
+    try:
+        _write(staging_dir, "definitions.json", _extract_definitions(conn, schemas))
+        _write(staging_dir, "table_columns.json", _extract_table_columns(conn, schemas))
+        _write(staging_dir, "pk_unique.json", _extract_pk_unique(conn, schemas))
+        _write(staging_dir, "foreign_keys.json", _extract_foreign_keys(conn, schemas))
+        _write(staging_dir, "identity_columns.json", _extract_identity_columns(conn, schemas))
+        _write(staging_dir, "object_types.json", _extract_object_types(conn, schemas))
+        _write(staging_dir, "proc_dmf.json", _extract_dmf(conn, schemas, "PROCEDURE"))
+        _write(staging_dir, "view_dmf.json", _extract_dmf(conn, schemas, "VIEW"))
+        _write(staging_dir, "func_dmf.json", _extract_dmf(conn, schemas, "FUNCTION"))
+        _write(staging_dir, "proc_params.json", _extract_proc_params(conn, schemas))
+        # Oracle does not support these signals — write empty lists for pipeline compatibility
+        _write(staging_dir, "cdc.json", [])
+        _write(staging_dir, "change_tracking.json", [])
+        _write(staging_dir, "sensitivity.json", [])
+    finally:
+        conn.close()
