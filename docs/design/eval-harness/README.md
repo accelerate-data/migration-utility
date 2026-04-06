@@ -1,22 +1,27 @@
 # Eval Harness
 
-Non-interactive test harness for skills and commands. Uses [Promptfoo](https://github.com/promptfoo/promptfoo) with the `anthropic:claude-agent-sdk` provider to invoke Claude Code against the MigrationTest schema, then validates structured output.
+Non-interactive test harness for skills and commands. Uses [Promptfoo](https://github.com/promptfoo/promptfoo) with the `anthropic:claude-agent-sdk` provider to invoke Claude Code against pre-committed fixtures, then validates structured output.
 
 ---
 
 ## Architecture
 
 ```text
-MigrationTest schema (Docker SQL Server)
+Offline regression (SQL Server + Oracle)
         │
-        ▼  (one-time extraction via setup-ddl + catalog-enrich)
-DDL project fixture (tests/evals/fixtures/migration-test/)
+        ▼  (fixtures pre-committed — no live DB needed)
+DDL project fixture (tests/evals/fixtures/migration-test/ or oracle-regression/fixtures/)
         │
         ▼  (Promptfoo invokes claude-agent-sdk per scenario)
 Claude Code agent ──► reads fixture ──► calls Python CLIs ──► produces output
         │
         ▼  (Promptfoo validates output)
 Assertions: custom JS validators check catalog JSON, dbt models, test specs, reviews
+
+Live DB (optional — requires Docker)
+        │
+        ▼  (setup-ddl extract writes to fixture_path at runtime)
+oracle-live / mssql-live packages — validate end-to-end extract → scope → profile
 ```
 
 Skills are tested via Promptfoo scenarios that invoke them non-interactively and validate their output. Commands (multi-table batch orchestrators) are tested via separate command eval packages that exercise parallel dispatch, error handling, review loops, and summary aggregation.
@@ -58,26 +63,29 @@ tests/evals/
     skill-generating-tests.txt         # prompt template for generating-tests skill
     skill-reviewing-tests.txt          # prompt template for reviewing-tests skill
     skill-reviewing-model.txt          # prompt template for reviewing-model skill
-    skill-analyzing-table.txt            # prompt template for analyzing-table skill
+    skill-analyzing-table.txt          # prompt template for analyzing-table skill
     skill-refactoring-sql.txt          # prompt template for refactoring-sql skill
     cmd-scope.txt                      # prompt template for /scope command
     cmd-profile.txt                    # prompt template for /profile command
     cmd-generate-model.txt             # prompt template for /generate-model command
     cmd-generate-tests.txt             # prompt template for /generate-tests command
     cmd-refactor.txt                   # prompt template for /refactor command
-  packages/
-    profiler/
+    cmd-live-pipeline.txt              # prompt template for live DB extract → scope → profile
+  packages/                            # SQL Server offline packages (use fixtures/migration-test/)
+    profiling-table/
       skill-profiling-table.yaml       # 5 scenarios
-    model-generator/
+    generating-model/
       skill-generating-model.yaml      # 19 scenarios
-    test-generator/
+    generating-tests/
       skill-generating-tests.yaml      # 3 scenarios
     reviewing-tests/
       skill-reviewing-tests.yaml       # 7 scenarios
     reviewing-model/
       skill-reviewing-model.yaml       # 8 scenarios
     analyzing-table/
-      skill-analyzing-table.yaml         # 8 scenarios
+      skill-analyzing-table.yaml       # 8 scenarios
+    refactoring-sql/
+      skill-refactoring-sql.yaml       # 9 scenarios
     cmd-scope/
       cmd-scope.yaml                   # 2 scenarios
     cmd-profile/
@@ -86,10 +94,21 @@ tests/evals/
       cmd-generate-model.yaml          # 3 scenarios
     cmd-generate-tests/
       cmd-generate-tests.yaml          # 3 scenarios
+    cmd-refactor/
+      cmd-refactor.yaml                # 4 scenarios
     cmd-status/
       cmd-status.yaml                  # 4 scenarios
+  oracle-regression/                   # Oracle offline package (SH schema fixtures)
+    promptfooconfig.yaml               # 5 per-command scenarios
+    fixtures/                          # pre-committed Oracle SH schema fixtures
+  oracle-live/                         # Oracle live DB package (requires Docker Oracle)
+    promptfooconfig.yaml               # 1 scenario: extract → scope → profile
+    fixtures/manifest.json             # technology: oracle, dialect: oracle
+  mssql-live/                          # SQL Server live DB package (requires Docker SQL Server)
+    promptfooconfig.yaml               # 1 scenario: extract → scope → profile
+    fixtures/manifest.json             # technology: mssql, dialect: tsql
   fixtures/
-    migration-test/                    # extracted DDL project (one-time)
+    migration-test/                    # extracted DDL project (one-time, SQL Server)
       manifest.json
       ddl/
       catalog/
@@ -105,13 +124,13 @@ The harness is organized into package-local Promptfoo configs plus one aggregate
 
 ### Skill packages
 
-Test individual skills in isolation (single-table, no orchestration).
+Test individual skills in isolation (single-table, no orchestration). All use `fixtures/migration-test/` (SQL Server).
 
 | Package | Skill | Scenarios |
 |---|---|---|
-| `profiler` | `/profiling-table` | 5 |
-| `model-generator` | `/generating-model` | 19 |
-| `test-generator` | `/generating-tests` | 3 |
+| `profiling-table` | `/profiling-table` | 5 |
+| `generating-model` | `/generating-model` | 19 |
+| `generating-tests` | `/generating-tests` | 3 |
 | `reviewing-tests` | `/reviewing-tests` | 7 |
 | `reviewing-model` | `/reviewing-model` | 8 |
 | `analyzing-table` | `/analyzing-table` | 8 (validates both scoping decisions and procedure catalog) |
@@ -127,10 +146,27 @@ Test batch command orchestration (multi-table dispatch, error handling, review l
 | `cmd-profile` | `/profile` | 2 |
 | `cmd-generate-model` | `/generate-model` | 3 |
 | `cmd-generate-tests` | `/generate-tests` | 3 |
-| `cmd-status` | `/status` | 4 |
 | `cmd-refactor` | `/refactor` | 4 |
+| `cmd-status` | `/status` | 4 |
 
-Use `promptfooconfig.yaml` for the full suite (skill scenarios only). Command packages are run individually via `npm run eval:cmd-*`.
+### Oracle regression package
+
+Per-command Oracle dialect coverage using pre-committed SH schema fixtures. No live DB required.
+
+| Package | Description | Scenarios |
+|---|---|---|
+| `oracle-regression` | scope / profile / generate-model / generate-tests / refactor against `SH.CHANNEL_SALES_SUMMARY` | 5 |
+
+### Live DB packages
+
+Validate the full extract → scope → profile pipeline against running Docker containers. Not run in CI — requires local Docker.
+
+| Package | DB | Scenarios |
+|---|---|---|
+| `oracle-live` | Docker Oracle (FREEPDB1, SH schema) | 1 |
+| `mssql-live` | Docker SQL Server (MigrationTest, silver schema) | 1 |
+
+Use `promptfooconfig.yaml` for the full suite (skill scenarios only). Command and dialect-specific packages are run individually.
 
 ---
 
@@ -144,25 +180,32 @@ cd tests/evals
 # Install dependencies (first time only)
 npm install
 
-# Full skill suite — all skill packages (40 scenarios)
+# Full skill suite — all SQL Server skill packages
 npm run eval
 
 # Single skill package
-npm run eval:profiler
-npm run eval:model-generator
-npm run eval:test-generator
-npm run eval:test-review
-npm run eval:code-review
+npm run eval:profiling-table
+npm run eval:generating-model
+npm run eval:generating-tests
+npm run eval:reviewing-tests
+npm run eval:reviewing-model
 npm run eval:analyzing-table
 npm run eval:refactoring-sql
 
-# Command packages (14 scenarios total, run individually)
+# Command packages (run individually)
 npm run eval:cmd-scope
 npm run eval:cmd-profile
 npm run eval:cmd-generate-model
 npm run eval:cmd-generate-tests
-npm run eval:cmd-status
 npm run eval:cmd-refactor
+npm run eval:cmd-status
+
+# Oracle regression (offline, no live DB needed)
+npm run eval:oracle-regression
+
+# Live DB packages (require Docker)
+npm run eval:oracle-live
+npm run eval:mssql-live
 
 # View results in browser
 npm run view
@@ -312,6 +355,18 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 | error+clean — no profile | DimGeography + InsertSelectTarget | Guard error for DimGeography, ok for InsertSelectTarget |
 | guard-fail — no scoping | DimPromotion | SCOPING_NOT_COMPLETED |
 | partial-ok — dynamic SQL | DimCurrency | Partial status acceptable |
+
+### Oracle regression (5 scenarios)
+
+Per-command Oracle dialect coverage against `SH.CHANNEL_SALES_SUMMARY` written by `SH.SUMMARIZE_CHANNEL_SALES`. All catalog stages are pre-committed; each test is fully independent.
+
+| Scenario | Command | Key assertion |
+|---|---|---|
+| scope — CHANNEL_SALES_SUMMARY resolves to SUMMARIZE_CHANNEL_SALES | `/scope` | `check-table-scoping.js` + `check-procedure-catalog.js` |
+| profile — CHANNEL_SALES_SUMMARY profiles as fact_aggregate | `/profile` | `check-table-profile.js` |
+| generate-model — CHANNEL_SALES_SUMMARY generates CTE dbt model | `/generate-model` | `check-dbt-model.js` |
+| generate-tests — SUMMARIZE_CHANNEL_SALES enumerates PL/SQL branches | `/generate-tests` | `check-test-spec.js`, min 3 branches |
+| refactor — CHANNEL_SALES_SUMMARY CTE restructured with final | `/refactor` | `check-refactored-sql.js` |
 
 ### Command: status (4 scenarios)
 
@@ -473,9 +528,8 @@ providers:
     config:
       model: claude-sonnet-4-6
       working_dir: ../..
-      max_turns: 80          # varies: 60-80 depending on package
-      permission_mode: bypassPermissions
-      allow_dangerously_skip_permissions: true
+      max_turns: 80          # varies: 60-120 depending on package
+      permission_mode: auto
       append_allowed_tools:
         - Read
         - Write              # omitted for test-review and code-review
@@ -484,8 +538,8 @@ providers:
         - Grep
 ```
 
-- `working_dir: ../..` — repo root relative to `tests/evals/packages/<pkg>/`
-- `max_turns` — 80 for analyzing-table, cmd-scope, cmd-profile; 100 for cmd-generate-tests; 120 for cmd-generate-model; 60-70 for other skill packages
+- `working_dir: ../..` — repo root relative to `tests/evals/packages/<pkg>/`; for top-level packages (oracle-regression, oracle-live, mssql-live) the path is `../..` relative to their own directory
+- `max_turns` — 80 for analyzing-table, cmd-scope, cmd-profile; 100 for cmd-generate-tests; 120 for cmd-generate-model, oracle-live, mssql-live; 60-70 for other skill packages
 - `test-review` and `code-review` omit Write from allowed tools (read-only review)
 
 ---
@@ -494,9 +548,11 @@ providers:
 
 Each scenario invokes Claude with tool use. At current pricing, expect roughly $0.10-0.50 per scenario depending on agent complexity and turn count. Command evals are more expensive per scenario (~$0.50-1.00) due to multi-table orchestration and review loops.
 
-- Full skill suite (45 scenarios): ~$5-22 per run
-- All command evals (14 scenarios): ~$5-14 per run
+- Full skill suite (~58 scenarios): ~$6-29 per run
+- All command evals (18 scenarios): ~$6-18 per run
+- Oracle regression (5 scenarios): ~$2-5 per run
+- Live DB packages (1 scenario each): ~$0.50-1.50 per run
 - Single skill package: ~$1-5 per run
 - Single command package: ~$1-3 per run
 
-Run selectively during development. Use `npm run eval:<package>` to test a single package rather than the full suite. Command evals should be run from an isolated worktree to avoid branch-switching interference from other sessions.
+Run selectively during development. Use `npm run eval:<package>` to test a single package rather than the full suite. Command evals should be run from an isolated worktree to avoid branch-switching interference from other sessions. Live DB packages require Docker containers to be running.
