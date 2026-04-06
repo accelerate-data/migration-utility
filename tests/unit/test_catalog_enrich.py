@@ -3,12 +3,42 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from shared.catalog_enrich import enrich_catalog
+
+SHARED_DIR = Path(__file__).parent.parent.parent / "plugin" / "lib"
+
+
+def _run_enrich_cli(project_root: Path, extra_args: list[str] = (), timeout: int = 30) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, "-m", "shared.catalog_enrich", "--project-root", str(project_root), *extra_args],
+        cwd=str(SHARED_DIR),
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+
+
+def _run_setup_ddl_cli(args: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, "-m", "shared.setup_ddl", *args],
+        cwd=str(SHARED_DIR),
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+
+
+def _git_init(path: Path) -> None:
+    """Initialize a bare git repo in path so resolve_project_root passes."""
+    subprocess.run(["git", "init", str(path)], capture_output=True, check=True)
 
 
 def _write_sql(path: Path, filename: str, content: str) -> None:
@@ -676,3 +706,64 @@ def test_dmf_processing_falls_back_to_tables_without_object_types() -> None:
     # Without type info, falls back to tables bucket (existing behavior)
     table_names = [e["name"] for e in refs["tables"]["in_scope"]]
     assert "vw_customer" in table_names
+
+
+# ── CLI: dialect from manifest.json ──────────────────────────────────────────
+
+
+def test_cli_reads_dialect_from_manifest(tmp_path: Path) -> None:
+    """CLI reads dialect from manifest.json when --dialect is not passed."""
+    _git_init(tmp_path)
+    (tmp_path / "manifest.json").write_text(
+        json.dumps({"dialect": "tsql"}), encoding="utf-8"
+    )
+    result = _run_enrich_cli(tmp_path)
+    assert result.returncode == 0, result.stderr
+
+
+def test_cli_dialect_flag_overrides_manifest(tmp_path: Path) -> None:
+    """--dialect flag takes precedence over the manifest value."""
+    _git_init(tmp_path)
+    (tmp_path / "manifest.json").write_text(
+        json.dumps({"dialect": "oracle"}), encoding="utf-8"
+    )
+    result = _run_enrich_cli(tmp_path, ["--dialect", "tsql"])
+    assert result.returncode == 0, result.stderr
+
+
+def test_cli_missing_manifest_without_dialect_errors(tmp_path: Path) -> None:
+    """Missing manifest.json and no --dialect flag produces a clear error."""
+    _git_init(tmp_path)
+    result = _run_enrich_cli(tmp_path)
+    assert result.returncode != 0
+    combined = result.stdout + result.stderr
+    assert "manifest.json" in combined
+
+
+# ── Integration: catalog-enrich Oracle (Docker) ───────────────────────────────
+
+
+@pytest.mark.oracle
+class TestEnrichCatalogOracleIntegration:
+    def _skip_if_missing(self):
+        for var in ("ORACLE_USER", "ORACLE_PASSWORD", "ORACLE_DSN"):
+            if not os.environ.get(var):
+                pytest.skip(f"{var} not set")
+
+    def test_oracle_dialect_from_manifest(self, tmp_path: Path) -> None:
+        """catalog-enrich reads 'oracle' dialect from manifest without --dialect flag."""
+        self._skip_if_missing()
+        _git_init(tmp_path)
+        (tmp_path / "manifest.json").write_text(
+            json.dumps({"technology": "oracle", "dialect": "oracle"}), encoding="utf-8"
+        )
+        extract = _run_setup_ddl_cli([
+            "extract", "--schemas", "SH", "--project-root", str(tmp_path),
+        ])
+        assert extract.returncode == 0, f"extract failed: {extract.stderr}"
+
+        result = _run_enrich_cli(tmp_path, timeout=60)
+        assert result.returncode == 0, f"catalog-enrich failed: {result.stderr}"
+        out = json.loads(result.stdout)
+        assert "tables_augmented" in out
+        assert "procedures_augmented" in out

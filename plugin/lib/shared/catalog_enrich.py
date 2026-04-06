@@ -324,7 +324,7 @@ def enrich_catalog(project_root: Path, dialect: str = "tsql") -> dict[str, Any]:
 @app.command()
 def main(
     project_root: Optional[Path] = typer.Option(None, "--project-root", help="Root artifacts directory containing ddl/, catalog/, and manifest.json (defaults to current working directory)"),
-    dialect: str = typer.Option("tsql", help="SQL dialect"),
+    dialect: Optional[str] = typer.Option(None, "--dialect", help="SQL dialect (default: read from manifest.json)"),
 ) -> None:
     """Augment catalog files with AST-derived references."""
     project_root = resolve_project_root(project_root)
@@ -333,6 +333,16 @@ def main(
         format="%(name)s: %(message)s",
         stream=sys.stderr,
     )
+    if dialect is None:
+        manifest_path = project_root / "manifest.json"
+        if not manifest_path.exists():
+            raise typer.BadParameter(
+                "manifest.json not found and --dialect was not provided. "
+                "Run write-manifest first or pass --dialect explicitly.",
+                param_hint="--dialect",
+            )
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        dialect = manifest["dialect"]
     result = enrich_catalog(project_root, dialect)
     json.dump(result, sys.stdout, indent=2)
     print(file=sys.stdout)  # trailing newline
