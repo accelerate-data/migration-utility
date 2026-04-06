@@ -63,6 +63,7 @@ Determine what you changed, then pick the right runner:
 |---|---|
 | Python shared library | `cd plugin/lib && uv run pytest` |
 | Python integration (Docker SQL Server) | `cd plugin/lib && uv run pytest -m integration` |
+| Python integration (Docker Oracle) | `cd plugin/lib && uv run pytest -m oracle` |
 | MCP server | `cd plugin/mcp/ddl && uv run pytest` |
 | Unsure | all of the above |
 

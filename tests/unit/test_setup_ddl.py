@@ -6,6 +6,7 @@ Unit tests verify each CLI subcommand produces correct output from JSON input.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -751,3 +752,162 @@ class TestWritePartialManifest:
         assert manifest["source_database"] == "FREEPDB1"
         assert manifest["extracted_schemas"] == ["SH", "HR"]
         assert "extracted_at" in manifest
+
+
+# ── Unit: list-databases guards ──────────────────────────────────────────────
+
+
+FIXTURE_DIR = Path(__file__).parent / "fixtures" / "setup_ddl" / "oracle"
+
+
+class TestListDatabasesGuards:
+    def test_missing_manifest_fails(self, tmp_path):
+        result = _run_cli(["list-databases", "--project-root", str(tmp_path)])
+        assert result.returncode != 0
+        assert "manifest" in result.stderr.lower() or "manifest" in result.stdout.lower()
+
+    def test_missing_technology_fails(self, tmp_path):
+        (tmp_path / "manifest.json").write_text('{"schema_version": "1.0"}', encoding="utf-8")
+        result = _run_cli(["list-databases", "--project-root", str(tmp_path)])
+        assert result.returncode != 0
+
+    def test_oracle_unsupported(self, tmp_path):
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
+        )
+        result = _run_cli(["list-databases", "--project-root", str(tmp_path)])
+        assert result.returncode != 0
+        assert "oracle" in result.stderr.lower()
+
+
+# ── Unit: list-schemas guards ────────────────────────────────────────────────
+
+
+class TestListSchemasGuards:
+    def test_missing_manifest_fails(self, tmp_path):
+        result = _run_cli(["list-schemas", "--project-root", str(tmp_path)])
+        assert result.returncode != 0
+        assert "manifest" in result.stderr.lower() or "manifest" in result.stdout.lower()
+
+    def test_missing_technology_fails(self, tmp_path):
+        (tmp_path / "manifest.json").write_text('{"schema_version": "1.0"}', encoding="utf-8")
+        result = _run_cli(["list-schemas", "--project-root", str(tmp_path)])
+        assert result.returncode != 0
+
+    def test_sql_server_requires_database_arg(self, tmp_path):
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8"
+        )
+        result = _run_cli(["list-schemas", "--project-root", str(tmp_path)])
+        assert result.returncode != 0
+        assert "database" in result.stderr.lower()
+
+
+# ── Unit: Oracle schema processing (no DB required) ──────────────────────────
+
+
+class TestOracleSchemaProcessing:
+    def test_groups_by_owner_from_fixture(self):
+        from shared.setup_ddl import _build_oracle_schema_summary
+        rows = json.loads((FIXTURE_DIR / "list_schemas.json").read_text(encoding="utf-8"))
+        summary = _build_oracle_schema_summary(rows)
+        owners = {entry["owner"] for entry in summary}
+        assert "SH" in owners
+        sh_entry = next(e for e in summary if e["owner"] == "SH")
+        assert sh_entry["object_count"] > 0
+
+    def test_empty_input_returns_empty_list(self):
+        from shared.setup_ddl import _build_oracle_schema_summary
+        assert _build_oracle_schema_summary([]) == []
+
+    def test_sorted_by_owner(self):
+        from shared.setup_ddl import _build_oracle_schema_summary
+        rows = [
+            {"OWNER": "ZZ", "OBJECT_TYPE": "TABLE", "OBJECT_NAME": "T1"},
+            {"OWNER": "AA", "OBJECT_TYPE": "TABLE", "OBJECT_NAME": "T2"},
+            {"OWNER": "MM", "OBJECT_TYPE": "TABLE", "OBJECT_NAME": "T3"},
+        ]
+        summary = _build_oracle_schema_summary(rows)
+        owners = [e["owner"] for e in summary]
+        assert owners == sorted(owners)
+
+    def test_lowercase_keys_handled(self):
+        from shared.setup_ddl import _build_oracle_schema_summary
+        rows = [
+            {"owner": "SH", "object_type": "TABLE", "object_name": "SALES"},
+            {"owner": "SH", "object_type": "TABLE", "object_name": "COSTS"},
+        ]
+        summary = _build_oracle_schema_summary(rows)
+        assert len(summary) == 1
+        assert summary[0]["owner"] == "SH"
+        assert summary[0]["object_count"] == 2
+
+
+# ── Integration: list-databases (SQL Server Docker) ──────────────────────────
+
+
+@pytest.mark.integration
+class TestListDatabasesIntegration:
+    def test_sql_server_returns_list(self, tmp_path):
+        if not os.environ.get("MSSQL_HOST"):
+            pytest.skip("MSSQL_HOST not set")
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8"
+        )
+        result = _run_cli(["list-databases", "--project-root", str(tmp_path)])
+        assert result.returncode == 0, result.stderr
+        out = json.loads(result.stdout)
+        assert "databases" in out
+        assert isinstance(out["databases"], list)
+        # System databases should be excluded
+        for sysdb in ("master", "tempdb", "model", "msdb"):
+            assert sysdb not in out["databases"]
+
+
+# ── Integration: list-schemas SQL Server (Docker) ───────────────────────────
+
+
+@pytest.mark.integration
+class TestListSchemasSqlServerIntegration:
+    def test_returns_schemas_with_counts(self, tmp_path):
+        if not os.environ.get("MSSQL_HOST"):
+            pytest.skip("MSSQL_HOST not set")
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8"
+        )
+        result = _run_cli([
+            "list-schemas",
+            "--project-root", str(tmp_path),
+            "--database", "MigrationTest",
+        ])
+        assert result.returncode == 0, result.stderr
+        out = json.loads(result.stdout)
+        assert "schemas" in out
+        assert isinstance(out["schemas"], list)
+        assert len(out["schemas"]) > 0
+        for entry in out["schemas"]:
+            assert "schema" in entry
+            assert "object_count" in entry
+            assert isinstance(entry["object_count"], int)
+
+
+# ── Integration: list-schemas Oracle (Docker) ────────────────────────────────
+
+
+@pytest.mark.oracle
+class TestListSchemasOracleIntegration:
+    def test_oracle_sh_schema_present(self, tmp_path):
+        for var in ("ORACLE_USER", "ORACLE_PASSWORD", "ORACLE_DSN"):
+            if not os.environ.get(var):
+                pytest.skip(f"{var} not set")
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
+        )
+        result = _run_cli(["list-schemas", "--project-root", str(tmp_path)])
+        assert result.returncode == 0, result.stderr
+        out = json.loads(result.stdout)
+        assert "schemas" in out
+        owners = {entry["owner"] for entry in out["schemas"]}
+        assert "SH" in owners
+        sh_entry = next(e for e in out["schemas"] if e["owner"] == "SH")
+        assert sh_entry["object_count"] > 0
