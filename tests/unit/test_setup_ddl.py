@@ -1249,7 +1249,9 @@ class TestExtractOracleUnit:
             (r["OWNER"], r["VIEW_NAME"], r["TEXT"]) for r in all_views_rows
         ]
         mock_conn = MagicMock()
-        mock_conn.cursor.return_value = mock_cur
+        # Use side_effect so any unexpected second cursor() call raises StopIteration
+        # rather than silently returning mock_cur and masking fallback bugs.
+        mock_conn.cursor.side_effect = [mock_cur]
 
         result = _extract_view_ddl(mock_conn, ["SH"])
 
@@ -1272,6 +1274,38 @@ class TestExtractOracleUnit:
         mock_main_cur = MagicMock()
         mock_main_cur.description = [("OWNER",), ("VIEW_NAME",), ("TEXT",)]
         mock_main_cur.fetchall.return_value = [("SH", "PROFITS", "")]
+
+        mock_ddl_cur = MagicMock()
+        clob = MagicMock()
+        clob.read.return_value = fallback_ddl
+        mock_ddl_cur.fetchone.return_value = (clob,)
+
+        mock_conn = MagicMock()
+        mock_conn.cursor.side_effect = [mock_main_cur, mock_ddl_cur]
+
+        result = _extract_view_ddl(mock_conn, ["SH"])
+
+        assert len(result) == 1
+        assert result[0]["definition"] == fallback_ddl
+
+    def test_extract_view_ddl_falls_back_on_truncated_text(self):
+        """_extract_view_ddl falls back to DBMS_METADATA when TEXT is exactly 32,767 bytes.
+
+        oracledb thin mode silently truncates LONG columns at 32,767 bytes — the result
+        arrives at exactly that boundary with no error signal. We treat any TEXT that is
+        exactly 32,767 characters as potentially truncated and use DBMS_METADATA instead.
+        """
+        import sys
+        sys.path.insert(0, str(Path(__file__).parents[2] / "plugin" / "lib"))
+        from shared.oracle_extract import _extract_view_ddl
+        from unittest.mock import MagicMock
+
+        fallback_ddl = "CREATE OR REPLACE VIEW SH.PROFITS AS SELECT 1 FROM DUAL"
+        truncated_text = "x" * 32767  # exactly at the LONG truncation boundary
+
+        mock_main_cur = MagicMock()
+        mock_main_cur.description = [("OWNER",), ("VIEW_NAME",), ("TEXT",)]
+        mock_main_cur.fetchall.return_value = [("SH", "PROFITS", truncated_text)]
 
         mock_ddl_cur = MagicMock()
         clob = MagicMock()

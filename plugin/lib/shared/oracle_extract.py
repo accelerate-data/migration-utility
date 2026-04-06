@@ -120,7 +120,8 @@ def _extract_view_ddl(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
     ALL_VIEWS.TEXT is a LONG column containing the view body (the AS SELECT part).
     We reconstruct the full DDL as: CREATE OR REPLACE VIEW owner.view_name AS <TEXT>.
 
-    Falls back to DBMS_METADATA.GET_DDL per view when TEXT is empty or truncated.
+    Falls back to DBMS_METADATA.GET_DDL per view when TEXT is empty or at the
+    32,767-byte LONG truncation boundary (oracledb thin mode silently truncates).
     """
     owners = _owners_sql(schemas)
     cur = conn.cursor()
@@ -138,9 +139,11 @@ def _extract_view_ddl(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
         view_name = row["VIEW_NAME"]
         text = row.get("TEXT") or ""
         fqn = f"{owner}.{view_name}"
-        if not text.strip():
-            # ALL_VIEWS.TEXT is a LONG column — may be empty when truncated.
-            # Fall back to DBMS_METADATA.GET_DDL which returns a CLOB.
+        # ALL_VIEWS.TEXT is a LONG column. oracledb thin mode silently truncates
+        # LONG values at 32,767 bytes — truncated text arrives exactly at that
+        # boundary without any error signal. Treat empty or 32,767-byte text as
+        # potentially truncated and fall back to DBMS_METADATA.GET_DDL (CLOB).
+        if not text.strip() or len(text) == 32767:
             try:
                 ddl_cur = conn.cursor()
                 ddl_cur.execute(
