@@ -37,7 +37,7 @@ def load_proc_statements(project_root: Path, writer_fqn: str) -> list[dict[str, 
         raise CatalogFileMissingError("procedure", writer_fqn)
     statements = cat.get("statements")
     if statements is None:
-        raise CatalogFileMissingError("procedure statements", writer_fqn)
+        raise ValueError(f"Procedure catalog for {writer_fqn} has no 'statements' section")
     return statements
 
 

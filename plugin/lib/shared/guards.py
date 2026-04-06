@@ -370,7 +370,7 @@ def check_technology(project_root: Path) -> dict[str, Any]:
 # Stage → ordered list of guard callables.
 # Each callable takes (project_root, table_fqn) or (project_root,) and returns
 # a guard result dict.
-_STAGE_GUARDS: dict[str, list[tuple[Callable, ...]]] = {
+_STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
     "scope": [
         (check_manifest,),
         (check_table_catalog,),
