@@ -10,8 +10,7 @@ providers:
       model: claude-sonnet-4-6
       working_dir: ../..
       max_turns: 60
-      permission_mode: bypassPermissions
-      allow_dangerously_skip_permissions: true
+      permission_mode: auto
       append_allowed_tools:
         - Read
         - Write
