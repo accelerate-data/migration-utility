@@ -27,6 +27,7 @@ import typer
 
 from shared.catalog import (
     has_catalog,
+    load_proc_catalog,
     load_table_catalog,
     read_selected_writer,
 )
