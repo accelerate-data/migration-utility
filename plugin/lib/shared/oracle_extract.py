@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from shared.db_connect import cursor_to_dicts as _cursor_rows
 from shared.db_connect import oracle_connect as _oracle_connect
 
 logger = logging.getLogger(__name__)
@@ -22,12 +23,6 @@ def _oracle_type_to_class_desc(oracle_type: str) -> str:
         "PACKAGE": "SQL_STORED_PROCEDURE",
     }
     return mapping.get(oracle_type.upper(), oracle_type.upper())
-
-
-def _cursor_rows(cursor: Any) -> list[dict[str, Any]]:
-    """Return all rows from a cursor as a list of dicts keyed by column name."""
-    columns = [col[0] for col in cursor.description]
-    return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
 
 def _owners_sql(schemas: list[str]) -> str:

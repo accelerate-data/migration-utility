@@ -26,6 +26,7 @@ from shared.catalog import (
     load_proc_catalog,
     load_table_catalog,
     read_selected_writer,
+    write_json as _write_catalog_json,
 )
 from shared.loader import (
     CatalogFileMissingError,
@@ -255,16 +256,9 @@ def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> d
     # Merge profile section
     existing["profile"] = profile_json
 
-    # Atomic write (write to temp, then rename)
-    tmp_path = catalog_path.with_suffix(".json.tmp")
     try:
-        tmp_path.write_text(
-            json.dumps(existing, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
-        tmp_path.replace(catalog_path)
+        _write_catalog_json(catalog_path, existing)
     except OSError as exc:
-        tmp_path.unlink(missing_ok=True)
         logger.error("event=write_failed operation=atomic_write table=%s error=%s", table_norm, exc)
         raise
 

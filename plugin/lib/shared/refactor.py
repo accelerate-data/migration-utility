@@ -28,6 +28,7 @@ import typer
 from shared.catalog import (
     load_table_catalog,
     read_selected_writer,
+    write_json as _write_catalog_json,
 )
 from shared.context_helpers import (
     collect_source_tables,
@@ -35,6 +36,7 @@ from shared.context_helpers import (
     load_proc_statements,
     load_table_columns,
     load_table_profile,
+    load_test_spec,
     sandbox_metadata,
 )
 from shared.loader import (
@@ -123,16 +125,6 @@ def symmetric_diff(
 # ── Context assembly ─────────────────────────────────────────────────────────
 
 
-def _load_test_spec(project_root: Path, table_fqn: str) -> dict[str, Any] | None:
-    """Load a test spec file if it exists."""
-    norm = normalize(table_fqn)
-    spec_path = project_root / "test-specs" / f"{norm}.json"
-    if not spec_path.exists():
-        return None
-    return json.loads(spec_path.read_text(encoding="utf-8"))
-
-
-
 def run_context(
     project_root: Path,
     table_fqn: str,
@@ -157,7 +149,7 @@ def run_context(
     proc_body = load_proc_body(project_root, writer_norm)
     columns = load_table_columns(project_root, table_norm)
     source_tables = collect_source_tables(project_root, writer_norm)
-    test_spec = _load_test_spec(project_root, table_norm)
+    test_spec = load_test_spec(project_root, table_norm)
     sandbox = sandbox_metadata(project_root)
 
     logger.info(
@@ -257,16 +249,9 @@ def run_write(
     # Merge refactor section onto procedure catalog
     existing["refactor"] = refactor_data
 
-    # Atomic write (write to temp, then rename)
-    tmp_path = catalog_path.with_suffix(".json.tmp")
     try:
-        tmp_path.write_text(
-            json.dumps(existing, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
-        tmp_path.replace(catalog_path)
+        _write_catalog_json(catalog_path, existing)
     except OSError as exc:
-        tmp_path.unlink(missing_ok=True)
         logger.error(
             "event=write_failed operation=atomic_write table=%s writer=%s error=%s",
             table_norm, writer_norm, exc,
