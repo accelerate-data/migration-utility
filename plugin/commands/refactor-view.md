@@ -21,7 +21,7 @@ Convert a SQL Server view to an ephemeral dbt staging model with an import/logic
 
 ## Progress Tracking
 
-Use `TaskCreate` and `TaskUpdate` to show live progress. After Step 2 (dependency resolution), create one task per view in the resolved dependency set with status `pending`. Update each task to `in_progress` before it starts processing, and to `completed` (ok/partial result) or `cancelled` (error — include the error code) when it finishes.
+Use `TaskCreate` and `TaskUpdate` to show live progress. After Step 2 (dependency resolution), create one task per view in the full resolved dependency set (including any that failed resolution) with status `pending`. Views that failed dependency resolution should be immediately updated to `cancelled` with the error code. For the remaining views, update each task to `in_progress` before it starts processing, and to `completed` (ok/partial result) or `cancelled` (error — include the error code) when it finishes.
 
 ## Pipeline
 

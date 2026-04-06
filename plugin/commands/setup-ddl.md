@@ -2,10 +2,6 @@
 
 Extract DDL from a live SQL Server or Oracle database and write local artifact files that the `ddl` MCP server used by `listing-objects` / `analyzing-table` skills reads for schema information.
 
-## Progress Tracking
-
-Use `TaskCreate` and `TaskUpdate` to track the automated phases of this command. After the user confirms and before extraction begins, create tasks for each automated step that will run (e.g. `Extract DDL`). Update each task to `in_progress` when it starts and to `completed` or `cancelled` (include the error reason) when it finishes. Do not create tasks for interactive steps (database/schema selection, confirmation prompts).
-
 ## Guard check
 
 Run the stage guard before doing anything else:
@@ -29,6 +25,10 @@ If `ddl/` or `catalog/` already exists in the project root, warn the user:
 > Re-running will **fully rebuild** both `ddl/` and `catalog/`. All previously extracted files will be replaced. (LLM-enriched catalog fields such as scoping, profile, and refactor results are preserved.)
 
 Ask for confirmation before proceeding. If they decline, stop immediately.
+
+## Progress Tracking
+
+Use `TaskCreate` and `TaskUpdate` to track the automated phases of this command. After the user confirms and before extraction begins, create tasks for each automated step that will run (e.g. `Extract DDL`). Update each task to `in_progress` when it starts and to `completed` or `cancelled` (include the error reason) when it finishes. Do not create tasks for interactive steps (database/schema selection, confirmation prompts).
 
 ---
 
