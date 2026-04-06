@@ -12,6 +12,7 @@ from collections.abc import Callable
 from typing import Any
 
 import sqlglot
+import sqlglot.errors
 import sqlglot.expressions as exp
 
 from shared.block_segmenter import (
@@ -107,7 +108,7 @@ def parse_block(block: str, dialect: str = "tsql") -> Any:
     """
     try:
         result = sqlglot.parse_one(block, dialect=dialect, error_level=sqlglot.ErrorLevel.WARN)
-    except Exception as exc:
+    except (sqlglot.errors.ParseError, sqlglot.errors.UnsupportedError, ValueError) as exc:
         name = extract_name(block) or "<unknown>"
         raise DdlParseError(f"sqlglot raised an exception parsing '{name}': {exc}") from exc
 
