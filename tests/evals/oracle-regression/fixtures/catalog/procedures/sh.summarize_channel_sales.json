@@ -1,0 +1,74 @@
+{
+  "schema": "sh",
+  "name": "summarize_channel_sales",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "sh",
+          "name": "CHANNELS",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {"name": "CHANNEL_ID", "is_selected": true, "is_updated": false},
+            {"name": "CHANNEL_DESC", "is_selected": true, "is_updated": false}
+          ]
+        },
+        {
+          "schema": "sh",
+          "name": "SALES",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {"name": "CHANNEL_ID", "is_selected": true, "is_updated": false},
+            {"name": "AMOUNT_SOLD", "is_selected": true, "is_updated": false}
+          ]
+        },
+        {
+          "schema": "sh",
+          "name": "CHANNEL_SALES_SUMMARY",
+          "is_selected": true,
+          "is_updated": true,
+          "columns": [
+            {"name": "CHANNEL_ID", "is_selected": true, "is_updated": true},
+            {"name": "CHANNEL_DESC", "is_selected": false, "is_updated": true},
+            {"name": "TOTAL_AMOUNT", "is_selected": false, "is_updated": true},
+            {"name": "TIER", "is_selected": true, "is_updated": true},
+            {"name": "UPDATED_AT", "is_selected": false, "is_updated": true}
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "routing_reasons": ["if_else", "try_catch"],
+  "statements": [
+    {
+      "type": "Delete",
+      "action": "skip",
+      "sql": "DELETE FROM CHANNEL_SALES_SUMMARY"
+    },
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "sql": "INSERT INTO CHANNEL_SALES_SUMMARY (CHANNEL_ID, CHANNEL_DESC, TOTAL_AMOUNT, TIER, UPDATED_AT) WITH channel_totals AS (SELECT c.CHANNEL_ID, c.CHANNEL_DESC, SUM(s.AMOUNT_SOLD) AS TOTAL_AMOUNT FROM CHANNELS c JOIN SALES s ON s.CHANNEL_ID = c.CHANNEL_ID GROUP BY c.CHANNEL_ID, c.CHANNEL_DESC) SELECT CHANNEL_ID, CHANNEL_DESC, TOTAL_AMOUNT, 'UNKNOWN', SYSDATE FROM channel_totals"
+    },
+    {
+      "type": "Merge",
+      "action": "migrate",
+      "sql": "MERGE INTO CHANNEL_SALES_SUMMARY tgt USING (SELECT rec.CHANNEL_ID AS CHANNEL_ID, v_tier AS TIER FROM DUAL) src ON (tgt.CHANNEL_ID = src.CHANNEL_ID) WHEN MATCHED THEN UPDATE SET tgt.TIER = src.TIER, tgt.UPDATED_AT = SYSDATE"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+version: 2
+
+sources:
+  - name: sh
+    schema: sh
+    tables:
+      - name: channels
+        columns:
+          - name: CHANNEL_ID
+            data_type: number
+          - name: CHANNEL_DESC
+            data_type: varchar2(20)
+          - name: CHANNEL_CLASS
+            data_type: varchar2(20)
+          - name: CHANNEL_CLASS_ID
+            data_type: number
+          - name: CHANNEL_TOTAL
+            data_type: varchar2(13)
+          - name: CHANNEL_TOTAL_ID
+            data_type: number
+      - name: sales
+        columns:
+          - name: PROD_ID
+            data_type: number(6,0)
+          - name: CUST_ID
+            data_type: number
+          - name: TIME_ID
+            data_type: date
+          - name: CHANNEL_ID
+            data_type: number(1,0)
+          - name: PROMO_ID
+            data_type: number(6,0)
+          - name: QUANTITY_SOLD
+            data_type: number(3,0)
+          - name: AMOUNT_SOLD
+            data_type: number(10,2)
