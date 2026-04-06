@@ -142,3 +142,14 @@ class TestLoadExistingHashes:
             result = load_existing_hashes(Path(tmp))
             assert result["dbo.t1"] == "h1"
             assert result["dbo.usp_a"] == "h2"
+
+    def test_corrupt_file_returns_none_and_continues(self) -> None:
+        """Corrupt JSON files produce None hash; other files are unaffected."""
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "catalog" / "procedures"
+            p.mkdir(parents=True)
+            (p / "dbo.corrupt.json").write_text("{truncated", encoding="utf-8")
+            (p / "dbo.good.json").write_text(json.dumps({"ddl_hash": "abc"}))
+            result = load_existing_hashes(Path(tmp))
+            assert result["dbo.corrupt"] is None
+            assert result["dbo.good"] == "abc"

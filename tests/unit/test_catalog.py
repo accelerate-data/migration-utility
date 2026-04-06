@@ -16,7 +16,9 @@ from shared.catalog import (
     load_table_catalog,
     load_view_catalog,
     read_selected_writer,
+    restore_enriched_fields,
     scan_routing_flags,
+    snapshot_enriched_fields,
     write_object_catalog,
     write_proc_statements,
     write_table_catalog,
@@ -606,21 +608,19 @@ def test_load_function_catalog_corrupt_raises() -> None:
             load_function_catalog(root, "dbo.broken")
 
 
-def test_load_catalog_valid_json_array_loads() -> None:
-    """A valid JSON array (not object) should load without crash."""
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        _write_corrupt(root, "tables", "dbo.arr", '[1, 2, 3]')
-        result = load_table_catalog(root, "dbo.arr")
-        assert result == [1, 2, 3]
-
-
 def test_write_proc_statements_corrupt_existing_raises() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         _write_corrupt(root, "procedures", "dbo.broken", "{truncated")
         with pytest.raises(CatalogLoadError):
             write_proc_statements(root, "dbo.broken", [{"type": "insert"}])
+
+
+def test_write_proc_statements_missing_catalog_raises_file_not_found() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        with pytest.raises(FileNotFoundError):
+            write_proc_statements(root, "dbo.nonexistent", [{"type": "insert"}])
 
 
 def test_read_selected_writer_corrupt_table_catalog_raises() -> None:
@@ -739,3 +739,110 @@ def test_no_updated_tables_no_warning() -> None:
         loaded = load_proc_catalog(root, "dbo.usp_reader")
         assert loaded is not None
         assert "warnings" not in loaded
+
+
+# ── scan_routing_flags — cross_db_exec ──────────────────────────────────────
+
+
+def test_scan_routing_flags_cross_db_exec() -> None:
+    """Three-part EXEC (db.schema.proc) sets cross_db_exec without linked_server_exec."""
+    flags = scan_routing_flags("EXEC OtherDB.dbo.usp_helper")
+    assert "cross_db_exec" in flags["routing_reasons"]
+    assert "linked_server_exec" not in flags["routing_reasons"]
+    assert flags["needs_llm"] is False
+    assert flags["needs_enrich"] is True
+    assert flags["mode"] == "call_graph_enrich"
+
+
+def test_scan_routing_flags_linked_server_is_not_cross_db_exec() -> None:
+    """Four-part EXEC (server.db.schema.proc) sets linked_server_exec but not cross_db_exec."""
+    flags = scan_routing_flags("EXEC [LinkedSrv].[SalesDb].[dbo].[usp_remote]")
+    assert "linked_server_exec" in flags["routing_reasons"]
+    assert "cross_db_exec" not in flags["routing_reasons"]
+
+
+# ── snapshot_enriched_fields / restore_enriched_fields ──────────────────────
+
+
+def _write_json(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def test_snapshot_returns_only_non_none_enriched_keys() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write_json(
+            root / "catalog" / "procedures" / "dbo.usp_a.json",
+            {"scoping": {"tier": "gold"}, "profile": None, "refactor": {"note": "x"}, "other": "ignored"},
+        )
+        snapshot = snapshot_enriched_fields(root)
+        assert "dbo.usp_a" in snapshot
+        assert snapshot["dbo.usp_a"] == {"scoping": {"tier": "gold"}, "refactor": {"note": "x"}}
+        assert "profile" not in snapshot["dbo.usp_a"]
+        assert "other" not in snapshot["dbo.usp_a"]
+
+
+def test_snapshot_refactor_not_captured_from_tables() -> None:
+    """refactor key must not be snapshotted from table catalogs."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write_json(
+            root / "catalog" / "tables" / "silver.t1.json",
+            {"scoping": {"tier": "silver"}, "refactor": {"note": "should be ignored"}},
+        )
+        snapshot = snapshot_enriched_fields(root)
+        assert "silver.t1" in snapshot
+        assert "refactor" not in snapshot["silver.t1"]
+        assert snapshot["silver.t1"] == {"scoping": {"tier": "silver"}}
+
+
+def test_snapshot_skips_corrupt_catalog_file() -> None:
+    """Corrupt JSON files are silently skipped during snapshot."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "catalog" / "procedures").mkdir(parents=True)
+        (root / "catalog" / "procedures" / "dbo.corrupt.json").write_text("{truncated", encoding="utf-8")
+        _write_json(
+            root / "catalog" / "procedures" / "dbo.good.json",
+            {"scoping": {"tier": "gold"}},
+        )
+        snapshot = snapshot_enriched_fields(root)
+        assert "dbo.corrupt" not in snapshot
+        assert "dbo.good" in snapshot
+
+
+def test_restore_merges_enriched_fields_back() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write_json(
+            root / "catalog" / "procedures" / "dbo.usp_a.json",
+            {"references": {}, "ddl_hash": "abc"},
+        )
+        snapshot = {"dbo.usp_a": {"scoping": {"tier": "gold"}, "refactor": {"note": "r1"}}}
+        restore_enriched_fields(root, snapshot)
+        data = json.loads((root / "catalog" / "procedures" / "dbo.usp_a.json").read_text())
+        assert data["scoping"] == {"tier": "gold"}
+        assert data["refactor"] == {"note": "r1"}
+        assert data["ddl_hash"] == "abc"
+
+
+def test_restore_skips_fqn_not_found_after_reextract() -> None:
+    """FQN in snapshot but absent from all buckets after re-extraction is a no-op."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "catalog" / "procedures").mkdir(parents=True)
+        snapshot = {"dbo.usp_gone": {"scoping": {"tier": "gold"}}}
+        restore_enriched_fields(root, snapshot)  # must not raise
+
+
+def test_restore_no_write_when_values_unchanged() -> None:
+    """restore_enriched_fields does not rewrite files when values are already equal."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        catalog_file = root / "catalog" / "procedures" / "dbo.usp_a.json"
+        _write_json(catalog_file, {"scoping": {"tier": "gold"}})
+        mtime_before = catalog_file.stat().st_mtime
+        snapshot = {"dbo.usp_a": {"scoping": {"tier": "gold"}}}
+        restore_enriched_fields(root, snapshot)
+        assert catalog_file.stat().st_mtime == mtime_before

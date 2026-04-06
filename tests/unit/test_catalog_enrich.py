@@ -485,7 +485,7 @@ def test_enrich_skips_corrupt_proc_catalog(tmp_path: Path) -> None:
     (ddl / "manifest.json").write_text('{"dialect":"tsql"}', encoding="utf-8")
 
     result = enrich_catalog(ddl)
-    assert result["procedures_augmented"] >= 0
+    assert result["procedures_augmented"] == 1  # only usp_valid was enriched; usp_corrupt was skipped
 
 
 def test_enrich_skips_corrupt_table_catalog(tmp_path: Path) -> None:
