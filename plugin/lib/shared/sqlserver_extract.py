@@ -2,46 +2,12 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Any
 
+from shared.db_connect import sql_server_connect as _sql_server_connect
+
 logger = logging.getLogger(__name__)
-
-
-def _sql_server_connect(database: str) -> Any:
-    """Open a pyodbc connection to SQL Server.
-
-    Reads MSSQL_HOST, MSSQL_PORT, MSSQL_USER, SA_PASSWORD, MSSQL_DRIVER from
-    the environment. Raises ValueError if required variables are missing.
-    Raises RuntimeError if pyodbc is not installed.
-    """
-    try:
-        import pyodbc  # type: ignore[import-untyped]
-    except ImportError as exc:
-        raise RuntimeError(
-            "pyodbc is required for SQL Server connectivity. "
-            "Install it with: uv pip install pyodbc"
-        ) from exc
-
-    host = os.environ.get("MSSQL_HOST", "")
-    port = os.environ.get("MSSQL_PORT", "1433")
-    user = os.environ.get("MSSQL_USER", "sa")
-    password = os.environ.get("SA_PASSWORD", "")
-    driver = os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server")
-
-    missing = [name for name, val in [("MSSQL_HOST", host), ("SA_PASSWORD", password)] if not val]
-    if missing:
-        raise ValueError(f"Required environment variables not set: {missing}")
-
-    conn_str = (
-        f"DRIVER={{{driver}}};"
-        f"SERVER={host},{port};"
-        f"DATABASE={database};"
-        f"UID={user};PWD={password};"
-        f"TrustServerCertificate=yes;"
-    )
-    return pyodbc.connect(conn_str, autocommit=True)
 
 
 def _rows_to_dicts(cursor: Any) -> list[dict[str, Any]]:

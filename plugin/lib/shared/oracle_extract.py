@@ -2,42 +2,12 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Any
 
+from shared.db_connect import oracle_connect as _oracle_connect
+
 logger = logging.getLogger(__name__)
-
-
-# ── Connection ────────────────────────────────────────────────────────────────
-
-
-def _oracle_connect() -> Any:
-    """Open an oracledb connection to Oracle.
-
-    Reads ORACLE_USER, ORACLE_PASSWORD, ORACLE_DSN from the environment.
-    Raises ValueError if required variables are missing.
-    Raises RuntimeError if oracledb is not installed.
-    """
-    try:
-        import oracledb  # type: ignore[import-untyped]
-    except ImportError as exc:
-        raise RuntimeError(
-            "oracledb is required for Oracle connectivity. "
-            "Install it with: uv pip install oracledb"
-        ) from exc
-
-    user = os.environ.get("ORACLE_USER", "")
-    password = os.environ.get("ORACLE_PASSWORD", "")
-    dsn = os.environ.get("ORACLE_DSN", "")
-
-    missing = [name for name, val in [
-        ("ORACLE_USER", user), ("ORACLE_PASSWORD", password), ("ORACLE_DSN", dsn),
-    ] if not val]
-    if missing:
-        raise ValueError(f"Required environment variables not set: {missing}")
-
-    return oracledb.connect(user=user, password=password, dsn=dsn)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

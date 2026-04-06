@@ -32,6 +32,8 @@ from typing import Any, Optional
 
 import typer
 
+from shared.db_connect import oracle_connect as _oracle_connect
+from shared.db_connect import sql_server_connect as _sql_server_connect
 from shared.name_resolver import normalize
 from shared.sql_types import format_sql_type
 
@@ -73,74 +75,6 @@ def _require_technology(project_root: Path) -> str:
         raise ValueError(result["message"])
     manifest = json.loads((project_root / "manifest.json").read_text(encoding="utf-8"))
     return manifest["technology"]
-
-
-# ── DB connection helpers ─────────────────────────────────────────────────────
-
-
-def _sql_server_connect(database: str) -> Any:
-    """Open a pyodbc connection to SQL Server.
-
-    Reads MSSQL_HOST, MSSQL_PORT, MSSQL_USER, SA_PASSWORD, MSSQL_DRIVER from
-    the environment.  Raises ValueError if required variables are missing.
-    Raises RuntimeError if pyodbc is not installed.
-    """
-    import os
-    try:
-        import pyodbc  # type: ignore[import-untyped]
-    except ImportError as exc:
-        raise RuntimeError(
-            "pyodbc is required for SQL Server connectivity. "
-            "Install it with: uv pip install pyodbc"
-        ) from exc
-
-    host = os.environ.get("MSSQL_HOST", "")
-    port = os.environ.get("MSSQL_PORT", "1433")
-    user = os.environ.get("MSSQL_USER", "sa")
-    password = os.environ.get("SA_PASSWORD", "")
-    driver = os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server")
-
-    missing = [name for name, val in [("MSSQL_HOST", host), ("SA_PASSWORD", password)] if not val]
-    if missing:
-        raise ValueError(f"Required environment variables not set: {missing}")
-
-    conn_str = (
-        f"DRIVER={{{driver}}};"
-        f"SERVER={host},{port};"
-        f"DATABASE={database};"
-        f"UID={user};PWD={password};"
-        f"TrustServerCertificate=yes;"
-    )
-    return pyodbc.connect(conn_str, autocommit=True)
-
-
-def _oracle_connect() -> Any:
-    """Open an oracledb connection to Oracle.
-
-    Reads ORACLE_USER, ORACLE_PASSWORD, ORACLE_DSN from the environment.
-    Raises ValueError if required variables are missing.
-    Raises RuntimeError if oracledb is not installed.
-    """
-    import os
-    try:
-        import oracledb  # type: ignore[import-untyped]
-    except ImportError as exc:
-        raise RuntimeError(
-            "oracledb is required for Oracle connectivity. "
-            "Install it with: uv pip install oracledb"
-        ) from exc
-
-    user = os.environ.get("ORACLE_USER", "")
-    password = os.environ.get("ORACLE_PASSWORD", "")
-    dsn = os.environ.get("ORACLE_DSN", "")
-
-    missing = [name for name, val in [
-        ("ORACLE_USER", user), ("ORACLE_PASSWORD", password), ("ORACLE_DSN", dsn),
-    ] if not val]
-    if missing:
-        raise ValueError(f"Required environment variables not set: {missing}")
-
-    return oracledb.connect(user=user, password=password, dsn=dsn)
 
 
 # ── Oracle processing helpers ─────────────────────────────────────────────────
