@@ -71,7 +71,7 @@ def _catalog(project_root: Path) -> DdlCatalog:
 
 # ── Column metadata ───────────────────────────────────────────────────────────
 
-def _parse_columns(entry: DdlEntry) -> list[dict]:
+def _parse_columns(entry: DdlEntry, dialect: str = "tsql") -> list[dict]:
     """Parse column metadata from a CREATE TABLE AST entry.
 
     sqlglot represents both NULL and NOT NULL as NotNullColumnConstraint —
@@ -94,7 +94,7 @@ def _parse_columns(entry: DdlEntry) -> list[dict]:
                     is_not_null = True
         cols.append({
             "name": col_def.name,
-            "type": col_def.kind.sql(dialect="tsql") if col_def.kind else "UNKNOWN",
+            "type": col_def.kind.sql(dialect=dialect) if col_def.kind else "UNKNOWN",
             "nullable": not (is_not_null or is_pk),
             "is_pk": is_pk,
         })
@@ -237,9 +237,10 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         entry = catalog.get_table(arguments["name"])
         if not entry:
             return [types.TextContent(type="text", text=f"Table not found: {arguments['name']}")]
+        dialect = read_manifest(project_root)["dialect"]
         return [types.TextContent(type="text", text=json.dumps({
             "ddl": entry.raw_ddl,
-            "columns": _parse_columns(entry),
+            "columns": _parse_columns(entry, dialect),
         }))]
 
     if name == "list_procedures":
