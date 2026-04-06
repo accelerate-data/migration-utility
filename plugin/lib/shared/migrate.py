@@ -39,6 +39,7 @@ from shared.loader import (
     ProfileMissingError,
     load_directory,
 )
+from shared.cli_utils import emit
 from shared.env_config import resolve_dbt_project_path, resolve_project_root
 from shared.name_resolver import fqn_parts, normalize
 
@@ -49,10 +50,6 @@ app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-
-def _emit(data: Any) -> None:
-    """Write JSON to stdout."""
-    print(json.dumps(data, ensure_ascii=False))
 
 
 def _model_name_from_table(table_fqn: str) -> str:
@@ -356,7 +353,7 @@ def context(
     except (ValueError, FileNotFoundError, DdlParseError, CatalogNotFoundError, CatalogLoadError) as exc:
         logger.error("event=context_failed table=%s writer=%s error=%s", table, writer, exc)
         raise typer.Exit(code=2) from exc
-    _emit(result)
+    emit(result)
 
 
 @app.command()
@@ -388,7 +385,7 @@ def write(
     except (FileNotFoundError, OSError, CatalogLoadError) as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)
         raise typer.Exit(code=2) from exc
-    _emit(result)
+    emit(result)
 
 
 if __name__ == "__main__":

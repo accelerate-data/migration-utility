@@ -20,6 +20,7 @@ from typing import Any, Optional
 import typer
 import yaml
 
+from shared.cli_utils import emit
 from shared.env_config import (
     resolve_catalog_dir,
     resolve_dbt_project_path,
@@ -29,11 +30,6 @@ from shared.env_config import (
 logger = logging.getLogger(__name__)
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
-
-
-def _emit(data: Any) -> None:
-    """Write JSON to stdout."""
-    print(json.dumps(data, ensure_ascii=False))
 
 
 def generate_sources(project_root: Path) -> dict[str, Any]:
@@ -165,7 +161,7 @@ def main(
         root = resolve_project_root(project_root)
     except RuntimeError as exc:
         logger.error("event=project_root_error error=%s", exc)
-        _emit({"error": str(exc)})
+        emit({"error": str(exc)})
         raise typer.Exit(code=2) from exc
 
     try:
@@ -175,15 +171,15 @@ def main(
             result = generate_sources(root)
     except OSError as exc:
         logger.error("event=generate_sources_io_error error=%s", exc)
-        _emit({"error": "IO_ERROR", "message": str(exc)})
+        emit({"error": "IO_ERROR", "message": str(exc)})
         raise typer.Exit(code=2) from exc
 
     if strict and result["incomplete"]:
-        _emit({
+        emit({
             "error": "INCOMPLETE_SCOPING",
             "message": f"{len(result['incomplete'])} tables have incomplete scoping",
             "incomplete": result["incomplete"],
         })
         raise typer.Exit(code=1)
 
-    _emit(result)
+    emit(result)

@@ -37,6 +37,7 @@ from shared.loader import (
     DdlParseError,
     load_directory,
 )
+from shared.cli_utils import emit
 from shared.env_config import resolve_catalog_dir, resolve_project_root
 from shared.name_resolver import fqn_parts, normalize
 
@@ -51,11 +52,6 @@ REFACTOR_STATUSES = frozenset({"ok", "partial", "error"})
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
-
-
-def _emit(data: Any) -> None:
-    """Write JSON to stdout."""
-    print(json.dumps(data, ensure_ascii=False))
 
 
 # ── Symmetric diff ───────────────────────────────────────────────────────────
@@ -364,7 +360,7 @@ def context(
     except (ValueError, FileNotFoundError, DdlParseError, CatalogNotFoundError, CatalogLoadError) as exc:
         logger.error("event=context_failed table=%s writer=%s error=%s", table, writer, exc)
         raise typer.Exit(code=2) from exc
-    _emit(result)
+    emit(result)
 
 
 @app.command()
@@ -391,13 +387,13 @@ def write(
         result = run_write(project_root, table, extracted_sql, refactored_sql, status)
     except (ValueError, CatalogFileMissingError) as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)
-        _emit({"ok": False, "error": str(exc), "table": normalize(table)})
+        emit({"ok": False, "error": str(exc), "table": normalize(table)})
         raise typer.Exit(code=1) from exc
     except (FileNotFoundError, OSError, CatalogLoadError) as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)
-        _emit({"ok": False, "error": str(exc), "table": normalize(table)})
+        emit({"ok": False, "error": str(exc), "table": normalize(table)})
         raise typer.Exit(code=2) from exc
-    _emit(result)
+    emit(result)
 
 
 if __name__ == "__main__":
