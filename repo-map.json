@@ -113,6 +113,10 @@
     "docs": {
       "path": "docs/",
       "description": "Documentation. Use docs/design/README.md as the index for design topics. reference/ contains operator and contributor docs, and requirements/ contains product requirements."
+    },
+    "test_fixtures": {
+      "path": "test-fixtures/",
+      "description": "Cross-dialect Kimball DW fixture for integration testing and demos. schema/ has DDL for SQL Server, Oracle, PostgreSQL (staging, dim, fact tables + views). data/baseline/ has seed INSERT SQL per dialect (extracted from AdventureWorks2022). data/delta/ has 5 incremental scenarios (new-customer-product, scd2-address-change, scd1-name-correction, late-arriving-fact, dedup-staging). scripts/ has csv_to_inserts.py (extraction + generation tool)."
     }
   },
   "key_directories": {
@@ -122,6 +126,7 @@
     "tests/unit/": "Python pytest tests for shared library (discover, catalog, catalog_enrich, extract_refs, integration)",
     "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages: profiling-table, generating-model, generating-tests, reviewing-tests, reviewing-model, analyzing-table; command packages: cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests)",
     "plugin/mcp/ddl/tests/": "Python pytest tests for the DDL MCP server. fixtures/oracle/ holds Oracle SH-schema DDL fixtures and manifest.",
+    "test-fixtures/": "Cross-dialect Kimball DW fixture: schema DDL, baseline seed data, and delta scenarios for SQL Server, Oracle, PostgreSQL",
     "docs/design/": "Architecture decision records and design specs",
     ".claude/rules/": "Shared agent rules such as coding-conventions, git-workflow, logging-policy, and codex-execution-policy",
     ".claude/skills/": "Workflow playbooks for repo-local Claude Code skills"
