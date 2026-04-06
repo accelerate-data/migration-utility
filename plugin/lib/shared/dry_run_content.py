@@ -14,8 +14,9 @@ from typing import Any
 import yaml
 
 from shared.catalog import load_proc_catalog, load_table_catalog, read_selected_writer
+from shared.context_helpers import sandbox_metadata
 from shared.env_config import resolve_dbt_project_path
-from shared.name_resolver import fqn_parts, normalize
+from shared.name_resolver import fqn_parts, model_name_from_table, normalize
 
 logger = logging.getLogger(__name__)
 
@@ -73,15 +74,6 @@ def _profile_question_status(profile: dict[str, Any]) -> dict[str, str]:
     return result
 
 
-def _model_name_from_table(table_fqn: str) -> str:
-    """Derive a dbt model name from a table FQN.
-
-    ``silver.dim_customer`` → ``stg_dim_customer``
-    """
-    _, name = fqn_parts(normalize(table_fqn))
-    return f"stg_{name}"
-
-
 def _find_dbt_model(dbt_root: Path, model_name: str) -> Path | None:
     """Find a dbt model SQL file by name under dbt/models/."""
     models_dir = dbt_root / "models"
@@ -114,8 +106,11 @@ def _find_schema_yaml(model_path: Path) -> tuple[Path | None, bool]:
                 content = yaml.safe_load(candidate.read_text(encoding="utf-8"))
                 has_tests = _yaml_has_unit_tests(content, model_stem)
                 return candidate, has_tests
-            except Exception:
-                logger.debug("event=schema_yaml_parse_error path=%s", candidate)
+            except (yaml.YAMLError, OSError) as exc:
+                logger.warning(
+                    "event=schema_yaml_parse_error component=dry_run_content operation=load_schema path=%s status=failure error=%s",
+                    candidate, exc,
+                )
                 return candidate, False
     return None, False
 
@@ -140,7 +135,7 @@ def _dbt_evidence(
 ) -> dict[str, Any]:
     """Collect dbt artifact evidence for a table."""
     dbt_root = resolve_dbt_project_path(project_root)
-    model_name = _model_name_from_table(table_fqn)
+    model_name = model_name_from_table(table_fqn)
 
     model_path = _find_dbt_model(dbt_root, model_name)
     schema_yaml_path, has_unit_tests = _find_schema_yaml(model_path)
@@ -164,8 +159,11 @@ def _dbt_evidence(
             test_results_exist = any(
                 model_name in r.get("unique_id", "") for r in results
             )
-        except Exception:
-            logger.debug("event=run_results_parse_error path=%s", run_results_path)
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning(
+                "event=run_results_parse_error component=dry_run_content operation=load_run_results path=%s status=failure error=%s",
+                run_results_path, exc,
+            )
 
     return {
         "model_name": model_name,
@@ -254,14 +252,6 @@ def _load_test_spec(project_root: Path, table_fqn: str) -> dict[str, Any] | None
     return json.loads(spec_path.read_text(encoding="utf-8"))
 
 
-def _sandbox_metadata(project_root: Path) -> dict[str, Any] | None:
-    """Read sandbox metadata from manifest."""
-    manifest_path = project_root / "manifest.json"
-    if not manifest_path.exists():
-        return None
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    return manifest.get("sandbox")
-
 
 def test_gen_detail(project_root: Path, table_fqn: str) -> dict[str, Any]:
     """Profile summary + full test-spec + sandbox metadata."""
@@ -269,14 +259,14 @@ def test_gen_detail(project_root: Path, table_fqn: str) -> dict[str, Any]:
     return {
         "profile": profile_summary(project_root, table_fqn),
         "test_spec": spec,
-        "sandbox": _sandbox_metadata(project_root),
+        "sandbox": sandbox_metadata(project_root),
     }
 
 
 def test_gen_summary(project_root: Path, table_fqn: str) -> dict[str, Any]:
     """Compact test-gen status."""
     spec = _load_test_spec(project_root, table_fqn)
-    sandbox = _sandbox_metadata(project_root)
+    sandbox = sandbox_metadata(project_root)
     if spec:
         branches = spec.get("branch_manifest", [])
         tests = spec.get("unit_tests", [])

@@ -52,3 +52,13 @@ def fqn_parts(fqn: str) -> tuple[str, str]:
     if len(parts) >= 2:
         return parts[-2], parts[-1]
     return "dbo", parts[-1]
+
+
+def model_name_from_table(table_fqn: str) -> str:
+    """Derive a dbt model name from a table FQN.
+
+    ``silver.dim_customer`` → ``stg_dim_customer``
+    ``dbo.fact_sales`` → ``stg_fact_sales``
+    """
+    _, name = fqn_parts(normalize(table_fqn))
+    return f"stg_{name}"

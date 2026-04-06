@@ -29,6 +29,7 @@ from typing import Any, Optional
 
 import typer
 
+from shared.cli_utils import emit
 from shared.dry_run_content import _CONTENT_COLLECTORS
 from shared.env_config import resolve_project_root
 from shared.guards import run_guards  # re-exported for callers using dry_run.run_guards
@@ -98,11 +99,6 @@ class GuardStage(str, Enum):
     setup_ddl = "setup-ddl"
 
 
-def _emit(data: Any) -> None:
-    """Write JSON to stdout."""
-    print(json.dumps(data, ensure_ascii=False))
-
-
 @app.command("dry-run")
 def dry_run_cmd(
     table: str = typer.Argument(..., help="Fully-qualified table name (schema.Name)"),
@@ -117,11 +113,11 @@ def dry_run_cmd(
         root = resolve_project_root(project_root)
     except RuntimeError as exc:
         logger.error("event=project_root_error error=%s", exc)
-        _emit({"error": str(exc)})
+        emit({"error": str(exc)})
         raise typer.Exit(code=2) from exc
 
     result = run_dry_run(root, table, stage.value, detail=detail)
-    _emit(result)
+    emit(result)
 
 
 @app.command("guard")
@@ -137,12 +133,12 @@ def guard_cmd(
         root = resolve_project_root(project_root)
     except RuntimeError as exc:
         logger.error("event=project_root_error error=%s", exc)
-        _emit({"error": str(exc)})
+        emit({"error": str(exc)})
         raise typer.Exit(code=2) from exc
 
     norm = normalize(table)
     guards_passed, guard_results = run_guards(root, norm, stage.value)
-    _emit({
+    emit({
         "table": norm,
         "stage": stage.value,
         "passed": guards_passed,

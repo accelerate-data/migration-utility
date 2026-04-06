@@ -1089,16 +1089,16 @@ def test_view_deps_guard_handles_legacy_list_references() -> None:
 
 def test_generating_model_guard_includes_view_dep_check() -> None:
     """generating-model stage guard list includes check_view_dependencies_migrated."""
-    from shared.guards import _STAGE_GUARDS
-    guard_names = [name for (name,) in _STAGE_GUARDS["generating-model"]]
-    assert "check_view_dependencies_migrated" in guard_names
+    from shared.guards import _STAGE_GUARDS, check_view_dependencies_migrated
+    guard_fns = [fn for (fn,) in _STAGE_GUARDS["generating-model"]]
+    assert check_view_dependencies_migrated in guard_fns
 
 
 def test_reviewing_model_guard_includes_view_dep_check() -> None:
     """reviewing-model stage guard list includes check_view_dependencies_migrated."""
-    from shared.guards import _STAGE_GUARDS
-    guard_names = [name for (name,) in _STAGE_GUARDS["reviewing-model"]]
-    assert "check_view_dependencies_migrated" in guard_names
+    from shared.guards import _STAGE_GUARDS, check_view_dependencies_migrated
+    guard_fns = [fn for (fn,) in _STAGE_GUARDS["reviewing-model"]]
+    assert check_view_dependencies_migrated in guard_fns
 
 
 # ── generate-sources tests ──────────────────────────────────────────────────

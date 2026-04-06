@@ -31,38 +31,27 @@ from shared.catalog import (
     load_table_catalog,
     read_selected_writer,
 )
+from shared.context_helpers import (
+    collect_source_tables,
+    load_proc_body,
+    load_proc_statements,
+    load_table_columns,
+    load_table_profile,
+)
 from shared.loader import (
     CatalogFileMissingError,
     CatalogLoadError,
     CatalogNotFoundError,
     DdlParseError,
     ProfileMissingError,
-    load_directory,
 )
+from shared.cli_utils import emit
 from shared.env_config import resolve_dbt_project_path, resolve_project_root
-from shared.name_resolver import fqn_parts, normalize
+from shared.name_resolver import fqn_parts, model_name_from_table, normalize
 
 logger = logging.getLogger(__name__)
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-
-def _emit(data: Any) -> None:
-    """Write JSON to stdout."""
-    print(json.dumps(data, ensure_ascii=False))
-
-
-def _model_name_from_table(table_fqn: str) -> str:
-    """Derive a dbt model name from a table FQN.
-
-    ``silver.dim_customer`` → ``stg_dim_customer``
-    ``dbo.fact_sales`` → ``stg_fact_sales``
-    """
-    _, name = fqn_parts(normalize(table_fqn))
-    return f"stg_{name}"
 
 
 # ── Materialization derivation ────────────────────────────────────────────────
@@ -116,7 +105,7 @@ def derive_schema_tests(profile: dict[str, Any]) -> dict[str, Any]:
             ref_relation = fk.get("references_source_relation", "")
             ref_col = fk.get("references_column", "")
             if col and ref_relation:
-                model_ref = f"ref('{_model_name_from_table(ref_relation)}')"
+                model_ref = f"ref('{model_name_from_table(ref_relation)}')"
                 ri_tests.append({
                     "column": col,
                     "to": model_ref,
@@ -145,51 +134,13 @@ def derive_schema_tests(profile: dict[str, Any]) -> dict[str, Any]:
 # ── Context assembly ──────────────────────────────────────────────────────────
 
 
-def _load_table_profile(project_root: Path, table_fqn: str) -> dict[str, Any]:
-    """Load the profile section from a table catalog file."""
-    cat = load_table_catalog(project_root, table_fqn)
-    if cat is None:
-        raise CatalogFileMissingError("table", table_fqn)
-    profile = cat.get("profile")
-    if profile is None:
-        raise ProfileMissingError(table_fqn)
-    return profile
-
-
-def _load_proc_statements(project_root: Path, writer_fqn: str) -> list[dict[str, Any]]:
-    """Load resolved statements from a procedure catalog file."""
-    cat = load_proc_catalog(project_root, writer_fqn)
-    if cat is None:
-        raise CatalogFileMissingError("procedure", writer_fqn)
-    statements = cat.get("statements")
-    if statements is None:
-        raise CatalogFileMissingError("procedure statements", writer_fqn)
-    return statements
-
-
 def _classify_proc(project_root: Path, writer_fqn: str) -> bool:
     """Return True if the procedure needs LLM analysis."""
+    from shared.catalog import load_proc_catalog
     cat = load_proc_catalog(project_root, writer_fqn)
     if cat is None:
         raise CatalogFileMissingError("procedure", writer_fqn)
     return cat.get("mode") == "llm_required"
-
-
-def _load_proc_body(project_root: Path, writer_fqn: str) -> str:
-    """Load the raw DDL body of a procedure from the DDL directory."""
-    catalog = load_directory(project_root)
-    entry = catalog.get_procedure(writer_fqn)
-    if entry is None:
-        raise CatalogFileMissingError("procedure DDL", writer_fqn)
-    return entry.raw_ddl
-
-
-def _load_table_columns(project_root: Path, table_fqn: str) -> list[dict[str, Any]]:
-    """Load column list from the table catalog file."""
-    cat = load_table_catalog(project_root, table_fqn)
-    if cat and cat.get("columns"):
-        return cat["columns"]
-    return []
 
 
 def _load_refactored_sql(project_root: Path, table_fqn: str) -> str | None:
@@ -214,21 +165,6 @@ def _load_refactored_sql(project_root: Path, table_fqn: str) -> str | None:
     return refactor.get("refactored_sql") or None
 
 
-def _collect_source_tables(
-    project_root: Path, writer_fqn: str,
-) -> list[str]:
-    """Collect source tables from the writer procedure's references."""
-    cat = load_proc_catalog(project_root, writer_fqn)
-    if cat is None:
-        return []
-    refs = cat.get("references", {})
-    tables_in_scope = refs.get("tables", {}).get("in_scope", [])
-    sources = []
-    for t in tables_in_scope:
-        if t.get("is_selected") and not t.get("is_updated"):
-            sources.append(normalize(f"{t['schema']}.{t['name']}"))
-    return sorted(set(sources))
-
 
 def run_context(
     project_root: Path,
@@ -252,12 +188,12 @@ def run_context(
     if not has_catalog(project_root):
         raise CatalogNotFoundError(project_root)
 
-    profile = _load_table_profile(project_root, table_norm)
-    statements = _load_proc_statements(project_root, writer_norm)
+    profile = load_table_profile(project_root, table_norm)
+    statements = load_proc_statements(project_root, writer_norm)
     needs_llm = _classify_proc(project_root, writer_norm)
-    proc_body = _load_proc_body(project_root, writer_norm)
-    columns = _load_table_columns(project_root, table_norm)
-    source_tables = _collect_source_tables(project_root, writer_norm)
+    proc_body = load_proc_body(project_root, writer_norm)
+    columns = load_table_columns(project_root, table_norm)
+    source_tables = collect_source_tables(project_root, writer_norm)
     materialization = derive_materialization(profile)
     schema_tests = derive_schema_tests(profile)
     refactored_sql = _load_refactored_sql(project_root, table_norm)
@@ -307,7 +243,7 @@ def run_write(
         code 2 — IO error (project path missing, write failure)
     """
     table_norm = normalize(table_fqn)
-    model_name = _model_name_from_table(table_norm)
+    model_name = model_name_from_table(table_norm)
 
     # Validation
     if not model_sql or not model_sql.strip():
@@ -356,7 +292,7 @@ def context(
     except (ValueError, FileNotFoundError, DdlParseError, CatalogNotFoundError, CatalogLoadError) as exc:
         logger.error("event=context_failed table=%s writer=%s error=%s", table, writer, exc)
         raise typer.Exit(code=2) from exc
-    _emit(result)
+    emit(result)
 
 
 @app.command()
@@ -388,7 +324,7 @@ def write(
     except (FileNotFoundError, OSError, CatalogLoadError) as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)
         raise typer.Exit(code=2) from exc
-    _emit(result)
+    emit(result)
 
 
 if __name__ == "__main__":
