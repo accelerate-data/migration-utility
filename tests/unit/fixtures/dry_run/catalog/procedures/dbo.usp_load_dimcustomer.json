@@ -6,5 +6,20 @@
     {"index": 1, "action": "migrate", "source": "ast", "sql": "INSERT INTO silver.DimCustomer SELECT ..."},
     {"index": 2, "action": "skip", "source": "ast", "sql": "PRINT 'Done'"}
   ],
-  "references": []
+  "references": {
+    "tables": {
+      "in_scope": [
+        {"schema": "bronze", "name": "customerraw", "is_selected": true, "is_updated": false}
+      ],
+      "out_of_scope": []
+    },
+    "views": {"in_scope": [], "out_of_scope": []},
+    "functions": {"in_scope": [], "out_of_scope": []},
+    "procedures": {"in_scope": [], "out_of_scope": []}
+  },
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT src.CustomerID, src.FirstName, src.LastName FROM [bronze].[CustomerRaw] AS src",
+    "refactored_sql": "WITH source_customers AS (SELECT * FROM [bronze].[CustomerRaw]) SELECT CustomerID, FirstName, LastName FROM source_customers"
+  }
 }

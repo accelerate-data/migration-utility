@@ -815,13 +815,13 @@ def test_refactor_guards_fail_no_test_spec(assert_valid_schema) -> None:
 
 
 def test_migrate_guards_fail_no_refactor(assert_valid_schema) -> None:
-    """Migrate guard fails when refactor section is missing."""
+    """Migrate guard fails when refactor section is missing from procedure catalog."""
     tmp, root = _make_project()
     with tmp:
-        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
-        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
+        cat = json.loads(proc_path.read_text(encoding="utf-8"))
         del cat["refactor"]
-        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+        proc_path.write_text(json.dumps(cat), encoding="utf-8")
         result = dry_run.run_dry_run(root, "silver.DimCustomer", "migrate")
         assert_valid_schema(result, "dry_run_output.json")
         assert result["guards_passed"] is False
@@ -832,10 +832,10 @@ def test_migrate_guards_fail_refactor_partial(assert_valid_schema) -> None:
     """Migrate guard fails when refactor status is partial (audit failed)."""
     tmp, root = _make_project()
     with tmp:
-        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
-        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
+        cat = json.loads(proc_path.read_text(encoding="utf-8"))
         cat["refactor"]["status"] = "partial"
-        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+        proc_path.write_text(json.dumps(cat), encoding="utf-8")
         result = dry_run.run_dry_run(root, "silver.DimCustomer", "migrate")
         assert_valid_schema(result, "dry_run_output.json")
         assert result["guards_passed"] is False
@@ -846,10 +846,10 @@ def test_migrate_guards_fail_refactor_error(assert_valid_schema) -> None:
     """Migrate guard fails when refactor status is error (could not proceed)."""
     tmp, root = _make_project()
     with tmp:
-        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
-        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
+        cat = json.loads(proc_path.read_text(encoding="utf-8"))
         cat["refactor"]["status"] = "error"
-        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+        proc_path.write_text(json.dumps(cat), encoding="utf-8")
         result = dry_run.run_dry_run(root, "silver.DimCustomer", "migrate")
         assert_valid_schema(result, "dry_run_output.json")
         assert result["guards_passed"] is False

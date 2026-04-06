@@ -111,25 +111,6 @@
       "description": "Written by the /profiling-table skill or profiler agent. Not present after setup-ddl, only after profiling.",
       "$ref": "#/$defs/profile_section"
     },
-    "refactor": {
-      "type": "object",
-      "description": "Written by the refactoring-sql skill. Contains extracted core SQL and refactored CTE SQL.",
-      "properties": {
-        "status": {
-          "type": "string",
-          "enum": ["ok", "partial", "error"],
-          "description": "ok = refactored SQL produced and audit passed; partial = audit failed; error = could not proceed."
-        },
-        "extracted_sql": {
-          "type": "string",
-          "description": "Core transformation SELECT extracted from the stored procedure (USING clause for MERGE, SELECT for INSERT...SELECT, etc.)."
-        },
-        "refactored_sql": {
-          "type": "string",
-          "description": "Refactored CTE SQL (import/logical/final pattern) that passed the equivalence audit."
-        }
-      }
-    },
     "scoping": {
       "type": "object",
       "description": "Writer selection results from scoping agent or /analyzing-table. Written by discover write-scoping.",

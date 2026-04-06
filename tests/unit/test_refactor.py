@@ -135,7 +135,7 @@ def test_context_explicit_writer() -> None:
 
 
 def test_write_happy_path() -> None:
-    """Write merges refactor section into catalog."""
+    """Write merges refactor section into the writer procedure's catalog."""
     tmp, root = _make_writable_copy()
     with tmp:
         result = refactor.run_write(
@@ -146,13 +146,19 @@ def test_write_happy_path() -> None:
         )
         assert result["ok"] is True
         assert result["table"] == "silver.dimcustomer"
+        assert result["writer"] == "dbo.usp_load_dimcustomer"
 
-        # Verify catalog was updated
-        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
-        cat = json.loads(cat_path.read_text())
-        assert cat["refactor"]["status"] == "ok"
-        assert "CustomerID" in cat["refactor"]["extracted_sql"]
-        assert "SELECT CustomerID, FirstName FROM src" in cat["refactor"]["refactored_sql"]
+        # Verify procedure catalog was updated (not table catalog)
+        proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
+        proc_cat = json.loads(proc_path.read_text())
+        assert proc_cat["refactor"]["status"] == "ok"
+        assert "CustomerID" in proc_cat["refactor"]["extracted_sql"]
+        assert "SELECT CustomerID, FirstName FROM src" in proc_cat["refactor"]["refactored_sql"]
+
+        # Table catalog should NOT have a refactor section
+        table_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        table_cat = json.loads(table_path.read_text())
+        assert "refactor" not in table_cat
 
 
 def test_write_validates_status() -> None:
@@ -179,12 +185,28 @@ def test_write_requires_refactored_sql_for_ok_status() -> None:
             refactor.run_write(root, "silver.DimCustomer", "SELECT 1", "", "ok")
 
 
-def test_write_missing_catalog() -> None:
-    """Write raises CatalogFileMissingError for unknown table."""
+def test_write_missing_procedure_catalog() -> None:
+    """Write raises CatalogFileMissingError when procedure catalog is absent."""
     tmp, root = _make_writable_copy()
     with tmp:
+        # Remove the procedure catalog file
+        proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
+        proc_path.unlink()
         with pytest.raises(CatalogFileMissingError):
-            refactor.run_write(root, "silver.NoSuchTable", "SELECT 1", "SELECT 1", "ok")
+            refactor.run_write(root, "silver.DimCustomer", "SELECT 1", "SELECT 1", "ok")
+
+
+def test_write_no_selected_writer() -> None:
+    """Write raises ValueError when table catalog has no selected_writer."""
+    tmp, root = _make_writable_copy()
+    with tmp:
+        # Remove scoping from table catalog
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text())
+        del cat["scoping"]
+        cat_path.write_text(json.dumps(cat))
+        with pytest.raises(ValueError, match="No scoping.selected_writer"):
+            refactor.run_write(root, "silver.DimCustomer", "SELECT 1", "SELECT 1", "ok")
 
 
 # ── CLI commands ─────────────────────────────────────────────────────────────

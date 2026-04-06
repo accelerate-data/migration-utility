@@ -52,9 +52,20 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
   --name <table> --scoping '{"status": "no_writer_found", "selected_writer": null, "selected_writer_rationale": "No procedures found that write to this table."}'
 ```
 
+#### Multi-table-write disqualification
+
+For each writer candidate, load the procedure catalog:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show \
+  --name <candidate_procedure>
+```
+
+Check the `warnings` array for a `MULTI_TABLE_WRITE` entry. If present, **disqualify** the candidate — it writes to multiple tables and cannot produce a single clean refactored SQL. Report the disqualification to the user with the warning message but continue evaluating remaining candidates.
+
 ### Step 3 -- Analyze each writer candidate
 
-For each writer candidate, read and follow the [procedure analysis reference](references/procedure-analysis.md). Run all 6 steps (fetch, classify, resolve call graph, logic summary, migration guidance, persist) for each candidate before moving to Step 4.
+For each **non-disqualified** writer candidate, read and follow the [procedure analysis reference](references/procedure-analysis.md). Run all 6 steps (fetch, classify, resolve call graph, logic summary, migration guidance, persist) for each candidate before moving to Step 4.
 
 If there are multiple candidates, analyze them sequentially — each candidate's analysis must complete before starting the next.
 

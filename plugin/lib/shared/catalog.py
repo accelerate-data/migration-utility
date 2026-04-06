@@ -387,6 +387,24 @@ def write_object_catalog(
         data["sql"] = sql
     if columns is not None:
         data["columns"] = columns
+
+    # Flag procedures that write to more than one table.
+    if object_type == "procedures":
+        in_scope = references.get("tables", {}).get("in_scope", [])
+        updated_tables = [t for t in in_scope if t.get("is_updated")]
+        if len(updated_tables) > 1:
+            table_fqns = [f"{t['schema']}.{t['name']}" for t in updated_tables]
+            warning: dict[str, Any] = {
+                "code": "MULTI_TABLE_WRITE",
+                "message": (
+                    f"Procedure writes to {len(updated_tables)} tables; "
+                    "cannot produce a single clean refactored SQL."
+                ),
+                "severity": "warning",
+                "details": {"tables": table_fqns},
+            }
+            data.setdefault("warnings", []).append(warning)
+
     p = _object_path(project_root, object_type, norm)
     _write_json(p, data)
     return p
@@ -402,6 +420,7 @@ def snapshot_enriched_fields(project_root: Path) -> dict[str, dict[str, Any]]:
 
     Returns a mapping of normalised FQN → dict containing only the
     non-None enriched keys (``scoping``, ``profile``, ``refactor``).
+    ``refactor`` lives on procedure catalogs (written by refactor write).
     Used before re-extraction so these fields survive a catalog rewrite.
     """
     catalog_dir = _catalog_dir(project_root)

@@ -86,6 +86,35 @@
           "rationale": { "type": "string", "description": "Why this statement is migrate or skip. Required for source: llm; optional for source: ast." }
         }
       }
+    },
+    "refactor": {
+      "type": "object",
+      "description": "Written by the refactoring-sql skill via refactor write. Contains extracted core SQL and refactored CTE SQL for this writer procedure.",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["ok", "partial", "error"],
+          "description": "ok = refactored SQL produced and audit passed; partial = audit failed; error = could not proceed."
+        },
+        "extracted_sql": {
+          "type": "string",
+          "description": "Core transformation SELECT extracted from the stored procedure (USING clause for MERGE, SELECT for INSERT...SELECT, etc.)."
+        },
+        "refactored_sql": {
+          "type": "string",
+          "description": "Refactored CTE SQL (import/logical/final pattern) that passed the equivalence audit."
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "description": "Diagnostic warnings for this procedure (e.g. MULTI_TABLE_WRITE).",
+      "items": { "$ref": "common.json#/$defs/diagnostics_entry" }
+    },
+    "errors": {
+      "type": "array",
+      "description": "Diagnostic errors for this procedure.",
+      "items": { "$ref": "common.json#/$defs/diagnostics_entry" }
     }
   }
 }

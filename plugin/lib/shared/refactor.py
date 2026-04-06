@@ -3,7 +3,7 @@
 Standalone CLI with two subcommands:
 
     context  Assemble all deterministic context needed for LLM SQL refactoring.
-    write    Validate and merge a refactor section into a table catalog file.
+    write    Validate and merge a refactor section into the writer procedure's catalog.
 
 Also exposes ``symmetric_diff`` for comparing two row-dict lists.
 
@@ -270,7 +270,10 @@ def run_write(
     refactored_sql: str,
     status: str,
 ) -> dict[str, Any]:
-    """Validate and merge a refactor section into a table catalog file.
+    """Validate and merge a refactor section into the writer procedure's catalog.
+
+    Resolves the writer from the table catalog's ``scoping.selected_writer``,
+    then persists the refactor block on the procedure catalog file.
 
     Returns a confirmation dict on success.
     Raises ValueError on validation failure, OSError/json.JSONDecodeError on IO error.
@@ -287,20 +290,31 @@ def run_write(
     if errors:
         raise ValueError(f"Refactor validation failed for {table_norm}: {'; '.join(errors)}")
 
-    # Load existing catalog file
-    catalog_path = project_root / "catalog" / "tables" / f"{table_norm}.json"
+    # Resolve writer from table catalog
+    writer_fqn = read_selected_writer(project_root, table_norm)
+    if not writer_fqn:
+        raise ValueError(
+            f"No scoping.selected_writer in table catalog for {table_norm}"
+        )
+    writer_norm = normalize(writer_fqn)
+
+    # Load existing procedure catalog file
+    catalog_path = project_root / "catalog" / "procedures" / f"{writer_norm}.json"
     if not catalog_path.exists():
-        raise CatalogFileMissingError("table", table_norm)
+        raise CatalogFileMissingError("procedure", writer_norm)
 
     try:
         existing = json.loads(catalog_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise CatalogLoadError(str(catalog_path), exc) from exc
     except OSError as exc:
-        logger.error("event=write_failed operation=read_catalog table=%s error=%s", table_norm, exc)
+        logger.error(
+            "event=write_failed operation=read_catalog table=%s writer=%s error=%s",
+            table_norm, writer_norm, exc,
+        )
         raise
 
-    # Merge refactor section
+    # Merge refactor section onto procedure catalog
     existing["refactor"] = refactor_data
 
     # Atomic write (write to temp, then rename)
@@ -313,13 +327,20 @@ def run_write(
         tmp_path.replace(catalog_path)
     except OSError as exc:
         tmp_path.unlink(missing_ok=True)
-        logger.error("event=write_failed operation=atomic_write table=%s error=%s", table_norm, exc)
+        logger.error(
+            "event=write_failed operation=atomic_write table=%s writer=%s error=%s",
+            table_norm, writer_norm, exc,
+        )
         raise
 
-    logger.info("event=write_complete table=%s catalog_path=%s", table_norm, catalog_path)
+    logger.info(
+        "event=write_complete table=%s writer=%s catalog_path=%s",
+        table_norm, writer_norm, catalog_path,
+    )
     return {
         "ok": True,
         "table": table_norm,
+        "writer": writer_norm,
         "catalog_path": str(catalog_path),
     }
 
@@ -356,7 +377,7 @@ def write(
     refactored_sql: str = typer.Option("", help="Refactored SQL string"),
     refactored_sql_file: Optional[Path] = typer.Option(None, "--refactored-sql-file", help="Path to file containing refactored SQL"),
 ) -> None:
-    """Validate and merge a refactor section into a table catalog file."""
+    """Validate and merge a refactor section into the writer procedure's catalog."""
     if extracted_sql_file:
         extracted_sql = extracted_sql_file.read_text(encoding="utf-8")
     if refactored_sql_file:
