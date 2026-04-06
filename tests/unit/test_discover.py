@@ -471,3 +471,39 @@ def test_refs_view_catalog_returns_view_type() -> None:
     assert result["source"] == "catalog"
     assert result["type"] == "view"
     assert "dbo.usp_load_fact_sales" in result["readers"]
+
+
+def test_show_delete_top_is_migrate() -> None:
+    """Pattern #4: DELETE TOP procedure is deterministic with migrate action."""
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_DeleteTop")
+    assert result["needs_llm"] is False
+    assert result["statements"] is not None
+    actions = {s["action"] for s in result["statements"]}
+    assert "migrate" in actions
+
+
+def test_show_try_catch_is_deterministic() -> None:
+    """Pattern #46: TRY/CATCH procedure is deterministic — branches are flattened."""
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_TryCatchLoad")
+    assert result["needs_llm"] is False
+    assert result["statements"] is not None
+    actions = {s["action"] for s in result["statements"]}
+    assert "migrate" in actions
+
+
+def test_show_nested_control_flow_is_deterministic() -> None:
+    """Pattern #48: Nested IF inside TRY/CATCH is deterministic — all branches flattened."""
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_NestedControlFlow")
+    assert result["needs_llm"] is False
+    assert result["statements"] is not None
+    actions = {s["action"] for s in result["statements"]}
+    assert "migrate" in actions
+
+
+def test_show_recursive_cte_is_migrate() -> None:
+    """Pattern #36: Recursive CTE procedure is deterministic with migrate action."""
+    result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_RecursiveCTE")
+    assert result["needs_llm"] is False
+    assert result["statements"] is not None
+    actions = {s["action"] for s in result["statements"]}
+    assert "migrate" in actions
