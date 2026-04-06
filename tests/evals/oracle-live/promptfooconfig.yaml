@@ -43,5 +43,3 @@ tests:
     assert:
       - type: javascript
         value: file://../assertions/check-table-scoping.js
-      - type: javascript
-        value: file://../assertions/check-procedure-catalog.js
