@@ -412,22 +412,29 @@ def write_object_catalog(
 
 # ── Enrichment field preservation (re-extraction merge) ─────────────────────
 
-_ENRICHED_KEYS = ("scoping", "profile", "refactor")
+# Keys preserved per bucket during re-extraction. ``refactor`` belongs only on
+# procedure catalogs; never copy it from tables/views/functions.
+_ENRICHED_KEYS_BY_BUCKET: dict[str, tuple[str, ...]] = {
+    "tables": ("scoping", "profile"),
+    "procedures": ("scoping", "profile", "refactor"),
+    "views": ("scoping", "profile"),
+    "functions": ("scoping", "profile"),
+}
 
 
 def snapshot_enriched_fields(project_root: Path) -> dict[str, dict[str, Any]]:
     """Snapshot LLM-enriched fields from all existing catalog files.
 
     Returns a mapping of normalised FQN → dict containing only the
-    non-None enriched keys (``scoping``, ``profile``, ``refactor``).
-    ``refactor`` lives on procedure catalogs (written by refactor write).
+    non-None enriched keys for that bucket.
+    ``refactor`` is only captured from procedure catalogs.
     Used before re-extraction so these fields survive a catalog rewrite.
     """
     catalog_dir = _catalog_dir(project_root)
     snapshot: dict[str, dict[str, Any]] = {}
     if not catalog_dir.is_dir():
         return snapshot
-    for bucket in ("tables", "procedures", "views", "functions"):
+    for bucket, keys in _ENRICHED_KEYS_BY_BUCKET.items():
         bucket_dir = catalog_dir / bucket
         if not bucket_dir.is_dir():
             continue
@@ -436,7 +443,7 @@ def snapshot_enriched_fields(project_root: Path) -> dict[str, dict[str, Any]]:
                 data = json.loads(json_file.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
                 continue
-            enriched = {k: data[k] for k in _ENRICHED_KEYS if data.get(k) is not None}
+            enriched = {k: data[k] for k in keys if data.get(k) is not None}
             if enriched:
                 snapshot[json_file.stem] = enriched
     return snapshot
