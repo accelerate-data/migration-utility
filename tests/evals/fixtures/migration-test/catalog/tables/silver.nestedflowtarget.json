@@ -1,0 +1,44 @@
+{
+  "schema": "silver",
+  "name": "nestedflowtarget",
+  "columns": [
+    { "name": "ProductAlternateKey", "sql_type": "NVARCHAR(25)", "is_nullable": false, "is_identity": false },
+    { "name": "EnglishProductName", "sql_type": "NVARCHAR(50)", "is_nullable": false, "is_identity": false },
+    { "name": "LoadMode", "sql_type": "NVARCHAR(20)", "is_nullable": false, "is_identity": false }
+  ],
+  "primary_keys": [{ "constraint_name": "PK_NestedFlowTarget", "columns": ["ProductAlternateKey"] }],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [{ "schema": "silver", "name": "usp_load_nestedflowtarget", "is_selected": false, "is_updated": true }],
+      "out_of_scope": []
+    },
+    "views": { "in_scope": [], "out_of_scope": [] },
+    "functions": { "in_scope": [], "out_of_scope": [] }
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_load_NestedFlowTarget"
+  },
+  "profile": {
+    "status": "ok",
+    "writer": "silver.usp_load_NestedFlowTarget",
+    "classification": {
+      "resolved_kind": "dim_non_scd",
+      "source": "catalog+llm",
+      "rationale": "Dimension with full-reload or delta MERGE controlled by nested IF inside TRY/CATCH."
+    },
+    "primary_key": {
+      "columns": ["ProductAlternateKey"],
+      "primary_key_type": "natural",
+      "source": "catalog",
+      "rationale": "ProductAlternateKey is the natural key."
+    },
+    "foreign_keys": [],
+    "pii_actions": []
+  }
+}

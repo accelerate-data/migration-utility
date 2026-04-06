@@ -7,7 +7,7 @@ Current automated statement coverage for the refactoring phase. The phase bounda
 | 1 | `INSERT ... SELECT` | Yes | Yes | Yes |
 | 2 | `UPDATE` with join | N/A | Yes | Yes |
 | 3 | `DELETE` with `WHERE` | N/A | Yes | Yes |
-| 4 | `DELETE TOP` | N/A | N/A | N/A |
+| 4 | `DELETE TOP` | N/A | N/A | Yes |
 | 5 | `TRUNCATE TABLE` | N/A | N/A | N/A |
 | 6 | `TRUNCATE` + `INSERT` | N/A | N/A | Yes |
 | 7 | `MERGE INTO` | Yes | Yes | Yes |
@@ -31,7 +31,7 @@ Current automated statement coverage for the refactoring phase. The phase bounda
 | 31 | Scalar subquery in `SELECT` | N/A | Yes | N/A |
 | 32 | `EXISTS` subquery | N/A | Yes | N/A |
 | 33 | `NOT EXISTS` subquery | N/A | Yes | N/A |
-| 36 | Recursive CTE | N/A | N/A | N/A |
+| 36 | Recursive CTE | N/A | N/A | Yes |
 | 37 | `UPDATE` with CTE prefix | N/A | Yes | Yes |
 | 38 | `DELETE` with CTE prefix | N/A | N/A | Yes |
 | 39 | `MERGE` with CTE source | N/A | N/A | Yes |
@@ -39,7 +39,9 @@ Current automated statement coverage for the refactoring phase. The phase bounda
 | 43 | `PIVOT` | N/A | Yes | Yes |
 | 44 | `UNPIVOT` | N/A | Yes | N/A |
 | 45 | `IF / ELSE` control flow | N/A | N/A | Yes |
+| 46 | `TRY / CATCH` | N/A | N/A | Yes |
 | 47 | `WHILE` loop | N/A | N/A | Yes |
+| 48 | Nested control flow | N/A | N/A | Yes |
 | 55 | Cross-database `EXEC` | N/A | N/A | Yes |
 | 56 | Linked-server `EXEC` | N/A | N/A | Yes |
 | 58 | Dynamic `sp_executesql` | N/A | N/A | Yes |
@@ -48,6 +50,6 @@ Current automated statement coverage for the refactoring phase. The phase bounda
 
 ## Test layers
 
-- **Unit**: `tests/unit/test_refactor.py` — symmetric_diff, context assembly, catalog write, CLI commands (19 tests)
-- **Integration**: `tests/unit/test_compare_sql_integration.py` — `compare_two_sql` against live SQL Server with 30 scenarios covering all DML patterns, identity columns, FK constraints, NULL/MONEY handling, transaction rollback
-- **Promptfoo**: `tests/evals/packages/refactoring-sql/` — 24 skill scenarios testing LLM extraction and CTE restructuring; `tests/evals/packages/cmd-refactor/` — 4 command orchestration scenarios
+- **Unit**: `tests/unit/test_refactor.py` — symmetric_diff, context assembly, catalog write, CLI commands
+- **Integration**: `tests/unit/test_compare_sql_integration.py` — `compare_two_sql` against live SQL Server covering all DML patterns, identity columns, FK constraints, NULL/MONEY handling, transaction rollback
+- **Promptfoo**: `tests/evals/packages/refactoring-sql/` — skill scenarios testing LLM extraction and CTE restructuring; `tests/evals/packages/cmd-refactor/` — command orchestration scenarios

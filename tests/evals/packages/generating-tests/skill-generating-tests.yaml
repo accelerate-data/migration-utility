@@ -212,3 +212,41 @@ tests:
       expected_status: "ok,partial"
       expected_coverage: "complete,partial"
       min_branch_count: 3
+
+  # --- gap patterns: #4, #36, #46, #48 ---
+
+  - description: "delete-top — DeleteTopTarget enumerates keep-vs-delete branches"
+    vars:
+      target_table: "silver.DeleteTopTarget"
+      writer: "silver.usp_load_DeleteTopTarget"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+
+  - description: "recursive-cte — RecursiveCteTarget validates recursive anchor and recursive step"
+    vars:
+      target_table: "silver.RecursiveCteTarget"
+      writer: "silver.usp_load_RecursiveCteTarget"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+
+  - description: "try-catch — TryCatchTarget validates that TRY block is primary test target"
+    vars:
+      target_table: "silver.TryCatchTarget"
+      writer: "silver.usp_load_TryCatchTarget"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+
+  - description: "nested-control-flow — NestedFlowTarget enumerates IF branches under TRY"
+    vars:
+      target_table: "silver.NestedFlowTarget"
+      writer: "silver.usp_load_NestedFlowTarget"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 2
+      min_scenario_count: 1

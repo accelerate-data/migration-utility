@@ -199,3 +199,34 @@ tests:
       target_table: "silver.ExecConcatTarget"
       writer: "silver.usp_scope_ExecConcat"
       graceful_partial: "true"
+
+  # ── delete top ───────────────────────────────────────────────
+  - description: "delete-top — DELETE TOP inverted to keep-rows SELECT"
+    vars:
+      target_table: "silver.DeleteTopTarget"
+      writer: "silver.usp_load_DeleteTopTarget"
+      expected_extracted_terms: "loadeddate,dateadd"
+      expected_refactored_terms: "with,final"
+
+  # ── recursive cte ────────────────────────────────────────────
+  - description: "recursive-cte — recursive CTE preserved in refactored model"
+    vars:
+      target_table: "silver.RecursiveCteTarget"
+      writer: "silver.usp_load_RecursiveCteTarget"
+      expected_extracted_terms: "union all,managerid"
+      expected_refactored_terms: "with,union all,final"
+
+  # ── try/catch ────────────────────────────────────────────────
+  - description: "try-catch — TRY block INSERT extracted, CATCH discarded"
+    vars:
+      target_table: "silver.TryCatchTarget"
+      writer: "silver.usp_load_TryCatchTarget"
+      expected_extracted_terms: "productalternatekey"
+      expected_refactored_terms: "with,final"
+
+  # ── nested control flow ──────────────────────────────────────
+  - description: "nested-control-flow — nested IF/TRY decomposed into CTE structure"
+    vars:
+      target_table: "silver.NestedFlowTarget"
+      writer: "silver.usp_load_NestedFlowTarget"
+      expected_refactored_terms: "with,final"

@@ -967,6 +967,116 @@ GO
 
 
 -- ============================================================
+-- SCENARIO: DELETE TOP — delete oldest records
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_DeleteTopTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DELETE TOP (100) FROM silver.DeleteTopTarget
+    WHERE LoadedDate < DATEADD(YEAR, -1, GETDATE());
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: Recursive CTE — hierarchical org chart load
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_RecursiveCteTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    WITH org AS (
+        SELECT
+            0 AS OrgLevel,
+            NULL AS ManagerId,
+            EmployeeID AS EmployeeId,
+            CAST(LastName AS NVARCHAR(100)) AS FullPath
+        FROM bronze.Employee
+        WHERE ManagerID IS NULL
+        UNION ALL
+        SELECT
+            o.OrgLevel + 1,
+            e.ManagerID,
+            e.EmployeeID,
+            CAST(o.FullPath + ' > ' + e.LastName AS NVARCHAR(100))
+        FROM bronze.Employee e
+        JOIN org o ON e.ManagerID = o.EmployeeId
+    )
+    INSERT INTO silver.RecursiveCteTarget (OrgLevel, ManagerId, EmployeeId, FullPath)
+    SELECT OrgLevel, ManagerId, EmployeeId, FullPath
+    FROM org;
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: TRY/CATCH — load with error isolation
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_TryCatchTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        INSERT INTO silver.TryCatchTarget (ProductAlternateKey, EnglishProductName)
+        SELECT
+            CAST(ProductID AS NVARCHAR(25)),
+            ProductName
+        FROM bronze.Product
+        WHERE ProductName IS NOT NULL;
+    END TRY
+    BEGIN CATCH
+        RAISERROR('Load failed: %s', 16, 1, ERROR_MESSAGE());
+    END CATCH
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: Nested control flow — IF inside TRY/CATCH
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_NestedFlowTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    BEGIN TRY
+        IF EXISTS (SELECT 1 FROM bronze.Product WHERE ProductName IS NOT NULL)
+        BEGIN
+            TRUNCATE TABLE silver.NestedFlowTarget;
+            INSERT INTO silver.NestedFlowTarget (ProductAlternateKey, EnglishProductName, LoadMode)
+            SELECT
+                CAST(ProductID AS NVARCHAR(25)),
+                ProductName,
+                'full'
+            FROM bronze.Product
+            WHERE ProductName IS NOT NULL;
+        END
+        ELSE
+        BEGIN
+            MERGE INTO silver.NestedFlowTarget AS tgt
+            USING (
+                SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName
+                FROM bronze.Product
+            ) AS src ON tgt.ProductAlternateKey = src.ProductAlternateKey
+            WHEN MATCHED THEN
+                UPDATE SET tgt.EnglishProductName = src.ProductName, tgt.LoadMode = 'delta'
+            WHEN NOT MATCHED THEN
+                INSERT (ProductAlternateKey, EnglishProductName, LoadMode)
+                VALUES (src.ProductAlternateKey, src.ProductName, 'delta');
+        END
+    END TRY
+    BEGIN CATCH
+        RAISERROR('Load failed: %s', 16, 1, ERROR_MESSAGE());
+    END CATCH
+END;
+
+GO
+
+
+-- ============================================================
 -- SCENARIO: IF/ELSE dynamic SQL — conditional INSERT target
 -- ============================================================
 CREATE PROCEDURE silver.usp_load_DimDynamicBranch

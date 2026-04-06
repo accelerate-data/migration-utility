@@ -111,6 +111,18 @@
       "description": "Written by the /profiling-table skill or profiler agent. Not present after setup-ddl, only after profiling.",
       "$ref": "#/$defs/profile_section"
     },
+    "refactor": {
+      "type": "object",
+      "description": "Refactoring results written by the /refactoring-sql skill. Not present until after refactoring.",
+      "required": ["status"],
+      "properties": {
+        "status": { "type": "string", "enum": ["ok", "partial", "error"] },
+        "extracted_sql": { "type": "string", "description": "Pure SELECT equivalent of the procedure's write operation." },
+        "refactored_sql": { "type": "string", "description": "CTE-structured SELECT ready for dbt model generation." },
+        "warnings": { "type": "array", "items": { "$ref": "common.json#/$defs/diagnostics_entry" } },
+        "errors": { "type": "array", "items": { "$ref": "common.json#/$defs/diagnostics_entry" } }
+      }
+    },
     "scoping": {
       "type": "object",
       "description": "Writer selection results from scoping agent or /analyzing-table. Written by discover write-scoping.",

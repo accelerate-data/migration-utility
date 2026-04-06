@@ -73,39 +73,39 @@ tests/evals/
     cmd-live-pipeline.txt              # prompt template for live DB extract → scope → profile
   packages/                            # SQL Server offline packages (use fixtures/migration-test/)
     profiling-table/
-      skill-profiling-table.yaml       # 5 scenarios
+      skill-profiling-table.yaml
     generating-model/
-      skill-generating-model.yaml      # 19 scenarios
+      skill-generating-model.yaml
     generating-tests/
-      skill-generating-tests.yaml      # 3 scenarios
+      skill-generating-tests.yaml
     reviewing-tests/
-      skill-reviewing-tests.yaml       # 7 scenarios
+      skill-reviewing-tests.yaml
     reviewing-model/
-      skill-reviewing-model.yaml       # 8 scenarios
+      skill-reviewing-model.yaml
     analyzing-table/
-      skill-analyzing-table.yaml       # 8 scenarios
+      skill-analyzing-table.yaml
     refactoring-sql/
-      skill-refactoring-sql.yaml       # 9 scenarios
+      skill-refactoring-sql.yaml
     cmd-scope/
-      cmd-scope.yaml                   # 2 scenarios
+      cmd-scope.yaml
     cmd-profile/
-      cmd-profile.yaml                 # 2 scenarios
+      cmd-profile.yaml
     cmd-generate-model/
-      cmd-generate-model.yaml          # 3 scenarios
+      cmd-generate-model.yaml
     cmd-generate-tests/
-      cmd-generate-tests.yaml          # 3 scenarios
+      cmd-generate-tests.yaml
     cmd-refactor/
-      cmd-refactor.yaml                # 4 scenarios
+      cmd-refactor.yaml
     cmd-status/
-      cmd-status.yaml                  # 4 scenarios
+      cmd-status.yaml
   oracle-regression/                   # Oracle offline package (SH schema fixtures)
-    promptfooconfig.yaml               # 5 per-command scenarios
+    promptfooconfig.yaml
     fixtures/                          # pre-committed Oracle SH schema fixtures
   oracle-live/                         # Oracle live DB package (requires Docker Oracle)
-    promptfooconfig.yaml               # 1 scenario: extract → scope → profile
+    promptfooconfig.yaml               # extract → scope → profile
     fixtures/manifest.json             # technology: oracle, dialect: oracle
   mssql-live/                          # SQL Server live DB package (requires Docker SQL Server)
-    promptfooconfig.yaml               # 1 scenario: extract → scope → profile
+    promptfooconfig.yaml               # extract → scope → profile
     fixtures/manifest.json             # technology: mssql, dialect: tsql
   fixtures/
     migration-test/                    # extracted DDL project (one-time, SQL Server)
@@ -126,45 +126,45 @@ The harness is organized into package-local Promptfoo configs plus one aggregate
 
 Test individual skills in isolation (single-table, no orchestration). All use `fixtures/migration-test/` (SQL Server).
 
-| Package | Skill | Scenarios |
-|---|---|---|
-| `profiling-table` | `/profiling-table` | 5 |
-| `generating-model` | `/generating-model` | 19 |
-| `generating-tests` | `/generating-tests` | 3 |
-| `reviewing-tests` | `/reviewing-tests` | 7 |
-| `reviewing-model` | `/reviewing-model` | 8 |
-| `analyzing-table` | `/analyzing-table` | 8 (validates both scoping decisions and procedure catalog) |
-| `refactoring-sql` | `/refactoring-sql` | 9 (DML extraction + CTE restructuring) |
+| Package | Skill |
+|---|---|
+| `profiling-table` | `/profiling-table` |
+| `generating-model` | `/generating-model` |
+| `generating-tests` | `/generating-tests` |
+| `reviewing-tests` | `/reviewing-tests` |
+| `reviewing-model` | `/reviewing-model` |
+| `analyzing-table` | `/analyzing-table` — validates both scoping decisions and procedure catalog |
+| `refactoring-sql` | `/refactoring-sql` — DML extraction + CTE restructuring |
 
 ### Command packages
 
 Test batch command orchestration (multi-table dispatch, error handling, review loops, summary aggregation). Command evals suppress git operations and worktree creation — the agent operates directly on the fixture directory.
 
-| Package | Command | Scenarios |
-|---|---|---|
-| `cmd-scope` | `/scope` | 2 |
-| `cmd-profile` | `/profile` | 2 |
-| `cmd-generate-model` | `/generate-model` | 3 |
-| `cmd-generate-tests` | `/generate-tests` | 3 |
-| `cmd-refactor` | `/refactor` | 4 |
-| `cmd-status` | `/status` | 4 |
+| Package | Command |
+|---|---|
+| `cmd-scope` | `/scope` |
+| `cmd-profile` | `/profile` |
+| `cmd-generate-model` | `/generate-model` |
+| `cmd-generate-tests` | `/generate-tests` |
+| `cmd-refactor` | `/refactor` |
+| `cmd-status` | `/status` |
 
 ### Oracle regression package
 
 Per-command Oracle dialect coverage using pre-committed SH schema fixtures. No live DB required.
 
-| Package | Description | Scenarios |
-|---|---|---|
-| `oracle-regression` | scope / profile / generate-model / generate-tests / refactor against `SH.CHANNEL_SALES_SUMMARY` | 5 |
+| Package | Description |
+|---|---|
+| `oracle-regression` | scope / profile / generate-model / generate-tests / refactor against `SH.CHANNEL_SALES_SUMMARY` |
 
 ### Live DB packages
 
 Validate the full extract → scope → profile pipeline against running Docker containers. Not run in CI — requires local Docker.
 
-| Package | DB | Scenarios |
-|---|---|---|
-| `oracle-live` | Docker Oracle (FREEPDB1, SH schema) | 1 |
-| `mssql-live` | Docker SQL Server (MigrationTest, silver schema) | 1 |
+| Package | DB |
+|---|---|
+| `oracle-live` | Docker Oracle (FREEPDB1, SH schema) |
+| `mssql-live` | Docker SQL Server (MigrationTest, silver schema) |
 
 Use `promptfooconfig.yaml` for the full suite (skill scenarios only). Command and dialect-specific packages are run individually.
 
@@ -223,7 +223,7 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 
 ## Scenarios
 
-### Profiler (5 scenarios)
+### Profiler
 
 | Scenario | Target table | Writer | Key assertion |
 |---|---|---|---|
@@ -233,7 +233,7 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 | cross-db-exec | silver.DimCrossDbProfile | usp_load_DimCrossDbProfile | Cross-database mention |
 | dynamic-sp-executesql | silver.DimCurrency | usp_load_DimCurrency | ok/partial status, sp_executesql mention |
 
-### Model-generator (19 scenarios)
+### Model-generator
 
 | Scenario | Target table | Pattern |
 |---|---|---|
@@ -257,15 +257,19 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 | exec-variable-model | silver.ExecVariableTarget | EXEC(@sql) graceful no-model |
 | exec-concat-model | silver.ExecConcatTarget | EXEC concat graceful no-model |
 
-### Test-generator (3 scenarios)
+### Test-generator
 
 | Scenario | Target table | Key assertion |
 |---|---|---|
-| merge-branches — DimProduct | silver.DimProduct | Branch manifest with 5+ branches |
+| merge-branches — DimProduct | silver.DimProduct | Branch manifest with multiple branches |
 | exec-call-chain — FactInternetSales | silver.FactInternetSales | Transitive writer logic |
 | dynamic-sql — DimCurrency | silver.DimCurrency | Dynamic SQL warning |
+| delete-top — DeleteTopTarget | silver.DeleteTopTarget | Keep-vs-delete branches |
+| recursive-cte — RecursiveCteTarget | silver.RecursiveCteTarget | Recursive anchor and step |
+| try-catch — TryCatchTarget | silver.TryCatchTarget | TRY block as primary test target |
+| nested-control-flow — NestedFlowTarget | silver.NestedFlowTarget | IF branches under TRY |
 
-### Test-review (7 scenarios)
+### Test-review
 
 | Scenario | Target table | Key assertion |
 |---|---|---|
@@ -277,7 +281,7 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 | approved — FactExecProfile | silver.FactExecProfile | Transitive writer chain covered |
 | approved — DimCurrency | silver.DimCurrency | Partial coverage with untestable rationale |
 
-### Code-review (8 scenarios)
+### Code-review
 
 | Scenario | Target table | Key assertion |
 |---|---|---|
@@ -290,7 +294,7 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 | approved — FactExecProfile | silver.FactExecProfile | Ref-only orchestrator |
 | approved — DimCurrency | silver.DimCurrency | Dynamic SQL graceful degradation |
 
-### Scoping-table (8 scenarios)
+### Scoping-table
 
 | Scenario | Target table | Expected writer |
 |---|---|---|
@@ -303,7 +307,7 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 | exec-concat — ExecConcatTarget | silver.ExecConcatTarget | usp_scope_ExecConcat |
 | linked-server-exec — LinkedServerExecTarget | silver.LinkedServerExecTarget | (no writer — skip) |
 
-### Refactoring-sql (9 scenarios)
+### Refactoring-sql
 
 | Scenario | Target table | Pattern | Key assertion |
 |---|---|---|---|
@@ -316,22 +320,26 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 | window-functions | silver.FactInternetSales | Window functions | COUNT OVER preserved |
 | grouping-sets | silver.GroupingSetsTarget | GROUPING SETS | Preserved in CTEs |
 | pivot | silver.PivotTarget | PIVOT | Handled in CTE restructuring |
+| delete-top | silver.DeleteTopTarget | DELETE TOP | Inverted to keep-rows SELECT |
+| recursive-cte | silver.RecursiveCteTarget | Recursive CTE | UNION ALL anchor + step preserved |
+| try-catch | silver.TryCatchTarget | TRY/CATCH | TRY block extracted, CATCH discarded |
+| nested-control-flow | silver.NestedFlowTarget | Nested IF/TRY | Decomposed into CTE structure |
 
-### Command: scope (2 scenarios)
+### Command: scope
 
 | Scenario | Tables | Key assertion |
 |---|---|---|
 | happy-path — both resolve | DimProduct + DimCustomer | Summary shows 2 resolved, `check-table-scoping.js` validates artifact |
 | error+clean — missing catalog | DimDate + DimProduct | CATALOG_FILE_MISSING for DimDate, DimProduct still resolves |
 
-### Command: profile (2 scenarios)
+### Command: profile
 
 | Scenario | Tables | Key assertion |
 |---|---|---|
 | happy-path — both profile ok | InsertSelectTarget + UpdateJoinTarget | Summary shows 2 ok, `check-table-profile.js` validates artifact |
 | error+clean — no scoping | DimProduct + InsertSelectTarget | SCOPING_NOT_COMPLETED for DimProduct, InsertSelectTarget still ok |
 
-### Command: generate-model (3 scenarios)
+### Command: generate-model
 
 | Scenario | Tables | Key assertion |
 |---|---|---|
@@ -339,7 +347,7 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 | review-revision cycle | CorrelatedSubqueryTarget | Review loop invoked, final status ok |
 | error+clean — no scoping | DimProduct + InsertSelectTarget | SCOPING_NOT_COMPLETED for DimProduct, InsertSelectTarget ok |
 
-### Command: generate-tests (3 scenarios)
+### Command: generate-tests
 
 | Scenario | Tables | Key assertion |
 |---|---|---|
@@ -347,7 +355,7 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 | review-revision cycle | CorrelatedSubqueryTarget | Review loop invoked, final status ok |
 | error+clean — no scoping | DimProduct + InsertSelectTarget | SCOPING_NOT_COMPLETED for DimProduct, InsertSelectTarget ok |
 
-### Command: refactor (4 scenarios)
+### Command: refactor
 
 | Scenario | Tables | Key assertion |
 |---|---|---|
@@ -356,7 +364,7 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 | guard-fail — no scoping | DimPromotion | SCOPING_NOT_COMPLETED |
 | partial-ok — dynamic SQL | DimCurrency | Partial status acceptable |
 
-### Oracle regression (5 scenarios)
+### Oracle regression
 
 Per-command Oracle dialect coverage against `SH.CHANNEL_SALES_SUMMARY` written by `SH.SUMMARIZE_CHANNEL_SALES`. All catalog stages are pre-committed; each test is fully independent.
 
@@ -368,7 +376,7 @@ Per-command Oracle dialect coverage against `SH.CHANNEL_SALES_SUMMARY` written b
 | generate-tests — SUMMARIZE_CHANNEL_SALES enumerates PL/SQL branches | `/generate-tests` | `check-test-spec.js`, min 3 branches |
 | refactor — CHANNEL_SALES_SUMMARY CTE restructured with final | `/refactor` | `check-refactored-sql.js` |
 
-### Command: status (4 scenarios)
+### Command: status
 
 | Scenario | Target | Key assertion |
 |---|---|---|
@@ -548,10 +556,10 @@ providers:
 
 Each scenario invokes Claude with tool use. At current pricing, expect roughly $0.10-0.50 per scenario depending on agent complexity and turn count. Command evals are more expensive per scenario (~$0.50-1.00) due to multi-table orchestration and review loops.
 
-- Full skill suite (~58 scenarios): ~$6-29 per run
-- All command evals (18 scenarios): ~$6-18 per run
-- Oracle regression (5 scenarios): ~$2-5 per run
-- Live DB packages (1 scenario each): ~$0.50-1.50 per run
+- Full skill suite: ~$6-29 per run
+- All command evals: ~$6-18 per run
+- Oracle regression: ~$2-5 per run
+- Live DB packages: ~$0.50-1.50 per run
 - Single skill package: ~$1-5 per run
 - Single command package: ~$1-3 per run
 
