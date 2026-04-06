@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
-description: "Generate-model skill — dbt model generation from stored procedures"
+description: "Generate-model skill — dbt model generation from refactored SQL"
 
 prompts:
   - file://../../prompts/skill-generating-model.txt
@@ -27,137 +27,64 @@ defaultTest:
       value: file://../../assertions/check-dbt-model.js
 
 tests:
-  # ── insert-select ─────────────────────────────────────────────
-  - description: "insert-select — simple INSERT...SELECT becomes dbt select"
+  # ── modular split ─────────────────────────────────────────────
+  - description: "modular-split — InsertSelectTarget with refactored SQL produces stg_ + mart models"
     vars:
       target_table: "silver.InsertSelectTarget"
       writer: "silver.usp_load_InsertSelectTarget"
-      expected_model_terms: "materialized='table',source(,select"
+      expected_model_terms: "ref('stg_insertselecttarget'),materialized='table'"
+      expected_stg_files: "stg_insertselecttarget"
 
-  # ── update with join ──────────────────────────────────────────
-  - description: "update-join — UPDATE join produces valid rewritten model"
+  # ── style compliance ─────────────────────────────────────────
+  - description: "style-compliance — generated model uses lowercase keywords and snake_case names"
     vars:
-      target_table: "silver.UpdateJoinTarget"
-      writer: "silver.usp_load_UpdateJoinTarget"
-      expected_model_terms: "current_timestamp,source("
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_model_terms: "with,select,from,materialized="
+      forbidden_model_terms: "SELECT,FROM,INSERT,UPDATE"
 
-  # ── delete with where ─────────────────────────────────────────
-  - description: "delete-where — DELETE with WHERE becomes keep-rows select"
-    vars:
-      target_table: "silver.DeleteWhereTarget"
-      writer: "silver.usp_load_DeleteWhereTarget"
-      graceful_no_model: "true"
+  # --- VU-878: CTE-shape and materialization scenarios ---
 
-  # ── select into ───────────────────────────────────────────────
-  - description: "select-into — SELECT INTO recognized as staging table model"
+  # ── single-source table materialization ─────────────────────
+  - description: "single-source-table — SelectIntoTarget single import CTE produces stg_ + mart"
     vars:
       target_table: "silver.SelectIntoTarget"
       writer: "silver.usp_load_SelectIntoTarget"
-      expected_model_terms: "materialized='table',with,final as"
-      forbidden_model_terms: "select into"
+      expected_stg_files: "stg_selectintotarget"
+      expected_stg_terms: "source("
+      forbidden_stg_terms: "join,group by"
 
-  # ── single cte ────────────────────────────────────────────────
-  - description: "single-cte — CTE restructured into import/logical/final"
-    vars:
-      target_table: "silver.SingleCteTarget"
-      writer: "silver.usp_load_SingleCteTarget"
-      expected_model_terms: "with,final as"
-
-  # ── correlated subquery ───────────────────────────────────────
-  - description: "correlated-subquery — correlated subquery preserved as valid dbt logic"
-    vars:
-      target_table: "silver.CorrelatedSubqueryTarget"
-      writer: "silver.usp_load_CorrelatedSubqueryTarget"
-      expected_model_terms: "with,select"
-
-  # ── union all ─────────────────────────────────────────────────
-  - description: "union-all — UNION ALL preserved in generated sql"
-    vars:
-      target_table: "silver.UnionAllTarget"
-      writer: "silver.usp_load_UnionAllTarget"
-      expected_model_terms: "union all"
-
-  # ── grouping sets ─────────────────────────────────────────────
-  - description: "grouping-sets — GROUPING SETS preserved when supported by generated sql"
-    vars:
-      target_table: "silver.GroupingSetsTarget"
-      writer: "silver.usp_load_GroupingSetsTarget"
-      expected_model_terms: "group by"
-
-  # ── pivot ─────────────────────────────────────────────────────
-  - description: "pivot — PIVOT translated to conditional aggregation"
-    vars:
-      target_table: "silver.PivotTarget"
-      writer: "silver.usp_load_PivotTarget"
-      expected_model_terms: "case when"
-
-  # ── window functions ──────────────────────────────────────────
-  - description: "window-functions — FactInternetSales preserves analytic window expressions"
-    vars:
-      target_table: "silver.FactInternetSales"
-      writer: "silver.usp_stage_FactInternetSales"
-      expected_model_terms: "count(*) over,partition by"
-
-  # ── outer apply ───────────────────────────────────────────────
-  - description: "outer-apply — DimCustomer full reload rewrites APPLY logic"
+  # ── multi-source split ──────────────────────────────────────
+  - description: "multi-source-split — DimCustomer multi-source refactored SQL produces mart with ref() calls"
     vars:
       target_table: "silver.DimCustomer"
       writer: "silver.usp_load_DimCustomer_Full"
-      expected_model_terms: "materialized='table',min(orderdate)"
+      expected_model_terms: "ref(,materialized="
 
-  # ── truncate + insert full reload ─────────────────────────────
-  - description: "truncate-insert — DimCustomer full reload stays table materialized"
+  # ── table materialization (dim_scd1) ─────────────────────────
+  - description: "table-materialization — DimProduct dim_scd1 generates table-materialized model"
     vars:
-      target_table: "silver.DimCustomer"
-      writer: "silver.usp_load_DimCustomer_Full"
-      expected_model_terms: "materialized='table'"
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      expected_model_terms: "materialized='table',ref("
 
-  # ── exec orchestrator ─────────────────────────────────────────
-  - description: "exec-orchestrator — FactInternetSales orchestration handled gracefully"
+  # ── incremental materialization (watermark) ──────────────────
+  - description: "incremental-materialization — UpdateJoinTarget with watermark generates incremental model"
     vars:
-      target_table: "silver.FactInternetSales"
-      writer: "silver.usp_load_FactInternetSales"
-      graceful_no_model: "true"
-      expected_output_terms: "orchestration,usp_stage_factinternetsales"
+      target_table: "silver.UpdateJoinTarget"
+      writer: "silver.usp_load_UpdateJoinTarget"
+      expected_model_terms: "materialized='incremental'"
 
-  # ── dynamic sp_executesql ─────────────────────────────────────
-  - description: "dynamic-sp-executesql — DimCurrency dynamic SQL handled gracefully"
+  # ── etl control columns ─────────────────────────────────────
+  - description: "etl-columns — generated model includes _dbt_run_id ETL control column"
     vars:
-      target_table: "silver.DimCurrency"
-      writer: "silver.usp_load_DimCurrency"
-      graceful_no_model: "true"
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_model_terms: "_dbt_run_id"
 
-  # ── if-else control flow ─────────────────────────────────────
-  - description: "if-else — IfElseTarget conditional branches decomposed into dbt logic"
+  # ── yaml schema rendered ─────────────────────────────────────
+  - description: "yaml-rendered — generated output includes schema YAML with version and description"
     vars:
-      target_table: "silver.IfElseTarget"
-      writer: "silver.usp_load_IfElseTarget"
-      expected_model_terms: "config(,source("
-
-  # ── while loop ───────────────────────────────────────────────
-  - description: "while-loop — WhileLoopTarget iterative pattern handled gracefully"
-    vars:
-      target_table: "silver.WhileLoopTarget"
-      writer: "silver.usp_load_WhileLoopTarget"
-      expected_model_terms: "config(,source("
-
-  # ── static sp_executesql ─────────────────────────────────────
-  - description: "static-sp-executesql — StaticSpExecTarget literal SQL resolved"
-    vars:
-      target_table: "silver.StaticSpExecTarget"
-      writer: "silver.usp_load_StaticSpExecTarget"
-      expected_model_terms: "materialized='table',source("
-
-  # ── exec variable (dynamic @sql) ────────────────────────────
-  - description: "exec-variable-model — ExecVariableTarget dynamic EXEC(@sql) graceful"
-    vars:
-      target_table: "silver.ExecVariableTarget"
-      writer: "silver.usp_scope_ExecVariable"
-      graceful_no_model: "true"
-
-  # ── exec concat (dynamic concatenation) ─────────────────────
-  - description: "exec-concat-model — ExecConcatTarget concatenated EXEC graceful"
-    vars:
-      target_table: "silver.ExecConcatTarget"
-      writer: "silver.usp_scope_ExecConcat"
-      graceful_no_model: "true"
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_output_terms: "version: 2,description"

@@ -26,16 +26,12 @@ defaultTest:
       value: file://../../assertions/check-model-review.js
 
 tests:
-  - description: "approved — clean MERGE model passes standards and integration checks"
-    vars:
-      target_table: "silver.DimProduct"
-      writer: "silver.usp_load_DimProduct"
-      expected_status: "approved,approved_with_warnings,revision_requested"
+  # --- VU-869: pattern-specific code review cases ---
 
-  - description: "approved — standard DML model with source/ref usage passes review"
+  - description: "approved — SelectIntoTarget staging model with ephemeral materialization"
     vars:
-      target_table: "silver.InsertSelectTarget"
-      writer: "silver.usp_load_InsertSelectTarget"
+      target_table: "silver.SelectIntoTarget"
+      writer: "silver.usp_load_SelectIntoTarget"
       expected_status: "approved,approved_with_warnings,revision_requested"
 
   - description: "revision-requested — incorrect materialization and missing tests are flagged"
@@ -44,34 +40,61 @@ tests:
       writer: "silver.usp_load_DimCustomer_Full"
       expected_status: "approved,approved_with_warnings,revision_requested"
 
-  # --- VU-869: pattern-specific code review cases ---
+  # --- VU-877: stable codes, tiered feedback, ack_required ---
 
-  - description: "approved — UpdateJoinTarget correct UPDATE→SELECT rewrite"
+  - description: "standards-codes — DimProduct staging model missing ephemeral materialization flagged with MOD_004"
+    vars:
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      expected_status: "approved,approved_with_warnings,revision_requested"
+      expect_standards_passed: "false"
+      expected_feedback_codes: "MOD_004"
+
+  - description: "standards-codes — any model missing _dbt_run_id flagged with MDL_005"
+    vars:
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_status: "approved,approved_with_warnings,revision_requested"
+      expected_feedback_codes: "MDL_005"
+
+  - description: "feedback-structure — all feedback items are objects with code and ack_required"
+    vars:
+      target_table: "silver.DimCustomer"
+      writer: "silver.usp_load_DimCustomer_Full"
+      expected_status: "approved,approved_with_warnings,revision_requested"
+
+  # --- VU-878: correctness, test-integration, and standards scenarios ---
+
+  - description: "happy-path — SelectIntoTarget clean staging model passes review"
+    vars:
+      target_table: "silver.SelectIntoTarget"
+      writer: "silver.usp_load_SelectIntoTarget"
+      expected_status: "approved,approved_with_warnings"
+
+  - description: "correctness-check — UpdateJoinTarget reviewer validates model against proc_body"
     vars:
       target_table: "silver.UpdateJoinTarget"
       writer: "silver.usp_load_UpdateJoinTarget"
       expected_status: "approved,approved_with_warnings,revision_requested"
+      expect_correctness_passed: "false"
 
-  - description: "approved — SelectIntoTarget staging model with ephemeral materialization"
+  - description: "standards-sql-001 — UpdateJoinTarget model has uppercase keyword flagged"
     vars:
-      target_table: "silver.SelectIntoTarget"
-      writer: "silver.usp_load_SelectIntoTarget"
+      target_table: "silver.UpdateJoinTarget"
+      writer: "silver.usp_load_UpdateJoinTarget"
       expected_status: "approved,approved_with_warnings,revision_requested"
+      expected_feedback_codes: "SQL_001"
 
-  - description: "approved — IfElseTarget control-flow decomposition into dbt"
+  - description: "test-integration — DimProduct reviewer checks unit tests rendered in YAML"
     vars:
-      target_table: "silver.IfElseTarget"
-      writer: "silver.usp_load_IfElseTarget"
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
       expected_status: "approved,approved_with_warnings,revision_requested"
+      expect_test_integration_passed: "false"
 
-  - description: "approved — FactExecProfile ref-only orchestrator pattern"
+  - description: "materialization-check — UpdateJoinTarget profile-derived materialization validated"
     vars:
-      target_table: "silver.FactExecProfile"
-      writer: "silver.usp_load_FactExecProfile"
+      target_table: "silver.UpdateJoinTarget"
+      writer: "silver.usp_load_UpdateJoinTarget"
       expected_status: "approved,approved_with_warnings,revision_requested"
-
-  - description: "approved — DimCurrency graceful degradation for dynamic SQL"
-    vars:
-      target_table: "silver.DimCurrency"
-      writer: "silver.usp_load_DimCurrency"
-      expected_status: "approved,approved_with_warnings,revision_requested"
+      expected_feedback_codes: "MDL"

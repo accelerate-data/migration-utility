@@ -192,6 +192,22 @@ def _load_table_columns(project_root: Path, table_fqn: str) -> list[dict[str, An
     return []
 
 
+def _load_refactored_sql(project_root: Path, table_fqn: str) -> str | None:
+    """Load refactored_sql from the table catalog's refactor section.
+
+    Returns ``None`` when the refactor section is absent or incomplete.
+    The generating-model guard (``check_refactor_complete``) ensures this
+    field is always populated before the generating-model skill runs.
+    """
+    cat = load_table_catalog(project_root, table_fqn)
+    if cat is None:
+        return None
+    refactor = cat.get("refactor")
+    if not refactor:
+        return None
+    return refactor.get("refactored_sql") or None
+
+
 def _collect_source_tables(
     project_root: Path, writer_fqn: str,
 ) -> list[str]:
@@ -238,6 +254,7 @@ def run_context(
     source_tables = _collect_source_tables(project_root, writer_norm)
     materialization = derive_materialization(profile)
     schema_tests = derive_schema_tests(profile)
+    refactored_sql = _load_refactored_sql(project_root, table_norm)
 
     return {
         "table": table_norm,
@@ -250,6 +267,7 @@ def run_context(
         "columns": columns,
         "source_tables": source_tables,
         "schema_tests": schema_tests,
+        "refactored_sql": refactored_sql,
     }
 
 

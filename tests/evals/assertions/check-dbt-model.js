@@ -7,6 +7,9 @@
 //   expected_model_terms?,
 //   forbidden_model_terms?,
 //   expected_output_terms?,
+//   expected_stg_files?,
+//   expected_stg_terms?,
+//   forbidden_stg_terms?,
 //   graceful_no_model?
 // }
 const fs = require('fs');
@@ -20,6 +23,9 @@ module.exports = (output, context) => {
   const forbiddenModelTerms = normalizeTerms(context.vars.forbidden_model_terms);
   const expectedOutputTerms = normalizeTerms(context.vars.expected_output_terms);
   const gracefulNoModel = String(context.vars.graceful_no_model || '').toLowerCase() === 'true';
+  const expectedStgFiles = normalizeTerms(context.vars.expected_stg_files);
+  const expectedStgTerms = normalizeTerms(context.vars.expected_stg_terms);
+  const forbiddenStgTerms = normalizeTerms(context.vars.forbidden_stg_terms);
 
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
   const dbtDir = path.resolve(repoRoot, fixturePath, 'dbt');
@@ -105,6 +111,27 @@ module.exports = (output, context) => {
     const failure = assertExpectedOutputTerms();
     if (failure) {
       return failure;
+    }
+  }
+
+  for (const stgName of expectedStgFiles) {
+    const stgPath = path.resolve(dbtDir, 'models', 'staging', `${stgName}.sql`);
+    if (!fs.existsSync(stgPath)) {
+      return { pass: false, score: 0, reason: `Expected staging file '${stgName}.sql' not found at ${stgPath}` };
+    }
+
+    if (expectedStgTerms.length > 0 || forbiddenStgTerms.length > 0) {
+      const stgContent = fs.readFileSync(stgPath, 'utf8').toLowerCase();
+      for (const term of expectedStgTerms) {
+        if (!stgContent.includes(term)) {
+          return { pass: false, score: 0, reason: `Expected staging term '${term}' not found in ${stgName}.sql` };
+        }
+      }
+      for (const term of forbiddenStgTerms) {
+        if (stgContent.includes(term)) {
+          return { pass: false, score: 0, reason: `Forbidden staging term '${term}' found in ${stgName}.sql` };
+        }
+      }
     }
   }
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Generates a dbt model from a profiled stored procedure. Reads deterministic context from catalog (profile, resolved statements, test spec), uses LLM to produce dbt-idiomatic SQL following the import CTE / logical CTE / final CTE pattern, validates logical equivalence against the original procedure, renders schema YAML with tests, and writes artifacts to the dbt project. Includes a self-correction loop that runs `dbt compile` and `dbt test` up to 3 iterations.
+Generates a dbt model from a profiled stored procedure. Reads deterministic context from catalog (profile, resolved statements, test spec, and refactored SQL), uses LLM to produce dbt-idiomatic SQL following the import CTE / logical CTE / final CTE pattern with a staging/mart split, validates logical equivalence against the refactored SQL, renders schema YAML with tests, and writes artifacts to the dbt project. Includes a self-correction loop that runs `dbt compile` and `dbt test` up to 3 iterations.
 
 ## Invocation
 
@@ -40,82 +40,62 @@ Output JSON contains:
 | `columns` | Target table column list |
 | `source_tables` | Tables read by the writer |
 | `schema_tests` | Deterministic test specs (entity integrity, referential integrity, recency, PII) |
+| `refactored_sql` | Cleaned, CTE-structured SQL produced by the refactor stage |
 
-### 2. Decide model structure
+Use `refactored_sql` as the sole SQL input for generation. `proc_body` and `statements` are ignored during generation -- they exist in context for the reviewer's correctness checks.
 
-| Pattern | Model structure |
-|---|---|
-| Single INSERT from source tables | One staging model |
-| Multiple INSERTs to same target table | One model with UNION ALL |
-| Multiple INSERTs to different target tables | Separate models (one per target) |
-| Temp table chains (INSERT INTO #temp, then INSERT from #temp) | Staging + intermediate models with `{{ ref() }}` |
-| Nested subqueries in SELECT | Flatten into sequential CTEs |
-| MERGE with complex USING clause | Single model; MERGE semantics become incremental config |
+### 2. Decide model structure (staging/mart split)
+
+The refactored SQL already has import/logical/final CTE structure. Apply the staging/mart split:
+
+- **Import CTEs** become ephemeral `stg_*` models (one per source table).
+- **Logical + final CTEs** become the mart model.
+
+Before creating a new `stg_*` model, check `dbt/models/staging/` for an existing one on the same source table. If it exists and its column set is compatible, use `{{ ref() }}` -- do not duplicate.
+
+See `modular-modeling-ref.md` in the skill's references for full decision rules.
 
 ### 3. Generate dbt SQL
 
-Follows the **import CTE -> logical CTE -> final CTE** pattern:
+Produces two output types from `refactored_sql`:
 
-**Import CTEs** -- all external data sources at the top:
-
-```sql
-with source_customers as (
-    select * from {{ source('bronze', 'customer') }}
-),
-
-dim_product as (
-    select * from {{ ref('stg_dim_product') }}
-),
-```
-
-Rules:
-
-- Raw/bronze tables use `{{ source('<schema>', '<table>') }}`
-- Already-migrated models use `{{ ref('<model_name>') }}`
-- One CTE per source, named descriptively
-
-**Logical CTEs** -- one transformation step per CTE:
+**Staging models (`stg_<source_table>.sql`)** -- one per import CTE:
 
 ```sql
-customers_with_region as (
-    select
-        c.customer_key,
-        c.first_name,
-        g.country as region
-    from source_customers c
-    left join source_geography g
-        on c.customer_key = g.customer_key
-),
+{{ config(materialized='ephemeral') }}
+
+select * from {{ source('<schema>', '<table>') }}
 ```
 
-Rules:
+Light transforms only. No joins, no business logic.
 
-- Each CTE does one thing (join, filter, aggregate, transform)
-- Replace T-SQL syntax with ANSI SQL equivalents
-- Replace procedure parameters with `{{ var('param_name', 'default_value') }}`
-
-**Final CTE and SELECT:**
-
-```sql
-final as (
-    select
-        customer_key,
-        first_name,
-        region,
-        current_timestamp() as _loaded_at
-    from filtered_customers
-)
-
-select * from final
-```
-
-**Config block** at top of model:
+**Mart model (`<target_table>.sql`)** -- replaces import CTEs with `{{ ref('stg_...') }}` calls; logical and final CTEs stay as-is:
 
 ```sql
 {{ config(
     materialized='<materialization>'
 ) }}
+
+with <source_table> as (
+    select * from {{ ref('stg_<source_table>') }}
+),
+
+<logical_cte> as (
+    ...
+),
+
+final as (
+    ...
+)
+
+select * from final
 ```
+
+Style guides applied throughout:
+
+- `sql-style.md` -- keywords, indentation, commas, aliases (SQL_001--SQL_013)
+- `cte-structure.md` -- import-first order, `final` naming, no nested CTEs (CTE_001--CTE_008)
+- `model-naming.md` -- layer prefixes, `_dbt_run_id`, `_loaded_at` rules (MDL_001--MDL_013)
 
 **Materialization mapping from classification:**
 
@@ -138,30 +118,15 @@ where <watermark_column> > (select max(<watermark_column>) from {{ this }})
 {% endif %}
 ```
 
-For snapshot models, a dbt snapshot block is generated in `snapshots/` instead of `models/staging/`:
-
-```sql
-{% snapshot <model_name>_snapshot %}
-
-{{ config(
-    target_schema='snapshots',
-    unique_key='<pk_column>',
-    strategy='timestamp',
-    updated_at='<watermark_column>',
-) }}
-
-select * from {{ source('<source_name>', '<table_name>') }}
-
-{% endsnapshot %}
-```
+For snapshot models, a dbt snapshot block is generated in `snapshots/` instead of `models/staging/`.
 
 ### 4. Logical equivalence check
 
-Compares generated model against original `migrate` statements:
+Compares generated model against `refactored_sql`:
 
 | Check | What is compared |
 |---|---|
-| Source tables | Same tables read in model vs original proc |
+| Source tables | Same tables read in model vs refactored SQL |
 | Columns selected | Same columns in final SELECT vs original INSERT column list |
 | Join conditions | Same join keys and join types (INNER/LEFT/RIGHT/FULL) |
 | Filter predicates | Same WHERE/HAVING conditions (modulo syntax) |
@@ -202,6 +167,8 @@ models:
           pii_action: <action>
 ```
 
+Apply `yaml-style.md` (YML_001--YML_008) throughout.
+
 **5b -- Render test-spec unit tests** from `test-specs/<item_id>.json`:
 
 Every `unit_tests[]` entry is rendered into a `unit_tests:` block in the schema YAML. None may be dropped or modified.
@@ -225,7 +192,7 @@ After rendering test-spec tests, the model's logic is analyzed for uncovered bra
 
 ### 6. Present for approval (interactive)
 
-Shows: generated model SQL, schema YAML, equivalence check results, materialization decisions. User approves, requests edits, or declines.
+Shows: generated model SQL (staging + mart), schema YAML, equivalence check results, materialization decisions. User approves, requests edits, or declines.
 
 ### 7. Write artifacts
 
@@ -238,6 +205,12 @@ uv run --project <shared-path> migrate write \
 ```
 
 The dbt project path is resolved from `$DBT_PROJECT_PATH` or defaults to `./dbt`.
+
+Artifact write paths:
+
+- Staging models: `dbt/models/staging/stg_<source_table>.sql`
+- Mart model: `dbt/models/<layer>/<target_table>.sql` (layer is `silver` or `gold` based on classification)
+- Schema YAML: alongside the mart model
 
 ### 8. Compile and test
 
@@ -278,13 +251,21 @@ After 3 failed iterations, the model is left as-is with `status: "partial"` and 
 
 ## Writes
 
-### Model SQL file
+### Staging model SQL files
 
-Written to `dbt/models/staging/stg_<table>.sql` (or `dbt/snapshots/` for snapshot models).
+Written to `dbt/models/staging/stg_<source_table>.sql` (one per import CTE).
+
+### Mart model SQL file
+
+Written to `dbt/models/<layer>/<target_table>.sql`.
 
 ### Schema YAML file
 
-Written alongside the model as `dbt/models/staging/stg_<table>.yml`.
+Written alongside the mart model.
+
+### Snapshot files
+
+For snapshot models, generated in `dbt/snapshots/` instead of `dbt/models/`.
 
 ### Migration artifact manifest (`migration_artifact_manifest.json`)
 
@@ -297,14 +278,22 @@ Written alongside the model as `dbt/models/staging/stg_<table>.yml`.
 | `results[].status` | string | Enum: `ok`, `partial`, `error` |
 | `results[].output.table_ref` | string | Target table reference |
 | `results[].output.model_name` | string | Generated dbt model name |
-| `results[].output.artifact_paths` | object | `model_sql`, `model_yaml`, `source_yaml` paths |
+| `results[].output.artifact_paths` | object | `model_sql`, `staging_sql`, `model_yaml`, `source_yaml` paths |
 | `results[].output.generated.model_sql` | object | `materialized` (enum: `incremental`, `table`, `snapshot`), `uses_watermark`, `uses_writer_logic` |
 | `results[].output.generated.model_yaml` | object | `has_model_description`, `has_column_descriptions`, `schema_tests_rendered[]`, `has_unit_tests` |
 | `results[].output.execution` | object | `dbt_parse_passed`, `dbt_compile_passed`, `dbt_errors[]` |
 
 ## JSON Format
 
-### Generated model SQL example
+### Generated staging model SQL example
+
+```sql
+{{ config(materialized='ephemeral') }}
+
+select * from {{ source('bronze', 'customer') }}
+```
+
+### Generated mart model SQL example
 
 ```sql
 {{ config(
@@ -314,11 +303,11 @@ Written alongside the model as `dbt/models/staging/stg_<table>.yml`.
 ) }}
 
 with source_customers as (
-    select * from {{ source('bronze', 'customer') }}
+    select * from {{ ref('stg_customer') }}
 ),
 
 source_geography as (
-    select * from {{ source('bronze', 'geography') }}
+    select * from {{ ref('stg_geography') }}
 ),
 
 customers_with_region as (
@@ -394,5 +383,5 @@ models:
 | `migrate write` exit code 2 | IO error (missing dbt project) | Run `/init-dbt` to create the dbt project |
 | `dbt compile` connection error | No warehouse connection available | Falls back to `dbt parse` for offline validation. Unit tests are skipped |
 | `dbt test` failure after 3 iterations | Model cannot pass all unit tests | Model left with `status: "partial"`. Failing tests recorded in `execution.dbt_errors[]`. Manual intervention needed |
-| Equivalence check warnings | Generated model diverges from original proc semantics | Review warnings with user. Revise model if semantic gaps are real |
+| Equivalence check warnings | Generated model diverges from refactored SQL semantics | Review warnings with user. Revise model if semantic gaps are real |
 | Test-spec scenario missing from YAML | Scenario dropped during rendering | All `unit_tests[]` from test spec must be preserved -- re-run rendering |

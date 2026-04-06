@@ -4,7 +4,8 @@ description: >
   Reviews test generation output for coverage and quality. Independently
   enumerates branches, scores coverage, and reviews fixture quality.
   Invoked by the /generate-tests command, not directly by the user.
-user-invocable: true
+user-invocable: false
+context: fork
 argument-hint: "<schema.table>"
 ---
 

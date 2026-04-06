@@ -71,3 +71,9 @@ Current automated statement coverage for the test-review phase. The phase bounda
 | S6 | `THROW` | N/A | N/A | N/A |
 | S7 | `BEGIN / COMMIT / ROLLBACK` | N/A | N/A | N/A |
 | S8 | `DROP / CREATE INDEX` | N/A | N/A | N/A |
+
+## Test-review eval scenarios (non-pattern-based)
+
+| Scenario | What it tests | Status |
+|---|---|---|
+| not-null-flagged | Reviewer catches missing NOT NULL columns as severity=error | Yes |

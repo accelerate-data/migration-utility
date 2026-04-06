@@ -49,23 +49,14 @@ Return the item result JSON.
 
 The skill writes `test-specs/<item_id>.json` with branch manifest and fixtures but no `expect.rows`.
 
-### Step 3 — Review scenarios (sub-agent)
+### Step 3 — Review scenarios
 
-For each item that completed step 2, launch a review sub-agent in isolated context:
-
-```text
-Run the ground-truth-harness:reviewing-tests skill for <item_id> --iteration 1.
-The worktree is at <worktree-path>.
-The test spec is at <worktree-path>/test-specs/<item_id>.json.
-Write the TestReviewResult JSON to .migration-runs/<item_id>.review.<epoch>.json.
-On failure, write result with status: "error" and error details.
-Return the TestReviewResult JSON.
-```
+For each item, read `.migration-runs/<item_id>.<epoch>.json` from Step 2. If `status` is `error`, skip the item. For each remaining item, invoke `/reviewing-tests <item_id> --iteration 1`.
 
 Parse the returned TestReviewResult JSON:
 
 - `approved` or `approved_with_warnings`: proceed to step 4.
-- `revision_requested`: pass `feedback_for_generator` to a new `ground-truth-harness:generating-tests` sub-agent (include the feedback JSON in the prompt — see the skill's "Handling reviewer feedback" section), then launch review sub-agent with `--iteration 2`. Maximum 2 review iterations per item.
+- `revision_requested`: pass `feedback_for_generator` to `/generating-tests <item_id>` (include the feedback JSON — see the skill's "Handling reviewer feedback" section), then invoke `/reviewing-tests <item_id> --iteration 2`. Maximum 2 review iterations per item.
 - On review failure: record `status: "partial"` and continue.
 
 ### Step 4 — Capture ground truth

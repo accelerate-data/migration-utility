@@ -39,6 +39,11 @@
     "views": { "in_scope": [], "out_of_scope": [] },
     "functions": { "in_scope": [], "out_of_scope": [] }
   },
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT customer_sk, customer_name, email, valid_from, valid_to, is_current FROM [bronze].[Customer]",
+    "refactored_sql": "with source_customer as (\n    select * from [bronze].[Customer]\n),\n\nfinal as (\n    select\n        customer_sk,\n        customer_name,\n        email,\n        valid_from,\n        valid_to,\n        is_current\n    from source_customer\n)\n\nselect * from final"
+  },
   "profile": {
     "status": "ok",
     "writer": "dbo.usp_load_dim_customer",

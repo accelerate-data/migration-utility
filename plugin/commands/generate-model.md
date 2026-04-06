@@ -52,10 +52,10 @@ Return the item result JSON.
 
 ### Step 3 — Review Model
 
-For each item that completed Step 2 successfully (dbt tests passing), invoke `/reviewing-model --table <item_id>`.
+For each item, read `.migration-runs/<item_id>.<epoch>.json` from Step 2. If `status` is `error`, skip the item. For each remaining item, invoke `/reviewing-model <item_id>`.
 
 - If verdict is `approved`: proceed to revert/summarize.
-- If verdict is `revision_requested`: re-invoke `/generating-model` for the item with the reviewer's `feedback_for_model_generator` as additional context. The model-generator must re-run `dbt test` to confirm unit tests still pass after revisions. Then re-invoke `/reviewing-model`. Maximum 2 review iterations per item.
+- `revision_requested`: invoke `/generating-model <item_id>` with the reviewer's `feedback_for_model_generator` as additional context. The model-generator must re-run `dbt test` to confirm unit tests still pass after revisions. Then invoke `/reviewing-model <item_id>` again. Maximum 2 review iterations per item.
 - On review failure or max iterations reached, approve with warnings and proceed.
 
 ### Step 4 — Revert errored items

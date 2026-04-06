@@ -1,7 +1,7 @@
 {{ config(materialized='table') }}
 
 with source_product as (
-    select *
+    SELECT *
     from {{ source('bronze', 'product') }}
 ),
 

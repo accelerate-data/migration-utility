@@ -10,8 +10,6 @@ user-invocable: true
 argument-hint: "<schema.table>"
 ---
 
-@references/sp-migration-ref.md
-
 # Refactoring SQL
 
 Restructure a stored procedure's SQL into import/logical/final CTEs while proving the refactored SQL produces identical results. Uses two isolated sub-agents to produce independent outputs, then compares them in the sandbox. The output stays in T-SQL — dbt Jinja conversion happens in the downstream `generating-model` skill.
@@ -51,7 +49,7 @@ Record the `writer` field -- this is the procedure FQN.
 
 ## Step 2: Launch two sub-agents in parallel
 
-Launch both sub-agents simultaneously. They must not see each other's output -- this prevents context pollution so the equivalence comparison is meaningful.
+Launch both sub-agents simultaneously. They must not see each other's output -- this prevents context pollution so the equivalence comparison is meaningful. Both agents use [references/sp-migration-ref.md](references/sp-migration-ref.md) for DML extraction and CTE restructuring rules.
 
 ### Sub-agent A: Extract core SELECT
 
@@ -193,6 +191,10 @@ Present:
 3. CTE structure summary (import CTEs, logical CTEs, final)
 4. Equivalence audit results (per-scenario pass/fail)
 5. Any remaining diffs if status is partial
+
+## References
+
+- [references/sp-migration-ref.md](references/sp-migration-ref.md) — DML extraction rules per statement type (INSERT, MERGE, UPDATE, etc.) and CTE restructuring patterns for sub-agents A and B
 
 ## Error handling
 

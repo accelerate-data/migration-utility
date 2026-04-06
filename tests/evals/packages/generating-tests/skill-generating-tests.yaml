@@ -195,3 +195,21 @@ tests:
       expected_coverage: "complete,partial"
       expected_warning_terms: "dynamic"
       expected_output_terms: "dynamic"
+
+  # --- VU-878: fixture quality scenarios ---
+
+  - description: "not-null-coverage — DimProduct fixtures include NOT NULL columns"
+    vars:
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      expected_output_terms: "ProductNumber,MakeFlag"
+
+  - description: "multi-source-fk — DimCustomer multi-source fixtures with FK alignment"
+    vars:
+      target_table: "silver.DimCustomer"
+      writer: "silver.usp_load_DimCustomer_Full"
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 3

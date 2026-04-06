@@ -1,16 +1,18 @@
 # Code Review Coverage
 
-Current automated statement coverage for the code-review phase. The phase boundary here includes automated review of generated dbt output for standards, correctness, and test integration.
+Current automated statement coverage for the code-review phase. With VU-877, reviewing-model checks standards (stable codes), correctness (model vs proc_body), and test integration. DML pattern rows are `N/A` — the reviewer validates the generated model output, not the original DML. Pattern-specific coverage belongs in the refactoring phase.
+
+Remaining eval scenarios focus on standards codes (MOD_004, MDL_005), feedback structure (tiered severity, ack_required), and correctness/test-integration checks.
 
 | # | Statement | Unit | Integration | Promptfoo |
 |---|---|---|---|---|
-| 1 | `INSERT ... SELECT` | N/A | N/A | Yes |
-| 2 | `UPDATE` with join | N/A | N/A | Yes |
+| 1 | `INSERT ... SELECT` | N/A | N/A | N/A |
+| 2 | `UPDATE` with join | N/A | N/A | N/A |
 | 3 | `DELETE` with `WHERE` | N/A | N/A | N/A |
 | 4 | `DELETE TOP` | N/A | N/A | N/A |
 | 5 | `TRUNCATE TABLE` | N/A | N/A | N/A |
-| 6 | `TRUNCATE` + `INSERT` | N/A | N/A | Yes |
-| 7 | `MERGE INTO` | N/A | N/A | Yes |
+| 6 | `TRUNCATE` + `INSERT` | N/A | N/A | N/A |
+| 7 | `MERGE INTO` | N/A | N/A | N/A |
 | 8 | `SELECT INTO` | N/A | N/A | Yes |
 | 9 | Single CTE | N/A | N/A | N/A |
 | 10 | Multi-level CTE | N/A | N/A | N/A |
@@ -30,7 +32,7 @@ Current automated statement coverage for the code-review phase. The phase bounda
 | 25 | `FULL OUTER JOIN` | N/A | N/A | N/A |
 | 26 | `CROSS JOIN` | N/A | N/A | N/A |
 | 27 | `CROSS APPLY` | N/A | N/A | N/A |
-| 28 | `OUTER APPLY` | N/A | N/A | Yes |
+| 28 | `OUTER APPLY` | N/A | N/A | N/A |
 | 29 | Self-join | N/A | N/A | N/A |
 | 30 | Derived table in `FROM` | N/A | N/A | N/A |
 | 31 | Scalar subquery in `SELECT` | N/A | N/A | N/A |
@@ -47,20 +49,20 @@ Current automated statement coverage for the code-review phase. The phase bounda
 | 42 | `ROLLUP` | N/A | N/A | N/A |
 | 43 | `PIVOT` | N/A | N/A | N/A |
 | 44 | `UNPIVOT` | N/A | N/A | N/A |
-| 49 | `EXEC proc` | N/A | N/A | Yes |
+| 49 | `EXEC proc` | N/A | N/A | N/A |
 | 50 | `EXEC [schema].[proc]` | N/A | N/A | N/A |
 | 51 | `EXEC proc` with params | N/A | N/A | N/A |
 | 52 | `EXEC proc` with `OUTPUT` | N/A | N/A | N/A |
 | 53 | `EXECUTE proc` keyword form | N/A | N/A | N/A |
 | 54 | `EXEC @rc = proc` | N/A | N/A | N/A |
 | 57 | Static `sp_executesql` | N/A | N/A | N/A |
-| 45 | `IF / ELSE` control flow | N/A | N/A | Yes |
+| 45 | `IF / ELSE` control flow | N/A | N/A | N/A |
 | 46 | `TRY / CATCH` | N/A | N/A | N/A |
 | 47 | `WHILE` loop | N/A | N/A | N/A |
 | 48 | Nested control flow | N/A | N/A | N/A |
 | 55 | Cross-database `EXEC` | N/A | N/A | N/A |
 | 56 | Linked-server `EXEC` | N/A | N/A | N/A |
-| 58 | Dynamic `sp_executesql` | N/A | N/A | Yes |
+| 58 | Dynamic `sp_executesql` | N/A | N/A | N/A |
 | 59 | `EXEC (@sql)` | N/A | N/A | N/A |
 | 60 | `EXEC ('...' + @var)` | N/A | N/A | N/A |
 | S1 | `SET` | N/A | N/A | N/A |
@@ -71,3 +73,18 @@ Current automated statement coverage for the code-review phase. The phase bounda
 | S6 | `THROW` | N/A | N/A | N/A |
 | S7 | `BEGIN / COMMIT / ROLLBACK` | N/A | N/A | N/A |
 | S8 | `DROP / CREATE INDEX` | N/A | N/A | N/A |
+
+## Code-review eval scenarios (non-pattern-based)
+
+| Scenario | What it tests | Status |
+|---|---|---|
+| SelectIntoTarget staging review | Ephemeral materialization check | Yes |
+| DimCustomer revision-requested | Incorrect materialization and missing tests flagged | Yes |
+| MOD_004 standards code | Missing ephemeral → feedback with stable code | Yes |
+| MDL_005 standards code | Missing `_dbt_run_id` → feedback with stable code | Yes |
+| feedback-structure | Feedback items have code + ack_required fields | Yes |
+| happy-path | Clean model passes review | Yes |
+| correctness-check | Reviewer validates model against proc_body | Yes |
+| SQL_001 standards code | Uppercase keyword flagged with stable code | Yes |
+| test-integration | Unit test rendering validated | Yes |
+| materialization-check | Profile-derived materialization validated | Yes |
