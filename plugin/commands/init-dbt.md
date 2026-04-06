@@ -219,6 +219,16 @@ If `dbt compile` succeeds, report success.
 
 ## Step 6: Commit
 
+If the project directory is a git repository, check the current branch first:
+
+```bash
+git branch --show-current
+```
+
+If on `main`, notify the user:
+
+> ⚠️ Committing dbt scaffold directly to `main`. dbt project initialisation is typically committed to main — this is expected. For migration work that follows, create a feature branch before running `/scope`, `/profile`, or other pipeline commands.
+
 If the project directory is a git repository:
 
 ```bash
