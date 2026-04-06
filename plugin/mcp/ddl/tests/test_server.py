@@ -5,6 +5,9 @@ a running MCP server process.
 """
 
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -12,6 +15,28 @@ import pytest
 from shared.loader import load_directory
 
 import server as ddl_server
+
+_SHARED_DIR = Path(__file__).parents[4] / "plugin" / "lib"
+
+
+def _skip_if_no_oracle() -> None:
+    for var in ("ORACLE_USER", "ORACLE_PASSWORD", "ORACLE_DSN"):
+        if not os.environ.get(var):
+            pytest.skip(f"{var} not set")
+
+
+def _git_init(path: Path) -> None:
+    subprocess.run(["git", "init", str(path)], capture_output=True, check=True)
+
+
+def _run_setup_ddl(args: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["uv", "run", "setup-ddl", *args],
+        cwd=str(_SHARED_DIR),
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -293,3 +318,173 @@ def test_get_view_body_unknown(ddl_dir: Path) -> None:
     catalog = load_directory(ddl_dir)
     entry = catalog.get_view("silver.vw_DoesNotExist")
     assert entry is None
+
+
+# ── Oracle dialect — column type rendering ────────────────────────────────────
+
+ORACLE_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "oracle"
+
+
+@pytest.fixture()
+def oracle_ddl_dir() -> Path:
+    """Path to the Oracle SH-schema fixture project root."""
+    return ORACLE_FIXTURE_DIR
+
+
+def test_parse_columns_oracle_varchar2(oracle_ddl_dir: Path) -> None:
+    """VARCHAR2 column type is rendered as VARCHAR2 under the oracle dialect."""
+    catalog = load_directory(oracle_ddl_dir)
+    entry = catalog.get_table("SH.CUSTOMERS")
+    assert entry is not None
+
+    cols = {c["name"]: c for c in ddl_server._parse_columns(entry, dialect="oracle")}
+    assert cols["CUST_FIRST_NAME"]["type"] == "VARCHAR2(20)"
+
+
+def test_parse_columns_oracle_number(oracle_ddl_dir: Path) -> None:
+    """NUMBER column type is rendered as NUMBER under the oracle dialect."""
+    catalog = load_directory(oracle_ddl_dir)
+    entry = catalog.get_table("SH.CUSTOMERS")
+    assert entry is not None
+
+    cols = {c["name"]: c for c in ddl_server._parse_columns(entry, dialect="oracle")}
+    assert cols["CUST_ID"]["type"] == "NUMBER"
+
+
+def test_parse_columns_oracle_char(oracle_ddl_dir: Path) -> None:
+    """CHAR column type is rendered as CHAR(1) under the oracle dialect."""
+    catalog = load_directory(oracle_ddl_dir)
+    entry = catalog.get_table("SH.CUSTOMERS")
+    assert entry is not None
+
+    cols = {c["name"]: c for c in ddl_server._parse_columns(entry, dialect="oracle")}
+    assert cols["CUST_GENDER"]["type"] == "CHAR(1)"
+
+
+def test_parse_columns_oracle_no_tsql_types(oracle_ddl_dir: Path) -> None:
+    """Oracle column types contain no T-SQL-specific type names."""
+    catalog = load_directory(oracle_ddl_dir)
+    entry = catalog.get_table("SH.CUSTOMERS")
+    assert entry is not None
+
+    tsql_types = {"NVARCHAR", "INT", "BIGINT", "BIT", "UNIQUEIDENTIFIER"}
+    cols = ddl_server._parse_columns(entry, dialect="oracle")
+    rendered_types = {c["type"] for c in cols}
+    assert tsql_types.isdisjoint(rendered_types)
+
+
+# ── Oracle dialect — integration tests (require Docker Oracle + SH schema) ────
+
+
+@pytest.mark.oracle
+def test_oracle_list_procedures(oracle_ddl_dir: Path) -> None:
+    """list_procedures returns the SH.GET_PRODUCT_COUNT procedure from fixtures."""
+    catalog = load_directory(oracle_ddl_dir)
+    assert "sh.get_product_count" in catalog.procedures
+
+
+@pytest.mark.oracle
+def test_oracle_get_procedure_body(oracle_ddl_dir: Path) -> None:
+    """get_procedure_body returns the raw DDL for the SH procedure."""
+    catalog = load_directory(oracle_ddl_dir)
+    entry = catalog.get_procedure("SH.GET_PRODUCT_COUNT")
+    assert entry is not None
+    assert "GET_PRODUCT_COUNT" in entry.raw_ddl
+
+
+@pytest.mark.oracle
+def test_oracle_get_table_schema_column_types(oracle_ddl_dir: Path) -> None:
+    """get_table_schema for an Oracle project returns correct Oracle column types."""
+    catalog = load_directory(oracle_ddl_dir)
+    entry = catalog.get_table("SH.CUSTOMERS")
+    assert entry is not None
+
+    cols = {c["name"]: c for c in ddl_server._parse_columns(entry, dialect="oracle")}
+    assert cols["CUST_FIRST_NAME"]["type"] == "VARCHAR2(20)"
+    assert cols["CUST_ID"]["type"] == "NUMBER"
+    assert cols["CUST_GENDER"]["type"] == "CHAR(1)"
+
+
+# ── Oracle DDL loading — CREATE OR REPLACE + double-quoted names ──────────────
+
+
+def test_oracle_or_replace_procedure_is_indexed(oracle_ddl_dir: Path) -> None:
+    """CREATE OR REPLACE PROCEDURE "SH"."name" is indexed under the plain key."""
+    catalog = load_directory(oracle_ddl_dir)
+    assert "sh.get_product_count" in catalog.procedures
+
+
+def test_oracle_force_editionable_view_is_indexed(oracle_ddl_dir: Path) -> None:
+    """CREATE OR REPLACE FORCE EDITIONABLE VIEW "SH"."name" is indexed."""
+    catalog = load_directory(oracle_ddl_dir)
+    assert "sh.profits" in catalog.views
+
+
+def test_oracle_double_quoted_name_lookup(oracle_ddl_dir: Path) -> None:
+    """Procedure stored via double-quoted DDL is retrievable by plain name."""
+    catalog = load_directory(oracle_ddl_dir)
+    entry = catalog.get_procedure("SH.GET_PRODUCT_COUNT")
+    assert entry is not None
+    assert "GET_PRODUCT_COUNT" in entry.raw_ddl
+
+
+# ── Oracle integration tests — require live Docker Oracle with SH schema ──────
+
+
+@pytest.mark.oracle
+class TestOracleLiveIntegration:
+    """Integration tests against DDL extracted from the live Oracle SH schema.
+
+    Requires ORACLE_USER, ORACLE_PASSWORD, ORACLE_DSN to be set and the
+    SH schema to be present (standard Oracle sample schema).
+    """
+
+    def _extract_sh(self, tmp_path: Path) -> None:
+        """Write partial manifest and run setup-ddl extract for SH schema."""
+        (tmp_path / "manifest.json").write_text(
+            json.dumps({"technology": "oracle", "dialect": "oracle"}),
+            encoding="utf-8",
+        )
+        result = _run_setup_ddl([
+            "extract", "--schemas", "SH", "--project-root", str(tmp_path),
+        ])
+        assert result.returncode == 0, f"setup-ddl extract failed: {result.stderr}"
+
+    def test_get_table_schema_oracle_column_types(self, tmp_path: Path) -> None:
+        """get_table_schema returns correct Oracle column types for real SH tables."""
+        _skip_if_no_oracle()
+        _git_init(tmp_path)
+        self._extract_sh(tmp_path)
+
+        catalog = load_directory(tmp_path)
+        entry = catalog.get_table("SH.CUSTOMERS")
+        assert entry is not None, "SH.CUSTOMERS not found in extracted DDL"
+
+        cols = {c["name"].upper(): c for c in ddl_server._parse_columns(entry, dialect="oracle")}
+        assert any(c["type"].startswith("VARCHAR2") for c in cols.values()), \
+            "Expected VARCHAR2 columns in SH.CUSTOMERS"
+        assert any(c["type"] == "NUMBER" or c["type"].startswith("NUMBER(") for c in cols.values()), \
+            "Expected NUMBER columns in SH.CUSTOMERS"
+
+    def test_list_procedures_returns_sh_procedures(self, tmp_path: Path) -> None:
+        """list_procedures returns SH schema procedures from extracted DDL."""
+        _skip_if_no_oracle()
+        _git_init(tmp_path)
+        self._extract_sh(tmp_path)
+
+        catalog = load_directory(tmp_path)
+        sh_procs = [k for k in catalog.procedures if k.startswith("sh.")]
+        assert len(sh_procs) > 0, "No SH procedures found in extracted DDL"
+
+    def test_get_procedure_body_returns_oracle_ddl(self, tmp_path: Path) -> None:
+        """get_procedure_body returns non-empty DDL for an SH procedure."""
+        _skip_if_no_oracle()
+        _git_init(tmp_path)
+        self._extract_sh(tmp_path)
+
+        catalog = load_directory(tmp_path)
+        sh_procs = [k for k in catalog.procedures if k.startswith("sh.")]
+        assert sh_procs, "No SH procedures found"
+
+        entry = catalog.procedures[sh_procs[0]]
+        assert entry.raw_ddl.strip(), "Procedure body is empty"

@@ -36,9 +36,11 @@ logger = logging.getLogger(__name__)
 GO_RE = re.compile(r"(?:^|\n)\s*GO\b", re.IGNORECASE)
 
 _OBJECT_NAME_RE = re.compile(
-    r"CREATE\s+(?:OR\s+ALTER\s+)?"
+    r"CREATE\s+"
+    r"(?:OR\s+(?:ALTER|REPLACE)\s+)?"              # OR ALTER (T-SQL) | OR REPLACE (Oracle)
+    r"(?:(?:FORCE|EDITIONABLE|NONEDITIONABLE)\s+)*" # Oracle DBMS_METADATA modifiers
     r"(?:TABLE|PROCEDURE|PROC|VIEW|FUNCTION)\s+"
-    r"((?:\[?\w+\]?\.){0,3}\[?\w+\]?)",
+    r'((?:"?\[?\w+\]?"?\.){0,3}"?\[?\w+\]?"?)',    # [bracket] or "quoted" schema.name
     re.IGNORECASE,
 )
 
@@ -52,7 +54,10 @@ _TYPE_MAP = {
 }
 
 _TYPE_KEYWORD_RE = re.compile(
-    r"CREATE\s+(?:OR\s+ALTER\s+)?(TABLE|PROCEDURE|PROC|VIEW|FUNCTION)\b",
+    r"CREATE\s+"
+    r"(?:OR\s+(?:ALTER|REPLACE)\s+)?"
+    r"(?:(?:FORCE|EDITIONABLE|NONEDITIONABLE)\s+)*"
+    r"(TABLE|PROCEDURE|PROC|VIEW|FUNCTION)\b",
     re.IGNORECASE,
 )
 

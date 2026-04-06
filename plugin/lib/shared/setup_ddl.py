@@ -405,8 +405,15 @@ def run_assemble_modules(input_path: Path, project_root: Path, object_type: str)
 
 
 def run_assemble_tables(input_path: Path, project_root: Path) -> dict[str, Any]:
-    """Build CREATE TABLE statements from sys.columns metadata and write tables.sql."""
+    """Build CREATE TABLE statements from column metadata and write tables.sql."""
     rows = _read_json(input_path)
+
+    # Determine quoting style: Oracle uses plain identifiers; T-SQL uses [brackets]
+    try:
+        technology = _require_technology(project_root)
+    except (ValueError, FileNotFoundError):
+        technology = "sql_server"
+    oracle_style = technology == "oracle"
 
     # Group by (schema_name, table_name)
     tables: dict[tuple[str, str], list[dict[str, Any]]] = {}
@@ -425,15 +432,21 @@ def run_assemble_tables(input_path: Path, project_root: Path) -> dict[str, Any]:
             type_str = format_sql_type(
                 c["type_name"], c["max_length"], c["precision"], c["scale"],
             )
-            identity = ""
-            if c.get("is_identity"):
-                seed = c.get("seed_value", 1)
-                inc = c.get("increment_value", 1)
-                identity = f" IDENTITY({seed},{inc})"
             nullable = " NOT NULL" if not c.get("is_nullable") else " NULL"
-            col_defs.append(f"    [{c['column_name']}] {type_str}{identity}{nullable}")
+            if oracle_style:
+                col_defs.append(f"    {c['column_name']} {type_str}{nullable}")
+            else:
+                identity = ""
+                if c.get("is_identity"):
+                    seed = c.get("seed_value", 1)
+                    inc = c.get("increment_value", 1)
+                    identity = f" IDENTITY({seed},{inc})"
+                col_defs.append(f"    [{c['column_name']}] {type_str}{identity}{nullable}")
 
-        ddl = f"CREATE TABLE [{schema_name}].[{table_name}] (\n" + ",\n".join(col_defs) + "\n)"
+        if oracle_style:
+            ddl = f"CREATE TABLE {schema_name}.{table_name} (\n" + ",\n".join(col_defs) + "\n)"
+        else:
+            ddl = f"CREATE TABLE [{schema_name}].[{table_name}] (\n" + ",\n".join(col_defs) + "\n)"
         blocks.append(ddl)
 
     ddl_dir = project_root / "ddl"
