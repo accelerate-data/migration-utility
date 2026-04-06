@@ -702,7 +702,7 @@ class SqlServerSandbox(SandboxBackend):
                 "schema_version": "1.0",
                 "scenario_name": scenario_name,
                 "status": "ok",
-                "ground_truth_rows": _serialize_rows(result_rows),
+                "ground_truth_rows": serialize_rows(result_rows),
                 "row_count": len(result_rows),
                 "errors": [],
             }
@@ -773,10 +773,10 @@ class SqlServerSandbox(SandboxBackend):
                     self._seed_fixtures(cursor, sandbox_db, fixtures)
 
                     cursor.execute(sql_a)
-                    rows_a = _serialize_rows(self._capture_rows(cursor))
+                    rows_a = serialize_rows(self._capture_rows(cursor))
 
                     cursor.execute(sql_b)
-                    rows_b = _serialize_rows(self._capture_rows(cursor))
+                    rows_b = serialize_rows(self._capture_rows(cursor))
                 finally:
                     conn.rollback()
 
@@ -816,4 +816,3 @@ class SqlServerSandbox(SandboxBackend):
             }
 
 
-_serialize_rows = serialize_rows

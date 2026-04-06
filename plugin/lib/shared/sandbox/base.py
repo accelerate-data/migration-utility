@@ -13,6 +13,8 @@ def serialize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     Primitive types (int, float, str, bool, None) pass through unchanged.
     Decimal values are coerced to str to preserve exact precision.
     bytes/memoryview are hex-encoded.
+    LOB-like objects (oracledb LOB — has a read() method) are read and
+    treated as str (CLOB) or bytes→hex (BLOB).
     All other non-primitive types (datetime, etc.) are coerced to str.
     """
     out: list[dict[str, Any]] = []
@@ -25,6 +27,12 @@ def serialize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 serialized[k] = str(v)
             elif isinstance(v, (bytes, memoryview)):
                 serialized[k] = bytes(v).hex()
+            elif hasattr(v, "read"):
+                content = v.read()
+                if isinstance(content, bytes):
+                    serialized[k] = content.hex()
+                else:
+                    serialized[k] = str(content)
             else:
                 serialized[k] = str(v)
         out.append(serialized)
