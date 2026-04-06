@@ -44,3 +44,8 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "integration: requires Docker SQL Server (MigrationTest database)"
     )
+    config.addinivalue_line(
+        "markers",
+        "oracle: requires Docker Oracle with SH schema loaded "
+        "(ORACLE_USER / ORACLE_PASSWORD / ORACLE_DSN)",
+    )
