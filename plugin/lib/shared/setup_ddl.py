@@ -329,6 +329,54 @@ def _build_proc_params(proc_params_rows: list) -> dict[str, list[dict[str, Any]]
     return result
 
 
+def _build_view_definitions_map(
+    definitions_rows: list,
+    object_types: dict[str, str],
+) -> dict[str, str]:
+    """Extract raw DDL strings for views from definitions_rows.
+
+    Filters to objects whose FQN maps to the ``views`` bucket in *object_types*.
+    Returns a normalized FQN → definition string mapping.
+    """
+    result: dict[str, str] = {}
+    for row in definitions_rows:
+        definition = row.get("definition")
+        if not definition:
+            continue
+        fqn = normalize(f"{row['schema_name']}.{row['object_name']}")
+        if object_types.get(fqn) == "views":
+            result[fqn] = definition
+    return result
+
+
+def _build_view_columns_map(
+    view_columns_rows: list,
+) -> dict[str, list[dict[str, Any]]]:
+    """Build a normalized view FQN → column list mapping from sys.columns rows.
+
+    Each column entry has ``name``, ``sql_type``, and ``is_nullable`` fields.
+    Columns are ordered by ``column_id`` within each view.
+    """
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in view_columns_rows:
+        fqn = normalize(f"{row['schema_name']}.{row['view_name']}")
+        if fqn not in grouped:
+            grouped[fqn] = []
+        grouped[fqn].append({
+            "_column_id": row.get("column_id", 0),
+            "name": row["column_name"],
+            "sql_type": format_sql_type(
+                row["type_name"], row["max_length"], row["precision"], row["scale"],
+            ),
+            "is_nullable": bool(row.get("is_nullable")),
+        })
+    result: dict[str, list[dict[str, Any]]] = {}
+    for fqn, cols in grouped.items():
+        cols.sort(key=lambda c: c["_column_id"])
+        result[fqn] = [{k: v for k, v in c.items() if k != "_column_id"} for c in cols]
+    return result
+
+
 # ── Business logic (run_* functions) ─────────────────────────────────────────
 
 
@@ -446,6 +494,7 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
     func_dmf_rows = _read_json_optional(staging_dir / "func_dmf.json")
     proc_params_rows = _read_json_optional(staging_dir / "proc_params.json")
     definitions_rows = _read_json_optional(staging_dir / "definitions.json")
+    view_columns_rows = _read_json_optional(staging_dir / "view_columns.json")
 
     # ── Build derived structures ─────────────────────────────────────────
     object_types = _build_object_types_map(object_types_raw)
@@ -460,6 +509,8 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
 
     routing_flags = _build_routing_flags(definitions_rows, scan_routing_flags)
     proc_params = _build_proc_params(proc_params_rows)
+    view_definitions = _build_view_definitions_map(definitions_rows, object_types)
+    view_columns = _build_view_columns_map(view_columns_rows)
 
     # ── Diff-aware classification ─────────────────────────────────────────
     fresh_hashes = compute_object_hashes(definitions_rows, table_signals, object_types)
@@ -494,6 +545,8 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
         proc_params=proc_params,
         write_filter=write_filter,
         hashes=fresh_hashes,
+        view_definitions=view_definitions,
+        view_columns=view_columns,
     )
 
     counts["unchanged"] = len(diff.unchanged)

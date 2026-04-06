@@ -269,6 +269,7 @@ Save each MCP query result as a JSON file in `./.staging/`:
 | `proc_dmf.json` | DMF refs for procedures (see query below) |
 | `view_dmf.json` | DMF refs for views (see query below) |
 | `func_dmf.json` | DMF refs for functions (see query below) |
+| `view_columns.json` | View column metadata from sys.columns (see query below) |
 
 ### Catalog signal queries
 
@@ -399,6 +400,30 @@ WHERE o.type = 'P' AND o.is_ms_shipped = 0 AND p.parameter_id > 0
   AND SCHEMA_NAME(o.schema_id) IN (<selected-schemas>)
 ORDER BY schema_name, proc_name, p.parameter_id
 ```
+
+**View column metadata** → `view_columns.json`:
+
+```sql
+USE [<database>];
+SELECT
+    SCHEMA_NAME(v.schema_id) AS schema_name,
+    v.name                   AS view_name,
+    c.name                   AS column_name,
+    c.column_id,
+    tp.name                  AS type_name,
+    c.max_length,
+    c.precision,
+    c.scale,
+    c.is_nullable
+FROM sys.views v
+JOIN sys.columns c  ON c.object_id = v.object_id
+JOIN sys.types   tp ON tp.user_type_id = c.user_type_id
+WHERE v.is_ms_shipped = 0
+  AND SCHEMA_NAME(v.schema_id) IN (<selected-schemas>)
+ORDER BY schema_name, view_name, c.column_id
+```
+
+If the query returns no results (no views), skip this staging file — the CLI handles a missing `view_columns.json` gracefully.
 
 ### DMF reference queries
 
