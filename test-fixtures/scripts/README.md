@@ -14,10 +14,10 @@ Extracts data from a live AdventureWorks2022 SQL Server instance and generates b
 
 ```bash
 cd plugin/lib
+export SA_PASSWORD=<your-sa-password>
 uv run python ../../test-fixtures/scripts/csv_to_inserts.py \
     --host localhost \
     --port 1433 \
-    --password "$SA_PASSWORD" \
     --output-dir ../../test-fixtures/data/baseline
 ```
 
@@ -27,9 +27,10 @@ uv run python ../../test-fixtures/scripts/csv_to_inserts.py \
 |---|---|---|
 | `--host` | `localhost` | SQL Server hostname |
 | `--port` | `1433` | SQL Server port |
-| `--password` | `$SA_PASSWORD` env var | SA password |
 | `--output-dir` | (required) | Directory for output SQL files |
 | `--cap` | `5000` | Max rows per table |
+
+Requires `SA_PASSWORD` environment variable to be set.
 
 ### Output
 

@@ -5,8 +5,8 @@ reads directly from a live SQL Server with AdventureWorks2022 installed — not 
 
 Usage:
     cd plugin/lib
-    uv run python ../../test-fixtures/scripts/csv_to_inserts.py \
-        --host localhost --port 1433 --password <SA_PASSWORD> \
+    SA_PASSWORD=<password> uv run python ../../test-fixtures/scripts/csv_to_inserts.py \
+        --host localhost --port 1433 \
         --output-dir ../../test-fixtures/data/baseline
 
 Emits: sqlserver.sql, oracle.sql, postgres.sql in the output directory.
@@ -462,7 +462,10 @@ def _build_stg_returns(stg_details: list[dict], seed: int = 42) -> tuple[list[st
 # Main
 # ---------------------------------------------------------------------------
 
-def _connect(host: str, port: int, password: str, database: str = "AdventureWorks2022") -> pyodbc.Connection:
+def _connect(host: str, port: int, database: str = "AdventureWorks2022") -> pyodbc.Connection:
+    password = os.environ.get("SA_PASSWORD", "")
+    if not password:
+        raise ValueError("SA_PASSWORD environment variable is required")
     drivers = [d for d in pyodbc.drivers() if "ODBC Driver" in d and "SQL Server" in d]
     if not drivers:
         raise RuntimeError("No SQL Server ODBC driver found")
@@ -499,16 +502,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Extract AW data and emit fixture INSERTs")
     parser.add_argument("--host", default="localhost")
     parser.add_argument("--port", type=int, default=1433)
-    parser.add_argument("--password", default=os.environ.get("SA_PASSWORD", ""))
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--cap", type=int, default=ROW_CAP)
     args = parser.parse_args()
 
-    if not args.password:
-        logger.error("SA_PASSWORD not set and --password not provided")
-        sys.exit(1)
-
-    conn = _connect(args.host, args.port, args.password)
+    conn = _connect(args.host, args.port)
     logger.info("event=connected host=%s port=%d", args.host, args.port)
 
     # ------------------------------------------------------------------
