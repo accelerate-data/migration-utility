@@ -23,13 +23,13 @@ SHARED_DIR = (
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
-def _run_cli(args: list[str], cwd: Path = SHARED_DIR) -> subprocess.CompletedProcess:
+def _run_cli(args: list[str], cwd: Path = SHARED_DIR, timeout: int = 30) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, "-m", "shared.setup_ddl", *args],
         cwd=str(cwd),
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=timeout,
     )
 
 
@@ -1086,3 +1086,329 @@ class TestListSchemasOracleIntegration:
         assert "SH" in owners
         sh_entry = next(e for e in out["schemas"] if e["owner"] == "SH")
         assert sh_entry["object_count"] > 0
+
+
+# ── Unit: extract arg validation ─────────────────────────────────────────────
+
+
+class TestExtractValidation:
+    def test_missing_schemas_errors(self, tmp_path):
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8"
+        )
+        result = _run_cli([
+            "extract",
+            "--database", "MigrationTest",
+            "--project-root", str(tmp_path),
+        ])
+        assert result.returncode != 0
+
+    def test_missing_database_errors_for_sql_server(self, tmp_path):
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8"
+        )
+        result = _run_cli([
+            "extract",
+            "--schemas", "dbo",
+            "--project-root", str(tmp_path),
+        ])
+        assert result.returncode != 0
+        assert "database" in result.stderr.lower()
+
+    def test_missing_manifest_errors(self, tmp_path):
+        result = _run_cli([
+            "extract",
+            "--database", "SomeDB",
+            "--schemas", "dbo",
+            "--project-root", str(tmp_path),
+        ])
+        assert result.returncode != 0
+
+    def test_database_not_required_for_oracle(self, tmp_path):
+        """Oracle extract should not error on missing --database (validated differently)."""
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
+        )
+        # Without ORACLE_* env vars set, this will fail at connection — not at arg validation
+        result = _run_cli([
+            "extract",
+            "--schemas", "SH",
+            "--project-root", str(tmp_path),
+        ])
+        # Should NOT fail with exit code 1 (arg validation error)
+        # It will fail with exit code 2 (connection error) or succeed
+        assert "database is required" not in result.stderr.lower()
+
+
+# ── Unit: oracle_extract helpers (fixture-based, no live DB) ─────────────────
+
+ORACLE_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "setup_ddl" / "oracle"
+
+
+class TestExtractOracleUnit:
+    def test_pk_uk_fixture_has_primary_keys(self):
+        rows = json.loads((ORACLE_FIXTURE_DIR / "all_constraints_pk_uk.json").read_text())
+        pk_rows = [r for r in rows if r["is_primary_key"] == 1]
+        assert len(pk_rows) > 0, "SH schema should have primary key constraints"
+
+    def test_fk_fixture_has_foreign_keys(self):
+        rows = json.loads((ORACLE_FIXTURE_DIR / "all_constraints_fk.json").read_text())
+        assert len(rows) > 0, "SH schema should have foreign key constraints"
+        constraint_names = {r["constraint_name"] for r in rows}
+        assert any("FK" in name or "fk" in name.lower() for name in constraint_names)
+
+    def test_table_columns_fixture_has_sh_tables(self):
+        rows = json.loads((ORACLE_FIXTURE_DIR / "all_tab_columns.json").read_text())
+        table_names = {r["table_name"] for r in rows}
+        assert "CUSTOMERS" in table_names
+        assert "SALES" in table_names
+
+    def test_table_columns_have_required_fields(self):
+        rows = json.loads((ORACLE_FIXTURE_DIR / "all_tab_columns.json").read_text())
+        required = {"schema_name", "table_name", "column_name", "column_id",
+                    "type_name", "max_length", "precision", "scale",
+                    "is_nullable", "is_identity"}
+        for row in rows[:5]:
+            assert required.issubset(set(row.keys())), f"Missing fields in row: {row.keys()}"
+
+    def test_object_types_fixture_maps_to_sql_server_codes(self):
+        rows = json.loads((ORACLE_FIXTURE_DIR / "object_types.json").read_text())
+        valid_types = {"U", "V", "P", "FN"}
+        for row in rows:
+            assert row["type"] in valid_types, f"Unexpected type code: {row['type']}"
+
+    def test_dependencies_have_dmf_shape(self):
+        rows = json.loads((ORACLE_FIXTURE_DIR / "dependencies_view.json").read_text())
+        if not rows:
+            return  # SH may have no view deps; skip rather than fail
+        required = {
+            "referencing_schema", "referencing_name", "referenced_schema",
+            "referenced_entity", "referenced_minor_name", "referenced_class_desc",
+            "is_selected", "is_updated", "is_insert_all",
+        }
+        for row in rows:
+            assert required.issubset(set(row.keys()))
+            assert row["is_selected"] is False
+            assert row["is_updated"] is False
+
+    def test_pk_rows_feed_apply_pk_unique(self, tmp_path):
+        """Verify PK rows from Oracle fixture are consumed correctly by _apply_pk_unique_rows."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).parents[2] / "plugin" / "lib"))
+        from shared.setup_ddl import _apply_pk_unique_rows
+
+        rows = json.loads((ORACLE_FIXTURE_DIR / "all_constraints_pk_uk.json").read_text())
+        signals: dict = {}
+        _apply_pk_unique_rows(signals, rows)
+        assert len(signals) > 0
+        for fqn, sig in signals.items():
+            for pk in sig.get("primary_keys", []):
+                assert "constraint_name" in pk
+                assert "columns" in pk
+                assert len(pk["columns"]) > 0
+
+    def test_fk_rows_feed_apply_fk_rows(self, tmp_path):
+        """Verify FK rows from Oracle fixture are consumed correctly by _apply_fk_rows."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).parents[2] / "plugin" / "lib"))
+        from shared.setup_ddl import _apply_fk_rows
+
+        rows = json.loads((ORACLE_FIXTURE_DIR / "all_constraints_fk.json").read_text())
+        signals: dict = {}
+        _apply_fk_rows(signals, rows)
+        assert len(signals) > 0
+        for fqn, sig in signals.items():
+            for fk in sig.get("foreign_keys", []):
+                assert "constraint_name" in fk
+                assert "referenced_table" in fk
+
+
+# ── Integration: extract SQL Server (Docker) ─────────────────────────────────
+
+
+@pytest.mark.integration
+class TestExtractSqlServerIntegration:
+    def test_produces_ddl_and_catalog(self, tmp_path):
+        if not os.environ.get("MSSQL_HOST"):
+            pytest.skip("MSSQL_HOST not set")
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8"
+        )
+        result = _run_cli([
+            "extract",
+            "--database", "MigrationTest",
+            "--schemas", "dbo",
+            "--project-root", str(tmp_path),
+        ], timeout=120)
+        assert result.returncode == 0, result.stderr
+        assert (tmp_path / "ddl").is_dir()
+        assert (tmp_path / "catalog").is_dir()
+        assert (tmp_path / "manifest.json").exists()
+
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert manifest["technology"] == "sql_server"
+        assert "dbo" in manifest["extracted_schemas"]
+        assert manifest["source_database"] == "MigrationTest"
+
+    def test_catalog_tables_non_empty(self, tmp_path):
+        if not os.environ.get("MSSQL_HOST"):
+            pytest.skip("MSSQL_HOST not set")
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8"
+        )
+        result = _run_cli([
+            "extract",
+            "--database", "MigrationTest",
+            "--schemas", "dbo",
+            "--project-root", str(tmp_path),
+        ], timeout=120)
+        assert result.returncode == 0, result.stderr
+        tables_dir = tmp_path / "catalog" / "tables"
+        assert tables_dir.is_dir()
+        table_files = list(tables_dir.glob("*.json"))
+        assert len(table_files) > 0
+
+    def test_procedure_catalog_has_routing_flags(self, tmp_path):
+        if not os.environ.get("MSSQL_HOST"):
+            pytest.skip("MSSQL_HOST not set")
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8"
+        )
+        result = _run_cli([
+            "extract",
+            "--database", "MigrationTest",
+            "--schemas", "dbo",
+            "--project-root", str(tmp_path),
+        ], timeout=120)
+        assert result.returncode == 0, result.stderr
+        procs_dir = tmp_path / "catalog" / "procedures"
+        if not procs_dir.is_dir():
+            pytest.skip("No procedures in MigrationTest.dbo")
+        proc_files = list(procs_dir.glob("*.json"))
+        if not proc_files:
+            pytest.skip("No procedure catalog files produced")
+        data = json.loads(proc_files[0].read_text())
+        assert "mode" in data, f"Procedure catalog missing 'mode' field: {data.keys()}"
+
+    def test_enriched_fields_preserved_on_reextract(self, tmp_path):
+        """Re-running extract must not wipe scoping/profile/refactor fields."""
+        if not os.environ.get("MSSQL_HOST"):
+            pytest.skip("MSSQL_HOST not set")
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "sql_server", "dialect": "tsql"}', encoding="utf-8"
+        )
+        result = _run_cli([
+            "extract",
+            "--database", "MigrationTest",
+            "--schemas", "dbo",
+            "--project-root", str(tmp_path),
+        ], timeout=120)
+        assert result.returncode == 0, result.stderr
+
+        # Inject a fake scoping field into the first table catalog
+        tables_dir = tmp_path / "catalog" / "tables"
+        table_files = list(tables_dir.glob("*.json"))
+        if not table_files:
+            pytest.skip("No table catalog files")
+        first_file = table_files[0]
+        data = json.loads(first_file.read_text())
+        data["scoping"] = {"selected_writer": "dbo.fake_proc", "_test": True}
+        first_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+        # Re-run extract
+        result2 = _run_cli([
+            "extract",
+            "--database", "MigrationTest",
+            "--schemas", "dbo",
+            "--project-root", str(tmp_path),
+        ], timeout=120)
+        assert result2.returncode == 0, result2.stderr
+
+        # Scoping must still be present
+        data2 = json.loads(first_file.read_text())
+        assert "scoping" in data2, "scoping field was wiped by re-extraction"
+        assert data2["scoping"].get("_test") is True
+
+
+# ── Integration: extract Oracle (Docker) ─────────────────────────────────────
+
+
+@pytest.mark.oracle
+class TestExtractOracleIntegration:
+    def _skip_if_missing(self):
+        for var in ("ORACLE_USER", "ORACLE_PASSWORD", "ORACLE_DSN"):
+            if not os.environ.get(var):
+                pytest.skip(f"{var} not set")
+
+    def test_sh_produces_ddl_and_catalog(self, tmp_path):
+        self._skip_if_missing()
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
+        )
+        result = _run_cli([
+            "extract",
+            "--schemas", "SH",
+            "--project-root", str(tmp_path),
+        ], timeout=120)
+        assert result.returncode == 0, result.stderr
+        assert (tmp_path / "ddl").is_dir()
+        assert (tmp_path / "catalog").is_dir()
+        tables_dir = tmp_path / "catalog" / "tables"
+        assert tables_dir.is_dir()
+        assert len(list(tables_dir.glob("*.json"))) > 0
+
+    def test_sh_table_has_pk(self, tmp_path):
+        self._skip_if_missing()
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
+        )
+        result = _run_cli([
+            "extract",
+            "--schemas", "SH",
+            "--project-root", str(tmp_path),
+        ], timeout=120)
+        assert result.returncode == 0, result.stderr
+        tables_dir = tmp_path / "catalog" / "tables"
+        tables_with_pk = []
+        for f in tables_dir.glob("*.json"):
+            data = json.loads(f.read_text())
+            if data.get("primary_keys"):
+                tables_with_pk.append(f.name)
+        assert len(tables_with_pk) > 0, "No SH tables have primary keys in catalog"
+
+    def test_sh_table_has_fk(self, tmp_path):
+        self._skip_if_missing()
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
+        )
+        result = _run_cli([
+            "extract",
+            "--schemas", "SH",
+            "--project-root", str(tmp_path),
+        ], timeout=120)
+        assert result.returncode == 0, result.stderr
+        tables_dir = tmp_path / "catalog" / "tables"
+        tables_with_fk = []
+        for f in tables_dir.glob("*.json"):
+            data = json.loads(f.read_text())
+            if data.get("foreign_keys"):
+                tables_with_fk.append(f.name)
+        assert len(tables_with_fk) > 0, "No SH tables have foreign keys in catalog"
+
+    def test_sh_change_capture_null(self, tmp_path):
+        self._skip_if_missing()
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
+        )
+        result = _run_cli([
+            "extract",
+            "--schemas", "SH",
+            "--project-root", str(tmp_path),
+        ], timeout=120)
+        assert result.returncode == 0, result.stderr
+        tables_dir = tmp_path / "catalog" / "tables"
+        for f in tables_dir.glob("*.json"):
+            data = json.loads(f.read_text())
+            assert data.get("change_capture") is None, (
+                f"{f.name}: change_capture should be null for Oracle, got {data['change_capture']}"
+            )

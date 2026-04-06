@@ -14,6 +14,49 @@ No arguments. The command runs an interactive workflow that prompts for database
 
 Trigger phrases: "set up DDL", "extract DDL from SQL Server", "populate DDL", "connect to the remote database and get DDL", "pull DDL from the source database".
 
+## `extract` Subcommand (headless)
+
+The `extract` subcommand runs the full extraction non-interactively — connect, query, assemble DDL, write catalog, enrich — in a single CLI call. It does not prompt for confirmation and does not write a `.staging/` directory.
+
+```bash
+uv run --project <shared-path> setup-ddl extract \
+  --database <database> \
+  --schemas dbo,silver \
+  [--project-root .]
+```
+
+| Option | Required | Description |
+|---|---|---|
+| `--database` | SQL Server / Fabric only | Source database name. Not required for Oracle (connection is via `ORACLE_DSN`). |
+| `--schemas` | yes | Comma-separated list of schemas to extract |
+| `--project-root` | no | Defaults to current working directory |
+
+`manifest.json` must already exist and contain a valid `technology` field before running `extract`. Run `write-manifest` first if starting from scratch.
+
+Enriched catalog fields (`scoping`, `profile`, `refactor`) written by earlier skill runs are preserved across re-extractions.
+
+### Oracle prerequisites
+
+- `oracledb` Python package: `uv pip install oracledb`
+- Three environment variables: `ORACLE_USER`, `ORACLE_PASSWORD`, `ORACLE_DSN`
+- The Oracle user must have `SELECT_CATALOG_ROLE` granted (required for `DBMS_METADATA.GET_DDL` and `ALL_*` views):
+
+  ```sql
+  GRANT SELECT_CATALOG_ROLE TO <user>;
+  GRANT SELECT ANY DICTIONARY TO <user>;
+  ```
+
+### Oracle limitations
+
+| Feature | Status |
+|---|---|
+| CDC tracking | Not supported — `cdc.json` is always empty |
+| Change tracking | Not supported — `change_tracking.json` is always empty |
+| Sensitivity classifications | Not supported — `sensitivity.json` is always empty |
+| Column-level dependency flags (`is_selected`, `is_updated`, etc.) | Always `False` — `ALL_DEPENDENCIES` provides object-level references only |
+| Auto-increment | Oracle 12c+ `IDENTITY` columns only — trigger-based sequences are not detected |
+| Package-level procedures | Not extracted — `ALL_ARGUMENTS` is filtered to standalone procedures/functions |
+
 ## Prerequisites
 
 - **`toolbox` binary on PATH** -- the `mssql` MCP server requires genai-toolbox. Run `toolbox --version` to verify. Install from `https://github.com/googleapis/genai-toolbox/releases` if missing.

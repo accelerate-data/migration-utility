@@ -21,9 +21,12 @@ Proc/view/function files carry ``references`` (outbound references from the DMF)
 from __future__ import annotations
 
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from shared.dmf_processing import empty_scoped
 from shared.env_config import resolve_catalog_dir
@@ -387,3 +390,65 @@ def write_object_catalog(
     p = _object_path(project_root, object_type, norm)
     _write_json(p, data)
     return p
+
+
+# ── Enrichment field preservation (re-extraction merge) ─────────────────────
+
+_ENRICHED_KEYS = ("scoping", "profile", "refactor")
+
+
+def snapshot_enriched_fields(project_root: Path) -> dict[str, dict[str, Any]]:
+    """Snapshot LLM-enriched fields from all existing catalog files.
+
+    Returns a mapping of normalised FQN → dict containing only the
+    non-None enriched keys (``scoping``, ``profile``, ``refactor``).
+    Used before re-extraction so these fields survive a catalog rewrite.
+    """
+    catalog_dir = _catalog_dir(project_root)
+    snapshot: dict[str, dict[str, Any]] = {}
+    if not catalog_dir.is_dir():
+        return snapshot
+    for bucket in ("tables", "procedures", "views", "functions"):
+        bucket_dir = catalog_dir / bucket
+        if not bucket_dir.is_dir():
+            continue
+        for json_file in bucket_dir.glob("*.json"):
+            try:
+                data = json.loads(json_file.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+            enriched = {k: data[k] for k in _ENRICHED_KEYS if data.get(k) is not None}
+            if enriched:
+                snapshot[json_file.stem] = enriched
+    return snapshot
+
+
+def restore_enriched_fields(
+    project_root: Path, snapshot: dict[str, dict[str, Any]]
+) -> None:
+    """Restore LLM-enriched fields into catalog files after re-extraction.
+
+    For each FQN in *snapshot*, reads the catalog file (if present), merges
+    the snapshotted enriched fields back in, and writes the file.  Files not
+    touched by re-extraction are not written again.
+    """
+    catalog_dir = _catalog_dir(project_root)
+    for fqn, enriched in snapshot.items():
+        for bucket in ("tables", "procedures", "views", "functions"):
+            p = catalog_dir / bucket / f"{fqn}.json"
+            if not p.exists():
+                continue
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+            changed = False
+            for key, value in enriched.items():
+                if data.get(key) != value:
+                    data[key] = value
+                    changed = True
+            if changed:
+                _write_json(p, data)
+            break  # found the bucket — no need to check others
+        else:
+            logger.debug("event=catalog_restore_skip fqn=%s reason=not_found_after_reextract", fqn)

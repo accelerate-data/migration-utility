@@ -1,0 +1,92 @@
+[
+  {
+    "schema_name": "SH",
+    "table_name": "CHANNELS",
+    "index_name": "CHANNELS_PK",
+    "is_unique": 1,
+    "is_primary_key": 1,
+    "column_name": "CHANNEL_ID",
+    "key_ordinal": 1
+  },
+  {
+    "schema_name": "SH",
+    "table_name": "COUNTRIES",
+    "index_name": "COUNTRIES_PK",
+    "is_unique": 1,
+    "is_primary_key": 1,
+    "column_name": "COUNTRY_ID",
+    "key_ordinal": 1
+  },
+  {
+    "schema_name": "SH",
+    "table_name": "CUSTOMERS",
+    "index_name": "CUSTOMERS_PK",
+    "is_unique": 1,
+    "is_primary_key": 1,
+    "column_name": "CUST_ID",
+    "key_ordinal": 1
+  },
+  {
+    "schema_name": "SH",
+    "table_name": "DBTOOLS$MCP_LOG",
+    "index_name": "SYS_C008692",
+    "is_unique": 1,
+    "is_primary_key": 1,
+    "column_name": "ID",
+    "key_ordinal": 1
+  },
+  {
+    "schema_name": "SH",
+    "table_name": "DR$SUP_TEXT_IDX$N",
+    "index_name": "SYS_IOT_TOP_72654",
+    "is_unique": 1,
+    "is_primary_key": 1,
+    "column_name": "NLT_DOCID",
+    "key_ordinal": 1
+  },
+  {
+    "schema_name": "SH",
+    "table_name": "DR$SUP_TEXT_IDX$U",
+    "index_name": "SYS_C008685",
+    "is_unique": 1,
+    "is_primary_key": 1,
+    "column_name": "RID",
+    "key_ordinal": 1
+  },
+  {
+    "schema_name": "SH",
+    "table_name": "PRODUCTS",
+    "index_name": "PRODUCTS_PK",
+    "is_unique": 1,
+    "is_primary_key": 1,
+    "column_name": "PROD_ID",
+    "key_ordinal": 1
+  },
+  {
+    "schema_name": "SH",
+    "table_name": "PROMOTIONS",
+    "index_name": "PROMO_PK",
+    "is_unique": 1,
+    "is_primary_key": 1,
+    "column_name": "PROMO_ID",
+    "key_ordinal": 1
+  },
+  {
+    "schema_name": "SH",
+    "table_name": "SUPPLEMENTARY_DEMOGRAPHICS",
+    "index_name": "SUPP_DEMO_PK",
+    "is_unique": 1,
+    "is_primary_key": 1,
+    "column_name": "CUST_ID",
+    "key_ordinal": 1
+  },
+  {
+    "schema_name": "SH",
+    "table_name": "TIMES",
+    "index_name": "TIMES_PK",
+    "is_unique": 1,
+    "is_primary_key": 1,
+    "column_name": "TIME_ID",
+    "key_ordinal": 1
+  }
+]

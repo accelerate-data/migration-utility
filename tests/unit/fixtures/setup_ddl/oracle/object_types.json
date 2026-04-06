@@ -1,0 +1,102 @@
+[
+  {
+    "schema_name": "SH",
+    "name": "CAL_MONTH_SALES_MV",
+    "type": "U"
+  },
+  {
+    "schema_name": "SH",
+    "name": "CHANNELS",
+    "type": "U"
+  },
+  {
+    "schema_name": "SH",
+    "name": "COSTS",
+    "type": "U"
+  },
+  {
+    "schema_name": "SH",
+    "name": "COUNTRIES",
+    "type": "U"
+  },
+  {
+    "schema_name": "SH",
+    "name": "CUSTOMERS",
+    "type": "U"
+  },
+  {
+    "schema_name": "SH",
+    "name": "DBTOOLS$MCP_LOG",
+    "type": "U"
+  },
+  {
+    "schema_name": "SH",
+    "name": "DR$SUP_TEXT_IDX$B",
+    "type": "U"
+  },
+  {
+    "schema_name": "SH",
+    "name": "DR$SUP_TEXT_IDX$C",
+    "type": "U"
+  },
+  {
+    "schema_name": "SH",
+    "name": "DR$SUP_TEXT_IDX$I",
+    "type": "U"
+  },
+  {
+    "schema_name": "SH",
+    "name": "DR$SUP_TEXT_IDX$K",
+    "type": "U"
+  },
+  {
+    "schema_name": "SH",
+    "name": "DR$SUP_TEXT_IDX$N",
+    "type": "U"
+  },
+  {
+    "schema_name": "SH",
+    "name": "DR$SUP_TEXT_IDX$Q",
+    "type": "U"
+  },
+  {
+    "schema_name": "SH",
+    "name": "DR$SUP_TEXT_IDX$U",
+    "type": "U"
+  },
+  {
+    "schema_name": "SH",
+    "name": "FWEEK_PSCAT_SALES_MV",
+    "type": "U"
+  },
+  {
+    "schema_name": "SH",
+    "name": "PRODUCTS",
+    "type": "U"
+  },
+  {
+    "schema_name": "SH",
+    "name": "PROMOTIONS",
+    "type": "U"
+  },
+  {
+    "schema_name": "SH",
+    "name": "SALES",
+    "type": "U"
+  },
+  {
+    "schema_name": "SH",
+    "name": "SUPPLEMENTARY_DEMOGRAPHICS",
+    "type": "U"
+  },
+  {
+    "schema_name": "SH",
+    "name": "TIMES",
+    "type": "U"
+  },
+  {
+    "schema_name": "SH",
+    "name": "PROFITS",
+    "type": "V"
+  }
+]

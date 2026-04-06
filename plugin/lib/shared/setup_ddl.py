@@ -5,6 +5,7 @@ and performs deterministic processing, or connects directly to the source DB
 for discovery.
 
 Usage (via uv):
+    uv run --project <shared> setup-ddl extract --database <db> --schemas silver,bronze [--project-root <dir>]
     uv run --project <shared> setup-ddl assemble-modules --input <json> --project-root <dir> --type procedures
     uv run --project <shared> setup-ddl assemble-tables --input <json> --project-root <dir>
     uv run --project <shared> setup-ddl write-catalog --staging-dir <dir> --project-root <dir> --database <name>
@@ -24,6 +25,7 @@ from __future__ import annotations
 
 import json
 import logging
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -709,6 +711,101 @@ def run_list_schemas(project_root: Path, database: Optional[str]) -> dict[str, A
     raise ValueError(f"list-schemas is not supported for technology '{technology}'")
 
 
+def run_extract(
+    project_root: Path,
+    database: str | None,
+    schemas: list[str],
+) -> dict[str, Any]:
+    """Connect to the source DB and extract DDL, catalog, and manifest in one pass.
+
+    Reads technology from manifest.json (must already exist). Runs all extraction
+    queries internally using a temp directory — no .staging/ is written to disk.
+    After writing catalog files, restores any LLM-enriched fields (scoping,
+    profile, refactor) that existed before extraction. Finishes with catalog-enrich.
+
+    Raises ValueError if manifest.json is missing, technology is unrecognised,
+    --database is missing for SQL Server / Fabric Warehouse, or --schemas is empty.
+    Raises RuntimeError if the required DB driver is not installed.
+    """
+    from shared.catalog import snapshot_enriched_fields, restore_enriched_fields
+    from shared.catalog_enrich import enrich_catalog
+
+    technology = _require_technology(project_root)
+
+    if not schemas:
+        raise ValueError("--schemas is required and must be non-empty")
+    if technology in ("sql_server", "fabric_warehouse") and not database:
+        raise ValueError(
+            f"--database is required for technology '{technology}'"
+        )
+
+    dialect = _TECH_DIALECT.get(technology, "tsql")
+    db_name = database or ""
+
+    logger.info(
+        "event=extract_start technology=%s database=%s schemas=%s",
+        technology, db_name, schemas,
+    )
+
+    enriched_snapshot = snapshot_enriched_fields(project_root)
+
+    with tempfile.TemporaryDirectory() as _tmp:
+        staging_dir = Path(_tmp)
+
+        if technology in ("sql_server", "fabric_warehouse"):
+            from shared.sqlserver_extract import run_sqlserver_extraction
+            run_sqlserver_extraction(staging_dir, db_name, schemas)
+        elif technology == "oracle":
+            from shared.oracle_extract import run_oracle_extraction
+            run_oracle_extraction(staging_dir, schemas)
+        else:
+            raise ValueError(
+                f"setup-ddl extract is not supported for technology '{technology}'"
+            )
+
+        # ── Assemble DDL files ────────────────────────────────────────────
+        # Split definitions.json by object type and assemble per-type .sql files.
+        obj_type_rows = _read_json_optional(staging_dir / "object_types.json")
+        type_lookup = {
+            normalize(f"{r['schema_name']}.{r['name']}"): r.get("type", "").strip()
+            for r in obj_type_rows
+        }
+        definitions_rows_all = _read_json_optional(staging_dir / "definitions.json")
+
+        for obj_label, type_codes in [
+            ("procedures", {"P"}),
+            ("views", {"V"}),
+            ("functions", {"FN", "IF", "TF"}),
+        ]:
+            typed_defs = [
+                r for r in definitions_rows_all
+                if type_lookup.get(normalize(f"{r['schema_name']}.{r['object_name']}")) in type_codes
+            ]
+            if typed_defs:
+                typed_path = staging_dir / f"{obj_label}.json"
+                typed_path.write_text(
+                    json.dumps(typed_defs, ensure_ascii=False), encoding="utf-8"
+                )
+                run_assemble_modules(typed_path, project_root, obj_label)
+
+        table_cols_path = staging_dir / "table_columns.json"
+        if table_cols_path.exists():
+            run_assemble_tables(table_cols_path, project_root)
+
+        run_write_manifest(project_root, technology, db_name, schemas)
+        counts = run_write_catalog(staging_dir, project_root, db_name)
+
+    restore_enriched_fields(project_root, enriched_snapshot)
+
+    enrich_result = enrich_catalog(project_root, dialect=dialect)
+    logger.info(
+        "event=extract_complete technology=%s tables=%s procedures=%s enrich=%s",
+        technology, counts.get("tables"), counts.get("procedures"), enrich_result,
+    )
+
+    return {**counts, "enrich": enrich_result}
+
+
 # ── CLI wrappers ─────────────────────────────────────────────────────────────
 
 
@@ -863,6 +960,41 @@ def list_schemas(
     except UnsupportedOperationError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    except RuntimeError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(2) from exc
+    typer.echo(json.dumps(result))
+
+
+@app.command("extract")
+def extract(
+    database: Optional[str] = typer.Option(
+        None, "--database",
+        help="Source database name (required for SQL Server / Fabric Warehouse; ignored for Oracle)",
+    ),
+    schemas: str = typer.Option(
+        ..., "--schemas",
+        help="Comma-separated list of schemas to extract",
+    ),
+    project_root: Optional[Path] = typer.Option(
+        None, "--project-root",
+        help="Project root containing manifest.json (defaults to CWD)",
+    ),
+) -> None:
+    """Connect to the source DB and extract DDL, catalog, and manifest in one pass.
+
+    Reads technology from manifest.json. Runs all extraction queries internally,
+    writes ddl/, catalog/, and manifest.json, then runs catalog-enrich.
+    Preserves any existing LLM-enriched catalog fields (scoping, profile, refactor).
+    """
+    if project_root is None:
+        project_root = Path.cwd()
+    schema_list = [s.strip() for s in schemas.split(",") if s.strip()]
+    try:
+        result = run_extract(project_root, database, schema_list)
     except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
