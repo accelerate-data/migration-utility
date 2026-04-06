@@ -1,6 +1,6 @@
 # Cleanup and Teardown
 
-Two cleanup commands remove resources created during the migration pipeline: `/cleanup-worktrees` for git worktrees and `/teardown-sandbox` for the throwaway test database.
+Two cleanup commands remove resources created during the migration pipeline: `/cleanup-worktrees` for git worktrees and branches, and `/teardown-sandbox` for the throwaway test database.
 
 ## `/teardown-sandbox`
 
@@ -34,7 +34,7 @@ Run `/teardown-sandbox` after test generation is complete for all tables in the 
 
 ## `/cleanup-worktrees`
 
-Scans git worktrees for branches with merged PRs and removes them. Can target a single branch or scan all worktrees.
+Scans git worktrees and local branches for merged PRs and removes them. Runs three passes in sequence.
 
 ### When to run
 
@@ -47,35 +47,71 @@ Run `/cleanup-worktrees` after PRs have been merged. Batch commands create a wor
 
 ### How it works
 
+**Pass 1 — Worktree cleanup**
+
 1. Lists all worktrees via `git worktree list --porcelain`
 2. For each worktree branch, checks GitHub for a merged PR via `gh pr list --head <branch> --state merged`
 3. Classifies each worktree:
-   - **Merged PR found** -- queued for cleanup
-   - **Open PR found** -- skipped ("PR still open")
-   - **No PR found** -- skipped ("no PR found")
-4. For each worktree queued for cleanup:
-   - Removes the worktree (`git worktree remove`)
-   - Deletes the local branch (`git branch -d` -- safe delete, fails if not fully merged)
-   - Deletes the remote branch (`git push origin --delete` -- ignores errors if already deleted)
-5. Presents a summary:
+   - **Merged PR found** — remove worktree, delete local branch (`git branch -d`), delete remote branch (`git push origin --delete`)
+   - **Open PR found** — skipped ("PR still open")
+   - **No PR found** — skipped ("no PR found")
+
+**Pass 2 — Gone branch sweep**
+
+After the worktree cleanup, runs `git fetch --prune` then scans `git branch -v` for branches marked `[gone]` (remote tracking ref no longer exists). For each gone branch:
+
+- If a merged PR exists: removes any associated worktree, then force-deletes the local branch (`git branch -D`)
+- If no PR or open PR: skipped and reported
+
+Branches already handled in Pass 1 are skipped.
+
+**Pass 3 — Remote-only sweep**
+
+Scans `git branch -r` for remote branches that have no local counterpart. For each:
+
+- If a merged PR exists: deletes the remote branch (`git push origin --delete`)
+- If no PR: skipped ("no PR found")
+- If open PR: skipped ("PR still open")
+
+Skips `origin/HEAD`, `origin/main`, and branches handled in Passes 1 or 2.
+
+### Summary
+
+The command presents results in three separate sections:
 
 ```text
 cleanup-worktrees complete
 
-  > feature/scope-silver-dimcustomer    cleaned (PR #42 merged)
+Worktree cleanup:
+  ✓ feature/scope-silver-dimcustomer    cleaned (PR #42 merged)
   - feature/profile-silver-dimcustomer  skipped (PR #45 still open)
   - feature/generate-model-old          skipped (no PR found)
 
   cleaned: 1 | skipped: 2
+
+Gone branch sweep:
+  ✓ feature/refactor-silver-dimcustomer  cleaned (PR #43 merged)
+  - feature/wip-branch                   skipped (no PR found)
+
+  cleaned: 1 | skipped: 1
+
+Remote-only sweep:
+  ✓ feature/scope-silver-dimdate         cleaned (PR #41 merged)
+  - feature/open-pr-branch               skipped (PR still open)
+
+  cleaned: 1 | skipped: 1
 ```
+
+Sections with no results are omitted from the output.
 
 ### Error handling
 
 | Situation | Behavior |
 |---|---|
 | `git worktree remove` fails | Reports error, continues to next worktree |
-| `git branch -d` fails | Branch not fully merged -- reports warning, does not force delete |
-| `git push origin --delete` fails | Remote branch already gone -- ignored |
+| `git branch -d` fails | Branch not fully merged — reports warning, does not force delete |
+| `git branch -D` fails (gone branch) | Reports error, continues |
+| `git push origin --delete` fails | Reports error, continues |
 | No worktrees found | Reports that there are no worktrees to clean up |
 
 ## Related pages

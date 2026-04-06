@@ -15,7 +15,7 @@ Happy-path walkthrough migrating two tables (`silver.DimCustomer` and `silver.Fa
 /init-ad-migration
 ```
 
-Checks prerequisites, installs missing dependencies, and scaffolds project files (`CLAUDE.md`, `README.md`, `repo-map.json`, `.gitignore`, `.envrc`, `.githooks/`). Safe to re-run.
+Prompts you to select a source technology (SQL Server or Oracle), then checks prerequisites, installs missing dependencies, and scaffolds project files (`CLAUDE.md`, `README.md`, `repo-map.json`, `.gitignore`, `.envrc`, `.githooks/`). Safe to re-run. Pass the source directly to skip the prompt: `/init-ad-migration oracle`.
 
 See [[Stage 1 Project Init]] for details.
 
@@ -29,25 +29,27 @@ Connects to your SQL Server, walks you through database and schema selection, ex
 
 See [[Stage 2 DDL Extraction]] for details.
 
-## Step 3 -- Scaffold dbt project
-
-```text
-/init-dbt
-```
-
-Reads the manifest and catalog, asks you to pick a target platform (Fabric Lakehouse, Spark, Snowflake, or DuckDB), and scaffolds a dbt project with `sources.yml` generated from your catalog tables.
-
-See [[Stage 3 dbt Scaffolding]] for details.
-
-## Step 4 -- Scope tables
+## Step 3 -- Scope tables
 
 ```text
 /scope silver.DimCustomer silver.FactInternetSales
 ```
 
-Discovers which stored procedures write to each table. Launches one sub-agent per table in parallel, analyzes candidate writers, and writes the `selected_writer` to each table's catalog file. Opens a PR with the results.
+Discovers which stored procedures write to each table. Launches one sub-agent per table in parallel, analyzes candidate writers, and writes the `selected_writer` to each table's catalog file.
+
+Scoping must complete before `/init-dbt` — the dbt scaffold needs to know which tables become models (have a writer) versus which are true external sources (no writer).
 
 See [[Stage 1 Scoping]] for details.
+
+## Step 4 -- Scaffold dbt project
+
+```text
+/init-dbt
+```
+
+Reads the manifest and catalog, asks you to pick a target platform (Fabric Lakehouse, Spark, Snowflake, or DuckDB), and scaffolds a dbt project. `sources.yml` is generated from catalog tables with no writer — tables with a `selected_writer` are excluded because they will become dbt models.
+
+See [[Stage 3 dbt Scaffolding]] for details.
 
 ## Step 5 -- Profile tables
 
@@ -55,7 +57,7 @@ See [[Stage 1 Scoping]] for details.
 /profile silver.DimCustomer silver.FactInternetSales
 ```
 
-Classifies each table (dimension vs. fact, SCD type), identifies primary keys, foreign keys, natural keys, watermark columns, and PII. Writes profile answers to catalog files and opens a PR.
+Classifies each table (dimension vs. fact, SCD type), identifies primary keys, foreign keys, natural keys, watermark columns, and PII. Writes profile answers to catalog files.
 
 See [[Stage 2 Profiling]] for details.
 
@@ -75,21 +77,31 @@ See [[Stage 4 Sandbox Setup]] for details.
 /generate-tests silver.DimCustomer silver.FactInternetSales
 ```
 
-Enumerates branches in each stored procedure, synthesizes fixture data, executes the proc in the sandbox, and captures ground truth output. Includes a review loop for coverage quality. Opens a PR with the approved test specs.
+Enumerates branches in each stored procedure, synthesizes fixture data, executes the proc in the sandbox, and captures ground truth output. Includes a review loop for coverage quality.
 
 See [[Stage 3 Test Generation]] for details.
 
-## Step 8 -- Generate dbt models
+## Step 8 -- Refactor SQL
+
+```text
+/refactor silver.DimCustomer silver.FactInternetSales
+```
+
+Restructures the raw stored procedure SQL into import/logical/final CTEs. Runs an equivalence audit loop — seeds the sandbox with test fixtures, executes both the original and refactored SQL, and self-corrects until the result sets match. The refactored SQL is written to the catalog and used as input for model generation.
+
+See [[Stage 5 SQL Refactoring]] for details.
+
+## Step 9 -- Generate dbt models
 
 ```text
 /generate-model silver.DimCustomer silver.FactInternetSales
 ```
 
-Generates dbt models from the stored procedures using the profile and test spec. Runs `dbt test` with up to 3 self-corrections, then a code review loop with up to 2 iterations. Opens a PR with the generated models.
+Generates dbt models from the refactored SQL. Import CTEs become ephemeral staging models (`stg_*`); logical and final CTEs become the mart model. Runs `dbt test` with up to 3 self-corrections, then a code review loop with up to 2 iterations.
 
 See [[Stage 4 Model Generation]] for details.
 
-## Step 9 -- Tear down sandbox
+## Step 10 -- Tear down sandbox
 
 ```text
 /teardown-sandbox
@@ -103,4 +115,4 @@ See [[Stage 3 Test Generation]] for details.
 
 - Review and merge the PRs opened by each batch command
 - Run `/cleanup-worktrees` to remove stale worktrees after PRs are merged
-- Repeat steps 4-8 for additional tables in your migration scope
+- Repeat steps 3, 5, and 7–9 for additional tables in your migration scope

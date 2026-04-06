@@ -16,6 +16,7 @@
 - [[Stage 1 Scoping]]
 - [[Stage 2 Profiling]]
 - [[Stage 3 Test Generation]]
+- [[Stage 5 SQL Refactoring]]
 - [[Stage 4 Model Generation]]
 
 **Command Reference**
@@ -29,6 +30,7 @@
 - [[Skill Profiling Table]]
 - [[Skill Generating Tests]]
 - [[Skill Reviewing Tests]]
+- [[Skill Refactoring SQL]]
 - [[Skill Generating Model]]
 - [[Skill Reviewing Model]]
 

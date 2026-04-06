@@ -117,4 +117,4 @@ Tear down the sandbox after all test generation batches are complete. You do not
 
 ## Next Step
 
-Proceed to [[Stage 4 Model Generation]] to generate dbt models from the stored procedures using the profile and test spec data.
+Proceed to [[Stage 5 SQL Refactoring]] to restructure the stored procedure SQL into CTE pattern and verify equivalence before model generation.

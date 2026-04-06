@@ -6,6 +6,7 @@ The `/init-dbt` command reads `manifest.json` and catalog data, asks you to pick
 
 - `manifest.json` must exist (run `/setup-ddl` first)
 - `catalog/tables/` must contain at least one `.json` file (warns if empty)
+- All tables must have completed scoping (status `resolved` or `no_writer_found`). The command blocks if any table has incomplete scoping — run `/scope` or `/analyzing-table` for those tables first.
 
 ## Platform Selection
 
@@ -64,7 +65,7 @@ Includes `dbt-labs/dbt_utils` (>=1.0.0, <2.0.0).
 
 ### sources.yml
 
-Generated from catalog table files. Every table in `catalog/tables/` becomes a source definition grouped by schema:
+Generated from catalog table files using the `generate-sources` CLI. Only tables where `scoping.status == "no_writer_found"` are included — these are true external sources that no stored procedure writes to. Tables with `scoping.status == "resolved"` (procedure write targets) are excluded because they will become dbt models referenced via `{{ ref() }}` rather than `{{ source() }}`.
 
 ```yaml
 version: 2
@@ -73,11 +74,11 @@ sources:
   - name: silver
     description: "Source tables from silver schema"
     tables:
-      - name: DimCustomer
-        description: "DimCustomer from source system"
-      - name: FactInternetSales
-        description: "FactInternetSales from source system"
+      - name: DimDate
+        description: "DimDate from source system"
 ```
+
+The `generate-sources` output lists included, excluded, and any incomplete tables so you can verify coverage before proceeding.
 
 ## Validation
 
@@ -88,11 +89,11 @@ The command runs `dbt deps` to install packages, then `dbt compile` to validate 
 If `dbt/` already exists:
 
 - Detects the existing project by checking for `dbt_project.yml`
-- Regenerates `sources.yml` from current catalog (picks up new tables from a re-run of `/setup-ddl`)
+- Regenerates `sources.yml` from current catalog using the same `no_writer_found` filter (picks up tables scoped since the last run)
 - Never overwrites `profiles.yml` (you may have added real credentials)
 - Never overwrites existing model files in `models/staging/` or `models/marts/`
 - Re-runs `dbt deps` and `dbt compile`
 
 ## Next Step
 
-Proceed to [[Stage 4 Sandbox Setup]] to create the throwaway test database, then [[Stage 1 Scoping]] to discover which stored procedures write to your target tables.
+Proceed to [[Stage 2 Profiling]] to classify each table, then [[Stage 4 Sandbox Setup]] to create the throwaway test database.

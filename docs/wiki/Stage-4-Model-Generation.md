@@ -1,12 +1,12 @@
 # Stage 4 -- Model Generation
 
-The `/generate-model` command generates dbt models from stored procedures using the profile and test spec data. It includes a self-correction loop for `dbt test` failures and a code review loop for quality. This is the final migration stage before PR review and merge.
+The `/generate-model` command generates dbt models from stored procedures using the refactored SQL, profile, and test spec data. It includes a self-correction loop for `dbt test` failures and a code review loop for quality. This is the final migration stage before PR review and merge.
 
 ## Prerequisites
 
 - `manifest.json` must exist
 - `dbt/dbt_project.yml` must exist (run `/init-dbt` first; if missing, all items fail with `DBT_PROJECT_MISSING`)
-- Per table: catalog file, `scoping.selected_writer`, `profile` with `status: "ok"`, and `test-specs/<item_id>.json` must all be present
+- Per table: catalog file, `scoping.selected_writer`, `profile` with `status: "ok"`, `test-specs/<item_id>.json`, and `refactor.refactored_sql` in the catalog must all be present. Run `/refactor <table>` if the refactor section is missing.
 
 ## Invocation
 
@@ -18,20 +18,23 @@ The `/generate-model` command generates dbt models from stored procedures using 
 
 ### Step 1 -- Worktree setup
 
-Sets up an isolated worktree for the batch. If existing worktrees are found, the FDE can choose to continue on one of them instead of creating a new one.
+Sets up an isolated worktree for the batch. If on `main`, the command warns and offers to create a worktree. If existing worktrees are found, the FDE can choose to continue on one of them instead of creating a new one.
 
 ### Step 2 -- Model generation
 
 One sub-agent per table runs in parallel, each following the `/generating-model` skill:
 
-1. Reads the table's catalog file (profile, scoping, columns, keys, FKs)
+1. Reads `refactored_sql` from the table's catalog refactor section — this is the CTE-structured SQL produced by `/refactor`. Raw proc SQL is not used.
 2. Reads the test spec with ground truth expectations
-3. Reads the writer procedure's source code
-4. Generates the dbt model SQL and schema YAML
+3. Reads the table's profile (materialization, primary key, watermark, etc.)
+4. Applies the staging/mart split: import CTEs become ephemeral `stg_*` models in `dbt/models/staging/`; logical and final CTEs stay in the mart model in `dbt/models/marts/`
+5. Generates dbt model SQL and schema YAML for both staging and mart layers
 
-**CTE pattern.** Generated models follow a CTE-based structure: source CTEs reference `{{ source() }}` macros, transformation CTEs implement the procedure's logic, and a final SELECT assembles the output.
+**Staging models.** One ephemeral `stg_<source_table>.sql` is created per import CTE in the refactored SQL. Each is `materialized='ephemeral'` and selects from `{{ source('<schema>', '<table>') }}` with light transforms only. Before creating a staging model, the skill checks for an existing compatible one to avoid duplicates.
 
-**Materialization mapping.** The profiling classification drives the materialization:
+**Mart model.** The mart model replaces import CTEs with `{{ ref('stg_...') }}` calls; logical and final CTEs stay as-is. The config block uses the profile-derived materialization.
+
+**Materialization mapping.** The profiling classification drives the mart materialization:
 
 | Classification | Materialization | Strategy |
 |---|---|---|
@@ -54,28 +57,39 @@ After generating the model, the sub-agent runs `dbt test` to validate the model 
 
 ### Step 4 -- Code review loop
 
-For each item where `dbt test` passes, a `/reviewing-model` sub-agent evaluates:
+For each item where `dbt test` passes, a `/reviewing-model` sub-agent evaluates correctness, standards compliance, test integration, and materialization appropriateness against structured reference guidelines.
 
-- Code quality and dbt best practices
-- Correctness of the translation from T-SQL to dbt SQL
-- Test integration and schema YAML completeness
-- Materialization appropriateness
+Review feedback uses three severity tiers:
+
+| Tier | Meaning | Model-generator response required |
+|---|---|---|
+| `error` | Must fix before approval | Yes — `fixed` or `ignored: <reason>` |
+| `warning` | Should fix; ack required | Yes — `fixed` or `ignored: <reason>` |
+| `info` | Advisory only | No |
 
 Review outcomes:
 
 | Verdict | Action |
 |---|---|
-| `approved` | Proceed to summary |
+| `approved` | Proceed to commit |
 | `approved_with_warnings` | Proceed with noted issues |
-| `revision_requested` | Feedback sent back to generator; model is revised and `dbt test` re-run |
+| `revision_requested` | Feedback (with stable codes) sent back to generator; model is revised and `dbt test` re-run |
 
 Maximum 2 review iterations per item. After the maximum, the item is approved with warnings and proceeds.
 
 ### Step 5 -- Equivalence checking
 
-The generation skill performs a semantic equivalence analysis between the original stored procedure and the generated dbt model. Any gaps are recorded as `EQUIVALENCE_GAP` warnings. These do not block the model from being written -- they flag areas for manual review.
+The generation skill performs a semantic equivalence analysis between the refactored SQL and the generated dbt model. Any gaps are recorded as `EQUIVALENCE_GAP` warnings. These do not block the model from being written -- they flag areas for manual review.
 
-### Step 6 -- Summary and PR
+### Step 6 -- Per-table commit and summary
+
+After review completes for each item, the result is committed automatically:
+
+- Items with status `ok` or `partial` are committed immediately after review (no batch approval step)
+- Items with status `error` have their files reverted inline: `git checkout -- <files>`
+- The `/commit` command handles staging, commit message, and push
+
+At the end of the run:
 
 ```text
 generate-model complete -- 2 tables processed
@@ -86,16 +100,17 @@ generate-model complete -- 2 tables processed
   ok: 1 | partial: 1
 ```
 
-Only model SQL and schema YAML files from successful items are staged. The PR body includes materialization type and `dbt compile` status for each table.
+You are offered a PR. Run `/status` to check overall pipeline progress.
 
 ## What Gets Produced
 
 | File | Location | Purpose |
 |---|---|---|
-| Model SQL | `dbt/models/staging/<model_name>.sql` | dbt model implementing the stored procedure logic |
+| Staging model SQL | `dbt/models/staging/stg_<source_table>.sql` | Ephemeral model selecting from source; one per import CTE |
+| Mart model SQL | `dbt/models/marts/<model_name>.sql` | dbt model implementing the procedure logic with `ref()` calls |
 | Schema YAML | `dbt/models/staging/_<model_name>.yml` | Model description, schema tests, and `unit_tests:` rendered from the test spec |
 
-The model name follows the pattern `stg_<table>` (e.g., `stg_dimcustomer` for `silver.DimCustomer`).
+The mart model name follows the pattern `<table>` (e.g., `dimcustomer` for `silver.DimCustomer`). Staging models use the source table name (e.g., `stg_dimcustomer`).
 
 ## Error Codes
 
@@ -107,8 +122,9 @@ The model name follows the pattern `stg_<table>` (e.g., `stg_dimcustomer` for `s
 | `SCOPING_NOT_COMPLETED` | No `selected_writer` -- item skipped |
 | `PROFILE_NOT_COMPLETED` | Profile missing or not `ok` -- item skipped |
 | `TEST_SPEC_NOT_FOUND` | Test spec not found -- item skipped |
+| `REFACTOR_NOT_COMPLETED` | Refactor section missing or no `refactored_sql` -- item skipped |
 | `GENERATION_FAILED` | `/generating-model` skill failed -- item skipped |
-| `EQUIVALENCE_GAP` | Semantic gap between proc and generated model -- item proceeds as partial |
+| `EQUIVALENCE_GAP` | Semantic gap between refactored SQL and generated model -- item proceeds as partial |
 | `DBT_COMPILE_FAILED` | `dbt compile` failed after retries -- item proceeds as partial |
 | `DBT_TEST_FAILED` | `dbt test` failed after 3 self-corrections -- item proceeds as partial |
 | `REVIEW_KICKED_BACK` | Reviewer requested revision -- item retried |
