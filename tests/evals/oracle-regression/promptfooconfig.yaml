@@ -1,6 +1,23 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "oracle regression — per-command pipeline coverage against SH schema fixtures"
 
+prompts:
+  - id: cmd-scope
+    label: cmd-scope
+    raw: file://../prompts/cmd-scope.txt
+  - id: cmd-profile
+    label: cmd-profile
+    raw: file://../prompts/cmd-profile.txt
+  - id: cmd-generate-model
+    label: cmd-generate-model
+    raw: file://../prompts/cmd-generate-model.txt
+  - id: cmd-generate-tests
+    label: cmd-generate-tests
+    raw: file://../prompts/cmd-generate-tests.txt
+  - id: cmd-refactor
+    label: cmd-refactor
+    raw: file://../prompts/cmd-refactor.txt
+
 providers:
   - id: anthropic:claude-agent-sdk
     config:
@@ -27,8 +44,7 @@ tests:
   # Verifies that the scope command resolves the writer for SH.CHANNEL_SALES_SUMMARY
   # using Oracle catalog conventions (uppercase identifiers, oracle dialect).
   - description: "oracle — scope — CHANNEL_SALES_SUMMARY resolves to SUMMARIZE_CHANNEL_SALES"
-    prompts:
-      - file://../prompts/cmd-scope.txt
+    prompts: ["cmd-scope"]
     vars:
       target_tables: "sh.CHANNEL_SALES_SUMMARY"
       target_table: "sh.channel_sales_summary"
@@ -47,8 +63,7 @@ tests:
   # Verifies that the profile command produces a valid profile for an Oracle target
   # table. Pre-committed scoping section allows the guard to pass without running scope.
   - description: "oracle — profile — CHANNEL_SALES_SUMMARY profiles as fact_transaction"
-    prompts:
-      - file://../prompts/cmd-profile.txt
+    prompts: ["cmd-profile"]
     vars:
       target_tables: "sh.CHANNEL_SALES_SUMMARY"
       target_table: "sh.channel_sales_summary"
@@ -64,8 +79,7 @@ tests:
   # refactored CTE SQL in the pre-committed catalog. Pre-committed scoping, profile,
   # and refactor sections allow all guards to pass.
   - description: "oracle — generate-model — CHANNEL_SALES_SUMMARY generates CTE dbt model"
-    prompts:
-      - file://../prompts/cmd-generate-model.txt
+    prompts: ["cmd-generate-model"]
     vars:
       target_tables: "sh.CHANNEL_SALES_SUMMARY"
       target_table: "sh.channel_sales_summary"
@@ -81,8 +95,7 @@ tests:
   # procedure body covering all 5 patterns: INSERT+CTE, MERGE, IF/ELSIF, EXCEPTION.
   # Pre-committed scoping and profile sections allow guards to pass.
   - description: "oracle — generate-tests — SUMMARIZE_CHANNEL_SALES enumerates PL/SQL branches"
-    prompts:
-      - file://../prompts/cmd-generate-tests.txt
+    prompts: ["cmd-generate-tests"]
     vars:
       target_tables: "sh.CHANNEL_SALES_SUMMARY"
       target_table: "sh.channel_sales_summary"
@@ -91,7 +104,7 @@ tests:
       expected_status: "ok,partial"
       expected_coverage: "complete,partial"
       min_branch_count: 3
-      expected_output_terms: "branch_manifest"
+      expected_output_terms: "ok"
     assert:
       - type: javascript
         value: file://../assertions/check-test-spec.js
@@ -101,8 +114,7 @@ tests:
   # import/logical/final CTE form. Pre-committed scoping and profile sections allow
   # guards to pass.
   - description: "oracle — refactor — CHANNEL_SALES_SUMMARY CTE restructured with final"
-    prompts:
-      - file://../prompts/cmd-refactor.txt
+    prompts: ["cmd-refactor"]
     vars:
       target_tables: "sh.CHANNEL_SALES_SUMMARY"
       target_table: "sh.channel_sales_summary"

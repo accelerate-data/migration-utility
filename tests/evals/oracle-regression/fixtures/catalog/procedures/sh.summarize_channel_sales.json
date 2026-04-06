@@ -10,8 +10,16 @@
           "is_selected": true,
           "is_updated": false,
           "columns": [
-            {"name": "CHANNEL_ID", "is_selected": true, "is_updated": false},
-            {"name": "CHANNEL_DESC", "is_selected": true, "is_updated": false}
+            {
+              "name": "CHANNEL_ID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "CHANNEL_DESC",
+              "is_selected": true,
+              "is_updated": false
+            }
           ]
         },
         {
@@ -20,8 +28,16 @@
           "is_selected": true,
           "is_updated": false,
           "columns": [
-            {"name": "CHANNEL_ID", "is_selected": true, "is_updated": false},
-            {"name": "AMOUNT_SOLD", "is_selected": true, "is_updated": false}
+            {
+              "name": "CHANNEL_ID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "AMOUNT_SOLD",
+              "is_selected": true,
+              "is_updated": false
+            }
           ]
         },
         {
@@ -30,11 +46,31 @@
           "is_selected": true,
           "is_updated": true,
           "columns": [
-            {"name": "CHANNEL_ID", "is_selected": true, "is_updated": true},
-            {"name": "CHANNEL_DESC", "is_selected": false, "is_updated": true},
-            {"name": "TOTAL_AMOUNT", "is_selected": false, "is_updated": true},
-            {"name": "TIER", "is_selected": true, "is_updated": true},
-            {"name": "UPDATED_AT", "is_selected": false, "is_updated": true}
+            {
+              "name": "CHANNEL_ID",
+              "is_selected": true,
+              "is_updated": true
+            },
+            {
+              "name": "CHANNEL_DESC",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "TOTAL_AMOUNT",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "TIER",
+              "is_selected": true,
+              "is_updated": true
+            },
+            {
+              "name": "UPDATED_AT",
+              "is_selected": false,
+              "is_updated": true
+            }
           ]
         }
       ],
@@ -53,22 +89,31 @@
       "out_of_scope": []
     }
   },
-  "routing_reasons": ["if_else", "try_catch"],
+  "routing_reasons": [
+    "if_else",
+    "try_catch"
+  ],
   "statements": [
     {
       "type": "Delete",
       "action": "skip",
-      "sql": "DELETE FROM CHANNEL_SALES_SUMMARY"
+      "source": "llm",
+      "sql": "DELETE FROM CHANNEL_SALES_SUMMARY",
+      "rationale": "Operational idempotency reset before re-population; dbt table materialization replaces this pattern automatically."
     },
     {
       "type": "Insert",
       "action": "migrate",
-      "sql": "INSERT INTO CHANNEL_SALES_SUMMARY (CHANNEL_ID, CHANNEL_DESC, TOTAL_AMOUNT, TIER, UPDATED_AT) WITH channel_totals AS (SELECT c.CHANNEL_ID, c.CHANNEL_DESC, SUM(s.AMOUNT_SOLD) AS TOTAL_AMOUNT FROM CHANNELS c JOIN SALES s ON s.CHANNEL_ID = c.CHANNEL_ID GROUP BY c.CHANNEL_ID, c.CHANNEL_DESC) SELECT CHANNEL_ID, CHANNEL_DESC, TOTAL_AMOUNT, 'UNKNOWN', SYSDATE FROM channel_totals"
+      "source": "llm",
+      "sql": "INSERT INTO CHANNEL_SALES_SUMMARY (CHANNEL_ID, CHANNEL_DESC, TOTAL_AMOUNT, TIER, UPDATED_AT) WITH channel_totals AS (SELECT c.CHANNEL_ID, c.CHANNEL_DESC, SUM(s.AMOUNT_SOLD) AS TOTAL_AMOUNT FROM CHANNELS c JOIN SALES s ON s.CHANNEL_ID = c.CHANNEL_ID GROUP BY c.CHANNEL_ID, c.CHANNEL_DESC) SELECT CHANNEL_ID, CHANNEL_DESC, TOTAL_AMOUNT, 'UNKNOWN', SYSDATE FROM channel_totals",
+      "rationale": "Core transformation: aggregates channel sales via CTE and populates the summary table — this becomes the dbt model body."
     },
     {
       "type": "Merge",
       "action": "migrate",
-      "sql": "MERGE INTO CHANNEL_SALES_SUMMARY tgt USING (SELECT rec.CHANNEL_ID AS CHANNEL_ID, v_tier AS TIER FROM DUAL) src ON (tgt.CHANNEL_ID = src.CHANNEL_ID) WHEN MATCHED THEN UPDATE SET tgt.TIER = src.TIER, tgt.UPDATED_AT = SYSDATE"
+      "source": "llm",
+      "sql": "MERGE INTO CHANNEL_SALES_SUMMARY tgt USING (SELECT rec.CHANNEL_ID AS CHANNEL_ID, v_tier AS TIER FROM DUAL) src ON (tgt.CHANNEL_ID = src.CHANNEL_ID) WHEN MATCHED THEN UPDATE SET tgt.TIER = src.TIER, tgt.UPDATED_AT = SYSDATE",
+      "rationale": "TIER classification business logic (HIGH/MEDIUM/LOW thresholds) that must be migrated; can be refactored as a CASE expression in the dbt model SELECT."
     }
   ]
 }
