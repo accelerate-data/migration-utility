@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -369,109 +370,95 @@ def check_technology(project_root: Path) -> dict[str, Any]:
 # Stage → ordered list of guard callables.
 # Each callable takes (project_root, table_fqn) or (project_root,) and returns
 # a guard result dict.
-_STAGE_GUARDS: dict[str, list[tuple[str, ...]]] = {
+_STAGE_GUARDS: dict[str, list[tuple[Callable, ...]]] = {
     "scope": [
-        ("check_manifest",),
-        ("check_table_catalog",),
+        (check_manifest,),
+        (check_table_catalog,),
     ],
     "profile": [
-        ("check_manifest",),
-        ("check_table_catalog",),
-        ("check_selected_writer",),
-        ("check_statements_resolved",),
+        (check_manifest,),
+        (check_table_catalog,),
+        (check_selected_writer,),
+        (check_statements_resolved,),
     ],
     "test-gen": [
-        ("check_manifest",),
-        ("check_table_catalog",),
-        ("check_selected_writer",),
-        ("check_statements_resolved",),
-        ("check_profile_ok",),
-        ("check_sandbox_metadata",),
+        (check_manifest,),
+        (check_table_catalog,),
+        (check_selected_writer,),
+        (check_statements_resolved,),
+        (check_profile_ok,),
+        (check_sandbox_metadata,),
     ],
     "refactor": [
-        ("check_manifest",),
-        ("check_table_catalog",),
-        ("check_selected_writer",),
-        ("check_statements_resolved",),
-        ("check_profile_ok",),
-        ("check_sandbox_metadata",),
-        ("check_test_spec",),
+        (check_manifest,),
+        (check_table_catalog,),
+        (check_selected_writer,),
+        (check_statements_resolved,),
+        (check_profile_ok,),
+        (check_sandbox_metadata,),
+        (check_test_spec,),
     ],
     "migrate": [
-        ("check_manifest",),
-        ("check_table_catalog",),
-        ("check_selected_writer",),
-        ("check_statements_resolved",),
-        ("check_profile_ok",),
-        ("check_sandbox_metadata",),
-        ("check_test_spec",),
-        ("check_refactor_complete",),
+        (check_manifest,),
+        (check_table_catalog,),
+        (check_selected_writer,),
+        (check_statements_resolved,),
+        (check_profile_ok,),
+        (check_sandbox_metadata,),
+        (check_test_spec,),
+        (check_refactor_complete,),
     ],
     # Skill-specific guard sets (not pipeline stages, but callable via guard CLI)
     "generating-model": [
-        ("check_manifest",),
-        ("check_table_catalog",),
-        ("check_selected_writer",),
-        ("check_statements_resolved",),
-        ("check_profile_ok",),
-        ("check_sandbox_metadata",),
-        ("check_test_spec",),
-        ("check_refactor_complete",),
-        ("check_dbt_project",),
-        ("check_view_dependencies_migrated",),
+        (check_manifest,),
+        (check_table_catalog,),
+        (check_selected_writer,),
+        (check_statements_resolved,),
+        (check_profile_ok,),
+        (check_sandbox_metadata,),
+        (check_test_spec,),
+        (check_refactor_complete,),
+        (check_dbt_project,),
+        (check_view_dependencies_migrated,),
     ],
     "reviewing-model": [
-        ("check_manifest",),
-        ("check_table_catalog",),
-        ("check_selected_writer",),
-        ("check_statements_resolved",),
-        ("check_profile_ok",),
-        ("check_sandbox_metadata",),
-        ("check_test_spec",),
-        ("check_refactor_complete",),
-        ("check_dbt_project",),
-        ("check_view_dependencies_migrated",),
+        (check_manifest,),
+        (check_table_catalog,),
+        (check_selected_writer,),
+        (check_statements_resolved,),
+        (check_profile_ok,),
+        (check_sandbox_metadata,),
+        (check_test_spec,),
+        (check_refactor_complete,),
+        (check_dbt_project,),
+        (check_view_dependencies_migrated,),
     ],
     "reviewing-tests": [
-        ("check_manifest",),
-        ("check_table_catalog",),
-        ("check_selected_writer",),
-        ("check_statements_resolved",),
-        ("check_profile_ok",),
-        ("check_sandbox_metadata",),
-        ("check_test_spec",),
+        (check_manifest,),
+        (check_table_catalog,),
+        (check_selected_writer,),
+        (check_statements_resolved,),
+        (check_profile_ok,),
+        (check_sandbox_metadata,),
+        (check_test_spec,),
     ],
     "refactoring-sql": [
-        ("check_manifest",),
-        ("check_table_catalog",),
-        ("check_selected_writer",),
-        ("check_statements_resolved",),
-        ("check_profile_ok",),
-        ("check_sandbox_metadata",),
-        ("check_test_spec",),
+        (check_manifest,),
+        (check_table_catalog,),
+        (check_selected_writer,),
+        (check_statements_resolved,),
+        (check_profile_ok,),
+        (check_sandbox_metadata,),
+        (check_test_spec,),
     ],
     "setup-ddl": [
-        ("check_technology",),
+        (check_technology,),
     ],
-}
-
-_GUARD_FNS = {
-    "check_manifest": check_manifest,
-    "check_table_catalog": check_table_catalog,
-    "check_selected_writer": check_selected_writer,
-    "check_statements_resolved": check_statements_resolved,
-    "check_profile_ok": check_profile_ok,
-    "check_sandbox_metadata": check_sandbox_metadata,
-    "check_test_spec": check_test_spec,
-    "check_refactor_complete": check_refactor_complete,
-    "check_dbt_project": check_dbt_project,
-    "check_technology": check_technology,
-    "check_view_dependencies_migrated": check_view_dependencies_migrated,
 }
 
 # Guards that only need project_root (no table_fqn).
-_PROJECT_ONLY_GUARDS = frozenset({
-    "check_manifest", "check_sandbox_metadata", "check_dbt_project", "check_technology",
+_PROJECT_ONLY_GUARDS: frozenset[Callable] = frozenset({
+    check_manifest, check_sandbox_metadata, check_dbt_project, check_technology,
 })
 
 
@@ -483,9 +470,8 @@ def run_guards(
     Returns (all_passed, guard_results).
     """
     results: list[dict[str, Any]] = []
-    for (guard_name,) in _STAGE_GUARDS[stage]:
-        fn = _GUARD_FNS[guard_name]
-        if guard_name in _PROJECT_ONLY_GUARDS:
+    for (fn,) in _STAGE_GUARDS[stage]:
+        if fn in _PROJECT_ONLY_GUARDS:
             result = fn(project_root)
         else:
             result = fn(project_root, table_fqn)
