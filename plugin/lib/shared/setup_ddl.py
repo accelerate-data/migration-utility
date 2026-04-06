@@ -147,19 +147,29 @@ def _oracle_connect() -> Any:
 
 
 def _build_oracle_schema_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Group ALL_OBJECTS rows by OWNER → sorted list of {owner, object_count}.
+    """Group ALL_OBJECTS rows by OWNER → sorted list of {owner, tables, procedures, views, functions}.
 
     Handles both uppercase (Oracle native) and lowercase key names.
+    Counts TABLE, PROCEDURE, VIEW/MATERIALIZED VIEW, and FUNCTION. Other object types are ignored.
     """
-    counts: dict[str, int] = {}
+    Entry = dict[str, Any]
+    buckets: dict[str, Entry] = {}
     for row in rows:
         owner = row.get("OWNER") or row.get("owner") or ""
-        if owner:
-            counts[owner] = counts.get(owner, 0) + 1
-    return sorted(
-        [{"owner": owner, "object_count": count} for owner, count in counts.items()],
-        key=lambda x: x["owner"],
-    )
+        obj_type = (row.get("OBJECT_TYPE") or row.get("object_type") or "").upper()
+        if not owner:
+            continue
+        if owner not in buckets:
+            buckets[owner] = {"owner": owner, "tables": 0, "procedures": 0, "views": 0, "functions": 0}
+        if obj_type == "TABLE":
+            buckets[owner]["tables"] += 1
+        elif obj_type == "PROCEDURE":
+            buckets[owner]["procedures"] += 1
+        elif obj_type in ("VIEW", "MATERIALIZED VIEW"):
+            buckets[owner]["views"] += 1
+        elif obj_type == "FUNCTION":
+            buckets[owner]["functions"] += 1
+    return sorted(buckets.values(), key=lambda x: x["owner"])
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -669,12 +679,12 @@ def run_list_databases(project_root: Path) -> dict[str, Any]:
 
 
 def run_list_schemas(project_root: Path, database: Optional[str]) -> dict[str, Any]:
-    """List schemas with object counts on the source system.
+    """List schemas with per-type object counts on the source system.
 
     SQL Server / Fabric Warehouse: queries sys.schemas + sys.objects.
-      --database is required.
+      --database is required. Returns {schema, tables, procedures, views, functions}.
     Oracle: queries ALL_OBJECTS grouped by owner.
-      --database is ignored.
+      --database is ignored. Returns {owner, tables, procedures, views, functions}.
     """
     technology = _require_technology(project_root)
 
@@ -685,7 +695,11 @@ def run_list_schemas(project_root: Path, database: Optional[str]) -> dict[str, A
         try:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT s.name AS schema_name, COUNT(o.object_id) AS object_count "
+                "SELECT s.name AS schema_name, "
+                "    SUM(CASE WHEN o.type = 'U'               THEN 1 ELSE 0 END) AS tables, "
+                "    SUM(CASE WHEN o.type = 'P'               THEN 1 ELSE 0 END) AS procedures, "
+                "    SUM(CASE WHEN o.type = 'V'               THEN 1 ELSE 0 END) AS views, "
+                "    SUM(CASE WHEN o.type IN ('FN','IF','TF') THEN 1 ELSE 0 END) AS functions "
                 "FROM sys.schemas s "
                 "LEFT JOIN sys.objects o "
                 "    ON o.schema_id = s.schema_id AND o.is_ms_shipped = 0 "
@@ -693,7 +707,7 @@ def run_list_schemas(project_root: Path, database: Optional[str]) -> dict[str, A
                 "ORDER BY s.name"
             )
             schemas = [
-                {"schema": row[0], "object_count": row[1]}
+                {"schema": row[0], "tables": row[1], "procedures": row[2], "views": row[3], "functions": row[4]}
                 for row in cursor.fetchall()
             ]
         finally:

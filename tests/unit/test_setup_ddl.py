@@ -989,7 +989,7 @@ class TestOracleSchemaProcessing:
         owners = {entry["owner"] for entry in summary}
         assert "SH" in owners
         sh_entry = next(e for e in summary if e["owner"] == "SH")
-        assert sh_entry["object_count"] > 0
+        assert sh_entry["tables"] > 0
 
     def test_empty_input_returns_empty_list(self):
         from shared.setup_ddl import _build_oracle_schema_summary
@@ -1015,7 +1015,7 @@ class TestOracleSchemaProcessing:
         summary = _build_oracle_schema_summary(rows)
         assert len(summary) == 1
         assert summary[0]["owner"] == "SH"
-        assert summary[0]["object_count"] == 2
+        assert summary[0]["tables"] == 2
 
 
 # ── Integration: list-databases (SQL Server Docker) ──────────────────────────
