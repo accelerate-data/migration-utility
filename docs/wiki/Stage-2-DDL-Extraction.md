@@ -172,6 +172,51 @@ Schemas:  dbo, silver
   manifest.json at ./manifest.json
 ```
 
+## Oracle Extraction
+
+Use the `extract` subcommand for Oracle sources instead of the interactive `/setup-ddl` skill:
+
+```bash
+uv run --project <shared-path> setup-ddl extract \
+  --schemas SH,HR \
+  [--project-root .]
+```
+
+### Oracle prerequisites
+
+The Oracle user must have read access to the `ALL_*` catalog views and `DBMS_METADATA` before running extraction:
+
+```sql
+GRANT SELECT_CATALOG_ROLE TO <user>;
+GRANT SELECT ANY DICTIONARY TO <user>;
+```
+
+Without `SELECT_CATALOG_ROLE`, `DBMS_METADATA.GET_DDL` fails for objects owned by other schemas.
+
+### Oracle catalog signals
+
+| Signal | Source | Notes |
+|---|---|---|
+| Table columns | `ALL_TAB_COLUMNS` | Maps Oracle types to SQL Server-compatible field names |
+| Primary keys and unique indexes | `ALL_CONSTRAINTS` + `ALL_CONS_COLUMNS` (`TYPE IN ('P','U')`) | |
+| Foreign keys | `ALL_CONSTRAINTS` + `ALL_CONS_COLUMNS` (`TYPE='R'`) | Joins through referenced constraint to resolve column names |
+| Identity columns | `ALL_TAB_COLUMNS WHERE IDENTITY_COLUMN='YES'` | Oracle 12c+ only; trigger-based sequences are not detected |
+| Object type map | `ALL_OBJECTS` | Maps Oracle types to SQL Server codes: TABLE→U, VIEW→V, PROCEDURE→P, FUNCTION→FN |
+| Procedure/view/function definitions | `DBMS_METADATA.GET_DDL` per object | Per-object call with try/except; skips objects where DDL retrieval fails |
+| Dependency references | `ALL_DEPENDENCIES` | Object-level only — all boolean flags (`is_selected`, `is_updated`, etc.) are always `False` |
+| Procedure parameters | `ALL_ARGUMENTS WHERE PACKAGE_NAME IS NULL` | Standalone procedures and functions only |
+
+### Oracle limitations
+
+| Feature | Status |
+|---|---|
+| CDC tracking | Not supported — `cdc.json` is always empty |
+| Change tracking | Not supported — `change_tracking.json` is always empty |
+| Sensitivity classifications | Not supported — `sensitivity.json` is always empty |
+| Column-level DMF flags | Always `False` — `ALL_DEPENDENCIES` has no column-level detail |
+| Auto-increment mechanism | `IDENTITY` columns only — trigger/sequence patterns not detected |
+| Package procedures | Not extracted — `ALL_ARGUMENTS` filtered to `PACKAGE_NAME IS NULL` |
+
 ## Next Step
 
 Proceed to [[Stage 3 dbt Scaffolding]] to scaffold your dbt project from the extracted catalog.
