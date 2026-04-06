@@ -1,21 +1,23 @@
 """CLI helpers for the setup-ddl skill.
 
-Each subcommand accepts raw JSON (MCP query results saved by the agent) and
-performs deterministic processing — assembling DDL files, writing catalog JSON,
-or producing the extraction manifest.
+Each subcommand either accepts raw JSON (MCP query results saved by the agent)
+and performs deterministic processing, or connects directly to the source DB
+for discovery.
 
 Usage (via uv):
     uv run --project <shared> setup-ddl assemble-modules --input <json> --project-root <dir> --type procedures
     uv run --project <shared> setup-ddl assemble-tables --input <json> --project-root <dir>
     uv run --project <shared> setup-ddl write-catalog --staging-dir <dir> --project-root <dir> --database <name>
     uv run --project <shared> setup-ddl write-manifest --project-root <dir> --technology sql_server --database <name> --schemas bronze,silver
+    uv run --project <shared> setup-ddl list-databases --project-root <dir>
+    uv run --project <shared> setup-ddl list-schemas --project-root <dir> [--database <name>]
 
 All JSON output goes to stdout; warnings/progress go to stderr.
 
 Exit codes:
     0  success
-    1  domain failure (invalid type, unknown technology)
-    2  IO or parse error
+    1  domain failure (invalid type, unknown technology, unsupported operation)
+    2  IO, parse, or connection error
 """
 
 from __future__ import annotations
@@ -35,6 +37,14 @@ logger = logging.getLogger(__name__)
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
+
+# ── Exceptions ────────────────────────────────────────────────────────────────
+
+
+class UnsupportedOperationError(Exception):
+    """Raised when an operation is not supported for the configured technology."""
+
+
 # ── Technology → dialect mapping ──────────────────────────────────────────────
 
 _TECH_DIALECT = {
@@ -44,6 +54,110 @@ _TECH_DIALECT = {
     "snowflake": "snowflake",
     "oracle": "oracle",
 }
+
+
+# ── Guard helper ─────────────────────────────────────────────────────────────
+
+
+def _require_technology(project_root: Path) -> str:
+    """Read manifest.json and return the technology field.
+
+    Raises ValueError with the guard message if manifest.json is missing
+    or has no technology.
+    """
+    from shared.guards import check_technology
+    result = check_technology(project_root)
+    if not result["passed"]:
+        raise ValueError(result["message"])
+    manifest = json.loads((project_root / "manifest.json").read_text(encoding="utf-8"))
+    return manifest["technology"]
+
+
+# ── DB connection helpers ─────────────────────────────────────────────────────
+
+
+def _sql_server_connect(database: str) -> Any:
+    """Open a pyodbc connection to SQL Server.
+
+    Reads MSSQL_HOST, MSSQL_PORT, MSSQL_USER, SA_PASSWORD, MSSQL_DRIVER from
+    the environment.  Raises ValueError if required variables are missing.
+    Raises RuntimeError if pyodbc is not installed.
+    """
+    import os
+    try:
+        import pyodbc  # type: ignore[import-untyped]
+    except ImportError as exc:
+        raise RuntimeError(
+            "pyodbc is required for SQL Server connectivity. "
+            "Install it with: uv pip install pyodbc"
+        ) from exc
+
+    host = os.environ.get("MSSQL_HOST", "")
+    port = os.environ.get("MSSQL_PORT", "1433")
+    user = os.environ.get("MSSQL_USER", "sa")
+    password = os.environ.get("SA_PASSWORD", "")
+    driver = os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server")
+
+    missing = [name for name, val in [("MSSQL_HOST", host), ("SA_PASSWORD", password)] if not val]
+    if missing:
+        raise ValueError(f"Required environment variables not set: {missing}")
+
+    conn_str = (
+        f"DRIVER={{{driver}}};"
+        f"SERVER={host},{port};"
+        f"DATABASE={database};"
+        f"UID={user};PWD={password};"
+        f"TrustServerCertificate=yes;"
+    )
+    return pyodbc.connect(conn_str, autocommit=True)
+
+
+def _oracle_connect() -> Any:
+    """Open an oracledb connection to Oracle.
+
+    Reads ORACLE_USER, ORACLE_PASSWORD, ORACLE_DSN from the environment.
+    Raises ValueError if required variables are missing.
+    Raises RuntimeError if oracledb is not installed.
+    """
+    import os
+    try:
+        import oracledb  # type: ignore[import-untyped]
+    except ImportError as exc:
+        raise RuntimeError(
+            "oracledb is required for Oracle connectivity. "
+            "Install it with: uv pip install oracledb"
+        ) from exc
+
+    user = os.environ.get("ORACLE_USER", "")
+    password = os.environ.get("ORACLE_PASSWORD", "")
+    dsn = os.environ.get("ORACLE_DSN", "")
+
+    missing = [name for name, val in [
+        ("ORACLE_USER", user), ("ORACLE_PASSWORD", password), ("ORACLE_DSN", dsn),
+    ] if not val]
+    if missing:
+        raise ValueError(f"Required environment variables not set: {missing}")
+
+    return oracledb.connect(user=user, password=password, dsn=dsn)
+
+
+# ── Oracle processing helpers ─────────────────────────────────────────────────
+
+
+def _build_oracle_schema_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Group ALL_OBJECTS rows by OWNER → sorted list of {owner, object_count}.
+
+    Handles both uppercase (Oracle native) and lowercase key names.
+    """
+    counts: dict[str, int] = {}
+    for row in rows:
+        owner = row.get("OWNER") or row.get("owner") or ""
+        if owner:
+            counts[owner] = counts.get(owner, 0) + 1
+    return sorted(
+        [{"owner": owner, "object_count": count} for owner, count in counts.items()],
+        key=lambda x: x["owner"],
+    )
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -459,6 +573,89 @@ def run_write_manifest(
     return {"file": str(out_path)}
 
 
+def run_list_databases(project_root: Path) -> dict[str, Any]:
+    """List user databases on the source SQL Server, excluding system databases.
+
+    Raises UnsupportedOperationError for Oracle.
+    Raises ValueError if manifest.json is missing or has no technology.
+    """
+    technology = _require_technology(project_root)
+    if technology == "oracle":
+        raise UnsupportedOperationError("list-databases is not supported for Oracle.")
+    conn = _sql_server_connect("master")
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT name FROM sys.databases "
+            "WHERE name NOT IN ('master', 'tempdb', 'model', 'msdb') "
+            "  AND state_desc = 'ONLINE' "
+            "ORDER BY name"
+        )
+        databases = [row[0] for row in cursor.fetchall()]
+    finally:
+        conn.close()
+    logger.info(
+        "event=list_databases technology=%s count=%d", technology, len(databases),
+    )
+    return {"databases": databases}
+
+
+def run_list_schemas(project_root: Path, database: Optional[str]) -> dict[str, Any]:
+    """List schemas with object counts on the source system.
+
+    SQL Server / Fabric Warehouse: queries sys.schemas + sys.objects.
+      --database is required.
+    Oracle: queries ALL_OBJECTS grouped by owner.
+      --database is ignored.
+    """
+    technology = _require_technology(project_root)
+
+    if technology in ("sql_server", "fabric_warehouse"):
+        if not database:
+            raise ValueError("--database is required for SQL Server / Fabric Warehouse")
+        conn = _sql_server_connect(database)
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT s.name AS schema_name, COUNT(o.object_id) AS object_count "
+                "FROM sys.schemas s "
+                "LEFT JOIN sys.objects o "
+                "    ON o.schema_id = s.schema_id AND o.is_ms_shipped = 0 "
+                "GROUP BY s.name "
+                "ORDER BY s.name"
+            )
+            schemas = [
+                {"schema": row[0], "object_count": row[1]}
+                for row in cursor.fetchall()
+            ]
+        finally:
+            conn.close()
+        logger.info(
+            "event=list_schemas technology=%s database=%s count=%d",
+            technology, database, len(schemas),
+        )
+        return {"schemas": schemas}
+
+    if technology == "oracle":
+        conn = _oracle_connect()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT OWNER, OBJECT_TYPE, OBJECT_NAME "
+                "FROM ALL_OBJECTS "
+                "ORDER BY OWNER, OBJECT_TYPE, OBJECT_NAME"
+            )
+            columns = [desc[0] for desc in cursor.description]
+            rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        finally:
+            conn.close()
+        schemas = _build_oracle_schema_summary(rows)
+        logger.info("event=list_schemas technology=oracle count=%d", len(schemas))
+        return {"schemas": schemas}
+
+    raise ValueError(f"list-schemas is not supported for technology '{technology}'")
+
+
 # ── CLI wrappers ─────────────────────────────────────────────────────────────
 
 
@@ -567,6 +764,58 @@ def write_partial_manifest(
     except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
+    typer.echo(json.dumps(result))
+
+
+@app.command("list-databases")
+def list_databases(
+    project_root: Optional[Path] = typer.Option(
+        None, "--project-root",
+        help="Project root containing manifest.json (defaults to CWD)"
+    ),
+) -> None:
+    """List user databases on the source system (SQL Server only)."""
+    if project_root is None:
+        project_root = Path.cwd()
+    try:
+        result = run_list_databases(project_root)
+    except UnsupportedOperationError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    except RuntimeError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(2) from exc
+    typer.echo(json.dumps(result))
+
+
+@app.command("list-schemas")
+def list_schemas(
+    project_root: Optional[Path] = typer.Option(
+        None, "--project-root",
+        help="Project root containing manifest.json (defaults to CWD)"
+    ),
+    database: Optional[str] = typer.Option(
+        None, "--database",
+        help="Source database name (required for SQL Server / Fabric Warehouse)"
+    ),
+) -> None:
+    """List schemas with object counts on the source system."""
+    if project_root is None:
+        project_root = Path.cwd()
+    try:
+        result = run_list_schemas(project_root, database)
+    except UnsupportedOperationError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    except RuntimeError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(2) from exc
     typer.echo(json.dumps(result))
 
 
