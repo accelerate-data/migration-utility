@@ -31,5 +31,10 @@
       "source": "ast",
       "sql": "INSERT INTO [silver].[FactSales] (customer_sk, product_sk, amount, load_date) SELECT s.CustomerKey, s.ProductKey, s.Amount, GETDATE() FROM [bronze].[Sales] s WHERE s.Amount > 0"
     }
-  ]
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "INSERT INTO [silver].[FactSales] SELECT sale_id, customer_sk, product_sk, amount, load_date FROM [bronze].[Sales]",
+    "refactored_sql": "with source_sales as (\n    select * from [bronze].[Sales]\n),\n\nfinal as (\n    select\n        sale_id,\n        customer_sk,\n        product_sk,\n        amount,\n        load_date\n    from source_sales\n)\n\nselect * from final"
+  }
 }

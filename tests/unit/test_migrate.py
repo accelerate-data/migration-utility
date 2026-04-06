@@ -619,47 +619,50 @@ def test_write_does_not_read_catalog(tmp_path: Path) -> None:
 # ── _load_refactored_sql ──────────────────────────────────────────────────────
 
 
-def test_load_refactored_sql_returns_sql_when_status_ok(tmp_path: Path) -> None:
-    """Catalog with refactor.status=ok and refactored_sql returns the SQL string."""
+def _seed_refactor_fixture(
+    tmp_path: Path,
+    writer_fqn: str,
+    proc_refactor: dict | None,
+) -> None:
+    """Write a minimal table catalog (with selected_writer) and procedure catalog."""
     table_dir = tmp_path / "catalog" / "tables"
     table_dir.mkdir(parents=True)
+    proc_dir = tmp_path / "catalog" / "procedures"
+    proc_dir.mkdir(parents=True)
     (tmp_path / "manifest.json").write_text("{}")
     (table_dir / "silver.mytable.json").write_text(json.dumps({
         "schema": "silver",
         "name": "mytable",
-        "refactor": {
-            "status": "ok",
-            "refactored_sql": "SELECT 1",
-        },
+        "scoping": {"status": "resolved", "selected_writer": writer_fqn},
     }))
+    proc_catalog: dict = {"schema": "dbo", "name": "usp_writer"}
+    if proc_refactor is not None:
+        proc_catalog["refactor"] = proc_refactor
+    (proc_dir / f"{writer_fqn.lower()}.json").write_text(json.dumps(proc_catalog))
 
-    result = _load_refactored_sql(tmp_path, "silver.mytable")
 
-    assert result == "SELECT 1"
+def test_load_refactored_sql_returns_sql_when_status_ok(tmp_path: Path) -> None:
+    """Procedure catalog with refactor.status=ok returns refactored_sql."""
+    _seed_refactor_fixture(tmp_path, "dbo.usp_writer", {"status": "ok", "refactored_sql": "SELECT 1"})
+    assert _load_refactored_sql(tmp_path, "silver.mytable") == "SELECT 1"
 
 
 def test_load_refactored_sql_returns_none_when_refactor_section_absent(tmp_path: Path) -> None:
-    """Catalog without refactor section returns None (guard enforces presence at runtime)."""
-    table_dir = tmp_path / "catalog" / "tables"
-    table_dir.mkdir(parents=True)
-    (tmp_path / "manifest.json").write_text("{}")
-    (table_dir / "silver.mytable.json").write_text(json.dumps({
-        "schema": "silver",
-        "name": "mytable",
-    }))
-
+    """Procedure catalog without refactor section returns None."""
+    _seed_refactor_fixture(tmp_path, "dbo.usp_writer", None)
     assert _load_refactored_sql(tmp_path, "silver.mytable") is None
 
 
 def test_load_refactored_sql_returns_none_when_refactored_sql_field_absent(tmp_path: Path) -> None:
     """Refactor section present but refactored_sql field missing returns None."""
+    _seed_refactor_fixture(tmp_path, "dbo.usp_writer", {"status": "partial"})
+    assert _load_refactored_sql(tmp_path, "silver.mytable") is None
+
+
+def test_load_refactored_sql_returns_none_when_no_selected_writer(tmp_path: Path) -> None:
+    """Table catalog with no selected_writer returns None."""
     table_dir = tmp_path / "catalog" / "tables"
     table_dir.mkdir(parents=True)
     (tmp_path / "manifest.json").write_text("{}")
-    (table_dir / "silver.mytable.json").write_text(json.dumps({
-        "schema": "silver",
-        "name": "mytable",
-        "refactor": {"status": "partial"},
-    }))
-
+    (table_dir / "silver.mytable.json").write_text(json.dumps({"schema": "silver", "name": "mytable"}))
     assert _load_refactored_sql(tmp_path, "silver.mytable") is None

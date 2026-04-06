@@ -1,0 +1,32 @@
+You are running in a DDL project directory at {{fixture_path}}.
+
+First, set up the database environment variables by running this shell command:
+{{db_env_setup}}
+
+Next, extract DDL from the live database by running:
+uv run --project plugin/lib setup-ddl extract --project-root {{fixture_path}} {{extract_flags}}
+
+This will populate {{fixture_path}} with DDL files and catalog/ entries needed for the next steps.
+
+Then read the command definition at plugin/commands/scope.md and follow it exactly for these tables: {{target_tables}}.
+
+After scope completes, read the command definition at plugin/commands/profile.md and follow it exactly for the same tables: {{target_tables}}.
+
+Wherever any command references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead (the lib directory is at `plugin/lib/` in the repo).
+
+EVAL MODE CONSTRAINTS — follow these exactly:
+- Do NOT run ANY git commands at all. No git worktree, git checkout, git branch, git add, git commit, git stash, or any other git command. This is critical — running git commands will corrupt the eval environment.
+- Operate directly in the fixture directory ({{fixture_path}}).
+- Write .migration-runs/ artifacts directly to {{fixture_path}}/.migration-runs/.
+- Skip Step 1 (Setup) entirely for both scope and profile — there is no worktree. Start directly at Step 2.
+- Skip Step 3 (Revert errored items) — it uses git checkout.
+- Process each table sequentially in the same agent turn (not truly parallel sub-agents).
+- Do NOT ask the user to commit or open a PR. After presenting the summary, stop.
+- Do NOT ask for any user confirmation — proceed automatically.
+- When the scope skill asks for user confirmation to select a writer, auto-confirm. If multiple writer candidates exist, select the primary write operation (INSERT, MERGE, TRUNCATE+INSERT).
+
+After processing all tables through both scope and profile, write .migration-runs/summary.json and present the combined human-readable summary.
+
+CRITICAL OUTPUT REQUIREMENT: Your FINAL text response must include:
+1. The scope summary table listing each input table with its status (resolved/ambiguous/error) and the total counts line (e.g. "resolved: 1 | error: 0")
+2. The profile summary table listing each input table with its status (ok/partial/error) and the total counts line (e.g. "ok: 1 | partial: 0 | error: 0")

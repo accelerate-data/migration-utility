@@ -305,20 +305,26 @@ def test_gen_summary(project_root: Path, table_fqn: str) -> dict[str, Any]:
 # ── Stage content: refactor ──────────────────────────────────────────────────
 
 
+def _load_proc_refactor(project_root: Path, table_fqn: str) -> dict[str, Any]:
+    """Load the refactor section from the writer procedure's catalog."""
+    writer_fqn = read_selected_writer(project_root, table_fqn)
+    if not writer_fqn:
+        return {}
+    cat = load_proc_catalog(project_root, normalize(writer_fqn)) or {}
+    return cat.get("refactor") or {}
+
+
 def refactor_detail(project_root: Path, table_fqn: str) -> dict[str, Any]:
-    """Test-gen summary + full refactor section from catalog."""
-    cat = load_table_catalog(project_root, table_fqn) or {}
-    refactor = cat.get("refactor") or {}
+    """Test-gen summary + full refactor section from procedure catalog."""
     return {
         "test_gen": test_gen_summary(project_root, table_fqn),
-        "refactor": refactor,
+        "refactor": _load_proc_refactor(project_root, table_fqn),
     }
 
 
 def refactor_summary(project_root: Path, table_fqn: str) -> dict[str, Any]:
     """Compact refactor status."""
-    cat = load_table_catalog(project_root, table_fqn) or {}
-    refactor = cat.get("refactor") or {}
+    refactor = _load_proc_refactor(project_root, table_fqn)
     return {
         "refactor_status": refactor.get("status"),
         "has_extracted_sql": bool(refactor.get("extracted_sql")),

@@ -193,13 +193,19 @@ def _load_table_columns(project_root: Path, table_fqn: str) -> list[dict[str, An
 
 
 def _load_refactored_sql(project_root: Path, table_fqn: str) -> str | None:
-    """Load refactored_sql from the table catalog's refactor section.
+    """Load refactored_sql from the writer procedure's catalog.
+
+    Resolves the writer via ``scoping.selected_writer`` on the table catalog,
+    then reads ``refactor.refactored_sql`` from the procedure catalog.
 
     Returns ``None`` when the refactor section is absent or incomplete.
     The generating-model guard (``check_refactor_complete``) ensures this
     field is always populated before the generating-model skill runs.
     """
-    cat = load_table_catalog(project_root, table_fqn)
+    writer_fqn = read_selected_writer(project_root, table_fqn)
+    if not writer_fqn:
+        return None
+    cat = load_proc_catalog(project_root, normalize(writer_fqn))
     if cat is None:
         return None
     refactor = cat.get("refactor")

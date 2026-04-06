@@ -43,10 +43,5 @@
     ],
     "warnings": [],
     "errors": []
-  },
-  "refactor": {
-    "status": "ok",
-    "extracted_sql": "SELECT src.CustomerID, src.FirstName, src.LastName FROM [bronze].[CustomerRaw] AS src",
-    "refactored_sql": "WITH source_customers AS (SELECT * FROM [bronze].[CustomerRaw]) SELECT CustomerID, FirstName, LastName FROM source_customers"
   }
 }

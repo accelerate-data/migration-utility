@@ -209,20 +209,33 @@ def check_test_spec(project_root: Path, table_fqn: str) -> dict[str, Any]:
 
 
 def check_refactor_complete(project_root: Path, table_fqn: str) -> dict[str, Any]:
-    """Check refactor section exists with status ok and refactored_sql present."""
-    cat = load_table_catalog(project_root, table_fqn)
+    """Check refactor section on the writer procedure's catalog.
+
+    Resolves the writer via ``scoping.selected_writer`` on the table catalog,
+    then validates the ``refactor`` block on the procedure catalog: status must
+    be ``ok`` and both ``extracted_sql`` and ``refactored_sql`` must be present.
+    """
+    writer_fqn = read_selected_writer(project_root, table_fqn)
+    if not writer_fqn:
+        return _guard_fail(
+            "refactor_completed",
+            "REFACTOR_NOT_COMPLETED",
+            "No scoping.selected_writer in table catalog.",
+        )
+    writer_norm = normalize(writer_fqn)
+    cat = load_proc_catalog(project_root, writer_norm)
     if cat is None:
         return _guard_fail(
             "refactor_completed",
             "REFACTOR_NOT_COMPLETED",
-            "Table catalog not found.",
+            f"Procedure catalog not found for writer {writer_norm}.",
         )
     refactor = cat.get("refactor")
     if refactor is None:
         return _guard_fail(
             "refactor_completed",
             "REFACTOR_NOT_COMPLETED",
-            "Refactor section missing from catalog.",
+            "Refactor section missing from procedure catalog.",
         )
     status = refactor.get("status")
     if status != "ok":
