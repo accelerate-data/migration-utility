@@ -378,3 +378,26 @@ def test_oracle_get_table_schema_column_types(oracle_ddl_dir: Path) -> None:
     assert cols["CUST_FIRST_NAME"]["type"] == "VARCHAR2(20)"
     assert cols["CUST_ID"]["type"] == "NUMBER"
     assert cols["CUST_GENDER"]["type"] == "CHAR(1)"
+
+
+# ── Oracle DDL loading — CREATE OR REPLACE + double-quoted names ──────────────
+
+
+def test_oracle_or_replace_procedure_is_indexed(oracle_ddl_dir: Path) -> None:
+    """CREATE OR REPLACE PROCEDURE "SH"."name" is indexed under the plain key."""
+    catalog = load_directory(oracle_ddl_dir)
+    assert "sh.get_product_count" in catalog.procedures
+
+
+def test_oracle_force_editionable_view_is_indexed(oracle_ddl_dir: Path) -> None:
+    """CREATE OR REPLACE FORCE EDITIONABLE VIEW "SH"."name" is indexed."""
+    catalog = load_directory(oracle_ddl_dir)
+    assert "sh.profits" in catalog.views
+
+
+def test_oracle_double_quoted_name_lookup(oracle_ddl_dir: Path) -> None:
+    """Procedure stored via double-quoted DDL is retrievable by plain name."""
+    catalog = load_directory(oracle_ddl_dir)
+    entry = catalog.get_procedure("SH.GET_PRODUCT_COUNT")
+    assert entry is not None
+    assert "GET_PRODUCT_COUNT" in entry.raw_ddl

@@ -40,6 +40,9 @@ def test_import_name_resolver() -> None:
     ("dbo.usp_Load", "dbo", "dbo.usp_load"),
     ("[MyDB].[dbo].[FactSales]", "dbo", "dbo.factsales"),
     ("SILVER.DimCustomer", "dbo", "silver.dimcustomer"),
+    # Oracle double-quoted identifiers (DBMS_METADATA.GET_DDL output)
+    ('"SH"."GET_PRODUCT_COUNT"', "dbo", "sh.get_product_count"),
+    ('"SH"."PROFITS"', "dbo", "sh.profits"),
 ])
 def test_normalize(input_name: str, default_schema: str, expected: str) -> None:
     from shared.name_resolver import normalize
