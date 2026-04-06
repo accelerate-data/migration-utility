@@ -13,7 +13,7 @@
           "name": "dimproduct",
           "is_selected": false,
           "is_updated": true,
-          "is_insert_all": true
+          "is_insert_all": false
         }
       ],
       "out_of_scope": []
