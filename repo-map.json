@@ -154,7 +154,8 @@
     "eval_cmd_generate_tests": "cd tests/evals && npm run eval:cmd-generate-tests",
     "eval_cmd_status": "cd tests/evals && npm run eval:cmd-status",
     "eval_refactoring_sql": "cd tests/evals && npm run eval:refactoring-sql",
-    "eval_cmd_refactor": "cd tests/evals && npm run eval:cmd-refactor"
+    "eval_cmd_refactor": "cd tests/evals && npm run eval:cmd-refactor",
+    "eval_oracle_regression": "cd tests/evals && npm run eval:oracle-regression"
   },
   "conventions": {
     "typescript_files": "kebab-case (scope-selector.tsx, candidacy-table.tsx)",
