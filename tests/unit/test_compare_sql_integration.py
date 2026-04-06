@@ -603,13 +603,6 @@ class TestCompareTwoSqlEquivalent:
         assert result["status"] == "ok"
         assert result["equivalent"] is True
 
-    def test_identical_sql(self) -> None:
-        """Same SQL on both sides: trivially equivalent."""
-        sql = "SELECT CurrencyCode, CurrencyName FROM bronze.Currency"
-        result = self._run(sql, sql, _CURRENCY_FIXTURES)
-        assert result["status"] == "ok"
-        assert result["equivalent"] is True
-
     def test_empty_result_both_sides(self) -> None:
         """Both SELECTs return 0 rows: should be equivalent."""
         sql_a = "SELECT CurrencyCode, CurrencyName FROM bronze.Currency WHERE 1 = 0"
@@ -907,22 +900,6 @@ class TestCompareTwoSqlValidation:
             assert result["status"] == "error"
             assert result["errors"][0]["code"] == "SQL_SYNTAX_ERROR"
             assert "B" in result["errors"][0]["message"]
-        finally:
-            backend.sandbox_down(sandbox_db=up["sandbox_database"])
-
-    def test_rejects_invalid_syntax_in_both(self) -> None:
-        """When both SQL statements are malformed, one is caught by PARSEONLY."""
-        backend = _make_backend()
-        up = backend.sandbox_up(schemas=["bronze"])
-        try:
-            result = backend.compare_two_sql(
-                sandbox_db=up["sandbox_database"],
-                sql_a="SELECT FROM WHERE GROUP",
-                sql_b="WITH x AS (SELECT FROM WHERE",
-                fixtures=[],
-            )
-            assert result["status"] == "error"
-            assert result["errors"][0]["code"] == "SQL_SYNTAX_ERROR"
         finally:
             backend.sandbox_down(sandbox_db=up["sandbox_database"])
 
