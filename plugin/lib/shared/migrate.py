@@ -27,9 +27,15 @@ import typer
 
 from shared.catalog import (
     has_catalog,
-    load_proc_catalog,
     load_table_catalog,
     read_selected_writer,
+)
+from shared.context_helpers import (
+    collect_source_tables,
+    load_proc_body,
+    load_proc_statements,
+    load_table_columns,
+    load_table_profile,
 )
 from shared.loader import (
     CatalogFileMissingError,
@@ -37,7 +43,6 @@ from shared.loader import (
     CatalogNotFoundError,
     DdlParseError,
     ProfileMissingError,
-    load_directory,
 )
 from shared.cli_utils import emit
 from shared.env_config import resolve_dbt_project_path, resolve_project_root
@@ -128,51 +133,13 @@ def derive_schema_tests(profile: dict[str, Any]) -> dict[str, Any]:
 # ── Context assembly ──────────────────────────────────────────────────────────
 
 
-def _load_table_profile(project_root: Path, table_fqn: str) -> dict[str, Any]:
-    """Load the profile section from a table catalog file."""
-    cat = load_table_catalog(project_root, table_fqn)
-    if cat is None:
-        raise CatalogFileMissingError("table", table_fqn)
-    profile = cat.get("profile")
-    if profile is None:
-        raise ProfileMissingError(table_fqn)
-    return profile
-
-
-def _load_proc_statements(project_root: Path, writer_fqn: str) -> list[dict[str, Any]]:
-    """Load resolved statements from a procedure catalog file."""
-    cat = load_proc_catalog(project_root, writer_fqn)
-    if cat is None:
-        raise CatalogFileMissingError("procedure", writer_fqn)
-    statements = cat.get("statements")
-    if statements is None:
-        raise CatalogFileMissingError("procedure statements", writer_fqn)
-    return statements
-
-
 def _classify_proc(project_root: Path, writer_fqn: str) -> bool:
     """Return True if the procedure needs LLM analysis."""
+    from shared.catalog import load_proc_catalog
     cat = load_proc_catalog(project_root, writer_fqn)
     if cat is None:
         raise CatalogFileMissingError("procedure", writer_fqn)
     return cat.get("mode") == "llm_required"
-
-
-def _load_proc_body(project_root: Path, writer_fqn: str) -> str:
-    """Load the raw DDL body of a procedure from the DDL directory."""
-    catalog = load_directory(project_root)
-    entry = catalog.get_procedure(writer_fqn)
-    if entry is None:
-        raise CatalogFileMissingError("procedure DDL", writer_fqn)
-    return entry.raw_ddl
-
-
-def _load_table_columns(project_root: Path, table_fqn: str) -> list[dict[str, Any]]:
-    """Load column list from the table catalog file."""
-    cat = load_table_catalog(project_root, table_fqn)
-    if cat and cat.get("columns"):
-        return cat["columns"]
-    return []
 
 
 def _load_refactored_sql(project_root: Path, table_fqn: str) -> str | None:
@@ -197,21 +164,6 @@ def _load_refactored_sql(project_root: Path, table_fqn: str) -> str | None:
     return refactor.get("refactored_sql") or None
 
 
-def _collect_source_tables(
-    project_root: Path, writer_fqn: str,
-) -> list[str]:
-    """Collect source tables from the writer procedure's references."""
-    cat = load_proc_catalog(project_root, writer_fqn)
-    if cat is None:
-        return []
-    refs = cat.get("references", {})
-    tables_in_scope = refs.get("tables", {}).get("in_scope", [])
-    sources = []
-    for t in tables_in_scope:
-        if t.get("is_selected") and not t.get("is_updated"):
-            sources.append(normalize(f"{t['schema']}.{t['name']}"))
-    return sorted(set(sources))
-
 
 def run_context(
     project_root: Path,
@@ -235,12 +187,12 @@ def run_context(
     if not has_catalog(project_root):
         raise CatalogNotFoundError(project_root)
 
-    profile = _load_table_profile(project_root, table_norm)
-    statements = _load_proc_statements(project_root, writer_norm)
+    profile = load_table_profile(project_root, table_norm)
+    statements = load_proc_statements(project_root, writer_norm)
     needs_llm = _classify_proc(project_root, writer_norm)
-    proc_body = _load_proc_body(project_root, writer_norm)
-    columns = _load_table_columns(project_root, table_norm)
-    source_tables = _collect_source_tables(project_root, writer_norm)
+    proc_body = load_proc_body(project_root, writer_norm)
+    columns = load_table_columns(project_root, table_norm)
+    source_tables = collect_source_tables(project_root, writer_norm)
     materialization = derive_materialization(profile)
     schema_tests = derive_schema_tests(profile)
     refactored_sql = _load_refactored_sql(project_root, table_norm)
