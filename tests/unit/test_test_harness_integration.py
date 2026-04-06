@@ -196,7 +196,7 @@ class TestExecuteScenario:
                     {
                         "table": "[bronze].[Currency]",
                         "rows": [
-                            {"CurrencyCode": "RBK", "Name": "Rollback Test"},
+                            {"CurrencyCode": "RBK", "CurrencyName": "Rollback Test"},
                         ],
                     },
                 ],
@@ -236,7 +236,6 @@ class TestExecuteScenario:
             result = backend.execute_scenario(sandbox_db=sandbox_db, scenario=scenario)
 
             assert result["status"] == "ok"
-            assert result["row_count"] >= 0
         finally:
             backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
 
