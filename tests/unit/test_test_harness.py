@@ -17,6 +17,12 @@ import pytest
 from shared.loader_io import clear_manifest_sandbox, read_manifest, write_manifest_sandbox
 from shared.sandbox import get_backend
 from shared.sandbox.base import SandboxBackend
+from shared.sandbox.oracle import (
+    OracleSandbox,
+    _generate_oracle_sandbox_name,
+    _validate_oracle_identifier,
+    _validate_oracle_sandbox_name,
+)
 from shared.sandbox.sql_server import (
     SqlServerSandbox,
     _detect_remote_exec_target,
@@ -41,6 +47,10 @@ class TestBackendRegistry:
     def test_fabric_warehouse_returns_sql_server(self) -> None:
         cls = get_backend("fabric_warehouse")
         assert cls is SqlServerSandbox
+
+    def test_oracle_returns_oracle_sandbox(self) -> None:
+        cls = get_backend("oracle")
+        assert cls is OracleSandbox
 
     def test_unknown_technology_raises(self) -> None:
         with pytest.raises(ValueError, match="Unsupported technology"):
@@ -1562,3 +1572,123 @@ class TestCorruptJsonHandling:
         runner = CliRunner()
         result = runner.invoke(app, ["convert-dbt", "--spec", str(spec), "--output", str(output_path)])
         assert result.exit_code == 1
+
+
+# ── Oracle identifier validation ──────────────────────────────────────────────
+
+
+class TestOracleIdentifierValidation:
+    def test_simple_name(self) -> None:
+        _validate_oracle_identifier("CHANNELS")  # should not raise
+
+    def test_underscore_prefix(self) -> None:
+        _validate_oracle_identifier("_MY_TABLE")
+
+    def test_dollar_sign(self) -> None:
+        _validate_oracle_identifier("SYS$TABLE")
+
+    def test_rejects_empty(self) -> None:
+        with pytest.raises(ValueError, match="Unsafe Oracle identifier"):
+            _validate_oracle_identifier("")
+
+    def test_rejects_semicolon(self) -> None:
+        with pytest.raises(ValueError, match="Unsafe Oracle identifier"):
+            _validate_oracle_identifier("TABLE; DROP TABLE CHANNELS--")
+
+    def test_rejects_single_quote(self) -> None:
+        with pytest.raises(ValueError, match="Unsafe Oracle identifier"):
+            _validate_oracle_identifier("O'REILLY")
+
+    def test_rejects_double_quote(self) -> None:
+        with pytest.raises(ValueError, match="Unsafe Oracle identifier"):
+            _validate_oracle_identifier('"quoted"')
+
+    def test_rejects_over_128_chars(self) -> None:
+        long_name = "A" * 129
+        with pytest.raises(ValueError, match="exceeds 128 chars"):
+            _validate_oracle_identifier(long_name)
+
+    def test_accepts_128_chars(self) -> None:
+        name = "A" * 128
+        _validate_oracle_identifier(name)  # should not raise
+
+    def test_rejects_dot(self) -> None:
+        with pytest.raises(ValueError, match="Unsafe Oracle identifier"):
+            _validate_oracle_identifier("SH.CHANNELS")
+
+
+# ── Oracle sandbox name generation + validation ───────────────────────────────
+
+
+class TestOracleSandboxName:
+    def test_name_has_correct_prefix(self) -> None:
+        name = _generate_oracle_sandbox_name()
+        assert name.startswith("__test_")
+
+    def test_name_is_unique(self) -> None:
+        names = {_generate_oracle_sandbox_name() for _ in range(10)}
+        assert len(names) == 10
+
+    def test_name_passes_validation(self) -> None:
+        name = _generate_oracle_sandbox_name()
+        _validate_oracle_sandbox_name(name)  # should not raise
+
+    def test_name_hex_length(self) -> None:
+        name = _generate_oracle_sandbox_name()
+        hex_part = name[len("__test_"):]
+        assert len(hex_part) == 12
+        assert all(c in "0123456789abcdef" for c in hex_part)
+
+    def test_rejects_name_without_prefix(self) -> None:
+        with pytest.raises(ValueError, match="Invalid Oracle sandbox schema name"):
+            _validate_oracle_sandbox_name("myschema")
+
+    def test_rejects_name_with_special_chars(self) -> None:
+        with pytest.raises(ValueError, match="Invalid Oracle sandbox schema name"):
+            _validate_oracle_sandbox_name("__test_abc; DROP")
+
+    def test_rejects_empty(self) -> None:
+        with pytest.raises(ValueError, match="Invalid Oracle sandbox schema name"):
+            _validate_oracle_sandbox_name("")
+
+
+# ── OracleSandbox.from_env ────────────────────────────────────────────────────
+
+
+class TestOracleSandboxFromEnv:
+    def test_raises_when_oracle_pwd_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("ORACLE_PWD", raising=False)
+        monkeypatch.setenv("ORACLE_SCHEMA", "SH")
+        with pytest.raises(ValueError, match="ORACLE_PWD"):
+            OracleSandbox.from_env({"source_database": ""})
+
+    def test_raises_when_source_schema_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ORACLE_PWD", "secret")
+        monkeypatch.delenv("ORACLE_SCHEMA", raising=False)
+        with pytest.raises(ValueError, match="ORACLE_SCHEMA"):
+            OracleSandbox.from_env({})
+
+    def test_uses_manifest_source_database(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ORACLE_PWD", "secret")
+        monkeypatch.delenv("ORACLE_SCHEMA", raising=False)
+        backend = OracleSandbox.from_env({"source_database": "SH"})
+        assert backend.source_schema == "SH"
+
+    def test_falls_back_to_oracle_schema_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ORACLE_PWD", "secret")
+        monkeypatch.setenv("ORACLE_SCHEMA", "HR")
+        backend = OracleSandbox.from_env({})
+        assert backend.source_schema == "HR"
+
+    def test_defaults(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ORACLE_PWD", "secret")
+        monkeypatch.setenv("ORACLE_SCHEMA", "SH")
+        monkeypatch.delenv("ORACLE_HOST", raising=False)
+        monkeypatch.delenv("ORACLE_PORT", raising=False)
+        monkeypatch.delenv("ORACLE_SERVICE", raising=False)
+        monkeypatch.delenv("ORACLE_ADMIN_USER", raising=False)
+        backend = OracleSandbox.from_env({})
+        assert backend.host == "localhost"
+        assert backend.port == "1521"
+        assert backend.service == "FREEPDB1"
+        assert backend.admin_user == "sys"
