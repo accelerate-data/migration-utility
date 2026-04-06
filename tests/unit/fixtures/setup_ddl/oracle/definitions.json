@@ -2,6 +2,6 @@
   {
     "schema_name": "SH",
     "object_name": "PROFITS",
-    "definition": "\n  CREATE OR REPLACE FORCE EDITIONABLE VIEW \"SH\".\"PROFITS\" (\"CHANNEL_ID\", \"CUST_ID\", \"PROD_ID\", \"PROMO_ID\", \"TIME_ID\", \"UNIT_COST\", \"UNIT_PRICE\", \"AMOUNT_SOLD\", \"QUANTITY_SOLD\", \"TOTAL_COST\") AS \n  SELECT\n  s.channel_id,\n  s.cust_id,\n  s.prod_id,\n  s.promo_id,\n  s.time_id,\n  c.unit_cost,\n  c.unit_price,\n  s.amount_sold,\n  s.quantity_sold,\n  c.unit_cost * s.quantity_sold TOTAL_COST\n FROM\n  costs c, sales s\n WHERE c.prod_id = s.prod_id\n   AND c.time_id = s.time_id\n   AND c.channel_id = s.channel_id\n   AND c.promo_id = s.promo_id"
+    "definition": "CREATE OR REPLACE VIEW SH.PROFITS AS\nSELECT\n  s.channel_id,\n  s.cust_id,\n  s.prod_id,\n  s.promo_id,\n  s.time_id,\n  c.unit_cost,\n  c.unit_price,\n  s.amount_sold,\n  s.quantity_sold,\n  c.unit_cost * s.quantity_sold TOTAL_COST\n FROM\n  costs c, sales s\n WHERE c.prod_id = s.prod_id\n   AND c.time_id = s.time_id\n   AND c.channel_id = s.channel_id\n   AND c.promo_id = s.promo_id"
   }
 ]

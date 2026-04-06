@@ -1223,6 +1223,103 @@ class TestExtractOracleUnit:
                 assert "constraint_name" in fk
                 assert "referenced_table" in fk
 
+    def test_definitions_fixture_has_clean_view_format(self):
+        """Oracle definitions fixture uses ALL_VIEWS-reconstructed format, not DBMS_METADATA."""
+        rows = json.loads((ORACLE_FIXTURE_DIR / "definitions.json").read_text())
+        view_rows = [r for r in rows if r["object_name"] == "PROFITS"]
+        assert len(view_rows) == 1
+        defn = view_rows[0]["definition"]
+        assert defn.startswith("CREATE OR REPLACE VIEW SH.PROFITS AS")
+        assert "FORCE" not in defn
+        assert "EDITIONABLE" not in defn
+
+    def test_extract_view_ddl_reconstructs_from_all_views(self):
+        """_extract_view_ddl builds CREATE OR REPLACE VIEW DDL from ALL_VIEWS rows."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).parents[2] / "plugin" / "lib"))
+        from shared.oracle_extract import _extract_view_ddl
+        from unittest.mock import MagicMock
+
+        all_views_rows = json.loads((ORACLE_FIXTURE_DIR / "all_views.json").read_text())
+
+        # Build a mock connection whose cursor returns the ALL_VIEWS fixture rows
+        mock_cur = MagicMock()
+        mock_cur.description = [("OWNER",), ("VIEW_NAME",), ("TEXT",)]
+        mock_cur.fetchall.return_value = [
+            (r["OWNER"], r["VIEW_NAME"], r["TEXT"]) for r in all_views_rows
+        ]
+        mock_conn = MagicMock()
+        # Use side_effect so any unexpected second cursor() call raises StopIteration
+        # rather than silently returning mock_cur and masking fallback bugs.
+        mock_conn.cursor.side_effect = [mock_cur]
+
+        result = _extract_view_ddl(mock_conn, ["SH"])
+
+        assert len(result) == 1
+        row = result[0]
+        assert row["schema_name"] == "SH"
+        assert row["object_name"] == "PROFITS"
+        assert row["definition"].startswith("CREATE OR REPLACE VIEW SH.PROFITS AS\n")
+        assert "channel_id" in row["definition"]
+
+    def test_extract_view_ddl_falls_back_on_empty_text(self):
+        """_extract_view_ddl falls back to DBMS_METADATA when ALL_VIEWS.TEXT is empty."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).parents[2] / "plugin" / "lib"))
+        from shared.oracle_extract import _extract_view_ddl
+        from unittest.mock import MagicMock, call
+
+        fallback_ddl = "CREATE OR REPLACE VIEW SH.PROFITS AS SELECT 1 FROM DUAL"
+
+        mock_main_cur = MagicMock()
+        mock_main_cur.description = [("OWNER",), ("VIEW_NAME",), ("TEXT",)]
+        mock_main_cur.fetchall.return_value = [("SH", "PROFITS", "")]
+
+        mock_ddl_cur = MagicMock()
+        clob = MagicMock()
+        clob.read.return_value = fallback_ddl
+        mock_ddl_cur.fetchone.return_value = (clob,)
+
+        mock_conn = MagicMock()
+        mock_conn.cursor.side_effect = [mock_main_cur, mock_ddl_cur]
+
+        result = _extract_view_ddl(mock_conn, ["SH"])
+
+        assert len(result) == 1
+        assert result[0]["definition"] == fallback_ddl
+
+    def test_extract_view_ddl_falls_back_on_truncated_text(self):
+        """_extract_view_ddl falls back to DBMS_METADATA when TEXT is exactly 32,767 bytes.
+
+        oracledb thin mode silently truncates LONG columns at 32,767 bytes — the result
+        arrives at exactly that boundary with no error signal. We treat any TEXT that is
+        exactly 32,767 characters as potentially truncated and use DBMS_METADATA instead.
+        """
+        import sys
+        sys.path.insert(0, str(Path(__file__).parents[2] / "plugin" / "lib"))
+        from shared.oracle_extract import _extract_view_ddl
+        from unittest.mock import MagicMock
+
+        fallback_ddl = "CREATE OR REPLACE VIEW SH.PROFITS AS SELECT 1 FROM DUAL"
+        truncated_text = "x" * 32767  # exactly at the LONG truncation boundary
+
+        mock_main_cur = MagicMock()
+        mock_main_cur.description = [("OWNER",), ("VIEW_NAME",), ("TEXT",)]
+        mock_main_cur.fetchall.return_value = [("SH", "PROFITS", truncated_text)]
+
+        mock_ddl_cur = MagicMock()
+        clob = MagicMock()
+        clob.read.return_value = fallback_ddl
+        mock_ddl_cur.fetchone.return_value = (clob,)
+
+        mock_conn = MagicMock()
+        mock_conn.cursor.side_effect = [mock_main_cur, mock_ddl_cur]
+
+        result = _extract_view_ddl(mock_conn, ["SH"])
+
+        assert len(result) == 1
+        assert result[0]["definition"] == fallback_ddl
+
 
 # ── Integration: extract SQL Server (Docker) ─────────────────────────────────
 
@@ -1413,3 +1510,71 @@ class TestExtractOracleIntegration:
             assert data.get("change_capture") is None, (
                 f"{f.name}: change_capture should be null for Oracle, got {data['change_capture']}"
             )
+
+    def test_sh_views_sql_created(self, tmp_path):
+        self._skip_if_missing()
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
+        )
+        result = _run_cli([
+            "extract",
+            "--schemas", "SH",
+            "--project-root", str(tmp_path),
+        ], timeout=120)
+        assert result.returncode == 0, result.stderr
+        views_sql = tmp_path / "ddl" / "views.sql"
+        assert views_sql.exists(), "views.sql was not created by Oracle extract"
+        content = views_sql.read_text(encoding="utf-8")
+        assert "CREATE OR REPLACE VIEW" in content, (
+            f"views.sql does not contain CREATE OR REPLACE VIEW:\n{content[:500]}"
+        )
+
+    def test_sh_views_catalog_created(self, tmp_path):
+        self._skip_if_missing()
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
+        )
+        result = _run_cli([
+            "extract",
+            "--schemas", "SH",
+            "--project-root", str(tmp_path),
+        ], timeout=120)
+        assert result.returncode == 0, result.stderr
+        views_dir = tmp_path / "catalog" / "views"
+        assert views_dir.is_dir(), "catalog/views/ directory was not created"
+        view_files = list(views_dir.glob("*.json"))
+        assert len(view_files) > 0, "No view catalog files were produced"
+        data = json.loads(view_files[0].read_text())
+        assert "sql" in data, f"View catalog missing 'sql' field: {data.keys()}"
+        assert "CREATE OR REPLACE VIEW" in data["sql"]
+
+    def test_sh_views_ddl_contains_select(self, tmp_path):
+        """views.sql from Oracle extract contains a real SELECT body, not just the header."""
+        self._skip_if_missing()
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
+        )
+        result = _run_cli([
+            "extract",
+            "--schemas", "SH",
+            "--project-root", str(tmp_path),
+        ], timeout=120)
+        assert result.returncode == 0, result.stderr
+        content = (tmp_path / "ddl" / "views.sql").read_text(encoding="utf-8")
+        assert "SELECT" in content.upper(), "views.sql has no SELECT — view body was not captured"
+
+    def test_sh_views_no_force_editionable(self, tmp_path):
+        """Oracle extract does not produce FORCE EDITIONABLE DDL (ALL_VIEWS path, not DBMS_METADATA)."""
+        self._skip_if_missing()
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
+        )
+        result = _run_cli([
+            "extract",
+            "--schemas", "SH",
+            "--project-root", str(tmp_path),
+        ], timeout=120)
+        assert result.returncode == 0, result.stderr
+        content = (tmp_path / "ddl" / "views.sql").read_text(encoding="utf-8")
+        assert "FORCE" not in content, "views.sql contains FORCE — extract is using DBMS_METADATA instead of ALL_VIEWS"
+        assert "EDITIONABLE" not in content, "views.sql contains EDITIONABLE — extract is using DBMS_METADATA instead of ALL_VIEWS"

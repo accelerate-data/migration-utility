@@ -414,10 +414,18 @@ def test_oracle_or_replace_procedure_is_indexed(oracle_ddl_dir: Path) -> None:
     assert "sh.get_product_count" in catalog.procedures
 
 
-def test_oracle_force_editionable_view_is_indexed(oracle_ddl_dir: Path) -> None:
-    """CREATE OR REPLACE FORCE EDITIONABLE VIEW "SH"."name" is indexed."""
+def test_oracle_or_replace_view_is_indexed(oracle_ddl_dir: Path) -> None:
+    """CREATE OR REPLACE VIEW SH.name is indexed under the normalized key."""
     catalog = load_directory(oracle_ddl_dir)
     assert "sh.profits" in catalog.views
+
+
+def test_oracle_get_view_body_returns_ddl(oracle_ddl_dir: Path) -> None:
+    """get_view_body returns the raw DDL for an Oracle view."""
+    catalog = load_directory(oracle_ddl_dir)
+    entry = catalog.get_view("SH.PROFITS")
+    assert entry is not None
+    assert "PROFITS" in entry.raw_ddl
 
 
 def test_oracle_double_quoted_name_lookup(oracle_ddl_dir: Path) -> None:
@@ -488,3 +496,29 @@ class TestOracleLiveIntegration:
 
         entry = catalog.procedures[sh_procs[0]]
         assert entry.raw_ddl.strip(), "Procedure body is empty"
+
+    def test_list_views_returns_sh_views(self, tmp_path: Path) -> None:
+        """list_views returns SH schema views from extracted DDL (AC2 live)."""
+        _skip_if_no_oracle()
+        _git_init(tmp_path)
+        self._extract_sh(tmp_path)
+
+        catalog = load_directory(tmp_path)
+        sh_views = [k for k in catalog.views if k.startswith("sh.")]
+        assert len(sh_views) > 0, "No SH views found in extracted DDL"
+
+    def test_get_view_body_returns_oracle_ddl(self, tmp_path: Path) -> None:
+        """get_view_body returns CREATE OR REPLACE VIEW DDL for a live SH view (AC3 live)."""
+        _skip_if_no_oracle()
+        _git_init(tmp_path)
+        self._extract_sh(tmp_path)
+
+        catalog = load_directory(tmp_path)
+        sh_views = [k for k in catalog.views if k.startswith("sh.")]
+        assert sh_views, "No SH views found — cannot test get_view_body"
+
+        entry = catalog.views[sh_views[0]]
+        assert entry.raw_ddl.strip(), "View body is empty"
+        assert "CREATE OR REPLACE VIEW" in entry.raw_ddl, (
+            f"Expected CREATE OR REPLACE VIEW in view DDL, got:\n{entry.raw_ddl[:300]}"
+        )
