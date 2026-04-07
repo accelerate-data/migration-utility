@@ -62,30 +62,30 @@ tests:
       expected_na_object: "silver.RefCurrency"
       expected_view_objects: "silver.vDimSalesTerritory,silver.vw_DimPromotion"
 
-  # ── VU-943: diagnostic overlay — PARSE_ERROR shows ! indicator ──
-  - description: "VU-943 — PARSE_ERROR on writer proc overlays ! on refactor stage cell for silver.DimCurrency"
+  # ── diagnostic overlay — PARSE_ERROR shows ! indicator ──────────
+  - description: "single-table — DimCurrency PARSE_ERROR overlays ! on refactor stage cell"
     vars:
       expected_output_terms: "dimcurrency,refactor,!"
 
-  # ── VU-944: writerless-dep view shows no blocked-by annotation ──
-  - description: "VU-944 — view depending only on writerless table appears in schedule with no blocked-by annotation"
+  # ── writerless-dep view shows no blocked-by annotation ───────────
+  - description: "all-objects — writerless-dep view appears in schedule with no blocked-by annotation"
     vars:
       expected_output_terms: "vw_currency_ref"
       unexpected_output_terms: "blocked by: silver.refcurrency"
 
-  # ── VU-945: What to do next section appears in batch output ─────
-  - description: "VU-945 — all-tables mode shows What to do next section with runnable command"
+  # ── What to do next section appears in batch output ──────────────
+  - description: "all-tables — What to do next section appears with runnable command"
     vars:
       expected_output_terms: "what to do next"
 
-  # ── VU-949: view at migrate_needed recommends /refactor-view ─────────────────
-  - description: "VU-949 — single-table status recommends /refactor-view for view at migrate_needed, not /generate-model"
+  # ── view at profile_needed recommends /profile ───────────────────
+  - description: "single-table — view at profile_needed recommends /profile not /refactor-view"
     vars:
       target_table: "silver.vw_currency_ref"
-      expected_output_terms: "refactor-view"
-      unexpected_output_terms: "generate-model"
+      expected_output_terms: "profile"
+      unexpected_output_terms: "refactor-view"
 
-  # ── VU-949: table at migrate_needed still recommends /generate-model ─────────
-  - description: "VU-949 — batch status still recommends /generate-model for tables at migrate_needed"
+  # ── table at migrate_needed recommends /generate-model ───────────
+  - description: "all-tables — table at migrate_needed recommends /generate-model"
     vars:
       expected_output_terms: "generate-model"
