@@ -133,7 +133,8 @@
         "has_dbt_model",
         "direct_deps",
         "blocking_deps",
-        "diagnostics"
+        "diagnostics",
+        "diagnostic_stage_flags"
       ],
       "properties": {
         "fqn": {
@@ -183,6 +184,11 @@
               "severity": { "type": "string", "enum": ["warning", "error"] }
             }
           }
+        },
+        "diagnostic_stage_flags": {
+          "type": "object",
+          "description": "Maps pipeline stage names to the worst diagnostic severity for that stage. Only stages with a known code mapping are included (e.g. PARSE_ERROR → refactor, MULTI_TABLE_WRITE → scope). Empty object when no relevant diagnostics are present.",
+          "additionalProperties": { "type": "string", "enum": ["error", "warning"] }
         }
       },
       "additionalProperties": false
