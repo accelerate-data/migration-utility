@@ -525,9 +525,9 @@ CREATE TABLE rpt_employee_hierarchy (
 
 CREATE TABLE rpt_sales_by_category (
     sales_by_category_key NUMBER(10) GENERATED ALWAYS AS IDENTITY NOT NULL,
-    category_name      VARCHAR2(50)   NOT NULL,
+    category_name      VARCHAR2(50)   NULL,
     subcategory_name   VARCHAR2(50)   NULL,
-    date_key           NUMBER(10)     NOT NULL,
+    date_key           NUMBER(10)     NULL,
     total_revenue      NUMBER(38,6)   DEFAULT 0 NOT NULL,
     total_qty          NUMBER(10)     DEFAULT 0 NOT NULL,
     grouping_level     NUMBER(10)     NOT NULL,

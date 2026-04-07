@@ -306,7 +306,7 @@ All 11 AC categories covered:
 | Recursive CTE | `WITH cte AS` | `WITH cte AS` (12c+) | `WITH RECURSIVE cte AS` |
 | MERGE | `MERGE` | `MERGE` | Mix `MERGE` (PG15+) and `INSERT...ON CONFLICT` |
 | Booleans | `BIT` (0/1) | `NUMBER(1)` (0/1) | `BOOLEAN` |
-| String concat | `CONCAT()` or `+` | `||` | `||` |
+| String concat | `CONCAT()` or `+` | `\|\|` | `\|\|` |
 | Date key | `CAST(CONVERT(VARCHAR(8), d, 112) AS INT)` | `TO_NUMBER(TO_CHAR(d, 'YYYYMMDD'))` | `CAST(TO_CHAR(d, 'YYYYMMDD') AS INTEGER)` |
 
 ## Install Order
