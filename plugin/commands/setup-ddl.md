@@ -139,6 +139,42 @@ Tell the user they can now run `discover` or the `scoping` agent against the pro
 
 If `dbt/models/staging/sources.yml` already exists, warn: "sources.yml already exists and may be stale after this extraction. Run `/analyzing-table` on new tables, then re-run `/init-dbt` to regenerate."
 
+### Step 6 — Stale catalog cleanup
+
+Check all catalog files for `"stale": true` by scanning `catalog/tables/*.json`, `catalog/procedures/*.json`, `catalog/views/*.json`, and `catalog/functions/*.json`.
+
+If any stale files exist:
+
+1. List them:
+
+   ```text
+   The following N catalog file(s) are from a prior extraction and are now stale:
+     catalog/tables/silver.dimcustomer.json
+   ```
+
+2. Ask: **"Remove these N stale catalog files?"**
+
+3. If the user confirms: delete each file. (They will be included in the commit as deletions.)
+
+4. If the user declines: leave the files intact. The commit will still proceed.
+
+If no stale files exist, skip this step.
+
+### Step 7 — Commit extracted artifacts
+
+Stage and commit the extracted artifacts:
+
+```bash
+git add ddl/ catalog/ manifest.json
+git commit -m "extract DDL from <database> (<schemas>)"
+```
+
+Where `<database>` is the selected database name and `<schemas>` is the comma-separated list of extracted schema names (e.g. `extract DDL from AdventureWorks2022 (silver, gold)`).
+
+If `git` is not available or the project root is not a git repository (i.e. `git status` exits non-zero), warn the user and skip this step without failing:
+
+> git not available or project root is not a git repository — skipping commit. Artifacts written to disk.
+
 ---
 
 ## Oracle flow
@@ -227,6 +263,42 @@ Schemas: <selected-owners>
 Tell the user they can now run `discover` or the `scoping` agent against the project root.
 
 If `dbt/models/staging/sources.yml` already exists, warn: "sources.yml already exists and may be stale after this extraction. Run `/analyzing-table` on new tables, then re-run `/init-dbt` to regenerate."
+
+### Step 5 — Stale catalog cleanup
+
+Check all catalog files for `"stale": true` by scanning `catalog/tables/*.json`, `catalog/procedures/*.json`, `catalog/views/*.json`, and `catalog/functions/*.json`.
+
+If any stale files exist:
+
+1. List them:
+
+   ```text
+   The following N catalog file(s) are from a prior extraction and are now stale:
+     catalog/procedures/sh.usp_load.json
+   ```
+
+2. Ask: **"Remove these N stale catalog files?"**
+
+3. If the user confirms: delete each file. (They will be included in the commit as deletions.)
+
+4. If the user declines: leave the files intact. The commit will still proceed.
+
+If no stale files exist, skip this step.
+
+### Step 6 — Commit extracted artifacts
+
+Stage and commit the extracted artifacts:
+
+```bash
+git add ddl/ catalog/ manifest.json
+git commit -m "extract DDL from <schemas>"
+```
+
+Where `<schemas>` is the comma-separated list of extracted schema names (e.g. `extract DDL from SH, HR`).
+
+If `git` is not available or the project root is not a git repository (i.e. `git status` exits non-zero), warn the user and skip this step without failing:
+
+> git not available or project root is not a git repository — skipping commit. Artifacts written to disk.
 
 ---
 
