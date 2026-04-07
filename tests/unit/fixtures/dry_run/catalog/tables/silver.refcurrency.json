@@ -1,0 +1,15 @@
+{
+  "schema": "silver",
+  "name": "RefCurrency",
+  "primary_keys": [],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "referenced_by": [],
+  "scoping": {
+    "status": "no_writer_found",
+    "candidates": [],
+    "warnings": [],
+    "errors": []
+  }
+}

@@ -29,6 +29,8 @@ from typing import Any, Optional
 
 import typer
 
+from shared.catalog import load_table_catalog, load_view_catalog
+from shared.loader_data import CatalogLoadError
 from shared.cli_utils import emit
 from shared.dry_run_content import _CONTENT_COLLECTORS
 from shared.env_config import resolve_project_root
@@ -42,6 +44,41 @@ app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
 # ── Orchestrator ─────────────────────────────────────────────────────────────
 
+_WRITER_DEPENDENT_STAGES = frozenset({"profile", "test-gen", "refactor", "migrate"})
+
+
+def _detect_object_type(project_root: Path, norm_fqn: str) -> str:
+    """Detect whether a normalised FQN refers to a table, view, or MV.
+
+    Checks catalog/tables/ first, then catalog/views/.  Falls back to 'table'
+    so that a missing file surfaces through the normal guard failure path.
+    """
+    table_path = project_root / "catalog" / "tables" / f"{norm_fqn}.json"
+    if table_path.exists():
+        return "table"
+    view_path = project_root / "catalog" / "views" / f"{norm_fqn}.json"
+    if view_path.exists():
+        try:
+            cat = load_view_catalog(project_root, norm_fqn)
+            if cat and cat.get("is_materialized_view"):
+                return "mv"
+        except (json.JSONDecodeError, OSError, CatalogLoadError):
+            pass
+        return "view"
+    return "table"  # fallback — guard will surface CATALOG_FILE_MISSING
+
+
+def _is_writerless(project_root: Path, norm_fqn: str) -> bool:
+    """Return True if the table catalog has scoping.status == 'no_writer_found'."""
+    try:
+        cat = load_table_catalog(project_root, norm_fqn)
+    except (json.JSONDecodeError, OSError, CatalogLoadError):
+        return False
+    if cat is None:
+        return False
+    scoping = cat.get("scoping") or {}
+    return scoping.get("status") == "no_writer_found"
+
 
 def run_dry_run(
     project_root: Path,
@@ -49,19 +86,62 @@ def run_dry_run(
     stage: str,
     detail: bool = False,
 ) -> dict[str, Any]:
-    """Run dry-run checks for a (table, stage) pair.
+    """Run dry-run checks for a (table/view, stage) pair.
 
     Returns a dict matching schemas/dry_run_output.json.
     """
     norm = normalize(table_fqn)
-    guards_passed, guard_results = run_guards(project_root, norm, stage)
+    object_type = _detect_object_type(project_root, norm)
 
     result: dict[str, Any] = {
         "table": norm,
         "stage": stage,
-        "guards_passed": guards_passed,
-        "guard_results": guard_results,
+        "object_type": object_type,
+        "guards_passed": False,
+        "guard_results": [],
     }
+
+    # ── View / MV routing ────────────────────────────────────────────────────
+    if object_type in ("view", "mv"):
+        if stage == "scope":
+            guards_passed, guard_results = run_guards(project_root, norm, "scope-view")
+            result["guards_passed"] = guards_passed
+            result["guard_results"] = guard_results
+            if guards_passed:
+                mode = "detail" if detail else "summary"
+                result["content"] = _CONTENT_COLLECTORS["scope-view"][mode](project_root, norm)
+        else:
+            # Writer-dependent stages do not apply to views; show as blocked.
+            result["guards_passed"] = False
+            result["guard_results"] = [
+                {
+                    "check": "object_type",
+                    "passed": False,
+                    "code": "VIEW_STAGE_NOT_SUPPORTED",
+                    "message": f"Stage '{stage}' is not supported for {object_type} objects.",
+                },
+            ]
+        return result
+
+    # ── Table routing ────────────────────────────────────────────────────────
+
+    # Writerless tables: writer-dependent stages are N/A, not blocked.
+    if stage in _WRITER_DEPENDENT_STAGES and _is_writerless(project_root, norm):
+        result["guards_passed"] = False
+        result["not_applicable"] = True
+        result["guard_results"] = [
+            {
+                "check": "writerless_table",
+                "passed": False,
+                "code": "WRITERLESS_TABLE",
+                "message": f"Stage '{stage}' is not applicable: no writer found for {norm}.",
+            },
+        ]
+        return result
+
+    guards_passed, guard_results = run_guards(project_root, norm, stage)
+    result["guards_passed"] = guards_passed
+    result["guard_results"] = guard_results
 
     if guards_passed:
         mode = "detail" if detail else "summary"
@@ -88,6 +168,7 @@ class GuardStage(str, Enum):
     Includes pipeline stages plus skill-specific guard sets.
     """
     scope = "scope"
+    scope_view = "scope-view"
     profile = "profile"
     test_gen = "test-gen"
     refactor = "refactor"

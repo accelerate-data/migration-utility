@@ -6,9 +6,11 @@
   "type": "object",
   "required": ["table", "stage", "guards_passed", "guard_results"],
   "properties": {
-    "table": { "type": "string", "description": "Fully qualified table name (schema.table)." },
+    "table": { "type": "string", "description": "Fully qualified object name (schema.name)." },
     "stage": { "type": "string", "enum": ["scope", "profile", "test-gen", "refactor", "migrate"] },
+    "object_type": { "type": "string", "enum": ["table", "view", "mv"], "description": "Catalog object type. Absent for legacy results where type was not detected." },
     "guards_passed": { "type": "boolean", "description": "True when every guard for this stage passed." },
+    "not_applicable": { "type": "boolean", "description": "True when the stage does not apply to this object (e.g. a writerless table where writer-dependent stages are N/A). Implies guards_passed=false." },
     "guard_results": {
       "type": "array",
       "description": "Ordered list of guard check results. Short-circuits on first failure.",

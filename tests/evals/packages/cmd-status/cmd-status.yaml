@@ -54,3 +54,10 @@ tests:
   - description: "all-tables — summary report across all catalog tables"
     vars:
       expected_output_terms: "scope,profile,test-gen,migrate"
+
+  # ── all objects: views and writerless N/A ────────────────────
+  - description: "all-objects — views and writerless table appear in summary with type column and N/A"
+    vars:
+      expected_output_terms: "view,table,N/A,type"
+      expected_na_object: "silver.RefCurrency"
+      expected_view_objects: "silver.vDimSalesTerritory,silver.vw_DimPromotion"
