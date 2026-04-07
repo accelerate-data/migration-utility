@@ -135,9 +135,6 @@ GITIGNORE_ENTRIES = [
     "# MCP server config (may contain credentials)",
     ".mcp.json",
     "",
-    "# dbt build artifacts",
-    "dbt/logs/",
-    "dbt/target/",
 ]
 
 GIT_WORKFLOW_MD = """\
