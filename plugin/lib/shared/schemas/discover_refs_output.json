@@ -9,10 +9,19 @@
       "type": "string",
       "description": "Normalized FQN of the target object."
     },
+    "type": {
+      "type": "string",
+      "enum": ["table", "view", "mv", "function", "object"],
+      "description": "Catalog object type. Present when the object was found in the catalog."
+    },
     "source": {
       "type": "string",
       "const": "catalog",
       "description": "Always 'catalog' — data comes from setup-ddl catalog files."
+    },
+    "error": {
+      "type": "string",
+      "description": "Explanation when the object was not found in any catalog. Present only on lookup failure."
     },
     "readers": {
       "type": "array",

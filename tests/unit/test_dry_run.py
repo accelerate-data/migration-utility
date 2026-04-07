@@ -882,7 +882,7 @@ def test_refactor_detail_content(assert_valid_schema) -> None:
 # ── Guard CLI tests ─────────────────────────────────────────────────────────
 
 
-def test_guard_cli_subcommand() -> None:
+def test_guard_cli_subcommand(assert_valid_schema) -> None:
     """Guard CLI returns pass/fail JSON."""
     tmp, root = _make_project()
     with tmp:
@@ -892,6 +892,7 @@ def test_guard_cli_subcommand() -> None:
         )
         assert result.exit_code == 0
         output = json.loads(result.stdout)
+        assert_valid_schema(output, "guard_output.json")
         assert output["passed"] is True
         assert output["table"] == "silver.dimcustomer"
         assert output["stage"] == "scope"
@@ -1126,7 +1127,7 @@ def _add_source_table(root: Path, schema: str, name: str) -> None:
     )
 
 
-def test_generate_sources_only_includes_no_writer_found() -> None:
+def test_generate_sources_only_includes_no_writer_found(assert_valid_schema) -> None:
     """Only tables with no_writer_found are included in sources."""
     tmp, root = _make_project()
     with tmp:
@@ -1136,6 +1137,7 @@ def test_generate_sources_only_includes_no_writer_found() -> None:
         _add_source_table(root, "bronze", "CustomerRaw")
 
         result = gen_src.generate_sources(root)
+        assert_valid_schema(result, "generate_sources_output.json")
         assert "bronze.customerraw" in result["included"]
         assert "silver.refcurrency" in result["included"]
         assert "silver.dimcustomer" in result["excluded"]

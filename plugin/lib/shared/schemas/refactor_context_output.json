@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "refactor_context_output.json",
+  "title": "RefactorContextOutput",
+  "description": "Output of 'refactor context'. Assembles all deterministic context needed for LLM SQL refactoring.",
+  "type": "object",
+  "required": ["table", "writer", "proc_body", "profile", "statements", "columns", "source_tables"],
+  "properties": {
+    "table": {
+      "type": "string",
+      "description": "Normalised FQN of the target table (schema.name)."
+    },
+    "writer": {
+      "type": "string",
+      "description": "Normalised FQN of the writer procedure."
+    },
+    "proc_body": {
+      "type": "string",
+      "description": "Full SQL body of the writer procedure."
+    },
+    "profile": {
+      "type": "object",
+      "description": "Profile section from the table catalog.",
+      "additionalProperties": true
+    },
+    "statements": {
+      "type": "array",
+      "description": "Resolved statement list from the procedure catalog.",
+      "items": {
+        "type": "object",
+        "required": ["type", "action"],
+        "properties": {
+          "type": { "type": "string" },
+          "action": { "type": "string" },
+          "source": { "type": "string" },
+          "sql": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "columns": {
+      "type": "array",
+      "description": "Column definitions for the target table.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "source_tables": {
+      "type": "array",
+      "description": "Normalised FQNs of tables read by the writer procedure.",
+      "items": { "type": "string" }
+    },
+    "test_spec": {
+      "type": ["object", "null"],
+      "description": "CLI-ready test spec loaded from test-specs/<table>.json. Null when no spec exists.",
+      "additionalProperties": true
+    },
+    "sandbox": {
+      "type": ["object", "null"],
+      "description": "Sandbox metadata from manifest.json. Null when no sandbox is configured.",
+      "properties": {
+        "database": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  }
+}

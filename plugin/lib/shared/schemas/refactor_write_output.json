@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "refactor_write_output.json",
+  "title": "RefactorWriteOutput",
+  "description": "Output of 'refactor write'. Reports the result of merging a refactor section into the writer procedure catalog.",
+  "type": "object",
+  "required": ["ok", "table"],
+  "properties": {
+    "ok": {
+      "type": "boolean",
+      "description": "True on success, false on validation or IO failure."
+    },
+    "table": {
+      "type": "string",
+      "description": "Normalised FQN of the target table."
+    },
+    "writer": {
+      "type": "string",
+      "description": "Normalised FQN of the writer procedure. Present on success."
+    },
+    "catalog_path": {
+      "type": "string",
+      "description": "Absolute path to the updated procedure catalog file. Present on success."
+    },
+    "error": {
+      "type": "string",
+      "description": "Error message. Present when ok is false."
+    }
+  }
+}

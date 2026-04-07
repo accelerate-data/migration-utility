@@ -184,8 +184,9 @@ class TestDeriveSchemaTests:
 class TestRunContext:
     """Context assembly from catalog + DDL."""
 
-    def test_full_context_all_fields_present(self, ddl_path: Path) -> None:
+    def test_full_context_all_fields_present(self, ddl_path: Path, assert_valid_schema) -> None:
         result = run_context(ddl_path, "silver.FactSales", "dbo.usp_load_fact_sales")
+        assert_valid_schema(result, "migrate_context_output.json")
 
         assert result["table"] == "silver.factsales"
         assert result["writer"] == "dbo.usp_load_fact_sales"
@@ -489,7 +490,7 @@ END
 class TestRunWrite:
     """Artifact writing to dbt project."""
 
-    def test_write_valid_sql_and_yml(self, dbt_project: Path) -> None:
+    def test_write_valid_sql_and_yml(self, dbt_project: Path, assert_valid_schema) -> None:
         model_sql = "select 1 as id"
         schema_yml = "version: 2\nmodels:\n  - name: stg_factsales\n"
 
@@ -500,6 +501,7 @@ class TestRunWrite:
             model_sql,
             schema_yml,
         )
+        assert_valid_schema(result, "migrate_write_output.json")
 
         assert result["status"] == "ok"
         assert len(result["written"]) == 2

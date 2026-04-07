@@ -318,10 +318,11 @@ GO
 # ── Tests ───────────────────────────────────────────────────────────────────
 
 
-def test_enrich_detects_select_into(tmp_path: Path) -> None:
+def test_enrich_detects_select_into(tmp_path: Path, assert_valid_schema) -> None:
     """Proc with SELECT INTO — AST should detect target table DMF missed."""
     ddl = _setup_select_into(tmp_path)
     result = enrich_catalog(ddl)
+    assert_valid_schema(result, "catalog_enrich_output.json")
 
     assert result["procedures_augmented"] >= 1
     assert result["entries_added"] >= 1
