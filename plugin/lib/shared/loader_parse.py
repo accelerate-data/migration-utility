@@ -172,26 +172,27 @@ def _table_fqn(table: exp.Table) -> str:
     return normalize(f"{table.db}.{table.name}")
 
 
-def parse_body_statements(raw_ddl: str, dialect: str = "tsql") -> tuple[list[Any], bool]:
+def parse_body_statements(raw_ddl: str, dialect: str = "tsql") -> tuple[list[Any], bool, str | None]:
     """Parse procedure body, flattening recoverable control-flow branches.
 
-    Returns (statements, needs_llm):
+    Returns (statements, needs_llm, segmenter_error):
       - statements: successfully parsed AST nodes from recoverable leaf SQL
       - needs_llm: True if any leaf statement remains unresolved and requires
         LLM analysis
+      - segmenter_error: error message when the segmenter hit a limit, else None
     """
     m = _BODY_RE.search(raw_ddl)
     if not m:
-        return [], False
+        return [], False, None
     body = m.group(1).strip()
     if not body:
-        return [], False
+        return [], False, None
 
     try:
         nodes = segment_sql(body)
     except SegmenterError as exc:
         logger.debug("event=segment_fallback reason=segmenter_error error=%s", exc)
-        return [], True
+        return [], True, str(exc)
 
     parsed: list[Any] = []
     needs_llm = False
@@ -211,7 +212,7 @@ def parse_body_statements(raw_ddl: str, dialect: str = "tsql") -> tuple[list[Any
                 continue
             parsed.append(stmt)
 
-    return parsed, needs_llm
+    return parsed, needs_llm, None
 
 
 def _flatten_leaf_sql(nodes: list[SegmentNode]) -> list[str]:
@@ -387,7 +388,7 @@ def extract_refs(entry: DdlEntry, dialect: str = "tsql") -> ObjectRefs:
     has_exec = bool(_EXEC_RE.search(entry.raw_ddl))
 
     # For entries with AS BEGIN...END bodies, parse the body statements
-    body_stmts, body_needs_llm = parse_body_statements(entry.raw_ddl, dialect=dialect)
+    body_stmts, body_needs_llm, _seg_err = parse_body_statements(entry.raw_ddl, dialect=dialect)
     if body_stmts:
         refs = collect_refs_from_statements(body_stmts, dialect=dialect)
         refs.needs_llm = body_needs_llm or routing["needs_llm"]

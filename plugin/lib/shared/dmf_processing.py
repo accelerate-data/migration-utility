@@ -77,17 +77,20 @@ def _group_dmf_rows(
     rows: list[dict[str, Any]],
     object_types: dict[str, str],
     database: str,
-) -> dict[str, dict[str, dict[str, Any]]]:
+) -> tuple[dict[str, dict[str, dict[str, Any]]], dict[str, list[str]]]:
     """Group raw DMF rows by (referencing_fqn, entity_key).
 
     Each entity_key groups all rows for the same (referencing object,
     referenced entity, scope) combination.  Boolean flags are OR-accumulated
     across rows; column-level detail is merged.
 
-    Returns ``{referencing_fqn: {entity_key: entry_data}}``.
+    Returns ``(grouped, dmf_errors)`` where *grouped* is
+    ``{referencing_fqn: {entity_key: entry_data}}`` and *dmf_errors* is
+    ``{referencing_fqn: [error_string, ...]}``.
     """
     db_lower = database.lower()
     grouped: dict[str, dict[str, dict[str, Any]]] = {}
+    dmf_errors: dict[str, list[str]] = {}
 
     for row in rows:
         ref_schema = row.get("referencing_schema", "")
@@ -102,6 +105,13 @@ def _group_dmf_rows(
         tgt_fqn = normalize(f"{tgt_schema}.{tgt_name}") if tgt_schema else normalize(tgt_name)
         minor_name = row.get("referenced_minor_name") or ""
         class_desc = row.get("referenced_class_desc") or ""
+
+        # Error sentinel: rows where referenced_class_desc starts with "ERROR:"
+        if class_desc.startswith("ERROR:"):
+            if referencing_fqn not in dmf_errors:
+                dmf_errors[referencing_fqn] = []
+            dmf_errors[referencing_fqn].append(class_desc)
+            continue
 
         # Scope classification
         ref_db = (row.get("referenced_database_name") or "").strip()
@@ -154,7 +164,7 @@ def _group_dmf_rows(
                 col["is_selected"] = col["is_selected"] or bool(row.get("is_selected"))
                 col["is_updated"] = col["is_updated"] or bool(row.get("is_updated"))
 
-    return grouped
+    return grouped, dmf_errors
 
 
 def _reshape_to_scoped_refs(
@@ -202,13 +212,15 @@ def process_dmf_results(
     rows: list[dict[str, Any]],
     object_types: dict[str, str] | None = None,
     database: str = "",
-) -> dict[str, dict[str, dict[str, list[dict[str, Any]]]]]:
+) -> tuple[dict[str, dict[str, dict[str, list[dict[str, Any]]]]], dict[str, list[str]]]:
     """Group raw DMF result rows into per-referencing-object reference dicts.
 
-    Returns ``{referencing_fqn: {tables: {in_scope: [...], out_of_scope: [...]}, ...}}``.
+    Returns ``(refs, dmf_errors)`` where *refs* is
+    ``{referencing_fqn: {tables: {in_scope: [...], out_of_scope: [...]}, ...}}``
+    and *dmf_errors* is ``{referencing_fqn: [error_string, ...]}``.
     """
-    grouped = _group_dmf_rows(rows, object_types or {}, database)
-    return _reshape_to_scoped_refs(grouped)
+    grouped, dmf_errors = _group_dmf_rows(rows, object_types or {}, database)
+    return _reshape_to_scoped_refs(grouped), dmf_errors
 
 
 def flip_references(

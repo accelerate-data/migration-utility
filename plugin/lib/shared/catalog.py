@@ -375,6 +375,9 @@ def write_object_catalog(
     sql: str | None = None,
     columns: list[dict[str, Any]] | None = None,
     is_materialized_view: bool = False,
+    dmf_errors: list[str] | None = None,
+    subtype: str | None = None,
+    segmenter_error: str | None = None,
 ) -> Path:
     """Write a proc/view/function catalog file.  Returns the written path."""
     norm = normalize(fqn)
@@ -398,6 +401,12 @@ def write_object_catalog(
         data["sql"] = sql
     if columns is not None:
         data["columns"] = columns
+    if dmf_errors:
+        data["dmf_errors"] = dmf_errors
+    if subtype is not None:
+        data["subtype"] = subtype
+    if segmenter_error is not None:
+        data["segmenter_error"] = segmenter_error
 
     p = _object_path(project_root, object_type, norm)
     write_json(p, data)

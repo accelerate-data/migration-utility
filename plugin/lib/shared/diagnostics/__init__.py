@@ -325,3 +325,4 @@ if __name__ == "__main__":
 
 # Import check modules so decorators fire at import time.
 from shared.diagnostics import common as _common  # noqa: F401, E402
+from shared.diagnostics import sqlserver as _sqlserver  # noqa: F401, E402

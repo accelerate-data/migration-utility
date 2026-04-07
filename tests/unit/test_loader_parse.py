@@ -213,7 +213,7 @@ def test_parse_body_single_cte_insert() -> None:
     WITH ranked AS (SELECT Id, C FROM bronze.S)
     INSERT INTO silver.T (C) SELECT C FROM ranked;
     """)
-    stmts, needs_llm = parse_body_statements(ddl)
+    stmts, needs_llm, _seg_err = parse_body_statements(ddl)
     types = {type(s).__name__ for s in stmts}
     assert "Insert" in types
     assert needs_llm is False
@@ -226,7 +226,7 @@ def test_parse_body_multi_level_cte_insert() -> None:
     filtered AS (SELECT Id, C FROM base WHERE C IS NOT NULL)
     INSERT INTO silver.T (C) SELECT C FROM filtered;
     """)
-    stmts, needs_llm = parse_body_statements(ddl)
+    stmts, needs_llm, _seg_err = parse_body_statements(ddl)
     types = {type(s).__name__ for s in stmts}
     assert "Insert" in types
     assert needs_llm is False
@@ -241,7 +241,7 @@ def test_parse_body_sequential_with_blocks() -> None:
     WITH extra AS (SELECT Id, C FROM bronze.S WHERE C IS NOT NULL)
     INSERT INTO silver.T (C) SELECT C FROM extra;
     """)
-    stmts, needs_llm = parse_body_statements(ddl)
+    stmts, needs_llm, _seg_err = parse_body_statements(ddl)
     types = {type(s).__name__ for s in stmts}
     assert "Insert" in types
 
@@ -259,7 +259,7 @@ def test_parse_body_recursive_cte_insert() -> None:
     INSERT INTO silver.T (Lvl, ParentId, NodeId)
     SELECT Lvl, ParentId, NodeId FROM org;
     """)
-    stmts, needs_llm = parse_body_statements(ddl)
+    stmts, needs_llm, _seg_err = parse_body_statements(ddl)
     types = {type(s).__name__ for s in stmts}
     assert "Insert" in types
     assert needs_llm is False
@@ -271,7 +271,7 @@ def test_parse_body_update_with_cte_prefix() -> None:
     WITH src AS (SELECT Id, C FROM bronze.S WHERE C IS NOT NULL)
     UPDATE silver.T SET T.C = src.C FROM silver.T JOIN src ON T.Id = src.Id;
     """)
-    stmts, needs_llm = parse_body_statements(ddl)
+    stmts, needs_llm, _seg_err = parse_body_statements(ddl)
     types = {type(s).__name__ for s in stmts}
     assert "Update" in types
     assert needs_llm is False
@@ -283,7 +283,7 @@ def test_parse_body_delete_with_cte_prefix() -> None:
     WITH old AS (SELECT Id FROM silver.T WHERE C IS NULL)
     DELETE FROM silver.T WHERE Id IN (SELECT Id FROM old);
     """)
-    stmts, needs_llm = parse_body_statements(ddl)
+    stmts, needs_llm, _seg_err = parse_body_statements(ddl)
     types = {type(s).__name__ for s in stmts}
     assert "Delete" in types
     assert needs_llm is False
@@ -297,7 +297,7 @@ def test_parse_body_merge_with_cte_source() -> None:
     WHEN MATCHED THEN UPDATE SET tgt.C = src.C
     WHEN NOT MATCHED THEN INSERT (C) VALUES (src.C);
     """)
-    stmts, needs_llm = parse_body_statements(ddl)
+    stmts, needs_llm, _seg_err = parse_body_statements(ddl)
     types = {type(s).__name__ for s in stmts}
     assert "Merge" in types
     assert needs_llm is False
@@ -331,7 +331,7 @@ def test_parse_body_if_else_flattens_both_branches() -> None:
         UPDATE silver.T SET C = s.C FROM silver.T d JOIN bronze.S s ON d.Id = s.Id;
     END
     """)
-    stmts, needs_llm = parse_body_statements(ddl)
+    stmts, needs_llm, _seg_err = parse_body_statements(ddl)
     types = {type(s).__name__ for s in stmts}
     assert "Insert" in types
     assert "Update" in types
@@ -348,7 +348,7 @@ def test_parse_body_try_catch_flattens_both_branches() -> None:
         INSERT INTO dbo.Cfg (K, V) SELECT 'error', ERROR_MESSAGE();
     END CATCH
     """)
-    stmts, needs_llm = parse_body_statements(ddl)
+    stmts, needs_llm, _seg_err = parse_body_statements(ddl)
     types = {type(s).__name__ for s in stmts}
     assert "Insert" in types
     assert needs_llm is False
@@ -362,7 +362,7 @@ def test_parse_body_while_loop_flattens_body() -> None:
         INSERT INTO silver.T (C) SELECT TOP (100) C FROM bronze.S WHERE Processed = 0;
     END
     """)
-    stmts, needs_llm = parse_body_statements(ddl)
+    stmts, needs_llm, _seg_err = parse_body_statements(ddl)
     types = {type(s).__name__ for s in stmts}
     assert "Insert" in types
     assert needs_llm is False
@@ -389,7 +389,7 @@ def test_parse_body_nested_control_flow_all_branches() -> None:
         INSERT INTO dbo.Cfg (K, V) SELECT 'error', ERROR_MESSAGE();
     END CATCH
     """)
-    stmts, needs_llm = parse_body_statements(ddl)
+    stmts, needs_llm, _seg_err = parse_body_statements(ddl)
     types = {type(s).__name__ for s in stmts}
     assert "Insert" in types
     assert "Merge" in types
