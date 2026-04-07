@@ -12,7 +12,7 @@ EVAL MODE CONSTRAINTS — follow these exactly:
 - Process each table sequentially in the same agent turn (not truly parallel sub-agents).
 - Perform the review loop per generate-tests.md (up to 2 iterations per table using the reviewing-tests skill).
 - SKIP the sandbox guard checks (sandbox.database and sandbox-status). The sandbox is not available in eval mode.
-- SKIP Step 4 (execute-spec), Step 5 (Revert errored items), and Step 5.5 (convert-dbt) entirely. The goal of this eval is to assess generation and review quality only.
+- SKIP Step 4 (execute-spec) and Step 5 (Revert errored items) entirely. The goal of this eval is to assess generation and review quality only.
 - Do NOT ask the user to commit or open a PR. After presenting the summary, stop.
 - Do NOT ask for any user confirmation — proceed automatically.
 

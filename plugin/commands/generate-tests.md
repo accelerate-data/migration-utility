@@ -81,31 +81,19 @@ If `execute-spec` exits non-zero or individual scenarios fail:
 - **Non-zero exit (full failure):** record `status: "error"` with code `SCENARIO_EXECUTION_FAILED` for the item and continue to the next item.
 - **Partial scenario failures** (exit 0 but some scenarios report errors in the output): record `status: "partial"` with a `SCENARIO_EXECUTION_FAILED` warning listing which scenarios failed. The item proceeds with the successfully captured expectations.
 
-### Step 5 — Convert to dbt YAML and commit
+### Step 5 — Commit test spec
 
 For each item with `status: "ok"` or `status: "partial"` (i.e., ground truth was captured):
 
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness convert-dbt \
-  --spec test-specs/<item_id>.json \
-  --output test-specs/<item_id>.yml
-```
-
-This converts the CLI-ready JSON (with `expect.rows`) to dbt unit test YAML format:
-
-- `given[].table` bracket-quoted identifiers become `source()`/`ref()` expressions
-- `target_table` is mapped to a dbt `model` name (e.g. `[silver].[DimProduct]` → `stg_dimproduct`)
-- The committed artifact is the `.yml` file; the intermediate `.json` is not staged
-
-After convert-dbt completes, if the item final status is `error`, revert any partially written files:
+If the item final status is `error`, revert any partially written files:
 
 ```bash
-git checkout -- test-specs/<item_id>.json test-specs/<item_id>.yml
+git checkout -- test-specs/<item_id>.json
 ```
 
 Use `rm -f` for files that were newly created and have no prior version.
 
-If the item final status is not `error`, auto-commit and push: run `/commit test-specs/<item_id>.yml`.
+If the item final status is not `error`, auto-commit and push: run `/commit test-specs/<item_id>.json`.
 
 ### Step 6 — Summarize
 
