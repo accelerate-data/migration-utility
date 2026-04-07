@@ -247,8 +247,11 @@ def _analyze_view_select(entry: "DdlEntry") -> dict[str, Any]:
             elements.append({"type": "case", "detail": "CASE expression"})
             break
 
-        # Subqueries
-        subquery_count = sum(1 for _ in ast.find_all(exp.Subquery))
+        # Subqueries — exclude CTE bodies (they are Subquery nodes but not inline subqueries)
+        subquery_count = sum(
+            1 for node in ast.find_all(exp.Subquery)
+            if not isinstance(node.parent, exp.CTE)
+        )
         if subquery_count:
             elements.append({"type": "subquery", "detail": f"{subquery_count} subquery(ies)"})
 
