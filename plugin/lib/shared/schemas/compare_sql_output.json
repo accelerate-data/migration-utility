@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "compare_sql_output.json",
+  "title": "CompareSqlOutput",
+  "description": "Output of 'test-harness compare-sql'. Per-scenario equivalence results between two SQL SELECT statements.",
+  "type": "object",
+  "required": ["schema_version", "sandbox_database", "total", "passed", "failed", "results"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "sandbox_database": { "type": "string" },
+    "total": { "type": "integer", "minimum": 0 },
+    "passed": { "type": "integer", "minimum": 0 },
+    "failed": { "type": "integer", "minimum": 0 },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["scenario_name"],
+        "properties": {
+          "scenario_name": { "type": "string" },
+          "status": { "type": "string", "enum": ["ok", "error"] },
+          "equivalent": { "type": "boolean" },
+          "a_count": { "type": "integer", "minimum": 0 },
+          "b_count": { "type": "integer", "minimum": 0 },
+          "a_minus_b": {
+            "type": "array",
+            "items": { "type": "object", "additionalProperties": true }
+          },
+          "b_minus_a": {
+            "type": "array",
+            "items": { "type": "object", "additionalProperties": true }
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["code", "message"],
+              "properties": {
+                "code": { "type": "string" },
+                "message": { "type": "string" }
+              }
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  }
+}

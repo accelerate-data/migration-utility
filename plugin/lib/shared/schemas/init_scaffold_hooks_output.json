@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "init_scaffold_hooks_output.json",
+  "title": "InitScaffoldHooksOutput",
+  "description": "Output of 'init scaffold-hooks'. Reports pre-commit hook installation and git hooks path configuration.",
+  "type": "object",
+  "required": ["hook_created", "hooks_path_configured"],
+  "properties": {
+    "hook_created": {
+      "type": "boolean",
+      "description": "True when .githooks/pre-commit was newly created. False when it already existed."
+    },
+    "hooks_path_configured": {
+      "type": "boolean",
+      "description": "True when git config core.hooksPath was successfully set to .githooks."
+    }
+  }
+}

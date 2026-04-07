@@ -89,11 +89,12 @@ class TestSymmetricDiff:
 # ── run_context ──────────────────────────────────────────────────────────────
 
 
-def test_context_happy_path() -> None:
+def test_context_happy_path(assert_valid_schema) -> None:
     """Context returns all expected fields with proper values."""
     result = refactor.run_context(
         _REFACTOR_FIXTURES, "silver.DimCustomer",
     )
+    assert_valid_schema(result, "refactor_context_output.json")
     assert result["table"] == "silver.dimcustomer"
     assert result["writer"] == "dbo.usp_load_dimcustomer"
     assert "proc_body" in result
@@ -134,7 +135,7 @@ def test_context_explicit_writer() -> None:
 # ── run_write ────────────────────────────────────────────────────────────────
 
 
-def test_write_happy_path() -> None:
+def test_write_happy_path(assert_valid_schema) -> None:
     """Write merges refactor section into the writer procedure's catalog."""
     tmp, root = _make_writable_copy()
     with tmp:
@@ -144,6 +145,7 @@ def test_write_happy_path() -> None:
             refactored_sql="WITH src AS (SELECT * FROM [bronze].[CustomerRaw]) SELECT CustomerID, FirstName FROM src",
             status="ok",
         )
+        assert_valid_schema(result, "refactor_write_output.json")
         assert result["ok"] is True
         assert result["table"] == "silver.dimcustomer"
         assert result["writer"] == "dbo.usp_load_dimcustomer"

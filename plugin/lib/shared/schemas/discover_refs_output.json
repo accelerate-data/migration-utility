@@ -1,18 +1,41 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "DiscoverRefsOutput",
-  "description": "Output of 'discover refs'. Reads from catalog/tables/<name>.json referenced_by. No AST parsing, no BFS, no confidence scoring.",
+  "description": "Output of 'discover refs'. Two shapes: a full result when the object is a table/view/function, or an error-only result when the target is a procedure (unsupported) or otherwise cannot be resolved.",
   "type": "object",
-  "required": ["name", "source", "readers", "writers"],
+  "oneOf": [
+    {
+      "required": ["name", "source", "readers", "writers"],
+      "properties": {
+        "name": { "type": "string" },
+        "source": { "type": "string", "const": "catalog" },
+        "readers": { "type": "array" },
+        "writers": { "type": "array" }
+      }
+    },
+    {
+      "required": ["error"],
+      "not": { "required": ["name"] }
+    }
+  ],
   "properties": {
     "name": {
       "type": "string",
       "description": "Normalized FQN of the target object."
     },
+    "type": {
+      "type": "string",
+      "enum": ["table", "view", "mv", "function", "object"],
+      "description": "Catalog object type. Present when the object was found in the catalog."
+    },
     "source": {
       "type": "string",
       "const": "catalog",
       "description": "Always 'catalog' — data comes from setup-ddl catalog files."
+    },
+    "error": {
+      "type": "string",
+      "description": "Explanation when refs lookup failed (e.g. target is a procedure, or no catalog file exists)."
     },
     "readers": {
       "type": "array",

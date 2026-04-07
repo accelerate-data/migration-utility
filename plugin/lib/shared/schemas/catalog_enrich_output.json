@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "catalog_enrich_output.json",
+  "title": "CatalogEnrichOutput",
+  "description": "Output of the catalog-enrich CLI. Summarises AST-derived reference augmentation across catalog files.",
+  "type": "object",
+  "required": ["tables_augmented", "procedures_augmented", "entries_added"],
+  "properties": {
+    "tables_augmented": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of table catalog files updated with reverse references."
+    },
+    "procedures_augmented": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of procedure catalog files updated with AST-discovered write references."
+    },
+    "entries_added": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total number of new reference entries added across all augmented catalogs."
+    }
+  }
+}

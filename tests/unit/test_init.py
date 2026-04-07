@@ -25,9 +25,10 @@ from shared.init import (
 
 
 class TestScaffoldProject:
-    def test_creates_all_files_in_empty_dir(self, tmp_path: Path) -> None:
+    def test_creates_all_files_in_empty_dir(self, tmp_path: Path, assert_valid_schema) -> None:
         config = get_source_config("sql_server")
         result = run_scaffold_project(tmp_path)
+        assert_valid_schema(result, "init_scaffold_project_output.json")
         assert "CLAUDE.md" in result["files_created"]
         assert "README.md" in result["files_created"]
         assert "repo-map.json" in result["files_created"]
@@ -121,9 +122,10 @@ class TestScaffoldProjectOracle:
 
 
 class TestScaffoldHooks:
-    def test_creates_pre_commit_hook(self, tmp_path: Path) -> None:
+    def test_creates_pre_commit_hook(self, tmp_path: Path, assert_valid_schema) -> None:
         subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
         result = run_scaffold_hooks(tmp_path)
+        assert_valid_schema(result, "init_scaffold_hooks_output.json")
         assert result["hook_created"] is True
         assert result["hooks_path_configured"] is True
 
