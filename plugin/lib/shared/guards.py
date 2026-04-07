@@ -15,6 +15,7 @@ from typing import Any
 from shared.catalog import (
     load_proc_catalog,
     load_table_catalog,
+    load_view_catalog,
     read_selected_writer,
 )
 from shared.env_config import resolve_dbt_project_path
@@ -65,6 +66,27 @@ def check_manifest(project_root: Path) -> dict[str, Any]:
             f"manifest.json is not valid JSON: {exc}",
         )
     return _guard_ok("manifest_exists")
+
+
+def check_view_catalog(project_root: Path, view_fqn: str) -> dict[str, Any]:
+    """Check catalog/views/<item_id>.json exists and is valid JSON."""
+    try:
+        cat = load_view_catalog(project_root, view_fqn)
+    except (json.JSONDecodeError, OSError, CatalogLoadError) as exc:
+        norm = normalize(view_fqn)
+        return _guard_fail(
+            "view_catalog_exists",
+            "VIEW_CATALOG_FILE_CORRUPT",
+            f"catalog/views/{norm}.json is not valid JSON: {exc}",
+        )
+    if cat is None:
+        norm = normalize(view_fqn)
+        return _guard_fail(
+            "view_catalog_exists",
+            "VIEW_CATALOG_FILE_MISSING",
+            f"catalog/views/{norm}.json not found.",
+        )
+    return _guard_ok("view_catalog_exists")
 
 
 def check_table_catalog(project_root: Path, table_fqn: str) -> dict[str, Any]:
@@ -407,6 +429,11 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
         (check_sandbox_metadata,),
         (check_test_spec,),
         (check_refactor_complete,),
+    ],
+    # View-specific guard set for scope stage
+    "scope-view": [
+        (check_manifest,),
+        (check_view_catalog,),
     ],
     # Skill-specific guard sets (not pipeline stages, but callable via guard CLI)
     "generating-model": [

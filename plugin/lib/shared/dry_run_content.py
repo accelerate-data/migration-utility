@@ -13,7 +13,7 @@ from typing import Any
 
 import yaml
 
-from shared.catalog import load_proc_catalog, load_table_catalog, read_selected_writer
+from shared.catalog import load_proc_catalog, load_table_catalog, load_view_catalog, read_selected_writer
 from shared.context_helpers import load_test_spec, sandbox_metadata
 from shared.env_config import resolve_dbt_project_path
 from shared.name_resolver import fqn_parts, model_name_from_table, normalize
@@ -175,6 +175,29 @@ def _dbt_evidence(
         "compiled_path": str(compiled_path) if compiled_path else None,
         "compiled_exists": compiled_path is not None,
         "test_results_exist": test_results_exist,
+    }
+
+
+# ── Stage content: scope-view ────────────────────────────────────────────────
+
+
+def view_scope_summary(project_root: Path, view_fqn: str) -> dict[str, Any]:
+    """Compact scope status for a view/MV."""
+    cat = load_view_catalog(project_root, view_fqn) or {}
+    scoping = cat.get("scoping") or {}
+    return {
+        "scoping_status": scoping.get("status"),
+        "is_materialized_view": cat.get("is_materialized_view", False),
+    }
+
+
+def view_scope_detail(project_root: Path, view_fqn: str) -> dict[str, Any]:
+    """Full view catalog + scoping section."""
+    cat = load_view_catalog(project_root, view_fqn) or {}
+    scoping = cat.get("scoping")
+    return {
+        "catalog": cat,
+        "scoping": scoping,
     }
 
 
@@ -341,6 +364,7 @@ def migrate_summary(project_root: Path, table_fqn: str) -> dict[str, Any]:
 
 _CONTENT_COLLECTORS: dict[str, dict[str, Any]] = {
     "scope": {"detail": scope_detail, "summary": scope_summary},
+    "scope-view": {"detail": view_scope_detail, "summary": view_scope_summary},
     "profile": {"detail": profile_detail, "summary": profile_summary},
     "test-gen": {"detail": test_gen_detail, "summary": test_gen_summary},
     "refactor": {"detail": refactor_detail, "summary": refactor_summary},

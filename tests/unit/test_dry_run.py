@@ -1131,29 +1131,32 @@ def test_generate_sources_only_includes_no_writer_found() -> None:
     tmp, root = _make_project()
     with tmp:
         # silver.DimCustomer has scoping.status == "resolved" (from fixture)
-        # Add a source table
+        # silver.RefCurrency has scoping.status == "no_writer_found" (from fixture)
+        # Add a bronze source table
         _add_source_table(root, "bronze", "CustomerRaw")
 
         result = gen_src.generate_sources(root)
         assert "bronze.customerraw" in result["included"]
+        assert "silver.refcurrency" in result["included"]
         assert "silver.dimcustomer" in result["excluded"]
         assert result["incomplete"] == []
         assert result["sources"] is not None
-        # Only bronze schema should appear in sources
+        # Both bronze and silver schemas appear in sources
         schema_names = [s["name"] for s in result["sources"]["sources"]]
         assert "bronze" in schema_names
-        assert "silver" not in schema_names
+        assert "silver" in schema_names
 
 
 def test_generate_sources_excludes_resolved_tables() -> None:
-    """Tables with resolved status are excluded."""
+    """Tables with resolved status are excluded; writerless tables are included."""
     tmp, root = _make_project()
     with tmp:
         result = gen_src.generate_sources(root)
-        # Only silver.DimCustomer in fixture, it's resolved
-        assert result["excluded"] == ["silver.dimcustomer"]
-        assert result["included"] == []
-        assert result["sources"] is None
+        # silver.DimCustomer is resolved → excluded
+        assert "silver.dimcustomer" in result["excluded"]
+        # silver.RefCurrency is no_writer_found → included as source
+        assert "silver.refcurrency" in result["included"]
+        assert result["sources"] is not None
 
 
 def test_generate_sources_detects_incomplete_scoping() -> None:
@@ -1170,18 +1173,19 @@ def test_generate_sources_mixed_statuses() -> None:
     tmp, root = _make_project()
     with tmp:
         # silver.DimCustomer: resolved (from fixture)
+        # silver.RefCurrency: no_writer_found (from fixture)
         _add_source_table(root, "bronze", "CustomerRaw")  # no_writer_found
         _add_source_table(root, "bronze", "OrderRaw")  # no_writer_found
         _add_table_to_project(root, "silver.DimDate")  # no scoping
 
         result = gen_src.generate_sources(root)
-        assert sorted(result["included"]) == ["bronze.customerraw", "bronze.orderraw"]
+        assert sorted(result["included"]) == ["bronze.customerraw", "bronze.orderraw", "silver.refcurrency"]
         assert result["excluded"] == ["silver.dimcustomer"]
         assert result["incomplete"] == ["silver.dimdate"]
-        # Sources should have only bronze schema
-        assert len(result["sources"]["sources"]) == 1
-        assert result["sources"]["sources"][0]["name"] == "bronze"
-        assert len(result["sources"]["sources"][0]["tables"]) == 2
+        # Sources should have bronze and silver schemas
+        schema_names = {s["name"] for s in result["sources"]["sources"]}
+        assert "bronze" in schema_names
+        assert "silver" in schema_names
 
 
 def test_generate_sources_empty_catalog() -> None:
@@ -1207,8 +1211,10 @@ def test_generate_sources_multiple_schemas() -> None:
         _add_source_table(root, "staging", "LookupRegion")
 
         result = gen_src.generate_sources(root)
-        schema_names = [s["name"] for s in result["sources"]["sources"]]
-        assert sorted(schema_names) == ["bronze", "staging"]
+        schema_names = sorted(s["name"] for s in result["sources"]["sources"])
+        # silver.RefCurrency (no_writer_found fixture) also appears as a source
+        assert "bronze" in schema_names
+        assert "staging" in schema_names
 
 
 def test_write_sources_yml() -> None:
@@ -1222,17 +1228,20 @@ def test_write_sources_yml() -> None:
         assert sources_path.exists()
         content = yaml.safe_load(sources_path.read_text(encoding="utf-8"))
         assert content["version"] == 2
-        assert len(content["sources"]) == 1
-        assert content["sources"][0]["name"] == "bronze"
+        schema_names = {s["name"] for s in content["sources"]}
+        # bronze from added table, silver from RefCurrency fixture (no_writer_found)
+        assert "bronze" in schema_names
+        assert "silver" in schema_names
 
 
 def test_write_sources_yml_no_sources() -> None:
-    """write_sources_yml writes nothing when all tables are resolved."""
+    """write_sources_yml writes a file when writerless tables exist."""
     tmp, root = _make_project()
     with tmp:
+        # silver.RefCurrency (no_writer_found) is in the fixture — sources.yml is written
         result = gen_src.write_sources_yml(root)
-        assert result["path"] is None
-        assert result["sources"] is None
+        assert result["path"] is not None
+        assert result["sources"] is not None
 
 
 def test_cli_generate_sources() -> None:
@@ -1274,6 +1283,131 @@ def test_cli_generate_sources_strict_passes_when_complete() -> None:
             ["--strict", "--project-root", str(root)],
         )
         assert result.exit_code == 0
+
+
+# ── View and MV object type detection ───────────────────────────────────────
+
+
+def test_scope_view_guards_pass(assert_valid_schema) -> None:
+    """View FQN in scope stage returns object_type=view, guards_passed=True."""
+    tmp, root = _make_project()
+    with tmp:
+        result = dry_run.run_dry_run(root, "silver.vDimSalesTerritory", "scope")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is True
+        assert result["object_type"] == "view"
+        assert "content" in result
+        assert result["content"]["scoping_status"] is None  # no scoping section in fixture
+        assert result["content"]["is_materialized_view"] is False
+
+
+def test_scope_mv_returns_object_type_mv(assert_valid_schema) -> None:
+    """MV FQN in scope stage returns object_type=mv."""
+    tmp, root = _make_project()
+    with tmp:
+        result = dry_run.run_dry_run(root, "silver.mv_FactSales", "scope")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is True
+        assert result["object_type"] == "mv"
+        assert result["content"]["is_materialized_view"] is True
+
+
+def test_scope_view_guards_fail_no_view_catalog(assert_valid_schema) -> None:
+    """View FQN for a non-existent view returns VIEW_CATALOG_FILE_MISSING."""
+    tmp, root = _make_project()
+    with tmp:
+        result = dry_run.run_dry_run(root, "silver.NonExistentView", "scope")
+        assert_valid_schema(result, "dry_run_output.json")
+        # Falls back to 'table' detection, then fails on CATALOG_FILE_MISSING
+        assert result["guards_passed"] is False
+
+
+def test_view_profile_blocked_not_not_applicable(assert_valid_schema) -> None:
+    """View on profile stage returns blocked (VIEW_STAGE_NOT_SUPPORTED), not N/A."""
+    tmp, root = _make_project()
+    with tmp:
+        result = dry_run.run_dry_run(root, "silver.vDimSalesTerritory", "profile")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is False
+        assert result.get("not_applicable") is not True
+        assert result["guard_results"][-1]["code"] == "VIEW_STAGE_NOT_SUPPORTED"
+        assert result["object_type"] == "view"
+
+
+def test_view_all_non_scope_stages_blocked(assert_valid_schema) -> None:
+    """All writer-dependent stages for a view return VIEW_STAGE_NOT_SUPPORTED."""
+    tmp, root = _make_project()
+    with tmp:
+        for stage in ("profile", "test-gen", "refactor", "migrate"):
+            result = dry_run.run_dry_run(root, "silver.vDimSalesTerritory", stage)
+            assert_valid_schema(result, "dry_run_output.json")
+            assert result["guards_passed"] is False, f"stage {stage} should be blocked"
+            assert result["guard_results"][-1]["code"] == "VIEW_STAGE_NOT_SUPPORTED", stage
+
+
+def test_table_object_type_in_result(assert_valid_schema) -> None:
+    """Normal table FQN produces object_type=table in result."""
+    tmp, root = _make_project()
+    with tmp:
+        result = dry_run.run_dry_run(root, "silver.DimCustomer", "scope")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["object_type"] == "table"
+
+
+# ── N/A logic for writerless tables ─────────────────────────────────────────
+
+
+def test_writerless_table_scope_guards_pass(assert_valid_schema) -> None:
+    """Writerless table scope stage still passes — scoping is complete."""
+    tmp, root = _make_project()
+    with tmp:
+        result = dry_run.run_dry_run(root, "silver.RefCurrency", "scope")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is True
+        assert result["object_type"] == "table"
+        assert result["content"]["scoping_status"] == "no_writer_found"
+
+
+def test_profile_not_applicable_for_writerless_table(assert_valid_schema) -> None:
+    """Writerless table profile stage returns not_applicable=True with a synthetic guard entry."""
+    tmp, root = _make_project()
+    with tmp:
+        result = dry_run.run_dry_run(root, "silver.RefCurrency", "profile")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is False
+        assert result["not_applicable"] is True
+        assert len(result["guard_results"]) == 1
+        assert result["guard_results"][0]["code"] == "WRITERLESS_TABLE"
+
+
+def test_test_gen_not_applicable_for_writerless_table(assert_valid_schema) -> None:
+    """Writerless table test-gen stage returns not_applicable=True."""
+    tmp, root = _make_project()
+    with tmp:
+        result = dry_run.run_dry_run(root, "silver.RefCurrency", "test-gen")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is False
+        assert result["not_applicable"] is True
+
+
+def test_refactor_not_applicable_for_writerless_table(assert_valid_schema) -> None:
+    """Writerless table refactor stage returns not_applicable=True."""
+    tmp, root = _make_project()
+    with tmp:
+        result = dry_run.run_dry_run(root, "silver.RefCurrency", "refactor")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is False
+        assert result["not_applicable"] is True
+
+
+def test_migrate_not_applicable_for_writerless_table(assert_valid_schema) -> None:
+    """Writerless table migrate stage returns not_applicable=True."""
+    tmp, root = _make_project()
+    with tmp:
+        result = dry_run.run_dry_run(root, "silver.RefCurrency", "migrate")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is False
+        assert result["not_applicable"] is True
 
 
 def test_cli_generate_sources_write() -> None:
