@@ -249,12 +249,17 @@ status for silver.DimCustomer
 
 For the first failing stage, explain what prerequisite is missing and suggest the specific command to run.
 
+If `not_applicable` is `true` for a stage, show it as `N/A` and continue to the next stage.
+
 For completed stages, show the key signals from the `--detail` content:
 
-- **scope:** selected_writer, candidate count, statement resolution counts
-- **profile:** status, resolved_kind, primary_key type, watermark column, FK count, PII count, questions answered/total
+- **scope (table):** selected_writer, candidate count, statement resolution counts
+- **scope (view):** scoping_status, is_materialized_view
+- **profile (table):** status, resolved_kind, primary_key type, watermark column, FK count, PII count, questions answered/total
+- **profile (view):** profile_status, classification, source
 - **test-gen:** status, coverage, branch count, test count, sandbox database
-- **refactor:** status, has_refactored_sql
+- **refactor (table):** status, has_refactored_sql
+- **refactor (view):** dbt_model_exists, model_name
 - **migrate:** dbt model exists, schema YAML has unit_tests, compiled, test results
 
 ### Step 3 — Recommend next action

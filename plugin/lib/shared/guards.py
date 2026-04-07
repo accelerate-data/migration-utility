@@ -125,7 +125,7 @@ def check_view_profiled(project_root: Path, view_fqn: str) -> dict[str, Any]:
     except (json.JSONDecodeError, OSError, CatalogLoadError) as exc:
         return _guard_fail(
             "view_profiled",
-            "VIEW_CATALOG_FILE_MISSING",
+            "VIEW_CATALOG_FILE_CORRUPT",
             f"Could not load view catalog for {norm}: {exc}",
         )
     if cat is None:

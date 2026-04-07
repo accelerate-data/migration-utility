@@ -203,7 +203,7 @@ def view_scope_detail(project_root: Path, view_fqn: str) -> dict[str, Any]:
 
 def profile_view_summary(project_root: Path, view_fqn: str) -> dict[str, Any]:
     """Compact profile status for a view."""
-    cat = load_view_catalog(project_root, normalize(view_fqn)) or {}
+    cat = load_view_catalog(project_root, view_fqn) or {}
     profile = cat.get("profile") or {}
     return {
         "profile_status": profile.get("status"),
@@ -214,7 +214,7 @@ def profile_view_summary(project_root: Path, view_fqn: str) -> dict[str, Any]:
 
 def profile_view_detail(project_root: Path, view_fqn: str) -> dict[str, Any]:
     """Full view catalog profile section."""
-    cat = load_view_catalog(project_root, normalize(view_fqn)) or {}
+    cat = load_view_catalog(project_root, view_fqn) or {}
     return {"profile": cat.get("profile")}
 
 
