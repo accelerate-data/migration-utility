@@ -29,6 +29,7 @@ Use `docs/design/` for architecture and implementation design details.
 - [Command Design](command-design/README.md) — plugin command lifecycle, sub-agent spawning, run log structure, and relationship to skills
 - [Coverage Matrix](coverage-matrix/README.md) — statement-by-statement coverage by phase and by test layer
 - [Data Reconciliation](data-reconciliation/README.md) — row-level A-B / B-A diff between SQL Server and Fabric Lakehouse via DuckDB EXCEPT ALL
+- [Catalog Enrichment Diagnostics](catalog-enrich/README.md) — exhaustive warning/error scenarios for view, function, and procedure catalog entries
 
 ## What Goes In `references`
 
