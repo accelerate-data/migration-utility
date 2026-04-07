@@ -77,3 +77,14 @@ tests:
   - description: "VU-945 — all-tables mode shows What to do next section with runnable command"
     vars:
       expected_output_terms: "what to do next"
+
+  # ── VU-949: view at migrate_needed recommends /refactor-view ─────────────────
+  - description: "VU-949 — batch status recommends /refactor-view for view at migrate_needed, not /generate-model"
+    vars:
+      expected_output_terms: "refactor-view,vw_currency_ref"
+      unexpected_output_terms: "generate-model"
+
+  # ── VU-949: table at migrate_needed still recommends /generate-model ─────────
+  - description: "VU-949 — batch status still recommends /generate-model for tables at migrate_needed"
+    vars:
+      expected_output_terms: "generate-model"
