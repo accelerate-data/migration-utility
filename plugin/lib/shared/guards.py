@@ -89,6 +89,34 @@ def check_view_catalog(project_root: Path, view_fqn: str) -> dict[str, Any]:
     return _guard_ok("view_catalog_exists")
 
 
+def check_view_scoping_analyzed(project_root: Path, view_fqn: str) -> dict[str, Any]:
+    """Check scoping.status == 'analyzed' in the view catalog."""
+    norm = normalize(view_fqn)
+    try:
+        cat = load_view_catalog(project_root, view_fqn)
+    except (json.JSONDecodeError, OSError, CatalogLoadError) as exc:
+        return _guard_fail(
+            "view_scoping_analyzed",
+            "VIEW_SCOPING_NOT_COMPLETED",
+            f"Could not load view catalog for {norm}: {exc}",
+        )
+    if cat is None:
+        return _guard_fail(
+            "view_scoping_analyzed",
+            "VIEW_SCOPING_NOT_COMPLETED",
+            f"catalog/views/{norm}.json not found.",
+        )
+    scoping = cat.get("scoping")
+    if scoping is None or scoping.get("status") != "analyzed":
+        status = scoping.get("status") if scoping else None
+        return _guard_fail(
+            "view_scoping_analyzed",
+            "VIEW_SCOPING_NOT_COMPLETED",
+            f"View scoping not completed for {norm} (status={status!r}). Run analyzing-view first.",
+        )
+    return _guard_ok("view_scoping_analyzed")
+
+
 def check_table_catalog(project_root: Path, table_fqn: str) -> dict[str, Any]:
     """Check catalog/tables/<item_id>.json exists and is valid JSON."""
     try:
@@ -430,10 +458,15 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
         (check_test_spec,),
         (check_refactor_complete,),
     ],
-    # View-specific guard set for scope stage
+    # View-specific guard sets
     "scope-view": [
         (check_manifest,),
         (check_view_catalog,),
+    ],
+    "profile-view": [
+        (check_manifest,),
+        (check_view_catalog,),
+        (check_view_scoping_analyzed,),
     ],
     # Skill-specific guard sets (not pipeline stages, but callable via guard CLI)
     "generating-model": [
@@ -490,10 +523,11 @@ _PROJECT_ONLY_GUARDS: frozenset[Callable] = frozenset({
 
 
 def run_guards(
-    project_root: Path, table_fqn: str, stage: str,
+    project_root: Path, object_fqn: str, stage: str,
 ) -> tuple[bool, list[dict[str, Any]]]:
     """Run all guards for a stage, short-circuiting on first failure.
 
+    object_fqn is the fully-qualified name of the table or view being guarded.
     Returns (all_passed, guard_results).
     """
     results: list[dict[str, Any]] = []
@@ -501,7 +535,7 @@ def run_guards(
         if fn in _PROJECT_ONLY_GUARDS:
             result = fn(project_root)
         else:
-            result = fn(project_root, table_fqn)
+            result = fn(project_root, object_fqn)
         results.append(result)
         if not result["passed"]:
             return False, results

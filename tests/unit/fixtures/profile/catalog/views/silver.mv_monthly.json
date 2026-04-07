@@ -1,0 +1,55 @@
+{
+  "schema": "silver",
+  "name": "mv_Monthly",
+  "is_materialized_view": true,
+  "columns": [
+    { "name": "month_key", "sql_type": "INT", "is_nullable": false, "is_identity": false },
+    { "name": "total_amount", "sql_type": "DECIMAL(18,2)", "is_nullable": true, "is_identity": false }
+  ],
+  "primary_keys": [
+    { "constraint_name": "PK_mv_Monthly", "columns": ["month_key"] }
+  ],
+  "unique_indexes": [],
+  "references": {
+    "tables": {
+      "in_scope": [
+        { "schema": "silver", "name": "FactSales" }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "scoping": {
+    "status": "analyzed",
+    "sql_elements": [
+      { "type": "aggregation", "detail": "SUM(amount)" },
+      { "type": "group_by", "detail": "month_key" }
+    ],
+    "logic_summary": "Monthly sales aggregation materialized view.",
+    "warnings": [],
+    "errors": []
+  },
+  "warnings": [],
+  "errors": []
+}

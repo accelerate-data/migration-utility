@@ -456,3 +456,212 @@ def test_context_truncate_insert_proc_body(assert_valid_schema) -> None:
     assert result["writer"] == "dbo.usp_truncate_insert_dim_product"
     assert "TRUNCATE TABLE silver.DimProduct" in result["proc_body"]
     assert "INSERT INTO silver.DimProduct" in result["proc_body"]
+
+
+# ── run_view_context ──────────────────────────────────────────────────────────
+
+
+def test_view_context_object_types(assert_valid_schema) -> None:
+    """object_type is stamped correctly on all reference buckets."""
+    result = profile.run_view_context(_PROFILE_FIXTURES, "silver.vw_Multi")
+    assert_valid_schema(result, "view_profile_context.json")
+
+    # references.tables in_scope → "table"
+    for entry in result["references"]["tables"]["in_scope"]:
+        assert entry["object_type"] == "table"
+    # references.views in_scope → "view"
+    for entry in result["references"]["views"]["in_scope"]:
+        assert entry["object_type"] == "view"
+    # references.functions in_scope → "function"
+    for entry in result["references"]["functions"]["in_scope"]:
+        assert entry["object_type"] == "function"
+    # referenced_by.procedures in_scope → "procedure"
+    for entry in result["referenced_by"]["procedures"]["in_scope"]:
+        assert entry["object_type"] == "procedure"
+
+
+def test_view_context_multi_sql_elements(assert_valid_schema) -> None:
+    """sql_elements and logic_summary are surfaced from scoping."""
+    result = profile.run_view_context(_PROFILE_FIXTURES, "silver.vw_Multi")
+    assert_valid_schema(result, "view_profile_context.json")
+    element_types = {e["type"] for e in result["sql_elements"]}
+    assert "join" in element_types
+    assert "aggregation" in element_types
+    assert "group_by" in element_types
+    assert "Joins FactSales" in result["logic_summary"]
+
+
+def test_view_context_mv_includes_columns(assert_valid_schema) -> None:
+    """Materialized views surface columns; is_materialized_view is True."""
+    result = profile.run_view_context(_PROFILE_FIXTURES, "silver.mv_Monthly")
+    assert_valid_schema(result, "view_profile_context.json")
+    assert result["is_materialized_view"] is True
+    col_names = [c["name"] for c in result["columns"]]
+    assert "month_key" in col_names
+    assert "total_amount" in col_names
+
+
+def test_view_context_non_mv_no_columns() -> None:
+    """Non-materialized view does not include columns key."""
+    result = profile.run_view_context(_PROFILE_FIXTURES, "silver.vw_Simple")
+    assert "columns" not in result
+
+
+def test_view_context_missing_catalog_raises() -> None:
+    """Missing view catalog raises CatalogFileMissingError."""
+    with pytest.raises(CatalogFileMissingError):
+        profile.run_view_context(_PROFILE_FIXTURES, "silver.vw_NoExist")
+
+
+def test_view_context_no_scoping_raises() -> None:
+    """View catalog without scoping section raises ValueError."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "catalog" / "views").mkdir(parents=True)
+        (root / "catalog" / "views" / "silver.vw_noscope.json").write_text(
+            json.dumps({
+                "schema": "silver", "name": "vw_NoScope",
+                "references": {"tables": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}},
+                "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}},
+            }),
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="scoping not completed"):
+            profile.run_view_context(root, "silver.vw_NoScope")
+
+
+def test_view_context_scoping_error_status_raises() -> None:
+    """View with scoping.status=error raises ValueError."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "catalog" / "views").mkdir(parents=True)
+        (root / "catalog" / "views" / "silver.vw_err.json").write_text(
+            json.dumps({
+                "schema": "silver", "name": "vw_Err",
+                "references": {"tables": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}},
+                "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}},
+                "scoping": {"status": "error", "sql_elements": None, "warnings": [], "errors": []},
+            }),
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="scoping not completed"):
+            profile.run_view_context(root, "silver.vw_Err")
+
+
+# ── run_write (view path) ─────────────────────────────────────────────────────
+
+_VALID_VIEW_PROFILE = {
+    "status": "ok",
+    "classification": "stg",
+    "rationale": "Single-source pass-through.",
+    "source": "llm",
+}
+
+
+def test_write_view_profile_stg() -> None:
+    """Valid stg profile is merged into view catalog."""
+    tmp, root = _make_writable_copy()
+    try:
+        result = profile.run_write(root, "silver.vw_Simple", _VALID_VIEW_PROFILE)
+        assert result["ok"] is True
+        assert "views" in result["catalog_path"]
+        written = json.loads((root / "catalog" / "views" / "silver.vw_simple.json").read_text(encoding="utf-8"))
+        assert written["profile"]["classification"] == "stg"
+    finally:
+        tmp.cleanup()
+
+
+def test_write_view_profile_mart() -> None:
+    """Valid mart profile is merged into view catalog."""
+    tmp, root = _make_writable_copy()
+    try:
+        mart_profile = {**_VALID_VIEW_PROFILE, "classification": "mart"}
+        result = profile.run_write(root, "silver.vw_Simple", mart_profile)
+        assert result["ok"] is True
+        written = json.loads((root / "catalog" / "views" / "silver.vw_simple.json").read_text(encoding="utf-8"))
+        assert written["profile"]["classification"] == "mart"
+    finally:
+        tmp.cleanup()
+
+
+def test_write_view_profile_bad_classification_raises() -> None:
+    """Invalid classification raises ValueError."""
+    tmp, root = _make_writable_copy()
+    try:
+        bad = {**_VALID_VIEW_PROFILE, "classification": "dim_non_scd"}
+        with pytest.raises(ValueError, match="invalid classification"):
+            profile.run_write(root, "silver.vw_Simple", bad)
+    finally:
+        tmp.cleanup()
+
+
+def test_write_view_profile_missing_field_raises() -> None:
+    """Missing required field raises ValueError."""
+    tmp, root = _make_writable_copy()
+    try:
+        bad = {"status": "ok", "classification": "stg", "source": "llm"}  # missing rationale
+        with pytest.raises(ValueError, match="missing required field"):
+            profile.run_write(root, "silver.vw_Simple", bad)
+    finally:
+        tmp.cleanup()
+
+
+def test_write_view_profile_idempotent() -> None:
+    """Writing the same profile twice leaves the catalog consistent."""
+    tmp, root = _make_writable_copy()
+    try:
+        profile.run_write(root, "silver.vw_Simple", _VALID_VIEW_PROFILE)
+        profile.run_write(root, "silver.vw_Simple", _VALID_VIEW_PROFILE)
+        written = json.loads((root / "catalog" / "views" / "silver.vw_simple.json").read_text(encoding="utf-8"))
+        assert written["profile"]["classification"] == "stg"
+    finally:
+        tmp.cleanup()
+
+
+# ── check_view_scoping_analyzed ───────────────────────────────────────────────
+
+
+def test_guard_view_scoping_passes() -> None:
+    """Guard passes when scoping.status == analyzed."""
+    from shared.guards import check_view_scoping_analyzed
+    result = check_view_scoping_analyzed(_PROFILE_FIXTURES, "silver.vw_Simple")
+    assert result["passed"] is True
+
+
+def test_guard_view_scoping_not_analyzed() -> None:
+    """Guard fails when scoping.status == error."""
+    from shared.guards import check_view_scoping_analyzed
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "catalog" / "views").mkdir(parents=True)
+        (root / "catalog" / "views" / "silver.vw_err.json").write_text(
+            json.dumps({
+                "schema": "silver", "name": "vw_Err",
+                "references": {"tables": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}},
+                "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}},
+                "scoping": {"status": "error", "sql_elements": None, "warnings": [], "errors": []},
+            }),
+            encoding="utf-8",
+        )
+        result = check_view_scoping_analyzed(root, "silver.vw_Err")
+        assert result["passed"] is False
+        assert result["code"] == "VIEW_SCOPING_NOT_COMPLETED"
+
+
+def test_guard_view_scoping_missing_section() -> None:
+    """Guard fails when scoping key is absent from catalog."""
+    from shared.guards import check_view_scoping_analyzed
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "catalog" / "views").mkdir(parents=True)
+        (root / "catalog" / "views" / "silver.vw_noscope.json").write_text(
+            json.dumps({
+                "schema": "silver", "name": "vw_NoScope",
+                "references": {"tables": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}},
+                "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}},
+            }),
+            encoding="utf-8",
+        )
+        result = check_view_scoping_analyzed(root, "silver.vw_NoScope")
+        assert result["passed"] is False
+        assert result["code"] == "VIEW_SCOPING_NOT_COMPLETED"

@@ -118,6 +118,19 @@
         }
       }
     },
+    "profile": {
+      "type": "object",
+      "description": "Classification result from profiling-view skill. Written by profile write.",
+      "required": ["status", "classification", "rationale", "source"],
+      "properties": {
+        "status": { "type": "string", "enum": ["ok", "partial", "error"] },
+        "classification": { "type": "string", "enum": ["stg", "mart"] },
+        "rationale": { "type": "string" },
+        "source": { "type": "string", "enum": ["llm"] },
+        "warnings": { "type": "array", "items": { "$ref": "common.json#/$defs/diagnostics_entry" } },
+        "errors": { "type": "array", "items": { "$ref": "common.json#/$defs/diagnostics_entry" } }
+      }
+    },
     "parse_error": { "type": ["string", "null"], "description": "sqlglot parse error message, if the view DDL failed to parse." },
     "warnings": {
       "type": "array",
