@@ -161,6 +161,38 @@ ready to initialise dbt  — all tables are scoped. Run /init-dbt to scaffold yo
 
 If there are still tables in the scope phase, omit this hint entirely. Do not show the hint if `dbt/dbt_project.yml` already exists.
 
+#### Section E — Stale catalog cleanup
+
+After presenting all sections above, check whether any `STALE_OBJECT` warnings appeared in the catalog diagnostics (Section B). This step applies only when running in batch mode (no table argument).
+
+If one or more `STALE_OBJECT` entries are present:
+
+1. Collect the catalog file path for each affected FQN. Check each of these paths and use whichever exists:
+   - `catalog/tables/<fqn>.json`
+   - `catalog/procedures/<fqn>.json`
+   - `catalog/views/<fqn>.json`
+   - `catalog/functions/<fqn>.json`
+
+2. Present the list:
+
+   ```text
+   The following N catalog file(s) are marked stale (from a prior extraction):
+     catalog/tables/silver.dimcustomer.json
+     catalog/procedures/dbo.usp_load.json
+   ```
+
+3. Ask: **"Delete these N stale catalog files?"**
+
+4. If the user confirms: delete each file. Then show:
+
+   ```text
+   Deleted N file(s). Run `git add -u && git commit -m "remove stale catalog objects"` to record the cleanup.
+   ```
+
+5. If the user declines: leave the files intact and continue normally.
+
+6. If no `STALE_OBJECT` entries exist: omit this section entirely.
+
 ## Pipeline — With table argument (detailed)
 
 ### Step 1 — Collect detailed status
