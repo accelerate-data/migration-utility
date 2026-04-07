@@ -201,6 +201,34 @@ def view_scope_detail(project_root: Path, view_fqn: str) -> dict[str, Any]:
     }
 
 
+def profile_view_summary(project_root: Path, view_fqn: str) -> dict[str, Any]:
+    """Compact profile status for a view."""
+    cat = load_view_catalog(project_root, normalize(view_fqn)) or {}
+    profile = cat.get("profile") or {}
+    return {
+        "profile_status": profile.get("status"),
+        "classification": profile.get("classification"),
+        "source": profile.get("source"),
+    }
+
+
+def profile_view_detail(project_root: Path, view_fqn: str) -> dict[str, Any]:
+    """Full view catalog profile section."""
+    cat = load_view_catalog(project_root, normalize(view_fqn)) or {}
+    return {"profile": cat.get("profile")}
+
+
+def refactor_view_summary(project_root: Path, view_fqn: str) -> dict[str, Any]:
+    """Compact refactor status for a view — dbt model existence."""
+    evidence = _dbt_evidence(project_root, view_fqn)
+    return {"dbt_model_exists": evidence["model_exists"], "model_name": evidence["model_name"]}
+
+
+def refactor_view_detail(project_root: Path, view_fqn: str) -> dict[str, Any]:
+    """Full refactor status for a view — dbt model existence."""
+    return refactor_view_summary(project_root, view_fqn)
+
+
 # ── Stage content: scope ─────────────────────────────────────────────────────
 
 
@@ -366,7 +394,9 @@ _CONTENT_COLLECTORS: dict[str, dict[str, Any]] = {
     "scope": {"detail": scope_detail, "summary": scope_summary},
     "scope-view": {"detail": view_scope_detail, "summary": view_scope_summary},
     "profile": {"detail": profile_detail, "summary": profile_summary},
+    "profile-view": {"detail": profile_view_detail, "summary": profile_view_summary},
     "test-gen": {"detail": test_gen_detail, "summary": test_gen_summary},
     "refactor": {"detail": refactor_detail, "summary": refactor_summary},
+    "refactor-view": {"detail": refactor_view_detail, "summary": refactor_view_summary},
     "migrate": {"detail": migrate_detail, "summary": migrate_summary},
 }

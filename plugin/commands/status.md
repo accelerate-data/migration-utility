@@ -42,8 +42,8 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util dry-run <fqn> <stage>
 
 Parse the JSON output:
 
-- If `not_applicable` is `true`: record "N/A" for this stage and all remaining stages. Stop iterating.
-- If `guards_passed` is `true` and content shows the stage is complete (e.g. scoping has `selected_writer`, profile has `status: ok|partial`, test-gen has `test_spec_status`, refactor has `refactor_status`, migrate has `dbt_model_exists`): record the stage as complete and continue.
+- If `not_applicable` is `true`: record "N/A" for this stage only, then continue to the next stage.
+- If `guards_passed` is `true` and content shows the stage is complete (e.g. scoping has `selected_writer`, profile has `status: ok|partial`, test-gen has `test_spec_status`, refactor has `refactor_status` or `dbt_model_exists: true` for views, migrate has `dbt_model_exists`): record the stage as complete and continue.
 - If `guards_passed` is `false` (and `not_applicable` is absent/false): record the stage as blocked at that stage. Stop iterating — subsequent stages are implicitly blocked.
 
 ### Step 3 — Build summary table
@@ -60,10 +60,10 @@ migration status — 6 objects (4 tables, 2 views)
   silver.DimDate                table   resolved   pending    blocked    blocked    blocked
   silver.FactSales              table   pending    blocked    blocked    blocked    blocked
   silver.RefCurrency            table   resolved   N/A        N/A        N/A        N/A
-  silver.vDimSalesTerritory     view    pending    blocked    blocked    blocked    blocked
-  silver.vwFactPromo            mv      pending    blocked    blocked    blocked    blocked
+  silver.vDimSalesTerritory     view    resolved   ok         N/A        pending    N/A
+  silver.vwFactPromo            mv      pending    blocked    N/A        blocked    N/A
 
-  scope: 4/5 | profile: 2/4 (1 N/A) | test-gen: 1/4 (1 N/A) | refactor: 1/4 (1 N/A) | migrate: 0/4 (1 N/A)
+  scope: 4/6 | profile: 2/5 (1 N/A) | test-gen: 1/4 (2 N/A) | refactor: 1/5 (1 N/A) | migrate: 0/4 (2 N/A)
 ```
 
 Stage status values:
@@ -77,7 +77,7 @@ Object type values: `table`, `view`, `mv`.
 
 Header object count: show total objects plus a breakdown e.g. `(4 tables, 2 views)`. If MVs are present, count them separately: `(3 tables, 1 view, 2 mvs)`.
 
-Summary counts: the denominator excludes N/A objects. Show the N/A count in parentheses if any exist, e.g. `profile: 2/4 (1 N/A)`. Views are included in the denominator for scope (they can be pending/complete for scope), but views are excluded from the denominator for profile/test-gen/refactor/migrate because those stages return `VIEW_STAGE_NOT_SUPPORTED` — treat them as implicit N/A for counting purposes.
+Summary counts: the denominator excludes N/A objects. Show the N/A count in parentheses if any exist, e.g. `profile: 2/4 (1 N/A)`. Views are included in the denominator for `scope`, `profile`, and `refactor`. Views are excluded from the denominator for `test-gen` and `migrate` because those stages return `not_applicable` for views — treat them as N/A for counting purposes.
 
 ### Step 4 — Sync exclusion warnings and build dependency schedule
 
