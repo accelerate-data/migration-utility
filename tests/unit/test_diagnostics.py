@@ -996,70 +996,110 @@ class TestTwoPassOrdering:
             )
 
 
-# ── Materialized views infrastructure ────────────────────────────────────────
+# ── Materialized views (is_materialized_view flag) ───────────────────────────
 
 
-class TestMaterializedViewsInfrastructure:
+class TestMaterializedViewFlag:
 
-    def test_build_known_fqns_includes_materialized_views(self):
-        """_build_known_fqns returns a materialized_views key."""
+    def test_mv_flag_on_view_catalog(self):
+        """View catalog entry with is_materialized_view=True is valid."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _git_init(root)
-            (root / "catalog" / "materialized_views").mkdir(parents=True)
-            write_json(root / "catalog" / "materialized_views" / "sh.mv_sales_agg.json", {"name": "mv_sales_agg"})
-
-            known = _build_known_fqns(root / "catalog")
-
-            assert "materialized_views" in known
-            assert "sh.mv_sales_agg" in known["materialized_views"]
-
-    def test_missing_reference_checks_materialized_views_bucket(self):
-        """MISSING_REFERENCE fires for a materialized_views in_scope ref with no catalog entry."""
-        catalog_data = {
-            "references": {
-                "tables": {"in_scope": [], "out_of_scope": []},
-                "views": {"in_scope": [], "out_of_scope": []},
-                "functions": {"in_scope": [], "out_of_scope": []},
-                "procedures": {"in_scope": [], "out_of_scope": []},
-                "materialized_views": {
-                    "in_scope": [{"schema": "sh", "name": "mv_missing"}],
-                    "out_of_scope": [],
-                },
+            cat_data = {
+                "schema": "sh",
+                "name": "mv_sales_agg",
+                "is_materialized_view": True,
+                "references": _empty_refs(),
+                "warnings": [],
+                "errors": [],
             }
-        }
-        ctx = _make_ctx(Path("/tmp/fake"), "sh.some_view", "view", catalog_data)
+            _write_catalog(root, "views", "sh.mv_sales_agg", cat_data)
 
-        result = check_missing_reference(ctx)
+            written = json.loads((root / "catalog" / "views" / "sh.mv_sales_agg.json").read_text())
+            assert written["is_materialized_view"] is True
+            assert written["schema"] == "sh"
 
-        assert result is not None
-        assert len(result) == 1
-        assert result[0].code == "MISSING_REFERENCE"
-        assert result[0].details["reference_type"] == "materialized_view"
-
-    def test_missing_reference_resolved_by_materialized_views(self):
-        """No MISSING_REFERENCE when the materialized_views FQN is in known_fqns."""
+    def test_mv_in_views_bucket_resolves_references(self):
+        """An MV in the views bucket resolves MISSING_REFERENCE for view refs."""
         catalog_data = {
             "references": {
                 "tables": {"in_scope": [], "out_of_scope": []},
-                "views": {"in_scope": [], "out_of_scope": []},
-                "functions": {"in_scope": [], "out_of_scope": []},
-                "procedures": {"in_scope": [], "out_of_scope": []},
-                "materialized_views": {
-                    "in_scope": [{"schema": "sh", "name": "mv_exists"}],
+                "views": {
+                    "in_scope": [{"schema": "sh", "name": "mv_sales_agg"}],
                     "out_of_scope": [],
                 },
+                "functions": {"in_scope": [], "out_of_scope": []},
+                "procedures": {"in_scope": [], "out_of_scope": []},
             }
         }
         known = {
             "tables": set(),
-            "views": set(),
+            "views": {"sh.mv_sales_agg"},
             "functions": set(),
             "procedures": set(),
-            "materialized_views": {"sh.mv_exists"},
         }
-        ctx = _make_ctx(Path("/tmp/fake"), "sh.some_view", "view", catalog_data, known_fqns=known)
+        ctx = _make_ctx(Path("/tmp/fake"), "sh.some_proc", "procedure", catalog_data, known_fqns=known)
 
         result = check_missing_reference(ctx)
 
         assert result is None
+
+    def test_write_object_catalog_sets_mv_flag(self):
+        """write_object_catalog persists is_materialized_view when True."""
+        from shared.catalog import write_object_catalog
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _git_init(root)
+            (root / "catalog" / "views").mkdir(parents=True)
+
+            p = write_object_catalog(
+                root, "views", "sh.mv_sales",
+                _empty_refs(),
+                is_materialized_view=True,
+            )
+            data = json.loads(p.read_text())
+            assert data["is_materialized_view"] is True
+
+    def test_write_object_catalog_omits_mv_flag_when_false(self):
+        """write_object_catalog does not include is_materialized_view when False."""
+        from shared.catalog import write_object_catalog
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _git_init(root)
+            (root / "catalog" / "views").mkdir(parents=True)
+
+            p = write_object_catalog(
+                root, "views", "sh.vw_regular",
+                _empty_refs(),
+            )
+            data = json.loads(p.read_text())
+            assert "is_materialized_view" not in data
+
+    def test_mv_reclassify_from_tables_to_views(self):
+        """MV detected in catalog/tables/ gets moved to catalog/views/ during extraction."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _git_init(root)
+
+            table_data = {"schema": "sh", "name": "mv_old", "columns": []}
+            _write_catalog(root, "tables", "sh.mv_old", table_data)
+
+            mv_fqns = {"sh.mv_old"}
+            catalog_dir = root / "catalog"
+            for fqn in mv_fqns:
+                table_path = catalog_dir / "tables" / f"{fqn}.json"
+                if table_path.exists():
+                    data = json.loads(table_path.read_text())
+                    data["is_materialized_view"] = True
+                    views_dir = catalog_dir / "views"
+                    views_dir.mkdir(parents=True, exist_ok=True)
+                    write_json(views_dir / f"{fqn}.json", data)
+                    table_path.unlink()
+
+            assert not (catalog_dir / "tables" / "sh.mv_old.json").exists()
+            view_data = json.loads((catalog_dir / "views" / "sh.mv_old.json").read_text())
+            assert view_data["is_materialized_view"] is True
+            assert view_data["schema"] == "sh"

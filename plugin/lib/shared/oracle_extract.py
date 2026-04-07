@@ -250,13 +250,18 @@ def _extract_identity_columns(conn: Any, schemas: list[str]) -> list[dict[str, A
     return rows
 
 
-def _extract_object_types(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
+def _extract_object_types(conn: Any, schemas: list[str]) -> tuple[list[dict[str, Any]], list[str]]:
+    """Extract object types and return (rows, mv_fqns).
+
+    Returns a 2-tuple: the object_types rows (with MVs mapped to type "V") and
+    a list of normalized FQNs for materialized views.
+    """
     type_map = {
         "TABLE": "U",
         "VIEW": "V",
         "PROCEDURE": "P",
         "FUNCTION": "FN",
-        "MATERIALIZED VIEW": "MV",
+        "MATERIALIZED VIEW": "V",
     }
     owners = _owners_sql(schemas)
     cur = conn.cursor()
@@ -271,13 +276,18 @@ def _extract_object_types(conn: Any, schemas: list[str]) -> list[dict[str, Any]]
         """
     )
     rows = []
+    mv_fqns: list[str] = []
     for row in _cursor_rows(cur):
+        obj_type = row["OBJECT_TYPE"]
+        fqn = f"{row['OWNER']}.{row['OBJECT_NAME']}".lower()
         rows.append({
             "schema_name": row["OWNER"],
             "name": row["OBJECT_NAME"],
-            "type": type_map.get(row["OBJECT_TYPE"], row["OBJECT_TYPE"]),
+            "type": type_map.get(obj_type, obj_type),
         })
-    return rows
+        if obj_type == "MATERIALIZED VIEW":
+            mv_fqns.append(fqn)
+    return rows, mv_fqns
 
 
 _VALID_DEP_TYPES = {"PROCEDURE", "VIEW", "FUNCTION"}
@@ -375,7 +385,10 @@ def run_oracle_extraction(
         _write(staging_dir, "pk_unique.json", _extract_pk_unique(conn, schemas))
         _write(staging_dir, "foreign_keys.json", _extract_foreign_keys(conn, schemas))
         _write(staging_dir, "identity_columns.json", _extract_identity_columns(conn, schemas))
-        _write(staging_dir, "object_types.json", _extract_object_types(conn, schemas))
+        object_types_rows, mv_fqns = _extract_object_types(conn, schemas)
+        _write(staging_dir, "object_types.json", object_types_rows)
+        if mv_fqns:
+            _write(staging_dir, "mv_fqns.json", mv_fqns)
         _write(staging_dir, "proc_dmf.json", _extract_dmf(conn, schemas, "PROCEDURE"))
         _write(staging_dir, "view_dmf.json", _extract_dmf(conn, schemas, "VIEW"))
         _write(staging_dir, "func_dmf.json", _extract_dmf(conn, schemas, "FUNCTION"))

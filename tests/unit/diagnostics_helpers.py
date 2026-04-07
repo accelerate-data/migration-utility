@@ -25,7 +25,6 @@ def diag_empty_refs() -> dict[str, Any]:
         "views": {"in_scope": [], "out_of_scope": []},
         "functions": {"in_scope": [], "out_of_scope": []},
         "procedures": {"in_scope": [], "out_of_scope": []},
-        "materialized_views": {"in_scope": [], "out_of_scope": []},
     }
 
 
@@ -64,7 +63,6 @@ def diag_make_ctx(
                 "views": set(),
                 "functions": set(),
                 "procedures": set(),
-                "materialized_views": set(),
             },
         ),
         ddl_entry=kwargs.get("ddl_entry"),

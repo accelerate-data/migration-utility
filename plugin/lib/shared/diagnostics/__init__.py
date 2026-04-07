@@ -132,13 +132,13 @@ def diagnostic(
 
 # -- Runner -------------------------------------------------------------------
 
-_OBJECT_BUCKETS = ("procedures", "views", "functions", "materialized_views")
+_OBJECT_BUCKETS = ("procedures", "views", "functions")
 
 
 def _build_known_fqns(catalog_dir: Path) -> dict[str, set[str]]:
     """Glob catalog directories to build a set of known FQNs per bucket."""
     known: dict[str, set[str]] = {}
-    for bucket in ("tables", "procedures", "views", "functions", "materialized_views"):
+    for bucket in ("tables", "procedures", "views", "functions"):
         bucket_dir = catalog_dir / bucket
         if bucket_dir.is_dir():
             known[bucket] = {p.stem for p in bucket_dir.glob("*.json")}

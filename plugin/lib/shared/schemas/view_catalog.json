@@ -29,6 +29,45 @@
         "functions": { "$ref": "common.json#/$defs/scoped_ref_list" }
       }
     },
+    "is_materialized_view": { "type": "boolean", "description": "True when this view is a materialized view (Oracle MV or SQL Server indexed view). MVs are treated like tables for scoping/migration." },
+    "columns": {
+      "type": "array",
+      "description": "Column definitions. Present only for materialized views (physical storage).",
+      "items": {
+        "type": "object",
+        "required": ["name", "sql_type", "is_nullable", "is_identity"],
+        "properties": {
+          "name": { "type": "string" },
+          "sql_type": { "type": "string", "description": "Formatted SQL type, e.g. NVARCHAR(50), BIGINT" },
+          "is_nullable": { "type": "boolean" },
+          "is_identity": { "type": "boolean" }
+        }
+      }
+    },
+    "primary_keys": {
+      "type": "array",
+      "description": "Primary key constraints. Present only for materialized views.",
+      "items": {
+        "type": "object",
+        "required": ["constraint_name", "columns"],
+        "properties": {
+          "constraint_name": { "type": "string" },
+          "columns": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "unique_indexes": {
+      "type": "array",
+      "description": "Unique indexes. Present only for materialized views.",
+      "items": {
+        "type": "object",
+        "required": ["index_name", "columns"],
+        "properties": {
+          "index_name": { "type": "string" },
+          "columns": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
     "parse_error": { "type": ["string", "null"], "description": "sqlglot parse error message, if the view DDL failed to parse." },
     "warnings": {
       "type": "array",

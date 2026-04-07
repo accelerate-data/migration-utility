@@ -108,7 +108,7 @@ def check_missing_reference(ctx: CatalogContext) -> list[DiagnosticResult] | Non
     results: list[DiagnosticResult] = []
     refs = ctx.catalog_data.get("references", {})
 
-    for bucket in ("tables", "views", "functions", "procedures", "materialized_views"):
+    for bucket in ("tables", "views", "functions", "procedures"):
         in_scope = refs.get(bucket, {}).get("in_scope", [])
         known = ctx.known_fqns.get(bucket, set())
         for entry in in_scope:
@@ -134,7 +134,7 @@ def check_out_of_scope_reference(ctx: CatalogContext) -> list[DiagnosticResult] 
     results: list[DiagnosticResult] = []
     refs = ctx.catalog_data.get("references", {})
 
-    for bucket in ("tables", "views", "functions", "procedures", "materialized_views"):
+    for bucket in ("tables", "views", "functions", "procedures"):
         out_of_scope = refs.get(bucket, {}).get("out_of_scope", [])
         for entry in out_of_scope:
             parts = [entry.get("server", ""), entry.get("database", ""), entry.get("schema", ""), entry.get("name", "")]
@@ -270,7 +270,7 @@ def _get_dep_fqns(catalog_data: dict[str, Any]) -> list[tuple[str, str]]:
     """Extract all direct dependency (fqn, bucket) pairs from references.*.in_scope."""
     deps: list[tuple[str, str]] = []
     refs = catalog_data.get("references", {})
-    for bucket in ("tables", "views", "functions", "procedures", "materialized_views"):
+    for bucket in ("tables", "views", "functions", "procedures"):
         for entry in refs.get(bucket, {}).get("in_scope", []):
             fqn = f"{entry['schema']}.{entry['name']}".lower()
             deps.append((fqn, bucket))

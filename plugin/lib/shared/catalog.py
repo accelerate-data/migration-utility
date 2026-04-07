@@ -161,6 +161,14 @@ def load_function_catalog(project_root: Path, func_fqn: str) -> dict[str, Any] |
     return _load_catalog_file(project_root, "functions", func_fqn)
 
 
+def load_mv_catalog(project_root: Path, view_fqn: str) -> dict[str, Any] | None:
+    """Load a materialized view catalog entry (a view with is_materialized_view=True)."""
+    cat = _load_catalog_file(project_root, "views", view_fqn)
+    if cat is not None and cat.get("is_materialized_view"):
+        return cat
+    return None
+
+
 def read_selected_writer(project_root: Path, table_fqn: str) -> str | None:
     """Read selected_writer from the scoping section of a table catalog file.
 
@@ -366,11 +374,14 @@ def write_object_catalog(
     ddl_hash: str | None = None,
     sql: str | None = None,
     columns: list[dict[str, Any]] | None = None,
+    is_materialized_view: bool = False,
 ) -> Path:
     """Write a proc/view/function catalog file.  Returns the written path."""
     norm = normalize(fqn)
     schema, name = fqn_parts(norm)
     data: dict[str, Any] = {"schema": schema, "name": name, "references": references}
+    if is_materialized_view:
+        data["is_materialized_view"] = True
     if ddl_hash is not None:
         data["ddl_hash"] = ddl_hash
     if params is not None:
