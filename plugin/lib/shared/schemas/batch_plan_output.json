@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BatchPlanOutput",
+  "description": "Output of migrate-util batch-plan. Groups all catalog objects by pipeline phase and computes dependency-ordered parallel migration batches.",
+  "type": "object",
+  "required": [
+    "summary",
+    "scope_phase",
+    "profile_phase",
+    "migrate_batches",
+    "completed_objects",
+    "n_a_objects",
+    "circular_refs",
+    "catalog_diagnostics"
+  ],
+  "properties": {
+    "summary": {
+      "type": "object",
+      "description": "High-level counts of catalog objects.",
+      "required": ["total_objects", "tables", "views", "mvs", "writerless_tables"],
+      "properties": {
+        "total_objects": { "type": "integer", "minimum": 0 },
+        "tables": { "type": "integer", "minimum": 0 },
+        "views": { "type": "integer", "minimum": 0 },
+        "mvs": { "type": "integer", "minimum": 0 },
+        "writerless_tables": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "scope_phase": {
+      "type": "array",
+      "description": "Objects needing scope or view analysis. All are independent — run in parallel.",
+      "items": { "$ref": "#/$defs/object_node" }
+    },
+    "profile_phase": {
+      "type": "array",
+      "description": "Scoped tables needing profile. All are independent — run in parallel.",
+      "items": { "$ref": "#/$defs/object_node" }
+    },
+    "migrate_batches": {
+      "type": "array",
+      "description": "Dependency-ordered migration batches. Objects within a batch are independent and can run in parallel. Batch N must complete before Batch N+1 starts.",
+      "items": {
+        "type": "object",
+        "required": ["batch", "objects"],
+        "properties": {
+          "batch": { "type": "integer", "minimum": 0 },
+          "objects": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/object_node" }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "completed_objects": {
+      "type": "array",
+      "description": "Objects that have a dbt model and are fully migrated.",
+      "items": { "$ref": "#/$defs/object_node" }
+    },
+    "n_a_objects": {
+      "type": "array",
+      "description": "Writerless tables for which writer-dependent stages are not applicable.",
+      "items": {
+        "type": "object",
+        "required": ["fqn", "type", "reason"],
+        "properties": {
+          "fqn": { "type": "string" },
+          "type": { "type": "string", "enum": ["table", "view", "mv"] },
+          "reason": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "circular_refs": {
+      "type": "array",
+      "description": "Objects excluded from scheduling due to detected circular dependencies.",
+      "items": {
+        "type": "object",
+        "required": ["fqn", "type", "note"],
+        "properties": {
+          "fqn": { "type": "string" },
+          "type": { "type": "string", "enum": ["table", "view", "mv"] },
+          "note": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "catalog_diagnostics": {
+      "type": "object",
+      "description": "Aggregated warnings and errors from all catalog objects.",
+      "required": ["total_errors", "total_warnings", "errors", "warnings"],
+      "properties": {
+        "total_errors": { "type": "integer", "minimum": 0 },
+        "total_warnings": { "type": "integer", "minimum": 0 },
+        "errors": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/catalog_diagnostic_entry" }
+        },
+        "warnings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/catalog_diagnostic_entry" }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "object_node": {
+      "type": "object",
+      "description": "A single catalog object with its pipeline status, dependency info, and diagnostics.",
+      "required": [
+        "fqn",
+        "type",
+        "pipeline_status",
+        "has_dbt_model",
+        "direct_deps",
+        "blocking_deps",
+        "diagnostics"
+      ],
+      "properties": {
+        "fqn": {
+          "type": "string",
+          "description": "Normalized fully-qualified name, e.g. silver.dimcustomer"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["table", "view", "mv"],
+          "description": "Object type"
+        },
+        "pipeline_status": {
+          "type": "string",
+          "enum": [
+            "scope_needed",
+            "profile_needed",
+            "test_gen_needed",
+            "refactor_needed",
+            "migrate_needed",
+            "complete",
+            "n_a"
+          ],
+          "description": "First incomplete pipeline stage for this object"
+        },
+        "has_dbt_model": {
+          "type": "boolean",
+          "description": "True when a dbt model SQL file exists for this object"
+        },
+        "direct_deps": {
+          "type": "array",
+          "description": "All transitive in-scope dependencies (tables and views) as normalized FQNs",
+          "items": { "type": "string" }
+        },
+        "blocking_deps": {
+          "type": "array",
+          "description": "Subset of direct_deps that do not yet have a dbt model — these must be migrated first",
+          "items": { "type": "string" }
+        },
+        "diagnostics": {
+          "type": "array",
+          "description": "Warnings and errors from all sections of this object's catalog file",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" },
+              "severity": { "type": "string", "enum": ["warning", "error"] }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "catalog_diagnostic_entry": {
+      "type": "object",
+      "description": "A diagnostic entry with the originating object's FQN and type.",
+      "required": ["fqn", "object_type", "severity"],
+      "properties": {
+        "fqn": { "type": "string" },
+        "object_type": { "type": "string", "enum": ["table", "view", "mv"] },
+        "code": { "type": "string" },
+        "message": { "type": "string" },
+        "severity": { "type": "string", "enum": ["warning", "error"] },
+        "item_id": { "type": "string" },
+        "field": { "type": "string" },
+        "details": { "type": "object" }
+      }
+    }
+  }
+}

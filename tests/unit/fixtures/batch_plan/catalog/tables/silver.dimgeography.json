@@ -1,0 +1,19 @@
+{
+  "schema": "silver",
+  "name": "DimGeography",
+  "primary_keys": [],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "dbo.usp_load_dimgeography",
+    "candidates": [],
+    "rationale": ""
+  },
+  "referenced_by": {
+    "procedures": {"in_scope": [], "out_of_scope": []},
+    "views": {"in_scope": [], "out_of_scope": []},
+    "functions": {"in_scope": [], "out_of_scope": []}
+  }
+}

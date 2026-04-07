@@ -1,0 +1,18 @@
+{
+  "schema": "silver",
+  "name": "RefCurrency",
+  "primary_keys": [],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "scoping": {
+    "status": "no_writer_found",
+    "candidates": [],
+    "rationale": "No procedures write to this table"
+  },
+  "referenced_by": {
+    "procedures": {"in_scope": [], "out_of_scope": []},
+    "views": {"in_scope": [], "out_of_scope": []},
+    "functions": {"in_scope": [], "out_of_scope": []}
+  }
+}

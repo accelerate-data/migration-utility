@@ -1,0 +1,28 @@
+{
+  "schema": "silver",
+  "name": "DimCustomer",
+  "primary_keys": [],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "dbo.usp_load_dimcustomer",
+    "candidates": [],
+    "rationale": ""
+  },
+  "profile": {
+    "status": "ok",
+    "classification": {"resolved_kind": "dim_scd1"},
+    "primary_key": {"primary_key_type": "surrogate"},
+    "watermark": {},
+    "foreign_keys": [],
+    "pii_actions": [],
+    "natural_key": {}
+  },
+  "referenced_by": {
+    "procedures": {"in_scope": [], "out_of_scope": []},
+    "views": {"in_scope": [], "out_of_scope": []},
+    "functions": {"in_scope": [], "out_of_scope": []}
+  }
+}
