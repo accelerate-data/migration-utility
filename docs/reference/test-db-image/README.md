@@ -25,7 +25,7 @@ Publish when any of the following change:
 
 ## Prerequisites (one-time per machine)
 
-- Docker Desktop running with the `aw-sql` container started (see
+- Docker Desktop running with the `sql-test` container started (see
   [Docker Setup](../setup-docker/README.md)).
 - `AdventureWorks2022` restored in that container (required by the setup script).
 - A GitHub PAT with `write:packages` scope. Create one at
@@ -40,7 +40,7 @@ Publish when any of the following change:
 Run the setup script to rebuild `MigrationTest` from scratch and confirm all smoke tests pass:
 
 ```bash
-SA_PASSWORD='P@ssw0rd123' docker exec -i aw-sql \
+SA_PASSWORD='P@ssw0rd123' docker exec -i sql-test \
   /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "${SA_PASSWORD}" -No \
   < scripts/sql/create-migration-test-db.sql
 ```
@@ -56,9 +56,9 @@ echo YOUR_GITHUB_PAT | docker login ghcr.io -u hbanerjee74 --password-stdin
 ### 3. Commit the container as the new image
 
 ```bash
-docker stop aw-sql
-docker commit aw-sql ghcr.io/hbanerjee74/migration-test-db:latest
-docker start aw-sql
+docker stop sql-test
+docker commit sql-test ghcr.io/hbanerjee74/migration-test-db:latest
+docker start sql-test
 ```
 
 This snapshots the full container state — both `AdventureWorks2022` and `MigrationTest` are

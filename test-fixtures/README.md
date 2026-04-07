@@ -324,14 +324,14 @@ Each dialect's procedures file follows this order:
 
 ## Validation
 
-Manual Docker validation per dialect (same pattern as VU-907/908 schema validation):
+Manual Docker validation per dialect:
 
 ```bash
 # SQL Server
-docker cp test-fixtures/schema/sqlserver.sql aw-sql:/tmp/
-docker exec aw-sql sqlcmd -d KimballFixture -i /tmp/sqlserver.sql
-docker cp test-fixtures/procedures/sqlserver.sql aw-sql:/tmp/
-docker exec aw-sql sqlcmd -d KimballFixture -i /tmp/procedures.sql
+docker cp test-fixtures/schema/sqlserver.sql sql-test:/tmp/
+docker exec sql-test sqlcmd -d KimballFixture -i /tmp/sqlserver.sql
+docker cp test-fixtures/procedures/sqlserver.sql sql-test:/tmp/
+docker exec sql-test sqlcmd -d KimballFixture -i /tmp/procedures.sql
 
 # Oracle
 sqlplus kimball/kimball@localhost:1521/FREEPDB1 @test-fixtures/schema/oracle.sql
@@ -342,4 +342,4 @@ psql -U postgres -d kimball_fixture -f test-fixtures/schema/postgres.sql
 psql -U postgres -d kimball_fixture -f test-fixtures/procedures/postgres.sql
 ```
 
-Cross-dialect output parity validated in VU-915.
+Cross-dialect output parity validated via `test-fixtures/parity/validate.py`.
