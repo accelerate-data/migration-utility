@@ -121,9 +121,24 @@ def run_dry_run(
             if guards_passed:
                 mode = "detail" if detail else "summary"
                 result["content"] = _CONTENT_COLLECTORS["scope-view"][mode](project_root, norm)
+        elif stage == "profile":
+            guards_passed, guard_results = run_guards(project_root, norm, "profile-view")
+            result["guards_passed"] = guards_passed
+            result["guard_results"] = guard_results
+            if guards_passed:
+                mode = "detail" if detail else "summary"
+                result["content"] = _CONTENT_COLLECTORS["profile-view"][mode](project_root, norm)
+        elif stage == "refactor":
+            guards_passed, guard_results = run_guards(project_root, norm, "refactor-view")
+            result["guards_passed"] = guards_passed
+            result["guard_results"] = guard_results
+            if guards_passed:
+                mode = "detail" if detail else "summary"
+                result["content"] = _CONTENT_COLLECTORS["refactor-view"][mode](project_root, norm)
         else:
-            # Writer-dependent stages do not apply to views; show as blocked.
+            # test-gen and migrate are not applicable for views.
             result["guards_passed"] = False
+            result["not_applicable"] = True
             result["guard_results"] = [
                 {
                     "check": "object_type",
@@ -181,8 +196,10 @@ class GuardStage(str, Enum):
     scope = "scope"
     scope_view = "scope-view"
     profile = "profile"
+    profile_view = "profile-view"
     test_gen = "test-gen"
     refactor = "refactor"
+    refactor_view = "refactor-view"
     migrate = "migrate"
     generating_model = "generating-model"
     reviewing_model = "reviewing-model"

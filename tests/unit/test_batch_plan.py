@@ -213,8 +213,8 @@ class TestObjectPipelineStatus:
         )
         assert object_pipeline_status(tmp_path, "silver.vw_test", "view", dbt_root) == "scope_needed"
 
-    def test_view_migrate_needed(self, tmp_path):
-        """Analyzed view with no dbt model → migrate_needed."""
+    def test_view_profile_needed(self, tmp_path):
+        """Analyzed view with no profile → profile_needed."""
         dbt_root = tmp_path / "dbt"
         view_dir = tmp_path / "catalog" / "views"
         view_dir.mkdir(parents=True)
@@ -222,17 +222,28 @@ class TestObjectPipelineStatus:
             json.dumps({"schema": "silver", "name": "vw_Test", "scoping": {"status": "analyzed"}, "references": {"tables": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}, "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}}),
             encoding="utf-8",
         )
-        assert object_pipeline_status(tmp_path, "silver.vw_test", "view", dbt_root) == "migrate_needed"
+        assert object_pipeline_status(tmp_path, "silver.vw_test", "view", dbt_root) == "profile_needed"
+
+    def test_view_refactor_needed(self, tmp_path):
+        """Analyzed and profiled view with no dbt model → refactor_needed."""
+        dbt_root = tmp_path / "dbt"
+        view_dir = tmp_path / "catalog" / "views"
+        view_dir.mkdir(parents=True)
+        (view_dir / "silver.vw_test.json").write_text(
+            json.dumps({"schema": "silver", "name": "vw_Test", "scoping": {"status": "analyzed"}, "profile": {"status": "ok", "classification": "stg", "source": "llm", "rationale": "test"}, "references": {"tables": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}, "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}}),
+            encoding="utf-8",
+        )
+        assert object_pipeline_status(tmp_path, "silver.vw_test", "view", dbt_root) == "refactor_needed"
 
     def test_view_complete(self, tmp_path):
-        """Analyzed view with a dbt model → complete."""
+        """Analyzed, profiled view with a dbt model → complete."""
         dbt_root = tmp_path / "dbt"
         (dbt_root / "models" / "staging").mkdir(parents=True)
         (dbt_root / "models" / "staging" / "stg_vw_test.sql").write_text("select 1", encoding="utf-8")
         view_dir = tmp_path / "catalog" / "views"
         view_dir.mkdir(parents=True)
         (view_dir / "silver.vw_test.json").write_text(
-            json.dumps({"schema": "silver", "name": "vw_Test", "scoping": {"status": "analyzed"}, "references": {"tables": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}, "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}}),
+            json.dumps({"schema": "silver", "name": "vw_Test", "scoping": {"status": "analyzed"}, "profile": {"status": "ok", "classification": "stg", "source": "llm", "rationale": "test"}, "references": {"tables": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}, "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}}),
             encoding="utf-8",
         )
         assert object_pipeline_status(tmp_path, "silver.vw_test", "view", dbt_root) == "complete"

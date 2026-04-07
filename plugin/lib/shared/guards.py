@@ -117,6 +117,34 @@ def check_view_scoping_analyzed(project_root: Path, view_fqn: str) -> dict[str, 
     return _guard_ok("view_scoping_analyzed")
 
 
+def check_view_profiled(project_root: Path, view_fqn: str) -> dict[str, Any]:
+    """Check that view catalog has profile.status in ('ok', 'partial')."""
+    norm = normalize(view_fqn)
+    try:
+        cat = load_view_catalog(project_root, view_fqn)
+    except (json.JSONDecodeError, OSError, CatalogLoadError) as exc:
+        return _guard_fail(
+            "view_profiled",
+            "VIEW_CATALOG_FILE_CORRUPT",
+            f"Could not load view catalog for {norm}: {exc}",
+        )
+    if cat is None:
+        return _guard_fail(
+            "view_profiled",
+            "VIEW_CATALOG_FILE_MISSING",
+            f"catalog/views/{norm}.json not found.",
+        )
+    profile = cat.get("profile") or {}
+    if profile.get("status") not in ("ok", "partial"):
+        status = profile.get("status")
+        return _guard_fail(
+            "view_profiled",
+            "VIEW_PROFILE_NOT_COMPLETED",
+            f"View profile not completed for {norm} (status={status!r}). Run /profile first.",
+        )
+    return _guard_ok("view_profiled")
+
+
 def check_table_catalog(project_root: Path, table_fqn: str) -> dict[str, Any]:
     """Check catalog/tables/<item_id>.json exists and is valid JSON."""
     try:
@@ -467,6 +495,12 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
         (check_manifest,),
         (check_view_catalog,),
         (check_view_scoping_analyzed,),
+    ],
+    "refactor-view": [
+        (check_manifest,),
+        (check_view_catalog,),
+        (check_view_scoping_analyzed,),
+        (check_view_profiled,),
     ],
     # Skill-specific guard sets (not pipeline stages, but callable via guard CLI)
     "generating-model": [
