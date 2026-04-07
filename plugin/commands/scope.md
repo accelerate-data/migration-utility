@@ -1,15 +1,15 @@
 ---
 name: scope
 description: >
-  Batch scoping command — identifies writer procedures for each table.
+  Batch scoping command — identifies writer procedures for each table, and analyzes SQL structure for each view or materialized view.
   Delegates per-item scoping to the /analyzing-table skill.
 user-invocable: true
-argument-hint: "<schema.table> [schema.table ...]"
+argument-hint: "<schema.table_or_view> [schema.table_or_view ...]"
 ---
 
 # Scope
 
-Identify which procedures write to each table. Launches one sub-agent per table in parallel, each running `migration:analyzing-table`.
+Identify which procedures write to each table, or analyze SQL structure for each view or materialized view. Launches one sub-agent per item in parallel, routing tables to `migration:analyzing-table` and views to `migration:analyzing-view`.
 
 ## Guards
 
@@ -32,34 +32,44 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
    > 2. `feature/profile-silver-dimcustomer`
    > 3. **New worktree**
    If none exist, create a new worktree and branch per `.claude/rules/git-workflow.md`.
-3. Generate a run epoch: seconds since Unix epoch (e.g. `1743868200`). All run artifacts use this as a filename suffix.
+3. For each FQN argument, detect its object type by checking which catalog file exists:
+   - If `catalog/views/<fqn>.json` exists → `view`
+   - Else → `table`
 
-### Step 2 — Run migration:analyzing-table per table
+   Store the type alongside each FQN for use in Step 2.
+4. Generate a run epoch: seconds since Unix epoch (e.g. `1743868200`). All run artifacts use this as a filename suffix.
 
-**Single-table path (1 table):** Run `migration:analyzing-table` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<epoch>.json`.
+### Step 2 — Run skill per item
+
+**Single-item path (1 item):** Run the appropriate skill directly in the current conversation — do not launch a sub-agent:
+
+- Table → `migration:analyzing-table`
+- View/MV → `migration:analyzing-view`
+
+After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.item>.<epoch>.json`.
 
 If the item status is `error`, immediately revert any files the skill may have partially modified:
 
 ```bash
-git checkout -- catalog/tables/<item_id>.json
+git checkout -- catalog/<object_type>s/<item_id>.json
 ```
 
 Ignore errors from `git checkout` (the file may not have been modified).
 
-If the item status is not `error`, auto-commit and push: run `/commit catalog/tables/<item_id>.json`.
+If the item status is not `error`, auto-commit and push: run `/commit catalog/<object_type>s/<item_id>.json`.
 
 Then continue to Step 3.
 
-**Multi-table path (2+ tables):** Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
+**Multi-item path (2+ items):** Launch one sub-agent per item in parallel. Each sub-agent receives this prompt:
 
 ```text
-Run the migration:analyzing-table skill for <schema.table>.
+Run the migration:analyzing-<object_type> skill for <schema.item>.
 The worktree is at <worktree-path>.
-Write the item result JSON to .migration-runs/<schema.table>.<epoch>.json.
+Write the item result JSON to .migration-runs/<schema.item>.<epoch>.json.
 
 After writing the result:
-- If status == "error": run `git checkout -- catalog/tables/<item_id>.json` (ignore errors).
-- If status != "error": invoke the /commit command with catalog/tables/<item_id>.json
+- If status == "error": run `git checkout -- catalog/<object_type>s/<item_id>.json` (ignore errors).
+- If status != "error": invoke the /commit command with catalog/<object_type>s/<item_id>.json
 
 On failure before writing a result, write result with status: "error" and error details, then revert as above.
 Return the item result JSON.
@@ -67,18 +77,19 @@ Return the item result JSON.
 
 ### Step 3 — Summarize
 
-1. Read each `.migration-runs/<schema.table>.<epoch>.json`.
+1. Read each `.migration-runs/<schema.item>.<epoch>.json`.
 2. Write `.migration-runs/summary.<epoch>.json` with `{total, ok, partial, error}` counts and per-item status.
 3. Present human-readable summary:
 
    ```text
-   scope complete — N tables processed
+   scope complete — N items processed
 
-     ✓ silver.DimCustomer    resolved
-     ✓ silver.DimProduct     resolved
-     ✗ silver.DimDate        error (CATALOG_FILE_MISSING)
+     ✓ silver.DimCustomer      resolved   (table)
+     ✓ silver.DimProduct       resolved   (table)
+     ✓ silver.vw_Sales         analyzed   (view)
+     ✗ silver.DimDate          error      (table, CATALOG_FILE_MISSING)
 
-     resolved: 2 | error: 1
+     resolved: 2 | analyzed: 1 | error: 1
    ```
 
 4. If all items errored, report errors only and stop.
@@ -87,7 +98,7 @@ Return the item result JSON.
    > All successful items have been committed and pushed.
    > Raise a PR for this run? (y/n)
 
-   If yes: run `/commit-push-pr scope <comma-separated list of successfully processed tables>`.
+   If yes: run `/commit-push-pr scope <comma-separated list of successfully processed items>`.
    After the PR is created or updated, tell the user:
 
    ```text
@@ -104,10 +115,11 @@ Return the item result JSON.
 
 ```json
 {
-  "item_id": "<table_fqn>",
-  "status": "resolved|ambiguous_multi_writer|no_writer_found|error",
+  "item_id": "<fqn>",
+  "object_type": "table|view",
+  "status": "resolved|ambiguous_multi_writer|no_writer_found|analyzed|error",
   "selected_writer": "<writer_fqn or null>",
-  "catalog_path": "catalog/tables/<item_id>.json",
+  "catalog_path": "catalog/<object_type>s/<item_id>.json",
   "warnings": [],
   "errors": []
 }
@@ -121,6 +133,7 @@ The full scoping data lives in the catalog files, not duplicated in the run log.
 |---|---|---|
 | `MANIFEST_NOT_FOUND` | error | manifest.json missing — all items fail |
 | `CATALOG_FILE_MISSING` | error | catalog/tables/\<item_id>.json not found — skip item |
+| `CATALOG_FILE_MISSING` | error | catalog/views/\<item_id>.json not found — skip item |
 | `SCOPING_FAILED` | error | `/analyzing-table` skill pipeline failed — skip item |
 
 Each entry in `errors[]` or `warnings[]`:
