@@ -181,8 +181,91 @@ def _show_procedure(
     }
 
 
+def _analyze_view_select(entry: "DdlEntry") -> dict[str, Any]:
+    """Extract SQL elements from a view's AST. Returns sql_elements and errors.
+
+    Views are always deterministic SELECT statements — there is no needs_llm routing.
+    If parse_error is set or the AST walk fails, sql_elements is null and errors contains
+    a DDL_PARSE_ERROR entry. The skill falls back to raw_ddl in that case.
+    """
+    import sqlglot.expressions as exp
+
+    if entry.parse_error or entry.ast is None:
+        return {
+            "sql_elements": None,
+            "errors": [{"code": "DDL_PARSE_ERROR", "severity": "error", "message": entry.parse_error or "AST is None"}],
+        }
+
+    try:
+        elements: list[dict[str, Any]] = []
+        ast = entry.ast
+
+        # JOINs — one element per unique (join_type, target) pair
+        seen_joins: set[str] = set()
+        for join in ast.find_all(exp.Join):
+            join_type = "JOIN"
+            if join.args.get("kind"):
+                kind = str(join.args["kind"]).upper()
+                side = str(join.args.get("side", "")).upper()
+                join_type = f"{side} {kind}".strip() if side else kind
+            table = join.this
+            target = table.name if hasattr(table, "name") else str(table)
+            if table.args.get("db"):
+                target = f"{table.args['db']}.{target}"
+            detail = f"{join_type} {target}"
+            if detail not in seen_joins:
+                seen_joins.add(detail)
+                elements.append({"type": "join", "detail": detail})
+
+        # CTEs (WITH clause) — use direct children to avoid counting nested subquery CTEs
+        for cte_node in ast.find_all(exp.With):
+            cte_count = len(cte_node.expressions)
+            elements.append({"type": "cte", "detail": f"{cte_count} CTE(s)"})
+            break  # only report the outermost WITH clause
+
+        # GROUP BY
+        for _ in ast.find_all(exp.Group):
+            elements.append({"type": "group_by", "detail": "GROUP BY"})
+            break
+
+        # Aggregation functions
+        agg_funcs: list[str] = []
+        for agg in ast.find_all(exp.AggFunc):
+            name = type(agg).__name__.upper()
+            if name not in agg_funcs:
+                agg_funcs.append(name)
+        if agg_funcs:
+            elements.append({"type": "aggregation", "detail": ", ".join(sorted(agg_funcs))})
+
+        # Window functions (OVER)
+        for _ in ast.find_all(exp.Window):
+            elements.append({"type": "window_function", "detail": "OVER clause"})
+            break
+
+        # CASE expressions
+        for _ in ast.find_all(exp.Case):
+            elements.append({"type": "case", "detail": "CASE expression"})
+            break
+
+        # Subqueries — exclude CTE bodies (they are Subquery nodes but not inline subqueries)
+        subquery_count = sum(
+            1 for node in ast.find_all(exp.Subquery)
+            if not isinstance(node.parent, exp.CTE)
+        )
+        if subquery_count:
+            elements.append({"type": "subquery", "detail": f"{subquery_count} subquery(ies)"})
+
+        return {"sql_elements": elements, "errors": []}
+
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "sql_elements": None,
+            "errors": [{"code": "DDL_PARSE_ERROR", "severity": "error", "message": str(exc)}],
+        }
+
+
 def _show_view_or_function(
-    project_root: Path, norm: str, type_label: str,
+    project_root: Path, norm: str, type_label: str, entry: "DdlEntry",
 ) -> dict[str, Any]:
     """Build show fields for a view or function object."""
     cat_loader = load_view_catalog if type_label == "view" else load_function_catalog
@@ -194,12 +277,19 @@ def _show_view_or_function(
     tables_in_scope = cat_refs.get("tables", {}).get("in_scope", [])
     reads = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_selected")]
     writes = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_updated")]
-    return {
+    result: dict[str, Any] = {
         "refs": {
             "reads_from": sorted(set(reads)),
             "writes_to": sorted(set(writes)),
         },
     }
+
+    if type_label == "view":
+        analysis = _analyze_view_select(entry)
+        result["sql_elements"] = analysis["sql_elements"]
+        result["errors"] = analysis["errors"]
+
+    return result
 
 
 def run_show(project_root: Path, name: str) -> dict[str, Any]:
@@ -220,7 +310,7 @@ def run_show(project_root: Path, name: str) -> dict[str, Any]:
     elif type_label == "procedure":
         extra = _show_procedure(project_root, norm, entry)
     elif type_label in ("view", "function"):
-        extra = _show_view_or_function(project_root, norm, type_label)
+        extra = _show_view_or_function(project_root, norm, type_label, entry)
     else:
         extra = {}
 
@@ -234,6 +324,7 @@ def run_show(project_root: Path, name: str) -> dict[str, Any]:
         "routing_reasons": [],
         "statements": None,
         "needs_llm": None,
+        "errors": [],
         "parse_error": entry.parse_error,
         **extra,
     }
@@ -346,6 +437,32 @@ def run_write_scoping(
 
     catalog_dir = resolve_catalog_dir(project_root) / "tables"
     cat_path = catalog_dir / f"{table_norm}.json"
+    write_json(cat_path, cat)
+
+    return {"written": str(cat_path), "status": "ok"}
+
+
+def run_write_view_scoping(
+    project_root: Path,
+    view_fqn: str,
+    scoping: dict[str, Any],
+) -> dict[str, Any]:
+    """Validate and merge scoping results into a view catalog file."""
+    view_norm = normalize(view_fqn)
+
+    valid_statuses = {"analyzed", "error"}
+    status = scoping.get("status", "")
+    if status not in valid_statuses:
+        raise ValueError(f"Invalid view scoping status: {status!r}")
+
+    cat = load_view_catalog(project_root, view_norm)
+    if cat is None:
+        raise CatalogFileMissingError("view", view_norm)
+
+    cat["scoping"] = scoping
+
+    catalog_dir = resolve_catalog_dir(project_root) / "views"
+    cat_path = catalog_dir / f"{view_norm}.json"
     write_json(cat_path, cat)
 
     return {"written": str(cat_path), "status": "ok"}
@@ -485,7 +602,13 @@ def write_scoping(
         logger.error("event=command_failed error=invalid_json detail=%s", exc)
         raise typer.Exit(code=2) from exc
     try:
-        result = run_write_scoping(project_root, name, scoping_data)
+        # Auto-detect: check if a view catalog exists for this FQN
+        catalog_dir = resolve_catalog_dir(project_root)
+        view_cat_path = catalog_dir / "views" / f"{normalize(name)}.json"
+        if view_cat_path.exists():
+            result = run_write_view_scoping(project_root, name, scoping_data)
+        else:
+            result = run_write_scoping(project_root, name, scoping_data)
     except (CatalogFileMissingError, ObjectNotFoundError) as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=1) from exc
