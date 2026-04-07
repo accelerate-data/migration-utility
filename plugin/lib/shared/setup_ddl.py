@@ -83,10 +83,10 @@ def _require_technology(project_root: Path) -> str:
 
 
 def _build_oracle_schema_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Group ALL_OBJECTS rows by OWNER → sorted list of {owner, tables, procedures, views, functions}.
+    """Group ALL_OBJECTS rows by OWNER → sorted list of {owner, tables, procedures, views, functions, materialized_views}.
 
     Handles both uppercase (Oracle native) and lowercase key names.
-    Counts TABLE, PROCEDURE, VIEW/MATERIALIZED VIEW, and FUNCTION. Other object types are ignored.
+    Counts TABLE, PROCEDURE, VIEW, MATERIALIZED VIEW, and FUNCTION. Other object types are ignored.
     """
     Entry = dict[str, Any]
     buckets: dict[str, Entry] = {}
@@ -96,13 +96,15 @@ def _build_oracle_schema_summary(rows: list[dict[str, Any]]) -> list[dict[str, A
         if not owner:
             continue
         if owner not in buckets:
-            buckets[owner] = {"owner": owner, "tables": 0, "procedures": 0, "views": 0, "functions": 0}
+            buckets[owner] = {"owner": owner, "tables": 0, "procedures": 0, "views": 0, "functions": 0, "materialized_views": 0}
         if obj_type == "TABLE":
             buckets[owner]["tables"] += 1
         elif obj_type == "PROCEDURE":
             buckets[owner]["procedures"] += 1
-        elif obj_type in ("VIEW", "MATERIALIZED VIEW"):
+        elif obj_type == "VIEW":
             buckets[owner]["views"] += 1
+        elif obj_type == "MATERIALIZED VIEW":
+            buckets[owner]["materialized_views"] += 1
         elif obj_type == "FUNCTION":
             buckets[owner]["functions"] += 1
     return sorted(buckets.values(), key=lambda x: x["owner"])
@@ -132,7 +134,8 @@ def _read_json_optional(path: Path) -> Any:
 # ── write-catalog helpers ────────────────────────────────────────────────────
 
 _TYPE_MAPPING = {"U": "tables", "V": "views", "P": "procedures",
-                 "FN": "functions", "IF": "functions", "TF": "functions"}
+                 "FN": "functions", "IF": "functions", "TF": "functions",
+                 "MV": "materialized_views"}
 
 
 def _ensure_table_skeleton(signals: dict[str, dict[str, Any]], fqn: str) -> dict[str, Any]:
@@ -732,6 +735,7 @@ def run_extract(
             ("procedures", {"P"}),
             ("views", {"V"}),
             ("functions", {"FN", "IF", "TF"}),
+            ("materialized_views", {"MV"}),
         ]:
             typed_defs = [
                 r for r in definitions_rows_all

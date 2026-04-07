@@ -256,6 +256,7 @@ def _extract_object_types(conn: Any, schemas: list[str]) -> list[dict[str, Any]]
         "VIEW": "V",
         "PROCEDURE": "P",
         "FUNCTION": "FN",
+        "MATERIALIZED VIEW": "MV",
     }
     owners = _owners_sql(schemas)
     cur = conn.cursor()
@@ -263,7 +264,7 @@ def _extract_object_types(conn: Any, schemas: list[str]) -> list[dict[str, Any]]
         f"""
         SELECT OWNER, OBJECT_NAME, OBJECT_TYPE
         FROM ALL_OBJECTS
-        WHERE OBJECT_TYPE IN ('TABLE', 'VIEW', 'PROCEDURE', 'FUNCTION')
+        WHERE OBJECT_TYPE IN ('TABLE', 'VIEW', 'PROCEDURE', 'FUNCTION', 'MATERIALIZED VIEW')
           AND OWNER IN ({owners})
           AND STATUS = 'VALID'
         ORDER BY OWNER, OBJECT_TYPE, OBJECT_NAME

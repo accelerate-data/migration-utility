@@ -9,6 +9,8 @@ from referencing.jsonschema import DRAFT202012
 
 # Ensure plugin/lib/ is on the path so tests can import shared.* directly.
 sys.path.insert(0, str(Path(__file__).parents[2] / "plugin" / "lib"))
+# Ensure tests/unit/ is on the path so test modules can import shared helpers.
+sys.path.insert(0, str(Path(__file__).parent))
 
 SCHEMA_DIR = Path(__file__).parents[2] / "plugin" / "lib" / "shared" / "schemas"
 

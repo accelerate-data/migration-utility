@@ -1,4 +1,4 @@
-"""Tests for shared.diagnostics — registry infrastructure and all 11 cross-dialect checks."""
+"""Tests for shared.diagnostics — registry infrastructure and all cross-dialect checks."""
 
 from __future__ import annotations
 
@@ -35,56 +35,13 @@ from shared.diagnostics.common import (
 from shared.catalog import write_json
 from shared.loader_data import DdlEntry
 
-
-# ── Helpers ──────────────────────────────────────────────────────────────────
-
-
-def _git_init(path: Path) -> None:
-    (path / ".git").mkdir()
-
-
-def _empty_refs() -> dict:
-    return {
-        "tables": {"in_scope": [], "out_of_scope": []},
-        "views": {"in_scope": [], "out_of_scope": []},
-        "functions": {"in_scope": [], "out_of_scope": []},
-        "procedures": {"in_scope": [], "out_of_scope": []},
-    }
-
-
-def _write_catalog(root: Path, bucket: str, fqn: str, data: dict) -> None:
-    d = root / "catalog" / bucket
-    d.mkdir(parents=True, exist_ok=True)
-    write_json(d / f"{fqn}.json", data)
-
-
-def _write_ddl(root: Path, fqn: str, ddl: str) -> None:
-    """Write a DDL file into the flat ddl/ directory (load_directory reads from here)."""
-    d = root / "ddl"
-    d.mkdir(parents=True, exist_ok=True)
-    (d / f"{fqn}.sql").write_text(ddl, encoding="utf-8")
-
-
-def _make_ctx(
-    root: Path,
-    fqn: str,
-    object_type: str,
-    catalog_data: dict,
-    **kwargs,
-) -> CatalogContext:
-    return CatalogContext(
-        project_root=root,
-        dialect="tsql",
-        fqn=fqn,
-        object_type=object_type,
-        catalog_data=catalog_data,
-        known_fqns=kwargs.get(
-            "known_fqns",
-            {"tables": set(), "views": set(), "functions": set(), "procedures": set()},
-        ),
-        ddl_entry=kwargs.get("ddl_entry"),
-        pass1_results=kwargs.get("pass1_results"),
-    )
+from diagnostics_helpers import (
+    diag_empty_refs as _empty_refs,
+    diag_git_init as _git_init,
+    diag_make_ctx as _make_ctx,
+    diag_write_catalog as _write_catalog,
+    diag_write_ddl as _write_ddl,
+)
 
 
 # ── Registry infrastructure ─────────────────────────────────────────────────
@@ -1037,3 +994,72 @@ class TestTwoPassOrdering:
                 f"Expected DEPENDENCY_HAS_ERROR in A's warnings, got {a_warning_codes}. "
                 f"B errors: {b_error_codes}"
             )
+
+
+# ── Materialized views infrastructure ────────────────────────────────────────
+
+
+class TestMaterializedViewsInfrastructure:
+
+    def test_build_known_fqns_includes_materialized_views(self):
+        """_build_known_fqns returns a materialized_views key."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _git_init(root)
+            (root / "catalog" / "materialized_views").mkdir(parents=True)
+            write_json(root / "catalog" / "materialized_views" / "sh.mv_sales_agg.json", {"name": "mv_sales_agg"})
+
+            known = _build_known_fqns(root / "catalog")
+
+            assert "materialized_views" in known
+            assert "sh.mv_sales_agg" in known["materialized_views"]
+
+    def test_missing_reference_checks_materialized_views_bucket(self):
+        """MISSING_REFERENCE fires for a materialized_views in_scope ref with no catalog entry."""
+        catalog_data = {
+            "references": {
+                "tables": {"in_scope": [], "out_of_scope": []},
+                "views": {"in_scope": [], "out_of_scope": []},
+                "functions": {"in_scope": [], "out_of_scope": []},
+                "procedures": {"in_scope": [], "out_of_scope": []},
+                "materialized_views": {
+                    "in_scope": [{"schema": "sh", "name": "mv_missing"}],
+                    "out_of_scope": [],
+                },
+            }
+        }
+        ctx = _make_ctx(Path("/tmp/fake"), "sh.some_view", "view", catalog_data)
+
+        result = check_missing_reference(ctx)
+
+        assert result is not None
+        assert len(result) == 1
+        assert result[0].code == "MISSING_REFERENCE"
+        assert result[0].details["reference_type"] == "materialized_view"
+
+    def test_missing_reference_resolved_by_materialized_views(self):
+        """No MISSING_REFERENCE when the materialized_views FQN is in known_fqns."""
+        catalog_data = {
+            "references": {
+                "tables": {"in_scope": [], "out_of_scope": []},
+                "views": {"in_scope": [], "out_of_scope": []},
+                "functions": {"in_scope": [], "out_of_scope": []},
+                "procedures": {"in_scope": [], "out_of_scope": []},
+                "materialized_views": {
+                    "in_scope": [{"schema": "sh", "name": "mv_exists"}],
+                    "out_of_scope": [],
+                },
+            }
+        }
+        known = {
+            "tables": set(),
+            "views": set(),
+            "functions": set(),
+            "procedures": set(),
+            "materialized_views": {"sh.mv_exists"},
+        }
+        ctx = _make_ctx(Path("/tmp/fake"), "sh.some_view", "view", catalog_data, known_fqns=known)
+
+        result = check_missing_reference(ctx)
+
+        assert result is None

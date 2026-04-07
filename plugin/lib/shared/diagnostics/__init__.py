@@ -65,6 +65,7 @@ class CatalogContext:
     known_fqns: dict[str, set[str]]  # bucket -> set of normalized FQNs
     ddl_entry: DdlEntry | None = None
     pass1_results: dict[str, list[DiagnosticResult]] | None = None
+    package_members: set[str] | None = None  # Oracle package member FQNs
 
 
 # Type alias for check functions
@@ -131,13 +132,13 @@ def diagnostic(
 
 # -- Runner -------------------------------------------------------------------
 
-_OBJECT_BUCKETS = ("procedures", "views", "functions")
+_OBJECT_BUCKETS = ("procedures", "views", "functions", "materialized_views")
 
 
 def _build_known_fqns(catalog_dir: Path) -> dict[str, set[str]]:
     """Glob catalog directories to build a set of known FQNs per bucket."""
     known: dict[str, set[str]] = {}
-    for bucket in ("tables", "procedures", "views", "functions"):
+    for bucket in ("tables", "procedures", "views", "functions", "materialized_views"):
         bucket_dir = catalog_dir / bucket
         if bucket_dir.is_dir():
             known[bucket] = {p.stem for p in bucket_dir.glob("*.json")}
