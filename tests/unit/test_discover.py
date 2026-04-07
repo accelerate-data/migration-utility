@@ -617,3 +617,142 @@ def test_show_view_errors_key_present_for_all_types() -> None:
     assert "errors" in view_result
     proc_result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadDimProduct")
     assert "errors" in proc_result
+
+
+def test_show_view_case_expression_returns_sql_elements() -> None:
+    """View with CASE expression returns case element."""
+    result = discover.run_show(_FLAT_FIXTURES, "silver.vw_CustomerTier")
+    assert result["needs_llm"] is False
+    element_types = {e["type"] for e in result["sql_elements"]}
+    assert "case" in element_types
+
+
+def test_show_view_subquery_returns_sql_elements() -> None:
+    """View with scalar subquery and EXISTS returns subquery element."""
+    result = discover.run_show(_FLAT_FIXTURES, "silver.vw_ActiveCustomers")
+    assert result["needs_llm"] is False
+    element_types = {e["type"] for e in result["sql_elements"]}
+    assert "subquery" in element_types
+
+
+def test_show_view_single_cte_returns_sql_elements() -> None:
+    """View with a single CTE returns cte element with count 1."""
+    result = discover.run_show(_FLAT_FIXTURES, "silver.vw_TopProducts")
+    assert result["needs_llm"] is False
+    element_types = {e["type"] for e in result["sql_elements"]}
+    assert "cte" in element_types
+    cte_el = next(e for e in result["sql_elements"] if e["type"] == "cte")
+    assert "1" in cte_el["detail"]
+
+
+def test_show_view_multi_cte_returns_correct_count() -> None:
+    """View with two CTEs returns cte element with count 2."""
+    result = discover.run_show(_FLAT_FIXTURES, "silver.vw_SalesWithRegion")
+    assert result["needs_llm"] is False
+    element_types = {e["type"] for e in result["sql_elements"]}
+    assert "cte" in element_types
+    cte_el = next(e for e in result["sql_elements"] if e["type"] == "cte")
+    assert "2" in cte_el["detail"]
+
+
+def test_show_view_simple_select_returns_empty_elements() -> None:
+    """Simple SELECT view with no joins/aggregations returns empty sql_elements."""
+    result = discover.run_show(_FLAT_FIXTURES, "silver.vw_SimpleCustomer")
+    assert result["needs_llm"] is False
+    assert result["sql_elements"] == []
+
+
+def test_show_view_duplicate_join_deduplicated() -> None:
+    """View joining the same table twice produces deduplicated join elements."""
+    result = discover.run_show(_FLAT_FIXTURES, "silver.vw_DuplicateJoin")
+    assert result["needs_llm"] is False
+    join_details = [e["detail"] for e in result["sql_elements"] if e["type"] == "join"]
+    # Two joins to bronze.Orders — detail strings differ by alias target but same table;
+    # at minimum, no exact-duplicate detail strings should appear
+    assert len(join_details) == len(set(join_details))
+
+
+def test_show_view_combined_elements() -> None:
+    """View with JOIN + GROUP BY + WINDOW returns all three element types."""
+    result = discover.run_show(_FLAT_FIXTURES, "silver.vw_Combined")
+    assert result["needs_llm"] is False
+    element_types = {e["type"] for e in result["sql_elements"]}
+    assert "join" in element_types
+    assert "group_by" in element_types
+    assert "window_function" in element_types
+
+
+def test_write_scoping_cli_auto_detects_view_catalog() -> None:
+    """write-scoping CLI routes to view path when catalog/views/<fqn>.json exists.
+
+    Uses the repo root (a valid git repo) as project-root. Creates and cleans up
+    a temporary view catalog at catalog/views/silver.vw_cli_test.json.
+    """
+    import json as _json
+    from typer.testing import CliRunner
+
+    # Repo root is 4 levels up from this test file: tests/unit/test_discover.py
+    repo_root = Path(__file__).parent.parent.parent
+    views_dir = repo_root / "catalog" / "views"
+    cat_file = views_dir / "silver.vw_cli_test.json"
+    scoping_file = repo_root / ".staging-test-scoping.json"
+    try:
+        views_dir.mkdir(parents=True, exist_ok=True)
+        cat_file.write_text(
+            _json.dumps({
+                "schema": "silver", "name": "vw_cli_test",
+                "references": {"tables": {"in_scope": [], "out_of_scope": []},
+                               "views": {"in_scope": [], "out_of_scope": []},
+                               "functions": {"in_scope": [], "out_of_scope": []}},
+                "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []},
+                                  "views": {"in_scope": [], "out_of_scope": []},
+                                  "functions": {"in_scope": [], "out_of_scope": []}},
+            }),
+            encoding="utf-8",
+        )
+        scoping_file.write_text(
+            _json.dumps({"status": "analyzed", "sql_elements": [], "warnings": [], "errors": []}),
+            encoding="utf-8",
+        )
+        runner = CliRunner()
+        result = runner.invoke(
+            discover.app,
+            ["write-scoping", "--project-root", str(repo_root), "--name", "silver.vw_cli_test",
+             "--scoping-file", str(scoping_file)],
+        )
+        assert result.exit_code == 0, result.output
+        written = _json.loads(cat_file.read_text(encoding="utf-8"))
+        assert written["scoping"]["status"] == "analyzed"
+    finally:
+        cat_file.unlink(missing_ok=True)
+        scoping_file.unlink(missing_ok=True)
+
+
+def test_run_write_view_scoping_error_status() -> None:
+    """write-view-scoping accepts error status (parse failure case)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        views_dir = root / "catalog" / "views"
+        views_dir.mkdir(parents=True)
+        (views_dir / "silver.vw_broken.json").write_text(
+            json.dumps({
+                "schema": "silver", "name": "vw_broken",
+                "references": {"tables": {"in_scope": [], "out_of_scope": []},
+                               "views": {"in_scope": [], "out_of_scope": []},
+                               "functions": {"in_scope": [], "out_of_scope": []}},
+                "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []},
+                                  "views": {"in_scope": [], "out_of_scope": []},
+                                  "functions": {"in_scope": [], "out_of_scope": []}},
+            }),
+            encoding="utf-8",
+        )
+        scoping = {
+            "status": "error",
+            "sql_elements": None,
+            "errors": [{"code": "DDL_PARSE_ERROR", "severity": "error", "message": "unexpected token"}],
+        }
+        result = discover.run_write_view_scoping(root, "silver.vw_broken", scoping)
+        assert result["status"] == "ok"
+        written = json.loads(Path(result["written"]).read_text(encoding="utf-8"))
+        assert written["scoping"]["status"] == "error"
+        assert written["scoping"]["sql_elements"] is None
