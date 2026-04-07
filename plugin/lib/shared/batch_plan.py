@@ -36,6 +36,38 @@ logger = logging.getLogger(__name__)
 
 _MAX_DEPTH = 20  # traversal depth limit for cycle prevention
 
+# Maps diagnostic codes to the pipeline stage most impacted by that diagnostic.
+# Used to pre-compute diagnostic_stage_flags per object node so the display layer
+# does not need to reason about code→stage mappings.
+_DIAG_STAGE_MAP: dict[str, str] = {
+    "PARSE_ERROR": "refactor",
+    "DDL_PARSE_ERROR": "refactor",
+    "MULTI_TABLE_WRITE": "scope",
+}
+
+# Severity rank for worst-severity promotion. Higher rank wins.
+_SEV_RANK: dict[str, int] = {"warning": 0, "error": 1}
+
+
+def _compute_diagnostic_stage_flags(diagnostics: list[dict[str, Any]]) -> dict[str, str]:
+    """Map a node's diagnostics to their most-impacted pipeline stage.
+
+    Returns a dict of {stage: worst_severity} for stages with at least one
+    relevant diagnostic, e.g. {"refactor": "error"} or {"scope": "warning"}.
+    The highest-ranked severity for each stage wins (error > warning).
+    Unknown severity values are treated as lower than warning and do not
+    overwrite a known severity.
+    """
+    flags: dict[str, str] = {}
+    for d in diagnostics:
+        stage = _DIAG_STAGE_MAP.get(d.get("code", ""))
+        if not stage:
+            continue
+        sev = d.get("severity", "warning")
+        if _SEV_RANK.get(sev, -1) > _SEV_RANK.get(flags.get(stage, ""), -1):
+            flags[stage] = sev
+    return flags
+
 
 # ── Low-level helpers ─────────────────────────────────────────────────────────
 
@@ -110,11 +142,8 @@ def object_pipeline_status(
         scoping = cat.get("scoping") or {}
         if scoping.get("status") != "analyzed":
             return "scope_needed"
-        profile = cat.get("profile") or {}
-        if profile.get("status") not in ("ok", "partial"):
-            return "profile_needed"
         if not _has_dbt_model(fqn, dbt_root):
-            return "refactor_needed"
+            return "migrate_needed"
         return "complete"
 
     # TABLE
@@ -477,6 +506,10 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> dict[s
     # complete node acts as a migration boundary: in dbt, the downstream
     # model references the completed model directly, so the completed node's
     # own source deps are irrelevant to the downstream object's readiness.
+    # Writerless (n_a) tables are source tables — they will always be
+    # referenced via {{ source() }}, never {{ ref() }}, so they are never
+    # migration blockers regardless of dbt model presence.
+    writerless_fqns = {fqn for fqn, _ in all_objects if statuses[fqn] == "n_a"}
     blocking: dict[str, set[str]] = {}
     for fqn in migrate_candidates:
         # Collect transitive deps that are "shielded" by a complete boundary.
@@ -486,7 +519,7 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> dict[s
                 covered |= raw_deps.get(dep, set())
         blocking[fqn] = {
             d for d in raw_deps.get(fqn, set())
-            if not dbt_status.get(d, False) and d not in covered
+            if not dbt_status.get(d, False) and d not in covered and d not in writerless_fqns
         }
 
     # For the topological sort restrict to blocking among migrate_candidates only.
@@ -503,6 +536,7 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> dict[s
 
     # ── Build output nodes ────────────────────────────────────────────────
     def _make_node(fqn: str) -> dict[str, Any]:
+        diags = obj_diagnostics[fqn]
         return {
             "fqn": fqn,
             "type": obj_type_map[fqn],
@@ -510,7 +544,8 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> dict[s
             "has_dbt_model": dbt_status[fqn],
             "direct_deps": sorted(raw_deps.get(fqn, set())),
             "blocking_deps": sorted(blocking.get(fqn, set())),
-            "diagnostics": obj_diagnostics[fqn],
+            "diagnostics": diags,
+            "diagnostic_stage_flags": _compute_diagnostic_stage_flags(diags),
         }
 
     migrate_batches = [

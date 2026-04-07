@@ -61,3 +61,19 @@ tests:
       expected_output_terms: "view,table,N/A,type"
       expected_na_object: "silver.RefCurrency"
       expected_view_objects: "silver.vDimSalesTerritory,silver.vw_DimPromotion"
+
+  # ── VU-943: diagnostic overlay — PARSE_ERROR shows ! indicator ──
+  - description: "VU-943 — PARSE_ERROR on writer proc overlays ! on refactor stage cell for silver.DimCurrency"
+    vars:
+      expected_output_terms: "dimcurrency,refactor,!"
+
+  # ── VU-944: writerless-dep view shows no blocked-by annotation ──
+  - description: "VU-944 — view depending only on writerless table appears in schedule with no blocked-by annotation"
+    vars:
+      expected_output_terms: "vw_currency_ref"
+      unexpected_output_terms: "blocked by: silver.refcurrency"
+
+  # ── VU-945: What to do next section appears in batch output ─────
+  - description: "VU-945 — all-tables mode shows What to do next section with runnable command"
+    vars:
+      expected_output_terms: "what to do next"
