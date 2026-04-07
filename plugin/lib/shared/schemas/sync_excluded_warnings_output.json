@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SyncExcludedWarningsOutput",
+  "description": "Output of migrate-util sync-excluded-warnings. Reports how many EXCLUDED_DEP warnings were written or cleared across catalog files.",
+  "type": "object",
+  "required": ["warnings_written", "warnings_cleared"],
+  "properties": {
+    "warnings_written": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of catalog objects that received a new or updated EXCLUDED_DEP warning."
+    },
+    "warnings_cleared": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of EXCLUDED_DEP warning entries removed from catalog files."
+    }
+  },
+  "additionalProperties": false
+}

@@ -421,9 +421,9 @@ def write_object_catalog(
 # Keys preserved per bucket during re-extraction. ``refactor`` belongs only on
 # procedure catalogs; never copy it from tables/views/functions.
 _ENRICHED_KEYS_BY_BUCKET: dict[str, tuple[str, ...]] = {
-    "tables": ("scoping", "profile"),
+    "tables": ("scoping", "profile", "excluded"),
     "procedures": ("scoping", "profile", "refactor"),
-    "views": ("scoping", "profile"),
+    "views": ("scoping", "profile", "excluded"),
     "functions": ("scoping", "profile"),
 }
 
