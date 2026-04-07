@@ -196,7 +196,8 @@ def _analyze_view_select(entry: "DdlEntry") -> dict[str, Any]:
         elements: list[dict[str, Any]] = []
         ast = entry.ast
 
-        # JOINs
+        # JOINs — one element per unique (join_type, target) pair
+        seen_joins: set[str] = set()
         for join in ast.find_all(exp.Join):
             join_type = "JOIN"
             if join.args.get("kind"):
@@ -207,12 +208,16 @@ def _analyze_view_select(entry: "DdlEntry") -> dict[str, Any]:
             target = table.name if hasattr(table, "name") else str(table)
             if table.args.get("db"):
                 target = f"{table.args['db']}.{target}"
-            elements.append({"type": "join", "detail": f"{join_type} {target}"})
+            detail = f"{join_type} {target}"
+            if detail not in seen_joins:
+                seen_joins.add(detail)
+                elements.append({"type": "join", "detail": detail})
 
-        # CTEs (WITH clause)
-        for cte in ast.find_all(exp.With):
-            elements.append({"type": "cte", "detail": f"{len(list(cte.find_all(exp.CTE)))} CTE(s)"})
-            break  # only report once
+        # CTEs (WITH clause) — use direct children to avoid counting nested subquery CTEs
+        for cte_node in ast.find_all(exp.With):
+            cte_count = len(cte_node.expressions)
+            elements.append({"type": "cte", "detail": f"{cte_count} CTE(s)"})
+            break  # only report the outermost WITH clause
 
         # GROUP BY
         for _ in ast.find_all(exp.Group):
@@ -314,6 +319,7 @@ def run_show(project_root: Path, name: str) -> dict[str, Any]:
         "routing_reasons": [],
         "statements": None,
         "needs_llm": None,
+        "errors": [],
         "parse_error": entry.parse_error,
         **extra,
     }

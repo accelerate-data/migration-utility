@@ -575,3 +575,45 @@ def test_run_write_view_scoping_missing_catalog() -> None:
         (root / "catalog" / "views").mkdir(parents=True)
         with pytest.raises(CatalogFileMissingError):
             discover.run_write_view_scoping(root, "silver.vw_missing", {"status": "analyzed"})
+
+
+# --- _analyze_view_select tests (via run_show on flat fixtures) ---
+
+
+def test_show_view_join_returns_sql_elements() -> None:
+    """run_show for a view with a JOIN returns sql_elements containing a join entry."""
+    result = discover.run_show(_FLAT_FIXTURES, "silver.vw_ProductCatalog")
+    assert result["type"] == "view"
+    assert result["needs_llm"] is False
+    assert result["sql_elements"] is not None
+    element_types = {e["type"] for e in result["sql_elements"]}
+    assert "join" in element_types
+
+
+def test_show_view_aggregation_returns_sql_elements() -> None:
+    """run_show for a view with GROUP BY + SUM/COUNT returns aggregation and group_by elements."""
+    result = discover.run_show(_FLAT_FIXTURES, "silver.vw_SalesSummary")
+    assert result["type"] == "view"
+    assert result["needs_llm"] is False
+    assert result["sql_elements"] is not None
+    element_types = {e["type"] for e in result["sql_elements"]}
+    assert "aggregation" in element_types
+    assert "group_by" in element_types
+
+
+def test_show_view_window_function_returns_sql_elements() -> None:
+    """run_show for a view with ROW_NUMBER OVER returns window_function element."""
+    result = discover.run_show(_FLAT_FIXTURES, "silver.vw_RankedProducts")
+    assert result["type"] == "view"
+    assert result["needs_llm"] is False
+    assert result["sql_elements"] is not None
+    element_types = {e["type"] for e in result["sql_elements"]}
+    assert "window_function" in element_types
+
+
+def test_show_view_errors_key_present_for_all_types() -> None:
+    """run_show always returns an errors key regardless of object type."""
+    view_result = discover.run_show(_FLAT_FIXTURES, "silver.vw_ProductCatalog")
+    assert "errors" in view_result
+    proc_result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadDimProduct")
+    assert "errors" in proc_result
