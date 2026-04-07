@@ -207,14 +207,18 @@ def _apply_delta_ss(conn: pyodbc.Connection, sql_path: Path) -> None:
 
 
 def _apply_delta_ora(conn: oracledb.Connection, sql_path: Path) -> None:
-    """Execute an Oracle delta file, splitting on semicolons."""
+    """Execute an Oracle delta file, splitting on semicolons.
+
+    Only supports simple DML statements (INSERT/UPDATE/DELETE). PL/SQL blocks
+    with embedded semicolons are not supported in delta files.
+    """
     text = sql_path.read_text(encoding="utf-8")
     cur = conn.cursor()
     for stmt in text.split(";"):
         stmt = stmt.strip()
         if not stmt or stmt.upper() in {"COMMIT", "--"}:
             continue
-        # Skip comment-only lines
+        # Skip comment-only chunks
         if all(line.strip().startswith("--") for line in stmt.splitlines() if line.strip()):
             continue
         cur.execute(stmt)
@@ -222,7 +226,12 @@ def _apply_delta_ora(conn: oracledb.Connection, sql_path: Path) -> None:
 
 
 def _apply_delta_pg(conn: psycopg2.extensions.connection, sql_path: Path) -> None:
-    """Execute a PostgreSQL delta file, splitting on semicolons."""
+    """Execute a PostgreSQL delta file, splitting on semicolons.
+
+    Only supports simple DML statements. PL/SQL-style blocks are not supported.
+    Explicit commit mirrors the Oracle implementation; connection runs with
+    autocommit=True so this is a no-op but keeps intent explicit.
+    """
     text = sql_path.read_text(encoding="utf-8")
     cur = conn.cursor()
     for stmt in text.split(";"):
@@ -232,6 +241,7 @@ def _apply_delta_pg(conn: psycopg2.extensions.connection, sql_path: Path) -> Non
         if all(line.strip().startswith("--") for line in stmt.splitlines() if line.strip()):
             continue
         cur.execute(stmt)
+    conn.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +263,7 @@ def _diff(
     only_ref = sorted(ref_set - cmp_set)
     only_cmp = sorted(cmp_set - ref_set)
     if not only_ref and not only_cmp:
-        return True, f"{label}: PASS  ref={len(ref)} {len(cmp)}"
+        return True, f"{label}: PASS  ref={len(ref)} cmp={len(cmp)}"
     lines = [
         f"{label}: FAIL  ref={len(ref)} cmp={len(cmp)}"
         f"  diff_ref={len(only_ref)} diff_cmp={len(only_cmp)}",
@@ -321,10 +331,6 @@ def _run_round(
 # Main
 # ---------------------------------------------------------------------------
 
-_DELTA_DIRS_SORTED = sorted(
-    (Path(__file__).parent.parent / "data" / "delta").iterdir()
-)
-
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -342,6 +348,12 @@ def main() -> int:
             valid = ", ".join(t[0] for t in OUTPUT_TABLES)
             print(f"ERROR: unknown table {args.table!r}. Valid tables:\n  {valid}", file=sys.stderr)
             return 1
+
+    delta_base = Path(__file__).parent.parent / "data" / "delta"
+    if not delta_base.is_dir():
+        print(f"ERROR: delta directory not found: {delta_base}", file=sys.stderr)
+        return 1
+    delta_dirs_sorted = sorted(delta_base.iterdir())
 
     print("Connecting to all three dialect containers...")
     try:
@@ -362,30 +374,36 @@ def main() -> int:
     print("Connected.\n")
 
     all_ok = True
-
-    # Baseline round
-    ok = _run_round("Baseline", ss_conn, ora_conn, pg_conn, tables)
-    all_ok = all_ok and ok
-
-    # Delta rounds
-    for delta_dir in _DELTA_DIRS_SORTED:
-        if not delta_dir.is_dir():
-            continue
-        ss_sql = delta_dir / "sqlserver.sql"
-        ora_sql = delta_dir / "oracle.sql"
-        pg_sql = delta_dir / "postgres.sql"
-        if not (ss_sql.exists() and ora_sql.exists() and pg_sql.exists()):
-            print(f"  SKIP {delta_dir.name}: missing dialect SQL files", file=sys.stderr)
-            continue
-
-        label = delta_dir.name
-        print(f"\nApplying delta: {label}")
-        _apply_delta_ss(ss_conn, ss_sql)
-        _apply_delta_ora(ora_conn, ora_sql)
-        _apply_delta_pg(pg_conn, pg_sql)
-
-        ok = _run_round(label, ss_conn, ora_conn, pg_conn, tables)
+    try:
+        # Baseline round
+        ok = _run_round("Baseline", ss_conn, ora_conn, pg_conn, tables)
         all_ok = all_ok and ok
+
+        # Delta rounds
+        for delta_dir in delta_dirs_sorted:
+            if not delta_dir.is_dir():
+                continue
+            ss_sql = delta_dir / "sqlserver.sql"
+            ora_sql = delta_dir / "oracle.sql"
+            pg_sql = delta_dir / "postgres.sql"
+            if not (ss_sql.exists() and ora_sql.exists() and pg_sql.exists()):
+                print(f"  SKIP {delta_dir.name}: missing dialect SQL files", file=sys.stderr)
+                continue
+
+            label = delta_dir.name
+            print(f"\nApplying delta: {label}")
+            _apply_delta_ss(ss_conn, ss_sql)
+            _apply_delta_ora(ora_conn, ora_sql)
+            _apply_delta_pg(pg_conn, pg_sql)
+
+            ok = _run_round(label, ss_conn, ora_conn, pg_conn, tables)
+            all_ok = all_ok and ok
+    finally:
+        for conn in (ss_conn, ora_conn, pg_conn):
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     print(f"\n{'='*60}")
     if all_ok:
@@ -393,10 +411,6 @@ def main() -> int:
     else:
         print("SOME ROUNDS FAILED — see details above")
     print(f"{'='*60}")
-
-    ss_conn.close()
-    ora_conn.close()
-    pg_conn.close()
 
     return 0 if all_ok else 1
 
