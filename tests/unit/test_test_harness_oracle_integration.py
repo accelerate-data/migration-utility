@@ -3,7 +3,7 @@
 Run with: cd plugin/lib && uv run pytest -m oracle -v
 
 Requires:
-- Docker Oracle container running (see docs/reference/setup-oracle/README.md)
+- Docker Oracle container running (see docs/reference/setup-docker/README.md)
 - ORACLE_PWD env var set (SYS password)
 - SH schema loaded with CHANNEL_SALES_SUMMARY table and SUMMARIZE_CHANNEL_SALES
   procedure (scripts/sql/oracle/synthetic_sales_procedure.sql)

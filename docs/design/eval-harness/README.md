@@ -506,7 +506,7 @@ uv run --project plugin/lib catalog-enrich
 cp -r . tests/evals/fixtures/migration-test/
 ```
 
-The exact extraction steps depend on how the migration project is configured. See `docs/reference/local-agent-testing/` for the full setup guide.
+The exact extraction steps depend on how the migration project is configured.
 
 ---
 

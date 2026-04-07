@@ -183,6 +183,4 @@ PG_PASSWORD=postgres
 | Guide | Contents |
 |---|---|
 | [SQL Server](sql-server.md) | One-time setup of plain `sql-test`; AdventureWorks + WideWorldImporters restore |
-| [Oracle](../../reference/setup-oracle/README.md) | One-time setup of `oracle-test`; SH schema load; SQLcl MCP prereqs |
 | [PostgreSQL](postgres.md) | One-time setup of plain `pg-test` |
-| [Test Database Image](../test-db-image/README.md) | Building and publishing the `migration-test-db` GHCR image used by CI |
