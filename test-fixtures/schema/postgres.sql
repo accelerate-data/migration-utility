@@ -10,12 +10,28 @@
 CREATE SCHEMA IF NOT EXISTS staging;
 CREATE SCHEMA IF NOT EXISTS dim;
 CREATE SCHEMA IF NOT EXISTS fact;
+CREATE SCHEMA IF NOT EXISTS gold;
 
 -- ----------------------------------------------------------
 -- Drop existing objects (reverse dependency order)
 -- ----------------------------------------------------------
 
+-- Gold
+DROP TABLE IF EXISTS gold.rpt_date_sales_rollup CASCADE;
+DROP TABLE IF EXISTS gold.rpt_product_margin CASCADE;
+DROP TABLE IF EXISTS gold.rpt_address_coverage CASCADE;
+DROP TABLE IF EXISTS gold.rpt_customer_segments CASCADE;
+DROP TABLE IF EXISTS gold.rpt_returns_analysis CASCADE;
+DROP TABLE IF EXISTS gold.rpt_channel_pivot CASCADE;
+DROP TABLE IF EXISTS gold.rpt_sales_by_category CASCADE;
+DROP TABLE IF EXISTS gold.rpt_employee_hierarchy CASCADE;
+DROP TABLE IF EXISTS gold.rpt_sales_by_territory CASCADE;
+DROP TABLE IF EXISTS gold.rpt_product_performance CASCADE;
+DROP TABLE IF EXISTS gold.rpt_customer_lifetime_value CASCADE;
+
 -- Views
+DROP VIEW IF EXISTS staging.vw_customer_360 CASCADE;
+DROP VIEW IF EXISTS staging.vw_enriched_sales CASCADE;
 DROP VIEW IF EXISTS staging.vw_sales_summary CASCADE;
 DROP VIEW IF EXISTS staging.vw_stg_sales CASCADE;
 DROP VIEW IF EXISTS staging.vw_stg_product CASCADE;
@@ -178,6 +194,7 @@ CREATE TABLE staging.stg_credit_card (
 
 CREATE TABLE staging.stg_employee (
     business_entity_id  INTEGER        NOT NULL,
+    manager_id          INTEGER        NULL,
     national_id_number  VARCHAR(15)    NOT NULL,
     login_id            VARCHAR(256)   NOT NULL,
     job_title           VARCHAR(50)    NOT NULL,
@@ -418,3 +435,206 @@ SELECT
 FROM staging.stg_sales_order_header h
 INNER JOIN staging.stg_sales_order_detail d ON h.sales_order_id = d.sales_order_id
 GROUP BY CAST(TO_CHAR(h.order_date, 'YYYYMMDD') AS INTEGER), d.product_id;
+
+-- ==========================================================
+-- Gold / reporting tables
+-- ==========================================================
+
+CREATE TABLE gold.rpt_customer_lifetime_value (
+    customer_lifetime_value_key INTEGER GENERATED ALWAYS AS IDENTITY NOT NULL,
+    customer_key           INTEGER        NOT NULL,
+    customer_id            INTEGER        NOT NULL,
+    full_name              VARCHAR(150)   NULL,
+    total_orders           INTEGER        NOT NULL DEFAULT 0,
+    total_revenue          NUMERIC(38,6)  NOT NULL DEFAULT 0,
+    avg_order_value        NUMERIC(19,4)  NULL,
+    first_order_date       TIMESTAMP      NULL,
+    last_order_date        TIMESTAMP      NULL,
+    customer_tier          VARCHAR(20)    NOT NULL,
+    revenue_quartile       INTEGER        NULL,
+    CONSTRAINT pk_rpt_customer_lifetime_value PRIMARY KEY (customer_lifetime_value_key)
+);
+
+CREATE TABLE gold.rpt_product_performance (
+    product_performance_key INTEGER GENERATED ALWAYS AS IDENTITY NOT NULL,
+    product_key            INTEGER        NOT NULL,
+    product_name           VARCHAR(100)   NOT NULL,
+    date_key               INTEGER        NOT NULL,
+    monthly_revenue        NUMERIC(38,6)  NOT NULL DEFAULT 0,
+    monthly_qty            INTEGER        NOT NULL DEFAULT 0,
+    revenue_rank           INTEGER        NULL,
+    mom_growth_pct         NUMERIC(10,4)  NULL,
+    trend                  VARCHAR(10)    NOT NULL,
+    CONSTRAINT pk_rpt_product_performance PRIMARY KEY (product_performance_key)
+);
+
+CREATE TABLE gold.rpt_sales_by_territory (
+    sales_by_territory_key INTEGER GENERATED ALWAYS AS IDENTITY NOT NULL,
+    territory_id           INTEGER        NOT NULL,
+    date_key               INTEGER        NOT NULL,
+    total_revenue          NUMERIC(38,6)  NOT NULL DEFAULT 0,
+    total_qty              INTEGER        NOT NULL DEFAULT 0,
+    order_count            INTEGER        NOT NULL DEFAULT 0,
+    territory_rank         INTEGER        NULL,
+    CONSTRAINT pk_rpt_sales_by_territory PRIMARY KEY (sales_by_territory_key)
+);
+
+CREATE TABLE gold.rpt_employee_hierarchy (
+    employee_hierarchy_key INTEGER GENERATED ALWAYS AS IDENTITY NOT NULL,
+    employee_id            INTEGER        NOT NULL,
+    employee_name          VARCHAR(101)   NOT NULL,
+    manager_id             INTEGER        NULL,
+    manager_name           VARCHAR(101)   NULL,
+    hierarchy_level        INTEGER        NOT NULL,
+    manager_path           VARCHAR(500)   NOT NULL,
+    department             VARCHAR(50)    NULL,
+    direct_reports_count   INTEGER        NOT NULL DEFAULT 0,
+    CONSTRAINT pk_rpt_employee_hierarchy PRIMARY KEY (employee_hierarchy_key)
+);
+
+CREATE TABLE gold.rpt_sales_by_category (
+    sales_by_category_key INTEGER GENERATED ALWAYS AS IDENTITY NOT NULL,
+    category_name          VARCHAR(50)    NULL,
+    subcategory_name       VARCHAR(50)    NULL,
+    date_key               INTEGER        NULL,
+    total_revenue          NUMERIC(38,6)  NOT NULL DEFAULT 0,
+    total_qty              INTEGER        NOT NULL DEFAULT 0,
+    grouping_level         INTEGER        NOT NULL,
+    CONSTRAINT pk_rpt_sales_by_category PRIMARY KEY (sales_by_category_key)
+);
+
+CREATE TABLE gold.rpt_channel_pivot (
+    channel_pivot_key      INTEGER GENERATED ALWAYS AS IDENTITY NOT NULL,
+    date_key               INTEGER        NOT NULL,
+    online_revenue         NUMERIC(38,6)  NOT NULL DEFAULT 0,
+    store_revenue          NUMERIC(38,6)  NOT NULL DEFAULT 0,
+    online_qty             INTEGER        NOT NULL DEFAULT 0,
+    store_qty              INTEGER        NOT NULL DEFAULT 0,
+    online_order_count     INTEGER        NOT NULL DEFAULT 0,
+    store_order_count      INTEGER        NOT NULL DEFAULT 0,
+    CONSTRAINT pk_rpt_channel_pivot PRIMARY KEY (channel_pivot_key)
+);
+
+CREATE TABLE gold.rpt_returns_analysis (
+    returns_analysis_key   INTEGER GENERATED ALWAYS AS IDENTITY NOT NULL,
+    product_key            INTEGER        NOT NULL,
+    product_name           VARCHAR(100)   NOT NULL,
+    date_key               INTEGER        NOT NULL,
+    sales_qty              INTEGER        NOT NULL DEFAULT 0,
+    return_qty             INTEGER        NOT NULL DEFAULT 0,
+    return_rate            NUMERIC(10,4)  NULL,
+    top_return_reason      VARCHAR(100)   NULL,
+    CONSTRAINT pk_rpt_returns_analysis PRIMARY KEY (returns_analysis_key)
+);
+
+CREATE TABLE gold.rpt_customer_segments (
+    customer_segments_key  INTEGER GENERATED ALWAYS AS IDENTITY NOT NULL,
+    customer_id            INTEGER        NOT NULL,
+    segment_name           VARCHAR(30)    NOT NULL,
+    total_revenue          NUMERIC(38,6)  NOT NULL DEFAULT 0,
+    total_orders           INTEGER        NOT NULL DEFAULT 0,
+    CONSTRAINT pk_rpt_customer_segments PRIMARY KEY (customer_segments_key)
+);
+
+CREATE TABLE gold.rpt_address_coverage (
+    address_coverage_key   INTEGER GENERATED ALWAYS AS IDENTITY NOT NULL,
+    address_id             INTEGER        NOT NULL,
+    staging_city           VARCHAR(30)    NULL,
+    dim_city               VARCHAR(30)    NULL,
+    staging_postal_code    VARCHAR(15)    NULL,
+    dim_postal_code        VARCHAR(15)    NULL,
+    coverage_status        VARCHAR(10)    NOT NULL,
+    CONSTRAINT pk_rpt_address_coverage PRIMARY KEY (address_coverage_key)
+);
+
+CREATE TABLE gold.rpt_product_margin (
+    product_margin_key     INTEGER GENERATED ALWAYS AS IDENTITY NOT NULL,
+    product_line           CHAR(2)        NULL,
+    product_category       VARCHAR(50)    NULL,
+    color                  VARCHAR(15)    NULL,
+    total_revenue          NUMERIC(38,6)  NOT NULL DEFAULT 0,
+    total_cost             NUMERIC(38,6)  NOT NULL DEFAULT 0,
+    total_margin           NUMERIC(38,6)  NOT NULL DEFAULT 0,
+    margin_pct             NUMERIC(10,4)  NULL,
+    grouping_level         INTEGER        NOT NULL,
+    CONSTRAINT pk_rpt_product_margin PRIMARY KEY (product_margin_key)
+);
+
+CREATE TABLE gold.rpt_date_sales_rollup (
+    date_sales_rollup_key  INTEGER GENERATED ALWAYS AS IDENTITY NOT NULL,
+    year_number            INTEGER        NULL,
+    quarter_number         SMALLINT       NULL,
+    month_number           SMALLINT       NULL,
+    total_revenue          NUMERIC(38,6)  NOT NULL DEFAULT 0,
+    total_qty              INTEGER        NOT NULL DEFAULT 0,
+    order_count            INTEGER        NOT NULL DEFAULT 0,
+    rollup_level           INTEGER        NOT NULL,
+    CONSTRAINT pk_rpt_date_sales_rollup PRIMARY KEY (date_sales_rollup_key)
+);
+
+-- ==========================================================
+-- Complex views
+-- ==========================================================
+
+CREATE VIEW staging.vw_enriched_sales AS
+WITH order_detail AS (
+    SELECT
+        d.sales_order_id,
+        d.sales_order_detail_id,
+        d.order_qty,
+        d.product_id,
+        d.unit_price,
+        d.unit_price_discount,
+        d.line_total,
+        h.customer_id,
+        h.order_date,
+        h.territory_id,
+        h.online_order_flag,
+        CAST(TO_CHAR(h.order_date, 'YYYYMMDD') AS INTEGER) AS date_key,
+        ROW_NUMBER() OVER (PARTITION BY d.product_id ORDER BY h.order_date DESC) AS product_order_rank,
+        LAG(d.line_total) OVER (PARTITION BY d.product_id ORDER BY h.order_date, d.sales_order_detail_id) AS prev_line_total,
+        CASE WHEN r.return_id IS NOT NULL THEN TRUE ELSE FALSE END AS is_returned
+    FROM staging.stg_sales_order_detail d
+    INNER JOIN staging.stg_sales_order_header h ON d.sales_order_id = h.sales_order_id
+    LEFT JOIN staging.stg_returns r
+        ON d.sales_order_id = r.sales_order_id
+        AND d.sales_order_detail_id = r.sales_order_detail_id
+)
+SELECT
+    od.*,
+    CASE
+        WHEN od.prev_line_total IS NULL THEN 'First'
+        WHEN od.line_total > od.prev_line_total THEN 'Growth'
+        WHEN od.line_total < od.prev_line_total THEN 'Decline'
+        ELSE 'Stable'
+    END AS sales_trend
+FROM order_detail od;
+
+CREATE VIEW staging.vw_customer_360 AS
+WITH customer_orders AS (
+    SELECT
+        c.customer_id,
+        c.person_id,
+        c.territory_id,
+        CONCAT(p.first_name, ' ', COALESCE(p.middle_name || ' ', ''), p.last_name) AS full_name,
+        COUNT(DISTINCT h.sales_order_id) AS total_orders,
+        COALESCE(SUM(h.total_due), 0) AS total_revenue,
+        AVG(h.total_due) AS avg_order_value,
+        MIN(h.order_date) AS first_order_date,
+        MAX(h.order_date) AS last_order_date
+    FROM staging.stg_customer c
+    LEFT JOIN staging.stg_person p ON c.person_id = p.business_entity_id
+    LEFT JOIN staging.stg_sales_order_header h ON c.customer_id = h.customer_id
+    GROUP BY c.customer_id, c.person_id, c.territory_id,
+             p.first_name, p.middle_name, p.last_name
+)
+SELECT
+    co.*,
+    NTILE(4) OVER (ORDER BY co.total_revenue DESC) AS revenue_quartile,
+    CASE
+        WHEN co.total_orders = 0 THEN 'Inactive'
+        WHEN co.total_revenue >= (SELECT AVG(total_due) * 3 FROM staging.stg_sales_order_header) THEN 'Platinum'
+        WHEN co.total_revenue >= (SELECT AVG(total_due) FROM staging.stg_sales_order_header) THEN 'Gold'
+        ELSE 'Silver'
+    END AS customer_tier
+FROM customer_orders co;
