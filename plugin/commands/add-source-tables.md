@@ -13,6 +13,7 @@ argument-hint: "<schema.table> [schema.table ...]"
 Mark tables as dbt sources. Source-confirmed tables are excluded from `/status`, all batch pipeline commands, and included in `sources.yml` during `/init-dbt`.
 
 Use this command when:
+
 - A table has no writer (writerless) and should be a dbt source reference
 - A table is written by another team's pipeline and this project treats it as an external source
 
