@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "refactor_write_output.json",
   "title": "RefactorWriteOutput",
-  "description": "Output of 'refactor write'. Reports the result of merging a refactor section into the writer procedure catalog.",
+  "description": "Output of 'refactor write'. On success (ok=true): table, writer, catalog_path are all present. On failure (ok=false): error is present instead of writer/catalog_path.",
   "type": "object",
   "required": ["ok", "table"],
   "properties": {
@@ -16,15 +16,18 @@
     },
     "writer": {
       "type": "string",
-      "description": "Normalised FQN of the writer procedure. Present on success."
+      "description": "Normalised FQN of the writer procedure. Present when ok is true."
     },
     "catalog_path": {
       "type": "string",
-      "description": "Absolute path to the updated procedure catalog file. Present on success."
+      "description": "Absolute path to the updated procedure catalog file. Present when ok is true."
     },
     "error": {
       "type": "string",
       "description": "Error message. Present when ok is false."
     }
-  }
+  },
+  "if": { "properties": { "ok": { "const": true } }, "required": ["ok"] },
+  "then": { "required": ["writer", "catalog_path"] },
+  "else": { "required": ["error"] }
 }

@@ -32,11 +32,12 @@
     },
     "error": {
       "type": "string",
-      "description": "Error code. Present only when the CLI encounters a domain or IO failure."
+      "description": "Error code. Present only on CLI failure paths (INCOMPLETE_SCOPING, IO_ERROR). Not emitted by run_* functions directly."
     },
     "message": {
       "type": "string",
-      "description": "Human-readable error description. Present alongside error."
+      "description": "Human-readable error description. Present alongside error on CLI failure paths."
     }
-  }
+  },
+  "$comment": "The run_* functions (generate_sources, write_sources_yml) always populate included/excluded/incomplete. The error/message fields are emitted by the CLI wrapper on domain or IO failures and do not include the list fields."
 }
