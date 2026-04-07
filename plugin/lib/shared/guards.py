@@ -91,17 +91,16 @@ def check_view_catalog(project_root: Path, view_fqn: str) -> dict[str, Any]:
 
 def check_view_scoping_analyzed(project_root: Path, view_fqn: str) -> dict[str, Any]:
     """Check scoping.status == 'analyzed' in the view catalog."""
+    norm = normalize(view_fqn)
     try:
         cat = load_view_catalog(project_root, view_fqn)
     except (json.JSONDecodeError, OSError, CatalogLoadError) as exc:
-        norm = normalize(view_fqn)
         return _guard_fail(
             "view_scoping_analyzed",
             "VIEW_SCOPING_NOT_COMPLETED",
             f"Could not load view catalog for {norm}: {exc}",
         )
     if cat is None:
-        norm = normalize(view_fqn)
         return _guard_fail(
             "view_scoping_analyzed",
             "VIEW_SCOPING_NOT_COMPLETED",
@@ -109,7 +108,6 @@ def check_view_scoping_analyzed(project_root: Path, view_fqn: str) -> dict[str, 
         )
     scoping = cat.get("scoping")
     if scoping is None or scoping.get("status") != "analyzed":
-        norm = normalize(view_fqn)
         status = scoping.get("status") if scoping else None
         return _guard_fail(
             "view_scoping_analyzed",
@@ -525,10 +523,11 @@ _PROJECT_ONLY_GUARDS: frozenset[Callable] = frozenset({
 
 
 def run_guards(
-    project_root: Path, table_fqn: str, stage: str,
+    project_root: Path, object_fqn: str, stage: str,
 ) -> tuple[bool, list[dict[str, Any]]]:
     """Run all guards for a stage, short-circuiting on first failure.
 
+    object_fqn is the fully-qualified name of the table or view being guarded.
     Returns (all_passed, guard_results).
     """
     results: list[dict[str, Any]] = []
@@ -536,7 +535,7 @@ def run_guards(
         if fn in _PROJECT_ONLY_GUARDS:
             result = fn(project_root)
         else:
-            result = fn(project_root, table_fqn)
+            result = fn(project_root, object_fqn)
         results.append(result)
         if not result["passed"]:
             return False, results
