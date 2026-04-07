@@ -32,8 +32,8 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
    - **Single object (1 item):** use the object FQN directly — `refactor-<schema>-<name>` (lowercase, dots → hyphens). No LLM reasoning needed.
    - **Multiple objects (2+):** reason about the conversation context — what is the user trying to accomplish with this batch? Generate a short, descriptive slug that captures the intent (e.g. `refactor-silver-facts`, `refactor-customer-procs`). The full slug (including the `refactor-` prefix) must be lowercase, hyphen-separated, and at most 40 characters.
 2. Run the `git-checkpoints` skill with the run slug as the argument.
-   - If it returns `"main"`: proceed without a branch or worktree. All file writes and git operations target the current directory.
-   - Otherwise: use the returned path as the working directory for all file writes and git operations in this run.
+   - If it returns `"main"`: proceed without a branch or worktree. All file writes and git operations target the current directory. Set `<working-directory>` to `$(git rev-parse --show-toplevel)` for use in sub-agent prompts below.
+   - Otherwise: use the returned path as the working directory for all file writes and git operations in this run. Set `<working-directory>` to the returned path.
 3. Generate a run epoch: seconds since Unix epoch. All run artifacts use this as a filename suffix.
 
 ### Step 2 -- Refactor per table
@@ -54,7 +54,7 @@ Then continue to Step 3.
 
 ```text
 Run the /refactoring-sql skill for <schema.table>.
-The worktree is at <worktree-path>.
+The working directory is <working-directory>.
 Write the item result JSON to .migration-runs/<schema.table>.<epoch>.json.
 
 After writing the result:
@@ -90,7 +90,7 @@ The skill writes the refactored CTE SQL into the catalog `refactor` section.
    > Raise a PR for this run? (y/n)
 
    If yes: run `/commit-push-pr refactor <comma-separated list of successfully processed tables>`.
-   After the PR is created or updated, tell the user the PR URL, branch, and worktree path.
+   After the PR is created or updated, tell the user the PR URL and branch. If on a feature branch, also include the worktree path and tell the user: "Once the PR is merged, run /cleanup-worktrees to remove the worktree and branches."
 
 6. Suggest running `/status` to see overall migration readiness across all tables.
 

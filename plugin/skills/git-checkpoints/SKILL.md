@@ -60,6 +60,8 @@ repo_root=$(git rev-parse --show-toplevel)
 
 Determine the worktree path: `$repo_root/../worktrees/feature/<slug>`.
 
+Substitute the resolved slug value for every `<slug>` placeholder in all commands below before executing.
+
 Create the worktree:
 
 ```bash
