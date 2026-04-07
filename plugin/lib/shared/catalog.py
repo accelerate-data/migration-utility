@@ -320,6 +320,7 @@ def write_table_catalog(
         "auto_increment_columns": [],
         "change_capture": None,
         "sensitivity_classifications": [],
+        "excluded": False,
     }
     data: dict[str, Any] = {"schema": schema, "name": name, **defaults, **signals}
     if ddl_hash is not None:
@@ -384,6 +385,8 @@ def write_object_catalog(
     norm = normalize(fqn)
     schema, name = fqn_parts(norm)
     data: dict[str, Any] = {"schema": schema, "name": name, "references": references}
+    if object_type == "views":
+        data["excluded"] = False
     if is_materialized_view:
         data["is_materialized_view"] = True
     if ddl_hash is not None:
@@ -421,9 +424,9 @@ def write_object_catalog(
 # Keys preserved per bucket during re-extraction. ``refactor`` belongs only on
 # procedure catalogs; never copy it from tables/views/functions.
 _ENRICHED_KEYS_BY_BUCKET: dict[str, tuple[str, ...]] = {
-    "tables": ("scoping", "profile"),
+    "tables": ("scoping", "profile", "excluded"),
     "procedures": ("scoping", "profile", "refactor"),
-    "views": ("scoping", "profile"),
+    "views": ("scoping", "profile", "excluded"),
     "functions": ("scoping", "profile"),
 }
 

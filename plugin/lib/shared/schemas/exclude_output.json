@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ExcludeOutput",
+  "description": "Output of migrate-util exclude. Reports which catalog objects were marked excluded and which FQNs were not found.",
+  "type": "object",
+  "required": ["marked", "not_found"],
+  "properties": {
+    "marked": {
+      "type": "array",
+      "description": "Normalised FQNs successfully marked excluded: true.",
+      "items": { "type": "string" }
+    },
+    "not_found": {
+      "type": "array",
+      "description": "FQNs for which no catalog file (table or view) was found.",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": false
+}

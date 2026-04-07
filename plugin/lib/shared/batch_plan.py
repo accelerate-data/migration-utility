@@ -381,7 +381,19 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> dict[s
     table_dir = catalog_dir / "tables"
     view_dir = catalog_dir / "views"
 
-    table_fqns = sorted(p.stem for p in table_dir.glob("*.json")) if table_dir.is_dir() else []
+    # ── Enumerate tables, filtering out excluded ones ─────────────────────
+    excluded_fqns: set[str] = set()
+    raw_table_fqns = sorted(p.stem for p in table_dir.glob("*.json")) if table_dir.is_dir() else []
+    table_fqns: list[str] = []
+    for fqn in raw_table_fqns:
+        try:
+            cat = load_table_catalog(project_root, fqn) or {}
+        except (json.JSONDecodeError, OSError, CatalogLoadError):
+            cat = {}
+        if cat.get("excluded"):
+            excluded_fqns.add(fqn)
+        else:
+            table_fqns.append(fqn)
 
     view_entries: list[tuple[str, str]] = []  # (fqn, type)
     if view_dir.is_dir():
@@ -391,14 +403,18 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> dict[s
                 cat = load_view_catalog(project_root, fqn) or {}
                 obj_type = "mv" if cat.get("is_materialized_view") else "view"
             except (json.JSONDecodeError, OSError, CatalogLoadError):
+                cat = {}
                 obj_type = "view"
-            view_entries.append((fqn, obj_type))
+            if cat.get("excluded"):
+                excluded_fqns.add(fqn)
+            else:
+                view_entries.append((fqn, obj_type))
 
     all_objects: list[tuple[str, str]] = (
         [(fqn, "table") for fqn in table_fqns] + view_entries
     )
 
-    if not all_objects:
+    if not all_objects and not excluded_fqns:
         logger.info(
             "event=batch_plan_complete component=batch_plan operation=build_batch_plan "
             "status=empty total_objects=0",
@@ -512,9 +528,10 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> dict[s
 
     logger.info(
         "event=batch_plan_complete component=batch_plan operation=build_batch_plan "
-        "status=success total_objects=%d scope=%d profile=%d migrate_candidates=%d "
-        "migrate_batches=%d errors=%d warnings=%d",
+        "status=success total_objects=%d excluded=%d scope=%d profile=%d "
+        "migrate_candidates=%d migrate_batches=%d errors=%d warnings=%d",
         len(all_objects),
+        len(excluded_fqns),
         len(scope_phase),
         len(profile_phase),
         len(migrate_candidates),
@@ -523,6 +540,17 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> dict[s
         len(all_warnings),
     )
 
+    # Determine object type for excluded FQNs (needed for excluded_objects output).
+    def _excluded_type(fqn: str) -> str:
+        if (catalog_dir / "tables" / f"{fqn}.json").exists():
+            return "table"
+        # Check for MV flag in the view catalog.
+        try:
+            cat = load_view_catalog(project_root, fqn) or {}
+            return "mv" if cat.get("is_materialized_view") else "view"
+        except (json.JSONDecodeError, OSError, CatalogLoadError):
+            return "view"
+
     return {
         "summary": {
             "total_objects": len(all_objects),
@@ -530,6 +558,7 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> dict[s
             "views": sum(1 for _, t in view_entries if t == "view"),
             "mvs": sum(1 for _, t in view_entries if t == "mv"),
             "writerless_tables": len(n_a_objects),
+            "excluded_count": len(excluded_fqns),
         },
         "scope_phase": [_make_node(fqn) for fqn in sorted(scope_phase)],
         "profile_phase": [_make_node(fqn) for fqn in sorted(profile_phase)],
@@ -538,6 +567,14 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> dict[s
         "n_a_objects": [
             {"fqn": fqn, "type": obj_type_map[fqn], "reason": "writerless"}
             for fqn in sorted(n_a_objects)
+        ],
+        "excluded_objects": [
+            {
+                "fqn": fqn,
+                "type": _excluded_type(fqn),
+                "note": "excluded from pipeline",
+            }
+            for fqn in sorted(excluded_fqns)
         ],
         "circular_refs": [
             {
@@ -565,12 +602,14 @@ def _empty_plan() -> dict[str, Any]:
             "views": 0,
             "mvs": 0,
             "writerless_tables": 0,
+            "excluded_count": 0,
         },
         "scope_phase": [],
         "profile_phase": [],
         "migrate_batches": [],
         "completed_objects": [],
         "n_a_objects": [],
+        "excluded_objects": [],
         "circular_refs": [],
         "catalog_diagnostics": {
             "total_errors": 0,

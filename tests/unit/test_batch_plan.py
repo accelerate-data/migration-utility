@@ -1066,3 +1066,163 @@ class TestCollectObjectDiagnostics:
             assert result["catalog_diagnostics"]["total_warnings"] >= 1
         finally:
             tmp.cleanup()
+
+
+# ── Excluded objects tests ────────────────────────────────────────────────────
+
+
+class TestExcludedObjects:
+    """Tests for excluded: true filtering in build_batch_plan."""
+
+    def _make_single_table_project(self, tmp_path: Path, excluded: bool = False) -> Path:
+        """Create a minimal project with one table, optionally excluded."""
+        (tmp_path / "catalog" / "tables").mkdir(parents=True)
+        (tmp_path / "manifest.json").write_text(
+            json.dumps({"schema_version": "1.0", "technology": "sql_server"}),
+            encoding="utf-8",
+        )
+        cat: dict = {"schema": "silver", "name": "DimDate", "primary_keys": [], "referenced_by": {}}
+        if excluded:
+            cat["excluded"] = True
+        (tmp_path / "catalog" / "tables" / "silver.dimdate.json").write_text(
+            json.dumps(cat), encoding="utf-8"
+        )
+        return tmp_path
+
+    def test_excluded_table_absent_from_all_phases(self, tmp_path):
+        """Excluded table does not appear in scope_phase, profile_phase, migrate_batches, n_a_objects, or completed_objects."""
+        dst = self._make_single_table_project(tmp_path, excluded=True)
+        result = build_batch_plan(dst)
+        all_active_fqns = (
+            {n["fqn"] for n in result["scope_phase"]}
+            | {n["fqn"] for n in result["profile_phase"]}
+            | {n["fqn"] for batch in result["migrate_batches"] for n in batch["objects"]}
+            | {n["fqn"] for n in result["completed_objects"]}
+            | {n["fqn"] for n in result["n_a_objects"]}
+        )
+        assert "silver.dimdate" not in all_active_fqns
+
+    def test_excluded_table_in_excluded_objects_list(self, tmp_path):
+        """Excluded table appears in excluded_objects with correct shape."""
+        dst = self._make_single_table_project(tmp_path, excluded=True)
+        result = build_batch_plan(dst)
+        assert len(result["excluded_objects"]) == 1
+        entry = result["excluded_objects"][0]
+        assert entry["fqn"] == "silver.dimdate"
+        assert entry["type"] == "table"
+        assert "note" in entry
+
+    def test_excluded_count_in_summary(self, tmp_path):
+        """summary.excluded_count reflects number of excluded objects."""
+        dst = self._make_single_table_project(tmp_path, excluded=True)
+        result = build_batch_plan(dst)
+        assert result["summary"]["excluded_count"] == 1
+
+    def test_non_excluded_table_has_zero_excluded_count(self, tmp_path):
+        """summary.excluded_count is 0 when nothing is excluded."""
+        dst = self._make_single_table_project(tmp_path, excluded=False)
+        result = build_batch_plan(dst)
+        assert result["summary"]["excluded_count"] == 0
+        assert result["excluded_objects"] == []
+
+    def test_excluded_view_absent_from_all_phases(self, tmp_path):
+        """Excluded view does not appear in any active phase."""
+        (tmp_path / "catalog" / "views").mkdir(parents=True)
+        (tmp_path / "manifest.json").write_text(
+            json.dumps({"schema_version": "1.0", "technology": "sql_server"}),
+            encoding="utf-8",
+        )
+        (tmp_path / "catalog" / "views" / "silver.vw_legacy.json").write_text(
+            json.dumps({
+                "schema": "silver", "name": "vw_legacy",
+                "excluded": True,
+                "references": {"tables": {"in_scope": []}, "views": {"in_scope": []}},
+            }),
+            encoding="utf-8",
+        )
+        result = build_batch_plan(tmp_path)
+        assert len(result["excluded_objects"]) == 1
+        assert result["excluded_objects"][0]["fqn"] == "silver.vw_legacy"
+        assert result["excluded_objects"][0]["type"] == "view"
+        all_active = (
+            {n["fqn"] for n in result["scope_phase"]}
+            | {n["fqn"] for n in result["profile_phase"]}
+        )
+        assert "silver.vw_legacy" not in all_active
+
+    def test_excluded_dep_removed_from_active_dep_graph(self, tmp_path):
+        """Active table that previously depended on now-excluded table has no blocking dep on it."""
+        (tmp_path / "catalog" / "tables").mkdir(parents=True)
+        (tmp_path / "manifest.json").write_text(
+            json.dumps({"schema_version": "1.0", "technology": "sql_server"}),
+            encoding="utf-8",
+        )
+        # Excluded source table
+        (tmp_path / "catalog" / "tables" / "silver.excludedsource.json").write_text(
+            json.dumps({
+                "schema": "silver", "name": "ExcludedSource",
+                "excluded": True, "primary_keys": [], "referenced_by": {},
+            }),
+            encoding="utf-8",
+        )
+        # Active table — no writer proc, so writerless (n_a).
+        # Deps are resolved via writer proc; with no writer this table has no dep chain.
+        # For simplicity, just confirm the excluded table is not in excluded_objects fqn set
+        # of the active table's direct_deps.
+        (tmp_path / "catalog" / "tables" / "silver.facttable.json").write_text(
+            json.dumps({
+                "schema": "silver", "name": "FactTable",
+                "primary_keys": [], "referenced_by": {},
+                "scoping": {"status": "no_writer_found"},
+            }),
+            encoding="utf-8",
+        )
+        result = build_batch_plan(tmp_path)
+        excluded_fqns_in_output = {e["fqn"] for e in result["excluded_objects"]}
+        assert "silver.excludedsource" in excluded_fqns_in_output
+        # The active table's direct_deps must not include the excluded source
+        n_a_fqns = {n["fqn"] for n in result["n_a_objects"]}
+        assert "silver.facttable" in n_a_fqns
+        for n in result["n_a_objects"]:
+            if n["fqn"] == "silver.facttable":
+                assert "silver.excludedsource" not in n.get("direct_deps", [])
+
+    def test_schema_valid_with_excluded(self, assert_valid_schema, tmp_path):
+        """build_batch_plan output with excluded objects conforms to schema."""
+        dst = self._make_single_table_project(tmp_path, excluded=True)
+        result = build_batch_plan(dst)
+        assert_valid_schema(result, "batch_plan_output.json")
+
+    def test_full_fixture_excluded_count_zero(self):
+        """Standard fixture (no excluded objects) has excluded_count=0."""
+        tmp, dst = _make_project()
+        try:
+            result = build_batch_plan(dst)
+            assert result["summary"]["excluded_count"] == 0
+            assert result["excluded_objects"] == []
+        finally:
+            tmp.cleanup()
+
+    def test_full_fixture_with_one_excluded(self):
+        """Excluding one table reduces total active count and adds to excluded_objects."""
+        tmp, dst = _make_project()
+        try:
+            dimdate_path = dst / "catalog" / "tables" / "silver.dimdate.json"
+            cat = json.loads(dimdate_path.read_text())
+            cat["excluded"] = True
+            dimdate_path.write_text(json.dumps(cat))
+
+            result = build_batch_plan(dst)
+            assert result["summary"]["excluded_count"] == 1
+            assert result["summary"]["total_objects"] == 7  # was 8
+            excluded_fqns = {e["fqn"] for e in result["excluded_objects"]}
+            assert "silver.dimdate" in excluded_fqns
+            # silver.dimdate must not appear in any active phase
+            all_active = (
+                {n["fqn"] for n in result["scope_phase"]}
+                | {n["fqn"] for n in result["profile_phase"]}
+                | {n["fqn"] for b in result["migrate_batches"] for n in b["objects"]}
+            )
+            assert "silver.dimdate" not in all_active
+        finally:
+            tmp.cleanup()

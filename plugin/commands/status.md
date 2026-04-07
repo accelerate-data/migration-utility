@@ -79,9 +79,15 @@ Header object count: show total objects plus a breakdown e.g. `(4 tables, 2 view
 
 Summary counts: the denominator excludes N/A objects. Show the N/A count in parentheses if any exist, e.g. `profile: 2/4 (1 N/A)`. Views are included in the denominator for scope (they can be pending/complete for scope), but views are excluded from the denominator for profile/test-gen/refactor/migrate because those stages return `VIEW_STAGE_NOT_SUPPORTED` — treat them as implicit N/A for counting purposes.
 
-### Step 4 — Build dependency schedule and surface diagnostics
+### Step 4 — Sync exclusion warnings and build dependency schedule
 
-Run the batch planner once to get the full dependency-aware execution plan:
+First, sync EXCLUDED_DEP catalog warnings so that any active objects depending on excluded objects have up-to-date warnings, and any stale warnings are cleared:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util sync-excluded-warnings
+```
+
+Then run the batch planner to get the full dependency-aware execution plan:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util batch-plan
@@ -121,6 +127,7 @@ Rules for the schedule output:
 - Omit completed_objects from the schedule (they are done).
 - Show n_a_objects as a brief note: "N writerless tables (source tables, no migration needed)".
 - If circular_refs is non-empty, flag them: "N objects excluded — circular dependency detected. Review CIRCULAR_REFERENCE diagnostics."
+- If `summary.excluded_count > 0`, show at the bottom of the status output: "N objects excluded from pipeline — edit catalog JSON to re-include"
 
 #### Section B — Catalog Diagnostics
 
@@ -260,6 +267,7 @@ Based on the first incomplete stage, recommend the specific command to run next 
 |---|---|
 | `migrate-util dry-run` returns exit code 1 | Report the domain error from JSON output |
 | `migrate-util dry-run` returns exit code 2 | Report IO error, suggest checking project setup |
+| `migrate-util sync-excluded-warnings` returns exit code 2 | Log warning to stderr, continue — exclusion warnings may be stale |
 | `migrate-util batch-plan` returns exit code 2 | Report IO error, suggest checking project setup |
 | `migrate-util batch-plan` returns `{"error": ...}` | Report the error and suggest running `/setup-ddl` |
 | No catalog files found | Tell user to run `/setup-ddl` first |
