@@ -153,7 +153,7 @@ If `dbt/models/staging/sources.yml` exists and any table has `scope_needed` stat
 
 #### Section D — init-dbt readiness hint
 
-If `dbt/dbt_project.yml` does **not** exist AND there is at least one in-scope object AND the batch-plan `scope_phase` is empty (all in-scope objects have completed scope), show:
+If `dbt/dbt_project.yml` does **not** exist AND the batch-plan `scope_phase` is empty (all in-scope objects have completed scope), show:
 
 ```text
 ready to initialise dbt  — all tables are scoped. Run /init-dbt to scaffold your dbt project.
