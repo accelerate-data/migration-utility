@@ -22,7 +22,7 @@ Dialect-specific DDL scripts for the Kimball DW fixture. Each script is self-con
 
 DDL was validated by running each script against its respective Docker engine on 2026-04-07:
 
-- **SQL Server:** `docker exec aw-sql sqlcmd -d KimballFixture -i /tmp/sqlserver.sql` — all objects created, no errors
+- **SQL Server:** `docker exec sql-test sqlcmd -d KimballFixture -i /tmp/sqlserver.sql` — all objects created, no errors
 - **Oracle:** `sqlplus kimball/kimball@localhost:1521/FREEPDB1 @/tmp/oracle.sql` — all objects created, no errors
 - **PostgreSQL:** `psql -U postgres -d kimball_fixture -f /tmp/postgres.sql` — all objects created, no errors
 

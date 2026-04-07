@@ -4,10 +4,10 @@ This guide sets up the local SQL Server container used by this repo.
 
 ## Container Conventions
 
-- Container name: `aw-sql`
+- Container name: `sql-test`
 - Image: `mcr.microsoft.com/mssql/server:2022-latest`
 - Port: `1433`
-- Volume: `aw-sql-data`
+- Volume: `sql-test-data`
 - Default SA password in examples: `P@ssw0rd123`
 
 ## One-Time Setup
@@ -22,19 +22,19 @@ docker pull mcr.microsoft.com/mssql/server:2022-latest
 - Step 3: Create container:
 
 ```bash
-docker run --name aw-sql \
+docker run --name sql-test \
   -e ACCEPT_EULA=Y \
   -e MSSQL_SA_PASSWORD='P@ssw0rd123' \
   -e MSSQL_PID=Developer \
   -p 1433:1433 \
-  -v aw-sql-data:/var/opt/mssql \
+  -v sql-test-data:/var/opt/mssql \
   -d mcr.microsoft.com/mssql/server:2022-latest
 ```
 
 - Step 4: Set restart policy:
 
 ```bash
-docker update --restart unless-stopped aw-sql
+docker update --restart unless-stopped sql-test
 ```
 
 - Step 5: Restore sample databases once:
@@ -56,14 +56,14 @@ Databases restored by the helper script:
 Start and verify:
 
 ```bash
-docker start aw-sql
-docker logs --tail 50 aw-sql
+docker start sql-test
+docker logs --tail 50 sql-test
 ```
 
 Optional connectivity check:
 
 ```bash
-docker exec aw-sql /opt/mssql-tools18/bin/sqlcmd \
+docker exec sql-test /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'P@ssw0rd123' -C \
   -Q "SELECT TOP 5 name FROM sys.databases ORDER BY name;"
 ```
@@ -71,7 +71,7 @@ docker exec aw-sql /opt/mssql-tools18/bin/sqlcmd \
 Stop when done:
 
 ```bash
-docker stop aw-sql
+docker stop sql-test
 ```
 
 ## Integration Test Command
@@ -85,14 +85,16 @@ cd plugin/lib && uv run pytest -m integration
 Container already exists:
 
 ```bash
-docker start aw-sql
+docker start sql-test
 ```
 
 Login failure due to stale volume/password mismatch:
 
 ```bash
-docker rm -f aw-sql
-docker volume rm aw-sql-data
+docker rm -f sql-test
+docker volume rm sql-test-data
 ```
 
 Then recreate container and restore samples.
+
+> **Note:** Containers created before the rename (formerly `aw-sql`) use volume `aw-sql-data`. Use `docker volume rm aw-sql-data` to clean up legacy volumes.

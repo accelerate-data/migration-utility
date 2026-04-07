@@ -117,7 +117,7 @@
     },
     "test_fixtures": {
       "path": "test-fixtures/",
-      "description": "Cross-dialect Kimball DW fixture for integration testing and demos. schema/ has DDL for SQL Server, Oracle, PostgreSQL (staging, dim, fact, gold tables + views). data/baseline/ has seed INSERT SQL per dialect (extracted from AdventureWorks2022). data/delta/ has 5 incremental scenarios (new-customer-product, scd2-address-change, scd1-name-correction, late-arriving-fact, dedup-staging). procedures/ has 20-21 stored procedures per dialect covering 11 pattern categories (standard load, CTE, join, set ops, subquery, aggregate, pivot, control flow, exec chain, view-backed, error conditions). scripts/ has csv_to_inserts.py (extraction + generation tool)."
+      "description": "Cross-dialect Kimball DW fixture for integration testing and demos. schema/ has DDL for SQL Server, Oracle, PostgreSQL (staging, dim, fact, gold tables + views). data/baseline/ has seed INSERT SQL per dialect (extracted from AdventureWorks2022). data/delta/ has 5 incremental scenarios (new-customer-product, scd2-address-change, scd1-name-correction, late-arriving-fact, dedup-staging). procedures/ has 20-21 stored procedures per dialect covering 11 pattern categories (standard load, CTE, join, set ops, subquery, aggregate, pivot, control flow, exec chain, view-backed, error conditions). scripts/ has csv_to_inserts.py (extraction + generation tool). parity/ has validate.py (cross-dialect parity validation script — runs full orchestrator on sql-test/oracle-test/pg-test and compares all 20 output tables across baseline and 5 delta rounds) and coverage-matrix.md (procedure → pattern category mapping)."
     }
   },
   "key_directories": {

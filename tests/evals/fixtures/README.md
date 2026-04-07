@@ -8,7 +8,7 @@ Extract once. Re-extract only when the MigrationTest schema changes.
 
 ```bash
 # 1. Ensure Docker container is running with MigrationTest
-docker ps | grep aw-sql
+docker ps | grep sql-test
 
 # 2. Set MCP connection environment
 export MSSQL_HOST=localhost

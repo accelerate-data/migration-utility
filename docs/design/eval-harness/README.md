@@ -487,7 +487,7 @@ Run once after Docker MigrationTest is set up. Re-run only when `scripts/sql/cre
 
 ```bash
 # 1. Ensure Docker container is running with MigrationTest loaded
-docker ps | grep aw-sql
+docker ps | grep sql-test
 
 # 2. Set environment variables for MCP connection
 export MSSQL_HOST=localhost

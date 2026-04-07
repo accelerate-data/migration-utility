@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Usage: ./scripts/publish-test-db-image.sh [tag]
 # Runs the MigrationTest setup script (includes smoke tests), then
-# commits the aw-sql Docker container and pushes to GHCR.
+# commits the sql-test Docker container and pushes to GHCR.
 # Requires: SA_PASSWORD env var, docker login to ghcr.io
 
 set -euo pipefail
 
 TAG=${1:-latest}
 IMAGE=ghcr.io/hbanerjee74/migration-test-db:${TAG}
-CONTAINER=aw-sql
+CONTAINER=sql-test
 
 if [ -z "${SA_PASSWORD:-}" ]; then
     echo "ERROR: SA_PASSWORD environment variable is not set" >&2
