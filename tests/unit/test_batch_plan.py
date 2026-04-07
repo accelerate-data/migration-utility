@@ -662,11 +662,14 @@ class TestBuildBatchPlan:
         try:
             result = build_batch_plan(dst)
             summary = result["summary"]
-            # 6 tables + 2 views
-            assert summary["total_objects"] == 8
-            assert summary["tables"] == 6
+            # refcurrency has no_writer_found → goes to source_pending, not pipeline
+            # 5 pipeline tables + 2 views = 7 pipeline objects
+            assert summary["total_objects"] == 7
+            assert summary["tables"] == 5
             assert summary["views"] == 2
-            assert summary["writerless_tables"] == 1  # refcurrency
+            assert summary["writerless_tables"] == 0
+            assert summary["source_pending"] == 1  # refcurrency awaits confirmation
+            assert summary["source_tables"] == 0
         finally:
             tmp.cleanup()
 
@@ -691,13 +694,22 @@ class TestBuildBatchPlan:
         finally:
             tmp.cleanup()
 
-    def test_n_a_objects(self):
-        """Writerless tables appear in n_a_objects."""
+    def test_n_a_objects_empty_for_fixture(self):
+        """n_a_objects is empty in the fixture — refcurrency moved to source_pending."""
         tmp, dst = _make_project()
         try:
             result = build_batch_plan(dst)
-            na_fqns = {o["fqn"] for o in result["n_a_objects"]}
-            assert "silver.refcurrency" in na_fqns
+            assert result["n_a_objects"] == []
+        finally:
+            tmp.cleanup()
+
+    def test_source_pending_contains_refcurrency(self):
+        """Writerless table without is_source flag appears in source_pending."""
+        tmp, dst = _make_project()
+        try:
+            result = build_batch_plan(dst)
+            pending_fqns = {o["fqn"] for o in result["source_pending"]}
+            assert "silver.refcurrency" in pending_fqns
         finally:
             tmp.cleanup()
 
@@ -1413,5 +1425,131 @@ class TestComputeDiagnosticStageFlags:
             )
             assert "diagnostic_stage_flags" in dimdate_node
             assert dimdate_node["diagnostic_stage_flags"].get("refactor") == "error"
+        finally:
+            tmp.cleanup()
+
+
+# ── is_source flag tests ──────────────────────────────────────────────────────
+
+
+def _write_table_cat(path: Path, fqn: str, scoping: dict, extra: dict | None = None) -> None:
+    schema, name = fqn.split(".", 1)
+    data: dict = {"schema": schema, "name": name, "scoping": scoping}
+    if extra:
+        data.update(extra)
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def _make_minimal_project(tmp_path: Path) -> Path:
+    """Create a minimal project with catalog/tables/ dir."""
+    (tmp_path / "catalog" / "tables").mkdir(parents=True)
+    (tmp_path / "manifest.json").write_text(
+        json.dumps({"schema_version": "1.0", "technology": "sql_server"}), encoding="utf-8"
+    )
+    return tmp_path
+
+
+class TestIsSourceBatchPlan:
+    def test_is_source_table_excluded_from_pipeline(self, tmp_path):
+        """Table with is_source: true is excluded from all pipeline phases."""
+        root = _make_minimal_project(tmp_path)
+        cat_dir = root / "catalog" / "tables"
+        _write_table_cat(
+            cat_dir / "silver.audit.json",
+            "silver.audit",
+            {"status": "no_writer_found"},
+            {"is_source": True},
+        )
+        result = build_batch_plan(root)
+        all_fqns = (
+            {n["fqn"] for n in result["scope_phase"]}
+            | {n["fqn"] for n in result["profile_phase"]}
+            | {n["fqn"] for batch in result["migrate_batches"] for n in batch["objects"]}
+            | {n["fqn"] for n in result["completed_objects"]}
+            | {n["fqn"] for n in result["n_a_objects"]}
+            | {n["fqn"] for n in result["source_pending"]}
+        )
+        assert "silver.audit" not in all_fqns
+
+    def test_is_source_counted_in_summary(self, tmp_path):
+        """summary.source_tables counts is_source: true tables."""
+        root = _make_minimal_project(tmp_path)
+        cat_dir = root / "catalog" / "tables"
+        _write_table_cat(
+            cat_dir / "silver.audit.json",
+            "silver.audit",
+            {"status": "no_writer_found"},
+            {"is_source": True},
+        )
+        result = build_batch_plan(root)
+        assert result["summary"]["source_tables"] == 1
+        assert result["summary"]["total_objects"] == 0  # excluded from pipeline
+
+    def test_is_source_appears_in_source_tables_list(self, tmp_path):
+        """is_source: true table appears in source_tables output list."""
+        root = _make_minimal_project(tmp_path)
+        cat_dir = root / "catalog" / "tables"
+        _write_table_cat(
+            cat_dir / "silver.audit.json",
+            "silver.audit",
+            {"status": "no_writer_found"},
+            {"is_source": True},
+        )
+        result = build_batch_plan(root)
+        source_fqns = {o["fqn"] for o in result["source_tables"]}
+        assert "silver.audit" in source_fqns
+
+    def test_resolved_table_with_is_source_excluded_from_pipeline(self, tmp_path):
+        """Resolved table marked is_source: true is excluded (cross-domain scenario)."""
+        root = _make_minimal_project(tmp_path)
+        cat_dir = root / "catalog" / "tables"
+        _write_table_cat(
+            cat_dir / "silver.crossdomain.json",
+            "silver.crossdomain",
+            {"status": "resolved", "selected_writer": "dbo.usp_other_team"},
+            {"is_source": True},
+        )
+        result = build_batch_plan(root)
+        assert result["summary"]["source_tables"] == 1
+        assert result["summary"]["total_objects"] == 0
+
+    def test_source_pending_populated(self, tmp_path):
+        """no_writer_found table without is_source appears in source_pending."""
+        root = _make_minimal_project(tmp_path)
+        cat_dir = root / "catalog" / "tables"
+        _write_table_cat(
+            cat_dir / "silver.lookup.json",
+            "silver.lookup",
+            {"status": "no_writer_found"},
+        )
+        result = build_batch_plan(root)
+        pending_fqns = {o["fqn"] for o in result["source_pending"]}
+        assert "silver.lookup" in pending_fqns
+        assert result["summary"]["source_pending"] == 1
+
+    def test_source_pending_not_in_pipeline(self, tmp_path):
+        """source_pending tables do not appear in any pipeline phase."""
+        root = _make_minimal_project(tmp_path)
+        cat_dir = root / "catalog" / "tables"
+        _write_table_cat(
+            cat_dir / "silver.lookup.json",
+            "silver.lookup",
+            {"status": "no_writer_found"},
+        )
+        result = build_batch_plan(root)
+        all_pipeline_fqns = (
+            {n["fqn"] for n in result["scope_phase"]}
+            | {n["fqn"] for n in result["profile_phase"]}
+            | {n["fqn"] for batch in result["migrate_batches"] for n in batch["objects"]}
+            | {n["fqn"] for n in result["n_a_objects"]}
+        )
+        assert "silver.lookup" not in all_pipeline_fqns
+
+    def test_schema_valid_with_source_fields(self, assert_valid_schema):
+        """build_batch_plan output with source fields still matches schema."""
+        tmp, dst = _make_project()
+        try:
+            result = build_batch_plan(dst)
+            assert_valid_schema(result, "batch_plan_output.json")
         finally:
             tmp.cleanup()

@@ -756,3 +756,80 @@ def test_run_write_view_scoping_error_status() -> None:
         written = json.loads(Path(result["written"]).read_text(encoding="utf-8"))
         assert written["scoping"]["status"] == "error"
         assert written["scoping"]["sql_elements"] is None
+
+
+# ── write-source tests ────────────────────────────────────────────────────────
+
+
+def _make_table_cat(root: Path, fqn: str, scoping: dict, extra: dict | None = None) -> Path:
+    tables_dir = root / "catalog" / "tables"
+    tables_dir.mkdir(parents=True, exist_ok=True)
+    schema, name = fqn.split(".", 1)
+    data: dict = {"schema": schema, "name": name, "scoping": scoping}
+    if extra:
+        data.update(extra)
+    path = tables_dir / f"{fqn}.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return path
+
+
+def test_write_source_sets_flag() -> None:
+    """run_write_source sets is_source: true on a no_writer_found table."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        cat_path = _make_table_cat(root, "silver.lookup", {"status": "no_writer_found"})
+        result = discover.run_write_source(root, "silver.lookup", True)
+        assert result["status"] == "ok"
+        assert result["is_source"] is True
+        written = json.loads(cat_path.read_text(encoding="utf-8"))
+        assert written["is_source"] is True
+
+
+def test_write_source_resolved_table() -> None:
+    """run_write_source accepts resolved tables (cross-domain source scenario)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        cat_path = _make_table_cat(
+            root, "silver.crossdomain",
+            {"status": "resolved", "selected_writer": "dbo.usp_other"},
+        )
+        result = discover.run_write_source(root, "silver.crossdomain", True)
+        assert result["status"] == "ok"
+        written = json.loads(cat_path.read_text(encoding="utf-8"))
+        assert written["is_source"] is True
+
+
+def test_write_source_false_removes_flag() -> None:
+    """run_write_source with value=False removes the is_source key."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        cat_path = _make_table_cat(
+            root, "silver.audit", {"status": "no_writer_found"}, {"is_source": True}
+        )
+        result = discover.run_write_source(root, "silver.audit", False)
+        assert result["status"] == "ok"
+        assert result["is_source"] is False
+        written = json.loads(cat_path.read_text(encoding="utf-8"))
+        assert "is_source" not in written
+
+
+def test_write_source_missing_catalog_raises() -> None:
+    """run_write_source raises CatalogFileMissingError when catalog file absent."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "catalog" / "tables").mkdir(parents=True)
+        with pytest.raises(CatalogFileMissingError):
+            discover.run_write_source(root, "silver.nonexistent", True)
+
+
+def test_write_source_unanalyzed_guard_raises() -> None:
+    """run_write_source raises ValueError when table has not been analyzed yet."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        tables_dir = root / "catalog" / "tables"
+        tables_dir.mkdir(parents=True)
+        (tables_dir / "silver.fresh.json").write_text(
+            json.dumps({"schema": "silver", "name": "Fresh"}), encoding="utf-8"
+        )
+        with pytest.raises(ValueError, match="not been analyzed"):
+            discover.run_write_source(root, "silver.fresh", True)

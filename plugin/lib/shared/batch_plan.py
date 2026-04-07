@@ -413,19 +413,31 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> dict[s
     table_dir = catalog_dir / "tables"
     view_dir = catalog_dir / "views"
 
-    # ── Enumerate tables, filtering out excluded ones ─────────────────────
+    # Classify tables: excluded, source-confirmed, pending confirmation, and pipeline.
+    # excluded: true   → excluded from pipeline (user-excluded via /exclude-table)
+    # is_source: true  → excluded from pipeline (confirmed dbt source)
+    # no_writer_found without is_source → source_pending (needs confirmation)
+    # all others → pipeline
     excluded_fqns: set[str] = set()
-    raw_table_fqns = sorted(p.stem for p in table_dir.glob("*.json")) if table_dir.is_dir() else []
+    source_table_fqns: list[str] = []
+    source_pending_fqns: list[str] = []
     table_fqns: list[str] = []
-    for fqn in raw_table_fqns:
-        try:
-            cat = load_table_catalog(project_root, fqn) or {}
-        except (json.JSONDecodeError, OSError, CatalogLoadError):
-            cat = {}
-        if cat.get("excluded"):
-            excluded_fqns.add(fqn)
-        else:
-            table_fqns.append(fqn)
+
+    if table_dir.is_dir():
+        for p in sorted(table_dir.glob("*.json")):
+            fqn = p.stem
+            try:
+                cat = load_table_catalog(project_root, fqn) or {}
+            except (json.JSONDecodeError, OSError, CatalogLoadError):
+                cat = {}
+            if cat.get("excluded"):
+                excluded_fqns.add(fqn)
+            elif cat.get("is_source") is True:
+                source_table_fqns.append(fqn)
+            elif (cat.get("scoping") or {}).get("status") == "no_writer_found":
+                source_pending_fqns.append(fqn)
+            else:
+                table_fqns.append(fqn)
 
     view_entries: list[tuple[str, str]] = []  # (fqn, type)
     if view_dir.is_dir():
@@ -446,12 +458,52 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> dict[s
         [(fqn, "table") for fqn in table_fqns] + view_entries
     )
 
-    if not all_objects and not excluded_fqns:
+    if not all_objects and not excluded_fqns and not source_table_fqns and not source_pending_fqns:
         logger.info(
             "event=batch_plan_complete component=batch_plan operation=build_batch_plan "
             "status=empty total_objects=0",
         )
         return _empty_plan()
+
+    if not all_objects:
+        # Only source/pending tables exist — return minimal plan with those counts.
+        logger.info(
+            "event=batch_plan_complete component=batch_plan operation=build_batch_plan "
+            "status=success total_objects=0 source_tables=%d source_pending=%d",
+            len(source_table_fqns),
+            len(source_pending_fqns),
+        )
+        return {
+            "summary": {
+                "total_objects": 0,
+                "tables": 0,
+                "views": 0,
+                "mvs": 0,
+                "writerless_tables": 0,
+                "source_tables": len(source_table_fqns),
+                "source_pending": len(source_pending_fqns),
+            },
+            "scope_phase": [],
+            "profile_phase": [],
+            "migrate_batches": [],
+            "completed_objects": [],
+            "n_a_objects": [],
+            "source_tables": [
+                {"fqn": fqn, "type": "table", "reason": "is_source"}
+                for fqn in sorted(source_table_fqns)
+            ],
+            "source_pending": [
+                {"fqn": fqn, "type": "table"}
+                for fqn in sorted(source_pending_fqns)
+            ],
+            "circular_refs": [],
+            "catalog_diagnostics": {
+                "total_errors": 0,
+                "total_warnings": 0,
+                "errors": [],
+                "warnings": [],
+            },
+        }
 
     obj_type_map = {fqn: t for fqn, t in all_objects}
     all_fqns = set(obj_type_map)
@@ -567,13 +619,16 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> dict[s
     logger.info(
         "event=batch_plan_complete component=batch_plan operation=build_batch_plan "
         "status=success total_objects=%d excluded=%d scope=%d profile=%d "
-        "migrate_candidates=%d migrate_batches=%d errors=%d warnings=%d",
+        "migrate_candidates=%d migrate_batches=%d source_tables=%d source_pending=%d "
+        "errors=%d warnings=%d",
         len(all_objects),
         len(excluded_fqns),
         len(scope_phase),
         len(profile_phase),
         len(migrate_candidates),
         len(migrate_batch_lists),
+        len(source_table_fqns),
+        len(source_pending_fqns),
         len(all_errors),
         len(all_warnings),
     )
@@ -597,6 +652,8 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> dict[s
             "mvs": sum(1 for _, t in view_entries if t == "mv"),
             "writerless_tables": len(n_a_objects),
             "excluded_count": len(excluded_fqns),
+            "source_tables": len(source_table_fqns),
+            "source_pending": len(source_pending_fqns),
         },
         "scope_phase": [_make_node(fqn) for fqn in sorted(scope_phase)],
         "profile_phase": [_make_node(fqn) for fqn in sorted(profile_phase)],
@@ -613,6 +670,14 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> dict[s
                 "note": "excluded from pipeline",
             }
             for fqn in sorted(excluded_fqns)
+        ],
+        "source_tables": [
+            {"fqn": fqn, "type": "table", "reason": "is_source"}
+            for fqn in sorted(source_table_fqns)
+        ],
+        "source_pending": [
+            {"fqn": fqn, "type": "table"}
+            for fqn in sorted(source_pending_fqns)
         ],
         "circular_refs": [
             {
@@ -641,6 +706,8 @@ def _empty_plan() -> dict[str, Any]:
             "mvs": 0,
             "writerless_tables": 0,
             "excluded_count": 0,
+            "source_tables": 0,
+            "source_pending": 0,
         },
         "scope_phase": [],
         "profile_phase": [],
@@ -648,6 +715,8 @@ def _empty_plan() -> dict[str, Any]:
         "completed_objects": [],
         "n_a_objects": [],
         "excluded_objects": [],
+        "source_tables": [],
+        "source_pending": [],
         "circular_refs": [],
         "catalog_diagnostics": {
             "total_errors": 0,

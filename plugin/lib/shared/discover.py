@@ -1,12 +1,13 @@
 """discover.py — DDL object catalog reader.
 
-Standalone CLI with five subcommands:
+Standalone CLI with six subcommands:
 
     list             List all objects of a given type in a DDL directory.
     show             Show details (columns/params/refs) for a single named object.
     refs             Find all procedures/views that reference a given object.
     write-statements Persist resolved statements into a procedure catalog file.
     write-scoping    Persist scoping results into a table catalog file.
+    write-source     Set or clear the is_source flag on a table catalog file.
 
 Requires catalog files from setup-ddl. Errors if catalog is missing.
 
@@ -468,6 +469,39 @@ def run_write_view_scoping(
     return {"written": str(cat_path), "status": "ok"}
 
 
+def run_write_source(
+    project_root: Path,
+    table_fqn: str,
+    value: bool,
+) -> dict[str, Any]:
+    """Set or clear the is_source flag on a table catalog file.
+
+    Guard: the catalog file must exist and scoping must be present (any status).
+    Setting value=True marks the table as a dbt source; value=False removes the flag.
+    """
+    table_norm = normalize(table_fqn)
+    cat = load_table_catalog(project_root, table_norm)
+    if cat is None:
+        raise CatalogFileMissingError("table", table_norm)
+
+    if not cat.get("scoping"):
+        raise ValueError(
+            f"Table {table_norm!r} has not been analyzed yet. "
+            "Run /analyzing-table first."
+        )
+
+    if value:
+        cat["is_source"] = True
+    else:
+        cat.pop("is_source", None)
+
+    catalog_dir = resolve_catalog_dir(project_root) / "tables"
+    cat_path = catalog_dir / f"{table_norm}.json"
+    write_json(cat_path, cat)
+
+    return {"written": str(cat_path), "is_source": value, "status": "ok"}
+
+
 def run_refs(project_root: Path, name: str) -> dict[str, Any]:
     """Return the refs subcommand result dict.
 
@@ -609,6 +643,32 @@ def write_scoping(
             result = run_write_view_scoping(project_root, name, scoping_data)
         else:
             result = run_write_scoping(project_root, name, scoping_data)
+    except (CatalogFileMissingError, ObjectNotFoundError) as exc:
+        logger.error("event=command_failed error=%s", exc)
+        raise typer.Exit(code=1) from exc
+    except CatalogLoadError as exc:
+        logger.error("event=command_failed error=%s", exc)
+        raise typer.Exit(code=2) from exc
+    except ValueError as exc:
+        logger.error("event=command_failed error=%s", exc)
+        raise typer.Exit(code=1) from exc
+    emit(result)
+
+
+@app.command(name="write-source")
+def write_source(
+    project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
+    name: str = typer.Option(..., help="Fully qualified table name"),
+    value: bool = typer.Option(True, "--value/--no-value", help="Set (--value) or clear (--no-value) the is_source flag"),
+) -> None:
+    """Set or clear the is_source flag on a table catalog file.
+
+    Marks the table as a dbt source (is_source: true) or removes the flag.
+    Guard: table catalog must exist and scoping must be present.
+    """
+    project_root = resolve_project_root(project_root)
+    try:
+        result = run_write_source(project_root, name, value)
     except (CatalogFileMissingError, ObjectNotFoundError) as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=1) from exc

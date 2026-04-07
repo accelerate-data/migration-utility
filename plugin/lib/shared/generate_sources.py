@@ -1,8 +1,11 @@
 """generate_sources.py — Build and write dbt sources.yml from catalog.
 
-Only tables with ``scoping.status == "no_writer_found"`` are registered as
-dbt sources. Tables with ``resolved`` status are procedure targets that will
-become dbt models (referenced via ``ref()``).
+Only tables explicitly marked ``is_source: true`` are registered as dbt
+sources. Tables with ``resolved`` status are procedure targets that will
+become dbt models (referenced via ``ref()``). Tables with
+``scoping.status == "no_writer_found"`` but no ``is_source`` flag appear in
+the ``unconfirmed`` list — they need user confirmation via ``/add-source-tables``
+or the ``/init-dbt`` confirmation flow before they are included.
 
 Exit codes:
     0  success
@@ -35,24 +38,34 @@ app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 def generate_sources(project_root: Path) -> dict[str, Any]:
     """Build sources.yml content from catalog tables.
 
-    Only tables with ``scoping.status == "no_writer_found"`` are included.
-    Tables with ``resolved`` status are procedure targets and will become
-    dbt models (referenced via ``ref()``).
+    Only tables with ``is_source: true`` are included. Tables with
+    ``resolved`` status are excluded (they become dbt models). Tables with
+    ``scoping.status == "no_writer_found"`` but no ``is_source`` flag are
+    listed in ``unconfirmed`` — they need explicit confirmation before
+    being included.
 
     Returns a dict with:
       - ``sources``: the YAML-serialisable sources dict (or None if empty)
-      - ``included``: list of table FQNs included as sources
+      - ``included``: list of table FQNs included as sources (is_source: true)
       - ``excluded``: list of table FQNs excluded (resolved targets)
+      - ``unconfirmed``: list of no_writer_found FQNs without is_source flag
       - ``incomplete``: list of table FQNs with incomplete scoping
     """
     catalog_dir = resolve_catalog_dir(project_root)
     tables_dir = catalog_dir / "tables"
 
     if not tables_dir.is_dir():
-        return {"sources": None, "included": [], "excluded": [], "incomplete": []}
+        return {
+            "sources": None,
+            "included": [],
+            "excluded": [],
+            "unconfirmed": [],
+            "incomplete": [],
+        }
 
     included: list[str] = []
     excluded: list[str] = []
+    unconfirmed: list[str] = []
     incomplete: list[str] = []
 
     # schema_name → list of table names
@@ -75,11 +88,13 @@ def generate_sources(project_root: Path) -> dict[str, Any]:
         scoping = cat.get("scoping") or {}
         status = scoping.get("status")
 
-        if status == "no_writer_found":
+        if cat.get("is_source") is True:
             included.append(fqn)
             sources_by_schema.setdefault(schema, []).append(name)
         elif status == "resolved":
             excluded.append(fqn)
+        elif status == "no_writer_found":
+            unconfirmed.append(fqn)
         else:
             incomplete.append(fqn)
 
@@ -88,6 +103,7 @@ def generate_sources(project_root: Path) -> dict[str, Any]:
             "sources": None,
             "included": included,
             "excluded": excluded,
+            "unconfirmed": unconfirmed,
             "incomplete": incomplete,
         }
 
@@ -109,6 +125,7 @@ def generate_sources(project_root: Path) -> dict[str, Any]:
         "sources": sources_dict,
         "included": included,
         "excluded": excluded,
+        "unconfirmed": unconfirmed,
         "incomplete": incomplete,
     }
 
@@ -149,13 +166,14 @@ def main(
         False, "--write", help="Write sources.yml to dbt project",
     ),
     strict: bool = typer.Option(
-        False, "--strict", help="Exit 1 if any table has incomplete scoping",
+        False, "--strict", help="Exit 1 if any table has incomplete scoping (not yet analyzed)",
     ),
 ) -> None:
-    """Generate sources.yml from catalog tables with scoping filter.
+    """Generate sources.yml from catalog tables.
 
-    Only tables with scoping.status == 'no_writer_found' are included.
-    Tables with 'resolved' status are excluded (they become dbt models).
+    Only tables with is_source=true are included. Tables with 'resolved'
+    status are excluded (they become dbt models). Tables with
+    'no_writer_found' but no is_source flag appear in 'unconfirmed'.
     """
     try:
         root = resolve_project_root(project_root)
