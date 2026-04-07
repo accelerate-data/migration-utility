@@ -1106,7 +1106,7 @@ def test_reviewing_model_guard_includes_view_dep_check() -> None:
 
 
 def _add_source_table(root: Path, schema: str, name: str) -> None:
-    """Add a table with no_writer_found scoping (a true source)."""
+    """Add a table confirmed as a dbt source (no_writer_found + is_source: true)."""
     norm = f"{schema.lower()}.{name.lower()}"
     cat = {
         "schema": schema,
@@ -1116,6 +1116,7 @@ def _add_source_table(root: Path, schema: str, name: str) -> None:
         "foreign_keys": [],
         "auto_increment_columns": [],
         "referenced_by": [],
+        "is_source": True,
         "scoping": {
             "status": "no_writer_found",
             "selected_writer": None,
@@ -1127,38 +1128,40 @@ def _add_source_table(root: Path, schema: str, name: str) -> None:
     )
 
 
-def test_generate_sources_only_includes_no_writer_found(assert_valid_schema) -> None:
-    """Only tables with no_writer_found are included in sources."""
+def test_generate_sources_only_includes_is_source_true(assert_valid_schema) -> None:
+    """Only tables with is_source: true are included in sources."""
     tmp, root = _make_project()
     with tmp:
-        # silver.DimCustomer has scoping.status == "resolved" (from fixture)
-        # silver.RefCurrency has scoping.status == "no_writer_found" (from fixture)
-        # Add a bronze source table
+        # silver.DimCustomer has scoping.status == "resolved" (from fixture) → excluded
+        # silver.RefCurrency has no_writer_found but no is_source flag → unconfirmed
+        # bronze.CustomerRaw has is_source: true → included
         _add_source_table(root, "bronze", "CustomerRaw")
 
         result = gen_src.generate_sources(root)
         assert_valid_schema(result, "generate_sources_output.json")
         assert "bronze.customerraw" in result["included"]
-        assert "silver.refcurrency" in result["included"]
+        assert "silver.refcurrency" not in result["included"]
+        assert "silver.refcurrency" in result["unconfirmed"]
         assert "silver.dimcustomer" in result["excluded"]
         assert result["incomplete"] == []
         assert result["sources"] is not None
-        # Both bronze and silver schemas appear in sources
+        # Only bronze schema has a confirmed source
         schema_names = [s["name"] for s in result["sources"]["sources"]]
         assert "bronze" in schema_names
-        assert "silver" in schema_names
+        assert "silver" not in schema_names
 
 
 def test_generate_sources_excludes_resolved_tables() -> None:
-    """Tables with resolved status are excluded; writerless tables are included."""
+    """Tables with resolved status are excluded; unconfirmed writerless go to unconfirmed."""
     tmp, root = _make_project()
     with tmp:
         result = gen_src.generate_sources(root)
         # silver.DimCustomer is resolved → excluded
         assert "silver.dimcustomer" in result["excluded"]
-        # silver.RefCurrency is no_writer_found → included as source
-        assert "silver.refcurrency" in result["included"]
-        assert result["sources"] is not None
+        # silver.RefCurrency is no_writer_found without is_source → unconfirmed, not included
+        assert "silver.refcurrency" in result["unconfirmed"]
+        assert "silver.refcurrency" not in result["included"]
+        assert result["sources"] is None  # no confirmed sources
 
 
 def test_generate_sources_detects_incomplete_scoping() -> None:
@@ -1171,23 +1174,24 @@ def test_generate_sources_detects_incomplete_scoping() -> None:
 
 
 def test_generate_sources_mixed_statuses() -> None:
-    """Mixed resolved, no_writer_found, and incomplete tables."""
+    """Mixed resolved, no_writer_found (confirmed and unconfirmed), and incomplete tables."""
     tmp, root = _make_project()
     with tmp:
-        # silver.DimCustomer: resolved (from fixture)
-        # silver.RefCurrency: no_writer_found (from fixture)
-        _add_source_table(root, "bronze", "CustomerRaw")  # no_writer_found
-        _add_source_table(root, "bronze", "OrderRaw")  # no_writer_found
-        _add_table_to_project(root, "silver.DimDate")  # no scoping
+        # silver.DimCustomer: resolved (from fixture) → excluded
+        # silver.RefCurrency: no_writer_found without is_source (from fixture) → unconfirmed
+        _add_source_table(root, "bronze", "CustomerRaw")  # is_source: true → included
+        _add_source_table(root, "bronze", "OrderRaw")  # is_source: true → included
+        _add_table_to_project(root, "silver.DimDate")  # no scoping → incomplete
 
         result = gen_src.generate_sources(root)
-        assert sorted(result["included"]) == ["bronze.customerraw", "bronze.orderraw", "silver.refcurrency"]
+        assert sorted(result["included"]) == ["bronze.customerraw", "bronze.orderraw"]
         assert result["excluded"] == ["silver.dimcustomer"]
+        assert result["unconfirmed"] == ["silver.refcurrency"]
         assert result["incomplete"] == ["silver.dimdate"]
-        # Sources should have bronze and silver schemas
+        # Sources should have bronze schema only (silver.refcurrency not confirmed)
         schema_names = {s["name"] for s in result["sources"]["sources"]}
         assert "bronze" in schema_names
-        assert "silver" in schema_names
+        assert "silver" not in schema_names
 
 
 def test_generate_sources_empty_catalog() -> None:
@@ -1214,13 +1218,14 @@ def test_generate_sources_multiple_schemas() -> None:
 
         result = gen_src.generate_sources(root)
         schema_names = sorted(s["name"] for s in result["sources"]["sources"])
-        # silver.RefCurrency (no_writer_found fixture) also appears as a source
+        # Only confirmed is_source: true tables appear — silver.RefCurrency goes to unconfirmed
         assert "bronze" in schema_names
         assert "staging" in schema_names
+        assert "silver" not in schema_names
 
 
 def test_write_sources_yml() -> None:
-    """write_sources_yml creates the YAML file on disk."""
+    """write_sources_yml creates the YAML file on disk with only is_source: true tables."""
     tmp, root = _make_project()
     with tmp:
         _add_source_table(root, "bronze", "CustomerRaw")
@@ -1231,26 +1236,26 @@ def test_write_sources_yml() -> None:
         content = yaml.safe_load(sources_path.read_text(encoding="utf-8"))
         assert content["version"] == 2
         schema_names = {s["name"] for s in content["sources"]}
-        # bronze from added table, silver from RefCurrency fixture (no_writer_found)
+        # Only bronze.CustomerRaw (is_source: true); silver.RefCurrency is unconfirmed
         assert "bronze" in schema_names
-        assert "silver" in schema_names
+        assert "silver" not in schema_names
 
 
-def test_write_sources_yml_no_sources() -> None:
-    """write_sources_yml writes a file when writerless tables exist."""
+def test_write_sources_yml_no_confirmed_sources() -> None:
+    """write_sources_yml returns path=None when no tables have is_source: true."""
     tmp, root = _make_project()
     with tmp:
-        # silver.RefCurrency (no_writer_found) is in the fixture — sources.yml is written
+        # silver.RefCurrency (no_writer_found, no is_source flag) → unconfirmed, not written
         result = gen_src.write_sources_yml(root)
-        assert result["path"] is not None
-        assert result["sources"] is not None
+        assert result["path"] is None
+        assert result["sources"] is None
 
 
 def test_cli_generate_sources() -> None:
-    """CLI generate-sources outputs valid JSON."""
+    """CLI generate-sources outputs valid JSON with is_source: true table included."""
     tmp, root = _make_project()
     with tmp:
-        _add_source_table(root, "bronze", "CustomerRaw")
+        _add_source_table(root, "bronze", "CustomerRaw")  # is_source: true
         result = _cli_runner.invoke(
             gen_src.app,
             ["--project-root", str(root)],
@@ -1258,6 +1263,7 @@ def test_cli_generate_sources() -> None:
         assert result.exit_code == 0
         output = json.loads(result.stdout)
         assert "bronze.customerraw" in output["included"]
+        assert "silver.refcurrency" in output["unconfirmed"]
 
 
 def test_cli_generate_sources_strict_blocks_on_incomplete() -> None:
