@@ -28,8 +28,10 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. After Step 2 (dependenc
 ### Step 1 — Setup
 
 1. Parse `$ARGUMENTS` as `<schema.view_name>`. If missing or malformed, ask the user.
-2. Generate run slug: `refactor-view-<schema>-<view_name>` (lowercase, dots replaced with hyphens, truncated to 60 characters).
-3. Run the `git-checkpoints` skill with the run slug as the argument. If it returns a worktree path, use that path as the working directory for all file writes and git operations in this run.
+2. Generate run slug: `refactor-view-<schema>-<view_name>` (lowercase, dots → hyphens, at most 40 characters).
+3. Run the `git-checkpoints` skill with the run slug as the argument.
+   - If it returns `"main"`: proceed without a branch or worktree. All file writes and git operations target the current directory. Set `<working-directory>` to `$(git rev-parse --show-toplevel)` for use in sub-agent prompts below.
+   - Otherwise: use the returned path as the working directory for all file writes and git operations in this run. Set `<working-directory>` to the returned path.
 4. Generate a run epoch: seconds since Unix epoch. All run artifacts use this as a filename suffix.
 
 ### Step 2 — Dependency resolution
@@ -54,7 +56,7 @@ Topological sort the dependency set: leaf views (no `references.views.in_scope` 
 
 ```text
 Run the /refactoring-view skill for <schema.view_name>.
-The worktree is at <worktree-path>.
+The working directory is <working-directory>.
 Write the item result JSON to .migration-runs/<schema.view_name>.<epoch>.json.
 
 After writing the result:
