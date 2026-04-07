@@ -7,8 +7,11 @@
 //   target_table?,              — single table name (omit for all-tables mode)
 //   expected_stage_statuses?,   — JSON string: {"scope": "resolved", "profile": "ok", "test-gen": "pending", "migrate": "blocked"}
 //   expected_output_terms?,     — comma-separated terms that must appear in output text
+//   unexpected_output_terms?,   — comma-separated terms that must NOT appear in output text
 //   expected_blocked_stage?,    — stage name that should be reported as blocked/pending
-//   expected_recommendation?    — term that should appear in the recommendation
+//   expected_recommendation?,   — term that should appear in the recommendation
+//   expected_na_object?,        — FQN that should appear with N/A status
+//   expected_view_objects?,     — comma-separated view FQNs that should appear in output
 // }
 
 const fs = require('fs');
@@ -79,6 +82,18 @@ module.exports = (output, context) => {
         pass: false,
         score: 0,
         reason: `Expected output term '${term}' not found in status output`,
+      };
+    }
+  }
+
+  // Check unexpected output terms (must NOT appear)
+  const unexpectedOutputTerms = normalizeTerms(context.vars.unexpected_output_terms);
+  for (const term of unexpectedOutputTerms) {
+    if (outputStr.includes(term)) {
+      return {
+        pass: false,
+        score: 0,
+        reason: `Unexpected output term '${term}' found in status output (should be absent)`,
       };
     }
   }
