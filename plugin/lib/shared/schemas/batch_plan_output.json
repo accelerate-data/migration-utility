@@ -10,6 +10,7 @@
     "migrate_batches",
     "completed_objects",
     "n_a_objects",
+    "excluded_objects",
     "circular_refs",
     "catalog_diagnostics"
   ],
@@ -17,13 +18,14 @@
     "summary": {
       "type": "object",
       "description": "High-level counts of catalog objects.",
-      "required": ["total_objects", "tables", "views", "mvs", "writerless_tables"],
+      "required": ["total_objects", "tables", "views", "mvs", "writerless_tables", "excluded_count"],
       "properties": {
         "total_objects": { "type": "integer", "minimum": 0 },
         "tables": { "type": "integer", "minimum": 0 },
         "views": { "type": "integer", "minimum": 0 },
         "mvs": { "type": "integer", "minimum": 0 },
-        "writerless_tables": { "type": "integer", "minimum": 0 }
+        "writerless_tables": { "type": "integer", "minimum": 0 },
+        "excluded_count": { "type": "integer", "minimum": 0, "description": "Number of catalog objects marked excluded: true." }
       },
       "additionalProperties": false
     },
@@ -68,6 +70,20 @@
           "fqn": { "type": "string" },
           "type": { "type": "string", "enum": ["table", "view", "mv"] },
           "reason": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "excluded_objects": {
+      "type": "array",
+      "description": "Objects explicitly excluded from the pipeline via excluded: true in their catalog file.",
+      "items": {
+        "type": "object",
+        "required": ["fqn", "type", "note"],
+        "properties": {
+          "fqn": { "type": "string" },
+          "type": { "type": "string", "enum": ["table", "view", "mv"] },
+          "note": { "type": "string" }
         },
         "additionalProperties": false
       }
