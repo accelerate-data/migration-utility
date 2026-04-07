@@ -452,6 +452,75 @@ def _mark_stale(project_root: Path, removed_fqns: set[str]) -> None:
                 break
 
 
+def _get_connection_identity(technology: str, database: str) -> dict[str, Any]:
+    """Return the connection identity fields for the current environment.
+
+    SQL Server / Fabric Warehouse: reads MSSQL_HOST and MSSQL_PORT from env,
+    uses *database* for source_database.  Missing env vars default to empty
+    string so CI environments without these vars never trigger false positives.
+
+    Oracle: reads ORACLE_DSN from env as a single opaque identity string.
+    """
+    import os
+
+    if technology in ("sql_server", "fabric_warehouse"):
+        return {
+            "source_host": os.environ.get("MSSQL_HOST", ""),
+            "source_port": os.environ.get("MSSQL_PORT", ""),
+            "source_database": database,
+        }
+    if technology == "oracle":
+        return {
+            "source_dsn": os.environ.get("ORACLE_DSN", ""),
+        }
+    return {}
+
+
+def _identity_changed(existing_manifest: dict[str, Any], current_identity: dict[str, Any]) -> bool:
+    """Return True if any non-empty current identity value differs from what is stored.
+
+    If all current values are empty (env vars absent), returns False to avoid
+    false positives in CI or headless environments.
+    """
+    non_empty = {k: v for k, v in current_identity.items() if v}
+    if not non_empty:
+        return False
+    for key, value in non_empty.items():
+        if existing_manifest.get(key, "") != value:
+            return True
+    return False
+
+
+def _mark_all_catalog_stale(project_root: Path) -> None:
+    """Set ``stale: true`` on every catalog file in the project.
+
+    Called when connection identity changes to force re-evaluation of all
+    objects against the new source system.
+    """
+    from shared.env_config import resolve_catalog_dir
+
+    catalog_dir = resolve_catalog_dir(project_root)
+    if not catalog_dir.is_dir():
+        return
+
+    count = 0
+    for bucket in ("tables", "procedures", "views", "functions"):
+        bucket_dir = catalog_dir / bucket
+        if not bucket_dir.is_dir():
+            continue
+        for p in sorted(bucket_dir.glob("*.json")):
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+                if not data.get("stale"):
+                    data["stale"] = True
+                    _write_catalog_json(p, data)
+                    count += 1
+            except (json.JSONDecodeError, OSError) as exc:
+                logger.warning("event=mark_all_stale_error path=%s error=%s", p, exc)
+
+    logger.info("event=mark_all_stale_identity_changed count=%d", count)
+
+
 def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> dict[str, Any]:
     """Process staging JSON files and write all catalog JSON files.
 
@@ -626,6 +695,7 @@ def run_write_manifest(
         "source_database": database,
         "extracted_schemas": schemas,
         "extracted_at": datetime.now(timezone.utc).isoformat(),
+        **_get_connection_identity(technology, database),
     }
 
     project_root.mkdir(parents=True, exist_ok=True)
@@ -758,6 +828,22 @@ def run_extract(
         "event=extract_start technology=%s database=%s schemas=%s",
         technology, db_name, schemas,
     )
+
+    # ── Identity check: pre-mark all catalog objects stale if source changed ──
+    manifest_path = project_root / "manifest.json"
+    existing_manifest: dict[str, Any] = {}
+    if manifest_path.exists():
+        try:
+            existing_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            existing_manifest = {}
+    current_identity = _get_connection_identity(technology, db_name)
+    if _identity_changed(existing_manifest, current_identity):
+        logger.info(
+            "event=identity_changed technology=%s pre_stale_all=true",
+            technology,
+        )
+        _mark_all_catalog_stale(project_root)
 
     enriched_snapshot = snapshot_enriched_fields(project_root)
 

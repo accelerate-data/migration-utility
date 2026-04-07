@@ -11,17 +11,17 @@
     },
     "technology": {
       "type": "string",
-      "enum": ["sql_server", "fabric_warehouse", "fabric_lakehouse", "snowflake"],
+      "enum": ["sql_server", "fabric_warehouse", "fabric_lakehouse", "snowflake", "oracle"],
       "description": "Source technology that produced this DDL extraction."
     },
     "dialect": {
       "type": "string",
-      "enum": ["tsql", "spark", "snowflake"],
+      "enum": ["tsql", "spark", "snowflake", "oracle"],
       "description": "sqlglot dialect for parsing the extracted DDL files."
     },
     "source_database": {
       "type": "string",
-      "description": "Name of the source database."
+      "description": "Name of the source database (or service name for Oracle)."
     },
     "extracted_schemas": {
       "type": "array",
@@ -32,6 +32,18 @@
       "type": "string",
       "format": "date-time",
       "description": "ISO 8601 timestamp of extraction."
+    },
+    "source_host": {
+      "type": "string",
+      "description": "Hostname or IP of the source SQL Server / Fabric Warehouse. Used for cross-server staleness detection."
+    },
+    "source_port": {
+      "type": "string",
+      "description": "Port of the source SQL Server / Fabric Warehouse. Used for cross-server staleness detection."
+    },
+    "source_dsn": {
+      "type": "string",
+      "description": "ORACLE_DSN connection string for Oracle extractions. Used as an opaque identity for cross-server staleness detection."
     },
     "sandbox": {
       "type": "object",

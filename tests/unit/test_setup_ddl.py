@@ -1604,3 +1604,178 @@ def test_run_assemble_tables_missing_manifest_raises(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError):
         run_assemble_tables(input_file, project_root)
+
+
+# ── Unit: connection identity ─────────────────────────────────────────────────
+
+
+class TestConnectionIdentity:
+    """Tests for _get_connection_identity, _identity_changed, and _mark_all_catalog_stale."""
+
+    @staticmethod
+    def _import():
+        import sys
+        sys.path.insert(0, str(Path(__file__).parents[2] / "plugin" / "lib"))
+        from shared.setup_ddl import (
+            _get_connection_identity,
+            _identity_changed,
+            _mark_all_catalog_stale,
+        )
+        return _get_connection_identity, _identity_changed, _mark_all_catalog_stale
+
+    def test_sqlserver_identity_reads_env(self, monkeypatch):
+        _get_connection_identity, _, _ = self._import()
+        monkeypatch.setenv("MSSQL_HOST", "server1.example.com")
+        monkeypatch.setenv("MSSQL_PORT", "1433")
+        identity = _get_connection_identity("sql_server", "AdventureWorks")
+        assert identity["source_host"] == "server1.example.com"
+        assert identity["source_port"] == "1433"
+        assert identity["source_database"] == "AdventureWorks"
+
+    def test_oracle_identity_reads_dsn(self, monkeypatch):
+        _get_connection_identity, _, _ = self._import()
+        monkeypatch.setenv("ORACLE_DSN", "localhost:1521/FREEPDB1")
+        identity = _get_connection_identity("oracle", "")
+        assert identity["source_dsn"] == "localhost:1521/FREEPDB1"
+        assert "source_host" not in identity
+
+    def test_sqlserver_manifest_stores_identity(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MSSQL_HOST", "db1.internal")
+        monkeypatch.setenv("MSSQL_PORT", "1433")
+        result = _run_cli([
+            "write-manifest",
+            "--project-root", str(tmp_path),
+            "--technology", "sql_server",
+            "--database", "MyDB",
+            "--schemas", "silver",
+        ])
+        assert result.returncode == 0, result.stderr
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert manifest["source_host"] == "db1.internal"
+        assert manifest["source_port"] == "1433"
+        assert manifest["source_database"] == "MyDB"
+
+    def test_oracle_manifest_stores_dsn(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("ORACLE_DSN", "oraclehost:1521/PROD")
+        result = _run_cli([
+            "write-manifest",
+            "--project-root", str(tmp_path),
+            "--technology", "oracle",
+            "--database", "PROD",
+            "--schemas", "SH",
+        ])
+        assert result.returncode == 0, result.stderr
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert manifest["source_dsn"] == "oraclehost:1521/PROD"
+
+    def test_identity_changed_host(self):
+        _, _identity_changed, _ = self._import()
+        existing = {"source_host": "old-server", "source_port": "1433", "source_database": "DB1"}
+        current = {"source_host": "new-server", "source_port": "1433", "source_database": "DB1"}
+        assert _identity_changed(existing, current) is True
+
+    def test_identity_changed_database(self):
+        _, _identity_changed, _ = self._import()
+        existing = {"source_host": "server1", "source_port": "1433", "source_database": "DB1"}
+        current = {"source_host": "server1", "source_port": "1433", "source_database": "DB2"}
+        assert _identity_changed(existing, current) is True
+
+    def test_identity_unchanged(self):
+        _, _identity_changed, _ = self._import()
+        existing = {"source_host": "server1", "source_port": "1433", "source_database": "DB1"}
+        current = {"source_host": "server1", "source_port": "1433", "source_database": "DB1"}
+        assert _identity_changed(existing, current) is False
+
+    def test_identity_changed_oracle_dsn(self):
+        _, _identity_changed, _ = self._import()
+        existing = {"source_dsn": "host1:1521/SVC1"}
+        current = {"source_dsn": "host2:1521/SVC1"}
+        assert _identity_changed(existing, current) is True
+
+    def test_identity_missing_env_no_false_positive(self):
+        _, _identity_changed, _ = self._import()
+        # No current env values (all empty) — must not trigger stale flush
+        existing = {"source_host": "server1", "source_port": "1433", "source_database": "DB1"}
+        current = {"source_host": "", "source_port": "", "source_database": "DB1"}
+        # source_database is non-empty and matches — no change
+        assert _identity_changed(existing, current) is False
+
+    def test_identity_empty_env_vars_no_false_positive(self):
+        _, _identity_changed, _ = self._import()
+        existing = {"source_host": "server1", "source_port": "1433", "source_database": "DB1"}
+        # All identity values empty → treat as absent, no false positive
+        current = {"source_host": "", "source_port": ""}
+        assert _identity_changed(existing, current) is False
+
+    def test_mark_all_catalog_stale(self, tmp_path):
+        _, _, _mark_all_catalog_stale = self._import()
+        # Seed catalog with one proc and one table (neither stale)
+        proc_path = tmp_path / "catalog" / "procedures" / "dbo.usp_load.json"
+        table_path = tmp_path / "catalog" / "tables" / "silver.dimcustomer.json"
+        proc_path.parent.mkdir(parents=True)
+        table_path.parent.mkdir(parents=True)
+        proc_path.write_text(json.dumps({"ddl_hash": "abc"}), encoding="utf-8")
+        table_path.write_text(json.dumps({"ddl_hash": "xyz"}), encoding="utf-8")
+
+        _mark_all_catalog_stale(tmp_path)
+
+        assert json.loads(proc_path.read_text())["stale"] is True
+        assert json.loads(table_path.read_text())["stale"] is True
+
+    def test_identity_changed_pre_marks_all_stale_on_reextract(self, tmp_path, monkeypatch):
+        """Identity change causes all existing catalog files to be pre-marked stale."""
+        # Seed an existing manifest with old host
+        manifest = {
+            "schema_version": "1.0",
+            "technology": "sql_server",
+            "dialect": "tsql",
+            "source_database": "DB1",
+            "extracted_schemas": ["silver"],
+            "extracted_at": "2025-01-01T00:00:00+00:00",
+            "source_host": "old-server",
+            "source_port": "1433",
+        }
+        (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+        # Seed an existing catalog proc
+        proc_path = tmp_path / "catalog" / "procedures" / "silver.usp_load.json"
+        proc_path.parent.mkdir(parents=True)
+        proc_path.write_text(json.dumps({"ddl_hash": "abc"}), encoding="utf-8")
+
+        # New env points to a different host
+        monkeypatch.setenv("MSSQL_HOST", "new-server")
+        monkeypatch.setenv("MSSQL_PORT", "1433")
+
+        import sys
+        sys.path.insert(0, str(Path(__file__).parents[2] / "plugin" / "lib"))
+        from shared.setup_ddl import _get_connection_identity, _identity_changed, _mark_all_catalog_stale
+
+        current_identity = _get_connection_identity("sql_server", "DB1")
+        assert _identity_changed(manifest, current_identity) is True
+        _mark_all_catalog_stale(tmp_path)
+
+        assert json.loads(proc_path.read_text())["stale"] is True
+
+    def test_same_identity_no_spurious_stale(self, tmp_path, monkeypatch):
+        """Same host+port+database leaves existing catalog files untouched."""
+        manifest = {
+            "schema_version": "1.0",
+            "technology": "sql_server",
+            "dialect": "tsql",
+            "source_database": "DB1",
+            "extracted_schemas": ["silver"],
+            "extracted_at": "2025-01-01T00:00:00+00:00",
+            "source_host": "server1",
+            "source_port": "1433",
+        }
+        (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+        monkeypatch.setenv("MSSQL_HOST", "server1")
+        monkeypatch.setenv("MSSQL_PORT", "1433")
+
+        import sys
+        sys.path.insert(0, str(Path(__file__).parents[2] / "plugin" / "lib"))
+        from shared.setup_ddl import _get_connection_identity, _identity_changed
+
+        current_identity = _get_connection_identity("sql_server", "DB1")
+        assert _identity_changed(manifest, current_identity) is False
