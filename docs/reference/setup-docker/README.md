@@ -6,9 +6,9 @@ Pre-built Docker images with the full Kimball DW fixture baked in: schema, 20 st
 
 | Container | Image | Port | Purpose |
 |---|---|---|---|
-| `sql-test` | `ghcr.io/acceleratedata/migration-sample-sqlserver:latest` | `1433` | SQL Server — KimballFixture |
-| `oracle-test` | `ghcr.io/acceleratedata/migration-sample-oracle:latest` | `1521` | Oracle 23ai — KimballFixture |
-| `pg-test` | `ghcr.io/acceleratedata/migration-sample-postgres:latest` | `5432` | PostgreSQL — KimballFixture |
+| `sql-test` | `ghcr.io/accelerate-data/migration-sample-sqlserver:latest` | `1433` | SQL Server — KimballFixture |
+| `oracle-test` | `ghcr.io/accelerate-data/migration-sample-oracle:latest` | `1521` | Oracle 23ai — KimballFixture |
+| `pg-test` | `ghcr.io/accelerate-data/migration-sample-postgres:latest` | `5432` | PostgreSQL — KimballFixture |
 
 ## One-Time Setup (per machine)
 
@@ -21,9 +21,9 @@ echo YOUR_GITHUB_PAT | docker login ghcr.io -u YOUR_GITHUB_USER --password-stdin
 Pull all three images:
 
 ```bash
-docker pull ghcr.io/acceleratedata/migration-sample-sqlserver:latest
-docker pull ghcr.io/acceleratedata/migration-sample-oracle:latest
-docker pull ghcr.io/acceleratedata/migration-sample-postgres:latest
+docker pull ghcr.io/accelerate-data/migration-sample-sqlserver:latest
+docker pull ghcr.io/accelerate-data/migration-sample-oracle:latest
+docker pull ghcr.io/accelerate-data/migration-sample-postgres:latest
 ```
 
 Start containers:
@@ -34,19 +34,19 @@ docker run --name sql-test \
   -e ACCEPT_EULA=Y \
   -e MSSQL_SA_PASSWORD='P@ssw0rd123' \
   -p 1433:1433 \
-  -d ghcr.io/acceleratedata/migration-sample-sqlserver:latest
+  -d ghcr.io/accelerate-data/migration-sample-sqlserver:latest
 
 # Oracle
 docker run --name oracle-test \
   -e ORACLE_PWD='P@ssw0rd123' \
   -p 1521:1521 \
-  -d ghcr.io/acceleratedata/migration-sample-oracle:latest
+  -d ghcr.io/accelerate-data/migration-sample-oracle:latest
 
 # PostgreSQL
 docker run --name pg-test \
   -e POSTGRES_PASSWORD=postgres \
   -p 5432:5432 \
-  -d ghcr.io/acceleratedata/migration-sample-postgres:latest
+  -d ghcr.io/accelerate-data/migration-sample-postgres:latest
 ```
 
 Set restart policy:
