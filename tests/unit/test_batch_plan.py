@@ -32,24 +32,10 @@ _FIXTURES = _TESTS_DIR / "fixtures" / "batch_plan"
 def _make_project(
     src: Path = _FIXTURES,
 ) -> tuple[tempfile.TemporaryDirectory, Path]:
-    """Copy fixtures to a temp dir and git-init it (required by resolve_project_root)."""
+    """Copy fixtures to a temp dir."""
     tmp = tempfile.TemporaryDirectory()
     dst = Path(tmp.name) / "project"
     shutil.copytree(src, dst)
-    subprocess.run(["git", "init"], cwd=dst, capture_output=True, check=True)
-    subprocess.run(
-        ["git", "commit", "--allow-empty", "-m", "init"],
-        cwd=dst,
-        capture_output=True,
-        check=True,
-        env={
-            "GIT_AUTHOR_NAME": "test",
-            "GIT_AUTHOR_EMAIL": "t@t",
-            "GIT_COMMITTER_NAME": "test",
-            "GIT_COMMITTER_EMAIL": "t@t",
-            "HOME": str(Path.home()),
-        },
-    )
     return tmp, dst
 
 
@@ -63,20 +49,6 @@ def _make_empty_project() -> tuple[tempfile.TemporaryDirectory, Path]:
         encoding="utf-8",
     )
     (dst / "catalog" / "tables").mkdir(parents=True)
-    subprocess.run(["git", "init"], cwd=dst, capture_output=True, check=True)
-    subprocess.run(
-        ["git", "commit", "--allow-empty", "-m", "init"],
-        cwd=dst,
-        capture_output=True,
-        check=True,
-        env={
-            "GIT_AUTHOR_NAME": "test",
-            "GIT_AUTHOR_EMAIL": "t@t",
-            "GIT_COMMITTER_NAME": "test",
-            "GIT_COMMITTER_EMAIL": "t@t",
-            "HOME": str(Path.home()),
-        },
-    )
     return tmp, dst
 
 
@@ -545,6 +517,68 @@ class TestCollectDeps:
         deps = collect_deps(tmp_path, "silver.t", "table")
         assert isinstance(deps, set)
 
+    def test_merge_pattern_self_reference_stripped(self, tmp_path):
+        """MERGE pattern: writer proc references its own target table — self-ref must not appear in deps."""
+        proc_dir = tmp_path / "catalog" / "procedures"
+        proc_dir.mkdir(parents=True)
+        (tmp_path / "catalog" / "tables").mkdir(parents=True)
+        (tmp_path / "catalog" / "tables" / "silver.factagg.json").write_text(
+            json.dumps({"schema": "silver", "name": "FactAgg", "scoping": {"selected_writer": "dbo.usp_load_factagg"}}),
+            encoding="utf-8",
+        )
+        (proc_dir / "dbo.usp_load_factagg.json").write_text(
+            json.dumps({
+                "schema": "dbo", "name": "usp_load_factagg", "mode": "deterministic", "routing_reasons": [],
+                "references": {
+                    "tables": {
+                        "in_scope": [
+                            {"schema": "silver", "name": "FactAgg"},  # self-reference via MERGE
+                            {"schema": "bronze", "name": "RawAgg"},
+                        ],
+                        "out_of_scope": [],
+                    },
+                    "views": {"in_scope": [], "out_of_scope": []},
+                    "functions": {"in_scope": [], "out_of_scope": []},
+                    "procedures": {"in_scope": [], "out_of_scope": []},
+                },
+            }),
+            encoding="utf-8",
+        )
+        deps = collect_deps(tmp_path, "silver.factagg", "table")
+        assert "silver.factagg" not in deps
+        assert "bronze.rawagg" in deps
+
+    def test_truncate_insert_pattern_self_reference_stripped(self, tmp_path):
+        """TRUNCATE+INSERT pattern: writer proc references its own target table — self-ref must not appear in deps."""
+        proc_dir = tmp_path / "catalog" / "procedures"
+        proc_dir.mkdir(parents=True)
+        (tmp_path / "catalog" / "tables").mkdir(parents=True)
+        (tmp_path / "catalog" / "tables" / "silver.dimproduct.json").write_text(
+            json.dumps({"schema": "silver", "name": "DimProduct", "scoping": {"selected_writer": "dbo.usp_reload_dimproduct"}}),
+            encoding="utf-8",
+        )
+        (proc_dir / "dbo.usp_reload_dimproduct.json").write_text(
+            json.dumps({
+                "schema": "dbo", "name": "usp_reload_dimproduct", "mode": "deterministic", "routing_reasons": [],
+                "references": {
+                    "tables": {
+                        "in_scope": [
+                            {"schema": "silver", "name": "DimProduct"},  # self-reference via TRUNCATE+INSERT
+                            {"schema": "bronze", "name": "RawProduct"},
+                        ],
+                        "out_of_scope": [],
+                    },
+                    "views": {"in_scope": [], "out_of_scope": []},
+                    "functions": {"in_scope": [], "out_of_scope": []},
+                    "procedures": {"in_scope": [], "out_of_scope": []},
+                },
+            }),
+            encoding="utf-8",
+        )
+        deps = collect_deps(tmp_path, "silver.dimproduct", "table")
+        assert "silver.dimproduct" not in deps
+        assert "bronze.rawproduct" in deps
+
 
 # ── Topological batch tests ───────────────────────────────────────────────────
 
@@ -907,6 +941,69 @@ class TestBuildBatchPlan:
                 assert node["has_dbt_model"] is False, node["fqn"]
         finally:
             tmp.cleanup()
+
+    def _write_merge_ready_table(self, root: Path, table_fqn: str, writer_fqn: str, extra_table_refs: list[dict]) -> None:
+        """Write catalog files for a migrate-ready table whose writer has a self-reference."""
+        schema, name = table_fqn.split(".", 1)
+        w_schema, w_name = writer_fqn.split(".", 1)
+        (root / "catalog" / "tables").mkdir(parents=True, exist_ok=True)
+        (root / "catalog" / "procedures").mkdir(parents=True, exist_ok=True)
+        (root / "test-specs").mkdir(parents=True, exist_ok=True)
+        (root / "catalog" / "tables" / f"{table_fqn}.json").write_text(
+            json.dumps({
+                "schema": schema, "name": name,
+                "scoping": {"status": "resolved", "selected_writer": writer_fqn},
+                "profile": {"status": "ok", "classification": {}},
+            }),
+            encoding="utf-8",
+        )
+        (root / "test-specs" / f"{table_fqn}.json").write_text(json.dumps({}), encoding="utf-8")
+        (root / "catalog" / "procedures" / f"{writer_fqn}.json").write_text(
+            json.dumps({
+                "schema": w_schema, "name": w_name, "mode": "deterministic", "routing_reasons": [],
+                "refactor": {"status": "ok"},
+                "references": {
+                    "tables": {
+                        "in_scope": [{"schema": schema, "name": name}] + extra_table_refs,
+                        "out_of_scope": [],
+                    },
+                    "views": {"in_scope": [], "out_of_scope": []},
+                    "functions": {"in_scope": [], "out_of_scope": []},
+                    "procedures": {"in_scope": [], "out_of_scope": []},
+                },
+            }),
+            encoding="utf-8",
+        )
+
+    def test_merge_pattern_not_circular(self, tmp_path):
+        """MERGE pattern: table whose writer reads its own target is scheduled, not flagged as circular."""
+        (tmp_path / "manifest.json").write_text(
+            json.dumps({"schema_version": "1.0", "technology": "sql_server"}), encoding="utf-8"
+        )
+        self._write_merge_ready_table(
+            tmp_path, "silver.factagg", "dbo.usp_load_factagg",
+            extra_table_refs=[{"schema": "bronze", "name": "RawAgg"}],
+        )
+        result = build_batch_plan(tmp_path, dbt_root=tmp_path / "dbt")
+        scheduled = {n["fqn"] for batch in result["migrate_batches"] for n in batch["objects"]}
+        circular = {r["fqn"] for r in result["circular_refs"]}
+        assert "silver.factagg" in scheduled
+        assert "silver.factagg" not in circular
+
+    def test_truncate_insert_pattern_not_circular(self, tmp_path):
+        """TRUNCATE+INSERT pattern: table whose writer reads its own target is scheduled, not flagged as circular."""
+        (tmp_path / "manifest.json").write_text(
+            json.dumps({"schema_version": "1.0", "technology": "sql_server"}), encoding="utf-8"
+        )
+        self._write_merge_ready_table(
+            tmp_path, "silver.dimproduct", "dbo.usp_reload_dimproduct",
+            extra_table_refs=[{"schema": "bronze", "name": "RawProduct"}],
+        )
+        result = build_batch_plan(tmp_path, dbt_root=tmp_path / "dbt")
+        scheduled = {n["fqn"] for batch in result["migrate_batches"] for n in batch["objects"]}
+        circular = {r["fqn"] for r in result["circular_refs"]}
+        assert "silver.dimproduct" in scheduled
+        assert "silver.dimproduct" not in circular
 
 
 # ── Diagnostics tests ─────────────────────────────────────────────────────────

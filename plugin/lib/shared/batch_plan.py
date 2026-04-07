@@ -254,7 +254,9 @@ def collect_deps(
     if not writer:
         return set()
 
-    return _expand_proc_refs(project_root, normalize(writer), set(), set(), 0)
+    deps = _expand_proc_refs(project_root, normalize(writer), set(), set(), 0)
+    deps.discard(fqn)  # strip self-reference (MERGE/TRUNCATE+INSERT patterns read own target)
+    return deps
 
 
 # ── Diagnostics ───────────────────────────────────────────────────────────────
@@ -356,7 +358,7 @@ def _topological_batches(
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 
-def build_batch_plan(project_root: Path) -> dict[str, Any]:
+def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> dict[str, Any]:
     """Build a dependency-aware parallel batch plan for all catalog objects.
 
     Reads all table and view catalog files, computes transitive dependencies,
@@ -365,7 +367,8 @@ def build_batch_plan(project_root: Path) -> dict[str, Any]:
 
     Returns a dict matching schemas/batch_plan_output.json.
     """
-    dbt_root = resolve_dbt_project_path(project_root)
+    if dbt_root is None:
+        dbt_root = resolve_dbt_project_path(project_root)
     catalog_dir = project_root / "catalog"
 
     logger.info(
