@@ -406,6 +406,89 @@ class TestCollectDeps:
         assert "silver.vw_b" in deps
         assert "silver.basetable" in deps
 
+    def test_table_transitive_proc_view_view_table(self, tmp_path):
+        """proc → view_a → view_b → table: all three hops resolved."""
+        proc_dir = tmp_path / "catalog" / "procedures"
+        view_dir = tmp_path / "catalog" / "views"
+        proc_dir.mkdir(parents=True)
+        view_dir.mkdir(parents=True)
+        (tmp_path / "catalog" / "tables").mkdir(parents=True)
+        (tmp_path / "catalog" / "tables" / "silver.fact.json").write_text(
+            json.dumps({"schema": "silver", "name": "Fact", "scoping": {"selected_writer": "dbo.usp_load_fact"}}),
+            encoding="utf-8",
+        )
+        (proc_dir / "dbo.usp_load_fact.json").write_text(
+            json.dumps({
+                "schema": "dbo", "name": "usp_load_fact", "mode": "deterministic", "routing_reasons": [],
+                "references": {
+                    "tables": {"in_scope": [], "out_of_scope": []},
+                    "views": {"in_scope": [{"schema": "silver", "name": "vw_mid"}], "out_of_scope": []},
+                    "functions": {"in_scope": [], "out_of_scope": []},
+                    "procedures": {"in_scope": [], "out_of_scope": []},
+                },
+            }),
+            encoding="utf-8",
+        )
+        # vw_mid references vw_base (view → view hop)
+        (view_dir / "silver.vw_mid.json").write_text(
+            json.dumps({
+                "schema": "silver", "name": "vw_mid",
+                "references": {
+                    "tables": {"in_scope": [], "out_of_scope": []},
+                    "views": {"in_scope": [{"schema": "silver", "name": "vw_base"}], "out_of_scope": []},
+                    "functions": {"in_scope": [], "out_of_scope": []},
+                },
+            }),
+            encoding="utf-8",
+        )
+        # vw_base references a concrete table (view → table hop)
+        (view_dir / "silver.vw_base.json").write_text(
+            json.dumps({
+                "schema": "silver", "name": "vw_base",
+                "references": {
+                    "tables": {"in_scope": [{"schema": "silver", "name": "DimLeaf"}], "out_of_scope": []},
+                    "views": {"in_scope": [], "out_of_scope": []},
+                    "functions": {"in_scope": [], "out_of_scope": []},
+                },
+            }),
+            encoding="utf-8",
+        )
+        deps = collect_deps(tmp_path, "silver.fact", "table")
+        # Intermediate view
+        assert "silver.vw_mid" in deps
+        # Second-level view
+        assert "silver.vw_base" in deps
+        # Leaf table at the end of the chain
+        assert "silver.dimleaf" in deps
+
+    def test_out_of_scope_refs_not_traversed(self, tmp_path):
+        """out_of_scope entries in a proc or view must not be added to deps."""
+        proc_dir = tmp_path / "catalog" / "procedures"
+        proc_dir.mkdir(parents=True)
+        (tmp_path / "catalog" / "tables").mkdir(parents=True)
+        (tmp_path / "catalog" / "tables" / "silver.t.json").write_text(
+            json.dumps({"schema": "silver", "name": "T", "scoping": {"selected_writer": "dbo.usp_load_t"}}),
+            encoding="utf-8",
+        )
+        (proc_dir / "dbo.usp_load_t.json").write_text(
+            json.dumps({
+                "schema": "dbo", "name": "usp_load_t", "mode": "deterministic", "routing_reasons": [],
+                "references": {
+                    "tables": {
+                        "in_scope": [{"schema": "silver", "name": "InScope"}],
+                        "out_of_scope": [{"schema": "external", "name": "OutScope"}],
+                    },
+                    "views": {"in_scope": [], "out_of_scope": []},
+                    "functions": {"in_scope": [], "out_of_scope": []},
+                    "procedures": {"in_scope": [], "out_of_scope": []},
+                },
+            }),
+            encoding="utf-8",
+        )
+        deps = collect_deps(tmp_path, "silver.t", "table")
+        assert "silver.inscope" in deps
+        assert "external.outscope" not in deps
+
     def test_cycle_detection_view(self, tmp_path):
         """Circular view references terminate without error (depth limit)."""
         view_dir = tmp_path / "catalog" / "views"
