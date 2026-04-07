@@ -450,11 +450,22 @@ def build_batch_plan(project_root: Path) -> dict[str, Any]:
             n_a_objects.append(fqn)
 
     # ── Compute blocking deps ─────────────────────────────────────────────
-    # A dep is blocking if it's in scope and doesn't yet have a dbt model.
-    blocking: dict[str, set[str]] = {
-        fqn: {d for d in raw_deps.get(fqn, set()) if not dbt_status.get(d, False)}
-        for fqn in migrate_candidates
-    }
+    # A dep is blocking if it has no dbt model AND is not "covered" by a
+    # complete intermediate node (one that already has a dbt model).  A
+    # complete node acts as a migration boundary: in dbt, the downstream
+    # model references the completed model directly, so the completed node's
+    # own source deps are irrelevant to the downstream object's readiness.
+    blocking: dict[str, set[str]] = {}
+    for fqn in migrate_candidates:
+        # Collect transitive deps that are "shielded" by a complete boundary.
+        covered: set[str] = set()
+        for dep in raw_deps.get(fqn, set()):
+            if dbt_status.get(dep, False):
+                covered |= raw_deps.get(dep, set())
+        blocking[fqn] = {
+            d for d in raw_deps.get(fqn, set())
+            if not dbt_status.get(d, False) and d not in covered
+        }
 
     # For the topological sort restrict to blocking among migrate_candidates only.
     # (Deps in scope/profile phases still appear in node.blocking_deps for context.)

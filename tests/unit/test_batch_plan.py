@@ -724,6 +724,178 @@ class TestBuildBatchPlan:
         finally:
             tmp.cleanup()
 
+    def test_blocking_deps_3level_intermediate_behind(self):
+        """3-level chain: proc → vw_mid (scope_needed) → vw_base → leaf.
+        vw_mid has no dbt model → it and its transitive deps are all blocking for fact."""
+        tmp = tempfile.TemporaryDirectory()
+        dst = Path(tmp.name) / "project"
+        # Minimal project skeleton
+        (dst / "catalog" / "tables").mkdir(parents=True)
+        (dst / "catalog" / "views").mkdir(parents=True)
+        (dst / "catalog" / "procedures").mkdir(parents=True)
+        (dst / "test-specs").mkdir(parents=True)
+        (dst / "manifest.json").write_text(
+            json.dumps({"schema_version": "1.0", "technology": "sql_server"}), encoding="utf-8"
+        )
+        import subprocess as _sp
+        _sp.run(["git", "init"], cwd=dst, capture_output=True, check=True)
+        _sp.run(["git", "commit", "--allow-empty", "-m", "i"], cwd=dst, capture_output=True, check=True,
+                env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                     "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+                     "HOME": str(Path.home())})
+
+        # fact: fully prepared, no dbt model yet → migrate_needed
+        _proc_refs = lambda tables, views, procs: {
+            "tables": {"in_scope": tables, "out_of_scope": []},
+            "views": {"in_scope": views, "out_of_scope": []},
+            "functions": {"in_scope": [], "out_of_scope": []},
+            "procedures": {"in_scope": procs, "out_of_scope": []},
+        }
+        _view_refs = lambda tables, views: {
+            "tables": {"in_scope": tables, "out_of_scope": []},
+            "views": {"in_scope": views, "out_of_scope": []},
+            "functions": {"in_scope": [], "out_of_scope": []},
+        }
+
+        (dst / "catalog" / "tables" / "silver.fact.json").write_text(json.dumps({
+            "schema": "silver", "name": "Fact",
+            "scoping": {"status": "resolved", "selected_writer": "dbo.usp_load_fact"},
+            "profile": {"status": "ok"},
+        }), encoding="utf-8")
+        (dst / "catalog" / "procedures" / "dbo.usp_load_fact.json").write_text(json.dumps({
+            "schema": "dbo", "name": "usp_load_fact", "mode": "deterministic", "routing_reasons": [],
+            "statements": [{"action": "migrate", "source": "ast", "sql": ""}],
+            "refactor": {"status": "ok", "extracted_sql": "x", "refactored_sql": "y"},
+            "references": _proc_refs([], [{"schema": "silver", "name": "vw_mid"}], []),
+        }), encoding="utf-8")
+        (dst / "test-specs" / "silver.fact.json").write_text("{}", encoding="utf-8")
+
+        # vw_mid: not analyzed yet (scope_needed), no dbt model
+        (dst / "catalog" / "views" / "silver.vw_mid.json").write_text(json.dumps({
+            "schema": "silver", "name": "vw_mid",
+            "references": _view_refs([], [{"schema": "silver", "name": "vw_base"}]),
+            "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []},
+                              "views": {"in_scope": [], "out_of_scope": []},
+                              "functions": {"in_scope": [], "out_of_scope": []}},
+        }), encoding="utf-8")
+
+        # vw_base: also not analyzed, references leaf table
+        (dst / "catalog" / "views" / "silver.vw_base.json").write_text(json.dumps({
+            "schema": "silver", "name": "vw_base",
+            "references": _view_refs([{"schema": "silver", "name": "Leaf"}], []),
+            "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []},
+                              "views": {"in_scope": [], "out_of_scope": []},
+                              "functions": {"in_scope": [], "out_of_scope": []}},
+        }), encoding="utf-8")
+
+        # leaf table: scope_needed
+        (dst / "catalog" / "tables" / "silver.leaf.json").write_text(json.dumps({
+            "schema": "silver", "name": "Leaf",
+        }), encoding="utf-8")
+
+        try:
+            result = build_batch_plan(dst)
+            fact_node = next(
+                n for batch in result["migrate_batches"] for n in batch["objects"]
+                if n["fqn"] == "silver.fact"
+            )
+            blocking = set(fact_node["blocking_deps"])
+            # vw_mid is scope_needed, no model → blocking
+            assert "silver.vw_mid" in blocking
+            # vw_base is scope_needed, no model → also blocking (transitive)
+            assert "silver.vw_base" in blocking
+            # leaf table is scope_needed, no model → also blocking (transitive)
+            assert "silver.leaf" in blocking
+        finally:
+            tmp.cleanup()
+
+    def test_blocking_deps_3level_intermediate_complete(self):
+        """3-level chain: proc → vw_mid (complete, has model) → vw_base (scope_needed) → leaf.
+        vw_mid has a dbt model → it is NOT blocking even though its own deps are incomplete."""
+        tmp = tempfile.TemporaryDirectory()
+        dst = Path(tmp.name) / "project"
+        (dst / "catalog" / "tables").mkdir(parents=True)
+        (dst / "catalog" / "views").mkdir(parents=True)
+        (dst / "catalog" / "procedures").mkdir(parents=True)
+        (dst / "test-specs").mkdir(parents=True)
+        # vw_mid has a dbt model
+        (dst / "dbt" / "models" / "staging").mkdir(parents=True)
+        (dst / "dbt" / "models" / "staging" / "stg_vw_mid.sql").write_text("select 1", encoding="utf-8")
+        (dst / "manifest.json").write_text(
+            json.dumps({"schema_version": "1.0", "technology": "sql_server"}), encoding="utf-8"
+        )
+        import subprocess as _sp
+        _sp.run(["git", "init"], cwd=dst, capture_output=True, check=True)
+        _sp.run(["git", "commit", "--allow-empty", "-m", "i"], cwd=dst, capture_output=True, check=True,
+                env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                     "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+                     "HOME": str(Path.home())})
+
+        _proc_refs = lambda tables, views, procs: {
+            "tables": {"in_scope": tables, "out_of_scope": []},
+            "views": {"in_scope": views, "out_of_scope": []},
+            "functions": {"in_scope": [], "out_of_scope": []},
+            "procedures": {"in_scope": procs, "out_of_scope": []},
+        }
+        _view_refs = lambda tables, views: {
+            "tables": {"in_scope": tables, "out_of_scope": []},
+            "views": {"in_scope": views, "out_of_scope": []},
+            "functions": {"in_scope": [], "out_of_scope": []},
+        }
+
+        (dst / "catalog" / "tables" / "silver.fact.json").write_text(json.dumps({
+            "schema": "silver", "name": "Fact",
+            "scoping": {"status": "resolved", "selected_writer": "dbo.usp_load_fact"},
+            "profile": {"status": "ok"},
+        }), encoding="utf-8")
+        (dst / "catalog" / "procedures" / "dbo.usp_load_fact.json").write_text(json.dumps({
+            "schema": "dbo", "name": "usp_load_fact", "mode": "deterministic", "routing_reasons": [],
+            "statements": [{"action": "migrate", "source": "ast", "sql": ""}],
+            "refactor": {"status": "ok", "extracted_sql": "x", "refactored_sql": "y"},
+            "references": _proc_refs([], [{"schema": "silver", "name": "vw_mid"}], []),
+        }), encoding="utf-8")
+        (dst / "test-specs" / "silver.fact.json").write_text("{}", encoding="utf-8")
+
+        # vw_mid: analyzed + has dbt model → complete
+        (dst / "catalog" / "views" / "silver.vw_mid.json").write_text(json.dumps({
+            "schema": "silver", "name": "vw_mid",
+            "scoping": {"status": "analyzed"},
+            "references": _view_refs([], [{"schema": "silver", "name": "vw_base"}]),
+            "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []},
+                              "views": {"in_scope": [], "out_of_scope": []},
+                              "functions": {"in_scope": [], "out_of_scope": []}},
+        }), encoding="utf-8")
+
+        # vw_base: not analyzed, no model
+        (dst / "catalog" / "views" / "silver.vw_base.json").write_text(json.dumps({
+            "schema": "silver", "name": "vw_base",
+            "references": _view_refs([{"schema": "silver", "name": "Leaf"}], []),
+            "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []},
+                              "views": {"in_scope": [], "out_of_scope": []},
+                              "functions": {"in_scope": [], "out_of_scope": []}},
+        }), encoding="utf-8")
+
+        # leaf: scope_needed
+        (dst / "catalog" / "tables" / "silver.leaf.json").write_text(json.dumps({
+            "schema": "silver", "name": "Leaf",
+        }), encoding="utf-8")
+
+        try:
+            result = build_batch_plan(dst)
+            fact_node = next(
+                n for batch in result["migrate_batches"] for n in batch["objects"]
+                if n["fqn"] == "silver.fact"
+            )
+            blocking = set(fact_node["blocking_deps"])
+            # vw_mid is complete (has dbt model) → NOT blocking
+            assert "silver.vw_mid" not in blocking
+            # vw_base and leaf are still incomplete but vw_mid acts as a boundary —
+            # fact does not need to wait for vw_base/leaf once vw_mid is migrated
+            assert "silver.vw_base" not in blocking
+            assert "silver.leaf" not in blocking
+        finally:
+            tmp.cleanup()
+
     def test_node_has_dbt_model_flag(self):
         """completed objects have has_dbt_model=True; others have False."""
         tmp, dst = _make_project()
