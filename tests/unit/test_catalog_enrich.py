@@ -666,7 +666,7 @@ def test_dmf_processing_classifies_view_via_object_types() -> None:
     ]
     object_types = {"silver.vw_customer": "views"}
 
-    result = process_dmf_results(rows, object_types, database="TestDB")
+    result, _dmf_errors = process_dmf_results(rows, object_types, database="TestDB")
     assert "dbo.usp_load" in result
     refs = result["dbo.usp_load"]
 
@@ -701,7 +701,7 @@ def test_dmf_processing_falls_back_to_tables_without_object_types() -> None:
         },
     ]
 
-    result = process_dmf_results(rows, object_types=None, database="TestDB")
+    result, _dmf_errors = process_dmf_results(rows, object_types=None, database="TestDB")
     refs = result["dbo.usp_load"]
     # Without type info, falls back to tables bucket (existing behavior)
     table_names = [e["name"] for e in refs["tables"]["in_scope"]]

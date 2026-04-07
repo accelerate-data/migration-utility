@@ -31,14 +31,14 @@ def _make_proc(body: str) -> str:
 
 def _refs_from_proc(body: str) -> tuple[list[str], list[str]]:
     raw_ddl = _make_proc(body)
-    stmts, _needs_llm = parse_body_statements(raw_ddl)
+    stmts, _needs_llm, _seg_err = parse_body_statements(raw_ddl)
     refs = collect_refs_from_statements(stmts)
     return refs.writes_to, refs.reads_from
 
 
 def _ops_from_proc(body: str) -> dict[str, list[str]]:
     raw_ddl = _make_proc(body)
-    stmts, _needs_llm = parse_body_statements(raw_ddl)
+    stmts, _needs_llm, _seg_err = parse_body_statements(raw_ddl)
     refs = collect_refs_from_statements(stmts)
     return refs.write_operations
 
@@ -50,7 +50,7 @@ def _catalog():
 
 def _refs_from_fixture(proc_name: str) -> tuple[list[str], list[str]]:
     entry = _catalog().procedures[proc_name]
-    stmts, _needs_llm = parse_body_statements(entry.raw_ddl)
+    stmts, _needs_llm, _seg_err = parse_body_statements(entry.raw_ddl)
     refs = collect_refs_from_statements(stmts)
     return refs.writes_to, refs.reads_from
 
@@ -318,7 +318,7 @@ def test_exec_sp_executesql_literal_is_not_llm():
         EXEC sp_executesql N'INSERT INTO silver.DimProduct (ProductAlternateKey)
             SELECT CAST(ProductID AS NVARCHAR(25)) FROM bronze.Product';
     """)
-    stmts, needs_llm = parse_body_statements(raw_ddl)
+    stmts, needs_llm, _seg_err = parse_body_statements(raw_ddl)
     refs = collect_refs_from_statements(stmts)
     assert needs_llm is False
     assert refs.writes_to == []

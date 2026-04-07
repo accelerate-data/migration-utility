@@ -41,6 +41,9 @@ def _write_object_catalogs(
     view_definitions: dict[str, str] | None = None,
     view_columns: dict[str, list[dict[str, Any]]] | None = None,
     mv_fqns: set[str] | None = None,
+    dmf_errors: dict[str, list[str]] | None = None,
+    subtypes: dict[str, str] | None = None,
+    segmenter_errors: dict[str, str] | None = None,
 ) -> int:
     """Write catalog files for one object type (procs, views, or functions).
 
@@ -53,6 +56,9 @@ def _write_object_catalogs(
     _vdefs = view_definitions if object_type == "views" else None
     _vcols = view_columns if object_type == "views" else None
     _mv = mv_fqns or set()
+    _dmf_errors = dmf_errors or {}
+    _subtypes = subtypes or {}
+    _seg_errors = segmenter_errors or {}
 
     count = 0
     for fqn, refs in dmf_refs.items():
@@ -65,6 +71,9 @@ def _write_object_catalogs(
             sql=_vdefs.get(fqn) if _vdefs else None,
             columns=_vcols.get(fqn) if _vcols else None,
             is_materialized_view=(object_type == "views" and fqn in _mv),
+            dmf_errors=_dmf_errors.get(fqn),
+            subtype=_subtypes.get(fqn),
+            segmenter_error=_seg_errors.get(fqn),
         )
         count += 1
 
@@ -79,6 +88,9 @@ def _write_object_catalogs(
                 sql=_vdefs.get(fqn) if _vdefs else None,
                 columns=_vcols.get(fqn) if _vcols else None,
                 is_materialized_view=(object_type == "views" and fqn in _mv),
+                dmf_errors=_dmf_errors.get(fqn),
+                subtype=_subtypes.get(fqn),
+                segmenter_error=_seg_errors.get(fqn),
             )
             count += 1
 
@@ -124,6 +136,8 @@ def write_catalog_files(
     view_definitions: dict[str, str] | None = None,
     view_columns: dict[str, list[dict[str, Any]]] | None = None,
     mv_fqns: set[str] | None = None,
+    subtypes: dict[str, str] | None = None,
+    segmenter_errors: dict[str, str] | None = None,
 ) -> dict[str, int]:
     """Process raw extraction data and write all catalog JSON files.
 
@@ -141,14 +155,21 @@ def write_catalog_files(
     rflags = routing_flags or {}
     pparams = proc_params or {}
 
-    proc_refs = process_dmf_results(proc_dmf_rows, object_types, database=database)
-    view_refs = process_dmf_results(view_dmf_rows, object_types, database=database)
-    func_refs = process_dmf_results(func_dmf_rows, object_types, database=database)
+    proc_refs, proc_dmf_errs = process_dmf_results(proc_dmf_rows, object_types, database=database)
+    view_refs, view_dmf_errs = process_dmf_results(view_dmf_rows, object_types, database=database)
+    func_refs, func_dmf_errs = process_dmf_results(func_dmf_rows, object_types, database=database)
+
+    # Merge all DMF errors into a single dict for downstream consumers
+    all_dmf_errors: dict[str, list[str]] = {}
+    for errs in (proc_dmf_errs, view_dmf_errs, func_dmf_errs):
+        for fqn, err_list in errs.items():
+            all_dmf_errors.setdefault(fqn, []).extend(err_list)
 
     counts = {
         "procedures": _write_object_catalogs(
             project_root, proc_refs, "procedures", rflags, pparams, object_types,
             write_filter=write_filter, hashes=hashes,
+            dmf_errors=all_dmf_errors, segmenter_errors=segmenter_errors,
         ),
         "views": _write_object_catalogs(
             project_root, view_refs, "views", rflags, pparams, object_types,
@@ -156,10 +177,12 @@ def write_catalog_files(
             view_definitions=view_definitions,
             view_columns=view_columns,
             mv_fqns=mv_fqns,
+            dmf_errors=all_dmf_errors,
         ),
         "functions": _write_object_catalogs(
             project_root, func_refs, "functions", rflags, pparams, object_types,
             write_filter=write_filter, hashes=hashes,
+            dmf_errors=all_dmf_errors, subtypes=subtypes,
         ),
     }
 

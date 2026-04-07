@@ -162,6 +162,19 @@ def _build_object_types_map(object_types_raw: list | dict) -> dict[str, str]:
     return result
 
 
+def _build_function_subtypes(object_types_raw: list | dict) -> dict[str, str]:
+    """Build a normalized FQN → type code mapping for functions (FN/IF/TF)."""
+    _FUNC_TYPES = {"FN", "IF", "TF"}
+    result: dict[str, str] = {}
+    if isinstance(object_types_raw, list):
+        for row in object_types_raw:
+            type_code = row.get("type", "").strip()
+            if type_code in _FUNC_TYPES:
+                fqn = normalize(f"{row['schema_name']}.{row['name']}")
+                result[fqn] = type_code
+    return result
+
+
 def _apply_column_rows(signals: dict[str, dict[str, Any]], rows: list) -> None:
     for row in rows:
         fqn = normalize(f"{row['schema_name']}.{row['table_name']}")
@@ -467,6 +480,7 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
     proc_params = _build_proc_params(proc_params_rows)
     view_definitions = _build_view_definitions_map(definitions_rows, object_types)
     view_columns = _build_view_columns_map(view_columns_rows)
+    function_subtypes = _build_function_subtypes(object_types_raw)
 
     # Load materialized view FQNs from staging (Oracle: mv_fqns.json, SQL Server: indexed_views.json)
     mv_fqns_list = _read_json_optional(staging_dir / "mv_fqns.json") or _read_json_optional(staging_dir / "indexed_views.json") or []
@@ -525,6 +539,7 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
         view_definitions=view_definitions,
         view_columns=view_columns,
         mv_fqns=mv_fqns,
+        subtypes=function_subtypes,
     )
 
     counts["unchanged"] = len(diff.unchanged)

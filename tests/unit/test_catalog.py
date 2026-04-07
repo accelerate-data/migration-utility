@@ -167,7 +167,7 @@ def test_process_dmf_results_groups_by_referencing_object() -> None:
         _make_dmf_row(ref_name="usp_load", tgt_entity="SalesRaw", tgt_schema="bronze", is_selected=True),
         _make_dmf_row(ref_name="usp_other", tgt_entity="FactSales", is_selected=True),
     ]
-    result = process_dmf_results(rows)
+    result, _dmf_errors = process_dmf_results(rows)
     assert "dbo.usp_load" in result
     assert "dbo.usp_other" in result
 
@@ -183,7 +183,7 @@ def test_process_dmf_results_column_detail() -> None:
         _make_dmf_row(tgt_entity="FactSales", minor_name="amount", is_updated=True),
         _make_dmf_row(tgt_entity="FactSales", is_updated=True),  # entity-level
     ]
-    result = process_dmf_results(rows)
+    result, _dmf_errors = process_dmf_results(rows)
     refs = result["dbo.usp_load"]
     fact = next(t for t in refs["tables"]["in_scope"] if t["name"] == "FactSales")
     assert fact["is_selected"] is True  # from column-level row
@@ -199,7 +199,7 @@ def test_process_dmf_results_classifies_types() -> None:
         _make_dmf_row(tgt_entity="fn_calc", class_desc="SQL_SCALAR_FUNCTION", is_selected=True),
         _make_dmf_row(tgt_entity="usp_helper", class_desc="SQL_STORED_PROCEDURE"),
     ]
-    result = process_dmf_results(rows)
+    result, _dmf_errors = process_dmf_results(rows)
     refs = result["dbo.usp_load"]
     assert len(refs["views"]["in_scope"]) == 1
     assert len(refs["functions"]["in_scope"]) == 1
@@ -524,7 +524,7 @@ def test_process_dmf_results_cross_database() -> None:
             "referenced_server_name": "LinkedServer1",
         },
     ]
-    result = process_dmf_results(rows, database="MyDB")
+    result, _dmf_errors = process_dmf_results(rows, database="MyDB")
     refs = result["dbo.usp_load"]
 
     # In-scope: only FactSales
@@ -555,7 +555,7 @@ def test_process_dmf_results_same_database_is_in_scope() -> None:
             "referenced_server_name": "",
         },
     ]
-    result = process_dmf_results(rows, database="MyDB")
+    result, _dmf_errors = process_dmf_results(rows, database="MyDB")
     refs = result["dbo.usp_load"]
     assert len(refs["tables"]["in_scope"]) == 1
     assert refs["tables"]["out_of_scope"] == []
