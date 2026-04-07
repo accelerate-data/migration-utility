@@ -833,3 +833,6 @@ def test_write_source_unanalyzed_guard_raises() -> None:
         )
         with pytest.raises(ValueError, match="not been analyzed"):
             discover.run_write_source(root, "silver.fresh", True)
+
+
+

@@ -1316,12 +1316,9 @@ class TestExcludedObjects:
         result = build_batch_plan(tmp_path)
         excluded_fqns_in_output = {e["fqn"] for e in result["excluded_objects"]}
         assert "silver.excludedsource" in excluded_fqns_in_output
-        # The active table's direct_deps must not include the excluded source
-        n_a_fqns = {n["fqn"] for n in result["n_a_objects"]}
-        assert "silver.facttable" in n_a_fqns
-        for n in result["n_a_objects"]:
-            if n["fqn"] == "silver.facttable":
-                assert "silver.excludedsource" not in n.get("direct_deps", [])
+        # silver.facttable has no_writer_found → goes to source_pending with VU-948
+        pending_fqns = {n["fqn"] for n in result["source_pending"]}
+        assert "silver.facttable" in pending_fqns
 
     def test_schema_valid_with_excluded(self, assert_valid_schema, tmp_path):
         """build_batch_plan output with excluded objects conforms to schema."""
@@ -1350,7 +1347,7 @@ class TestExcludedObjects:
 
             result = build_batch_plan(dst)
             assert result["summary"]["excluded_count"] == 1
-            assert result["summary"]["total_objects"] == 7  # was 8
+            assert result["summary"]["total_objects"] == 6  # refcurrency in source_pending, dimdate excluded
             excluded_fqns = {e["fqn"] for e in result["excluded_objects"]}
             assert "silver.dimdate" in excluded_fqns
             # silver.dimdate must not appear in any active phase

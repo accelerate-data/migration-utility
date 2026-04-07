@@ -480,6 +480,7 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> dict[s
                 "views": 0,
                 "mvs": 0,
                 "writerless_tables": 0,
+                "excluded_count": len(excluded_fqns),
                 "source_tables": len(source_table_fqns),
                 "source_pending": len(source_pending_fqns),
             },
@@ -488,6 +489,14 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> dict[s
             "migrate_batches": [],
             "completed_objects": [],
             "n_a_objects": [],
+            "excluded_objects": [
+                {
+                    "fqn": fqn,
+                    "type": "table" if (catalog_dir / "tables" / f"{fqn}.json").exists() else "view",
+                    "note": "excluded from pipeline",
+                }
+                for fqn in sorted(excluded_fqns)
+            ],
             "source_tables": [
                 {"fqn": fqn, "type": "table", "reason": "is_source"}
                 for fqn in sorted(source_table_fqns)
