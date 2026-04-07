@@ -134,7 +134,7 @@ mcp__oracle__run-sqlcl: connect sh/sh@localhost:1521/FREEPDB1
 
 After connecting, use `mcp__oracle__run-sql` for queries and `mcp__oracle__schema-information` for metadata.
 
-Setup: see `docs/reference/setup-oracle/README.md`.
+Setup: see `docs/reference/setup-docker/README.md`.
 
 ## Logging
 
