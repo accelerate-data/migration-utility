@@ -79,6 +79,7 @@ class DdlEntry:
     ast: Any | None
     parse_error: str | None = None
     unsupported_syntax_nodes: list[str] | None = None
+    long_truncation: bool = False
 
 
 @dataclass

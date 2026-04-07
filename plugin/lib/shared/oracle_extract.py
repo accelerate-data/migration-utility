@@ -124,7 +124,16 @@ def _extract_view_ddl(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
                     "definition": definition.strip(),
                 })
             except Exception as exc:  # noqa: BLE001
-                logger.warning("event=oracle_view_skip object=%s error=%s", fqn, exc)
+                logger.warning("event=oracle_view_long_truncation object=%s error=%s", fqn, exc)
+                # Create entry with truncated DDL so the view appears in catalog with a diagnostic
+                truncated_def = f"CREATE OR REPLACE VIEW {owner}.{view_name} AS\n{text.strip()}" if text.strip() else ""
+                if truncated_def:
+                    rows.append({
+                        "schema_name": owner,
+                        "object_name": view_name,
+                        "definition": truncated_def,
+                        "long_truncation": True,
+                    })
             continue
         definition = f"CREATE OR REPLACE VIEW {owner}.{view_name} AS\n{text.strip()}"
         rows.append({"schema_name": owner, "object_name": view_name, "definition": definition})
@@ -287,6 +296,25 @@ def _extract_object_types(conn: Any, schemas: list[str]) -> tuple[list[dict[str,
         })
         if obj_type == "MATERIALIZED VIEW":
             mv_fqns.append(fqn)
+
+    # Log invalid objects for user awareness
+    invalid_cur = conn.cursor()
+    invalid_cur.execute(
+        f"""
+        SELECT OWNER, OBJECT_NAME, OBJECT_TYPE, STATUS
+        FROM ALL_OBJECTS
+        WHERE OBJECT_TYPE IN ('TABLE', 'VIEW', 'PROCEDURE', 'FUNCTION', 'MATERIALIZED VIEW')
+          AND OWNER IN ({owners})
+          AND STATUS != 'VALID'
+        ORDER BY OWNER, OBJECT_TYPE, OBJECT_NAME
+        """
+    )
+    for inv_row in _cursor_rows(invalid_cur):
+        logger.warning(
+            "event=oracle_invalid_object owner=%s name=%s type=%s status=%s",
+            inv_row["OWNER"], inv_row["OBJECT_NAME"], inv_row["OBJECT_TYPE"], inv_row["STATUS"],
+        )
+
     return rows, mv_fqns
 
 
@@ -358,6 +386,38 @@ def _extract_proc_params(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
     return rows
 
 
+def _extract_packages(conn: Any, schemas: list[str]) -> list[dict[str, Any]]:
+    """Extract package member names for package-aware diagnostics.
+
+    Returns a list of dicts with package_name, member_name, member_type, schema_name.
+    """
+    owners = _owners_sql(schemas)
+    cur = conn.cursor()
+    cur.execute(
+        f"""
+        SELECT OWNER, PACKAGE_NAME, OBJECT_NAME,
+               CASE WHEN DATA_TYPE IS NULL THEN 'PROCEDURE' ELSE 'FUNCTION' END AS MEMBER_TYPE
+        FROM ALL_ARGUMENTS
+        WHERE PACKAGE_NAME IS NOT NULL
+          AND OWNER IN ({owners})
+          AND ARGUMENT_NAME IS NULL
+          AND DATA_LEVEL = 0
+        GROUP BY OWNER, PACKAGE_NAME, OBJECT_NAME,
+                 CASE WHEN DATA_TYPE IS NULL THEN 'PROCEDURE' ELSE 'FUNCTION' END
+        ORDER BY OWNER, PACKAGE_NAME, OBJECT_NAME
+        """
+    )
+    rows = []
+    for row in _cursor_rows(cur):
+        rows.append({
+            "schema_name": row["OWNER"],
+            "package_name": row["PACKAGE_NAME"],
+            "member_name": row["OBJECT_NAME"],
+            "member_type": row["MEMBER_TYPE"],
+        })
+    return rows
+
+
 # ── Public entry point ────────────────────────────────────────────────────────
 
 
@@ -393,6 +453,7 @@ def run_oracle_extraction(
         _write(staging_dir, "view_dmf.json", _extract_dmf(conn, schemas, "VIEW"))
         _write(staging_dir, "func_dmf.json", _extract_dmf(conn, schemas, "FUNCTION"))
         _write(staging_dir, "proc_params.json", _extract_proc_params(conn, schemas))
+        _write(staging_dir, "packages.json", _extract_packages(conn, schemas))
         # Oracle does not support these signals — write empty lists for pipeline compatibility
         _write(staging_dir, "cdc.json", [])
         _write(staging_dir, "change_tracking.json", [])
