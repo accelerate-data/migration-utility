@@ -82,7 +82,7 @@ Instructions:
 Return ONLY the extracted SELECT SQL, nothing else.
 ```
 
-The sub-agent writes the result to `.staging/extracted.sql`.
+The sub-agent writes the result to `.staging/<table_fqn>-extracted.sql`.
 
 ### Sub-agent B: Refactor into CTEs
 
@@ -130,7 +130,7 @@ Instructions:
 Return ONLY the refactored CTE SELECT SQL, nothing else.
 ```
 
-The sub-agent writes the result to `.staging/refactored.sql`.
+The sub-agent writes the result to `.staging/<table_fqn>-refactored.sql`.
 
 ## Step 3: Equivalence audit
 
@@ -140,8 +140,8 @@ After both sub-agents complete, run the comparison CLI which seeds fixtures, exe
 mkdir -p .staging
 
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness compare-sql \
-  --sql-a-file .staging/extracted.sql \
-  --sql-b-file .staging/refactored.sql \
+  --sql-a-file .staging/<table_fqn>-extracted.sql \
+  --sql-b-file .staging/<table_fqn>-refactored.sql \
   --spec test-specs/<table_fqn>.json
 ```
 
@@ -156,7 +156,7 @@ If any scenario fails (`equivalent: false`):
 
 1. Analyse the diff: which rows differ and why (missing join, wrong filter, dropped column, type mismatch)
 2. Revise **only the refactored CTE SQL** (sub-agent B's output) to fix the semantic gap. The extracted SQL (sub-agent A's output) is the ground truth -- never modify it.
-3. Rewrite `.staging/refactored.sql`
+3. Rewrite `.staging/<table_fqn>-refactored.sql`
 4. Re-run `compare-sql`
 5. Repeat up to 3 times total
 
@@ -169,8 +169,8 @@ After audit passes (or after max iterations with partial status):
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" refactor write \
   --table <table_fqn> \
-  --extracted-sql-file .staging/extracted.sql \
-  --refactored-sql-file .staging/refactored.sql \
+  --extracted-sql-file .staging/<table_fqn>-extracted.sql \
+  --refactored-sql-file .staging/<table_fqn>-refactored.sql \
   --status ok
 ```
 
@@ -179,7 +179,7 @@ Use `--status partial` if the audit did not fully pass. Use `--status error` if 
 Clean up the staging files:
 
 ```bash
-rm -rf .staging
+rm -f .staging/<table_fqn>-extracted.sql .staging/<table_fqn>-refactored.sql
 ```
 
 ## Step 5: Report to user
