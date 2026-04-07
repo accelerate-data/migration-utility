@@ -25,6 +25,30 @@ logger = logging.getLogger(__name__)
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
+
+def _load_package_members(project_root: Path) -> set[str] | None:
+    """Load Oracle package members from staging/packages.json.
+
+    Returns a set of lowercased ``schema.member_name`` FQNs, or None if the
+    file does not exist.
+    """
+    for subdir in ("staging", ".staging"):
+        packages_path = project_root / subdir / "packages.json"
+        if packages_path.exists():
+            try:
+                rows = json.loads(packages_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError) as exc:
+                logger.warning("event=load_package_members error=%s", exc)
+                return None
+            members: set[str] = set()
+            for row in rows:
+                schema = row.get("schema_name", "")
+                member = row.get("member_name", "")
+                if schema and member:
+                    members.add(f"{schema}.{member}".lower())
+            return members if members else None
+    return None
+
 # -- Thresholds ---------------------------------------------------------------
 
 _THRESHOLDS: dict[str, int] = {
@@ -164,6 +188,7 @@ def _run_checks(
     ddl_lookup: dict[str, DdlEntry],
     pass_number: int,
     pass1_results: dict[str, list[DiagnosticResult]] | None = None,
+    package_members: set[str] | None = None,
 ) -> dict[str, list[DiagnosticResult]]:
     """Run all checks for a given pass number across all catalog objects."""
     results: dict[str, list[DiagnosticResult]] = defaultdict(list)
@@ -190,6 +215,7 @@ def _run_checks(
                 known_fqns=known_fqns,
                 ddl_entry=ddl_lookup.get(fqn),
                 pass1_results=pass1_results,
+                package_members=package_members,
             )
 
             checks = _REGISTRY.checks_for(object_type, dialect, pass_number)
@@ -267,11 +293,14 @@ def run_diagnostics(project_root: Path, dialect: str = "tsql") -> dict[str, Any]
     # Build known FQN sets for MISSING_REFERENCE checks
     known_fqns = _build_known_fqns(catalog_dir)
 
+    # Load Oracle package members when applicable
+    package_members = _load_package_members(project_root) if dialect == "oracle" else None
+
     # Pass 1: per-object + reference resolution
-    pass1_results = _run_checks(catalog_dir, project_root, dialect, known_fqns, ddl_lookup, pass_number=1)
+    pass1_results = _run_checks(catalog_dir, project_root, dialect, known_fqns, ddl_lookup, pass_number=1, package_members=package_members)
 
     # Pass 2: graph traversal (receives pass 1 results)
-    pass2_results = _run_checks(catalog_dir, project_root, dialect, known_fqns, ddl_lookup, pass_number=2, pass1_results=pass1_results)
+    pass2_results = _run_checks(catalog_dir, project_root, dialect, known_fqns, ddl_lookup, pass_number=2, pass1_results=pass1_results, package_members=package_members)
 
     # Merge results
     all_results: dict[str, list[DiagnosticResult]] = defaultdict(list)
@@ -326,3 +355,4 @@ if __name__ == "__main__":
 # Import check modules so decorators fire at import time.
 from shared.diagnostics import common as _common  # noqa: F401, E402
 from shared.diagnostics import sqlserver as _sqlserver  # noqa: F401, E402
+from shared.diagnostics import oracle as _oracle  # noqa: F401, E402
