@@ -16,6 +16,8 @@ from shared.loader_data import (
     DdlEntry,
     DdlParseError,
 )
+from sqlglot import exp
+
 from shared.loader_parse import (
     GO_RE,
     extract_name,
@@ -122,7 +124,16 @@ def _load_file(
         key = normalize(raw_name)
         try:
             ast = parse_block(block, dialect=dialect)
-            getattr(catalog, bucket_name)[key] = DdlEntry(raw_ddl=block, ast=ast)
+            # Detect nested Command nodes (unsupported syntax within valid AST)
+            unsupported: list[str] = []
+            for node in ast.walk():
+                if isinstance(node, exp.Command):
+                    unsupported.append(str(node)[:200])
+            getattr(catalog, bucket_name)[key] = DdlEntry(
+                raw_ddl=block,
+                ast=ast,
+                unsupported_syntax_nodes=unsupported if unsupported else None,
+            )
         except DdlParseError as exc:
             logger.warning("event=load_file operation=parse_block file=%s object=%s error=%s", path.name, raw_name, exc)
             getattr(catalog, bucket_name)[key] = DdlEntry(raw_ddl=block, ast=None, parse_error=str(exc))

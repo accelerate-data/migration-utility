@@ -698,45 +698,12 @@ def _multi_table_refs(updated_count: int) -> dict:
     }
 
 
-def test_multi_table_write_warning_added() -> None:
-    """Procedures writing to >1 table get a MULTI_TABLE_WRITE warning."""
+def test_multi_table_write_no_inline_warning() -> None:
+    """write_object_catalog no longer emits MULTI_TABLE_WRITE inline (moved to diagnostics runner)."""
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         write_object_catalog(root, "procedures", "dbo.usp_multi", _multi_table_refs(2))
         loaded = load_proc_catalog(root, "dbo.usp_multi")
-        assert loaded is not None
-        warnings = loaded.get("warnings", [])
-        assert len(warnings) == 1
-        assert warnings[0]["code"] == "MULTI_TABLE_WRITE"
-        assert warnings[0]["severity"] == "warning"
-        assert len(warnings[0]["details"]["tables"]) == 2
-
-
-def test_single_table_write_no_warning() -> None:
-    """Procedures writing to exactly 1 table get no warning."""
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        write_object_catalog(root, "procedures", "dbo.usp_single", _multi_table_refs(1))
-        loaded = load_proc_catalog(root, "dbo.usp_single")
-        assert loaded is not None
-        assert "warnings" not in loaded
-
-
-def test_no_updated_tables_no_warning() -> None:
-    """Procedures that only read (no is_updated) get no warning."""
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        refs = {
-            "tables": {
-                "in_scope": [{"schema": "bronze", "name": "Raw", "is_selected": True, "is_updated": False}],
-                "out_of_scope": [],
-            },
-            "views": {"in_scope": [], "out_of_scope": []},
-            "functions": {"in_scope": [], "out_of_scope": []},
-            "procedures": {"in_scope": [], "out_of_scope": []},
-        }
-        write_object_catalog(root, "procedures", "dbo.usp_reader", refs)
-        loaded = load_proc_catalog(root, "dbo.usp_reader")
         assert loaded is not None
         assert "warnings" not in loaded
 

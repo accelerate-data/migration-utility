@@ -78,6 +78,7 @@ class DdlEntry:
     raw_ddl: str
     ast: Any | None
     parse_error: str | None = None
+    unsupported_syntax_nodes: list[str] | None = None
 
 
 @dataclass
