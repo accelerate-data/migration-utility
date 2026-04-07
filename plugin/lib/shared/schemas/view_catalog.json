@@ -28,6 +28,17 @@
         "views": { "$ref": "common.json#/$defs/scoped_ref_list" },
         "functions": { "$ref": "common.json#/$defs/scoped_ref_list" }
       }
+    },
+    "parse_error": { "type": ["string", "null"], "description": "sqlglot parse error message, if the view DDL failed to parse." },
+    "warnings": {
+      "type": "array",
+      "items": { "$ref": "common.json#/$defs/diagnostics_entry" },
+      "description": "Diagnostic warnings detected during catalog enrichment."
+    },
+    "errors": {
+      "type": "array",
+      "items": { "$ref": "common.json#/$defs/diagnostics_entry" },
+      "description": "Diagnostic errors detected during catalog enrichment."
     }
   }
 }
