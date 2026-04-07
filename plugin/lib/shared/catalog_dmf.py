@@ -40,6 +40,7 @@ def _write_object_catalogs(
     hashes: dict[str, str] | None = None,
     view_definitions: dict[str, str] | None = None,
     view_columns: dict[str, list[dict[str, Any]]] | None = None,
+    mv_fqns: set[str] | None = None,
 ) -> int:
     """Write catalog files for one object type (procs, views, or functions).
 
@@ -51,6 +52,7 @@ def _write_object_catalogs(
     _hashes = hashes or {}
     _vdefs = view_definitions if object_type == "views" else None
     _vcols = view_columns if object_type == "views" else None
+    _mv = mv_fqns or set()
 
     count = 0
     for fqn, refs in dmf_refs.items():
@@ -62,6 +64,7 @@ def _write_object_catalogs(
             **rflags.get(fqn, {}), params=params, ddl_hash=_hashes.get(fqn),
             sql=_vdefs.get(fqn) if _vdefs else None,
             columns=_vcols.get(fqn) if _vcols else None,
+            is_materialized_view=(object_type == "views" and fqn in _mv),
         )
         count += 1
 
@@ -75,6 +78,7 @@ def _write_object_catalogs(
                 **rflags.get(fqn, {}), params=params, ddl_hash=_hashes.get(fqn),
                 sql=_vdefs.get(fqn) if _vdefs else None,
                 columns=_vcols.get(fqn) if _vcols else None,
+                is_materialized_view=(object_type == "views" and fqn in _mv),
             )
             count += 1
 
@@ -119,6 +123,7 @@ def write_catalog_files(
     hashes: dict[str, str] | None = None,
     view_definitions: dict[str, str] | None = None,
     view_columns: dict[str, list[dict[str, Any]]] | None = None,
+    mv_fqns: set[str] | None = None,
 ) -> dict[str, int]:
     """Process raw extraction data and write all catalog JSON files.
 
@@ -150,6 +155,7 @@ def write_catalog_files(
             write_filter=write_filter, hashes=hashes,
             view_definitions=view_definitions,
             view_columns=view_columns,
+            mv_fqns=mv_fqns,
         ),
         "functions": _write_object_catalogs(
             project_root, func_refs, "functions", rflags, pparams, object_types,

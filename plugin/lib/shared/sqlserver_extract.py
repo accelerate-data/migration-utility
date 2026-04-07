@@ -336,6 +336,22 @@ def run_sqlserver_extraction(
         _write_json(staging_dir, "proc_params.json", _rows_to_dicts(cursor))
         cursor.close()
 
+        # --- indexed_views.json (materialized view detection) ---
+        sql = (
+            f"SELECT SCHEMA_NAME(v.schema_id) AS schema_name, v.name "
+            f"FROM sys.views v "
+            f"WHERE EXISTS (SELECT 1 FROM sys.indexes i "
+            f"  WHERE i.object_id = v.object_id AND i.type = 1) "
+            f"  AND v.is_ms_shipped = 0 "
+            f"  AND SCHEMA_NAME(v.schema_id) IN ({in_clause})"
+        )
+        cursor = conn.cursor()
+        cursor.execute(sql)
+        indexed_rows = _rows_to_dicts(cursor)
+        cursor.close()
+        indexed_fqns = [f"{r['schema_name']}.{r['name']}".lower() for r in indexed_rows]
+        _write_json(staging_dir, "indexed_views.json", indexed_fqns)
+
         # --- proc_dmf.json, view_dmf.json, func_dmf.json ---
         _run_dmf_queries(conn, schemas, "P", staging_dir, "proc_dmf.json")
         _run_dmf_queries(conn, schemas, "V", staging_dir, "view_dmf.json")

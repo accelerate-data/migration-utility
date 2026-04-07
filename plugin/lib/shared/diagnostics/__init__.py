@@ -65,6 +65,7 @@ class CatalogContext:
     known_fqns: dict[str, set[str]]  # bucket -> set of normalized FQNs
     ddl_entry: DdlEntry | None = None
     pass1_results: dict[str, list[DiagnosticResult]] | None = None
+    package_members: set[str] | None = None  # Oracle package member FQNs
 
 
 # Type alias for check functions

@@ -1,4 +1,4 @@
-"""Tests for shared.diagnostics — registry infrastructure and all 11 cross-dialect checks."""
+"""Tests for shared.diagnostics — registry infrastructure and all cross-dialect checks."""
 
 from __future__ import annotations
 
@@ -35,56 +35,13 @@ from shared.diagnostics.common import (
 from shared.catalog import write_json
 from shared.loader_data import DdlEntry
 
-
-# ── Helpers ──────────────────────────────────────────────────────────────────
-
-
-def _git_init(path: Path) -> None:
-    (path / ".git").mkdir()
-
-
-def _empty_refs() -> dict:
-    return {
-        "tables": {"in_scope": [], "out_of_scope": []},
-        "views": {"in_scope": [], "out_of_scope": []},
-        "functions": {"in_scope": [], "out_of_scope": []},
-        "procedures": {"in_scope": [], "out_of_scope": []},
-    }
-
-
-def _write_catalog(root: Path, bucket: str, fqn: str, data: dict) -> None:
-    d = root / "catalog" / bucket
-    d.mkdir(parents=True, exist_ok=True)
-    write_json(d / f"{fqn}.json", data)
-
-
-def _write_ddl(root: Path, fqn: str, ddl: str) -> None:
-    """Write a DDL file into the flat ddl/ directory (load_directory reads from here)."""
-    d = root / "ddl"
-    d.mkdir(parents=True, exist_ok=True)
-    (d / f"{fqn}.sql").write_text(ddl, encoding="utf-8")
-
-
-def _make_ctx(
-    root: Path,
-    fqn: str,
-    object_type: str,
-    catalog_data: dict,
-    **kwargs,
-) -> CatalogContext:
-    return CatalogContext(
-        project_root=root,
-        dialect="tsql",
-        fqn=fqn,
-        object_type=object_type,
-        catalog_data=catalog_data,
-        known_fqns=kwargs.get(
-            "known_fqns",
-            {"tables": set(), "views": set(), "functions": set(), "procedures": set()},
-        ),
-        ddl_entry=kwargs.get("ddl_entry"),
-        pass1_results=kwargs.get("pass1_results"),
-    )
+from diagnostics_helpers import (
+    diag_empty_refs as _empty_refs,
+    diag_git_init as _git_init,
+    diag_make_ctx as _make_ctx,
+    diag_write_catalog as _write_catalog,
+    diag_write_ddl as _write_ddl,
+)
 
 
 # ── Registry infrastructure ─────────────────────────────────────────────────
@@ -1037,3 +994,112 @@ class TestTwoPassOrdering:
                 f"Expected DEPENDENCY_HAS_ERROR in A's warnings, got {a_warning_codes}. "
                 f"B errors: {b_error_codes}"
             )
+
+
+# ── Materialized views (is_materialized_view flag) ───────────────────────────
+
+
+class TestMaterializedViewFlag:
+
+    def test_mv_flag_on_view_catalog(self):
+        """View catalog entry with is_materialized_view=True is valid."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _git_init(root)
+            cat_data = {
+                "schema": "sh",
+                "name": "mv_sales_agg",
+                "is_materialized_view": True,
+                "references": _empty_refs(),
+                "warnings": [],
+                "errors": [],
+            }
+            _write_catalog(root, "views", "sh.mv_sales_agg", cat_data)
+
+            written = json.loads((root / "catalog" / "views" / "sh.mv_sales_agg.json").read_text())
+            assert written["is_materialized_view"] is True
+            assert written["schema"] == "sh"
+
+    def test_mv_in_views_bucket_resolves_references(self):
+        """An MV in the views bucket resolves MISSING_REFERENCE for view refs."""
+        catalog_data = {
+            "references": {
+                "tables": {"in_scope": [], "out_of_scope": []},
+                "views": {
+                    "in_scope": [{"schema": "sh", "name": "mv_sales_agg"}],
+                    "out_of_scope": [],
+                },
+                "functions": {"in_scope": [], "out_of_scope": []},
+                "procedures": {"in_scope": [], "out_of_scope": []},
+            }
+        }
+        known = {
+            "tables": set(),
+            "views": {"sh.mv_sales_agg"},
+            "functions": set(),
+            "procedures": set(),
+        }
+        ctx = _make_ctx(Path("/tmp/fake"), "sh.some_proc", "procedure", catalog_data, known_fqns=known)
+
+        result = check_missing_reference(ctx)
+
+        assert result is None
+
+    def test_write_object_catalog_sets_mv_flag(self):
+        """write_object_catalog persists is_materialized_view when True."""
+        from shared.catalog import write_object_catalog
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _git_init(root)
+            (root / "catalog" / "views").mkdir(parents=True)
+
+            p = write_object_catalog(
+                root, "views", "sh.mv_sales",
+                _empty_refs(),
+                is_materialized_view=True,
+            )
+            data = json.loads(p.read_text())
+            assert data["is_materialized_view"] is True
+
+    def test_write_object_catalog_omits_mv_flag_when_false(self):
+        """write_object_catalog does not include is_materialized_view when False."""
+        from shared.catalog import write_object_catalog
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _git_init(root)
+            (root / "catalog" / "views").mkdir(parents=True)
+
+            p = write_object_catalog(
+                root, "views", "sh.vw_regular",
+                _empty_refs(),
+            )
+            data = json.loads(p.read_text())
+            assert "is_materialized_view" not in data
+
+    def test_mv_reclassify_from_tables_to_views(self):
+        """MV detected in catalog/tables/ gets moved to catalog/views/ during extraction."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _git_init(root)
+
+            table_data = {"schema": "sh", "name": "mv_old", "columns": []}
+            _write_catalog(root, "tables", "sh.mv_old", table_data)
+
+            mv_fqns = {"sh.mv_old"}
+            catalog_dir = root / "catalog"
+            for fqn in mv_fqns:
+                table_path = catalog_dir / "tables" / f"{fqn}.json"
+                if table_path.exists():
+                    data = json.loads(table_path.read_text())
+                    data["is_materialized_view"] = True
+                    views_dir = catalog_dir / "views"
+                    views_dir.mkdir(parents=True, exist_ok=True)
+                    write_json(views_dir / f"{fqn}.json", data)
+                    table_path.unlink()
+
+            assert not (catalog_dir / "tables" / "sh.mv_old.json").exists()
+            view_data = json.loads((catalog_dir / "views" / "sh.mv_old.json").read_text())
+            assert view_data["is_materialized_view"] is True
+            assert view_data["schema"] == "sh"

@@ -83,10 +83,10 @@ def _require_technology(project_root: Path) -> str:
 
 
 def _build_oracle_schema_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Group ALL_OBJECTS rows by OWNER → sorted list of {owner, tables, procedures, views, functions}.
+    """Group ALL_OBJECTS rows by OWNER → sorted list of {owner, tables, procedures, views, functions, materialized_views}.
 
     Handles both uppercase (Oracle native) and lowercase key names.
-    Counts TABLE, PROCEDURE, VIEW/MATERIALIZED VIEW, and FUNCTION. Other object types are ignored.
+    Counts TABLE, PROCEDURE, VIEW, MATERIALIZED VIEW, and FUNCTION. Other object types are ignored.
     """
     Entry = dict[str, Any]
     buckets: dict[str, Entry] = {}
@@ -96,13 +96,15 @@ def _build_oracle_schema_summary(rows: list[dict[str, Any]]) -> list[dict[str, A
         if not owner:
             continue
         if owner not in buckets:
-            buckets[owner] = {"owner": owner, "tables": 0, "procedures": 0, "views": 0, "functions": 0}
+            buckets[owner] = {"owner": owner, "tables": 0, "procedures": 0, "views": 0, "functions": 0, "materialized_views": 0}
         if obj_type == "TABLE":
             buckets[owner]["tables"] += 1
         elif obj_type == "PROCEDURE":
             buckets[owner]["procedures"] += 1
-        elif obj_type in ("VIEW", "MATERIALIZED VIEW"):
+        elif obj_type == "VIEW":
             buckets[owner]["views"] += 1
+        elif obj_type == "MATERIALIZED VIEW":
+            buckets[owner]["materialized_views"] += 1
         elif obj_type == "FUNCTION":
             buckets[owner]["functions"] += 1
     return sorted(buckets.values(), key=lambda x: x["owner"])
@@ -466,6 +468,10 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
     view_definitions = _build_view_definitions_map(definitions_rows, object_types)
     view_columns = _build_view_columns_map(view_columns_rows)
 
+    # Load materialized view FQNs from staging (Oracle: mv_fqns.json, SQL Server: indexed_views.json)
+    mv_fqns_list = _read_json_optional(staging_dir / "mv_fqns.json") or _read_json_optional(staging_dir / "indexed_views.json") or []
+    mv_fqns: set[str] = {normalize(fqn) if "." in fqn else fqn for fqn in mv_fqns_list}
+
     # ── Diff-aware classification ─────────────────────────────────────────
     fresh_hashes = compute_object_hashes(definitions_rows, table_signals, object_types)
     existing_hashes = load_existing_hashes(project_root)
@@ -479,6 +485,23 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
     # ── Mark removed objects as stale ─────────────────────────────────────
     if diff.removed:
         _mark_stale(project_root, diff.removed)
+
+    # ── Reclassify MVs from tables to views (backward compat) ───────────
+    if mv_fqns:
+        catalog_dir = resolve_catalog_dir(project_root)
+        for fqn in mv_fqns:
+            table_path = catalog_dir / "tables" / f"{fqn}.json"
+            if table_path.exists():
+                logger.info("event=mv_reclassify fqn=%s from=tables to=views", fqn)
+                try:
+                    table_data = json.loads(table_path.read_text(encoding="utf-8"))
+                    table_data["is_materialized_view"] = True
+                    views_dir = catalog_dir / "views"
+                    views_dir.mkdir(parents=True, exist_ok=True)
+                    write_json(views_dir / f"{fqn}.json", table_data)
+                    table_path.unlink()
+                except (json.JSONDecodeError, OSError) as exc:
+                    logger.warning("event=mv_reclassify_error fqn=%s error=%s", fqn, exc)
 
     # ── Ensure catalog subdirectories exist (without wiping) ──────────────
     for subdir in ("tables", "procedures", "views", "functions"):
@@ -501,6 +524,7 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
         hashes=fresh_hashes,
         view_definitions=view_definitions,
         view_columns=view_columns,
+        mv_fqns=mv_fqns,
     )
 
     counts["unchanged"] = len(diff.unchanged)
