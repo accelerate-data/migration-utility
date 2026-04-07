@@ -1709,6 +1709,7 @@ class TestConnectionIdentity:
 
     def test_mark_all_catalog_stale(self, tmp_path):
         _, _, _mark_all_catalog_stale = self._import()
+        # resolve_catalog_dir returns project_root / "catalog" by default (no env override in tests).
         # Seed catalog with one proc and one table (neither stale)
         proc_path = tmp_path / "catalog" / "procedures" / "dbo.usp_load.json"
         table_path = tmp_path / "catalog" / "tables" / "silver.dimcustomer.json"

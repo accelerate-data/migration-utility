@@ -479,8 +479,12 @@ def _get_connection_identity(technology: str, database: str) -> dict[str, Any]:
 def _identity_changed(existing_manifest: dict[str, Any], current_identity: dict[str, Any]) -> bool:
     """Return True if any non-empty current identity value differs from what is stored.
 
-    If all current values are empty (env vars absent), returns False to avoid
-    false positives in CI or headless environments.
+    Only non-empty values in *current_identity* are compared — empty strings
+    (e.g. MSSQL_HOST / ORACLE_DSN unset in CI) are skipped so that a missing
+    host env var alone does not trigger a stale flush.  Note that
+    ``source_database`` is always non-empty for SQL Server because it comes
+    from the required ``--database`` argument, so a database switch will
+    always trigger a stale flush even when host vars are absent.
     """
     non_empty = {k: v for k, v in current_identity.items() if v}
     if not non_empty:
