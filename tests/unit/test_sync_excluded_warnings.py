@@ -86,14 +86,8 @@ def test_no_op_on_empty_catalog(tmp_path: Path) -> None:
 # ── Writing warnings ─────────────────────────────────────────────────────────
 
 
-def test_writes_warning_when_table_dep_excluded(tmp_path: Path) -> None:
-    """Active table whose writer proc references an excluded table gets EXCLUDED_DEP warning.
-
-    We use a writerless active table (no writer proc, so collect_deps returns empty set).
-    To test that the dep detection works, we instead test the simpler case: an active table
-    that has no deps gets no warning, and an excluded table appears in excluded_objects.
-    The dep-traversal path is tested via the collect_deps integration in test_batch_plan.py.
-    """
+def test_no_warning_when_active_table_has_no_deps(tmp_path: Path) -> None:
+    """Active table with no deps (no writer proc) gets no EXCLUDED_DEP warning."""
     _make_table(tmp_path, "silver.excluded_source", excluded=True)
     active_path = _make_table(tmp_path, "silver.facttable")
 

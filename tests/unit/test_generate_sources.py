@@ -24,14 +24,6 @@ def _make_project(tables: list[dict]) -> tuple[tempfile.TemporaryDirectory, Path
     (root / "manifest.json").write_text(
         json.dumps({"schema_version": "1.0", "technology": "sql_server"}), encoding="utf-8"
     )
-    subprocess.run(["git", "init"], cwd=root, capture_output=True, check=True)
-    subprocess.run(
-        ["git", "commit", "--allow-empty", "-m", "i"],
-        cwd=root, capture_output=True, check=True,
-        env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-             "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
-             "HOME": str(Path.home())},
-    )
     for table in tables:
         schema = table.get("schema", "silver").lower()
         name = table.get("name", "unknown")

@@ -402,7 +402,7 @@ def run_sync_excluded_warnings(project_root: Path) -> dict[str, Any]:
         obj_type = "table" if bucket == "tables" else "view"
         try:
             full_deps = collect_deps(project_root, fqn, obj_type)
-        except Exception:
+        except (json.JSONDecodeError, OSError, CatalogLoadError):
             full_deps = set()
 
         excluded_deps = sorted(full_deps & excluded_fqns)

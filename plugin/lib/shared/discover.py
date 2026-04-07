@@ -474,12 +474,7 @@ def run_write_source(
     table_fqn: str,
     value: bool,
 ) -> dict[str, Any]:
-    """Set or clear the is_source flag on a table catalog file.
-
-    Guard: the catalog file must exist and scoping must be present (any status).
-    Setting value=True marks the table as a dbt source; value=False resets it.
-    is_source is always written (never deleted) — default is False at extraction time.
-    """
+    """Set or clear the is_source flag on a table catalog file."""
     table_norm = normalize(table_fqn)
     cat = load_table_catalog(project_root, table_norm)
     if cat is None:

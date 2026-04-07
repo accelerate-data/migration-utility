@@ -229,7 +229,7 @@ ready to initialise dbt  — all tables are scoped. Run /init-dbt to scaffold yo
 
 If there are still tables in the scope phase, omit this hint entirely. Do not show the hint if `dbt/dbt_project.yml` already exists.
 
-### Step 9 — Stale catalog cleanup
+### Step 10 — Stale catalog cleanup
 
 After presenting all sections above, check whether any `STALE_OBJECT` warnings appeared in the catalog diagnostics (Step 6). This step applies only when running in batch mode (no table argument).
 
