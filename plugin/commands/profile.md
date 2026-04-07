@@ -1,15 +1,15 @@
 ---
 name: profile
 description: >
-  Batch profiling command — produces migration profiles for each table.
-  Delegates per-item profiling to the /profiling-table skill.
+  Batch profiling command — produces migration profiles for each table, view, or materialized view.
+  Delegates per-item profiling to the /profiling-table skill (for tables) or /profiling-view skill (for views and MVs).
 user-invocable: true
-argument-hint: "<schema.table> [schema.table ...]"
+argument-hint: "<schema.table_or_view> [schema.table_or_view ...]"
 ---
 
 # Profile
 
-Produce migration profiles for each table. Launches one sub-agent per table in parallel, each running `migration:profiling-table`.
+Produce migration profiles for each table, view, or materialized view. Launches one sub-agent per item in parallel, routing to `migration:profiling-table` for tables or `migration:profiling-view` for views and MVs.
 
 ## Guards
 
@@ -34,32 +34,35 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
    If none exist, create a new worktree and branch per `.claude/rules/git-workflow.md`.
 3. Generate a run epoch: seconds since Unix epoch (e.g. `1743868200`). All run artifacts use this as a filename suffix.
 
-### Step 2 — Run migration:profiling-table per table
+### Step 2 — Route and run per item
 
-**Single-table path (1 table):** Run `migration:profiling-table` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<epoch>.json`.
+**Routing:** For each item, detect whether it is a view or a table by checking `catalog/views/<item_fqn>.json`. If that file exists, route to `migration:profiling-view`; otherwise route to `migration:profiling-table`. Set `catalog_path` in the item result accordingly (`catalog/views/` or `catalog/tables/`).
+
+**Single-item path (1 item):** Run the appropriate skill directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.item>.<epoch>.json`.
 
 If the item status is `error`, immediately revert any files the skill may have partially modified:
 
 ```bash
-git checkout -- catalog/tables/<item_id>.json
+git checkout -- catalog/tables/<item_id>.json  # or catalog/views/<item_id>.json for views
 ```
 
 Ignore errors from `git checkout` (the file may not have been modified).
 
-If the item status is not `error`, auto-commit and push: run `/commit catalog/tables/<item_id>.json`.
+If the item status is not `error`, auto-commit and push: run `/commit catalog/tables/<item_id>.json` (or `catalog/views/<item_id>.json` for views).
 
 Then continue to Step 3.
 
-**Multi-table path (2+ tables):** Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
+**Multi-item path (2+ items):** Launch one sub-agent per item in parallel. Each sub-agent receives this prompt:
 
 ```text
-Run the migration:profiling-table skill for <schema.table>.
+Detect whether <schema.item> is a view (catalog/views/<item_fqn>.json exists) or a table.
+Run the migration:profiling-view skill if it is a view, otherwise run migration:profiling-table.
 The worktree is at <worktree-path>.
-Write the item result JSON to .migration-runs/<schema.table>.<epoch>.json.
+Write the item result JSON to .migration-runs/<schema.item>.<epoch>.json.
 
 After writing the result:
-- If status == "error": run `git checkout -- catalog/tables/<item_id>.json` (ignore errors).
-- If status != "error": invoke the /commit command with catalog/tables/<item_id>.json
+- If status == "error": run `git checkout -- catalog/tables/<item_id>.json` or `catalog/views/<item_id>.json` (ignore errors).
+- If status != "error": invoke the /commit command with the appropriate catalog path.
 
 On failure before writing a result, write result with status: "error" and error details, then revert as above.
 Return the item result JSON.
@@ -116,13 +119,15 @@ Return the item result JSON.
 
 ```json
 {
-  "item_id": "<table_fqn>",
+  "item_id": "<table_or_view_fqn>",
   "status": "ok|partial|error",
   "catalog_path": "catalog/tables/<item_id>.json",
   "warnings": [],
   "errors": []
 }
 ```
+
+For views: `catalog_path` is `catalog/views/<item_id>.json`.
 
 The actual profile data lives in the catalog file, not duplicated in the run log.
 
@@ -132,8 +137,10 @@ The actual profile data lives in the catalog file, not duplicated in the run log
 |---|---|---|
 | `MANIFEST_NOT_FOUND` | error | manifest.json missing — all items fail |
 | `CATALOG_FILE_MISSING` | error | catalog/tables/\<item_id>.json not found — skip item |
-| `SCOPING_NOT_COMPLETED` | error | scoping section missing or no selected_writer — skip item |
-| `PROFILING_FAILED` | error | `/profiling-table` skill pipeline failed — skip item |
+| `VIEW_CATALOG_FILE_MISSING` | error | catalog/views/\<item_id>.json not found — skip item |
+| `SCOPING_NOT_COMPLETED` | error | scoping section missing or no selected_writer — skip table item |
+| `VIEW_SCOPING_NOT_COMPLETED` | error | view scoping.status not analyzed — skip view item |
+| `PROFILING_FAILED` | error | `/profiling-table` or `/profiling-view` skill pipeline failed — skip item |
 | `PARTIAL_PROFILE` | warning | LLM could not answer a required question — item proceeds as partial |
 
 Each entry in `errors[]` or `warnings[]`:

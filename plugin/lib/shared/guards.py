@@ -89,6 +89,36 @@ def check_view_catalog(project_root: Path, view_fqn: str) -> dict[str, Any]:
     return _guard_ok("view_catalog_exists")
 
 
+def check_view_scoping_analyzed(project_root: Path, view_fqn: str) -> dict[str, Any]:
+    """Check scoping.status == 'analyzed' in the view catalog."""
+    try:
+        cat = load_view_catalog(project_root, view_fqn)
+    except (json.JSONDecodeError, OSError, CatalogLoadError) as exc:
+        norm = normalize(view_fqn)
+        return _guard_fail(
+            "view_scoping_analyzed",
+            "VIEW_SCOPING_NOT_COMPLETED",
+            f"Could not load view catalog for {norm}: {exc}",
+        )
+    if cat is None:
+        norm = normalize(view_fqn)
+        return _guard_fail(
+            "view_scoping_analyzed",
+            "VIEW_SCOPING_NOT_COMPLETED",
+            f"catalog/views/{norm}.json not found.",
+        )
+    scoping = cat.get("scoping")
+    if scoping is None or scoping.get("status") != "analyzed":
+        norm = normalize(view_fqn)
+        status = scoping.get("status") if scoping else None
+        return _guard_fail(
+            "view_scoping_analyzed",
+            "VIEW_SCOPING_NOT_COMPLETED",
+            f"View scoping not completed for {norm} (status={status!r}). Run analyzing-view first.",
+        )
+    return _guard_ok("view_scoping_analyzed")
+
+
 def check_table_catalog(project_root: Path, table_fqn: str) -> dict[str, Any]:
     """Check catalog/tables/<item_id>.json exists and is valid JSON."""
     try:
@@ -430,10 +460,15 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
         (check_test_spec,),
         (check_refactor_complete,),
     ],
-    # View-specific guard set for scope stage
+    # View-specific guard sets
     "scope-view": [
         (check_manifest,),
         (check_view_catalog,),
+    ],
+    "profile-view": [
+        (check_manifest,),
+        (check_view_catalog,),
+        (check_view_scoping_analyzed,),
     ],
     # Skill-specific guard sets (not pipeline stages, but callable via guard CLI)
     "generating-model": [

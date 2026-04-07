@@ -1,0 +1,53 @@
+{
+  "schema": "silver",
+  "name": "vw_Multi",
+  "is_materialized_view": false,
+  "references": {
+    "tables": {
+      "in_scope": [
+        { "schema": "silver", "name": "FactSales" },
+        { "schema": "silver", "name": "DimCustomer" }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [
+        { "schema": "silver", "name": "vw_Simple" }
+      ],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [
+        { "schema": "dbo", "name": "fn_format_date" }
+      ],
+      "out_of_scope": []
+    }
+  },
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "scoping": {
+    "status": "analyzed",
+    "sql_elements": [
+      { "type": "join", "detail": "INNER JOIN DimCustomer" },
+      { "type": "aggregation", "detail": "SUM(amount)" },
+      { "type": "group_by", "detail": "customer_key" }
+    ],
+    "logic_summary": "Joins FactSales to DimCustomer and aggregates sales by customer.",
+    "warnings": [],
+    "errors": []
+  },
+  "warnings": [],
+  "errors": []
+}

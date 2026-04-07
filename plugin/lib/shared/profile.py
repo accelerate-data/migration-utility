@@ -25,6 +25,7 @@ import typer
 from shared.catalog import (
     load_proc_catalog,
     load_table_catalog,
+    load_view_catalog,
     read_selected_writer,
     write_json as _write_catalog_json,
 )
@@ -66,6 +67,9 @@ SOURCES = frozenset({"catalog", "llm", "catalog+llm"})
 PROFILE_STATUSES = frozenset({"ok", "partial", "error"})
 
 PK_TYPES = frozenset({"surrogate", "natural", "composite", "unknown"})
+
+VIEW_CLASSIFICATIONS = frozenset({"stg", "mart"})
+VIEW_SOURCES = frozenset({"llm"})
 
 
 # ── Context assembly (importable for testing) ────────────────────────────────
@@ -153,6 +157,59 @@ def run_context(project_root: Path, table: str, writer: str | None = None) -> di
     }
 
 
+def run_view_context(project_root: Path, view_fqn: str) -> dict[str, Any]:
+    """Assemble view profiling context from view catalog.
+
+    Adds object_type to each in_scope entry across references and referenced_by.
+    Returns a dict matching schemas/view_profile_context.json.
+    """
+    view_norm = normalize(view_fqn)
+
+    view_cat = load_view_catalog(project_root, view_norm)
+    if view_cat is None:
+        raise CatalogFileMissingError("view", view_norm)
+
+    scoping = view_cat.get("scoping")
+    if scoping is None or scoping.get("status") != "analyzed":
+        raise ValueError(
+            f"View scoping not completed for {view_norm}. Run analyzing-view first."
+        )
+
+    # Enrich references: add object_type to each in_scope entry
+    references: dict[str, Any] = {}
+    for bucket, obj_type in (("tables", "table"), ("views", "view"), ("functions", "function")):
+        raw = view_cat.get("references", {}).get(bucket, {"in_scope": [], "out_of_scope": []})
+        references[bucket] = {
+            "in_scope": [{**e, "object_type": obj_type} for e in raw.get("in_scope", [])],
+            "out_of_scope": raw.get("out_of_scope", []),
+        }
+
+    # Enrich referenced_by: add object_type to each in_scope entry
+    referenced_by: dict[str, Any] = {}
+    for bucket, obj_type in (("procedures", "procedure"), ("views", "view"), ("functions", "function")):
+        raw = view_cat.get("referenced_by", {}).get(bucket, {"in_scope": [], "out_of_scope": []})
+        referenced_by[bucket] = {
+            "in_scope": [{**e, "object_type": obj_type} for e in raw.get("in_scope", [])],
+            "out_of_scope": raw.get("out_of_scope", []),
+        }
+
+    result: dict[str, Any] = {
+        "view": view_norm,
+        "is_materialized_view": view_cat.get("is_materialized_view", False),
+        "sql_elements": scoping.get("sql_elements"),
+        "logic_summary": scoping.get("logic_summary"),
+        "references": references,
+        "referenced_by": referenced_by,
+        "warnings": view_cat.get("warnings", []),
+        "errors": view_cat.get("errors", []),
+    }
+    if view_cat.get("is_materialized_view"):
+        result["columns"] = view_cat.get("columns", [])
+
+    logger.info("event=view_context_assembled view=%s", view_norm)
+    return result
+
+
 # ── Write validation and merge (importable for testing) ──────────────────────
 
 
@@ -227,30 +284,95 @@ def _validate_profile(profile: dict[str, Any]) -> list[str]:
     return errors
 
 
-def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> dict[str, Any]:
-    """Validate and merge a profile section into a table catalog file.
+def _validate_view_profile(profile: dict[str, Any]) -> list[str]:
+    """Validate a view profile dict. Returns a list of error messages (empty = valid)."""
+    errors: list[str] = []
 
-    Returns a confirmation dict on success.
-    Raises ValueError on validation failure, OSError/json.JSONDecodeError on IO error.
-    """
-    table_norm = normalize(table)
+    for field in ("status", "classification", "rationale", "source"):
+        if field not in profile:
+            errors.append(f"missing required field: {field}")
 
-    # Validate profile
-    errors = _validate_profile(profile_json)
+    status = profile.get("status")
+    if status is not None and status not in PROFILE_STATUSES:
+        errors.append(f"invalid status: {status!r}, must be one of {sorted(PROFILE_STATUSES)}")
+
+    classification = profile.get("classification")
+    if classification is not None and classification not in VIEW_CLASSIFICATIONS:
+        errors.append(f"invalid classification: {classification!r}, must be one of {sorted(VIEW_CLASSIFICATIONS)}")
+
+    source = profile.get("source")
+    if source is not None and source not in VIEW_SOURCES:
+        errors.append(f"invalid source: {source!r}, must be one of {sorted(VIEW_SOURCES)}")
+
+    return errors
+
+
+def _write_view_profile(project_root: Path, view_norm: str, profile_json: dict[str, Any]) -> dict[str, Any]:
+    """Validate and merge a profile section into a view catalog file."""
+    errors = _validate_view_profile(profile_json)
     if errors:
-        raise ValueError(f"Profile validation failed for {table_norm}: {'; '.join(errors)}")
+        raise ValueError(f"View profile validation failed for {view_norm}: {'; '.join(errors)}")
 
-    # Load existing catalog file
-    catalog_path = resolve_catalog_dir(project_root) / "tables" / f"{table_norm}.json"
+    catalog_path = resolve_catalog_dir(project_root) / "views" / f"{view_norm}.json"
     if not catalog_path.exists():
-        raise CatalogFileMissingError("table", table_norm)
+        raise CatalogFileMissingError("view", view_norm)
 
     try:
         existing = json.loads(catalog_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise CatalogLoadError(str(catalog_path), exc) from exc
     except OSError as exc:
-        logger.error("event=write_failed operation=read_catalog table=%s error=%s", table_norm, exc)
+        logger.error("event=write_failed operation=read_catalog view=%s error=%s", view_norm, exc)
+        raise
+
+    existing["profile"] = profile_json
+
+    try:
+        _write_catalog_json(catalog_path, existing)
+    except OSError as exc:
+        logger.error("event=write_failed operation=atomic_write view=%s error=%s", view_norm, exc)
+        raise
+
+    logger.info("event=write_complete view=%s catalog_path=%s", view_norm, catalog_path)
+    return {
+        "ok": True,
+        "table": view_norm,
+        "catalog_path": str(catalog_path),
+    }
+
+
+def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> dict[str, Any]:
+    """Validate and merge a profile section into a table or view catalog file.
+
+    Auto-detects whether the FQN refers to a view (catalog/views/) or table
+    (catalog/tables/). View path is checked first.
+
+    Returns a confirmation dict on success.
+    Raises ValueError on validation failure, OSError/json.JSONDecodeError on IO error.
+    """
+    norm = normalize(table)
+
+    # Auto-detect: check view catalog first
+    view_catalog_path = resolve_catalog_dir(project_root) / "views" / f"{norm}.json"
+    if view_catalog_path.exists():
+        return _write_view_profile(project_root, norm, profile_json)
+
+    # Validate table profile
+    errors = _validate_profile(profile_json)
+    if errors:
+        raise ValueError(f"Profile validation failed for {norm}: {'; '.join(errors)}")
+
+    # Load existing catalog file
+    catalog_path = resolve_catalog_dir(project_root) / "tables" / f"{norm}.json"
+    if not catalog_path.exists():
+        raise CatalogFileMissingError("table", norm)
+
+    try:
+        existing = json.loads(catalog_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise CatalogLoadError(str(catalog_path), exc) from exc
+    except OSError as exc:
+        logger.error("event=write_failed operation=read_catalog table=%s error=%s", norm, exc)
         raise
 
     # Merge profile section
@@ -259,13 +381,13 @@ def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> d
     try:
         _write_catalog_json(catalog_path, existing)
     except OSError as exc:
-        logger.error("event=write_failed operation=atomic_write table=%s error=%s", table_norm, exc)
+        logger.error("event=write_failed operation=atomic_write table=%s error=%s", norm, exc)
         raise
 
-    logger.info("event=write_complete table=%s catalog_path=%s", table_norm, catalog_path)
+    logger.info("event=write_complete table=%s catalog_path=%s", norm, catalog_path)
     return {
         "ok": True,
-        "table": table_norm,
+        "table": norm,
         "catalog_path": str(catalog_path),
     }
 
@@ -288,6 +410,27 @@ def context(
         raise typer.Exit(code=1) from exc
     except (ValueError, FileNotFoundError, DdlParseError, CatalogNotFoundError, CatalogLoadError) as exc:
         logger.error("event=context_failed table=%s writer=%s error=%s", table, writer, exc)
+        raise typer.Exit(code=2) from exc
+    emit(result)
+
+
+@app.command(name="view-context")
+def view_context(
+    project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
+    view: str = typer.Option(..., "--view", help="Fully-qualified view name (schema.Name)"),
+) -> None:
+    """Assemble view profiling context for LLM classification."""
+    project_root = resolve_project_root(project_root)
+    try:
+        result = run_view_context(project_root, view)
+    except CatalogFileMissingError as exc:
+        logger.error("event=view_context_failed view=%s error=%s", view, exc)
+        raise typer.Exit(code=1) from exc
+    except ValueError as exc:
+        logger.error("event=view_context_failed view=%s error=%s", view, exc)
+        raise typer.Exit(code=1) from exc
+    except (FileNotFoundError, CatalogLoadError) as exc:
+        logger.error("event=view_context_failed view=%s error=%s", view, exc)
         raise typer.Exit(code=2) from exc
     emit(result)
 
