@@ -35,7 +35,7 @@ docker run --name pg-test \
 docker update --restart unless-stopped pg-test
 ```
 
-The container starts with a default `postgres` database. The Kimball fixture database (`kimball_fixture`) is loaded from the GHCR image — see [Kimball Fixture Setup](kimball-fixture.md).
+The container starts with a default `postgres` database. The Kimball fixture database (`kimball_fixture`) is loaded from the GHCR image — see [Docker Setup](README.md) for pull and run instructions.
 
 ## Per Session
 

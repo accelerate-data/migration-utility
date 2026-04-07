@@ -4,7 +4,7 @@ One-time cross-dialect parity check for the Kimball fixture. Validates that all 
 
 ## Prerequisites
 
-All three containers must be running with the Kimball fixture loaded. See [Kimball Fixture Setup](../../docs/reference/setup-docker/kimball-fixture.md) for pull and run instructions.
+All three containers must be running with the Kimball fixture loaded. See [Docker Setup](../../docs/reference/setup-docker/README.md) for pull and run instructions.
 
 ```bash
 docker start sql-test
