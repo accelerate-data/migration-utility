@@ -111,7 +111,7 @@ Object type values: `table`, `view`, `mv`.
 
 Header object count: show total objects plus a breakdown e.g. `(4 tables, 2 views)`. If MVs are present, count them separately: `(3 tables, 1 view, 2 mvs)`.
 
-Summary counts: the denominator excludes N/A objects. Show the N/A count in parentheses if any exist, e.g. `profile: 2/4 (1 N/A)`. Views are included in the denominator for `scope`, `profile`, and `refactor`. Views are excluded from the denominator for `test-gen` and `migrate` because those stages return `not_applicable` for views — treat them as N/A for counting purposes.
+Summary counts: the denominator excludes N/A objects and source/pending tables (they are not in the pipeline). Show the N/A count in parentheses if any exist, e.g. `profile: 2/4 (1 N/A)`. Views are included in the denominator for scope (they can be pending/complete for scope), but views are excluded from the denominator for profile/test-gen/refactor/migrate because those stages return `VIEW_STAGE_NOT_SUPPORTED` — treat them as implicit N/A for counting purposes. Source-confirmed tables (`is_source: true`) are excluded entirely from the status table and counts.
 
 ### Step 5 — What to do next
 
@@ -153,6 +153,19 @@ What to do next
   - Max 10 FQNs listed; if more, append `and N more` (all still execute).
 - **Action 3 — Next phase command**: The phase that will become unblocked after action 2 completes. Use the same command format. Omit if there is no obvious next phase.
 
+After the "What to do next" section, show these notes if applicable:
+
+- If `source_pending` list is non-empty, show a "Pending source confirmation" section:
+
+  ```text
+  pending source confirmation (N tables)
+    Run /add-source-tables <fqn> to confirm, or confirm during /init-dbt.
+    silver.AuditLog
+    silver.TempStaging
+  ```
+
+- If `summary.excluded_count > 0`, show: "N objects excluded from pipeline — edit catalog JSON to re-include"
+
 **Run offer**: After presenting the actions, if action 1 is **not** a diagnostic error (i.e. the first actionable item is a runnable plugin command), ask:
 
 ```text
@@ -192,7 +205,21 @@ If there are no diagnostics, omit this section entirely.
 
 If `dbt/models/staging/sources.yml` exists and any table has `scope_needed` status, show: "sources.yml may be stale — N tables have incomplete scoping. Re-run `/init-dbt` after scoping is complete."
 
-### Step 8 — init-dbt readiness hint
+### Step 8 — Source tables note
+
+If `summary.source_tables > 0`, show at the bottom of the status output:
+
+```text
+N source tables hidden — see sources.yml
+```
+
+If `source_pending` is non-empty AND `summary.source_tables == 0`, instead show:
+
+```text
+No source tables confirmed yet. Run /add-source-tables or confirm during /init-dbt.
+```
+
+### Step 9 — init-dbt readiness hint
 
 If `dbt/dbt_project.yml` does **not** exist AND the batch-plan `scope_phase` is empty (all in-scope objects have completed scope), show:
 

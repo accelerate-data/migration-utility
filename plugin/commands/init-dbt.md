@@ -196,15 +196,44 @@ logs/
 .user.yml
 ```
 
-## Step 4: Generate sources.yml
+## Step 4: Confirm source tables and generate sources.yml
 
-Run the deterministic CLI to generate and write `sources.yml`:
+First, run the CLI in dry-run mode to discover unconfirmed writerless tables:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" generate-sources
+```
+
+Read the `unconfirmed` list from the output. These are tables with `scoping.status == "no_writer_found"` that have not yet been marked `is_source: true`.
+
+If `unconfirmed` is non-empty, present the list and ask the user which ones should become dbt sources:
+
+```text
+N writerless tables have not been confirmed as dbt sources:
+
+  1. silver.AuditLog
+  2. silver.TempStaging
+  3. silver.LookupCurrency
+
+Enter the numbers to add as sources (comma-separated), or press Enter to skip all:
+```
+
+Wait for the user's response. For each confirmed table, run:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-source \
+  --name <fqn> --value
+```
+
+Tables already marked `is_source: true` are included automatically without prompting.
+
+Once confirmation is done (or if `unconfirmed` was empty), generate and write `sources.yml`:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" generate-sources --write --strict
 ```
 
-This reads every `.json` file in `catalog/tables/`, includes only tables where `scoping.status == "no_writer_found"` (true external sources), and excludes tables with `scoping.status == "resolved"` (procedure targets that become dbt models via `{{ ref() }}`). The output JSON reports `included`, `excluded`, and `incomplete` table lists plus the written file path.
+This reads every `.json` file in `catalog/tables/`, includes only tables where `is_source: true`, and excludes tables with `scoping.status == "resolved"` (procedure targets that become dbt models via `{{ ref() }}`). The output JSON reports `included`, `excluded`, `unconfirmed`, and `incomplete` table lists plus the written file path.
 
 ## Step 5: Install and validate
 
@@ -289,7 +318,7 @@ Next steps:
 If `dbt/` already exists:
 
 1. Confirm `dbt_project.yml` exists — that is sufficient to detect an existing project.
-2. Regenerate `sources.yml` by re-running `generate-sources --write --strict` (may have new tables or updated scoping results from a re-run of setup-ddl + analyzing-table).
+2. Re-run the full Step 4 flow (unconfirmed source confirmation + `generate-sources --write --strict`) — may have new unconfirmed writerless tables or newly scoped tables from a re-run of setup-ddl + analyzing-table.
 3. Always write or overwrite `dbt/.gitignore` with the canonical four entries — it must stay current.
 4. Do not overwrite `profiles.yml` (user may have added real credentials).
 5. Do not overwrite existing model files in `models/staging/` or `models/marts/`.

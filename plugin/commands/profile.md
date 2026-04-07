@@ -14,6 +14,8 @@ Produce migration profiles for each table, view, or materialized view. Launches 
 ## Guards
 
 - `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
+- For each FQN argument: if `catalog/tables/<fqn>.json` has `"is_source": true`, skip that table and print:
+  > `<fqn>` is marked as a dbt source — no migration needed. Use `/add-source-tables` to manage source tables.
 
 Per-item guards are checked by the skill via `migrate-util guard`.
 

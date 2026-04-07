@@ -45,12 +45,29 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover refs \
   --name <table>
 ```
 
-Extract the `writers` array from the output. If no writers are found, persist `no_writer_found` to catalog and stop:
+Extract the `writers` array from the output. If no writers are found, persist `no_writer_found` to catalog:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
   --name <table> --scoping '{"status": "no_writer_found", "selected_writer": null, "selected_writer_rationale": "No procedures found that write to this table."}'
 ```
+
+Then ask the user:
+
+> No writer found for `<table>`. Mark as a dbt source? (y/n)
+
+If **y**, run:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-source \
+  --name <table> --value
+```
+
+Confirm: "Marked `<table>` as a dbt source (`is_source: true`)."
+
+If **n**, skip — the table will appear in the "pending source confirmation" section of `/status` until confirmed.
+
+Stop here (no further steps for `no_writer_found` tables).
 
 #### Multi-table-write disqualification
 
@@ -126,3 +143,4 @@ The scoping JSON must include the selected writer (or `no_writer_found` status) 
 | procedure analysis | reference failure | Log failure, mark candidate `BLOCKED`, continue with remaining |
 | `discover write-scoping` | 1 | Validation failure. Report errors, ask user to correct |
 | `discover write-scoping` | 2 | Invalid JSON or IO error. Report and stop |
+| `discover write-source` | 1 | Catalog file missing or table not analyzed. Report and stop |
