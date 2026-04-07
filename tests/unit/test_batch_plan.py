@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from shared.batch_plan import (
+    _compute_diagnostic_stage_flags,
     _topological_batches,
     build_batch_plan,
     collect_deps,
@@ -213,8 +214,8 @@ class TestObjectPipelineStatus:
         )
         assert object_pipeline_status(tmp_path, "silver.vw_test", "view", dbt_root) == "scope_needed"
 
-    def test_view_profile_needed(self, tmp_path):
-        """Analyzed view with no profile → profile_needed."""
+    def test_view_migrate_needed(self, tmp_path):
+        """Analyzed view with no dbt model → migrate_needed."""
         dbt_root = tmp_path / "dbt"
         view_dir = tmp_path / "catalog" / "views"
         view_dir.mkdir(parents=True)
@@ -222,28 +223,17 @@ class TestObjectPipelineStatus:
             json.dumps({"schema": "silver", "name": "vw_Test", "scoping": {"status": "analyzed"}, "references": {"tables": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}, "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}}),
             encoding="utf-8",
         )
-        assert object_pipeline_status(tmp_path, "silver.vw_test", "view", dbt_root) == "profile_needed"
-
-    def test_view_refactor_needed(self, tmp_path):
-        """Analyzed and profiled view with no dbt model → refactor_needed."""
-        dbt_root = tmp_path / "dbt"
-        view_dir = tmp_path / "catalog" / "views"
-        view_dir.mkdir(parents=True)
-        (view_dir / "silver.vw_test.json").write_text(
-            json.dumps({"schema": "silver", "name": "vw_Test", "scoping": {"status": "analyzed"}, "profile": {"status": "ok", "classification": "stg", "source": "llm", "rationale": "test"}, "references": {"tables": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}, "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}}),
-            encoding="utf-8",
-        )
-        assert object_pipeline_status(tmp_path, "silver.vw_test", "view", dbt_root) == "refactor_needed"
+        assert object_pipeline_status(tmp_path, "silver.vw_test", "view", dbt_root) == "migrate_needed"
 
     def test_view_complete(self, tmp_path):
-        """Analyzed, profiled view with a dbt model → complete."""
+        """Analyzed view with a dbt model → complete."""
         dbt_root = tmp_path / "dbt"
         (dbt_root / "models" / "staging").mkdir(parents=True)
         (dbt_root / "models" / "staging" / "stg_vw_test.sql").write_text("select 1", encoding="utf-8")
         view_dir = tmp_path / "catalog" / "views"
         view_dir.mkdir(parents=True)
         (view_dir / "silver.vw_test.json").write_text(
-            json.dumps({"schema": "silver", "name": "vw_Test", "scoping": {"status": "analyzed"}, "profile": {"status": "ok", "classification": "stg", "source": "llm", "rationale": "test"}, "references": {"tables": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}, "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}}),
+            json.dumps({"schema": "silver", "name": "vw_Test", "scoping": {"status": "analyzed"}, "references": {"tables": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}, "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}}),
             encoding="utf-8",
         )
         assert object_pipeline_status(tmp_path, "silver.vw_test", "view", dbt_root) == "complete"
@@ -769,6 +759,129 @@ class TestBuildBatchPlan:
         finally:
             tmp.cleanup()
 
+    def test_factsales_writerless_not_in_blocking_deps(self):
+        """refcurrency is writerless (n_a) — must not appear in any object's blocking_deps."""
+        tmp, dst = _make_project()
+        try:
+            result = build_batch_plan(dst)
+            for batch in result["migrate_batches"]:
+                for node in batch["objects"]:
+                    assert "silver.refcurrency" not in node["blocking_deps"], (
+                        f"{node['fqn']} wrongly lists writerless refcurrency as a blocker"
+                    )
+        finally:
+            tmp.cleanup()
+
+    def test_writerless_only_dep_not_blocking(self, tmp_path):
+        """View that depends only on a writerless source table has empty blocking_deps
+        and is placed in a migration batch (ready to migrate)."""
+        (tmp_path / "catalog" / "tables").mkdir(parents=True)
+        (tmp_path / "catalog" / "views").mkdir(parents=True)
+        (tmp_path / "manifest.json").write_text(
+            json.dumps({"schema_version": "1.0", "technology": "sql_server"}), encoding="utf-8"
+        )
+        import subprocess as _sp
+        _sp.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
+        _sp.run(["git", "commit", "--allow-empty", "-m", "i"], cwd=tmp_path, capture_output=True,
+                check=True, env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                                 "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+                                 "HOME": str(Path.home())})
+
+        # source_table: writerless (n_a)
+        (tmp_path / "catalog" / "tables" / "src.source_table.json").write_text(json.dumps({
+            "schema": "src", "name": "source_table",
+            "scoping": {"status": "no_writer_found", "candidates": []},
+        }), encoding="utf-8")
+
+        # vw_report: analyzed view that depends only on source_table
+        (tmp_path / "catalog" / "views" / "src.vw_report.json").write_text(json.dumps({
+            "schema": "src", "name": "vw_report",
+            "scoping": {"status": "analyzed"},
+            "references": {
+                "tables": {"in_scope": [{"schema": "src", "name": "source_table"}], "out_of_scope": []},
+                "views": {"in_scope": [], "out_of_scope": []},
+                "functions": {"in_scope": [], "out_of_scope": []},
+            },
+            "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []},
+                              "views": {"in_scope": [], "out_of_scope": []},
+                              "functions": {"in_scope": [], "out_of_scope": []}},
+        }), encoding="utf-8")
+
+        result = build_batch_plan(tmp_path)
+        # vw_report should be in migrate_batches (migrate_needed), not blocked
+        batch_fqns = {n["fqn"] for batch in result["migrate_batches"] for n in batch["objects"]}
+        assert "src.vw_report" in batch_fqns
+
+        vw_node = next(n for batch in result["migrate_batches"] for n in batch["objects"]
+                       if n["fqn"] == "src.vw_report")
+        assert vw_node["blocking_deps"] == [], (
+            f"Expected no blocking_deps, got {vw_node['blocking_deps']}"
+        )
+
+    def test_writerless_and_migrate_candidate_dep(self, tmp_path):
+        """View depends on a writerless table AND a migrate-candidate:
+        only the migrate-candidate appears in blocking_deps."""
+        (tmp_path / "catalog" / "tables").mkdir(parents=True)
+        (tmp_path / "catalog" / "views").mkdir(parents=True)
+        (tmp_path / "catalog" / "procedures").mkdir(parents=True)
+        (tmp_path / "test-specs").mkdir(parents=True)
+        (tmp_path / "manifest.json").write_text(
+            json.dumps({"schema_version": "1.0", "technology": "sql_server"}), encoding="utf-8"
+        )
+        import subprocess as _sp
+        _sp.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
+        _sp.run(["git", "commit", "--allow-empty", "-m", "i"], cwd=tmp_path, capture_output=True,
+                check=True, env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                                 "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+                                 "HOME": str(Path.home())})
+
+        # writerless source table
+        (tmp_path / "catalog" / "tables" / "src.dim_lookup.json").write_text(json.dumps({
+            "schema": "src", "name": "dim_lookup",
+            "scoping": {"status": "no_writer_found", "candidates": []},
+        }), encoding="utf-8")
+
+        # migrate-candidate table (test_gen_needed)
+        (tmp_path / "catalog" / "tables" / "src.dim_product.json").write_text(json.dumps({
+            "schema": "src", "name": "dim_product",
+            "scoping": {"status": "resolved", "selected_writer": "dbo.usp_load_dim_product"},
+            "profile": {"status": "ok"},
+        }), encoding="utf-8")
+        (tmp_path / "catalog" / "procedures" / "dbo.usp_load_dim_product.json").write_text(json.dumps({
+            "schema": "dbo", "name": "usp_load_dim_product", "mode": "deterministic", "routing_reasons": [],
+            "statements": [{"action": "migrate", "source": "ast", "sql": ""}],
+            "refactor": {"status": "ok", "extracted_sql": "x", "refactored_sql": "y"},
+            "references": {"tables": {"in_scope": [], "out_of_scope": []},
+                           "views": {"in_scope": [], "out_of_scope": []},
+                           "functions": {"in_scope": [], "out_of_scope": []},
+                           "procedures": {"in_scope": [], "out_of_scope": []}},
+        }), encoding="utf-8")
+        (tmp_path / "test-specs" / "src.dim_product.json").write_text("{}", encoding="utf-8")
+
+        # view depends on both
+        (tmp_path / "catalog" / "views" / "src.vw_fact.json").write_text(json.dumps({
+            "schema": "src", "name": "vw_fact",
+            "scoping": {"status": "analyzed"},
+            "references": {
+                "tables": {"in_scope": [
+                    {"schema": "src", "name": "dim_lookup"},
+                    {"schema": "src", "name": "dim_product"},
+                ], "out_of_scope": []},
+                "views": {"in_scope": [], "out_of_scope": []},
+                "functions": {"in_scope": [], "out_of_scope": []},
+            },
+            "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []},
+                              "views": {"in_scope": [], "out_of_scope": []},
+                              "functions": {"in_scope": [], "out_of_scope": []}},
+        }), encoding="utf-8")
+
+        result = build_batch_plan(tmp_path)
+        vw_node = next(n for batch in result["migrate_batches"] for n in batch["objects"]
+                       if n["fqn"] == "src.vw_fact")
+        blocking = set(vw_node["blocking_deps"])
+        assert "src.dim_product" in blocking, "migrate-candidate dep must be blocking"
+        assert "src.dim_lookup" not in blocking, "writerless dep must not be blocking"
+
     def test_blocking_deps_3level_intermediate_behind(self):
         """3-level chain: proc → vw_mid (scope_needed) → vw_base → leaf.
         vw_mid has no dbt model → it and its transitive deps are all blocking for fact."""
@@ -1235,5 +1348,70 @@ class TestExcludedObjects:
                 | {n["fqn"] for b in result["migrate_batches"] for n in b["objects"]}
             )
             assert "silver.dimdate" not in all_active
+        finally:
+            tmp.cleanup()
+
+
+# ── diagnostic_stage_flags tests ──────────────────────────────────────────────
+
+
+class TestComputeDiagnosticStageFlags:
+    def test_empty_diagnostics(self):
+        """No diagnostics → empty flags dict."""
+        assert _compute_diagnostic_stage_flags([]) == {}
+
+    def test_no_mapped_codes(self):
+        """Diagnostics with codes not in the stage map → empty flags dict."""
+        diags = [{"code": "STALE_OBJECT", "severity": "warning", "message": "stale"}]
+        assert _compute_diagnostic_stage_flags(diags) == {}
+
+    def test_parse_error_maps_to_refactor(self):
+        """PARSE_ERROR maps to refactor stage with error severity."""
+        diags = [{"code": "PARSE_ERROR", "severity": "error", "message": "parse failed"}]
+        assert _compute_diagnostic_stage_flags(diags) == {"refactor": "error"}
+
+    def test_ddl_parse_error_maps_to_refactor(self):
+        """DDL_PARSE_ERROR maps to refactor stage with error severity."""
+        diags = [{"code": "DDL_PARSE_ERROR", "severity": "error", "message": "parse failed"}]
+        assert _compute_diagnostic_stage_flags(diags) == {"refactor": "error"}
+
+    def test_multi_table_write_maps_to_scope(self):
+        """MULTI_TABLE_WRITE maps to scope stage, preserving the diagnostic's severity."""
+        diags = [{"code": "MULTI_TABLE_WRITE", "severity": "warning", "message": "multi write"}]
+        assert _compute_diagnostic_stage_flags(diags) == {"scope": "warning"}
+
+    def test_error_beats_warning_same_stage(self):
+        """Two diagnostics for the same stage: error severity wins over warning."""
+        diags = [
+            {"code": "PARSE_ERROR", "severity": "warning", "message": "w"},
+            {"code": "DDL_PARSE_ERROR", "severity": "error", "message": "e"},
+        ]
+        assert _compute_diagnostic_stage_flags(diags) == {"refactor": "error"}
+
+    def test_multiple_stages(self):
+        """Diagnostics that map to different stages both appear in the result."""
+        diags = [
+            {"code": "PARSE_ERROR", "severity": "error", "message": "parse"},
+            {"code": "MULTI_TABLE_WRITE", "severity": "warning", "message": "multi"},
+        ]
+        result = _compute_diagnostic_stage_flags(diags)
+        assert result == {"refactor": "error", "scope": "warning"}
+
+    def test_node_includes_diagnostic_stage_flags(self):
+        """build_batch_plan nodes include diagnostic_stage_flags field."""
+        tmp, dst = _make_project()
+        try:
+            # Inject a PARSE_ERROR diagnostic into dimdate's catalog
+            dimdate_path = dst / "catalog" / "tables" / "silver.dimdate.json"
+            cat = json.loads(dimdate_path.read_text())
+            cat["errors"] = [{"code": "PARSE_ERROR", "message": "failed to parse", "severity": "error"}]
+            dimdate_path.write_text(json.dumps(cat))
+
+            result = build_batch_plan(dst)
+            dimdate_node = next(
+                n for n in result["scope_phase"] if n["fqn"] == "silver.dimdate"
+            )
+            assert "diagnostic_stage_flags" in dimdate_node
+            assert dimdate_node["diagnostic_stage_flags"].get("refactor") == "error"
         finally:
             tmp.cleanup()
