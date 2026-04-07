@@ -684,6 +684,7 @@ def run_extract(
     """
     from shared.catalog import snapshot_enriched_fields, restore_enriched_fields
     from shared.catalog_enrich import enrich_catalog
+    from shared.diagnostics import run_diagnostics
 
     technology = _require_technology(project_root)
 
@@ -753,12 +754,13 @@ def run_extract(
     restore_enriched_fields(project_root, enriched_snapshot)
 
     enrich_result = enrich_catalog(project_root, dialect=dialect)
+    diag_result = run_diagnostics(project_root, dialect=dialect)
     logger.info(
-        "event=extract_complete technology=%s tables=%s procedures=%s enrich=%s",
-        technology, counts.get("tables"), counts.get("procedures"), enrich_result,
+        "event=extract_complete technology=%s tables=%s procedures=%s enrich=%s diagnostics=%s",
+        technology, counts.get("tables"), counts.get("procedures"), enrich_result, diag_result,
     )
 
-    return {**counts, "enrich": enrich_result}
+    return {**counts, "enrich": enrich_result, "diagnostics": diag_result}
 
 
 # ── CLI wrappers ─────────────────────────────────────────────────────────────

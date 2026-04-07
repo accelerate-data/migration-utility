@@ -388,23 +388,6 @@ def write_object_catalog(
     if columns is not None:
         data["columns"] = columns
 
-    # Flag procedures that write to more than one table.
-    if object_type == "procedures":
-        in_scope = references.get("tables", {}).get("in_scope", [])
-        updated_tables = [t for t in in_scope if t.get("is_updated")]
-        if len(updated_tables) > 1:
-            table_fqns = [f"{t['schema']}.{t['name']}" for t in updated_tables]
-            warning: dict[str, Any] = {
-                "code": "MULTI_TABLE_WRITE",
-                "message": (
-                    f"Procedure writes to {len(updated_tables)} tables; "
-                    "cannot produce a single clean refactored SQL."
-                ),
-                "severity": "warning",
-                "details": {"tables": table_fqns},
-            }
-            data.setdefault("warnings", []).append(warning)
-
     p = _object_path(project_root, object_type, norm)
     write_json(p, data)
     return p
