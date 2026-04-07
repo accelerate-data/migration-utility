@@ -312,6 +312,21 @@ def _build_view_definitions_map(
     return result
 
 
+def _build_long_truncation_map(
+    definitions_rows: list,
+    object_types: dict[str, str],
+) -> set[str]:
+    """Build a set of view FQNs that had LONG column truncation during Oracle extraction."""
+    result: set[str] = set()
+    for row in definitions_rows:
+        if not row.get("long_truncation"):
+            continue
+        fqn = normalize(f"{row['schema_name']}.{row['object_name']}")
+        if object_types.get(fqn) == "views":
+            result.add(fqn)
+    return result
+
+
 def _build_view_columns_map(
     view_columns_rows: list,
 ) -> dict[str, list[dict[str, Any]]]:
@@ -481,6 +496,7 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
     view_definitions = _build_view_definitions_map(definitions_rows, object_types)
     view_columns = _build_view_columns_map(view_columns_rows)
     function_subtypes = _build_function_subtypes(object_types_raw)
+    long_truncation_fqns = _build_long_truncation_map(definitions_rows, object_types)
 
     # Load materialized view FQNs from staging (Oracle: mv_fqns.json, SQL Server: indexed_views.json)
     mv_fqns_list = _read_json_optional(staging_dir / "mv_fqns.json") or _read_json_optional(staging_dir / "indexed_views.json") or []
@@ -540,6 +556,7 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
         view_columns=view_columns,
         mv_fqns=mv_fqns,
         subtypes=function_subtypes,
+        long_truncation_fqns=long_truncation_fqns,
     )
 
     counts["unchanged"] = len(diff.unchanged)

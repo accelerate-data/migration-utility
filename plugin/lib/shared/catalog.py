@@ -378,6 +378,7 @@ def write_object_catalog(
     dmf_errors: list[str] | None = None,
     subtype: str | None = None,
     segmenter_error: str | None = None,
+    long_truncation: bool = False,
 ) -> Path:
     """Write a proc/view/function catalog file.  Returns the written path."""
     norm = normalize(fqn)
@@ -407,6 +408,8 @@ def write_object_catalog(
         data["subtype"] = subtype
     if segmenter_error is not None:
         data["segmenter_error"] = segmenter_error
+    if long_truncation:
+        data["long_truncation"] = True
 
     p = _object_path(project_root, object_type, norm)
     write_json(p, data)

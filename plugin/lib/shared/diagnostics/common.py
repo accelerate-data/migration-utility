@@ -114,6 +114,9 @@ def check_missing_reference(ctx: CatalogContext) -> list[DiagnosticResult] | Non
         for entry in in_scope:
             ref_fqn = f"{entry['schema']}.{entry['name']}".lower()
             if ref_fqn not in known:
+                # Skip refs that are known package members (PACKAGE_MEMBER check handles them)
+                if ctx.package_members is not None and ref_fqn in ctx.package_members:
+                    continue
                 results.append(DiagnosticResult(
                     code="MISSING_REFERENCE",
                     message=f"Referenced {bucket.rstrip('s')} {entry['schema']}.{entry['name']} has no catalog entry.",

@@ -44,6 +44,7 @@ def _write_object_catalogs(
     dmf_errors: dict[str, list[str]] | None = None,
     subtypes: dict[str, str] | None = None,
     segmenter_errors: dict[str, str] | None = None,
+    long_truncation_fqns: set[str] | None = None,
 ) -> int:
     """Write catalog files for one object type (procs, views, or functions).
 
@@ -59,6 +60,7 @@ def _write_object_catalogs(
     _dmf_errors = dmf_errors or {}
     _subtypes = subtypes or {}
     _seg_errors = segmenter_errors or {}
+    _ltrunc = long_truncation_fqns if object_type == "views" else None
 
     count = 0
     for fqn, refs in dmf_refs.items():
@@ -74,6 +76,7 @@ def _write_object_catalogs(
             dmf_errors=_dmf_errors.get(fqn),
             subtype=_subtypes.get(fqn),
             segmenter_error=_seg_errors.get(fqn),
+            long_truncation=bool(_ltrunc and fqn in _ltrunc),
         )
         count += 1
 
@@ -91,6 +94,7 @@ def _write_object_catalogs(
                 dmf_errors=_dmf_errors.get(fqn),
                 subtype=_subtypes.get(fqn),
                 segmenter_error=_seg_errors.get(fqn),
+                long_truncation=bool(_ltrunc and fqn in _ltrunc),
             )
             count += 1
 
@@ -138,6 +142,7 @@ def write_catalog_files(
     mv_fqns: set[str] | None = None,
     subtypes: dict[str, str] | None = None,
     segmenter_errors: dict[str, str] | None = None,
+    long_truncation_fqns: set[str] | None = None,
 ) -> dict[str, int]:
     """Process raw extraction data and write all catalog JSON files.
 
@@ -178,6 +183,7 @@ def write_catalog_files(
             view_columns=view_columns,
             mv_fqns=mv_fqns,
             dmf_errors=all_dmf_errors,
+            long_truncation_fqns=long_truncation_fqns,
         ),
         "functions": _write_object_catalogs(
             project_root, func_refs, "functions", rflags, pparams, object_types,
