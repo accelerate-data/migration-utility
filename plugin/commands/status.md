@@ -148,7 +148,10 @@ What to do next
   - Else if `migrate_batches` is non-empty: use the first batch's `pipeline_status` to pick the command:
     - `test_gen_needed` → `/generate-tests <fqn1> ...`
     - `refactor_needed` → `/refactor <fqn1> ...`
-    - `migrate_needed` → `/generate-model <fqn1> ...`
+    - `migrate_needed` → group the batch's objects by type:
+      - Objects with `type == "view"` or `type == "mv"`: `/refactor-view <fqn1> <fqn2> ...`
+      - Objects with `type == "table"`: `/generate-model <fqn1> <fqn2> ...`
+      - If both types are present in the batch, show both commands on separate lines under the same action number (they are parallel, not sequential).
   - If `circular_refs` is non-empty, append inline: `[N excluded — CIRCULAR_REFERENCE]`
   - Max 10 FQNs listed; if more, append `and N more` (all still execute).
 - **Action 3 — Next phase command**: The phase that will become unblocked after action 2 completes. Use the same command format. Omit if there is no obvious next phase.
@@ -334,6 +337,8 @@ For completed stages, show the key signals from the `--detail` content:
 ### Step 3 — Recommend next action
 
 Based on the first incomplete stage, recommend the specific command to run next for this table.
+
+For views and MVs (`type == "view"` or `type == "mv"`): when the first incomplete stage is `migrate` (scope is complete but no dbt model exists yet), recommend `/refactor-view <fqn>` (not `/generate-model`).
 
 ## Error handling
 

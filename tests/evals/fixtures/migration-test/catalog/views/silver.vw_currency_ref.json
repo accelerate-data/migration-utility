@@ -5,6 +5,11 @@
   "scoping": {
     "status": "analyzed"
   },
+  "profile": {
+    "status": "ok",
+    "classification": "stg",
+    "source": "llm"
+  },
   "references": {
     "tables": {
       "in_scope": [

@@ -1,4 +1,4 @@
-"""Test harness CLI — sandbox lifecycle, scenario execution, and dbt YAML conversion.
+"""Test harness CLI — sandbox lifecycle and scenario execution.
 
 Reads manifest.json to determine technology, then routes to a
 technology-specific backend (SQL Server via pyodbc first).
@@ -8,12 +8,10 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from pathlib import Path
 from typing import Any, NoReturn
 
 import typer
-import yaml
 
 from shared.env_config import resolve_project_root
 from shared.loader_io import clear_manifest_sandbox, read_manifest, write_manifest_sandbox
@@ -270,109 +268,6 @@ def execute_spec(
     )
     if ok_count == 0:
         raise typer.Exit(code=1)
-
-
-# ── dbt YAML conversion helpers ──────────────────────────────────────────────
-
-_BRACKET_ID_RE = re.compile(r"^\[([^\]]+)\]\.\[([^\]]+)\]$")
-
-# Schemas that map to dbt source() — everything else uses ref()
-_SOURCE_SCHEMAS: frozenset[str] = frozenset({"bronze", "dbo", "staging"})
-
-
-def _bracket_to_dbt(table_id: str) -> str:
-    """Convert a bracket-quoted SQL identifier to a dbt expression.
-
-    ``[bronze].[SalesOrderHeader]`` → ``source('bronze', 'SalesOrderHeader')``
-    ``[silver].[stg_DimProduct]``   → ``ref('stg_DimProduct')``
-    """
-    m = _BRACKET_ID_RE.match(table_id)
-    if not m:
-        return table_id  # pass through if not bracket-quoted
-    schema, name = m.group(1), m.group(2)
-    if schema.lower() in _SOURCE_SCHEMAS:
-        return f"source('{schema}', '{name}')"
-    return f"ref('{name}')"
-
-
-def _derive_model_name(target_table: str) -> str:
-    """Derive the dbt model name from a bracket-quoted target table.
-
-    ``[silver].[DimProduct]`` → ``stg_dimproduct``
-    """
-    m = _BRACKET_ID_RE.match(target_table)
-    if m:
-        return f"stg_{m.group(2).lower()}"
-    # Fallback: dot-separated
-    parts = target_table.split(".")
-    return f"stg_{parts[-1].lower()}"
-
-
-def convert_spec_to_dbt(spec_data: dict[str, Any]) -> dict[str, Any]:
-    """Convert a CLI-ready test spec (with expect.rows) to dbt unit test format.
-
-    Returns a dict suitable for YAML serialization as a dbt unit test file.
-    """
-    unit_tests_dbt: list[dict[str, Any]] = []
-
-    for test_entry in spec_data.get("unit_tests", []):
-        model = test_entry.get("model") or _derive_model_name(
-            test_entry["target_table"]
-        )
-        given_dbt = []
-        for fixture in test_entry.get("given", []):
-            given_dbt.append({
-                "input": _bracket_to_dbt(fixture["table"]),
-                "rows": fixture["rows"],
-            })
-
-        dbt_test: dict[str, Any] = {
-            "name": test_entry["name"],
-            "model": model,
-            "given": given_dbt,
-        }
-        if "expect" in test_entry:
-            dbt_test["expect"] = test_entry["expect"]
-
-        unit_tests_dbt.append(dbt_test)
-
-    return {"unit_tests": unit_tests_dbt}
-
-
-@app.command()
-def convert_dbt(
-    spec: str = typer.Option(..., help="Path to CLI-ready test spec JSON (with expect.rows)"),
-    output: str = typer.Option(..., help="Output path for dbt YAML file"),
-) -> None:
-    """Convert a CLI-ready test spec JSON to dbt unit test YAML."""
-    logger.info("event=cli_invoked command=convert_dbt spec=%s output=%s", spec, output)
-
-    spec_path = Path(spec)
-    try:
-        with spec_path.open() as f:
-            spec_data = json.load(f)
-    except FileNotFoundError:
-        _error_exit("SPEC_NOT_FOUND", f"Test spec file not found: {spec}")
-    except json.JSONDecodeError as exc:
-        _error_exit("SPEC_INVALID_JSON", f"Test spec file is not valid JSON: {exc}", exc)
-
-    dbt_data = convert_spec_to_dbt(spec_data)
-
-    output_path = Path(output)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w") as f:
-        yaml.dump(dbt_data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
-
-    typer.echo(json.dumps({
-        "status": "ok",
-        "spec_path": str(spec_path),
-        "output_path": str(output_path),
-        "unit_tests_count": len(dbt_data["unit_tests"]),
-    }, indent=2))
-    logger.info(
-        "event=cli_complete command=convert_dbt output=%s tests=%d",
-        output, len(dbt_data["unit_tests"]),
-    )
 
 
 @app.command()
