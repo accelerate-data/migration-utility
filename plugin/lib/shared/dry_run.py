@@ -1,12 +1,16 @@
 """dry_run.py — Migration stage prerequisite checker and content reader.
 
-Standalone CLI with two subcommands:
+Standalone CLI with three subcommands:
 
-    dry-run   Check guards for a (table, stage) pair and return
-              eligibility + catalog/dbt content as JSON.
+    dry-run     Check guards for a (table, stage) pair and return
+                eligibility + catalog/dbt content as JSON.
 
-    guard     Check guards only (no content collection). Returns
-              pass/fail JSON for use by skills and plugin commands.
+    guard       Check guards only (no content collection). Returns
+                pass/fail JSON for use by skills and plugin commands.
+
+    batch-plan  Build a dependency-aware parallel batch plan for all
+                catalog objects. Output includes pipeline status per
+                object, transitive dep graph, and catalog diagnostics.
 
 Designed for consumption by the /status plugin command which adds LLM
 reasoning on top of the deterministic output.
@@ -29,6 +33,7 @@ from typing import Any, Optional
 
 import typer
 
+from shared.batch_plan import build_batch_plan
 from shared.catalog import load_table_catalog, load_view_catalog
 from shared.loader_data import CatalogLoadError
 from shared.cli_utils import emit
@@ -225,3 +230,32 @@ def guard_cmd(
         "passed": guards_passed,
         "guard_results": guard_results,
     })
+
+
+@app.command("batch-plan")
+def batch_plan_cmd(
+    project_root: Optional[Path] = typer.Option(
+        None, "--project-root", help="Project root directory",
+    ),
+) -> None:
+    """Build a dependency-aware parallel batch plan for all catalog objects.
+
+    Reads all table and view catalog files, builds the transitive dependency
+    graph (proc → tables/views, view → views, proc → procs transitively),
+    and outputs a JSON batch plan with pipeline status and catalog diagnostics
+    per object.  Output matches schemas/batch_plan_output.json.
+    """
+    try:
+        root = resolve_project_root(project_root)
+    except RuntimeError as exc:
+        logger.error("event=project_root_error error=%s", exc)
+        emit({"error": str(exc)})
+        raise typer.Exit(code=2) from exc
+
+    try:
+        result = build_batch_plan(root)
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.error("event=batch_plan_error error=%s", exc)
+        emit({"error": str(exc)})
+        raise typer.Exit(code=2) from exc
+    emit(result)

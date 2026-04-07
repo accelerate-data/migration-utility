@@ -1,0 +1,37 @@
+{
+  "schema": "dbo",
+  "name": "usp_load_factsales",
+  "mode": "control_flow_fallback",
+  "routing_reasons": ["if_else"],
+  "statements": [
+    {"action": "migrate", "source": "ast", "sql": "INSERT INTO silver.FactSales SELECT c.CustomerKey, p.ProductKey, t.TerritoryKey, s.SalesAmount FROM bronze.SalesRaw s JOIN silver.DimCustomer c ON s.CustomerID = c.CustomerID JOIN silver.DimProduct p ON s.ProductID = p.ProductID JOIN silver.vw_Territory t ON s.TerritoryID = t.TerritoryID"}
+  ],
+  "references": {
+    "tables": {
+      "in_scope": [
+        {"schema": "silver", "name": "DimCustomer", "is_selected": true, "is_updated": false, "is_insert_all": false, "is_schema_bound": false, "is_caller_dependent": false, "is_ambiguous": false, "detection": "catalog_query", "columns": []},
+        {"schema": "silver", "name": "DimProduct", "is_selected": true, "is_updated": false, "is_insert_all": false, "is_schema_bound": false, "is_caller_dependent": false, "is_ambiguous": false, "detection": "catalog_query", "columns": []}
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [
+        {"schema": "silver", "name": "vw_Territory", "is_selected": true, "is_updated": false, "is_insert_all": false, "is_schema_bound": false, "is_caller_dependent": false, "is_ambiguous": false, "detection": "catalog_query", "columns": []}
+      ],
+      "out_of_scope": []
+    },
+    "functions": {"in_scope": [], "out_of_scope": []},
+    "procedures": {
+      "in_scope": [
+        {"schema": "dbo", "name": "usp_helper_prep", "is_selected": false, "is_updated": false, "is_insert_all": false, "is_schema_bound": false, "is_caller_dependent": false, "is_ambiguous": false, "detection": "ast_scan", "columns": []}
+      ],
+      "out_of_scope": []
+    }
+  },
+  "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}},
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT c.CustomerKey, p.ProductKey FROM bronze.SalesRaw s JOIN silver.DimCustomer c ON s.CustomerID = c.CustomerID",
+    "refactored_sql": "WITH src AS (SELECT * FROM {{ source('bronze', 'SalesRaw') }}) SELECT c.CustomerKey, p.ProductKey FROM src JOIN {{ ref('stg_dimcustomer') }} c ON src.CustomerID = c.CustomerID"
+  }
+}

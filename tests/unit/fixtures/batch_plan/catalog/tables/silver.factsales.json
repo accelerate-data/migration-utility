@@ -1,0 +1,28 @@
+{
+  "schema": "silver",
+  "name": "FactSales",
+  "primary_keys": [],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "dbo.usp_load_factsales",
+    "candidates": [],
+    "rationale": ""
+  },
+  "profile": {
+    "status": "ok",
+    "classification": {"resolved_kind": "fact_transaction"},
+    "primary_key": {"primary_key_type": "surrogate"},
+    "watermark": {"column": "LoadDate"},
+    "foreign_keys": [],
+    "pii_actions": [],
+    "natural_key": {}
+  },
+  "referenced_by": {
+    "procedures": {"in_scope": [], "out_of_scope": []},
+    "views": {"in_scope": [], "out_of_scope": []},
+    "functions": {"in_scope": [], "out_of_scope": []}
+  }
+}

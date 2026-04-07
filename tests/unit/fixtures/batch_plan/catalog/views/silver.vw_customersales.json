@@ -1,0 +1,28 @@
+{
+  "schema": "silver",
+  "name": "vw_CustomerSales",
+  "scoping": {
+    "status": "analyzed",
+    "sql_elements": [],
+    "call_tree": {
+      "reads_from": ["silver.dimcustomer"],
+      "views_referenced": []
+    },
+    "logic_summary": "Joins customer data with sales aggregates."
+  },
+  "references": {
+    "tables": {
+      "in_scope": [
+        {"schema": "silver", "name": "DimCustomer", "is_selected": true, "is_updated": false, "is_insert_all": false, "is_schema_bound": false, "is_caller_dependent": false, "is_ambiguous": false, "detection": "catalog_query", "columns": []}
+      ],
+      "out_of_scope": []
+    },
+    "views": {"in_scope": [], "out_of_scope": []},
+    "functions": {"in_scope": [], "out_of_scope": []}
+  },
+  "referenced_by": {
+    "procedures": {"in_scope": [], "out_of_scope": []},
+    "views": {"in_scope": [], "out_of_scope": []},
+    "functions": {"in_scope": [], "out_of_scope": []}
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "schema": "dbo",
+  "name": "usp_load_dimcustomer",
+  "mode": "deterministic",
+  "routing_reasons": [],
+  "statements": [
+    {"action": "migrate", "source": "ast", "sql": "INSERT INTO silver.DimCustomer SELECT * FROM bronze.CustomerRaw"}
+  ],
+  "references": {
+    "tables": {"in_scope": [], "out_of_scope": []},
+    "views": {"in_scope": [], "out_of_scope": []},
+    "functions": {"in_scope": [], "out_of_scope": []},
+    "procedures": {"in_scope": [], "out_of_scope": []}
+  },
+  "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}},
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT * FROM bronze.CustomerRaw",
+    "refactored_sql": "WITH src AS (SELECT * FROM {{ source('bronze', 'CustomerRaw') }}) SELECT * FROM src"
+  }
+}

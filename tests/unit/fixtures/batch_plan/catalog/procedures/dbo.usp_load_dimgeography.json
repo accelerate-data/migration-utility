@@ -1,0 +1,16 @@
+{
+  "schema": "dbo",
+  "name": "usp_load_dimgeography",
+  "mode": "deterministic",
+  "routing_reasons": [],
+  "statements": [
+    {"action": "migrate", "source": "ast", "sql": "INSERT INTO silver.DimGeography SELECT * FROM bronze.GeographyRaw"}
+  ],
+  "references": {
+    "tables": {"in_scope": [], "out_of_scope": []},
+    "views": {"in_scope": [], "out_of_scope": []},
+    "functions": {"in_scope": [], "out_of_scope": []},
+    "procedures": {"in_scope": [], "out_of_scope": []}
+  },
+  "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}}
+}

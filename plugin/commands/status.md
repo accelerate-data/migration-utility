@@ -1,9 +1,10 @@
 ---
 name: status
 description: >
-  Migration status dashboard — shows per-table readiness across all pipeline stages.
-  Calls migrate-util dry-run to check prerequisites and gather catalog/dbt evidence,
-  then interprets patterns and recommends next actions.
+  Migration status dashboard — shows per-object readiness across all pipeline stages.
+  In batch mode, also builds a transitive dependency graph and computes
+  maximally-parallel execution batches, surfaces catalog diagnostics with
+  LLM-generated triage. In single-table mode, shows a detailed per-stage breakdown.
 user-invocable: true
 argument-hint: "[schema.table]"
 ---
@@ -78,23 +79,77 @@ Header object count: show total objects plus a breakdown e.g. `(4 tables, 2 view
 
 Summary counts: the denominator excludes N/A objects. Show the N/A count in parentheses if any exist, e.g. `profile: 2/4 (1 N/A)`. Views are included in the denominator for scope (they can be pending/complete for scope), but views are excluded from the denominator for profile/test-gen/refactor/migrate because those stages return `VIEW_STAGE_NOT_SUPPORTED` — treat them as implicit N/A for counting purposes.
 
-### Step 4 — Interpret and recommend
+### Step 4 — Build dependency schedule and surface diagnostics
 
-After the summary table, provide LLM analysis:
+Run the batch planner once to get the full dependency-aware execution plan:
 
-1. **Patterns:** flag cross-object patterns. Examples:
-   - "5 tables are blocked at profiling — all missing watermark column"
-   - "All scoped tables have resolved writers, profiling is the bottleneck"
-   - "3 tables have partial profiles — consider re-running /profile for them"
-   - "2 views are present but have no scoping — view migration is not yet supported"
-   - "N tables are writerless (no_writer_found) and are treated as source tables"
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util batch-plan
+```
 
-2. **Sources staleness check:** if `dbt/models/staging/sources.yml` exists and any table has incomplete scoping (not `resolved` or `no_writer_found`), show a note: "sources.yml may be stale — N tables have incomplete scoping. Re-run `/init-dbt` after scoping is complete."
+Parse the JSON output and present two new sections.
 
-3. **Next action:** recommend the single most impactful next step. Examples:
-   - "Run `/profile silver.DimDate silver.FactSales` to unblock 2 tables"
-   - "Run `/setup-sandbox` then `/generate-tests` for the 3 profiled tables"
-   - "All tables are ready for migration — run `/generate-model` on the batch"
+#### Section A — Dependency Schedule
+
+Show the recommended execution order. Each phase or batch can be worked in parallel within it.
+
+```text
+dependency schedule
+
+  Phase 0 — Scope / Analyze  (run in parallel — no dependencies between them)
+    silver.DimDate          table   scope_needed
+    silver.vDimSalesTerritory  view  scope_needed
+
+  Phase 1 — Profile  (run in parallel after scope is resolved)
+    silver.DimGeography     table   profile_needed
+
+  Migration Batch 1  (no unresolved in-scope dependencies)
+    silver.DimProduct       table   test_gen_needed
+    silver.vwFactPromo      view    migrate_needed
+
+  Migration Batch 2  (depends on Batch 1)
+    silver.FactSales        table   migrate_needed
+      blocked by: silver.DimProduct (test_gen_needed), silver.DimDate (scope_needed)
+```
+
+Rules for the schedule output:
+
+- Show scope_phase as "Phase 0 — Scope / Analyze" if any objects need scope work.
+- Show profile_phase as "Phase 1 — Profile" if any objects need profiling. Note that scope and profile phases are independent across objects (different objects can be scoped and profiled in parallel) but a given table must complete scope before it can be profiled.
+- Show migrate_batches as "Migration Batch N" (1-indexed for readability). Objects in the same batch are independent and can be processed in parallel.
+- For objects with `blocking_deps`, list them with their pipeline_status in a "blocked by" line. Call out when a blocking dep is in an earlier pipeline phase (scope/profile) vs another migration batch.
+- Omit completed_objects from the schedule (they are done).
+- Show n_a_objects as a brief note: "N writerless tables (source tables, no migration needed)".
+- If circular_refs is non-empty, flag them: "N objects excluded — circular dependency detected. Review CIRCULAR_REFERENCE diagnostics."
+
+#### Section B — Catalog Diagnostics
+
+If `catalog_diagnostics.total_errors > 0` or `catalog_diagnostics.total_warnings > 0`, present a triage section:
+
+```text
+catalog diagnostics  (3 errors, 5 warnings)
+
+  Errors
+    silver.FactSales      MULTI_TABLE_WRITE   Writer proc writes to 3 tables — only one can be the dbt model target
+    silver.vwFactPromo    DDL_PARSE_ERROR     View DDL failed to parse: near "PIVOT": syntax error
+    dbo.usp_helper_prep   CROSS_DB_EXEC       Procedure executes cross-database call — dynamic SQL cannot be statically analyzed
+
+  Warnings
+    silver.DimDate        STALE_OBJECT        Object was present in prior extraction but absent in latest
+    ...
+```
+
+After listing the diagnostics, provide LLM-generated triage: for each unique error code present, generate one concise remediation action (1–2 sentences). Group by code, not by object. Examples:
+
+- "MULTI_TABLE_WRITE (1 table): The writer proc targets multiple tables. Use `/scope` to re-select a single-table writer, or split the proc."
+- "DDL_PARSE_ERROR (1 view): The view DDL has unsupported syntax. Review the view definition and simplify before running `/analyzing-view`."
+- "STALE_OBJECT (1 table): Object was removed from the source. Verify it is no longer needed and remove its catalog file if so."
+
+If there are no diagnostics, omit this section entirely.
+
+#### Section C — Sources staleness check
+
+If `dbt/models/staging/sources.yml` exists and any table has `scope_needed` status, show: "sources.yml may be stale — N tables have incomplete scoping. Re-run `/init-dbt` after scoping is complete."
 
 ## Pipeline — With table argument (detailed)
 
@@ -163,5 +218,7 @@ Based on the first incomplete stage, recommend the specific command to run next 
 |---|---|
 | `migrate-util dry-run` returns exit code 1 | Report the domain error from JSON output |
 | `migrate-util dry-run` returns exit code 2 | Report IO error, suggest checking project setup |
+| `migrate-util batch-plan` returns exit code 2 | Report IO error, suggest checking project setup |
+| `migrate-util batch-plan` returns `{"error": ...}` | Report the error and suggest running `/setup-ddl` |
 | No catalog files found | Tell user to run `/setup-ddl` first |
 | `CLAUDE_PLUGIN_ROOT` not set | Tell user to load the plugin with `claude --plugin-dir <path>` |
