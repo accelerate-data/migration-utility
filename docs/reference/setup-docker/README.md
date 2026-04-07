@@ -177,10 +177,3 @@ PG_DB=kimball_fixture
 PG_USER=postgres
 PG_PASSWORD=postgres
 ```
-
-## Other Setup Guides
-
-| Guide | Contents |
-|---|---|
-| [SQL Server](sql-server.md) | One-time setup of plain `sql-test`; AdventureWorks + WideWorldImporters restore |
-| [PostgreSQL](postgres.md) | One-time setup of plain `pg-test` |
