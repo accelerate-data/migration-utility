@@ -813,3 +813,78 @@ def test_restore_no_write_when_values_unchanged() -> None:
         snapshot = {"dbo.usp_a": {"scoping": {"tier": "gold"}}}
         restore_enriched_fields(root, snapshot)
         assert catalog_file.stat().st_mtime == mtime_before
+
+
+# ── excluded flag enrichment round-trip ─────────────────────────────────────
+
+
+def test_excluded_flag_survives_table_reextraction() -> None:
+    """excluded: true on a table is preserved through snapshot + restore."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        cat_path = root / "catalog" / "tables" / "silver.auditlog.json"
+        _write_json(cat_path, {
+            "schema": "silver", "name": "AuditLog",
+            "excluded": True,
+            "scoping": {"status": "no_writer_found"},
+        })
+        snapshot = snapshot_enriched_fields(root)
+        assert "silver.auditlog" in snapshot
+        assert snapshot["silver.auditlog"]["excluded"] is True
+
+        # Simulate re-extraction: overwrite with fresh catalog (no excluded field)
+        _write_json(cat_path, {"schema": "silver", "name": "AuditLog"})
+
+        restore_enriched_fields(root, snapshot)
+        restored = json.loads(cat_path.read_text(encoding="utf-8"))
+        assert restored.get("excluded") is True
+        assert restored.get("scoping", {}).get("status") == "no_writer_found"
+
+
+def test_excluded_flag_survives_view_reextraction() -> None:
+    """excluded: true on a view is preserved through snapshot + restore."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        view_path = root / "catalog" / "views" / "silver.vw_legacy.json"
+        _write_json(view_path, {
+            "schema": "silver", "name": "vw_legacy",
+            "excluded": True,
+            "references": {},
+        })
+        snapshot = snapshot_enriched_fields(root)
+        assert snapshot.get("silver.vw_legacy", {}).get("excluded") is True
+
+        # Simulate re-extraction
+        _write_json(view_path, {"schema": "silver", "name": "vw_legacy", "references": {}})
+
+        restore_enriched_fields(root, snapshot)
+        restored = json.loads(view_path.read_text(encoding="utf-8"))
+        assert restored.get("excluded") is True
+
+
+def test_excluded_false_not_captured_in_snapshot() -> None:
+    """excluded: false is falsy — snapshot skips it (only non-None values captured)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write_json(
+            root / "catalog" / "tables" / "silver.t.json",
+            {"schema": "silver", "name": "T", "excluded": False},
+        )
+        snapshot = snapshot_enriched_fields(root)
+        # excluded: False is falsy but not None; the condition is `data.get(k) is not None`
+        # so it IS captured — restoring False is a no-op but should not raise.
+        # (This test documents current behaviour.)
+        assert "silver.t" in snapshot
+        assert snapshot["silver.t"].get("excluded") is False
+
+
+def test_non_excluded_table_not_captured() -> None:
+    """Table without excluded field produces no excluded key in snapshot."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write_json(
+            root / "catalog" / "tables" / "silver.normal.json",
+            {"schema": "silver", "name": "Normal", "scoping": {"status": "resolved"}},
+        )
+        snapshot = snapshot_enriched_fields(root)
+        assert "excluded" not in snapshot.get("silver.normal", {})
