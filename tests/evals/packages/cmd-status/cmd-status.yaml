@@ -79,9 +79,10 @@ tests:
       expected_output_terms: "what to do next"
 
   # ── VU-949: view at migrate_needed recommends /refactor-view ─────────────────
-  - description: "VU-949 — batch status recommends /refactor-view for view at migrate_needed, not /generate-model"
+  - description: "VU-949 — single-table status recommends /refactor-view for view at migrate_needed, not /generate-model"
     vars:
-      expected_output_terms: "refactor-view,vw_currency_ref"
+      target_table: "silver.vw_currency_ref"
+      expected_output_terms: "refactor-view"
       unexpected_output_terms: "generate-model"
 
   # ── VU-949: table at migrate_needed still recommends /generate-model ─────────

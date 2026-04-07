@@ -338,7 +338,7 @@ For completed stages, show the key signals from the `--detail` content:
 
 Based on the first incomplete stage, recommend the specific command to run next for this table.
 
-For views and MVs (`type == "view"` or `type == "mv"`): when the first incomplete stage is `refactor` or `migrate`, recommend `/refactor-view <fqn>` (not `/generate-model`).
+For views and MVs (`type == "view"` or `type == "mv"`): when the first incomplete stage is `migrate` (scope is complete but no dbt model exists yet), recommend `/refactor-view <fqn>` (not `/generate-model`).
 
 ## Error handling
 
