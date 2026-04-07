@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from shared import discover
-from shared.loader import CatalogLoadError, CatalogNotFoundError, DdlParseError, ObjectNotFoundError
+from shared.loader import CatalogFileMissingError, CatalogLoadError, CatalogNotFoundError, DdlParseError, ObjectNotFoundError
 
 _TESTS_DIR = Path(__file__).parent
 _FLAT_FIXTURES = _TESTS_DIR / "fixtures" / "discover" / "flat"
@@ -507,3 +507,71 @@ def test_show_recursive_cte_is_migrate() -> None:
     assert result["statements"] is not None
     actions = {s["action"] for s in result["statements"]}
     assert "migrate" in actions
+
+
+# --- View scoping tests ---
+
+def test_run_write_view_scoping_happy_path() -> None:
+    """write-view-scoping with analyzed status writes scoping to catalog/views/."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        # Create minimal view catalog
+        views_dir = root / "catalog" / "views"
+        views_dir.mkdir(parents=True)
+        (views_dir / "silver.vw_test.json").write_text(
+            json.dumps({
+                "schema": "silver", "name": "vw_test",
+                "references": {"tables": {"in_scope": [], "out_of_scope": []},
+                               "views": {"in_scope": [], "out_of_scope": []},
+                               "functions": {"in_scope": [], "out_of_scope": []}},
+                "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []},
+                                  "views": {"in_scope": [], "out_of_scope": []},
+                                  "functions": {"in_scope": [], "out_of_scope": []}},
+            }),
+            encoding="utf-8",
+        )
+        scoping = {
+            "status": "analyzed",
+            "sql_elements": [{"type": "join", "detail": "INNER JOIN bronze.customer"}],
+            "call_tree": {"reads_from": ["bronze.customer"], "views_referenced": []},
+            "logic_summary": "Joins customer data.",
+            "rationale": "Simple join view.",
+            "warnings": [],
+            "errors": [],
+        }
+        result = discover.run_write_view_scoping(root, "silver.vw_test", scoping)
+        assert result["status"] == "ok"
+        written = json.loads(Path(result["written"]).read_text(encoding="utf-8"))
+        assert written["scoping"]["status"] == "analyzed"
+        assert written["scoping"]["sql_elements"][0]["type"] == "join"
+
+
+def test_run_write_view_scoping_invalid_status() -> None:
+    """write-view-scoping rejects statuses that are not analyzed|error."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        views_dir = root / "catalog" / "views"
+        views_dir.mkdir(parents=True)
+        (views_dir / "silver.vw_test.json").write_text(
+            json.dumps({
+                "schema": "silver", "name": "vw_test",
+                "references": {"tables": {"in_scope": [], "out_of_scope": []},
+                               "views": {"in_scope": [], "out_of_scope": []},
+                               "functions": {"in_scope": [], "out_of_scope": []}},
+                "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []},
+                                  "views": {"in_scope": [], "out_of_scope": []},
+                                  "functions": {"in_scope": [], "out_of_scope": []}},
+            }),
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="Invalid view scoping status"):
+            discover.run_write_view_scoping(root, "silver.vw_test", {"status": "resolved"})
+
+
+def test_run_write_view_scoping_missing_catalog() -> None:
+    """write-view-scoping raises CatalogFileMissingError when catalog file is absent."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "catalog" / "views").mkdir(parents=True)
+        with pytest.raises(CatalogFileMissingError):
+            discover.run_write_view_scoping(root, "silver.vw_missing", {"status": "analyzed"})

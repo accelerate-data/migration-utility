@@ -68,6 +68,56 @@
         }
       }
     },
+    "scoping": {
+      "type": "object",
+      "description": "SQL analysis results from analyzing-view skill. Written by discover write-scoping.",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["analyzed", "error"],
+          "description": "analyzed = sql_elements populated and persisted; error = DDL parse or CLI failure"
+        },
+        "sql_elements": {
+          "type": ["array", "null"],
+          "description": "SQLglot-extracted SQL features from the view SELECT body. Null when needs_llm is true.",
+          "items": {
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["join", "aggregation", "window_function", "case", "subquery", "cte", "group_by"],
+                "description": "SQL feature category"
+              },
+              "detail": { "type": "string", "description": "Human-readable detail, e.g. join target or function names" }
+            }
+          }
+        },
+        "call_tree": {
+          "type": "object",
+          "description": "Direct source references resolved from catalog refs.",
+          "properties": {
+            "reads_from": { "type": "array", "items": { "type": "string" }, "description": "Normalized FQNs of source tables" },
+            "views_referenced": { "type": "array", "items": { "type": "string" }, "description": "Normalized FQNs of source views" }
+          }
+        },
+        "logic_summary": {
+          "type": "string",
+          "description": "LLM-written plain-language description of what the view computes."
+        },
+        "rationale": { "type": "string" },
+        "warnings": {
+          "type": "array",
+          "description": "VIEW_DEPENDS_ON_VIEWS — view references other views; profiling-view should classify dependencies first.",
+          "items": { "$ref": "common.json#/$defs/diagnostics_entry" }
+        },
+        "errors": {
+          "type": "array",
+          "description": "DDL_PARSE_ERROR — sqlglot failed; CLI_ERROR — discover write-scoping exited non-zero.",
+          "items": { "$ref": "common.json#/$defs/diagnostics_entry" }
+        }
+      }
+    },
     "parse_error": { "type": ["string", "null"], "description": "sqlglot parse error message, if the view DDL failed to parse." },
     "warnings": {
       "type": "array",
