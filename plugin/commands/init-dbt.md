@@ -9,22 +9,25 @@ argument-hint: "[project-root-path]"
 
 Scaffold a complete dbt project for the migration target, generate sources from catalog, and validate with `dbt compile`.
 
+## Guards
+
+- `manifest.json` must exist. If missing, stop and tell the user to run `/setup-ddl` first.
+- All in-scope tables must have completed the analyze stage (scope resolved or no_writer_found). Run:
+
+  ```bash
+  uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util batch-plan
+  ```
+
+  If `scope_phase` in the output is non-empty, stop and tell the user: "N tables still need analyzing. Run `/analyzing-table <table>` on each one before initialising dbt." List the tables from `scope_phase`.
+
 ## Progress Tracking
 
 Use `TaskCreate` and `TaskUpdate` to track the automated phases of this command. After the user selects the target platform (Step 2) and before execution begins, create tasks for `Scaffold dbt project`, `Generate sources.yml`, `Install and validate`, and `Commit`. Update each task to `in_progress` when it starts and to `completed` or `cancelled` (include the error reason) when it finishes. Do not create tasks for interactive steps (platform selection).
 
 ## Step 1: Validate prerequisites
 
-1. Check that `manifest.json` exists in the DDL artifacts directory (the project root or `$ARGUMENTS` if a path was provided). If missing, stop and tell the user to run `/setup-ddl` first.
-2. Read `manifest.json` to confirm `technology` and `dialect` — this describes the **source** system, not the target.
-3. Confirm a `catalog/tables/` directory exists with at least one `.json` file. If empty, warn that `sources.yml` will be empty.
-4. Verify all tables have completed scoping by running:
-
-   ```bash
-   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" generate-sources --strict
-   ```
-
-   If exit code is 1 (incomplete scoping), the JSON output lists the unresolved tables. Stop and tell the user to run `/analyzing-table <table>` on each one before proceeding.
+1. Read `manifest.json` to confirm `technology` and `dialect` — this describes the **source** system, not the target.
+2. Confirm a `catalog/tables/` directory exists with at least one `.json` file. If empty, warn that `sources.yml` will be empty.
 
 ## Step 2: Ask for target platform
 

@@ -151,6 +151,16 @@ If there are no diagnostics, omit this section entirely.
 
 If `dbt/models/staging/sources.yml` exists and any table has `scope_needed` status, show: "sources.yml may be stale — N tables have incomplete scoping. Re-run `/init-dbt` after scoping is complete."
 
+#### Section D — init-dbt readiness hint
+
+If `dbt/dbt_project.yml` does **not** exist AND the batch-plan `scope_phase` is empty (all in-scope objects have completed scope), show:
+
+```text
+ready to initialise dbt  — all tables are scoped. Run /init-dbt to scaffold your dbt project.
+```
+
+If there are still tables in the scope phase, omit this hint entirely. Do not show the hint if `dbt/dbt_project.yml` already exists.
+
 ## Pipeline — With table argument (detailed)
 
 ### Step 1 — Collect detailed status
