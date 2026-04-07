@@ -477,7 +477,8 @@ def run_write_source(
     """Set or clear the is_source flag on a table catalog file.
 
     Guard: the catalog file must exist and scoping must be present (any status).
-    Setting value=True marks the table as a dbt source; value=False removes the flag.
+    Setting value=True marks the table as a dbt source; value=False resets it.
+    is_source is always written (never deleted) — default is False at extraction time.
     """
     table_norm = normalize(table_fqn)
     cat = load_table_catalog(project_root, table_norm)
@@ -490,10 +491,7 @@ def run_write_source(
             "Run /analyzing-table first."
         )
 
-    if value:
-        cat["is_source"] = True
-    else:
-        cat.pop("is_source", None)
+    cat["is_source"] = value
 
     catalog_dir = resolve_catalog_dir(project_root) / "tables"
     cat_path = catalog_dir / f"{table_norm}.json"
@@ -663,7 +661,7 @@ def write_source(
 ) -> None:
     """Set or clear the is_source flag on a table catalog file.
 
-    Marks the table as a dbt source (is_source: true) or removes the flag.
+    Marks the table as a dbt source (is_source: true) or resets it to false.
     Guard: table catalog must exist and scoping must be present.
     """
     project_root = resolve_project_root(project_root)

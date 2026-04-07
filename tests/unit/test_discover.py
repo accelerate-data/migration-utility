@@ -799,8 +799,8 @@ def test_write_source_resolved_table() -> None:
         assert written["is_source"] is True
 
 
-def test_write_source_false_removes_flag() -> None:
-    """run_write_source with value=False removes the is_source key."""
+def test_write_source_false_resets_flag() -> None:
+    """run_write_source with value=False writes is_source: false (always present)."""
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         cat_path = _make_table_cat(
@@ -810,7 +810,7 @@ def test_write_source_false_removes_flag() -> None:
         assert result["status"] == "ok"
         assert result["is_source"] is False
         written = json.loads(cat_path.read_text(encoding="utf-8"))
-        assert "is_source" not in written
+        assert written["is_source"] is False
 
 
 def test_write_source_missing_catalog_raises() -> None:

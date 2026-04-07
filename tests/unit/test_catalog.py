@@ -921,10 +921,18 @@ def test_is_source_false_captured_in_snapshot() -> None:
     Restoring False is a no-op but must not raise — documents current behaviour."""
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
+        cat_path = root / "catalog" / "tables" / "silver.t2.json"
         _write_json(
-            root / "catalog" / "tables" / "silver.t2.json",
+            cat_path,
             {"scoping": {"status": "resolved"}, "is_source": False},
         )
         snapshot = snapshot_enriched_fields(root)
         assert "silver.t2" in snapshot
-        assert snapshot["silver.t2"].get("is_source") is False
+        assert snapshot["silver.t2"]["is_source"] is False
+
+        # Simulate re-extraction: overwrite with fresh catalog (is_source dropped)
+        _write_json(cat_path, {"scoping": {"status": "resolved"}})
+
+        restore_enriched_fields(root, snapshot)
+        restored = json.loads(cat_path.read_text(encoding="utf-8"))
+        assert restored.get("is_source") is False
