@@ -773,19 +773,19 @@ def _make_table_cat(root: Path, fqn: str, scoping: dict, extra: dict | None = No
     return path
 
 
-def test_write_source_sets_flag() -> None:
+def test_write_source_sets_flag(assert_valid_schema) -> None:
     """run_write_source sets is_source: true on a no_writer_found table."""
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         cat_path = _make_table_cat(root, "silver.lookup", {"status": "no_writer_found"})
         result = discover.run_write_source(root, "silver.lookup", True)
-        assert result["status"] == "ok"
+        assert_valid_schema(result, "write_source_output.json")
         assert result["is_source"] is True
         written = json.loads(cat_path.read_text(encoding="utf-8"))
         assert written["is_source"] is True
 
 
-def test_write_source_resolved_table() -> None:
+def test_write_source_resolved_table(assert_valid_schema) -> None:
     """run_write_source accepts resolved tables (cross-domain source scenario)."""
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -794,12 +794,12 @@ def test_write_source_resolved_table() -> None:
             {"status": "resolved", "selected_writer": "dbo.usp_other"},
         )
         result = discover.run_write_source(root, "silver.crossdomain", True)
-        assert result["status"] == "ok"
+        assert_valid_schema(result, "write_source_output.json")
         written = json.loads(cat_path.read_text(encoding="utf-8"))
         assert written["is_source"] is True
 
 
-def test_write_source_false_resets_flag() -> None:
+def test_write_source_false_resets_flag(assert_valid_schema) -> None:
     """run_write_source with value=False writes is_source: false (always present)."""
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -807,7 +807,7 @@ def test_write_source_false_resets_flag() -> None:
             root, "silver.audit", {"status": "no_writer_found"}, {"is_source": True}
         )
         result = discover.run_write_source(root, "silver.audit", False)
-        assert result["status"] == "ok"
+        assert_valid_schema(result, "write_source_output.json")
         assert result["is_source"] is False
         written = json.loads(cat_path.read_text(encoding="utf-8"))
         assert written["is_source"] is False

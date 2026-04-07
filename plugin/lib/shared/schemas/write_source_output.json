@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "write_source_output.json",
+  "title": "WriteSourceOutput",
+  "description": "Output of 'discover write-source'. Reports the catalog file written and the is_source value applied.",
+  "type": "object",
+  "required": ["written", "is_source", "status"],
+  "properties": {
+    "written": {
+      "type": "string",
+      "description": "Absolute path of the catalog file written."
+    },
+    "is_source": {
+      "type": "boolean",
+      "description": "The is_source value written to the catalog file."
+    },
+    "status": {
+      "type": "string",
+      "const": "ok"
+    }
+  }
+}
