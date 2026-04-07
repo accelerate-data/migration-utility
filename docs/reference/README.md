@@ -6,4 +6,3 @@ Reference material and operational notes.
 
 - [Agent Instructions Governance](agent-instructions-governance/README.md)
 - [Docker Setup](setup-docker/README.md) — all containers (SQL Server, Oracle, PostgreSQL)
-- [Running Tests](running-tests/README.md)
