@@ -182,13 +182,17 @@ def _show_procedure(
 
 
 def _analyze_view_select(entry: "DdlEntry") -> dict[str, Any]:
-    """Extract SQL elements from a view's AST. Returns sql_elements, needs_llm, errors."""
+    """Extract SQL elements from a view's AST. Returns sql_elements and errors.
+
+    Views are always deterministic SELECT statements — there is no needs_llm routing.
+    If parse_error is set or the AST walk fails, sql_elements is null and errors contains
+    a DDL_PARSE_ERROR entry. The skill falls back to raw_ddl in that case.
+    """
     import sqlglot.expressions as exp
 
     if entry.parse_error or entry.ast is None:
         return {
             "sql_elements": None,
-            "needs_llm": True,
             "errors": [{"code": "DDL_PARSE_ERROR", "severity": "error", "message": entry.parse_error or "AST is None"}],
         }
 
@@ -248,12 +252,11 @@ def _analyze_view_select(entry: "DdlEntry") -> dict[str, Any]:
         if subquery_count:
             elements.append({"type": "subquery", "detail": f"{subquery_count} subquery(ies)"})
 
-        return {"sql_elements": elements, "needs_llm": False, "errors": []}
+        return {"sql_elements": elements, "errors": []}
 
     except Exception as exc:  # noqa: BLE001
         return {
             "sql_elements": None,
-            "needs_llm": True,
             "errors": [{"code": "DDL_PARSE_ERROR", "severity": "error", "message": str(exc)}],
         }
 
@@ -281,7 +284,6 @@ def _show_view_or_function(
     if type_label == "view":
         analysis = _analyze_view_select(entry)
         result["sql_elements"] = analysis["sql_elements"]
-        result["needs_llm"] = analysis["needs_llm"]
         result["errors"] = analysis["errors"]
 
     return result

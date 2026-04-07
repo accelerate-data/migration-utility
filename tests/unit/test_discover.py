@@ -584,7 +584,7 @@ def test_show_view_join_returns_sql_elements() -> None:
     """run_show for a view with a JOIN returns sql_elements containing a join entry."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.vw_ProductCatalog")
     assert result["type"] == "view"
-    assert result["needs_llm"] is False
+    assert result["needs_llm"] is None  # not applicable for views
     assert result["sql_elements"] is not None
     element_types = {e["type"] for e in result["sql_elements"]}
     assert "join" in element_types
@@ -594,7 +594,7 @@ def test_show_view_aggregation_returns_sql_elements() -> None:
     """run_show for a view with GROUP BY + SUM/COUNT returns aggregation and group_by elements."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.vw_SalesSummary")
     assert result["type"] == "view"
-    assert result["needs_llm"] is False
+    assert result["needs_llm"] is None  # not applicable for views
     assert result["sql_elements"] is not None
     element_types = {e["type"] for e in result["sql_elements"]}
     assert "aggregation" in element_types
@@ -605,7 +605,7 @@ def test_show_view_window_function_returns_sql_elements() -> None:
     """run_show for a view with ROW_NUMBER OVER returns window_function element."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.vw_RankedProducts")
     assert result["type"] == "view"
-    assert result["needs_llm"] is False
+    assert result["needs_llm"] is None  # not applicable for views
     assert result["sql_elements"] is not None
     element_types = {e["type"] for e in result["sql_elements"]}
     assert "window_function" in element_types
@@ -622,7 +622,7 @@ def test_show_view_errors_key_present_for_all_types() -> None:
 def test_show_view_case_expression_returns_sql_elements() -> None:
     """View with CASE expression returns case element."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.vw_CustomerTier")
-    assert result["needs_llm"] is False
+    assert result["needs_llm"] is None
     element_types = {e["type"] for e in result["sql_elements"]}
     assert "case" in element_types
 
@@ -630,7 +630,7 @@ def test_show_view_case_expression_returns_sql_elements() -> None:
 def test_show_view_subquery_returns_sql_elements() -> None:
     """View with scalar subquery and EXISTS returns subquery element."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.vw_ActiveCustomers")
-    assert result["needs_llm"] is False
+    assert result["needs_llm"] is None
     element_types = {e["type"] for e in result["sql_elements"]}
     assert "subquery" in element_types
 
@@ -638,7 +638,7 @@ def test_show_view_subquery_returns_sql_elements() -> None:
 def test_show_view_single_cte_returns_sql_elements() -> None:
     """View with a single CTE returns cte element with count 1."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.vw_TopProducts")
-    assert result["needs_llm"] is False
+    assert result["needs_llm"] is None
     element_types = {e["type"] for e in result["sql_elements"]}
     assert "cte" in element_types
     cte_el = next(e for e in result["sql_elements"] if e["type"] == "cte")
@@ -648,7 +648,7 @@ def test_show_view_single_cte_returns_sql_elements() -> None:
 def test_show_view_multi_cte_returns_correct_count() -> None:
     """View with two CTEs returns cte element with count 2."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.vw_SalesWithRegion")
-    assert result["needs_llm"] is False
+    assert result["needs_llm"] is None
     element_types = {e["type"] for e in result["sql_elements"]}
     assert "cte" in element_types
     cte_el = next(e for e in result["sql_elements"] if e["type"] == "cte")
@@ -658,14 +658,14 @@ def test_show_view_multi_cte_returns_correct_count() -> None:
 def test_show_view_simple_select_returns_empty_elements() -> None:
     """Simple SELECT view with no joins/aggregations returns empty sql_elements."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.vw_SimpleCustomer")
-    assert result["needs_llm"] is False
+    assert result["needs_llm"] is None
     assert result["sql_elements"] == []
 
 
 def test_show_view_duplicate_join_deduplicated() -> None:
     """View joining the same table twice produces deduplicated join elements."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.vw_DuplicateJoin")
-    assert result["needs_llm"] is False
+    assert result["needs_llm"] is None
     join_details = [e["detail"] for e in result["sql_elements"] if e["type"] == "join"]
     # Two joins to bronze.Orders — detail strings differ by alias target but same table;
     # at minimum, no exact-duplicate detail strings should appear
@@ -675,7 +675,7 @@ def test_show_view_duplicate_join_deduplicated() -> None:
 def test_show_view_combined_elements() -> None:
     """View with JOIN + GROUP BY + WINDOW returns all three element types."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.vw_Combined")
-    assert result["needs_llm"] is False
+    assert result["needs_llm"] is None
     element_types = {e["type"] for e in result["sql_elements"]}
     assert "join" in element_types
     assert "group_by" in element_types

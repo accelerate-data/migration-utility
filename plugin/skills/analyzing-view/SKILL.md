@@ -37,9 +37,8 @@ This returns:
 
 - `raw_ddl` — the full CREATE VIEW DDL text
 - `refs` — `reads_from` (source tables) and any view refs
-- `sql_elements` — SQLglot-extracted SQL features (JOINs, aggregations, etc.). May be `null` if `needs_llm` is true.
-- `needs_llm` — true when SQLglot could not parse the DDL
-- `errors` — any parse errors
+- `sql_elements` — SQLglot-extracted SQL features (JOINs, aggregations, etc.). `null` when `errors` contains `DDL_PARSE_ERROR`.
+- `errors` — any parse errors (e.g. `DDL_PARSE_ERROR` when SQLglot could not parse the DDL)
 
 Read `catalog/views/<view_fqn>.json` to get `is_materialized_view` and `references.views.in_scope`.
 
@@ -55,7 +54,7 @@ or
 silver.mv_SalesSummary (materialized view, 8 columns)
 ```
 
-If `errors` contains `DDL_PARSE_ERROR` and `needs_llm` is true, note that SQLglot could not parse the DDL and proceed using `raw_ddl` directly for Steps 2-3.
+If `errors` contains `DDL_PARSE_ERROR` (i.e. `sql_elements` is null), note that SQLglot could not parse the DDL and proceed using `raw_ddl` directly for Steps 2-3.
 
 ### Step 2 -- Build call tree
 
@@ -72,7 +71,7 @@ If `references.views.in_scope` is non-empty, add a `VIEW_DEPENDS_ON_VIEWS` warni
 
 ### Step 3 -- Identify SQL elements
 
-If `needs_llm` is false and `sql_elements` is populated, present them directly:
+If `sql_elements` is populated, present them directly:
 
 ```text
 SQL elements:
@@ -82,7 +81,7 @@ SQL elements:
   - aggregation: SUM, COUNT
 ```
 
-If `needs_llm` is true, read `raw_ddl` and identify SQL features manually: JOINs (type and target), GROUP BY, aggregation functions, window functions (OVER), CASE expressions, subqueries, CTEs. Present the same format as above.
+If `sql_elements` is null (parse error), read `raw_ddl` and identify SQL features manually: JOINs (type and target), GROUP BY, aggregation functions, window functions (OVER), CASE expressions, subqueries, CTEs. Present the same format as above.
 
 ### Step 4 -- Logic summary
 
@@ -169,6 +168,6 @@ If `discover write-scoping` exits non-zero, report the error to the user. Do not
 |---|---|---|
 | `discover show` | 1 | Object not found or catalog file missing. Report and stop |
 | `discover show` | 2 | IO error. Report and stop |
-| `discover show` | 0 + `needs_llm: true` | Use `raw_ddl` for Steps 3-4. Include `DDL_PARSE_ERROR` in scoping errors. |
+| `discover show` | 0 + `sql_elements: null` | SQLglot parse failed. Use `raw_ddl` for Steps 3-4. Include `DDL_PARSE_ERROR` in scoping errors. |
 | `discover write-scoping` | 1 | Validation failure. Report and stop |
 | `discover write-scoping` | 2 | IO error. Report and stop |
