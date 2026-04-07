@@ -226,6 +226,20 @@ def test_sources_yml_groups_by_schema() -> None:
         tmp.cleanup()
 
 
+def test_excluded_table_with_is_source_not_in_sources() -> None:
+    """Table with both excluded: true and is_source: true must NOT appear in sources.yml."""
+    tmp, root = _make_project([
+        {"schema": "silver", "name": "Ghost",
+         "scoping": {"status": "no_writer_found"},
+         "is_source": True, "excluded": True},
+    ])
+    try:
+        result = generate_sources(root)
+        assert "silver.ghost" not in result["included"]
+    finally:
+        tmp.cleanup()
+
+
 def test_write_sources_yml_creates_file(tmp_path) -> None:
     """write_sources_yml writes the file and returns the path."""
     tables_dir = tmp_path / "catalog" / "tables"

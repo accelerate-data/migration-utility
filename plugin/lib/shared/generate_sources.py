@@ -88,6 +88,8 @@ def generate_sources(project_root: Path) -> dict[str, Any]:
         scoping = cat.get("scoping") or {}
         status = scoping.get("status")
 
+        if cat.get("excluded"):
+            continue
         if cat.get("is_source") is True:
             included.append(fqn)
             sources_by_schema.setdefault(schema, []).append(name)

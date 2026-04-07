@@ -485,7 +485,7 @@ def run_write_source(
     if cat is None:
         raise CatalogFileMissingError("table", table_norm)
 
-    if not cat.get("scoping"):
+    if "scoping" not in cat:
         raise ValueError(
             f"Table {table_norm!r} has not been analyzed yet. "
             "Run /analyzing-table first."
@@ -496,6 +496,13 @@ def run_write_source(
     catalog_dir = resolve_catalog_dir(project_root) / "tables"
     cat_path = catalog_dir / f"{table_norm}.json"
     write_json(cat_path, cat)
+
+    logger.info(
+        "event=write_source_complete component=discover operation=run_write_source "
+        "table=%s is_source=%s status=success",
+        table_norm,
+        value,
+    )
 
     return {"written": str(cat_path), "is_source": value, "status": "ok"}
 
