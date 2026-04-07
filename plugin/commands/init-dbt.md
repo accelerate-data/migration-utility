@@ -53,6 +53,7 @@ Create the following structure at `{project-root}/dbt/`:
 
 ```text
 dbt/
+├── .gitignore
 ├── dbt_project.yml
 ├── profiles.yml
 ├── packages.yml
@@ -186,6 +187,15 @@ packages:
     version: [">=1.0.0", "<2.0.0"]
 ```
 
+### .gitignore
+
+```text
+dbt_packages/
+target/
+logs/
+.user.yml
+```
+
 ## Step 4: Generate sources.yml
 
 Run the deterministic CLI to generate and write `sources.yml`:
@@ -280,6 +290,7 @@ If `dbt/` already exists:
 
 1. Confirm `dbt_project.yml` exists — that is sufficient to detect an existing project.
 2. Regenerate `sources.yml` by re-running `generate-sources --write --strict` (may have new tables or updated scoping results from a re-run of setup-ddl + analyzing-table).
-3. Do not overwrite `profiles.yml` (user may have added real credentials).
-4. Do not overwrite existing model files in `models/staging/` or `models/marts/`.
-5. Re-run `dbt deps` and `dbt compile`.
+3. Always write or overwrite `dbt/.gitignore` with the canonical four entries — it must stay current.
+4. Do not overwrite `profiles.yml` (user may have added real credentials).
+5. Do not overwrite existing model files in `models/staging/` or `models/marts/`.
+6. Re-run `dbt deps` and `dbt compile`.
