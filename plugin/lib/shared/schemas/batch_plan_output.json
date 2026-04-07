@@ -11,6 +11,8 @@
     "completed_objects",
     "n_a_objects",
     "excluded_objects",
+    "source_tables",
+    "source_pending",
     "circular_refs",
     "catalog_diagnostics"
   ],
@@ -18,14 +20,16 @@
     "summary": {
       "type": "object",
       "description": "High-level counts of catalog objects.",
-      "required": ["total_objects", "tables", "views", "mvs", "writerless_tables", "excluded_count"],
+      "required": ["total_objects", "tables", "views", "mvs", "writerless_tables", "excluded_count", "source_tables", "source_pending"],
       "properties": {
         "total_objects": { "type": "integer", "minimum": 0 },
         "tables": { "type": "integer", "minimum": 0 },
         "views": { "type": "integer", "minimum": 0 },
         "mvs": { "type": "integer", "minimum": 0 },
         "writerless_tables": { "type": "integer", "minimum": 0 },
-        "excluded_count": { "type": "integer", "minimum": 0, "description": "Number of catalog objects marked excluded: true." }
+        "excluded_count": { "type": "integer", "minimum": 0, "description": "Number of catalog objects marked excluded: true." },
+        "source_tables": { "type": "integer", "minimum": 0, "description": "Tables confirmed as dbt sources (is_source: true), excluded from pipeline" },
+        "source_pending": { "type": "integer", "minimum": 0, "description": "Writerless tables awaiting source confirmation" }
       },
       "additionalProperties": false
     },
@@ -84,6 +88,33 @@
           "fqn": { "type": "string" },
           "type": { "type": "string", "enum": ["table", "view", "mv"] },
           "note": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "source_tables": {
+      "type": "array",
+      "description": "Tables confirmed as dbt sources (is_source: true). Excluded from pipeline and /status.",
+      "items": {
+        "type": "object",
+        "required": ["fqn", "type", "reason"],
+        "properties": {
+          "fqn": { "type": "string" },
+          "type": { "type": "string", "enum": ["table", "view", "mv"] },
+          "reason": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "source_pending": {
+      "type": "array",
+      "description": "Writerless tables (no_writer_found) awaiting source confirmation. Not yet in sources.yml.",
+      "items": {
+        "type": "object",
+        "required": ["fqn", "type"],
+        "properties": {
+          "fqn": { "type": "string" },
+          "type": { "type": "string", "enum": ["table", "view", "mv"] }
         },
         "additionalProperties": false
       }

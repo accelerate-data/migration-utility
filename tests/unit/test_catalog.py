@@ -888,3 +888,51 @@ def test_non_excluded_table_not_captured() -> None:
         )
         snapshot = snapshot_enriched_fields(root)
         assert "excluded" not in snapshot.get("silver.normal", {})
+
+
+# ── is_source flag enrichment round-trip ────────────────────────────────────
+
+
+def test_is_source_preserved_through_snapshot_restore() -> None:
+    """is_source: true on a table catalog survives snapshot_enriched_fields + restore."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _write_json(
+            root / "catalog" / "tables" / "silver.t1.json",
+            {"scoping": {"status": "no_writer_found"}, "is_source": True},
+        )
+        snapshot = snapshot_enriched_fields(root)
+        assert "silver.t1" in snapshot
+        assert snapshot["silver.t1"]["is_source"] is True
+
+        # Simulate re-extraction overwriting the catalog (is_source dropped)
+        _write_json(
+            root / "catalog" / "tables" / "silver.t1.json",
+            {"scoping": {"status": "no_writer_found"}},
+        )
+        restore_enriched_fields(root, snapshot)
+
+        data = json.loads((root / "catalog" / "tables" / "silver.t1.json").read_text())
+        assert data.get("is_source") is True
+
+
+def test_is_source_false_captured_in_snapshot() -> None:
+    """is_source: false is captured by snapshot (condition is `is not None`).
+    Restoring False is a no-op but must not raise — documents current behaviour."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        cat_path = root / "catalog" / "tables" / "silver.t2.json"
+        _write_json(
+            cat_path,
+            {"scoping": {"status": "resolved"}, "is_source": False},
+        )
+        snapshot = snapshot_enriched_fields(root)
+        assert "silver.t2" in snapshot
+        assert snapshot["silver.t2"]["is_source"] is False
+
+        # Simulate re-extraction: overwrite with fresh catalog (is_source dropped)
+        _write_json(cat_path, {"scoping": {"status": "resolved"}})
+
+        restore_enriched_fields(root, snapshot)
+        restored = json.loads(cat_path.read_text(encoding="utf-8"))
+        assert restored.get("is_source") is False

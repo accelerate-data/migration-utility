@@ -124,6 +124,10 @@
         "errors": { "type": "array", "items": { "$ref": "common.json#/$defs/diagnostics_entry" } }
       }
     },
+    "is_source": {
+      "type": "boolean",
+      "description": "When true, this table is a dbt source reference — excluded from the migration pipeline and included in sources.yml. Set by discover write-source or confirmed during /init-dbt."
+    },
     "scoping": {
       "type": "object",
       "description": "Writer selection results from scoping agent or /analyzing-table. Written by discover write-scoping.",
