@@ -1,20 +1,7 @@
 You are running in a DDL project directory at {{fixture_path}}.
 
-Read the command definition at plugin/commands/scope.md and follow it exactly for these tables: {{target_tables}}.
+Run /scope for tables: {{target_tables}}.
 
-Wherever the command references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead (the lib directory is at `plugin/lib/` in the repo).
+Read the command at plugin/commands/scope.md. Wherever it references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead. Pass `--project-root {{fixture_path}}` to all CLI commands.
 
-EVAL MODE CONSTRAINTS — follow these exactly:
-- Do NOT run ANY git commands at all. No git worktree, git checkout, git branch, git add, git commit, git stash, or any other git command. This is critical — running git commands will corrupt the eval environment.
-- Operate directly in the fixture directory ({{fixture_path}}).
-- Write .migration-runs/ artifacts directly to {{fixture_path}}/.migration-runs/.
-- Skip Step 1 (Setup) entirely — there is no worktree. Start directly at Step 2.
-- Skip Step 3 (Revert errored items) — it uses git checkout.
-- Process each table sequentially in the same agent turn (not truly parallel sub-agents).
-- Do NOT ask the user to commit or open a PR. After presenting the summary, stop.
-- Do NOT ask for any user confirmation — proceed automatically.
-- When the skill asks for user confirmation to select a writer, auto-confirm. If multiple writer candidates exist, select the primary write operation (INSERT, MERGE, TRUNCATE+INSERT).
-
-After processing all tables, write .migration-runs/summary.json and present the human-readable summary in the format specified in scope.md.
-
-CRITICAL OUTPUT REQUIREMENT: Your FINAL text response must include the summary table listing each input table with its status (resolved/ambiguous/error) and the total counts line (e.g. "resolved: 2 | error: 0").
+Skip git operations and worktree creation — operate directly on the fixture directory. Write `.migration-runs/` artifacts to `{{fixture_path}}/.migration-runs/`.
