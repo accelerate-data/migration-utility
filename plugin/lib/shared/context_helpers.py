@@ -69,11 +69,15 @@ def load_source_columns(project_root: Path, source_fqn: str) -> list[dict[str, A
     Returns an empty list when neither catalog file exists.
     """
     cat = load_table_catalog(project_root, source_fqn)
-    if cat and cat.get("columns"):
-        return cat["columns"]
+    if cat:
+        if cat.get("columns"):
+            return cat["columns"]
+        logger.warning("event=source_columns_empty source=%s catalog=tables", source_fqn)
     cat = load_view_catalog(project_root, source_fqn)
-    if cat and cat.get("columns"):
-        return cat["columns"]
+    if cat:
+        if cat.get("columns"):
+            return cat["columns"]
+        logger.warning("event=source_columns_empty source=%s catalog=views", source_fqn)
     return []
 
 

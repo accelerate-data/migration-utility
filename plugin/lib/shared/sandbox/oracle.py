@@ -652,8 +652,11 @@ class OracleSandbox(SandboxBackend):
                     continue  # base table — already cloned by _clone_tables
                 try:
                     cursor.execute(f'DROP TABLE "{sandbox_db}"."{view_name}"')
-                except oracledb.DatabaseError:
-                    pass  # object did not exist; nothing to drop
+                except oracledb.DatabaseError as exc:
+                    logger.debug(
+                        "event=oracle_view_drop_skipped sandbox=%s view=%s error=%s",
+                        sandbox_db, view_name, exc,
+                    )
                 cursor.execute(
                     f'CREATE TABLE "{sandbox_db}"."{view_name}" '
                     f'AS SELECT * FROM "{self.source_schema}"."{view_name}" WHERE 1=0'
@@ -695,7 +698,21 @@ class OracleSandbox(SandboxBackend):
         _validate_oracle_identifier(procedure)
         _validate_fixtures(given)
 
-        self._ensure_view_tables(sandbox_db, given)
+        try:
+            self._ensure_view_tables(sandbox_db, given)
+        except oracledb.DatabaseError as exc:
+            logger.error(
+                "event=oracle_view_materialize_failed sandbox=%s scenario=%s error=%s",
+                sandbox_db, scenario_name, exc,
+            )
+            return {
+                "schema_version": "1.0",
+                "scenario_name": scenario_name,
+                "status": "error",
+                "ground_truth_rows": [],
+                "row_count": 0,
+                "errors": [{"code": "VIEW_MATERIALIZE_FAILED", "message": str(exc)}],
+            }
 
         logger.info(
             "event=oracle_execute_scenario sandbox=%s scenario=%s procedure=%s",

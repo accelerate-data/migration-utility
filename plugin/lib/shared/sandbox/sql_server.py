@@ -739,6 +739,10 @@ class SqlServerSandbox(SandboxBackend):
             for fixture in given:
                 parts = _split_identifier_parts(fixture["table"])
                 if len(parts) != 2:
+                    logger.warning(
+                        "event=view_check_skipped reason=unexpected_parts fqn=%r parts=%d",
+                        fixture["table"], len(parts),
+                    )
                     continue
                 schema_name, obj_name = parts
                 src_cur.execute(
@@ -787,7 +791,21 @@ class SqlServerSandbox(SandboxBackend):
         _validate_identifier(procedure)
         _validate_fixtures(given)
 
-        self._ensure_view_tables(sandbox_db, given)
+        try:
+            self._ensure_view_tables(sandbox_db, given)
+        except pyodbc.Error as exc:
+            logger.error(
+                "event=view_materialize_failed sandbox_db=%s scenario=%s error=%s",
+                sandbox_db, scenario_name, exc,
+            )
+            return {
+                "schema_version": "1.0",
+                "scenario_name": scenario_name,
+                "status": "error",
+                "ground_truth_rows": [],
+                "row_count": 0,
+                "errors": [{"code": "VIEW_MATERIALIZE_FAILED", "message": str(exc)}],
+            }
 
         logger.info(
             "event=execute_scenario sandbox_db=%s scenario=%s procedure=%s",
