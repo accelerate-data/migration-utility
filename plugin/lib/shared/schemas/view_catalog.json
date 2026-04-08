@@ -156,6 +156,35 @@
         }
       }
     },
+    "test_gen": {
+      "type": "object",
+      "description": "Test generation summary written by test-harness write. Not present until after test generation.",
+      "required": ["status"],
+      "properties": {
+        "status": { "type": "string", "enum": ["ok", "error"] },
+        "test_spec_path": { "type": "string", "description": "Relative path to the test-spec JSON file, e.g. test-specs/silver.dimcustomer.json" },
+        "branches": { "type": "integer", "description": "Number of test branches in the test spec." },
+        "unit_tests": { "type": "integer", "description": "Number of unit tests in the test spec." },
+        "coverage": { "type": "string", "enum": ["complete", "partial", "none"], "description": "Branch coverage level." },
+        "warnings": { "type": "array", "items": { "$ref": "common.json#/$defs/diagnostics_entry" } },
+        "errors": { "type": "array", "items": { "$ref": "common.json#/$defs/diagnostics_entry" } }
+      }
+    },
+    "generate": {
+      "type": "object",
+      "description": "dbt model generation summary written by migrate write. Not present until after model generation.",
+      "required": ["status"],
+      "properties": {
+        "status": { "type": "string", "enum": ["ok", "error"] },
+        "model_path": { "type": "string", "description": "Relative path to the generated dbt model SQL file." },
+        "schema_yml": { "type": "boolean", "description": "Whether a schema YAML entry exists for this model." },
+        "compiled": { "type": "boolean", "description": "Whether dbt compile succeeded for this model." },
+        "tests_passed": { "type": "boolean", "description": "Whether dbt test passed for this model." },
+        "test_count": { "type": "integer", "description": "Number of dbt tests executed." },
+        "warnings": { "type": "array", "items": { "$ref": "common.json#/$defs/diagnostics_entry" } },
+        "errors": { "type": "array", "items": { "$ref": "common.json#/$defs/diagnostics_entry" } }
+      }
+    },
     "parse_error": { "type": ["string", "null"], "description": "sqlglot parse error message, if the view DDL failed to parse." },
     "warnings": {
       "type": "array",
