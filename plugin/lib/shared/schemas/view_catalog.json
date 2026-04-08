@@ -132,6 +132,30 @@
         "errors": { "type": "array", "items": { "$ref": "common.json#/$defs/diagnostics_entry" } }
       }
     },
+    "refactor": {
+      "type": "object",
+      "description": "Written by the refactoring-sql skill via refactor write, and enriched by refactor sweep.",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["ok", "partial", "error"],
+          "description": "ok = refactored SQL produced and audit passed; partial = audit failed; error = could not proceed."
+        },
+        "extracted_sql": {
+          "type": "string",
+          "description": "Core transformation SELECT extracted from the view SQL body."
+        },
+        "refactored_sql": {
+          "type": "string",
+          "description": "Refactored CTE SQL (import/logical/final pattern) that passed the equivalence audit."
+        },
+        "shared_sources": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Source table FQNs shared with other objects in the same refactor batch. Written by refactor sweep."
+        }
+      }
+    },
     "parse_error": { "type": ["string", "null"], "description": "sqlglot parse error message, if the view DDL failed to parse." },
     "warnings": {
       "type": "array",
