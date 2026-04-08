@@ -34,7 +34,15 @@ Store the chosen slug as `$SOURCE` for the remaining steps.
 
 ## Step 3: Gather evidence
 
-Run all checks **silently** — do NOT install or change anything yet.
+### Read existing handoff state
+
+Before running any checks, read `manifest.json` in the project root. If it contains an `init_handoff` key, load it as `$EXISTING_HANDOFF`. Items recorded as `true` in the existing handoff are **already validated — skip them silently**. Only run checks for items that are `false`, missing from the handoff, or when no handoff exists at all.
+
+To force a full re-check of all prerequisites, the user must delete `manifest.json` manually.
+
+### Run only the needed checks silently
+
+Do NOT install or change anything yet — only gather evidence for items not already validated.
 
 ### Common prerequisites (all sources)
 
@@ -109,7 +117,7 @@ If any credential variable is unset, recommend using direnv for credential manag
 
 These values are passed to the MCP server at startup via environment inheritance — they must be set before launching `claude`, not after.
 
-If everything is already set up, say so and skip Step 5 (nothing to install). Proceed directly to Step 6. Otherwise, ask the user to confirm before proceeding.
+If everything is already validated (all items `true` in the existing handoff and no new gaps found), say "All prerequisites validated" and proceed directly to Step 6 without asking for confirmation. Otherwise, ask the user to confirm before proceeding with Step 5.
 
 ## Step 5: Execute
 
@@ -174,13 +182,22 @@ Parse the JSON output and report to the user which files were created, updated, 
 
 If `scaffold-project` reports missing CLAUDE.md sections (in `files_skipped`), tell the user which sections are missing and recommend adding them.
 
-Then write the partial manifest:
+Then write the partial manifest with prerequisite validation results. Build a JSON object `$PREREQS` from the combined results of Steps 3-5 (merging any existing handoff values with newly validated items). The object must have `env_vars` and `tools` keys:
 
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" setup-ddl write-partial-manifest --project-root . --technology $SOURCE
+```json
+{
+  "env_vars": {"MSSQL_HOST": true, "MSSQL_PORT": true, ...},
+  "tools": {"uv": true, "python": true, "shared_deps": true, "ddl_mcp": true, "freetds": true, "toolbox": false, ...}
+}
 ```
 
-This creates `manifest.json` with the chosen technology and dialect. `/setup-ddl` will later enrich it with database and schema details.
+Pass it to the CLI:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" setup-ddl write-partial-manifest --project-root . --technology $SOURCE --prereqs-json '$PREREQS'
+```
+
+This creates `manifest.json` with the chosen technology, dialect, and an `init_handoff` section recording all validated prerequisites with a timestamp. `/setup-ddl` will later enrich it with database and schema details. Re-running `/init-ad-migration` reads this handoff and skips already-passing checks.
 
 ## Step 7: Commit
 
@@ -236,7 +253,7 @@ Tell the user:
 Safe to re-run. Each step checks current state before acting:
 
 - Source selection re-evaluates `$ARGUMENTS` each time.
-- Checks in Step 2 re-evaluate actual environment state.
+- Step 3 reads existing `init_handoff` from `manifest.json` and skips checks already recorded as `true`. Only items marked `false` or missing are re-checked. To force a full reset, the user deletes `manifest.json`.
 - Step 5 uses the `init` CLI which is fully idempotent: existing CLAUDE.md is checked for missing sections (not overwritten), README.md and repo-map.json are skipped if present, .gitignore gets only missing entries appended, .envrc is skipped if present, .claude/rules/git-workflow.md is skipped if present, .githooks/pre-commit is skipped if present.
-- Step 5 partial manifest overwrites with the same technology/dialect (safe).
-- Step 6 only commits if there are staged changes.
+- Step 6 partial manifest merges existing handoff passes with newly validated items and updates the timestamp.
+- Step 7 only commits if there are staged changes.
