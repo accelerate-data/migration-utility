@@ -82,7 +82,11 @@ When proceeding with `"generate"`:
 - Check `shared_staging_candidates` in the sweep artifact. For any source table listed there, do **not** create a new `stg_*` file — it was already written by the planning sweep. Use `{{ ref('stg_<table>') }}` in the mart model.
 - For source tables not in `shared_staging_candidates`, apply the normal check: look for an existing `stg_*.sql` in `dbt/models/staging/`. If one exists with a compatible column set, use `{{ ref() }}` — do not duplicate. If no stg file exists, you will create one in Step 3.
 
-**Rule:** mart models must never use `{{ source() }}` directly. Every source table read in the mart must go through a `stg_*` model (existing or newly created) referenced via `{{ ref() }}`.
+**Rule:** mart models must never use `{{ source() }}` directly. For each table the procedure reads from:
+
+- If the table is a true source (listed in `dbt/models/staging/_sources.yml`) → it must go through a `stg_*` model referenced via `{{ ref('stg_<table>') }}`.
+- If a dbt model file already exists for the table (`dbt/models/**/<name>.sql` or `dbt/snapshots/**/<name>.sql`) → reference it directly as `{{ ref('<model_name>') }}` in the mart model. Do not create a redundant `stg_*` wrapper.
+- If neither → flag as unresolved in Step 6; do not guess.
 
 ## Step 2: Decide model structure
 
@@ -94,14 +98,18 @@ Before creating a new `stg_*` model, check `dbt/models/staging/` for an existing
 
 Produce two outputs from the `refactored_sql`. Apply [sql-style.md](../reviewing-model/references/sql-style.md) (keywords, indentation, commas) and [cte-structure.md](../reviewing-model/references/cte-structure.md) (import/logical/final pattern) throughout. Apply [model-naming.md](../reviewing-model/references/model-naming.md) for layer prefixes, `_dbt_run_id`, and `_loaded_at` rules.
 
-**Mandatory pre-step — write stg files before any mart SQL:**
+**Mandatory pre-step — resolve table references, then write stg files:**
 
-From the `migrate context` output, read `source_tables`. For each source table where `is_selected=true` and `is_updated=false`:
+From the `migrate context` output, read `source_tables`. For each source table where `is_selected=true` and `is_updated=false`, classify it:
 
-- Check whether `dbt/models/staging/stg_<table>.sql` exists on disk.
-- If it does not exist, use the Write tool to create it now as an ephemeral model: `{{ config(materialized='ephemeral') }}` + `select * from {{ source('<schema>', '<table>') }}`.
+1. **Read `dbt/models/staging/_sources.yml`** — collect every `{schema}.{table}` entry listed as a source.
+2. **Glob `dbt/models/**/*.sql` and `dbt/snapshots/**/*.sql`** — collect the file stems of existing dbt models (e.g., `fact_sales`, `dim_customer`).
+3. For each referenced table, normalize its name (lowercase, schema.table) and check:
+   - **In sources.yml** → true source. Check whether `dbt/models/staging/stg_<table>.sql` already exists. If not, create it: `{{ config(materialized='ephemeral') }}` + `select * from {{ source('<schema>', '<table>') }}`. The mart references it via `{{ ref('stg_<table>') }}`.
+   - **Matching model file exists on disk** → existing dbt model. Do not create a stg wrapper. The mart references it directly via `{{ ref('<model_name>') }}`.
+   - **Neither** → flag as unresolved. Do not emit a `source()` or `ref()` call for it. Surface as a warning in Step 6.
 
-Only after all stg files are confirmed on disk (existing or newly written), generate the mart SQL. The mart must use `{{ ref('stg_<table>') }}` — never `{{ source() }}` — for each source table.
+Only after all stg files are confirmed on disk (existing or newly written), generate the mart SQL using the resolved references above.
 
 ### Staging models (`stg_<source_table>.sql`)
 

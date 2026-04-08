@@ -1,0 +1,13 @@
+version: 2
+sources:
+- name: bronze
+  schema: bronze
+  tables:
+  - name: salesorder
+    columns:
+    - name: CustomerID
+      data_type: int
+    - name: OrderDate
+      data_type: date
+    - name: TotalAmount
+      data_type: decimal(18,2)

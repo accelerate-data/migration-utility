@@ -1,0 +1,44 @@
+{
+  "item_id": "silver.factsales",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {
+      "id": "insert_sales_row",
+      "statement_index": 0,
+      "description": "INSERT joins bronze.SalesOrder with silver.DimCustomer to load fact rows",
+      "scenarios": ["test_insert_sales_row"]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_insert_sales_row",
+      "model": "fact_sales",
+      "given": [
+        {
+          "rows": [
+            {"CustomerID": 1, "OrderDate": "2024-01-15", "TotalAmount": 299.99}
+          ],
+          "table": "[bronze].[SalesOrder]"
+        },
+        {
+          "rows": [
+            {"CustomerKey": 42, "CustomerAlternateKey": "1"}
+          ],
+          "table": "[silver].[DimCustomer]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {"CustomerKey": 42, "OrderDate": "2024-01-15", "SalesAmount": 299.99}
+        ]
+      },
+      "target_table": "[silver].[FactSales]",
+      "procedure": "[silver].[usp_load_FactSales]"
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [],
+  "validation": {"passed": true, "issues": []},
+  "errors": []
+}
