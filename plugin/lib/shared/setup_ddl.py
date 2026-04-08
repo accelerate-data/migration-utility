@@ -659,7 +659,20 @@ def run_write_partial_manifest(
             f"Unknown technology: {technology}. Must be one of {list(_TECH_DIALECT.keys())}."
         )
 
+    project_root.mkdir(parents=True, exist_ok=True)
+    out_path = project_root / "manifest.json"
+
+    # Merge over existing manifest so post-extraction fields
+    # (source_database, extracted_schemas, etc.) are not wiped on re-run.
+    existing: dict[str, Any] = {}
+    if out_path.exists():
+        try:
+            existing = json.loads(out_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            existing = {}
+
     manifest: dict[str, Any] = {
+        **existing,
         "schema_version": "1.0",
         "technology": technology,
         "dialect": _TECH_DIALECT[technology],
@@ -671,8 +684,6 @@ def run_write_partial_manifest(
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
-    project_root.mkdir(parents=True, exist_ok=True)
-    out_path = project_root / "manifest.json"
     out_path.write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
@@ -699,7 +710,8 @@ def run_read_handoff(project_root: Path) -> dict[str, Any] | None:
         return None
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("event=read_handoff_error operation=read_manifest error=%s", exc)
         return None
 
     handoff = manifest.get("init_handoff")

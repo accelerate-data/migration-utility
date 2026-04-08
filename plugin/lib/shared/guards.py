@@ -537,19 +537,16 @@ def check_init_prerequisites(project_root: Path) -> dict[str, Any]:
 _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
     "scope": [
         (check_init_prerequisites,),
-        (check_manifest,),
         (check_table_catalog,),
     ],
     "profile": [
         (check_init_prerequisites,),
-        (check_manifest,),
         (check_table_catalog,),
         (check_selected_writer,),
         (check_statements_resolved,),
     ],
     "test-gen": [
         (check_init_prerequisites,),
-        (check_manifest,),
         (check_table_catalog,),
         (check_selected_writer,),
         (check_statements_resolved,),
@@ -558,7 +555,6 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
     ],
     "refactor": [
         (check_init_prerequisites,),
-        (check_manifest,),
         (check_table_catalog,),
         (check_selected_writer,),
         (check_statements_resolved,),
@@ -568,7 +564,6 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
     ],
     "migrate": [
         (check_init_prerequisites,),
-        (check_manifest,),
         (check_table_catalog,),
         (check_selected_writer,),
         (check_statements_resolved,),
@@ -580,18 +575,15 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
     # View-specific guard sets
     "scope-view": [
         (check_init_prerequisites,),
-        (check_manifest,),
         (check_view_catalog,),
     ],
     "profile-view": [
         (check_init_prerequisites,),
-        (check_manifest,),
         (check_view_catalog,),
         (check_view_scoping_analyzed,),
     ],
     "test-gen-view": [
         (check_init_prerequisites,),
-        (check_manifest,),
         (check_view_catalog,),
         (check_view_scoping_analyzed,),
         (check_view_profiled,),
@@ -599,7 +591,6 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
     ],
     "refactor-view": [
         (check_init_prerequisites,),
-        (check_manifest,),
         (check_view_catalog,),
         (check_view_scoping_analyzed,),
         (check_view_profiled,),
@@ -608,7 +599,6 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
     ],
     "migrate-view": [
         (check_init_prerequisites,),
-        (check_manifest,),
         (check_view_catalog,),
         (check_view_scoping_analyzed,),
         (check_view_profiled,),
@@ -620,7 +610,6 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
     # Skill-specific guard sets (not pipeline stages, but callable via guard CLI)
     "generating-model": [
         (check_init_prerequisites,),
-        (check_manifest,),
         (check_table_catalog,),
         (check_selected_writer,),
         (check_statements_resolved,),
@@ -633,7 +622,6 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
     ],
     "reviewing-model": [
         (check_init_prerequisites,),
-        (check_manifest,),
         (check_table_catalog,),
         (check_selected_writer,),
         (check_statements_resolved,),
@@ -646,7 +634,6 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
     ],
     "reviewing-tests": [
         (check_init_prerequisites,),
-        (check_manifest,),
         (check_table_catalog,),
         (check_selected_writer,),
         (check_statements_resolved,),
@@ -656,7 +643,6 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
     ],
     "refactoring-sql": [
         (check_init_prerequisites,),
-        (check_manifest,),
         (check_table_catalog,),
         (check_selected_writer,),
         (check_statements_resolved,),
