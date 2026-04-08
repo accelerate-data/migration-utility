@@ -1,0 +1,18 @@
+You are running in a DDL project directory at {{fixture_path}}.
+
+Read the skill instructions at plugin/skills/analyzing-table/SKILL.md and follow them
+for view {{target_view}}.
+
+Wherever the skill references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead
+(the lib directory is at `plugin/lib/` in the repo).
+
+IMPORTANT PATH RULE: All CLI commands default to using the current working directory as
+the project root. Since the fixture catalog lives at {{fixture_path}}, you MUST pass
+`--project-root {{fixture_path}}` to every CLI invocation so reads and writes target
+the correct catalog directory.
+
+You MUST complete all steps of the view pipeline including persisting scoping to the
+catalog (the discover write-scoping step). The eval asserts on the written catalog JSON,
+not this text response.
+
+Do not ask for user confirmation — proceed automatically.
