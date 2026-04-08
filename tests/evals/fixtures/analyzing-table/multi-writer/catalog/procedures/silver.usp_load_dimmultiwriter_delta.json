@@ -1,0 +1,103 @@
+{
+  "schema": "silver",
+  "name": "usp_load_dimmultiwriter_delta",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "Product",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "ProductID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductName",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductLine",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "DiscontinuedDate",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ModifiedDate",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "DimMultiWriter",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "AlternateKey",
+              "is_selected": true,
+              "is_updated": true
+            },
+            {
+              "name": "DisplayName",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "Category",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "IsActive",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ModifiedDate",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "statements": [
+    {
+      "type": "Set",
+      "action": "skip",
+      "source": "ast",
+      "sql": "SET NOCOUNT ON"
+    },
+    {
+      "type": "Merge",
+      "action": "migrate",
+      "source": "ast",
+      "sql": "MERGE silver.DimMultiWriter AS tgt USING (SELECT CAST(ProductID AS NVARCHAR(20)) AS AlternateKey, ProductName AS DisplayName, ISNULL(ProductLine, 'Unknown') AS Category, CASE WHEN DiscontinuedDate IS NULL THEN 1 ELSE 0 END AS IsActive, ModifiedDate FROM bronze.Product) AS src ON tgt.AlternateKey = src.AlternateKey WHEN MATCHED THEN UPDATE SET tgt.DisplayName = src.DisplayName, tgt.Category = src.Category, tgt.IsActive = src.IsActive, tgt.ModifiedDate = src.ModifiedDate WHEN NOT MATCHED BY TARGET THEN INSERT (AlternateKey, DisplayName, Category, IsActive, ModifiedDate) VALUES (src.AlternateKey, src.DisplayName, src.Category, src.IsActive, src.ModifiedDate)"
+    }
+  ]
+}

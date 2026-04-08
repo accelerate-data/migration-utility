@@ -94,3 +94,13 @@ tests:
       writer: "silver.usp_load_InsertSelectTarget"
       expected_status: "revision_requested"
       expected_issue_terms: "not null"
+
+  # --- VU-880: deferred reviewing-tests scenarios ---
+
+  - description: "review-approved-with-warnings — DimCustomer approves with warnings at iteration 2"
+    vars:
+      fixture_path: "tests/evals/fixtures/reviewing-tests/review-approved-with-warnings"
+      target_table: "silver.DimCustomer"
+      writer: "silver.usp_load_DimCustomer_Full"
+      iteration_suffix: " --iteration 2"
+      expected_status: "approved_with_warnings"

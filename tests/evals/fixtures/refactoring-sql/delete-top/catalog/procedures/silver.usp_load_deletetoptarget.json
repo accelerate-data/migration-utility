@@ -10,16 +10,33 @@
           "is_selected": true,
           "is_updated": true,
           "columns": [
-            { "name": "ProductKey", "is_selected": false, "is_updated": false },
-            { "name": "LoadedDate", "is_selected": true, "is_updated": false }
+            {
+              "name": "ProductKey",
+              "is_selected": false,
+              "is_updated": false
+            },
+            {
+              "name": "LoadedDate",
+              "is_selected": true,
+              "is_updated": false
+            }
           ]
         }
       ],
       "out_of_scope": []
     },
-    "views": { "in_scope": [], "out_of_scope": [] },
-    "functions": { "in_scope": [], "out_of_scope": [] },
-    "procedures": { "in_scope": [], "out_of_scope": [] }
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
   },
   "mode": "deterministic",
   "routing_reasons": [],
@@ -30,5 +47,10 @@
       "source": "ast",
       "sql": "DELETE TOP (100) FROM silver.DeleteTopTarget WHERE LoadedDate < DATEADD(YEAR, -1, GETDATE())"
     }
-  ]
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT ProductKey, ProductAlternateKey, EnglishProductName, LoadedDate FROM silver.DeleteTopTarget WHERE LoadedDate >= DATEADD(YEAR, -1, GETDATE()) OR LoadedDate >= ( SELECT ISNULL(MIN(LoadedDate), DATEADD(YEAR, -1, GETDATE())) FROM ( SELECT TOP (100) LoadedDate FROM silver.DeleteTopTarget WHERE LoadedDate < DATEADD(YEAR, -1, GETDATE()) ORDER BY LoadedDate ASC ) AS TopRows ) ORDER BY LoadedDate ASC;",
+    "refactored_sql": "WITH all_records AS ( SELECT ProductKey, ProductAlternateKey, EnglishProductName, LoadedDate FROM silver.DeleteTopTarget ), old_records_to_delete AS ( SELECT TOP (100) ProductKey, ProductAlternateKey, EnglishProductName, LoadedDate FROM all_records WHERE LoadedDate < DATEADD(YEAR, -1, GETDATE()) ORDER BY LoadedDate ASC ), surviving_records AS ( SELECT ProductKey, ProductAlternateKey, EnglishProductName, LoadedDate FROM all_records WHERE ProductKey NOT IN (SELECT ProductKey FROM old_records_to_delete) ), final AS ( SELECT ProductKey, ProductAlternateKey, EnglishProductName, LoadedDate FROM surviving_records ) SELECT * FROM final;"
+  }
 }

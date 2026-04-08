@@ -164,6 +164,23 @@
   "scoping": {
     "status": "resolved",
     "selected_writer": "silver.usp_load_dimmultiwriter_full",
-    "selected_writer_rationale": "Only one of three writer candidates had a catalog file available for analysis; the other two (delta and archive) were blocked due to missing catalog entries. usp_load_dimmultiwriter_full is a straightforward full-load procedure that exclusively writes to silver.DimMultiWriter from bronze.Product."
+    "selected_writer_rationale": "usp_load_DimMultiWriter_Full performs a TRUNCATE + INSERT full reload from bronze.Product, making it the sole procedure capable of independently producing the complete dimension. The delta and archive procedures are supplementary — incremental upsert and soft-delete passes respectively — and cannot serve as the primary migration source.",
+    "candidates": [
+      {
+        "procedure": "silver.usp_load_dimmultiwriter_full",
+        "write_type": "direct",
+        "selected": true
+      },
+      {
+        "procedure": "silver.usp_load_dimmultiwriter_delta",
+        "write_type": "direct",
+        "selected": false
+      },
+      {
+        "procedure": "silver.usp_load_dimmultiwriter_archive",
+        "write_type": "direct",
+        "selected": false
+      }
+    ]
   }
 }

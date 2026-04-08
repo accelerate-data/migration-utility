@@ -1,0 +1,111 @@
+{
+  "item_id": "silver.nestedflowtarget",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {
+      "id": "nested_flow_full_load",
+      "statement_index": 0,
+      "description": "Source has rows — IF condition TRUE, TRUNCATE and INSERT with full load mode",
+      "scenarios": ["test_nested_flow_full_load_with_data"]
+    },
+    {
+      "id": "nested_flow_delta_load",
+      "statement_index": 1,
+      "description": "Source has no qualifying rows — IF condition FALSE, MERGE with delta mode",
+      "scenarios": ["test_nested_flow_delta_load_merge"]
+    },
+    {
+      "id": "nested_flow_empty_source",
+      "statement_index": 0,
+      "description": "Empty source — IF condition FALSE, MERGE produces no new inserts",
+      "scenarios": ["test_nested_flow_empty_source_no_rows"]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_nested_flow_full_load_with_data",
+      "target_table": "[silver].[NestedFlowTarget]",
+      "procedure": "[silver].[usp_load_NestedFlowTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Widget A",
+              "ProductNumber": "WG-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 50,
+              "StandardCost": 10.00,
+              "ListPrice": 19.99,
+              "DaysToManufacture": 1,
+              "SellStartDate": "2020-01-01",
+              "ModifiedDate": "2020-01-01"
+            },
+            {
+              "ProductID": 2,
+              "ProductName": "Widget B",
+              "ProductNumber": "WG-002",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 50,
+              "StandardCost": 15.00,
+              "ListPrice": 29.99,
+              "DaysToManufacture": 2,
+              "SellStartDate": "2020-01-01",
+              "ModifiedDate": "2020-01-01"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "test_nested_flow_delta_load_merge",
+      "target_table": "[silver].[NestedFlowTarget]",
+      "procedure": "[silver].[usp_load_NestedFlowTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 3,
+              "ProductName": "Gadget X",
+              "ProductNumber": "GD-003",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 50,
+              "ReorderPoint": 25,
+              "StandardCost": 5.00,
+              "ListPrice": 9.99,
+              "DaysToManufacture": 1,
+              "SellStartDate": "2020-01-01",
+              "ModifiedDate": "2020-01-01"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "test_nested_flow_empty_source_no_rows",
+      "target_table": "[silver].[NestedFlowTarget]",
+      "procedure": "[silver].[usp_load_NestedFlowTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": []
+        }
+      ]
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "errors": []
+}

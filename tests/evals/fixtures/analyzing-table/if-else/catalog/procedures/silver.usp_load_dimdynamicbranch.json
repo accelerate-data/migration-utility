@@ -1,0 +1,104 @@
+{
+  "schema": "silver",
+  "name": "usp_load_dimdynamicbranch",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "CountryRegion",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "CountryRegionCode",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "CountryRegionName",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "DimDynamicBranch",
+          "is_selected": true,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "BranchCode",
+              "is_selected": true,
+              "is_updated": true
+            },
+            {
+              "name": "BranchName",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "Region",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "LoadedAt",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "needs_llm": true,
+  "mode": "llm_required",
+  "routing_reasons": [
+    "dynamic_sql_variable",
+    "conditional_branch"
+  ],
+  "statements": [
+    {
+      "type": "Set",
+      "action": "skip",
+      "source": "ast",
+      "sql": "SET NOCOUNT ON"
+    },
+    {
+      "type": "Select",
+      "action": "skip",
+      "source": "llm",
+      "sql": "SELECT @mode = CASE WHEN COUNT(*) > 0 THEN 1 ELSE 2 END FROM silver.DimDynamicBranch",
+      "rationale": "Control-flow variable assignment that determines which branch executes. Not a data transformation — dbt handles idempotent load strategy selection natively."
+    },
+    {
+      "type": "Exec",
+      "action": "migrate",
+      "source": "llm",
+      "sql": "MERGE silver.DimDynamicBranch AS tgt USING (SELECT CountryRegionCode AS BranchCode, CountryRegionName AS BranchName, 'Global' AS Region, GETDATE() AS LoadedAt FROM bronze.CountryRegion) AS src ON tgt.BranchCode = src.BranchCode WHEN MATCHED THEN UPDATE SET tgt.BranchName = src.BranchName, tgt.LoadedAt = src.LoadedAt WHEN NOT MATCHED BY TARGET THEN INSERT (BranchCode, BranchName, Region, LoadedAt) VALUES (src.BranchCode, src.BranchName, src.Region, src.LoadedAt)",
+      "rationale": "IF-branch (@mode=1): dynamic MERGE that upserts branch records from bronze.CountryRegion into silver.DimDynamicBranch. Core transformation executed when the target table is non-empty."
+    },
+    {
+      "type": "Exec",
+      "action": "migrate",
+      "source": "llm",
+      "sql": "INSERT INTO silver.DimDynamicBranch (BranchCode, BranchName, Region, LoadedAt) SELECT CountryRegionCode, CountryRegionName, 'Global', GETDATE() FROM bronze.CountryRegion",
+      "rationale": "ELSE-branch (@mode=2): dynamic INSERT that performs an initial full load from bronze.CountryRegion when the target table is empty. Core transformation that seeds the dimension."
+    }
+  ]
+}

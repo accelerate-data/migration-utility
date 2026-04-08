@@ -93,5 +93,12 @@
       "in_scope": [],
       "out_of_scope": []
     }
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_load_dimdynamicbranch",
+    "selected_writer_rationale": "Only one writer candidate found for silver.DimDynamicBranch. The procedure uses IF/ELSE dynamic SQL with sp_executesql to perform either a MERGE (when target is non-empty) or an INSERT (initial load) from bronze.CountryRegion.",
+    "warnings": [],
+    "errors": []
   }
 }
