@@ -569,6 +569,11 @@ class OracleSandbox(SandboxBackend):
                             col_defs.append(f'"{col_name}" {data_type}({data_prec})')
                     else:
                         col_defs.append(f'"{col_name}" {data_type}')
+                if not col_defs:
+                    raise ValueError(
+                        f"View {table_name} has no columns in sandbox "
+                        f"{sandbox_schema} — cannot replace with a table"
+                    )
                 cursor.execute(
                     f'DROP VIEW "{sandbox_schema}"."{table_name}"'
                 )

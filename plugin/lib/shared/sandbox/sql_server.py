@@ -569,6 +569,52 @@ class SqlServerSandbox(SandboxBackend):
         Handles trigger disabling, FK constraint toggling, and IDENTITY_INSERT.
         The caller is responsible for opening/rolling-back the transaction.
         """
+        # Replace any fixture-targeted views with tables BEFORE
+        # disabling triggers/FK constraints (those operations are
+        # only valid on tables, not views).
+        for fixture in fixtures:
+            table = fixture["table"]
+            cursor.execute(
+                "SELECT OBJECTPROPERTY(OBJECT_ID(?), 'IsView')", table
+            )
+            is_view_row = cursor.fetchone()
+            if is_view_row and is_view_row[0] == 1:
+                cursor.execute(
+                    "SELECT c.name, t.name AS data_type, "
+                    "c.max_length, c.precision, c.scale "
+                    "FROM sys.columns c "
+                    "JOIN sys.types t ON c.user_type_id = t.user_type_id "
+                    "WHERE c.object_id = OBJECT_ID(?) "
+                    "ORDER BY c.column_id",
+                    table,
+                )
+                col_defs: list[str] = []
+                for col_name, data_type, max_len, prec, scale in cursor.fetchall():
+                    _validate_identifier(col_name)
+                    if max_len == -1:
+                        col_defs.append(f"[{col_name}] {data_type}(MAX)")
+                    elif data_type in ("nvarchar", "nchar"):
+                        col_defs.append(f"[{col_name}] {data_type}({max_len // 2})")
+                    elif data_type in ("varchar", "char", "varbinary"):
+                        col_defs.append(f"[{col_name}] {data_type}({max_len})")
+                    elif data_type in ("decimal", "numeric") and prec is not None:
+                        col_defs.append(f"[{col_name}] {data_type}({prec},{scale})")
+                    else:
+                        col_defs.append(f"[{col_name}] {data_type}")
+                if not col_defs:
+                    raise ValueError(
+                        f"View {table} has no columns in the sandbox — "
+                        "cannot replace with a table for fixture seeding"
+                    )
+                cursor.execute(f"DROP VIEW {table}")
+                cursor.execute(
+                    f"CREATE TABLE {table} ({', '.join(col_defs)})"
+                )
+                logger.info(
+                    "event=view_replaced_with_table sandbox_db=%s table=%s columns=%d",
+                    sandbox_db, table, len(col_defs),
+                )
+
         # Disable triggers on ALL user tables in the sandbox
         # before any INSERTs. Triggers may reference objects
         # that don't exist in the sandbox, causing spurious
@@ -608,39 +654,6 @@ class SqlServerSandbox(SandboxBackend):
 
         for fixture in fixtures:
             table = fixture["table"]
-
-            # Detect views and replace with tables so fixture INSERTs work.
-            cursor.execute(
-                "SELECT OBJECTPROPERTY(OBJECT_ID(?), 'IsView')", table
-            )
-            is_view_row = cursor.fetchone()
-            if is_view_row and is_view_row[0] == 1:
-                cursor.execute(
-                    "SELECT COLUMN_NAME, DATA_TYPE, "
-                    "CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE "
-                    "FROM INFORMATION_SCHEMA.COLUMNS "
-                    "WHERE TABLE_SCHEMA + '.' + TABLE_NAME = PARSENAME(?, 2) + '.' + PARSENAME(?, 1) "
-                    "ORDER BY ORDINAL_POSITION",
-                    table, table,
-                )
-                col_defs = []
-                for col_name, data_type, char_len, num_prec, num_scale in cursor.fetchall():
-                    _validate_identifier(col_name)
-                    if char_len is not None and char_len > 0:
-                        col_defs.append(f"[{col_name}] {data_type}({char_len})")
-                    elif num_prec is not None and num_scale is not None and data_type in ("decimal", "numeric"):
-                        col_defs.append(f"[{col_name}] {data_type}({num_prec},{num_scale})")
-                    else:
-                        col_defs.append(f"[{col_name}] {data_type}")
-                cursor.execute(f"DROP VIEW {table}")
-                cursor.execute(
-                    f"CREATE TABLE {table} ({', '.join(col_defs)})"
-                )
-                logger.info(
-                    "event=view_replaced_with_table sandbox_db=%s table=%s columns=%d",
-                    sandbox_db, table, len(col_defs),
-                )
-
             rows = fixture.get("rows", [])
             if not rows:
                 continue
