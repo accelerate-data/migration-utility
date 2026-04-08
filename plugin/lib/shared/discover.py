@@ -704,7 +704,7 @@ def write_slice(
     slice_file: Optional[Path] = typer.Option(None, "--slice-file", help="Path to file containing the DDL slice (mutually exclusive with --slice)"),
 ) -> None:
     """Write a per-table DDL slice into a procedure catalog file."""
-    if slice_file and slice:
+    if slice_file is not None and slice is not None:
         logger.error("event=command_failed error=--slice and --slice-file are mutually exclusive")
         raise typer.Exit(code=1)
     if slice_file:

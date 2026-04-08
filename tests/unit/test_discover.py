@@ -881,6 +881,17 @@ class TestWriteTableSlice:
             assert "dim.table_a" in written["table_slices"]
             assert "dim.table_b" in written["table_slices"]
 
+    def test_write_table_slice_overwrites_existing(self) -> None:
+        """run_write_table_slice overwrites an existing slice for the same (proc, table) pair."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _make_proc_cat(root, "dbo.usp_multi")
+            discover.run_write_table_slice(root, "dbo.usp_multi", "dim.target", "SELECT 1")
+            discover.run_write_table_slice(root, "dbo.usp_multi", "dim.target", "SELECT 2")
+            proc_path = root / "catalog" / "procedures" / "dbo.usp_multi.json"
+            written = json.loads(proc_path.read_text(encoding="utf-8"))
+            assert written["table_slices"]["dim.target"] == "SELECT 2"
+
     def test_write_table_slice_missing_catalog(self) -> None:
         """run_write_table_slice raises CatalogFileMissingError when proc catalog is absent."""
         with tempfile.TemporaryDirectory() as tmp:
