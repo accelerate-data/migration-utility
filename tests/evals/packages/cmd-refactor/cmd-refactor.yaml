@@ -2,7 +2,9 @@
 description: "refactor command — multi-table CTE restructuring orchestration"
 
 prompts:
-  - file://../../prompts/cmd-refactor.txt
+  - id: cmd-refactor
+    label: cmd-refactor
+    raw: file://../../prompts/cmd-refactor.txt
 
 providers:
   - id: anthropic:claude-agent-sdk

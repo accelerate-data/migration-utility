@@ -222,14 +222,9 @@ def _validate_profile(profile: dict[str, Any]) -> list[str]:
     errors: list[str] = []
 
     # Required top-level fields
-    for field in ("status", "writer"):
+    for field in ("writer",):
         if field not in profile:
             errors.append(f"missing required field: {field}")
-
-    # Status enum
-    status = profile.get("status")
-    if status is not None and status not in PROFILE_STATUSES:
-        errors.append(f"invalid status: {status!r}, must be one of {sorted(PROFILE_STATUSES)}")
 
     # Classification validation
     classification = profile.get("classification")
@@ -292,13 +287,9 @@ def _validate_view_profile(profile: dict[str, Any]) -> list[str]:
     """Validate a view profile dict. Returns a list of error messages (empty = valid)."""
     errors: list[str] = []
 
-    for field in ("status", "classification", "rationale", "source"):
+    for field in ("classification", "rationale", "source"):
         if field not in profile:
             errors.append(f"missing required field: {field}")
-
-    status = profile.get("status")
-    if status is not None and status not in PROFILE_STATUSES:
-        errors.append(f"invalid status: {status!r}, must be one of {sorted(PROFILE_STATUSES)}")
 
     classification = profile.get("classification")
     if classification is not None and classification not in VIEW_CLASSIFICATIONS:
@@ -316,6 +307,14 @@ def _write_view_profile(project_root: Path, view_norm: str, profile_json: dict[s
     errors = _validate_view_profile(profile_json)
     if errors:
         raise ValueError(f"View profile validation failed for {view_norm}: {'; '.join(errors)}")
+
+    # Determine status from content
+    classification = profile_json.get("classification")
+    if classification is not None and classification in VIEW_CLASSIFICATIONS:
+        status = "ok"
+    else:
+        status = "partial"
+    profile_json["status"] = status
 
     catalog_path = resolve_catalog_dir(project_root) / "views" / f"{view_norm}.json"
     if not catalog_path.exists():
@@ -354,6 +353,9 @@ def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> d
     Returns a confirmation dict on success.
     Raises ValueError on validation failure, OSError/json.JSONDecodeError on IO error.
     """
+    if "status" in profile_json:
+        raise ValueError("status must not be passed — determined by CLI")
+
     norm = normalize(table)
 
     # Auto-detect: check view catalog first
@@ -365,6 +367,18 @@ def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> d
     errors = _validate_profile(profile_json)
     if errors:
         raise ValueError(f"Profile validation failed for {norm}: {'; '.join(errors)}")
+
+    # Determine status from content
+    classification = profile_json.get("classification")
+    has_classification = classification is not None and classification.get("resolved_kind") in RESOLVED_KINDS
+    has_primary_key = profile_json.get("primary_key") is not None
+    if has_classification and has_primary_key:
+        status = "ok"
+    elif has_classification:
+        status = "partial"
+    else:
+        status = "error"
+    profile_json["status"] = status
 
     # Load existing catalog file
     catalog_path = resolve_catalog_dir(project_root) / "tables" / f"{norm}.json"

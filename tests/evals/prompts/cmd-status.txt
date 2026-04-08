@@ -1,10 +1,10 @@
 You are running in a DDL project directory at {{fixture_path}}.
 
-{{#if target_table}}
+{% if target_table %}
 Run /status for table {{target_table}}.
-{{else}}
+{% else %}
 Run /status for all tables.
-{{/if}}
+{% endif %}
 
 Read the command at plugin/commands/status.md. Wherever it references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead. Pass `--project-root {{fixture_path}}` to all CLI commands.
 

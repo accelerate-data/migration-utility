@@ -2,7 +2,9 @@
 description: "Generating-tests skill — branch enumeration and fixture synthesis"
 
 prompts:
-  - file://../../prompts/skill-generating-tests.txt
+  - id: generating-tests
+    label: generating-tests
+    raw: file://../../prompts/skill-generating-tests.txt
 
 providers:
   - id: anthropic:claude-agent-sdk

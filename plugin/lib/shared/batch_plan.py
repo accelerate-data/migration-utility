@@ -125,12 +125,14 @@ def object_pipeline_status(
 ) -> str:
     """Determine the first incomplete pipeline stage for an object.
 
+    Uses direct status field reads from catalog files rather than inference.
+
     Returns one of:
         scope_needed    — not yet scoped / view not yet analyzed
         profile_needed  — scoped but not profiled
-        test_gen_needed — profiled but no test-spec
-        refactor_needed — test-spec exists but writer not refactored
-        migrate_needed  — refactored but no dbt model
+        test_gen_needed — profiled but test-gen not complete
+        refactor_needed — test-gen complete but writer not refactored
+        migrate_needed  — refactored but no dbt model / generate not ok
         complete        — dbt model exists
         n_a             — writerless table (writer-dependent stages N/A)
     """
@@ -145,13 +147,14 @@ def object_pipeline_status(
         profile = cat.get("profile") or {}
         if profile.get("status") not in ("ok", "partial"):
             return "profile_needed"
-        spec_path = project_root / "test-specs" / f"{fqn}.json"
-        if not spec_path.exists():
+        test_gen = cat.get("test_gen") or {}
+        if test_gen.get("status") != "ok":
             return "test_gen_needed"
         refactor = cat.get("refactor") or {}
         if refactor.get("status") != "ok":
             return "refactor_needed"
-        if not _has_dbt_model(fqn, dbt_root):
+        generate = cat.get("generate") or {}
+        if generate.get("status") != "ok":
             return "migrate_needed"
         return "complete"
 
@@ -164,27 +167,30 @@ def object_pipeline_status(
     scoping = cat.get("scoping") or {}
     if scoping.get("status") == "no_writer_found":
         return "n_a"
-    if not scoping.get("selected_writer"):
+    if scoping.get("status") != "resolved":
         return "scope_needed"
 
     profile = cat.get("profile") or {}
     if profile.get("status") not in ("ok", "partial"):
         return "profile_needed"
 
-    spec_path = project_root / "test-specs" / f"{fqn}.json"
-    if not spec_path.exists():
+    test_gen = cat.get("test_gen") or {}
+    if test_gen.get("status") != "ok":
         return "test_gen_needed"
 
-    writer_norm = normalize(scoping["selected_writer"])
-    try:
-        proc_cat = load_proc_catalog(project_root, writer_norm) or {}
-    except (json.JSONDecodeError, OSError, CatalogLoadError):
-        proc_cat = {}
-    refactor = proc_cat.get("refactor") or {}
-    if refactor.get("status") != "ok":
-        return "refactor_needed"
+    writer = scoping.get("selected_writer")
+    if writer:
+        writer_norm = normalize(writer)
+        try:
+            proc_cat = load_proc_catalog(project_root, writer_norm) or {}
+        except (json.JSONDecodeError, OSError, CatalogLoadError):
+            proc_cat = {}
+        refactor = proc_cat.get("refactor") or {}
+        if refactor.get("status") != "ok":
+            return "refactor_needed"
 
-    if not _has_dbt_model(fqn, dbt_root):
+    generate = cat.get("generate") or {}
+    if generate.get("status") != "ok":
         return "migrate_needed"
 
     return "complete"

@@ -21,7 +21,7 @@ Generate dbt models for a batch of tables. For 2+ tables, runs a planning sweep 
 - `dbt/profiles.yml` must exist. If missing, fail all items with `DBT_PROFILE_MISSING` and tell the user to run `/init-dbt`.
 - `dbt debug` must show "Connection test: OK". If it fails, fail all items with `DBT_CONNECTION_FAILED` and tell the user to check credentials — for SQL Server: `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD` env vars; for other adapters: update `profiles.yml` placeholder values.
 
-Per-item guards are checked by the skill via `migrate-util guard`.
+Per-item readiness is checked by the skill via `migrate-util ready`.
 
 ## Progress Tracking
 

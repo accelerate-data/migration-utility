@@ -1,0 +1,27 @@
+{
+  "schema": "silver",
+  "name": "FactSales",
+  "columns": [
+    {"name": "SalesKey", "sql_type": "INT", "is_nullable": false, "is_identity": true}
+  ],
+  "primary_keys": [{"constraint_name": "PK_FactSales", "columns": ["SalesKey"]}],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [{"column": "SalesKey", "mechanism": "identity"}],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {"schema": "dbo", "name": "usp_load_factsales", "is_selected": true, "is_updated": true}
+      ],
+      "out_of_scope": []
+    },
+    "views": {"in_scope": [], "out_of_scope": []},
+    "functions": {"in_scope": [], "out_of_scope": []}
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "dbo.usp_load_factsales"
+  }
+}

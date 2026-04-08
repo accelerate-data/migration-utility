@@ -23,6 +23,7 @@ from shared.migrate import (
     derive_schema_tests,
     run_context,
     run_write,
+    run_write_generate,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures" / "migrate"
@@ -825,3 +826,143 @@ def test_load_refactored_sql_returns_none_when_no_selected_writer(tmp_path: Path
     (tmp_path / "manifest.json").write_text("{}")
     (table_dir / "silver.mytable.json").write_text(json.dumps({"schema": "silver", "name": "mytable"}))
     assert _load_refactored_sql(tmp_path, "silver.mytable") is None
+
+
+# ── run_write_generate ────────────────────────────────────────────────────────
+
+
+def _seed_generate_fixture(
+    project_root: Path,
+    fqn: str,
+    *,
+    kind: str = "tables",
+    create_model: bool = True,
+) -> Path:
+    """Create catalog + dbt project tree for run_write_generate tests.
+
+    Returns the project_root.
+    """
+    # Catalog file
+    cat_path = project_root / "catalog" / kind / f"{fqn}.json"
+    cat_path.parent.mkdir(parents=True, exist_ok=True)
+    cat_path.write_text(json.dumps({"schema": "dbo", "name": fqn}))
+
+    # dbt project
+    dbt = project_root / "dbt"
+    staging = dbt / "models" / "staging"
+    staging.mkdir(parents=True, exist_ok=True)
+    (dbt / "dbt_project.yml").write_text("name: test\nversion: '1.0.0'\nconfig-version: 2\n")
+
+    if create_model:
+        model_file = staging / "stg_foo.sql"
+        model_file.write_text("SELECT 1 AS id")
+
+    return project_root
+
+
+def test_write_generate_ok(tmp_path: Path) -> None:
+    """Model file exists, compiled=True, tests_passed=True → status ok, generate written."""
+    fqn = "dbo.foo"
+    _seed_generate_fixture(tmp_path, fqn)
+
+    result = run_write_generate(
+        project_root=tmp_path,
+        table_fqn=fqn,
+        model_path="models/staging/stg_foo.sql",
+        compiled=True,
+        tests_passed=True,
+        test_count=3,
+        schema_yml=True,
+    )
+
+    assert result["status"] == "ok"
+    assert result["ok"] is True
+    assert result["table"] == fqn
+
+    cat = json.loads((tmp_path / "catalog" / "tables" / f"{fqn}.json").read_text())
+    assert cat["generate"]["status"] == "ok"
+    assert cat["generate"]["compiled"] is True
+    assert cat["generate"]["tests_passed"] is True
+    assert cat["generate"]["test_count"] == 3
+    assert cat["generate"]["schema_yml"] is True
+
+
+def test_write_generate_error_file_missing(tmp_path: Path) -> None:
+    """Model file does not exist → status error even with compiled=True."""
+    fqn = "dbo.foo"
+    _seed_generate_fixture(tmp_path, fqn, create_model=False)
+
+    result = run_write_generate(
+        project_root=tmp_path,
+        table_fqn=fqn,
+        model_path="models/staging/stg_foo.sql",
+        compiled=True,
+        tests_passed=True,
+        test_count=3,
+        schema_yml=True,
+    )
+
+    assert result["status"] == "error"
+
+
+def test_write_generate_error_tests_failed(tmp_path: Path) -> None:
+    """Model file exists but tests_passed=False → status error."""
+    fqn = "dbo.foo"
+    _seed_generate_fixture(tmp_path, fqn)
+
+    result = run_write_generate(
+        project_root=tmp_path,
+        table_fqn=fqn,
+        model_path="models/staging/stg_foo.sql",
+        compiled=True,
+        tests_passed=False,
+        test_count=3,
+        schema_yml=True,
+    )
+
+    assert result["status"] == "error"
+
+
+def test_write_generate_missing_catalog(tmp_path: Path) -> None:
+    """No catalog file → CatalogFileMissingError."""
+    fqn = "dbo.foo"
+    # Create dbt project but no catalog
+    dbt = tmp_path / "dbt"
+    staging = dbt / "models" / "staging"
+    staging.mkdir(parents=True, exist_ok=True)
+    (dbt / "dbt_project.yml").write_text("name: test\n")
+    (staging / "stg_foo.sql").write_text("SELECT 1")
+
+    with pytest.raises(CatalogFileMissingError):
+        run_write_generate(
+            project_root=tmp_path,
+            table_fqn=fqn,
+            model_path="models/staging/stg_foo.sql",
+            compiled=True,
+            tests_passed=True,
+            test_count=3,
+            schema_yml=True,
+        )
+
+
+def test_write_generate_view_autodetect(tmp_path: Path) -> None:
+    """View catalog exists (no table catalog) → writes generate to view catalog."""
+    fqn = "dbo.foo"
+    _seed_generate_fixture(tmp_path, fqn, kind="views")
+
+    result = run_write_generate(
+        project_root=tmp_path,
+        table_fqn=fqn,
+        model_path="models/staging/stg_foo.sql",
+        compiled=True,
+        tests_passed=True,
+        test_count=2,
+        schema_yml=False,
+    )
+
+    assert result["status"] == "ok"
+    assert "views" in result["catalog_path"]
+
+    cat = json.loads((tmp_path / "catalog" / "views" / f"{fqn}.json").read_text())
+    assert cat["generate"]["status"] == "ok"
+    assert cat["generate"]["test_count"] == 2

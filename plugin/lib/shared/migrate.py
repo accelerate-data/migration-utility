@@ -30,7 +30,9 @@ from shared.catalog import (
     load_proc_catalog,
     load_table_catalog,
     read_selected_writer,
+    write_json as _write_catalog_json,
 )
+from shared.cli_utils import emit
 from shared.context_helpers import (
     collect_source_tables,
     load_object_columns,
@@ -40,6 +42,7 @@ from shared.context_helpers import (
     load_table_columns,
     load_table_profile,
 )
+from shared.env_config import resolve_catalog_dir, resolve_dbt_project_path, resolve_project_root
 from shared.loader import (
     CatalogFileMissingError,
     CatalogLoadError,
@@ -47,8 +50,6 @@ from shared.loader import (
     DdlParseError,
     ProfileMissingError,
 )
-from shared.cli_utils import emit
-from shared.env_config import resolve_dbt_project_path, resolve_project_root
 from shared.name_resolver import fqn_parts, model_name_from_table, normalize
 
 logger = logging.getLogger(__name__)
@@ -329,6 +330,125 @@ def write(
         raise typer.Exit(code=1) from exc
     except (FileNotFoundError, OSError, CatalogLoadError) as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)
+        raise typer.Exit(code=2) from exc
+    emit(result)
+
+
+# ── Write generate summary ────────────────────────────────────────────────────
+
+
+def run_write_generate(
+    project_root: Path,
+    table_fqn: str,
+    model_path: str,
+    compiled: bool,
+    tests_passed: bool,
+    test_count: int,
+    schema_yml: bool,
+    warnings: list[dict[str, Any]] | None = None,
+    errors: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Validate generate output and write generate section to catalog.
+
+    Reads the dbt model file from disk to verify it exists.
+    Determines status: model exists + compiled + tests passed → ok; otherwise → error.
+    Writes the generate section to the table or view catalog file.
+    """
+    norm = normalize(table_fqn)
+
+    # Check model file exists — model_path is relative to dbt project root
+    dbt_root = resolve_dbt_project_path(project_root)
+    model_file = dbt_root / model_path
+    file_exists = model_file.exists()
+
+    # Determine status
+    status = "ok" if file_exists and compiled and tests_passed else "error"
+
+    # Build generate section
+    generate: dict[str, Any] = {
+        "status": status,
+        "model_path": model_path,
+        "schema_yml": schema_yml,
+        "compiled": compiled,
+        "tests_passed": tests_passed,
+        "test_count": test_count,
+        "warnings": warnings or [],
+        "errors": errors or [],
+    }
+
+    # Auto-detect table vs view: check view catalog first
+    catalog_dir = resolve_catalog_dir(project_root)
+    cat_path = catalog_dir / "views" / f"{norm}.json"
+    if not cat_path.exists():
+        cat_path = catalog_dir / "tables" / f"{norm}.json"
+    if not cat_path.exists():
+        raise CatalogFileMissingError("table or view", norm)
+
+    # Load existing catalog, merge, write back
+    try:
+        existing = json.loads(cat_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise CatalogLoadError(str(cat_path), exc) from exc
+
+    existing["generate"] = generate
+
+    try:
+        _write_catalog_json(cat_path, existing)
+    except OSError as exc:
+        logger.error("event=write_failed operation=atomic_write table=%s error=%s", norm, exc)
+        raise
+
+    logger.info("event=write_generate_complete table=%s status=%s", norm, status)
+    return {"ok": True, "table": norm, "status": status, "catalog_path": str(cat_path)}
+
+
+@app.command("write-catalog")
+def write_catalog_cmd(
+    table: str = typer.Option(..., help="Fully-qualified table/view name"),
+    model_path: str = typer.Option(..., "--model-path", help="Relative path to dbt model SQL file"),
+    compiled: bool = typer.Option(..., help="Whether dbt compile succeeded"),
+    tests_passed: bool = typer.Option(..., "--tests-passed", help="Whether dbt test passed"),
+    test_count: int = typer.Option(0, "--test-count", help="Number of dbt tests executed"),
+    schema_yml_flag: bool = typer.Option(False, "--schema-yml", help="Whether schema YAML entry exists"),
+    warnings_json: Optional[str] = typer.Option(None, "--warnings", help="JSON array of warning diagnostics"),
+    errors_json: Optional[str] = typer.Option(None, "--errors", help="JSON array of error diagnostics"),
+    project_root: Optional[Path] = typer.Option(None, "--project-root"),
+) -> None:
+    """Write model generation summary to catalog with CLI-determined status."""
+    root = resolve_project_root(project_root)
+
+    parsed_warnings: list[dict[str, Any]] | None = None
+    parsed_errors: list[dict[str, Any]] | None = None
+    if warnings_json:
+        try:
+            parsed_warnings = json.loads(warnings_json)
+        except json.JSONDecodeError as exc:
+            logger.error("event=write_catalog_failed operation=parse_warnings table=%s error=%s", table, exc)
+            raise typer.Exit(code=1) from exc
+    if errors_json:
+        try:
+            parsed_errors = json.loads(errors_json)
+        except json.JSONDecodeError as exc:
+            logger.error("event=write_catalog_failed operation=parse_errors table=%s error=%s", table, exc)
+            raise typer.Exit(code=1) from exc
+
+    try:
+        result = run_write_generate(
+            project_root=root,
+            table_fqn=table,
+            model_path=model_path,
+            compiled=compiled,
+            tests_passed=tests_passed,
+            test_count=test_count,
+            schema_yml=schema_yml_flag,
+            warnings=parsed_warnings,
+            errors=parsed_errors,
+        )
+    except (CatalogFileMissingError, CatalogLoadError) as exc:
+        logger.error("event=write_catalog_failed table=%s error=%s", table, exc)
+        raise typer.Exit(code=1) from exc
+    except OSError as exc:
+        logger.error("event=write_catalog_failed table=%s error=%s", table, exc)
         raise typer.Exit(code=2) from exc
     emit(result)
 

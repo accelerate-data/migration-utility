@@ -246,19 +246,8 @@ def _validate_refactor(refactor: dict[str, Any]) -> list[str]:
     """Validate a refactor dict. Returns a list of error messages (empty = valid)."""
     errors: list[str] = []
 
-    status = refactor.get("status")
-    if status is None:
-        errors.append("missing required field: status")
-    elif status not in REFACTOR_STATUSES:
-        errors.append(f"invalid status: {status!r}, must be one of {sorted(REFACTOR_STATUSES)}")
-
-    extracted = refactor.get("extracted_sql")
-    if status == "ok" and (not extracted or not extracted.strip()):
-        errors.append("extracted_sql is required when status is 'ok'")
-
-    refactored = refactor.get("refactored_sql")
-    if status == "ok" and (not refactored or not refactored.strip()):
-        errors.append("refactored_sql is required when status is 'ok'")
+    # extracted_sql and refactored_sql are validated structurally;
+    # status is determined by run_write after validation, not required here.
 
     return errors
 
@@ -268,7 +257,6 @@ def run_write(
     table_fqn: str,
     extracted_sql: str,
     refactored_sql: str,
-    status: str,
 ) -> dict[str, Any]:
     """Validate and merge a refactor section into the catalog.
 
@@ -276,10 +264,24 @@ def run_write(
     - If ``catalog/views/<fqn>.json`` exists → writes refactor block to view catalog
     - Otherwise → resolves writer from table catalog, writes to procedure catalog
 
+    Status is determined from content:
+    - Both extracted_sql and refactored_sql non-empty → ``ok``
+    - One present, one empty → ``partial``
+    - Neither → ``error``
+
     Returns a confirmation dict on success.
     Raises ValueError on validation failure, OSError/json.JSONDecodeError on IO error.
     """
     table_norm = normalize(table_fqn)
+
+    extracted_stripped = extracted_sql.strip()
+    refactored_stripped = refactored_sql.strip()
+    if extracted_stripped and refactored_stripped:
+        status = "ok"
+    elif extracted_stripped or refactored_stripped:
+        status = "partial"
+    else:
+        status = "error"
 
     refactor_data: dict[str, Any] = {
         "status": status,
@@ -597,7 +599,6 @@ def context(
 def write(
     project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
     table: str = typer.Option(..., help="Fully-qualified table name (schema.Name)"),
-    status: str = typer.Option(..., help="Refactor status: ok, partial, or error"),
     extracted_sql: str = typer.Option("", help="Extracted core SQL string"),
     extracted_sql_file: Optional[Path] = typer.Option(None, "--extracted-sql-file", help="Path to file containing extracted core SQL"),
     refactored_sql: str = typer.Option("", help="Refactored SQL string"),
@@ -614,7 +615,7 @@ def write(
     project_root = resolve_project_root(project_root)
 
     try:
-        result = run_write(project_root, table, extracted_sql, refactored_sql, status)
+        result = run_write(project_root, table, extracted_sql, refactored_sql)
     except (ValueError, CatalogFileMissingError) as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)
         emit({"ok": False, "error": str(exc), "table": normalize(table)})

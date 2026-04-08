@@ -2,7 +2,9 @@
 description: "generate-tests command — multi-table test generation + review loop (no sandbox)"
 
 prompts:
-  - file://../../prompts/cmd-generate-tests.txt
+  - id: cmd-generate-tests
+    label: cmd-generate-tests
+    raw: file://../../prompts/cmd-generate-tests.txt
 
 providers:
   - id: anthropic:claude-agent-sdk

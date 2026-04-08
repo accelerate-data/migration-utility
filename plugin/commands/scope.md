@@ -17,7 +17,7 @@ Identify which procedures write to each table, or analyze SQL structure for each
 - For each FQN argument: if `catalog/tables/<fqn>.json` has `"is_source": true`, skip that table and print:
   > `<fqn>` is marked as a dbt source — no migration needed. Use `/add-source-tables` to manage source tables.
 
-Per-item guards are checked by the skill via `migrate-util guard`.
+Per-item readiness is checked by the skill via `migrate-util ready`.
 
 ## Progress Tracking
 

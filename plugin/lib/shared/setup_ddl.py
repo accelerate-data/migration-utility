@@ -62,21 +62,39 @@ _TECH_DIALECT = {
 }
 
 
-# ── Guard helper ─────────────────────────────────────────────────────────────
+# ── Manifest helper ──────────────────────────────────────────────────────────
+
+_KNOWN_TECHNOLOGIES = frozenset({
+    "sql_server", "fabric_warehouse", "fabric_lakehouse", "snowflake", "oracle",
+})
 
 
 def _require_technology(project_root: Path) -> str:
     """Read manifest.json and return the technology field.
 
-    Raises ValueError with the guard message if manifest.json is missing
-    or has no technology.
+    Raises ValueError if manifest.json is missing, corrupt, or has no
+    recognised technology value.
     """
-    from shared.guards import check_technology
-    result = check_technology(project_root)
-    if not result["passed"]:
-        raise ValueError(result["message"])
-    manifest = json.loads((project_root / "manifest.json").read_text(encoding="utf-8"))
-    return manifest["technology"]
+    manifest_path = project_root / "manifest.json"
+    if not manifest_path.exists():
+        raise ValueError(
+            "manifest.json not found. Run /init-ad-migration to initialise the project."
+        )
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        raise ValueError(f"manifest.json is not valid JSON: {exc}") from exc
+    technology = manifest.get("technology")
+    if technology is None:
+        raise ValueError(
+            "manifest.json has no 'technology' field. Run /init-ad-migration."
+        )
+    if technology not in _KNOWN_TECHNOLOGIES:
+        raise ValueError(
+            f"technology '{technology}' is not recognised. "
+            f"Known: {sorted(_KNOWN_TECHNOLOGIES)}."
+        )
+    return technology
 
 
 # ── Oracle processing helpers ─────────────────────────────────────────────────

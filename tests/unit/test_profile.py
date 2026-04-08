@@ -172,7 +172,6 @@ def test_write_valid_profile_merges() -> None:
     tmp, ddl_path = _make_writable_copy()
     try:
         valid_profile = {
-            "status": "ok",
             "writer": "dbo.usp_load_fact_sales",
             "classification": {
                 "resolved_kind": "fact_transaction",
@@ -206,8 +205,12 @@ def test_write_missing_required_field_raises() -> None:
     tmp, ddl_path = _make_writable_copy()
     try:
         bad_profile = {
-            "writer": "dbo.usp_load_fact_sales",
-            # missing "status"
+            "classification": {
+                "resolved_kind": "fact_transaction",
+                "rationale": "test",
+                "source": "llm",
+            },
+            # missing "writer"
         }
         with pytest.raises(ValueError, match="validation failed"):
             profile.run_write(ddl_path, "silver.FactSales", bad_profile)
@@ -223,7 +226,6 @@ def test_write_invalid_enum_raises() -> None:
     tmp, ddl_path = _make_writable_copy()
     try:
         bad_profile = {
-            "status": "ok",
             "writer": "dbo.usp_load_fact_sales",
             "classification": {
                 "resolved_kind": "invalid_kind",
@@ -241,7 +243,6 @@ def test_write_invalid_fk_type_raises() -> None:
     tmp, ddl_path = _make_writable_copy()
     try:
         bad_profile = {
-            "status": "ok",
             "writer": "dbo.usp_load_fact_sales",
             "foreign_keys": [
                 {
@@ -262,7 +263,6 @@ def test_write_invalid_suggested_action_raises() -> None:
     tmp, ddl_path = _make_writable_copy()
     try:
         bad_profile = {
-            "status": "ok",
             "writer": "dbo.usp_load_fact_sales",
             "pii_actions": [
                 {
@@ -283,7 +283,6 @@ def test_write_invalid_source_raises() -> None:
     tmp, ddl_path = _make_writable_copy()
     try:
         bad_profile = {
-            "status": "ok",
             "writer": "dbo.usp_load_fact_sales",
             "classification": {
                 "resolved_kind": "fact_transaction",
@@ -304,7 +303,6 @@ def test_write_nonexistent_catalog_raises() -> None:
     tmp, ddl_path = _make_writable_copy()
     try:
         valid_profile = {
-            "status": "ok",
             "writer": "dbo.usp_load_nonexistent",
         }
         with pytest.raises(CatalogFileMissingError):
@@ -318,10 +316,11 @@ def test_write_nonexistent_catalog_raises() -> None:
 
 def test_write_idempotent() -> None:
     """Running write twice with the same profile produces identical catalog."""
+    import copy
+
     tmp, ddl_path = _make_writable_copy()
     try:
         valid_profile = {
-            "status": "ok",
             "writer": "dbo.usp_load_fact_sales",
             "classification": {
                 "resolved_kind": "fact_transaction",
@@ -339,11 +338,11 @@ def test_write_idempotent() -> None:
                 "source": "llm",
             },
         }
-        profile.run_write(ddl_path, "silver.FactSales", valid_profile)
+        profile.run_write(ddl_path, "silver.FactSales", copy.deepcopy(valid_profile))
         cat_path = ddl_path / "catalog" / "tables" / "silver.factsales.json"
         first = cat_path.read_text(encoding="utf-8")
 
-        profile.run_write(ddl_path, "silver.FactSales", valid_profile)
+        profile.run_write(ddl_path, "silver.FactSales", copy.deepcopy(valid_profile))
         second = cat_path.read_text(encoding="utf-8")
 
         assert first == second
@@ -359,7 +358,7 @@ def test_write_cli_emits_error_json_on_validation_failure() -> None:
     tmp, ddl_path = _make_writable_copy()
     try:
         subprocess.run(["git", "init"], cwd=ddl_path, capture_output=True, check=True)
-        bad_profile = json.dumps({"writer": "dbo.usp_load_fact_sales"})  # missing status
+        bad_profile = json.dumps({"classification": {"resolved_kind": "fact_transaction", "source": "llm"}})  # missing writer
         result = _cli_runner.invoke(
             profile.app,
             ["write", "--project-root", str(ddl_path), "--table", "silver.FactSales", "--profile", bad_profile],
@@ -419,7 +418,7 @@ def test_write_corrupt_existing_table_catalog_exit_2() -> None:
         subprocess.run(["git", "init"], cwd=ddl_path, capture_output=True, check=True)
         cat_path = ddl_path / "catalog" / "tables" / "silver.factsales.json"
         cat_path.write_text("{truncated", encoding="utf-8")
-        good_profile = json.dumps({"status": "ok", "writer": "dbo.usp_load_fact_sales"})
+        good_profile = json.dumps({"writer": "dbo.usp_load_fact_sales"})
         result = _cli_runner.invoke(
             profile.app,
             ["write", "--project-root", str(ddl_path), "--table", "silver.FactSales", "--profile", good_profile],
@@ -551,7 +550,6 @@ def test_view_context_scoping_error_status_raises() -> None:
 # ── run_write (view path) ─────────────────────────────────────────────────────
 
 _VALID_VIEW_PROFILE = {
-    "status": "ok",
     "classification": "stg",
     "rationale": "Single-source pass-through.",
     "source": "llm",
@@ -562,7 +560,7 @@ def test_write_view_profile_stg() -> None:
     """Valid stg profile is merged into view catalog."""
     tmp, root = _make_writable_copy()
     try:
-        result = profile.run_write(root, "silver.vw_Simple", _VALID_VIEW_PROFILE)
+        result = profile.run_write(root, "silver.vw_Simple", {**_VALID_VIEW_PROFILE})
         assert result["ok"] is True
         assert "views" in result["catalog_path"]
         written = json.loads((root / "catalog" / "views" / "silver.vw_simple.json").read_text(encoding="utf-8"))
@@ -599,7 +597,7 @@ def test_write_view_profile_missing_field_raises() -> None:
     """Missing required field raises ValueError."""
     tmp, root = _make_writable_copy()
     try:
-        bad = {"status": "ok", "classification": "stg", "source": "llm"}  # missing rationale
+        bad = {"classification": "stg", "source": "llm"}  # missing rationale
         with pytest.raises(ValueError, match="missing required field"):
             profile.run_write(root, "silver.vw_Simple", bad)
     finally:
@@ -610,61 +608,12 @@ def test_write_view_profile_idempotent() -> None:
     """Writing the same profile twice leaves the catalog consistent."""
     tmp, root = _make_writable_copy()
     try:
-        profile.run_write(root, "silver.vw_Simple", _VALID_VIEW_PROFILE)
-        profile.run_write(root, "silver.vw_Simple", _VALID_VIEW_PROFILE)
+        profile.run_write(root, "silver.vw_Simple", {**_VALID_VIEW_PROFILE})
+        profile.run_write(root, "silver.vw_Simple", {**_VALID_VIEW_PROFILE})
         written = json.loads((root / "catalog" / "views" / "silver.vw_simple.json").read_text(encoding="utf-8"))
         assert written["profile"]["classification"] == "stg"
     finally:
         tmp.cleanup()
-
-
-# ── check_view_scoping_analyzed ───────────────────────────────────────────────
-
-
-def test_guard_view_scoping_passes() -> None:
-    """Guard passes when scoping.status == analyzed."""
-    from shared.guards import check_view_scoping_analyzed
-    result = check_view_scoping_analyzed(_PROFILE_FIXTURES, "silver.vw_Simple")
-    assert result["passed"] is True
-
-
-def test_guard_view_scoping_not_analyzed() -> None:
-    """Guard fails when scoping.status == error."""
-    from shared.guards import check_view_scoping_analyzed
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        (root / "catalog" / "views").mkdir(parents=True)
-        (root / "catalog" / "views" / "silver.vw_err.json").write_text(
-            json.dumps({
-                "schema": "silver", "name": "vw_Err",
-                "references": {"tables": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}},
-                "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}},
-                "scoping": {"status": "error", "sql_elements": None, "warnings": [], "errors": []},
-            }),
-            encoding="utf-8",
-        )
-        result = check_view_scoping_analyzed(root, "silver.vw_Err")
-        assert result["passed"] is False
-        assert result["code"] == "VIEW_SCOPING_NOT_COMPLETED"
-
-
-def test_guard_view_scoping_missing_section() -> None:
-    """Guard fails when scoping key is absent from catalog."""
-    from shared.guards import check_view_scoping_analyzed
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        (root / "catalog" / "views").mkdir(parents=True)
-        (root / "catalog" / "views" / "silver.vw_noscope.json").write_text(
-            json.dumps({
-                "schema": "silver", "name": "vw_NoScope",
-                "references": {"tables": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}},
-                "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}},
-            }),
-            encoding="utf-8",
-        )
-        result = check_view_scoping_analyzed(root, "silver.vw_NoScope")
-        assert result["passed"] is False
-        assert result["code"] == "VIEW_SCOPING_NOT_COMPLETED"
 
 
 # ── Context: writer_ddl_slice ─────────────────────────────────────────────────

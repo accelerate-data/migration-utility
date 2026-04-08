@@ -2,7 +2,9 @@
 description: "profile command — multi-table parallel profiling orchestration"
 
 prompts:
-  - file://../../prompts/cmd-profile.txt
+  - id: cmd-profile
+    label: cmd-profile
+    raw: file://../../prompts/cmd-profile.txt
 
 providers:
   - id: anthropic:claude-agent-sdk

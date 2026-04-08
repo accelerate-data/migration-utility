@@ -16,16 +16,15 @@ Profile a single table, view, or materialized view for migration.
 
 ## Before invoking
 
-Detect object type: check whether `catalog/views/<fqn>.json` exists.
-
-- **View/MV** → run guard: `migrate-util guard <fqn> profile-view`
-- **Table** → run guard: `migrate-util guard <fqn> profile`
+Check stage readiness:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <fqn> <guard_set>
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <fqn> profile
 ```
 
-If `passed` is `false`, report the failing guard's `code` and `message` to the user and stop.
+The `ready` command auto-detects whether the FQN is a table or view — no separate guard set needed.
+
+If `passed` is `false`, report the failing check's `code` and `message` to the user and stop.
 
 ## Object type detection
 
@@ -97,11 +96,12 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" profile write \
   --profile-file .staging/view_profile.json; rm -rf .staging
 ```
 
-The profile JSON must match the `profile` section in `lib/shared/schemas/view_catalog.json`. Required fields: `status`, `classification`, `rationale`, `source`.
+Do not include `status` in the profile JSON — the CLI determines it from the content.
+
+The profile JSON must match the `profile` section in `lib/shared/schemas/view_catalog.json`. Required fields: `classification`, `rationale`, `source`.
 
 | Field | Valid values |
 |---|---|
-| `status` | `ok`, `partial`, `error` |
 | `classification` | `stg`, `mart` |
 | `source` | `llm` |
 
@@ -161,7 +161,9 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" profile write \
   --profile-file .staging/profile.json; rm -rf .staging
 ```
 
-The profile JSON must match the `profile_section` schema in `lib/shared/schemas/table_catalog.json`. Required fields: `status`, `writer`. Each decision point must include a `rationale` field (1–2 sentences): `classification.rationale`, `primary_key.rationale`, `natural_key.rationale`, `watermark.rationale`, and per-entry `rationale` in `foreign_keys[]` and `pii_actions[]`.
+Do not include `status` in the profile JSON — the CLI determines it from the content.
+
+The profile JSON must match the `profile_section` schema in `lib/shared/schemas/table_catalog.json`. Required fields: `writer`. Each decision point must include a `rationale` field (1–2 sentences): `classification.rationale`, `primary_key.rationale`, `natural_key.rationale`, `watermark.rationale`, and per-entry `rationale` in `foreign_keys[]` and `pii_actions[]`.
 
 All enum values must be from the allowed sets below (canonical source: `lib/shared/profile.py`):
 

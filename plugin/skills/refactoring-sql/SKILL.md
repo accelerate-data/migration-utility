@@ -20,13 +20,13 @@ Restructure a stored procedure's SQL into import/logical/final CTEs while provin
 
 ## Before invoking
 
-Run the stage guard:
+Check stage readiness:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <table_fqn> refactor
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <table_fqn> refactor
 ```
 
-If `passed` is `false`, report the failing guard's `code` and `message` to the user and stop.
+If `passed` is `false`, report the failing check's `code` and `message` to the user and stop.
 
 ## Step 1: Assemble context
 
@@ -216,11 +216,10 @@ After audit passes (or after max iterations with partial status):
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" refactor write \
   --table <table_fqn> \
   --extracted-sql-file .staging/<table_fqn>-extracted.sql \
-  --refactored-sql-file .staging/<table_fqn>-refactored.sql \
-  --status ok
+  --refactored-sql-file .staging/<table_fqn>-refactored.sql
 ```
 
-Use `--status partial` if the audit did not fully pass. Use `--status error` if refactoring could not proceed at all.
+The CLI determines status from the content — do not pass `--status`.
 
 Clean up the staging files:
 

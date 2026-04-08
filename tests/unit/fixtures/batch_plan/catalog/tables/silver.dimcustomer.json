@@ -20,6 +20,8 @@
     "pii_actions": [],
     "natural_key": {}
   },
+  "test_gen": {"status": "ok"},
+  "generate": {"status": "ok"},
   "referenced_by": {
     "procedures": {"in_scope": [], "out_of_scope": []},
     "views": {"in_scope": [], "out_of_scope": []},

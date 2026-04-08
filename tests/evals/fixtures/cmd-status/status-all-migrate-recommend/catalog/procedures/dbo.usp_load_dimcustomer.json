@@ -1,0 +1,18 @@
+{
+  "schema": "dbo",
+  "name": "usp_load_dimcustomer",
+  "statements": [
+    {"index": 0, "action": "migrate", "source": "ast", "sql": "MERGE silver.DimCustomer AS tgt USING bronze.customerraw AS src ON tgt.CustomerID = src.CustomerID WHEN MATCHED THEN UPDATE SET ..."}
+  ],
+  "references": {
+    "tables": {"in_scope": [{"schema": "bronze", "name": "customerraw", "is_selected": true, "is_updated": false}], "out_of_scope": []},
+    "views": {"in_scope": [], "out_of_scope": []},
+    "functions": {"in_scope": [], "out_of_scope": []},
+    "procedures": {"in_scope": [], "out_of_scope": []}
+  },
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT CustomerID FROM bronze.CustomerRaw",
+    "refactored_sql": "WITH src AS (SELECT * FROM bronze.CustomerRaw) SELECT CustomerID FROM src"
+  }
+}

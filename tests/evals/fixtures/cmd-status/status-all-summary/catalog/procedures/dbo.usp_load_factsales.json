@@ -1,0 +1,13 @@
+{
+  "schema": "dbo",
+  "name": "usp_load_factsales",
+  "statements": [
+    {"index": 0, "action": "migrate", "source": "ast", "sql": "INSERT INTO silver.FactSales SELECT ..."}
+  ],
+  "references": {
+    "tables": {"in_scope": [{"schema": "silver", "name": "DimCustomer", "is_selected": true, "is_updated": false}, {"schema": "silver", "name": "DimDate", "is_selected": true, "is_updated": false}], "out_of_scope": []},
+    "views": {"in_scope": [], "out_of_scope": []},
+    "functions": {"in_scope": [], "out_of_scope": []},
+    "procedures": {"in_scope": [], "out_of_scope": []}
+  }
+}

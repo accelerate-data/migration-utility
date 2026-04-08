@@ -2,7 +2,9 @@
 description: "generate-model command — multi-table generation + review loop orchestration"
 
 prompts:
-  - file://../../prompts/cmd-generate-model.txt
+  - id: cmd-generate-model
+    label: cmd-generate-model
+    raw: file://../../prompts/cmd-generate-model.txt
 
 providers:
   - id: anthropic:claude-agent-sdk

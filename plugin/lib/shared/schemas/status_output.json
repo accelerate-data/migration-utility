@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "StatusOutput",
+  "description": "Output of migrate-util status — collated pipeline statuses from catalog files.",
+  "type": "object",
+  "required": ["objects"],
+  "properties": {
+    "fqn": {
+      "type": "string",
+      "description": "Present for single-object mode only."
+    },
+    "type": {
+      "type": "string",
+      "enum": ["table", "view", "mv"]
+    },
+    "stages": {
+      "type": "object",
+      "description": "Per-stage status values for single-object mode.",
+      "properties": {
+        "scope": { "type": ["string", "null"] },
+        "profile": { "type": ["string", "null"] },
+        "test_gen": { "type": ["string", "null"] },
+        "refactor": { "type": ["string", "null"] },
+        "generate": { "type": ["string", "null"] }
+      }
+    },
+    "objects": {
+      "type": "array",
+      "description": "All objects with their stage statuses for batch mode.",
+      "items": {
+        "type": "object",
+        "required": ["fqn", "type", "stages"],
+        "properties": {
+          "fqn": { "type": "string" },
+          "type": { "type": "string", "enum": ["table", "view", "mv"] },
+          "stages": {
+            "type": "object",
+            "properties": {
+              "scope": { "type": ["string", "null"] },
+              "profile": { "type": ["string", "null"] },
+              "test_gen": { "type": ["string", "null"] },
+              "refactor": { "type": ["string", "null"] },
+              "generate": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "description": "Aggregate counts per stage."
+    }
+  }
+}

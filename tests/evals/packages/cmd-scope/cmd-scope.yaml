@@ -2,7 +2,9 @@
 description: "scope command — multi-table parallel writer discovery orchestration"
 
 prompts:
-  - file://../../prompts/cmd-scope.txt
+  - id: cmd-scope
+    label: cmd-scope
+    raw: file://../../prompts/cmd-scope.txt
 
 providers:
   - id: anthropic:claude-agent-sdk

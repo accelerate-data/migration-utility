@@ -59,28 +59,5 @@
       "in_scope": [],
       "out_of_scope": []
     }
-  },
-  "scoping": {
-    "status": "resolved",
-    "selected_writer": "silver.usp_load_DimCurrency"
-  },
-  "profile": {
-    "status": "partial",
-    "writer": "silver.usp_load_DimCurrency",
-    "classification": {
-      "resolved_kind": "dim_non_scd",
-      "source": "catalog+llm",
-      "rationale": "Dynamic sp_executesql loads currency reference data via TRUNCATE+INSERT; profile is partial because write logic is not statically visible."
-    },
-    "primary_key": {
-      "columns": [
-        "CurrencyKey"
-      ],
-      "primary_key_type": "surrogate",
-      "source": "catalog",
-      "rationale": "CurrencyKey is an identity-generated surrogate key."
-    },
-    "foreign_keys": [],
-    "pii_actions": []
   }
 }

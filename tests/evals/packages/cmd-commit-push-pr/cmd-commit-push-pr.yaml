@@ -2,7 +2,9 @@
 description: "commit-push-pr command — PR creation failure safety"
 
 prompts:
-  - file://../../prompts/cmd-commit-push-pr.txt
+  - id: cmd-commit-push-pr
+    label: cmd-commit-push-pr
+    raw: file://../../prompts/cmd-commit-push-pr.txt
 
 providers:
   - id: anthropic:claude-agent-sdk

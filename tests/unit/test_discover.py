@@ -344,7 +344,7 @@ def test_write_scoping_corrupt_table_catalog_raises() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = _make_project_with_corrupt_catalog(Path(tmp), "tables", "dbo.t")
         with pytest.raises(CatalogLoadError):
-            discover.run_write_scoping(root, "dbo.T", {"status": "resolved", "selected_writer": "dbo.usp_load"})
+            discover.run_write_scoping(root, "dbo.T", {"selected_writer": "dbo.usp_load"})
 
 
 # ── View reference classification tests ─────────────────────────────────────
@@ -531,7 +531,6 @@ def test_run_write_view_scoping_happy_path() -> None:
             encoding="utf-8",
         )
         scoping = {
-            "status": "analyzed",
             "sql_elements": [{"type": "join", "detail": "INNER JOIN bronze.customer"}],
             "call_tree": {"reads_from": ["bronze.customer"], "views_referenced": []},
             "logic_summary": "Joins customer data.",
@@ -546,8 +545,8 @@ def test_run_write_view_scoping_happy_path() -> None:
         assert written["scoping"]["sql_elements"][0]["type"] == "join"
 
 
-def test_run_write_view_scoping_invalid_status() -> None:
-    """write-view-scoping rejects statuses that are not analyzed|error."""
+def test_run_write_view_scoping_rejects_status_key() -> None:
+    """write-view-scoping rejects dicts that include a status key."""
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         views_dir = root / "catalog" / "views"
@@ -564,8 +563,8 @@ def test_run_write_view_scoping_invalid_status() -> None:
             }),
             encoding="utf-8",
         )
-        with pytest.raises(ValueError, match="Invalid view scoping status"):
-            discover.run_write_view_scoping(root, "silver.vw_test", {"status": "resolved"})
+        with pytest.raises(ValueError, match="status must not be passed"):
+            discover.run_write_view_scoping(root, "silver.vw_test", {"status": "analyzed", "sql_elements": []})
 
 
 def test_run_write_view_scoping_missing_catalog() -> None:
@@ -574,7 +573,7 @@ def test_run_write_view_scoping_missing_catalog() -> None:
         root = Path(tmp)
         (root / "catalog" / "views").mkdir(parents=True)
         with pytest.raises(CatalogFileMissingError):
-            discover.run_write_view_scoping(root, "silver.vw_missing", {"status": "analyzed"})
+            discover.run_write_view_scoping(root, "silver.vw_missing", {"sql_elements": []})
 
 
 # --- _analyze_view_select tests (via run_show on flat fixtures) ---
@@ -711,7 +710,7 @@ def test_write_scoping_cli_auto_detects_view_catalog() -> None:
             encoding="utf-8",
         )
         scoping_file.write_text(
-            _json.dumps({"status": "analyzed", "sql_elements": [], "warnings": [], "errors": []}),
+            _json.dumps({"sql_elements": [], "warnings": [], "errors": []}),
             encoding="utf-8",
         )
         runner = CliRunner()
@@ -728,8 +727,8 @@ def test_write_scoping_cli_auto_detects_view_catalog() -> None:
         scoping_file.unlink(missing_ok=True)
 
 
-def test_run_write_view_scoping_error_status() -> None:
-    """write-view-scoping accepts error status (parse failure case)."""
+def test_run_write_view_scoping_parse_error() -> None:
+    """write-view-scoping with DDL_PARSE_ERROR sets status=analyzed (errors are captured)."""
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         views_dir = root / "catalog" / "views"
@@ -747,15 +746,13 @@ def test_run_write_view_scoping_error_status() -> None:
             encoding="utf-8",
         )
         scoping = {
-            "status": "error",
-            "sql_elements": None,
             "errors": [{"code": "DDL_PARSE_ERROR", "severity": "error", "message": "unexpected token"}],
         }
         result = discover.run_write_view_scoping(root, "silver.vw_broken", scoping)
         assert result["status"] == "ok"
         written = json.loads(Path(result["written"]).read_text(encoding="utf-8"))
-        assert written["scoping"]["status"] == "error"
-        assert written["scoping"]["sql_elements"] is None
+        assert written["scoping"]["status"] == "analyzed"
+        assert written["scoping"]["errors"][0]["code"] == "DDL_PARSE_ERROR"
 
 
 # ── write-source tests ────────────────────────────────────────────────────────

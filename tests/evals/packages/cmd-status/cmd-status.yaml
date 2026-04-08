@@ -2,7 +2,9 @@
 description: "status command — migration progress dashboard with per-table stage readiness"
 
 prompts:
-  - file://../../prompts/cmd-status.txt
+  - id: cmd-status
+    label: cmd-status
+    raw: file://../../prompts/cmd-status.txt
 
 providers:
   - id: anthropic:claude-agent-sdk
@@ -32,7 +34,7 @@ tests:
       expected_stage_statuses: '{"scope": "resolved", "profile": "ok"}'
       expected_blocked_stage: "test-gen"
       expected_output_terms: "scope,profile,test-gen,blocked"
-      expected_recommendation: "sandbox"
+      expected_recommendation: "generate-tests"
 
   # ── status-single-dimcurrency: catalog only ─────────────────
   - description: "status-single-dimcurrency — catalog only, no scoping"

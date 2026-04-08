@@ -16,19 +16,15 @@ Scope a table, view, or materialized view and persist the scoping decision to th
 
 ## Before invoking
 
-Run the stage guard:
+Check stage readiness:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <fqn> scope
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <fqn> scope
 ```
 
-If the FQN is a view (check `catalog/views/<fqn>.json` existence), use the `scope-view` guard set instead:
+The `ready` command auto-detects whether the FQN is a table or view — no separate guard set needed.
 
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <fqn> scope-view
-```
-
-If `passed` is `false`, report the failing guard's `code` and `message` to the user and stop.
+If `passed` is `false`, report the failing check's `code` and `message` to the user and stop.
 
 ## Object type detection
 
@@ -143,11 +139,12 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
   --name <view_fqn> --scoping-file .staging/scoping.json; rm -rf .staging
 ```
 
+Do not include `status` in the scoping dict — the CLI determines it from the content.
+
 The scoping JSON shape:
 
 ```json
 {
-  "status": "analyzed",
   "sql_elements": [
     {"type": "join", "detail": "INNER JOIN bronze.person"},
     {"type": "aggregation", "detail": "COUNT"}
@@ -194,7 +191,7 @@ Extract the `writers` array from the output. If no writers are found, persist `n
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
-  --name <table> --scoping '{"status": "no_writer_found", "selected_writer": null, "selected_writer_rationale": "No procedures found that write to this table."}'
+  --name <table> --scoping '{"selected_writer": null, "selected_writer_rationale": "No procedures found that write to this table."}'
 ```
 
 Then ask the user:
@@ -286,7 +283,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
   --name <table> --scoping-file .staging/scoping.json; rm -rf .staging
 ```
 
-The scoping JSON must include the selected writer (or `no_writer_found` status) and a `selected_writer_rationale` field (1–2 sentences explaining why this writer was chosen over alternatives, or why no writer / ambiguous). If the write exits non-zero, report the error and ask the user to correct.
+Do not include `status` in the scoping dict — the CLI determines it from the content. The scoping JSON must include the selected writer and a `selected_writer_rationale` field (1–2 sentences explaining why this writer was chosen over alternatives, or why no writer / ambiguous). If the write exits non-zero, report the error and ask the user to correct.
 
 ## References
 

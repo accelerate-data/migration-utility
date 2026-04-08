@@ -1,0 +1,19 @@
+{
+  "schema": "silver",
+  "name": "vw_DimPromotion",
+  "is_materialized_view": false,
+  "scoping": {
+    "status": "analyzed",
+    "sql_elements": [],
+    "logic_summary": "Promotion dimension view with multi-column selection."
+  },
+  "references": {
+    "tables": {
+      "in_scope": [{"schema": "silver", "name": "DimPromotion", "is_selected": true, "is_updated": false}],
+      "out_of_scope": []
+    },
+    "views": {"in_scope": [], "out_of_scope": []},
+    "functions": {"in_scope": [], "out_of_scope": []},
+    "procedures": {"in_scope": [], "out_of_scope": []}
+  }
+}
