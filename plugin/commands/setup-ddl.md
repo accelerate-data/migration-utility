@@ -10,7 +10,7 @@ Run the stage guard before doing anything else:
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard _ setup-ddl
 ```
 
-If `passed` is `false`, report the failing guard's `code` and `message` and stop.
+If `passed` is `false`, report the failing guard's `code` and `message` and stop. The guard now includes `check_init_prerequisites` which verifies that `/init-ad-migration` has been run and recorded prerequisites in `manifest.json`.
 
 ## Confirm project root
 
@@ -37,21 +37,6 @@ Use `TaskCreate` and `TaskUpdate` to track the automated phases of this command.
 Use this branch when `technology` is `sql_server` or `fabric_warehouse`.
 
 `<shared-path>` refers to `${CLAUDE_PLUGIN_ROOT}/lib`.
-
-### Prerequisites
-
-Check FreeTDS is installed: `brew list --formula freetds 2>/dev/null`. If missing, tell the user to run `brew install freetds` (or run `/init-ad-migration` which auto-installs it) and stop.
-
-Confirm these environment variables are set (do not print their values):
-
-| Variable | Description |
-|---|---|
-| `MSSQL_HOST` | SQL Server hostname or IP |
-| `MSSQL_PORT` | SQL Server port |
-| `MSSQL_DB` | Default database (use `master` if none) |
-| `SA_PASSWORD` | SQL login password |
-
-If any are missing, tell the user and stop.
 
 ### Step 1 — Select database
 
@@ -184,20 +169,6 @@ If `git` is not available or the project root is not a git repository (i.e. `git
 Use this branch when `technology` is `oracle`.
 
 `<shared-path>` refers to `${CLAUDE_PLUGIN_ROOT}/lib`.
-
-### Prerequisites
-
-Confirm these environment variables are set (do not print their values):
-
-| Variable | Description |
-|---|---|
-| `ORACLE_HOST` | Oracle hostname or IP |
-| `ORACLE_PORT` | Oracle listener port |
-| `ORACLE_SERVICE` | Oracle service name |
-| `ORACLE_USER` | Oracle login user |
-| `ORACLE_PASSWORD` | Oracle login password |
-
-If any are missing, tell the user and stop.
 
 ### Step 1 — Select schemas
 
