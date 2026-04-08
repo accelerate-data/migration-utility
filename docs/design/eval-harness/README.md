@@ -303,11 +303,10 @@ npx promptfoo eval --filter-pattern "cube|rollup|grouping-sets"
 
 | Scenario | Target table | Writer | Key assertion |
 |---|---|---|---|
-| fact-rich-catalog | silver.FactInternetSales | usp_stage_FactInternetSales | fact_transaction classification |
-| dim-merge | silver.DimProduct | usp_load_DimProduct | Valid classification kind |
-| exec-call-chain | silver.FactExecProfile | usp_load_FactExecProfile | fact_transaction, status ok |
+| fact-transaction | silver.FactInternetSales | usp_stage_FactInternetSales | fact_transaction classification |
+| merge | silver.DimProduct | usp_load_DimProduct | Valid classification kind |
+| exec-chain | silver.FactExecProfile | usp_load_FactExecProfile | fact_transaction, status ok |
 | cross-db-exec | silver.DimCrossDbProfile | usp_load_DimCrossDbProfile | Cross-database mention |
-| dynamic-sp-executesql | silver.DimCurrency | usp_load_DimCurrency | ok/partial status, sp_executesql mention |
 
 ### Model-generator
 
@@ -347,38 +346,16 @@ npx promptfoo eval --filter-pattern "cube|rollup|grouping-sets"
 
 | Scenario | Target table | Key assertion |
 |---|---|---|
-| merge-branches — DimProduct | silver.DimProduct | Branch manifest with multiple branches |
-| exec-call-chain — FactInternetSales | silver.FactInternetSales | Transitive writer logic |
-| dynamic-sql — DimCurrency | silver.DimCurrency | Dynamic SQL warning |
-| delete-top — DeleteTopTarget | silver.DeleteTopTarget | Keep-vs-delete branches |
-| recursive-cte — RecursiveCteTarget | silver.RecursiveCteTarget | Recursive anchor and step |
-| try-catch — TryCatchTarget | silver.TryCatchTarget | TRY block as primary test target |
-| nested-control-flow — NestedFlowTarget | silver.NestedFlowTarget | IF branches under TRY |
+| merge | silver.DimProduct | Branch manifest, min 2 arms (WHEN MATCHED + WHEN NOT MATCHED BY TARGET) |
+| exec-chain | silver.FactInternetSales | Transitive writer logic, min 3 branches |
+| dynamic-sql | silver.DimCurrency | Dynamic SQL warning recorded |
 
 ### Test-review
 
 | Scenario | Target table | Key assertion |
 |---|---|---|
-| approved — DimProduct | silver.DimProduct | Approved with covered branches |
-| revision-requested — DimCustomer | silver.DimCustomer | Revision requested |
-| approved — InsertSelectTarget | silver.InsertSelectTarget | Approved, non-MERGE pattern |
-| revision-requested — UpdateJoinTarget | silver.UpdateJoinTarget | Missing join-miss scenario |
-| revision-requested — IfElseTarget | silver.IfElseTarget | Missing control-flow arm |
-| approved — FactExecProfile | silver.FactExecProfile | Transitive writer chain covered |
-| approved — DimCurrency | silver.DimCurrency | Partial coverage with untestable rationale |
-
-### Code-review
-
-| Scenario | Target table | Key assertion |
-|---|---|---|
-| approved — DimProduct MERGE | silver.DimProduct | Approved status |
-| approved — InsertSelectTarget DML | silver.InsertSelectTarget | Correctness passed |
-| revision-requested — DimCustomer | silver.DimCustomer | Flags issues |
-| approved — UpdateJoinTarget | silver.UpdateJoinTarget | UPDATE→SELECT rewrite |
-| approved — SelectIntoTarget | silver.SelectIntoTarget | Staging model materialization |
-| approved — IfElseTarget | silver.IfElseTarget | Control-flow decomposition |
-| approved — FactExecProfile | silver.FactExecProfile | Ref-only orchestrator |
-| approved — DimCurrency | silver.DimCurrency | Dynamic SQL graceful degradation |
+| merge | silver.DimProduct | Approved — complete branch coverage (min 2 covered) |
+| truncate-insert | silver.DimCustomer | Revision requested — incomplete coverage |
 
 ### Scoping-table
 
@@ -391,7 +368,6 @@ npx promptfoo eval --filter-pattern "cube|rollup|grouping-sets"
 | dynamic-sp-executesql — DimCurrency | silver.DimCurrency | usp_load_DimCurrency |
 | exec-variable — ExecVariableTarget | silver.ExecVariableTarget | usp_scope_ExecVariable |
 | exec-concat — ExecConcatTarget | silver.ExecConcatTarget | usp_scope_ExecConcat |
-| linked-server-exec — LinkedServerExecTarget | silver.LinkedServerExecTarget | (no writer — skip) |
 
 ### Refactoring-sql
 

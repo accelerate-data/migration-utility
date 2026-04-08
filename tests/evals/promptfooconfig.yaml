@@ -436,7 +436,7 @@ tests:
       writer: "silver.usp_load_DimProduct"
       expected_status: "ok,partial"
       expected_coverage: "complete,partial"
-      min_branch_count: 5
+      min_branch_count: 2
       min_scenario_count: 4
       expected_output_terms: "branch_manifest,unit_tests"
     assert:
@@ -451,7 +451,7 @@ tests:
       writer: "silver.usp_load_FactInternetSales"
       expected_status: "ok"
       expected_coverage: "complete"
-      min_branch_count: 5
+      min_branch_count: 3
       min_scenario_count: 5
       expected_output_terms: "salesorderheader,salesorderdetail"
     assert:

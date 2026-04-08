@@ -1,6 +1,7 @@
 {
   "schema": "silver",
   "name": "usp_load_dimcustomer_full",
+  "mode": "deterministic",
   "references": {
     "tables": {
       "in_scope": [
@@ -151,11 +152,13 @@
     {
       "type": "TruncateTable",
       "action": "skip",
+      "source": "ast",
       "sql": "TRUNCATE TABLE silver.DimCustomer"
     },
     {
       "type": "Insert",
       "action": "migrate",
+      "source": "ast",
       "sql": "INSERT INTO silver.DimCustomer (CustomerAlternateKey, FirstName, MiddleName, LastName, Title, Gender, MaritalStatus, EmailPromotion, DateFirstPurchase) SELECT CAST(c.CustomerID AS NVARCHAR(15)) AS CustomerAlternateKey, p.FirstName, p.MiddleName, p.LastName, p.Title, NULL AS Gender, NULL AS MaritalStatus, p.EmailPromotion, CAST(h.MinOrderDate AS DATE) AS DateFirstPurchase FROM bronze.Customer c JOIN bronze.Person p ON c.PersonID = p.BusinessEntityID OUTER APPLY (SELECT MIN(OrderDate) AS MinOrderDate FROM bronze.SalesOrderHeader sh WHERE sh.CustomerID = c.CustomerID) h"
     }
   ]
