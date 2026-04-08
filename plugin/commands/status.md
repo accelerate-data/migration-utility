@@ -148,8 +148,8 @@ What to do next
   - Else if `profile_phase` is non-empty: current command is `/profile <fqn1> <fqn2> ...`.
   - Else if `migrate_batches` is non-empty: use the first batch's `pipeline_status` to pick the command:
     - `test_gen_needed` → `/generate-tests <fqn1> ...`
-    - `refactor_needed` → `/refactoring-sql <fqn1> ...`
-    - `migrate_needed` → `/generating-model <fqn1> ...`
+    - `refactor_needed` → `/refactor <fqn1> ...`
+    - `migrate_needed` → `/generate-model <fqn1> ...`
   - If `circular_refs` is non-empty, append inline: `[N excluded — CIRCULAR_REFERENCE]`
   - Max 10 FQNs listed; if more, append `and N more` (all still execute).
 - **Action 3 — Next phase command**: The phase that will become unblocked after action 2 completes. Use the same command format. Omit if there is no obvious next phase.
@@ -336,7 +336,7 @@ For completed stages, show the key signals from the status detail content:
 
 Based on the first incomplete stage, recommend the specific command to run next for this table.
 
-For all object types (tables, views, MVs), route through the same stage commands: `profile_needed` → `/profile <fqn>`, `test_gen_needed` → `/generating-tests <fqn>`, `refactor_needed` → `/refactoring-sql <fqn>`, `migrate_needed` → `/generating-model <fqn>`.
+For all object types (tables, views, MVs), route through the same stage commands: `profile_needed` → `/profile <fqn>`, `test_gen_needed` → `/generate-tests <fqn>`, `refactor_needed` → `/refactor <fqn>`, `migrate_needed` → `/generate-model <fqn>`.
 
 ## Error handling
 
