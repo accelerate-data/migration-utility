@@ -113,9 +113,10 @@ tests:
       fixture_path: "tests/evals/fixtures/planning-sweep-skip"
       target_table: "silver.InsertSelectTarget"
       writer: "silver.usp_load_InsertSelectTarget"
+      expected_action: "skip"
     assert:
-      - type: contains
-        value: "skip"
+      - type: javascript
+        value: file://../../assertions/check-sweep-action.js
 
   # ── planning sweep: test-only (mart exists, no passing tests) ─
   - description: "planning-sweep-test-only — sweep artifact recommends test-only, skill skips generation and goes to compile"
@@ -123,6 +124,7 @@ tests:
       fixture_path: "tests/evals/fixtures/planning-sweep-test-only"
       target_table: "silver.InsertSelectTarget"
       writer: "silver.usp_load_InsertSelectTarget"
+      expected_action: "test-only"
     assert:
-      - type: contains
-        value: "test-only"
+      - type: javascript
+        value: file://../../assertions/check-sweep-action.js
