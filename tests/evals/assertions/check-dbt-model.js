@@ -76,6 +76,9 @@ module.exports = (output, context) => {
   };
   walkDir(modelsDir);
 
+  const snapshotsDir = path.resolve(dbtDir, 'snapshots');
+  if (fs.existsSync(snapshotsDir)) walkDir(snapshotsDir);
+
   const matchingFiles = allFiles.filter(f => f.toLowerCase().includes(tableName));
   if (matchingFiles.length === 0) {
     if (gracefulNoModel) {

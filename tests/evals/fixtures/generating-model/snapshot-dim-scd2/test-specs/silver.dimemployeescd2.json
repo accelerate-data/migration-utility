@@ -1,0 +1,86 @@
+{
+  "item_id": "silver.dimemployeescd2",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {
+      "id": "expire_changed_rows",
+      "statement_index": 0,
+      "description": "UPDATE expires current rows where tracked columns changed",
+      "scenarios": [
+        "test_expire_changed_row"
+      ]
+    },
+    {
+      "id": "insert_new_current",
+      "statement_index": 1,
+      "description": "INSERT adds new current row for employees not yet in target or whose prior row was expired",
+      "scenarios": [
+        "test_insert_new_employee"
+      ]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_expire_changed_row",
+      "model": "dim_employee_scd2",
+      "given": [
+        {
+          "rows": [
+            {
+              "NationalIDNumber": "123456789",
+              "LoginID": "adventure-works\\ken0",
+              "JobTitle": "Engineer",
+              "MaritalStatus": "S"
+            }
+          ],
+          "table": "[bronze].[Employee]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "EmployeeNaturalKey": "123456789",
+            "JobTitle": "Engineer"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimEmployeeSCD2]",
+      "procedure": "[silver].[usp_load_DimEmployeeSCD2]"
+    },
+    {
+      "name": "test_insert_new_employee",
+      "model": "dim_employee_scd2",
+      "given": [
+        {
+          "rows": [
+            {
+              "NationalIDNumber": "987654321",
+              "LoginID": "adventure-works\\jane0",
+              "JobTitle": "Manager",
+              "MaritalStatus": "M"
+            }
+          ],
+          "table": "[bronze].[Employee]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "EmployeeNaturalKey": "987654321",
+            "JobTitle": "Manager"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimEmployeeSCD2]",
+      "procedure": "[silver].[usp_load_DimEmployeeSCD2]"
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "errors": []
+}

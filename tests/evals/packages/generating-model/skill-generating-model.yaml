@@ -134,3 +134,13 @@ tests:
     assert:
       - type: javascript
         value: file://../../assertions/check-sweep-action.js
+
+  # --- VU-880: deferred generating-model scenarios ---
+
+  - description: "snapshot-dim-scd2 — SCD2 table produces dbt snapshot"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-model/snapshot-dim-scd2"
+      target_table: "silver.DimEmployeeSCD2"
+      writer: "silver.usp_load_DimEmployeeSCD2"
+      expected_model_terms: "snapshot,strategy"
+      forbidden_model_terms: "materialized='table'"
