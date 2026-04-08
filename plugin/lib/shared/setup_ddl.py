@@ -641,23 +641,35 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
 
 
 def run_write_partial_manifest(
-    project_root: Path, technology: str,
+    project_root: Path,
+    technology: str,
+    prereqs: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Write a partial manifest.json with technology and dialect only.
+    """Write a partial manifest.json with technology, dialect, and optional prereqs.
 
-    Called by init-ad-migration to record the chosen source technology.
-    setup-ddl later enriches it with database and schema details.
+    Called by init-ad-migration to record the chosen source technology and
+    validated prerequisite state.  setup-ddl later enriches with database
+    and schema details.
+
+    When *prereqs* is provided it is stored under ``init_handoff`` with a
+    UTC timestamp so that downstream commands can skip redundant checks.
     """
     if technology not in _TECH_DIALECT:
         raise ValueError(
             f"Unknown technology: {technology}. Must be one of {list(_TECH_DIALECT.keys())}."
         )
 
-    manifest = {
+    manifest: dict[str, Any] = {
         "schema_version": "1.0",
         "technology": technology,
         "dialect": _TECH_DIALECT[technology],
     }
+
+    if prereqs is not None:
+        manifest["init_handoff"] = {
+            **prereqs,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
 
     project_root.mkdir(parents=True, exist_ok=True)
     out_path = project_root / "manifest.json"
@@ -665,7 +677,35 @@ def run_write_partial_manifest(
         json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
+    logger.info(
+        "event=write_partial_manifest technology=%s has_handoff=%s",
+        technology,
+        prereqs is not None,
+    )
     return {"file": str(out_path)}
+
+
+def run_read_handoff(project_root: Path) -> dict[str, Any] | None:
+    """Read init_handoff from manifest.json if present.
+
+    Returns the ``init_handoff`` dict when it exists, otherwise ``None``.
+    The guard system (``check_init_prerequisites``) enforces presence;
+    this helper is a convenience for commands that want to inspect the
+    handoff contents (e.g. to skip prerequisite re-checks).
+    To force a full reset, delete ``manifest.json``.
+    """
+    manifest_path = project_root / "manifest.json"
+    if not manifest_path.exists():
+        return None
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+    handoff = manifest.get("init_handoff")
+    if handoff is not None:
+        logger.info("event=read_handoff status=found")
+    return handoff
 
 
 def run_write_manifest(
@@ -1008,16 +1048,46 @@ def write_partial_manifest(
         help="Project root directory (defaults to CWD)"
     ),
     technology: str = typer.Option(..., help="Source technology: sql_server, fabric_warehouse, fabric_lakehouse, snowflake, oracle"),
+    prereqs_json: Optional[str] = typer.Option(
+        None, "--prereqs-json",
+        help="JSON object of validated prerequisite results (env_vars, tools)",
+    ),
 ) -> None:
-    """Write a partial manifest.json with technology and dialect only."""
+    """Write a partial manifest.json with technology, dialect, and optional prereqs."""
     if project_root is None:
         project_root = Path.cwd()
+
+    prereqs: dict[str, Any] | None = None
+    if prereqs_json is not None:
+        try:
+            prereqs = json.loads(prereqs_json)
+        except json.JSONDecodeError as exc:
+            typer.echo(f"Invalid --prereqs-json: {exc}", err=True)
+            raise typer.Exit(1) from exc
+
     try:
-        result = run_write_partial_manifest(project_root, technology)
+        result = run_write_partial_manifest(project_root, technology, prereqs=prereqs)
     except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
     typer.echo(json.dumps(result))
+
+
+@app.command("read-handoff")
+def read_handoff(
+    project_root: Optional[Path] = typer.Option(
+        None, "--project-root",
+        help="Project root containing manifest.json (defaults to CWD)",
+    ),
+) -> None:
+    """Read init_handoff from manifest.json. Returns {skip: true/false, handoff: ...}."""
+    if project_root is None:
+        project_root = Path.cwd()
+    handoff = run_read_handoff(project_root)
+    if handoff is not None:
+        typer.echo(json.dumps({"skip": True, "handoff": handoff}))
+    else:
+        typer.echo(json.dumps({"skip": False}))
 
 
 @app.command("list-databases")

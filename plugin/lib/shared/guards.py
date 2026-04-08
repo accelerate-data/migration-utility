@@ -484,6 +484,51 @@ def check_technology(project_root: Path) -> dict[str, Any]:
     return _guard_ok("technology_configured")
 
 
+def check_init_prerequisites(project_root: Path) -> dict[str, Any]:
+    """Check that /init-ad-migration has been run and recorded prerequisites.
+
+    Reads manifest.json and verifies the ``init_handoff`` key is present,
+    meaning init has validated environment prerequisites at least once.
+    Does NOT check freshness — that is the concern of individual commands
+    like /setup-ddl.
+    """
+    manifest_path = project_root / "manifest.json"
+    if not manifest_path.exists():
+        return _guard_fail(
+            "init_prerequisites",
+            "MANIFEST_NOT_FOUND",
+            "manifest.json not found. Run /init-ad-migration to initialise the project.",
+        )
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        return _guard_fail(
+            "init_prerequisites",
+            "MANIFEST_CORRUPT",
+            f"manifest.json is not valid JSON: {exc}",
+        )
+    technology = manifest.get("technology")
+    if technology is None:
+        return _guard_fail(
+            "init_prerequisites",
+            "TECHNOLOGY_NOT_SET",
+            "manifest.json has no 'technology' field. Run /init-ad-migration.",
+        )
+    if technology not in KNOWN_TECHNOLOGIES:
+        return _guard_fail(
+            "init_prerequisites",
+            "TECHNOLOGY_UNKNOWN",
+            f"technology '{technology}' is not recognised. Known: {sorted(KNOWN_TECHNOLOGIES)}.",
+        )
+    if "init_handoff" not in manifest:
+        return _guard_fail(
+            "init_prerequisites",
+            "INIT_NOT_RUN",
+            "Prerequisites not recorded. Run /init-ad-migration to validate environment setup.",
+        )
+    return _guard_ok("init_prerequisites")
+
+
 # ── Guard runner ─────────────────────────────────────────────────────────────
 
 # Stage → ordered list of guard callables.
@@ -491,16 +536,19 @@ def check_technology(project_root: Path) -> dict[str, Any]:
 # a guard result dict.
 _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
     "scope": [
+        (check_init_prerequisites,),
         (check_manifest,),
         (check_table_catalog,),
     ],
     "profile": [
+        (check_init_prerequisites,),
         (check_manifest,),
         (check_table_catalog,),
         (check_selected_writer,),
         (check_statements_resolved,),
     ],
     "test-gen": [
+        (check_init_prerequisites,),
         (check_manifest,),
         (check_table_catalog,),
         (check_selected_writer,),
@@ -509,6 +557,7 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
         (check_sandbox_metadata,),
     ],
     "refactor": [
+        (check_init_prerequisites,),
         (check_manifest,),
         (check_table_catalog,),
         (check_selected_writer,),
@@ -518,6 +567,7 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
         (check_test_spec,),
     ],
     "migrate": [
+        (check_init_prerequisites,),
         (check_manifest,),
         (check_table_catalog,),
         (check_selected_writer,),
@@ -529,15 +579,18 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
     ],
     # View-specific guard sets
     "scope-view": [
+        (check_init_prerequisites,),
         (check_manifest,),
         (check_view_catalog,),
     ],
     "profile-view": [
+        (check_init_prerequisites,),
         (check_manifest,),
         (check_view_catalog,),
         (check_view_scoping_analyzed,),
     ],
     "test-gen-view": [
+        (check_init_prerequisites,),
         (check_manifest,),
         (check_view_catalog,),
         (check_view_scoping_analyzed,),
@@ -545,6 +598,7 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
         (check_sandbox_metadata,),
     ],
     "refactor-view": [
+        (check_init_prerequisites,),
         (check_manifest,),
         (check_view_catalog,),
         (check_view_scoping_analyzed,),
@@ -553,6 +607,7 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
         (check_view_test_spec,),
     ],
     "migrate-view": [
+        (check_init_prerequisites,),
         (check_manifest,),
         (check_view_catalog,),
         (check_view_scoping_analyzed,),
@@ -564,6 +619,7 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
     ],
     # Skill-specific guard sets (not pipeline stages, but callable via guard CLI)
     "generating-model": [
+        (check_init_prerequisites,),
         (check_manifest,),
         (check_table_catalog,),
         (check_selected_writer,),
@@ -576,6 +632,7 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
         (check_view_dependencies_migrated,),
     ],
     "reviewing-model": [
+        (check_init_prerequisites,),
         (check_manifest,),
         (check_table_catalog,),
         (check_selected_writer,),
@@ -588,6 +645,7 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
         (check_view_dependencies_migrated,),
     ],
     "reviewing-tests": [
+        (check_init_prerequisites,),
         (check_manifest,),
         (check_table_catalog,),
         (check_selected_writer,),
@@ -597,6 +655,7 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
         (check_test_spec,),
     ],
     "refactoring-sql": [
+        (check_init_prerequisites,),
         (check_manifest,),
         (check_table_catalog,),
         (check_selected_writer,),
@@ -606,13 +665,14 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
         (check_test_spec,),
     ],
     "setup-ddl": [
-        (check_technology,),
+        (check_init_prerequisites,),
     ],
 }
 
 # Guards that only need project_root (no table_fqn).
 _PROJECT_ONLY_GUARDS: frozenset[Callable] = frozenset({
     check_manifest, check_sandbox_metadata, check_dbt_project, check_technology,
+    check_init_prerequisites,
 })
 
 
