@@ -472,3 +472,72 @@ CREATE TABLE [silver].[DimDynamicBranch] (
     ,CONSTRAINT [PK_DimDynamicBranch] PRIMARY KEY ([DynamicBranchKey])
 );
 GO
+
+-- ── Synthetic pattern fixtures ────────────────────────────────────────────────
+
+-- silver.IntersectTarget (pattern 21 — INTERSECT)
+CREATE TABLE [silver].[IntersectTarget] (
+    [ProductAlternateKey] nvarchar(25) NOT NULL,
+    CONSTRAINT [PK_IntersectTarget] PRIMARY KEY ([ProductAlternateKey])
+);
+GO
+
+-- silver.ExceptTarget (pattern 22 — EXCEPT)
+CREATE TABLE [silver].[ExceptTarget] (
+    [ProductAlternateKey] nvarchar(25) NOT NULL,
+    CONSTRAINT [PK_ExceptTarget] PRIMARY KEY ([ProductAlternateKey])
+);
+GO
+
+-- silver.UnionAllCteTarget (pattern 23 — UNION ALL in CTE branch)
+CREATE TABLE [silver].[UnionAllCteTarget] (
+    [ProductAlternateKey] nvarchar(25) NOT NULL,
+    [EnglishProductName] nvarchar(50) NOT NULL,
+    [Segment] nvarchar(20) NOT NULL,
+    CONSTRAINT [PK_UnionAllCteTarget] PRIMARY KEY ([ProductAlternateKey])
+);
+GO
+
+-- silver.CrossJoinTarget (pattern 26 — CROSS JOIN scaffold)
+CREATE TABLE [silver].[CrossJoinTarget] (
+    [ProductKey] int NOT NULL,
+    [TerritoryId] int NOT NULL,
+    [ProductName] nvarchar(50) NOT NULL,
+    [TerritoryName] nvarchar(50) NOT NULL,
+    CONSTRAINT [PK_CrossJoinTarget] PRIMARY KEY ([ProductKey], [TerritoryId])
+);
+GO
+
+-- silver.NotExistsTarget (pattern 33 — NOT EXISTS anti-join)
+CREATE TABLE [silver].[NotExistsTarget] (
+    [ProductAlternateKey] nvarchar(25) NOT NULL,
+    [EnglishProductName] nvarchar(50) NOT NULL,
+    CONSTRAINT [PK_NotExistsTarget] PRIMARY KEY ([ProductAlternateKey])
+);
+GO
+
+-- silver.NotInTarget (pattern 35 — NOT IN subquery)
+CREATE TABLE [silver].[NotInTarget] (
+    [ProductAlternateKey] nvarchar(25) NOT NULL,
+    [EnglishProductName] nvarchar(50) NOT NULL,
+    CONSTRAINT [PK_NotInTarget] PRIMARY KEY ([ProductAlternateKey])
+);
+GO
+
+-- silver.CubeTarget (pattern 41 — CUBE)
+CREATE TABLE [silver].[CubeTarget] (
+    [Color] nvarchar(15) NULL,
+    [ProductLine] nchar(2) NULL,
+    [ProductCount] int NOT NULL,
+    [TotalListPrice] money NOT NULL
+);
+GO
+
+-- silver.RollupTarget (pattern 42 — ROLLUP)
+CREATE TABLE [silver].[RollupTarget] (
+    [ProductLine] nchar(2) NULL,
+    [Color] nvarchar(15) NULL,
+    [ProductCount] int NOT NULL,
+    [TotalListPrice] money NOT NULL
+);
+GO

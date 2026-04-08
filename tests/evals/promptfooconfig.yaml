@@ -1,6 +1,13 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: "Full promptfoo suite for migration eval harness"
 
+# Naming convention: "<skill> — <sql-pattern> — <detail>"
+# Enables --filter-pattern filtering, e.g.:
+#   promptfoo eval --filter-pattern "generating-model"
+#   promptfoo eval --filter-pattern "insert-select"
+#   promptfoo eval --filter-pattern "generating-model.*exec"
+# See docs/design/eval-harness/README.md for the full taxonomy.
+
 prompts:
   - id: profiling-table
     label: profiling-table
@@ -14,9 +21,6 @@ prompts:
   - id: reviewing-tests
     label: reviewing-tests
     raw: file://prompts/skill-reviewing-tests.txt
-  - id: reviewing-model
-    label: reviewing-model
-    raw: file://prompts/skill-reviewing-model.txt
   - id: analyzing-table
     label: analyzing-table
     raw: file://prompts/skill-analyzing-table.txt
@@ -51,7 +55,10 @@ providers:
         - Grep
 
 tests:
-  - description: "fact-rich-catalog — FactInternetSales"
+
+  # ── profiling-table ─────────────────────────────────────────────
+
+  - description: "profiling-table — fact-transaction — FactInternetSales window functions"
     prompts: ["profiling-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -61,7 +68,7 @@ tests:
       - type: javascript
         value: file://assertions/check-table-profile.js
 
-  - description: "dim-merge — DimProduct MERGE INTO"
+  - description: "profiling-table — merge — DimProduct MERGE INTO"
     prompts: ["profiling-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -71,7 +78,7 @@ tests:
       - type: javascript
         value: file://assertions/check-table-profile.js
 
-  - description: "exec-call-chain — FactExecProfile surfaces helper proc context"
+  - description: "profiling-table — exec-chain — FactExecProfile helper proc context"
     prompts: ["profiling-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -83,7 +90,7 @@ tests:
       - type: javascript
         value: file://assertions/check-table-profile.js
 
-  - description: "cross-db-exec — DimCrossDbProfile stays partial with limitation"
+  - description: "profiling-table — cross-db-exec — DimCrossDbProfile partial limitation"
     prompts: ["profiling-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -95,7 +102,9 @@ tests:
       - type: javascript
         value: file://assertions/check-table-profile.js
 
-  - description: "insert-select — simple INSERT...SELECT becomes dbt select"
+  # ── generating-model ─────────────────────────────────────────────
+
+  - description: "generating-model — insert-select — simple full-refresh becomes dbt select"
     prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -106,7 +115,7 @@ tests:
       - type: javascript
         value: file://assertions/check-dbt-model.js
 
-  - description: "update-join — UPDATE join produces valid rewritten model"
+  - description: "generating-model — update-join — UPDATE FROM JOIN rewritten as source-driven select"
     prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -117,7 +126,7 @@ tests:
       - type: javascript
         value: file://assertions/check-dbt-model.js
 
-  - description: "delete-where — DELETE with WHERE becomes keep-rows select"
+  - description: "generating-model — delete-where — DELETE WHERE becomes keep-rows select"
     prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -128,7 +137,18 @@ tests:
       - type: javascript
         value: file://assertions/check-dbt-model.js
 
-  - description: "select-into — SELECT INTO recognized as staging table model"
+  - description: "generating-model — delete-top — DELETE TOP becomes keep-rows select"
+    prompts: ["generating-model"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.DeleteTopTarget"
+      writer: "silver.usp_load_DeleteTopTarget"
+      graceful_no_model: "true"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "generating-model — select-into — SELECT INTO recognized as table materialization"
     prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -140,7 +160,7 @@ tests:
       - type: javascript
         value: file://assertions/check-dbt-model.js
 
-  - description: "single-cte — CTE restructured into import/logical/final"
+  - description: "generating-model — cte — CTE restructured into import/logical/final"
     prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -151,7 +171,7 @@ tests:
       - type: javascript
         value: file://assertions/check-dbt-model.js
 
-  - description: "correlated-subquery — correlated subquery preserved as valid dbt logic"
+  - description: "generating-model — correlated-subquery — correlated subquery preserved as valid dbt logic"
     prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -162,7 +182,7 @@ tests:
       - type: javascript
         value: file://assertions/check-dbt-model.js
 
-  - description: "union-all — UNION ALL preserved in generated sql"
+  - description: "generating-model — union-all — UNION ALL preserved in generated sql"
     prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -173,7 +193,40 @@ tests:
       - type: javascript
         value: file://assertions/check-dbt-model.js
 
-  - description: "grouping-sets — GROUPING SETS preserved when supported by generated sql"
+  - description: "generating-model — union-all-in-cte — UNION ALL inside CTE branch preserved"
+    prompts: ["generating-model"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.UnionAllCteTarget"
+      writer: "silver.usp_load_UnionAllCteTarget"
+      expected_model_terms: "with,union all"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "generating-model — intersect — INTERSECT preserved in generated sql"
+    prompts: ["generating-model"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.IntersectTarget"
+      writer: "silver.usp_load_IntersectTarget"
+      expected_model_terms: "intersect"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "generating-model — except — EXCEPT preserved in generated sql"
+    prompts: ["generating-model"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.ExceptTarget"
+      writer: "silver.usp_load_ExceptTarget"
+      expected_model_terms: "except"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "generating-model — grouping-sets — GROUPING SETS preserved in generated sql"
     prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -184,7 +237,29 @@ tests:
       - type: javascript
         value: file://assertions/check-dbt-model.js
 
-  - description: "pivot — PIVOT translated to conditional aggregation"
+  - description: "generating-model — cube — CUBE aggregation preserved in generated sql"
+    prompts: ["generating-model"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.CubeTarget"
+      writer: "silver.usp_load_CubeTarget"
+      expected_model_terms: "cube"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "generating-model — rollup — ROLLUP aggregation preserved in generated sql"
+    prompts: ["generating-model"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.RollupTarget"
+      writer: "silver.usp_load_RollupTarget"
+      expected_model_terms: "rollup"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "generating-model — pivot — PIVOT translated to conditional aggregation"
     prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -195,7 +270,7 @@ tests:
       - type: javascript
         value: file://assertions/check-dbt-model.js
 
-  - description: "window-functions — FactInternetSales preserves analytic window expressions"
+  - description: "generating-model — window-fn — FactInternetSales preserves analytic window expressions"
     prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -206,7 +281,51 @@ tests:
       - type: javascript
         value: file://assertions/check-dbt-model.js
 
-  - description: "outer-apply — DimCustomer full reload rewrites APPLY logic"
+  - description: "generating-model — cross-join — CROSS JOIN scaffold preserved"
+    prompts: ["generating-model"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.CrossJoinTarget"
+      writer: "silver.usp_load_CrossJoinTarget"
+      expected_model_terms: "cross join"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "generating-model — not-exists — NOT EXISTS anti-join preserved"
+    prompts: ["generating-model"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.NotExistsTarget"
+      writer: "silver.usp_load_NotExistsTarget"
+      expected_model_terms: "not exists"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "generating-model — not-in — NOT IN subquery preserved"
+    prompts: ["generating-model"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.NotInTarget"
+      writer: "silver.usp_load_NotInTarget"
+      expected_model_terms: "not in"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "generating-model — recursive-cte — recursive CTE builds org hierarchy"
+    prompts: ["generating-model"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.RecursiveCteTarget"
+      writer: "silver.usp_load_RecursiveCteTarget"
+      expected_model_terms: "with,union all"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "generating-model — truncate-insert-outer-apply — DimCustomer full reload stays table materialized"
     prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -217,18 +336,62 @@ tests:
       - type: javascript
         value: file://assertions/check-dbt-model.js
 
-  - description: "truncate-insert — DimCustomer full reload stays table materialized"
+  - description: "generating-model — try-catch — TRY/CATCH wrapping deterministic insert"
     prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
-      target_table: "silver.DimCustomer"
-      writer: "silver.usp_load_DimCustomer_Full"
-      expected_model_terms: "materialized='table'"
+      target_table: "silver.TryCatchTarget"
+      writer: "silver.usp_load_TryCatchTarget"
+      expected_model_terms: "with,final"
     assert:
       - type: javascript
         value: file://assertions/check-dbt-model.js
 
-  - description: "exec-orchestrator — FactInternetSales orchestration handled gracefully"
+  - description: "generating-model — if-else — IF/ELSE branches enumerated as conditional inserts"
+    prompts: ["generating-model"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.IfElseTarget"
+      writer: "silver.usp_load_IfElseTarget"
+      expected_model_terms: "select"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "generating-model — nested-flow — control_flow_fallback produces INSERT and MERGE models"
+    prompts: ["generating-model"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.NestedFlowTarget"
+      writer: "silver.usp_load_NestedFlowTarget"
+      expected_model_terms: "with,final"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "generating-model — while-loop — WHILE batch insert explained as LLM-required"
+    prompts: ["generating-model"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.WhileTarget"
+      writer: "silver.usp_load_WhileTarget"
+      graceful_no_model: "true"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "generating-model — static-sp-exec — sp_executesql literal SQL resolved deterministically"
+    prompts: ["generating-model"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.StaticSpExecTarget"
+      writer: "silver.usp_load_StaticSpExecTarget"
+      expected_model_terms: "select"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  - description: "generating-model — exec-orchestrator — FactInternetSales orchestration handled gracefully"
     prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -240,7 +403,7 @@ tests:
       - type: javascript
         value: file://assertions/check-dbt-model.js
 
-  - description: "dynamic-sp-executesql — DimCurrency dynamic SQL handled gracefully"
+  - description: "generating-model — dynamic-sql — DimCurrency dynamic SQL handled gracefully"
     prompts: ["generating-model"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -251,7 +414,21 @@ tests:
       - type: javascript
         value: file://assertions/check-dbt-model.js
 
-  - description: "merge-branches — DimProduct enumerates matched and not-matched MERGE arms"
+  - description: "generating-model — linked-server-exec — linked server EXEC flagged out-of-scope"
+    prompts: ["generating-model"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.LinkedServerExecTarget"
+      writer: "silver.usp_scope_LinkedServerExec"
+      graceful_no_model: "true"
+      expected_output_terms: "linked server,out of scope"
+    assert:
+      - type: javascript
+        value: file://assertions/check-dbt-model.js
+
+  # ── generating-tests ─────────────────────────────────────────────
+
+  - description: "generating-tests — merge — DimProduct enumerates matched and not-matched MERGE arms"
     prompts: ["generating-tests"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -266,7 +443,7 @@ tests:
       - type: javascript
         value: file://assertions/check-test-spec.js
 
-  - description: "exec-call-chain — FactInternetSales scenarios follow transitive writer logic"
+  - description: "generating-tests — exec-chain — FactInternetSales scenarios follow transitive writer logic"
     prompts: ["generating-tests"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -281,7 +458,7 @@ tests:
       - type: javascript
         value: file://assertions/check-test-spec.js
 
-  - description: "dynamic-sql-untestable — DimCurrency records untestable dynamic SQL rationale"
+  - description: "generating-tests — dynamic-sql — DimCurrency records untestable dynamic SQL rationale"
     prompts: ["generating-tests"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -295,7 +472,9 @@ tests:
       - type: javascript
         value: file://assertions/check-test-spec.js
 
-  - description: "approved — DimProduct complete branch coverage and realistic fixtures"
+  # ── reviewing-tests ───────────────────────────────────────────────
+
+  - description: "reviewing-tests — merge — DimProduct complete branch coverage approved"
     prompts: ["reviewing-tests"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -308,7 +487,7 @@ tests:
       - type: javascript
         value: file://assertions/check-test-review.js
 
-  - description: "revision-requested — DimCustomer incomplete coverage and poor fixture quality"
+  - description: "reviewing-tests — truncate-insert — DimCustomer incomplete coverage revision requested"
     prompts: ["reviewing-tests"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -320,42 +499,9 @@ tests:
       - type: javascript
         value: file://assertions/check-test-review.js
 
-  - description: "approved — clean MERGE model passes standards and integration checks"
-    prompts: ["reviewing-model"]
-    vars:
-      fixture_path: "tests/evals/fixtures/migration-test"
-      target_table: "silver.DimProduct"
-      writer: "silver.usp_load_DimProduct"
-      expected_status: "approved,approved_with_warnings,revision_requested"
-    assert:
-      - type: javascript
-        value: file://assertions/check-model-review.js
+  # ── analyzing-table ───────────────────────────────────────────────
 
-  - description: "approved — standard DML model with source/ref usage passes review"
-    prompts: ["reviewing-model"]
-    vars:
-      fixture_path: "tests/evals/fixtures/migration-test"
-      target_table: "silver.InsertSelectTarget"
-      writer: "silver.usp_load_InsertSelectTarget"
-      expected_status: "approved,approved_with_warnings,revision_requested"
-    assert:
-      - type: javascript
-        value: file://assertions/check-model-review.js
-
-  - description: "revision-requested — incorrect materialization and missing tests are flagged"
-    prompts: ["reviewing-model"]
-    vars:
-      fixture_path: "tests/evals/fixtures/migration-test"
-      target_table: "silver.DimCustomer"
-      writer: "silver.usp_load_DimCustomer_Full"
-      expected_status: "approved,approved_with_warnings,revision_requested"
-    assert:
-      - type: javascript
-        value: file://assertions/check-model-review.js
-
-  # ── analyzing-table ────────────────────────────────────────────
-
-  - description: "truncate-insert — DimCustomer multi-writer resolution"
+  - description: "analyzing-table — truncate-insert — DimCustomer multi-writer resolution"
     prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -370,7 +516,7 @@ tests:
       - type: javascript
         value: file://assertions/check-procedure-catalog.js
 
-  - description: "merge — DimProduct single MERGE writer"
+  - description: "analyzing-table — merge — DimProduct single MERGE writer"
     prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -385,7 +531,7 @@ tests:
       - type: javascript
         value: file://assertions/check-procedure-catalog.js
 
-  - description: "exec-orchestrator — FactInternetSales EXEC chain writer"
+  - description: "analyzing-table — exec-chain — FactInternetSales EXEC chain writer"
     prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -400,7 +546,7 @@ tests:
       - type: javascript
         value: file://assertions/check-procedure-catalog.js
 
-  - description: "cross-db-exec — DimCrossDbProfile cross-database delegation"
+  - description: "analyzing-table — cross-db-exec — DimCrossDbProfile cross-database delegation"
     prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -414,7 +560,7 @@ tests:
       - type: javascript
         value: file://assertions/check-procedure-catalog.js
 
-  - description: "dynamic-sp-executesql — DimCurrency dynamic SQL writer"
+  - description: "analyzing-table — dynamic-sql — DimCurrency dynamic SQL writer"
     prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -428,7 +574,7 @@ tests:
       - type: javascript
         value: file://assertions/check-procedure-catalog.js
 
-  - description: "exec-variable — ExecVariableTarget dynamic EXEC(@sql)"
+  - description: "analyzing-table — exec-variable — ExecVariableTarget dynamic EXEC(@sql)"
     prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -444,7 +590,7 @@ tests:
       - type: javascript
         value: file://assertions/check-procedure-catalog.js
 
-  - description: "exec-concat — ExecConcatTarget concatenated EXEC"
+  - description: "analyzing-table — exec-concat — ExecConcatTarget concatenated EXEC"
     prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -460,9 +606,9 @@ tests:
       - type: javascript
         value: file://assertions/check-procedure-catalog.js
 
-  # ── refactoring-sql ──────────────────────────────────────────────
+  # ── refactoring-sql ───────────────────────────────────────────────
 
-  - description: "insert-select — simple INSERT...SELECT extracted and refactored"
+  - description: "refactoring-sql — insert-select — simple INSERT...SELECT extracted and refactored"
     prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -474,7 +620,7 @@ tests:
       - type: javascript
         value: file://assertions/check-refactored-sql.js
 
-  - description: "merge-using — MERGE USING clause extracted, refactored with import CTEs"
+  - description: "refactoring-sql — merge — MERGE USING clause extracted with import CTEs"
     prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -486,7 +632,7 @@ tests:
       - type: javascript
         value: file://assertions/check-refactored-sql.js
 
-  - description: "window-functions — FactInternetSales preserves analytic expressions"
+  - description: "refactoring-sql — window-fn — FactInternetSales preserves analytic expressions"
     prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -498,7 +644,7 @@ tests:
       - type: javascript
         value: file://assertions/check-refactored-sql.js
 
-  - description: "truncate-insert — DimCustomer full reload extracted and CTEd"
+  - description: "refactoring-sql — truncate-insert — DimCustomer full reload extracted and CTEd"
     prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/migration-test"
@@ -506,6 +652,30 @@ tests:
       writer: "silver.usp_load_DimCustomer_Full"
       expected_extracted_terms: "customeralternatekey,firstname"
       expected_refactored_terms: "with,final"
+    assert:
+      - type: javascript
+        value: file://assertions/check-refactored-sql.js
+
+  - description: "refactoring-sql — recursive-cte — recursive structure preserved in refactored CTE"
+    prompts: ["refactoring-sql"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.RecursiveCteTarget"
+      writer: "silver.usp_load_RecursiveCteTarget"
+      expected_extracted_terms: "union all,orglevel"
+      expected_refactored_terms: "with,union all,final"
+    assert:
+      - type: javascript
+        value: file://assertions/check-refactored-sql.js
+
+  - description: "refactoring-sql — union-all-in-cte — UNION ALL inside CTE branch preserved in refactored form"
+    prompts: ["refactoring-sql"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_table: "silver.UnionAllCteTarget"
+      writer: "silver.usp_load_UnionAllCteTarget"
+      expected_extracted_terms: "union all,segment"
+      expected_refactored_terms: "with,union all,final"
     assert:
       - type: javascript
         value: file://assertions/check-refactored-sql.js

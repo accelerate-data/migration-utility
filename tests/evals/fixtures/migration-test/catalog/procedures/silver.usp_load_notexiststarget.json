@@ -1,0 +1,53 @@
+{
+  "schema": "silver",
+  "name": "usp_load_notexiststarget",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "Product",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            { "name": "ProductID", "is_selected": true, "is_updated": false },
+            { "name": "ProductName", "is_selected": true, "is_updated": false }
+          ]
+        },
+        {
+          "schema": "bronze",
+          "name": "SalesOrderDetail",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            { "name": "ProductID", "is_selected": true, "is_updated": false }
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "NotExistsTarget",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            { "name": "ProductAlternateKey", "is_selected": false, "is_updated": true },
+            { "name": "EnglishProductName", "is_selected": false, "is_updated": true }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": { "in_scope": [], "out_of_scope": [] },
+    "functions": { "in_scope": [], "out_of_scope": [] },
+    "procedures": { "in_scope": [], "out_of_scope": [] }
+  },
+  "mode": "deterministic",
+  "routing_reasons": [],
+  "statements": [
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "source": "ast",
+      "sql": "INSERT INTO silver.NotExistsTarget (ProductAlternateKey, EnglishProductName) SELECT CAST(p.ProductID AS NVARCHAR(25)), p.ProductName FROM bronze.Product AS p WHERE NOT EXISTS (SELECT 1 FROM bronze.SalesOrderDetail sod WHERE sod.ProductID = p.ProductID)"
+    }
+  ]
+}

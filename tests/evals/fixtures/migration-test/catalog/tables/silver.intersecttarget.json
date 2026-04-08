@@ -1,0 +1,42 @@
+{
+  "schema": "silver",
+  "name": "intersecttarget",
+  "columns": [
+    { "name": "ProductAlternateKey", "sql_type": "NVARCHAR(25)", "is_nullable": false, "is_identity": false }
+  ],
+  "primary_keys": [{ "constraint_name": "PK_IntersectTarget", "columns": ["ProductAlternateKey"] }],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [{ "schema": "silver", "name": "usp_load_intersecttarget", "is_selected": false, "is_updated": true }],
+      "out_of_scope": []
+    },
+    "views": { "in_scope": [], "out_of_scope": [] },
+    "functions": { "in_scope": [], "out_of_scope": [] }
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_load_IntersectTarget"
+  },
+  "profile": {
+    "status": "ok",
+    "writer": "silver.usp_load_IntersectTarget",
+    "classification": {
+      "resolved_kind": "dim_non_scd",
+      "source": "catalog+llm",
+      "rationale": "INTERSECT produces a set of products matching both filter conditions — a static non-SCD dimension subset."
+    },
+    "primary_key": {
+      "columns": ["ProductAlternateKey"],
+      "primary_key_type": "natural",
+      "source": "catalog",
+      "rationale": "ProductAlternateKey is the declared primary key and is the business key from the source."
+    },
+    "foreign_keys": [],
+    "pii_actions": []
+  }
+}

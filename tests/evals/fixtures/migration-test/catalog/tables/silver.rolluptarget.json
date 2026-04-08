@@ -1,0 +1,45 @@
+{
+  "schema": "silver",
+  "name": "rolluptarget",
+  "columns": [
+    { "name": "ProductLine", "sql_type": "NCHAR(2)", "is_nullable": true, "is_identity": false },
+    { "name": "Color", "sql_type": "NVARCHAR(15)", "is_nullable": true, "is_identity": false },
+    { "name": "ProductCount", "sql_type": "INT", "is_nullable": false, "is_identity": false },
+    { "name": "TotalListPrice", "sql_type": "MONEY", "is_nullable": false, "is_identity": false }
+  ],
+  "primary_keys": [],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [{ "schema": "silver", "name": "usp_load_rolluptarget", "is_selected": false, "is_updated": true }],
+      "out_of_scope": []
+    },
+    "views": { "in_scope": [], "out_of_scope": [] },
+    "functions": { "in_scope": [], "out_of_scope": [] }
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_load_RollupTarget"
+  },
+  "profile": {
+    "status": "ok",
+    "writer": "silver.usp_load_RollupTarget",
+    "classification": {
+      "resolved_kind": "rpt",
+      "source": "catalog+llm",
+      "rationale": "ROLLUP aggregation produces hierarchical subtotals across ProductLine then Color — a hierarchical report table with NULL super-aggregate rows."
+    },
+    "primary_key": {
+      "columns": [],
+      "primary_key_type": "none",
+      "source": "catalog",
+      "rationale": "ROLLUP output has NULL subtotal rows; no natural PK exists."
+    },
+    "foreign_keys": [],
+    "pii_actions": []
+  }
+}

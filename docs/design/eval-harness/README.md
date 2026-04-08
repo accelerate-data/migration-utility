@@ -221,6 +221,82 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 
 ---
 
+## Scenario naming and filtering
+
+All scenarios in `promptfooconfig.yaml` follow the convention:
+
+```text
+<skill> — <sql-pattern> — <brief-detail>
+```
+
+This allows `--filter-pattern` to act as a query language against the description string.
+
+### Filter examples
+
+```bash
+# All scenarios for a single skill
+npx promptfoo eval --filter-pattern "generating-model"
+npx promptfoo eval --filter-pattern "analyzing-table"
+npx promptfoo eval --filter-pattern "refactoring-sql"
+
+# All scenarios for a SQL pattern across skills
+npx promptfoo eval --filter-pattern "insert-select"
+npx promptfoo eval --filter-pattern "exec-chain"
+npx promptfoo eval --filter-pattern "recursive-cte"
+
+# Skill + pattern combined
+npx promptfoo eval --filter-pattern "generating-model.*exec"
+npx promptfoo eval --filter-pattern "analyzing-table.*truncate"
+npx promptfoo eval --filter-pattern "refactoring-sql.*merge"
+
+# Pattern group (regex OR)
+npx promptfoo eval --filter-pattern "intersect|except|union-all"
+npx promptfoo eval --filter-pattern "cube|rollup|grouping-sets"
+```
+
+### Pattern taxonomy
+
+| Pattern tag | Classification patterns covered |
+|---|---|
+| `insert-select` | INSERT...SELECT full-refresh |
+| `update-join` | UPDATE...FROM JOIN |
+| `delete-where` | DELETE with WHERE |
+| `delete-top` | DELETE TOP |
+| `select-into` | SELECT INTO |
+| `cte` | Single CTE |
+| `correlated-subquery` | Correlated subquery in WHERE |
+| `union-all` | UNION ALL (bare) |
+| `union-all-in-cte` | UNION ALL inside CTE branch |
+| `intersect` | INTERSECT set operation |
+| `except` | EXCEPT set operation |
+| `grouping-sets` | GROUPING SETS |
+| `cube` | CUBE |
+| `rollup` | ROLLUP |
+| `pivot` | PIVOT / conditional aggregation |
+| `window-fn` | Window functions (ROW_NUMBER, LAG, COUNT OVER) |
+| `cross-join` | CROSS JOIN scaffold |
+| `not-exists` | NOT EXISTS anti-join |
+| `not-in` | NOT IN subquery |
+| `recursive-cte` | Recursive CTE (WITH RECURSIVE) |
+| `truncate-insert` | TRUNCATE + INSERT full-reload |
+| `truncate-insert-outer-apply` | TRUNCATE + INSERT + OUTER APPLY |
+| `merge` | MERGE INTO (SCD1/SCD2) |
+| `if-else` | IF/ELSE control flow |
+| `try-catch` | BEGIN TRY/CATCH |
+| `while-loop` | WHILE batch loop |
+| `nested-flow` | Nested control flow (IF inside TRY) |
+| `exec-chain` | Static EXEC call chain |
+| `exec-orchestrator` | EXEC-only orchestrator proc |
+| `exec-variable` | EXEC(@sql) dynamic variable |
+| `exec-concat` | EXEC string concatenation |
+| `cross-db-exec` | EXEC with 3-part cross-database name |
+| `linked-server-exec` | EXEC with 4-part linked server name |
+| `static-sp-exec` | sp_executesql with literal SQL |
+| `dynamic-sql` | sp_executesql with variable SQL |
+| `fact-transaction` | Fact table classification |
+
+---
+
 ## Scenarios
 
 ### Profiler
@@ -235,27 +311,37 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 
 ### Model-generator
 
-| Scenario | Target table | Pattern |
+| Scenario (pattern tag) | Target table | Notes |
 |---|---|---|
-| insert-select | silver.InsertSelectTarget | Simple INSERT...SELECT |
-| update-join | silver.UpdateJoinTarget | UPDATE with join |
-| delete-where | silver.DeleteWhereTarget | DELETE with WHERE (graceful no-model) |
-| select-into | silver.SelectIntoTarget | SELECT INTO |
-| single-cte | silver.SingleCteTarget | CTE restructured |
-| correlated-subquery | silver.CorrelatedSubqueryTarget | Correlated subquery |
-| union-all | silver.UnionAllTarget | UNION ALL preserved |
-| grouping-sets | silver.GroupingSetsTarget | GROUPING SETS / GROUP BY |
-| pivot | silver.PivotTarget | PIVOT to conditional aggregation |
-| window-functions | silver.FactInternetSales | Window expressions preserved |
-| outer-apply | silver.DimCustomer | OUTER APPLY rewrite |
-| truncate-insert | silver.DimCustomer | Full-reload materialization |
-| exec-orchestrator | silver.FactInternetSales | Orchestration (graceful no-model) |
-| dynamic-sp-executesql | silver.DimCurrency | Dynamic SQL (graceful no-model) |
-| if-else | silver.IfElseTarget | IF/ELSE control flow decomposition |
-| while-loop | silver.WhileLoopTarget | WHILE loop handling |
-| static-sp-executesql | silver.StaticSpExecTarget | Static sp_executesql resolved |
-| exec-variable-model | silver.ExecVariableTarget | EXEC(@sql) graceful no-model |
-| exec-concat-model | silver.ExecConcatTarget | EXEC concat graceful no-model |
+| `insert-select` | silver.InsertSelectTarget | Simple full-refresh |
+| `update-join` | silver.UpdateJoinTarget | UPDATE FROM JOIN rewritten |
+| `delete-where` | silver.DeleteWhereTarget | Graceful no-model |
+| `delete-top` | silver.DeleteTopTarget | Graceful no-model |
+| `select-into` | silver.SelectIntoTarget | Table materialization |
+| `cte` | silver.SingleCteTarget | CTE restructured |
+| `correlated-subquery` | silver.CorrelatedSubqueryTarget | Subquery preserved |
+| `union-all` | silver.UnionAllTarget | UNION ALL bare |
+| `union-all-in-cte` | silver.UnionAllCteTarget | UNION ALL inside CTE branch |
+| `intersect` | silver.IntersectTarget | INTERSECT preserved |
+| `except` | silver.ExceptTarget | EXCEPT preserved |
+| `grouping-sets` | silver.GroupingSetsTarget | GROUPING SETS / GROUP BY |
+| `cube` | silver.CubeTarget | CUBE preserved |
+| `rollup` | silver.RollupTarget | ROLLUP preserved |
+| `pivot` | silver.PivotTarget | PIVOT to conditional aggregation |
+| `window-fn` | silver.FactInternetSales | Window expressions preserved |
+| `cross-join` | silver.CrossJoinTarget | CROSS JOIN scaffold |
+| `not-exists` | silver.NotExistsTarget | NOT EXISTS anti-join |
+| `not-in` | silver.NotInTarget | NOT IN subquery |
+| `recursive-cte` | silver.RecursiveCteTarget | Recursive CTE hierarchy |
+| `truncate-insert-outer-apply` | silver.DimCustomer | Full-reload + OUTER APPLY |
+| `try-catch` | silver.TryCatchTarget | TRY/CATCH wrapping deterministic |
+| `if-else` | silver.IfElseTarget | IF/ELSE branches (llm_required) |
+| `nested-flow` | silver.NestedFlowTarget | control_flow_fallback |
+| `while-loop` | silver.WhileTarget | Graceful no-model (llm_required) |
+| `static-sp-exec` | silver.StaticSpExecTarget | sp_executesql literal resolved |
+| `exec-orchestrator` | silver.FactInternetSales | Graceful no-model |
+| `dynamic-sql` | silver.DimCurrency | Graceful no-model |
+| `linked-server-exec` | silver.LinkedServerExecTarget | Graceful no-model, out-of-scope |
 
 ### Test-generator
 
@@ -309,21 +395,14 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 
 ### Refactoring-sql
 
-| Scenario | Target table | Pattern | Key assertion |
-|---|---|---|---|
-| insert-select | silver.InsertSelectTarget | INSERT...SELECT | Extracted SELECT + CTE refactored |
-| merge-using | silver.DimProduct | MERGE USING | USING clause extracted, import CTEs |
-| update-join | silver.UpdateJoinTarget | UPDATE SET | CASE expression in extraction |
-| delete-where | silver.DeleteWhereTarget | DELETE WHERE | Inverted to keep-rows SELECT |
-| truncate-insert | silver.DimCustomer | TRUNCATE+INSERT+OUTER APPLY | Full reload with MIN(OrderDate) |
-| union-all | silver.UnionAllTarget | UNION ALL | Preserved in both outputs |
-| window-functions | silver.FactInternetSales | Window functions | COUNT OVER preserved |
-| grouping-sets | silver.GroupingSetsTarget | GROUPING SETS | Preserved in CTEs |
-| pivot | silver.PivotTarget | PIVOT | Handled in CTE restructuring |
-| delete-top | silver.DeleteTopTarget | DELETE TOP | Inverted to keep-rows SELECT |
-| recursive-cte | silver.RecursiveCteTarget | Recursive CTE | UNION ALL anchor + step preserved |
-| try-catch | silver.TryCatchTarget | TRY/CATCH | TRY block extracted, CATCH discarded |
-| nested-control-flow | silver.NestedFlowTarget | Nested IF/TRY | Decomposed into CTE structure |
+| Scenario (pattern tag) | Target table | Key assertion |
+|---|---|---|
+| `insert-select` | silver.InsertSelectTarget | Extracted SELECT + CTE with final |
+| `merge` | silver.DimProduct | USING clause extracted, import CTEs, isnull preserved |
+| `window-fn` | silver.FactInternetSales | COUNT OVER + PARTITION BY preserved in both outputs |
+| `truncate-insert` | silver.DimCustomer | Full reload, MIN(OrderDate) via OUTER APPLY |
+| `recursive-cte` | silver.RecursiveCteTarget | UNION ALL anchor + step preserved |
+| `union-all-in-cte` | silver.UnionAllCteTarget | UNION ALL inside CTE branch preserved |
 
 ### Command: scope
 

@@ -1,0 +1,47 @@
+{
+  "schema": "silver",
+  "name": "usp_load_cubetarget",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "Product",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            { "name": "Color", "is_selected": true, "is_updated": false },
+            { "name": "ProductLine", "is_selected": true, "is_updated": false },
+            { "name": "ListPrice", "is_selected": true, "is_updated": false }
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "CubeTarget",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            { "name": "Color", "is_selected": false, "is_updated": true },
+            { "name": "ProductLine", "is_selected": false, "is_updated": true },
+            { "name": "ProductCount", "is_selected": false, "is_updated": true },
+            { "name": "TotalListPrice", "is_selected": false, "is_updated": true }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": { "in_scope": [], "out_of_scope": [] },
+    "functions": { "in_scope": [], "out_of_scope": [] },
+    "procedures": { "in_scope": [], "out_of_scope": [] }
+  },
+  "mode": "deterministic",
+  "routing_reasons": [],
+  "statements": [
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "source": "ast",
+      "sql": "INSERT INTO silver.CubeTarget (Color, ProductLine, ProductCount, TotalListPrice) SELECT Color, ProductLine, COUNT(*), SUM(ListPrice) FROM bronze.Product GROUP BY CUBE(Color, ProductLine)"
+    }
+  ]
+}

@@ -1123,3 +1123,149 @@ BEGIN
 END;
 
 GO
+
+
+-- ── Synthetic pattern fixtures ────────────────────────────────────────────────
+
+-- ============================================================
+-- SCENARIO: INTERSECT — products that are both made and finished goods
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_IntersectTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.IntersectTarget;
+    INSERT INTO silver.IntersectTarget (ProductAlternateKey)
+    SELECT CAST(ProductID AS NVARCHAR(25)) FROM bronze.Product WHERE MakeFlag = 1
+    INTERSECT
+    SELECT CAST(ProductID AS NVARCHAR(25)) FROM bronze.Product WHERE FinishedGoodsFlag = 1;
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: EXCEPT — made products not yet discontinued
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_ExceptTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.ExceptTarget;
+    INSERT INTO silver.ExceptTarget (ProductAlternateKey)
+    SELECT CAST(ProductID AS NVARCHAR(25)) FROM bronze.Product WHERE MakeFlag = 1
+    EXCEPT
+    SELECT CAST(ProductID AS NVARCHAR(25)) FROM bronze.Product WHERE SellEndDate IS NOT NULL;
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: UNION ALL in CTE branch — active and discontinued products
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_UnionAllCteTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.UnionAllCteTarget;
+    WITH src AS (
+        SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName, 'active' AS Segment
+        FROM bronze.Product WHERE SellEndDate IS NULL
+        UNION ALL
+        SELECT CAST(ProductID AS NVARCHAR(25)), ProductName, 'discontinued'
+        FROM bronze.Product WHERE SellEndDate IS NOT NULL
+    )
+    INSERT INTO silver.UnionAllCteTarget (ProductAlternateKey, EnglishProductName, Segment)
+    SELECT ProductAlternateKey, ProductName, Segment FROM src;
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: CROSS JOIN — scaffold product × territory coverage matrix
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_CrossJoinTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.CrossJoinTarget;
+    INSERT INTO silver.CrossJoinTarget (ProductKey, TerritoryId, ProductName, TerritoryName)
+    SELECT p.ProductID, t.TerritoryID, p.ProductName, t.TerritoryName
+    FROM bronze.Product AS p
+    CROSS JOIN bronze.SalesTerritory AS t
+    WHERE p.SellEndDate IS NULL;
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: NOT EXISTS — products with no sales history
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_NotExistsTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.NotExistsTarget;
+    INSERT INTO silver.NotExistsTarget (ProductAlternateKey, EnglishProductName)
+    SELECT CAST(p.ProductID AS NVARCHAR(25)), p.ProductName
+    FROM bronze.Product AS p
+    WHERE NOT EXISTS (
+        SELECT 1 FROM bronze.SalesOrderDetail sod WHERE sod.ProductID = p.ProductID
+    );
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: NOT IN subquery — products absent from order detail
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_NotInTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.NotInTarget;
+    INSERT INTO silver.NotInTarget (ProductAlternateKey, EnglishProductName)
+    SELECT CAST(ProductID AS NVARCHAR(25)), ProductName
+    FROM bronze.Product
+    WHERE ProductID NOT IN (SELECT ProductID FROM bronze.SalesOrderDetail);
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: CUBE — all combinations of color × product line
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_CubeTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.CubeTarget;
+    INSERT INTO silver.CubeTarget (Color, ProductLine, ProductCount, TotalListPrice)
+    SELECT Color, ProductLine, COUNT(*), SUM(ListPrice)
+    FROM bronze.Product
+    GROUP BY CUBE(Color, ProductLine);
+END;
+
+GO
+
+
+-- ============================================================
+-- SCENARIO: ROLLUP — hierarchical subtotals by product line then color
+-- ============================================================
+CREATE PROCEDURE silver.usp_load_RollupTarget
+AS
+BEGIN
+    SET NOCOUNT ON;
+    TRUNCATE TABLE silver.RollupTarget;
+    INSERT INTO silver.RollupTarget (ProductLine, Color, ProductCount, TotalListPrice)
+    SELECT ProductLine, Color, COUNT(*), SUM(ListPrice)
+    FROM bronze.Product
+    GROUP BY ROLLUP(ProductLine, Color);
+END;
+
+GO
