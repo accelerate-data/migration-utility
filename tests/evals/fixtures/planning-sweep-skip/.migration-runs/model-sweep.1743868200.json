@@ -1,0 +1,16 @@
+{
+  "epoch": 1743868200,
+  "tables": [
+    {
+      "fqn": "silver.InsertSelectTarget",
+      "writer": "silver.usp_load_InsertSelectTarget",
+      "source_tables": ["bronze.product"],
+      "existing_stg_models": [],
+      "existing_mart_model": "insertselecttarget",
+      "test_status": "passing",
+      "recommended_action": "skip"
+    }
+  ],
+  "shared_staging_candidates": [],
+  "shared_staging_files_written": []
+}

@@ -1,0 +1,44 @@
+{
+  "schema": "silver",
+  "name": "usp_load_insertselecttarget",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "Product",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {"name": "ProductID", "is_selected": true, "is_updated": false},
+            {"name": "ProductName", "is_selected": true, "is_updated": false}
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "InsertSelectTarget",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {"name": "ProductAlternateKey", "is_selected": false, "is_updated": true},
+            {"name": "EnglishProductName", "is_selected": false, "is_updated": true}
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {"in_scope": [], "out_of_scope": []},
+    "functions": {"in_scope": [], "out_of_scope": []},
+    "procedures": {"in_scope": [], "out_of_scope": []}
+  },
+  "mode": "deterministic",
+  "routing_reasons": [],
+  "statements": [
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "source": "ast",
+      "sql": "INSERT INTO silver.InsertSelectTarget (ProductAlternateKey, EnglishProductName) SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product"
+    }
+  ]
+}
