@@ -165,6 +165,9 @@ def run_ready(project_root: Path, fqn: str, stage: str) -> dict[str, Any]:
             return {"ready": False, "reason": "test_gen_not_complete"}
         return {"ready": True, "reason": "ok"}
 
+    # "generate"/"migrate" checks whether refactor is complete (can I start?),
+    # NOT whether generate already succeeded. Use run_status() to check if
+    # generate.status == "ok" (is it done?).
     if stage in ("migrate", "generate"):
         if obj_type in ("view", "mv"):
             if cat is None:

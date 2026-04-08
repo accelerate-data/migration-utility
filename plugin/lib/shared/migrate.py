@@ -356,8 +356,9 @@ def run_write_generate(
     """
     norm = normalize(table_fqn)
 
-    # Check model file exists
-    model_file = project_root / model_path
+    # Check model file exists — model_path is relative to dbt project root
+    dbt_root = resolve_dbt_project_path(project_root)
+    model_file = dbt_root / model_path
     file_exists = model_file.exists()
 
     # Determine status
