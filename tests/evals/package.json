@@ -3,7 +3,7 @@
   "private": true,
   "description": "Promptfoo eval harness for skill testing",
   "scripts": {
-    "eval": "npm run eval:profiling-table && npm run eval:generating-model && npm run eval:generating-tests && npm run eval:reviewing-tests && npm run eval:reviewing-model && npm run eval:analyzing-table && npm run eval:refactoring-sql && npm run eval:view-pipeline && npm run eval:cmd-scope && npm run eval:cmd-profile && npm run eval:cmd-generate-model && npm run eval:cmd-generate-tests && npm run eval:cmd-refactor && npm run eval:cmd-status",
+    "eval": "npm run eval:profiling-table && npm run eval:generating-model && npm run eval:generating-tests && npm run eval:reviewing-tests && npm run eval:reviewing-model && npm run eval:analyzing-table && npm run eval:refactoring-sql && npm run eval:cmd-scope && npm run eval:cmd-profile && npm run eval:cmd-generate-model && npm run eval:cmd-generate-tests && npm run eval:cmd-refactor && npm run eval:cmd-status",
     "eval:profiling-table": "git checkout -- fixtures/ && promptfoo eval --no-cache -c packages/profiling-table/skill-profiling-table.yaml; git checkout -- fixtures/ && git clean -fd fixtures/",
     "eval:generating-model": "git checkout -- fixtures/ && promptfoo eval --no-cache -c packages/generating-model/skill-generating-model.yaml; git checkout -- fixtures/ && git clean -fd fixtures/",
     "eval:generating-tests": "git checkout -- fixtures/ && promptfoo eval --no-cache -c packages/generating-tests/skill-generating-tests.yaml; git checkout -- fixtures/ && git clean -fd fixtures/",
@@ -17,7 +17,7 @@
     "eval:cmd-status": "git checkout -- fixtures/ && promptfoo eval --no-cache -c packages/cmd-status/cmd-status.yaml; git checkout -- fixtures/ && git clean -fd fixtures/",
     "eval:refactoring-sql": "git checkout -- fixtures/ && promptfoo eval --no-cache -c packages/refactoring-sql/skill-refactoring-sql.yaml; git checkout -- fixtures/ && git clean -fd fixtures/",
     "eval:cmd-refactor": "git checkout -- fixtures/ && promptfoo eval --no-cache -c packages/cmd-refactor/cmd-refactor.yaml; git checkout -- fixtures/ && git clean -fd fixtures/",
-    "eval:view-pipeline": "git checkout -- fixtures/ && promptfoo eval --no-cache -c packages/view-pipeline/skill-view-pipeline.yaml; git checkout -- fixtures/ && git clean -fd fixtures/",
+
     "prerestore:oracle-regression": "git checkout -- oracle-regression/fixtures/",
     "postrestore:oracle-regression": "git checkout -- oracle-regression/fixtures/ && git clean -fd oracle-regression/fixtures/",
     "prerestore:oracle-live": "git checkout -- oracle-live/fixtures/ 2>/dev/null || true",

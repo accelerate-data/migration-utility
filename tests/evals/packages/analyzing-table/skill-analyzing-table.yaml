@@ -2,7 +2,12 @@
 description: "Scoping-table skill — writer discovery, procedure analysis, and scope resolution for tables"
 
 prompts:
-  - file://../../prompts/skill-analyzing-table.txt
+  - id: analyzing-table
+    label: analyzing-table
+    raw: file://../../prompts/skill-analyzing-table.txt
+  - id: analyzing-table-view
+    label: analyzing-table-view
+    raw: file://../../prompts/skill-analyzing-table-view.txt
 
 providers:
   - id: anthropic:claude-agent-sdk
@@ -123,3 +128,27 @@ tests:
       target_procedure: "silver.usp_load_DimDynamicBranch"
       expected_status: "resolved"
       expected_writer: "dimdynamicbranch"
+
+  # ── view scoping scenarios ─────────────────────────────────
+
+  # single-table pass-through SELECT with column list
+  - description: "view-scope-passthrough — vDimSalesTerritory single-table select"
+    prompts: ["analyzing-table-view"]
+    vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/view-scope-passthrough"
+      target_view: "silver.vDimSalesTerritory"
+      check_type: "scoping"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-view-catalog.js
+
+  # multi-column pass-through on DimPromotion
+  - description: "view-scope-multi-col — vw_DimPromotion multi-column select"
+    prompts: ["analyzing-table-view"]
+    vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/view-scope-multi-col"
+      target_view: "silver.vw_DimPromotion"
+      check_type: "scoping"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-view-catalog.js

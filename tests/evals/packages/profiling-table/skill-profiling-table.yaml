@@ -2,7 +2,12 @@
 description: "Profile skill — LLM profiling of tables for migration"
 
 prompts:
-  - file://../../prompts/skill-profiling-table.txt
+  - id: profiling-table
+    label: profiling-table
+    raw: file://../../prompts/skill-profiling-table.txt
+  - id: profiling-table-view
+    label: profiling-table-view
+    raw: file://../../prompts/skill-profiling-table-view.txt
 
 providers:
   - id: anthropic:claude-agent-sdk
@@ -140,3 +145,17 @@ tests:
       writer: "silver.usp_load_DimSalesFlags"
       expected_kind: "dim_junk"
       expected_status: "ok"
+
+  # ── view profiling scenarios ───────────────────────────────
+
+  # single-source, no aggregation → stg
+  - description: "view-profile-stg — vw_currency_ref single-source no-agg"
+    prompts: ["profiling-table-view"]
+    vars:
+      fixture_path: "tests/evals/fixtures/profiling-table/view-profile-stg"
+      target_view: "silver.vw_currency_ref"
+      check_type: "profile"
+      expected_classification: "stg"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-view-catalog.js
