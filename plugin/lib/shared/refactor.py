@@ -209,7 +209,7 @@ def run_context(
     source_columns = {
         fqn: load_object_columns(project_root, fqn) for fqn in source_tables
     }
-    test_spec = load_test_spec(project_root, table_norm)
+    test_spec = load_test_spec(project_root, fqn_norm)
     sandbox = sandbox_metadata(project_root)
 
     logger.info(
