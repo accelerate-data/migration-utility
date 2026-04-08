@@ -9,12 +9,18 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import Any, NoReturn, Optional
 
 import typer
 
-from shared.env_config import resolve_project_root
+from shared.catalog import (
+    write_json as _write_catalog_json,
+)
+from shared.cli_utils import emit
+from shared.env_config import resolve_catalog_dir, resolve_project_root
+from shared.loader import CatalogFileMissingError, CatalogLoadError
 from shared.loader_io import clear_manifest_sandbox, read_manifest, write_manifest_sandbox
+from shared.name_resolver import normalize
 from shared.sandbox import get_backend
 from shared.sandbox.base import SandboxBackend
 
@@ -378,6 +384,123 @@ def compare_sql(
     )
     if passed_count == 0:
         raise typer.Exit(code=1)
+
+
+# ── Write test-gen summary ────────────────────────────────────────────────────
+
+
+def run_write_test_gen(
+    project_root: Path,
+    table_fqn: str,
+    branches: int,
+    unit_tests: int,
+    coverage: str,
+    warnings: list[dict[str, Any]] | None = None,
+    errors: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Validate test-gen output and write test_gen section to catalog.
+
+    Reads the test-spec file from disk to verify it exists and is valid JSON.
+    Determines status: file exists + valid JSON + branches > 0 → ok; otherwise → error.
+    Writes the test_gen section to the table or view catalog file.
+    """
+    norm = normalize(table_fqn)
+
+    # Check test-spec file exists and is valid JSON
+    spec_path = project_root / "test-specs" / f"{norm}.json"
+    spec_valid = False
+    if spec_path.exists():
+        try:
+            json.loads(spec_path.read_text(encoding="utf-8"))
+            spec_valid = True
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            spec_valid = False
+
+    # Determine status
+    status = "ok" if spec_valid and branches > 0 else "error"
+
+    # Build test_gen section
+    test_gen: dict[str, Any] = {
+        "status": status,
+        "test_spec_path": f"test-specs/{norm}.json",
+        "branches": branches,
+        "unit_tests": unit_tests,
+        "coverage": coverage,
+        "warnings": warnings or [],
+        "errors": errors or [],
+    }
+
+    # Auto-detect table vs view: check view catalog first
+    catalog_dir = resolve_catalog_dir(project_root)
+    cat_path = catalog_dir / "views" / f"{norm}.json"
+    if not cat_path.exists():
+        cat_path = catalog_dir / "tables" / f"{norm}.json"
+    if not cat_path.exists():
+        raise CatalogFileMissingError("table or view", norm)
+
+    # Load existing catalog, merge, write back
+    try:
+        existing = json.loads(cat_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise CatalogLoadError(str(cat_path), exc) from exc
+
+    existing["test_gen"] = test_gen
+
+    try:
+        _write_catalog_json(cat_path, existing)
+    except OSError as exc:
+        logger.error("event=write_failed operation=atomic_write table=%s error=%s", norm, exc)
+        raise
+
+    logger.info("event=write_test_gen_complete table=%s status=%s", norm, status)
+    return {"ok": True, "table": norm, "status": status, "catalog_path": str(cat_path)}
+
+
+@app.command("write")
+def write_cmd(
+    table: str = typer.Option(..., help="Fully-qualified table/view name"),
+    branches: int = typer.Option(..., help="Number of test branches"),
+    unit_tests: int = typer.Option(..., "--unit-tests", help="Number of unit tests"),
+    coverage: str = typer.Option(..., help="Coverage level: complete, partial, none"),
+    warnings_json: Optional[str] = typer.Option(None, "--warnings", help="JSON array of warning diagnostics"),
+    errors_json: Optional[str] = typer.Option(None, "--errors", help="JSON array of error diagnostics"),
+    project_root: Optional[Path] = typer.Option(None, "--project-root"),
+) -> None:
+    """Write test-gen summary to catalog with CLI-determined status."""
+    root = resolve_project_root(project_root)
+
+    parsed_warnings: list[dict[str, Any]] | None = None
+    parsed_errors: list[dict[str, Any]] | None = None
+    if warnings_json:
+        try:
+            parsed_warnings = json.loads(warnings_json)
+        except json.JSONDecodeError as exc:
+            logger.error("event=write_failed operation=parse_warnings table=%s error=%s", table, exc)
+            raise typer.Exit(code=1) from exc
+    if errors_json:
+        try:
+            parsed_errors = json.loads(errors_json)
+        except json.JSONDecodeError as exc:
+            logger.error("event=write_failed operation=parse_errors table=%s error=%s", table, exc)
+            raise typer.Exit(code=1) from exc
+
+    try:
+        result = run_write_test_gen(
+            project_root=root,
+            table_fqn=table,
+            branches=branches,
+            unit_tests=unit_tests,
+            coverage=coverage,
+            warnings=parsed_warnings,
+            errors=parsed_errors,
+        )
+    except (CatalogFileMissingError, CatalogLoadError) as exc:
+        logger.error("event=write_failed table=%s error=%s", table, exc)
+        raise typer.Exit(code=1) from exc
+    except OSError as exc:
+        logger.error("event=write_failed table=%s error=%s", table, exc)
+        raise typer.Exit(code=2) from exc
+    emit(result)
 
 
 if __name__ == "__main__":
