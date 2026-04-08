@@ -33,6 +33,7 @@ from shared.catalog import (
 )
 from shared.context_helpers import (
     collect_source_tables,
+    load_object_columns,
     load_proc_body,
     load_proc_statements,
     load_table_columns,
@@ -194,6 +195,9 @@ def run_context(
     proc_body = load_proc_body(project_root, writer_norm)
     columns = load_table_columns(project_root, table_norm)
     source_tables = collect_source_tables(project_root, writer_norm)
+    source_columns = {
+        fqn: load_object_columns(project_root, fqn) for fqn in source_tables
+    }
     materialization = derive_materialization(profile)
     schema_tests = derive_schema_tests(profile)
     refactored_sql = _load_refactored_sql(project_root, table_norm)
@@ -208,6 +212,7 @@ def run_context(
         "proc_body": proc_body,
         "columns": columns,
         "source_tables": source_tables,
+        "source_columns": source_columns,
         "schema_tests": schema_tests,
         "refactored_sql": refactored_sql,
     }

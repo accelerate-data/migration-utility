@@ -57,8 +57,19 @@
     },
     "source_tables": {
       "type": "array",
-      "description": "Normalised FQNs of tables read by the writer procedure.",
+      "description": "Normalised FQNs of tables and views read by the writer procedure.",
       "items": { "type": "string" }
+    },
+    "source_columns": {
+      "type": "object",
+      "description": "Column metadata for each source table/view, keyed by normalised FQN.",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
     },
     "schema_tests": {
       "type": "object",
