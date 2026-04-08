@@ -180,8 +180,8 @@
     "python_classes": "PascalCase (CandidacyAgent, PlanState)",
     "python_functions": "snake_case (get_stored_procs, artifact_tier)",
     "commits": "Granular — one concern per commit. Stage specific files (git add <file>, not git add .).",
-    "pr_title": "<command>: <table1>, <table2> for batch commands; descriptive title otherwise",
-    "pr_body": "Table-level summary from the run"
+    "pr_title": "VU-XXX: short description",
+    "pr_body": "Fixes VU-XXX"
   },
   "key_references": {
     "coding_conventions": ".claude/rules/coding-conventions.md",

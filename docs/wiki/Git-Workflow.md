@@ -74,10 +74,12 @@ generate-model(silver.FactSales): stg_factsales + mart, incremental materializat
 
 ## PR format
 
-Pull requests have titles derived from the command and tables processed:
+Pull requests have titles derived from the command and tables processed — no Linear issue ID required when working in a customer repo:
 
 - **Title:** `<command>: <table1>, <table2>` (e.g. `scope: silver.DimCustomer, silver.DimProduct`)
 - **Body:** table-level summary from the run
+
+If you are working on a development issue with a Linear ID, pass it directly: `/commit-push-pr VU-XXX`.
 
 At the end of each batch command, you are offered the option to open a PR:
 

@@ -100,14 +100,19 @@ See `.claude/rules/coding-conventions.md` for canonical error-handling policy.
 
 Update stale entries in the same commit that introduced the structural change.
 
-## PR Format
+## Issue Management
 
+- **PR title format:** `VU-XXX: short description`
+- **PR body link:** `Fixes VU-XXX`
 - **Worktrees:** `../worktrees/<branchName>` relative to repo root. Full rules: `.claude/rules/git-workflow.md`.
 
 ## Skills
 
 Use these repo-local skills when requests match:
 
+- `.claude/skills/create-linear-issue/SKILL.md` — create/log/file a Linear issue, bug, feature, or ticket decomposition
+- `.claude/skills/implement-linear-issue/SKILL.md` — implement/fix/work on a Linear issue (e.g. `VU-123`)
+- `.claude/skills/close-linear-issue/SKILL.md` — close/complete/ship/merge a Linear issue
 - `.claude/skills/shadcn-ui/SKILL.md` — shadcn/ui component work
 - `.claude/skills/explaining-code/SKILL.md` — explain code with diagrams/teaching-style breakdowns
 
