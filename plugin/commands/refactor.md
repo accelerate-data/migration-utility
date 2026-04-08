@@ -10,7 +10,7 @@ argument-hint: "<schema.table> [schema.table ...]"
 
 # Refactor
 
-Restructure stored procedure SQL into import/logical/final CTEs with a self-correcting audit loop proving equivalence. Launches one sub-agent per table in parallel, each running `/refactoring-sql`.
+Restructure stored procedure or view SQL into import/logical/final CTEs with a self-correcting audit loop proving equivalence. For 2+ objects, runs a planning sweep that collects refactor status from the catalog, detects shared staging candidates, and presents a pre-flight table with skip/re-refactor/refactor recommendations. Execution is plan-driven with phase-based task tracking.
 
 ## Guards
 
@@ -24,7 +24,20 @@ Per-item guards are checked by the skill via `migrate-util guard`.
 
 ## Progress Tracking
 
-Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2, create one task per table with status `pending`. Update each task to `in_progress` before it starts processing, and to `completed` (ok/partial result) or `cancelled` (error — include the error code) when it finishes.
+Use `TaskCreate` and `TaskUpdate` to track execution phases, not individual objects.
+
+For **2+ objects**, create these tasks at command start:
+
+| Task subject | Complete when |
+|---|---|
+| `sweep` | Plan artifact written and shared sources persisted |
+| `pre-flight` | User confirms the plan |
+| `execute: <description>` | That execution thread finishes (create when Claude decides each thread) |
+| `summarize` | Summary written |
+
+Thread task subjects describe the work: e.g. `execute: refactor silver.DimCustomer, silver.FactSales` or `execute: re-refactor silver.DimProduct`. Skipped objects are not tracked as tasks — they appear in the summary only.
+
+For **single-object runs**: create one `execute: refactor <fqn>` task and one `summarize` task. No sweep or pre-flight tasks.
 
 ## Pipeline
 
@@ -38,9 +51,39 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
    - Otherwise: use the returned path as the working directory for all file writes and git operations in this run. Set `<working-directory>` to the returned path.
 3. Generate a run epoch: seconds since Unix epoch. All run artifacts use this as a filename suffix.
 
-### Step 2 -- Refactor per table
+### Step 1b -- Planning sweep (2+ objects only)
 
-**Single-table path (1 table):** Run `/refactoring-sql` directly in the current conversation -- do not launch a sub-agent. After the skill completes, write the item result JSON to `.migration-runs/<schema.table>.<epoch>.json`.
+Run the sweep CLI to collect refactor status and dbt model existence for each object:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" refactor sweep \
+  --tables <fqn1> --tables <fqn2> ... \
+  --project-root <working-directory>
+```
+
+Read the output JSON. It contains per-object signals and a `shared_staging_candidates` list. Write the plan artifact to `.migration-runs/refactor-sweep.<epoch>.json`.
+
+Present a pre-flight table to the user:
+
+```text
+Object                       Status    Staging  Mart   Action
+───────────────────────────────────────────────────────────────
+silver.DimCustomer           ok        1/1      yes    skip
+silver.DimProduct            partial   0/2      no     re-refactor
+silver.FactSales             —         1/3      no     refactor
+
+Shared staging candidates: bronze.CustomerRaw (2 SPs)
+
+Proceed? (y/n/edit)
+```
+
+- On `y`: proceed to Step 2.
+- On `edit`: user specifies per-object action overrides (e.g. `silver.DimCustomer: refactor`). Update the plan artifact to reflect the override before proceeding.
+- On `n`: abort the run.
+
+### Step 2 -- Execute refactoring (plan-driven)
+
+**Single-object path (1 object):** Run `/refactoring-sql` directly in the current conversation -- do not launch a sub-agent. After the skill completes, write the item result JSON to `.migration-runs/<schema.object>.<epoch>.json`.
 
 If the item status is `error`, immediately revert any catalog changes:
 
@@ -52,12 +95,24 @@ If the item status is not `error`, auto-commit and push: run `/commit catalog/ta
 
 Then continue to Step 3.
 
-**Multi-table path (2+ tables):** Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
+**Multi-object path (2+ objects):** Read the sweep plan. For each object:
+
+- `recommended_action: "skip"` — write a skip result immediately (no agent needed):
+
+  ```json
+  {"item_id": "<fqn>", "status": "ok", "output": {"skipped": true, "reason": "refactor.status=ok"}}
+  ```
+
+- `recommended_action: "re-refactor"` or `"refactor"` — spawn an agent for `/refactoring-sql`
+
+Claude decides how many agents to spawn and which objects to group into execution threads, based on shared staging relationships. Objects that share staging candidates can run fully in parallel since their shared sources are already identified.
+
+**Refactor agent prompt:**
 
 ```text
-Run the /refactoring-sql skill for <schema.table>.
+Run the /refactoring-sql skill for <schema.object>.
 The working directory is <working-directory>.
-Write the item result JSON to .migration-runs/<schema.table>.<epoch>.json.
+Write the item result JSON to .migration-runs/<schema.object>.<epoch>.json.
 
 After writing the result:
 - If status == "error": run `git checkout -- catalog/tables/<item_id>.json`.
