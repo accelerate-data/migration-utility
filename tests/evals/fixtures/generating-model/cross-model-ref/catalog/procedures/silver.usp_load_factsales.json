@@ -1,0 +1,53 @@
+{
+  "schema": "silver",
+  "name": "usp_load_factsales",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "SalesOrder",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {"name": "CustomerID", "is_selected": true, "is_updated": false},
+            {"name": "OrderDate", "is_selected": true, "is_updated": false},
+            {"name": "TotalAmount", "is_selected": true, "is_updated": false}
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "DimCustomer",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {"name": "CustomerKey", "is_selected": true, "is_updated": false},
+            {"name": "CustomerAlternateKey", "is_selected": true, "is_updated": false}
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "FactSales",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {"name": "CustomerKey", "is_selected": false, "is_updated": true},
+            {"name": "OrderDate", "is_selected": false, "is_updated": true},
+            {"name": "SalesAmount", "is_selected": false, "is_updated": true}
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {"in_scope": [], "out_of_scope": []},
+    "functions": {"in_scope": [], "out_of_scope": []},
+    "procedures": {"in_scope": [], "out_of_scope": []}
+  },
+  "statements": [
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "sql": "INSERT INTO silver.FactSales (CustomerKey, OrderDate, SalesAmount) SELECT dc.CustomerKey, so.OrderDate, so.TotalAmount FROM bronze.SalesOrder so JOIN silver.DimCustomer dc ON so.CustomerID = dc.CustomerAlternateKey"
+    }
+  ]
+}
