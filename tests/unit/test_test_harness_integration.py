@@ -496,3 +496,82 @@ class TestIdentityInsertIntegration:
             assert result["status"] == "ok", f"Expected ok, got: {result['errors']}"
         finally:
             backend.sandbox_down(sandbox_db=up["sandbox_database"])
+
+
+@skip_no_mssql
+class TestEnsureViewTablesIntegration:
+    """Verify that view-sourced fixtures are materialised end-to-end in a real SQL Server sandbox."""
+
+    def _create_view(self, backend: SqlServerSandbox, view_name: str) -> None:
+        with backend._connect(database=backend.database) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"CREATE OR ALTER VIEW [silver].[{view_name}] "
+                f"AS SELECT CurrencyCode, CurrencyName FROM [bronze].[Currency]"
+            )
+
+    def _drop_view(self, backend: SqlServerSandbox, view_name: str) -> None:
+        with backend._connect(database=backend.database) as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"DROP VIEW IF EXISTS [silver].[{view_name}]")
+
+    def _create_proc(
+        self, backend: SqlServerSandbox, proc_name: str, view_name: str
+    ) -> None:
+        with backend._connect(database=backend.database) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"""
+                CREATE OR ALTER PROCEDURE [silver].[{proc_name}]
+                AS
+                BEGIN
+                    -- Reads from view fixture; ground truth is whatever remains in target
+                    DECLARE @cnt INT;
+                    SELECT @cnt = COUNT(*) FROM [silver].[{view_name}];
+                END
+                """
+            )
+
+    def _drop_proc(self, backend: SqlServerSandbox, proc_name: str) -> None:
+        with backend._connect(database=backend.database) as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"DROP PROCEDURE IF EXISTS [silver].[{proc_name}]")
+
+    def test_view_fixture_executes_without_error(self) -> None:
+        """execute_scenario succeeds when a fixture source is a view in the source DB."""
+        backend = _make_backend()
+        view_name = f"vw_test_{uuid.uuid4().hex[:10]}"
+        proc_name = f"usp_fromview_{uuid.uuid4().hex[:10]}"
+
+        self._create_view(backend, view_name)
+        self._create_proc(backend, proc_name, view_name)
+
+        up_result: dict = {}
+        try:
+            up_result = backend.sandbox_up(schemas=["bronze", "silver"])
+            sandbox_db = up_result["sandbox_database"]
+            assert up_result["status"] in ("ok", "partial")
+
+            scenario = {
+                "name": "test_view_fixture",
+                "target_table": "[silver].[DimCurrency]",
+                "procedure": f"[silver].[{proc_name}]",
+                "given": [
+                    {
+                        "table": f"[silver].[{view_name}]",
+                        "rows": [
+                            {"CurrencyCode": "VWT", "CurrencyName": "View Test"},
+                        ],
+                    }
+                ],
+            }
+
+            result = backend.execute_scenario(sandbox_db=sandbox_db, scenario=scenario)
+
+            assert result["status"] == "ok", result["errors"]
+            assert result["errors"] == []
+        finally:
+            if up_result.get("sandbox_database"):
+                backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            self._drop_proc(backend, proc_name)
+            self._drop_view(backend, view_name)

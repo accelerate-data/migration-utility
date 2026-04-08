@@ -36,6 +36,7 @@ from shared.context_helpers import (
     load_object_columns,
     load_proc_body,
     load_proc_statements,
+    load_source_columns,
     load_table_columns,
     load_table_profile,
 )

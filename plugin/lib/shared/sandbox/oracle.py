@@ -618,6 +618,53 @@ class OracleSandbox(SandboxBackend):
             ]
             cursor.executemany(insert_sql, value_lists)
 
+    def _ensure_view_tables(
+        self,
+        sandbox_db: str,
+        given: list[dict[str, Any]],
+    ) -> list[str]:
+        """CTAS view-sourced fixtures as empty shell tables in the sandbox.
+
+        For each entry in *given* whose object is a view in the source schema:
+        drops the sandbox object (tolerating not-found), then CTASes it as an
+        empty table so that fixture rows can be inserted normally.
+
+        Oracle DDL auto-commits, so the shell table persists across the rollback
+        that ends each scenario.  Idempotent within a sandbox lifetime because
+        subsequent scenarios find the table already present.
+
+        Table names in fixtures are bare identifiers (no schema prefix);
+        this method qualifies them with ``self.source_schema`` for the source
+        lookup and ``sandbox_db`` for the sandbox DDL.
+        """
+        materialized: list[str] = []
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            for fixture in given:
+                view_name = fixture["table"]
+                _validate_oracle_identifier(view_name)
+                cursor.execute(
+                    "SELECT 1 FROM ALL_VIEWS "
+                    "WHERE OWNER = UPPER(:1) AND VIEW_NAME = UPPER(:2)",
+                    [self.source_schema, view_name],
+                )
+                if cursor.fetchone() is None:
+                    continue  # base table — already cloned by _clone_tables
+                try:
+                    cursor.execute(f'DROP TABLE "{sandbox_db}"."{view_name}"')
+                except oracledb.DatabaseError:
+                    pass  # object did not exist; nothing to drop
+                cursor.execute(
+                    f'CREATE TABLE "{sandbox_db}"."{view_name}" '
+                    f'AS SELECT * FROM "{self.source_schema}"."{view_name}" WHERE 1=0'
+                )
+                materialized.append(view_name)
+                logger.info(
+                    "event=oracle_view_materialized sandbox=%s view=%s",
+                    sandbox_db, view_name,
+                )
+        return materialized
+
     @staticmethod
     def _capture_rows(cursor: Any) -> list[dict[str, Any]]:
         """Read all rows from the current cursor result set as dicts."""
@@ -647,6 +694,8 @@ class OracleSandbox(SandboxBackend):
         _validate_oracle_identifier(target_table)
         _validate_oracle_identifier(procedure)
         _validate_fixtures(given)
+
+        self._ensure_view_tables(sandbox_db, given)
 
         logger.info(
             "event=oracle_execute_scenario sandbox=%s scenario=%s procedure=%s",

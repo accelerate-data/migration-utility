@@ -483,6 +483,72 @@ END
         assert result["needs_llm"] is True
         assert result["statements"] == []
 
+    def test_source_columns_populated_from_view_catalog(self, ddl_path: Path) -> None:
+        """When a source is a view, source_columns falls back to catalog/views/<fqn>.json."""
+        view_fqn = "silver.vw_currency"
+        view_columns = [
+            {"name": "CurrencyCode", "data_type": "NCHAR(3)"},
+            {"name": "CurrencyName", "data_type": "NVARCHAR(50)"},
+        ]
+
+        # Write view catalog (no table catalog for this FQN)
+        _write_catalog(
+            ddl_path / "catalog" / "views" / f"{view_fqn}.json",
+            {"schema": "silver", "name": "vw_currency", "columns": view_columns},
+        )
+
+        _seed_migrate_fixture(
+            ddl_path,
+            "silver.factcurrencyrate",
+            "dbo.usp_load_fact_currency_rate",
+            """
+CREATE PROCEDURE [dbo].[usp_load_fact_currency_rate]
+AS
+BEGIN
+    INSERT INTO [silver].[FactCurrencyRate] (CurrencyCode)
+    SELECT CurrencyCode FROM [silver].[vw_currency]
+END
+""",
+            {
+                "mode": "direct",
+                "statements": [{"type": "insert", "action": "migrate"}],
+                "references": {
+                    "tables": {
+                        "in_scope": [
+                            {
+                                "schema": "silver",
+                                "name": "vw_currency",
+                                "is_selected": True,
+                                "is_updated": False,
+                            }
+                        ]
+                    }
+                },
+            },
+            {
+                "schema": "silver",
+                "name": "factcurrencyrate",
+                "columns": [{"name": "CurrencyCode", "data_type": "NCHAR(3)"}],
+                "profile": {
+                    "status": "ok",
+                    "writer": "dbo.usp_load_fact_currency_rate",
+                    "classification": {"resolved_kind": "fact_transaction", "source": "catalog"},
+                    "primary_key": None,
+                    "watermark": None,
+                    "foreign_keys": [],
+                    "pii_actions": [],
+                },
+            },
+        )
+
+        result = run_context(
+            ddl_path, "silver.factcurrencyrate", "dbo.usp_load_fact_currency_rate"
+        )
+
+        assert "source_columns" in result
+        assert "silver.vw_currency" in result["source_columns"]
+        assert result["source_columns"]["silver.vw_currency"] == view_columns
+
 
 class TestRunContextViewSources:
     """Context assembly includes view sources and pre-resolved columns."""

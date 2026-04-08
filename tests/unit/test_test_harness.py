@@ -167,7 +167,17 @@ def _mock_connect_factory(
     sandbox_cursor: MagicMock | None = None,
     default_cursor: MagicMock | None = None,
 ) -> Callable[..., Any]:
-    """Return a _connect side_effect that routes by database keyword arg."""
+    """Return a _connect side_effect that routes by database keyword arg.
+
+    Routing:
+    - database starts with '__test_' → sandbox_cursor (if set)
+    - named non-sandbox database → source_cursor (if set)
+    - database=None (source default) → default_cursor if set, else noop cursor
+    - fallback → noop cursor that returns None for fetchone (not a view)
+
+    The noop fallback keeps existing tests that don't configure every cursor
+    from breaking when _ensure_view_tables opens a source connection.
+    """
     @contextmanager
     def _fake_connect(*, database: str | None = None):
         conn = MagicMock()
@@ -178,7 +188,9 @@ def _mock_connect_factory(
         elif default_cursor is not None:
             conn.cursor.return_value = default_cursor
         else:
-            raise AssertionError(f"Unexpected _connect call: database={database!r}")
+            noop = MagicMock()
+            noop.fetchone.return_value = None  # "not a view" for _ensure_view_tables
+            conn.cursor.return_value = noop
         yield conn
     return _fake_connect
 
@@ -1547,3 +1559,173 @@ class TestOracleSandboxFromEnv:
         assert backend.port == "1521"
         assert backend.service == "FREEPDB1"
         assert backend.admin_user == "sys"
+
+
+# ── _ensure_view_tables (SQL Server) ─────────────────────────────────────────
+
+
+class TestEnsureViewTablesSqlServer:
+    """Unit tests for SqlServerSandbox._ensure_view_tables."""
+
+    def test_view_ctas_executed(self) -> None:
+        """A view in the source DB is materialised as an empty table in the sandbox."""
+        backend = _make_backend()
+        source_cursor = MagicMock()
+        source_cursor.fetchone.return_value = (1,)  # object IS a view
+
+        sandbox_cursor = MagicMock()
+
+        fake_connect = _mock_connect_factory(
+            default_cursor=source_cursor,
+            sandbox_cursor=sandbox_cursor,
+        )
+
+        given = [{"table": "[silver].[vw_product]", "rows": []}]
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            materialized = backend._ensure_view_tables("__test_abc123", given)
+
+        assert materialized == ["silver.vw_product"]
+        calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
+        ctas_calls = [c for c in calls if "SELECT TOP 0" in c]
+        assert len(ctas_calls) == 1
+
+    def test_base_table_skipped(self) -> None:
+        """A base table (not a view) is not CTASed — it is already cloned by _clone_tables."""
+        backend = _make_backend()
+        source_cursor = MagicMock()
+        source_cursor.fetchone.return_value = None  # NOT a view
+
+        sandbox_cursor = MagicMock()
+
+        fake_connect = _mock_connect_factory(
+            default_cursor=source_cursor,
+            sandbox_cursor=sandbox_cursor,
+        )
+
+        given = [{"table": "[bronze].[Currency]", "rows": []}]
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            materialized = backend._ensure_view_tables("__test_abc123", given)
+
+        assert materialized == []
+        sandbox_cursor.execute.assert_not_called()
+
+    def test_stale_object_dropped_before_ctas(self) -> None:
+        """If DROP raises pyodbc.Error, the exception is swallowed and CTAS still runs."""
+        import pyodbc
+
+        backend = _make_backend()
+        source_cursor = MagicMock()
+        source_cursor.fetchone.return_value = (1,)  # IS a view
+
+        sandbox_cursor = MagicMock()
+        sandbox_cursor.execute.side_effect = [
+            pyodbc.Error,  # DROP TABLE IF EXISTS raises
+            None,          # SELECT TOP 0 * INTO succeeds
+        ]
+
+        fake_connect = _mock_connect_factory(
+            default_cursor=source_cursor,
+            sandbox_cursor=sandbox_cursor,
+        )
+
+        given = [{"table": "[silver].[vw_stale]", "rows": []}]
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            materialized = backend._ensure_view_tables("__test_abc123", given)
+
+        assert materialized == ["silver.vw_stale"]
+        calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
+        ctas_calls = [c for c in calls if "SELECT TOP 0" in c]
+        assert len(ctas_calls) == 1
+
+
+# ── _ensure_view_tables (Oracle) ──────────────────────────────────────────────
+
+
+class TestEnsureViewTablesOracle:
+    """Unit tests for OracleSandbox._ensure_view_tables."""
+
+    def _make_oracle_backend(self) -> OracleSandbox:
+        return OracleSandbox(
+            host="localhost",
+            port="1521",
+            service="FREEPDB1",
+            password="TestPass123",
+            admin_user="sys",
+            source_schema="SH",
+        )
+
+    def test_view_ctas_executed(self) -> None:
+        """A view in the source schema is materialised as an empty table in the sandbox."""
+        backend = self._make_oracle_backend()
+        cursor = MagicMock()
+        cursor.fetchone.return_value = (1,)  # object IS a view
+
+        @contextmanager
+        def _fake_connect(**kwargs):
+            conn = MagicMock()
+            conn.cursor.return_value = cursor
+            yield conn
+
+        given = [{"table": "VW_PRODUCT", "rows": []}]
+
+        with patch.object(backend, "_connect", side_effect=_fake_connect):
+            materialized = backend._ensure_view_tables("__test_abc123", given)
+
+        assert materialized == ["VW_PRODUCT"]
+        calls = [str(c) for c in cursor.execute.call_args_list]
+        ctas_calls = [c for c in calls if "CREATE TABLE" in c]
+        assert len(ctas_calls) == 1
+
+    def test_base_table_skipped(self) -> None:
+        """A base table (not a view) is not CTASed."""
+        backend = self._make_oracle_backend()
+        cursor = MagicMock()
+        cursor.fetchone.return_value = None  # NOT a view
+
+        @contextmanager
+        def _fake_connect(**kwargs):
+            conn = MagicMock()
+            conn.cursor.return_value = cursor
+            yield conn
+
+        given = [{"table": "CHANNELS", "rows": []}]
+
+        with patch.object(backend, "_connect", side_effect=_fake_connect):
+            materialized = backend._ensure_view_tables("__test_abc123", given)
+
+        assert materialized == []
+        calls = [str(c) for c in cursor.execute.call_args_list]
+        ctas_calls = [c for c in calls if "CREATE TABLE" in c]
+        assert len(ctas_calls) == 0
+
+    def test_stale_object_dropped_before_ctas(self) -> None:
+        """If DROP raises oracledb.DatabaseError, the exception is swallowed and CTAS still runs."""
+        import oracledb
+
+        backend = self._make_oracle_backend()
+        cursor = MagicMock()
+        cursor.fetchone.return_value = (1,)  # IS a view
+        cursor.execute.side_effect = [
+            None,                     # SELECT 1 FROM ALL_VIEWS (view check)
+            oracledb.DatabaseError,   # DROP TABLE raises
+            None,                     # CREATE TABLE AS SELECT
+        ]
+
+        @contextmanager
+        def _fake_connect(**kwargs):
+            conn = MagicMock()
+            conn.cursor.return_value = cursor
+            yield conn
+
+        given = [{"table": "VW_STALE", "rows": []}]
+
+        with patch.object(backend, "_connect", side_effect=_fake_connect):
+            materialized = backend._ensure_view_tables("__test_abc123", given)
+
+        assert materialized == ["VW_STALE"]
+        calls = [str(c) for c in cursor.execute.call_args_list]
+        ctas_calls = [c for c in calls if "CREATE TABLE" in c]
+        assert len(ctas_calls) == 1

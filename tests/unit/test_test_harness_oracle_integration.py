@@ -380,6 +380,105 @@ class TestOracleCompareTwoSql:
 
 
 @skip_no_oracle
+class TestOracleEnsureViewTablesIntegration:
+    """Verify view-sourced fixtures are materialised end-to-end in a real Oracle sandbox."""
+
+    def _create_view(self, backend: OracleSandbox, view_name: str) -> None:
+        with backend._connect() as conn:
+            cursor = conn.cursor()
+            # Unquoted identifiers so ALL_VIEWS stores them without quotes
+            cursor.execute(
+                f"CREATE OR REPLACE VIEW {backend.source_schema}.{view_name} "
+                f"AS SELECT CHANNEL_ID, CHANNEL_DESC FROM {backend.source_schema}.CHANNELS"
+            )
+
+    def _drop_view(self, backend: OracleSandbox, view_name: str) -> None:
+        with backend._connect() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(f"DROP VIEW {backend.source_schema}.{view_name}")
+            except Exception:
+                pass
+
+    def _create_proc(
+        self, backend: OracleSandbox, proc_name: str, view_name: str
+    ) -> None:
+        with backend._connect() as conn:
+            cursor = conn.cursor()
+            # Unquoted identifiers so ALL_SOURCE stores them without quotes,
+            # allowing _clone_procedures' regex substitution to match.
+            # Unqualified table names (CHANNEL_SALES_SUMMARY, view_name) resolve
+            # to the sandbox schema when the cloned procedure runs there.
+            cursor.execute(
+                f"""
+                CREATE OR REPLACE PROCEDURE {backend.source_schema}.{proc_name}
+                AS
+                BEGIN
+                    DELETE FROM CHANNEL_SALES_SUMMARY
+                    WHERE CHANNEL_ID IN (SELECT CHANNEL_ID FROM {view_name});
+                END;
+                """
+            )
+
+    def _drop_proc(self, backend: OracleSandbox, proc_name: str) -> None:
+        with backend._connect() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    f"DROP PROCEDURE {backend.source_schema}.{proc_name}"
+                )
+            except Exception:
+                pass
+
+    def test_view_fixture_executes_without_error(self) -> None:
+        """execute_scenario succeeds when a fixture source is a view in the source schema."""
+        import uuid as _uuid
+
+        backend = _make_backend()
+        hex_suffix = _uuid.uuid4().hex[:10].upper()
+        view_name = f"VW_TEST_{hex_suffix}"
+        proc_name = f"PROC_FROMVIEW_{hex_suffix}"
+
+        self._create_view(backend, view_name)
+        self._create_proc(backend, proc_name, view_name)
+
+        up_result: dict = {}
+        try:
+            up_result = backend.sandbox_up(schemas=["SH"])
+            sandbox_schema = up_result["sandbox_database"]
+            assert up_result["status"] in ("ok", "partial"), up_result["errors"]
+
+            scenario = {
+                "name": "test_view_fixture",
+                "target_table": "CHANNEL_SALES_SUMMARY",
+                "procedure": proc_name,
+                "given": [
+                    {
+                        "table": view_name,
+                        "rows": [
+                            {
+                                "CHANNEL_ID": 99,
+                                "CHANNEL_DESC": "View Test",
+                            },
+                        ],
+                    }
+                ],
+            }
+
+            result = backend.execute_scenario(
+                sandbox_db=sandbox_schema, scenario=scenario
+            )
+
+            assert result["status"] == "ok", result["errors"]
+            assert result["errors"] == []
+        finally:
+            if up_result.get("sandbox_database"):
+                backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            self._drop_proc(backend, proc_name)
+            self._drop_view(backend, view_name)
+
+
+@skip_no_oracle
 class TestOracleSandboxNoOrphanedUsers:
     """Verify sandbox_down leaves no orphaned users in ALL_USERS."""
 

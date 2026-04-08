@@ -62,6 +62,21 @@ def load_table_columns(project_root: Path, table_fqn: str) -> list[dict[str, Any
     return []
 
 
+def load_source_columns(project_root: Path, source_fqn: str) -> list[dict[str, Any]]:
+    """Load column metadata for a source table or view.
+
+    Checks catalog/tables/<fqn>.json first; falls back to catalog/views/<fqn>.json.
+    Returns an empty list when neither catalog file exists.
+    """
+    cat = load_table_catalog(project_root, source_fqn)
+    if cat and cat.get("columns"):
+        return cat["columns"]
+    cat = load_view_catalog(project_root, source_fqn)
+    if cat and cat.get("columns"):
+        return cat["columns"]
+    return []
+
+
 def collect_source_tables(project_root: Path, writer_fqn: str) -> list[str]:
     """Collect source tables and views from the writer procedure's references.
 

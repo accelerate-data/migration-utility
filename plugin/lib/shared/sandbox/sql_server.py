@@ -717,6 +717,52 @@ class SqlServerSandbox(SandboxBackend):
                 f"ALTER TABLE {table} CHECK CONSTRAINT ALL"
             )
 
+    def _ensure_view_tables(
+        self,
+        sandbox_db: str,
+        given: list[dict[str, Any]],
+    ) -> list[str]:
+        """CTAS view-sourced fixtures as empty shell tables in the sandbox.
+
+        For each entry in *given* whose object is a view in the source DB:
+        drops the sandbox object (tolerating not-found), then CTASes it as an
+        empty table so that fixture rows can be inserted normally.
+
+        Uses autocommit connections so the DDL persists across the rollback
+        that ends each scenario.  Idempotent within a sandbox lifetime because
+        subsequent scenarios find the table already present.
+        """
+        materialized: list[str] = []
+        with self._connect() as src_conn, self._connect(database=sandbox_db) as sb_conn:
+            src_cur = src_conn.cursor()
+            sb_cur = sb_conn.cursor()
+            for fixture in given:
+                parts = _split_identifier_parts(fixture["table"])
+                if len(parts) != 2:
+                    continue
+                schema_name, obj_name = parts
+                src_cur.execute(
+                    "SELECT 1 FROM INFORMATION_SCHEMA.VIEWS "
+                    "WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?",
+                    schema_name, obj_name,
+                )
+                if src_cur.fetchone() is None:
+                    continue  # base table — already cloned by _clone_tables
+                fqn = f"[{schema_name}].[{obj_name}]"
+                try:
+                    sb_cur.execute(f"DROP TABLE IF EXISTS {fqn}")
+                except pyodbc.Error:
+                    pass  # object did not exist; nothing to drop
+                sb_cur.execute(
+                    f"SELECT TOP 0 * INTO {fqn} FROM [{self.database}].{fqn}"
+                )
+                materialized.append(f"{schema_name}.{obj_name}")
+                logger.info(
+                    "event=view_materialized sandbox_db=%s fqn=%s",
+                    sandbox_db, fqn,
+                )
+        return materialized
+
     @staticmethod
     def _capture_rows(cursor: Any) -> list[dict[str, Any]]:
         """Read all rows from the current cursor result set as dicts."""
@@ -740,6 +786,8 @@ class SqlServerSandbox(SandboxBackend):
         _validate_identifier(target_table)
         _validate_identifier(procedure)
         _validate_fixtures(given)
+
+        self._ensure_view_tables(sandbox_db, given)
 
         logger.info(
             "event=execute_scenario sandbox_db=%s scenario=%s procedure=%s",
