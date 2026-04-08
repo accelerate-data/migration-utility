@@ -1622,6 +1622,7 @@ class TestEnsureViewTablesSqlServer:
         sandbox_cursor = MagicMock()
         sandbox_cursor.execute.side_effect = [
             pyodbc.Error,  # DROP TABLE IF EXISTS raises
+            None,          # DROP VIEW IF EXISTS succeeds
             None,          # SELECT TOP 0 * INTO succeeds
         ]
 
