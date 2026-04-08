@@ -36,3 +36,5 @@ Stage specific files, create a single focused commit, and push to remote. Never 
 - Never skip hooks (`--no-verify`).
 - Never amend a published commit.
 - Never force-push.
+- Never reconfigure branch tracking (`git branch --set-upstream-to`, `git config branch.*`).
+- **On failure: stop.** If `git push` or any other command fails, report the exact error to the user and stop. Never attempt workarounds or alternative push targets.
