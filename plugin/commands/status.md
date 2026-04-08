@@ -11,7 +11,7 @@ argument-hint: "[schema.table]"
 
 # Status
 
-Show migration progress for one table (detailed) or all tables (summary). Calls the `migrate-util dry-run` CLI for deterministic prerequisite checks and content, then applies LLM reasoning to interpret patterns and recommend next steps.
+Show migration progress for one table (detailed) or all tables (summary). Calls the `migrate-util status` CLI for deterministic stage statuses, then applies LLM reasoning to interpret patterns and recommend next steps.
 
 ## Guards
 
@@ -32,19 +32,20 @@ Extract item IDs from filenames (strip `.json` suffix). Track which FQNs came fr
 
 ### Step 2 — Collect status per object
 
-For each object, iterate stages in order: `scope`, `profile`, `test-gen`, `refactor`, `migrate`.
-
-For each stage, run:
+Run a single status call for all objects:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util dry-run <fqn> <stage>
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util status
 ```
 
-Parse the JSON output:
+This returns a JSON object with an `objects` array. Each object has `fqn`, `type`, and `stages` (scope, profile, test_gen, refactor, generate statuses).
 
-- If `not_applicable` is `true`: record "N/A" for this stage only, then continue to the next stage.
-- If `guards_passed` is `true` and content shows the stage is complete (e.g. scoping has `selected_writer`, profile has `status: ok|partial`, test-gen has `test_spec_status`, refactor has `refactor_status` or `dbt_model_exists: true` for views, migrate has `dbt_model_exists`): record the stage as complete and continue.
-- If `guards_passed` is `false` (and `not_applicable` is absent/false): record the stage as blocked at that stage. Stop iterating — subsequent stages are implicitly blocked.
+Map the status values to table cells:
+
+- Status present (e.g., `"ok"`, `"resolved"`, `"analyzed"`) -- show that value
+- Status is `null` (section does not exist yet) AND it is the first null stage -- `pending`
+- Status is `null` AND a prior stage is null/pending -- `blocked`
+- Writerless table (`scoping.status == "no_writer_found"`) -- `N/A` for all stages after scope
 
 ### Step 3 — Sync exclusion warnings and run batch planner
 
@@ -271,17 +272,17 @@ Run the batch planner to get the node for this specific table (for diagnostics):
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util batch-plan
 ```
 
-For each stage in order (`scope`, `profile`, `test-gen`, `refactor`, `migrate`), run:
+Run the single-object status call:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util dry-run <table> <stage> --detail
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util status <table>
 ```
 
-Parse the JSON output.
+This returns a single object's stage statuses. For each stage, the status value and the actual catalog section content are included for the detail view.
 
 ### Step 2 — Present per-stage breakdown
 
-For each stage, present the guard results and content:
+For each stage, present the status and detail content:
 
 ```text
 status for silver.DimCustomer
@@ -313,9 +314,9 @@ status for silver.DimCustomer
 
 For the first failing stage, explain what prerequisite is missing and suggest the specific command to run.
 
-If `not_applicable` is `true` for a stage, show it as `N/A` and continue to the next stage.
+If the stage status indicates not applicable, show it as `N/A` and continue to the next stage.
 
-For completed stages, show the key signals from the `--detail` content:
+For completed stages, show the key signals from the status detail content:
 
 - **scope (table):** selected_writer, candidate count, statement resolution counts
 - **scope (view):** scoping_status, is_materialized_view
@@ -341,8 +342,8 @@ For all object types (tables, views, MVs), route through the same stage commands
 
 | Situation | Action |
 |---|---|
-| `migrate-util dry-run` returns exit code 1 | Report the domain error from JSON output |
-| `migrate-util dry-run` returns exit code 2 | Report IO error, suggest checking project setup |
+| `migrate-util status` returns exit code 1 | Report the domain error from JSON output |
+| `migrate-util status` returns exit code 2 | Report IO error, suggest checking project setup |
 | `migrate-util sync-excluded-warnings` returns exit code 2 | Log warning to stderr, continue — exclusion warnings may be stale |
 | `migrate-util batch-plan` returns exit code 2 | Report IO error, suggest checking project setup |
 | `migrate-util batch-plan` returns `{"error": ...}` | Report the error and suggest running `/setup-ddl` |

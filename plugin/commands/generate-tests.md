@@ -20,7 +20,7 @@ Generate test scenarios, review for coverage, then bulk-execute approved scenari
 - `manifest.json` must have `sandbox.database`. If missing, fail all items with `SANDBOX_NOT_CONFIGURED` and tell user to run `/setup-sandbox`.
 - Check sandbox exists via `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-status`. If not found, fail all items with `SANDBOX_NOT_RUNNING` and tell user to check the sandbox with `/setup-sandbox` (it may have been torn down or the database dropped).
 
-Per-item guards are checked by the skill via `migrate-util guard`.
+Per-item readiness is checked by the skill via `migrate-util ready`.
 
 ## Progress Tracking
 
