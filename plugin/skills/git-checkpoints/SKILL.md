@@ -1,18 +1,18 @@
 ---
 name: git-checkpoints
 description: >
-  Branch-safety skill. Checks whether the caller is on `main` and, if so,
-  asks the user to choose main or create a feature branch + worktree before
-  migration work begins. Returns the working tree path when on a feature branch,
-  "main" when the user explicitly chose main, or the new worktree path when
-  one is created.
+  Branch-safety skill. Checks whether the caller is on the remote default branch
+  and, if so, asks the user to choose the default branch or create a feature
+  branch + worktree before migration work begins. Returns the working tree path
+  when on a feature branch, the default branch name when the user explicitly
+  chose it, or the new worktree path when one is created.
 user-invocable: false
 argument-hint: "<run-slug>"
 ---
 
 # Git Checkpoints
 
-Ensure the caller is not working directly on `main` without an explicit choice. When invoked from a pipeline command, pass the run slug as `$ARGUMENTS` so the branch name reflects the intent of the run.
+Ensure the caller is not working directly on the remote default branch without an explicit choice. When invoked from a pipeline command, pass the run slug as `$ARGUMENTS` so the branch name reflects the intent of the run.
 
 ## Steps
 

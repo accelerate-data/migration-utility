@@ -19,6 +19,7 @@ module.exports = (output, context) => {
   const defaultForbidden = [
     'git push origin main',
     'git push origin master',
+    'git push origin head:',
     'git branch --set-upstream-to',
     'git config branch.',
   ];
