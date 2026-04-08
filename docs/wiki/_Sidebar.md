@@ -26,13 +26,11 @@
 **Skill Reference**
 
 - [[Skill Listing Objects]]
-- [[Skill Scoping Table]]
+- [[Skill Analyzing Table]]
 - [[Skill Profiling Table]]
 - [[Skill Generating Tests]]
-- [[Skill Reviewing Tests]]
 - [[Skill Refactoring SQL]]
 - [[Skill Generating Model]]
-- [[Skill Reviewing Model]]
 
 **Operations**
 

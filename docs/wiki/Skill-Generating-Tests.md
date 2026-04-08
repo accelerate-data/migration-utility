@@ -16,7 +16,7 @@ Argument is the fully-qualified table name (the `item_id`). The writer procedure
 
 - `manifest.json` must exist in the project root. If missing, run [[Command Setup DDL]] first.
 - `catalog/tables/<item_id>.json` must exist. If missing, run `/listing-objects list tables` to see available tables.
-- The table must have been scoped ([[Skill Scoping Table]]) and profiled ([[Skill Profiling Table]]) before test generation.
+- The table must have been scoped ([[Skill Analyzing Table]]) and profiled ([[Skill Profiling Table]]) before test generation.
 
 ## Pipeline
 
@@ -259,7 +259,7 @@ Re-invoking the skill on the same table runs in merge mode: existing scenarios a
 
 ## Handling Reviewer Feedback
 
-When invoked with a `feedback_for_generator` JSON block (from [[Skill Reviewing Tests]]):
+When invoked with a `feedback_for_generator` JSON block (from the test reviewer sub-agent):
 
 - **`uncovered_branches`**: list of branch IDs missing coverage. New scenarios are generated for each listed branch and added to `unit_tests[]`.
 - **`quality_fixes`**: per-scenario remediation instructions. Named scenarios are revised in `unit_tests[]` as directed.
@@ -274,13 +274,13 @@ The test generator must not:
 - Generate dbt SQL model files
 - Render YAML -- `unit_tests[]` is structured JSON; dbt YAML conversion happens post-execution
 - Make materialization or business key decisions
-- Score its own coverage authoritatively -- [[Skill Reviewing Tests]] does that
+- Score its own coverage authoritatively -- the test reviewer sub-agent does that
 
 ## Troubleshooting
 
 | Error | Cause | Fix |
 |---|---|---|
-| `migrate context` exit code 1 | No profile or no statements in catalog | Run [[Skill Scoping Table]] and [[Skill Profiling Table]] first |
+| `migrate context` exit code 1 | No profile or no statements in catalog | Run [[Skill Analyzing Table]] and [[Skill Profiling Table]] first |
 | `migrate context` exit code 2 | IO/parse error reading catalog | Check file permissions and JSON validity in `catalog/` |
 | Empty branch manifest | Procedure has no conditional logic (single straight-through INSERT) | This is valid -- generate a single scenario for the base case |
 | NOT NULL violation in fixtures | Fixture row missing a required non-nullable column | Ensure all NOT NULL non-identity columns are included with type-appropriate defaults |

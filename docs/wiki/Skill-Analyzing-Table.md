@@ -1,4 +1,4 @@
-# Skill: Scoping Table
+# Skill: Analyzing Table
 
 ## Purpose
 
