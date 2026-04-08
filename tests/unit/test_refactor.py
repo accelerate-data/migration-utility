@@ -143,7 +143,6 @@ def test_write_happy_path(assert_valid_schema) -> None:
             root, "silver.DimCustomer",
             extracted_sql="SELECT CustomerID, FirstName FROM [bronze].[CustomerRaw]",
             refactored_sql="WITH src AS (SELECT * FROM [bronze].[CustomerRaw]) SELECT CustomerID, FirstName FROM src",
-            status="ok",
         )
         assert_valid_schema(result, "refactor_write_output.json")
         assert result["ok"] is True
@@ -163,28 +162,37 @@ def test_write_happy_path(assert_valid_schema) -> None:
         assert "refactor" not in table_cat
 
 
-def test_write_validates_status() -> None:
-    """Write rejects invalid status values."""
+def test_write_both_sql_yields_ok_status() -> None:
+    """Write with both SQL non-empty sets status to ok."""
     tmp, root = _make_writable_copy()
     with tmp:
-        with pytest.raises(ValueError, match="invalid status"):
-            refactor.run_write(root, "silver.DimCustomer", "SELECT 1", "SELECT 1", "invalid")
+        result = refactor.run_write(root, "silver.DimCustomer", "SELECT 1", "SELECT 1")
+        assert result["ok"] is True
+        proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
+        proc_cat = json.loads(proc_path.read_text())
+        assert proc_cat["refactor"]["status"] == "ok"
 
 
-def test_write_requires_extracted_sql_for_ok_status() -> None:
-    """Write rejects empty extracted SQL when status is ok."""
+def test_write_only_extracted_yields_partial() -> None:
+    """Write with only extracted SQL sets status to partial."""
     tmp, root = _make_writable_copy()
     with tmp:
-        with pytest.raises(ValueError, match="extracted_sql is required"):
-            refactor.run_write(root, "silver.DimCustomer", "", "SELECT 1", "ok")
+        result = refactor.run_write(root, "silver.DimCustomer", "SELECT 1", "")
+        assert result["ok"] is True
+        proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
+        proc_cat = json.loads(proc_path.read_text())
+        assert proc_cat["refactor"]["status"] == "partial"
 
 
-def test_write_requires_refactored_sql_for_ok_status() -> None:
-    """Write rejects empty refactored SQL when status is ok."""
+def test_write_both_empty_yields_error() -> None:
+    """Write with both SQL empty sets status to error."""
     tmp, root = _make_writable_copy()
     with tmp:
-        with pytest.raises(ValueError, match="refactored_sql is required"):
-            refactor.run_write(root, "silver.DimCustomer", "SELECT 1", "", "ok")
+        result = refactor.run_write(root, "silver.DimCustomer", "", "")
+        assert result["ok"] is True
+        proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
+        proc_cat = json.loads(proc_path.read_text())
+        assert proc_cat["refactor"]["status"] == "error"
 
 
 def test_write_missing_procedure_catalog() -> None:
@@ -195,7 +203,7 @@ def test_write_missing_procedure_catalog() -> None:
         proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
         proc_path.unlink()
         with pytest.raises(CatalogFileMissingError):
-            refactor.run_write(root, "silver.DimCustomer", "SELECT 1", "SELECT 1", "ok")
+            refactor.run_write(root, "silver.DimCustomer", "SELECT 1", "SELECT 1")
 
 
 def test_write_no_selected_writer() -> None:
@@ -208,7 +216,7 @@ def test_write_no_selected_writer() -> None:
         del cat["scoping"]
         cat_path.write_text(json.dumps(cat))
         with pytest.raises(ValueError, match="No scoping.selected_writer"):
-            refactor.run_write(root, "silver.DimCustomer", "SELECT 1", "SELECT 1", "ok")
+            refactor.run_write(root, "silver.DimCustomer", "SELECT 1", "SELECT 1")
 
 
 # ── CLI commands ─────────────────────────────────────────────────────────────
@@ -240,7 +248,6 @@ def test_cli_write_success() -> None:
                 "--table", "silver.DimCustomer",
                 "--extracted-sql", "SELECT CustomerID FROM [bronze].[CustomerRaw]",
                 "--refactored-sql", "WITH src AS (SELECT 1) SELECT * FROM src",
-                "--status", "ok",
                 "--project-root", str(root),
             ],
         )
@@ -324,7 +331,6 @@ def test_write_view_happy_path() -> None:
             root, "silver.vw_active_customers",
             extracted_sql="SELECT c.CustomerID FROM bronze.CustomerRaw c WHERE c.IsActive = 1",
             refactored_sql="WITH src AS (SELECT * FROM bronze.CustomerRaw WHERE IsActive = 1) SELECT CustomerID FROM src",
-            status="ok",
         )
         assert result["ok"] is True
         assert result["table"] == "silver.vw_active_customers"
