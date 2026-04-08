@@ -233,8 +233,15 @@ This allows `--filter-pattern` to act as a query language against the descriptio
 
 ### Filter examples
 
+All commands assume you are in `tests/evals/`.
+
 ```bash
-# All scenarios for a single skill
+# Run a single scenario by exact pattern tag
+npx promptfoo eval --filter-pattern "generating-model — insert-select"
+npx promptfoo eval --filter-pattern "refactoring-sql — recursive-cte"
+npx promptfoo eval --filter-pattern "analyzing-table — exec-variable"
+
+# All scenarios for a single skill (29 for generating-model, 6 for refactoring-sql, etc.)
 npx promptfoo eval --filter-pattern "generating-model"
 npx promptfoo eval --filter-pattern "analyzing-table"
 npx promptfoo eval --filter-pattern "refactoring-sql"
