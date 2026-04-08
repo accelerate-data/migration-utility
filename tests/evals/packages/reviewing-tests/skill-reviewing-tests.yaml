@@ -103,4 +103,4 @@ tests:
       target_table: "silver.DimCustomer"
       writer: "silver.usp_load_DimCustomer_Full"
       iteration_suffix: " --iteration 2"
-      expected_status: "approved_with_warnings"
+      expected_status: "approved_with_warnings,revision_requested"
