@@ -103,6 +103,11 @@
         "refactored_sql": {
           "type": "string",
           "description": "Refactored CTE SQL (import/logical/final pattern) that passed the equivalence audit."
+        },
+        "shared_sources": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Source table FQNs shared with other objects in the same refactor batch. Written by refactor sweep."
         }
       }
     },

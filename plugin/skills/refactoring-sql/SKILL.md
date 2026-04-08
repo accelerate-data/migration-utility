@@ -48,10 +48,23 @@ Read the output JSON. It contains:
 Record the `writer` field -- this is the procedure FQN.
 
 **View detection:** If the context output contains `object_type = "view"` or `"mv"`, the FQN refers to a view. In this case:
+
 - `view_sql` contains the original view SQL body (this is the ground truth — sub-agent A uses it directly instead of extracting from a procedure body)
 - There is no `writer`, `proc_body`, or `statements` — these fields are absent for views
 - The equivalence audit via `compare-sql` is unchanged: sql_a = original view SQL, sql_b = refactored CTE SQL
 - Write-back via `refactor write` auto-detects the view and writes to the view catalog
+
+## Step 1.5: Check for existing dbt models
+
+Before launching sub-agents, check if existing dbt models can inform the CTE structure:
+
+1. For each FQN in `source_tables` from the context output:
+   - Check if `dbt/models/staging/stg_<source_table_name>.sql` exists (lowercase, schema stripped)
+   - If it exists, read the file content
+2. Check if `dbt/models/marts/<target_model_name>.sql` exists (lowercase, schema stripped from the target FQN)
+   - If it exists, read the file content
+
+If any existing models are found, pass them to Sub-Agent B as additional context (see below). Sub-Agent A is unaffected — it always produces ground truth from the original SQL.
 
 ## Step 2: Launch two sub-agents in parallel
 
@@ -134,6 +147,31 @@ Instructions:
 8. Cursor loops become set-based operations (window functions, JOINs)
 
 Return ONLY the refactored CTE SELECT SQL, nothing else.
+```
+
+If Step 1.5 found existing dbt models, append this to Sub-Agent B's prompt:
+
+```text
+Existing staging models (align your import CTE column names with these):
+<for each existing stg model>
+File: stg_<name>.sql
+---
+<file content>
+---
+</for each>
+
+<if mart model exists>
+Existing mart model (use as guidance for final CTE column ordering):
+File: <mart_model_name>.sql
+---
+<file content>
+---
+</if>
+
+When an existing staging model defines specific column names, aliases, or
+casts, use those same names in your import CTE rather than SELECT *.
+When an existing mart model exists, align your final CTE's column list
+with its SELECT output.
 ```
 
 The sub-agent writes the result to `.staging/<table_fqn>-refactored.sql`.

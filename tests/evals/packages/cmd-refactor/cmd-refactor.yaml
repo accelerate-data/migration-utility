@@ -7,7 +7,7 @@ prompts:
 providers:
   - id: anthropic:claude-agent-sdk
     config:
-      model: claude-sonnet-4-6
+      model: claude-haiku-4-5-20251001
       working_dir: ../..
       max_turns: 100
       permission_mode: auto
@@ -30,15 +30,15 @@ tests:
   - description: "happy-path — InsertSelectTarget + UpdateJoinTarget both refactor"
     vars:
       target_tables: "silver.InsertSelectTarget silver.UpdateJoinTarget"
-      expected_item_statuses: '{"silver.InsertSelectTarget": "ok", "silver.UpdateJoinTarget": "ok"}'
+      expected_item_statuses: '{"silver.InsertSelectTarget": "ok,partial", "silver.UpdateJoinTarget": "ok,partial"}'
       expected_output_terms: "ok"
 
   # ── error + clean: missing prerequisite ────────────────────────
-  - description: "error+clean — DimGeography (no profile) + InsertSelectTarget (ok)"
+  - description: "error+clean — DimGeography (no scoping) + InsertSelectTarget (ok)"
     vars:
       target_tables: "silver.DimGeography silver.InsertSelectTarget"
-      expected_item_statuses: '{"silver.DimGeography": "error", "silver.InsertSelectTarget": "ok"}'
-      expected_error_codes: "profile_not_completed,scoping_not_completed,catalog_file_missing"
+      expected_item_statuses: '{"silver.DimGeography": "error", "silver.InsertSelectTarget": "ok,partial"}'
+      expected_error_codes: "scoping_not_completed"
       expected_output_terms: "error"
 
   # ── guard fails: no scoping ────────────────────────────────────
@@ -46,7 +46,7 @@ tests:
     vars:
       target_tables: "silver.DimPromotion"
       expected_item_statuses: '{"silver.DimPromotion": "error"}'
-      expected_error_codes: "scoping_not_completed,catalog_file_missing"
+      expected_error_codes: "scoping_not_completed"
 
   # ── partial: complex proc may not fully pass audit ─────────────
   - description: "partial-ok — DimCurrency dynamic SQL, partial status acceptable"

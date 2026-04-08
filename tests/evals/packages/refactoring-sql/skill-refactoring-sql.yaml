@@ -7,7 +7,7 @@ prompts:
 providers:
   - id: anthropic:claude-agent-sdk
     config:
-      model: claude-sonnet-4-6
+      model: claude-haiku-4-5-20251001
       working_dir: ../..
       max_turns: 120
       permission_mode: auto
@@ -230,3 +230,14 @@ tests:
       target_table: "silver.NestedFlowTarget"
       writer: "silver.usp_load_NestedFlowTarget"
       expected_refactored_terms: "with,final"
+
+  # ── dbt-aware staging reuse ─────────────────────────────────
+  - description: "dbt-aware-stg-reuse — existing stg_dimproduct.sql influences import CTE column names"
+    vars:
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      stg_model_file: "stg_dimproduct.sql"
+      expected_stg_columns: "productalternatekey,englishproductname,standardcost,listprice"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-dbt-aware-refactored-sql.js

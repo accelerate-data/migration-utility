@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time as _time
 from collections import Counter
 from pathlib import Path
 from typing import Any, Optional
@@ -26,6 +27,7 @@ from typing import Any, Optional
 import typer
 
 from shared.catalog import (
+    load_proc_catalog,
     load_table_catalog,
     load_view_catalog,
     read_selected_writer,
@@ -49,7 +51,7 @@ from shared.loader import (
     DdlParseError,
 )
 from shared.cli_utils import emit
-from shared.env_config import resolve_catalog_dir, resolve_project_root
+from shared.env_config import resolve_catalog_dir, resolve_dbt_project_path, resolve_project_root
 from shared.name_resolver import fqn_parts, normalize
 
 logger = logging.getLogger(__name__)
@@ -369,6 +371,201 @@ def _run_write_view(
     }
 
 
+# ── Sweep ────────────────────────────────────────────────────────────────────
+
+
+def _collect_source_tables_from_refs(
+    refs: dict[str, Any],
+) -> list[str]:
+    """Extract normalized source table FQNs from a catalog references section."""
+    result: list[str] = []
+    for t in refs.get("tables", {}).get("in_scope", []):
+        if t.get("is_selected", False) and not t.get("is_updated", False):
+            result.append(normalize(f"{t['schema']}.{t['name']}"))
+    return sorted(set(result))
+
+
+def _collect_view_source_tables(refs: dict[str, Any]) -> list[str]:
+    """Extract normalized source table FQNs from a view catalog references section."""
+    result: list[str] = []
+    for t in refs.get("tables", {}).get("in_scope", []):
+        result.append(normalize(f"{t['schema']}.{t['name']}"))
+    return sorted(set(result))
+
+
+def _check_stg_models(
+    dbt_path: Path, source_tables: list[str],
+) -> list[str]:
+    """Return names of existing stg_*.sql files for the given source tables."""
+    staging_dir = dbt_path / "models" / "staging"
+    found: list[str] = []
+    for fqn in source_tables:
+        _, name = fqn_parts(fqn)
+        stg_file = staging_dir / f"stg_{name.lower()}.sql"
+        if stg_file.exists():
+            found.append(stg_file.name)
+    return found
+
+
+def _check_mart_model(dbt_path: Path, fqn: str) -> str | None:
+    """Return relative path of mart model if it exists on disk, else None."""
+    _, name = fqn_parts(fqn)
+    model_name = name.lower()
+    mart_file = dbt_path / "models" / "marts" / f"{model_name}.sql"
+    if mart_file.exists():
+        return str(mart_file.relative_to(dbt_path))
+    return None
+
+
+def _recommend_action(refactor_status: str | None) -> str:
+    """Derive recommended_action from refactor.status."""
+    if refactor_status == "ok":
+        return "skip"
+    if refactor_status == "partial":
+        return "re-refactor"
+    return "refactor"
+
+
+def run_sweep(
+    project_root: Path,
+    fqns: list[str],
+) -> dict[str, Any]:
+    """Run the planning sweep across a batch of FQNs.
+
+    For each FQN, reads catalog status and checks for existing dbt models.
+    Detects shared staging candidates across the batch and persists
+    ``refactor.shared_sources`` on each affected catalog entry.
+
+    Returns the sweep plan artifact dict.
+    """
+    dbt_path = resolve_dbt_project_path(project_root)
+    catalog_dir = resolve_catalog_dir(project_root)
+
+    objects: list[dict[str, Any]] = []
+    # Track source tables per non-skip FQN for shared staging detection
+    source_map: dict[str, list[str]] = {}
+
+    for raw_fqn in fqns:
+        fqn_norm = normalize(raw_fqn)
+
+        # Auto-detect object type
+        view_cat = load_view_catalog(project_root, fqn_norm)
+        if view_cat is not None:
+            refactor_section = view_cat.get("refactor", {})
+            refactor_status = refactor_section.get("status")
+            refs = view_cat.get("references", {})
+            source_tables = _collect_view_source_tables(refs)
+            obj = {
+                "fqn": fqn_norm,
+                "object_type": "view",
+                "writer": None,
+                "refactor_status": refactor_status,
+                "source_tables": source_tables,
+                "existing_stg_models": _check_stg_models(dbt_path, source_tables),
+                "existing_mart_model": _check_mart_model(dbt_path, fqn_norm),
+                "recommended_action": _recommend_action(refactor_status),
+            }
+        else:
+            writer_fqn = read_selected_writer(project_root, fqn_norm)
+            refactor_status: str | None = None
+            source_tables: list[str] = []
+            if writer_fqn:
+                writer_norm = normalize(writer_fqn)
+                proc_cat = load_proc_catalog(project_root, writer_norm)
+                if proc_cat:
+                    refactor_section = proc_cat.get("refactor", {})
+                    refactor_status = refactor_section.get("status")
+                    refs = proc_cat.get("references", {})
+                    source_tables = _collect_source_tables_from_refs(refs)
+            obj = {
+                "fqn": fqn_norm,
+                "object_type": "table",
+                "writer": normalize(writer_fqn) if writer_fqn else None,
+                "refactor_status": refactor_status,
+                "source_tables": source_tables,
+                "existing_stg_models": _check_stg_models(dbt_path, source_tables),
+                "existing_mart_model": _check_mart_model(dbt_path, fqn_norm),
+                "recommended_action": _recommend_action(refactor_status),
+            }
+
+        objects.append(obj)
+
+        # Track sources for non-skip objects
+        if obj["recommended_action"] != "skip":
+            source_map[fqn_norm] = obj["source_tables"]
+
+    # Detect shared staging candidates
+    all_sources: list[str] = []
+    for sources in source_map.values():
+        all_sources.extend(sources)
+    source_counts = Counter(all_sources)
+    shared_staging = sorted(fqn for fqn, count in source_counts.items() if count >= 2)
+
+    # Persist shared_sources on each affected catalog entry
+    if shared_staging:
+        _persist_shared_sources(project_root, catalog_dir, objects, shared_staging)
+
+    logger.info(
+        "event=sweep_complete objects=%d shared_staging=%d",
+        len(objects), len(shared_staging),
+    )
+
+    return {
+        "epoch": int(_time.time()),
+        "objects": objects,
+        "shared_staging_candidates": shared_staging,
+    }
+
+
+def _persist_shared_sources(
+    project_root: Path,
+    catalog_dir: Path,
+    objects: list[dict[str, Any]],
+    shared_staging: list[str],
+) -> None:
+    """Write shared_sources into each affected procedure/view catalog's refactor section."""
+    shared_set = set(shared_staging)
+
+    for obj in objects:
+        if obj["recommended_action"] == "skip":
+            continue
+        obj_shared = sorted(set(obj["source_tables"]) & shared_set)
+        if not obj_shared:
+            continue
+
+        fqn = obj["fqn"]
+        if obj["object_type"] == "view":
+            cat_path = catalog_dir / "views" / f"{fqn}.json"
+        else:
+            writer = obj.get("writer")
+            if not writer:
+                continue
+            cat_path = catalog_dir / "procedures" / f"{writer}.json"
+
+        if not cat_path.exists():
+            logger.warning(
+                "event=shared_sources_skip reason=catalog_missing path=%s", cat_path,
+            )
+            continue
+
+        try:
+            cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            logger.warning(
+                "event=shared_sources_skip reason=parse_error path=%s error=%s",
+                cat_path, exc,
+            )
+            continue
+
+        refactor_section = cat.setdefault("refactor", {})
+        refactor_section["shared_sources"] = obj_shared
+        _write_catalog_json(cat_path, cat)
+
+        logger.info(
+            "event=shared_sources_written fqn=%s shared=%s", fqn, obj_shared,
+        )
+
+
 # ── CLI commands ─────────────────────────────────────────────────────────────
 
 
@@ -420,6 +617,26 @@ def write(
     except (FileNotFoundError, OSError, CatalogLoadError) as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)
         emit({"ok": False, "error": str(exc), "table": normalize(table)})
+        raise typer.Exit(code=2) from exc
+    emit(result)
+
+
+@app.command()
+def sweep(
+    project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
+    tables: list[str] = typer.Option(..., "--tables", help="Fully-qualified object names to sweep"),
+) -> None:
+    """Run planning sweep across a batch of objects for the /refactor command."""
+    project_root = resolve_project_root(project_root)
+    try:
+        result = run_sweep(project_root, tables)
+    except (ValueError, CatalogLoadError) as exc:
+        logger.error("event=sweep_failed error=%s", exc)
+        emit({"ok": False, "error": str(exc)})
+        raise typer.Exit(code=1) from exc
+    except (FileNotFoundError, OSError) as exc:
+        logger.error("event=sweep_failed error=%s", exc)
+        emit({"ok": False, "error": str(exc)})
         raise typer.Exit(code=2) from exc
     emit(result)
 

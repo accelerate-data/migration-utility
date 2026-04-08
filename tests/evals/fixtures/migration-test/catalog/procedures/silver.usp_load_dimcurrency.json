@@ -45,5 +45,10 @@
       "message": "DDL failed to parse: near 'PIVOT': syntax error",
       "severity": "error"
     }
-  ]
+  ],
+  "refactor": {
+    "status": "partial",
+    "extracted_sql": "",
+    "refactored_sql": "-- Dynamic SQL case: INSERT generated at runtime via sp_executesql -- Unable to statically refactor. Procedure needs manual migration planning."
+  }
 }

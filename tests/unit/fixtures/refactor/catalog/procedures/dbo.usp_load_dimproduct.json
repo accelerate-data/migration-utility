@@ -1,0 +1,32 @@
+{
+  "schema": "dbo",
+  "name": "usp_load_dimproduct",
+  "mode": "llm_required",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {"schema": "bronze", "name": "CustomerRaw", "is_selected": true, "is_updated": false},
+        {"schema": "bronze", "name": "ProductRaw", "is_selected": true, "is_updated": false}
+      ],
+      "out_of_scope": []
+    },
+    "views": {"in_scope": [], "out_of_scope": []},
+    "functions": {"in_scope": [], "out_of_scope": []},
+    "procedures": {"in_scope": [], "out_of_scope": []}
+  },
+  "refactor": {
+    "status": "partial",
+    "extracted_sql": "SELECT p.ProductID, p.ProductName FROM [bronze].[ProductRaw] p",
+    "refactored_sql": "WITH src AS (SELECT * FROM [bronze].[ProductRaw]) SELECT ProductID, ProductName FROM src"
+  },
+  "statements": [
+    {
+      "index": 0,
+      "action": "migrate",
+      "sql": "INSERT INTO [silver].[DimProduct] (ProductID, ProductName) SELECT p.ProductID, p.ProductName FROM [bronze].[ProductRaw] p;",
+      "type": "insert_select"
+    }
+  ],
+  "warnings": [],
+  "errors": []
+}
