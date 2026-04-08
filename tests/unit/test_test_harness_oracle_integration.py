@@ -499,3 +499,118 @@ class TestOracleSandboxNoOrphanedUsers:
             )
             count = cursor.fetchone()[0]
             assert count == 0, f"Orphaned user {sandbox_schema!r} found in ALL_USERS after teardown"
+
+
+@skip_no_oracle
+class TestOracleExecuteSelectIntegration:
+    """execute_select against a real Oracle sandbox."""
+
+    def test_execute_select_returns_fixture_rows(self) -> None:
+        """execute_select seeds fixtures, runs SELECT, returns correct rows."""
+        backend = _make_backend()
+
+        try:
+            up_result = backend.sandbox_up(schemas=["SH"])
+            sandbox_schema = up_result["sandbox_database"]
+            assert up_result["status"] in ("ok", "partial")
+
+            fixtures = [
+                {
+                    "table": "CHANNELS",
+                    "rows": [
+                        {
+                            "CHANNEL_ID": 1,
+                            "CHANNEL_DESC": "Direct",
+                            "CHANNEL_CLASS": "Direct",
+                            "CHANNEL_CLASS_ID": 12,
+                            "CHANNEL_TOTAL": "Channel total",
+                            "CHANNEL_TOTAL_ID": 1,
+                        },
+                        {
+                            "CHANNEL_ID": 2,
+                            "CHANNEL_DESC": "Internet",
+                            "CHANNEL_CLASS": "Indirect",
+                            "CHANNEL_CLASS_ID": 13,
+                            "CHANNEL_TOTAL": "Channel total",
+                            "CHANNEL_TOTAL_ID": 1,
+                        },
+                    ],
+                },
+            ]
+            sql = (
+                f'SELECT "CHANNEL_ID", "CHANNEL_DESC" '
+                f'FROM "{sandbox_schema}"."CHANNELS" '
+                f'ORDER BY "CHANNEL_ID"'
+            )
+
+            result = backend.execute_select(
+                sandbox_db=sandbox_schema, sql=sql, fixtures=fixtures,
+            )
+
+            assert result["status"] == "ok", result["errors"]
+            assert result["row_count"] == 2
+            assert result["errors"] == []
+            rows = result["ground_truth_rows"]
+            descs = {r["CHANNEL_DESC"] for r in rows}
+            assert descs == {"Direct", "Internet"}
+        finally:
+            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+
+    def test_execute_select_empty_fixtures(self) -> None:
+        """execute_select with no fixture rows returns 0 rows."""
+        backend = _make_backend()
+
+        try:
+            up_result = backend.sandbox_up(schemas=["SH"])
+            sandbox_schema = up_result["sandbox_database"]
+
+            result = backend.execute_select(
+                sandbox_db=sandbox_schema,
+                sql=f'SELECT "CHANNEL_ID" FROM "{sandbox_schema}"."CHANNELS"',
+                fixtures=[],
+            )
+
+            assert result["status"] == "ok"
+            assert result["row_count"] == 0
+        finally:
+            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+
+    def test_execute_select_rolls_back_fixtures(self) -> None:
+        """Fixture rows are rolled back after execute_select."""
+        backend = _make_backend()
+
+        try:
+            up_result = backend.sandbox_up(schemas=["SH"])
+            sandbox_schema = up_result["sandbox_database"]
+
+            fixtures = [
+                {
+                    "table": "CHANNELS",
+                    "rows": [
+                        {
+                            "CHANNEL_ID": 99,
+                            "CHANNEL_DESC": "Rollback Test",
+                            "CHANNEL_CLASS": "Test",
+                            "CHANNEL_CLASS_ID": 99,
+                            "CHANNEL_TOTAL": "Channel total",
+                            "CHANNEL_TOTAL_ID": 1,
+                        },
+                    ],
+                },
+            ]
+            backend.execute_select(
+                sandbox_db=sandbox_schema,
+                sql=f'SELECT "CHANNEL_ID" FROM "{sandbox_schema}"."CHANNELS"',
+                fixtures=fixtures,
+            )
+
+            # Verify fixture row was rolled back
+            with backend._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    f'SELECT COUNT(*) FROM "{sandbox_schema}"."CHANNELS" '
+                    f"WHERE \"CHANNEL_ID\" = 99"
+                )
+                assert cursor.fetchone()[0] == 0, "Fixture row should be rolled back"
+        finally:
+            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])

@@ -1660,3 +1660,131 @@ def test_exclude_cli_subcommand(tmp_path: Path) -> None:
     assert output["marked"] == ["silver.auditlog"]
     cat = json.loads((dst / "catalog" / "tables" / "silver.auditlog.json").read_text())
     assert cat.get("excluded") is True
+
+
+# ── View content collector tests ──────────────────────────────────────────────
+
+
+def test_view_test_gen_content_shows_spec_exists(assert_valid_schema) -> None:
+    """test-gen-view content shows test_spec_exists=True when spec file exists."""
+    tmp, root = _make_project()
+    with tmp:
+        view_path = root / "catalog" / "views" / "silver.vdimsalesterritory.json"
+        cat = json.loads(view_path.read_text(encoding="utf-8"))
+        cat["scoping"] = {"status": "analyzed", "sql_elements": [], "logic_summary": "test", "call_tree": {}}
+        cat["profile"] = {"status": "ok", "classification": "stg", "source": "llm", "rationale": "test"}
+        view_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        spec_dir = root / "test-specs"
+        spec_dir.mkdir(exist_ok=True)
+        spec_path = spec_dir / "silver.vdimsalesterritory.json"
+        spec_path.write_text(json.dumps({
+            "item_id": "silver.vdimsalesterritory",
+            "status": "ok",
+            "coverage": "complete",
+            "branch_manifest": [{"id": "b1", "statement_index": 0, "description": "test", "scenarios": ["s1"]}],
+            "unit_tests": [{"name": "s1", "sql": "SELECT 1", "given": []}],
+            "uncovered_branches": [],
+            "warnings": [],
+            "validation": {"status": "ok"},
+            "errors": [],
+        }), encoding="utf-8")
+
+        result = dry_run.run_dry_run(root, "silver.vDimSalesTerritory", "test-gen")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is True
+        assert result["content"]["test_spec_exists"] is True
+        assert result["content"]["coverage"] == "complete"
+        assert result["content"]["scenario_count"] == 1
+
+
+def test_view_migrate_content_shows_model_status(assert_valid_schema) -> None:
+    """migrate-view content shows dbt_model_exists when all prior stages complete."""
+    tmp, root = _make_project()
+    with tmp:
+        view_path = root / "catalog" / "views" / "silver.vdimsalesterritory.json"
+        cat = json.loads(view_path.read_text(encoding="utf-8"))
+        cat["scoping"] = {"status": "analyzed", "sql_elements": [], "logic_summary": "test", "call_tree": {}}
+        cat["profile"] = {"status": "ok", "classification": "stg", "source": "llm", "rationale": "test"}
+        cat["refactor"] = {"status": "ok", "extracted_sql": "SELECT 1", "refactored_sql": "WITH s AS (SELECT 1) SELECT * FROM s"}
+        view_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        spec_dir = root / "test-specs"
+        spec_dir.mkdir(exist_ok=True)
+        (spec_dir / "silver.vdimsalesterritory.json").write_text("{}", encoding="utf-8")
+
+        result = dry_run.run_dry_run(root, "silver.vDimSalesTerritory", "migrate")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is True
+        assert result["content"]["dbt_model_exists"] is False
+
+
+def test_view_refactor_content_shows_refactor_status(assert_valid_schema) -> None:
+    """refactor-view content shows refactor_status from view catalog."""
+    tmp, root = _make_project()
+    with tmp:
+        view_path = root / "catalog" / "views" / "silver.vdimsalesterritory.json"
+        cat = json.loads(view_path.read_text(encoding="utf-8"))
+        cat["scoping"] = {"status": "analyzed", "sql_elements": [], "logic_summary": "test", "call_tree": {}}
+        cat["profile"] = {"status": "ok", "classification": "stg", "source": "llm", "rationale": "test"}
+        cat["refactor"] = {"status": "ok", "extracted_sql": "SELECT 1", "refactored_sql": "WITH s AS (SELECT 1) SELECT * FROM s"}
+        view_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        spec_dir = root / "test-specs"
+        spec_dir.mkdir(exist_ok=True)
+        (spec_dir / "silver.vdimsalesterritory.json").write_text("{}", encoding="utf-8")
+
+        result = dry_run.run_dry_run(root, "silver.vDimSalesTerritory", "refactor")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is True
+        assert result["content"]["refactor_status"] == "ok"
+        assert result["content"]["has_refactored_sql"] is True
+
+
+# ── Guard function tests for views ───────────────────────────────────────────
+
+
+def test_guard_view_refactor_complete_passes() -> None:
+    """check_view_refactor_complete passes when refactor.status == ok."""
+    from shared.guards import check_view_refactor_complete
+    tmp, root = _make_project()
+    with tmp:
+        view_path = root / "catalog" / "views" / "silver.vdimsalesterritory.json"
+        cat = json.loads(view_path.read_text(encoding="utf-8"))
+        cat["refactor"] = {"status": "ok", "extracted_sql": "SELECT 1", "refactored_sql": "WITH s AS (SELECT 1) SELECT * FROM s"}
+        view_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        result = check_view_refactor_complete(root, "silver.vDimSalesTerritory")
+        assert result["passed"] is True
+
+
+def test_guard_view_refactor_complete_fails_no_refactor() -> None:
+    """check_view_refactor_complete fails when no refactor section."""
+    from shared.guards import check_view_refactor_complete
+    tmp, root = _make_project()
+    with tmp:
+        result = check_view_refactor_complete(root, "silver.vDimSalesTerritory")
+        assert result["passed"] is False
+        assert result["code"] == "VIEW_REFACTOR_NOT_COMPLETED"
+
+
+def test_guard_view_test_spec_passes() -> None:
+    """check_view_test_spec passes when test-specs/<fqn>.json exists."""
+    from shared.guards import check_view_test_spec
+    tmp, root = _make_project()
+    with tmp:
+        spec_dir = root / "test-specs"
+        spec_dir.mkdir(exist_ok=True)
+        (spec_dir / "silver.vdimsalesterritory.json").write_text("{}", encoding="utf-8")
+        result = check_view_test_spec(root, "silver.vDimSalesTerritory")
+        assert result["passed"] is True
+
+
+def test_guard_view_test_spec_fails_missing() -> None:
+    """check_view_test_spec fails when no test-specs file."""
+    from shared.guards import check_view_test_spec
+    tmp, root = _make_project()
+    with tmp:
+        result = check_view_test_spec(root, "silver.vDimSalesTerritory")
+        assert result["passed"] is False
+        assert result["code"] == "TEST_SPEC_NOT_FOUND"

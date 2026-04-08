@@ -1846,3 +1846,128 @@ class TestExecuteSelectOracle:
         assert result["row_count"] == 2
         assert len(result["ground_truth_rows"]) == 2
         conn.rollback.assert_called_once()
+
+
+# ── execute_spec view routing ──────────────────────────────────────────────
+
+
+class TestExecuteSpecViewRouting:
+    """Verify execute_spec routes view entries (no procedure) to execute_select."""
+
+    def test_view_entry_calls_execute_select(self) -> None:
+        """Test entry with sql (no procedure) calls execute_select, not execute_scenario."""
+        from shared import test_harness
+        from typer.testing import CliRunner
+        import tempfile
+
+        runner = CliRunner()
+        spec = {
+            "item_id": "silver.vw_test",
+            "object_type": "view",
+            "status": "ok",
+            "coverage": "complete",
+            "branch_manifest": [],
+            "unit_tests": [
+                {
+                    "name": "test_view_filter",
+                    "sql": "SELECT id FROM [silver].[source] WHERE active = 1",
+                    "given": [
+                        {"table": "[silver].[source]", "rows": [{"id": 1, "active": 1}]},
+                    ],
+                },
+            ],
+            "uncovered_branches": [],
+            "warnings": [],
+            "validation": {"status": "ok"},
+            "errors": [],
+        }
+
+        mock_backend = MagicMock()
+        mock_backend.execute_select.return_value = {
+            "status": "ok",
+            "scenario_name": "execute_select",
+            "ground_truth_rows": [{"id": 1}],
+            "row_count": 1,
+            "errors": [],
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(spec, f)
+            spec_path = f.name
+
+        try:
+            with patch.object(test_harness, "_create_backend", return_value=mock_backend), \
+                 patch.object(test_harness, "_resolve_sandbox_db", return_value="__test_abc"), \
+                 patch.object(test_harness, "_load_manifest", return_value={}):
+                result = runner.invoke(
+                    test_harness.app,
+                    ["execute-spec", "--spec", spec_path, "--project-root", "."],
+                )
+
+            # execute_select should have been called (not execute_scenario)
+            mock_backend.execute_select.assert_called_once()
+            mock_backend.execute_scenario.assert_not_called()
+
+            # Verify ground truth was written back to spec
+            with open(spec_path) as f:
+                updated = json.load(f)
+            assert updated["unit_tests"][0]["expect"]["rows"] == [{"id": 1}]
+        finally:
+            import os
+            os.unlink(spec_path)
+
+    def test_procedure_entry_calls_execute_scenario(self) -> None:
+        """Test entry with procedure key calls execute_scenario, not execute_select."""
+        from shared import test_harness
+        from typer.testing import CliRunner
+        import tempfile
+
+        runner = CliRunner()
+        spec = {
+            "item_id": "silver.dimcustomer",
+            "status": "ok",
+            "coverage": "complete",
+            "branch_manifest": [],
+            "unit_tests": [
+                {
+                    "name": "test_merge_insert",
+                    "target_table": "[silver].[DimCustomer]",
+                    "procedure": "[dbo].[usp_load_DimCustomer]",
+                    "given": [
+                        {"table": "[bronze].[CustomerRaw]", "rows": [{"id": 1}]},
+                    ],
+                },
+            ],
+            "uncovered_branches": [],
+            "warnings": [],
+            "validation": {"status": "ok"},
+            "errors": [],
+        }
+
+        mock_backend = MagicMock()
+        mock_backend.execute_scenario.return_value = {
+            "status": "ok",
+            "scenario_name": "test_merge_insert",
+            "ground_truth_rows": [{"id": 1}],
+            "row_count": 1,
+            "errors": [],
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(spec, f)
+            spec_path = f.name
+
+        try:
+            with patch.object(test_harness, "_create_backend", return_value=mock_backend), \
+                 patch.object(test_harness, "_resolve_sandbox_db", return_value="__test_abc"), \
+                 patch.object(test_harness, "_load_manifest", return_value={}):
+                result = runner.invoke(
+                    test_harness.app,
+                    ["execute-spec", "--spec", spec_path, "--project-root", "."],
+                )
+
+            mock_backend.execute_scenario.assert_called_once()
+            mock_backend.execute_select.assert_not_called()
+        finally:
+            import os
+            os.unlink(spec_path)
