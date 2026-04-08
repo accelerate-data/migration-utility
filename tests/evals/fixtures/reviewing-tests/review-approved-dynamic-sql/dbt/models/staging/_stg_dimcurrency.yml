@@ -1,0 +1,13 @@
+version: 2
+
+models:
+  - name: stg_dimcurrency
+    description: "Staged currency dimension from dynamic sp_executesql recovery."
+    columns:
+      - name: CurrencyAlternateKey
+        description: "Three-letter currency code from bronze.Currency.CurrencyCode."
+        data_tests:
+          - not_null
+          - unique
+      - name: CurrencyName
+        description: "Currency name from bronze.Currency.CurrencyName."

@@ -1,0 +1,61 @@
+{
+  "schema": "silver",
+  "name": "usp_load_deletewheretarget",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "DeleteWhereTarget",
+          "is_selected": true,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "ProductAlternateKey",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "EnglishProductName",
+              "is_selected": false,
+              "is_updated": false
+            },
+            {
+              "name": "IsRetired",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "mode": "deterministic",
+  "routing_reasons": [],
+  "statements": [
+    {
+      "type": "Delete",
+      "action": "migrate",
+      "source": "ast",
+      "sql": "DELETE FROM silver.DeleteWhereTarget WHERE IsRetired = 1"
+    }
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM [silver].[DeleteWhereTarget] WHERE IsRetired <> 1 OR IsRetired IS NULL",
+    "refactored_sql": "WITH import_DeleteWhereTarget AS ( SELECT * FROM [silver].[DeleteWhereTarget] ), logical_keep_active_rows AS ( SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM import_DeleteWhereTarget WHERE IsRetired = 0 ), final AS ( SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM logical_keep_active_rows ) SELECT * FROM final"
+  }
+}

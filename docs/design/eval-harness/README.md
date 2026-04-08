@@ -10,7 +10,7 @@ Non-interactive test harness for skills and commands. Uses [Promptfoo](https://g
 Offline regression (SQL Server + Oracle)
         │
         ▼  (fixtures pre-committed — no live DB needed)
-DDL project fixture (tests/evals/fixtures/migration-test/ or oracle-regression/fixtures/)
+Per-scenario fixtures (tests/evals/fixtures/<package>/<scenario-slug>/ or oracle-regression/fixtures/)
         │
         ▼  (Promptfoo invokes claude-agent-sdk per scenario)
 Claude Code agent ──► reads fixture ──► calls Python CLIs ──► produces output
@@ -41,7 +41,6 @@ Skills are tested via Promptfoo scenarios that invoke them non-interactively and
 ```text
 tests/evals/
   package.json                         # promptfoo + ajv, npm run scripts
-  promptfooconfig.yaml                 # aggregate suite config for `npx promptfoo eval`
   .gitignore                           # node_modules/, output/
   assertions/
     schema-helpers.js                  # shared AJV validation, JSON extraction, term normalization
@@ -71,7 +70,7 @@ tests/evals/
     cmd-generate-tests.txt             # prompt template for /generate-tests command
     cmd-refactor.txt                   # prompt template for /refactor command
     cmd-live-pipeline.txt              # prompt template for live DB extract → scope → profile
-  packages/                            # SQL Server offline packages (use fixtures/migration-test/)
+  packages/                            # SQL Server offline packages (per-scenario fixtures)
     profiling-table/
       skill-profiling-table.yaml
     generating-model/
@@ -108,39 +107,41 @@ tests/evals/
     promptfooconfig.yaml               # extract → scope → profile
     fixtures/manifest.json             # technology: mssql, dialect: tsql
   fixtures/
-    migration-test/                    # extracted DDL project (one-time, SQL Server)
-      manifest.json
-      ddl/
-      catalog/
-      dbt/                             # pre-seeded dbt models and test specs
-      test-specs/                      # pre-seeded test specifications
+    <package>/                         # per-scenario fixture dirs
+      <scenario-slug>/
+        manifest.json
+        ddl/procedures.sql             # only relevant procedure(s)
+        catalog/tables/<table>.json
+        catalog/procedures/<proc>.json
+        dbt/...                        # only for generating/reviewing skills
+        test-specs/<table>.json        # only for skills that need it
     planning-sweep-stg-reuse/          # synthetic: stg_product.sql pre-seeded on disk
     planning-sweep-no-stg/             # synthetic: empty staging dir — skill creates stg
     planning-sweep-shared-stg/         # synthetic: 2 tables sharing bronze.Product
+    planning-sweep-skip/               # synthetic: planning sweep skip scenario
+    planning-sweep-test-only/          # synthetic: planning sweep test-only scenario
+    idempotency-test/                  # synthetic: idempotency scenario
 ```
 
 ---
 
 ## Packages
 
-The harness is organized into package-local Promptfoo configs plus one aggregate top-level config.
+The harness is organized into package-local Promptfoo configs. Each package is self-contained and run individually; `npm run eval` chains all packages sequentially.
 
 ### Skill packages
 
-Test individual skills in isolation (single-table, no orchestration). All use `fixtures/migration-test/` (SQL Server).
+Test individual skills in isolation (single-table, no orchestration). Each scenario uses its own per-scenario fixture under `fixtures/<package>/<scenario-slug>/`.
 
 | Package | Skill |
 |---|---|
-| `profiling-table` | `/profiling-table` |
+| `profiling-table` | `/profiling-table` — includes view profiling scenarios |
 | `generating-model` | `/generating-model` |
 | `generating-tests` | `/generating-tests` |
 | `reviewing-tests` | `/reviewing-tests` |
 | `reviewing-model` | `/reviewing-model` |
-| `analyzing-table` | `/analyzing-table` — validates both scoping decisions and procedure catalog |
+| `analyzing-table` | `/analyzing-table` — validates both scoping decisions and procedure catalog; includes view scoping scenarios |
 | `refactoring-sql` | `/refactoring-sql` — DML extraction + CTE restructuring |
-| `analyzing-view` | `/analyzing-view` |
-| `refactoring-view` | `/refactoring-view` |
-| `profiling-view` | `/profiling-view` |
 | `git-checkpoints` | `/git-checkpoints` |
 
 ### Command packages
@@ -173,7 +174,7 @@ Validate the full extract → scope → profile pipeline against running Docker 
 | `oracle-live` | Docker Oracle (FREEPDB1, SH schema) |
 | `mssql-live` | Docker SQL Server (MigrationTest, silver schema) |
 
-Use `promptfooconfig.yaml` for the full suite (skill scenarios only). Command and dialect-specific packages are run individually.
+Use `npm run eval` to run all packages sequentially. Command and dialect-specific packages can also be run individually.
 
 ---
 
@@ -187,7 +188,7 @@ cd tests/evals
 # Install dependencies (first time only)
 npm install
 
-# Full skill suite — all SQL Server skill packages
+# All packages sequentially
 npm run eval
 
 # Single skill package
@@ -228,49 +229,21 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 
 ---
 
-## Scenario naming and filtering
+## Scenario naming convention
 
-All scenarios in `promptfooconfig.yaml` follow the convention:
+Every scenario description follows the format:
 
 ```text
-<skill> — <sql-pattern> — <brief-detail>
+<statement-type-or-category> — <brief-detail>
 ```
 
-This allows `--filter-pattern` to act as a query language against the description string.
+The prefix before the em dash is either a SQL statement-type tag from the canonical taxonomy below, or a behavioral category prefix. This makes `--filter-pattern` a natural query language against description strings — filtering by prefix narrows to a statement type, filtering by suffix narrows to a specific behavior.
 
-### Filter examples
+### Statement-type taxonomy (canonical)
 
-All commands assume you are in `tests/evals/`.
+These are the SQL pattern tags used as the primary prefix in scenario descriptions:
 
-```bash
-# Run a single scenario by exact pattern tag
-npx promptfoo eval --filter-pattern "generating-model — insert-select"
-npx promptfoo eval --filter-pattern "refactoring-sql — recursive-cte"
-npx promptfoo eval --filter-pattern "analyzing-table — exec-variable"
-
-# All scenarios for a single skill (29 for generating-model, 6 for refactoring-sql, etc.)
-npx promptfoo eval --filter-pattern "generating-model"
-npx promptfoo eval --filter-pattern "analyzing-table"
-npx promptfoo eval --filter-pattern "refactoring-sql"
-
-# All scenarios for a SQL pattern across skills
-npx promptfoo eval --filter-pattern "insert-select"
-npx promptfoo eval --filter-pattern "exec-chain"
-npx promptfoo eval --filter-pattern "recursive-cte"
-
-# Skill + pattern combined
-npx promptfoo eval --filter-pattern "generating-model.*exec"
-npx promptfoo eval --filter-pattern "analyzing-table.*truncate"
-npx promptfoo eval --filter-pattern "refactoring-sql.*merge"
-
-# Pattern group (regex OR)
-npx promptfoo eval --filter-pattern "intersect|except|union-all"
-npx promptfoo eval --filter-pattern "cube|rollup|grouping-sets"
-```
-
-### Pattern taxonomy
-
-| Pattern tag | Classification patterns covered |
+| Tag | SQL Pattern |
 |---|---|
 | `insert-select` | INSERT...SELECT full-refresh |
 | `update-join` | UPDATE...FROM JOIN |
@@ -278,40 +251,83 @@ npx promptfoo eval --filter-pattern "cube|rollup|grouping-sets"
 | `delete-top` | DELETE TOP |
 | `select-into` | SELECT INTO |
 | `cte` | Single CTE |
-| `correlated-subquery` | Correlated subquery in WHERE |
+| `correlated-subquery` | Correlated subquery |
 | `union-all` | UNION ALL (bare) |
-| `union-all-in-cte` | UNION ALL inside CTE branch |
-| `intersect` | INTERSECT set operation |
-| `except` | EXCEPT set operation |
+| `union-all-in-cte` | UNION ALL inside CTE |
+| `intersect` | INTERSECT |
+| `except` | EXCEPT |
 | `grouping-sets` | GROUPING SETS |
 | `cube` | CUBE |
 | `rollup` | ROLLUP |
 | `pivot` | PIVOT / conditional aggregation |
-| `window-fn` | Window functions (ROW_NUMBER, LAG, COUNT OVER) |
-| `cross-join` | CROSS JOIN scaffold |
+| `window-fn` | Window functions |
+| `cross-join` | CROSS JOIN |
 | `not-exists` | NOT EXISTS anti-join |
 | `not-in` | NOT IN subquery |
-| `recursive-cte` | Recursive CTE (WITH RECURSIVE) |
-| `truncate-insert` | TRUNCATE + INSERT full-reload |
-| `truncate-insert-outer-apply` | TRUNCATE + INSERT + OUTER APPLY |
-| `merge` | MERGE INTO (SCD1/SCD2) |
+| `recursive-cte` | Recursive CTE |
+| `truncate-insert` | TRUNCATE + INSERT |
+| `outer-apply` | OUTER APPLY |
+| `merge` | MERGE INTO |
 | `if-else` | IF/ELSE control flow |
 | `try-catch` | BEGIN TRY/CATCH |
 | `while-loop` | WHILE batch loop |
-| `nested-flow` | Nested control flow (IF inside TRY) |
+| `nested-flow` | Nested control flow |
 | `exec-chain` | Static EXEC call chain |
-| `exec-orchestrator` | EXEC-only orchestrator proc |
-| `exec-variable` | EXEC(@sql) dynamic variable |
+| `exec-orchestrator` | EXEC-only orchestrator |
+| `exec-variable` | EXEC(@sql) dynamic |
 | `exec-concat` | EXEC string concatenation |
-| `cross-db-exec` | EXEC with 3-part cross-database name |
-| `linked-server-exec` | EXEC with 4-part linked server name |
+| `cross-db-exec` | EXEC with cross-database name |
+| `linked-server-exec` | EXEC with linked server |
 | `static-sp-exec` | sp_executesql with literal SQL |
 | `dynamic-sql` | sp_executesql with variable SQL |
-| `fact-transaction` | Fact table classification |
+| `case-when` | CASE WHEN expressions |
+
+### Behavioral category prefixes
+
+For scenarios that don't test a specific SQL pattern:
+
+| Prefix | When to use |
+|---|---|
+| `classification-*` | Profiling classification scenarios (dim-scd2, fact-periodic-snapshot, dim-junk) |
+| `quality-*` | Code quality checks (style, ETL columns, YAML rendering, modular split) |
+| `review-*` | Test/model review verdicts (approved, revision-requested, standards codes) |
+| `pii` | PII detection |
+| `watermark-*` | Watermark detection |
+| `fk-*` | Foreign key type scenarios |
+| `multi-writer` | Multi-writer disambiguation |
+| `view-*` | View pipeline scenarios |
+| `planning-sweep-*` | Planning sweep action scenarios |
+| `idempotent-*` | Idempotency scenarios |
+| `status-*` | Status command output scenarios |
+| `happy-path` | Command happy path |
+| `error-clean` | Command error + recovery |
+| `guard-fail` | Command guard failure |
+| `partial` | Command partial success |
+| `review-cycle` | Command review loop |
+
+### Filter examples
+
+All commands assume you are in `tests/evals/`.
+
+```bash
+# All scenarios for a skill package
+npm run eval:profiling-table
+
+# Filter by statement type across all skills
+npx promptfoo eval -c packages/generating-tests/skill-generating-tests.yaml --filter-pattern "merge"
+
+# Filter by behavioral category
+npx promptfoo eval -c packages/reviewing-model/skill-reviewing-model.yaml --filter-pattern "review-standards"
+
+# Combine skill + pattern
+npx promptfoo eval -c packages/refactoring-sql/skill-refactoring-sql.yaml --filter-pattern "recursive-cte"
+```
 
 ---
 
 ## Scenarios
+
+> **Note:** The scenario tables below are a historical snapshot. Scenario descriptions have been renamed and new scenarios added as part of the per-scenario fixture redesign. For current scenario lists, see the package YAML files directly under `tests/evals/packages/`.
 
 ### Profiler
 
@@ -530,28 +546,25 @@ Each module receives `(output, context)` and returns `{pass, score, reason}`. Sc
 
 ## Fixture anatomy
 
-The fixture is a DDL project extracted from the MigrationTest Docker database. It mirrors the production layout that `setup-ddl` produces:
+Each scenario gets its own fixture directory under `fixtures/<package>/<scenario-slug>/`, containing only the files that scenario needs. This replaces the previous monolithic `fixtures/migration-test/` layout. A per-scenario fixture mirrors the production layout that `setup-ddl` produces, but scoped to the relevant procedure(s) and table(s):
 
 ```text
-fixtures/migration-test/
+fixtures/<package>/<scenario-slug>/
   manifest.json                    # {"technology": "mssql", "dialect": "tsql", "database": "MigrationTest"}
   ddl/
-    tables.sql                     # CREATE TABLE statements (bronze + silver)
-    procedures.sql                 # CREATE PROCEDURE statements
-    views.sql                      # CREATE VIEW statements
+    procedures.sql                 # only the procedure(s) relevant to this scenario
   catalog/
     tables/<schema>.<table>.json   # per-table catalog (columns, PKs, FKs, referenced_by, profile, scoping)
     procedures/<schema>.<proc>.json # per-proc catalog (references, statements)
-    views/<schema>.<view>.json     # per-view catalog
-  dbt/
+  dbt/                             # only for generating/reviewing skills
     models/staging/                # pre-seeded dbt models and YAML configs
   test-specs/
-    <schema>.<table>.json          # pre-seeded test specifications
+    <schema>.<table>.json          # only for skills that need test specifications
 ```
 
-Most packages use `fixtures/migration-test/`. Planning-sweep scenarios in `cmd-generate-model` use three synthetic fixtures (`planning-sweep-stg-reuse`, `planning-sweep-no-stg`, `planning-sweep-shared-stg`) that differ only in which staging files are pre-seeded, allowing the eval to assert exactly which files the sweep creates or reuses. Synthetic fixtures are hand-crafted — do not re-extract them from the Docker database.
+Planning-sweep scenarios use synthetic fixtures (`planning-sweep-stg-reuse`, `planning-sweep-no-stg`, `planning-sweep-shared-stg`, `planning-sweep-skip`, `planning-sweep-test-only`) that differ only in which staging files are pre-seeded, allowing the eval to assert exactly which files the sweep creates or reuses. Synthetic fixtures are hand-crafted — do not re-extract them from the Docker database.
 
-The main `migration-test` fixture includes pre-seeded artifacts (dbt models, test specs, profiles) so that downstream evals (test-generator, test-review, code-review) can run without depending on upstream skill output.
+Per-scenario fixtures for downstream skills (test-generator, test-review, code-review) include pre-seeded artifacts (dbt models, test specs, profiles) so they can run without depending on upstream skill output.
 
 ---
 
@@ -588,8 +601,8 @@ The exact extraction steps depend on how the migration project is configured.
 
 ### Adding a scenario
 
-1. **Add the procedure and target table** to `tests/evals/fixtures/migration-test/ddl/procedures.sql` and corresponding catalog JSON.
-2. **Add a test case** to the appropriate package YAML and to `promptfooconfig.yaml`.
+1. **Create a per-scenario fixture** under `tests/evals/fixtures/<package>/<scenario-slug>/` with only the files the scenario needs (manifest, DDL, catalog, and optionally dbt/test-specs).
+2. **Add a test case** to the appropriate package YAML.
 3. **Run the affected package** to verify: `npm run eval:<package>`.
 
 ### Updating an existing scenario

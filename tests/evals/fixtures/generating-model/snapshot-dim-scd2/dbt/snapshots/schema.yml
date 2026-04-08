@@ -1,0 +1,57 @@
+version: 2
+
+snapshots:
+  - name: dim_employee_scd2_snapshot
+    description: "Migrated from silver.usp_load_DimEmployeeSCD2. Target: silver.DimEmployeeSCD2."
+    columns:
+      - name: NationalIDNumber
+        description: "Natural key for the employee (business identifier)."
+        data_tests:
+          - unique
+          - not_null
+
+    unit_tests:
+      - name: test_expire_changed_row
+        model: dim_employee_scd2_snapshot
+        given:
+          - input: source('bronze', 'employee')
+            rows:
+              - {
+                  NationalIDNumber: "123456789",
+                  LoginID: "adventure-works\\ken0",
+                  JobTitle: "Engineer",
+                  MaritalStatus: "S",
+                }
+        expect:
+          rows:
+            - { NationalIDNumber: "123456789", JobTitle: "Engineer" }
+
+      - name: test_insert_new_employee
+        model: dim_employee_scd2_snapshot
+        given:
+          - input: source('bronze', 'employee')
+            rows:
+              - {
+                  NationalIDNumber: "987654321",
+                  LoginID: "adventure-works\\jane0",
+                  JobTitle: "Manager",
+                  MaritalStatus: "M",
+                }
+        expect:
+          rows:
+            - { NationalIDNumber: "987654321", JobTitle: "Manager" }
+
+      - name: test_gap_unchanged_employee_preserved
+        model: dim_employee_scd2_snapshot
+        given:
+          - input: source('bronze', 'employee')
+            rows:
+              - {
+                  NationalIDNumber: "111111111",
+                  LoginID: "adventure-works\\alice0",
+                  JobTitle: "Analyst",
+                  MaritalStatus: "S",
+                }
+        expect:
+          rows:
+            - { NationalIDNumber: "111111111", JobTitle: "Analyst" }

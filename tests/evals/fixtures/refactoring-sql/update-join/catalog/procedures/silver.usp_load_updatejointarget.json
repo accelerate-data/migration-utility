@@ -1,0 +1,79 @@
+{
+  "schema": "silver",
+  "name": "usp_load_updatejointarget",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "Product",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "ProductID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductName",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "UpdateJoinTarget",
+          "is_selected": true,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "ProductAlternateKey",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "EnglishProductName",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "LastSeenDate",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "mode": "deterministic",
+  "routing_reasons": [],
+  "statements": [
+    {
+      "type": "Update",
+      "action": "migrate",
+      "source": "ast",
+      "sql": "UPDATE tgt SET tgt.EnglishProductName = src.ProductName, tgt.LastSeenDate = GETDATE() FROM silver.UpdateJoinTarget AS tgt INNER JOIN bronze.Product AS src ON tgt.ProductAlternateKey = CAST(src.ProductID AS NVARCHAR(25))"
+    }
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT tgt.ProductAlternateKey, src.ProductName AS EnglishProductName, GETDATE() AS LastSeenDate FROM silver.UpdateJoinTarget AS tgt INNER JOIN bronze.Product AS src ON tgt.ProductAlternateKey = CAST(src.ProductID AS NVARCHAR(25))",
+    "refactored_sql": "WITH import_bronze_product AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName FROM bronze.Product ), import_silver_updatejointarget AS ( SELECT ProductAlternateKey, EnglishProductName, LastSeenDate FROM silver.UpdateJoinTarget ), logical_joined AS ( SELECT tgt.ProductAlternateKey, src.ProductName, CAST('2024-01-01' AS DATETIME) AS CurrentTimestamp FROM import_silver_updatejointarget AS tgt INNER JOIN import_bronze_product AS src ON tgt.ProductAlternateKey = src.ProductAlternateKey ), final AS ( SELECT ProductAlternateKey, ProductName AS EnglishProductName, CurrentTimestamp AS LastSeenDate FROM logical_joined ) SELECT * FROM final"
+  }
+}

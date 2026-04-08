@@ -1,0 +1,97 @@
+{
+  "item_id": "silver.singlectetarget",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {
+      "id": "where_sellenddate_null_row_included",
+      "statement_index": 0,
+      "description": "WHERE SellEndDate IS NULL — active product passes the CTE filter and is inserted into silver.SingleCteTarget",
+      "scenarios": ["test_insert_cte_active_product_inserted"]
+    },
+    {
+      "id": "where_sellenddate_not_null_row_excluded",
+      "statement_index": 0,
+      "description": "WHERE SellEndDate IS NULL — product with a non-NULL SellEndDate is filtered out and not inserted",
+      "scenarios": ["test_insert_cte_retired_product_excluded"]
+    },
+    {
+      "id": "empty_source_no_rows_inserted",
+      "statement_index": 0,
+      "description": "bronze.Product is empty — CTE produces no rows, INSERT inserts nothing",
+      "scenarios": ["test_insert_cte_empty_source_no_rows"]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_insert_cte_active_product_inserted",
+      "target_table": "[silver].[SingleCteTarget]",
+      "procedure": "[silver].[usp_load_SingleCteTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductName": "Road Frame",
+              "ProductNumber": "RF-100",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 500,
+              "ReorderPoint": 200,
+              "StandardCost": 150.00,
+              "ListPrice": 350.00,
+              "DaysToManufacture": 2,
+              "SellStartDate": "2019-01-01",
+              "SellEndDate": null,
+              "ModifiedDate": "2023-01-15"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "test_insert_cte_retired_product_excluded",
+      "target_table": "[silver].[SingleCteTarget]",
+      "procedure": "[silver].[usp_load_SingleCteTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductName": "Old Frame",
+              "ProductNumber": "OF-001",
+              "MakeFlag": 0,
+              "FinishedGoodsFlag": 0,
+              "SafetyStockLevel": 0,
+              "ReorderPoint": 0,
+              "StandardCost": 0.00,
+              "ListPrice": 0.00,
+              "DaysToManufacture": 0,
+              "SellStartDate": "2010-01-01",
+              "SellEndDate": "2015-12-31",
+              "ModifiedDate": "2016-01-01"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "test_insert_cte_empty_source_no_rows",
+      "target_table": "[silver].[SingleCteTarget]",
+      "procedure": "[silver].[usp_load_SingleCteTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": []
+        }
+      ]
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "errors": []
+}

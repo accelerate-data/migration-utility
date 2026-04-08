@@ -1,0 +1,94 @@
+{
+  "schema": "silver",
+  "name": "updatejointarget",
+  "columns": [
+    {
+      "name": "ProductAlternateKey",
+      "sql_type": "NVARCHAR(25)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "EnglishProductName",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "LastSeenDate",
+      "sql_type": "DATETIME",
+      "is_nullable": false,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [
+    {
+      "constraint_name": "PK_UpdateJoinTarget",
+      "columns": [
+        "ProductAlternateKey"
+      ]
+    }
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "usp_load_updatejointarget",
+          "is_selected": true,
+          "is_updated": true
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_load_UpdateJoinTarget"
+  },
+  "profile": {
+    "status": "ok",
+    "writer": "silver.usp_load_UpdateJoinTarget",
+    "classification": {
+      "resolved_kind": "fact_transaction",
+      "source": "catalog+llm",
+      "rationale": "The update join advances a mutable transaction-style table and stamps a watermark."
+    },
+    "primary_key": {
+      "columns": [
+        "ProductAlternateKey"
+      ],
+      "primary_key_type": "natural",
+      "source": "catalog",
+      "rationale": "ProductAlternateKey is the declared primary key."
+    },
+    "watermark": {
+      "columns": [
+        "LastSeenDate"
+      ],
+      "source": "llm",
+      "rationale": "LastSeenDate records the latest refresh time."
+    },
+    "foreign_keys": [],
+    "pii_actions": []
+  },
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT tgt.ProductAlternateKey, src.ProductName AS EnglishProductName, GETDATE() AS LastSeenDate FROM [silver].[UpdateJoinTarget] AS tgt INNER JOIN [bronze].[Product] AS src ON tgt.ProductAlternateKey = CAST(src.ProductID AS NVARCHAR(25))",
+    "refactored_sql": "with source_product as (\n    select * from [bronze].[Product]\n),\n\ntarget_table as (\n    select * from [silver].[UpdateJoinTarget]\n),\n\njoined_update as (\n    select\n        tgt.ProductAlternateKey,\n        src.ProductName as EnglishProductName,\n        getdate() as LastSeenDate\n    from target_table as tgt\n    inner join source_product as src\n        on tgt.ProductAlternateKey = cast(src.ProductID as nvarchar(25))\n),\n\nfinal as (\n    select\n        ProductAlternateKey,\n        EnglishProductName,\n        LastSeenDate\n    from joined_update\n)\n\nselect * from final"
+  },
+  "statements": []
+}

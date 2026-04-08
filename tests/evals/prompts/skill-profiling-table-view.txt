@@ -1,27 +1,5 @@
 You are running in a DDL project directory at {{fixture_path}}.
 
-Read the skill instructions at plugin/skills/profiling-table/SKILL.md and follow them
-for view {{target_view}}.
+Run /profiling-table for view {{target_view}}.
 
-Wherever the skill references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead
-(the lib directory is at `plugin/lib/` in the repo).
-
-IMPORTANT PATH RULE: All CLI commands default to using the current working directory as
-the project root. Since the fixture catalog lives at {{fixture_path}}, you MUST pass
-`--project-root {{fixture_path}}` to every CLI invocation so reads and writes target
-the correct catalog directory. For example:
-```
-uv run --project plugin/lib profile view-context --view <view> --project-root {{fixture_path}}
-uv run --project plugin/lib profile write --table <view> --profile-file {{fixture_path}}/.staging/view_profile.json --project-root {{fixture_path}}
-uv run --project plugin/lib migrate-util guard <view> profile-view --project-root {{fixture_path}}
-```
-When writing staging files, create the .staging directory inside {{fixture_path}}:
-```
-mkdir -p {{fixture_path}}/.staging
-```
-
-You MUST complete all steps of the view profile pipeline including writing the profile
-to the catalog (the profile write step). The eval asserts on the written catalog JSON,
-not this text response.
-
-Do not ask for user confirmation — proceed automatically.
+Read the skill at plugin/skills/profiling-table/SKILL.md. Wherever it references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead. Pass `--project-root {{fixture_path}}` to all CLI commands so reads and writes target the fixture catalog.

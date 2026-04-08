@@ -1,0 +1,96 @@
+{
+  "item_id": "silver.dimcustomer",
+  "status": "partial",
+  "coverage": "partial",
+  "branch_manifest": [
+    {
+      "id": "truncate_before_reload",
+      "statement_index": 0,
+      "description": "TRUNCATE clears existing customer rows before reload",
+      "scenarios": []
+    },
+    {
+      "id": "insert_with_outer_apply",
+      "statement_index": 1,
+      "description": "INSERT with OUTER APPLY derives DateFirstPurchase from minimum order date",
+      "scenarios": []
+    },
+    {
+      "id": "null_person_handling",
+      "statement_index": 1,
+      "description": "NULL PersonID in Customer table produces NULL name columns via LEFT JOIN to Person",
+      "scenarios": []
+    },
+    {
+      "id": "no_orders_null_date",
+      "statement_index": 1,
+      "description": "Customer with no orders gets NULL DateFirstPurchase from OUTER APPLY",
+      "scenarios": [
+        "test_single_customer_no_orders"
+      ]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_single_customer_no_orders",
+      "model": "stg_dimcustomer",
+      "given": [
+        {
+          "rows": [
+            {
+              "CustomerID": 101,
+              "PersonID": 1001
+            }
+          ],
+          "table": "[bronze].[Customer]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "CustomerAlternateKey": "101"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimCustomer]",
+      "procedure": "[silver].[usp_load_DimCustomer_Full]"
+    }
+  ],
+  "uncovered_branches": [
+    "truncate_before_reload",
+    "insert_with_outer_apply",
+    "null_person_handling"
+  ],
+  "warnings": [
+    {
+      "code": "FIXTURE_UNREALISTIC",
+      "message": "test_single_customer_no_orders is missing the Person source table entirely \u2014 JOIN will fail or produce NULLs for all name columns.",
+      "item_id": "silver.dimcustomer",
+      "severity": "warning",
+      "details": {
+        "scenario": "test_single_customer_no_orders"
+      }
+    },
+    {
+      "code": "FIXTURE_INCOMPLETE",
+      "message": "Expected output only checks CustomerAlternateKey \u2014 8 other target columns (FirstName, MiddleName, LastName, Title, Gender, MaritalStatus, EmailPromotion, DateFirstPurchase) are not verified.",
+      "item_id": "silver.dimcustomer",
+      "severity": "warning",
+      "details": {
+        "scenario": "test_single_customer_no_orders"
+      }
+    },
+    {
+      "code": "BRANCH_NOT_COVERED",
+      "message": "3 of 4 branches have no scenarios: truncate_before_reload, insert_with_outer_apply, null_person_handling.",
+      "item_id": "silver.dimcustomer",
+      "severity": "warning",
+      "details": {}
+    }
+  ],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "errors": []
+}

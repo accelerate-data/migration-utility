@@ -1,0 +1,98 @@
+{
+  "schema": "silver",
+  "name": "dimcurrency",
+  "columns": [
+    {
+      "name": "CurrencyKey",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": true
+    },
+    {
+      "name": "CurrencyAlternateKey",
+      "sql_type": "NCHAR(3)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "CurrencyName",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": false,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [
+    {
+      "constraint_name": "PK__DimCurre__DC9C5DF033ED6A78",
+      "columns": [
+        "CurrencyKey"
+      ]
+    }
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [
+    {
+      "column": "CurrencyKey",
+      "mechanism": "identity"
+    }
+  ],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "usp_load_dimcurrency",
+          "is_selected": false,
+          "is_updated": true
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_load_DimCurrency"
+  },
+  "profile": {
+    "status": "partial",
+    "writer": "silver.usp_load_dimcurrency",
+    "classification": {
+      "resolved_kind": "dim_non_scd",
+      "source": "catalog+llm",
+      "rationale": "Currency reference table loaded via TRUNCATE + INSERT inside sp_executesql; descriptive columns (CurrencyAlternateKey, CurrencyName) with no SCD history columns confirm dim_non_scd. Status is partial because the INSERT is inside a dynamic SQL string, not statically parsed by the scoping engine."
+    },
+    "primary_key": {
+      "columns": [
+        "CurrencyKey"
+      ],
+      "primary_key_type": "surrogate",
+      "source": "catalog",
+      "rationale": "CurrencyKey is declared as the primary key via catalog constraint PK__DimCurre__DC9C5DF033ED6A78 and is an identity-generated surrogate."
+    },
+    "natural_key": {
+      "columns": [
+        "CurrencyAlternateKey"
+      ],
+      "source": "catalog+llm",
+      "rationale": "CurrencyKey is an identity surrogate (catalog fact); CurrencyAlternateKey (NCHAR(3)) holds the ISO 4217 currency code and is the natural business identifier."
+    },
+    "watermark": {
+      "column": null,
+      "source": "llm",
+      "rationale": "Full-reload pattern (TRUNCATE + INSERT) with no datetime columns and no incremental WHERE clause; no watermark applies."
+    },
+    "foreign_keys": [],
+    "pii_actions": []
+  }
+}

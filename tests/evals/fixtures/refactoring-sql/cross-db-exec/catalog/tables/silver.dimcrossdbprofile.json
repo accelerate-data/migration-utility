@@ -1,0 +1,94 @@
+{
+  "schema": "silver",
+  "name": "dimcrossdbprofile",
+  "columns": [
+    {
+      "name": "CrossDbProfileKey",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": true
+    },
+    {
+      "name": "EmployeeAlternateKey",
+      "sql_type": "NVARCHAR(15)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "EmployeeTitle",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": true,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [
+    {
+      "constraint_name": "PK_DimCrossDbProfile",
+      "columns": [
+        "CrossDbProfileKey"
+      ]
+    }
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [
+    {
+      "column": "CrossDbProfileKey",
+      "mechanism": "identity"
+    }
+  ],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "usp_load_dimcrossdbprofile",
+          "is_selected": true,
+          "is_updated": true
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_load_DimCrossDbProfile",
+    "rationale": "The load procedure is the selected writer even though it delegates cross-database work to a helper."
+  },
+  "profile": {
+    "status": "partial",
+    "writer": "silver.usp_load_DimCrossDbProfile",
+    "classification": {
+      "resolved_kind": "dim_non_scd",
+      "source": "catalog+llm",
+      "rationale": "The target behaves like a simple dimension, but the cross-database helper means the classification is only partially supported."
+    },
+    "primary_key": {
+      "columns": [
+        "CrossDbProfileKey"
+      ],
+      "primary_key_type": "surrogate",
+      "source": "catalog",
+      "rationale": "CrossDbProfileKey is the declared identity primary key."
+    },
+    "natural_key": {
+      "columns": [
+        "EmployeeAlternateKey"
+      ],
+      "source": "llm",
+      "rationale": "EmployeeAlternateKey represents the business key for the employee dimension."
+    },
+    "foreign_keys": [],
+    "pii_actions": []
+  }
+}

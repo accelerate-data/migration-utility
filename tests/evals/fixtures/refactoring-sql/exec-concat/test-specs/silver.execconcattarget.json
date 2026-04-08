@@ -1,0 +1,35 @@
+{
+  "item_id": "silver.execconcattarget",
+  "status": "partial",
+  "coverage": "partial",
+  "branch_manifest": [
+    {
+      "id": "dynamic_sql_concat_insert",
+      "statement_index": 0,
+      "description": "Dynamic SQL is built via string concatenation before EXEC \u2014 INSERT INTO silver.ExecConcatTarget from bronze.Product",
+      "testable_in_dbt": false,
+      "scenarios": []
+    }
+  ],
+  "unit_tests": [],
+  "uncovered_branches": [
+    "dynamic_sql_concat_insert"
+  ],
+  "warnings": [
+    {
+      "code": "DYNAMIC_SQL_UNTESTABLE",
+      "message": "Write logic is executed via a SQL string assembled through concatenation before EXEC \u2014 the final SQL is not statically visible at parse time and cannot be exercised by fixture-driven unit tests. LLM-recovered SQL is available in details.",
+      "item_id": "silver.execconcattarget",
+      "severity": "warning",
+      "details": {
+        "routing": "dynamic_sql_variable",
+        "recovered_sql": "INSERT INTO silver.ExecConcatTarget (ProductAlternateKey, EnglishProductName) SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product"
+      }
+    }
+  ],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "errors": []
+}

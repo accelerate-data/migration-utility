@@ -1,0 +1,60 @@
+{
+  "schema": "silver",
+  "name": "vw_crossdbprofile",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "dimcrossdbprofile",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "CrossDbProfileKey",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "EmployeeAlternateKey",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "EmployeeTitle",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "scoping": {
+    "status": "analyzed",
+    "sql_elements": [],
+    "call_tree": {
+      "reads_from": [
+        "silver.dimcrossdbprofile"
+      ],
+      "views_referenced": []
+    },
+    "logic_summary": "Selects all three columns from silver.dimcrossdbprofile with no filtering, joining, or aggregation. Serves as a thin passthrough exposing the cross-database-loaded dimension to downstream consumers.",
+    "rationale": "Simple passthrough view with no SQL complexity — no joins, aggregations, or subqueries. All columns are projected directly from the source table.",
+    "warnings": [],
+    "errors": []
+  }
+}

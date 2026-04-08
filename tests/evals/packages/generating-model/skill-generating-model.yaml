@@ -7,7 +7,7 @@ prompts:
 providers:
   - id: anthropic:claude-agent-sdk
     config:
-      model: claude-haiku-4-5-20251001
+      model: claude-sonnet-4-6
       working_dir: ../..
       max_turns: 80
       permission_mode: auto
@@ -19,24 +19,24 @@ providers:
         - Grep
 
 defaultTest:
-  vars:
-    fixture_path: "tests/evals/fixtures/migration-test"
   assert:
     - type: javascript
       value: file://../../assertions/check-dbt-model.js
 
 tests:
-  # ── modular split ─────────────────────────────────────────────
-  - description: "modular-split — InsertSelectTarget with refactored SQL produces stg_ + mart models"
+  # ── quality-modular-split ─────────────────────────────────────
+  - description: "quality-modular-split — InsertSelectTarget stg + mart models"
     vars:
+      fixture_path: "tests/evals/fixtures/generating-model/quality-modular-split"
       target_table: "silver.InsertSelectTarget"
       writer: "silver.usp_load_InsertSelectTarget"
       expected_model_terms: "ref('stg_insertselecttarget'),materialized='table'"
       expected_stg_files: "stg_insertselecttarget"
 
-  # ── style compliance ─────────────────────────────────────────
-  - description: "style-compliance — generated model uses lowercase keywords and snake_case names"
+  # ── quality-style ────────────────────────────────────────────
+  - description: "quality-style — lowercase keywords and snake_case names"
     vars:
+      fixture_path: "tests/evals/fixtures/generating-model/quality-style"
       target_table: "silver.InsertSelectTarget"
       writer: "silver.usp_load_InsertSelectTarget"
       expected_model_terms: "with,select,from,materialized="
@@ -44,46 +44,52 @@ tests:
 
   # --- VU-878: CTE-shape and materialization scenarios ---
 
-  # ── single-source table materialization ─────────────────────
-  - description: "single-source-table — SelectIntoTarget single import CTE produces stg_ + mart"
+  # ── select-into ─────────────────────────────────────────────
+  - description: "select-into — SelectIntoTarget single import CTE stg + mart"
     vars:
+      fixture_path: "tests/evals/fixtures/generating-model/select-into"
       target_table: "silver.SelectIntoTarget"
       writer: "silver.usp_load_SelectIntoTarget"
       expected_stg_files: "stg_selectintotarget"
       expected_stg_terms: "source("
       forbidden_stg_terms: "join,group by"
 
-  # ── multi-source split ──────────────────────────────────────
-  - description: "multi-source-split — DimCustomer multi-source refactored SQL produces mart with ref() calls"
+  # ── truncate-insert ─────────────────────────────────────────
+  - description: "truncate-insert — DimCustomer multi-source mart with ref() calls"
     vars:
+      fixture_path: "tests/evals/fixtures/generating-model/truncate-insert"
       target_table: "silver.DimCustomer"
       writer: "silver.usp_load_DimCustomer_Full"
       expected_model_terms: "ref(,materialized="
 
-  # ── table materialization (dim_scd1) ─────────────────────────
-  - description: "table-materialization — DimProduct dim_scd1 generates table-materialized model"
+  # ── merge ────────────────────────────────────────────────────
+  - description: "merge — DimProduct dim_scd1 table-materialized model"
     vars:
+      fixture_path: "tests/evals/fixtures/generating-model/merge"
       target_table: "silver.DimProduct"
       writer: "silver.usp_load_DimProduct"
       expected_model_terms: "materialized='table',ref("
 
-  # ── incremental materialization (watermark) ──────────────────
-  - description: "incremental-materialization — UpdateJoinTarget with watermark generates incremental model"
+  # ── update-join ──────────────────────────────────────────────
+  - description: "update-join — UpdateJoinTarget watermark incremental model"
     vars:
+      fixture_path: "tests/evals/fixtures/generating-model/update-join"
       target_table: "silver.UpdateJoinTarget"
       writer: "silver.usp_load_UpdateJoinTarget"
       expected_model_terms: "materialized='incremental'"
 
-  # ── etl control columns ─────────────────────────────────────
-  - description: "etl-columns — generated model includes _dbt_run_id ETL control column"
+  # ── quality-etl-columns ─────────────────────────────────────
+  - description: "quality-etl-columns — _dbt_run_id control column present"
     vars:
+      fixture_path: "tests/evals/fixtures/generating-model/quality-etl-columns"
       target_table: "silver.InsertSelectTarget"
       writer: "silver.usp_load_InsertSelectTarget"
       expected_model_terms: "_dbt_run_id"
 
-  # ── yaml schema rendered ─────────────────────────────────────
-  - description: "yaml-rendered — generated output includes schema YAML with version and description"
+  # ── quality-yaml-rendered ────────────────────────────────────
+  - description: "quality-yaml-rendered — schema YAML with version and description"
     vars:
+      fixture_path: "tests/evals/fixtures/generating-model/quality-yaml-rendered"
       target_table: "silver.InsertSelectTarget"
       writer: "silver.usp_load_InsertSelectTarget"
       expected_output_terms: "version: 2,description"
@@ -128,3 +134,13 @@ tests:
     assert:
       - type: javascript
         value: file://../../assertions/check-sweep-action.js
+
+  # --- VU-880: deferred generating-model scenarios ---
+
+  - description: "snapshot-dim-scd2 — SCD2 table produces dbt snapshot"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-model/snapshot-dim-scd2"
+      target_table: "silver.DimEmployeeSCD2"
+      writer: "silver.usp_load_DimEmployeeSCD2"
+      expected_model_terms: "snapshot,strategy"
+      forbidden_model_terms: "materialized='table'"

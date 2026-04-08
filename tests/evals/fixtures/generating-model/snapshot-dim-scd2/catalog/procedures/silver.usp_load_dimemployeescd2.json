@@ -1,0 +1,121 @@
+{
+  "schema": "silver",
+  "name": "usp_load_dimemployeescd2",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "Employee",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "JobTitle",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "LoginID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "MaritalStatus",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "NationalIDNumber",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "DimEmployeeSCD2",
+          "is_selected": true,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "Department",
+              "is_selected": true,
+              "is_updated": true
+            },
+            {
+              "name": "EmployeeNaturalKey",
+              "is_selected": true,
+              "is_updated": true
+            },
+            {
+              "name": "EmployeeSCD2Key",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "FirstName",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "IsCurrent",
+              "is_selected": true,
+              "is_updated": true
+            },
+            {
+              "name": "JobTitle",
+              "is_selected": true,
+              "is_updated": true
+            },
+            {
+              "name": "LastName",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ValidFrom",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ValidTo",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "statements": [
+    {
+      "type": "Update",
+      "action": "migrate",
+      "sql": "UPDATE tgt SET tgt.ValidTo = GETDATE(), tgt.IsCurrent = 0 FROM silver.DimEmployeeSCD2 AS tgt INNER JOIN bronze.Employee AS src ON tgt.EmployeeNaturalKey = src.NationalIDNumber WHERE tgt.IsCurrent = 1 AND (tgt.JobTitle <> src.JobTitle OR tgt.Department <> src.MaritalStatus)"
+    },
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "sql": "INSERT INTO silver.DimEmployeeSCD2 (EmployeeNaturalKey, FirstName, LastName, JobTitle, Department, ValidFrom, ValidTo, IsCurrent) SELECT src.NationalIDNumber, SUBSTRING(src.LoginID, CHARINDEX(N'\\', src.LoginID) + 1, 50), src.JobTitle, src.JobTitle, src.MaritalStatus, GETDATE(), CAST('9999-12-31' AS DATETIME2), 1 FROM bronze.Employee AS src LEFT JOIN silver.DimEmployeeSCD2 AS tgt ON src.NationalIDNumber = tgt.EmployeeNaturalKey AND tgt.IsCurrent = 1 WHERE tgt.EmployeeSCD2Key IS NULL"
+    }
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "UPDATE tgt SET tgt.ValidTo = GETDATE(), tgt.IsCurrent = 0 FROM silver.DimEmployeeSCD2 AS tgt INNER JOIN bronze.Employee AS src ON tgt.EmployeeNaturalKey = src.NationalIDNumber WHERE tgt.IsCurrent = 1 AND (tgt.JobTitle <> src.JobTitle OR tgt.Department <> src.MaritalStatus);\n\nINSERT INTO silver.DimEmployeeSCD2 (EmployeeNaturalKey, FirstName, LastName, JobTitle, Department, ValidFrom, ValidTo, IsCurrent) SELECT src.NationalIDNumber, SUBSTRING(src.LoginID, CHARINDEX(N'\\', src.LoginID) + 1, 50), src.JobTitle, src.JobTitle, src.MaritalStatus, GETDATE(), CAST('9999-12-31' AS DATETIME2), 1 FROM bronze.Employee AS src LEFT JOIN silver.DimEmployeeSCD2 AS tgt ON src.NationalIDNumber = tgt.EmployeeNaturalKey AND tgt.IsCurrent = 1 WHERE tgt.EmployeeSCD2Key IS NULL",
+    "refactored_sql": "with import_employee as (\n    select\n        NationalIDNumber,\n        LoginID,\n        JobTitle,\n        MaritalStatus\n    from [bronze].[Employee]\n),\n\nlogical_new_current_rows as (\n    select\n        src.NationalIDNumber  as EmployeeNaturalKey,\n        substring(src.LoginID, charindex(N'\\', src.LoginID) + 1, 50) as FirstName,\n        src.JobTitle          as LastName,\n        src.JobTitle,\n        src.MaritalStatus     as Department,\n        getdate()             as ValidFrom,\n        cast('9999-12-31' as datetime2) as ValidTo,\n        1                     as IsCurrent\n    from import_employee as src\n    left join [silver].[DimEmployeeSCD2] as tgt\n        on src.NationalIDNumber = tgt.EmployeeNaturalKey\n       and tgt.IsCurrent = 1\n    where tgt.EmployeeSCD2Key is null\n),\n\nfinal as (\n    select * from logical_new_current_rows\n)\n\nselect * from final"
+  }
+}

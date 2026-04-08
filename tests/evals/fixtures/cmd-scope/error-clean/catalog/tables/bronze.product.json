@@ -1,0 +1,244 @@
+{
+  "schema": "bronze",
+  "name": "product",
+  "columns": [
+    {
+      "name": "ProductID",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": true
+    },
+    {
+      "name": "ProductName",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "ProductNumber",
+      "sql_type": "NVARCHAR(25)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "MakeFlag",
+      "sql_type": "BIT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "FinishedGoodsFlag",
+      "sql_type": "BIT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "Color",
+      "sql_type": "NVARCHAR(15)",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "SafetyStockLevel",
+      "sql_type": "SMALLINT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "ReorderPoint",
+      "sql_type": "SMALLINT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "StandardCost",
+      "sql_type": "MONEY",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "ListPrice",
+      "sql_type": "MONEY",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "Size",
+      "sql_type": "NVARCHAR(5)",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "SizeUnitMeasureCode",
+      "sql_type": "NCHAR(3)",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "WeightUnitMeasureCode",
+      "sql_type": "NCHAR(3)",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "Weight",
+      "sql_type": "FLOAT",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "DaysToManufacture",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "ProductLine",
+      "sql_type": "NCHAR(2)",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "Class",
+      "sql_type": "NCHAR(2)",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "Style",
+      "sql_type": "NCHAR(2)",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "ProductSubcategoryID",
+      "sql_type": "INT",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "ProductModelID",
+      "sql_type": "INT",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "SellStartDate",
+      "sql_type": "DATETIME",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "SellEndDate",
+      "sql_type": "DATETIME",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "DiscontinuedDate",
+      "sql_type": "DATETIME",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "ModifiedDate",
+      "sql_type": "DATETIME",
+      "is_nullable": false,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [
+    {
+      "column": "ProductID",
+      "mechanism": "identity"
+    }
+  ],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "usp_load_dimproduct",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "Class",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "Color",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "DiscontinuedDate",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ListPrice",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductLine",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductName",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "SellEndDate",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "SellStartDate",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "Size",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "StandardCost",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "Style",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  }
+}

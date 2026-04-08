@@ -19,8 +19,6 @@ providers:
         - Grep
 
 defaultTest:
-  vars:
-    fixture_path: "tests/evals/fixtures/migration-test"
   assert:
     - type: javascript
       value: file://../../assertions/check-refactored-sql.js
@@ -29,14 +27,16 @@ tests:
   # ── insert-select ─────────────────────────────────────────────
   - description: "insert-select — simple INSERT...SELECT extracted and refactored"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/insert-select"
       target_table: "silver.InsertSelectTarget"
       writer: "silver.usp_load_InsertSelectTarget"
       expected_extracted_terms: "select"
       expected_refactored_terms: "with,final"
 
-  # ── merge using ───────────────────────────────────────────────
-  - description: "merge-using — MERGE USING clause extracted, refactored with import CTEs"
+  # ── merge ─────────────────────────────────────────────────────
+  - description: "merge — MERGE USING clause extracted, refactored with import CTEs"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/merge"
       target_table: "silver.DimProduct"
       writer: "silver.usp_load_DimProduct"
       expected_extracted_terms: "productalternatekey,isnull"
@@ -45,6 +45,7 @@ tests:
   # ── update with join ──────────────────────────────────────────
   - description: "update-join — UPDATE with JOIN extracted as joined SELECT"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/update-join"
       target_table: "silver.UpdateJoinTarget"
       writer: "silver.usp_load_UpdateJoinTarget"
       expected_extracted_terms: "productname,englishproductname"
@@ -53,6 +54,7 @@ tests:
   # ── delete with where ─────────────────────────────────────────
   - description: "delete-where — DELETE inverted to keep-rows SELECT"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/delete-where"
       target_table: "silver.DeleteWhereTarget"
       writer: "silver.usp_load_DeleteWhereTarget"
       expected_extracted_terms: "isretired"
@@ -61,6 +63,7 @@ tests:
   # ── truncate + insert with outer apply (full reload) ─────────
   - description: "truncate-insert — DimCustomer full reload extracted with OUTER APPLY"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/truncate-insert"
       target_table: "silver.DimCustomer"
       writer: "silver.usp_load_DimCustomer_Full"
       expected_extracted_terms: "customeralternatekey,firstname,min("
@@ -69,14 +72,16 @@ tests:
   # ── union all ─────────────────────────────────────────────────
   - description: "union-all — UNION ALL preserved in both extracted and refactored"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/union-all"
       target_table: "silver.UnionAllTarget"
       writer: "silver.usp_load_UnionAllTarget"
       expected_extracted_terms: "union all"
       expected_refactored_terms: "with,union all,final"
 
-  # ── window functions ──────────────────────────────────────────
-  - description: "window-functions — FactInternetSales window expressions preserved"
+  # ── window-fn ────────────────────────────────────────────────
+  - description: "window-fn — FactInternetSales window expressions preserved"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/window-fn"
       target_table: "silver.FactInternetSales"
       writer: "silver.usp_stage_FactInternetSales"
       expected_extracted_terms: "count(*) over,partition by"
@@ -85,6 +90,7 @@ tests:
   # ── grouping sets ─────────────────────────────────────────────
   - description: "grouping-sets — GROUPING SETS preserved in refactored CTEs"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/grouping-sets"
       target_table: "silver.GroupingSetsTarget"
       writer: "silver.usp_load_GroupingSetsTarget"
       expected_extracted_terms: "grouping sets"
@@ -93,6 +99,7 @@ tests:
   # ── pivot ─────────────────────────────────────────────────────
   - description: "pivot — PIVOT pattern handled in CTE restructuring"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/pivot"
       target_table: "silver.PivotTarget"
       writer: "silver.usp_load_PivotTarget"
       expected_refactored_terms: "with,final"
@@ -102,6 +109,7 @@ tests:
   # ── select into ──────────────────────────────────────────────
   - description: "select-into — SELECT INTO extracted as pure SELECT with CTE"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/select-into"
       target_table: "silver.SelectIntoTarget"
       writer: "silver.usp_load_SelectIntoTarget"
       expected_extracted_terms: "productalternatekey"
@@ -110,6 +118,7 @@ tests:
   # ── single cte ───────────────────────────────────────────────
   - description: "single-cte — CTE-based INSERT restructured into import/logical/final"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/single-cte"
       target_table: "silver.SingleCteTarget"
       writer: "silver.usp_load_SingleCteTarget"
       expected_refactored_terms: "with,final"
@@ -117,6 +126,7 @@ tests:
   # ── correlated subquery (multi-level CTE) ────────────────────
   - description: "correlated-subquery — correlated subquery flattened into CTE chain"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/correlated-subquery"
       target_table: "silver.CorrelatedSubqueryTarget"
       writer: "silver.usp_load_CorrelatedSubqueryTarget"
       expected_refactored_terms: "with,final"
@@ -124,36 +134,41 @@ tests:
   # ── case when (via MERGE) ────────────────────────────────────
   - description: "case-when — CASE WHEN expressions preserved in refactored CTEs"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/case-when"
       target_table: "silver.DimProduct"
       writer: "silver.usp_load_DimProduct"
       expected_extracted_terms: "case,when,obsolete"
       expected_refactored_terms: "with,case,when,final"
 
-  # ── outer apply + left join ──────────────────────────────────
-  - description: "outer-apply-join — OUTER APPLY and JOIN restructured into CTEs"
+  # ── outer-apply ──────────────────────────────────────────────
+  - description: "outer-apply — OUTER APPLY and JOIN restructured into CTEs"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/outer-apply"
       target_table: "silver.DimCustomer"
       writer: "silver.usp_load_DimCustomer_Full"
       expected_extracted_terms: "firstname,min("
       expected_refactored_terms: "with,join,final"
 
-  # ── derived table / staging ──────────────────────────────────
-  - description: "derived-table — FactInternetSales staging query restructured"
+  # ── insert-select-derived ────────────────────────────────────
+  - description: "insert-select-derived — FactInternetSales staging query derived table"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/insert-select-derived"
       target_table: "silver.FactInternetSales"
       writer: "silver.usp_stage_FactInternetSales"
       expected_refactored_terms: "with,final"
 
-  # ── update with cte prefix ──────────────────────────────────
-  - description: "update-cte — UPDATE with JOIN extracted as joined SELECT CTE"
+  # ── update-join-cte ──────────────────────────────────────────
+  - description: "update-join-cte — UpdateJoinTarget CTE restructuring"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/update-join-cte"
       target_table: "silver.UpdateJoinTarget"
       writer: "silver.usp_load_UpdateJoinTarget"
       expected_refactored_terms: "with,join,final"
 
-  # ── delete with cte prefix ──────────────────────────────────
-  - description: "delete-cte — DELETE WHERE inverted to keep-rows CTE"
+  # ── delete-where-cte ─────────────────────────────────────────
+  - description: "delete-where-cte — DeleteWhereTarget CTE restructuring"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/delete-where-cte"
       target_table: "silver.DeleteWhereTarget"
       writer: "silver.usp_load_DeleteWhereTarget"
       expected_refactored_terms: "with,final"
@@ -161,6 +176,7 @@ tests:
   # ── if/else control flow ─────────────────────────────────────
   - description: "if-else — IF/ELSE branches decomposed into CTE structure"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/if-else"
       target_table: "silver.IfElseTarget"
       writer: "silver.usp_load_IfElseTarget"
       expected_refactored_terms: "with,final"
@@ -168,6 +184,7 @@ tests:
   # ── while loop ───────────────────────────────────────────────
   - description: "while-loop — WHILE loop set-based equivalent in CTEs"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/while-loop"
       target_table: "silver.WhileLoopTarget"
       writer: "silver.usp_load_WhileLoopTarget"
       expected_refactored_terms: "with,final"
@@ -175,13 +192,15 @@ tests:
   # ── cross-db exec (graceful) ─────────────────────────────────
   - description: "cross-db-exec — cross-database EXEC graceful partial"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/cross-db-exec"
       target_table: "silver.DimCrossDbProfile"
       writer: "silver.usp_load_DimCrossDbProfile"
       graceful_partial: "true"
 
-  # ── dynamic sp_executesql (graceful) ─────────────────────────
-  - description: "dynamic-sp-executesql — dynamic SQL graceful partial"
+  # ── dynamic-sql (graceful) ───────────────────────────────────
+  - description: "dynamic-sql — dynamic SQL graceful partial"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/dynamic-sql"
       target_table: "silver.DimCurrency"
       writer: "silver.usp_load_DimCurrency"
       graceful_partial: "true"
@@ -189,6 +208,7 @@ tests:
   # ── exec variable (graceful) ─────────────────────────────────
   - description: "exec-variable — EXEC(@sql) graceful partial"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/exec-variable"
       target_table: "silver.ExecVariableTarget"
       writer: "silver.usp_scope_ExecVariable"
       graceful_partial: "true"
@@ -196,6 +216,7 @@ tests:
   # ── exec concat (graceful) ──────────────────────────────────
   - description: "exec-concat — EXEC concatenation graceful partial"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/exec-concat"
       target_table: "silver.ExecConcatTarget"
       writer: "silver.usp_scope_ExecConcat"
       graceful_partial: "true"
@@ -203,6 +224,7 @@ tests:
   # ── delete top ───────────────────────────────────────────────
   - description: "delete-top — DELETE TOP inverted to keep-rows SELECT"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/delete-top"
       target_table: "silver.DeleteTopTarget"
       writer: "silver.usp_load_DeleteTopTarget"
       expected_extracted_terms: "loadeddate,dateadd"
@@ -211,6 +233,7 @@ tests:
   # ── recursive cte ────────────────────────────────────────────
   - description: "recursive-cte — recursive CTE preserved in refactored model"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/recursive-cte"
       target_table: "silver.RecursiveCteTarget"
       writer: "silver.usp_load_RecursiveCteTarget"
       expected_extracted_terms: "union all,managerid"
@@ -219,14 +242,16 @@ tests:
   # ── try/catch ────────────────────────────────────────────────
   - description: "try-catch — TRY block INSERT extracted, CATCH discarded"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/try-catch"
       target_table: "silver.TryCatchTarget"
       writer: "silver.usp_load_TryCatchTarget"
       expected_extracted_terms: "productalternatekey"
       expected_refactored_terms: "with,final"
 
-  # ── nested control flow ──────────────────────────────────────
-  - description: "nested-control-flow — nested IF/TRY decomposed into CTE structure"
+  # ── nested-flow ──────────────────────────────────────────────
+  - description: "nested-flow — nested IF/TRY decomposed into CTE structure"
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/nested-flow"
       target_table: "silver.NestedFlowTarget"
       writer: "silver.usp_load_NestedFlowTarget"
       expected_refactored_terms: "with,final"

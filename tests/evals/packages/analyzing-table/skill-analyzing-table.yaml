@@ -2,7 +2,12 @@
 description: "Scoping-table skill — writer discovery, procedure analysis, and scope resolution for tables"
 
 prompts:
-  - file://../../prompts/skill-analyzing-table.txt
+  - id: analyzing-table
+    label: analyzing-table
+    raw: file://../../prompts/skill-analyzing-table.txt
+  - id: analyzing-table-view
+    label: analyzing-table-view
+    raw: file://../../prompts/skill-analyzing-table-view.txt
 
 providers:
   - id: anthropic:claude-agent-sdk
@@ -19,8 +24,6 @@ providers:
         - Grep
 
 defaultTest:
-  vars:
-    fixture_path: "tests/evals/fixtures/migration-test"
   assert:
     - type: javascript
       value: file://../../assertions/check-table-scoping.js
@@ -31,6 +34,7 @@ tests:
   # ── truncate-insert: DimCustomer multi-writer resolution ────
   - description: "truncate-insert — DimCustomer multi-writer resolution"
     vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/truncate-insert"
       target_table: "silver.DimCustomer"
       target_procedure: "silver.usp_load_DimCustomer_Full"
       expected_status: "resolved"
@@ -40,6 +44,7 @@ tests:
   # ── merge: DimProduct single MERGE writer ───────────────────
   - description: "merge — DimProduct single MERGE writer"
     vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/merge"
       target_table: "silver.DimProduct"
       target_procedure: "silver.usp_load_DimProduct"
       expected_status: "resolved"
@@ -49,6 +54,7 @@ tests:
   # ── exec-orchestrator: FactInternetSales EXEC chain writer ──
   - description: "exec-orchestrator — FactInternetSales EXEC chain writer"
     vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/exec-orchestrator"
       target_table: "silver.FactInternetSales"
       target_procedure: "silver.usp_load_FactInternetSales"
       expected_status: "resolved"
@@ -58,14 +64,16 @@ tests:
   # ── cross-db-exec: DimCrossDbProfile cross-database delegation
   - description: "cross-db-exec — DimCrossDbProfile cross-database delegation"
     vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/cross-db-exec"
       target_table: "silver.DimCrossDbProfile"
       target_procedure: "silver.usp_load_DimCrossDbProfile"
       expected_status: "resolved"
       expected_writer: "dimcrossdbprofile"
 
-  # ── dynamic-sp-executesql: DimCurrency dynamic SQL writer ───
-  - description: "dynamic-sp-executesql — DimCurrency dynamic SQL writer"
+  # ── dynamic-sql — DimCurrency sp_executesql writer ──────────
+  - description: "dynamic-sql — DimCurrency sp_executesql writer"
     vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/dynamic-sql"
       target_table: "silver.DimCurrency"
       target_procedure: "silver.usp_load_DimCurrency"
       expected_status: "resolved"
@@ -74,6 +82,7 @@ tests:
   # ── exec-variable: ExecVariableTarget dynamic EXEC(@sql) ────
   - description: "exec-variable — ExecVariableTarget dynamic EXEC(@sql)"
     vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/exec-variable"
       target_table: "silver.ExecVariableTarget"
       target_procedure: "silver.usp_scope_ExecVariable"
       expected_status: "resolved"
@@ -84,6 +93,7 @@ tests:
   # ── exec-concat: ExecConcatTarget concatenated EXEC ─────────
   - description: "exec-concat — ExecConcatTarget concatenated EXEC"
     vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/exec-concat"
       target_table: "silver.ExecConcatTarget"
       target_procedure: "silver.usp_scope_ExecConcat"
       expected_status: "resolved"
@@ -94,24 +104,51 @@ tests:
   # ── linked-server-exec: LinkedServerExecTarget skip ────────
   - description: "linked-server-exec — LinkedServerExecTarget linked-server EXEC skip"
     vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/linked-server-exec"
       target_table: "silver.LinkedServerExecTarget"
       target_procedure: "silver.usp_scope_LinkedServerExec"
       expected_status: "resolved,no_writer_found"
       allow_zero_migrate: "true"
       expected_action: "skip"
 
-  # ── Tier 3: 3+ multi-writer disambiguation ────────────────
-  - description: "multi-writer-3 — DimMultiWriter 3-writer disambiguation"
+  # ── multi-writer — DimMultiWriter 3-writer disambiguation ──
+  - description: "multi-writer — DimMultiWriter 3-writer disambiguation"
     vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/multi-writer"
       target_table: "silver.DimMultiWriter"
       target_procedure: "silver.usp_load_DimMultiWriter_Full"
       expected_status: "resolved"
       expected_writer: "dimmultiwriter_full"
 
-  # ── Tier 3: IF/ELSE dynamic SQL branching ─────────────────
-  - description: "if-else-dynamic — DimDynamicBranch conditional sp_executesql"
+  # ── if-else — DimDynamicBranch conditional sp_executesql ───
+  - description: "if-else — DimDynamicBranch conditional sp_executesql"
     vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/if-else"
       target_table: "silver.DimDynamicBranch"
       target_procedure: "silver.usp_load_DimDynamicBranch"
       expected_status: "resolved"
       expected_writer: "dimdynamicbranch"
+
+  # ── view scoping scenarios ─────────────────────────────────
+
+  # single-table pass-through SELECT with column list
+  - description: "view-scope-passthrough — vDimSalesTerritory single-table select"
+    prompts: ["analyzing-table-view"]
+    vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/view-scope-passthrough"
+      target_view: "silver.vDimSalesTerritory"
+      check_type: "scoping"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-view-catalog.js
+
+  # multi-column pass-through on DimPromotion
+  - description: "view-scope-multi-col — vw_DimPromotion multi-column select"
+    prompts: ["analyzing-table-view"]
+    vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/view-scope-multi-col"
+      target_view: "silver.vw_DimPromotion"
+      check_type: "scoping"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-view-catalog.js

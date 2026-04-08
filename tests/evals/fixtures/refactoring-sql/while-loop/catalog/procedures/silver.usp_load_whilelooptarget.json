@@ -1,0 +1,50 @@
+{
+  "schema": "silver",
+  "name": "usp_load_whilelooptarget",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "WhileLoopTarget",
+          "is_selected": false,
+          "is_updated": true
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "needs_llm": false,
+  "mode": "deterministic",
+  "routing_reasons": [],
+  "statements": [
+    {
+      "type": "TruncateTable",
+      "action": "skip",
+      "sql": "TRUNCATE TABLE silver.WhileLoopTarget"
+    },
+    {
+      "type": "InsertSelect",
+      "action": "migrate",
+      "source": "ast",
+      "sql": "INSERT INTO silver.WhileLoopTarget (ProductAlternateKey, EnglishProductName) SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product ORDER BY ProductID OFFSET @Offset ROWS FETCH NEXT @BatchSize ROWS ONLY"
+    }
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM [bronze].[Product] ORDER BY ProductID",
+    "refactored_sql": "WITH source_product AS ( SELECT * FROM [bronze].[Product] ), transformed_product AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM source_product ), final AS ( SELECT ProductAlternateKey, EnglishProductName FROM transformed_product ORDER BY ProductAlternateKey ) SELECT * FROM final"
+  }
+}

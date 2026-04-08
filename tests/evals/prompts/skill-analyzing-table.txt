@@ -1,26 +1,5 @@
 You are running in a DDL project directory at {{fixture_path}}.
 
-Read the skill definition at plugin/skills/analyzing-table/SKILL.md and follow it exactly. The table to scope is {{target_table}}.
+Run /analyzing-table for table {{target_table}}.
 
-Wherever the skill references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead (the lib directory is at `plugin/lib/` in the repo).
-
-IMPORTANT PATH RULE: All CLI commands (guard, discover refs, discover show, discover write-scoping, discover write-statements, etc.) default to using the current working directory as the project root. Since the fixture catalog lives at {{fixture_path}}, you MUST pass `--project-root {{fixture_path}}` to every CLI invocation so reads and writes target the correct catalog directory. This applies to commands in the skill AND in referenced documents (procedure-analysis.md). For example:
-```
-uv run --project plugin/lib migrate-util guard <table> scope --project-root {{fixture_path}}
-uv run --project plugin/lib discover refs --name <table> --project-root {{fixture_path}}
-uv run --project plugin/lib discover show --name <proc> --project-root {{fixture_path}}
-uv run --project plugin/lib discover write-statements --name <proc> --statements-file {{fixture_path}}/.staging/statements.json --project-root {{fixture_path}}
-uv run --project plugin/lib discover write-scoping --name <table> --scoping-file {{fixture_path}}/.staging/scoping.json --project-root {{fixture_path}}
-```
-When writing staging files (like .staging/scoping.json, .staging/statements.json), create the .staging directory inside {{fixture_path}} so paths are consistent:
-```
-mkdir -p {{fixture_path}}/.staging
-```
-
-When the skill asks for user confirmation to select a writer, auto-confirm the selection. Do not wait for user input.
-
-If multiple writer candidates are found, select the one that performs the primary write operation (INSERT, MERGE, or TRUNCATE+INSERT pattern) rather than delta/incremental writers.
-
-Complete all steps in the procedure analysis reference (references/procedure-analysis.md) including persisting resolved statements to catalog — do not ask for confirmation on statement persistence.
-
-CRITICAL OUTPUT REQUIREMENT: Your final response must include the scoping status and selected writer.
+Read the skill at plugin/skills/analyzing-table/SKILL.md. Wherever it references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead. Pass `--project-root {{fixture_path}}` to all CLI commands so reads and writes target the fixture catalog.

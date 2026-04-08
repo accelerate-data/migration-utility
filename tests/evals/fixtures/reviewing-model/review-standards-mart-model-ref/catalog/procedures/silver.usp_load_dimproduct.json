@@ -1,0 +1,161 @@
+{
+  "schema": "silver",
+  "name": "usp_load_dimproduct",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "Product",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "Class",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "Color",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "DiscontinuedDate",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ListPrice",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductLine",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductName",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "SellEndDate",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "SellStartDate",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "Size",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "StandardCost",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "Style",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "DimProduct",
+          "is_selected": true,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "Class",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "Color",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "EnglishProductName",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ListPrice",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ProductAlternateKey",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductLine",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "Size",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "StandardCost",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "Status",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "Style",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "statements": [
+    {
+      "type": "Merge",
+      "action": "migrate",
+      "sql": "MERGE silver.DimProduct AS tgt USING (SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, StandardCost, ListPrice, ISNULL(Color, '') AS Color, Size, ProductLine, Class, Style, SellStartDate AS StartDate, SellEndDate AS EndDate, CASE WHEN DiscontinuedDate IS NOT NULL THEN 'Obsolete' WHEN SellEndDate IS NOT NULL THEN 'Outdated' ELSE 'Current' END AS Status FROM bronze.Product) AS src ON tgt.ProductAlternateKey = src.ProductAlternateKey WHEN MATCHED THEN UPDATE SET tgt.EnglishProductName = src.EnglishProductName, tgt.StandardCost = src.StandardCost, tgt.ListPrice = src.ListPrice, tgt.Color = src.Color, tgt.Size = src.Size, tgt.ProductLine = src.ProductLine, tgt.Class = src.Class, tgt.Style = src.Style, tgt.Status = src.Status WHEN NOT MATCHED BY TARGET THEN INSERT (ProductAlternateKey, EnglishProductName, StandardCost, ListPrice, Color, Size, ProductLine, Class, Style, StartDate, EndDate, Status) VALUES (src.ProductAlternateKey, src.EnglishProductName, src.StandardCost, src.ListPrice, src.Color, src.Size, src.ProductLine, src.Class, src.Style, src.StartDate, src.EndDate, src.Status)"
+    }
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, StandardCost, ListPrice, ISNULL(Color, '') AS Color, Size, ProductLine, Class, Style, SellStartDate AS StartDate, SellEndDate AS EndDate, CASE WHEN DiscontinuedDate IS NOT NULL THEN 'Obsolete' WHEN SellEndDate IS NOT NULL THEN 'Outdated' ELSE 'Current' END AS Status FROM [bronze].[Product]",
+    "refactored_sql": "WITH import_product AS ( SELECT * FROM [bronze].[Product] ), logical_transform AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, StandardCost, ListPrice, ISNULL(Color, '') AS Color, Size, ProductLine, Class, Style, SellStartDate AS StartDate, SellEndDate AS EndDate, CASE WHEN DiscontinuedDate IS NOT NULL THEN 'Obsolete' WHEN SellEndDate IS NOT NULL THEN 'Outdated' ELSE 'Current' END AS Status FROM import_product ), final AS ( SELECT ProductAlternateKey, EnglishProductName, StandardCost, ListPrice, Color, Size, ProductLine, Class, Style, StartDate, EndDate, Status FROM logical_transform ) SELECT * FROM final;"
+  }
+}

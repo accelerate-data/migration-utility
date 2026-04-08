@@ -19,8 +19,6 @@ providers:
         - Grep
 
 defaultTest:
-  vars:
-    fixture_path: "tests/evals/fixtures/migration-test"
   assert:
     - type: javascript
       value: file://../../assertions/check-command-summary.js
@@ -31,6 +29,7 @@ tests:
   # ── happy path: 2 tables, both generate dbt models ──────────
   - description: "happy-path — InsertSelectTarget + UpdateJoinTarget both generate models"
     vars:
+      fixture_path: "tests/evals/fixtures/cmd-generate-model/happy-path"
       target_tables: "silver.InsertSelectTarget silver.UpdateJoinTarget"
       target_table: "silver.InsertSelectTarget"
       expected_item_statuses: '{"silver.InsertSelectTarget": "ok", "silver.UpdateJoinTarget": "ok"}'
@@ -39,9 +38,10 @@ tests:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
 
-  # ── review-revision: single table triggers review feedback ───
-  - description: "review-revision — CorrelatedSubqueryTarget goes through review cycle"
+  # ── review-cycle: single table triggers review feedback ──────
+  - description: "review-cycle — CorrelatedSubqueryTarget review loop"
     vars:
+      fixture_path: "tests/evals/fixtures/cmd-generate-model/review-cycle"
       target_tables: "silver.CorrelatedSubqueryTarget"
       target_table: "silver.CorrelatedSubqueryTarget"
       expected_item_statuses: '{"silver.CorrelatedSubqueryTarget": "ok"}'
@@ -50,9 +50,10 @@ tests:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
 
-  # ── error + clean: missing-scoping table + good table ────────
-  - description: "error+clean — DimProduct (no scoping) + InsertSelectTarget (ok)"
+  # ── error-clean: missing-scoping table + good table ─────────
+  - description: "error-clean — DimProduct no scoping + InsertSelectTarget ok"
     vars:
+      fixture_path: "tests/evals/fixtures/cmd-generate-model/error-clean"
       target_tables: "silver.DimProduct silver.InsertSelectTarget"
       expected_item_statuses: '{"silver.DimProduct": "error", "silver.InsertSelectTarget": "ok"}'
       expected_error_codes: "scoping_not_completed"

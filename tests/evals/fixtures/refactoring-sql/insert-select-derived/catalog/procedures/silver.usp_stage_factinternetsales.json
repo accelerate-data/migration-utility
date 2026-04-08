@@ -1,0 +1,209 @@
+{
+  "schema": "silver",
+  "name": "usp_stage_factinternetsales",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "SalesOrderDetail",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "LineTotal",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "OrderQty",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "SalesOrderDetailID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "SalesOrderID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "UnitPrice",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "bronze",
+          "name": "SalesOrderHeader",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "CustomerID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "DueDate",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "Freight",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "OrderDate",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "SalesOrderID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "SalesOrderNumber",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ShipDate",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "TaxAmt",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "TerritoryID",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "FactInternetSales",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "CustomerKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "DueDate",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ExtendedAmount",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "Freight",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "OrderDate",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "OrderQuantity",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ProductKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "SalesAmount",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "SalesOrderLineNumber",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "SalesOrderNumber",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "SalesTerritoryKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ShipDate",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "TaxAmt",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "UnitPrice",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "statements": [
+    {
+      "type": "TruncateTable",
+      "action": "skip",
+      "sql": "TRUNCATE TABLE silver.FactInternetSales"
+    },
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "sql": "INSERT INTO silver.FactInternetSales (SalesOrderNumber, SalesOrderLineNumber, ProductKey, CustomerKey, SalesTerritoryKey, OrderQuantity, UnitPrice, ExtendedAmount, SalesAmount, TaxAmt, Freight, OrderDate, DueDate, ShipDate) SELECT h.SalesOrderNumber, CAST(d.SalesOrderDetailID % 127 AS TINYINT) AS SalesOrderLineNumber, d.ProductID AS ProductKey, h.CustomerID AS CustomerKey, h.TerritoryID AS SalesTerritoryKey, d.OrderQty AS OrderQuantity, d.UnitPrice, CAST(d.UnitPrice * d.OrderQty AS MONEY) AS ExtendedAmount, d.LineTotal AS SalesAmount, CAST(h.TaxAmt / COUNT(*) OVER (PARTITION BY h.SalesOrderID) AS MONEY) AS TaxAmt, CAST(h.Freight / COUNT(*) OVER (PARTITION BY h.SalesOrderID) AS MONEY) AS Freight, h.OrderDate, h.DueDate, h.ShipDate FROM bronze.SalesOrderHeader h JOIN bronze.SalesOrderDetail d ON h.SalesOrderID = d.SalesOrderID"
+    }
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT h.SalesOrderNumber, CAST(d.SalesOrderDetailID % 127 AS TINYINT) AS SalesOrderLineNumber, d.ProductID AS ProductKey, h.CustomerID AS CustomerKey, h.TerritoryID AS SalesTerritoryKey, d.OrderQty AS OrderQuantity, d.UnitPrice, CAST(d.UnitPrice * d.OrderQty AS MONEY) AS ExtendedAmount, d.LineTotal AS SalesAmount, CAST(h.TaxAmt / COUNT(*) OVER (PARTITION BY h.SalesOrderID) AS MONEY) AS TaxAmt, CAST(h.Freight / COUNT(*) OVER (PARTITION BY h.SalesOrderID) AS MONEY) AS Freight, h.OrderDate, h.DueDate, h.ShipDate FROM bronze.SalesOrderHeader h JOIN bronze.SalesOrderDetail d ON h.SalesOrderID = d.SalesOrderID",
+    "refactored_sql": "WITH import_headers AS ( SELECT * FROM [bronze].[SalesOrderHeader] ), import_details AS ( SELECT * FROM [bronze].[SalesOrderDetail] ), joined_with_line_numbers AS ( SELECT h.SalesOrderNumber, CAST(d.SalesOrderDetailID % 127 AS TINYINT) AS SalesOrderLineNumber, d.ProductID, h.CustomerID, h.TerritoryID, d.OrderQty, d.UnitPrice, d.LineTotal, h.TaxAmt, h.Freight, h.OrderDate, h.DueDate, h.ShipDate, COUNT(*) OVER (PARTITION BY h.SalesOrderID) AS line_count FROM import_headers h JOIN import_details d ON h.SalesOrderID = d.SalesOrderID ), with_computed_columns AS ( SELECT SalesOrderNumber, SalesOrderLineNumber, ProductID AS ProductKey, CustomerID AS CustomerKey, TerritoryID AS SalesTerritoryKey, OrderQty AS OrderQuantity, UnitPrice, CAST(UnitPrice * OrderQty AS MONEY) AS ExtendedAmount, LineTotal AS SalesAmount, CAST(TaxAmt / line_count AS MONEY) AS TaxAmt, CAST(Freight / line_count AS MONEY) AS Freight, OrderDate, DueDate, ShipDate FROM joined_with_line_numbers ), final AS ( SELECT SalesOrderNumber, SalesOrderLineNumber, ProductKey, CustomerKey, SalesTerritoryKey, OrderQuantity, UnitPrice, ExtendedAmount, SalesAmount, TaxAmt, Freight, OrderDate, DueDate, ShipDate FROM with_computed_columns ) SELECT * FROM final;"
+  }
+}

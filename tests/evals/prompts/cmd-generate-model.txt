@@ -1,22 +1,7 @@
 You are running in a DDL project directory at {{fixture_path}}.
 
-Read the command definition at plugin/commands/generate-model.md and follow it exactly for these tables: {{target_tables}}.
+Run /generate-model for tables: {{target_tables}}.
 
-Wherever the command references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead (the lib directory is at `plugin/lib/` in the repo).
+Read the command at plugin/commands/generate-model.md. Wherever it references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead. Pass `--project-root {{fixture_path}}` to all CLI commands.
 
-EVAL MODE CONSTRAINTS — follow these exactly:
-- Do NOT run ANY git commands at all. No git worktree, git checkout, git branch, git add, git commit, git stash, or any other git command. This is critical — running git commands will corrupt the eval environment.
-- Operate directly in the fixture directory ({{fixture_path}}).
-- Write .migration-runs/ artifacts directly to {{fixture_path}}/.migration-runs/.
-- Skip Step 1 (Setup) entirely — there is no worktree, no slug, no branch. Generate a run epoch (seconds since Unix epoch) directly and use it for artifact names.
-- For 2+ tables: run Step 1b (Model sweep) as specified in the command — read catalog files, check staging files on disk, read dbt/target/run_results.json, decide recommended_action per table, identify shared_staging_candidates, write any shared stg_*.sql files, write the model-sweep artifact, and proceed automatically without waiting for user confirmation.
-- Process each table sequentially in the same agent turn (not truly parallel sub-agents).
-- Perform the review loop per generate-model.md (up to 2 iterations per table using the reviewing-model skill).
-- Skip Step 4 (Revert errored items) — it uses git checkout.
-- Do NOT ask the user to commit or open a PR. After presenting the summary, stop.
-- Do NOT ask for any user confirmation at any step — proceed automatically.
-- For dbt compile/test steps: attempt them. If dbt is not available in this environment, skip dbt compile/test and record dbt_compile_passed: false in the item result without failing the item.
-
-After processing all tables, write .migration-runs/summary.json and present the human-readable summary in the format specified in generate-model.md.
-
-CRITICAL OUTPUT REQUIREMENT: Your FINAL text response must include the summary table with each table's status and the total counts line (e.g. "ok: 2 | partial: 0 | error: 0").
+Skip git operations and worktree creation — operate directly on the fixture directory. Write `.migration-runs/` artifacts to `{{fixture_path}}/.migration-runs/`. If dbt compile/test is unavailable, skip those steps and record dbt_compile_passed: false.

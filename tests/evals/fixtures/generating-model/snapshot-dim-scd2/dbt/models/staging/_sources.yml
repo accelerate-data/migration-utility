@@ -1,0 +1,15 @@
+version: 2
+sources:
+- name: bronze
+  schema: bronze
+  tables:
+  - name: employee
+    columns:
+    - name: NationalIDNumber
+      data_type: nvarchar(15)
+    - name: LoginID
+      data_type: nvarchar(256)
+    - name: JobTitle
+      data_type: nvarchar(50)
+    - name: MaritalStatus
+      data_type: nchar(1)

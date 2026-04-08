@@ -76,7 +76,14 @@ module.exports = (output, context) => {
   };
   walkDir(modelsDir);
 
-  const matchingFiles = allFiles.filter(f => f.toLowerCase().includes(tableName));
+  const snapshotsDir = path.resolve(dbtDir, 'snapshots');
+  if (fs.existsSync(snapshotsDir)) walkDir(snapshotsDir);
+
+  const tableNameNorm = tableName.replace(/_/g, '');
+  const matchingFiles = allFiles.filter(f => {
+    const fNorm = f.toLowerCase().replace(/_/g, '');
+    return fNorm.includes(tableNameNorm);
+  });
   if (matchingFiles.length === 0) {
     if (gracefulNoModel) {
       const failure = assertExpectedOutputTerms();

@@ -1,11 +1,5 @@
-CRITICAL OUTPUT REQUIREMENT: Your FINAL text response must be a single JSON object matching the TestReviewResult shape from the skill contract.
-
 You are running in a DDL project directory at {{fixture_path}}.
 
-Read the skill instructions at plugin/skills/reviewing-tests/SKILL.md and follow them for table {{target_table}}{{iteration_suffix}}.
+Run /reviewing-tests for table {{target_table}}{{iteration_suffix}} with writer {{writer}}.
 
-Wherever the skill references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead (the lib directory is at `plugin/lib/` in the repo).
-
-When assembling migration context for this eval, pass `--writer {{writer}}` to `migrate context` so the scenario uses the intended procedure even if the table catalog points at a different selected writer.
-
-Do not ask for user confirmation. Write the final review JSON to `test-review-results/{{target_table}}.json` and then return that JSON object as your final response.
+Read the skill at plugin/skills/reviewing-tests/SKILL.md. Wherever it references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead. Pass `--project-root {{fixture_path}}` to all CLI commands and `--writer {{writer}}` to `migrate context`.

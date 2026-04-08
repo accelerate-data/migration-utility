@@ -1,34 +1,7 @@
-CRITICAL OUTPUT REQUIREMENT:
-- Your FINAL text response must present BOTH the extracted core SELECT and the refactored CTE SELECT.
-- If the refactoring succeeds, show both SQL blocks and the equivalence audit results.
-- If the procedure cannot be refactored (orchestration-only, dynamic-SQL-only), explain why.
-
 You are running in a DDL project directory at {{fixture_path}}.
 
-Read the skill instructions at plugin/skills/refactoring-sql/SKILL.md and follow them for table {{target_table}} with writer {{writer}}.
+Run /refactoring-sql for table {{target_table}} with writer {{writer}}.
 
-Wherever the skill references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead (the lib directory is at `plugin/lib/` in the repo).
+Read the skill at plugin/skills/refactoring-sql/SKILL.md. Wherever it references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead. Pass `--project-root {{fixture_path}}` to all CLI commands and `--writer {{writer}}` to `refactor context`.
 
-IMPORTANT PATH RULE: All CLI commands (guard, refactor context, refactor write, etc.) default to using the current working directory as the project root. Since the fixture catalog lives at {{fixture_path}}, you MUST pass `--project-root {{fixture_path}}` to every CLI invocation so reads and writes target the correct catalog directory. For example:
-```
-uv run --project plugin/lib migrate-util guard <table> refactoring-sql --project-root {{fixture_path}}
-uv run --project plugin/lib refactor context --table <table> --writer {{writer}} --project-root {{fixture_path}}
-uv run --project plugin/lib refactor write --table <table> --extracted-sql-file {{fixture_path}}/.staging/extracted.sql --refactored-sql-file {{fixture_path}}/.staging/refactored.sql --status ok --project-root {{fixture_path}}
-```
-When writing staging files (like .staging/extracted.sql, .staging/refactored.sql), create the .staging directory inside {{fixture_path}} so paths are consistent:
-```
-mkdir -p {{fixture_path}}/.staging
-```
-
-When assembling refactoring context, pass `--writer {{writer}}` to `refactor context` so the scenario uses the intended procedure even if the table catalog points at a different selected writer.
-
-IMPORTANT: The skill calls for two sub-agents (extraction + refactoring). In this eval context, you may run both steps sequentially in the same conversation since sub-agent isolation is not available. Still produce both outputs independently — do not let the extracted SQL influence your CTE refactoring or vice versa.
-
-Skip the sandbox `compare-sql` step — the eval does not have a live SQL Server sandbox. Instead, perform a manual logical equivalence check: verify that the refactored CTE SELECT produces the same columns and would read from the same source tables with the same joins/filters as the extracted SQL.
-
-After ALL tool calls are complete:
-- Present the COMPLETE extracted core SELECT SQL
-- Present the COMPLETE refactored CTE SELECT SQL
-- Present the equivalence check summary
-
-Do not ask for user confirmation — proceed automatically.
+No live SQL Server sandbox is available. Skip the `compare-sql` step and perform a logical equivalence check instead.

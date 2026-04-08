@@ -1,0 +1,74 @@
+{
+  "schema": "silver",
+  "name": "usp_load_correlatedsubquerytarget",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "Product",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "ProductID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductName",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "CorrelatedSubqueryTarget",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "ProductAlternateKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "EnglishProductName",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "mode": "deterministic",
+  "routing_reasons": [],
+  "statements": [
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "source": "ast",
+      "sql": "INSERT INTO silver.CorrelatedSubqueryTarget (ProductAlternateKey, EnglishProductName) SELECT CAST(p.ProductID AS NVARCHAR(25)), p.ProductName FROM bronze.Product AS p WHERE p.ProductID = (SELECT MAX(p2.ProductID) FROM bronze.Product AS p2 WHERE p2.ProductName = p.ProductName)"
+    }
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT CAST(p.ProductID AS NVARCHAR(25)), p.ProductName FROM bronze.Product AS p WHERE p.ProductID = ( SELECT MAX(p2.ProductID) FROM bronze.Product AS p2 WHERE p2.ProductName = p.ProductName )",
+    "refactored_sql": "WITH import_product AS ( SELECT ProductID, ProductName FROM bronze.Product ), logical_max_per_name AS ( SELECT ProductID, ProductName, RANK() OVER (PARTITION BY ProductName ORDER BY ProductID DESC) AS rnk FROM import_product ), logical_max_filtered AS ( SELECT ProductID, ProductName FROM logical_max_per_name WHERE rnk = 1 ), final AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM logical_max_filtered ) SELECT * FROM final"
+  }
+}

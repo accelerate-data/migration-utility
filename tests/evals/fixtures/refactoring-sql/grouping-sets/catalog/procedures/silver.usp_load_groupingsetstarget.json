@@ -1,0 +1,74 @@
+{
+  "schema": "silver",
+  "name": "usp_load_groupingsetstarget",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "Product",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "Color",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductID",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "GroupingSetsTarget",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "GroupKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ProductCount",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "mode": "deterministic",
+  "routing_reasons": [],
+  "statements": [
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "source": "ast",
+      "sql": "INSERT INTO silver.GroupingSetsTarget (GroupKey, ProductCount) SELECT COALESCE(Color, 'all'), COUNT(*) FROM bronze.Product GROUP BY GROUPING SETS ((Color), ())"
+    }
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT COALESCE(Color, 'all') AS GroupKey, COUNT(*) AS ProductCount FROM bronze.Product GROUP BY GROUPING SETS ((Color), ())",
+    "refactored_sql": "WITH import_product AS ( SELECT * FROM bronze.Product ), logical_grouped AS ( SELECT COALESCE(Color, 'all') AS GroupKey, COUNT(*) AS ProductCount FROM import_product GROUP BY GROUPING SETS ((Color), ()) ), final AS ( SELECT GroupKey, ProductCount FROM logical_grouped ) SELECT * FROM final"
+  }
+}

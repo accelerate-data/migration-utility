@@ -1,0 +1,84 @@
+{
+  "schema": "silver",
+  "name": "usp_load_pivottarget",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "Product",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "Color",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductID",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "PivotTarget",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "MetricName",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "RedCount",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "BlackCount",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "SilverCount",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "mode": "deterministic",
+  "routing_reasons": [],
+  "statements": [
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "source": "ast",
+      "sql": "INSERT INTO silver.PivotTarget (MetricName, RedCount, BlackCount, SilverCount) SELECT 'product_counts', ISNULL([Red], 0), ISNULL([Black], 0), ISNULL([Silver], 0) FROM (SELECT Color, ProductID FROM bronze.Product) AS src PIVOT (COUNT(ProductID) FOR Color IN ([Red], [Black], [Silver])) AS p"
+    }
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT 'product_counts' AS MetricName, ISNULL([Red], 0) AS RedCount, ISNULL([Black], 0) AS BlackCount, ISNULL([Silver], 0) AS SilverCount FROM ( SELECT Color, ProductID FROM bronze.Product ) AS src PIVOT ( COUNT(ProductID) FOR Color IN ([Red], [Black], [Silver]) ) AS p",
+    "refactored_sql": "WITH import_product AS ( SELECT Color, ProductID FROM bronze.Product ), pivot_aggregated AS ( SELECT [Red], [Black], [Silver] FROM import_product PIVOT ( COUNT(ProductID) FOR Color IN ([Red], [Black], [Silver]) ) AS p ), final AS ( SELECT 'product_counts' AS MetricName, ISNULL([Red], 0) AS RedCount, ISNULL([Black], 0) AS BlackCount, ISNULL([Silver], 0) AS SilverCount FROM pivot_aggregated ) SELECT * FROM final"
+  }
+}

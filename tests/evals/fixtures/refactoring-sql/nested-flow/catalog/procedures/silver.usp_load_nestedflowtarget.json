@@ -1,0 +1,79 @@
+{
+  "schema": "silver",
+  "name": "usp_load_nestedflowtarget",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "NestedFlowTarget",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "ProductAlternateKey",
+              "is_selected": false,
+              "is_updated": false
+            },
+            {
+              "name": "EnglishProductName",
+              "is_selected": false,
+              "is_updated": false
+            },
+            {
+              "name": "LoadMode",
+              "is_selected": false,
+              "is_updated": false
+            }
+          ]
+        }
+      ],
+      "out_of_scope": [
+        {
+          "schema": "bronze",
+          "name": "Product",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": []
+        }
+      ]
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "mode": "control_flow_fallback",
+  "routing_reasons": [
+    "if_else",
+    "try_catch"
+  ],
+  "needs_llm": false,
+  "statements": [
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "source": "ast",
+      "sql": "INSERT INTO silver.NestedFlowTarget (ProductAlternateKey, EnglishProductName, LoadMode) SELECT CAST(ProductID AS NVARCHAR(25)), ProductName, 'full' FROM bronze.Product WHERE ProductName IS NOT NULL"
+    },
+    {
+      "type": "Merge",
+      "action": "migrate",
+      "source": "ast",
+      "sql": "MERGE INTO silver.NestedFlowTarget AS tgt USING (SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName FROM bronze.Product) AS src ON tgt.ProductAlternateKey = src.ProductAlternateKey WHEN MATCHED THEN UPDATE SET tgt.EnglishProductName = src.ProductName, tgt.LoadMode = 'delta' WHEN NOT MATCHED THEN INSERT (ProductAlternateKey, EnglishProductName, LoadMode) VALUES (src.ProductAlternateKey, src.ProductName, 'delta')"
+    }
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, 'full' AS LoadMode FROM bronze.Product WHERE ProductName IS NOT NULL UNION ALL SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, 'delta' AS LoadMode FROM bronze.Product WHERE ProductName IS NOT NULL",
+    "refactored_sql": "WITH import_product AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName FROM bronze.Product WHERE ProductName IS NOT NULL ), full_load AS ( SELECT ProductAlternateKey, ProductName AS EnglishProductName, 'full' AS LoadMode FROM import_product ), delta_load AS ( SELECT ProductAlternateKey, ProductName AS EnglishProductName, 'delta' AS LoadMode FROM import_product ), final AS ( SELECT ProductAlternateKey, EnglishProductName, LoadMode FROM full_load UNION ALL SELECT ProductAlternateKey, EnglishProductName, LoadMode FROM delta_load ) SELECT * FROM final;"
+  }
+}
