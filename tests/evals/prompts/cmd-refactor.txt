@@ -1,13 +1,21 @@
 You are running in a DDL project directory at {{fixture_path}}.
 
-Read the command instructions at plugin/commands/refactor.md and execute the refactor command for tables: {{target_tables}}.
+Read the command definition at plugin/commands/refactor.md and follow it exactly for these tables: {{target_tables}}.
 
-Wherever the command references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead.
+Wherever the command references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead (the lib directory is at `plugin/lib/` in the repo).
 
-IMPORTANT: Skip worktree creation and git operations — operate directly on the fixture directory. Skip sandbox `compare-sql` — perform logical equivalence checks instead. Skip PR creation.
+EVAL MODE CONSTRAINTS — follow these exactly:
+- Do NOT run ANY git commands at all. No git worktree, git checkout, git branch, git add, git commit, git stash, or any other git command. This is critical — running git commands will corrupt the eval environment.
+- Operate directly in the fixture directory ({{fixture_path}}).
+- Write .migration-runs/ artifacts directly to {{fixture_path}}/.migration-runs/.
+- Skip Step 1 (Setup) entirely — there is no worktree. Start directly at the Guards section.
+- Skip sandbox-related guards (sandbox.database check and sandbox-status) since this eval does not have a live sandbox.
+- Skip sandbox `compare-sql` — perform logical equivalence checks instead.
+- Process each table sequentially in the same agent turn (not truly parallel sub-agents).
+- Do NOT ask the user to commit or open a PR. After presenting the summary, stop.
+- Do NOT ask for any user confirmation — proceed automatically.
+- Pass `--project-root {{fixture_path}}` to every CLI invocation so reads and writes target the correct catalog directory.
 
-For each table, run the /refactoring-sql skill (sequentially since sub-agents are not available in eval). Write results to `.migration-runs/` and present the final summary.
+After processing all tables, write the summary artifact and present the human-readable summary in the format specified in refactor.md.
 
-After ALL tool calls are complete, present the command summary showing per-table status.
-
-Do not ask for user confirmation — proceed automatically.
+CRITICAL OUTPUT REQUIREMENT: Your FINAL text response must include the summary table with each table's status (ok/partial/error) and the total counts line (e.g. "ok: 2 | partial: 0 | error: 0").
