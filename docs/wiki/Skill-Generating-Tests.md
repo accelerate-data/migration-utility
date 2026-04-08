@@ -16,7 +16,7 @@ Argument is the fully-qualified table name (the `item_id`). The writer procedure
 
 - `manifest.json` must exist in the project root. If missing, run [[Command Setup DDL]] first.
 - `catalog/tables/<item_id>.json` must exist. If missing, run `/listing-objects list tables` to see available tables.
-- The table must have been scoped ([[Skill Scoping Table]]) and profiled ([[Skill Profiling Table]]) before test generation.
+- The table must have been scoped ([[Skill Analyzing Table]]) and profiled ([[Skill Profiling Table]]) before test generation.
 
 ## Pipeline
 
@@ -280,7 +280,7 @@ The test generator must not:
 
 | Error | Cause | Fix |
 |---|---|---|
-| `migrate context` exit code 1 | No profile or no statements in catalog | Run [[Skill Scoping Table]] and [[Skill Profiling Table]] first |
+| `migrate context` exit code 1 | No profile or no statements in catalog | Run [[Skill Analyzing Table]] and [[Skill Profiling Table]] first |
 | `migrate context` exit code 2 | IO/parse error reading catalog | Check file permissions and JSON validity in `catalog/` |
 | Empty branch manifest | Procedure has no conditional logic (single straight-through INSERT) | This is valid -- generate a single scenario for the base case |
 | NOT NULL violation in fixtures | Fixture row missing a required non-nullable column | Ensure all NOT NULL non-identity columns are included with type-appropriate defaults |

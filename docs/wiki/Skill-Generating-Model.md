@@ -377,7 +377,7 @@ models:
 
 | Error | Cause | Fix |
 |---|---|---|
-| `migrate context` exit code 1 | No profile or no statements in catalog | Run [[Skill Scoping Table]], [[Skill Profiling Table]], and [[Skill Analyzing Object]] first |
+| `migrate context` exit code 1 | No profile or no statements in catalog | Run [[Skill Analyzing Table]], [[Skill Profiling Table]], and [[Skill Generating Tests]] first |
 | `migrate context` exit code 2 | IO/parse error | Check file permissions and JSON validity in `catalog/` |
 | `migrate write` exit code 1 | Validation failure (empty SQL) | Regenerate the model |
 | `migrate write` exit code 2 | IO error (missing dbt project) | Run `/init-dbt` to create the dbt project |
