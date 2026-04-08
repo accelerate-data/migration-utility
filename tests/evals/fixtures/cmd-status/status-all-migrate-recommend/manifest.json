@@ -1,5 +1,5 @@
 {
-  "technology": "mssql",
+  "technology": "sql_server",
   "dialect": "tsql",
   "database": "MigrationTest",
   "extracted_at": "2026-03-31T00:00:00Z",

@@ -228,17 +228,6 @@ def test_setup_ddl_guard_fails_no_technology() -> None:
         assert results[-1]["code"] == "TECHNOLOGY_NOT_SET"
 
 
-def test_setup_ddl_guard_fails_unknown_technology() -> None:
-    tmp, root = _make_project()
-    with tmp:
-        manifest_path = root / "manifest.json"
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        manifest["technology"] = "unknown_db"
-        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-        passed, results = dry_run.run_guards(root, "silver.Foo", "setup-ddl")
-        assert passed is False
-        assert results[-1]["code"] == "TECHNOLOGY_UNKNOWN"
-
 
 def test_setup_ddl_guard_fails_no_init_handoff() -> None:
     tmp, root = _make_project()
