@@ -2,7 +2,9 @@
 description: "Reviewing-model skill — dbt standards, correctness, and test integration"
 
 prompts:
-  - file://../../prompts/skill-reviewing-model.txt
+  - id: reviewing-model
+    label: reviewing-model
+    raw: file://../../prompts/skill-reviewing-model.txt
 
 providers:
   - id: anthropic:claude-agent-sdk

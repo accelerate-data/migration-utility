@@ -2,7 +2,9 @@
 description: "status command — migration progress dashboard with per-table stage readiness"
 
 prompts:
-  - file://../../prompts/cmd-status.txt
+  - id: cmd-status
+    label: cmd-status
+    raw: file://../../prompts/cmd-status.txt
 
 providers:
   - id: anthropic:claude-agent-sdk

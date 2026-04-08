@@ -2,7 +2,9 @@
 description: "Refactoring-sql skill — CTE restructuring with equivalence audit"
 
 prompts:
-  - file://../../prompts/skill-refactoring-sql.txt
+  - id: refactoring-sql
+    label: refactoring-sql
+    raw: file://../../prompts/skill-refactoring-sql.txt
 
 providers:
   - id: anthropic:claude-agent-sdk
