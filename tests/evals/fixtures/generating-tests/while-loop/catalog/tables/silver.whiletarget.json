@@ -1,0 +1,83 @@
+{
+  "schema": "silver",
+  "name": "whiletarget",
+  "columns": [
+    {
+      "name": "BatchId",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "ProductAlternateKey",
+      "sql_type": "NVARCHAR(25)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "EnglishProductName",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": false,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [
+    {
+      "constraint_name": "PK_WhileTarget",
+      "columns": [
+        "BatchId",
+        "ProductAlternateKey"
+      ]
+    }
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "usp_load_whiletarget",
+          "is_selected": true,
+          "is_updated": true
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_load_WhileTarget"
+  },
+  "profile": {
+    "status": "ok",
+    "writer": "silver.usp_load_WhileTarget",
+    "classification": {
+      "resolved_kind": "dim_non_scd",
+      "source": "catalog+llm",
+      "rationale": "WHILE loop batches product rows into numbered batches for staged loading."
+    },
+    "primary_key": {
+      "columns": [
+        "BatchId",
+        "ProductAlternateKey"
+      ],
+      "primary_key_type": "natural",
+      "source": "catalog",
+      "rationale": "Composite key of BatchId and ProductAlternateKey uniquely identifies each batched row."
+    },
+    "foreign_keys": [],
+    "pii_actions": []
+  }
+}

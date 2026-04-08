@@ -1,0 +1,272 @@
+{
+  "schema": "silver",
+  "name": "factinternetsales",
+  "columns": [
+    {
+      "name": "SalesOrderNumber",
+      "sql_type": "NVARCHAR(20)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "SalesOrderLineNumber",
+      "sql_type": "TINYINT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "ProductKey",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "CustomerKey",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "SalesTerritoryKey",
+      "sql_type": "INT",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "OrderQuantity",
+      "sql_type": "SMALLINT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "UnitPrice",
+      "sql_type": "MONEY",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "ExtendedAmount",
+      "sql_type": "MONEY",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "SalesAmount",
+      "sql_type": "MONEY",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "TaxAmt",
+      "sql_type": "MONEY",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "Freight",
+      "sql_type": "MONEY",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "OrderDate",
+      "sql_type": "DATETIME",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "DueDate",
+      "sql_type": "DATETIME",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "ShipDate",
+      "sql_type": "DATETIME",
+      "is_nullable": true,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [
+    {
+      "constraint_name": "PK_FactInternetSales",
+      "columns": [
+        "SalesOrderNumber",
+        "SalesOrderLineNumber"
+      ]
+    }
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "usp_load_factinternetsales",
+          "is_selected": false,
+          "is_updated": true,
+          "detection": "ast_scan"
+        },
+        {
+          "schema": "silver",
+          "name": "usp_stage_factinternetsales",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "CustomerKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "DueDate",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ExtendedAmount",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "Freight",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "OrderDate",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "OrderQuantity",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ProductKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "SalesAmount",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "SalesOrderLineNumber",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "SalesOrderNumber",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "SalesTerritoryKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ShipDate",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "TaxAmt",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "UnitPrice",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_stage_FactInternetSales",
+    "selected_writer_rationale": "Stage procedure is the direct writer for FactInternetSales."
+  },
+  "profile": {
+    "status": "ok",
+    "writer": "silver.usp_stage_factinternetsales",
+    "classification": {
+      "resolved_kind": "fact_transaction",
+      "rationale": "Table has transactional grain — one row per sales order line (composite natural-key PK of SalesOrderNumber + SalesOrderLineNumber) with additive measures. The TRUNCATE + INSERT write pattern is a full-reload staging strategy; the absence of a snapshot_date column eliminates fact_periodic_snapshot, and all three date columns (OrderDate, DueDate, ShipDate) are populated simultaneously from a single JOIN rather than updated individually, eliminating fact_accumulating_snapshot.",
+      "source": "llm"
+    },
+    "primary_key": {
+      "columns": [
+        "SalesOrderNumber",
+        "SalesOrderLineNumber"
+      ],
+      "primary_key_type": "composite",
+      "source": "catalog",
+      "rationale": "Declared as PK_FactInternetSales in the catalog. Composite of the business order number (NVARCHAR) and order line number (TINYINT) forming a natural composite key at sales order line grain."
+    },
+    "natural_key": {
+      "columns": [
+        "SalesOrderNumber",
+        "SalesOrderLineNumber"
+      ],
+      "source": "llm",
+      "rationale": "No IDENTITY column in auto_increment_columns and no NEWID() or surrogate assignment in the proc body. SalesOrderNumber is an NVARCHAR business key sourced directly from bronze.SalesOrderHeader with no _sk suffix."
+    },
+    "foreign_keys": [
+      {
+        "column": "ProductKey",
+        "references_source_relation": "silver.DimProduct",
+        "references_column": "ProductKey",
+        "fk_type": "standard",
+        "source": "llm",
+        "rationale": "Writer maps d.ProductID AS ProductKey; _Key suffix and INT type match DimProduct surrogate key convention with a single fact column referencing this dimension."
+      },
+      {
+        "column": "CustomerKey",
+        "references_source_relation": "silver.DimCustomer",
+        "references_column": "CustomerKey",
+        "fk_type": "standard",
+        "source": "llm",
+        "rationale": "Writer maps h.CustomerID AS CustomerKey; _Key suffix and INT type match DimCustomer surrogate key convention with a single fact column referencing this dimension."
+      },
+      {
+        "column": "SalesTerritoryKey",
+        "references_source_relation": "silver.DimSalesTerritory",
+        "references_column": "SalesTerritoryKey",
+        "fk_type": "standard",
+        "source": "llm",
+        "rationale": "Writer maps h.TerritoryID AS SalesTerritoryKey; _Key suffix and INT type match DimSalesTerritory surrogate key convention."
+      },
+      {
+        "column": "SalesOrderNumber",
+        "fk_type": "degenerate",
+        "source": "llm",
+        "rationale": "NVARCHAR business key sourced directly from the transaction system (bronze.SalesOrderHeader.SalesOrderNumber); no corresponding dimension table exists in the catalog, making it a degenerate dimension for drill-through."
+      }
+    ],
+    "watermark": {
+      "rationale": "Proc performs full reload (TRUNCATE + INSERT) with no WHERE date filter; no etl_date, load_date, modified_at, or equivalent watermark column exists on the table.",
+      "source": "llm"
+    },
+    "pii_actions": []
+  }
+}

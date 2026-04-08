@@ -1,0 +1,36 @@
+{
+  "schema": "silver",
+  "name": "usp_scope_linkedserverexec",
+  "references": {
+    "tables": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "needs_llm": false,
+  "mode": "call_graph_enrich",
+  "routing_reasons": [
+    "static_exec"
+  ],
+  "statements": [
+    {
+      "type": "Exec",
+      "action": "skip",
+      "source": "ast",
+      "sql": "EXEC [LinkedServer].[WarehouseDb].[silver].[usp_remote_LoadProduct]",
+      "rationale": "Static EXEC to a linked server target is out-of-scope for direct migration and requires call-graph enrichment."
+    }
+  ]
+}

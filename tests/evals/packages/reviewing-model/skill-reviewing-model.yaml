@@ -18,8 +18,6 @@ providers:
         - Grep
 
 defaultTest:
-  vars:
-    fixture_path: "tests/evals/fixtures/migration-test"
   assert:
     - type: javascript
       value: file://../../assertions/check-model-review.js
@@ -27,72 +25,82 @@ defaultTest:
 tests:
   # --- VU-869: pattern-specific code review cases ---
 
-  - description: "approved — SelectIntoTarget staging model with ephemeral materialization"
+  - description: "review-approved — SelectIntoTarget ephemeral staging"
     vars:
+      fixture_path: "tests/evals/fixtures/reviewing-model/review-approved"
       target_table: "silver.SelectIntoTarget"
       writer: "silver.usp_load_SelectIntoTarget"
       expected_status: "approved,approved_with_warnings,revision_requested"
 
-  - description: "revision-requested — incorrect materialization and missing tests are flagged"
+  - description: "review-revision — incorrect materialization flagged"
     vars:
+      fixture_path: "tests/evals/fixtures/reviewing-model/review-revision"
       target_table: "silver.DimCustomer"
       writer: "silver.usp_load_DimCustomer_Full"
       expected_status: "approved,approved_with_warnings,revision_requested"
 
   # --- VU-877: stable codes, tiered feedback, ack_required ---
 
-  - description: "standards-codes — DimProduct staging model missing ephemeral materialization flagged with MOD_004"
+  - description: "review-standards-mod004 — DimProduct missing ephemeral"
     vars:
+      fixture_path: "tests/evals/fixtures/reviewing-model/review-standards-mod004"
       target_table: "silver.DimProduct"
       writer: "silver.usp_load_DimProduct"
       expected_status: "approved,approved_with_warnings,revision_requested"
       expect_standards_passed: "false"
       expected_feedback_codes: "MOD_004"
 
-  - description: "standards-codes — any model missing _dbt_run_id flagged with MDL_005"
+  - description: "review-standards-mdl005 — InsertSelectTarget missing _dbt_run_id"
     vars:
+      fixture_path: "tests/evals/fixtures/reviewing-model/review-standards-mdl005"
       target_table: "silver.InsertSelectTarget"
       writer: "silver.usp_load_InsertSelectTarget"
       expected_status: "approved,approved_with_warnings,revision_requested"
       expected_feedback_codes: "MDL_005"
 
-  - description: "feedback-structure — all feedback items are objects with code and ack_required"
+  - description: "review-feedback-structure — all items have code and ack_required"
     vars:
+      fixture_path: "tests/evals/fixtures/reviewing-model/review-feedback-structure"
       target_table: "silver.DimCustomer"
       writer: "silver.usp_load_DimCustomer_Full"
       expected_status: "approved,approved_with_warnings,revision_requested"
 
   # --- VU-878: correctness, test-integration, and standards scenarios ---
 
-  - description: "happy-path — SelectIntoTarget clean staging model passes review"
+  - description: "review-approved-clean — SelectIntoTarget clean staging passes"
     vars:
+      fixture_path: "tests/evals/fixtures/reviewing-model/review-approved-clean"
       target_table: "silver.SelectIntoTarget"
       writer: "silver.usp_load_SelectIntoTarget"
       expected_status: "approved,approved_with_warnings"
 
-  - description: "correctness-check — UpdateJoinTarget reviewer validates model against proc_body"
+  - description: "review-correctness — UpdateJoinTarget validates against proc_body"
     vars:
+      fixture_path: "tests/evals/fixtures/reviewing-model/review-correctness"
       target_table: "silver.UpdateJoinTarget"
       writer: "silver.usp_load_UpdateJoinTarget"
       expected_status: "approved,approved_with_warnings,revision_requested"
       expect_correctness_passed: "false"
 
-  - description: "standards-sql-001 — UpdateJoinTarget model has uppercase keyword flagged"
+  - description: "review-standards-sql001 — UpdateJoinTarget uppercase keyword"
     vars:
+      fixture_path: "tests/evals/fixtures/reviewing-model/review-standards-sql001"
       target_table: "silver.UpdateJoinTarget"
       writer: "silver.usp_load_UpdateJoinTarget"
       expected_status: "approved,approved_with_warnings,revision_requested"
       expected_feedback_codes: "SQL_001"
 
-  - description: "test-integration — DimProduct reviewer checks unit tests rendered in YAML"
+  - description: "review-test-integration — DimProduct unit tests in YAML"
     vars:
+      fixture_path: "tests/evals/fixtures/reviewing-model/review-test-integration"
       target_table: "silver.DimProduct"
       writer: "silver.usp_load_DimProduct"
       expected_status: "approved,approved_with_warnings,revision_requested"
       expect_test_integration_passed: "false"
 
-  - description: "materialization-check — UpdateJoinTarget profile-derived materialization validated"
+  - description: "review-materialization — UpdateJoinTarget profile-derived materialization"
     vars:
+      fixture_path: "tests/evals/fixtures/reviewing-model/review-materialization"
       target_table: "silver.UpdateJoinTarget"
       writer: "silver.usp_load_UpdateJoinTarget"
       expected_status: "approved,approved_with_warnings,revision_requested"

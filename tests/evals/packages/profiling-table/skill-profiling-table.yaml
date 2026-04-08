@@ -19,36 +19,38 @@ providers:
         - Grep
 
 defaultTest:
-  vars:
-    fixture_path: "tests/evals/fixtures/migration-test"
   assert:
     - type: javascript
       value: file://../../assertions/check-table-profile.js
 
 tests:
-  # ── fact table with rich catalog signals ──────────────────────
-  - description: "fact-rich-catalog — FactInternetSales"
+  # ── classification-fact-transaction — FactInternetSales rich catalog signals
+  - description: "classification-fact-transaction — FactInternetSales rich catalog signals"
     vars:
+      fixture_path: "tests/evals/fixtures/profiling-table/classification-fact-transaction"
       target_table: "silver.FactInternetSales"
       writer: "silver.usp_stage_FactInternetSales"
 
   # ── truncate-insert dim: DimCustomer full-load pattern ────────
   - description: "truncate-insert — DimCustomer full-load"
     vars:
+      fixture_path: "tests/evals/fixtures/profiling-table/truncate-insert"
       target_table: "silver.DimCustomer"
       writer: "silver.usp_load_DimCustomer_Full"
       expected_kind: "dim_non_scd"
       expected_status: "ok"
 
-  # ── dim merge ─────────────────────────────────────────────────
-  - description: "dim-merge — DimProduct MERGE INTO"
+  # ── merge — DimProduct MERGE writer ──────────────────────────
+  - description: "merge — DimProduct MERGE writer"
     vars:
+      fixture_path: "tests/evals/fixtures/profiling-table/merge"
       target_table: "silver.DimProduct"
       writer: "silver.usp_load_DimProduct"
 
-  # ── exec call chain includes related-procedure context ───────
-  - description: "exec-call-chain — FactExecProfile surfaces helper proc context"
+  # ── exec-chain — FactExecProfile helper proc context ────────
+  - description: "exec-chain — FactExecProfile helper proc context"
     vars:
+      fixture_path: "tests/evals/fixtures/profiling-table/exec-chain"
       target_table: "silver.FactExecProfile"
       writer: "silver.usp_load_FactExecProfile"
       expected_kind: "fact_transaction"
@@ -57,74 +59,83 @@ tests:
   # ── cross-db exec reports partial limitation ──────────────────
   - description: "cross-db-exec — DimCrossDbProfile stays partial with limitation"
     vars:
+      fixture_path: "tests/evals/fixtures/profiling-table/cross-db-exec"
       target_table: "silver.DimCrossDbProfile"
       writer: "silver.usp_load_DimCrossDbProfile"
       expected_status: "ok,partial"
       expected_output_terms: "cross-database"
 
-  # ── dynamic sp_executesql reports partial/dynamic limitation ─
-  - description: "dynamic-sp-executesql — DimCurrency dynamic SQL stays partial"
+  # ── dynamic-sql — DimCurrency sp_executesql partial ─────────
+  - description: "dynamic-sql — DimCurrency sp_executesql partial"
     vars:
+      fixture_path: "tests/evals/fixtures/profiling-table/dynamic-sql"
       target_table: "silver.DimCurrency"
       writer: "silver.usp_load_DimCurrency"
       expected_status: "ok,partial"
       expected_output_terms: "sp_executesql"
 
-  # ── Tier 1: SCD2 dimension ─────────────────────────────────
-  - description: "dim-scd2 — DimEmployeeSCD2 expire-and-insert pattern"
+  # ── classification-dim-scd2 — DimEmployeeSCD2 expire-and-insert
+  - description: "classification-dim-scd2 — DimEmployeeSCD2 expire-and-insert"
     vars:
+      fixture_path: "tests/evals/fixtures/profiling-table/classification-dim-scd2"
       target_table: "silver.DimEmployeeSCD2"
       writer: "silver.usp_load_DimEmployeeSCD2"
       expected_kind: "dim_scd2"
       expected_status: "ok"
 
-  # ── Tier 1: periodic snapshot ──────────────────────────────
-  - description: "fact-periodic-snapshot — FactInventorySnapshot daily snapshot"
+  # ── classification-fact-periodic-snapshot — FactInventorySnapshot daily
+  - description: "classification-fact-periodic-snapshot — FactInventorySnapshot daily"
     vars:
+      fixture_path: "tests/evals/fixtures/profiling-table/classification-fact-periodic-snapshot"
       target_table: "silver.FactInventorySnapshot"
       writer: "silver.usp_load_FactInventorySnapshot"
       expected_kind: "fact_periodic_snapshot"
       expected_status: "ok"
       expected_watermark_column: "SnapshotDate"
 
-  # ── Tier 1: PII detection ─────────────────────────────────
-  - description: "pii-detection — DimContact identifies sensitive columns"
+  # ── pii — DimContact identifies sensitive columns ──────────
+  - description: "pii — DimContact identifies sensitive columns"
     vars:
+      fixture_path: "tests/evals/fixtures/profiling-table/pii"
       target_table: "silver.DimContact"
       writer: "silver.usp_load_DimContact"
       expected_kind: "dim_non_scd"
       expected_status: "ok"
       expected_pii_columns: "EmailAddress,PhoneNumber,SocialSecurityNumber,BirthDate"
 
-  # ── Tier 2: accumulating snapshot ──────────────────────────
-  - description: "fact-accumulating-snapshot — FactOrderFulfillment milestones"
+  # ── classification-fact-accumulating-snapshot — FactOrderFulfillment milestones
+  - description: "classification-fact-accumulating-snapshot — FactOrderFulfillment milestones"
     vars:
+      fixture_path: "tests/evals/fixtures/profiling-table/classification-fact-accumulating-snapshot"
       target_table: "silver.FactOrderFulfillment"
       writer: "silver.usp_load_FactOrderFulfillment"
       expected_kind: "fact_accumulating_snapshot"
       expected_status: "ok"
 
-  # ── Tier 2: role-playing foreign keys ──────────────────────
-  - description: "role-playing-fks — FactResellerSales 3 date keys to DimDate"
+  # ── fk-role-playing — FactResellerSales 3 date keys to DimDate
+  - description: "fk-role-playing — FactResellerSales 3 date keys to DimDate"
     vars:
+      fixture_path: "tests/evals/fixtures/profiling-table/fk-role-playing"
       target_table: "silver.FactResellerSales"
       writer: "silver.usp_load_FactResellerSales"
       expected_kind: "fact_transaction"
       expected_status: "ok"
       expected_fk_type: "role_playing"
 
-  # ── Tier 2: WHERE-based watermark ──────────────────────────
-  - description: "where-watermark — FactProductSalesDelta incremental load"
+  # ── watermark-where — FactProductSalesDelta incremental load
+  - description: "watermark-where — FactProductSalesDelta incremental load"
     vars:
+      fixture_path: "tests/evals/fixtures/profiling-table/watermark-where"
       target_table: "silver.FactProductSalesDelta"
       writer: "silver.usp_load_FactProductSalesDelta"
       expected_kind: "fact_transaction"
       expected_status: "ok"
       expected_watermark_column: "ModifiedDate"
 
-  # ── Tier 3: junk dimension ────────────────────────────────
-  - description: "dim-junk — DimSalesFlags flag combinations"
+  # ── classification-dim-junk — DimSalesFlags flag combinations
+  - description: "classification-dim-junk — DimSalesFlags flag combinations"
     vars:
+      fixture_path: "tests/evals/fixtures/profiling-table/classification-dim-junk"
       target_table: "silver.DimSalesFlags"
       writer: "silver.usp_load_DimSalesFlags"
       expected_kind: "dim_junk"

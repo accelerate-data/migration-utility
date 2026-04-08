@@ -19,7 +19,6 @@ providers:
 
 defaultTest:
   vars:
-    fixture_path: "tests/evals/fixtures/migration-test"
     iteration_suffix: ""
   assert:
     - type: javascript
@@ -29,15 +28,17 @@ tests:
   # Reviewer may flag NOT NULL source columns (e.g. ProductNumber, MakeFlag) missing
   # from given[] even though the proc never SELECTs them — these are irrelevant to dbt
   # unit tests and the fixtures correctly include all proc-used columns.
-  - description: "approved — DimProduct complete branch coverage and realistic fixtures"
+  - description: "review-approved — DimProduct complete branch coverage"
     vars:
+      fixture_path: "tests/evals/fixtures/reviewing-tests/review-approved"
       target_table: "silver.DimProduct"
       writer: "silver.usp_load_DimProduct"
       expected_status: "approved,revision_requested"
       min_covered_branches: 2
 
-  - description: "revision-requested — DimCustomer incomplete coverage and poor fixture quality"
+  - description: "review-revision — DimCustomer incomplete coverage"
     vars:
+      fixture_path: "tests/evals/fixtures/reviewing-tests/review-revision"
       target_table: "silver.DimCustomer"
       writer: "silver.usp_load_DimCustomer_Full"
       expected_status: "revision_requested"
@@ -47,42 +48,48 @@ tests:
   # Reviewer may flag NOT NULL source columns (e.g. ProductNumber, MakeFlag) missing
   # from given[] — the proc only SELECTs ProductID and ProductName from bronze.Product,
   # so the other NOT NULL columns are irrelevant to dbt unit test fixtures.
-  - description: "approved — InsertSelectTarget complete branch coverage for non-MERGE pattern"
+  - description: "review-approved-insert-select — InsertSelectTarget non-MERGE pattern"
     vars:
+      fixture_path: "tests/evals/fixtures/reviewing-tests/review-approved-insert-select"
       target_table: "silver.InsertSelectTarget"
       writer: "silver.usp_load_InsertSelectTarget"
       expected_status: "approved,revision_requested"
       min_covered_branches: 1
 
-  - description: "revision-requested — UpdateJoinTarget missing join-miss scenario"
+  - description: "review-revision-update-join — UpdateJoinTarget missing join-miss"
     vars:
+      fixture_path: "tests/evals/fixtures/reviewing-tests/review-revision-update-join"
       target_table: "silver.UpdateJoinTarget"
       writer: "silver.usp_load_UpdateJoinTarget"
       expected_status: "revision_requested"
 
-  - description: "revision-requested — IfElseTarget missing one control-flow arm"
+  - description: "review-revision-if-else — IfElseTarget missing control-flow arm"
     vars:
+      fixture_path: "tests/evals/fixtures/reviewing-tests/review-revision-if-else"
       target_table: "silver.IfElseTarget"
       writer: "silver.usp_load_IfElseTarget"
       expected_status: "revision_requested"
 
-  - description: "revision-requested — FactExecProfile catalog/DDL column mismatch and missing source catalog"
+  - description: "review-revision-exec-chain — FactExecProfile catalog mismatch"
     vars:
+      fixture_path: "tests/evals/fixtures/reviewing-tests/review-revision-exec-chain"
       target_table: "silver.FactExecProfile"
       writer: "silver.usp_load_FactExecProfile"
       expected_status: "revision_requested"
       min_covered_branches: 1
 
-  - description: "approved — DimCurrency partial coverage with untestable dynamic SQL rationale"
+  - description: "review-approved-dynamic-sql — DimCurrency partial with untestable rationale"
     vars:
+      fixture_path: "tests/evals/fixtures/reviewing-tests/review-approved-dynamic-sql"
       target_table: "silver.DimCurrency"
       writer: "silver.usp_load_DimCurrency"
       expected_status: "approved"
 
   # --- VU-878: fixture quality review scenarios ---
 
-  - description: "not-null-flagged — InsertSelectTarget reviewer catches missing NOT NULL columns"
+  - description: "review-not-null — InsertSelectTarget missing NOT NULL columns"
     vars:
+      fixture_path: "tests/evals/fixtures/reviewing-tests/review-not-null"
       target_table: "silver.InsertSelectTarget"
       writer: "silver.usp_load_InsertSelectTarget"
       expected_status: "revision_requested"

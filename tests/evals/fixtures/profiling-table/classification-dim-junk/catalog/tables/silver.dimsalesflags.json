@@ -1,0 +1,112 @@
+{
+  "schema": "silver",
+  "name": "dimsalesflags",
+  "columns": [
+    {
+      "name": "SalesFlagKey",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": true
+    },
+    {
+      "name": "IsOnlineOrder",
+      "sql_type": "BIT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "IsRushShipment",
+      "sql_type": "BIT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "IsGiftWrapped",
+      "sql_type": "BIT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "IsDiscounted",
+      "sql_type": "BIT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "IsReturnable",
+      "sql_type": "BIT",
+      "is_nullable": false,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [
+    {
+      "constraint_name": "PK_DimSalesFlags",
+      "columns": [
+        "SalesFlagKey"
+      ]
+    }
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [
+    {
+      "column": "SalesFlagKey",
+      "mechanism": "identity"
+    }
+  ],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "usp_load_dimsalesflags",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "IsDiscounted",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "IsGiftWrapped",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "IsOnlineOrder",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "IsReturnable",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "IsRushShipment",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_load_DimSalesFlags"
+  }
+}

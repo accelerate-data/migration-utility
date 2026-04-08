@@ -1,0 +1,81 @@
+{
+  "schema": "silver",
+  "name": "usp_load_factexecprofile",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "FactExecProfile",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "ExecProfileKey",
+              "is_selected": false,
+              "is_updated": false
+            },
+            {
+              "name": "ProcedureKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ExecutionDate",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "DurationMs",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "RowsAffected",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "StatusCode",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "usp_stage_FactExecProfile",
+          "is_selected": false,
+          "is_updated": false
+        }
+      ],
+      "out_of_scope": []
+    }
+  },
+  "mode": "call_graph_enrich",
+  "routing_reasons": [
+    "static_exec"
+  ],
+  "statements": [
+    {
+      "type": "Exec",
+      "action": "migrate",
+      "source": "ast",
+      "sql": "EXEC silver.usp_stage_FactExecProfile",
+      "rationale": "The orchestrator delegates the actual insert to a statically referenced helper procedure, so the call chain can be enriched deterministically."
+    }
+  ]
+}

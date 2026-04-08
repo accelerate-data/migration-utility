@@ -19,8 +19,6 @@ providers:
         - Grep
 
 defaultTest:
-  vars:
-    fixture_path: "tests/evals/fixtures/migration-test"
   assert:
     - type: javascript
       value: file://../../assertions/check-command-summary.js
@@ -29,6 +27,7 @@ tests:
   # ── happy path: 2 tables, both resolve ──────────────────────
   - description: "happy-path — DimProduct + DimCustomer both resolve"
     vars:
+      fixture_path: "tests/evals/fixtures/cmd-scope/happy-path"
       target_tables: "silver.DimProduct silver.DimCustomer"
       target_table: "silver.DimProduct"
       expected_item_statuses: '{"silver.DimProduct": "resolved", "silver.DimCustomer": "resolved"}'
@@ -39,9 +38,10 @@ tests:
       - type: javascript
         value: file://../../assertions/check-table-scoping.js
 
-  # ── error + clean: nonexistent table + DimProduct ───────────
-  - description: "error+clean — DimDate (missing catalog) + DimProduct (resolves)"
+  # ── error-clean: nonexistent table + DimProduct ─────────────
+  - description: "error-clean — DimDate missing catalog + DimProduct resolves"
     vars:
+      fixture_path: "tests/evals/fixtures/cmd-scope/error-clean"
       target_tables: "silver.DimDate silver.DimProduct"
       expected_item_statuses: '{"silver.DimDate": "error", "silver.DimProduct": "resolved"}'
       expected_error_codes: "catalog_file_missing"

@@ -19,8 +19,6 @@ providers:
         - Grep
 
 defaultTest:
-  vars:
-    fixture_path: "tests/evals/fixtures/migration-test"
   assert:
     - type: javascript
       value: file://../../assertions/check-command-summary.js
@@ -29,6 +27,7 @@ tests:
   # ── happy path: 2 tables with scoping set, both profile ok ──
   - description: "happy-path — InsertSelectTarget + UpdateJoinTarget both profile ok"
     vars:
+      fixture_path: "tests/evals/fixtures/cmd-profile/happy-path"
       target_tables: "silver.InsertSelectTarget silver.UpdateJoinTarget"
       target_table: "silver.InsertSelectTarget"
       expected_item_statuses: '{"silver.InsertSelectTarget": "ok", "silver.UpdateJoinTarget": "ok"}'
@@ -38,9 +37,10 @@ tests:
       - type: javascript
         value: file://../../assertions/check-table-profile.js
 
-  # ── error + clean: table missing scoping + table with scoping ─
-  - description: "error+clean — DimProduct (no scoping) + InsertSelectTarget (ok)"
+  # ── error-clean: table missing scoping + table with scoping ──
+  - description: "error-clean — DimProduct no scoping + InsertSelectTarget ok"
     vars:
+      fixture_path: "tests/evals/fixtures/cmd-profile/error-clean"
       target_tables: "silver.DimProduct silver.InsertSelectTarget"
       expected_item_statuses: '{"silver.DimProduct": "error", "silver.InsertSelectTarget": "ok"}'
       expected_error_codes: "scoping_not_completed"

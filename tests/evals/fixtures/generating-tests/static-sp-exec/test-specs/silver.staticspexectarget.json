@@ -1,0 +1,100 @@
+{
+  "item_id": "silver.staticspexectarget",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {
+      "id": "static_sp_executesql_insert",
+      "statement_index": 0,
+      "description": "EXEC sp_executesql with a literal SQL string \u2014 INSERT INTO silver.StaticSpExecTarget from bronze.Product after TRUNCATE",
+      "scenarios": [
+        "test_exec_static_single_row",
+        "test_exec_static_multiple_rows",
+        "test_exec_static_empty_source"
+      ]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_exec_static_single_row",
+      "target_table": "[silver].[StaticSpExecTarget]",
+      "procedure": "[silver].[usp_load_StaticSpExecTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductName": "Road-150",
+              "ProductNumber": "BK-R150-44",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 500,
+              "ReorderPoint": 375,
+              "StandardCost": 0.0,
+              "ListPrice": 3578.27,
+              "DaysToManufacture": 2,
+              "SellStartDate": "2013-05-30",
+              "ModifiedDate": "2014-02-08"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "test_exec_static_multiple_rows",
+      "target_table": "[silver].[StaticSpExecTarget]",
+      "procedure": "[silver].[usp_load_StaticSpExecTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductName": "Road-150",
+              "ProductNumber": "BK-R150-44",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 500,
+              "ReorderPoint": 375,
+              "StandardCost": 0.0,
+              "ListPrice": 3578.27,
+              "DaysToManufacture": 2,
+              "SellStartDate": "2013-05-30",
+              "ModifiedDate": "2014-02-08"
+            },
+            {
+              "ProductName": "Mountain-200",
+              "ProductNumber": "BK-M68B-38",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 500,
+              "ReorderPoint": 375,
+              "StandardCost": 0.0,
+              "ListPrice": 2319.99,
+              "DaysToManufacture": 4,
+              "SellStartDate": "2013-05-30",
+              "ModifiedDate": "2014-02-08"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "test_exec_static_empty_source",
+      "target_table": "[silver].[StaticSpExecTarget]",
+      "procedure": "[silver].[usp_load_StaticSpExecTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": []
+        }
+      ]
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "errors": []
+}

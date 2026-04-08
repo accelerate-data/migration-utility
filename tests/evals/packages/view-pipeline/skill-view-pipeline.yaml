@@ -24,8 +24,6 @@ providers:
         - Grep
 
 defaultTest:
-  vars:
-    fixture_path: "tests/evals/fixtures/migration-test"
   assert:
     - type: javascript
       value: file://../../assertions/check-view-catalog.js
@@ -34,25 +32,28 @@ tests:
   # ── analyzing-table: view scoping path ───────────────────────
 
   # single-table pass-through SELECT * with column list
-  - description: "analyzing-table — view-passthrough — vDimSalesTerritory single-table select"
+  - description: "view-scope-passthrough — vDimSalesTerritory single-table select"
     prompts: ["analyzing-table-view"]
     vars:
+      fixture_path: "tests/evals/fixtures/view-pipeline/view-scope-passthrough"
       target_view: "silver.vDimSalesTerritory"
       check_type: "scoping"
 
   # multi-column pass-through on DimPromotion
-  - description: "analyzing-table — view-passthrough — vw_DimPromotion multi-column select"
+  - description: "view-scope-multi-col — vw_DimPromotion multi-column select"
     prompts: ["analyzing-table-view"]
     vars:
+      fixture_path: "tests/evals/fixtures/view-pipeline/view-scope-multi-col"
       target_view: "silver.vw_DimPromotion"
       check_type: "scoping"
 
   # ── profiling-table: view profile path ───────────────────────
 
   # single-source, no aggregation → stg
-  - description: "profiling-table — view-stg — vw_currency_ref single-source no-agg classifies as stg"
+  - description: "view-profile-stg — vw_currency_ref single-source no-agg"
     prompts: ["profiling-table-view"]
     vars:
+      fixture_path: "tests/evals/fixtures/view-pipeline/view-profile-stg"
       target_view: "silver.vw_currency_ref"
       check_type: "profile"
       expected_classification: "stg"

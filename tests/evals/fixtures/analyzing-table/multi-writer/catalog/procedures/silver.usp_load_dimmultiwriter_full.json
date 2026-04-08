@@ -1,0 +1,101 @@
+{
+  "schema": "silver",
+  "name": "usp_load_dimmultiwriter_full",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "Product",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "ProductID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductName",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductLine",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "DiscontinuedDate",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ModifiedDate",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "DimMultiWriter",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "AlternateKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "DisplayName",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "Category",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "IsActive",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ModifiedDate",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "statements": [
+    {
+      "type": "TruncateTable",
+      "action": "skip",
+      "sql": "TRUNCATE TABLE silver.DimMultiWriter"
+    },
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "sql": "INSERT INTO silver.DimMultiWriter (AlternateKey, DisplayName, Category, IsActive, ModifiedDate) SELECT CAST(ProductID AS NVARCHAR(20)), ProductName, ISNULL(ProductLine, 'Unknown'), CASE WHEN DiscontinuedDate IS NULL THEN 1 ELSE 0 END, ModifiedDate FROM bronze.Product"
+    }
+  ]
+}

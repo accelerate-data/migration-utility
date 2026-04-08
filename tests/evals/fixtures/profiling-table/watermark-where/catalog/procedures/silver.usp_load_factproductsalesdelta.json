@@ -1,0 +1,114 @@
+{
+  "schema": "silver",
+  "name": "usp_load_factproductsalesdelta",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "SalesOrderDetail",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "LineTotal",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "SalesOrderID",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "bronze",
+          "name": "SalesOrderHeader",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "CustomerID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ModifiedDate",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "OrderDate",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "SalesOrderID",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "FactProductSalesDelta",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "CustomerKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ModifiedDate",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "OrderDate",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "ProductKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "SalesAmount",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "statements": [
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "sql": "INSERT INTO silver.FactProductSalesDelta (ProductKey, CustomerKey, SalesAmount, OrderDate, ModifiedDate) SELECT d.ProductID, h.CustomerID, d.LineTotal, h.OrderDate, h.ModifiedDate FROM bronze.SalesOrderHeader h JOIN bronze.SalesOrderDetail d ON h.SalesOrderID = d.SalesOrderID WHERE h.ModifiedDate > @LastLoadDate"
+    }
+  ]
+}

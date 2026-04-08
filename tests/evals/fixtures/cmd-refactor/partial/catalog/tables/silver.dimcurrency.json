@@ -1,0 +1,86 @@
+{
+  "schema": "silver",
+  "name": "dimcurrency",
+  "columns": [
+    {
+      "name": "CurrencyKey",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": true
+    },
+    {
+      "name": "CurrencyAlternateKey",
+      "sql_type": "NCHAR(3)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "CurrencyName",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": false,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [
+    {
+      "constraint_name": "PK__DimCurre__DC9C5DF033ED6A78",
+      "columns": [
+        "CurrencyKey"
+      ]
+    }
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [
+    {
+      "column": "CurrencyKey",
+      "mechanism": "identity"
+    }
+  ],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "usp_load_dimcurrency",
+          "is_selected": false,
+          "is_updated": true
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_load_DimCurrency"
+  },
+  "profile": {
+    "status": "partial",
+    "writer": "silver.usp_load_DimCurrency",
+    "classification": {
+      "resolved_kind": "dim_non_scd",
+      "source": "catalog+llm",
+      "rationale": "Dynamic sp_executesql loads currency reference data via TRUNCATE+INSERT; profile is partial because write logic is not statically visible."
+    },
+    "primary_key": {
+      "columns": [
+        "CurrencyKey"
+      ],
+      "primary_key_type": "surrogate",
+      "source": "catalog",
+      "rationale": "CurrencyKey is an identity-generated surrogate key."
+    },
+    "foreign_keys": [],
+    "pii_actions": []
+  }
+}

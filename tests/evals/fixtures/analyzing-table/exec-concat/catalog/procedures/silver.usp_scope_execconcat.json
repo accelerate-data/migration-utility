@@ -1,0 +1,47 @@
+{
+  "schema": "silver",
+  "name": "usp_scope_execconcat",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "ExecConcatTarget",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {"name": "ProductAlternateKey", "is_selected": false, "is_updated": true},
+            {"name": "EnglishProductName", "is_selected": false, "is_updated": true}
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "needs_llm": true,
+  "mode": "llm_required",
+  "routing_reasons": [
+    "dynamic_sql_variable"
+  ],
+  "statements": [
+    {
+      "type": "Exec",
+      "action": "migrate",
+      "source": "llm",
+      "sql": "INSERT INTO silver.ExecConcatTarget (ProductAlternateKey, EnglishProductName) SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product",
+      "rationale": "Dynamic SQL is built with concatenation before EXEC, so LLM-assisted resolution is required to recover the final statement."
+    }
+  ]
+}

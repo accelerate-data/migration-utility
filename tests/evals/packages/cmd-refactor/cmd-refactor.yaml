@@ -19,8 +19,6 @@ providers:
         - Grep
 
 defaultTest:
-  vars:
-    fixture_path: "tests/evals/fixtures/migration-test"
   assert:
     - type: javascript
       value: file://../../assertions/check-command-summary.js
@@ -29,6 +27,7 @@ tests:
   # ── happy path: 2 tables both refactor ────────────────────────
   - description: "happy-path — InsertSelectTarget + UpdateJoinTarget both refactor"
     vars:
+      fixture_path: "tests/evals/fixtures/cmd-refactor/happy-path"
       target_tables: "silver.InsertSelectTarget silver.UpdateJoinTarget"
       expected_item_statuses: '{"silver.InsertSelectTarget": "ok,partial", "silver.UpdateJoinTarget": "ok,partial"}'
       expected_output_terms: "ok"
@@ -36,6 +35,7 @@ tests:
   # ── error + clean: missing prerequisite ────────────────────────
   - description: "error+clean — DimGeography (no scoping) + InsertSelectTarget (ok)"
     vars:
+      fixture_path: "tests/evals/fixtures/cmd-refactor/error-clean"
       target_tables: "silver.DimGeography silver.InsertSelectTarget"
       expected_item_statuses: '{"silver.DimGeography": "error", "silver.InsertSelectTarget": "ok,partial"}'
       expected_error_codes: "scoping_not_completed"
@@ -44,13 +44,15 @@ tests:
   # ── guard fails: no scoping ────────────────────────────────────
   - description: "guard-fail — DimPromotion has no scoping, blocked at guard"
     vars:
+      fixture_path: "tests/evals/fixtures/cmd-refactor/guard-fail"
       target_tables: "silver.DimPromotion"
       expected_item_statuses: '{"silver.DimPromotion": "error"}'
       expected_error_codes: "scoping_not_completed"
 
   # ── partial: complex proc may not fully pass audit ─────────────
-  - description: "partial-ok — DimCurrency dynamic SQL, partial status acceptable"
+  - description: "partial — DimCurrency dynamic SQL partial status"
     vars:
+      fixture_path: "tests/evals/fixtures/cmd-refactor/partial"
       target_tables: "silver.DimCurrency"
       expected_item_statuses: '{"silver.DimCurrency": "ok,partial,error"}'
       expected_output_terms: "dynamic"

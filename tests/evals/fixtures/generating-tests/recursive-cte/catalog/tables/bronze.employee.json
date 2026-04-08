@@ -1,0 +1,153 @@
+{
+  "schema": "bronze",
+  "name": "employee",
+  "columns": [
+    {
+      "name": "BusinessEntityID",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "NationalIDNumber",
+      "sql_type": "NVARCHAR(15)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "LoginID",
+      "sql_type": "NVARCHAR(256)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "JobTitle",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "BirthDate",
+      "sql_type": "DATE",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "MaritalStatus",
+      "sql_type": "NCHAR(1)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "Gender",
+      "sql_type": "NCHAR(1)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "HireDate",
+      "sql_type": "DATE",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "SalariedFlag",
+      "sql_type": "BIT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "VacationHours",
+      "sql_type": "SMALLINT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "SickLeaveHours",
+      "sql_type": "SMALLINT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "CurrentFlag",
+      "sql_type": "BIT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "ModifiedDate",
+      "sql_type": "DATETIME",
+      "is_nullable": false,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "usp_load_dimemployee",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "CurrentFlag",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "Gender",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "HireDate",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "JobTitle",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "LoginID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "MaritalStatus",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "NationalIDNumber",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "SalariedFlag",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  }
+}
