@@ -324,7 +324,7 @@ Each dialect's procedures file follows this order:
 
 ## Validation
 
-Manual Docker validation per dialect:
+Schema, data, and procedures are pre-loaded in Docker images built via `scripts/publish-sqlserver-image.sh`. To re-validate manually against a running container:
 
 ```bash
 # SQL Server

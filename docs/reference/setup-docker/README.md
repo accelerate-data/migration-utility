@@ -1,6 +1,6 @@
 # Docker Setup
 
-Pre-built Docker images with the full Kimball DW fixture baked in: schema, 20 stored procedures, ~47K baseline rows, and all 5 delta scenarios. Pull, run, and the database is immediately ready — no manual SQL loading required.
+Pre-built Docker images with the full Kimball DW fixture baked in: schema, 20 stored procedures, ~47K baseline rows, and all 5 delta scenarios. The SQL Server image pins a specific CU version to prevent data-file/binary mismatches. Pull, run, and the database is immediately ready — no manual SQL loading required.
 
 ## Container Conventions
 
@@ -82,7 +82,7 @@ docker stop sql-test oracle-test pg-test
 |---|---|
 | Host | `localhost` |
 | Port | `1433` |
-| Database | `KimballFixture` |
+| Databases | `KimballFixture`, `MigrationTest` |
 | User | `sa` |
 | Password | `P@ssw0rd123` |
 
@@ -177,3 +177,41 @@ PG_DB=kimball_fixture
 PG_USER=postgres
 PG_PASSWORD=postgres
 ```
+
+## Rebuilding the SQL Server Image
+
+The SQL Server image bundles pre-built MDF/LDF data files so databases are available instantly on `docker run`. Rebuild when fixture SQL changes or when upgrading the SQL Server CU version.
+
+### Quick rebuild
+
+```bash
+SA_PASSWORD='P@ssw0rd123' ./scripts/publish-sqlserver-image.sh
+```
+
+Add `--push` to publish to GHCR after building:
+
+```bash
+SA_PASSWORD='P@ssw0rd123' ./scripts/publish-sqlserver-image.sh --push
+```
+
+### Bumping the SQL Server CU version
+
+Edit `MSSQL_TAG` at the top of `scripts/publish-sqlserver-image.sh`, then rebuild. The script starts a builder container from the new CU, creates databases (producing data files at the new version), and builds the final image from the same CU base. This ensures data files always match the binary version.
+
+### Why images pin a specific CU
+
+SQL Server stores an internal version number in its data files (e.g., version 957 for CU23). If the base image floats to a newer CU, the binary expects a higher version than the baked-in data files provide. SQL Server then rebuilds system databases from templates, destroying pre-baked user databases. Pinning the CU tag eliminates this mismatch.
+
+### Build pipeline
+
+```text
+scripts/publish-sqlserver-image.sh
+├── Starts builder container from pinned mcr.microsoft.com/mssql/server:$MSSQL_TAG
+├── Runs test-fixtures/ SQL files to create KimballFixture + MigrationTest
+├── Checkpoints, shrinks logs, stops SQL Server cleanly
+├── Extracts /var/opt/mssql/data/ from builder
+├── Builds final image via docker/sqlserver/Dockerfile (FROM same $MSSQL_TAG + COPY data/)
+└── Optionally pushes to ghcr.io/accelerate-data/migration-sample-sqlserver
+```
+
+Build artifacts: `docker/sqlserver/Dockerfile` (version-controlled), `docker/sqlserver/data/` (ephemeral, gitignored).

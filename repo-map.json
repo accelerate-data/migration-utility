@@ -109,7 +109,11 @@
     },
     "scripts": {
       "path": "scripts/",
-      "description": "Developer scripts: setup-worktree.sh, restore-dw-samples.sh, build-dacpac-extract.sh, sql/ (test DB creation scripts and JSON fixtures)."
+      "description": "Developer scripts: setup-worktree.sh, restore-dw-samples.sh, publish-sqlserver-image.sh (build + push SQL Server Docker image with pre-baked data files), build-dacpac-extract.sh, sql/ (test DB creation scripts and JSON fixtures)."
+    },
+    "docker_sqlserver": {
+      "path": "docker/sqlserver/",
+      "description": "Dockerfile for SQL Server test image. Pins a specific CU tag and COPYs pre-built MDF/LDF data files so KimballFixture + MigrationTest are immediately available on docker run. data/ is ephemeral (gitignored) — produced by scripts/publish-sqlserver-image.sh during the build."
     },
     "docs": {
       "path": "docs/",

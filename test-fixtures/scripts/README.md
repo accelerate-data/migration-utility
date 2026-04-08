@@ -6,7 +6,7 @@ Extracts data from a live AdventureWorks2022 SQL Server instance and generates b
 
 ### Prerequisites
 
-- SQL Server with AdventureWorks2022 accessible (e.g. via Docker: `mcr.microsoft.com/mssql/server:2022-latest`)
+- SQL Server with AdventureWorks2022 accessible (e.g. via Docker: `mcr.microsoft.com/mssql/server:2022-latest`). This is the source for one-time data extraction, not the base image for the published Docker image (which pins a specific CU — see `scripts/publish-sqlserver-image.sh`).
 - Python with `pyodbc` installed (available in `plugin/lib` venv)
 - ODBC driver for SQL Server
 

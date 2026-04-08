@@ -20,11 +20,11 @@ Dialect-specific DDL scripts for the Kimball DW fixture. Each script is self-con
 
 ## Validation
 
-DDL was validated by running each script against its respective Docker engine on 2026-04-07:
+DDL is baked into Docker images at build time via `scripts/publish-sqlserver-image.sh`. Manual validation is only needed when iterating on the DDL itself:
 
-- **SQL Server:** `docker exec sql-test sqlcmd -d KimballFixture -i /tmp/sqlserver.sql` — all objects created, no errors
-- **Oracle:** `sqlplus kimball/kimball@localhost:1521/FREEPDB1 @/tmp/oracle.sql` — all objects created, no errors
-- **PostgreSQL:** `psql -U postgres -d kimball_fixture -f /tmp/postgres.sql` — all objects created, no errors
+- **SQL Server:** `docker exec sql-test sqlcmd -d KimballFixture -i /tmp/sqlserver.sql`
+- **Oracle:** `sqlplus kimball/kimball@localhost:1521/FREEPDB1 @/tmp/oracle.sql`
+- **PostgreSQL:** `psql -U postgres -d kimball_fixture -f /tmp/postgres.sql`
 
 Baseline seed data and all 5 delta scenarios were also loaded successfully against all three engines.
 

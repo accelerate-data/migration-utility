@@ -19,7 +19,7 @@ scenarios without significant modification.
 
 ## Scenario Coverage
 
-Each silver table targets exactly one scoping scenario. The `MigrationTest` database is baked into the GHCR SQL Server image — see [Docker Setup](../../reference/setup-docker/README.md).
+Each silver table targets exactly one scoping scenario. The `MigrationTest` database is included in the SQL Server Docker image (built via `scripts/publish-sqlserver-image.sh`) — see [Docker Setup](../../reference/setup-docker/README.md).
 
 | Silver table | Scoping scenario | Expected status |
 |---|---|---|
