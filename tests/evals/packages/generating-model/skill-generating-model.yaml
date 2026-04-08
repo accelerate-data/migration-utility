@@ -139,17 +139,6 @@ tests:
       - type: javascript
         value: file://../../assertions/check-sweep-action.js
 
-  # ── VU-977: cross-model ref() resolution ────────────────────
-  - description: "cross-model-ref — fact mart uses ref() for existing dim model, source() only for bronze"
-    vars:
-      fixture_path: "tests/evals/fixtures/generating-model/cross-model-ref"
-      target_table: "silver.FactSales"
-      writer: "silver.usp_load_FactSales"
-      expected_model_terms: "ref('dim_customer'),ref('stg_salesorder')"
-      forbidden_model_terms: "source('silver'"
-      expected_stg_files: "stg_salesorder"
-      expected_stg_terms: "source("
-
   # --- VU-880: deferred generating-model scenarios ---
 
   - description: "snapshot-dim-scd2 — SCD2 table produces dbt snapshot"

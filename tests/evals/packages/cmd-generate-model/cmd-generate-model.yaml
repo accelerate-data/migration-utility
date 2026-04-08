@@ -61,6 +61,23 @@ tests:
       expected_error_codes: "scoping_not_completed"
       expected_output_terms: "error"
 
+  # ── VU-977: cross-model ref() resolution ─────────────────────
+  - description: "cross-model-ref — fact mart uses ref() for existing dim, source() only for bronze"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-model/cross-model-ref"
+      target_tables: "silver.FactSales"
+      target_table: "silver.FactSales"
+      expected_item_statuses: '{"silver.FactSales": "ok"}'
+      expected_model_terms: "ref('dim_customer'),ref('stg_salesorder')"
+      forbidden_model_terms: "source('silver'"
+      expected_stg_files: "stg_salesorder"
+      expected_stg_terms: "source("
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-dbt-model.js
+      - type: javascript
+        value: file://../../assertions/check-dbt-refs.js
+
   # ── planning sweep: 2 tables share source → 1 shared stg ─────
   - description: "planning-sweep-shared-stg — InsertSelectTarget + SingleCteTarget share bronze.Product, sweep creates ONE stg_product.sql used by both marts"
     vars:
