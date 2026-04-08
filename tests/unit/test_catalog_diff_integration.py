@@ -18,8 +18,9 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-import pyodbc
 import pytest
+
+pyodbc = pytest.importorskip("pyodbc", reason="pyodbc not installed — skipping integration tests")
 
 pytestmark = pytest.mark.integration
 

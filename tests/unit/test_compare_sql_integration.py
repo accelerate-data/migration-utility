@@ -15,6 +15,8 @@ from typing import Any
 
 import pytest
 
+pytest.importorskip("pyodbc", reason="pyodbc not installed — skipping integration tests")
+
 from shared.sandbox.sql_server import SqlServerSandbox
 
 pytestmark = pytest.mark.integration
