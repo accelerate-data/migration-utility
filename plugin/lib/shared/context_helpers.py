@@ -13,7 +13,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-from shared.catalog import load_proc_catalog, load_table_catalog
+from shared.catalog import load_proc_catalog, load_table_catalog, load_view_catalog
 from shared.loader import (
     CatalogFileMissingError,
     ProfileMissingError,
@@ -63,17 +63,38 @@ def load_table_columns(project_root: Path, table_fqn: str) -> list[dict[str, Any
 
 
 def collect_source_tables(project_root: Path, writer_fqn: str) -> list[str]:
-    """Collect source tables from the writer procedure's references."""
+    """Collect source tables and views from the writer procedure's references.
+
+    Returns a flat list of normalized FQNs for both tables and views that the
+    writer reads from (is_selected=True, is_updated=False).  Views are included
+    transparently so downstream consumers (skills, commands) don't need to
+    distinguish between table and view sources.
+    """
     cat = load_proc_catalog(project_root, writer_fqn)
     if cat is None:
         return []
     refs = cat.get("references", {})
-    tables_in_scope = refs.get("tables", {}).get("in_scope", [])
-    sources = []
-    for t in tables_in_scope:
-        if t.get("is_selected") and not t.get("is_updated"):
-            sources.append(normalize(f"{t['schema']}.{t['name']}"))
+    sources: list[str] = []
+    for section in ("tables", "views"):
+        for entry in refs.get(section, {}).get("in_scope", []):
+            if entry.get("is_selected") and not entry.get("is_updated"):
+                sources.append(normalize(f"{entry['schema']}.{entry['name']}"))
     return sorted(set(sources))
+
+
+def load_object_columns(project_root: Path, fqn: str) -> list[dict[str, Any]]:
+    """Load column list for a table or view, trying tables first.
+
+    This provides transparent catalog access — callers don't need to know
+    whether the FQN refers to a table or a view.
+    """
+    cat = load_table_catalog(project_root, fqn)
+    if cat and cat.get("columns"):
+        return cat["columns"]
+    cat = load_view_catalog(project_root, fqn)
+    if cat and cat.get("columns"):
+        return cat["columns"]
+    return []
 
 
 def sandbox_metadata(project_root: Path) -> dict[str, Any] | None:

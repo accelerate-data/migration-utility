@@ -192,8 +192,10 @@ class TestSqlServerSandboxUp:
         source_cursor = MagicMock()
         source_cursor.fetchall.side_effect = [
             [("dbo", "Product"), ("silver", "DimProduct")],
+            [("silver", "vw_customer")],
             [("dbo", "usp_load", "CREATE PROCEDURE dbo.usp_load AS BEGIN SELECT 1 END")],
         ]
+        source_cursor.fetchone.return_value = ("CREATE VIEW [silver].[vw_customer] AS SELECT 1 AS id",)
 
         sandbox_cursor = MagicMock()
         default_cursor = MagicMock()
@@ -212,6 +214,7 @@ class TestSqlServerSandboxUp:
         assert result["status"] in ("ok", "partial")
         assert result["sandbox_database"].startswith("__test_")
         assert result["tables_cloned"] == ["dbo.Product", "silver.DimProduct"]
+        assert result["views_cloned"] == ["silver.vw_customer"]
         assert result["procedures_cloned"] == ["dbo.usp_load"]
         assert "run_id" not in result
 

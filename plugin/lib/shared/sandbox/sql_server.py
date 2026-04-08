@@ -346,6 +346,50 @@ class SqlServerSandbox(SandboxBackend):
                 })
         return cloned, errors
 
+    def _clone_views(
+        self,
+        source_cursor: pyodbc.Cursor,
+        sandbox_cursor: pyodbc.Cursor,
+        schemas: list[str],
+    ) -> tuple[list[str], list[dict[str, str]]]:
+        """Clone view definitions from source to sandbox. Returns (cloned, errors)."""
+        cloned: list[str] = []
+        errors: list[dict[str, str]] = []
+        placeholders = ",".join("?" for _ in schemas)
+        source_cursor.execute(
+            "SELECT TABLE_SCHEMA, TABLE_NAME "
+            "FROM INFORMATION_SCHEMA.VIEWS "
+            "WHERE TABLE_SCHEMA IN ("
+            + placeholders
+            + ") ORDER BY TABLE_SCHEMA, TABLE_NAME",
+            *schemas,
+        )
+        for schema_name, view_name in source_cursor.fetchall():
+            _validate_identifier(schema_name)
+            _validate_identifier(view_name)
+            fqn = f"[{schema_name}].[{view_name}]"
+            source_cursor.execute(
+                "SELECT OBJECT_DEFINITION(OBJECT_ID(?))",
+                f"{schema_name}.{view_name}",
+            )
+            row = source_cursor.fetchone()
+            definition = row[0] if row else None
+            if definition is None:
+                errors.append({
+                    "code": "VIEW_DEFINITION_NULL",
+                    "message": f"Cannot read definition for {fqn} (encrypted or inaccessible)",
+                })
+                continue
+            try:
+                sandbox_cursor.execute(definition)
+                cloned.append(f"{schema_name}.{view_name}")
+            except pyodbc.Error as exc:
+                errors.append({
+                    "code": "VIEW_CLONE_FAILED",
+                    "message": f"Failed to clone view {fqn}: {exc}",
+                })
+        return cloned, errors
+
     def _clone_procedures(
         self,
         source_cursor: pyodbc.Cursor,
@@ -402,6 +446,7 @@ class SqlServerSandbox(SandboxBackend):
 
         errors: list[dict[str, str]] = []
         tables_cloned: list[str] = []
+        views_cloned: list[str] = []
         procedures_cloned: list[str] = []
 
         try:
@@ -418,6 +463,12 @@ class SqlServerSandbox(SandboxBackend):
                 tables_cloned.extend(t_cloned)
                 errors.extend(t_errors)
 
+                v_cloned, v_errors = self._clone_views(
+                    source_cursor, sandbox_cursor, schemas,
+                )
+                views_cloned.extend(v_cloned)
+                errors.extend(v_errors)
+
                 p_cloned, p_errors = self._clone_procedures(
                     source_cursor, sandbox_cursor, schemas,
                 )
@@ -430,6 +481,7 @@ class SqlServerSandbox(SandboxBackend):
                 "sandbox_database": sandbox_db,
                 "status": "error",
                 "tables_cloned": tables_cloned,
+                "views_cloned": views_cloned,
                 "procedures_cloned": procedures_cloned,
                 "errors": [{"code": "SANDBOX_UP_FAILED", "message": str(exc)}],
             }
@@ -437,13 +489,14 @@ class SqlServerSandbox(SandboxBackend):
         status = "ok" if not errors else "partial"
         logger.info(
             "event=sandbox_up_complete sandbox_db=%s status=%s "
-            "tables=%d procedures=%d errors=%d",
-            sandbox_db, status, len(tables_cloned), len(procedures_cloned), len(errors),
+            "tables=%d views=%d procedures=%d errors=%d",
+            sandbox_db, status, len(tables_cloned), len(views_cloned), len(procedures_cloned), len(errors),
         )
         return {
             "sandbox_database": sandbox_db,
             "status": status,
             "tables_cloned": tables_cloned,
+            "views_cloned": views_cloned,
             "procedures_cloned": procedures_cloned,
             "errors": errors,
         }
@@ -516,6 +569,52 @@ class SqlServerSandbox(SandboxBackend):
         Handles trigger disabling, FK constraint toggling, and IDENTITY_INSERT.
         The caller is responsible for opening/rolling-back the transaction.
         """
+        # Replace any fixture-targeted views with tables BEFORE
+        # disabling triggers/FK constraints (those operations are
+        # only valid on tables, not views).
+        for fixture in fixtures:
+            table = fixture["table"]
+            cursor.execute(
+                "SELECT OBJECTPROPERTY(OBJECT_ID(?), 'IsView')", table
+            )
+            is_view_row = cursor.fetchone()
+            if is_view_row and is_view_row[0] == 1:
+                cursor.execute(
+                    "SELECT c.name, t.name AS data_type, "
+                    "c.max_length, c.precision, c.scale "
+                    "FROM sys.columns c "
+                    "JOIN sys.types t ON c.user_type_id = t.user_type_id "
+                    "WHERE c.object_id = OBJECT_ID(?) "
+                    "ORDER BY c.column_id",
+                    table,
+                )
+                col_defs: list[str] = []
+                for col_name, data_type, max_len, prec, scale in cursor.fetchall():
+                    _validate_identifier(col_name)
+                    if max_len == -1:
+                        col_defs.append(f"[{col_name}] {data_type}(MAX)")
+                    elif data_type in ("nvarchar", "nchar"):
+                        col_defs.append(f"[{col_name}] {data_type}({max_len // 2})")
+                    elif data_type in ("varchar", "char", "varbinary"):
+                        col_defs.append(f"[{col_name}] {data_type}({max_len})")
+                    elif data_type in ("decimal", "numeric") and prec is not None:
+                        col_defs.append(f"[{col_name}] {data_type}({prec},{scale})")
+                    else:
+                        col_defs.append(f"[{col_name}] {data_type}")
+                if not col_defs:
+                    raise ValueError(
+                        f"View {table} has no columns in the sandbox — "
+                        "cannot replace with a table for fixture seeding"
+                    )
+                cursor.execute(f"DROP VIEW {table}")
+                cursor.execute(
+                    f"CREATE TABLE {table} ({', '.join(col_defs)})"
+                )
+                logger.info(
+                    "event=view_replaced_with_table sandbox_db=%s table=%s columns=%d",
+                    sandbox_db, table, len(col_defs),
+                )
+
         # Disable triggers on ALL user tables in the sandbox
         # before any INSERTs. Triggers may reference objects
         # that don't exist in the sandbox, causing spurious
