@@ -10,7 +10,7 @@ Non-interactive test harness for skills and commands. Uses [Promptfoo](https://g
 Offline regression (SQL Server + Oracle)
         │
         ▼  (fixtures pre-committed — no live DB needed)
-DDL project fixture (tests/evals/fixtures/migration-test/ or oracle-regression/fixtures/)
+Per-scenario fixtures (tests/evals/fixtures/<package>/<scenario-slug>/ or oracle-regression/fixtures/)
         │
         ▼  (Promptfoo invokes claude-agent-sdk per scenario)
 Claude Code agent ──► reads fixture ──► calls Python CLIs ──► produces output
@@ -41,7 +41,6 @@ Skills are tested via Promptfoo scenarios that invoke them non-interactively and
 ```text
 tests/evals/
   package.json                         # promptfoo + ajv, npm run scripts
-  promptfooconfig.yaml                 # aggregate suite config for `npx promptfoo eval`
   .gitignore                           # node_modules/, output/
   assertions/
     schema-helpers.js                  # shared AJV validation, JSON extraction, term normalization
@@ -71,7 +70,7 @@ tests/evals/
     cmd-generate-tests.txt             # prompt template for /generate-tests command
     cmd-refactor.txt                   # prompt template for /refactor command
     cmd-live-pipeline.txt              # prompt template for live DB extract → scope → profile
-  packages/                            # SQL Server offline packages (use fixtures/migration-test/)
+  packages/                            # SQL Server offline packages (per-scenario fixtures)
     profiling-table/
       skill-profiling-table.yaml
     generating-model/
@@ -108,39 +107,41 @@ tests/evals/
     promptfooconfig.yaml               # extract → scope → profile
     fixtures/manifest.json             # technology: mssql, dialect: tsql
   fixtures/
-    migration-test/                    # extracted DDL project (one-time, SQL Server)
-      manifest.json
-      ddl/
-      catalog/
-      dbt/                             # pre-seeded dbt models and test specs
-      test-specs/                      # pre-seeded test specifications
+    <package>/                         # per-scenario fixture dirs
+      <scenario-slug>/
+        manifest.json
+        ddl/procedures.sql             # only relevant procedure(s)
+        catalog/tables/<table>.json
+        catalog/procedures/<proc>.json
+        dbt/...                        # only for generating/reviewing skills
+        test-specs/<table>.json        # only for skills that need it
     planning-sweep-stg-reuse/          # synthetic: stg_product.sql pre-seeded on disk
     planning-sweep-no-stg/             # synthetic: empty staging dir — skill creates stg
     planning-sweep-shared-stg/         # synthetic: 2 tables sharing bronze.Product
+    planning-sweep-skip/               # synthetic: planning sweep skip scenario
+    planning-sweep-test-only/          # synthetic: planning sweep test-only scenario
+    idempotency-test/                  # synthetic: idempotency scenario
 ```
 
 ---
 
 ## Packages
 
-The harness is organized into package-local Promptfoo configs plus one aggregate top-level config.
+The harness is organized into package-local Promptfoo configs. Each package is self-contained and run individually; `npm run eval` chains all packages sequentially.
 
 ### Skill packages
 
-Test individual skills in isolation (single-table, no orchestration). All use `fixtures/migration-test/` (SQL Server).
+Test individual skills in isolation (single-table, no orchestration). Each scenario uses its own per-scenario fixture under `fixtures/<package>/<scenario-slug>/`.
 
 | Package | Skill |
 |---|---|
-| `profiling-table` | `/profiling-table` |
+| `profiling-table` | `/profiling-table` — includes view profiling scenarios |
 | `generating-model` | `/generating-model` |
 | `generating-tests` | `/generating-tests` |
 | `reviewing-tests` | `/reviewing-tests` |
 | `reviewing-model` | `/reviewing-model` |
-| `analyzing-table` | `/analyzing-table` — validates both scoping decisions and procedure catalog |
+| `analyzing-table` | `/analyzing-table` — validates both scoping decisions and procedure catalog; includes view scoping scenarios |
 | `refactoring-sql` | `/refactoring-sql` — DML extraction + CTE restructuring |
-| `analyzing-view` | `/analyzing-view` |
-| `refactoring-view` | `/refactoring-view` |
-| `profiling-view` | `/profiling-view` |
 | `git-checkpoints` | `/git-checkpoints` |
 
 ### Command packages
@@ -173,7 +174,7 @@ Validate the full extract → scope → profile pipeline against running Docker 
 | `oracle-live` | Docker Oracle (FREEPDB1, SH schema) |
 | `mssql-live` | Docker SQL Server (MigrationTest, silver schema) |
 
-Use `promptfooconfig.yaml` for the full suite (skill scenarios only). Command and dialect-specific packages are run individually.
+Use `npm run eval` to run all packages sequentially. Command and dialect-specific packages can also be run individually.
 
 ---
 
@@ -187,7 +188,7 @@ cd tests/evals
 # Install dependencies (first time only)
 npm install
 
-# Full skill suite — all SQL Server skill packages
+# All packages sequentially
 npm run eval
 
 # Single skill package
@@ -325,6 +326,8 @@ npx promptfoo eval -c packages/refactoring-sql/skill-refactoring-sql.yaml --filt
 ---
 
 ## Scenarios
+
+> **Note:** The scenario tables below are a historical snapshot. Scenario descriptions have been renamed and new scenarios added as part of the per-scenario fixture redesign. For current scenario lists, see the package YAML files directly under `tests/evals/packages/`.
 
 ### Profiler
 
@@ -543,28 +546,25 @@ Each module receives `(output, context)` and returns `{pass, score, reason}`. Sc
 
 ## Fixture anatomy
 
-The fixture is a DDL project extracted from the MigrationTest Docker database. It mirrors the production layout that `setup-ddl` produces:
+Each scenario gets its own fixture directory under `fixtures/<package>/<scenario-slug>/`, containing only the files that scenario needs. This replaces the previous monolithic `fixtures/migration-test/` layout. A per-scenario fixture mirrors the production layout that `setup-ddl` produces, but scoped to the relevant procedure(s) and table(s):
 
 ```text
-fixtures/migration-test/
+fixtures/<package>/<scenario-slug>/
   manifest.json                    # {"technology": "mssql", "dialect": "tsql", "database": "MigrationTest"}
   ddl/
-    tables.sql                     # CREATE TABLE statements (bronze + silver)
-    procedures.sql                 # CREATE PROCEDURE statements
-    views.sql                      # CREATE VIEW statements
+    procedures.sql                 # only the procedure(s) relevant to this scenario
   catalog/
     tables/<schema>.<table>.json   # per-table catalog (columns, PKs, FKs, referenced_by, profile, scoping)
     procedures/<schema>.<proc>.json # per-proc catalog (references, statements)
-    views/<schema>.<view>.json     # per-view catalog
-  dbt/
+  dbt/                             # only for generating/reviewing skills
     models/staging/                # pre-seeded dbt models and YAML configs
   test-specs/
-    <schema>.<table>.json          # pre-seeded test specifications
+    <schema>.<table>.json          # only for skills that need test specifications
 ```
 
-Most packages use `fixtures/migration-test/`. Planning-sweep scenarios in `cmd-generate-model` use three synthetic fixtures (`planning-sweep-stg-reuse`, `planning-sweep-no-stg`, `planning-sweep-shared-stg`) that differ only in which staging files are pre-seeded, allowing the eval to assert exactly which files the sweep creates or reuses. Synthetic fixtures are hand-crafted — do not re-extract them from the Docker database.
+Planning-sweep scenarios use synthetic fixtures (`planning-sweep-stg-reuse`, `planning-sweep-no-stg`, `planning-sweep-shared-stg`, `planning-sweep-skip`, `planning-sweep-test-only`) that differ only in which staging files are pre-seeded, allowing the eval to assert exactly which files the sweep creates or reuses. Synthetic fixtures are hand-crafted — do not re-extract them from the Docker database.
 
-The main `migration-test` fixture includes pre-seeded artifacts (dbt models, test specs, profiles) so that downstream evals (test-generator, test-review, code-review) can run without depending on upstream skill output.
+Per-scenario fixtures for downstream skills (test-generator, test-review, code-review) include pre-seeded artifacts (dbt models, test specs, profiles) so they can run without depending on upstream skill output.
 
 ---
 
@@ -601,8 +601,8 @@ The exact extraction steps depend on how the migration project is configured.
 
 ### Adding a scenario
 
-1. **Add the procedure and target table** to `tests/evals/fixtures/migration-test/ddl/procedures.sql` and corresponding catalog JSON.
-2. **Add a test case** to the appropriate package YAML and to `promptfooconfig.yaml`.
+1. **Create a per-scenario fixture** under `tests/evals/fixtures/<package>/<scenario-slug>/` with only the files the scenario needs (manifest, DDL, catalog, and optionally dbt/test-specs).
+2. **Add a test case** to the appropriate package YAML.
 3. **Run the affected package** to verify: `npm run eval:<package>`.
 
 ### Updating an existing scenario
