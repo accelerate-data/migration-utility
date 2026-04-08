@@ -77,7 +77,7 @@
     },
     "shared_schemas": {
       "path": "plugin/lib/shared/schemas/",
-      "description": "JSON Schema files for catalog objects, agent I/O, skill output, test harness output, discover CLI output, and shared definitions. See this directory for the current schema set."
+      "description": "JSON Schema files for catalog objects, agent I/O, skill output, test harness output, discover CLI output, model sweep output, and shared definitions. See this directory for the current schema set."
     },
     "ddl_mcp": {
       "path": "plugin/mcp/ddl/",
