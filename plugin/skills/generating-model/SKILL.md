@@ -20,13 +20,13 @@ Generate a dbt model from a profiled stored procedure. Reads deterministic conte
 
 ## Before invoking
 
-Run the stage guard:
+Check stage readiness:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <table_fqn> generating-model
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <table_fqn> migrate
 ```
 
-If `passed` is `false`, report the failing guard's `code` and `message` to the user and stop.
+If `passed` is `false`, report the failing check's `code` and `message` to the user and stop.
 
 ## Step 1: Assemble context
 
@@ -368,6 +368,29 @@ After 3 failed iterations:
 - Report the failing test names and error details to the user.
 - Leave the model as-is with `status: "partial"`.
 - Record failures in `execution.dbt_errors[]`.
+
+## Final Step — Write generate status to catalog
+
+After the dbt model has been created and tested, record the summary in the catalog:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate write-catalog \
+  --table <fqn> \
+  --model-path <relative_path_to_model.sql> \
+  --compiled <true|false> \
+  --tests-passed <true|false> \
+  --test-count <number> \
+  --schema-yml <true|false>
+```
+
+If there are warnings or errors to report, pass them as JSON arrays:
+
+```bash
+  --warnings '[{"code": "...", "message": "..."}]' \
+  --errors '[{"code": "...", "message": "..."}]'
+```
+
+The CLI verifies the model file exists on disk and writes the `generate` section to the catalog with a CLI-determined status.
 
 ## Output schemas
 

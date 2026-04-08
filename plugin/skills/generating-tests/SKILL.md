@@ -34,13 +34,13 @@ If it does not exist:
 
 ## Before invoking
 
-Run the stage guard:
+Check stage readiness:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <table_fqn> test-gen
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <table_fqn> test-gen
 ```
 
-If `passed` is `false`, report the failing guard's `code` and `message` to the user and stop.
+If `passed` is `false`, report the failing check's `code` and `message` to the user and stop.
 
 ## Step 1: Assemble context
 
@@ -343,6 +343,27 @@ If `$ARGUMENTS` or the invoking prompt includes a `feedback_for_generator` JSON 
 After applying feedback, re-run Steps 2–6 with the revised scenarios. Do not discard previously approved scenarios — only add or revise as directed.
 
 If no `feedback_for_generator` is present, skip this section.
+
+## Final Step — Write test-gen status to catalog
+
+After the test spec has been written to `test-specs/<item_id>.json`, record the summary in the catalog:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness write \
+  --table <fqn> \
+  --branches <number_of_branches> \
+  --unit-tests <number_of_unit_tests> \
+  --coverage <complete|partial|none>
+```
+
+If there are warnings or errors to report, pass them as JSON arrays:
+
+```bash
+  --warnings '[{"code": "...", "message": "..."}]' \
+  --errors '[{"code": "...", "message": "..."}]'
+```
+
+The CLI reads the test-spec from disk, validates it, and writes the `test_gen` section to the catalog with a CLI-determined status.
 
 ## Error handling
 
