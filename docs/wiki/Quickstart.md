@@ -29,7 +29,7 @@ Connects to your SQL Server, walks you through database and schema selection, ex
 
 See [[Stage 2 DDL Extraction]] for details.
 
-## Step 3 -- Scope tables
+## Step 3 -- Scope all extracted tables
 
 ```text
 /scope silver.DimCustomer silver.FactInternetSales
@@ -37,7 +37,12 @@ See [[Stage 2 DDL Extraction]] for details.
 
 Discovers which stored procedures write to each table. Launches one sub-agent per table in parallel, analyzes candidate writers, and writes the `selected_writer` to each table's catalog file.
 
-Scoping must complete before `/init-dbt` — the dbt scaffold needs to know which tables become models (have a writer) versus which are true external sources (no writer).
+**`/init-dbt` requires every extracted table to have a resolved scoping status before it will proceed.** This means every table in `catalog/tables/` must be either scoped (status `resolved`) or handled via one of these commands:
+
+- `/exclude-table <schema.table>` — mark a table as excluded from the migration entirely
+- `/add-source-tables <schema.table>` — confirm a table as an external source (no writer)
+
+Both count as resolved and satisfy the guard. Run `/scope`, `/exclude-table`, or `/add-source-tables` on every extracted table before moving to Step 4.
 
 See [[Stage 1 Scoping]] for details.
 

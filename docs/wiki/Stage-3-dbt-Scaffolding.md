@@ -6,7 +6,10 @@ The `/init-dbt` command reads `manifest.json` and catalog data, asks you to pick
 
 - `manifest.json` must exist (run `/setup-ddl` first)
 - `catalog/tables/` must contain at least one `.json` file (warns if empty)
-- All tables must have completed scoping (status `resolved` or `no_writer_found`). The command blocks if any table has incomplete scoping — run `/scope` or `/analyzing-table` for those tables first.
+- All extracted tables must have a resolved scoping status before the command will proceed. The command blocks if any table is still in `scope_needed` state. For each unresolved table, use one of:
+  - `/scope <schema.table>` or `/analyzing-table <schema.table>` — discover the writer
+  - `/exclude-table <schema.table>` — mark as excluded from the migration
+  - `/add-source-tables <schema.table>` — confirm as an external source with no writer
 
 ## Platform Selection
 
