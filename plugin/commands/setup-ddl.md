@@ -40,6 +40,8 @@ Use this branch when `technology` is `sql_server` or `fabric_warehouse`.
 
 ### Prerequisites
 
+Check FreeTDS is installed: `brew list --formula freetds 2>/dev/null`. If missing, tell the user to run `brew install freetds` (or run `/init-ad-migration` which auto-installs it) and stop.
+
 Confirm these environment variables are set (do not print their values):
 
 | Variable | Description |

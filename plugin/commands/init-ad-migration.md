@@ -47,9 +47,10 @@ Run all checks **silently** — do NOT install or change anything yet.
 
 ### SQL Server prerequisites (when `$SOURCE` is `sql_server`)
 
-1. `toolbox --version` — is the genai-toolbox binary installed?
-2. Check whether each of the four MSSQL environment variables is set (non-empty): `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD`. Do not print their values.
-3. If all MSSQL env vars are set, verify the MCP server: `uv run "${CLAUDE_PLUGIN_ROOT}/mcp/ddl/server.py" --help`
+1. `brew list --formula freetds 2>/dev/null` — is FreeTDS installed? (exit 0 = installed, non-zero = missing)
+2. `toolbox --version` — is the genai-toolbox binary installed?
+3. Check whether each of the four MSSQL environment variables is set (non-empty): `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD`. Do not print their values.
+4. If all MSSQL env vars are set, verify the MCP server: `uv run "${CLAUDE_PLUGIN_ROOT}/mcp/ddl/server.py" --help`
 
 ### Oracle prerequisites (when `$SOURCE` is `oracle`)
 
@@ -76,6 +77,7 @@ Common prerequisites:
 
 ```text
 SQL Server prerequisites:
+  freetds:     ✓ installed          /  ✗ not found
   toolbox:     ✓ installed (x.y.z)  /  — not found (optional)
   MSSQL_HOST:  ✓ set  /  — not set
   MSSQL_PORT:  ✓ set  /  — not set
@@ -128,6 +130,14 @@ After installing, re-run `uv --version` to confirm. Tell the user to restart the
 ```bash
 uv sync --project "${CLAUDE_PLUGIN_ROOT}/lib"
 ```
+
+**Install FreeTDS** (SQL Server, if missing):
+
+```bash
+brew install freetds
+```
+
+After installing, re-run `brew list --formula freetds` to confirm. FreeTDS is the default ODBC driver for SQL Server connectivity. Users who prefer the Microsoft driver can set `MSSQL_DRIVER="ODBC Driver 18 for SQL Server"` and install `msodbcsql18` themselves (requires interactive EULA acceptance).
 
 **Sync source-specific deps**:
 
