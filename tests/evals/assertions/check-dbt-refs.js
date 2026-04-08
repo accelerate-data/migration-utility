@@ -98,7 +98,6 @@ module.exports = (output, context) => {
   const checked = [];
 
   // Validate the target mart/snapshot model
-  const targetStem = path.basename(targetFile, '.sql').toLowerCase();
   const isSnapshot = targetFile.includes(`${path.sep}snapshots${path.sep}`);
   const sql = fs.readFileSync(targetFile, 'utf8');
   const sourceCalls = extractSourceCalls(sql);
