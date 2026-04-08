@@ -87,6 +87,8 @@ Before creating a new `stg_*` model, check `dbt/models/staging/` for an existing
 
 Produce two outputs from the `refactored_sql`. Apply [sql-style.md](../reviewing-model/references/sql-style.md) (keywords, indentation, commas) and [cte-structure.md](../reviewing-model/references/cte-structure.md) (import/logical/final pattern) throughout. Apply [model-naming.md](../reviewing-model/references/model-naming.md) for layer prefixes, `_dbt_run_id`, and `_loaded_at` rules.
 
+**Before generating any mart SQL:** for each source table referenced in `refactored_sql`'s import CTEs, check whether `dbt/models/staging/stg_<source_table>.sql` already exists. If it does not exist, write it now (ephemeral, select * from source). This step is mandatory — do not skip it and do not inline source references in the mart.
+
 ### Staging models (`stg_<source_table>.sql`)
 
 One staging model per import CTE in the refactored SQL. Each is `materialized='ephemeral'` and does `select * from {{ source('<schema>', '<table>') }}` with light transforms only.
