@@ -50,3 +50,378 @@ tests:
       expected_item_statuses: '{"silver.DimProduct": "error", "silver.InsertSelectTarget": "ok"}'
       expected_error_codes: "scoping_not_completed"
       expected_output_terms: "error"
+
+  # ── DML patterns ─────────────────────────────────────────────
+
+  - description: "merge — DimProduct matched and not-matched arms"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/merge"
+      target_tables: "silver.DimProduct"
+      target_table: "silver.DimProduct"
+      expected_item_statuses: '{"silver.DimProduct": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 5
+      min_scenario_count: 4
+      expected_output_terms: "branch_manifest,unit_tests"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  - description: "exec-chain — FactInternetSales transitive writer logic"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/exec-chain"
+      target_tables: "silver.FactInternetSales"
+      target_table: "silver.FactInternetSales"
+      expected_item_statuses: '{"silver.FactInternetSales": "ok"}'
+      expected_status: "ok"
+      expected_coverage: "complete"
+      min_branch_count: 5
+      min_scenario_count: 5
+      expected_output_terms: "salesorderheader,salesorderdetail"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  - description: "dynamic-sql — DimCurrency untestable rationale"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/dynamic-sql"
+      target_tables: "silver.DimCurrency"
+      target_table: "silver.DimCurrency"
+      expected_item_statuses: '{"silver.DimCurrency": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      expected_warning_terms: "dynamic"
+      expected_output_terms: "dynamic"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  - description: "insert-select — InsertSelectTarget enumerates insert-only branches"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/insert-select"
+      target_tables: "silver.InsertSelectTarget"
+      target_table: "silver.InsertSelectTarget"
+      expected_item_statuses: '{"silver.InsertSelectTarget": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  - description: "update-join — UpdateJoinTarget enumerates matched and join-miss branches"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/update-join"
+      target_tables: "silver.UpdateJoinTarget"
+      target_table: "silver.UpdateJoinTarget"
+      expected_item_statuses: '{"silver.UpdateJoinTarget": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  - description: "delete-where — DeleteWhereTarget enumerates kept vs removed branches"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/delete-where"
+      target_tables: "silver.DeleteWhereTarget"
+      target_table: "silver.DeleteWhereTarget"
+      expected_item_statuses: '{"silver.DeleteWhereTarget": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  - description: "truncate-insert — InsertSelectTarget validates full-reload pattern"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/truncate-insert"
+      target_tables: "silver.InsertSelectTarget"
+      target_table: "silver.InsertSelectTarget"
+      expected_item_statuses: '{"silver.InsertSelectTarget": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+      expected_output_terms: "truncate,insert"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  - description: "select-into — SelectIntoTarget validates staging table creation pattern"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/select-into"
+      target_tables: "silver.SelectIntoTarget"
+      target_table: "silver.SelectIntoTarget"
+      expected_item_statuses: '{"silver.SelectIntoTarget": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  # ── composition and control flow ─────────────────────────────
+
+  - description: "cte — SingleCteTarget dependency chain"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/cte"
+      target_tables: "silver.SingleCteTarget"
+      target_table: "silver.SingleCteTarget"
+      expected_item_statuses: '{"silver.SingleCteTarget": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  - description: "correlated-subquery — CorrelatedSubqueryTarget validates coordinated fixture rows"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/correlated-subquery"
+      target_tables: "silver.CorrelatedSubqueryTarget"
+      target_table: "silver.CorrelatedSubqueryTarget"
+      expected_item_statuses: '{"silver.CorrelatedSubqueryTarget": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  - description: "window-fn — FactInternetSales partition edge cases"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/window-fn"
+      target_tables: "silver.FactInternetSales"
+      target_table: "silver.FactInternetSales"
+      expected_item_statuses: '{"silver.FactInternetSales": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 2
+      min_scenario_count: 2
+      expected_output_terms: "partition,salesorderheader"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  - description: "outer-apply — DimCustomer validates row-multiplying branch coverage"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/outer-apply"
+      target_tables: "silver.DimCustomer"
+      target_table: "silver.DimCustomer"
+      expected_item_statuses: '{"silver.DimCustomer": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 2
+      min_scenario_count: 1
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  - description: "if-else — IfElseTarget validates control-flow branch enumeration"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/if-else"
+      target_tables: "silver.IfElseTarget"
+      target_table: "silver.IfElseTarget"
+      expected_item_statuses: '{"silver.IfElseTarget": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 2
+      min_scenario_count: 1
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  - description: "while-loop — WhileTarget validates loop iteration boundary testing"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/while-loop"
+      target_tables: "silver.WhileTarget"
+      target_table: "silver.WhileTarget"
+      expected_item_statuses: '{"silver.WhileTarget": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  - description: "cross-db-exec — DimCrossDbProfile validates delegation limitation surfaced"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/cross-db-exec"
+      target_tables: "silver.DimCrossDbProfile"
+      target_table: "silver.DimCrossDbProfile"
+      expected_item_statuses: '{"silver.DimCrossDbProfile": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      expected_output_terms: "cross"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  - description: "static-sp-exec — StaticSpExecTarget enrichment-resolved"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/static-sp-exec"
+      target_tables: "silver.StaticSpExecTarget"
+      target_table: "silver.StaticSpExecTarget"
+      expected_item_statuses: '{"silver.StaticSpExecTarget": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  - description: "exec-variable — ExecVariableTarget records untestable dynamic SQL rationale"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/exec-variable"
+      target_tables: "silver.ExecVariableTarget"
+      target_table: "silver.ExecVariableTarget"
+      expected_item_statuses: '{"silver.ExecVariableTarget": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      expected_warning_terms: "dynamic"
+      expected_output_terms: "dynamic"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  - description: "exec-concat — ExecConcatTarget records untestable dynamic SQL rationale"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/exec-concat"
+      target_tables: "silver.ExecConcatTarget"
+      target_table: "silver.ExecConcatTarget"
+      expected_item_statuses: '{"silver.ExecConcatTarget": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      expected_warning_terms: "dynamic"
+      expected_output_terms: "dynamic"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  # ── fixture quality scenarios ─────────────────────────────────
+
+  - description: "quality-not-null — DimProduct NOT NULL columns"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/quality-not-null"
+      target_tables: "silver.DimProduct"
+      target_table: "silver.DimProduct"
+      expected_item_statuses: '{"silver.DimProduct": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      expected_output_terms: "ProductNumber,MakeFlag"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  - description: "fk-multi-source — DimCustomer multi-source FK alignment"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/fk-multi-source"
+      target_tables: "silver.DimCustomer"
+      target_table: "silver.DimCustomer"
+      expected_item_statuses: '{"silver.DimCustomer": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 3
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  # ── gap patterns ──────────────────────────────────────────────
+
+  - description: "delete-top — DeleteTopTarget enumerates keep-vs-delete branches"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/delete-top"
+      target_tables: "silver.DeleteTopTarget"
+      target_table: "silver.DeleteTopTarget"
+      expected_item_statuses: '{"silver.DeleteTopTarget": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  - description: "recursive-cte — RecursiveCteTarget validates recursive anchor and recursive step"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/recursive-cte"
+      target_tables: "silver.RecursiveCteTarget"
+      target_table: "silver.RecursiveCteTarget"
+      expected_item_statuses: '{"silver.RecursiveCteTarget": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  - description: "try-catch — TryCatchTarget validates that TRY block is primary test target"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/try-catch"
+      target_tables: "silver.TryCatchTarget"
+      target_table: "silver.TryCatchTarget"
+      expected_item_statuses: '{"silver.TryCatchTarget": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 1
+      min_scenario_count: 1
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  - description: "nested-flow — NestedFlowTarget IF branches under TRY"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/nested-flow"
+      target_tables: "silver.NestedFlowTarget"
+      target_table: "silver.NestedFlowTarget"
+      expected_item_statuses: '{"silver.NestedFlowTarget": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_branch_count: 2
+      min_scenario_count: 1
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  # ── idempotency ───────────────────────────────────────────────
+
+  - description: "idempotent-fully-covered — re-invocation on fully populated DimProduct spec preserves all scenarios and adds none"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/idempotent-fully-covered"
+      target_tables: "silver.DimProduct"
+      target_table: "silver.DimProduct"
+      expected_item_statuses: '{"silver.DimProduct": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_scenario_count: 5
+      expected_output_terms: "test_status_current_when_active_product,test_status_obsolete_when_discontinued"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
+  - description: "idempotent-partial-spec — re-invocation on 2-scenario DimProduct spec adds missing scenarios and preserves existing"
+    vars:
+      fixture_path: "tests/evals/fixtures/idempotency-test"
+      target_tables: "silver.DimProduct"
+      target_table: "silver.DimProduct"
+      expected_item_statuses: '{"silver.DimProduct": "ok,partial"}'
+      expected_status: "ok,partial"
+      expected_coverage: "complete,partial"
+      min_scenario_count: 3
+      expected_output_terms: "test_status_current_when_active_product,test_status_obsolete_when_discontinued"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
