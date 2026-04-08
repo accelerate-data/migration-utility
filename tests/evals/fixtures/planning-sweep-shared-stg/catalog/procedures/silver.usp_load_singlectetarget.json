@@ -41,5 +41,10 @@
       "source": "ast",
       "sql": "WITH active_products AS (SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM bronze.Product WHERE SellEndDate IS NULL) INSERT INTO silver.SingleCteTarget (ProductAlternateKey, EnglishProductName) SELECT ProductAlternateKey, EnglishProductName FROM active_products"
     }
-  ]
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM [bronze].[Product] WHERE SellEndDate IS NULL",
+    "refactored_sql": "with active_products as (\n    select * from [bronze].[Product]\n    where SellEndDate is null\n),\n\nfinal as (\n    select\n        cast(ProductID as nvarchar(25)) as ProductAlternateKey,\n        ProductName as EnglishProductName\n    from active_products\n)\n\nselect * from final"
+  }
 }
