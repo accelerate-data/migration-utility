@@ -102,9 +102,8 @@ Add a subdirectory under `docs/design/` with a `README.md`, then update `docs/de
 
 ## Contributing
 
-- **Branch:** `feature/vu-<id>-short-description`
-- **PR title:** `VU-XXX: short description`
-- **PR body:** `Fixes VU-XXX`
+- **Branch:** `feature/<short-description>`
+- **PR title:** `<command>: <table1>, <table2>` for batch commands; descriptive title for other changes
 - **Worktrees:** `../worktrees/<branchName>` — see `.claude/rules/git-workflow.md`
 - **Commits:** one concern per commit; run tests before each
 
