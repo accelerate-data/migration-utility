@@ -417,22 +417,30 @@ def run_write_scoping(
     scoping: dict[str, Any],
 ) -> dict[str, Any]:
     """Validate and merge scoping results into a table catalog file."""
+    if "status" in scoping:
+        raise ValueError("status must not be passed — determined by CLI")
+
     table_norm = normalize(table_fqn)
-
-    # Validate status
-    valid_statuses = {"resolved", "ambiguous_multi_writer", "no_writer_found", "error"}
-    status = scoping.get("status", "")
-    if status not in valid_statuses:
-        raise ValueError(f"Invalid scoping status: {status!r}")
-
-    # Validate selected_writer present when resolved
-    if status == "resolved" and not scoping.get("selected_writer"):
-        raise ValueError("selected_writer required when status is resolved")
 
     # Load existing catalog
     cat = load_table_catalog(project_root, table_norm)
     if cat is None:
         raise CatalogFileMissingError("table", table_norm)
+
+    # Determine status from content
+    selected_writer = scoping.get("selected_writer")
+    if selected_writer:
+        proc_cat = load_proc_catalog(project_root, selected_writer)
+        if proc_cat is not None:
+            status = "resolved"
+        else:
+            status = "error"
+    elif scoping.get("candidates"):
+        status = "ambiguous_multi_writer"
+    else:
+        status = "no_writer_found"
+
+    scoping["status"] = status
 
     # Merge scoping section
     cat["scoping"] = scoping
@@ -450,16 +458,27 @@ def run_write_view_scoping(
     scoping: dict[str, Any],
 ) -> dict[str, Any]:
     """Validate and merge scoping results into a view catalog file."""
-    view_norm = normalize(view_fqn)
+    if "status" in scoping:
+        raise ValueError("status must not be passed — determined by CLI")
 
-    valid_statuses = {"analyzed", "error"}
-    status = scoping.get("status", "")
-    if status not in valid_statuses:
-        raise ValueError(f"Invalid view scoping status: {status!r}")
+    view_norm = normalize(view_fqn)
 
     cat = load_view_catalog(project_root, view_norm)
     if cat is None:
         raise CatalogFileMissingError("view", view_norm)
+
+    # Determine status from content
+    has_sql_elements = "sql_elements" in scoping
+    has_parse_errors = any(
+        e.get("code") == "DDL_PARSE_ERROR"
+        for e in scoping.get("errors", [])
+    )
+    if has_sql_elements or has_parse_errors:
+        status = "analyzed"
+    else:
+        status = "error"
+
+    scoping["status"] = status
 
     cat["scoping"] = scoping
 
