@@ -24,6 +24,8 @@ defaultTest:
   assert:
     - type: javascript
       value: file://../../assertions/check-dbt-model.js
+    - type: javascript
+      value: file://../../assertions/check-dbt-refs.js
 
 tests:
   # ── quality-modular-split ─────────────────────────────────────
