@@ -295,6 +295,44 @@ class OracleSandbox(SandboxBackend):
 
         return cloned, errors
 
+    def _clone_views(
+        self,
+        cursor: Any,
+        sandbox_schema: str,
+        source_schema: str,
+    ) -> tuple[list[str], list[dict[str, str]]]:
+        """Clone view definitions from source to sandbox schema."""
+        cloned: list[str] = []
+        errors: list[dict[str, str]] = []
+
+        cursor.execute(
+            "SELECT VIEW_NAME, TEXT FROM ALL_VIEWS "
+            "WHERE OWNER = UPPER(:1) ORDER BY VIEW_NAME",
+            [source_schema],
+        )
+        views = cursor.fetchall()
+
+        for view_name, view_text in views:
+            _validate_oracle_identifier(view_name)
+            ddl = (
+                f'CREATE OR REPLACE VIEW "{sandbox_schema}"."{view_name}" AS '
+                f"{view_text}"
+            )
+            try:
+                cursor.execute(ddl)
+                cloned.append(f"{source_schema}.{view_name}")
+            except oracledb.DatabaseError as exc:
+                errors.append({
+                    "code": "VIEW_CLONE_FAILED",
+                    "message": f"Failed to clone view {source_schema}.{view_name}: {exc}",
+                })
+                logger.debug(
+                    "event=oracle_view_clone_failed sandbox=%s view=%s error=%s",
+                    sandbox_schema, view_name, exc,
+                )
+
+        return cloned, errors
+
     def _clone_procedures(
         self,
         cursor: Any,
@@ -376,6 +414,7 @@ class OracleSandbox(SandboxBackend):
 
         errors: list[dict[str, str]] = []
         tables_cloned: list[str] = []
+        views_cloned: list[str] = []
         procedures_cloned: list[str] = []
 
         try:
@@ -386,6 +425,10 @@ class OracleSandbox(SandboxBackend):
                 t_cloned, t_errors = self._clone_tables(cursor, sandbox_schema, source_schema)
                 tables_cloned.extend(t_cloned)
                 errors.extend(t_errors)
+
+                v_cloned, v_errors = self._clone_views(cursor, sandbox_schema, source_schema)
+                views_cloned.extend(v_cloned)
+                errors.extend(v_errors)
 
                 p_cloned, p_errors = self._clone_procedures(
                     cursor, sandbox_schema, source_schema,
@@ -401,6 +444,7 @@ class OracleSandbox(SandboxBackend):
                 "sandbox_database": sandbox_schema,
                 "status": "error",
                 "tables_cloned": tables_cloned,
+                "views_cloned": views_cloned,
                 "procedures_cloned": procedures_cloned,
                 "errors": [{"code": "SANDBOX_UP_FAILED", "message": str(exc)}],
             }
@@ -408,13 +452,15 @@ class OracleSandbox(SandboxBackend):
         status = "ok" if not errors else "partial"
         logger.info(
             "event=oracle_sandbox_up_complete sandbox=%s status=%s "
-            "tables=%d procedures=%d errors=%d",
-            sandbox_schema, status, len(tables_cloned), len(procedures_cloned), len(errors),
+            "tables=%d views=%d procedures=%d errors=%d",
+            sandbox_schema, status, len(tables_cloned), len(views_cloned),
+            len(procedures_cloned), len(errors),
         )
         return {
             "sandbox_database": sandbox_schema,
             "status": status,
             "tables_cloned": tables_cloned,
+            "views_cloned": views_cloned,
             "procedures_cloned": procedures_cloned,
             "errors": errors,
         }
@@ -493,6 +539,48 @@ class OracleSandbox(SandboxBackend):
         """
         for fixture in fixtures:
             table_name = fixture["table"]
+
+            # Detect views and replace with tables so fixture INSERTs work.
+            cursor.execute(
+                "SELECT COUNT(*) FROM ALL_VIEWS "
+                "WHERE OWNER = UPPER(:1) AND VIEW_NAME = UPPER(:2)",
+                [sandbox_schema, table_name],
+            )
+            is_view = cursor.fetchone()[0] > 0
+            if is_view:
+                cursor.execute(
+                    "SELECT COLUMN_NAME, DATA_TYPE, DATA_LENGTH, "
+                    "DATA_PRECISION, DATA_SCALE, CHAR_LENGTH "
+                    "FROM ALL_TAB_COLUMNS "
+                    "WHERE OWNER = UPPER(:1) AND TABLE_NAME = UPPER(:2) "
+                    "ORDER BY COLUMN_ID",
+                    [sandbox_schema, table_name],
+                )
+                col_defs = []
+                for col_name, data_type, data_length, data_prec, data_scale, char_len in cursor.fetchall():
+                    _validate_oracle_identifier(col_name)
+                    if data_type in ("VARCHAR2", "NVARCHAR2", "CHAR", "NCHAR", "RAW"):
+                        length = char_len if char_len and char_len > 0 else data_length
+                        col_defs.append(f'"{col_name}" {data_type}({length})')
+                    elif data_type == "NUMBER" and data_prec is not None:
+                        if data_scale and data_scale > 0:
+                            col_defs.append(f'"{col_name}" {data_type}({data_prec},{data_scale})')
+                        else:
+                            col_defs.append(f'"{col_name}" {data_type}({data_prec})')
+                    else:
+                        col_defs.append(f'"{col_name}" {data_type}')
+                cursor.execute(
+                    f'DROP VIEW "{sandbox_schema}"."{table_name}"'
+                )
+                cursor.execute(
+                    f'CREATE TABLE "{sandbox_schema}"."{table_name}" '
+                    f'({", ".join(col_defs)})'
+                )
+                logger.info(
+                    "event=oracle_view_replaced_with_table sandbox=%s table=%s columns=%d",
+                    sandbox_schema, table_name, len(col_defs),
+                )
+
             rows = fixture.get("rows", [])
             if not rows:
                 continue

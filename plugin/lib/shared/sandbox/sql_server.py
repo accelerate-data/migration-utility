@@ -346,6 +346,50 @@ class SqlServerSandbox(SandboxBackend):
                 })
         return cloned, errors
 
+    def _clone_views(
+        self,
+        source_cursor: pyodbc.Cursor,
+        sandbox_cursor: pyodbc.Cursor,
+        schemas: list[str],
+    ) -> tuple[list[str], list[dict[str, str]]]:
+        """Clone view definitions from source to sandbox. Returns (cloned, errors)."""
+        cloned: list[str] = []
+        errors: list[dict[str, str]] = []
+        placeholders = ",".join("?" for _ in schemas)
+        source_cursor.execute(
+            "SELECT TABLE_SCHEMA, TABLE_NAME "
+            "FROM INFORMATION_SCHEMA.VIEWS "
+            "WHERE TABLE_SCHEMA IN ("
+            + placeholders
+            + ") ORDER BY TABLE_SCHEMA, TABLE_NAME",
+            *schemas,
+        )
+        for schema_name, view_name in source_cursor.fetchall():
+            _validate_identifier(schema_name)
+            _validate_identifier(view_name)
+            fqn = f"[{schema_name}].[{view_name}]"
+            source_cursor.execute(
+                "SELECT OBJECT_DEFINITION(OBJECT_ID(?))",
+                f"{schema_name}.{view_name}",
+            )
+            row = source_cursor.fetchone()
+            definition = row[0] if row else None
+            if definition is None:
+                errors.append({
+                    "code": "VIEW_DEFINITION_NULL",
+                    "message": f"Cannot read definition for {fqn} (encrypted or inaccessible)",
+                })
+                continue
+            try:
+                sandbox_cursor.execute(definition)
+                cloned.append(f"{schema_name}.{view_name}")
+            except pyodbc.Error as exc:
+                errors.append({
+                    "code": "VIEW_CLONE_FAILED",
+                    "message": f"Failed to clone view {fqn}: {exc}",
+                })
+        return cloned, errors
+
     def _clone_procedures(
         self,
         source_cursor: pyodbc.Cursor,
@@ -402,6 +446,7 @@ class SqlServerSandbox(SandboxBackend):
 
         errors: list[dict[str, str]] = []
         tables_cloned: list[str] = []
+        views_cloned: list[str] = []
         procedures_cloned: list[str] = []
 
         try:
@@ -418,6 +463,12 @@ class SqlServerSandbox(SandboxBackend):
                 tables_cloned.extend(t_cloned)
                 errors.extend(t_errors)
 
+                v_cloned, v_errors = self._clone_views(
+                    source_cursor, sandbox_cursor, schemas,
+                )
+                views_cloned.extend(v_cloned)
+                errors.extend(v_errors)
+
                 p_cloned, p_errors = self._clone_procedures(
                     source_cursor, sandbox_cursor, schemas,
                 )
@@ -430,6 +481,7 @@ class SqlServerSandbox(SandboxBackend):
                 "sandbox_database": sandbox_db,
                 "status": "error",
                 "tables_cloned": tables_cloned,
+                "views_cloned": views_cloned,
                 "procedures_cloned": procedures_cloned,
                 "errors": [{"code": "SANDBOX_UP_FAILED", "message": str(exc)}],
             }
@@ -437,13 +489,14 @@ class SqlServerSandbox(SandboxBackend):
         status = "ok" if not errors else "partial"
         logger.info(
             "event=sandbox_up_complete sandbox_db=%s status=%s "
-            "tables=%d procedures=%d errors=%d",
-            sandbox_db, status, len(tables_cloned), len(procedures_cloned), len(errors),
+            "tables=%d views=%d procedures=%d errors=%d",
+            sandbox_db, status, len(tables_cloned), len(views_cloned), len(procedures_cloned), len(errors),
         )
         return {
             "sandbox_database": sandbox_db,
             "status": status,
             "tables_cloned": tables_cloned,
+            "views_cloned": views_cloned,
             "procedures_cloned": procedures_cloned,
             "errors": errors,
         }
@@ -555,6 +608,39 @@ class SqlServerSandbox(SandboxBackend):
 
         for fixture in fixtures:
             table = fixture["table"]
+
+            # Detect views and replace with tables so fixture INSERTs work.
+            cursor.execute(
+                "SELECT OBJECTPROPERTY(OBJECT_ID(?), 'IsView')", table
+            )
+            is_view_row = cursor.fetchone()
+            if is_view_row and is_view_row[0] == 1:
+                cursor.execute(
+                    "SELECT COLUMN_NAME, DATA_TYPE, "
+                    "CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE "
+                    "FROM INFORMATION_SCHEMA.COLUMNS "
+                    "WHERE TABLE_SCHEMA + '.' + TABLE_NAME = PARSENAME(?, 2) + '.' + PARSENAME(?, 1) "
+                    "ORDER BY ORDINAL_POSITION",
+                    table, table,
+                )
+                col_defs = []
+                for col_name, data_type, char_len, num_prec, num_scale in cursor.fetchall():
+                    _validate_identifier(col_name)
+                    if char_len is not None and char_len > 0:
+                        col_defs.append(f"[{col_name}] {data_type}({char_len})")
+                    elif num_prec is not None and num_scale is not None and data_type in ("decimal", "numeric"):
+                        col_defs.append(f"[{col_name}] {data_type}({num_prec},{num_scale})")
+                    else:
+                        col_defs.append(f"[{col_name}] {data_type}")
+                cursor.execute(f"DROP VIEW {table}")
+                cursor.execute(
+                    f"CREATE TABLE {table} ({', '.join(col_defs)})"
+                )
+                logger.info(
+                    "event=view_replaced_with_table sandbox_db=%s table=%s columns=%d",
+                    sandbox_db, table, len(col_defs),
+                )
+
             rows = fixture.get("rows", [])
             if not rows:
                 continue
