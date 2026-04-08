@@ -66,11 +66,11 @@
   },
   "profile": {
     "status": "partial",
-    "writer": "silver.usp_load_DimCurrency",
+    "writer": "silver.usp_load_dimcurrency",
     "classification": {
       "resolved_kind": "dim_non_scd",
       "source": "catalog+llm",
-      "rationale": "Dynamic sp_executesql loads currency reference data via TRUNCATE+INSERT; profile is partial because write logic is not statically visible."
+      "rationale": "Currency reference table loaded via TRUNCATE + INSERT inside sp_executesql; descriptive columns (CurrencyAlternateKey, CurrencyName) with no SCD history columns confirm dim_non_scd. Status is partial because the INSERT is inside a dynamic SQL string, not statically parsed by the scoping engine."
     },
     "primary_key": {
       "columns": [
@@ -78,7 +78,19 @@
       ],
       "primary_key_type": "surrogate",
       "source": "catalog",
-      "rationale": "CurrencyKey is an identity-generated surrogate key."
+      "rationale": "CurrencyKey is declared as the primary key via catalog constraint PK__DimCurre__DC9C5DF033ED6A78 and is an identity-generated surrogate."
+    },
+    "natural_key": {
+      "columns": [
+        "CurrencyAlternateKey"
+      ],
+      "source": "catalog+llm",
+      "rationale": "CurrencyKey is an identity surrogate (catalog fact); CurrencyAlternateKey (NCHAR(3)) holds the ISO 4217 currency code and is the natural business identifier."
+    },
+    "watermark": {
+      "column": null,
+      "source": "llm",
+      "rationale": "Full-reload pattern (TRUNCATE + INSERT) with no datetime columns and no incremental WHERE clause; no watermark applies."
     },
     "foreign_keys": [],
     "pii_actions": []

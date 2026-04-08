@@ -189,7 +189,10 @@
   },
   "scoping": {
     "status": "resolved",
-    "selected_writer": "silver.usp_load_DimCustomer_Full"
+    "selected_writer": "silver.usp_load_dimcustomer_full",
+    "selected_writer_rationale": "Only one analyzable writer candidate was found. silver.usp_load_dimcustomer_full performs a full truncate-and-reload of silver.dimcustomer from three bronze sources and contains a single migrate statement.",
+    "warnings": [],
+    "errors": []
   },
   "profile": {
     "status": "ok",
@@ -216,10 +219,6 @@
     },
     "foreign_keys": [],
     "pii_actions": []
-  },
-  "scoping": {
-    "status": "resolved",
-    "selected_writer": "silver.usp_load_DimCustomer_Full"
   },
   "refactor": {
     "status": "ok",

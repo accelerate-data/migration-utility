@@ -45,5 +45,10 @@
       "message": "DDL failed to parse: near 'PIVOT': syntax error",
       "severity": "error"
     }
-  ]
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT CurrencyCode, CurrencyName FROM MigrationTest.bronze.Currency",
+    "refactored_sql": "WITH import AS ( SELECT CurrencyCode AS CurrencyAlternateKey, CurrencyName FROM [MigrationTest].[bronze].[Currency] ), final AS ( SELECT CurrencyAlternateKey, CurrencyName FROM import ) SELECT * FROM final"
+  }
 }

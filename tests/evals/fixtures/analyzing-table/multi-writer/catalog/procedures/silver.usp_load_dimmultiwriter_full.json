@@ -88,13 +88,21 @@
   },
   "statements": [
     {
+      "type": "Set",
+      "action": "skip",
+      "source": "ast",
+      "sql": "SET NOCOUNT ON"
+    },
+    {
       "type": "TruncateTable",
       "action": "skip",
+      "source": "ast",
       "sql": "TRUNCATE TABLE silver.DimMultiWriter"
     },
     {
       "type": "Insert",
       "action": "migrate",
+      "source": "ast",
       "sql": "INSERT INTO silver.DimMultiWriter (AlternateKey, DisplayName, Category, IsActive, ModifiedDate) SELECT CAST(ProductID AS NVARCHAR(20)), ProductName, ISNULL(ProductLine, 'Unknown'), CASE WHEN DiscontinuedDate IS NULL THEN 1 ELSE 0 END, ModifiedDate FROM bronze.Product"
     }
   ]

@@ -65,5 +65,10 @@
       "source": "ast",
       "sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName INTO silver.SelectIntoTarget FROM bronze.Product"
     }
-  ]
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM bronze.Product",
+    "refactored_sql": "WITH import_product AS ( SELECT * FROM [bronze].[Product] ), logical_cast_and_rename AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM import_product ), final AS ( SELECT ProductAlternateKey, EnglishProductName FROM logical_cast_and_rename ) SELECT * FROM final"
+  }
 }

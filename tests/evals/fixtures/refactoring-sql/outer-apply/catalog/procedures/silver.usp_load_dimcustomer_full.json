@@ -161,5 +161,10 @@
       "source": "ast",
       "sql": "INSERT INTO silver.DimCustomer (CustomerAlternateKey, FirstName, MiddleName, LastName, Title, Gender, MaritalStatus, EmailPromotion, DateFirstPurchase) SELECT CAST(c.CustomerID AS NVARCHAR(15)) AS CustomerAlternateKey, p.FirstName, p.MiddleName, p.LastName, p.Title, NULL AS Gender, NULL AS MaritalStatus, p.EmailPromotion, CAST(h.MinOrderDate AS DATE) AS DateFirstPurchase FROM bronze.Customer c JOIN bronze.Person p ON c.PersonID = p.BusinessEntityID OUTER APPLY (SELECT MIN(OrderDate) AS MinOrderDate FROM bronze.SalesOrderHeader sh WHERE sh.CustomerID = c.CustomerID) h"
     }
-  ]
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT CAST(c.CustomerID AS NVARCHAR(15)) AS CustomerAlternateKey, p.FirstName, p.MiddleName, p.LastName, p.Title, NULL AS Gender, NULL AS MaritalStatus, p.EmailPromotion, CAST(h.MinOrderDate AS DATE) AS DateFirstPurchase FROM bronze.Customer c JOIN bronze.Person p ON c.PersonID = p.BusinessEntityID OUTER APPLY ( SELECT MIN(OrderDate) AS MinOrderDate FROM bronze.SalesOrderHeader sh WHERE sh.CustomerID = c.CustomerID ) h",
+    "refactored_sql": "WITH import_customer AS ( SELECT CustomerID, PersonID FROM bronze.Customer ), import_person AS ( SELECT BusinessEntityID, FirstName, MiddleName, LastName, Title, EmailPromotion FROM bronze.Person ), import_order_dates AS ( SELECT CustomerID, MIN(OrderDate) AS MinOrderDate FROM bronze.SalesOrderHeader GROUP BY CustomerID ), customer_with_names AS ( SELECT ic.CustomerID, ip.FirstName, ip.MiddleName, ip.LastName, ip.Title, ip.EmailPromotion FROM import_customer ic JOIN import_person ip ON ic.PersonID = ip.BusinessEntityID ), customer_with_order_dates AS ( SELECT cwn.CustomerID, cwn.FirstName, cwn.MiddleName, cwn.LastName, cwn.Title, cwn.EmailPromotion, iod.MinOrderDate FROM customer_with_names cwn LEFT JOIN import_order_dates iod ON cwn.CustomerID = iod.CustomerID ), final AS ( SELECT CAST(CustomerID AS NVARCHAR(15)) AS CustomerAlternateKey, FirstName, MiddleName, LastName, Title, NULL AS Gender, NULL AS MaritalStatus, EmailPromotion, CAST(MinOrderDate AS DATE) AS DateFirstPurchase FROM customer_with_order_dates ) SELECT * FROM final;"
+  }
 }

@@ -10,8 +10,16 @@
           "is_selected": false,
           "is_updated": true,
           "columns": [
-            {"name": "ProductAlternateKey", "is_selected": false, "is_updated": true},
-            {"name": "EnglishProductName", "is_selected": false, "is_updated": true}
+            {
+              "name": "ProductAlternateKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "EnglishProductName",
+              "is_selected": false,
+              "is_updated": true
+            }
           ]
         }
       ],
@@ -36,6 +44,27 @@
     "dynamic_sql_variable"
   ],
   "statements": [
+    {
+      "type": "SetOption",
+      "action": "skip",
+      "source": "llm",
+      "sql": "SET NOCOUNT ON",
+      "rationale": "Operational noise suppression; dbt does not require this setting."
+    },
+    {
+      "type": "Declare",
+      "action": "skip",
+      "source": "llm",
+      "sql": "DECLARE @sql NVARCHAR(MAX); DECLARE @target NVARCHAR(128) = 'silver.ExecConcatTarget'; DECLARE @src NVARCHAR(128) = 'bronze.Product'",
+      "rationale": "Variable declarations used only to build the dynamic SQL string; no transformation logic."
+    },
+    {
+      "type": "Set",
+      "action": "skip",
+      "source": "llm",
+      "sql": "SET @sql = 'INSERT INTO ' + @target + ' (ProductAlternateKey, EnglishProductName) ' + 'SELECT CAST(ProductID AS NVARCHAR(25)), ProductName ' + 'FROM ' + @src",
+      "rationale": "String concatenation that constructs the dynamic SQL; the logic lives in the resolved EXEC statement, not here."
+    },
     {
       "type": "Exec",
       "action": "migrate",

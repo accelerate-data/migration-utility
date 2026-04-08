@@ -75,5 +75,10 @@
       "source": "ast",
       "sql": "INSERT INTO silver.PivotTarget (MetricName, RedCount, BlackCount, SilverCount) SELECT 'product_counts', ISNULL([Red], 0), ISNULL([Black], 0), ISNULL([Silver], 0) FROM (SELECT Color, ProductID FROM bronze.Product) AS src PIVOT (COUNT(ProductID) FOR Color IN ([Red], [Black], [Silver])) AS p"
     }
-  ]
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT 'product_counts' AS MetricName, ISNULL([Red], 0) AS RedCount, ISNULL([Black], 0) AS BlackCount, ISNULL([Silver], 0) AS SilverCount FROM ( SELECT Color, ProductID FROM bronze.Product ) AS src PIVOT ( COUNT(ProductID) FOR Color IN ([Red], [Black], [Silver]) ) AS p",
+    "refactored_sql": "WITH import_product AS ( SELECT Color, ProductID FROM bronze.Product ), pivot_aggregated AS ( SELECT [Red], [Black], [Silver] FROM import_product PIVOT ( COUNT(ProductID) FOR Color IN ([Red], [Black], [Silver]) ) AS p ), final AS ( SELECT 'product_counts' AS MetricName, ISNULL([Red], 0) AS RedCount, ISNULL([Black], 0) AS BlackCount, ISNULL([Silver], 0) AS SilverCount FROM pivot_aggregated ) SELECT * FROM final"
+  }
 }

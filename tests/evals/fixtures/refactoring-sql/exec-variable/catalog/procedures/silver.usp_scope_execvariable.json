@@ -10,8 +10,16 @@
           "is_selected": false,
           "is_updated": true,
           "columns": [
-            {"name": "ProductAlternateKey", "is_selected": false, "is_updated": true},
-            {"name": "EnglishProductName", "is_selected": false, "is_updated": true}
+            {
+              "name": "ProductAlternateKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "EnglishProductName",
+              "is_selected": false,
+              "is_updated": true
+            }
           ]
         }
       ],
@@ -43,5 +51,10 @@
       "sql": "INSERT INTO silver.ExecVariableTarget (ProductAlternateKey, EnglishProductName) SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product",
       "rationale": "Dynamic SQL is assembled through a variable assignment before EXEC, so the statement needs LLM-assisted reconstruction."
     }
-  ]
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM [bronze].[Product]",
+    "refactored_sql": "WITH import_product AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM bronze.Product ) SELECT ProductAlternateKey, EnglishProductName FROM import_product"
+  }
 }

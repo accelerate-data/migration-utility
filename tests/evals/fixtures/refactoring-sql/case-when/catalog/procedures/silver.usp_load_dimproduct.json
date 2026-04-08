@@ -152,5 +152,10 @@
       "action": "migrate",
       "sql": "MERGE silver.DimProduct AS tgt USING (SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, StandardCost, ListPrice, ISNULL(Color, '') AS Color, Size, ProductLine, Class, Style, SellStartDate AS StartDate, SellEndDate AS EndDate, CASE WHEN DiscontinuedDate IS NOT NULL THEN 'Obsolete' WHEN SellEndDate IS NOT NULL THEN 'Outdated' ELSE 'Current' END AS Status FROM bronze.Product) AS src ON tgt.ProductAlternateKey = src.ProductAlternateKey WHEN MATCHED THEN UPDATE SET tgt.EnglishProductName = src.EnglishProductName, tgt.StandardCost = src.StandardCost, tgt.ListPrice = src.ListPrice, tgt.Color = src.Color, tgt.Size = src.Size, tgt.ProductLine = src.ProductLine, tgt.Class = src.Class, tgt.Style = src.Style, tgt.Status = src.Status WHEN NOT MATCHED BY TARGET THEN INSERT (ProductAlternateKey, EnglishProductName, StandardCost, ListPrice, Color, Size, ProductLine, Class, Style, StartDate, EndDate, Status) VALUES (src.ProductAlternateKey, src.EnglishProductName, src.StandardCost, src.ListPrice, src.Color, src.Size, src.ProductLine, src.Class, src.Style, src.StartDate, src.EndDate, src.Status)"
     }
-  ]
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, StandardCost, ListPrice, ISNULL(Color, '') AS Color, Size, ProductLine, Class, Style, SellStartDate AS StartDate, SellEndDate AS EndDate, CASE WHEN DiscontinuedDate IS NOT NULL THEN 'Obsolete' WHEN SellEndDate IS NOT NULL THEN 'Outdated' ELSE 'Current' END AS Status FROM [bronze].[Product]",
+    "refactored_sql": "WITH import_product AS ( SELECT * FROM [bronze].[Product] ), logical_transform AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, StandardCost, ListPrice, ISNULL(Color, '') AS Color, Size, ProductLine, Class, Style, SellStartDate AS StartDate, SellEndDate AS EndDate, CASE WHEN DiscontinuedDate IS NOT NULL THEN 'Obsolete' WHEN SellEndDate IS NOT NULL THEN 'Outdated' ELSE 'Current' END AS Status FROM import_product ), final AS ( SELECT ProductAlternateKey, EnglishProductName, StandardCost, ListPrice, Color, Size, ProductLine, Class, Style, StartDate, EndDate, Status FROM logical_transform ) SELECT * FROM final;"
+  }
 }

@@ -1,0 +1,89 @@
+{
+  "item_id": "silver.trycatchtarget",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {
+      "id": "insert_with_valid_product",
+      "statement_index": 0,
+      "description": "Row WHERE ProductName IS NOT NULL — INSERT succeeds, row is inserted",
+      "scenarios": ["test_insert_valid_product_inserted"]
+    },
+    {
+      "id": "insert_with_null_product",
+      "statement_index": 0,
+      "description": "Row WHERE ProductName IS NULL — INSERT filters row out via WHERE clause",
+      "scenarios": ["test_insert_null_product_filtered"]
+    },
+    {
+      "id": "empty_source",
+      "statement_index": 0,
+      "description": "Zero rows in bronze.Product — INSERT produces no rows, target remains empty",
+      "scenarios": ["test_insert_empty_source_no_rows"]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_insert_valid_product_inserted",
+      "target_table": "[silver].[TryCatchTarget]",
+      "procedure": "[silver].[usp_load_TryCatchTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Adjustable Race",
+              "ProductNumber": "AR-5381"
+            },
+            {
+              "ProductID": 2,
+              "ProductName": "Bearing Ball",
+              "ProductNumber": "BA-8327"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "test_insert_null_product_filtered",
+      "target_table": "[silver].[TryCatchTarget]",
+      "procedure": "[silver].[usp_load_TryCatchTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Adjustable Race",
+              "ProductNumber": "AR-5381"
+            },
+            {
+              "ProductID": 2,
+              "ProductName": null,
+              "ProductNumber": "UNKNOWN"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "test_insert_empty_source_no_rows",
+      "target_table": "[silver].[TryCatchTarget]",
+      "procedure": "[silver].[usp_load_TryCatchTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": []
+        }
+      ]
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "errors": []
+}

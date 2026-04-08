@@ -52,5 +52,10 @@
       "source": "ast",
       "sql": "DELETE FROM silver.DeleteWhereTarget WHERE IsRetired = 1"
     }
-  ]
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM [silver].[DeleteWhereTarget] WHERE IsRetired <> 1 OR IsRetired IS NULL",
+    "refactored_sql": "WITH import_DeleteWhereTarget AS ( SELECT * FROM [silver].[DeleteWhereTarget] ), logical_keep_active_rows AS ( SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM import_DeleteWhereTarget WHERE IsRetired = 0 ), final AS ( SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM logical_keep_active_rows ) SELECT * FROM final"
+  }
 }

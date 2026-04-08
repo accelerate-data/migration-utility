@@ -41,5 +41,10 @@
       "in_scope": [],
       "out_of_scope": []
     }
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_scope_execconcat",
+    "selected_writer_rationale": "Only one writer candidate was found for silver.ExecConcatTarget. The procedure builds and executes a dynamic INSERT via string concatenation, writing directly to this table."
   }
 }

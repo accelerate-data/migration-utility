@@ -160,5 +160,10 @@
       "in_scope": [],
       "out_of_scope": []
     }
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_load_dimmultiwriter_full",
+    "selected_writer_rationale": "Only one of three writer candidates had a catalog file available for analysis; the other two (delta and archive) were blocked due to missing catalog entries. usp_load_dimmultiwriter_full is a straightforward full-load procedure that exclusively writes to silver.DimMultiWriter from bronze.Product."
   }
 }

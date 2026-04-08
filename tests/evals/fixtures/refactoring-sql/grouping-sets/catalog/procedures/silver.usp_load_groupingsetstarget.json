@@ -65,5 +65,10 @@
       "source": "ast",
       "sql": "INSERT INTO silver.GroupingSetsTarget (GroupKey, ProductCount) SELECT COALESCE(Color, 'all'), COUNT(*) FROM bronze.Product GROUP BY GROUPING SETS ((Color), ())"
     }
-  ]
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT COALESCE(Color, 'all') AS GroupKey, COUNT(*) AS ProductCount FROM bronze.Product GROUP BY GROUPING SETS ((Color), ())",
+    "refactored_sql": "WITH import_product AS ( SELECT * FROM bronze.Product ), logical_grouped AS ( SELECT COALESCE(Color, 'all') AS GroupKey, COUNT(*) AS ProductCount FROM import_product GROUP BY GROUPING SETS ((Color), ()) ), final AS ( SELECT GroupKey, ProductCount FROM logical_grouped ) SELECT * FROM final"
+  }
 }

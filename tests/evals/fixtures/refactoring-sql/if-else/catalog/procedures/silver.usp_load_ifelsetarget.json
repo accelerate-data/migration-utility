@@ -10,9 +10,21 @@
           "is_selected": true,
           "is_updated": false,
           "columns": [
-            { "name": "ProductID", "is_selected": true, "is_updated": false },
-            { "name": "ProductName", "is_selected": true, "is_updated": false },
-            { "name": "ListPrice", "is_selected": true, "is_updated": false }
+            {
+              "name": "ProductID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductName",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ListPrice",
+              "is_selected": true,
+              "is_updated": false
+            }
           ]
         },
         {
@@ -21,17 +33,38 @@
           "is_selected": false,
           "is_updated": true,
           "columns": [
-            { "name": "ProductAlternateKey", "is_selected": false, "is_updated": true },
-            { "name": "EnglishProductName", "is_selected": false, "is_updated": true },
-            { "name": "PriceCategory", "is_selected": false, "is_updated": true }
+            {
+              "name": "ProductAlternateKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "EnglishProductName",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "PriceCategory",
+              "is_selected": false,
+              "is_updated": true
+            }
           ]
         }
       ],
       "out_of_scope": []
     },
-    "views": { "in_scope": [], "out_of_scope": [] },
-    "functions": { "in_scope": [], "out_of_scope": [] },
-    "procedures": { "in_scope": [], "out_of_scope": [] }
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
   },
   "mode": "llm_required",
   "routing_reasons": [
@@ -55,5 +88,10 @@
       "needs_llm": true,
       "sql": "INSERT INTO silver.IfElseTarget (ProductAlternateKey, EnglishProductName, PriceCategory) SELECT CAST(ProductID AS NVARCHAR(25)), ProductName, 'Standard' FROM bronze.Product"
     }
-  ]
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "-- When target table has records: UPDATE branch SELECT CAST(src.ProductID AS NVARCHAR(25)) AS ProductAlternateKey, src.ProductName AS EnglishProductName, CAST(NULL AS NVARCHAR(20)) AS PriceCategory FROM [bronze].[Product] AS src WHERE EXISTS (SELECT 1 FROM [silver].[IfElseTarget]) UNION ALL -- When target table is empty: INSERT branch SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, CAST(NULL AS NVARCHAR(20)) AS PriceCategory FROM [bronze].[Product] WHERE NOT EXISTS (SELECT 1 FROM [silver].[IfElseTarget])",
+    "refactored_sql": "WITH import_product AS ( SELECT * FROM [bronze].[Product] ), check_target_records AS ( SELECT COUNT(*) AS record_count FROM [silver].[IfElseTarget] ), has_records AS ( SELECT CASE WHEN record_count > 0 THEN 1 ELSE 0 END AS has_records_flag FROM check_target_records ), update_branch AS ( SELECT CAST(src.ProductID AS NVARCHAR(25)) AS ProductAlternateKey, src.ProductName AS EnglishProductName, CAST(NULL AS NVARCHAR(20)) AS PriceCategory FROM import_product AS src INNER JOIN [silver].[IfElseTarget] AS tgt ON tgt.ProductAlternateKey = CAST(src.ProductID AS NVARCHAR(25)) WHERE (SELECT has_records_flag FROM has_records) = 1 ), insert_branch AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, CAST(NULL AS NVARCHAR(20)) AS PriceCategory FROM import_product WHERE (SELECT has_records_flag FROM has_records) = 0 ), final AS ( SELECT ProductAlternateKey, EnglishProductName, PriceCategory FROM update_branch UNION ALL SELECT ProductAlternateKey, EnglishProductName, PriceCategory FROM insert_branch ) SELECT * FROM final"
+  }
 }

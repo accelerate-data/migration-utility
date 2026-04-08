@@ -41,5 +41,24 @@
       "in_scope": [],
       "out_of_scope": []
     }
+  },
+  "scoping": {
+    "selected_writer": "silver.usp_scope_ExecVariable"
+  },
+  "profile": {
+    "status": "ok",
+    "writer": "silver.usp_scope_ExecVariable",
+    "classification": {
+      "resolved_kind": "fact_insert",
+      "source": "manual",
+      "rationale": "Fact table populated via INSERT from dynamic SQL"
+    },
+    "primary_key": {
+      "columns": [],
+      "primary_key_type": "none",
+      "source": "catalog"
+    },
+    "foreign_keys": [],
+    "pii_actions": []
   }
 }

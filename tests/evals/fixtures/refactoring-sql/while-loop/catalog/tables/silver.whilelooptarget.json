@@ -2,7 +2,79 @@
   "schema": "silver",
   "name": "WhileLoopTarget",
   "columns": [
-    {"name": "ProductAlternateKey", "data_type": "nvarchar(25)"},
-    {"name": "EnglishProductName", "data_type": "nvarchar(50)"}
-  ]
+    {
+      "name": "ProductAlternateKey",
+      "sql_type": "NVARCHAR(25)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "EnglishProductName",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": false,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [
+    {
+      "constraint_name": "PK_WhileLoopTarget",
+      "columns": [
+        "ProductAlternateKey"
+      ]
+    }
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "usp_load_whilelooptarget",
+          "is_selected": true,
+          "is_updated": true
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_load_WhileLoopTarget"
+  },
+  "profile": {
+    "status": "ok",
+    "writer": "silver.usp_load_WhileLoopTarget",
+    "classification": {
+      "resolved_kind": "dim_non_scd",
+      "source": "catalog+llm",
+      "rationale": "A WHILE loop that iteratively inserts all source rows materializes a simple non-SCD dimension-style table."
+    },
+    "primary_key": {
+      "columns": [
+        "ProductAlternateKey"
+      ],
+      "primary_key_type": "natural",
+      "source": "catalog",
+      "rationale": "ProductAlternateKey is the declared primary key and comes from the source business key."
+    },
+    "foreign_keys": [],
+    "pii_actions": []
+  },
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM [bronze].[Product] ORDER BY ProductID",
+    "refactored_sql": "WITH source_product AS ( SELECT * FROM [bronze].[Product] ), transformed_product AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM source_product ), final AS ( SELECT ProductAlternateKey, EnglishProductName FROM transformed_product ORDER BY ProductAlternateKey ) SELECT * FROM final"
+  }
 }
