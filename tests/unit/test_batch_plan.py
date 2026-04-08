@@ -130,19 +130,18 @@ class TestObjectPipelineStatus:
         assert object_pipeline_status(tmp_path, "silver.t", "table", dbt_root) == "test_gen_needed"
 
     def test_table_refactor_needed(self, tmp_path):
-        """Table with test-spec but writer not refactored → refactor_needed."""
+        """Table with test_gen ok but writer not refactored → refactor_needed."""
         dbt_root = tmp_path / "dbt"
         cat_dir = tmp_path / "catalog" / "tables"
         proc_dir = tmp_path / "catalog" / "procedures"
-        spec_dir = tmp_path / "test-specs"
         cat_dir.mkdir(parents=True)
         proc_dir.mkdir(parents=True)
-        spec_dir.mkdir(parents=True)
         (cat_dir / "silver.t.json").write_text(
             json.dumps({
                 "schema": "silver", "name": "T",
                 "scoping": {"status": "resolved", "selected_writer": "dbo.usp_load_t"},
                 "profile": {"status": "ok"},
+                "test_gen": {"status": "ok"},
             }),
             encoding="utf-8",
         )
@@ -150,23 +149,21 @@ class TestObjectPipelineStatus:
             json.dumps({"schema": "dbo", "name": "usp_load_t", "statements": [{"action": "migrate", "source": "ast", "sql": ""}], "mode": "deterministic", "routing_reasons": [], "refactor": {"status": "partial"}}),
             encoding="utf-8",
         )
-        (spec_dir / "silver.t.json").write_text("{}", encoding="utf-8")
         assert object_pipeline_status(tmp_path, "silver.t", "table", dbt_root) == "refactor_needed"
 
     def test_table_migrate_needed(self, tmp_path):
-        """Fully prepared table with no dbt model → migrate_needed."""
+        """Fully prepared table with no generate status → migrate_needed."""
         dbt_root = tmp_path / "dbt"
         cat_dir = tmp_path / "catalog" / "tables"
         proc_dir = tmp_path / "catalog" / "procedures"
-        spec_dir = tmp_path / "test-specs"
         cat_dir.mkdir(parents=True)
         proc_dir.mkdir(parents=True)
-        spec_dir.mkdir(parents=True)
         (cat_dir / "silver.t.json").write_text(
             json.dumps({
                 "schema": "silver", "name": "T",
                 "scoping": {"status": "resolved", "selected_writer": "dbo.usp_load_t"},
                 "profile": {"status": "ok"},
+                "test_gen": {"status": "ok"},
             }),
             encoding="utf-8",
         )
@@ -174,25 +171,22 @@ class TestObjectPipelineStatus:
             json.dumps({"schema": "dbo", "name": "usp_load_t", "statements": [{"action": "migrate", "source": "ast", "sql": ""}], "mode": "deterministic", "routing_reasons": [], "refactor": {"status": "ok", "extracted_sql": "x", "refactored_sql": "y"}}),
             encoding="utf-8",
         )
-        (spec_dir / "silver.t.json").write_text("{}", encoding="utf-8")
         assert object_pipeline_status(tmp_path, "silver.t", "table", dbt_root) == "migrate_needed"
 
     def test_table_complete(self, tmp_path):
         """Fully migrated table → complete."""
         dbt_root = tmp_path / "dbt"
-        (dbt_root / "models" / "staging").mkdir(parents=True)
-        (dbt_root / "models" / "staging" / "stg_t.sql").write_text("select 1", encoding="utf-8")
         cat_dir = tmp_path / "catalog" / "tables"
         proc_dir = tmp_path / "catalog" / "procedures"
-        spec_dir = tmp_path / "test-specs"
         cat_dir.mkdir(parents=True)
         proc_dir.mkdir(parents=True)
-        spec_dir.mkdir(parents=True)
         (cat_dir / "silver.t.json").write_text(
             json.dumps({
                 "schema": "silver", "name": "T",
                 "scoping": {"status": "resolved", "selected_writer": "dbo.usp_load_t"},
                 "profile": {"status": "ok"},
+                "test_gen": {"status": "ok"},
+                "generate": {"status": "ok"},
             }),
             encoding="utf-8",
         )
@@ -200,7 +194,6 @@ class TestObjectPipelineStatus:
             json.dumps({"schema": "dbo", "name": "usp_load_t", "statements": [{"action": "migrate", "source": "ast", "sql": ""}], "mode": "deterministic", "routing_reasons": [], "refactor": {"status": "ok", "extracted_sql": "x", "refactored_sql": "y"}}),
             encoding="utf-8",
         )
-        (spec_dir / "silver.t.json").write_text("{}", encoding="utf-8")
         assert object_pipeline_status(tmp_path, "silver.t", "table", dbt_root) == "complete"
 
     def test_view_scope_needed(self, tmp_path):
@@ -237,47 +230,36 @@ class TestObjectPipelineStatus:
         assert object_pipeline_status(tmp_path, "silver.vw_test", "view", dbt_root) == "test_gen_needed"
 
     def test_view_refactor_needed(self, tmp_path):
-        """Analyzed + profiled view with test spec but no refactor → refactor_needed."""
+        """Analyzed + profiled view with test_gen ok but no refactor → refactor_needed."""
         dbt_root = tmp_path / "dbt"
         view_dir = tmp_path / "catalog" / "views"
         view_dir.mkdir(parents=True)
         (view_dir / "silver.vw_test.json").write_text(
-            json.dumps({"schema": "silver", "name": "vw_Test", "scoping": {"status": "analyzed"}, "profile": {"status": "ok", "classification": "stg", "source": "llm"}, "references": {"tables": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}, "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}}),
+            json.dumps({"schema": "silver", "name": "vw_Test", "scoping": {"status": "analyzed"}, "profile": {"status": "ok", "classification": "stg", "source": "llm"}, "test_gen": {"status": "ok"}, "references": {"tables": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}, "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}}),
             encoding="utf-8",
         )
-        spec_dir = tmp_path / "test-specs"
-        spec_dir.mkdir()
-        (spec_dir / "silver.vw_test.json").write_text("{}", encoding="utf-8")
         assert object_pipeline_status(tmp_path, "silver.vw_test", "view", dbt_root) == "refactor_needed"
 
     def test_view_migrate_needed(self, tmp_path):
-        """Analyzed + profiled + refactored view with no dbt model → migrate_needed."""
+        """Analyzed + profiled + refactored view with no generate status → migrate_needed."""
         dbt_root = tmp_path / "dbt"
         view_dir = tmp_path / "catalog" / "views"
         view_dir.mkdir(parents=True)
         (view_dir / "silver.vw_test.json").write_text(
-            json.dumps({"schema": "silver", "name": "vw_Test", "scoping": {"status": "analyzed"}, "profile": {"status": "ok", "classification": "stg", "source": "llm"}, "refactor": {"status": "ok", "extracted_sql": "SELECT 1", "refactored_sql": "WITH src AS (SELECT 1) SELECT * FROM src"}, "references": {"tables": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}, "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}}),
+            json.dumps({"schema": "silver", "name": "vw_Test", "scoping": {"status": "analyzed"}, "profile": {"status": "ok", "classification": "stg", "source": "llm"}, "test_gen": {"status": "ok"}, "refactor": {"status": "ok", "extracted_sql": "SELECT 1", "refactored_sql": "WITH src AS (SELECT 1) SELECT * FROM src"}, "references": {"tables": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}, "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}}),
             encoding="utf-8",
         )
-        spec_dir = tmp_path / "test-specs"
-        spec_dir.mkdir()
-        (spec_dir / "silver.vw_test.json").write_text("{}", encoding="utf-8")
         assert object_pipeline_status(tmp_path, "silver.vw_test", "view", dbt_root) == "migrate_needed"
 
     def test_view_complete(self, tmp_path):
-        """Fully pipeline-complete view with dbt model → complete."""
+        """Fully pipeline-complete view with generate status ok → complete."""
         dbt_root = tmp_path / "dbt"
-        (dbt_root / "models" / "staging").mkdir(parents=True)
-        (dbt_root / "models" / "staging" / "stg_vw_test.sql").write_text("select 1", encoding="utf-8")
         view_dir = tmp_path / "catalog" / "views"
         view_dir.mkdir(parents=True)
         (view_dir / "silver.vw_test.json").write_text(
-            json.dumps({"schema": "silver", "name": "vw_Test", "scoping": {"status": "analyzed"}, "profile": {"status": "ok", "classification": "stg", "source": "llm"}, "refactor": {"status": "ok", "extracted_sql": "SELECT 1", "refactored_sql": "WITH src AS (SELECT 1) SELECT * FROM src"}, "references": {"tables": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}, "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}}),
+            json.dumps({"schema": "silver", "name": "vw_Test", "scoping": {"status": "analyzed"}, "profile": {"status": "ok", "classification": "stg", "source": "llm"}, "test_gen": {"status": "ok"}, "refactor": {"status": "ok", "extracted_sql": "SELECT 1", "refactored_sql": "WITH src AS (SELECT 1) SELECT * FROM src"}, "generate": {"status": "ok"}, "references": {"tables": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}, "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}}}),
             encoding="utf-8",
         )
-        spec_dir = tmp_path / "test-specs"
-        spec_dir.mkdir()
-        (spec_dir / "silver.vw_test.json").write_text("{}", encoding="utf-8")
         assert object_pipeline_status(tmp_path, "silver.vw_test", "view", dbt_root) == "complete"
 
 
