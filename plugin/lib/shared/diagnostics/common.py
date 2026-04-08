@@ -167,7 +167,7 @@ def check_multi_table_write(ctx: CatalogContext) -> DiagnosticResult | None:
     table_fqns = [f"{t['schema']}.{t['name']}" for t in updated_tables]
     return DiagnosticResult(
         code="MULTI_TABLE_WRITE",
-        message=f"Procedure writes to {len(updated_tables)} tables; cannot produce a single clean refactored SQL.",
+        message=f"Procedure writes to {len(updated_tables)} tables: {', '.join(table_fqns)}. Each table will require a separate dbt model.",
         severity="warning",
         details={"tables": table_fqns},
     )

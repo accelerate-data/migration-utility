@@ -87,6 +87,11 @@
         }
       }
     },
+    "table_slices": {
+      "type": "object",
+      "description": "Per-table DDL slices for multi-table-writer procs. Keyed by normalized table FQN (schema.table). Written by analyzing-table when this proc is selected_writer for a table.",
+      "additionalProperties": { "type": "string" }
+    },
     "refactor": {
       "type": "object",
       "description": "Written by the refactoring-sql skill via refactor write. Contains extracted core SQL and refactored CTE SQL for this writer procedure.",

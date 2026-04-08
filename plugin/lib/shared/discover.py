@@ -37,6 +37,7 @@ from shared.catalog import (
     load_function_catalog,
     write_json,
     write_proc_statements,
+    write_proc_table_slice,
 )
 from shared.loader import (
     CatalogFileMissingError,
@@ -502,6 +503,19 @@ def run_write_source(
     return {"written": str(cat_path), "is_source": value, "status": "ok"}
 
 
+def run_write_table_slice(
+    project_root: Path, proc_fqn: str, table_fqn: str, ddl_slice: str
+) -> dict[str, Any]:
+    """Write a per-table DDL slice into the proc catalog."""
+    path = write_proc_table_slice(project_root, proc_fqn, table_fqn, ddl_slice)
+    logger.info(
+        "event=write_table_slice proc=%s table=%s status=success",
+        normalize(proc_fqn),
+        normalize(table_fqn),
+    )
+    return {"written": str(path), "status": "ok"}
+
+
 def run_refs(project_root: Path, name: str) -> dict[str, Any]:
     """Return the refs subcommand result dict.
 
@@ -678,6 +692,35 @@ def write_source(
     except ValueError as exc:
         logger.error("event=command_failed error=%s", exc)
         raise typer.Exit(code=1) from exc
+    emit(result)
+
+
+@app.command(name="write-slice")
+def write_slice(
+    project_root: Optional[Path] = typer.Option(None, "--project-root", help="Path to project root directory (defaults to current working directory)"),
+    proc: str = typer.Option(..., "--proc", help="Fully qualified procedure FQN"),
+    table: str = typer.Option(..., "--table", help="Fully qualified table FQN"),
+    slice: Optional[str] = typer.Option(None, "--slice", help="Inline DDL text for the table slice (mutually exclusive with --slice-file)"),
+    slice_file: Optional[Path] = typer.Option(None, "--slice-file", help="Path to file containing the DDL slice (mutually exclusive with --slice)"),
+) -> None:
+    """Write a per-table DDL slice into a procedure catalog file."""
+    if slice_file and slice:
+        logger.error("event=command_failed error=--slice and --slice-file are mutually exclusive")
+        raise typer.Exit(code=1)
+    if slice_file:
+        slice = slice_file.read_text(encoding="utf-8")
+    if not slice:
+        logger.error("event=command_failed error=no slice provided (use --slice or --slice-file)")
+        raise typer.Exit(code=1)
+    project_root = resolve_project_root(project_root)
+    try:
+        result = run_write_table_slice(project_root, proc, table, slice)
+    except (CatalogFileMissingError, ObjectNotFoundError) as exc:
+        logger.error("event=command_failed error=%s", exc)
+        raise typer.Exit(code=1) from exc
+    except CatalogLoadError as exc:
+        logger.error("event=command_failed error=%s", exc)
+        raise typer.Exit(code=2) from exc
     emit(result)
 
 

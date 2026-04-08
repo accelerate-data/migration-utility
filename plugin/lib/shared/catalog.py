@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 from shared.dmf_processing import empty_scoped
 from shared.env_config import resolve_catalog_dir
-from shared.loader_data import CatalogLoadError
+from shared.loader_data import CatalogFileMissingError, CatalogLoadError
 from shared.name_resolver import fqn_parts, normalize
 from shared.tsql_utils import mask_tsql
 
@@ -360,6 +360,24 @@ def write_proc_statements(
     data["statements"] = statements
     write_json(p, data)
     return p
+
+
+def write_proc_table_slice(
+    project_root: Path, proc_fqn: str, table_fqn: str, ddl_slice: str
+) -> Path:
+    """Upsert a per-table DDL slice into the proc catalog table_slices section."""
+    norm_proc = normalize(proc_fqn)
+    norm_table = normalize(table_fqn)
+    cat_path = _object_path(project_root, "procedures", norm_proc)
+    if not cat_path.exists():
+        raise CatalogFileMissingError("procedure", norm_proc)
+    try:
+        data = json.loads(cat_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise CatalogLoadError(str(cat_path), exc) from exc
+    data.setdefault("table_slices", {})[norm_table] = ddl_slice
+    write_json(cat_path, data)
+    return cat_path
 
 
 def write_object_catalog(
