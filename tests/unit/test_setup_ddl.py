@@ -937,6 +937,90 @@ class TestWritePartialManifest:
         assert "extracted_at" in manifest
 
 
+# ── Unit: write-partial-manifest with prereqs ───────────────────────────────
+
+
+class TestWritePartialManifestHandoff:
+    def test_prereqs_json_writes_init_handoff(self, tmp_path):
+        prereqs = json.dumps({
+            "env_vars": {"MSSQL_HOST": True, "MSSQL_PORT": True, "MSSQL_DB": True, "SA_PASSWORD": True},
+            "tools": {"uv": True, "python": True, "shared_deps": True, "ddl_mcp": True, "freetds": True},
+        })
+        result = _run_cli([
+            "write-partial-manifest",
+            "--project-root", str(tmp_path),
+            "--technology", "sql_server",
+            "--prereqs-json", prereqs,
+        ])
+        assert result.returncode == 0
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert "init_handoff" in manifest
+        handoff = manifest["init_handoff"]
+        assert handoff["env_vars"]["MSSQL_HOST"] is True
+        assert handoff["tools"]["uv"] is True
+        assert "timestamp" in handoff
+
+    def test_without_prereqs_json_no_init_handoff(self, tmp_path):
+        result = _run_cli([
+            "write-partial-manifest",
+            "--project-root", str(tmp_path),
+            "--technology", "oracle",
+        ])
+        assert result.returncode == 0
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert "init_handoff" not in manifest
+
+    def test_invalid_prereqs_json_fails(self, tmp_path):
+        result = _run_cli([
+            "write-partial-manifest",
+            "--project-root", str(tmp_path),
+            "--technology", "sql_server",
+            "--prereqs-json", "{not valid json}",
+        ])
+        assert result.returncode != 0
+
+
+# ── Unit: read-handoff ──────────────────────────────────────────────────────
+
+
+class TestReadHandoff:
+    def test_handoff_present_returns_skip_true(self, tmp_path):
+        manifest = {
+            "schema_version": "1.0",
+            "technology": "sql_server",
+            "dialect": "tsql",
+            "init_handoff": {
+                "timestamp": "2026-04-01T00:00:00+00:00",
+                "env_vars": {"MSSQL_HOST": True},
+                "tools": {"uv": True},
+            },
+        }
+        _write_json(tmp_path / "manifest.json", manifest)
+        result = _run_cli(["read-handoff", "--project-root", str(tmp_path)])
+        assert result.returncode == 0
+        out = json.loads(result.stdout)
+        assert out["skip"] is True
+        assert out["handoff"]["env_vars"]["MSSQL_HOST"] is True
+
+    def test_missing_handoff_returns_skip_false(self, tmp_path):
+        manifest = {
+            "schema_version": "1.0",
+            "technology": "sql_server",
+            "dialect": "tsql",
+        }
+        _write_json(tmp_path / "manifest.json", manifest)
+        result = _run_cli(["read-handoff", "--project-root", str(tmp_path)])
+        assert result.returncode == 0
+        out = json.loads(result.stdout)
+        assert out["skip"] is False
+
+    def test_no_manifest_returns_skip_false(self, tmp_path):
+        result = _run_cli(["read-handoff", "--project-root", str(tmp_path)])
+        assert result.returncode == 0
+        out = json.loads(result.stdout)
+        assert out["skip"] is False
+
+
 # ── Unit: list-databases guards ──────────────────────────────────────────────
 
 

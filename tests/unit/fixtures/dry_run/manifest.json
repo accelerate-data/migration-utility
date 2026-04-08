@@ -7,5 +7,22 @@
   "extracted_at": "2026-04-01T00:00:00Z",
   "sandbox": {
     "database": "__test_abc123"
+  },
+  "init_handoff": {
+    "timestamp": "2026-04-01T00:00:00+00:00",
+    "env_vars": {
+      "MSSQL_HOST": true,
+      "MSSQL_PORT": true,
+      "MSSQL_DB": true,
+      "SA_PASSWORD": true
+    },
+    "tools": {
+      "uv": true,
+      "python": true,
+      "shared_deps": true,
+      "ddl_mcp": true,
+      "freetds": true,
+      "toolbox": true
+    }
   }
 }
