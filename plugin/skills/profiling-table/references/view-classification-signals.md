@@ -27,6 +27,20 @@ A view is `stg` when it is a thin layer that cleans, renames, or lightly transfo
 - If `sql_elements` is null (parse error) and `logic_summary` is also absent, classify as `mart` and note the uncertainty in the rationale.
 - View name starting with `vw_stg`, `stg_`, or similar naming convention is weak evidence for `stg` — do not use as sole signal.
 
+## SCD2 base-table signals
+
+Views can provide evidence that an underlying table is SCD2. These signals do not affect the view's own `stg`/`mart` classification — they are cross-object signals to note in the rationale when profiling the base table.
+
+| View pattern | Base-table signal |
+|---|---|
+| `WHERE is_current = 1` or `WHERE current_flag = 1` filtering a base table | Strong SCD2 signal on the base table — view exposes "current state" of a versioned dimension |
+| `WHERE end_date IS NULL` or `WHERE valid_to = '9999-12-31'` filtering a base table | Strong SCD2 signal on the base table — sentinel date or NULL marks the active row |
+| `ROW_NUMBER() OVER (PARTITION BY business_key ORDER BY effective_date DESC) = 1` | Medium SCD2 signal — view derives latest version via windowing instead of a flag column |
+
+When these patterns are observed, record them in the view's profiling rationale so they can inform table classification during table profiling.
+
+---
+
 ## Dependency inspection
 
 The context JSON provides `references` and `referenced_by` with `object_type` on each `in_scope` entry.

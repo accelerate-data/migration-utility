@@ -25,6 +25,16 @@ Additionally, `catalog/procedures/<writer>.json` provides `references` — all t
 
 Determines materialization (`incremental`, `table`, `snapshot`) and test strategy.
 
+### Confidence rule
+
+No single signal is sufficient for an SCD2 classification. Require **at least two** of the following three signal groups before resolving as `dim_scd2`:
+
+1. **Schema structure** — surrogate key (identity / `_sk`) alongside a separate natural/business key.
+2. **Versioning columns** — date pair (`valid_from`/`valid_to`) OR current-row flag (`is_current`/`current_flag`).
+3. **Behavioral proof** — procedure logic that INSERTs a new row while closing the old row's date range or flipping its current flag.
+
+A single signal (e.g. `valid_from` column with no supporting procedure pattern) should be noted in the rationale but is insufficient to resolve as `dim_scd2` without corroboration.
+
 ### Write-Pattern Signals
 
 | Proc pattern | Classification |
@@ -43,11 +53,47 @@ Determines materialization (`incremental`, `table`, `snapshot`) and test strateg
 | Column pattern | Signal |
 |---|---|
 | `valid_from` / `valid_to` / `is_current` / `current_flag` | `dim_scd2` |
+| End-date column with sentinel default (`DEFAULT '9999-12-31'` or `'2099-12-31'`) | `dim_scd2` (strong — nearly definitive when paired with a date-pair) |
+| `version_number` / `row_version` / `scd_version` / `record_version` | `dim_scd2` (medium — row versioning signal) |
+| `hash_diff` / `row_hash` / `checksum` column alongside date-pair or current flag | `dim_scd2` (medium — change-detection hash; see disambiguation below) |
 | Multiple milestone date columns (`order_date`, `ship_date`, `close_date`) | `fact_accumulating_snapshot` |
 | `snapshot_date` / `as_of_date` / `period_date` | `fact_periodic_snapshot` |
 | Multiple `BIT`/`TINYINT` flag columns, all low-cardinality | `dim_junk` candidate |
 | Surrogate PK (`_sk`) + separate natural key column | Dimension (SCD1 or SCD2) |
 | FK columns (`_sk`) + numeric measure columns | Fact table |
+
+### Index and Constraint Signals
+
+The catalog provides `unique_indexes` — use them to corroborate or rule out SCD2.
+
+| Index / constraint pattern | Signal |
+|---|---|
+| `UNIQUE (business_key, effective_date)` — composite unique on natural key + date column | Strong `dim_scd2` — multiple rows per entity, one per time period |
+| No unique constraint on natural key alone, but surrogate PK exists | Medium `dim_scd2` — schema allows multiple rows per entity |
+| `UNIQUE` on natural key alone (with or without surrogate PK) | **Rules out `dim_scd2`** — only one row per entity permitted (SCD1 or non-SCD dimension) |
+
+### Cross-Reference Signals
+
+Derived from `writer_references` in the profiling context.
+
+| Pattern | Signal |
+|---|---|
+| Writer proc reads from `stg_*` / staging table and writes to a dimension table with date-pair columns | Medium `dim_scd2` — classic ETL staging-to-dimension versioning flow |
+| Fact tables reference this table's surrogate key (not its natural key) via FK | Weak dimension signal — consistent with SCD2 but also SCD1 |
+
+### SCD2 Disambiguation
+
+When a table has **some** SCD2 signals but classification is ambiguous, apply these rules to distinguish SCD2 from lookalike patterns.
+
+| Ambiguous signal | Common false positive | How to disambiguate |
+|---|---|---|
+| Date pair (`valid_from`/`valid_to`) | Temporal business data — contracts, subscriptions, pricing windows, insurance policies | SCD2 tables have a surrogate key + `is_current` flag; temporal business tables have FK to a parent entity and no surrogate key |
+| `is_current` / `is_active` flag | Soft-delete / logical deletion (`is_active=0` means deleted, not superseded) | Check for UNIQUE on natural key — if present, only one row per entity → soft-delete. SCD2 allows multiple rows per entity with different flag values |
+| Surrogate key + natural key | Standard SCD1 dimensions (all star-schema dims use surrogates) | Insufficient alone — require versioning columns (date pair or current flag) as corroboration |
+| MERGE statement | SCD1 upsert (`WHEN MATCHED THEN UPDATE` overwrites in place) | SCD2 MERGE has an INSERT in the MATCHED branch (insert new version after expiring old). SCD1 MERGE only UPDATEs the matched row |
+| Hash columns (`hash_diff`, `row_hash`) | SCD1 change detection (hash to detect drift, then overwrite) or dedup/idempotency | Check the code path after hash mismatch: INSERT new row → SCD2; UPDATE existing row → SCD1 |
+| `_hist` / `_history` naming | Audit/log tables (append-only event stream, not dimensional versioning) | Audit tables have no UPDATE path on prior rows and lack a current-flag or date-pair. Look for absence of UPDATE statements targeting the same table |
+| Composite index on (business_key, date) | Event/fact tables indexed by entity + transaction date | Fact tables have measure/amount columns and FK references to multiple dimensions. SCD2 dimensions have descriptive attribute columns |
 
 ---
 
