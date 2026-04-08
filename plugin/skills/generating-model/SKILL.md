@@ -50,6 +50,33 @@ Read the output JSON. It contains:
 
 Use `refactored_sql` as your sole SQL input. Ignore `proc_body` and `statements` — they are not relevant to model generation.
 
+## Step 1.5: Pre-generation check
+
+Check whether the model sweep plan and existing dbt artifacts indicate this table should be skipped or run in test-only mode.
+
+### 1.5a — Read the plan artifact
+
+If a model sweep artifact path was provided (via `--model-sweep-file` argument or referenced in the agent prompt), read `.migration-runs/model-sweep.<epoch>.json`. Find this table's entry by matching `fqn`.
+
+If no sweep artifact is available (single-table interactive run), skip to step 1.5c.
+
+### 1.5b — Act on recommended_action
+
+| `recommended_action` | Action |
+|---|---|
+| `"skip"` | Report "Model exists with passing tests — skipping generation." Write item result with `status: "ok"` and `"skipped": true`. Stop — do not proceed to Step 2. |
+| `"test-only"` | Skip Steps 2–7. Jump directly to Step 8 (compile + test) using the existing mart model on disk. |
+| `"generate"` | Proceed normally through all steps. |
+
+### 1.5c — Shared staging models
+
+When proceeding with `"generate"`:
+
+- Check `shared_staging_candidates` in the sweep artifact. For any source table listed there, do **not** create a new `stg_*` file — it was already written by the planning sweep. Use `{{ ref('stg_<table>') }}` in the mart model.
+- For source tables not in `shared_staging_candidates`, apply the normal check: look for an existing `stg_*.sql` in `dbt/models/staging/`. If one exists with a compatible column set, use `{{ ref() }}` — do not duplicate. If no stg file exists, you will create one in Step 3.
+
+**Rule:** mart models must never use `{{ source() }}` directly. Every source table read in the mart must go through a `stg_*` model (existing or newly created) referenced via `{{ ref() }}`.
+
 ## Step 2: Decide model structure
 
 The refactored SQL already has import/logical/final CTE structure. Apply the staging/mart split — see [modular-modeling-ref.md](references/modular-modeling-ref.md) for decision rules: import CTEs → ephemeral `stg_*` models, logical+final CTEs → mart model.
@@ -59,6 +86,15 @@ Before creating a new `stg_*` model, check `dbt/models/staging/` for an existing
 ## Step 3: Generate dbt SQL
 
 Produce two outputs from the `refactored_sql`. Apply [sql-style.md](../reviewing-model/references/sql-style.md) (keywords, indentation, commas) and [cte-structure.md](../reviewing-model/references/cte-structure.md) (import/logical/final pattern) throughout. Apply [model-naming.md](../reviewing-model/references/model-naming.md) for layer prefixes, `_dbt_run_id`, and `_loaded_at` rules.
+
+**Mandatory pre-step — write stg files before any mart SQL:**
+
+From the `migrate context` output, read `source_tables`. For each source table where `is_selected=true` and `is_updated=false`:
+
+- Check whether `dbt/models/staging/stg_<table>.sql` exists on disk.
+- If it does not exist, use the Write tool to create it now as an ephemeral model: `{{ config(materialized='ephemeral') }}` + `select * from {{ source('<schema>', '<table>') }}`.
+
+Only after all stg files are confirmed on disk (existing or newly written), generate the mart SQL. The mart must use `{{ ref('stg_<table>') }}` — never `{{ source() }}` — for each source table.
 
 ### Staging models (`stg_<source_table>.sql`)
 

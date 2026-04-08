@@ -7,7 +7,7 @@ prompts:
 providers:
   - id: anthropic:claude-agent-sdk
     config:
-      model: claude-sonnet-4-6
+      model: claude-haiku-4-5-20251001
       working_dir: ../..
       max_turns: 80
       permission_mode: auto
@@ -87,3 +87,44 @@ tests:
       target_table: "silver.InsertSelectTarget"
       writer: "silver.usp_load_InsertSelectTarget"
       expected_output_terms: "version: 2,description"
+
+  # ── planning sweep: stg already on disk ──────────────────────
+  - description: "planning-sweep-stg-reuse — stg_product.sql pre-seeded, skill reuses via ref() not source()"
+    vars:
+      fixture_path: "tests/evals/fixtures/planning-sweep-stg-reuse"
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_model_terms: "ref('stg_product')"
+      forbidden_model_terms: "source('bronze'"
+
+  # ── planning sweep: no stg on disk ───────────────────────────
+  - description: "planning-sweep-no-stg — no staging on disk, skill creates stg_product.sql with ephemeral"
+    vars:
+      fixture_path: "tests/evals/fixtures/planning-sweep-no-stg"
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_stg_files: "stg_product"
+      expected_stg_terms: "ephemeral"
+      expected_model_terms: "ref('stg_product')"
+
+  # ── planning sweep: skip (mart exists + tests passing) ───────
+  - description: "planning-sweep-skip — sweep artifact recommends skip, skill exits without generating model"
+    vars:
+      fixture_path: "tests/evals/fixtures/planning-sweep-skip"
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_action: "skip"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-sweep-action.js
+
+  # ── planning sweep: test-only (mart exists, no passing tests) ─
+  - description: "planning-sweep-test-only — sweep artifact recommends test-only, skill skips generation and goes to compile"
+    vars:
+      fixture_path: "tests/evals/fixtures/planning-sweep-test-only"
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_action: "test-only"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-sweep-action.js

@@ -1,10 +1,12 @@
 CRITICAL OUTPUT REQUIREMENT:
-- If the requested writer is migratable, your FINAL text response must contain the generated dbt model SQL with a `config(` block, source/ref macros, and CTE structure. Do not end with just a write confirmation.
+- If the requested writer is migratable (and no sweep artifact overrides), your FINAL text response must contain the generated dbt model SQL with a `config(` block, source/ref macros, and CTE structure. Do not end with just a write confirmation.
 - If the requested writer is orchestration-only or dynamic-SQL-only and no trustworthy dbt model can be produced, do not fabricate artifacts. In that case, your FINAL text response must clearly explain why no model should be generated.
 
 You are running in a DDL project directory at {{fixture_path}}.
 
 Read the skill instructions at plugin/skills/generating-model/SKILL.md and follow them for table {{target_table}} with writer {{writer}}.
+
+IMPORTANT — Step 1.5 (pre-generation check): Before starting model generation, check if the directory `{{fixture_path}}/.migration-runs/` exists and contains a `model-sweep.*.json` file. If it does, read it and follow Step 1.5b of the skill exactly — the `recommended_action` field determines whether to skip, test-only, or generate. Do NOT proceed to Step 2 if the action is "skip" or "test-only".
 
 Wherever the skill references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead (the lib directory is at `plugin/lib/` in the repo).
 

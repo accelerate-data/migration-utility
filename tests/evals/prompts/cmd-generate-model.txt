@@ -8,7 +8,8 @@ EVAL MODE CONSTRAINTS — follow these exactly:
 - Do NOT run ANY git commands at all. No git worktree, git checkout, git branch, git add, git commit, git stash, or any other git command. This is critical — running git commands will corrupt the eval environment.
 - Operate directly in the fixture directory ({{fixture_path}}).
 - Write .migration-runs/ artifacts directly to {{fixture_path}}/.migration-runs/.
-- Skip Step 1 (Setup) entirely — there is no worktree. Start directly at Step 2.
+- Skip Step 1 (Setup) entirely — there is no worktree, no slug, no branch. Generate a run epoch (seconds since Unix epoch) directly and use it for artifact names.
+- For 2+ tables: run Step 1b (Model sweep) as specified in the command — read catalog files, check staging files on disk, read dbt/target/run_results.json, decide recommended_action per table, identify shared_staging_candidates, write any shared stg_*.sql files, write the model-sweep artifact, and proceed automatically without waiting for user confirmation.
 - Process each table sequentially in the same agent turn (not truly parallel sub-agents).
 - Perform the review loop per generate-model.md (up to 2 iterations per table using the reviewing-model skill).
 - Skip Step 4 (Revert errored items) — it uses git checkout.
