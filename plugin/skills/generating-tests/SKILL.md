@@ -82,6 +82,7 @@ For each statement where `action == migrate`, identify all conditional branches.
 | Empty source | Zero-row edge case |
 
 **View branch enumeration:** For views (detected when `object_type = "view"` or `"mv"` in the context), branch enumeration targets SELECT-level patterns only:
+
 - WHERE filter conditions (match/no-match)
 - JOIN match/no-match (INNER, LEFT, RIGHT — null join key, missing match)
 - CASE/WHEN arms (each arm is a branch)
