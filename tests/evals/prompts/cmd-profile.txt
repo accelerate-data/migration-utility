@@ -1,6 +1,6 @@
 You are running in a DDL project directory at {{fixture_path}}.
 
-Run /profile for tables: {{target_tables}}.
+/profile {{target_tables}}
 
 Read the command at plugin/commands/profile.md. Wherever it references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead. Pass `--project-root {{fixture_path}}` to all CLI commands.
 

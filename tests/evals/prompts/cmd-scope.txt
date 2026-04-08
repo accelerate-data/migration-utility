@@ -1,6 +1,6 @@
 You are running in a DDL project directory at {{fixture_path}}.
 
-Run /scope for tables: {{target_tables}}.
+/scope {{target_tables}}
 
 Read the command at plugin/commands/scope.md. Wherever it references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead. Pass `--project-root {{fixture_path}}` to all CLI commands.
 
