@@ -105,3 +105,23 @@ tests:
       writer: "silver.usp_load_UpdateJoinTarget"
       expected_status: "approved,approved_with_warnings,revision_requested"
       expected_feedback_codes: "MDL"
+
+  # --- VU-880: deferred standards scenarios ---
+
+  - description: "review-standards-final-cte — DimProduct missing final CTE"
+    vars:
+      fixture_path: "tests/evals/fixtures/reviewing-model/review-standards-final-cte"
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      expected_status: "approved,approved_with_warnings,revision_requested"
+      expect_standards_passed: "false"
+      expected_feedback_codes: "CTE_002"
+
+  - description: "review-standards-mart-model-ref — DimProduct mart uses source() not ref()"
+    vars:
+      fixture_path: "tests/evals/fixtures/reviewing-model/review-standards-mart-model-ref"
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      expected_status: "approved,approved_with_warnings,revision_requested"
+      expect_standards_passed: "false"
+      expected_feedback_codes: "MOD_002"
