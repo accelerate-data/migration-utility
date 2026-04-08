@@ -1,0 +1,20 @@
+{
+  "schema": "silver",
+  "name": "usp_load_dimcurrency",
+  "statements": [
+    {"type": "TruncateTable", "action": "skip", "sql": "TRUNCATE TABLE silver.DimCurrency"}
+  ],
+  "references": {
+    "tables": {"in_scope": [{"schema": "silver", "name": "DimCurrency", "is_selected": false, "is_updated": true}], "out_of_scope": []},
+    "views": {"in_scope": [], "out_of_scope": []},
+    "functions": {"in_scope": [], "out_of_scope": []},
+    "procedures": {"in_scope": [], "out_of_scope": []}
+  },
+  "errors": [
+    {
+      "code": "PARSE_ERROR",
+      "message": "DDL failed to parse: near 'PIVOT': syntax error",
+      "severity": "error"
+    }
+  ]
+}

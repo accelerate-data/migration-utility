@@ -1,0 +1,31 @@
+{
+  "schema": "silver",
+  "name": "vw_currency_ref",
+  "is_materialized_view": false,
+  "scoping": {
+    "status": "analyzed",
+    "sql_elements": [],
+    "logic_summary": "Simple pass-through view over silver.RefCurrency."
+  },
+  "profile": {
+    "status": "ok",
+    "classification": {"resolved_kind": "stg", "source": "llm", "rationale": "Pass-through view."}
+  },
+  "test_gen": {
+    "status": "ok"
+  },
+  "refactor": {
+    "status": "ok"
+  },
+  "generate": {
+    "status": "ok"
+  },
+  "references": {
+    "tables": {
+      "in_scope": [{"schema": "silver", "name": "RefCurrency"}],
+      "out_of_scope": []
+    },
+    "views": {"in_scope": [], "out_of_scope": []},
+    "functions": {"in_scope": [], "out_of_scope": []}
+  }
+}
