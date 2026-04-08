@@ -236,5 +236,8 @@ tests:
     vars:
       target_table: "silver.DimProduct"
       writer: "silver.usp_load_DimProduct"
-      expected_extracted_terms: "productalternatekey,isnull"
-      expected_refactored_terms: "with,final,productalternatekey,englishproductname"
+      stg_model_file: "stg_dimproduct.sql"
+      expected_stg_columns: "productalternatekey,englishproductname,standardcost,listprice"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-dbt-aware-refactored-sql.js
