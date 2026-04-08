@@ -10,7 +10,7 @@ argument-hint: "<schema.table> [schema.table ...]"
 
 # Generate Model
 
-Generate dbt models for a batch of tables. Launches one sub-agent per table in parallel, each running `migration:generating-model`.
+Generate dbt models for a batch of tables. For 2+ tables, runs a planning sweep to identify shared staging models, check existing artifacts, and confirm the execution plan before spawning agents. Claude determines execution parallelism based on the plan.
 
 ## Guards
 
@@ -25,7 +25,20 @@ Per-item guards are checked by the skill via `migrate-util guard`.
 
 ## Progress Tracking
 
-Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2, create one task per table with status `pending`. Update each task to `in_progress` before it starts processing, and to `completed` (ok/partial result) or `cancelled` (error — include the error code) when it finishes.
+Use `TaskCreate` and `TaskUpdate` to track execution phases, not individual tables.
+
+For **2+ tables**, create these tasks at command start:
+
+| Task subject | Complete when |
+|---|---|
+| `sweep` | Plan artifact written and shared staging files created |
+| `pre-flight` | User confirms the plan |
+| `execute: <description>` | That execution thread finishes (create when Claude decides each thread) |
+| `summarize` | Summary written |
+
+Thread task subjects describe the work: e.g. `execute: generate silver.DimCustomer, silver.FactSales` or `execute: test-only silver.DimDate`. Skipped tables are not tracked as tasks — they appear in the summary only.
+
+For **single-table runs**: create one `execute: generate <fqn>` task and one `summarize` task. No sweep or pre-flight tasks.
 
 ## Pipeline
 
@@ -39,18 +52,85 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
    - Otherwise: use the returned path as the working directory for all file writes and git operations in this run. Set `<working-directory>` to the returned path.
 3. Generate a run epoch: seconds since Unix epoch (e.g. `1743868200`). All run artifacts use this as a filename suffix.
 
-### Step 2 — Run migration:generating-model per table
+### Step 1b — Model sweep (2+ tables only)
 
-**Single-table path (1 table):** Run `migration:generating-model` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<epoch>.json`. Then continue to Step 3 (review).
+For each FQN in the batch, collect signals:
 
-**Multi-table path (2+ tables):** Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
+1. Read `catalog/tables/<fqn>.json` → `scoping.selected_writer`
+2. Read `catalog/procedures/<writer>.json` → `references.tables.in_scope` → collect source tables where `is_selected=true` and `is_updated=false`
+3. Check `dbt/models/staging/` for existing `stg_<source_table>.sql` files
+4. Check `dbt/models/marts/<fqn_model_name>.sql` for an existing mart model
+5. Read `dbt/target/run_results.json` — find results whose `unique_id` contains the mart model name:
+   - `"passing"` — all matched results have `status == "pass"`
+   - `"failing"` — any matched result has `status == "fail"` or `"error"`
+   - `"none"` — no matched results found
+6. Derive `recommended_action`:
+   - `"skip"` — mart model exists AND `test_status == "passing"`
+   - `"test-only"` — mart model exists AND `test_status != "passing"`
+   - `"generate"` — no mart model
+
+Across all FQNs, find source tables referenced by 2+ SPs → `shared_staging_candidates`.
+
+For each shared staging candidate not already on disk, write `dbt/models/staging/stg_<table>.sql`:
+
+```sql
+{{ config(materialized='ephemeral') }}
+
+select * from {{ source('<schema>', '<table>') }}
+```
+
+Write plan artifact to `.migration-runs/model-sweep.<epoch>.json` (schema: `plugin/lib/shared/schemas/model_sweep_output.json`).
+
+Show pre-flight table:
+
+```text
+Table                  Staging  Mart     Tests          Action
+─────────────────────────────────────────────────────────────
+silver.DimCustomer     none     none     —              generate
+silver.DimProduct      exists   exists   passing        skip
+silver.DimDate         exists   exists   missing        test-only
+silver.FactSales       exists   none     —              generate (stg reused)
+
+Shared staging written: stg_dimdate.sql (3 SPs)
+
+Proceed? (y/n/edit)
+```
+
+On `edit`: user specifies per-table action overrides (e.g. `silver.DimProduct: regenerate`). Update the plan artifact to reflect the override before proceeding. `regenerate` forces `recommended_action: "generate"` even when a mart model exists.
+
+### Step 2 — Execute generation (plan-driven)
+
+**Single-table path (1 table):** Run `migration:generating-model` directly in the current conversation — do not launch a sub-agent. Pass the model sweep artifact path if it exists. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<epoch>.json`. Then continue to Step 3 (review).
+
+**Multi-table path (2+ tables):** Read the model sweep plan. For each table:
+
+- `recommended_action: "skip"` — write a skip result immediately (status: `ok`, no agent needed). Use `{"item_id": "<fqn>", "status": "ok", "output": {"skipped": true, "reason": "mart model exists with passing tests"}}`.
+- `recommended_action: "test-only"` — spawn an agent with test-only instructions (see prompt below)
+- `recommended_action: "generate"` — spawn an agent for full generation (see prompt below)
+
+Claude decides how many agents to spawn and which tables to group, based on shared staging relationships and any explicit user ordering. Tables that share a staging model can run fully in parallel — their shared staging files are already on disk.
+
+**Full generation agent prompt:**
 
 ```text
 Run the migration:generating-model skill for <schema.table>.
 The working directory is <working-directory>.
+Model sweep artifact: .migration-runs/model-sweep.<epoch>.json
 Skip the Step 4 user confirmation prompt and the Step 6 approval prompt — proceed automatically. Still run the full equivalence analysis in Step 4.
 Equivalence warnings: proceed and write the model. Record each gap as EQUIVALENCE_GAP warning.
 dbt compile/test failure: attempt up to 3 self-corrections. If still failing, write as-is with DBT_TEST_FAILED warning.
+Write the item result JSON to .migration-runs/<schema.table>.<epoch>.json.
+On failure, write result with status: "error" and error details.
+Return the item result JSON.
+```
+
+**Test-only agent prompt:**
+
+```text
+Run the migration:generating-model skill for <schema.table> in test-only mode.
+The working directory is <working-directory>.
+Model sweep artifact: .migration-runs/model-sweep.<epoch>.json
+The mart model already exists on disk. Skip Steps 2–7. Proceed directly to Step 8 (compile + test).
 Write the item result JSON to .migration-runs/<schema.table>.<epoch>.json.
 On failure, write result with status: "error" and error details.
 Return the item result JSON.
