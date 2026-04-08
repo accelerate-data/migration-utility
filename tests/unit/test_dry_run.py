@@ -57,6 +57,11 @@ def _make_bare_project() -> tuple[tempfile.TemporaryDirectory, Path]:
         "source_database": "TestDB",
         "extracted_schemas": ["silver"],
         "extracted_at": "2026-04-01T00:00:00Z",
+        "init_handoff": {
+            "timestamp": "2026-04-01T00:00:00+00:00",
+            "env_vars": {"MSSQL_HOST": True, "MSSQL_PORT": True, "MSSQL_DB": True, "SA_PASSWORD": True},
+            "tools": {"uv": True, "python": True, "shared_deps": True, "ddl_mcp": True, "freetds": True},
+        },
     }
     (dst / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     (dst / "catalog" / "tables").mkdir(parents=True)
@@ -233,6 +238,31 @@ def test_setup_ddl_guard_fails_unknown_technology() -> None:
         passed, results = dry_run.run_guards(root, "silver.Foo", "setup-ddl")
         assert passed is False
         assert results[-1]["code"] == "TECHNOLOGY_UNKNOWN"
+
+
+def test_setup_ddl_guard_fails_no_init_handoff() -> None:
+    tmp, root = _make_project()
+    with tmp:
+        manifest_path = root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        del manifest["init_handoff"]
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        passed, results = dry_run.run_guards(root, "silver.Foo", "setup-ddl")
+        assert passed is False
+        assert results[-1]["code"] == "INIT_NOT_RUN"
+        assert "/init-ad-migration" in results[-1]["message"]
+
+
+def test_init_prerequisites_guard_present_in_all_stages() -> None:
+    """Every stage in _STAGE_GUARDS must start with check_init_prerequisites."""
+    from shared.guards import _STAGE_GUARDS, check_init_prerequisites
+
+    for stage, guards in _STAGE_GUARDS.items():
+        assert len(guards) > 0, f"Stage {stage!r} has no guards"
+        first_guard_fn = guards[0][0]
+        assert first_guard_fn is check_init_prerequisites, (
+            f"Stage {stage!r} does not start with check_init_prerequisites"
+        )
 
 
 # ── Content tests: scope ─────────────────────────────────────────────────────
