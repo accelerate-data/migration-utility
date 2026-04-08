@@ -230,3 +230,11 @@ tests:
       target_table: "silver.NestedFlowTarget"
       writer: "silver.usp_load_NestedFlowTarget"
       expected_refactored_terms: "with,final"
+
+  # ── dbt-aware staging reuse ─────────────────────────────────
+  - description: "dbt-aware-stg-reuse — existing stg_dimproduct.sql influences import CTE column names"
+    vars:
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      expected_extracted_terms: "productalternatekey,isnull"
+      expected_refactored_terms: "with,final,productalternatekey,englishproductname"
