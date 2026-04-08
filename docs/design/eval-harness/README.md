@@ -114,6 +114,9 @@ tests/evals/
       catalog/
       dbt/                             # pre-seeded dbt models and test specs
       test-specs/                      # pre-seeded test specifications
+    planning-sweep-stg-reuse/          # synthetic: stg_product.sql pre-seeded on disk
+    planning-sweep-no-stg/             # synthetic: empty staging dir — skill creates stg
+    planning-sweep-shared-stg/         # synthetic: 2 tables sharing bronze.Product
 ```
 
 ---
@@ -403,11 +406,14 @@ npx promptfoo eval --filter-pattern "cube|rollup|grouping-sets"
 
 ### Command: generate-model
 
-| Scenario | Tables | Key assertion |
-|---|---|---|
-| happy-path — both generate | InsertSelectTarget + UpdateJoinTarget | Summary shows 2 ok, `check-dbt-model.js` validates artifact |
-| review-revision cycle | CorrelatedSubqueryTarget | Review loop invoked, final status ok |
-| error+clean — no scoping | DimProduct + InsertSelectTarget | SCOPING_NOT_COMPLETED for DimProduct, InsertSelectTarget ok |
+| Scenario | Tables | Fixture | Key assertion |
+|---|---|---|---|
+| happy-path — both generate | InsertSelectTarget + UpdateJoinTarget | `migration-test` | Summary shows 2 ok, `check-dbt-model.js` validates artifact |
+| review-revision cycle | CorrelatedSubqueryTarget | `migration-test` | Review loop invoked, final status ok |
+| error+clean — no scoping | DimProduct + InsertSelectTarget | `migration-test` | SCOPING_NOT_COMPLETED for DimProduct, InsertSelectTarget ok |
+| planning-sweep-stg-reuse | InsertSelectTarget | `planning-sweep-stg-reuse` | `stg_product.sql` pre-seeded — mart uses `ref('stg_product')`, not `source('bronze'` |
+| planning-sweep-no-stg | InsertSelectTarget | `planning-sweep-no-stg` | No staging on disk — `stg_product.sql` created with `ephemeral`, mart uses `ref()` |
+| planning-sweep-shared-stg | InsertSelectTarget + SingleCteTarget | `planning-sweep-shared-stg` | Both SPs share `bronze.Product` — ONE `stg_product.sql` written by sweep |
 
 ### Command: generate-tests
 
@@ -539,7 +545,9 @@ fixtures/migration-test/
     <schema>.<table>.json          # pre-seeded test specifications
 ```
 
-All packages use the same fixture directory. The fixture includes pre-seeded artifacts (dbt models, test specs, profiles) so that downstream evals (test-generator, test-review, code-review) can run without depending on upstream skill output.
+Most packages use `fixtures/migration-test/`. Planning-sweep scenarios in `cmd-generate-model` use three synthetic fixtures (`planning-sweep-stg-reuse`, `planning-sweep-no-stg`, `planning-sweep-shared-stg`) that differ only in which staging files are pre-seeded, allowing the eval to assert exactly which files the sweep creates or reuses. Synthetic fixtures are hand-crafted — do not re-extract them from the Docker database.
+
+The main `migration-test` fixture includes pre-seeded artifacts (dbt models, test specs, profiles) so that downstream evals (test-generator, test-review, code-review) can run without depending on upstream skill output.
 
 ---
 
