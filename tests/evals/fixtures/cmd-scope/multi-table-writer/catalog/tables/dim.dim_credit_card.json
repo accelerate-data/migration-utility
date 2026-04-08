@@ -1,0 +1,100 @@
+{
+  "schema": "dim",
+  "name": "dim_credit_card",
+  "columns": [
+    {
+      "name": "credit_card_key",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": true
+    },
+    {
+      "name": "credit_card_id",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "card_type",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "exp_month",
+      "sql_type": "TINYINT",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "exp_year",
+      "sql_type": "SMALLINT",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "valid_from",
+      "sql_type": "DATETIME",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "valid_to",
+      "sql_type": "DATETIME",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "is_current",
+      "sql_type": "BIT",
+      "is_nullable": false,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [
+    {
+      "constraint_name": "PK_dim_credit_card",
+      "columns": ["credit_card_key"]
+    }
+  ],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [
+    {
+      "column": "credit_card_key",
+      "mechanism": "identity"
+    }
+  ],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [
+        {
+          "schema": "dbo",
+          "name": "usp_load_dim_address_and_credit_card",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            { "name": "credit_card_id", "is_selected": false, "is_updated": true },
+            { "name": "card_type", "is_selected": false, "is_updated": true },
+            { "name": "exp_month", "is_selected": false, "is_updated": true },
+            { "name": "exp_year", "is_selected": false, "is_updated": true },
+            { "name": "valid_from", "is_selected": false, "is_updated": true },
+            { "name": "valid_to", "is_selected": false, "is_updated": true },
+            { "name": "is_current", "is_selected": false, "is_updated": true }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  }
+}

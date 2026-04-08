@@ -46,3 +46,31 @@ tests:
       expected_item_statuses: '{"silver.DimDate": "error", "silver.DimProduct": "resolved"}'
       expected_error_codes: "catalog_file_missing"
       expected_output_terms: "resolved,error"
+
+  # ── multi-table-writer: dim_address resolves via shared proc ─
+  - description: "multi-table-writer — dim_address resolves via usp_load_dim_address_and_credit_card"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-scope/multi-table-writer"
+      target_tables: "dim.dim_address"
+      target_table: "dim.dim_address"
+      expected_item_statuses: '{"dim.dim_address": "resolved"}'
+      expected_output_terms: "resolved"
+      expected_status: "resolved"
+      expected_writer: "usp_load_dim_address_and_credit_card"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-table-scoping.js
+
+  # ── multi-table-writer: dim_credit_card resolves via shared proc ─
+  - description: "multi-table-writer — dim_credit_card resolves via usp_load_dim_address_and_credit_card"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-scope/multi-table-writer"
+      target_tables: "dim.dim_credit_card"
+      target_table: "dim.dim_credit_card"
+      expected_item_statuses: '{"dim.dim_credit_card": "resolved"}'
+      expected_output_terms: "resolved"
+      expected_status: "resolved"
+      expected_writer: "usp_load_dim_address_and_credit_card"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-table-scoping.js
