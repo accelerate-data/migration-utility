@@ -2,14 +2,14 @@
 name: profile
 description: >
   Batch profiling command — produces migration profiles for each table, view, or materialized view.
-  Delegates per-item profiling to the /profiling-table skill (for tables) or /profiling-view skill (for views and MVs).
+  Delegates per-item profiling to the /profiling-table skill (auto-detects table vs view).
 user-invocable: true
 argument-hint: "<schema.table_or_view> [schema.table_or_view ...]"
 ---
 
 # Profile
 
-Produce migration profiles for each table, view, or materialized view. Launches one sub-agent per item in parallel, routing to `migration:profiling-table` for tables or `migration:profiling-view` for views and MVs.
+Produce migration profiles for each table, view, or materialized view. Launches one sub-agent per item in parallel using `migration:profiling-table` (which auto-detects table vs view).
 
 ## Guards
 
@@ -37,9 +37,9 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 
 ### Step 2 — Route and run per item
 
-**Routing:** For each item, detect whether it is a view or a table by checking `catalog/views/<item_fqn>.json`. If that file exists, route to `migration:profiling-view`; otherwise route to `migration:profiling-table`. Set `catalog_path` in the item result accordingly (`catalog/views/` or `catalog/tables/`).
+**Single-item path (1 item):** Run `migration:profiling-table` directly in the current conversation — do not launch a sub-agent. The skill auto-detects table vs view from catalog presence. Set `catalog_path` in the item result accordingly (`catalog/views/` or `catalog/tables/`).
 
-**Single-item path (1 item):** Run the appropriate skill directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.item>.<epoch>.json`.
+After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.item>.<epoch>.json`.
 
 If the item status is `error`, immediately revert any files the skill may have partially modified:
 
@@ -56,8 +56,7 @@ Then continue to Step 3.
 **Multi-item path (2+ items):** Launch one sub-agent per item in parallel. Each sub-agent receives this prompt:
 
 ```text
-Detect whether <schema.item> is a view (catalog/views/<item_fqn>.json exists) or a table.
-Run the migration:profiling-view skill if it is a view, otherwise run migration:profiling-table.
+Run the migration:profiling-table skill for <schema.item>. The skill auto-detects table vs view.
 The working directory is <working-directory>.
 Write the item result JSON to .migration-runs/<schema.item>.<epoch>.json.
 

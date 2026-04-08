@@ -1,30 +1,174 @@
 ---
 name: analyzing-table
 description: >
-  Writer discovery, procedure analysis, scope resolution, and catalog persistence for a single table. Finds which stored procedures write to the table, analyzes each candidate via the procedure-analysis reference, then lets the user confirm the selected writer and persists the scoping decision to the table catalog file.
+  Scoping for a single table, view, or materialized view. For tables: discovers writer procedures, analyzes candidates, resolves the selected writer. For views/MVs: extracts SQL elements, builds call tree, generates logic summary. Auto-detects object type from catalog presence.
 user-invocable: true
-argument-hint: "<schema.table>"
+argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 ---
 
-# Scoping Table
+# Scoping
 
-Discover writers for a table, analyze each candidate, resolve which writer owns the table, and persist the scoping decision to the catalog.
+Scope a table, view, or materialized view and persist the scoping decision to the catalog.
 
 ## Arguments
 
-`$ARGUMENTS` is the fully-qualified table name (e.g. `silver.DimCustomer`, `[dbo].[FactSales]`). Ask the user if missing.
+`$ARGUMENTS` is the fully-qualified name (e.g. `silver.DimCustomer`, `silver.vw_CustomerSales`). Ask the user if missing.
 
 ## Before invoking
 
 Run the stage guard:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <table_fqn> scope
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <fqn> scope
+```
+
+If the FQN is a view (check `catalog/views/<fqn>.json` existence), use the `scope-view` guard set instead:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <fqn> scope-view
 ```
 
 If `passed` is `false`, report the failing guard's `code` and `message` to the user and stop.
 
-## Pipeline
+## Object type detection
+
+Check whether `catalog/views/<fqn>.json` exists:
+- **If yes** → this is a **view or MV**. Follow the **View Pipeline** below.
+- **If no** → this is a **table**. Follow the **Table Pipeline** below.
+
+---
+
+## View Pipeline
+
+Follow these steps when the FQN refers to a view or materialized view.
+
+### Step V1 -- Show view from catalog
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show \
+  --name <view_fqn>
+```
+
+This returns:
+
+- `raw_ddl` — the full CREATE VIEW DDL text
+- `refs` — `reads_from` (source tables) and any view refs
+- `sql_elements` — SQLglot-extracted SQL features (JOINs, aggregations, etc.). `null` when `errors` contains `DDL_PARSE_ERROR`.
+- `errors` — any parse errors (e.g. `DDL_PARSE_ERROR` when SQLglot could not parse the DDL)
+
+Read `catalog/views/<view_fqn>.json` to get `is_materialized_view` and `references.views.in_scope`.
+
+Present the object type and, for materialized views, column count:
+
+```text
+silver.vw_CustomerSales (view)
+```
+
+If `errors` contains `DDL_PARSE_ERROR` (i.e. `sql_elements` is null), note that SQLglot could not parse the DDL and proceed using `raw_ddl` directly for Steps V2-V3.
+
+### Step V2 -- Build call tree
+
+Resolve sources from `refs.reads_from` (source tables) and `references.views.in_scope` from the view catalog (source views).
+
+```text
+Call tree for silver.vw_CustomerSales:
+
+  Reads tables:  bronze.Customer, bronze.Person
+  Reads views:   silver.vw_AddressBase
+```
+
+If `references.views.in_scope` is non-empty, add a `VIEW_DEPENDS_ON_VIEWS` warning to the scoping output (see Step V5).
+
+### Step V3 -- Identify SQL elements
+
+If `sql_elements` is populated, present them directly:
+
+```text
+SQL elements:
+  - join: INNER JOIN bronze.Person
+  - join: LEFT JOIN bronze.Address
+  - group_by: GROUP BY
+  - aggregation: SUM, COUNT
+```
+
+If `sql_elements` is null (parse error), read `raw_ddl` and identify SQL features manually: JOINs (type and target), GROUP BY, aggregation functions, window functions (OVER), CASE expressions, subqueries, CTEs. Present the same format as above.
+
+### Step V4 -- Logic summary
+
+Read `raw_ddl` and write a plain-language description of what the view computes (2-4 sentences). Focus on:
+
+- What data sources are combined
+- What transformations are applied (filtering, joining, aggregating)
+- What the view produces
+
+### Step V5 -- Present and confirm
+
+Present findings to the user and wait for explicit confirmation before persisting:
+
+```text
+Analysis of silver.vw_CustomerSales
+
+Call tree:
+  Reads tables: bronze.Customer, bronze.Person
+  Reads views:  (none)
+
+SQL elements:
+  - join: INNER JOIN bronze.Person on CustomerKey
+  - aggregation: COUNT
+
+Logic summary:
+  Joins customer records with person details on CustomerKey. Counts
+  the number of persons per customer. Produces one row per customer
+  with an enriched name and person count.
+
+Persist this analysis to catalog/views/silver.vw_customersales.json? (y/n)
+```
+
+If the view depends on other views, show the warning prominently:
+
+```text
+⚠ VIEW_DEPENDS_ON_VIEWS: silver.vw_addressbase has not been analyzed yet.
+  Run /scope silver.vw_addressbase first for accurate profiling results.
+```
+
+### Step V6 -- Persist scoping to catalog
+
+Write the scoping JSON to a temp file to avoid shell quoting issues:
+
+```bash
+mkdir -p .staging
+# Write scoping JSON to .staging/scoping.json
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
+  --name <view_fqn> --scoping-file .staging/scoping.json; rm -rf .staging
+```
+
+The scoping JSON shape:
+
+```json
+{
+  "status": "analyzed",
+  "sql_elements": [
+    {"type": "join", "detail": "INNER JOIN bronze.person"},
+    {"type": "aggregation", "detail": "COUNT"}
+  ],
+  "call_tree": {
+    "reads_from": ["bronze.customer", "bronze.person"],
+    "views_referenced": []
+  },
+  "logic_summary": "...",
+  "rationale": "...",
+  "warnings": [],
+  "errors": []
+}
+```
+
+Include `VIEW_DEPENDS_ON_VIEWS` in `warnings` if applicable.
+
+---
+
+## Table Pipeline
+
+Follow these steps when the FQN refers to a table.
 
 ### Step 1 -- Show columns from catalog
 

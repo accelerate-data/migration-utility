@@ -1,30 +1,118 @@
 ---
 name: profiling-table
 description: >
-  Profile a single table for migration. Assembles deterministic context from catalog and DDL, reasons over the six profiling questions using what-to-profile-and-why.md, presents profile candidates for user approval, then writes the approved profile into the table catalog file. Use when the user asks to "profile a table", "classify a table", "what kind of model is this table", or wants to determine PK, FK, watermark, or PII for a migration target.
+  Profile a single table, view, or materialized view for migration. For tables: assembles context from catalog and DDL, reasons over six profiling questions (classification, PK, watermark, FKs, PII). For views/MVs: classifies as stg or mart using sql_elements, logic_summary, and dependency signals. Auto-detects object type from catalog presence.
 user-invocable: true
-argument-hint: "<schema.table>"
+argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 ---
 
-# Profiling Table
+# Profiling
 
-Profile a single table for migration by assembling context, reasoning over six profiling questions, and writing results to the table catalog file.
+Profile a single table, view, or materialized view for migration.
 
 ## Arguments
 
-`$ARGUMENTS` is the fully-qualified table name. Ask the user if missing. The writer is read from the catalog scoping section (`catalog/tables/<table>.json` → `scoping.selected_writer`).
+`$ARGUMENTS` is the fully-qualified name. Ask the user if missing.
 
 ## Before invoking
 
-Run the stage guard:
+Detect object type: check whether `catalog/views/<fqn>.json` exists.
+
+- **View/MV** → run guard: `migrate-util guard <fqn> profile-view`
+- **Table** → run guard: `migrate-util guard <fqn> profile`
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <table_fqn> profile
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <fqn> <guard_set>
 ```
 
 If `passed` is `false`, report the failing guard's `code` and `message` to the user and stop.
 
-## Pipeline
+## Object type detection
+
+Check whether `catalog/views/<fqn>.json` exists:
+- **If yes** → this is a **view or MV**. Follow the **View Profile Pipeline** below.
+- **If no** → this is a **table**. Follow the **Table Profile Pipeline** below.
+
+---
+
+## View Profile Pipeline
+
+### Step V1 -- Assemble Context (Deterministic)
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" profile view-context \
+  --view <view_fqn>
+```
+
+Output is a JSON matching `lib/shared/schemas/view_profile_context.json`. It contains:
+
+- `view` — normalized FQN
+- `is_materialized_view` — true for Oracle MVs and SQL Server indexed views
+- `sql_elements` — SQLglot-extracted SQL features (join, aggregation, window_function, case, subquery, cte, group_by); null if DDL parse failed
+- `logic_summary` — plain-language description of what the view computes
+- `columns` — present only for materialized views
+- `references` — outbound refs (tables, views, functions) with `object_type` on each in_scope entry
+- `referenced_by` — inbound refs (procedures, views, functions) with `object_type` on each in_scope entry
+
+If exit code is non-zero, stop and report the error.
+
+### Step V2 -- LLM Classification (Reasoning)
+
+Read the context JSON and apply the signal table in [view-classification-signals.md](references/view-classification-signals.md).
+
+Answer one question: **Is this view `stg` or `mart`?**
+
+Steps:
+
+1. Check `references.views.in_scope`. For each, call `discover show --name <fqn>` to inspect its `profile.classification`. If any dependency is `mart`, inherit `mart`.
+2. Apply the signal table to `sql_elements`. Aggregation, group_by, window_function → `mart`. Single-source with no aggregation → `stg`.
+3. Use `logic_summary` as tiebreaker when `sql_elements` is empty or null.
+4. For materialized views: aggregation signals → `mart`; lookup/pass-through → `stg`.
+5. When signals conflict: default to `mart`.
+
+Write a 1–2 sentence rationale citing the specific signals that drove the decision.
+
+### Step V3 -- Present for Approval
+
+Present the classification summary:
+
+- Classification (`stg` or `mart`)
+- Rationale (which signals drove the decision)
+- Any dependency views inspected and their classifications
+
+**Stop on ambiguity.** If the classification cannot be determined with reasonable confidence, present the ambiguity and ask for guidance.
+
+Wait for explicit user approval before proceeding to Step V4.
+
+### Step V4 -- Write to Catalog (Deterministic)
+
+After user approval (with any edits), write the profile JSON to a temp file:
+
+```bash
+mkdir -p .staging
+# Write profile JSON to .staging/view_profile.json
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" profile write \
+  --table <view_fqn> \
+  --profile-file .staging/view_profile.json; rm -rf .staging
+```
+
+The profile JSON must match the `profile` section in `lib/shared/schemas/view_catalog.json`. Required fields: `status`, `classification`, `rationale`, `source`.
+
+| Field | Valid values |
+|---|---|
+| `status` | `ok`, `partial`, `error` |
+| `classification` | `stg`, `mart` |
+| `source` | `llm` |
+
+If the write exits non-zero, report the validation errors and ask the user to correct.
+
+### View References
+
+- [references/view-classification-signals.md](references/view-classification-signals.md) — signal table and tie-breaking rules for stg vs mart classification
+
+---
+
+## Table Profile Pipeline
 
 ### Step 1 -- Assemble Context (Deterministic)
 
