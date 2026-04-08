@@ -73,7 +73,9 @@ If no sweep artifact is available (single-table interactive run), skip to step 1
 When proceeding with `"generate"`:
 
 - Check `shared_staging_candidates` in the sweep artifact. For any source table listed there, do **not** create a new `stg_*` file — it was already written by the planning sweep. Use `{{ ref('stg_<table>') }}` in the mart model.
-- For source tables not in `shared_staging_candidates`, apply the normal check: look for an existing `stg_*.sql` in `dbt/models/staging/`. If one exists with a compatible column set, use `{{ ref() }}` — do not duplicate.
+- For source tables not in `shared_staging_candidates`, apply the normal check: look for an existing `stg_*.sql` in `dbt/models/staging/`. If one exists with a compatible column set, use `{{ ref() }}` — do not duplicate. If no stg file exists, you will create one in Step 3.
+
+**Rule:** mart models must never use `{{ source() }}` directly. Every source table read in the mart must go through a `stg_*` model (existing or newly created) referenced via `{{ ref() }}`.
 
 ## Step 2: Decide model structure
 
