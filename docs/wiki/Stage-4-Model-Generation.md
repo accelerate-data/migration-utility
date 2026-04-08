@@ -6,7 +6,8 @@ The `/generate-model` command generates dbt models from stored procedures using 
 
 - `manifest.json` must exist
 - `dbt/dbt_project.yml` must exist (run `/init-dbt` first; if missing, all items fail with `DBT_PROJECT_MISSING`)
-- Per table: catalog file, `scoping.selected_writer`, `profile` with `status: "ok"`, `test-specs/<item_id>.json`, and `refactor.refactored_sql` in the catalog must all be present. Run `/refactor <table>` if the refactor section is missing.
+- Per table: catalog file, `scoping.selected_writer`, `profile` with `status: "ok"`, and `test-specs/<item_id>.json` must all be present.
+- `refactored_sql` must exist in the writer procedure's catalog (produced by `/refactor`). This is a hard prerequisite -- model generation will fail without it.
 
 ## Invocation
 

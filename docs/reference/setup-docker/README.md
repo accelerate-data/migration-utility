@@ -166,9 +166,11 @@ MSSQL_PORT=1433
 MSSQL_DB=KimballFixture
 
 # Oracle
+ORACLE_HOST=localhost
+ORACLE_PORT=1521
+ORACLE_SERVICE=FREEPDB1
 ORACLE_USER=kimball
-ORACLE_PWD=kimball
-ORACLE_DSN=localhost:1521/FREEPDB1
+ORACLE_PASSWORD=kimball
 
 # PostgreSQL
 PG_HOST=localhost
@@ -177,6 +179,8 @@ PG_DB=kimball_fixture
 PG_USER=postgres
 PG_PASSWORD=postgres
 ```
+
+The Oracle Docker image expects `ORACLE_PWD` as its container-internal env var (set via `docker run -e`). The `.env` variables above (`ORACLE_HOST`, `ORACLE_PORT`, `ORACLE_SERVICE`, `ORACLE_USER`, `ORACLE_PASSWORD`) are the canonical names used by plugin commands (`/init-ad-migration`, `/setup-ddl`) for host-side MCP connections.
 
 ## Rebuilding the SQL Server Image
 

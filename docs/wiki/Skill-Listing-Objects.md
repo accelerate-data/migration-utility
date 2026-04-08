@@ -24,6 +24,7 @@ Trigger phrases: "list tables", "list procedures", "show me object X", "what ref
 
 - `manifest.json` must exist in the project root. If missing, run [[Command Setup DDL]] first.
 - Catalog files must exist in `catalog/` (produced by [[Command Setup DDL]]).
+- The `migrate-util guard` check must pass before listing. The skill runs `migrate-util guard <table_fqn> scope` and stops if any guard fails.
 
 ## Pipeline
 

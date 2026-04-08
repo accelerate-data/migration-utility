@@ -31,7 +31,7 @@ The variables required depend on your source technology. The `/init-ad-migration
 |---|---|---|
 | `MSSQL_HOST` | SQL Server hostname or IP | `localhost` |
 | `MSSQL_PORT` | SQL Server port | `1433` |
-| `MSSQL_DB` | Default database | `AdventureWorksDW` |
+| `MSSQL_DB` | Default database | `KimballFixture` |
 | `SA_PASSWORD` | SQL login password | _(from env)_ |
 
 All four are required for `/setup-ddl`, `/setup-sandbox`, `/generate-tests`, `/refactor`, and any other live-database skill.
@@ -62,7 +62,7 @@ Export them in your shell before launching `claude`:
 # SQL Server
 export MSSQL_HOST=localhost
 export MSSQL_PORT=1433
-export MSSQL_DB=AdventureWorksDW
+export MSSQL_DB=KimballFixture
 export SA_PASSWORD=<your-password>
 
 # Oracle
@@ -72,6 +72,10 @@ export ORACLE_SERVICE=FREEPDB1
 export ORACLE_USER=sh
 export ORACLE_PASSWORD=<your-password>
 ```
+
+## Python Dependencies
+
+The shared library depends on pydantic, sqlglot, and typer as its key runtime libraries. All Python dependencies (including transitive ones) are managed by uv and pinned in `plugin/lib/pyproject.toml`. Running `uv sync` in the `plugin/lib` directory installs everything needed.
 
 ## Loading the Plugin
 

@@ -8,6 +8,7 @@ Creates a throwaway database (`__test_<random_hex>`) by cloning schema and proce
 - `extracted_schemas` must be a non-empty array in the manifest
 - All four MSSQL environment variables set
 - `test-harness` CLI available
+- A dbt project must exist (`dbt_project.yml`) and `dbt debug` must pass
 
 ## What it does
 
@@ -29,4 +30,4 @@ Safe to re-run. The CLI drops and recreates the sandbox database if it already e
 
 ## Next Step
 
-Proceed to [[Stage 1 Scoping]] to discover which stored procedures write to your target tables.
+Proceed to [[Stage 3 Test Generation]] to generate test specs for your stored procedures.

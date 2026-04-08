@@ -95,6 +95,8 @@ Shows branch manifest, generated fixtures, and any uncovered branches or warning
 
 Writes `test-specs/<item_id>.json` with the TestSpec schema. The `expect` field is omitted -- ground truth is captured later by the command.
 
+Re-invoking the skill on the same table runs in merge mode: existing scenarios are preserved (including any `expect` blocks that already contain ground truth), and only new scenarios for uncovered branches are appended.
+
 ### 6. Validate output
 
 - Every `unit_tests[]` entry has at least one `given` entry with rows

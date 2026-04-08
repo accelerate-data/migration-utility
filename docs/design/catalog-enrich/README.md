@@ -1,5 +1,7 @@
 # Catalog Enrichment Diagnostics
 
+This document covers only the diagnostics and warnings layer of catalog enrichment. The actual enrichment algorithm (AST pass, call-graph BFS, EXEC resolution, SELECT INTO detection) is documented in [setup-ddl design doc, Step 8](../setup-ddl/README.md).
+
 Exhaustive catalog of diagnostic scenarios for `warnings[]` and `errors[]` arrays on view, function, and procedure catalog entries. Each scenario is detectable via static AST analysis (sqlglot) and/or catalog state inspection — no LLM, no live DB queries required.
 
 Parent issue: VU-917 (schema changes). This document: VU-918 (investigation).

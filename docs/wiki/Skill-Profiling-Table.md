@@ -19,6 +19,7 @@ Trigger phrases: "profile a table", "classify a table", "what kind of model is t
 - `manifest.json` must exist in the project root. If missing, run [[Command Setup DDL]] first.
 - `catalog/tables/<table>.json` must exist. If missing, run `/listing-objects list tables` to see available tables.
 - `scoping.selected_writer` must be set in the table catalog. If missing, run [[Skill Scoping Table]] first.
+- The `migrate-util guard` check must pass before profiling. The skill runs `migrate-util guard <table_fqn> profile` and stops if any guard fails.
 
 ## Pipeline
 

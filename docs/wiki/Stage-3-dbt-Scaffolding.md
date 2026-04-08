@@ -18,7 +18,8 @@ Which target platform are you migrating to?
   1. Fabric Lakehouse (dbt-fabric)
   2. Spark (dbt-spark)
   3. Snowflake (dbt-snowflake)
-  4. DuckDB (dbt-duckdb) -- development and CI testing only
+  4. SQL Server (dbt-sqlserver) -- development, CI testing, and on-prem
+  5. DuckDB (dbt-duckdb) -- development and CI testing only
 ```
 
 Each platform generates a different `profiles.yml` with adapter-specific connection settings. DuckDB is intended for local development and CI testing only -- it uses a local file-based database at `target/dev.duckdb`.
@@ -57,6 +58,7 @@ Generated with placeholder credentials for the selected adapter. For non-DuckDB 
 | Fabric Lakehouse | `dbt-fabric` | `type: fabric`, CLI authentication, ODBC driver |
 | Spark | `dbt-spark` | `type: spark`, ODBC method, HTTP path |
 | Snowflake | `dbt-snowflake` | `type: snowflake`, external browser auth |
+| SQL Server | `dbt-sqlserver` | `type: sqlserver`, SQL or Windows auth |
 | DuckDB | `dbt-duckdb` | `type: duckdb`, local file path |
 
 ### packages.yml
@@ -96,4 +98,4 @@ If `dbt/` already exists:
 
 ## Next Step
 
-Proceed to [[Stage 2 Profiling]] to classify each table, then [[Stage 4 Sandbox Setup]] to create the throwaway test database.
+Proceed to [[Stage 4 Sandbox Setup]] to create the throwaway test database.

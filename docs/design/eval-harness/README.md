@@ -138,6 +138,10 @@ Test individual skills in isolation (single-table, no orchestration). All use `f
 | `reviewing-model` | `/reviewing-model` |
 | `analyzing-table` | `/analyzing-table` — validates both scoping decisions and procedure catalog |
 | `refactoring-sql` | `/refactoring-sql` — DML extraction + CTE restructuring |
+| `analyzing-view` | `/analyzing-view` |
+| `refactoring-view` | `/refactoring-view` |
+| `profiling-view` | `/profiling-view` |
+| `git-checkpoints` | `/git-checkpoints` |
 
 ### Command packages
 

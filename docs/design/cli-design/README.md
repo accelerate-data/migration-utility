@@ -23,6 +23,9 @@ Declared as `[project.scripts]` in `shared/pyproject.toml`:
 | `profile` | `shared.profile:app` | Assemble profiling context for a table + writer pair, and write profiles back to catalog |
 | `migrate` | `shared.migrate:app` | Assemble migration context from catalog + profile, and write dbt model SQL + schema YAML |
 | `test-harness` | `shared.test_harness:app` | Sandbox lifecycle and scenario execution for ground-truth testing |
+| `migrate-util` | `shared.dry_run:app` | Dry-run and status utilities for migration pipeline |
+| `generate-sources` | `shared.generate_sources:app` | Generate dbt source YAML from catalog |
+| `refactor` | `shared.refactor:app` | Refactor SQL extraction and CTE restructuring |
 
 ---
 

@@ -12,6 +12,8 @@ These errors occur during project initialization and DDL extraction.
 | `MANIFEST_CORRUPT` | `manifest.json` is not valid JSON | `/status`, any dry-run guard | Re-run `/setup-ddl` or manually fix the JSON syntax in `manifest.json` |
 | `CATALOG_FILE_MISSING` | `catalog/tables/<table>.json` not found | `/status`, any dry-run guard | Run `/setup-ddl` to populate the catalog. If the table was added after initial setup, re-run extraction for the relevant schema |
 | `CATALOG_FILE_CORRUPT` | Table catalog file is not valid JSON | `/status`, any dry-run guard | Re-run `/setup-ddl` or manually fix the JSON syntax in the catalog file |
+| `TECHNOLOGY_NOT_SET` | `manifest.json` has no `technology` field | `setup-ddl` guard | Run `/init-ad-migration` to initialise the project and set the technology |
+| `TECHNOLOGY_UNKNOWN` | `manifest.json` `technology` value is not recognised | `setup-ddl` guard | Edit `manifest.json` and set `technology` to one of: `sql_server`, `fabric_warehouse`, `fabric_lakehouse`, `snowflake`, `oracle` |
 
 ### Common setup issues
 
@@ -32,6 +34,17 @@ If these are not set, `/setup-ddl` and `/setup-sandbox` will fail. Set them in y
 **`CLAUDE_PLUGIN_ROOT` not set**
 
 All plugin commands require the `CLAUDE_PLUGIN_ROOT` environment variable. This is set automatically when the `ad-migration` plugin is installed via the marketplace or loaded with `claude --plugin-dir plugin/`. If you see this error, ensure the plugin is installed (see [[Installation and Prerequisites]]).
+
+## View errors
+
+These errors apply to the view-specific pipeline stages (`scope-view`, `profile-view`, `refactor-view`).
+
+| Code | Message | Command | Fix |
+|---|---|---|---|
+| `VIEW_CATALOG_FILE_MISSING` | `catalog/views/<view>.json` not found | View guard checks | Run `/setup-ddl` to extract view DDL and populate the catalog |
+| `VIEW_CATALOG_FILE_CORRUPT` | View catalog JSON is not valid JSON | View guard checks | Re-run `/setup-ddl` or manually fix the JSON syntax in the view catalog file |
+| `VIEW_SCOPING_NOT_COMPLETED` | View scoping not completed (status is not `analyzed`) | `profile-view`, `refactor-view` guards | Run `/analyzing-view <view>` to complete view scoping |
+| `VIEW_PROFILE_NOT_COMPLETED` | View profile not completed (status is not `ok` or `partial`) | `refactor-view` guard | Run `/profile <view>` to complete view profiling |
 
 ## Scoping errors
 
@@ -100,6 +113,16 @@ These errors indicate that the refactor stage has not been completed.
 
 The refactoring skill self-corrects the refactored SQL until the sandbox equivalence audit passes. If the loop does not converge after several iterations, the proc may have side effects (temp tables, dynamic SQL) that complicate equivalence checking. Review the audit output and manually verify the refactored SQL before proceeding.
 
+## dbt and dependency errors
+
+These errors occur during dbt model generation and dependency checking.
+
+| Code | Message | Command | Fix |
+|---|---|---|---|
+| `DBT_PROJECT_MISSING` | `dbt_project.yml` not found in the dbt project directory | `generating-model`, `reviewing-model` guards | Run `/init-dbt` to scaffold the dbt project |
+| `VIEW_DEP_CHECK_ERROR` | Could not load procedure catalog to check view dependencies | `generating-model`, `reviewing-model` guards | Verify the procedure catalog file exists and is valid JSON. Re-run `/setup-ddl` if needed |
+| `VIEW_DEPENDENCIES_NOT_MIGRATED` | View dependencies not yet migrated to dbt staging models | `generating-model`, `reviewing-model` guards | Run `/refactor-view` on each listed view before generating the dbt model |
+
 ## Migration errors
 
 These errors occur during dbt model generation.
@@ -122,16 +145,35 @@ The model generator writes to `dbt/models/staging/` and `dbt/models/marts/`. If 
 
 Quick reference for which guards apply to each stage:
 
-| Guard | scope | profile | test-gen | refactor | migrate |
-|---|---|---|---|---|---|
-| `manifest_exists` | yes | yes | yes | yes | yes |
-| `table_catalog_exists` | yes | yes | yes | yes | yes |
-| `selected_writer_set` | | yes | yes | yes | yes |
-| `statements_resolved` | | yes | yes | yes | yes |
-| `profile_completed` | | | yes | yes | yes |
-| `sandbox_configured` | | | yes | yes | yes |
-| `test_spec_exists` | | | | yes | yes |
-| `refactor_completed` | | | | | yes |
+### Table pipeline stages
+
+| Guard | scope | profile | test-gen | refactor | migrate | generating-model |
+|---|---|---|---|---|---|---|
+| `manifest_exists` | yes | yes | yes | yes | yes | yes |
+| `table_catalog_exists` | yes | yes | yes | yes | yes | yes |
+| `selected_writer_set` | | yes | yes | yes | yes | yes |
+| `statements_resolved` | | yes | yes | yes | yes | yes |
+| `profile_completed` | | | yes | yes | yes | yes |
+| `sandbox_configured` | | | yes | yes | yes | yes |
+| `test_spec_exists` | | | | yes | yes | yes |
+| `refactor_completed` | | | | | yes | yes |
+| `dbt_project_exists` | | | | | | yes |
+| `view_dependencies_migrated` | | | | | | yes |
+
+### View pipeline stages
+
+| Guard | scope-view | profile-view | refactor-view |
+|---|---|---|---|
+| `manifest_exists` | yes | yes | yes |
+| `view_catalog_exists` | yes | yes | yes |
+| `view_scoping_analyzed` | | yes | yes |
+| `view_profiled` | | | yes |
+
+### Setup stages
+
+| Guard | setup-ddl |
+|---|---|
+| `technology_configured` | yes |
 
 ## CLI exit codes
 

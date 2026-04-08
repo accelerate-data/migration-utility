@@ -59,6 +59,8 @@ flowchart TD
 
     gen_entry --> gen
     reviewer -->|approved| specs[test-specs/]
+    specs --> refactor[SQL Refactoring]
+    refactor --> refactored[refactored_sql in catalog]
 
     subgraph migrate_loop["Migration Loop (≤2 review iterations)"]
         model[Model Generator] --> dbt["dbt test (≤3 self-corrections)"]
@@ -66,7 +68,7 @@ flowchart TD
         code_rev -->|revision requested| model
     end
 
-    specs --> model
+    refactored --> model
     code_rev -->|approved| done[Done]
 
     classDef hidden display:none;
@@ -85,7 +87,8 @@ flowchart TD
 | Profiling | `/profile` command | Delegates to `/profiling-table` per table. Classifies table, identifies keys, watermark, FKs, PII. Writes profile answers to catalog. |
 | Sandbox Up | `/setup-sandbox` command | Create throwaway database for ground-truth capture. Wraps `test-harness sandbox-up` CLI, persists sandbox metadata to `manifest.json`. |
 | Test Generation | `/generate-tests` command | Enumerates proc branches, synthesizes fixtures, executes proc in sandbox, captures ground truth, writes `test-specs/<item_id>.json`. Review loop independently enumerates branches, scores coverage, reviews fixture quality. Kicks back for missing branches or quality issues. **Max 2 review iterations.** |
-| Migration | `/generate-model` command | Reads profile + test spec, generates dbt model + schema YAML (with `unit_tests:` rendered from test spec), runs `dbt test`, self-corrects up to **3 iterations**. Code review loop checks standards, correctness, test integration. Kicks back for issues. **Max 2 review iterations.** |
+| SQL Refactoring | `/refactor` command | Restructures raw SP SQL into import/logical/final CTEs. Two isolated sub-agents extract the core SELECT and build CTEs independently; equivalence is proved via sandbox execution using test spec fixtures. Self-corrects up to **3 iterations**. Writes `refactored_sql` to catalog. |
+| Migration | `/generate-model` command | Reads profile + test spec + refactored SQL, generates dbt model + schema YAML (with `unit_tests:` rendered from test spec), runs `dbt test`, self-corrects up to **3 iterations**. Code review loop checks standards, correctness, test integration. Kicks back for issues. **Max 2 review iterations.** |
 
 **Key design decisions:**
 

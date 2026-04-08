@@ -171,7 +171,7 @@ Apply `yaml-style.md` (YML_001--YML_008) throughout.
 
 **5b -- Render test-spec unit tests** from `test-specs/<item_id>.json`:
 
-Every `unit_tests[]` entry is rendered into a `unit_tests:` block in the schema YAML. None may be dropped or modified.
+Every `unit_tests[]` entry is rendered into a `unit_tests:` block in the schema YAML. These ground-truth tests are immutable and must not be dropped or modified. Gap tests (`test_gap_*`) from Step 5c, however, may be revised during the self-correction loop (Step 8c) if their best-effort expectations prove incorrect.
 
 ```yaml
     unit_tests:
