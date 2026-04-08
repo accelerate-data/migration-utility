@@ -203,6 +203,10 @@ def run_context(
             )
     writer_norm = normalize(writer_fqn)
 
+    proc_cat = load_proc_catalog(project_root, writer_norm)
+    table_slices = (proc_cat.get("table_slices") or {}) if proc_cat else {}
+    writer_ddl_slice = table_slices.get(fqn_norm) or None
+
     profile = load_table_profile(project_root, fqn_norm)
     statements = load_proc_statements(project_root, writer_norm)
     proc_body = load_proc_body(project_root, writer_norm)
@@ -231,6 +235,7 @@ def run_context(
         "source_columns": source_columns,
         "test_spec": test_spec,
         "sandbox": sandbox,
+        "writer_ddl_slice": writer_ddl_slice,
     }
 
 

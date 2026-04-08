@@ -50,7 +50,10 @@ Read the output JSON. It contains:
 
 Use `refactored_sql` as your sole SQL input. Ignore `proc_body` and `statements` — they are not relevant to model generation.
 
+**Multi-table-writer:** If `writer_ddl_slice` is present in the context, the writer is a multi-table proc. Use `writer_ddl_slice` as the primary SQL for this model — it contains only the logic for this table. The full `proc_body` is for reference only.
+
 **View detection:** If the catalog object is a view (`catalog/views/<fqn>.json` exists), the refactored SQL lives in `catalog/views/<fqn>.json → refactor.refactored_sql` instead of the procedure catalog. The materialization is determined by the view's profile `classification`:
+
 - `stg` classification → `materialized='ephemeral'` staging model
 - `mart` classification → use the same materialization decision rules as tables (table/incremental/snapshot based on profile signals)
 

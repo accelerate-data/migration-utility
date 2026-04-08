@@ -7,7 +7,7 @@ prompts:
 providers:
   - id: anthropic:claude-agent-sdk
     config:
-      model: claude-sonnet-4-6
+      model: claude-haiku-4-5-20251001
       working_dir: ../..
       max_turns: 80
       permission_mode: auto
@@ -45,3 +45,23 @@ tests:
       expected_item_statuses: '{"silver.DimProduct": "error", "silver.InsertSelectTarget": "ok"}'
       expected_error_codes: "scoping_not_completed"
       expected_output_terms: "error"
+
+  # ── multi-table-writer: dim_address profiles via writer_ddl_slice ─
+  - description: "multi-table-writer — dim_address profiles using address-only DDL slice, not credit_card logic"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-profile/multi-table-writer"
+      target_tables: "dim.dim_address"
+      target_table: "dim.dim_address"
+      expected_item_statuses: '{"dim.dim_address": "ok"}'
+      expected_output_terms: "ok"
+      expected_status: "ok"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-table-profile.js
+      - type: llm-rubric
+        value: >
+          The profiling analysis describes address dimension logic (address_id, address_line_1, city,
+          state_province_id, postal_code, SCD2 valid_from/valid_to/is_current) and does NOT describe
+          credit card fields (card_type, exp_month, exp_year, credit_card_id) as the target table logic.
+          The response acknowledges the proc is a multi-table writer but correctly scopes analysis
+          to dim_address only.

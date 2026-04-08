@@ -33,6 +33,7 @@ If `passed` is `false`, report the failing guard's `code` and `message` to the u
 ## Object type detection
 
 Check whether `catalog/views/<fqn>.json` exists:
+
 - **If yes** → this is a **view or MV**. Follow the **View Pipeline** below.
 - **If no** → this is a **table**. Follow the **Table Pipeline** below.
 
@@ -213,20 +214,34 @@ If **n**, skip — the table will appear in the "pending source confirmation" se
 
 Stop here (no further steps for `no_writer_found` tables).
 
-#### Multi-table-write disqualification
+#### Multi-table-writer handling
 
-For each writer candidate, load the procedure catalog:
+If a candidate proc has a `MULTI_TABLE_WRITE` warning, do **not** disqualify it. Instead, assess whether the logic is separable or truly interleaved:
 
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show \
-  --name <candidate_procedure>
-```
+**Truly interleaved** — a single MERGE/INSERT block writes to both tables simultaneously, or the logic uses shared variables/transaction semantics that cannot be cleanly attributed to one table:
 
-Check the `warnings` array for a `MULTI_TABLE_WRITE` entry. If present, **disqualify** the candidate — it writes to multiple tables and cannot produce a single clean refactored SQL. Report the disqualification to the user with the warning message but continue evaluating remaining candidates.
+- Write scoping with `status: "error"` and a clear explanation of why the logic cannot be separated.
+- Stop evaluating this candidate.
+
+**Separable** — distinct MERGE/INSERT/UPDATE blocks handle each target table (shared upstream CTEs or temp table declarations are fine):
+
+1. Identify the DDL block(s) that write to **this target table only**, including any shared setup (CTEs, temp table declarations) that those blocks depend on.
+2. Write the slice to the proc catalog:
+
+   ```bash
+   mkdir -p .staging
+   # Write the slice DDL to .staging/slice.sql, then:
+   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-slice \
+     --proc <proc_fqn> --table <target_table_fqn> --slice-file .staging/slice.sql
+   rm -rf .staging
+   ```
+
+3. Proceed to evaluate this candidate normally — select it with `status: "resolved"` if it is the best writer.
+4. In `selected_writer_rationale`, note that this is a multi-table-writer proc and name the other tables it writes to.
 
 ### Step 3 -- Analyze each writer candidate
 
-For each **non-disqualified** writer candidate, read and follow the [procedure analysis reference](references/procedure-analysis.md). Run all 6 steps (fetch, classify, resolve call graph, logic summary, migration guidance, persist) for each candidate before moving to Step 4.
+For each writer candidate, read and follow the [procedure analysis reference](references/procedure-analysis.md). Run all 6 steps (fetch, classify, resolve call graph, logic summary, migration guidance, persist) for each candidate before moving to Step 4.
 
 If there are multiple candidates, analyze them sequentially — each candidate's analysis must complete before starting the next.
 

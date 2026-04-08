@@ -1,0 +1,217 @@
+{
+  "schema": "dbo",
+  "name": "usp_load_dim_address_and_credit_card",
+  "mode": "deterministic",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "staging",
+          "name": "stg_address",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "address_id",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "address_line_1",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "city",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "state_province_id",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "postal_code",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "staging",
+          "name": "stg_credit_card",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "credit_card_id",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "card_type",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "exp_month",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "exp_year",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "staging",
+          "name": "stg_sales_order_header",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {
+              "name": "credit_card_id",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "bill_to_address_id",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "order_date",
+              "is_selected": true,
+              "is_updated": false
+            }
+          ]
+        },
+        {
+          "schema": "dim",
+          "name": "dim_address",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "address_id",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "address_line_1",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "city",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "state_province_id",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "postal_code",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "valid_from",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "valid_to",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "is_current",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        },
+        {
+          "schema": "dim",
+          "name": "dim_credit_card",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {
+              "name": "credit_card_id",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "card_type",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "exp_month",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "exp_year",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "valid_from",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "valid_to",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "is_current",
+              "is_selected": false,
+              "is_updated": true
+            }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "statements": [],
+  "warnings": [
+    {
+      "code": "MULTI_TABLE_WRITE",
+      "message": "Procedure writes to 2 tables: dim.dim_address, dim.dim_credit_card. Each table will require a separate dbt model.",
+      "severity": "warning",
+      "details": {
+        "tables": [
+          "dim.dim_address",
+          "dim.dim_credit_card"
+        ]
+      }
+    }
+  ],
+  "table_slices": {
+    "dim.dim_address": "-- Slice for dbo.usp_load_dim_address_and_credit_card targeting dim.dim_address\n-- Original procedure writes to both dim.dim_address and dim.dim_credit_card\n\n-- ==============================\n-- MERGE 1: dim_address (SCD2)\n-- ==============================\nMERGE dim.dim_address AS tgt\nUSING staging.stg_address AS src\n    ON tgt.address_id = src.address_id\n    AND tgt.is_current = 1\nWHEN MATCHED AND (\n    tgt.address_line_1 <> src.address_line_1\n    OR tgt.city <> src.city\n    OR tgt.postal_code <> src.postal_code\n    OR tgt.state_province_id <> src.state_province_id\n) THEN\n    UPDATE SET\n        tgt.valid_to = GETDATE(),\n        tgt.is_current = 0\nWHEN NOT MATCHED BY TARGET THEN\n    INSERT (address_id, address_line_1, city, state_province_id, postal_code, valid_from, valid_to, is_current)\n    VALUES (src.address_id, src.address_line_1, src.city, src.state_province_id, src.postal_code, GETDATE(), NULL, 1);\n\n-- Re-insert expired address rows as current\nINSERT INTO dim.dim_address (address_id, address_line_1, city, state_province_id, postal_code, valid_from, valid_to, is_current)\nSELECT\n    src.address_id, src.address_line_1, src.city, src.state_province_id, src.postal_code, GETDATE(), NULL, 1\nFROM staging.stg_address src\nWHERE NOT EXISTS (\n    SELECT 1 FROM dim.dim_address cur\n    WHERE cur.address_id = src.address_id AND cur.is_current = 1\n)\nAND EXISTS (\n    SELECT 1 FROM dim.dim_address old\n    WHERE old.address_id = src.address_id AND old.is_current = 0\n);\n",
+    "dim.dim_credit_card": "-- Slice for dbo.usp_load_dim_address_and_credit_card targeting dim.dim_credit_card\n-- Original procedure writes to both dim.dim_address and dim.dim_credit_card\n\n-- ==============================\n-- MERGE 2: dim_credit_card (SCD2)\n-- Uses OUTER APPLY to correlate latest credit card per address via order headers\n-- ==============================\nMERGE dim.dim_credit_card AS tgt\nUSING (\n    SELECT DISTINCT\n        cc.credit_card_id,\n        cc.card_type,\n        cc.exp_month,\n        cc.exp_year\n    FROM staging.stg_credit_card cc\n    OUTER APPLY (\n        SELECT TOP 1 h.bill_to_address_id\n        FROM staging.stg_sales_order_header h\n        WHERE h.credit_card_id = cc.credit_card_id\n        ORDER BY h.order_date DESC\n    ) latest_addr\n) AS src\n    ON tgt.credit_card_id = src.credit_card_id\n    AND tgt.is_current = 1\nWHEN MATCHED AND (\n    tgt.card_type <> src.card_type\n    OR tgt.exp_month <> src.exp_month\n    OR tgt.exp_year <> src.exp_year\n) THEN\n    UPDATE SET\n        tgt.valid_to = GETDATE(),\n        tgt.is_current = 0\nWHEN NOT MATCHED BY TARGET THEN\n    INSERT (credit_card_id, card_type, exp_month, exp_year, valid_from, valid_to, is_current)\n    VALUES (src.credit_card_id, src.card_type, src.exp_month, src.exp_year, GETDATE(), NULL, 1);\n\n-- Re-insert expired credit card rows as current\nINSERT INTO dim.dim_credit_card (credit_card_id, card_type, exp_month, exp_year, valid_from, valid_to, is_current)\nSELECT\n    src.credit_card_id, src.card_type, src.exp_month, src.exp_year, GETDATE(), NULL, 1\nFROM staging.stg_credit_card src\nWHERE NOT EXISTS (\n    SELECT 1 FROM dim.dim_credit_card cur\n    WHERE cur.credit_card_id = src.credit_card_id AND cur.is_current = 1\n)\nAND EXISTS (\n    SELECT 1 FROM dim.dim_credit_card old\n    WHERE old.credit_card_id = src.credit_card_id AND old.is_current = 0\n);\n"
+  }
+}

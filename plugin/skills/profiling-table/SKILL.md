@@ -30,6 +30,7 @@ If `passed` is `false`, report the failing guard's `code` and `message` to the u
 ## Object type detection
 
 Check whether `catalog/views/<fqn>.json` exists:
+
 - **If yes** → this is a **view or MV**. Follow the **View Profile Pipeline** below.
 - **If no** → this is a **table**. Follow the **Table Profile Pipeline** below.
 
@@ -126,6 +127,8 @@ The CLI reads the selected writer from the table's catalog scoping section — n
 This reads catalog signals, writer references, proc body, column list, and related procedure context. Output is a JSON matching `lib/shared/schemas/profile_context.json`.
 
 If exit code is non-zero, stop and report the error.
+
+**Multi-table-writer:** If `writer_ddl_slice` is present in the context, the writer is a multi-table proc. Focus your analysis on `writer_ddl_slice` as the primary SQL — it contains only the portion of the proc relevant to this table. The full `proc_body` is provided for reference only and may contain logic for other tables.
 
 ### Step 2 -- LLM Profiling (Reasoning)
 

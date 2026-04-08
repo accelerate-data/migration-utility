@@ -1,0 +1,35 @@
+version: 2
+sources:
+- name: staging
+  schema: staging
+  tables:
+  - name: stg_address
+    columns:
+    - name: address_id
+      data_type: int
+    - name: address_line_1
+      data_type: nvarchar(60)
+    - name: city
+      data_type: nvarchar(30)
+    - name: state_province_id
+      data_type: int
+    - name: postal_code
+      data_type: nvarchar(15)
+  - name: stg_credit_card
+    columns:
+    - name: credit_card_id
+      data_type: int
+    - name: card_type
+      data_type: nvarchar(50)
+    - name: exp_month
+      data_type: tinyint
+    - name: exp_year
+      data_type: smallint
+  - name: stg_sales_order_header
+    columns:
+    - name: credit_card_id
+      data_type: int
+    - name: bill_to_address_id
+      data_type: int
+    - name: order_date
+      data_type: date

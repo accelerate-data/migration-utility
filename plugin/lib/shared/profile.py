@@ -134,6 +134,9 @@ def run_context(project_root: Path, table: str, writer: str | None = None) -> di
     if proc_cat is None:
         raise CatalogFileMissingError("procedure", writer_norm)
 
+    table_slices = proc_cat.get("table_slices") or {}
+    writer_ddl_slice = table_slices.get(table_norm) or None
+
     writer_references = proc_cat.get("references", {})
 
     # Load proc body from DDL files
@@ -154,6 +157,7 @@ def run_context(project_root: Path, table: str, writer: str | None = None) -> di
         "proc_body": proc_body,
         "columns": table_cat.get("columns", []),
         "related_procedures": related_procedures,
+        "writer_ddl_slice": writer_ddl_slice,
     }
 
 

@@ -47,6 +47,8 @@ Read the output JSON. It contains:
 
 Record the `writer` field -- this is the procedure FQN.
 
+**Multi-table-writer:** If `writer_ddl_slice` is present in the context, the writer is a multi-table proc. Refactor `writer_ddl_slice` — it is the portion of the proc that writes to this table. The full `proc_body` is for reference only.
+
 **View detection:** If the context output contains `object_type = "view"` or `"mv"`, the FQN refers to a view. In this case:
 
 - `view_sql` contains the original view SQL body (this is the ground truth — sub-agent A uses it directly instead of extracting from a procedure body)

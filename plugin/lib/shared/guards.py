@@ -29,10 +29,6 @@ logger = logging.getLogger(__name__)
 
 STAGES = ("scope", "profile", "test-gen", "refactor", "migrate")
 
-KNOWN_TECHNOLOGIES = frozenset({
-    "sql_server", "fabric_warehouse", "fabric_lakehouse", "snowflake", "oracle",
-})
-
 
 # ── Guard helpers ────────────────────────────────────────────────────────────
 
@@ -475,12 +471,6 @@ def check_technology(project_root: Path) -> dict[str, Any]:
             "TECHNOLOGY_NOT_SET",
             "manifest.json has no 'technology' field. Run /init-ad-migration.",
         )
-    if technology not in KNOWN_TECHNOLOGIES:
-        return _guard_fail(
-            "technology_configured",
-            "TECHNOLOGY_UNKNOWN",
-            f"technology '{technology}' is not recognised. Known: {sorted(KNOWN_TECHNOLOGIES)}.",
-        )
     return _guard_ok("technology_configured")
 
 
@@ -513,12 +503,6 @@ def check_init_prerequisites(project_root: Path) -> dict[str, Any]:
             "init_prerequisites",
             "TECHNOLOGY_NOT_SET",
             "manifest.json has no 'technology' field. Run /init-ad-migration.",
-        )
-    if technology not in KNOWN_TECHNOLOGIES:
-        return _guard_fail(
-            "init_prerequisites",
-            "TECHNOLOGY_UNKNOWN",
-            f"technology '{technology}' is not recognised. Known: {sorted(KNOWN_TECHNOLOGIES)}.",
         )
     if "init_handoff" not in manifest:
         return _guard_fail(
