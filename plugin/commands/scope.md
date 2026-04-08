@@ -31,7 +31,7 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
    - **Single object (1 item):** use the object FQN directly — `scope-<schema>-<name>` (lowercase, dots → hyphens). No LLM reasoning needed.
    - **Multiple objects (2+):** reason about the conversation context — what is the user trying to accomplish with this batch? Generate a short, descriptive slug that captures the intent (e.g. `scope-order-pipeline`, `scope-customer-dims`). The full slug (including the `scope-` prefix) must be lowercase, hyphen-separated, and at most 40 characters.
 2. Run the `git-checkpoints` skill with the run slug as the argument.
-   - If it returns `"main"`: proceed without a branch or worktree. All file writes and git operations target the current directory. Set `<working-directory>` to `$(git rev-parse --show-toplevel)` for use in sub-agent prompts below.
+   - If it returns the default branch name (not a worktree path): proceed without a branch or worktree. All file writes and git operations target the current directory. Set `<working-directory>` to `$(git rev-parse --show-toplevel)` for use in sub-agent prompts below.
    - Otherwise: use the returned path as the working directory for all file writes and git operations in this run. Set `<working-directory>` to the returned path.
 3. For each FQN argument, detect its object type by checking which catalog file exists:
    - If `catalog/views/<fqn>.json` exists → `view`
@@ -102,7 +102,7 @@ Return the item result JSON.
    ```text
    PR #<number> is open: <pr_url>
    Branch: <branch>
-   Worktree: <working-directory>  (omit this line if on main)
+   Worktree: <working-directory>  (omit this line if on the default branch)
    ```
 
    If on a feature branch, also tell the user: "Once the PR is merged, run /cleanup-worktrees to remove the worktree and branches."

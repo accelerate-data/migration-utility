@@ -16,13 +16,31 @@ Ensure the caller is not working directly on `main` without an explicit choice. 
 
 ## Steps
 
+### 0 — Detect default branch
+
+Before checking anything, detect the remote default branch:
+
+```bash
+default_branch=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
+```
+
+If `gh repo view` fails, fall back:
+
+```bash
+default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
+```
+
+If both fail, **stop and report the error** — do not guess or assume `main`.
+
+Store the result as `<default-branch>` for all subsequent steps.
+
 ### 1 — Check current branch
 
 ```bash
 git branch --show-current
 ```
 
-If the output is anything other than `main`:
+If the output is anything other than `<default-branch>`:
 
 ```bash
 git rev-parse --show-toplevel
@@ -30,13 +48,13 @@ git rev-parse --show-toplevel
 
 Return that path immediately — no further action needed.
 
-### 2 — Ask the user (main only)
+### 2 — Ask the user (default branch only)
 
 Use `AskUserQuestion` to present a single choice:
 
-> **Question:** "You are on `main`. Work on main, or create a feature branch with a worktree?"
+> **Question:** "You are on `<default-branch>`. Work on `<default-branch>`, or create a feature branch with a worktree?"
 >
-> **Option 1 — "Continue on main":** proceed without a branch or worktree; all git operations target the current directory.
+> **Option 1 — "Continue on `<default-branch>`":** proceed without a branch or worktree; all git operations target the current directory.
 >
 > **Option 2 — "Create branch: feature/`$ARGUMENTS`":** create a new branch and worktree now.
 >
@@ -44,9 +62,9 @@ Use `AskUserQuestion` to present a single choice:
 
 **If `AskUserQuestion` is unavailable** (e.g. running inside a sub-agent with no interactive tool access): fail loudly — output an error and stop. Do not silently skip or pick a default.
 
-### 3a — User chose main
+### 3a — User chose the default branch
 
-Return the literal string `"main"`. No branch, no worktree.
+Return the detected `<default-branch>` name (e.g. `"main"`, `"master"`). No branch, no worktree.
 
 ### 3b — User chose a feature branch
 
@@ -97,5 +115,5 @@ Return the absolute worktree path. All subsequent file writes and git operations
 | Condition | Return |
 |---|---|
 | Already on a feature branch | `git rev-parse --show-toplevel` output (current tree root) |
-| User chose main | `"main"` (literal string) |
+| User chose the default branch | The detected `<default-branch>` name (e.g. `"main"`, `"master"`) |
 | User created a new worktree | Absolute path to the new worktree |
