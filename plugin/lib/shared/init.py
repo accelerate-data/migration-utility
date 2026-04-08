@@ -132,9 +132,6 @@ GITIGNORE_ENTRIES = [
     "!.env.example",
     ".envrc",
     "",
-    "# MCP server config (may contain credentials)",
-    ".mcp.json",
-    "",
 ]
 
 GIT_WORKFLOW_MD = """\

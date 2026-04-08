@@ -23,7 +23,7 @@ This page covers the tools, environment variables, and verification steps needed
 | Tool | When needed | Purpose |
 |---|---|---|
 | [genai-toolbox](https://github.com/googleapis/genai-toolbox/releases) (`toolbox`) | Live SQL Server extraction via `/setup-ddl` | HTTP-mode MCP server that bridges Claude Code to SQL Server |
-| [SQLcl](https://www.oracle.com/database/sqldeveloper/technologies/sqlcl/) (`sql`) | Oracle source projects | CLI tool that provides the Oracle MCP server via `sql -mcp`; requires Java 11+ |
+| [SQLcl](https://www.oracle.com/database/sqldeveloper/technologies/sqlcl/) (`sql`) | Oracle source projects | CLI tool that provides the Oracle MCP server via `sql -mcp`; requires Java 11+. `sql` must be on PATH — the plugin invokes it directly. If another `sql` binary conflicts, override `command` in your local `.mcp.json` with the absolute path to the SQLcl binary. |
 | Java 11+ | Oracle source projects | Runtime required by SQLcl |
 | [direnv](https://direnv.net) | Recommended for all projects | Auto-loads `.envrc` credentials when you enter the project directory; keeps secrets out of shell history |
 

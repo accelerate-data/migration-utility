@@ -43,7 +43,7 @@ class TestScaffoldProject:
         assert (tmp_path / "README.md").read_text() == config.readme_md_fn()
         repo_map = json.loads((tmp_path / "repo-map.json").read_text())
         assert repo_map == config.repo_map_fn()
-        assert ".mcp.json" in (tmp_path / ".gitignore").read_text()
+        assert ".mcp.json" not in (tmp_path / ".gitignore").read_text()
         assert ".envrc" in (tmp_path / ".gitignore").read_text()
         assert "MSSQL_HOST" in (tmp_path / ".envrc").read_text()
         workflow = (tmp_path / ".claude" / "rules" / "git-workflow.md").read_text()
@@ -64,7 +64,7 @@ class TestScaffoldProject:
         assert len(updated) == 1
         content = (tmp_path / ".gitignore").read_text()
         assert "# Custom" in content
-        assert ".mcp.json" in content
+        assert ".mcp.json" not in content
         assert ".envrc" in content
 
     def test_reports_missing_claude_md_sections(self, tmp_path: Path) -> None:

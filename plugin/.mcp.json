@@ -7,6 +7,10 @@
     "mssql": {
       "command": "toolbox",
       "args": ["--tools-file", "${CLAUDE_PLUGIN_ROOT}/mcp/mssql/tools.yaml", "--stdio"]
+    },
+    "oracle": {
+      "command": "sql",
+      "args": ["-mcp"]
     }
   }
 }
