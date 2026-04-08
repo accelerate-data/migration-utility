@@ -757,6 +757,10 @@ class SqlServerSandbox(SandboxBackend):
                     sb_cur.execute(f"DROP TABLE IF EXISTS {fqn}")
                 except pyodbc.Error:
                     pass  # object did not exist; nothing to drop
+                try:
+                    sb_cur.execute(f"DROP VIEW IF EXISTS {fqn}")
+                except pyodbc.Error:
+                    pass  # sandbox_up may not have cloned the view
                 sb_cur.execute(
                     f"SELECT TOP 0 * INTO {fqn} FROM [{self.database}].{fqn}"
                 )
