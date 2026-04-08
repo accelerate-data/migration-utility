@@ -351,6 +351,8 @@ npx promptfoo eval --filter-pattern "cube|rollup|grouping-sets"
 | `exec-orchestrator` | silver.FactInternetSales | Graceful no-model |
 | `dynamic-sql` | silver.DimCurrency | Graceful no-model |
 | `linked-server-exec` | silver.LinkedServerExecTarget | Graceful no-model, out-of-scope |
+| `planning-sweep-stg-reuse` | silver.InsertSelectTarget | `stg_product.sql` pre-seeded — mart uses `ref('stg_product')`, not `source('bronze'` |
+| `planning-sweep-no-stg` | silver.InsertSelectTarget | No staging on disk — `stg_product.sql` created with `ephemeral`, mart uses `ref()` |
 
 ### Test-generator
 
@@ -411,9 +413,7 @@ npx promptfoo eval --filter-pattern "cube|rollup|grouping-sets"
 | happy-path — both generate | InsertSelectTarget + UpdateJoinTarget | `migration-test` | Summary shows 2 ok, `check-dbt-model.js` validates artifact |
 | review-revision cycle | CorrelatedSubqueryTarget | `migration-test` | Review loop invoked, final status ok |
 | error+clean — no scoping | DimProduct + InsertSelectTarget | `migration-test` | SCOPING_NOT_COMPLETED for DimProduct, InsertSelectTarget ok |
-| planning-sweep-stg-reuse | InsertSelectTarget | `planning-sweep-stg-reuse` | `stg_product.sql` pre-seeded — mart uses `ref('stg_product')`, not `source('bronze'` |
-| planning-sweep-no-stg | InsertSelectTarget | `planning-sweep-no-stg` | No staging on disk — `stg_product.sql` created with `ephemeral`, mart uses `ref()` |
-| planning-sweep-shared-stg | InsertSelectTarget + SingleCteTarget | `planning-sweep-shared-stg` | Both SPs share `bronze.Product` — ONE `stg_product.sql` written by sweep |
+| planning-sweep-shared-stg | InsertSelectTarget + SingleCteTarget | `planning-sweep-shared-stg` | Both SPs share `bronze.Product` — sweep creates ONE `stg_product.sql`, both marts ok |
 
 ### Command: generate-tests
 

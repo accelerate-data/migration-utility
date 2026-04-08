@@ -58,37 +58,8 @@ tests:
       expected_error_codes: "scoping_not_completed"
       expected_output_terms: "error"
 
-  # ── planning sweep: stg already on disk, must reuse via ref() ──
-  - description: "planning-sweep-stg-reuse — stg_product.sql pre-seeded, mart must use ref() not source()"
-    vars:
-      fixture_path: "tests/evals/fixtures/planning-sweep-stg-reuse"
-      target_tables: "silver.InsertSelectTarget"
-      target_table: "silver.InsertSelectTarget"
-      expected_item_statuses: '{"silver.InsertSelectTarget": "ok"}'
-      expected_output_terms: "ok"
-      expected_model_terms: "ref('stg_product')"
-      forbidden_model_terms: "source('bronze'"
-    assert:
-      - type: javascript
-        value: file://../../assertions/check-dbt-model.js
-
-  # ── planning sweep: no stg on disk, skill creates stg_product.sql ──
-  - description: "planning-sweep-no-stg — no staging exists, skill creates stg_product.sql with ephemeral"
-    vars:
-      fixture_path: "tests/evals/fixtures/planning-sweep-no-stg"
-      target_tables: "silver.InsertSelectTarget"
-      target_table: "silver.InsertSelectTarget"
-      expected_item_statuses: '{"silver.InsertSelectTarget": "ok"}'
-      expected_output_terms: "ok"
-      expected_stg_files: "stg_product"
-      expected_stg_terms: "ephemeral"
-      expected_model_terms: "ref('stg_product')"
-    assert:
-      - type: javascript
-        value: file://../../assertions/check-dbt-model.js
-
-  # ── planning sweep: 2 tables share source, ONE shared stg created ──
-  - description: "planning-sweep-shared-stg — InsertSelectTarget + SingleCteTarget share bronze.Product, sweep writes ONE stg_product.sql"
+  # ── planning sweep: 2 tables share source → 1 shared stg ─────
+  - description: "planning-sweep-shared-stg — InsertSelectTarget + SingleCteTarget share bronze.Product, sweep creates ONE stg_product.sql used by both marts"
     vars:
       fixture_path: "tests/evals/fixtures/planning-sweep-shared-stg"
       target_tables: "silver.InsertSelectTarget silver.SingleCteTarget"
