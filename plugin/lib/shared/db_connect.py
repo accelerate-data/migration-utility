@@ -40,7 +40,7 @@ def sql_server_connect(database: str) -> Any:
     port = os.environ.get("MSSQL_PORT", "1433")
     user = os.environ.get("MSSQL_USER", "sa")
     password = os.environ.get("SA_PASSWORD", "")
-    driver = os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server")
+    driver = os.environ.get("MSSQL_DRIVER", "FreeTDS")
 
     missing = [name for name, val in [("MSSQL_HOST", host), ("SA_PASSWORD", password)] if not val]
     if missing:
@@ -53,7 +53,16 @@ def sql_server_connect(database: str) -> Any:
         f"UID={user};PWD={password};"
         f"TrustServerCertificate=yes;"
     )
-    return pyodbc.connect(conn_str, autocommit=True)
+    try:
+        return pyodbc.connect(conn_str, autocommit=True)
+    except pyodbc.Error as exc:
+        msg = str(exc)
+        if "Can't open lib" in msg:
+            raise RuntimeError(
+                f"ODBC driver '{driver}' not found. "
+                "Install FreeTDS: brew install freetds"
+            ) from exc
+        raise
 
 
 def oracle_connect() -> Any:

@@ -240,7 +240,7 @@ class SqlServerSandbox(SandboxBackend):
         database = manifest.get("source_database", os.environ.get("MSSQL_DB", ""))
         password = os.environ.get("SA_PASSWORD", "")
         user = os.environ.get("MSSQL_USER", "sa")
-        driver = os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server")
+        driver = os.environ.get("MSSQL_DRIVER", "FreeTDS")
 
         missing = []
         if not host:
@@ -267,7 +267,16 @@ class SqlServerSandbox(SandboxBackend):
             f"UID={self.user};PWD={self.password};"
             f"TrustServerCertificate=yes;"
         )
-        conn = pyodbc.connect(conn_str, autocommit=True)
+        try:
+            conn = pyodbc.connect(conn_str, autocommit=True)
+        except pyodbc.Error as exc:
+            msg = str(exc)
+            if "Can't open lib" in msg:
+                raise RuntimeError(
+                    f"ODBC driver '{self.driver}' not found. "
+                    "Install FreeTDS: brew install freetds"
+                ) from exc
+            raise
         try:
             yield conn
         finally:

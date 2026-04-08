@@ -22,10 +22,11 @@ Run all checks silently — do not change anything yet.
 
 1. Check `manifest.json` exists in the current working directory. Read it to confirm `technology` and `source_database` are present.
 2. Check that `extracted_schemas` in the manifest is a non-empty array.
-3. Check whether each MSSQL environment variable is set (non-empty): `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD`. Do not print their values.
-4. Verify the test-harness CLI is available: `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness --help`
-5. Check `dbt/profiles.yml` exists. This is **required** — without it, `/generate-tests` and `/generate-model` will fail on `dbt compile`/`dbt test`. If missing, stop and tell the user: "No `dbt/profiles.yml` found. Run `/init-dbt` to scaffold the dbt project and select a target platform before setting up the sandbox." If present, read the adapter `type:` and compare against `technology` in `manifest.json` — `sql_server` expects `sqlserver`, `fabric_warehouse` expects `fabric`, `fabric_lakehouse` expects `fabric` or `spark`, `snowflake` expects `snowflake`. Warn on mismatch but don't block.
-6. Verify dbt can connect: `cd dbt && dbt debug`. Check the output shows "Connection test: OK". If it fails, stop and tell the user to check credentials — for SQL Server this means `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD` env vars; for other adapters, update placeholder values in `profiles.yml`.
+3. Check FreeTDS is installed: `brew list --formula freetds 2>/dev/null`. If missing, tell the user to run `brew install freetds` (or run `/init-ad-migration` which auto-installs it) and stop.
+4. Check whether each MSSQL environment variable is set (non-empty): `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD`. Do not print their values.
+5. Verify the test-harness CLI is available: `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness --help`
+6. Check `dbt/profiles.yml` exists. This is **required** — without it, `/generate-tests` and `/generate-model` will fail on `dbt compile`/`dbt test`. If missing, stop and tell the user: "No `dbt/profiles.yml` found. Run `/init-dbt` to scaffold the dbt project and select a target platform before setting up the sandbox." If present, read the adapter `type:` and compare against `technology` in `manifest.json` — `sql_server` expects `sqlserver`, `fabric_warehouse` expects `fabric`, `fabric_lakehouse` expects `fabric` or `spark`, `snowflake` expects `snowflake`. Warn on mismatch but don't block.
+7. Verify dbt can connect: `cd dbt && dbt debug`. Check the output shows "Connection test: OK". If it fails, stop and tell the user to check credentials — for SQL Server this means `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD` env vars; for other adapters, update placeholder values in `profiles.yml`.
 
 ## Step 3: Present plan
 
@@ -37,6 +38,7 @@ Sandbox setup:
   technology:        sql_server (or whatever value)
   source_database:   AdventureWorksDW (or whatever value)
   extracted_schemas: [dbo, silver, bronze]
+  freetds:           ✓ installed  /  ✗ not found
   test-harness CLI:  ✓ available  /  ✗ not found
   dbt profile:       ✓ sqlserver (matches manifest)  /  ⚠ duckdb (mismatch)  /  ✗ not found (run /init-dbt)
   dbt connection:    ✓ OK  /  ✗ failed (check credentials)

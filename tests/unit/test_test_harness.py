@@ -148,6 +148,25 @@ class TestFromEnv:
         assert backend.user == "admin"
         assert backend.driver == "FreeTDS"
 
+    def test_from_env_default_driver_is_freetds(self) -> None:
+        env = {"MSSQL_HOST": "localhost", "SA_PASSWORD": "pass", "MSSQL_DB": "db"}
+        with patch.dict(os.environ, env, clear=True):
+            backend = SqlServerSandbox.from_env({})
+        assert backend.driver == "FreeTDS"
+
+    def test_connect_cant_open_lib_raises_runtime_error(self) -> None:
+        backend = SqlServerSandbox(
+            host="localhost", port="1433", database="testdb", password="pass",
+        )
+        with patch("shared.sandbox.sql_server.pyodbc") as mock_pyodbc:
+            mock_pyodbc.Error = type("Error", (Exception,), {})
+            mock_pyodbc.connect.side_effect = mock_pyodbc.Error(
+                "[unixODBC][Driver Manager]Can't open lib 'FreeTDS'"
+            )
+            with pytest.raises(RuntimeError, match="brew install freetds"):
+                with backend._connect():
+                    pass
+
 
 # ── SQL Server backend (mocked _connect) ─────────────────────────────────────
 

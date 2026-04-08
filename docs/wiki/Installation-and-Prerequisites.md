@@ -12,6 +12,12 @@ This page covers the tools, environment variables, and verification steps needed
 | [gh CLI](https://cli.github.com/) | Latest | GitHub operations (PRs, branch management, worktree cleanup) |
 | git | 2.x+ | Version control; worktree support required for batch commands |
 
+## Required Tools (SQL Server)
+
+| Tool | Version | Purpose |
+|---|---|---|
+| [FreeTDS](https://www.freetds.org/) | Latest | Open-source ODBC driver for SQL Server connectivity. Install: `brew install freetds` |
+
 ## Optional Tools
 
 | Tool | When needed | Purpose |
@@ -33,8 +39,11 @@ The variables required depend on your source technology. The `/init-ad-migration
 | `MSSQL_PORT` | SQL Server port | `1433` |
 | `MSSQL_DB` | Default database | `KimballFixture` |
 | `SA_PASSWORD` | SQL login password | _(from env)_ |
+| `MSSQL_DRIVER` | _(optional)_ ODBC driver override | `FreeTDS` _(default)_ |
 
-All four are required for `/setup-ddl`, `/setup-sandbox`, `/generate-tests`, `/refactor`, and any other live-database skill.
+`MSSQL_DRIVER` defaults to `FreeTDS`. Set it to `ODBC Driver 18 for SQL Server` if you prefer the Microsoft driver (requires `brew install msodbcsql18` with interactive EULA acceptance).
+
+All four connection variables are required for `/setup-ddl`, `/setup-sandbox`, `/generate-tests`, `/refactor`, and any other live-database skill.
 
 ### Oracle
 
