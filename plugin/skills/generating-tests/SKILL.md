@@ -19,6 +19,19 @@ This skill produces scenarios only — no proc execution, no ground truth captur
 
 `$ARGUMENTS` is the fully-qualified table name. Ask the user if missing.
 
+## Load existing spec
+
+Before running the stage guard, check whether `test-specs/<item_id>.json` already exists.
+
+If it exists:
+
+- Read the file and extract: `unit_tests[].name` list, `branch_manifest`, and any `expect` blocks keyed by scenario name.
+- Set **merge_mode = true**.
+
+If it does not exist:
+
+- Set **merge_mode = false**. All steps below run identically to the first-run behavior.
+
 ## Before invoking
 
 Run the stage guard:
@@ -70,9 +83,33 @@ For each statement where `action == migrate`, identify all conditional branches.
 
 Output: branch manifest — a list of branches with IDs, descriptions, the statement index they belong to, and the pattern they exercise.
 
+If **merge_mode**, compare the re-extracted branch IDs against the `branch_manifest` stored in the existing spec. For any branch IDs present in the stored manifest but absent from the re-extracted manifest, add a warning:
+
+```json
+{ "code": "STALE_BRANCH", "message": "Branch '<id>' in stored manifest not found in re-extracted SQL — procedure may have changed.", "severity": "warning" }
+```
+
+## Step 2.5: Coverage gate (merge_mode only)
+
+Skip this step if merge_mode is false.
+
+Pass to the LLM:
+
+- The full re-extracted branch manifest (all branch IDs and descriptions).
+- The existing `unit_tests[]` list with each scenario's `name` and `branch_id` (or inferred branch mapping from the stored `branch_manifest[].scenarios` lists).
+
+Ask: "For each branch in the manifest, is there an existing scenario that exercises it? Return the list of branch IDs that have no covering scenario."
+
+- **No uncovered branches**: skip Step 3 entirely. Proceed to Step 4 carrying `new_scenarios = []`.
+- **Uncovered branches found**: proceed to Step 3 scoped to those branches only. Carry `uncovered_branch_ids` into Step 3.
+
 ## Step 3: Generate fixtures
 
-For each branch, generate minimum synthetic input rows (1-3 per source table):
+When **merge_mode**, generate fixtures only for branches in `uncovered_branch_ids` (from Step 2.5). All other branches already have coverage — do not regenerate scenarios for them.
+
+When **not merge_mode** (first run), generate for all branches.
+
+For each targeted branch, generate minimum synthetic input rows (1-3 per source table):
 
 - Each scenario is self-contained — no shared test data across scenarios.
 - FK-consistent within each scenario: use the catalog's `foreign_keys` to build a dependency graph and generate rows in topological order so FK values align.
@@ -117,17 +154,41 @@ Do not generate values that violate CHECK constraints — the sandbox does not d
 
 ## Step 4: Present for approval
 
+**First run (merge_mode = false):**
+
 Show the user:
 
 1. Branch manifest (all identified branches with descriptions)
 2. Generated fixtures (inputs per scenario)
 3. Any uncovered branches or warnings
 
+**Re-invocation (merge_mode = true):**
+
+Show the user a merge summary before asking for approval:
+
+1. **Preserved** — list of existing scenario names that will not be touched (N scenarios).
+2. **New** — list of new scenarios being added with the branch they cover (M scenarios for X branches). If M = 0, state "0 new scenarios — all branches already covered."
+3. **Warnings** — any stale branch warnings from Step 2.
+
+Then show the fixtures for new scenarios only.
+
 Ask the user: "Approve these test scenarios? (y/n/edit)". If the user requests edits, apply them and re-present.
 
 ## Step 5: Write test spec
 
+**First run (merge_mode = false):**
+
 Write `test-specs/<item_id>.json` with the TestSpec schema. The `expect` field is omitted — ground truth is captured later by the command after review approval.
+
+**Re-invocation (merge_mode = true):**
+
+Merge into the existing `test-specs/<item_id>.json`:
+
+- **`unit_tests[]`**: append new scenario entries. Never overwrite existing entries. Preserve any `expect` blocks already present on existing scenarios.
+- **`branch_manifest[]`**: for newly discovered branches, add new entries. For existing branch entries, append new scenario names to their `scenarios[]` array.
+- **`uncovered_branches`**: recalculate from the merged manifest — branches with no scenarios in the final `unit_tests[]`.
+- **`coverage`** and **`status`**: recalculate using the Coverage and Status Rules after the merge.
+- **`warnings[]`**: append new warnings (e.g., stale branch warnings from Step 2); do not remove existing warnings.
 
 **CLI-ready format:** The test spec uses bracket-quoted SQL identifiers for direct consumption by `test-harness execute`. The `/generate-tests` command converts to dbt YAML after ground truth capture.
 

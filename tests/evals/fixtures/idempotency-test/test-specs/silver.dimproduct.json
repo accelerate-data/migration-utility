@@ -1,0 +1,139 @@
+{
+  "item_id": "silver.dimproduct",
+  "status": "partial",
+  "coverage": "partial",
+  "branch_manifest": [
+    {
+      "id": "case_status_current",
+      "statement_index": 0,
+      "description": "CASE branch maps DiscontinuedDate IS NULL and SellEndDate IS NULL to Status = 'Current'",
+      "scenarios": ["test_status_current_when_active_product"]
+    },
+    {
+      "id": "case_status_obsolete",
+      "statement_index": 0,
+      "description": "CASE branch maps DiscontinuedDate IS NOT NULL to Status = 'Obsolete'",
+      "scenarios": ["test_status_obsolete_when_discontinued"]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_status_current_when_active_product",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Road-150",
+              "ProductNumber": "PR-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 10.0,
+              "ListPrice": 25.0,
+              "Color": "Red",
+              "Size": "M",
+              "ProductLine": "R",
+              "Class": "H",
+              "Style": "U",
+              "DaysToManufacture": 1,
+              "SellStartDate": "2024-01-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-01-01"
+            }
+          ],
+          "table": "[bronze].[Product]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150",
+            "StandardCost": 10.0,
+            "ListPrice": 25.0,
+            "Color": "Red",
+            "Size": "M",
+            "ProductLine": "R",
+            "Class": "H",
+            "Style": "U",
+            "StartDate": "2024-01-01",
+            "EndDate": null,
+            "Status": "Current"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
+    },
+    {
+      "name": "test_status_obsolete_when_discontinued",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "rows": [
+            {
+              "ProductID": 2,
+              "ProductName": "Mountain-200",
+              "ProductNumber": "PR-002",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 20.0,
+              "ListPrice": 45.0,
+              "Color": "Blue",
+              "Size": "L",
+              "ProductLine": "M",
+              "Class": "M",
+              "Style": "U",
+              "DaysToManufacture": 2,
+              "SellStartDate": "2024-02-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": "2024-03-15",
+              "ModifiedDate": "2024-02-01"
+            }
+          ],
+          "table": "[bronze].[Product]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "2",
+            "EnglishProductName": "Mountain-200",
+            "StandardCost": 20.0,
+            "ListPrice": 45.0,
+            "Color": "Blue",
+            "Size": "L",
+            "ProductLine": "M",
+            "Class": "M",
+            "Style": "U",
+            "StartDate": "2024-02-01",
+            "EndDate": null,
+            "Status": "Obsolete"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
+    }
+  ],
+  "uncovered_branches": [
+    "case_status_outdated",
+    "coalesce_color_null",
+    "coalesce_color_not_null",
+    "empty_source_bronze_product",
+    "merge_matched_update",
+    "merge_not_matched_by_target_insert"
+  ],
+  "warnings": [],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "errors": []
+}
