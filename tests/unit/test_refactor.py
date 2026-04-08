@@ -335,3 +335,119 @@ def test_write_view_happy_path() -> None:
         view_cat = json.loads(view_path.read_text())
         assert view_cat["refactor"]["status"] == "ok"
         assert "CustomerID" in view_cat["refactor"]["extracted_sql"]
+
+
+# ── run_sweep ────────────────────────────────────────────────────────────────
+
+
+class TestSweep:
+    """Tests for the refactor sweep planning function."""
+
+    def test_all_absent_status(self) -> None:
+        """Tables with no refactor status get recommended_action='refactor'."""
+        result = refactor.run_sweep(
+            _REFACTOR_FIXTURES, ["silver.DimCustomer"],
+        )
+        obj = result["objects"][0]
+        assert obj["fqn"] == "silver.dimcustomer"
+        assert obj["object_type"] == "table"
+        assert obj["refactor_status"] is None
+        assert obj["recommended_action"] == "refactor"
+
+    def test_mixed_statuses(self, assert_valid_schema) -> None:
+        """ok=skip, partial=re-refactor, absent=refactor."""
+        tmp, root = _make_writable_copy()
+        with tmp:
+            result = refactor.run_sweep(
+                root,
+                ["silver.FactSales", "silver.DimProduct", "silver.DimCustomer"],
+            )
+            assert_valid_schema(result, "refactor_sweep_output.json")
+
+            by_fqn = {o["fqn"]: o for o in result["objects"]}
+            assert by_fqn["silver.factsales"]["recommended_action"] == "skip"
+            assert by_fqn["silver.factsales"]["refactor_status"] == "ok"
+            assert by_fqn["silver.dimproduct"]["recommended_action"] == "re-refactor"
+            assert by_fqn["silver.dimproduct"]["refactor_status"] == "partial"
+            assert by_fqn["silver.dimcustomer"]["recommended_action"] == "refactor"
+            assert by_fqn["silver.dimcustomer"]["refactor_status"] is None
+
+    def test_view_with_ok_status(self) -> None:
+        """View with refactor.status=ok gets skip recommendation."""
+        tmp, root = _make_writable_copy()
+        with tmp:
+            view_path = root / "catalog" / "views" / "silver.vw_active_customers.json"
+            view_cat = json.loads(view_path.read_text())
+            view_cat["refactor"] = {"status": "ok", "extracted_sql": "SELECT 1", "refactored_sql": "SELECT 1"}
+            view_path.write_text(json.dumps(view_cat))
+
+            result = refactor.run_sweep(root, ["silver.vw_active_customers"])
+            obj = result["objects"][0]
+            assert obj["object_type"] == "view"
+            assert obj["recommended_action"] == "skip"
+            assert obj["writer"] is None
+
+    def test_shared_staging_detected(self) -> None:
+        """Source tables referenced by 2+ non-skip FQNs are shared staging candidates."""
+        tmp, root = _make_writable_copy()
+        with tmp:
+            result = refactor.run_sweep(
+                root, ["silver.DimCustomer", "silver.DimProduct"],
+            )
+            assert "bronze.customerraw" in result["shared_staging_candidates"]
+
+    def test_single_table_no_shared_staging(self) -> None:
+        """Single table sweep has no shared staging candidates."""
+        tmp, root = _make_writable_copy()
+        with tmp:
+            result = refactor.run_sweep(root, ["silver.DimCustomer"])
+            assert result["shared_staging_candidates"] == []
+
+    def test_existing_dbt_models_detected(self) -> None:
+        """Sweep detects existing staging and mart models on disk."""
+        result = refactor.run_sweep(
+            _REFACTOR_FIXTURES, ["silver.FactSales"],
+        )
+        obj = result["objects"][0]
+        assert "stg_customerraw.sql" in obj["existing_stg_models"]
+        assert obj["existing_mart_model"] is not None
+        assert "factsales.sql" in obj["existing_mart_model"]
+
+    def test_shared_sources_persisted(self) -> None:
+        """Sweep persists shared_sources on affected catalog entries."""
+        tmp, root = _make_writable_copy()
+        with tmp:
+            refactor.run_sweep(
+                root, ["silver.DimCustomer", "silver.DimProduct"],
+            )
+            proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
+            proc_cat = json.loads(proc_path.read_text())
+            assert "bronze.customerraw" in proc_cat["refactor"]["shared_sources"]
+
+            proc_path2 = root / "catalog" / "procedures" / "dbo.usp_load_dimproduct.json"
+            proc_cat2 = json.loads(proc_path2.read_text())
+            assert "bronze.customerraw" in proc_cat2["refactor"]["shared_sources"]
+
+    def test_skip_objects_excluded_from_shared_staging(self) -> None:
+        """Objects with skip recommendation don't contribute to shared staging detection."""
+        result = refactor.run_sweep(
+            _REFACTOR_FIXTURES,
+            ["silver.FactSales", "silver.DimCustomer"],
+        )
+        assert "bronze.customerraw" not in result["shared_staging_candidates"]
+
+
+# ── CLI sweep command ────────────────────────────────────────────────────────
+
+
+def test_cli_sweep_success() -> None:
+    """CLI sweep command returns valid JSON output."""
+    result = _cli_runner.invoke(
+        refactor.app,
+        ["sweep", "--tables", "silver.DimCustomer", "--tables", "silver.FactSales",
+         "--project-root", str(_REFACTOR_FIXTURES)],
+    )
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert "objects" in data
+    assert len(data["objects"]) == 2
