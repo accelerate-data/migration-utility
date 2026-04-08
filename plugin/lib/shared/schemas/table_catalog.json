@@ -3,24 +3,61 @@
   "title": "TableCatalog",
   "description": "Per-table catalog file produced by setup-ddl. Contains catalog signals and inbound references.",
   "type": "object",
-  "required": ["schema", "name", "primary_keys", "unique_indexes", "foreign_keys", "auto_increment_columns", "referenced_by"],
+  "required": [
+    "schema",
+    "name",
+    "primary_keys",
+    "unique_indexes",
+    "foreign_keys",
+    "auto_increment_columns",
+    "referenced_by"
+  ],
   "properties": {
-    "schema": { "type": "string", "description": "Schema name, e.g. silver" },
-    "name": { "type": "string", "description": "Object name, e.g. DimCustomer" },
-    "ddl_hash": { "type": "string", "description": "SHA-256 of normalized source DDL. Used for diff-aware reexport." },
-    "stale": { "type": "boolean", "description": "True when the object was present in a prior extraction but absent in the latest." },
-    "excluded": { "type": "boolean", "description": "When true, the object is excluded from the migration pipeline and skipped by batch scheduling." },
+    "schema": {
+      "type": "string",
+      "description": "Schema name, e.g. silver"
+    },
+    "name": {
+      "type": "string",
+      "description": "Object name, e.g. DimCustomer"
+    },
+    "ddl_hash": {
+      "type": "string",
+      "description": "SHA-256 of normalized source DDL. Used for diff-aware reexport."
+    },
+    "stale": {
+      "type": "boolean",
+      "description": "True when the object was present in a prior extraction but absent in the latest."
+    },
+    "excluded": {
+      "type": "boolean",
+      "description": "When true, the object is excluded from the migration pipeline and skipped by batch scheduling."
+    },
     "columns": {
       "type": "array",
       "description": "Column definitions from sys.columns.",
       "items": {
         "type": "object",
-        "required": ["name", "sql_type", "is_nullable", "is_identity"],
+        "required": [
+          "name",
+          "sql_type",
+          "is_nullable",
+          "is_identity"
+        ],
         "properties": {
-          "name": { "type": "string" },
-          "sql_type": { "type": "string", "description": "Formatted SQL type, e.g. NVARCHAR(50), BIGINT" },
-          "is_nullable": { "type": "boolean" },
-          "is_identity": { "type": "boolean" }
+          "name": {
+            "type": "string"
+          },
+          "sql_type": {
+            "type": "string",
+            "description": "Formatted SQL type, e.g. NVARCHAR(50), BIGINT"
+          },
+          "is_nullable": {
+            "type": "boolean"
+          },
+          "is_identity": {
+            "type": "boolean"
+          }
         }
       }
     },
@@ -28,10 +65,20 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["constraint_name", "columns"],
+        "required": [
+          "constraint_name",
+          "columns"
+        ],
         "properties": {
-          "constraint_name": { "type": "string" },
-          "columns": { "type": "array", "items": { "type": "string" } }
+          "constraint_name": {
+            "type": "string"
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       }
     },
@@ -39,10 +86,20 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["index_name", "columns"],
+        "required": [
+          "index_name",
+          "columns"
+        ],
         "properties": {
-          "index_name": { "type": "string" },
-          "columns": { "type": "array", "items": { "type": "string" } }
+          "index_name": {
+            "type": "string"
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       }
     },
@@ -50,13 +107,35 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["constraint_name", "columns", "referenced_schema", "referenced_table", "referenced_columns"],
+        "required": [
+          "constraint_name",
+          "columns",
+          "referenced_schema",
+          "referenced_table",
+          "referenced_columns"
+        ],
         "properties": {
-          "constraint_name": { "type": "string" },
-          "columns": { "type": "array", "items": { "type": "string" } },
-          "referenced_schema": { "type": "string" },
-          "referenced_table": { "type": "string" },
-          "referenced_columns": { "type": "array", "items": { "type": "string" } }
+          "constraint_name": {
+            "type": "string"
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "referenced_schema": {
+            "type": "string"
+          },
+          "referenced_table": {
+            "type": "string"
+          },
+          "referenced_columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       }
     },
@@ -65,27 +144,47 @@
       "description": "Columns with automatic sequence generation. Normalized from identity (SQL Server), autoincrement (Snowflake), or generated always (Spark).",
       "items": {
         "type": "object",
-        "required": ["column"],
+        "required": [
+          "column"
+        ],
         "properties": {
-          "column": { "type": "string" },
-          "seed": { "type": "integer" },
-          "increment": { "type": "integer" },
+          "column": {
+            "type": "string"
+          },
+          "seed": {
+            "type": "integer"
+          },
+          "increment": {
+            "type": "integer"
+          },
           "mechanism": {
             "type": "string",
-            "enum": ["identity", "autoincrement", "sequence", "generated_always"],
-            "description": "Source mechanism. Informational only — downstream agents use presence/absence, not mechanism."
+            "enum": [
+              "identity",
+              "autoincrement",
+              "sequence",
+              "generated_always"
+            ],
+            "description": "Source mechanism. Informational only \u2014 downstream agents use presence/absence, not mechanism."
           }
         }
       }
     },
     "change_capture": {
       "type": "object",
-      "description": "Change-tracking metadata. Optional — absent means not detected or not applicable.",
+      "description": "Change-tracking metadata. Optional \u2014 absent means not detected or not applicable.",
       "properties": {
-        "enabled": { "type": "boolean" },
+        "enabled": {
+          "type": "boolean"
+        },
         "mechanism": {
           "type": "string",
-          "enum": ["cdc", "change_tracking", "stream", "change_data_feed"],
+          "enum": [
+            "cdc",
+            "change_tracking",
+            "stream",
+            "change_data_feed"
+          ],
           "description": "Source mechanism: cdc/change_tracking (SQL Server), stream (Snowflake), change_data_feed (Delta/Spark)."
         }
       }
@@ -94,11 +193,21 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["column", "label", "information_type"],
+        "required": [
+          "column",
+          "label",
+          "information_type"
+        ],
         "properties": {
-          "column": { "type": "string" },
-          "label": { "type": "string" },
-          "information_type": { "type": "string" }
+          "column": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "information_type": {
+            "type": "string"
+          }
         }
       }
     },
@@ -107,7 +216,9 @@
       "description": "Technology-specific metadata with no cross-platform equivalent. Keyed by technology name. Downstream agents may inspect but must not require.",
       "additionalProperties": true
     },
-    "referenced_by": { "$ref": "#/$defs/reference_groups" },
+    "referenced_by": {
+      "$ref": "#/$defs/reference_groups"
+    },
     "profile": {
       "description": "Written by the /profiling-table skill or profiler agent. Not present after setup-ddl, only after profiling.",
       "$ref": "#/$defs/profile_section"
@@ -115,18 +226,43 @@
     "refactor": {
       "type": "object",
       "description": "Refactoring results written by the /refactoring-sql skill. Not present until after refactoring.",
-      "required": ["status"],
+      "required": [
+        "status"
+      ],
       "properties": {
-        "status": { "type": "string", "enum": ["ok", "partial", "error"] },
-        "extracted_sql": { "type": "string", "description": "Pure SELECT equivalent of the procedure's write operation." },
-        "refactored_sql": { "type": "string", "description": "CTE-structured SELECT ready for dbt model generation." },
-        "warnings": { "type": "array", "items": { "$ref": "common.json#/$defs/diagnostics_entry" } },
-        "errors": { "type": "array", "items": { "$ref": "common.json#/$defs/diagnostics_entry" } }
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "partial",
+            "error"
+          ]
+        },
+        "extracted_sql": {
+          "type": "string",
+          "description": "Pure SELECT equivalent of the procedure's write operation."
+        },
+        "refactored_sql": {
+          "type": "string",
+          "description": "CTE-structured SELECT ready for dbt model generation."
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "$ref": "common.json#/$defs/diagnostics_entry"
+          }
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "$ref": "common.json#/$defs/diagnostics_entry"
+          }
+        }
       }
     },
     "is_source": {
       "type": "boolean",
-      "description": "When true, this table is a dbt source reference — excluded from the migration pipeline and included in sources.yml. Set by discover write-source or confirmed during /init-dbt."
+      "description": "When true, this table is a dbt source reference \u2014 excluded from the migration pipeline and included in sources.yml. Set by discover write-source or confirmed during /init-dbt."
     },
     "scoping": {
       "type": "object",
@@ -134,7 +270,12 @@
       "properties": {
         "status": {
           "type": "string",
-          "enum": ["resolved", "ambiguous_multi_writer", "no_writer_found", "error"]
+          "enum": [
+            "resolved",
+            "ambiguous_multi_writer",
+            "no_writer_found",
+            "error"
+          ]
         },
         "selected_writer": {
           "type": "string",
@@ -148,28 +289,54 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["procedure_name", "rationale"],
+            "required": [
+              "procedure_name",
+              "rationale"
+            ],
             "properties": {
-              "procedure_name": { "type": "string" },
+              "procedure_name": {
+                "type": "string"
+              },
               "dependencies": {
                 "type": "object",
                 "properties": {
-                  "tables": { "type": "array", "items": { "type": "string" } },
-                  "views": { "type": "array", "items": { "type": "string" } },
-                  "functions": { "type": "array", "items": { "type": "string" } }
+                  "tables": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "views": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "functions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
                 }
               },
-              "rationale": { "type": "string" }
+              "rationale": {
+                "type": "string"
+              }
             }
           }
         },
         "warnings": {
           "type": "array",
-          "items": { "$ref": "common.json#/$defs/diagnostics_entry" }
+          "items": {
+            "$ref": "common.json#/$defs/diagnostics_entry"
+          }
         },
         "errors": {
           "type": "array",
-          "items": { "$ref": "common.json#/$defs/diagnostics_entry" }
+          "items": {
+            "$ref": "common.json#/$defs/diagnostics_entry"
+          }
         }
       }
     }
@@ -178,53 +345,144 @@
     "reference_groups": {
       "type": "object",
       "description": "Inbound references grouped by object type. Each type splits into in_scope and out_of_scope.",
-      "required": ["procedures", "views", "functions"],
+      "required": [
+        "procedures",
+        "views",
+        "functions"
+      ],
       "properties": {
-        "procedures": { "$ref": "common.json#/$defs/scoped_ref_list" },
-        "views": { "$ref": "common.json#/$defs/scoped_ref_list" },
-        "functions": { "$ref": "common.json#/$defs/scoped_ref_list" }
+        "procedures": {
+          "$ref": "common.json#/$defs/scoped_ref_list"
+        },
+        "views": {
+          "$ref": "common.json#/$defs/scoped_ref_list"
+        },
+        "functions": {
+          "$ref": "common.json#/$defs/scoped_ref_list"
+        }
       }
     },
     "profile_section": {
       "type": "object",
-      "required": ["status", "writer"],
+      "required": [
+        "status",
+        "writer"
+      ],
       "properties": {
-        "status": { "type": "string", "enum": ["ok", "partial", "error"] },
-        "writer": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "partial",
+            "error"
+          ]
+        },
+        "writer": {
+          "type": "string"
+        },
         "classification": {
           "type": "object",
           "properties": {
             "resolved_kind": {
               "type": "string",
-              "enum": ["dim_non_scd", "dim_scd1", "dim_scd2", "dim_junk", "fact_transaction", "fact_periodic_snapshot", "fact_accumulating_snapshot", "fact_aggregate"]
+              "enum": [
+                "dim_non_scd",
+                "dim_scd1",
+                "dim_scd2",
+                "dim_junk",
+                "fact_transaction",
+                "fact_periodic_snapshot",
+                "fact_accumulating_snapshot",
+                "fact_aggregate"
+              ]
             },
-            "rationale": { "type": "string" },
-            "source": { "type": "string", "enum": ["catalog", "llm", "catalog+llm"] }
+            "rationale": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "catalog",
+                "llm",
+                "catalog+llm"
+              ]
+            }
           }
         },
         "primary_key": {
           "type": "object",
           "properties": {
-            "columns": { "type": "array", "items": { "type": "string" } },
-            "primary_key_type": { "type": "string", "enum": ["surrogate", "natural", "composite", "unknown"] },
-            "rationale": { "type": "string", "description": "Why these columns were identified as the primary key and why this PK type." },
-            "source": { "type": "string", "enum": ["catalog", "llm", "catalog+llm"] }
+            "columns": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "primary_key_type": {
+              "type": "string",
+              "enum": [
+                "surrogate",
+                "natural",
+                "composite",
+                "unknown"
+              ]
+            },
+            "rationale": {
+              "type": "string",
+              "description": "Why these columns were identified as the primary key and why this PK type."
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "catalog",
+                "llm",
+                "catalog+llm"
+              ]
+            }
           }
         },
         "natural_key": {
           "type": "object",
           "properties": {
-            "columns": { "type": "array", "items": { "type": "string" } },
-            "rationale": { "type": "string" },
-            "source": { "type": "string", "enum": ["catalog", "llm", "catalog+llm"] }
+            "columns": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "rationale": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "catalog",
+                "llm",
+                "catalog+llm"
+              ]
+            }
           }
         },
         "watermark": {
           "type": "object",
           "properties": {
-            "column": { "type": "string" },
-            "rationale": { "type": "string" },
-            "source": { "type": "string", "enum": ["catalog", "llm", "catalog+llm"] }
+            "column": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rationale": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "catalog",
+                "llm",
+                "catalog+llm"
+              ]
+            }
           }
         },
         "foreign_keys": {
@@ -232,12 +490,35 @@
           "items": {
             "type": "object",
             "properties": {
-              "column": { "type": "string" },
-              "references_source_relation": { "type": "string" },
-              "references_column": { "type": "string" },
-              "fk_type": { "type": "string", "enum": ["standard", "role_playing", "degenerate"] },
-              "rationale": { "type": "string", "description": "Why this FK type was chosen (standard vs role_playing vs degenerate)." },
-              "source": { "type": "string", "enum": ["catalog", "llm", "catalog+llm"] }
+              "column": {
+                "type": "string"
+              },
+              "references_source_relation": {
+                "type": "string"
+              },
+              "references_column": {
+                "type": "string"
+              },
+              "fk_type": {
+                "type": "string",
+                "enum": [
+                  "standard",
+                  "role_playing",
+                  "degenerate"
+                ]
+              },
+              "rationale": {
+                "type": "string",
+                "description": "Why this FK type was chosen (standard vs role_playing vs degenerate)."
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "catalog",
+                  "llm",
+                  "catalog+llm"
+                ]
+              }
             }
           }
         },
@@ -246,16 +527,48 @@
           "items": {
             "type": "object",
             "properties": {
-              "column": { "type": "string" },
-              "entity": { "type": "string" },
-              "suggested_action": { "type": "string", "enum": ["mask", "drop", "tokenize", "keep"] },
-              "rationale": { "type": "string", "description": "Why this PII action was suggested for this column." },
-              "source": { "type": "string", "enum": ["catalog", "llm", "catalog+llm"] }
+              "column": {
+                "type": "string"
+              },
+              "entity": {
+                "type": "string"
+              },
+              "suggested_action": {
+                "type": "string",
+                "enum": [
+                  "mask",
+                  "drop",
+                  "tokenize",
+                  "keep"
+                ]
+              },
+              "rationale": {
+                "type": "string",
+                "description": "Why this PII action was suggested for this column."
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "catalog",
+                  "llm",
+                  "catalog+llm"
+                ]
+              }
             }
           }
         },
-        "warnings": { "type": "array", "items": { "$ref": "common.json#/$defs/diagnostics_entry" } },
-        "errors": { "type": "array", "items": { "$ref": "common.json#/$defs/diagnostics_entry" } }
+        "warnings": {
+          "type": "array",
+          "items": {
+            "$ref": "common.json#/$defs/diagnostics_entry"
+          }
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "$ref": "common.json#/$defs/diagnostics_entry"
+          }
+        }
       }
     }
   }
