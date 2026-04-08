@@ -60,7 +60,9 @@
   "primary_keys": [
     {
       "constraint_name": "PK_dim_address",
-      "columns": ["address_key"]
+      "columns": [
+        "address_key"
+      ]
     }
   ],
   "unique_indexes": [],
@@ -82,14 +84,46 @@
           "is_selected": false,
           "is_updated": true,
           "columns": [
-            { "name": "address_id", "is_selected": false, "is_updated": true },
-            { "name": "address_line_1", "is_selected": false, "is_updated": true },
-            { "name": "city", "is_selected": false, "is_updated": true },
-            { "name": "state_province_id", "is_selected": false, "is_updated": true },
-            { "name": "postal_code", "is_selected": false, "is_updated": true },
-            { "name": "valid_from", "is_selected": false, "is_updated": true },
-            { "name": "valid_to", "is_selected": false, "is_updated": true },
-            { "name": "is_current", "is_selected": false, "is_updated": true }
+            {
+              "name": "address_id",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "address_line_1",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "city",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "state_province_id",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "postal_code",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "valid_from",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "valid_to",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "is_current",
+              "is_selected": false,
+              "is_updated": true
+            }
           ]
         }
       ],
@@ -107,5 +141,58 @@
   "scoping": {
     "status": "resolved",
     "selected_writer": "dbo.usp_load_dim_address_and_credit_card"
+  },
+  "profile": {
+    "status": "ok",
+    "writer": "dbo.usp_load_dim_address_and_credit_card",
+    "classification": {
+      "resolved_kind": "dim_scd2",
+      "source": "llm",
+      "rationale": "MERGE statement uses expire-and-insert pattern with valid_to/is_current columns, characteristic of SCD2 slowly-changing dimension."
+    },
+    "primary_key": {
+      "primary_key_type": "surrogate",
+      "source": "catalog",
+      "rationale": "Catalog declares address_key as PK with auto-increment identity mechanism."
+    },
+    "natural_key": {
+      "columns": [
+        "address_id"
+      ],
+      "source": "llm",
+      "rationale": "MERGE ON clause uses address_id as the natural join key to correlate staging rows with target dimension rows."
+    },
+    "watermark": {
+      "column": "valid_from",
+      "source": "llm",
+      "rationale": "valid_from captures the datetime when each version becomes current, enabling incremental loading via microbatch strategy."
+    },
+    "foreign_keys": [],
+    "pii_actions": [
+      {
+        "column": "address_line_1",
+        "suggested_action": "mask",
+        "source": "llm",
+        "rationale": "Street address is explicit PII; mask to protect location privacy."
+      },
+      {
+        "column": "city",
+        "suggested_action": "mask",
+        "source": "llm",
+        "rationale": "City/locality is personal location data; mask for privacy."
+      },
+      {
+        "column": "postal_code",
+        "suggested_action": "mask",
+        "source": "llm",
+        "rationale": "Postal code matches PII pattern in signal table; mask to prevent geographic identification."
+      },
+      {
+        "column": "address_id",
+        "suggested_action": "keep",
+        "source": "llm",
+        "rationale": "Business key for address grain; necessary for grain definition and dbt model structure."
+      }
+    ]
   }
 }

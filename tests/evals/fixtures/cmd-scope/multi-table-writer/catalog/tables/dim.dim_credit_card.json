@@ -54,7 +54,9 @@
   "primary_keys": [
     {
       "constraint_name": "PK_dim_credit_card",
-      "columns": ["credit_card_key"]
+      "columns": [
+        "credit_card_key"
+      ]
     }
   ],
   "unique_indexes": [],
@@ -76,13 +78,41 @@
           "is_selected": false,
           "is_updated": true,
           "columns": [
-            { "name": "credit_card_id", "is_selected": false, "is_updated": true },
-            { "name": "card_type", "is_selected": false, "is_updated": true },
-            { "name": "exp_month", "is_selected": false, "is_updated": true },
-            { "name": "exp_year", "is_selected": false, "is_updated": true },
-            { "name": "valid_from", "is_selected": false, "is_updated": true },
-            { "name": "valid_to", "is_selected": false, "is_updated": true },
-            { "name": "is_current", "is_selected": false, "is_updated": true }
+            {
+              "name": "credit_card_id",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "card_type",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "exp_month",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "exp_year",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "valid_from",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "valid_to",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "is_current",
+              "is_selected": false,
+              "is_updated": true
+            }
           ]
         }
       ],
@@ -96,5 +126,18 @@
       "in_scope": [],
       "out_of_scope": []
     }
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "dbo.usp_load_dim_address_and_credit_card",
+    "selected_writer_rationale": "Single direct writer. This is a multi-table-writer procedure that also writes to dim.dim_address; the logic is separable with a distinct MERGE block for dim.dim_credit_card.",
+    "warnings": [
+      {
+        "code": "MULTI_TABLE_WRITE",
+        "message": "Procedure writes to 2 tables: dim.dim_address, dim.dim_credit_card. Each table will require a separate dbt model.",
+        "severity": "warning"
+      }
+    ],
+    "errors": []
   }
 }

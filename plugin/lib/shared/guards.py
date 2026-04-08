@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 STAGES = ("scope", "profile", "test-gen", "refactor", "migrate")
 
 KNOWN_TECHNOLOGIES = frozenset({
-    "sql_server", "fabric_warehouse", "fabric_lakehouse", "snowflake", "oracle",
+    "sql_server", "mssql", "fabric_warehouse", "fabric_lakehouse", "snowflake", "oracle",
 })
 
 
