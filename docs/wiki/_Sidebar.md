@@ -29,10 +29,8 @@
 - [[Skill Scoping Table]]
 - [[Skill Profiling Table]]
 - [[Skill Generating Tests]]
-- [[Skill Reviewing Tests]]
 - [[Skill Refactoring SQL]]
 - [[Skill Generating Model]]
-- [[Skill Reviewing Model]]
 
 **Operations**
 

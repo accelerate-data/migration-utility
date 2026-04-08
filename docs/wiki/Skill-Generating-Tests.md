@@ -259,7 +259,7 @@ Re-invoking the skill on the same table runs in merge mode: existing scenarios a
 
 ## Handling Reviewer Feedback
 
-When invoked with a `feedback_for_generator` JSON block (from [[Skill Reviewing Tests]]):
+When invoked with a `feedback_for_generator` JSON block (from the test reviewer sub-agent):
 
 - **`uncovered_branches`**: list of branch IDs missing coverage. New scenarios are generated for each listed branch and added to `unit_tests[]`.
 - **`quality_fixes`**: per-scenario remediation instructions. Named scenarios are revised in `unit_tests[]` as directed.
@@ -274,7 +274,7 @@ The test generator must not:
 - Generate dbt SQL model files
 - Render YAML -- `unit_tests[]` is structured JSON; dbt YAML conversion happens post-execution
 - Make materialization or business key decisions
-- Score its own coverage authoritatively -- [[Skill Reviewing Tests]] does that
+- Score its own coverage authoritatively -- the test reviewer sub-agent does that
 
 ## Troubleshooting
 
