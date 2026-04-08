@@ -835,4 +835,56 @@ def test_write_source_unanalyzed_guard_raises() -> None:
             discover.run_write_source(root, "silver.fresh", True)
 
 
+# ── write-slice tests ─────────────────────────────────────────────────────────
 
+
+def _make_proc_cat(root: Path, fqn: str) -> Path:
+    """Create a minimal proc catalog file at catalog/procedures/<fqn>.json."""
+    proc_dir = root / "catalog" / "procedures"
+    proc_dir.mkdir(parents=True, exist_ok=True)
+    schema, name = fqn.split(".", 1)
+    data = {
+        "schema": schema,
+        "name": name,
+        "references": {
+            "tables": {"in_scope": [], "out_of_scope": []},
+        },
+    }
+    path = proc_dir / f"{fqn}.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return path
+
+
+class TestWriteTableSlice:
+
+    def test_write_table_slice_happy_path(self, assert_valid_schema) -> None:
+        """run_write_table_slice writes slice text into proc catalog table_slices."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _make_proc_cat(root, "dbo.usp_multi")
+            result = discover.run_write_table_slice(root, "dbo.usp_multi", "dim.target", "MERGE INTO dim.target ...")
+            assert_valid_schema(result, "write_slice_output.json")
+            assert result["status"] == "ok"
+            proc_path = root / "catalog" / "procedures" / "dbo.usp_multi.json"
+            written = json.loads(proc_path.read_text(encoding="utf-8"))
+            assert written["table_slices"]["dim.target"] == "MERGE INTO dim.target ..."
+
+    def test_write_table_slice_accumulates(self, assert_valid_schema) -> None:
+        """run_write_table_slice accumulates slices for distinct tables under the same proc."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _make_proc_cat(root, "dbo.usp_multi")
+            discover.run_write_table_slice(root, "dbo.usp_multi", "dim.table_a", "INSERT INTO dim.table_a ...")
+            discover.run_write_table_slice(root, "dbo.usp_multi", "dim.table_b", "INSERT INTO dim.table_b ...")
+            proc_path = root / "catalog" / "procedures" / "dbo.usp_multi.json"
+            written = json.loads(proc_path.read_text(encoding="utf-8"))
+            assert "dim.table_a" in written["table_slices"]
+            assert "dim.table_b" in written["table_slices"]
+
+    def test_write_table_slice_missing_catalog(self) -> None:
+        """run_write_table_slice raises CatalogFileMissingError when proc catalog is absent."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "catalog" / "procedures").mkdir(parents=True)
+            with pytest.raises(CatalogFileMissingError):
+                discover.run_write_table_slice(root, "dbo.usp_nonexistent", "dim.target", "SELECT 1")

@@ -665,3 +665,32 @@ def test_guard_view_scoping_missing_section() -> None:
         result = check_view_scoping_analyzed(root, "silver.vw_NoScope")
         assert result["passed"] is False
         assert result["code"] == "VIEW_SCOPING_NOT_COMPLETED"
+
+
+# ── Context: writer_ddl_slice ─────────────────────────────────────────────────
+
+
+class TestContextWriterSlice:
+
+    def test_run_context_includes_writer_ddl_slice(self, assert_valid_schema) -> None:
+        """run_context returns writer_ddl_slice when the proc catalog has table_slices for the target table."""
+        tmp, root = _make_writable_copy()
+        try:
+            proc_path = root / "catalog" / "procedures" / "dbo.usp_load_fact_sales.json"
+            proc_cat = json.loads(proc_path.read_text(encoding="utf-8"))
+            proc_cat["table_slices"] = {"silver.factsales": "MERGE INTO silver.FactSales ..."}
+            proc_path.write_text(json.dumps(proc_cat), encoding="utf-8")
+
+            result = profile.run_context(root, "silver.FactSales", "dbo.usp_load_fact_sales")
+            assert_valid_schema(result, "profile_context.json")
+            assert result["writer_ddl_slice"] == "MERGE INTO silver.FactSales ..."
+        finally:
+            tmp.cleanup()
+
+    def test_run_context_writer_ddl_slice_absent(self, assert_valid_schema) -> None:
+        """run_context returns writer_ddl_slice as None when proc catalog has no table_slices."""
+        result = profile.run_context(
+            _PROFILE_FIXTURES, "silver.FactSales", "dbo.usp_load_fact_sales",
+        )
+        assert_valid_schema(result, "profile_context.json")
+        assert result.get("writer_ddl_slice") is None

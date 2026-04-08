@@ -127,7 +127,7 @@
       }
     },
     "writer_ddl_slice": {
-      "type": "string",
+      "type": ["string", "null"],
       "description": "DDL slice for the target table extracted from a multi-table-writer proc. Present only when the writer is a multi-table proc and the slice has been written to the proc catalog."
     }
   }

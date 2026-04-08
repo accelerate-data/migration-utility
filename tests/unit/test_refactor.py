@@ -451,3 +451,28 @@ def test_cli_sweep_success() -> None:
     data = json.loads(result.output)
     assert "objects" in data
     assert len(data["objects"]) == 2
+
+
+# ── Context: writer_ddl_slice ─────────────────────────────────────────────────
+
+
+class TestContextWriterSlice:
+
+    def test_run_context_includes_writer_ddl_slice(self, assert_valid_schema) -> None:
+        """run_context returns writer_ddl_slice when the proc catalog has table_slices for the target table."""
+        tmp, root = _make_writable_copy()
+        with tmp:
+            proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
+            proc_cat = json.loads(proc_path.read_text(encoding="utf-8"))
+            proc_cat["table_slices"] = {"silver.dimcustomer": "MERGE INTO dim.dimcustomer ..."}
+            proc_path.write_text(json.dumps(proc_cat), encoding="utf-8")
+
+            result = refactor.run_context(root, "silver.DimCustomer")
+            assert_valid_schema(result, "refactor_context_output.json")
+            assert result["writer_ddl_slice"] == "MERGE INTO dim.dimcustomer ..."
+
+    def test_run_context_writer_ddl_slice_absent(self, assert_valid_schema) -> None:
+        """run_context returns writer_ddl_slice as None when proc catalog has no table_slices."""
+        result = refactor.run_context(_REFACTOR_FIXTURES, "silver.DimCustomer")
+        assert_valid_schema(result, "refactor_context_output.json")
+        assert result.get("writer_ddl_slice") is None

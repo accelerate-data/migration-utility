@@ -357,6 +357,7 @@ class TestMultiTableWrite:
         assert result is not None
         assert result.code == "MULTI_TABLE_WRITE"
         assert result.severity == "warning"
+        assert result.message == "Procedure writes to 2 tables: dbo.target_a, dbo.target_b. Each table will require a separate dbt model."
         assert len(result.details["tables"]) == 2
         assert "dbo.target_a" in result.details["tables"]
         assert "dbo.target_b" in result.details["tables"]
