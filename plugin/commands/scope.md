@@ -1,15 +1,15 @@
 ---
 name: scope
 description: >
-  Batch scoping command — identifies writer procedures for each table, and analyzes SQL structure for each view or materialized view.
-  Delegates per-item scoping to the /analyzing-table skill.
+  Batch scoping command — identifies writer procedures for tables, analyzes SQL structure for views/MVs.
+  Delegates per-item scoping to the /analyzing-table skill (auto-detects table vs view).
 user-invocable: true
 argument-hint: "<schema.table_or_view> [schema.table_or_view ...]"
 ---
 
 # Scope
 
-Identify which procedures write to each table, or analyze SQL structure for each view or materialized view. Launches one sub-agent per item in parallel, routing tables to `migration:analyzing-table` and views to `migration:analyzing-view`.
+Identify which procedures write to each table, or analyze SQL structure for each view or materialized view. Launches one sub-agent per item in parallel using `migration:analyzing-table` (which auto-detects table vs view).
 
 ## Guards
 
@@ -42,10 +42,7 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 
 ### Step 2 — Run skill per item
 
-**Single-item path (1 item):** Run the appropriate skill directly in the current conversation — do not launch a sub-agent:
-
-- Table → `migration:analyzing-table`
-- View/MV → `migration:analyzing-view`
+**Single-item path (1 item):** Run `migration:analyzing-table` directly in the current conversation — do not launch a sub-agent. The skill auto-detects table vs view from catalog presence.
 
 After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.item>.<epoch>.json`.
 
@@ -64,7 +61,7 @@ Then continue to Step 3.
 **Multi-item path (2+ items):** Launch one sub-agent per item in parallel. Each sub-agent receives this prompt:
 
 ```text
-Run the migration:analyzing-<object_type> skill for <schema.item>.
+Run the migration:analyzing-table skill for <schema.item>.
 The working directory is <working-directory>.
 Write the item result JSON to .migration-runs/<schema.item>.<epoch>.json.
 

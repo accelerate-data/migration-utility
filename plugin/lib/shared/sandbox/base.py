@@ -87,6 +87,31 @@ class SandboxBackend(ABC):
         """Check whether the sandbox database exists and is accessible."""
 
     @abstractmethod
+    def execute_select(
+        self,
+        sandbox_db: str,
+        sql: str,
+        fixtures: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Seed fixtures, run a SELECT, return result rows.
+
+        Within a single transaction (rolled back at the end):
+        1. Seed fixture rows into tables
+        2. Execute *sql* (a pure SELECT/WITH statement)
+        3. Capture and return result rows
+
+        Returns::
+
+            {
+                "status": "ok" | "error",
+                "scenario_name": str,
+                "ground_truth_rows": list[dict],
+                "row_count": int,
+                "errors": list[dict],
+            }
+        """
+
+    @abstractmethod
     def compare_two_sql(
         self,
         sandbox_db: str,

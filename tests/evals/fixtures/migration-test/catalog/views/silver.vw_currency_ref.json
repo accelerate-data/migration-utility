@@ -3,12 +3,9 @@
   "name": "vw_currency_ref",
   "is_materialized_view": false,
   "scoping": {
-    "status": "analyzed"
-  },
-  "profile": {
-    "status": "ok",
-    "classification": "stg",
-    "source": "llm"
+    "status": "analyzed",
+    "sql_elements": [],
+    "logic_summary": "Simple pass-through view over silver.RefCurrency with no aggregation or joins."
   },
   "references": {
     "tables": {

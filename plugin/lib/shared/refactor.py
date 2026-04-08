@@ -27,6 +27,7 @@ import typer
 
 from shared.catalog import (
     load_table_catalog,
+    load_view_catalog,
     read_selected_writer,
     write_json as _write_catalog_json,
 )
@@ -38,6 +39,7 @@ from shared.context_helpers import (
     load_table_columns,
     load_table_profile,
     load_test_spec,
+    load_view_sql,
     sandbox_metadata,
 )
 from shared.loader import (
@@ -126,44 +128,98 @@ def symmetric_diff(
 # ── Context assembly ─────────────────────────────────────────────────────────
 
 
+def _run_context_view(
+    project_root: Path,
+    fqn_norm: str,
+    cat: dict[str, Any],
+) -> dict[str, Any]:
+    """Assemble refactoring context for a view or materialized view."""
+    view_sql = cat.get("sql")
+    if not view_sql:
+        raise ValueError(f"View catalog for {fqn_norm} has no 'sql' key")
+
+    columns = cat.get("columns", [])
+    profile = cat.get("profile")
+    if profile is None:
+        raise ValueError(f"View catalog for {fqn_norm} has no 'profile' section — run /profile first")
+
+    refs = cat.get("references", {})
+    source_tables: list[str] = []
+    for t in refs.get("tables", {}).get("in_scope", []):
+        source_tables.append(normalize(f"{t['schema']}.{t['name']}"))
+    source_tables = sorted(set(source_tables))
+
+    object_type = "mv" if cat.get("is_materialized_view") else "view"
+    test_spec = load_test_spec(project_root, fqn_norm)
+    sandbox = sandbox_metadata(project_root)
+
+    logger.info(
+        "event=context_assembled object_type=%s table=%s source_tables=%d",
+        object_type, fqn_norm, len(source_tables),
+    )
+
+    return {
+        "table": fqn_norm,
+        "object_type": object_type,
+        "view_sql": view_sql,
+        "profile": profile,
+        "columns": columns,
+        "source_tables": source_tables,
+        "test_spec": test_spec,
+        "sandbox": sandbox,
+    }
+
+
 def run_context(
     project_root: Path,
     table_fqn: str,
     writer_fqn: str | None = None,
 ) -> dict[str, Any]:
-    """Assemble refactoring context for a single table/writer pair.
+    """Assemble refactoring context for a table, view, or materialized view.
 
-    If *writer_fqn* is not provided, reads ``scoping.selected_writer``
-    from the table catalog.  Raises ``ValueError`` if neither is available.
+    Auto-detects object type from catalog presence:
+    - If ``catalog/views/<fqn>.json`` exists → view path (no writer needed)
+    - Otherwise → table path (requires writer procedure)
+
+    For tables, if *writer_fqn* is not provided, reads
+    ``scoping.selected_writer`` from the table catalog.
     """
-    table_norm = normalize(table_fqn)
+    fqn_norm = normalize(table_fqn)
+
+    # Auto-detect: view/MV takes precedence when no explicit writer is given
     if not writer_fqn:
-        writer_fqn = read_selected_writer(project_root, table_norm)
+        view_cat = load_view_catalog(project_root, fqn_norm)
+        if view_cat is not None:
+            return _run_context_view(project_root, fqn_norm, view_cat)
+
+    # Table path
+    if not writer_fqn:
+        writer_fqn = read_selected_writer(project_root, fqn_norm)
         if not writer_fqn:
             raise ValueError(
-                f"No writer provided and no scoping.selected_writer in catalog for {table_norm}"
+                f"No writer provided and no scoping.selected_writer in catalog for {fqn_norm}"
             )
     writer_norm = normalize(writer_fqn)
 
-    profile = load_table_profile(project_root, table_norm)
+    profile = load_table_profile(project_root, fqn_norm)
     statements = load_proc_statements(project_root, writer_norm)
     proc_body = load_proc_body(project_root, writer_norm)
-    columns = load_table_columns(project_root, table_norm)
+    columns = load_table_columns(project_root, fqn_norm)
     source_tables = collect_source_tables(project_root, writer_norm)
     source_columns = {
         fqn: load_object_columns(project_root, fqn) for fqn in source_tables
     }
-    test_spec = load_test_spec(project_root, table_norm)
+    test_spec = load_test_spec(project_root, fqn_norm)
     sandbox = sandbox_metadata(project_root)
 
     logger.info(
         "event=context_assembled table=%s writer=%s source_tables=%d test_scenarios=%d",
-        table_norm, writer_norm, len(source_tables),
+        fqn_norm, writer_norm, len(source_tables),
         len(test_spec.get("unit_tests", [])) if test_spec else 0,
     )
 
     return {
-        "table": table_norm,
+        "table": fqn_norm,
         "writer": writer_norm,
         "proc_body": proc_body,
         "profile": profile,
@@ -207,10 +263,11 @@ def run_write(
     refactored_sql: str,
     status: str,
 ) -> dict[str, Any]:
-    """Validate and merge a refactor section into the writer procedure's catalog.
+    """Validate and merge a refactor section into the catalog.
 
-    Resolves the writer from the table catalog's ``scoping.selected_writer``,
-    then persists the refactor block on the procedure catalog file.
+    Auto-detects object type:
+    - If ``catalog/views/<fqn>.json`` exists → writes refactor block to view catalog
+    - Otherwise → resolves writer from table catalog, writes to procedure catalog
 
     Returns a confirmation dict on success.
     Raises ValueError on validation failure, OSError/json.JSONDecodeError on IO error.
@@ -227,7 +284,12 @@ def run_write(
     if errors:
         raise ValueError(f"Refactor validation failed for {table_norm}: {'; '.join(errors)}")
 
-    # Resolve writer from table catalog
+    # Auto-detect: check view catalog first
+    view_cat = load_view_catalog(project_root, table_norm)
+    if view_cat is not None:
+        return _run_write_view(project_root, table_norm, view_cat, refactor_data)
+
+    # Table path: resolve writer from table catalog
     writer_fqn = read_selected_writer(project_root, table_norm)
     if not writer_fqn:
         raise ValueError(
@@ -271,6 +333,38 @@ def run_write(
         "ok": True,
         "table": table_norm,
         "writer": writer_norm,
+        "catalog_path": str(catalog_path),
+    }
+
+
+def _run_write_view(
+    project_root: Path,
+    fqn_norm: str,
+    view_cat: dict[str, Any],
+    refactor_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Write refactor block to a view catalog file."""
+    catalog_path = resolve_catalog_dir(project_root) / "views" / f"{fqn_norm}.json"
+
+    view_cat["refactor"] = refactor_data
+
+    try:
+        _write_catalog_json(catalog_path, view_cat)
+    except OSError as exc:
+        logger.error(
+            "event=write_failed operation=atomic_write view=%s error=%s",
+            fqn_norm, exc,
+        )
+        raise
+
+    logger.info(
+        "event=write_complete object_type=view view=%s catalog_path=%s",
+        fqn_norm, catalog_path,
+    )
+    return {
+        "ok": True,
+        "table": fqn_norm,
+        "object_type": "view",
         "catalog_path": str(catalog_path),
     }
 

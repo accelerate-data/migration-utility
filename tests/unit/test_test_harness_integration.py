@@ -496,3 +496,176 @@ class TestIdentityInsertIntegration:
             assert result["status"] == "ok", f"Expected ok, got: {result['errors']}"
         finally:
             backend.sandbox_down(sandbox_db=up["sandbox_database"])
+
+
+@skip_no_mssql
+class TestEnsureViewTablesIntegration:
+    """Verify that view-sourced fixtures are materialised end-to-end in a real SQL Server sandbox."""
+
+    def _create_view(self, backend: SqlServerSandbox, view_name: str) -> None:
+        with backend._connect(database=backend.database) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"CREATE OR ALTER VIEW [silver].[{view_name}] "
+                f"AS SELECT CurrencyCode, CurrencyName FROM [bronze].[Currency]"
+            )
+
+    def _drop_view(self, backend: SqlServerSandbox, view_name: str) -> None:
+        with backend._connect(database=backend.database) as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"DROP VIEW IF EXISTS [silver].[{view_name}]")
+
+    def _create_proc(
+        self, backend: SqlServerSandbox, proc_name: str, view_name: str
+    ) -> None:
+        with backend._connect(database=backend.database) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"""
+                CREATE OR ALTER PROCEDURE [silver].[{proc_name}]
+                AS
+                BEGIN
+                    -- Reads from view fixture; ground truth is whatever remains in target
+                    DECLARE @cnt INT;
+                    SELECT @cnt = COUNT(*) FROM [silver].[{view_name}];
+                END
+                """
+            )
+
+    def _drop_proc(self, backend: SqlServerSandbox, proc_name: str) -> None:
+        with backend._connect(database=backend.database) as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"DROP PROCEDURE IF EXISTS [silver].[{proc_name}]")
+
+    def test_view_fixture_executes_without_error(self) -> None:
+        """execute_scenario succeeds when a fixture source is a view in the source DB."""
+        backend = _make_backend()
+        view_name = f"vw_test_{uuid.uuid4().hex[:10]}"
+        proc_name = f"usp_fromview_{uuid.uuid4().hex[:10]}"
+
+        self._create_view(backend, view_name)
+        self._create_proc(backend, proc_name, view_name)
+
+        up_result: dict = {}
+        try:
+            up_result = backend.sandbox_up(schemas=["bronze", "silver"])
+            sandbox_db = up_result["sandbox_database"]
+            assert up_result["status"] in ("ok", "partial")
+
+            scenario = {
+                "name": "test_view_fixture",
+                "target_table": "[silver].[DimCurrency]",
+                "procedure": f"[silver].[{proc_name}]",
+                "given": [
+                    {
+                        "table": f"[silver].[{view_name}]",
+                        "rows": [
+                            {"CurrencyCode": "VWT", "CurrencyName": "View Test"},
+                        ],
+                    }
+                ],
+            }
+
+            result = backend.execute_scenario(sandbox_db=sandbox_db, scenario=scenario)
+
+            assert result["status"] == "ok", result["errors"]
+            assert result["errors"] == []
+        finally:
+            if up_result.get("sandbox_database"):
+                backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            self._drop_proc(backend, proc_name)
+            self._drop_view(backend, view_name)
+
+
+@skip_no_mssql
+class TestExecuteSelectIntegration:
+    """execute_select against a real SQL Server sandbox."""
+
+    def test_execute_select_returns_fixture_rows(self) -> None:
+        """execute_select seeds fixtures, runs SELECT, returns correct rows."""
+        backend = _make_backend()
+
+        try:
+            up_result = backend.sandbox_up(schemas=["silver"])
+            sandbox_db = up_result["sandbox_database"]
+            assert up_result["status"] in ("ok", "partial")
+
+            fixtures = [
+                {
+                    "table": "[silver].[DimCurrency]",
+                    "rows": [
+                        {"CurrencyAlternateKey": "USD", "CurrencyName": "US Dollar"},
+                        {"CurrencyAlternateKey": "EUR", "CurrencyName": "Euro"},
+                    ],
+                },
+            ]
+            sql = (
+                "SELECT CurrencyAlternateKey, CurrencyName "
+                "FROM [silver].[DimCurrency] "
+                "ORDER BY CurrencyAlternateKey"
+            )
+
+            result = backend.execute_select(
+                sandbox_db=sandbox_db, sql=sql, fixtures=fixtures,
+            )
+
+            assert result["status"] == "ok", result["errors"]
+            assert result["row_count"] == 2
+            assert result["errors"] == []
+            rows = result["ground_truth_rows"]
+            codes = {r["CurrencyAlternateKey"] for r in rows}
+            assert codes == {"USD", "EUR"}
+        finally:
+            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+
+    def test_execute_select_empty_fixtures(self) -> None:
+        """execute_select with no fixture rows returns 0 rows."""
+        backend = _make_backend()
+
+        try:
+            up_result = backend.sandbox_up(schemas=["silver"])
+            sandbox_db = up_result["sandbox_database"]
+
+            result = backend.execute_select(
+                sandbox_db=sandbox_db,
+                sql="SELECT CurrencyAlternateKey FROM [silver].[DimCurrency]",
+                fixtures=[],
+            )
+
+            assert result["status"] == "ok"
+            assert result["row_count"] == 0
+        finally:
+            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+
+    def test_execute_select_rolls_back_fixtures(self) -> None:
+        """Fixture rows are rolled back after execute_select."""
+        backend = _make_backend()
+
+        try:
+            up_result = backend.sandbox_up(schemas=["silver"])
+            sandbox_db = up_result["sandbox_database"]
+
+            fixtures = [
+                {
+                    "table": "[silver].[DimCurrency]",
+                    "rows": [
+                        {"CurrencyAlternateKey": "ZZZ", "CurrencyName": "Rollback Test"},
+                    ],
+                },
+            ]
+            backend.execute_select(
+                sandbox_db=sandbox_db,
+                sql="SELECT CurrencyAlternateKey FROM [silver].[DimCurrency]",
+                fixtures=fixtures,
+            )
+
+            # Verify fixture row was rolled back
+            with backend._connect(database=sandbox_db) as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT COUNT(*) FROM [silver].[DimCurrency] "
+                    "WHERE CurrencyAlternateKey = 'ZZZ'"
+                )
+                assert cursor.fetchone()[0] == 0, "Fixture row should be rolled back"
+        finally:
+            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])

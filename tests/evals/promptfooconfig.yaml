@@ -39,6 +39,12 @@ prompts:
   - id: refactoring-sql
     label: refactoring-sql
     raw: file://prompts/skill-refactoring-sql.txt
+  - id: analyzing-table-view
+    label: analyzing-table-view
+    raw: file://prompts/skill-analyzing-table-view.txt
+  - id: profiling-table-view
+    label: profiling-table-view
+    raw: file://prompts/skill-profiling-table-view.txt
 
 providers:
   - id: anthropic:claude-agent-sdk
@@ -679,3 +685,36 @@ tests:
     assert:
       - type: javascript
         value: file://assertions/check-refactored-sql.js
+
+  # ── view pipeline ────────────────────────────────────────────
+
+  - description: "analyzing-table — view-passthrough — vDimSalesTerritory single-table select"
+    prompts: ["analyzing-table-view"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_view: "silver.vDimSalesTerritory"
+      check_type: "scoping"
+    assert:
+      - type: javascript
+        value: file://assertions/check-view-catalog.js
+
+  - description: "analyzing-table — view-passthrough — vw_DimPromotion multi-column select"
+    prompts: ["analyzing-table-view"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_view: "silver.vw_DimPromotion"
+      check_type: "scoping"
+    assert:
+      - type: javascript
+        value: file://assertions/check-view-catalog.js
+
+  - description: "profiling-table — view-stg — vw_currency_ref single-source no-agg classifies as stg"
+    prompts: ["profiling-table-view"]
+    vars:
+      fixture_path: "tests/evals/fixtures/migration-test"
+      target_view: "silver.vw_currency_ref"
+      check_type: "profile"
+      expected_classification: "stg"
+    assert:
+      - type: javascript
+        value: file://assertions/check-view-catalog.js

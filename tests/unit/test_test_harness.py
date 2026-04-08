@@ -167,7 +167,17 @@ def _mock_connect_factory(
     sandbox_cursor: MagicMock | None = None,
     default_cursor: MagicMock | None = None,
 ) -> Callable[..., Any]:
-    """Return a _connect side_effect that routes by database keyword arg."""
+    """Return a _connect side_effect that routes by database keyword arg.
+
+    Routing:
+    - database starts with '__test_' → sandbox_cursor (if set)
+    - named non-sandbox database → source_cursor (if set)
+    - database=None (source default) → default_cursor if set, else noop cursor
+    - fallback → noop cursor that returns None for fetchone (not a view)
+
+    The noop fallback keeps existing tests that don't configure every cursor
+    from breaking when _ensure_view_tables opens a source connection.
+    """
     @contextmanager
     def _fake_connect(*, database: str | None = None):
         conn = MagicMock()
@@ -178,7 +188,9 @@ def _mock_connect_factory(
         elif default_cursor is not None:
             conn.cursor.return_value = default_cursor
         else:
-            raise AssertionError(f"Unexpected _connect call: database={database!r}")
+            noop = MagicMock()
+            noop.fetchone.return_value = None  # "not a view" for _ensure_view_tables
+            conn.cursor.return_value = noop
         yield conn
     return _fake_connect
 
@@ -1547,3 +1559,416 @@ class TestOracleSandboxFromEnv:
         assert backend.port == "1521"
         assert backend.service == "FREEPDB1"
         assert backend.admin_user == "sys"
+
+
+# ── _ensure_view_tables (SQL Server) ─────────────────────────────────────────
+
+
+class TestEnsureViewTablesSqlServer:
+    """Unit tests for SqlServerSandbox._ensure_view_tables."""
+
+    def test_view_ctas_executed(self) -> None:
+        """A view in the source DB is materialised as an empty table in the sandbox."""
+        backend = _make_backend()
+        source_cursor = MagicMock()
+        source_cursor.fetchone.return_value = (1,)  # object IS a view
+
+        sandbox_cursor = MagicMock()
+
+        fake_connect = _mock_connect_factory(
+            default_cursor=source_cursor,
+            sandbox_cursor=sandbox_cursor,
+        )
+
+        given = [{"table": "[silver].[vw_product]", "rows": []}]
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            materialized = backend._ensure_view_tables("__test_abc123", given)
+
+        assert materialized == ["silver.vw_product"]
+        calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
+        ctas_calls = [c for c in calls if "SELECT TOP 0" in c]
+        assert len(ctas_calls) == 1
+
+    def test_base_table_skipped(self) -> None:
+        """A base table (not a view) is not CTASed — it is already cloned by _clone_tables."""
+        backend = _make_backend()
+        source_cursor = MagicMock()
+        source_cursor.fetchone.return_value = None  # NOT a view
+
+        sandbox_cursor = MagicMock()
+
+        fake_connect = _mock_connect_factory(
+            default_cursor=source_cursor,
+            sandbox_cursor=sandbox_cursor,
+        )
+
+        given = [{"table": "[bronze].[Currency]", "rows": []}]
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            materialized = backend._ensure_view_tables("__test_abc123", given)
+
+        assert materialized == []
+        sandbox_cursor.execute.assert_not_called()
+
+    def test_stale_object_dropped_before_ctas(self) -> None:
+        """If DROP raises pyodbc.Error, the exception is swallowed and CTAS still runs."""
+        import pyodbc
+
+        backend = _make_backend()
+        source_cursor = MagicMock()
+        source_cursor.fetchone.return_value = (1,)  # IS a view
+
+        sandbox_cursor = MagicMock()
+        sandbox_cursor.execute.side_effect = [
+            pyodbc.Error,  # DROP TABLE IF EXISTS raises
+            None,          # DROP VIEW IF EXISTS succeeds
+            None,          # SELECT TOP 0 * INTO succeeds
+        ]
+
+        fake_connect = _mock_connect_factory(
+            default_cursor=source_cursor,
+            sandbox_cursor=sandbox_cursor,
+        )
+
+        given = [{"table": "[silver].[vw_stale]", "rows": []}]
+
+        with patch.object(backend, "_connect", side_effect=fake_connect):
+            materialized = backend._ensure_view_tables("__test_abc123", given)
+
+        assert materialized == ["silver.vw_stale"]
+        calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
+        ctas_calls = [c for c in calls if "SELECT TOP 0" in c]
+        assert len(ctas_calls) == 1
+
+
+# ── _ensure_view_tables (Oracle) ──────────────────────────────────────────────
+
+
+class TestEnsureViewTablesOracle:
+    """Unit tests for OracleSandbox._ensure_view_tables."""
+
+    def _make_oracle_backend(self) -> OracleSandbox:
+        return OracleSandbox(
+            host="localhost",
+            port="1521",
+            service="FREEPDB1",
+            password="TestPass123",
+            admin_user="sys",
+            source_schema="SH",
+        )
+
+    def test_view_ctas_executed(self) -> None:
+        """A view in the source schema is materialised as an empty table in the sandbox."""
+        backend = self._make_oracle_backend()
+        cursor = MagicMock()
+        cursor.fetchone.return_value = (1,)  # object IS a view
+
+        @contextmanager
+        def _fake_connect(**kwargs):
+            conn = MagicMock()
+            conn.cursor.return_value = cursor
+            yield conn
+
+        given = [{"table": "VW_PRODUCT", "rows": []}]
+
+        with patch.object(backend, "_connect", side_effect=_fake_connect):
+            materialized = backend._ensure_view_tables("__test_abc123", given)
+
+        assert materialized == ["VW_PRODUCT"]
+        calls = [str(c) for c in cursor.execute.call_args_list]
+        ctas_calls = [c for c in calls if "CREATE TABLE" in c]
+        assert len(ctas_calls) == 1
+
+    def test_base_table_skipped(self) -> None:
+        """A base table (not a view) is not CTASed."""
+        backend = self._make_oracle_backend()
+        cursor = MagicMock()
+        cursor.fetchone.return_value = None  # NOT a view
+
+        @contextmanager
+        def _fake_connect(**kwargs):
+            conn = MagicMock()
+            conn.cursor.return_value = cursor
+            yield conn
+
+        given = [{"table": "CHANNELS", "rows": []}]
+
+        with patch.object(backend, "_connect", side_effect=_fake_connect):
+            materialized = backend._ensure_view_tables("__test_abc123", given)
+
+        assert materialized == []
+        calls = [str(c) for c in cursor.execute.call_args_list]
+        ctas_calls = [c for c in calls if "CREATE TABLE" in c]
+        assert len(ctas_calls) == 0
+
+    def test_stale_object_dropped_before_ctas(self) -> None:
+        """If DROP raises oracledb.DatabaseError, the exception is swallowed and CTAS still runs."""
+        import oracledb
+
+        backend = self._make_oracle_backend()
+        cursor = MagicMock()
+        cursor.fetchone.return_value = (1,)  # IS a view
+        cursor.execute.side_effect = [
+            None,                     # SELECT 1 FROM ALL_VIEWS (view check)
+            oracledb.DatabaseError,   # DROP TABLE raises
+            None,                     # CREATE TABLE AS SELECT
+        ]
+
+        @contextmanager
+        def _fake_connect(**kwargs):
+            conn = MagicMock()
+            conn.cursor.return_value = cursor
+            yield conn
+
+        given = [{"table": "VW_STALE", "rows": []}]
+
+        with patch.object(backend, "_connect", side_effect=_fake_connect):
+            materialized = backend._ensure_view_tables("__test_abc123", given)
+
+        assert materialized == ["VW_STALE"]
+        calls = [str(c) for c in cursor.execute.call_args_list]
+        ctas_calls = [c for c in calls if "CREATE TABLE" in c]
+        assert len(ctas_calls) == 1
+
+
+# ── execute_select ─────────────────────────────────────────────────────────
+
+
+class TestExecuteSelectSqlServer:
+    """Unit tests for SqlServerSandbox.execute_select."""
+
+    def test_happy_path_returns_rows(self) -> None:
+        """execute_select seeds fixtures, runs SELECT, returns rows."""
+        backend = SqlServerSandbox(
+            host="localhost", port="1433", database="testdb",
+            password="pw", user="sa", driver="ODBC Driver 18 for SQL Server",
+        )
+        cursor = MagicMock()
+        cursor.description = [("id",), ("name",)]
+        cursor.fetchall.return_value = [(1, "Alice"), (2, "Bob")]
+
+        conn = MagicMock()
+        conn.cursor.return_value = cursor
+
+        @contextmanager
+        def _fake_connect(*, database=None):
+            yield conn
+
+        with patch.object(backend, "_connect", side_effect=_fake_connect), \
+             patch.object(backend, "_ensure_view_tables", return_value=[]), \
+             patch.object(backend, "_seed_fixtures"):
+            result = backend.execute_select(
+                sandbox_db="__test_abc123",
+                sql="SELECT id, name FROM [silver].[Customers]",
+                fixtures=[],
+            )
+
+        assert result["status"] == "ok"
+        assert result["row_count"] == 2
+        assert len(result["ground_truth_rows"]) == 2
+        assert result["errors"] == []
+        conn.rollback.assert_called_once()
+
+    def test_empty_result(self) -> None:
+        """execute_select with no matching rows returns row_count=0."""
+        backend = SqlServerSandbox(
+            host="localhost", port="1433", database="testdb",
+            password="pw", user="sa", driver="ODBC Driver 18 for SQL Server",
+        )
+        cursor = MagicMock()
+        cursor.description = [("id",)]
+        cursor.fetchall.return_value = []
+
+        conn = MagicMock()
+        conn.cursor.return_value = cursor
+
+        @contextmanager
+        def _fake_connect(*, database=None):
+            yield conn
+
+        with patch.object(backend, "_connect", side_effect=_fake_connect), \
+             patch.object(backend, "_ensure_view_tables", return_value=[]), \
+             patch.object(backend, "_seed_fixtures"):
+            result = backend.execute_select(
+                sandbox_db="__test_abc123",
+                sql="SELECT id FROM [silver].[Empty]",
+                fixtures=[],
+            )
+
+        assert result["status"] == "ok"
+        assert result["row_count"] == 0
+        assert result["ground_truth_rows"] == []
+
+    def test_rejects_write_sql(self) -> None:
+        """execute_select rejects SQL containing write operations."""
+        backend = SqlServerSandbox(
+            host="localhost", port="1433", database="testdb",
+            password="pw", user="sa", driver="ODBC Driver 18 for SQL Server",
+        )
+        with pytest.raises(ValueError, match="write operation"):
+            backend.execute_select(
+                sandbox_db="__test_abc123",
+                sql="INSERT INTO [silver].[T] VALUES (1)",
+                fixtures=[],
+            )
+
+
+class TestExecuteSelectOracle:
+    """Unit tests for OracleSandbox.execute_select."""
+
+    def test_happy_path_returns_rows(self) -> None:
+        """execute_select seeds fixtures, runs SELECT, returns rows."""
+        backend = OracleSandbox(
+            host="localhost", port="1521", service="FREEPDB1",
+            password="pw", admin_user="sys", source_schema="SH",
+        )
+        cursor = MagicMock()
+        cursor.description = [("ID",), ("NAME",)]
+        cursor.fetchall.return_value = [(1, "Alice"), (2, "Bob")]
+
+        conn = MagicMock()
+        conn.cursor.return_value = cursor
+
+        @contextmanager
+        def _fake_connect():
+            yield conn
+
+        with patch.object(backend, "_connect", side_effect=_fake_connect), \
+             patch.object(backend, "_ensure_view_tables", return_value=[]), \
+             patch.object(backend, "_seed_fixtures"):
+            result = backend.execute_select(
+                sandbox_db="__test_abc123",
+                sql='SELECT "ID", "NAME" FROM "SH"."CHANNELS"',
+                fixtures=[],
+            )
+
+        assert result["status"] == "ok"
+        assert result["row_count"] == 2
+        assert len(result["ground_truth_rows"]) == 2
+        conn.rollback.assert_called_once()
+
+
+# ── execute_spec view routing ──────────────────────────────────────────────
+
+
+class TestExecuteSpecViewRouting:
+    """Verify execute_spec routes view entries (no procedure) to execute_select."""
+
+    def test_view_entry_calls_execute_select(self) -> None:
+        """Test entry with sql (no procedure) calls execute_select, not execute_scenario."""
+        from shared import test_harness
+        from typer.testing import CliRunner
+        import tempfile
+
+        runner = CliRunner()
+        spec = {
+            "item_id": "silver.vw_test",
+            "object_type": "view",
+            "status": "ok",
+            "coverage": "complete",
+            "branch_manifest": [],
+            "unit_tests": [
+                {
+                    "name": "test_view_filter",
+                    "sql": "SELECT id FROM [silver].[source] WHERE active = 1",
+                    "given": [
+                        {"table": "[silver].[source]", "rows": [{"id": 1, "active": 1}]},
+                    ],
+                },
+            ],
+            "uncovered_branches": [],
+            "warnings": [],
+            "validation": {"status": "ok"},
+            "errors": [],
+        }
+
+        mock_backend = MagicMock()
+        mock_backend.execute_select.return_value = {
+            "status": "ok",
+            "scenario_name": "execute_select",
+            "ground_truth_rows": [{"id": 1}],
+            "row_count": 1,
+            "errors": [],
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(spec, f)
+            spec_path = f.name
+
+        try:
+            with patch.object(test_harness, "_create_backend", return_value=mock_backend), \
+                 patch.object(test_harness, "_resolve_sandbox_db", return_value="__test_abc"), \
+                 patch.object(test_harness, "_load_manifest", return_value={}):
+                result = runner.invoke(
+                    test_harness.app,
+                    ["execute-spec", "--spec", spec_path, "--project-root", "."],
+                )
+
+            # execute_select should have been called (not execute_scenario)
+            mock_backend.execute_select.assert_called_once()
+            mock_backend.execute_scenario.assert_not_called()
+
+            # Verify ground truth was written back to spec
+            with open(spec_path) as f:
+                updated = json.load(f)
+            assert updated["unit_tests"][0]["expect"]["rows"] == [{"id": 1}]
+        finally:
+            import os
+            os.unlink(spec_path)
+
+    def test_procedure_entry_calls_execute_scenario(self) -> None:
+        """Test entry with procedure key calls execute_scenario, not execute_select."""
+        from shared import test_harness
+        from typer.testing import CliRunner
+        import tempfile
+
+        runner = CliRunner()
+        spec = {
+            "item_id": "silver.dimcustomer",
+            "status": "ok",
+            "coverage": "complete",
+            "branch_manifest": [],
+            "unit_tests": [
+                {
+                    "name": "test_merge_insert",
+                    "target_table": "[silver].[DimCustomer]",
+                    "procedure": "[dbo].[usp_load_DimCustomer]",
+                    "given": [
+                        {"table": "[bronze].[CustomerRaw]", "rows": [{"id": 1}]},
+                    ],
+                },
+            ],
+            "uncovered_branches": [],
+            "warnings": [],
+            "validation": {"status": "ok"},
+            "errors": [],
+        }
+
+        mock_backend = MagicMock()
+        mock_backend.execute_scenario.return_value = {
+            "status": "ok",
+            "scenario_name": "test_merge_insert",
+            "ground_truth_rows": [{"id": 1}],
+            "row_count": 1,
+            "errors": [],
+        }
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(spec, f)
+            spec_path = f.name
+
+        try:
+            with patch.object(test_harness, "_create_backend", return_value=mock_backend), \
+                 patch.object(test_harness, "_resolve_sandbox_db", return_value="__test_abc"), \
+                 patch.object(test_harness, "_load_manifest", return_value={}):
+                result = runner.invoke(
+                    test_harness.app,
+                    ["execute-spec", "--spec", spec_path, "--project-root", "."],
+                )
+
+            mock_backend.execute_scenario.assert_called_once()
+            mock_backend.execute_select.assert_not_called()
+        finally:
+            import os
+            os.unlink(spec_path)

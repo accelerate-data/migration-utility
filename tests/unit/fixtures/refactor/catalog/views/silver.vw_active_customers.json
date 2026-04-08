@@ -1,0 +1,31 @@
+{
+  "schema": "silver",
+  "name": "vw_active_customers",
+  "is_materialized_view": false,
+  "sql": "SELECT c.CustomerID, c.FirstName, c.LastName FROM bronze.CustomerRaw c WHERE c.IsActive = 1",
+  "columns": [
+    {"name": "CustomerID", "data_type": "int", "is_nullable": false},
+    {"name": "FirstName", "data_type": "nvarchar", "is_nullable": true},
+    {"name": "LastName", "data_type": "nvarchar", "is_nullable": true}
+  ],
+  "references": {
+    "tables": {
+      "in_scope": [
+        {"schema": "bronze", "name": "CustomerRaw", "is_selected": true, "is_updated": false}
+      ],
+      "out_of_scope": []
+    },
+    "views": {"in_scope": [], "out_of_scope": []},
+    "procedures": {"in_scope": [], "out_of_scope": []},
+    "functions": {"in_scope": [], "out_of_scope": []}
+  },
+  "scoping": {
+    "status": "analyzed"
+  },
+  "profile": {
+    "status": "ok",
+    "classification": "stg",
+    "rationale": "Single-source filter view",
+    "source": "llm"
+  }
+}

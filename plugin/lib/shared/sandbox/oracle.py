@@ -618,6 +618,56 @@ class OracleSandbox(SandboxBackend):
             ]
             cursor.executemany(insert_sql, value_lists)
 
+    def _ensure_view_tables(
+        self,
+        sandbox_db: str,
+        given: list[dict[str, Any]],
+    ) -> list[str]:
+        """CTAS view-sourced fixtures as empty shell tables in the sandbox.
+
+        For each entry in *given* whose object is a view in the source schema:
+        drops the sandbox object (tolerating not-found), then CTASes it as an
+        empty table so that fixture rows can be inserted normally.
+
+        Oracle DDL auto-commits, so the shell table persists across the rollback
+        that ends each scenario.  Idempotent within a sandbox lifetime because
+        subsequent scenarios find the table already present.
+
+        Table names in fixtures are bare identifiers (no schema prefix);
+        this method qualifies them with ``self.source_schema`` for the source
+        lookup and ``sandbox_db`` for the sandbox DDL.
+        """
+        materialized: list[str] = []
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            for fixture in given:
+                view_name = fixture["table"]
+                _validate_oracle_identifier(view_name)
+                cursor.execute(
+                    "SELECT 1 FROM ALL_VIEWS "
+                    "WHERE OWNER = UPPER(:1) AND VIEW_NAME = UPPER(:2)",
+                    [self.source_schema, view_name],
+                )
+                if cursor.fetchone() is None:
+                    continue  # base table — already cloned by _clone_tables
+                try:
+                    cursor.execute(f'DROP TABLE "{sandbox_db}"."{view_name}"')
+                except oracledb.DatabaseError as exc:
+                    logger.debug(
+                        "event=oracle_view_drop_skipped sandbox=%s view=%s error=%s",
+                        sandbox_db, view_name, exc,
+                    )
+                cursor.execute(
+                    f'CREATE TABLE "{sandbox_db}"."{view_name}" '
+                    f'AS SELECT * FROM "{self.source_schema}"."{view_name}" WHERE 1=0'
+                )
+                materialized.append(view_name)
+                logger.info(
+                    "event=oracle_view_materialized sandbox=%s view=%s",
+                    sandbox_db, view_name,
+                )
+        return materialized
+
     @staticmethod
     def _capture_rows(cursor: Any) -> list[dict[str, Any]]:
         """Read all rows from the current cursor result set as dicts."""
@@ -647,6 +697,22 @@ class OracleSandbox(SandboxBackend):
         _validate_oracle_identifier(target_table)
         _validate_oracle_identifier(procedure)
         _validate_fixtures(given)
+
+        try:
+            self._ensure_view_tables(sandbox_db, given)
+        except oracledb.DatabaseError as exc:
+            logger.error(
+                "event=oracle_view_materialize_failed sandbox=%s scenario=%s error=%s",
+                sandbox_db, scenario_name, exc,
+            )
+            return {
+                "schema_version": "1.0",
+                "scenario_name": scenario_name,
+                "status": "error",
+                "ground_truth_rows": [],
+                "row_count": 0,
+                "errors": [{"code": "VIEW_MATERIALIZE_FAILED", "message": str(exc)}],
+            }
 
         logger.info(
             "event=oracle_execute_scenario sandbox=%s scenario=%s procedure=%s",
@@ -694,6 +760,73 @@ class OracleSandbox(SandboxBackend):
                 "ground_truth_rows": [],
                 "row_count": 0,
                 "errors": [{"code": "SCENARIO_FAILED", "message": str(exc)}],
+            }
+
+    def execute_select(
+        self,
+        sandbox_db: str,
+        sql: str,
+        fixtures: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        _validate_oracle_sandbox_name(sandbox_db)
+        _validate_fixtures(fixtures)
+        _validate_readonly_sql(sql)
+
+        scenario_name = "execute_select"
+        logger.info("event=oracle_execute_select sandbox=%s", sandbox_db)
+
+        try:
+            self._ensure_view_tables(sandbox_db, fixtures)
+        except oracledb.DatabaseError as exc:
+            logger.error(
+                "event=oracle_view_materialize_failed sandbox=%s error=%s",
+                sandbox_db, exc,
+            )
+            return {
+                "schema_version": "1.0",
+                "scenario_name": scenario_name,
+                "status": "error",
+                "ground_truth_rows": [],
+                "row_count": 0,
+                "errors": [{"code": "VIEW_MATERIALIZE_FAILED", "message": str(exc)}],
+            }
+
+        result_rows: list[dict[str, Any]] = []
+        try:
+            with self._connect() as conn:
+                conn.autocommit = False
+                cursor = conn.cursor()
+                try:
+                    self._seed_fixtures(cursor, sandbox_db, fixtures)
+                    cursor.execute(sql)
+                    result_rows = self._capture_rows(cursor)
+                finally:
+                    conn.rollback()
+
+            logger.info(
+                "event=oracle_execute_select_complete sandbox=%s rows=%d",
+                sandbox_db, len(result_rows),
+            )
+            return {
+                "schema_version": "1.0",
+                "scenario_name": scenario_name,
+                "status": "ok",
+                "ground_truth_rows": serialize_rows(result_rows),
+                "row_count": len(result_rows),
+                "errors": [],
+            }
+        except oracledb.DatabaseError as exc:
+            logger.error(
+                "event=oracle_execute_select_failed sandbox=%s error=%s",
+                sandbox_db, exc,
+            )
+            return {
+                "schema_version": "1.0",
+                "scenario_name": scenario_name,
+                "status": "error",
+                "ground_truth_rows": [],
+                "row_count": 0,
+                "errors": [{"code": "EXECUTE_SELECT_FAILED", "message": str(exc)}],
             }
 
     def compare_two_sql(

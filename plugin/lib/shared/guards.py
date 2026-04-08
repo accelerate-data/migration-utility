@@ -340,6 +340,47 @@ def check_refactor_complete(project_root: Path, table_fqn: str) -> dict[str, Any
     return _guard_ok("refactor_completed")
 
 
+def check_view_test_spec(project_root: Path, view_fqn: str) -> dict[str, Any]:
+    """Check test-specs/<view_fqn>.json exists for a view."""
+    norm = normalize(view_fqn)
+    spec_path = project_root / "test-specs" / f"{norm}.json"
+    if not spec_path.exists():
+        return _guard_fail(
+            "view_test_spec_exists",
+            "TEST_SPEC_NOT_FOUND",
+            f"test-specs/{norm}.json not found.",
+        )
+    return _guard_ok("view_test_spec_exists")
+
+
+def check_view_refactor_complete(project_root: Path, view_fqn: str) -> dict[str, Any]:
+    """Check refactor section on the view catalog has status == ok."""
+    norm = normalize(view_fqn)
+    try:
+        cat = load_view_catalog(project_root, view_fqn)
+    except (json.JSONDecodeError, OSError, CatalogLoadError) as exc:
+        return _guard_fail(
+            "view_refactor_completed",
+            "VIEW_REFACTOR_NOT_COMPLETED",
+            f"Could not load view catalog for {norm}: {exc}",
+        )
+    if cat is None:
+        return _guard_fail(
+            "view_refactor_completed",
+            "VIEW_REFACTOR_NOT_COMPLETED",
+            f"catalog/views/{norm}.json not found.",
+        )
+    refactor = cat.get("refactor")
+    if refactor is None or refactor.get("status") != "ok":
+        status = refactor.get("status") if refactor else None
+        return _guard_fail(
+            "view_refactor_completed",
+            "VIEW_REFACTOR_NOT_COMPLETED",
+            f"View refactor not completed for {norm} (status={status!r}). Run /refactoring-sql first.",
+        )
+    return _guard_ok("view_refactor_completed")
+
+
 def check_dbt_project(project_root: Path) -> dict[str, Any]:
     """Check dbt_project.yml exists in the dbt project directory."""
     dbt_root = resolve_dbt_project_path(project_root)
@@ -496,11 +537,30 @@ _STAGE_GUARDS: dict[str, list[tuple[Callable[..., Any]]]] = {
         (check_view_catalog,),
         (check_view_scoping_analyzed,),
     ],
+    "test-gen-view": [
+        (check_manifest,),
+        (check_view_catalog,),
+        (check_view_scoping_analyzed,),
+        (check_view_profiled,),
+        (check_sandbox_metadata,),
+    ],
     "refactor-view": [
         (check_manifest,),
         (check_view_catalog,),
         (check_view_scoping_analyzed,),
         (check_view_profiled,),
+        (check_sandbox_metadata,),
+        (check_view_test_spec,),
+    ],
+    "migrate-view": [
+        (check_manifest,),
+        (check_view_catalog,),
+        (check_view_scoping_analyzed,),
+        (check_view_profiled,),
+        (check_sandbox_metadata,),
+        (check_view_test_spec,),
+        (check_view_refactor_complete,),
+        (check_dbt_project,),
     ],
     # Skill-specific guard sets (not pipeline stages, but callable via guard CLI)
     "generating-model": [

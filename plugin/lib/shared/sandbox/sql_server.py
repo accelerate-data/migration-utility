@@ -717,6 +717,60 @@ class SqlServerSandbox(SandboxBackend):
                 f"ALTER TABLE {table} CHECK CONSTRAINT ALL"
             )
 
+    def _ensure_view_tables(
+        self,
+        sandbox_db: str,
+        given: list[dict[str, Any]],
+    ) -> list[str]:
+        """CTAS view-sourced fixtures as empty shell tables in the sandbox.
+
+        For each entry in *given* whose object is a view in the source DB:
+        drops the sandbox object (tolerating not-found), then CTASes it as an
+        empty table so that fixture rows can be inserted normally.
+
+        Uses autocommit connections so the DDL persists across the rollback
+        that ends each scenario.  Idempotent within a sandbox lifetime because
+        subsequent scenarios find the table already present.
+        """
+        materialized: list[str] = []
+        with self._connect() as src_conn, self._connect(database=sandbox_db) as sb_conn:
+            src_cur = src_conn.cursor()
+            sb_cur = sb_conn.cursor()
+            for fixture in given:
+                parts = _split_identifier_parts(fixture["table"])
+                if len(parts) != 2:
+                    logger.warning(
+                        "event=view_check_skipped reason=unexpected_parts fqn=%r parts=%d",
+                        fixture["table"], len(parts),
+                    )
+                    continue
+                schema_name, obj_name = parts
+                src_cur.execute(
+                    "SELECT 1 FROM INFORMATION_SCHEMA.VIEWS "
+                    "WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?",
+                    schema_name, obj_name,
+                )
+                if src_cur.fetchone() is None:
+                    continue  # base table — already cloned by _clone_tables
+                fqn = f"[{schema_name}].[{obj_name}]"
+                try:
+                    sb_cur.execute(f"DROP TABLE IF EXISTS {fqn}")
+                except pyodbc.Error:
+                    pass  # object did not exist; nothing to drop
+                try:
+                    sb_cur.execute(f"DROP VIEW IF EXISTS {fqn}")
+                except pyodbc.Error:
+                    pass  # sandbox_up may not have cloned the view
+                sb_cur.execute(
+                    f"SELECT TOP 0 * INTO {fqn} FROM [{self.database}].{fqn}"
+                )
+                materialized.append(f"{schema_name}.{obj_name}")
+                logger.info(
+                    "event=view_materialized sandbox_db=%s fqn=%s",
+                    sandbox_db, fqn,
+                )
+        return materialized
+
     @staticmethod
     def _capture_rows(cursor: Any) -> list[dict[str, Any]]:
         """Read all rows from the current cursor result set as dicts."""
@@ -740,6 +794,22 @@ class SqlServerSandbox(SandboxBackend):
         _validate_identifier(target_table)
         _validate_identifier(procedure)
         _validate_fixtures(given)
+
+        try:
+            self._ensure_view_tables(sandbox_db, given)
+        except pyodbc.Error as exc:
+            logger.error(
+                "event=view_materialize_failed sandbox_db=%s scenario=%s error=%s",
+                sandbox_db, scenario_name, exc,
+            )
+            return {
+                "schema_version": "1.0",
+                "scenario_name": scenario_name,
+                "status": "error",
+                "ground_truth_rows": [],
+                "row_count": 0,
+                "errors": [{"code": "VIEW_MATERIALIZE_FAILED", "message": str(exc)}],
+            }
 
         logger.info(
             "event=execute_scenario sandbox_db=%s scenario=%s procedure=%s",
@@ -818,6 +888,73 @@ class SqlServerSandbox(SandboxBackend):
                 "ground_truth_rows": [],
                 "row_count": 0,
                 "errors": [{"code": "SCENARIO_FAILED", "message": str(exc)}],
+            }
+
+    def execute_select(
+        self,
+        sandbox_db: str,
+        sql: str,
+        fixtures: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        _validate_sandbox_db_name(sandbox_db)
+        _validate_fixtures(fixtures)
+        _validate_readonly_sql(sql)
+
+        scenario_name = "execute_select"
+        logger.info("event=execute_select sandbox_db=%s", sandbox_db)
+
+        try:
+            self._ensure_view_tables(sandbox_db, fixtures)
+        except pyodbc.Error as exc:
+            logger.error(
+                "event=view_materialize_failed sandbox_db=%s error=%s",
+                sandbox_db, exc,
+            )
+            return {
+                "schema_version": "1.0",
+                "scenario_name": scenario_name,
+                "status": "error",
+                "ground_truth_rows": [],
+                "row_count": 0,
+                "errors": [{"code": "VIEW_MATERIALIZE_FAILED", "message": str(exc)}],
+            }
+
+        result_rows: list[dict[str, Any]] = []
+        try:
+            with self._connect(database=sandbox_db) as conn:
+                conn.autocommit = False
+                cursor = conn.cursor()
+                try:
+                    self._seed_fixtures(cursor, sandbox_db, fixtures)
+                    cursor.execute(sql)
+                    result_rows = self._capture_rows(cursor)
+                finally:
+                    conn.rollback()
+
+            logger.info(
+                "event=execute_select_complete sandbox_db=%s rows=%d",
+                sandbox_db, len(result_rows),
+            )
+            return {
+                "schema_version": "1.0",
+                "scenario_name": scenario_name,
+                "status": "ok",
+                "ground_truth_rows": serialize_rows(result_rows),
+                "row_count": len(result_rows),
+                "errors": [],
+            }
+        except pyodbc.Error as exc:
+            logger.error(
+                "event=execute_select_failed sandbox_db=%s error=%s",
+                sandbox_db, exc,
+            )
+            return {
+                "schema_version": "1.0",
+                "scenario_name": scenario_name,
+                "status": "error",
+                "ground_truth_rows": [],
+                "row_count": 0,
+                "errors": [{"code": "EXECUTE_SELECT_FAILED", "message": str(exc)}],
             }
 
     def compare_two_sql(

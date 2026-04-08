@@ -62,6 +62,25 @@ def load_table_columns(project_root: Path, table_fqn: str) -> list[dict[str, Any
     return []
 
 
+def load_source_columns(project_root: Path, source_fqn: str) -> list[dict[str, Any]]:
+    """Load column metadata for a source table or view.
+
+    Checks catalog/tables/<fqn>.json first; falls back to catalog/views/<fqn>.json.
+    Returns an empty list when neither catalog file exists.
+    """
+    cat = load_table_catalog(project_root, source_fqn)
+    if cat:
+        if cat.get("columns"):
+            return cat["columns"]
+        logger.warning("event=source_columns_empty source=%s catalog=tables", source_fqn)
+    cat = load_view_catalog(project_root, source_fqn)
+    if cat:
+        if cat.get("columns"):
+            return cat["columns"]
+        logger.warning("event=source_columns_empty source=%s catalog=views", source_fqn)
+    return []
+
+
 def collect_source_tables(project_root: Path, writer_fqn: str) -> list[str]:
     """Collect source tables and views from the writer procedure's references.
 
@@ -107,6 +126,21 @@ def sandbox_metadata(project_root: Path) -> dict[str, Any] | None:
     except (ValueError, OSError):
         return None
     return manifest.get("sandbox")
+
+
+def load_view_sql(project_root: Path, view_fqn: str) -> str | None:
+    """Load the SQL body of a view from the view catalog file.
+
+    Returns the view's SQL string, or None if the catalog file doesn't exist
+    or has no 'sql' key.
+    """
+    cat = load_view_catalog(project_root, view_fqn)
+    if cat is None:
+        return None
+    sql = cat.get("sql")
+    if not sql:
+        logger.warning("event=view_sql_empty view=%s", view_fqn)
+    return sql
 
 
 def load_test_spec(project_root: Path, table_fqn: str) -> dict[str, Any] | None:

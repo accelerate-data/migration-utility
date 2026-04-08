@@ -175,3 +175,4 @@ class TestLoadObjectColumns:
     def test_missing_returns_empty(self, project: Path) -> None:
         result = load_object_columns(project, "silver.nonexistent")
         assert result == []
+        assert result == []

@@ -4,19 +4,28 @@
   "title": "RefactorContextOutput",
   "description": "Output of 'refactor context'. Assembles all deterministic context needed for LLM SQL refactoring.",
   "type": "object",
-  "required": ["table", "writer", "proc_body", "profile", "statements", "columns", "source_tables"],
+  "required": ["table", "profile", "columns", "source_tables"],
   "properties": {
     "table": {
       "type": "string",
-      "description": "Normalised FQN of the target table (schema.name)."
+      "description": "Normalised FQN of the target object (schema.name)."
+    },
+    "object_type": {
+      "type": "string",
+      "enum": ["table", "view", "mv"],
+      "description": "Type of catalog object. Absent means 'table' for backwards compatibility."
     },
     "writer": {
       "type": "string",
-      "description": "Normalised FQN of the writer procedure."
+      "description": "Normalised FQN of the writer procedure. Present for tables only."
     },
     "proc_body": {
       "type": "string",
-      "description": "Full SQL body of the writer procedure."
+      "description": "Full SQL body of the writer procedure. Present for tables only."
+    },
+    "view_sql": {
+      "type": "string",
+      "description": "Original SQL body of the view. Present for views/MVs only."
     },
     "profile": {
       "type": "object",
@@ -25,7 +34,7 @@
     },
     "statements": {
       "type": "array",
-      "description": "Resolved statement list from the procedure catalog.",
+      "description": "Resolved statement list from the procedure catalog. Present for tables only.",
       "items": {
         "type": "object",
         "required": ["type", "action"],

@@ -145,6 +145,12 @@ def object_pipeline_status(
         profile = cat.get("profile") or {}
         if profile.get("status") not in ("ok", "partial"):
             return "profile_needed"
+        spec_path = project_root / "test-specs" / f"{fqn}.json"
+        if not spec_path.exists():
+            return "test_gen_needed"
+        refactor = cat.get("refactor") or {}
+        if refactor.get("status") != "ok":
+            return "refactor_needed"
         if not _has_dbt_model(fqn, dbt_root):
             return "migrate_needed"
         return "complete"

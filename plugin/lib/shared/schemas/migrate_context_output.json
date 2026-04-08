@@ -62,13 +62,10 @@
     },
     "source_columns": {
       "type": "object",
-      "description": "Column metadata for each source table/view, keyed by normalised FQN.",
+      "description": "Column metadata keyed by source FQN. Populated from catalog/tables/ or catalog/views/ (whichever exists). Empty list when neither catalog file is present.",
       "additionalProperties": {
         "type": "array",
-        "items": {
-          "type": "object",
-          "additionalProperties": true
-        }
+        "items": { "type": "object", "additionalProperties": true }
       }
     },
     "schema_tests": {
