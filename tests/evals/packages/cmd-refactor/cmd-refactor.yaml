@@ -32,8 +32,8 @@ tests:
       expected_item_statuses: '{"silver.InsertSelectTarget": "ok,partial", "silver.UpdateJoinTarget": "ok,partial"}'
       expected_output_terms: "ok"
 
-  # ── error + clean: missing prerequisite ────────────────────────
-  - description: "error+clean — DimGeography (no scoping) + InsertSelectTarget (ok)"
+  # ── error-clean: missing prerequisite ──────────────────────────
+  - description: "error-clean — DimGeography no profile + InsertSelectTarget ok"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-refactor/error-clean"
       target_tables: "silver.DimGeography silver.InsertSelectTarget"
