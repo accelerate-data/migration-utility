@@ -10,8 +10,16 @@
           "is_selected": false,
           "is_updated": true,
           "columns": [
-            { "name": "ProductAlternateKey", "is_selected": false, "is_updated": false },
-            { "name": "EnglishProductName", "is_selected": false, "is_updated": false }
+            {
+              "name": "ProductAlternateKey",
+              "is_selected": false,
+              "is_updated": false
+            },
+            {
+              "name": "EnglishProductName",
+              "is_selected": false,
+              "is_updated": false
+            }
           ]
         }
       ],
@@ -25,9 +33,18 @@
         }
       ]
     },
-    "views": { "in_scope": [], "out_of_scope": [] },
-    "functions": { "in_scope": [], "out_of_scope": [] },
-    "procedures": { "in_scope": [], "out_of_scope": [] }
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
   },
   "mode": "deterministic",
   "routing_reasons": [],
@@ -38,5 +55,10 @@
       "source": "ast",
       "sql": "INSERT INTO silver.TryCatchTarget (ProductAlternateKey, EnglishProductName) SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product WHERE ProductName IS NOT NULL"
     }
-  ]
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM bronze.Product WHERE ProductName IS NOT NULL",
+    "refactored_sql": "WITH source_product AS ( SELECT * FROM [bronze].[Product] ), filtered_product AS ( SELECT * FROM source_product WHERE ProductName IS NOT NULL ), final AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM filtered_product ) SELECT * FROM final"
+  }
 }
