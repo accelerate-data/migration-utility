@@ -137,7 +137,7 @@ Schemas:  <selected-schemas>
   manifest.json at ./manifest.json
 ```
 
-Tell the user they can now run `discover` or the `scoping` agent against the project root.
+Tell the user: "To browse the extracted objects, run `/listing-objects list tables`. To start scoping tables for migration, run `/scope`."
 
 If `dbt/models/staging/sources.yml` already exists, warn: "sources.yml already exists and may be stale after this extraction. Run `/analyzing-table` on new tables, then re-run `/init-dbt` to regenerate."
 
@@ -262,7 +262,7 @@ Schemas: <selected-owners>
   manifest.json at ./manifest.json
 ```
 
-Tell the user they can now run `discover` or the `scoping` agent against the project root.
+Tell the user: "To browse the extracted objects, run `/listing-objects list tables`. To start scoping tables for migration, run `/scope`."
 
 If `dbt/models/staging/sources.yml` already exists, warn: "sources.yml already exists and may be stale after this extraction. Run `/analyzing-table` on new tables, then re-run `/init-dbt` to regenerate."
 
