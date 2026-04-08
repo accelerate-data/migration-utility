@@ -228,49 +228,21 @@ All eval scripts use `--no-cache` to force fresh LLM invocations.
 
 ---
 
-## Scenario naming and filtering
+## Scenario naming convention
 
-All scenarios in `promptfooconfig.yaml` follow the convention:
+Every scenario description follows the format:
 
 ```text
-<skill> — <sql-pattern> — <brief-detail>
+<statement-type-or-category> — <brief-detail>
 ```
 
-This allows `--filter-pattern` to act as a query language against the description string.
+The prefix before the em dash is either a SQL statement-type tag from the canonical taxonomy below, or a behavioral category prefix. This makes `--filter-pattern` a natural query language against description strings — filtering by prefix narrows to a statement type, filtering by suffix narrows to a specific behavior.
 
-### Filter examples
+### Statement-type taxonomy (canonical)
 
-All commands assume you are in `tests/evals/`.
+These are the SQL pattern tags used as the primary prefix in scenario descriptions:
 
-```bash
-# Run a single scenario by exact pattern tag
-npx promptfoo eval --filter-pattern "generating-model — insert-select"
-npx promptfoo eval --filter-pattern "refactoring-sql — recursive-cte"
-npx promptfoo eval --filter-pattern "analyzing-table — exec-variable"
-
-# All scenarios for a single skill (29 for generating-model, 6 for refactoring-sql, etc.)
-npx promptfoo eval --filter-pattern "generating-model"
-npx promptfoo eval --filter-pattern "analyzing-table"
-npx promptfoo eval --filter-pattern "refactoring-sql"
-
-# All scenarios for a SQL pattern across skills
-npx promptfoo eval --filter-pattern "insert-select"
-npx promptfoo eval --filter-pattern "exec-chain"
-npx promptfoo eval --filter-pattern "recursive-cte"
-
-# Skill + pattern combined
-npx promptfoo eval --filter-pattern "generating-model.*exec"
-npx promptfoo eval --filter-pattern "analyzing-table.*truncate"
-npx promptfoo eval --filter-pattern "refactoring-sql.*merge"
-
-# Pattern group (regex OR)
-npx promptfoo eval --filter-pattern "intersect|except|union-all"
-npx promptfoo eval --filter-pattern "cube|rollup|grouping-sets"
-```
-
-### Pattern taxonomy
-
-| Pattern tag | Classification patterns covered |
+| Tag | SQL Pattern |
 |---|---|
 | `insert-select` | INSERT...SELECT full-refresh |
 | `update-join` | UPDATE...FROM JOIN |
@@ -278,36 +250,77 @@ npx promptfoo eval --filter-pattern "cube|rollup|grouping-sets"
 | `delete-top` | DELETE TOP |
 | `select-into` | SELECT INTO |
 | `cte` | Single CTE |
-| `correlated-subquery` | Correlated subquery in WHERE |
+| `correlated-subquery` | Correlated subquery |
 | `union-all` | UNION ALL (bare) |
-| `union-all-in-cte` | UNION ALL inside CTE branch |
-| `intersect` | INTERSECT set operation |
-| `except` | EXCEPT set operation |
+| `union-all-in-cte` | UNION ALL inside CTE |
+| `intersect` | INTERSECT |
+| `except` | EXCEPT |
 | `grouping-sets` | GROUPING SETS |
 | `cube` | CUBE |
 | `rollup` | ROLLUP |
 | `pivot` | PIVOT / conditional aggregation |
-| `window-fn` | Window functions (ROW_NUMBER, LAG, COUNT OVER) |
-| `cross-join` | CROSS JOIN scaffold |
+| `window-fn` | Window functions |
+| `cross-join` | CROSS JOIN |
 | `not-exists` | NOT EXISTS anti-join |
 | `not-in` | NOT IN subquery |
-| `recursive-cte` | Recursive CTE (WITH RECURSIVE) |
-| `truncate-insert` | TRUNCATE + INSERT full-reload |
-| `truncate-insert-outer-apply` | TRUNCATE + INSERT + OUTER APPLY |
-| `merge` | MERGE INTO (SCD1/SCD2) |
+| `recursive-cte` | Recursive CTE |
+| `truncate-insert` | TRUNCATE + INSERT |
+| `outer-apply` | OUTER APPLY |
+| `merge` | MERGE INTO |
 | `if-else` | IF/ELSE control flow |
 | `try-catch` | BEGIN TRY/CATCH |
 | `while-loop` | WHILE batch loop |
-| `nested-flow` | Nested control flow (IF inside TRY) |
+| `nested-flow` | Nested control flow |
 | `exec-chain` | Static EXEC call chain |
-| `exec-orchestrator` | EXEC-only orchestrator proc |
-| `exec-variable` | EXEC(@sql) dynamic variable |
+| `exec-orchestrator` | EXEC-only orchestrator |
+| `exec-variable` | EXEC(@sql) dynamic |
 | `exec-concat` | EXEC string concatenation |
-| `cross-db-exec` | EXEC with 3-part cross-database name |
-| `linked-server-exec` | EXEC with 4-part linked server name |
+| `cross-db-exec` | EXEC with cross-database name |
+| `linked-server-exec` | EXEC with linked server |
 | `static-sp-exec` | sp_executesql with literal SQL |
 | `dynamic-sql` | sp_executesql with variable SQL |
-| `fact-transaction` | Fact table classification |
+| `case-when` | CASE WHEN expressions |
+
+### Behavioral category prefixes
+
+For scenarios that don't test a specific SQL pattern:
+
+| Prefix | When to use |
+|---|---|
+| `classification-*` | Profiling classification scenarios (dim-scd2, fact-periodic-snapshot, dim-junk) |
+| `quality-*` | Code quality checks (style, ETL columns, YAML rendering, modular split) |
+| `review-*` | Test/model review verdicts (approved, revision-requested, standards codes) |
+| `pii` | PII detection |
+| `watermark-*` | Watermark detection |
+| `fk-*` | Foreign key type scenarios |
+| `multi-writer` | Multi-writer disambiguation |
+| `view-*` | View pipeline scenarios |
+| `planning-sweep-*` | Planning sweep action scenarios |
+| `idempotent-*` | Idempotency scenarios |
+| `status-*` | Status command output scenarios |
+| `happy-path` | Command happy path |
+| `error-clean` | Command error + recovery |
+| `guard-fail` | Command guard failure |
+| `partial` | Command partial success |
+| `review-cycle` | Command review loop |
+
+### Filter examples
+
+All commands assume you are in `tests/evals/`.
+
+```bash
+# All scenarios for a skill package
+npm run eval:profiling-table
+
+# Filter by statement type across all skills
+npx promptfoo eval -c packages/generating-tests/skill-generating-tests.yaml --filter-pattern "merge"
+
+# Filter by behavioral category
+npx promptfoo eval -c packages/reviewing-model/skill-reviewing-model.yaml --filter-pattern "review-standards"
+
+# Combine skill + pattern
+npx promptfoo eval -c packages/refactoring-sql/skill-refactoring-sql.yaml --filter-pattern "recursive-cte"
+```
 
 ---
 
