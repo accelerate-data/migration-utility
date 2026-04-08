@@ -7,7 +7,7 @@ description: >
   statements from prior discover + profile stages, and an approved test spec
   from the test-generation stage.
 user-invocable: true
-argument-hint: "<schema.table>"
+argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 ---
 
 # Generating Model
@@ -49,6 +49,10 @@ Read the output JSON. It contains:
 - `refactored_sql` — cleaned, CTE-structured SQL produced by the refactor stage
 
 Use `refactored_sql` as your sole SQL input. Ignore `proc_body` and `statements` — they are not relevant to model generation.
+
+**View detection:** If the catalog object is a view (`catalog/views/<fqn>.json` exists), the refactored SQL lives in `catalog/views/<fqn>.json → refactor.refactored_sql` instead of the procedure catalog. The materialization is determined by the view's profile `classification`:
+- `stg` classification → `materialized='ephemeral'` staging model
+- `mart` classification → use the same materialization decision rules as tables (table/incremental/snapshot based on profile signals)
 
 ## Step 1.5: Pre-generation check
 

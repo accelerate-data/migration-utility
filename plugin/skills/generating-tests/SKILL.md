@@ -6,7 +6,7 @@ description: >
   procs or capture ground truth — that is done by the /generate-tests
   command after review approval.
 user-invocable: true
-argument-hint: "<schema.table>"
+argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 ---
 
 # Generating Tests
@@ -80,6 +80,17 @@ For each statement where `action == migrate`, identify all conditional branches.
 | Aggregation | Single group, multiple groups, empty group |
 | Type boundaries | Watermark date edges, MAX int, empty string |
 | Empty source | Zero-row edge case |
+
+**View branch enumeration:** For views (detected when `object_type = "view"` or `"mv"` in the context), branch enumeration targets SELECT-level patterns only:
+- WHERE filter conditions (match/no-match)
+- JOIN match/no-match (INNER, LEFT, RIGHT — null join key, missing match)
+- CASE/WHEN arms (each arm is a branch)
+- Aggregation (GROUP BY with/without HAVING filter)
+- Subquery (EXISTS/NOT EXISTS, IN/NOT IN — match/empty)
+- NULL handling (COALESCE, ISNULL, NVL — null/non-null inputs)
+- Empty source table (no rows in a referenced table)
+
+There are no MERGE, INSERT, UPDATE, or DELETE patterns for views.
 
 Output: branch manifest — a list of branches with IDs, descriptions, the statement index they belong to, and the pattern they exercise.
 
@@ -268,6 +279,18 @@ The `/generate-tests` command adds `expect.rows` to each `unit_tests[]` entry af
 | `given[].table` | string | yes | Bracket-quoted SQL identifier for the fixture table |
 | `given[].rows` | object[] | yes | Synthetic fixture input rows as column→value maps (includes all NOT NULL non-identity columns) |
 | `expect.rows` | object[] | no | Ground truth output rows — added by command after execution |
+
+**View test entries:** For views, each `unit_tests[]` entry uses `sql` instead of `procedure` and `target_table`:
+
+```json
+{
+  "name": "test_<scenario>",
+  "sql": "SELECT ... FROM [schema].[source_table] ...",
+  "given": [{"table": "[schema].[source_table]", "rows": [...]}]
+}
+```
+
+The `sql` field contains the view's refactored SELECT statement. Ground truth is captured by `execute_select` (not `execute_scenario`).
 
 ## Coverage and Status Rules
 

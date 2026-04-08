@@ -7,7 +7,7 @@ description: >
   equivalence via sandbox execution. Invoke when the user asks to "refactor SQL",
   "restructure to CTEs", or "prepare SQL for migration".
 user-invocable: true
-argument-hint: "<schema.table>"
+argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 ---
 
 # Refactoring SQL
@@ -46,6 +46,12 @@ Read the output JSON. It contains:
 - `sandbox` -- sandbox database metadata
 
 Record the `writer` field -- this is the procedure FQN.
+
+**View detection:** If the context output contains `object_type = "view"` or `"mv"`, the FQN refers to a view. In this case:
+- `view_sql` contains the original view SQL body (this is the ground truth — sub-agent A uses it directly instead of extracting from a procedure body)
+- There is no `writer`, `proc_body`, or `statements` — these fields are absent for views
+- The equivalence audit via `compare-sql` is unchanged: sql_a = original view SQL, sql_b = refactored CTE SQL
+- Write-back via `refactor write` auto-detects the view and writes to the view catalog
 
 ## Step 2: Launch two sub-agents in parallel
 

@@ -1729,3 +1729,120 @@ class TestEnsureViewTablesOracle:
         calls = [str(c) for c in cursor.execute.call_args_list]
         ctas_calls = [c for c in calls if "CREATE TABLE" in c]
         assert len(ctas_calls) == 1
+
+
+# ── execute_select ─────────────────────────────────────────────────────────
+
+
+class TestExecuteSelectSqlServer:
+    """Unit tests for SqlServerSandbox.execute_select."""
+
+    def test_happy_path_returns_rows(self) -> None:
+        """execute_select seeds fixtures, runs SELECT, returns rows."""
+        backend = SqlServerSandbox(
+            host="localhost", port="1433", database="testdb",
+            password="pw", user="sa", driver="ODBC Driver 18 for SQL Server",
+        )
+        cursor = MagicMock()
+        cursor.description = [("id",), ("name",)]
+        cursor.fetchall.return_value = [(1, "Alice"), (2, "Bob")]
+
+        conn = MagicMock()
+        conn.cursor.return_value = cursor
+
+        @contextmanager
+        def _fake_connect(*, database=None):
+            yield conn
+
+        with patch.object(backend, "_connect", side_effect=_fake_connect), \
+             patch.object(backend, "_ensure_view_tables", return_value=[]), \
+             patch.object(backend, "_seed_fixtures"):
+            result = backend.execute_select(
+                sandbox_db="__test_abc123",
+                sql="SELECT id, name FROM [silver].[Customers]",
+                fixtures=[],
+            )
+
+        assert result["status"] == "ok"
+        assert result["row_count"] == 2
+        assert len(result["ground_truth_rows"]) == 2
+        assert result["errors"] == []
+        conn.rollback.assert_called_once()
+
+    def test_empty_result(self) -> None:
+        """execute_select with no matching rows returns row_count=0."""
+        backend = SqlServerSandbox(
+            host="localhost", port="1433", database="testdb",
+            password="pw", user="sa", driver="ODBC Driver 18 for SQL Server",
+        )
+        cursor = MagicMock()
+        cursor.description = [("id",)]
+        cursor.fetchall.return_value = []
+
+        conn = MagicMock()
+        conn.cursor.return_value = cursor
+
+        @contextmanager
+        def _fake_connect(*, database=None):
+            yield conn
+
+        with patch.object(backend, "_connect", side_effect=_fake_connect), \
+             patch.object(backend, "_ensure_view_tables", return_value=[]), \
+             patch.object(backend, "_seed_fixtures"):
+            result = backend.execute_select(
+                sandbox_db="__test_abc123",
+                sql="SELECT id FROM [silver].[Empty]",
+                fixtures=[],
+            )
+
+        assert result["status"] == "ok"
+        assert result["row_count"] == 0
+        assert result["ground_truth_rows"] == []
+
+    def test_rejects_write_sql(self) -> None:
+        """execute_select rejects SQL containing write operations."""
+        backend = SqlServerSandbox(
+            host="localhost", port="1433", database="testdb",
+            password="pw", user="sa", driver="ODBC Driver 18 for SQL Server",
+        )
+        with pytest.raises(ValueError, match="write operation"):
+            backend.execute_select(
+                sandbox_db="__test_abc123",
+                sql="INSERT INTO [silver].[T] VALUES (1)",
+                fixtures=[],
+            )
+
+
+class TestExecuteSelectOracle:
+    """Unit tests for OracleSandbox.execute_select."""
+
+    def test_happy_path_returns_rows(self) -> None:
+        """execute_select seeds fixtures, runs SELECT, returns rows."""
+        backend = OracleSandbox(
+            host="localhost", port="1521", service="FREEPDB1",
+            password="pw", admin_user="sys", source_schema="SH",
+        )
+        cursor = MagicMock()
+        cursor.description = [("ID",), ("NAME",)]
+        cursor.fetchall.return_value = [(1, "Alice"), (2, "Bob")]
+
+        conn = MagicMock()
+        conn.cursor.return_value = cursor
+
+        @contextmanager
+        def _fake_connect():
+            yield conn
+
+        with patch.object(backend, "_connect", side_effect=_fake_connect), \
+             patch.object(backend, "_ensure_view_tables", return_value=[]), \
+             patch.object(backend, "_seed_fixtures"):
+            result = backend.execute_select(
+                sandbox_db="__test_abc123",
+                sql='SELECT "ID", "NAME" FROM "SH"."CHANNELS"',
+                fixtures=[],
+            )
+
+        assert result["status"] == "ok"
+        assert result["row_count"] == 2
+        assert len(result["ground_truth_rows"]) == 2
+        conn.rollback.assert_called_once()

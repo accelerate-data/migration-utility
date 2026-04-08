@@ -1342,16 +1342,17 @@ def test_view_profile_blocked_when_not_scoped(assert_valid_schema) -> None:
         assert result["object_type"] == "view"
 
 
-def test_view_test_gen_and_migrate_not_applicable(assert_valid_schema) -> None:
-    """test-gen and migrate are not applicable for views (not_applicable=True)."""
+def test_view_test_gen_and_migrate_route_through_guards(assert_valid_schema) -> None:
+    """test-gen and migrate for views now route through guard pipeline (not N/A)."""
     tmp, root = _make_project()
     with tmp:
         for stage in ("test-gen", "migrate"):
             result = dry_run.run_dry_run(root, "silver.vDimSalesTerritory", stage)
             assert_valid_schema(result, "dry_run_output.json")
-            assert result["guards_passed"] is False, f"stage {stage} should not pass"
-            assert result.get("not_applicable") is True, f"stage {stage} should be N/A"
-            assert result["guard_results"][-1]["code"] == "VIEW_STAGE_NOT_SUPPORTED", stage
+            assert result["object_type"] == "view"
+            # Should fail guards (scoping not analyzed), but NOT be not_applicable
+            assert result.get("not_applicable") is not True, f"stage {stage} should not be N/A"
+            assert result["guards_passed"] is False, f"stage {stage} should fail guards"
 
 
 def test_view_profile_pending_when_scoped_no_profile(assert_valid_schema) -> None:
@@ -1403,8 +1404,8 @@ def test_view_refactor_blocked_when_not_profiled(assert_valid_schema) -> None:
         assert result["guard_results"][-1]["code"] == "VIEW_PROFILE_NOT_COMPLETED"
 
 
-def test_view_refactor_pending_when_profiled_no_model(assert_valid_schema) -> None:
-    """View refactor stage guards pass when profiled, content shows dbt_model_exists=False."""
+def test_view_refactor_blocked_when_no_test_spec(assert_valid_schema) -> None:
+    """View refactor stage fails when no test spec exists."""
     tmp, root = _make_project()
     with tmp:
         view_path = root / "catalog" / "views" / "silver.vdimsalesterritory.json"
@@ -1415,8 +1416,57 @@ def test_view_refactor_pending_when_profiled_no_model(assert_valid_schema) -> No
 
         result = dry_run.run_dry_run(root, "silver.vDimSalesTerritory", "refactor")
         assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is False
+        assert result["guard_results"][-1]["code"] == "TEST_SPEC_NOT_FOUND"
+
+
+def test_view_refactor_passes_when_profiled_with_test_spec(assert_valid_schema) -> None:
+    """View refactor stage guards pass when profiled and test spec exists."""
+    tmp, root = _make_project()
+    with tmp:
+        view_path = root / "catalog" / "views" / "silver.vdimsalesterritory.json"
+        cat = json.loads(view_path.read_text(encoding="utf-8"))
+        cat["scoping"] = {"status": "analyzed", "sql_elements": [], "logic_summary": "test", "call_tree": {}}
+        cat["profile"] = {"status": "ok", "classification": "stg", "source": "llm", "rationale": "test"}
+        view_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        # Create a test spec for the view
+        spec_dir = root / "test-specs"
+        spec_dir.mkdir(exist_ok=True)
+        spec_path = spec_dir / "silver.vdimsalesterritory.json"
+        spec_path.write_text(json.dumps({
+            "item_id": "silver.vdimsalesterritory",
+            "status": "ok",
+            "coverage": "complete",
+            "branch_manifest": [],
+            "unit_tests": [],
+            "uncovered_branches": [],
+            "warnings": [],
+            "validation": {"status": "ok"},
+            "errors": [],
+        }), encoding="utf-8")
+
+        result = dry_run.run_dry_run(root, "silver.vDimSalesTerritory", "refactor")
+        assert_valid_schema(result, "dry_run_output.json")
         assert result["guards_passed"] is True
-        assert result["content"]["dbt_model_exists"] is False
+        assert result["content"]["has_refactored_sql"] is False
+
+
+def test_view_test_gen_passes_when_profiled(assert_valid_schema) -> None:
+    """View test-gen stage guards pass when scoped and profiled."""
+    tmp, root = _make_project()
+    with tmp:
+        view_path = root / "catalog" / "views" / "silver.vdimsalesterritory.json"
+        cat = json.loads(view_path.read_text(encoding="utf-8"))
+        cat["scoping"] = {"status": "analyzed", "sql_elements": [], "logic_summary": "test", "call_tree": {}}
+        cat["profile"] = {"status": "ok", "classification": "stg", "source": "llm", "rationale": "test"}
+        view_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        result = dry_run.run_dry_run(root, "silver.vDimSalesTerritory", "test-gen")
+        assert_valid_schema(result, "dry_run_output.json")
+        assert result["guards_passed"] is True
+        assert result["object_type"] == "view"
+        assert result["content"]["test_spec_exists"] is False
 
 
 def test_table_object_type_in_result(assert_valid_schema) -> None:

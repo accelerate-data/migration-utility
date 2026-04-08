@@ -76,6 +76,8 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness execute-spec \
 
 The CLI reads `sandbox.database` from `manifest.json`, executes all scenarios, captures ground truth, and writes `expect.rows` back into the file.
 
+**View entries:** When `execute-spec` encounters a test entry without a `procedure` key, it calls `execute_select` instead of `execute_scenario`, running the entry's `sql` SELECT directly against the sandbox. Fixture seeding and rollback work the same way.
+
 If `execute-spec` exits non-zero or individual scenarios fail:
 
 - **Non-zero exit (full failure):** record `status: "error"` with code `SCENARIO_EXECUTION_FAILED` for the item and continue to the next item.

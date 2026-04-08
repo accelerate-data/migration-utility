@@ -18,7 +18,12 @@
   "properties": {
     "item_id": {
       "type": "string",
-      "description": "Fully qualified table name: <schema>.<table>."
+      "description": "Fully qualified name: <schema>.<object> (table, view, or materialized view)."
+    },
+    "object_type": {
+      "type": "string",
+      "enum": ["table", "view", "mv"],
+      "description": "Type of the catalog object. Defaults to 'table' when absent for backwards compatibility."
     },
     "status": {
       "type": "string",
@@ -104,8 +109,6 @@
       "type": "object",
       "required": [
         "name",
-        "target_table",
-        "procedure",
         "given"
       ],
       "properties": {
@@ -115,11 +118,15 @@
         },
         "target_table": {
           "type": "string",
-          "description": "Bracket-quoted target table identifier, e.g. [silver].[DimProduct]."
+          "description": "Bracket-quoted target table identifier, e.g. [silver].[DimProduct]. Required for procedure-based tests; absent for view tests."
         },
         "procedure": {
           "type": "string",
-          "description": "Bracket-quoted stored procedure identifier, e.g. [silver].[usp_load_DimProduct]."
+          "description": "Bracket-quoted stored procedure identifier, e.g. [silver].[usp_load_DimProduct]. Required for procedure-based tests; absent for view tests."
+        },
+        "sql": {
+          "type": "string",
+          "description": "Pure SELECT statement to execute for ground truth capture. Used for view-based tests instead of procedure/target_table."
         },
         "model": {
           "type": "string",

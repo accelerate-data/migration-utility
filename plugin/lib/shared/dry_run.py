@@ -113,40 +113,32 @@ def run_dry_run(
     }
 
     # ── View / MV routing ────────────────────────────────────────────────────
+    _VIEW_STAGE_MAP: dict[str, str] = {
+        "scope": "scope-view",
+        "profile": "profile-view",
+        "test-gen": "test-gen-view",
+        "refactor": "refactor-view",
+        "migrate": "migrate-view",
+    }
     if object_type in ("view", "mv"):
-        if stage == "scope":
-            guards_passed, guard_results = run_guards(project_root, norm, "scope-view")
-            result["guards_passed"] = guards_passed
-            result["guard_results"] = guard_results
-            if guards_passed:
-                mode = "detail" if detail else "summary"
-                result["content"] = _CONTENT_COLLECTORS["scope-view"][mode](project_root, norm)
-        elif stage == "profile":
-            guards_passed, guard_results = run_guards(project_root, norm, "profile-view")
-            result["guards_passed"] = guards_passed
-            result["guard_results"] = guard_results
-            if guards_passed:
-                mode = "detail" if detail else "summary"
-                result["content"] = _CONTENT_COLLECTORS["profile-view"][mode](project_root, norm)
-        elif stage == "refactor":
-            guards_passed, guard_results = run_guards(project_root, norm, "refactor-view")
-            result["guards_passed"] = guards_passed
-            result["guard_results"] = guard_results
-            if guards_passed:
-                mode = "detail" if detail else "summary"
-                result["content"] = _CONTENT_COLLECTORS["refactor-view"][mode](project_root, norm)
-        else:
-            # test-gen and migrate are not applicable for views.
+        guard_set = _VIEW_STAGE_MAP.get(stage)
+        if guard_set is None:
             result["guards_passed"] = False
-            result["not_applicable"] = True
             result["guard_results"] = [
                 {
-                    "check": "object_type",
+                    "check": "invalid_stage",
                     "passed": False,
-                    "code": "VIEW_STAGE_NOT_SUPPORTED",
-                    "message": f"Stage '{stage}' is not supported for {object_type} objects.",
+                    "code": "INVALID_STAGE",
+                    "message": f"Unknown stage '{stage}' for {object_type} objects.",
                 },
             ]
+            return result
+        guards_passed, guard_results = run_guards(project_root, norm, guard_set)
+        result["guards_passed"] = guards_passed
+        result["guard_results"] = guard_results
+        if guards_passed:
+            mode = "detail" if detail else "summary"
+            result["content"] = _CONTENT_COLLECTORS[guard_set][mode](project_root, norm)
         return result
 
     # ── Table routing ────────────────────────────────────────────────────────
@@ -198,9 +190,11 @@ class GuardStage(str, Enum):
     profile = "profile"
     profile_view = "profile-view"
     test_gen = "test-gen"
+    test_gen_view = "test-gen-view"
     refactor = "refactor"
     refactor_view = "refactor-view"
     migrate = "migrate"
+    migrate_view = "migrate-view"
     generating_model = "generating-model"
     reviewing_model = "reviewing-model"
     reviewing_tests = "reviewing-tests"

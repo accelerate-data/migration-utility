@@ -78,10 +78,10 @@ migration status — 6 objects (4 tables, 2 views)
   silver.DimDate                table   pending      blocked    blocked    blocked     blocked
   silver.FactSales              table   pending!     blocked!   blocked!   blocked!    blocked!
   silver.RefCurrency            table   resolved     N/A        N/A        N/A         N/A
-  silver.vDimSalesTerritory     view    resolved     ok         N/A        pending     N/A
-  silver.vwFactPromo            mv      pending      blocked    N/A        blocked     N/A
+  silver.vDimSalesTerritory     view    resolved     ok         ok         pending     blocked
+  silver.vwFactPromo            mv      pending      blocked    blocked    blocked     blocked
 
-  scope: 4/6 | profile: 2/5 (1 N/A) | test-gen: 1/4 (2 N/A) | refactor: 1/5 (1 N/A) | migrate: 0/4 (2 N/A)
+  scope: 4/6 | profile: 2/5 (1 N/A) | test-gen: 2/5 (1 N/A) | refactor: 1/5 (1 N/A) | migrate: 0/5 (1 N/A)
 
   ! error diagnostic present   ~ warning diagnostic present
 ```
@@ -111,7 +111,7 @@ Object type values: `table`, `view`, `mv`.
 
 Header object count: show total objects plus a breakdown e.g. `(4 tables, 2 views)`. If MVs are present, count them separately: `(3 tables, 1 view, 2 mvs)`.
 
-Summary counts: the denominator excludes N/A objects and source/pending tables (they are not in the pipeline). Show the N/A count in parentheses if any exist, e.g. `profile: 2/4 (1 N/A)`. Views are included in the denominator for scope (they can be pending/complete for scope), but views are excluded from the denominator for profile/test-gen/refactor/migrate because those stages return `VIEW_STAGE_NOT_SUPPORTED` — treat them as implicit N/A for counting purposes. Source-confirmed tables (`is_source: true`) are excluded entirely from the status table and counts.
+Summary counts: the denominator excludes N/A objects and source/pending tables (they are not in the pipeline). Show the N/A count in parentheses if any exist, e.g. `profile: 2/4 (1 N/A)`. Views display all stages (scope, profile, test-gen, refactor, migrate) the same as tables. Source-confirmed tables (`is_source: true`) are excluded entirely from the status table and counts.
 
 ### Step 5 — What to do next
 
@@ -147,11 +147,8 @@ What to do next
   - Else if `profile_phase` is non-empty: current command is `/profile <fqn1> <fqn2> ...`.
   - Else if `migrate_batches` is non-empty: use the first batch's `pipeline_status` to pick the command:
     - `test_gen_needed` → `/generate-tests <fqn1> ...`
-    - `refactor_needed` → `/refactor <fqn1> ...`
-    - `migrate_needed` → group the batch's objects by type:
-      - Objects with `type == "view"` or `type == "mv"`: `/refactor-view <fqn1> <fqn2> ...`
-      - Objects with `type == "table"`: `/generate-model <fqn1> <fqn2> ...`
-      - If both types are present in the batch, show both commands on separate lines under the same action number (they are parallel, not sequential).
+    - `refactor_needed` → `/refactoring-sql <fqn1> ...`
+    - `migrate_needed` → `/generating-model <fqn1> ...`
   - If `circular_refs` is non-empty, append inline: `[N excluded — CIRCULAR_REFERENCE]`
   - Max 10 FQNs listed; if more, append `and N more` (all still execute).
 - **Action 3 — Next phase command**: The phase that will become unblocked after action 2 completes. Use the same command format. Omit if there is no obvious next phase.
@@ -338,7 +335,7 @@ For completed stages, show the key signals from the `--detail` content:
 
 Based on the first incomplete stage, recommend the specific command to run next for this table.
 
-For views and MVs (`type == "view"` or `type == "mv"`): when the first incomplete stage is `migrate` (scope is complete but no dbt model exists yet), recommend `/refactor-view <fqn>` (not `/generate-model`).
+For all object types (tables, views, MVs), route through the same stage commands: `profile_needed` → `/profile <fqn>`, `test_gen_needed` → `/generating-tests <fqn>`, `refactor_needed` → `/refactoring-sql <fqn>`, `migrate_needed` → `/generating-model <fqn>`.
 
 ## Error handling
 

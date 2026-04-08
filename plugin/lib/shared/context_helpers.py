@@ -128,6 +128,21 @@ def sandbox_metadata(project_root: Path) -> dict[str, Any] | None:
     return manifest.get("sandbox")
 
 
+def load_view_sql(project_root: Path, view_fqn: str) -> str | None:
+    """Load the SQL body of a view from the view catalog file.
+
+    Returns the view's SQL string, or None if the catalog file doesn't exist
+    or has no 'sql' key.
+    """
+    cat = load_view_catalog(project_root, view_fqn)
+    if cat is None:
+        return None
+    sql = cat.get("sql")
+    if not sql:
+        logger.warning("event=view_sql_empty view=%s", view_fqn)
+    return sql
+
+
 def load_test_spec(project_root: Path, table_fqn: str) -> dict[str, Any] | None:
     """Load a test spec file if it exists."""
     import logging as _logging

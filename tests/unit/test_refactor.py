@@ -256,3 +256,82 @@ def test_cli_context_missing_table() -> None:
         ["context", "--table", "silver.NoSuchTable", "--project-root", str(_REFACTOR_FIXTURES)],
     )
     assert result.exit_code != 0
+
+
+# ── View auto-detection in run_context ────────────────────────────────────────
+
+
+def test_context_view_auto_detect() -> None:
+    """run_context auto-detects a view FQN and returns view-specific fields."""
+    result = refactor.run_context(_REFACTOR_FIXTURES, "silver.vw_active_customers")
+    assert result["table"] == "silver.vw_active_customers"
+    assert result["object_type"] == "view"
+    assert "view_sql" in result
+    assert "CustomerID" in result["view_sql"]
+    assert "writer" not in result
+    assert "proc_body" not in result
+    assert "statements" not in result
+    assert result["profile"]["status"] == "ok"
+    assert result["columns"][0]["name"] == "CustomerID"
+    assert "bronze.customerraw" in result["source_tables"]
+
+
+def test_context_view_missing_profile() -> None:
+    """run_context raises ValueError when view catalog has no profile."""
+    tmp, root = _make_writable_copy()
+    with tmp:
+        cat_path = root / "catalog" / "views" / "silver.vw_active_customers.json"
+        cat = json.loads(cat_path.read_text())
+        del cat["profile"]
+        cat_path.write_text(json.dumps(cat))
+        with pytest.raises(ValueError, match="no 'profile' section"):
+            refactor.run_context(root, "silver.vw_active_customers")
+
+
+def test_context_view_missing_sql() -> None:
+    """run_context raises ValueError when view catalog has no sql."""
+    tmp, root = _make_writable_copy()
+    with tmp:
+        cat_path = root / "catalog" / "views" / "silver.vw_active_customers.json"
+        cat = json.loads(cat_path.read_text())
+        del cat["sql"]
+        cat_path.write_text(json.dumps(cat))
+        with pytest.raises(ValueError, match="no 'sql' key"):
+            refactor.run_context(root, "silver.vw_active_customers")
+
+
+def test_cli_context_view_success() -> None:
+    """CLI context command returns view-specific JSON when given a view FQN."""
+    result = _cli_runner.invoke(
+        refactor.app,
+        ["context", "--table", "silver.vw_active_customers", "--project-root", str(_REFACTOR_FIXTURES)],
+    )
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["object_type"] == "view"
+    assert "view_sql" in data
+    assert "writer" not in data
+
+
+# ── View auto-detection in run_write ──────────────────────────────────────────
+
+
+def test_write_view_happy_path() -> None:
+    """run_write auto-detects a view and writes to the view catalog."""
+    tmp, root = _make_writable_copy()
+    with tmp:
+        result = refactor.run_write(
+            root, "silver.vw_active_customers",
+            extracted_sql="SELECT c.CustomerID FROM bronze.CustomerRaw c WHERE c.IsActive = 1",
+            refactored_sql="WITH src AS (SELECT * FROM bronze.CustomerRaw WHERE IsActive = 1) SELECT CustomerID FROM src",
+            status="ok",
+        )
+        assert result["ok"] is True
+        assert result["table"] == "silver.vw_active_customers"
+        assert result.get("object_type") == "view"
+
+        # Verify view catalog was updated (not procedure catalog)
+        view_path = root / "catalog" / "views" / "silver.vw_active_customers.json"
+        view_cat = json.loads(view_path.read_text())
+        assert view_cat["refactor"]["status"] == "ok"
+        assert "CustomerID" in view_cat["refactor"]["extracted_sql"]

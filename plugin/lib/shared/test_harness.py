@@ -213,13 +213,23 @@ def execute_spec(
 
     for test_entry in unit_tests:
         try:
-            scenario = {
-                "name": test_entry["name"],
-                "target_table": test_entry["target_table"],
-                "procedure": test_entry["procedure"],
-                "given": test_entry["given"],
-            }
-            result = backend.execute_scenario(sandbox_db=sandbox_db, scenario=scenario)
+            if "procedure" in test_entry:
+                # Procedure-based test: run stored procedure, read target table
+                scenario = {
+                    "name": test_entry["name"],
+                    "target_table": test_entry["target_table"],
+                    "procedure": test_entry["procedure"],
+                    "given": test_entry["given"],
+                }
+                result = backend.execute_scenario(sandbox_db=sandbox_db, scenario=scenario)
+            else:
+                # View-based test: run a SELECT directly
+                result = backend.execute_select(
+                    sandbox_db=sandbox_db,
+                    sql=test_entry["sql"],
+                    fixtures=test_entry["given"],
+                )
+                result["scenario_name"] = test_entry["name"]
         except (ValueError, KeyError) as exc:
             result = {
                 "scenario_name": test_entry.get("name", "unknown"),

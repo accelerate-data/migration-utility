@@ -886,6 +886,73 @@ class SqlServerSandbox(SandboxBackend):
                 "errors": [{"code": "SCENARIO_FAILED", "message": str(exc)}],
             }
 
+    def execute_select(
+        self,
+        sandbox_db: str,
+        sql: str,
+        fixtures: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        _validate_sandbox_db_name(sandbox_db)
+        _validate_fixtures(fixtures)
+        _validate_readonly_sql(sql)
+
+        scenario_name = "execute_select"
+        logger.info("event=execute_select sandbox_db=%s", sandbox_db)
+
+        try:
+            self._ensure_view_tables(sandbox_db, fixtures)
+        except pyodbc.Error as exc:
+            logger.error(
+                "event=view_materialize_failed sandbox_db=%s error=%s",
+                sandbox_db, exc,
+            )
+            return {
+                "schema_version": "1.0",
+                "scenario_name": scenario_name,
+                "status": "error",
+                "ground_truth_rows": [],
+                "row_count": 0,
+                "errors": [{"code": "VIEW_MATERIALIZE_FAILED", "message": str(exc)}],
+            }
+
+        result_rows: list[dict[str, Any]] = []
+        try:
+            with self._connect(database=sandbox_db) as conn:
+                conn.autocommit = False
+                cursor = conn.cursor()
+                try:
+                    self._seed_fixtures(cursor, sandbox_db, fixtures)
+                    cursor.execute(sql)
+                    result_rows = self._capture_rows(cursor)
+                finally:
+                    conn.rollback()
+
+            logger.info(
+                "event=execute_select_complete sandbox_db=%s rows=%d",
+                sandbox_db, len(result_rows),
+            )
+            return {
+                "schema_version": "1.0",
+                "scenario_name": scenario_name,
+                "status": "ok",
+                "ground_truth_rows": serialize_rows(result_rows),
+                "row_count": len(result_rows),
+                "errors": [],
+            }
+        except pyodbc.Error as exc:
+            logger.error(
+                "event=execute_select_failed sandbox_db=%s error=%s",
+                sandbox_db, exc,
+            )
+            return {
+                "schema_version": "1.0",
+                "scenario_name": scenario_name,
+                "status": "error",
+                "ground_truth_rows": [],
+                "row_count": 0,
+                "errors": [{"code": "EXECUTE_SELECT_FAILED", "message": str(exc)}],
+            }
+
     def compare_two_sql(
         self,
         sandbox_db: str,

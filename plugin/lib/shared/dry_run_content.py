@@ -219,14 +219,64 @@ def profile_view_detail(project_root: Path, view_fqn: str) -> dict[str, Any]:
 
 
 def refactor_view_summary(project_root: Path, view_fqn: str) -> dict[str, Any]:
-    """Compact refactor status for a view — dbt model existence."""
-    evidence = _dbt_evidence(project_root, view_fqn)
-    return {"dbt_model_exists": evidence["model_exists"], "model_name": evidence["model_name"]}
+    """Compact refactor status for a view — checks refactor block in view catalog."""
+    cat = load_view_catalog(project_root, view_fqn) or {}
+    refactor = cat.get("refactor") or {}
+    return {
+        "refactor_status": refactor.get("status"),
+        "has_refactored_sql": bool(refactor.get("refactored_sql")),
+    }
 
 
 def refactor_view_detail(project_root: Path, view_fqn: str) -> dict[str, Any]:
-    """Full refactor status for a view — dbt model existence."""
-    return refactor_view_summary(project_root, view_fqn)
+    """Full refactor status for a view."""
+    cat = load_view_catalog(project_root, view_fqn) or {}
+    return {"refactor": cat.get("refactor")}
+
+
+def test_gen_view_summary(project_root: Path, view_fqn: str) -> dict[str, Any]:
+    """Compact test-gen status for a view — test-spec existence."""
+    spec = load_test_spec(project_root, view_fqn)
+    if spec is None:
+        return {"test_spec_exists": False, "coverage": None, "scenario_count": 0}
+    return {
+        "test_spec_exists": True,
+        "coverage": spec.get("coverage"),
+        "scenario_count": len(spec.get("unit_tests", [])),
+    }
+
+
+def test_gen_view_detail(project_root: Path, view_fqn: str) -> dict[str, Any]:
+    """Full test-gen status for a view."""
+    spec = load_test_spec(project_root, view_fqn)
+    if spec is None:
+        return {"test_spec_exists": False}
+    return {
+        "test_spec_exists": True,
+        "coverage": spec.get("coverage"),
+        "branch_count": len(spec.get("branch_manifest", [])),
+        "scenario_count": len(spec.get("unit_tests", [])),
+        "uncovered_branches": spec.get("uncovered_branches", []),
+    }
+
+
+def migrate_view_summary(project_root: Path, view_fqn: str) -> dict[str, Any]:
+    """Compact migrate status for a view — dbt model existence."""
+    evidence = _dbt_evidence(project_root, view_fqn)
+    return {
+        "dbt_model_exists": evidence["model_exists"],
+        "model_name": evidence["model_name"],
+        "schema_yaml_exists": evidence["schema_yaml_exists"],
+        "has_unit_tests": evidence["has_unit_tests"],
+    }
+
+
+def migrate_view_detail(project_root: Path, view_fqn: str) -> dict[str, Any]:
+    """Full migrate status for a view — dbt evidence."""
+    return {
+        "dbt": _dbt_evidence(project_root, view_fqn),
+        "test_spec": test_gen_view_summary(project_root, view_fqn),
+    }
 
 
 # ── Stage content: scope ─────────────────────────────────────────────────────
@@ -396,7 +446,9 @@ _CONTENT_COLLECTORS: dict[str, dict[str, Any]] = {
     "profile": {"detail": profile_detail, "summary": profile_summary},
     "profile-view": {"detail": profile_view_detail, "summary": profile_view_summary},
     "test-gen": {"detail": test_gen_detail, "summary": test_gen_summary},
+    "test-gen-view": {"detail": test_gen_view_detail, "summary": test_gen_view_summary},
     "refactor": {"detail": refactor_detail, "summary": refactor_summary},
     "refactor-view": {"detail": refactor_view_detail, "summary": refactor_view_summary},
     "migrate": {"detail": migrate_detail, "summary": migrate_summary},
+    "migrate-view": {"detail": migrate_view_detail, "summary": migrate_view_summary},
 }
