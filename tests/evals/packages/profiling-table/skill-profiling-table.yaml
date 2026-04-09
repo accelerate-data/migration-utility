@@ -132,7 +132,7 @@ tests:
       fixture_path: "tests/evals/fixtures/profiling-table/fk-role-playing"
       target_table: "silver.FactResellerSales"
       writer: "silver.usp_load_FactResellerSales"
-      expected_kind: "fact_accumulating_snapshot"
+      expected_kind: "fact_transaction"
       expected_status: "ok"
       expected_fk_type: "role_playing"
 

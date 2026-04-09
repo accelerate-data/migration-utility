@@ -48,6 +48,8 @@ A single signal (e.g. `valid_from` column with no supporting procedure pattern) 
 | `INSERT` then `UPDATE` targeting milestone date columns on existing rows | `fact_accumulating_snapshot` |
 | Cross-join `INSERT` of low-cardinality flag combinations | `dim_junk` |
 
+> **Accumulating snapshot confirmation required.** If any signal here tentatively points to `fact_accumulating_snapshot`, you MUST read [accumulating-snapshot-classification.md](accumulating-snapshot-classification.md) and apply its decision guide before confirming the classification.
+
 ### Column Shape Signals
 
 | Column pattern | Signal |
@@ -56,7 +58,7 @@ A single signal (e.g. `valid_from` column with no supporting procedure pattern) 
 | End-date column with sentinel default (`DEFAULT '9999-12-31'` or `'2099-12-31'`) | `dim_scd2` (strong — nearly definitive when paired with a date-pair) |
 | `version_number` / `row_version` / `scd_version` / `record_version` | `dim_scd2` (medium — row versioning signal) |
 | `hash_diff` / `row_hash` / `checksum` column alongside date-pair or current flag | `dim_scd2` (medium — change-detection hash; see disambiguation below) |
-| Multiple milestone date columns (`order_date`, `ship_date`, `close_date`) | `fact_accumulating_snapshot` |
+| Multiple nullable `DATETIME`/`DATE` milestone columns (`order_date`, `ship_date`, `close_date`) — integer FK date keys pointing to a date dimension do NOT qualify | `fact_accumulating_snapshot` (secondary — requires write-pattern corroboration; see confirmation gate above) |
 | `snapshot_date` / `as_of_date` / `period_date` | `fact_periodic_snapshot` |
 | Multiple `BIT`/`TINYINT` flag columns, all low-cardinality | `dim_junk` candidate |
 | Surrogate PK (`_sk`) + separate natural key column | Dimension (SCD1 or SCD2) |
