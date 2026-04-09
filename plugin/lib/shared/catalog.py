@@ -268,7 +268,7 @@ def load_and_merge_catalog(
     project_root: Path,
     fqn: str,
     section_key: str,
-    section_data: dict[str, Any],
+    section_data: Any,
 ) -> dict[str, Any]:
     """Load a catalog file, merge a section into it, and write it back atomically.
 
@@ -288,12 +288,14 @@ def load_and_merge_catalog(
     existing[section_key] = section_data
     write_json(cat_path, existing)
 
-    return {
+    result: dict[str, Any] = {
         "ok": True,
         "table": fqn,
-        "status": section_data.get("status", "ok"),
         "catalog_path": str(cat_path),
     }
+    if isinstance(section_data, dict) and "status" in section_data:
+        result["status"] = section_data["status"]
+    return result
 
 
 def ensure_references(data: dict[str, Any]) -> dict[str, Any]:

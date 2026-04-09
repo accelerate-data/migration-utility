@@ -34,10 +34,12 @@ from referencing import Registry, Resource
 
 from shared.catalog import (
     has_catalog,
+    load_and_merge_catalog,
     load_proc_catalog,
     load_table_catalog,
     load_view_catalog,
     load_function_catalog,
+    resolve_catalog_path,
     write_json,
     write_proc_statements,
     write_proc_table_slice,
@@ -497,13 +499,8 @@ def run_write_scoping(
     TableScopingSection.model_validate(scoping)
     _validate_schema_fragment(scoping, "table_catalog.json", "properties/scoping")
 
-    # Merge scoping section onto raw JSON
-    cat_path = resolve_catalog_dir(project_root) / "tables" / f"{table_norm}.json"
-    cat = json.loads(cat_path.read_text(encoding="utf-8"))
-    cat["scoping"] = scoping
-    write_json(cat_path, cat)
-
-    return {"written": str(cat_path), "status": "ok"}
+    result = load_and_merge_catalog(project_root, table_norm, "scoping", scoping)
+    return {"written": result["catalog_path"], "status": "ok"}
 
 
 def run_write_view_scoping(
@@ -536,13 +533,8 @@ def run_write_view_scoping(
     ViewScopingSection.model_validate(scoping)
     _validate_schema_fragment(scoping, "view_catalog.json", "properties/scoping")
 
-    # Merge scoping section onto raw JSON
-    cat_path = resolve_catalog_dir(project_root) / "views" / f"{view_norm}.json"
-    cat = json.loads(cat_path.read_text(encoding="utf-8"))
-    cat["scoping"] = scoping
-    write_json(cat_path, cat)
-
-    return {"written": str(cat_path), "status": "ok"}
+    result = load_and_merge_catalog(project_root, view_norm, "scoping", scoping)
+    return {"written": result["catalog_path"], "status": "ok"}
 
 
 def run_write_source(
@@ -562,10 +554,7 @@ def run_write_source(
             "Run /analyzing-table first."
         )
 
-    cat_path = resolve_catalog_dir(project_root) / "tables" / f"{table_norm}.json"
-    cat = json.loads(cat_path.read_text(encoding="utf-8"))
-    cat["is_source"] = value
-    write_json(cat_path, cat)
+    result = load_and_merge_catalog(project_root, table_norm, "is_source", value)
 
     logger.info(
         "event=write_source_complete component=discover operation=run_write_source "
@@ -574,7 +563,7 @@ def run_write_source(
         value,
     )
 
-    return {"written": str(cat_path), "is_source": value, "status": "ok"}
+    return {"written": result["catalog_path"], "is_source": value, "status": "ok"}
 
 
 def run_write_table_slice(
@@ -724,10 +713,9 @@ def write_scoping(
         logger.error("event=command_failed error=invalid_json detail=%s", exc)
         raise typer.Exit(code=2) from exc
     try:
-        # Auto-detect: check if a view catalog exists for this FQN
-        catalog_dir = resolve_catalog_dir(project_root)
-        view_cat_path = catalog_dir / "views" / f"{normalize(name)}.json"
-        if view_cat_path.exists():
+        # Auto-detect: route to view or table scoping based on catalog presence
+        cat_path = resolve_catalog_path(project_root, normalize(name))
+        if "/views/" in str(cat_path):
             result = run_write_view_scoping(project_root, name, scoping_data)
         else:
             result = run_write_scoping(project_root, name, scoping_data)
