@@ -10,9 +10,21 @@
           "is_selected": true,
           "is_updated": false,
           "columns": [
-            { "name": "ProductID", "is_selected": true, "is_updated": false },
-            { "name": "ProductName", "is_selected": true, "is_updated": false },
-            { "name": "ListPrice", "is_selected": true, "is_updated": false }
+            {
+              "name": "ProductID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductName",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ListPrice",
+              "is_selected": true,
+              "is_updated": false
+            }
           ]
         },
         {
@@ -21,24 +33,42 @@
           "is_selected": false,
           "is_updated": true,
           "columns": [
-            { "name": "ProductAlternateKey", "is_selected": false, "is_updated": true },
-            { "name": "EnglishProductName", "is_selected": false, "is_updated": true },
-            { "name": "PriceCategory", "is_selected": false, "is_updated": true }
+            {
+              "name": "ProductAlternateKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "EnglishProductName",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "PriceCategory",
+              "is_selected": false,
+              "is_updated": true
+            }
           ]
         }
       ],
       "out_of_scope": []
     },
-    "views": { "in_scope": [], "out_of_scope": [] },
-    "functions": { "in_scope": [], "out_of_scope": [] },
-    "procedures": { "in_scope": [], "out_of_scope": [] }
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
   },
   "mode": "llm_required",
   "routing_reasons": [
-    {
-      "routing": "control_flow",
-      "rationale": "IF/ELSE control flow requires LLM-assisted branch enumeration to identify both conditional paths."
-    }
+    "if_else"
   ],
   "statements": [
     {
