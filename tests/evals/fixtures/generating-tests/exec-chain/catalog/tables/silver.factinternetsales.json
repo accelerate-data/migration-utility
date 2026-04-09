@@ -268,5 +268,14 @@
       "source": "llm"
     },
     "pii_actions": []
+  },
+  "test_gen": {
+    "status": "ok",
+    "test_spec_path": "test-specs/silver.factinternetsales.json",
+    "branches": 7,
+    "unit_tests": 7,
+    "coverage": "complete",
+    "warnings": [],
+    "errors": []
   }
 }
