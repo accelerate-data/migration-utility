@@ -18,6 +18,28 @@ Restructure a stored procedure's SQL into import/logical/final CTEs while provin
 
 `$ARGUMENTS` is the fully-qualified table name. Ask the user if missing. The writer is read from the catalog scoping section (`catalog/tables/<table>.json` -> `scoping.selected_writer`).
 
+## Schema discipline
+
+Whenever this skill writes structured JSON back to the catalog, treat the schemas in `../../lib/shared/schemas/` as the contract:
+
+- table refactor: `table_catalog.json#/properties/refactor`
+- view refactor: `view_catalog.json#/properties/refactor`
+
+Do not invent field names or omit required fields. If `refactor write` returns a validation error, fix the SQL or payload and retry the command.
+
+Use the canonical `/refactor` surfaced code list in `../../lib/shared/refactor_error_codes.md`. Do not define a competing public error-code list in this skill.
+
+## Harness mode
+
+When the caller explicitly says there is no live sandbox, to skip `compare-sql`, or to use logical equivalence checks instead, treat that as harness mode.
+
+In harness mode:
+
+- Do not ask for confirmation about skipping sandbox execution.
+- Do not block on missing sandbox availability.
+- Use the available context, extracted SQL, and refactored SQL to perform a logical equivalence review instead of running `compare-sql`.
+- Continue to `refactor write` with `partial` only if logical differences remain unresolved after the allowed retry loop.
+
 ## Before invoking
 
 Check stage readiness:
@@ -26,7 +48,9 @@ Check stage readiness:
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <table_fqn> refactor
 ```
 
-If `passed` is `false`, report the failing check's `code` and `message` to the user and stop.
+If `ready` is `false`, report the failing `code` and `reason` to the user and stop.
+
+If harness mode is active and readiness fails only because test generation is incomplete, continue with the available test-spec and use logical equivalence checks instead of blocking on `compare-sql`.
 
 ## Step 1: Assemble context
 

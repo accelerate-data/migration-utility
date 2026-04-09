@@ -12,6 +12,20 @@ argument-hint: "<schema.table> [schema.table ...]"
 
 Restructure stored procedure or view SQL into import/logical/final CTEs with a self-correcting audit loop proving equivalence. For 2+ objects, runs a planning sweep that collects refactor status from the catalog, detects shared staging candidates, and presents a pre-flight table with skip/re-refactor/refactor recommendations. Execution is plan-driven with phase-based task tracking.
 
+## Harness Mode
+
+When the caller explicitly says to skip git operations, worktree creation, PR steps, or sandbox `compare-sql`, treat that as a non-interactive harness mode. Do not ask follow-up questions about those skips.
+
+In harness mode:
+
+- Skip `git-checkpoints`.
+- Use the current project root as `<working-directory>`.
+- Write `.migration-runs/` artifacts under the caller-specified project root. Create the directory if it does not exist.
+- Skip per-item `/commit` calls and revert steps.
+- Skip the final PR prompt and `/commit-push-pr`.
+- Skip live `compare-sql` and allow the skill to use logical equivalence checks instead.
+- Still run the full refactor flow and write item/summary artifacts.
+
 ## Guards
 
 - `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
@@ -47,6 +61,7 @@ For **single-object runs**: create one `execute: refactor <fqn>` task and one `s
    - **Single object (1 item):** use the object FQN directly — `refactor-<schema>-<name>` (lowercase, dots → hyphens). No LLM reasoning needed.
    - **Multiple objects (2+):** reason about the conversation context — what is the user trying to accomplish with this batch? Generate a short, descriptive slug that captures the intent (e.g. `refactor-silver-facts`, `refactor-customer-procs`). The full slug (including the `refactor-` prefix) must be lowercase, hyphen-separated, and at most 40 characters.
 2. Run the `git-checkpoints` skill with the run slug as the argument.
+   - If harness mode is active: skip this step and set `<working-directory>` to the current project root.
    - If it returns the default branch name (not a worktree path): proceed without a branch or worktree. All file writes and git operations target the current directory. Set `<working-directory>` to `$(git rev-parse --show-toplevel)` for use in sub-agent prompts below.
    - Otherwise: use the returned path as the working directory for all file writes and git operations in this run. Set `<working-directory>` to the returned path.
 3. Generate a run epoch: seconds since Unix epoch. All run artifacts use this as a filename suffix.
@@ -81,9 +96,13 @@ Proceed? (y/n/edit)
 - On `edit`: user specifies per-object action overrides (e.g. `silver.DimCustomer: refactor`). Update the plan artifact to reflect the override before proceeding.
 - On `n`: abort the run.
 
+If harness mode is active, do not ask for pre-flight confirmation. Present the plan and proceed directly to Step 2.
+
 ### Step 2 -- Execute refactoring (plan-driven)
 
 **Single-object path (1 object):** Run `/refactoring-sql` directly in the current conversation -- do not launch a sub-agent. After the skill completes, write the item result JSON to `.migration-runs/<schema.object>.<epoch>.json`.
+
+Create `.migration-runs/` first if it does not already exist.
 
 If the item status is `error`, immediately revert any catalog changes:
 
@@ -92,6 +111,8 @@ git checkout -- catalog/tables/<item_id>.json
 ```
 
 If the item status is not `error`, auto-commit and push: run `/commit catalog/tables/<item_id>.json`.
+
+If harness mode is active, skip both the revert and commit steps and leave files in place for the eval harness to inspect.
 
 Then continue to Step 3.
 
@@ -114,6 +135,8 @@ Run the /refactoring-sql skill for <schema.object>.
 The working directory is <working-directory>.
 Write the item result JSON to .migration-runs/<schema.object>.<epoch>.json.
 
+Create `.migration-runs/` first if it does not already exist.
+
 After writing the result:
 - If status == "error": run `git checkout -- catalog/tables/<item_id>.json`.
 - If status != "error": invoke the /commit command with catalog/tables/<item_id>.json
@@ -121,6 +144,8 @@ After writing the result:
 On failure, write result with status: "error" and error details, then revert as above.
 Return the item result JSON.
 ```
+
+If harness mode is active, skip both the revert and commit steps.
 
 The skill writes the refactored CTE SQL into the catalog `refactor` section.
 
@@ -149,6 +174,8 @@ The skill writes the refactored CTE SQL into the catalog `refactor` section.
    If yes: run `/commit-push-pr refactor <comma-separated list of successfully processed tables>`.
    After the PR is created or updated, tell the user the PR URL and branch. If on a feature branch, also include the worktree path and tell the user: "Once the PR is merged, run /cleanup-worktrees to remove the worktree and branches."
 
+   If harness mode is active, skip this entire PR step and end after printing the summary.
+
 6. Suggest running `/status` to see overall migration readiness across all tables.
 
 ## Item Result Schema
@@ -172,20 +199,9 @@ The skill writes the refactored CTE SQL into the catalog `refactor` section.
 
 ## Error and Warning Codes
 
-| Code | Severity | When |
-|---|---|---|
-| `MANIFEST_NOT_FOUND` | error | manifest.json missing -- all items fail |
-| `SANDBOX_NOT_CONFIGURED` | error | manifest.json has no `sandbox.database` |
-| `SANDBOX_NOT_RUNNING` | error | sandbox-status check failed |
-| `CATALOG_FILE_MISSING` | error | catalog file not found -- skip item |
-| `SCOPING_NOT_COMPLETED` | error | no selected_writer -- skip item |
-| `PROFILE_NOT_COMPLETED` | error | profile missing or not ok -- skip item |
-| `TEST_SPEC_NOT_FOUND` | error | test-specs file not found -- skip item |
-| `REFACTOR_FAILED` | error | refactoring skill pipeline failed -- skip item |
-| `EQUIVALENCE_PARTIAL` | warning | not all scenarios passed after max iterations |
-| `COMPARE_SQL_FAILED` | warning | sandbox execution error during comparison |
+Use the canonical `/refactor` code list in [../lib/shared/refactor_error_codes.md](../lib/shared/refactor_error_codes.md).
 
-Each entry in `errors[]` or `warnings[]`:
+Each entry in `errors[]` or `warnings[]` uses this shape:
 
 ```json
 {"code": "EQUIVALENCE_PARTIAL", "message": "2/5 scenarios failed for silver.dimproduct after 3 iterations.", "item_id": "silver.dimproduct", "severity": "warning"}

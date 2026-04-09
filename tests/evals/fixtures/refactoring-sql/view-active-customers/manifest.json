@@ -1,0 +1,10 @@
+{
+  "project_name": "refactoring-sql-view-active-customers",
+  "source": {
+    "technology": "sqlserver",
+    "dialect": "tsql"
+  },
+  "sandbox": {
+    "database": "MigrationTest"
+  }
+}

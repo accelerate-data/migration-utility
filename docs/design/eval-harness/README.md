@@ -136,6 +136,18 @@ The package scripts restore their fixture roots before and after each run. Most 
 
 All eval scripts use `--no-cache` to force fresh LLM invocations.
 
+If you add a new fixture directory, commit it or at least stage it before running the package script. The reset step uses `git clean`, so untracked fixture directories will be deleted.
+
+### Mixed prompt packages
+
+If a package contains both table and view scenarios, do not rely on the package-level `prompts:` list alone. Pin each scenario to its intended prompt with `prompts: ["<prompt-id>"]`.
+
+Use this whenever:
+
+- the package has separate table and view prompts
+- the package has object-type-specific prompts with different required vars
+- adding a new scenario would otherwise expand against every prompt in the package
+
 ---
 
 ## When An Eval Fails
@@ -178,6 +190,7 @@ Use this rule of thumb:
 - Change the prompt when the scenario is valid but the agent needs better instructions.
 - Change the assertion when the expected outcome is right but the check is stale or too brittle.
 - Change the package YAML when the wrong prompt, fixture, or vars are wired together.
+- If a package mixes table and view scenarios, pin each scenario to the correct prompt before rerunning the package.
 
 ---
 

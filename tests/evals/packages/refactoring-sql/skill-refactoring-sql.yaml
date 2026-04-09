@@ -5,6 +5,9 @@ prompts:
   - id: refactoring-sql
     label: refactoring-sql
     raw: file://../../prompts/skill-refactoring-sql.txt
+  - id: refactoring-sql-view
+    label: refactoring-sql-view
+    raw: file://../../prompts/skill-refactoring-sql-view.txt
 
 providers:
   - id: anthropic:claude-agent-sdk
@@ -28,6 +31,7 @@ defaultTest:
 tests:
   # ── insert-select ─────────────────────────────────────────────
   - description: "insert-select — simple INSERT...SELECT extracted and refactored"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/insert-select"
       target_table: "silver.InsertSelectTarget"
@@ -37,6 +41,7 @@ tests:
 
   # ── merge ─────────────────────────────────────────────────────
   - description: "merge — MERGE USING clause extracted, refactored with import CTEs"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/merge"
       target_table: "silver.DimProduct"
@@ -46,6 +51,7 @@ tests:
 
   # ── update with join ──────────────────────────────────────────
   - description: "update-join — UPDATE with JOIN extracted as joined SELECT"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/update-join"
       target_table: "silver.UpdateJoinTarget"
@@ -55,6 +61,7 @@ tests:
 
   # ── delete with where ─────────────────────────────────────────
   - description: "delete-where — DELETE inverted to keep-rows SELECT"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/delete-where"
       target_table: "silver.DeleteWhereTarget"
@@ -64,6 +71,7 @@ tests:
 
   # ── truncate + insert with outer apply (full reload) ─────────
   - description: "truncate-insert — DimCustomer full reload extracted with OUTER APPLY"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/truncate-insert"
       target_table: "silver.DimCustomer"
@@ -73,6 +81,7 @@ tests:
 
   # ── union all ─────────────────────────────────────────────────
   - description: "union-all — UNION ALL preserved in both extracted and refactored"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/union-all"
       target_table: "silver.UnionAllTarget"
@@ -82,6 +91,7 @@ tests:
 
   # ── window-fn ────────────────────────────────────────────────
   - description: "window-fn — FactInternetSales window expressions preserved"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/window-fn"
       target_table: "silver.FactInternetSales"
@@ -91,6 +101,7 @@ tests:
 
   # ── grouping sets ─────────────────────────────────────────────
   - description: "grouping-sets — GROUPING SETS preserved in refactored CTEs"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/grouping-sets"
       target_table: "silver.GroupingSetsTarget"
@@ -100,6 +111,7 @@ tests:
 
   # ── pivot ─────────────────────────────────────────────────────
   - description: "pivot — PIVOT pattern handled in CTE restructuring"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/pivot"
       target_table: "silver.PivotTarget"
@@ -110,6 +122,7 @@ tests:
 
   # ── select into ──────────────────────────────────────────────
   - description: "select-into — SELECT INTO extracted as pure SELECT with CTE"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/select-into"
       target_table: "silver.SelectIntoTarget"
@@ -119,6 +132,7 @@ tests:
 
   # ── single cte ───────────────────────────────────────────────
   - description: "single-cte — CTE-based INSERT restructured into import/logical/final"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/single-cte"
       target_table: "silver.SingleCteTarget"
@@ -127,6 +141,7 @@ tests:
 
   # ── correlated subquery (multi-level CTE) ────────────────────
   - description: "correlated-subquery — correlated subquery flattened into CTE chain"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/correlated-subquery"
       target_table: "silver.CorrelatedSubqueryTarget"
@@ -135,6 +150,7 @@ tests:
 
   # ── case when (via MERGE) ────────────────────────────────────
   - description: "case-when — CASE WHEN expressions preserved in refactored CTEs"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/case-when"
       target_table: "silver.DimProduct"
@@ -144,6 +160,7 @@ tests:
 
   # ── outer-apply ──────────────────────────────────────────────
   - description: "outer-apply — OUTER APPLY and JOIN restructured into CTEs"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/outer-apply"
       target_table: "silver.DimCustomer"
@@ -153,6 +170,7 @@ tests:
 
   # ── insert-select-derived ────────────────────────────────────
   - description: "insert-select-derived — FactInternetSales staging query derived table"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/insert-select-derived"
       target_table: "silver.FactInternetSales"
@@ -161,6 +179,7 @@ tests:
 
   # ── update-join-cte ──────────────────────────────────────────
   - description: "update-join-cte — UpdateJoinTarget CTE restructuring"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/update-join-cte"
       target_table: "silver.UpdateJoinTarget"
@@ -169,6 +188,7 @@ tests:
 
   # ── delete-where-cte ─────────────────────────────────────────
   - description: "delete-where-cte — DeleteWhereTarget CTE restructuring"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/delete-where-cte"
       target_table: "silver.DeleteWhereTarget"
@@ -177,6 +197,7 @@ tests:
 
   # ── if/else control flow ─────────────────────────────────────
   - description: "if-else — IF/ELSE branches decomposed into CTE structure"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/if-else"
       target_table: "silver.IfElseTarget"
@@ -185,6 +206,7 @@ tests:
 
   # ── while loop ───────────────────────────────────────────────
   - description: "while-loop — WHILE loop set-based equivalent in CTEs"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/while-loop"
       target_table: "silver.WhileLoopTarget"
@@ -193,6 +215,7 @@ tests:
 
   # ── cross-db exec (graceful) ─────────────────────────────────
   - description: "cross-db-exec — cross-database EXEC graceful partial"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/cross-db-exec"
       target_table: "silver.DimCrossDbProfile"
@@ -201,6 +224,7 @@ tests:
 
   # ── dynamic-sql (graceful) ───────────────────────────────────
   - description: "dynamic-sql — dynamic SQL graceful partial"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/dynamic-sql"
       target_table: "silver.DimCurrency"
@@ -209,6 +233,7 @@ tests:
 
   # ── exec variable (graceful) ─────────────────────────────────
   - description: "exec-variable — EXEC(@sql) graceful partial"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/exec-variable"
       target_table: "silver.ExecVariableTarget"
@@ -217,6 +242,7 @@ tests:
 
   # ── exec concat (graceful) ──────────────────────────────────
   - description: "exec-concat — EXEC concatenation graceful partial"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/exec-concat"
       target_table: "silver.ExecConcatTarget"
@@ -225,6 +251,7 @@ tests:
 
   # ── delete top ───────────────────────────────────────────────
   - description: "delete-top — DELETE TOP inverted to keep-rows SELECT"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/delete-top"
       target_table: "silver.DeleteTopTarget"
@@ -234,6 +261,7 @@ tests:
 
   # ── recursive cte ────────────────────────────────────────────
   - description: "recursive-cte — recursive CTE preserved in refactored model"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/recursive-cte"
       target_table: "silver.RecursiveCteTarget"
@@ -243,6 +271,7 @@ tests:
 
   # ── try/catch ────────────────────────────────────────────────
   - description: "try-catch — TRY block INSERT extracted, CATCH discarded"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/try-catch"
       target_table: "silver.TryCatchTarget"
@@ -252,6 +281,7 @@ tests:
 
   # ── nested-flow ──────────────────────────────────────────────
   - description: "nested-flow — nested IF/TRY decomposed into CTE structure"
+    prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/nested-flow"
       target_table: "silver.NestedFlowTarget"
@@ -260,6 +290,7 @@ tests:
 
   # ── dbt-aware staging reuse ─────────────────────────────────
   - description: "dbt-aware-stg-reuse — existing stg_dimproduct.sql influences import CTE column names"
+    prompts: ["refactoring-sql"]
     vars:
       target_table: "silver.DimProduct"
       writer: "silver.usp_load_DimProduct"
@@ -268,3 +299,12 @@ tests:
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-aware-refactored-sql.js
+
+  # ── view refactor ────────────────────────────────────────────
+  - description: "view-basic — single-source filtered view restructured into CTEs"
+    prompts: ["refactoring-sql-view"]
+    vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/view-active-customers"
+      target_view: "silver.vw_active_customers"
+      expected_extracted_terms: "customerid,isactive"
+      expected_refactored_terms: "with,final,customerid"
