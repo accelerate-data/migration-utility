@@ -109,6 +109,12 @@
           "type": "string",
           "description": "Refactored CTE SQL (import/logical/final pattern) that passed the equivalence audit."
         },
+        "semantic_review": {
+          "$ref": "common.json#/$defs/refactor_semantic_review"
+        },
+        "compare_sql": {
+          "$ref": "common.json#/$defs/refactor_compare_sql_summary"
+        },
         "shared_sources": {
           "type": "array",
           "items": { "type": "string" },

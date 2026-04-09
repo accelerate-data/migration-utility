@@ -10,48 +10,40 @@ argument-hint: "<schema.table> [schema.table ...]"
 
 # Refactor
 
-Restructure stored procedure or view SQL into import/logical/final CTEs with a self-correcting audit loop proving equivalence. For 2+ objects, runs a planning sweep that collects refactor status from the catalog, detects shared staging candidates, and presents a pre-flight table with skip/re-refactor/refactor recommendations. Execution is plan-driven with phase-based task tracking.
+Restructure stored procedure or view SQL into import/logical/final CTEs with proof-backed equivalence.
 
-## Harness Mode
+Use these status meanings:
 
-When the caller explicitly says to skip git operations, worktree creation, PR steps, or sandbox `compare-sql`, treat that as a non-interactive harness mode. Do not ask follow-up questions about those skips.
+- `ok` — semantic review passed and executable `compare-sql` passed when compare was required
+- `partial` — semantic review passed but executable compare was skipped or unavailable, or some proof gaps remain
+- `error` — extraction, refactor, or required proof failed
 
-In harness mode:
+## Compare behavior
 
-- Skip `git-checkpoints`.
-- Use the current project root as `<working-directory>`.
-- Write `.migration-runs/` artifacts under the caller-specified project root. Create the directory if it does not exist.
-- Skip per-item `/commit` calls and revert steps.
-- Skip the final PR prompt and `/commit-push-pr`.
-- Skip live `compare-sql` and allow the skill to use logical equivalence checks instead.
-- Still run the full refactor flow and write item/summary artifacts.
+When the caller explicitly says to skip sandbox `compare-sql`, or when `test-harness sandbox-status` fails, use semantic review only and persist `partial` unless executable proof is later provided.
+
+This changes only the proof path. Keep the normal git/worktree, commit, and PR flow.
 
 ## Guards
 
 - `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
 - For each FQN argument: if `catalog/tables/<fqn>.json` has `"is_source": true`, skip that table and print:
   > `<fqn>` is marked as a dbt source — no migration needed. Use `/add-source-tables` to manage source tables.
-- `manifest.json` must have `sandbox.database`. If missing, fail all items with `SANDBOX_NOT_CONFIGURED` and tell user to run `/setup-sandbox`.
-- Check sandbox exists via `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-status`. If not found, fail all items with `SANDBOX_NOT_RUNNING`.
 
 Per-item readiness is checked by the skill via `migrate-util ready`.
 
 ## Progress Tracking
 
-Use `TaskCreate` and `TaskUpdate` to track execution phases, not individual objects.
+Use `TaskCreate` and `TaskUpdate` to show live progress.
 
-For **2+ objects**, create these tasks at command start:
+For **2+ objects**, create:
 
 | Task subject | Complete when |
 |---|---|
-| `sweep` | Plan artifact written and shared sources persisted |
-| `pre-flight` | User confirms the plan |
-| `execute: <description>` | That execution thread finishes (create when Claude decides each thread) |
+| `execute: refactor <fqn>` | That item finishes |
 | `summarize` | Summary written |
 
-Thread task subjects describe the work: e.g. `execute: refactor silver.DimCustomer, silver.FactSales` or `execute: re-refactor silver.DimProduct`. Skipped objects are not tracked as tasks — they appear in the summary only.
-
-For **single-object runs**: create one `execute: refactor <fqn>` task and one `summarize` task. No sweep or pre-flight tasks.
+For **single-object runs**: create one `execute: refactor <fqn>` task and one `summarize` task.
 
 ## Pipeline
 
@@ -61,72 +53,41 @@ For **single-object runs**: create one `execute: refactor <fqn>` task and one `s
    - **Single object (1 item):** use the object FQN directly — `refactor-<schema>-<name>` (lowercase, dots → hyphens). No LLM reasoning needed.
    - **Multiple objects (2+):** reason about the conversation context — what is the user trying to accomplish with this batch? Generate a short, descriptive slug that captures the intent (e.g. `refactor-silver-facts`, `refactor-customer-procs`). The full slug (including the `refactor-` prefix) must be lowercase, hyphen-separated, and at most 40 characters.
 2. Run the `git-checkpoints` skill with the run slug as the argument.
-   - If harness mode is active: skip this step and set `<working-directory>` to the current project root.
    - If it returns the default branch name (not a worktree path): proceed without a branch or worktree. All file writes and git operations target the current directory. Set `<working-directory>` to `$(git rev-parse --show-toplevel)` for use in sub-agent prompts below.
    - Otherwise: use the returned path as the working directory for all file writes and git operations in this run. Set `<working-directory>` to the returned path.
 3. Generate a run ID once for the command run: `<epoch_ms>-<random_8hex>`. Use it as the artifact suffix for every file written by this run so concurrent runs against the same fixture do not collide.
 
-### Step 1b -- Planning sweep (2+ objects only)
-
-Run the sweep CLI to collect refactor status and dbt model existence for each object:
-
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" refactor sweep \
-  --tables <fqn1> --tables <fqn2> ... \
-  --project-root <working-directory>
-```
-
-Read the output JSON. It contains per-object signals and a `shared_staging_candidates` list. Write the plan artifact to `.migration-runs/refactor-sweep.<run_id>.json`.
-
-Present a pre-flight table to the user:
-
-```text
-Object                       Status    Staging  Mart   Action
-───────────────────────────────────────────────────────────────
-silver.DimCustomer           ok        1/1      yes    skip
-silver.DimProduct            partial   0/2      no     re-refactor
-silver.FactSales             —         1/3      no     refactor
-
-Shared staging candidates: bronze.CustomerRaw (2 SPs)
-
-Proceed? (y/n/edit)
-```
-
-- On `y`: proceed to Step 2.
-- On `edit`: user specifies per-object action overrides (e.g. `silver.DimCustomer: refactor`). Update the plan artifact to reflect the override before proceeding.
-- On `n`: abort the run.
-
-If harness mode is active, do not ask for pre-flight confirmation. Present the plan and proceed directly to Step 2.
-
 ### Step 2 -- Execute refactoring (plan-driven)
-
-**Single-object path (1 object):** Run `/refactoring-sql` directly in the current conversation -- do not launch a sub-agent. After the skill completes, write the item result JSON to `.migration-runs/<schema.object>.<run_id>.json`.
 
 Create `.migration-runs/` first if it does not already exist.
 
-If the item status is `error`, immediately revert any catalog changes:
+**Single-object path (1 object):** Run `/refactoring-sql` directly in the current conversation. Do not launch a sub-agent. After the skill completes, write the item result JSON to `.migration-runs/<schema.object>.<run_id>.json`.
 
-```bash
-git checkout -- catalog/tables/<item_id>.json
+If the current persisted refactor for the item already has `status: ok` and the user did not explicitly ask for a rerun, do not re-run the skill. Write a skip result:
+
+```json
+{"item_id": "<fqn>", "status": "ok", "output": {"skipped": true, "reason": "proof_backed_refactor_already_present"}}
 ```
 
-If the item status is not `error`, auto-commit and push: run `/commit catalog/tables/<item_id>.json`.
+Determine the persisted catalog path before any git step:
 
-If harness mode is active, skip both the revert and commit steps and leave files in place for the eval harness to inspect.
+- table objects: `catalog/procedures/<selected_writer>.json`
+- view or materialized view objects: `catalog/views/<item_id>.json`
+
+If the item status is `error`, immediately revert that persisted catalog file:
+
+```bash
+git checkout -- <persisted-catalog-path>
+```
+
+If the item status is not `error`, run `/commit <persisted-catalog-path>`.
 
 Then continue to Step 3.
 
-**Multi-object path (2+ objects):** Read the sweep plan. For each object:
+**Multi-object path (2+ objects):** Launch one sub-agent per item in parallel. For each object:
 
-- `recommended_action: "skip"` — write a skip result immediately (no agent needed):
-
-  ```json
-  {"item_id": "<fqn>", "status": "ok", "output": {"skipped": true, "reason": "refactor.status=ok"}}
-  ```
-
-- `recommended_action: "re-refactor"` or `"refactor"` — spawn an agent for `/refactoring-sql`
-
-Claude decides how many agents to spawn and which objects to group into execution threads, based on shared staging relationships. Objects that share staging candidates can run fully in parallel since their shared sources are already identified.
+- if the current persisted refactor already has `status: ok` and the user did not explicitly ask for a rerun, write the same skip result immediately
+- otherwise spawn one sub-agent per object for `/refactoring-sql`
 
 **Refactor agent prompt:**
 
@@ -138,16 +99,17 @@ Write the item result JSON to .migration-runs/<schema.object>.<run_id>.json.
 Create `.migration-runs/` first if it does not already exist.
 
 After writing the result:
-- If status == "error": run `git checkout -- catalog/tables/<item_id>.json`.
-- If status != "error": invoke the /commit command with catalog/tables/<item_id>.json
+- Resolve the persisted catalog path first:
+  - table: `catalog/procedures/<selected_writer>.json`
+  - view or materialized view: `catalog/views/<item_id>.json`
+- If status == "error": run `git checkout -- <persisted-catalog-path>`.
+- If status != "error": invoke the /commit command with <persisted-catalog-path>
 
 On failure, write result with status: "error" and error details, then revert as above.
 Return the item result JSON.
 ```
 
-If harness mode is active, skip both the revert and commit steps.
-
-The skill writes the refactored CTE SQL into the catalog `refactor` section.
+The skill writes the extracted SQL, refactored SQL, semantic-review evidence, and compare summary into the persisted catalog `refactor` section.
 
 ### Step 3 -- Summarize
 
@@ -158,23 +120,24 @@ The skill writes the refactored CTE SQL into the catalog `refactor` section.
    ```text
    refactor complete -- N tables processed
 
-     ok  silver.DimCustomer    3 CTEs, all scenarios passed
-     ~   silver.DimProduct     partial (2/5 scenarios passed)
+     ok  silver.DimCustomer    compare-sql passed
+     ~   silver.DimProduct     semantic review passed; compare-sql skipped
      x   silver.DimDate        error (TEST_SPEC_NOT_FOUND)
 
      ok: 1 | partial: 1 | error: 1
    ```
 
 4. If all items errored, report errors only and stop.
-5. Ask the user:
+5. Run `/commit-push-pr refactor <comma-separated list of successfully processed tables>`.
+   After the PR is created or updated, tell the user:
 
-   > All successful items have been committed and pushed.
-   > Raise a PR for this run? (y/n)
+   ```text
+   PR #<number> is open: <pr_url>
+   Branch: <branch>
+   Worktree: <working-directory>  (omit this line if on the default branch)
+   ```
 
-   If yes: run `/commit-push-pr refactor <comma-separated list of successfully processed tables>`.
-   After the PR is created or updated, tell the user the PR URL and branch. If on a feature branch, also include the worktree path and tell the user: "Once the PR is merged, run /cleanup-worktrees to remove the worktree and branches."
-
-   If harness mode is active, skip this entire PR step and end after printing the summary.
+   If on a feature branch, also tell the user: "Once the PR is merged, run /cleanup-worktrees to remove the worktree and branches."
 
 6. Suggest running `/status` to see overall migration readiness across all tables.
 

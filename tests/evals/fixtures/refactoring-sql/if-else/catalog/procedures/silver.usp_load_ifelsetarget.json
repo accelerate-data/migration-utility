@@ -68,10 +68,7 @@
   },
   "mode": "llm_required",
   "routing_reasons": [
-    {
-      "routing": "control_flow",
-      "rationale": "IF/ELSE control flow requires LLM-assisted branch enumeration to identify both conditional paths."
-    }
+    "if_else"
   ],
   "statements": [
     {
@@ -90,8 +87,42 @@
     }
   ],
   "refactor": {
-    "status": "ok",
-    "extracted_sql": "-- When target table has records: UPDATE branch SELECT CAST(src.ProductID AS NVARCHAR(25)) AS ProductAlternateKey, src.ProductName AS EnglishProductName, CAST(NULL AS NVARCHAR(20)) AS PriceCategory FROM [bronze].[Product] AS src WHERE EXISTS (SELECT 1 FROM [silver].[IfElseTarget]) UNION ALL -- When target table is empty: INSERT branch SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, CAST(NULL AS NVARCHAR(20)) AS PriceCategory FROM [bronze].[Product] WHERE NOT EXISTS (SELECT 1 FROM [silver].[IfElseTarget])",
-    "refactored_sql": "WITH import_product AS ( SELECT * FROM [bronze].[Product] ), check_target_records AS ( SELECT COUNT(*) AS record_count FROM [silver].[IfElseTarget] ), has_records AS ( SELECT CASE WHEN record_count > 0 THEN 1 ELSE 0 END AS has_records_flag FROM check_target_records ), update_branch AS ( SELECT CAST(src.ProductID AS NVARCHAR(25)) AS ProductAlternateKey, src.ProductName AS EnglishProductName, CAST(NULL AS NVARCHAR(20)) AS PriceCategory FROM import_product AS src INNER JOIN [silver].[IfElseTarget] AS tgt ON tgt.ProductAlternateKey = CAST(src.ProductID AS NVARCHAR(25)) WHERE (SELECT has_records_flag FROM has_records) = 1 ), insert_branch AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, CAST(NULL AS NVARCHAR(20)) AS PriceCategory FROM import_product WHERE (SELECT has_records_flag FROM has_records) = 0 ), final AS ( SELECT ProductAlternateKey, EnglishProductName, PriceCategory FROM update_branch UNION ALL SELECT ProductAlternateKey, EnglishProductName, PriceCategory FROM insert_branch ) SELECT * FROM final"
+    "status": "partial",
+    "extracted_sql": "SELECT CAST(src.ProductID AS NVARCHAR(25)) AS ProductAlternateKey, src.ProductName AS EnglishProductName, CAST(NULL AS NVARCHAR(20)) AS PriceCategory FROM [bronze].[Product] AS src",
+    "refactored_sql": "WITH import AS ( SELECT CAST(src.ProductID AS NVARCHAR(25)) AS ProductAlternateKey, src.ProductName AS EnglishProductName, CAST(NULL AS NVARCHAR(20)) AS PriceCategory FROM [bronze].[Product] AS src ), logical AS ( SELECT i.ProductAlternateKey, i.EnglishProductName, i.PriceCategory, CASE WHEN EXISTS (SELECT 1 FROM silver.IfElseTarget) THEN 'update' ELSE 'insert' END AS operation_type FROM import i ), final AS ( SELECT ProductAlternateKey, EnglishProductName, PriceCategory FROM logical ) SELECT * FROM final",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both extracted and refactored SQL access the same source table: [bronze].[Product] AS src"
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Output columns match in name and type: ProductAlternateKey (NVARCHAR(25)), EnglishProductName (NVARCHAR(50)), PriceCategory (NVARCHAR(20)). Refactored query includes operation_type in intermediate logical CTE but excludes it from final SELECT, matching extracted output."
+        },
+        "joins": {
+          "passed": true,
+          "summary": "No joins in either query. Both queries read directly from bronze.Product. The refactored query adds an EXISTS subquery check against silver.IfElseTarget but this is a logical decision driver, not a join that affects source data selection."
+        },
+        "filters": {
+          "passed": true,
+          "summary": "Both queries have no WHERE clause filters. Extracted query selects all rows from bronze.Product. Refactored query preserves this behavior in the import CTE and final SELECT, with no filtering applied."
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "Aggregation grain is consistent. Both queries operate at row level with no GROUP BY, aggregation functions, or row reduction. Refactored query maintains 1:1 row mapping from source through import → logical → final CTEs."
+        }
+      },
+      "issues": []
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
   }
 }

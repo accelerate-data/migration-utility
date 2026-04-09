@@ -32,7 +32,6 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-refactor/happy-path"
       target_tables: "silver.InsertSelectTarget silver.UpdateJoinTarget"
       expected_item_statuses: '{"silver.InsertSelectTarget": "ok,partial", "silver.UpdateJoinTarget": "ok,partial"}'
-      expected_output_terms: "refactor complete,successfully refactored"
 
   # ── error-clean: missing prerequisite ──────────────────────────
   - description: "error-clean — DimGeography no profile + InsertSelectTarget ok"
@@ -41,7 +40,6 @@ tests:
       target_tables: "silver.DimGeography silver.InsertSelectTarget"
       expected_item_statuses: '{"silver.DimGeography": "error", "silver.InsertSelectTarget": "ok,partial"}'
       expected_error_codes: "no_writer_configured"
-      expected_output_terms: "error"
 
   # ── guard fails: no scoping ────────────────────────────────────
   - description: "guard-fail — DimPromotion has no scoping, blocked at guard"
@@ -49,7 +47,7 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-refactor/guard-fail"
       target_tables: "silver.DimPromotion"
       expected_item_statuses: '{"silver.DimPromotion": "error"}'
-      expected_error_codes: "scoping_not_completed"
+      expected_error_codes: "context_prerequisite_missing"
 
   # ── partial: complex proc may not fully pass audit ─────────────
   - description: "partial — DimCurrency dynamic SQL partial status"
@@ -57,4 +55,3 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-refactor/partial"
       target_tables: "silver.DimCurrency"
       expected_item_statuses: '{"silver.DimCurrency": "ok,partial,error"}'
-      expected_output_terms: "dynamic"

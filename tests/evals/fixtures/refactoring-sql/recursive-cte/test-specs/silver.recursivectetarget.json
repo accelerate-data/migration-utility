@@ -1,0 +1,71 @@
+{
+  "item_id": "silver.recursivectetarget",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {
+      "id": "recursive_hierarchy_walk",
+      "statement_index": 0,
+      "description": "Recursive employee hierarchy expands manager-child chains",
+      "scenarios": [
+        "test_recursive_hierarchy_three_levels"
+      ]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_recursive_hierarchy_three_levels",
+      "model": "stg_recursivectetarget",
+      "given": [
+        {
+          "table": "[bronze].[Employee]",
+          "rows": [
+            {
+              "EmployeeID": 1,
+              "ManagerID": null,
+              "EmployeeName": "CEO"
+            },
+            {
+              "EmployeeID": 2,
+              "ManagerID": 1,
+              "EmployeeName": "Mgr"
+            },
+            {
+              "EmployeeID": 3,
+              "ManagerID": 2,
+              "EmployeeName": "IC"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "EmployeeID": "1",
+            "ManagerID": null,
+            "EmployeeName": "CEO"
+          },
+          {
+            "EmployeeID": "2",
+            "ManagerID": "1",
+            "EmployeeName": "Mgr"
+          },
+          {
+            "EmployeeID": "3",
+            "ManagerID": "2",
+            "EmployeeName": "IC"
+          }
+        ]
+      },
+      "target_table": "[silver].[RecursiveCteTarget]",
+      "procedure": "[silver].[usp_load_RecursiveCteTarget]"
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "errors": []
+}

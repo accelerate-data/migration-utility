@@ -72,8 +72,48 @@
     }
   ],
   "refactor": {
-    "status": "ok",
-    "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, 'full' AS LoadMode FROM bronze.Product WHERE ProductName IS NOT NULL UNION ALL SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, 'delta' AS LoadMode FROM bronze.Product WHERE ProductName IS NOT NULL",
-    "refactored_sql": "WITH import_product AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName FROM bronze.Product WHERE ProductName IS NOT NULL ), full_load AS ( SELECT ProductAlternateKey, ProductName AS EnglishProductName, 'full' AS LoadMode FROM import_product ), delta_load AS ( SELECT ProductAlternateKey, ProductName AS EnglishProductName, 'delta' AS LoadMode FROM import_product ), final AS ( SELECT ProductAlternateKey, EnglishProductName, LoadMode FROM full_load UNION ALL SELECT ProductAlternateKey, EnglishProductName, LoadMode FROM delta_load ) SELECT * FROM final;"
+    "status": "partial",
+    "extracted_sql": "SELECT CAST(p.ProductID AS NVARCHAR(25)) AS ProductAlternateKey, CAST(p.ProductName AS NVARCHAR(50)) AS EnglishProductName, CAST(CASE WHEN EXISTS (SELECT 1 FROM bronze.Product WHERE ProductName IS NOT NULL) THEN 'full' ELSE 'delta' END AS NVARCHAR(20)) AS LoadMode FROM bronze.Product p WHERE p.ProductName IS NOT NULL",
+    "refactored_sql": "WITH import AS ( SELECT p.ProductID, p.ProductName FROM bronze.Product p ), logical AS ( SELECT CAST(i.ProductID AS NVARCHAR(25)) AS ProductAlternateKey, CAST(i.ProductName AS NVARCHAR(50)) AS EnglishProductName, CAST(CASE WHEN EXISTS (SELECT 1 FROM bronze.Product WHERE ProductName IS NOT NULL) THEN 'full' ELSE 'delta' END AS NVARCHAR(20)) AS LoadMode FROM import i ), final AS ( SELECT ProductAlternateKey, EnglishProductName, LoadMode FROM logical WHERE EnglishProductName IS NOT NULL ) SELECT * FROM final",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both extracted and refactored queries source from bronze.Product exclusively."
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Both queries produce identical columns: ProductAlternateKey (NVARCHAR(25)), EnglishProductName (NVARCHAR(50)), LoadMode (NVARCHAR(20))."
+        },
+        "joins": {
+          "passed": true,
+          "summary": "Neither query contains explicit or implicit JOINs; both operate on a single source table."
+        },
+        "filters": {
+          "passed": true,
+          "summary": "Both queries filter WHERE ProductName IS NOT NULL (refactored applies this at the final CTE level, equivalent to extracted's main WHERE clause)."
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "Both queries operate at row granularity with no aggregation; output is row-by-row from the source table."
+        }
+      },
+      "issues": [
+        {
+          "code": "CORRELATED_SUBQUERY_PERFORMANCE",
+          "message": "Both queries contain a correlated EXISTS subquery in the CASE expression that evaluates the same condition for every row. This is semantically equivalent but inefficient; consider materializing the result outside the CASE if performance is critical.",
+          "severity": "warning"
+        }
+      ]
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
   }
 }

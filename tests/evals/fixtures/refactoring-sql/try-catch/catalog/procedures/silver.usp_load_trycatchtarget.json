@@ -57,8 +57,42 @@
     }
   ],
   "refactor": {
-    "status": "ok",
+    "status": "partial",
     "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM bronze.Product WHERE ProductName IS NOT NULL",
-    "refactored_sql": "WITH source_product AS ( SELECT * FROM [bronze].[Product] ), filtered_product AS ( SELECT * FROM source_product WHERE ProductName IS NOT NULL ), final AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM filtered_product ) SELECT * FROM final"
+    "refactored_sql": "WITH import AS ( SELECT ProductID, ProductName FROM bronze.Product ), logical AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM import WHERE ProductName IS NOT NULL ), final AS ( SELECT * FROM logical ) SELECT * FROM final;",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both queries source from bronze.Product. Refactored query uses CTE wrapping but same source table."
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Both queries output ProductAlternateKey (CAST(ProductID AS NVARCHAR(25))) and EnglishProductName (ProductName). Refactored query preserves column names and types through CTE chain."
+        },
+        "joins": {
+          "passed": true,
+          "summary": "No joins in either query. Both are single-table queries without joins."
+        },
+        "filters": {
+          "passed": true,
+          "summary": "Both queries filter WHERE ProductName IS NOT NULL. Refactored query applies same filter in logical CTE."
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "No aggregation in either query. Both return row-by-row results at source table grain."
+        }
+      },
+      "issues": []
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
   }
 }

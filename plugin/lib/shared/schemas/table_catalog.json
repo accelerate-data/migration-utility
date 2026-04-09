@@ -246,6 +246,12 @@
           "type": "string",
           "description": "CTE-structured SELECT ready for dbt model generation."
         },
+        "semantic_review": {
+          "$ref": "common.json#/$defs/refactor_semantic_review"
+        },
+        "compare_sql": {
+          "$ref": "common.json#/$defs/refactor_compare_sql_summary"
+        },
         "warnings": {
           "type": "array",
           "items": {

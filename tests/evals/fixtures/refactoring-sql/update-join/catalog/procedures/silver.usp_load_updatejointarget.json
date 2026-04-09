@@ -72,8 +72,42 @@
     }
   ],
   "refactor": {
-    "status": "ok",
+    "status": "partial",
     "extracted_sql": "SELECT tgt.ProductAlternateKey, src.ProductName AS EnglishProductName, GETDATE() AS LastSeenDate FROM silver.UpdateJoinTarget AS tgt INNER JOIN bronze.Product AS src ON tgt.ProductAlternateKey = CAST(src.ProductID AS NVARCHAR(25))",
-    "refactored_sql": "WITH import_bronze_product AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName FROM bronze.Product ), import_silver_updatejointarget AS ( SELECT ProductAlternateKey, EnglishProductName, LastSeenDate FROM silver.UpdateJoinTarget ), logical_joined AS ( SELECT tgt.ProductAlternateKey, src.ProductName, CAST('2024-01-01' AS DATETIME) AS CurrentTimestamp FROM import_silver_updatejointarget AS tgt INNER JOIN import_bronze_product AS src ON tgt.ProductAlternateKey = src.ProductAlternateKey ), final AS ( SELECT ProductAlternateKey, ProductName AS EnglishProductName, CurrentTimestamp AS LastSeenDate FROM logical_joined ) SELECT * FROM final"
+    "refactored_sql": "WITH import AS ( SELECT tgt.ProductAlternateKey, src.ProductName, src.ProductID FROM silver.UpdateJoinTarget AS tgt INNER JOIN bronze.Product AS src ON tgt.ProductAlternateKey = CAST(src.ProductID AS NVARCHAR(25)) ), logical AS ( SELECT ProductAlternateKey, ProductName AS EnglishProductName, GETDATE() AS LastSeenDate FROM import ), final AS ( SELECT ProductAlternateKey, EnglishProductName, LastSeenDate FROM logical ) SELECT * FROM final",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both extracted and refactored SQL join the same source tables: silver.UpdateJoinTarget and bronze.Product."
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Both queries return the same three columns: ProductAlternateKey, EnglishProductName (mapped from ProductName), and LastSeenDate (computed from GETDATE())."
+        },
+        "joins": {
+          "passed": true,
+          "summary": "Both use identical INNER JOIN logic on ProductAlternateKey = CAST(src.ProductID AS NVARCHAR(25)). Refactored SQL preserves this join condition in the import CTE."
+        },
+        "filters": {
+          "passed": true,
+          "summary": "Neither query applies filtering; both process all matched rows from the INNER JOIN."
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "Both queries operate at row level with no aggregation. Each matched source row produces one output row."
+        }
+      },
+      "issues": []
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
   }
 }

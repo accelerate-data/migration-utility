@@ -49,8 +49,42 @@
     }
   ],
   "refactor": {
-    "status": "ok",
-    "extracted_sql": "SELECT ProductKey, ProductAlternateKey, EnglishProductName, LoadedDate FROM silver.DeleteTopTarget WHERE LoadedDate >= DATEADD(YEAR, -1, GETDATE()) OR LoadedDate >= ( SELECT ISNULL(MIN(LoadedDate), DATEADD(YEAR, -1, GETDATE())) FROM ( SELECT TOP (100) LoadedDate FROM silver.DeleteTopTarget WHERE LoadedDate < DATEADD(YEAR, -1, GETDATE()) ORDER BY LoadedDate ASC ) AS TopRows ) ORDER BY LoadedDate ASC;",
-    "refactored_sql": "WITH all_records AS ( SELECT ProductKey, ProductAlternateKey, EnglishProductName, LoadedDate FROM silver.DeleteTopTarget ), old_records_to_delete AS ( SELECT TOP (100) ProductKey, ProductAlternateKey, EnglishProductName, LoadedDate FROM all_records WHERE LoadedDate < DATEADD(YEAR, -1, GETDATE()) ORDER BY LoadedDate ASC ), surviving_records AS ( SELECT ProductKey, ProductAlternateKey, EnglishProductName, LoadedDate FROM all_records WHERE ProductKey NOT IN (SELECT ProductKey FROM old_records_to_delete) ), final AS ( SELECT ProductKey, ProductAlternateKey, EnglishProductName, LoadedDate FROM surviving_records ) SELECT * FROM final;"
+    "status": "partial",
+    "extracted_sql": "SELECT TOP (100) ProductKey, ProductAlternateKey, EnglishProductName, LoadedDate FROM silver.DeleteTopTarget WHERE LoadedDate < DATEADD(YEAR, -1, GETDATE()) ORDER BY ProductKey",
+    "refactored_sql": "WITH import AS ( SELECT ProductKey, ProductAlternateKey, EnglishProductName, LoadedDate FROM silver.DeleteTopTarget ), logical AS ( SELECT ProductKey, ProductAlternateKey, EnglishProductName, LoadedDate FROM import WHERE LoadedDate < DATEADD(YEAR, -1, GETDATE()) ), final AS ( SELECT TOP (100) ProductKey, ProductAlternateKey, EnglishProductName, LoadedDate FROM logical ORDER BY ProductKey ) SELECT * FROM final",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both queries read from silver.DeleteTopTarget only. The refactored version uses a CTE structure but sources the same table."
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Both queries select identical columns in the same order: ProductKey, ProductAlternateKey, EnglishProductName, LoadedDate."
+        },
+        "joins": {
+          "passed": true,
+          "summary": "No joins in either query. Both are single-table queries."
+        },
+        "filters": {
+          "passed": true,
+          "summary": "WHERE clause is preserved exactly: LoadedDate < DATEADD(YEAR, -1, GETDATE()). Applied in the 'logical' CTE before the final SELECT."
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "TOP (100) and ORDER BY ProductKey are both preserved in the 'final' CTE before the outer SELECT."
+        }
+      },
+      "issues": []
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
   }
 }

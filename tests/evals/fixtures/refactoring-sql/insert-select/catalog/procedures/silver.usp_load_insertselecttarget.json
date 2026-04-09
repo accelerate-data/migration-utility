@@ -67,8 +67,42 @@
     }
   ],
   "refactor": {
-    "status": "ok",
+    "status": "partial",
     "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM bronze.Product",
-    "refactored_sql": "WITH source_product AS ( SELECT * FROM [bronze].[Product] ), final AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM source_product ) SELECT * FROM final"
+    "refactored_sql": "WITH import AS ( SELECT ProductID, ProductName FROM bronze.Product ), logical AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM import ), final AS ( SELECT * FROM logical ) SELECT * FROM final",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both extracted and refactored SQL read from bronze.Product only. Source tables match."
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Both SQL statements produce ProductAlternateKey (NVARCHAR(25)) and EnglishProductName (NVARCHAR(50)). Output columns match."
+        },
+        "joins": {
+          "passed": true,
+          "summary": "No joins in extracted SQL. No joins in refactored SQL. Equivalence confirmed."
+        },
+        "filters": {
+          "passed": true,
+          "summary": "No WHERE clauses in extracted SQL. No WHERE clauses in refactored SQL. Equivalence confirmed."
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "No aggregations in extracted SQL. No aggregations in refactored SQL. Row grain is preserved at all-rows level."
+        }
+      },
+      "issues": []
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
   }
 }

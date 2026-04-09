@@ -143,6 +143,8 @@ class RefactorSection(BaseModel):
     status: str = ""
     extracted_sql: str | None = None
     refactored_sql: str | None = None
+    semantic_review: Any | None = None
+    compare_sql: Any | None = None
     shared_sources: list[str] | None = None
     warnings: list[Any] = []
     errors: list[Any] = []

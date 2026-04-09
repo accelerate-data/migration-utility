@@ -202,8 +202,42 @@
     }
   ],
   "refactor": {
-    "status": "ok",
+    "status": "partial",
     "extracted_sql": "SELECT h.SalesOrderNumber, CAST(d.SalesOrderDetailID % 127 AS TINYINT) AS SalesOrderLineNumber, d.ProductID AS ProductKey, h.CustomerID AS CustomerKey, h.TerritoryID AS SalesTerritoryKey, d.OrderQty AS OrderQuantity, d.UnitPrice, CAST(d.UnitPrice * d.OrderQty AS MONEY) AS ExtendedAmount, d.LineTotal AS SalesAmount, CAST(h.TaxAmt / COUNT(*) OVER (PARTITION BY h.SalesOrderID) AS MONEY) AS TaxAmt, CAST(h.Freight / COUNT(*) OVER (PARTITION BY h.SalesOrderID) AS MONEY) AS Freight, h.OrderDate, h.DueDate, h.ShipDate FROM bronze.SalesOrderHeader h JOIN bronze.SalesOrderDetail d ON h.SalesOrderID = d.SalesOrderID",
-    "refactored_sql": "WITH import_headers AS ( SELECT * FROM [bronze].[SalesOrderHeader] ), import_details AS ( SELECT * FROM [bronze].[SalesOrderDetail] ), joined_with_line_numbers AS ( SELECT h.SalesOrderNumber, CAST(d.SalesOrderDetailID % 127 AS TINYINT) AS SalesOrderLineNumber, d.ProductID, h.CustomerID, h.TerritoryID, d.OrderQty, d.UnitPrice, d.LineTotal, h.TaxAmt, h.Freight, h.OrderDate, h.DueDate, h.ShipDate, COUNT(*) OVER (PARTITION BY h.SalesOrderID) AS line_count FROM import_headers h JOIN import_details d ON h.SalesOrderID = d.SalesOrderID ), with_computed_columns AS ( SELECT SalesOrderNumber, SalesOrderLineNumber, ProductID AS ProductKey, CustomerID AS CustomerKey, TerritoryID AS SalesTerritoryKey, OrderQty AS OrderQuantity, UnitPrice, CAST(UnitPrice * OrderQty AS MONEY) AS ExtendedAmount, LineTotal AS SalesAmount, CAST(TaxAmt / line_count AS MONEY) AS TaxAmt, CAST(Freight / line_count AS MONEY) AS Freight, OrderDate, DueDate, ShipDate FROM joined_with_line_numbers ), final AS ( SELECT SalesOrderNumber, SalesOrderLineNumber, ProductKey, CustomerKey, SalesTerritoryKey, OrderQuantity, UnitPrice, ExtendedAmount, SalesAmount, TaxAmt, Freight, OrderDate, DueDate, ShipDate FROM with_computed_columns ) SELECT * FROM final;"
+    "refactored_sql": "WITH import AS ( SELECT h.SalesOrderNumber, d.SalesOrderDetailID, d.ProductID, h.CustomerID, h.TerritoryID, d.OrderQty, d.UnitPrice, d.LineTotal, h.TaxAmt, h.Freight, h.OrderDate, h.DueDate, h.ShipDate, h.SalesOrderID, COUNT(*) OVER (PARTITION BY h.SalesOrderID) AS line_count FROM bronze.SalesOrderHeader h JOIN bronze.SalesOrderDetail d ON h.SalesOrderID = d.SalesOrderID ), logical AS ( SELECT SalesOrderNumber, CAST(SalesOrderDetailID % 127 AS TINYINT) AS SalesOrderLineNumber, ProductID AS ProductKey, CustomerID AS CustomerKey, TerritoryID AS SalesTerritoryKey, OrderQty AS OrderQuantity, UnitPrice, CAST(UnitPrice * OrderQty AS MONEY) AS ExtendedAmount, LineTotal AS SalesAmount, CAST(TaxAmt / line_count AS MONEY) AS TaxAmt, CAST(Freight / line_count AS MONEY) AS Freight, OrderDate, DueDate, ShipDate FROM import ), final AS ( SELECT * FROM logical ) SELECT * FROM final",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both queries use the same source tables: bronze.SalesOrderHeader (h) and bronze.SalesOrderDetail (d)"
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Both queries produce identical output columns in the same order: SalesOrderNumber, SalesOrderLineNumber, ProductKey, CustomerKey, SalesTerritoryKey, OrderQuantity, UnitPrice, ExtendedAmount, SalesAmount, TaxAmt, Freight, OrderDate, DueDate, ShipDate"
+        },
+        "joins": {
+          "passed": true,
+          "summary": "Both queries use an identical INNER JOIN between SalesOrderHeader (h) and SalesOrderDetail (d) on the predicate h.SalesOrderID = d.SalesOrderID"
+        },
+        "filters": {
+          "passed": true,
+          "summary": "No filters are applied in either query"
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "Both queries operate at the same grain: one row per SalesOrderDetail row. The window function COUNT(*) OVER (PARTITION BY h.SalesOrderID) is computed identically in both, with line_count cached in the refactored version's import CTE for efficiency"
+        }
+      },
+      "issues": []
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
   }
 }

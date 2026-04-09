@@ -174,8 +174,7 @@
   },
   "scoping": {
     "status": "resolved",
-    "selected_writer": "silver.usp_load_DimProduct",
-    "selected_writer_rationale": "Single MERGE writer for DimProduct."
+    "selected_writer": "silver.usp_load_DimProduct"
   },
   "profile": {
     "status": "ok",
@@ -203,14 +202,8 @@
     "foreign_keys": [],
     "pii_actions": []
   },
-  "scoping": {
-    "status": "resolved",
-    "selected_writer": "silver.usp_load_DimProduct"
-  },
-  "refactor": {
-    "status": "ok",
-    "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, StandardCost, ListPrice, ISNULL(Color, '') AS Color, Size, ProductLine, Class, Style, SellStartDate AS StartDate, SellEndDate AS EndDate, CASE WHEN DiscontinuedDate IS NOT NULL THEN 'Obsolete' WHEN SellEndDate IS NOT NULL THEN 'Outdated' ELSE 'Current' END AS Status FROM [bronze].[Product]",
-    "refactored_sql": "with source_product as (\n    select * from [bronze].[Product]\n),\n\nprepared_product as (\n    select\n        cast(ProductID as nvarchar(25)) as ProductAlternateKey,\n        ProductName as EnglishProductName,\n        StandardCost,\n        ListPrice,\n        isnull(Color, '') as Color,\n        Size,\n        ProductLine,\n        Class,\n        Style,\n        SellStartDate as StartDate,\n        SellEndDate as EndDate,\n        case\n            when DiscontinuedDate is not null then 'Obsolete'\n            when SellEndDate is not null then 'Outdated'\n            else 'Current'\n        end as Status\n    from source_product\n),\n\nfinal as (\n    select\n        ProductAlternateKey,\n        EnglishProductName,\n        StandardCost,\n        ListPrice,\n        Color,\n        Size,\n        ProductLine,\n        Class,\n        Style,\n        StartDate,\n        EndDate,\n        Status\n    from prepared_product\n)\n\nselect * from final"
-  },
-  "statements": []
+  "statements": [],
+  "test_gen": {
+    "status": "ok"
+  }
 }

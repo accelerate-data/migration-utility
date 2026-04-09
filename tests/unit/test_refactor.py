@@ -27,6 +27,43 @@ def _make_writable_copy() -> tuple[tempfile.TemporaryDirectory, Path]:
     return tmp, dst
 
 
+def _semantic_review(*, passed: bool = True, issues: list[dict[str, object]] | None = None) -> dict[str, object]:
+    return {
+        "passed": passed,
+        "checks": {
+            "source_tables": {"passed": passed, "summary": "source tables match"},
+            "output_columns": {"passed": passed, "summary": "output columns match"},
+            "joins": {"passed": passed, "summary": "joins match"},
+            "filters": {"passed": passed, "summary": "filters match"},
+            "aggregation_grain": {"passed": passed, "summary": "aggregation grain matches"},
+        },
+        "issues": issues or [],
+    }
+
+
+def _compare_sql_result(*, passed: bool = True) -> dict[str, object]:
+    return {
+        "schema_version": "1.0",
+        "sandbox_database": "__test_abc123",
+        "total": 2,
+        "passed": 2 if passed else 1,
+        "failed": 0 if passed else 1,
+        "results": [
+            {"scenario_name": "scenario_a", "status": "ok", "equivalent": True, "a_count": 1, "b_count": 1, "a_minus_b": [], "b_minus_a": []},
+            {
+                "scenario_name": "scenario_b",
+                "status": "ok" if passed else "error",
+                "equivalent": passed,
+                "a_count": 1,
+                "b_count": 1,
+                "a_minus_b": [] if passed else [{"CustomerID": "42"}],
+                "b_minus_a": [],
+                "errors": [] if passed else [{"code": "ROW_DIFF", "message": "rows differ"}],
+            },
+        ],
+    }
+
+
 # ── symmetric_diff ───────────────────────────────────────────────────────────
 
 
@@ -143,11 +180,14 @@ def test_write_happy_path(assert_valid_schema) -> None:
             root, "silver.DimCustomer",
             extracted_sql="SELECT CustomerID, FirstName FROM [bronze].[CustomerRaw]",
             refactored_sql="WITH src AS (SELECT * FROM [bronze].[CustomerRaw]) SELECT CustomerID, FirstName FROM src",
+            semantic_review=_semantic_review(),
+            compare_sql_result=_compare_sql_result(),
         )
         assert_valid_schema(result, "refactor_write_output.json")
         assert result["ok"] is True
         assert result["table"] == "silver.dimcustomer"
         assert result["writer"] == "dbo.usp_load_dimcustomer"
+        assert result["status"] == "ok"
 
         # Verify procedure catalog was updated (not table catalog)
         proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
@@ -155,6 +195,8 @@ def test_write_happy_path(assert_valid_schema) -> None:
         assert proc_cat["refactor"]["status"] == "ok"
         assert "CustomerID" in proc_cat["refactor"]["extracted_sql"]
         assert "SELECT CustomerID, FirstName FROM src" in proc_cat["refactor"]["refactored_sql"]
+        assert proc_cat["refactor"]["semantic_review"]["passed"] is True
+        assert proc_cat["refactor"]["compare_sql"]["passed"] is True
 
         # Table catalog should NOT have a refactor section
         table_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
@@ -166,8 +208,16 @@ def test_write_both_sql_yields_ok_status() -> None:
     """Write with both SQL non-empty sets status to ok."""
     tmp, root = _make_writable_copy()
     with tmp:
-        result = refactor.run_write(root, "silver.DimCustomer", "SELECT 1", "SELECT 1")
+        result = refactor.run_write(
+            root,
+            "silver.DimCustomer",
+            "SELECT 1",
+            "SELECT 1",
+            semantic_review=_semantic_review(),
+            compare_sql_result=_compare_sql_result(),
+        )
         assert result["ok"] is True
+        assert result["status"] == "ok"
         proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
         proc_cat = json.loads(proc_path.read_text())
         assert proc_cat["refactor"]["status"] == "ok"
@@ -177,8 +227,9 @@ def test_write_only_extracted_yields_partial() -> None:
     """Write with only extracted SQL sets status to partial."""
     tmp, root = _make_writable_copy()
     with tmp:
-        result = refactor.run_write(root, "silver.DimCustomer", "SELECT 1", "")
+        result = refactor.run_write(root, "silver.DimCustomer", "SELECT 1", "", semantic_review=_semantic_review(), compare_sql_result=_compare_sql_result())
         assert result["ok"] is True
+        assert result["status"] == "partial"
         proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
         proc_cat = json.loads(proc_path.read_text())
         assert proc_cat["refactor"]["status"] == "partial"
@@ -188,11 +239,72 @@ def test_write_both_empty_yields_error() -> None:
     """Write with both SQL empty sets status to error."""
     tmp, root = _make_writable_copy()
     with tmp:
-        result = refactor.run_write(root, "silver.DimCustomer", "", "")
+        result = refactor.run_write(root, "silver.DimCustomer", "", "", semantic_review=_semantic_review(), compare_sql_result=_compare_sql_result())
         assert result["ok"] is True
+        assert result["status"] == "error"
         proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
         proc_cat = json.loads(proc_path.read_text())
         assert proc_cat["refactor"]["status"] == "error"
+
+
+def test_write_harness_mode_persists_partial_even_when_semantic_review_passes() -> None:
+    """Logical-only proof without compare-sql cannot produce ok."""
+    tmp, root = _make_writable_copy()
+    with tmp:
+        result = refactor.run_write(
+            root,
+            "silver.DimCustomer",
+            "SELECT 1",
+            "WITH src AS (SELECT 1) SELECT * FROM src",
+            semantic_review=_semantic_review(),
+            compare_required=False,
+        )
+        assert result["status"] == "partial"
+        proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
+        proc_cat = json.loads(proc_path.read_text())
+        assert proc_cat["refactor"]["compare_sql"]["required"] is False
+        assert proc_cat["refactor"]["compare_sql"]["executed"] is False
+        assert proc_cat["refactor"]["status"] == "partial"
+
+
+def test_write_failed_compare_sql_persists_partial() -> None:
+    """Executable compare failure must block ok status."""
+    tmp, root = _make_writable_copy()
+    with tmp:
+        result = refactor.run_write(
+            root,
+            "silver.DimCustomer",
+            "SELECT 1",
+            "WITH src AS (SELECT 1) SELECT * FROM src",
+            semantic_review=_semantic_review(),
+            compare_sql_result=_compare_sql_result(passed=False),
+        )
+        assert result["status"] == "partial"
+        proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
+        proc_cat = json.loads(proc_path.read_text())
+        assert proc_cat["refactor"]["compare_sql"]["passed"] is False
+        assert proc_cat["refactor"]["compare_sql"]["failed_scenarios"] == ["scenario_b"]
+
+
+def test_write_failed_semantic_review_persists_partial() -> None:
+    """Semantic review issues must block ok status."""
+    tmp, root = _make_writable_copy()
+    with tmp:
+        result = refactor.run_write(
+            root,
+            "silver.DimCustomer",
+            "SELECT 1",
+            "WITH src AS (SELECT 1) SELECT * FROM src",
+            semantic_review=_semantic_review(
+                passed=False,
+                issues=[{"code": "EQUIVALENCE_PARTIAL", "message": "filter predicate changed", "severity": "warning"}],
+            ),
+            compare_sql_result=_compare_sql_result(),
+        )
+        assert result["status"] == "partial"
+        proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
+        proc_cat = json.loads(proc_path.read_text())
+        assert proc_cat["refactor"]["semantic_review"]["passed"] is False
 
 
 def test_write_rejects_write_keywords_in_extracted_sql() -> None:
@@ -257,6 +369,10 @@ def test_cli_write_success() -> None:
         # resolve_project_root requires a git repo
         import subprocess
         subprocess.run(["git", "init", str(root)], capture_output=True, check=True)
+        semantic_path = root / "semantic.json"
+        compare_path = root / "compare.json"
+        semantic_path.write_text(json.dumps(_semantic_review()), encoding="utf-8")
+        compare_path.write_text(json.dumps(_compare_sql_result()), encoding="utf-8")
         result = _cli_runner.invoke(
             refactor.app,
             [
@@ -264,12 +380,15 @@ def test_cli_write_success() -> None:
                 "--table", "silver.DimCustomer",
                 "--extracted-sql", "SELECT CustomerID FROM [bronze].[CustomerRaw]",
                 "--refactored-sql", "WITH src AS (SELECT 1) SELECT * FROM src",
+                "--semantic-review-file", str(semantic_path),
+                "--compare-sql-file", str(compare_path),
                 "--project-root", str(root),
             ],
         )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["ok"] is True
+        assert data["status"] == "ok"
 
 
 def test_cli_write_validation_failure() -> None:
@@ -367,6 +486,8 @@ def test_write_view_happy_path() -> None:
             root, "silver.vw_active_customers",
             extracted_sql="SELECT c.CustomerID FROM bronze.CustomerRaw c WHERE c.IsActive = 1",
             refactored_sql="WITH src AS (SELECT * FROM bronze.CustomerRaw WHERE IsActive = 1) SELECT CustomerID FROM src",
+            semantic_review=_semantic_review(),
+            compare_sql_result=_compare_sql_result(),
         )
         assert result["ok"] is True
         assert result["table"] == "silver.vw_active_customers"
@@ -376,6 +497,7 @@ def test_write_view_happy_path() -> None:
         view_path = root / "catalog" / "views" / "silver.vw_active_customers.json"
         view_cat = json.loads(view_path.read_text())
         assert view_cat["refactor"]["status"] == "ok"
+        assert view_cat["refactor"]["semantic_review"]["passed"] is True
         assert "CustomerID" in view_cat["refactor"]["extracted_sql"]
 
 

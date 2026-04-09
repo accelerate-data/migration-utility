@@ -4,4 +4,4 @@ Run /refactoring-sql for view {{target_view}}.
 
 Read the skill at plugin/skills/refactoring-sql/SKILL.md. Wherever it references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead. Pass `--project-root {{fixture_path}}` to all CLI commands.
 
-No live SQL Server sandbox is available. Skip the `compare-sql` step and perform a logical equivalence check instead.
+No live SQL Server sandbox is available. Skip the `compare-sql` step, write a semantic review JSON file, and persist the refactor with `--no-compare-required`.

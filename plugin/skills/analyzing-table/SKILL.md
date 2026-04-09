@@ -36,7 +36,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <fqn> scope
 
 The `ready` command auto-detects whether the FQN is a table or view — no separate guard set needed.
 
-If `passed` is `false`, report the failing check's `code` and `message` to the user and stop.
+If `ready` is `false`, report the failing check's `code` and `reason` to the user and stop.
 
 ## Object type detection
 

@@ -1,0 +1,58 @@
+{
+  "item_id": "silver.vw_active_customers",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {
+      "id": "active_customer_filter",
+      "statement_index": 0,
+      "description": "View keeps only active customer rows",
+      "scenarios": [
+        "test_view_filters_inactive_customers"
+      ]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_view_filters_inactive_customers",
+      "model": "vw_active_customers",
+      "given": [
+        {
+          "table": "[bronze].[CustomerRaw]",
+          "rows": [
+            {
+              "CustomerID": 1,
+              "FirstName": "Ada",
+              "LastName": "Lovelace",
+              "IsActive": 1
+            },
+            {
+              "CustomerID": 2,
+              "FirstName": "Grace",
+              "LastName": "Hopper",
+              "IsActive": 0
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "CustomerID": "1",
+            "FirstName": "Ada",
+            "LastName": "Lovelace"
+          }
+        ]
+      },
+      "target_table": "[silver].[vw_active_customers]",
+      "procedure": "[silver].[vw_active_customers]"
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "errors": []
+}

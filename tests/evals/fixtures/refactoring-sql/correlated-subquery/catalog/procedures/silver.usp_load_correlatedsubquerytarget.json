@@ -67,8 +67,42 @@
     }
   ],
   "refactor": {
-    "status": "ok",
+    "status": "partial",
     "extracted_sql": "SELECT CAST(p.ProductID AS NVARCHAR(25)), p.ProductName FROM bronze.Product AS p WHERE p.ProductID = ( SELECT MAX(p2.ProductID) FROM bronze.Product AS p2 WHERE p2.ProductName = p.ProductName )",
-    "refactored_sql": "WITH import_product AS ( SELECT ProductID, ProductName FROM bronze.Product ), logical_max_per_name AS ( SELECT ProductID, ProductName, RANK() OVER (PARTITION BY ProductName ORDER BY ProductID DESC) AS rnk FROM import_product ), logical_max_filtered AS ( SELECT ProductID, ProductName FROM logical_max_per_name WHERE rnk = 1 ), final AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM logical_max_filtered ) SELECT * FROM final"
+    "refactored_sql": "WITH import AS ( SELECT p.ProductID, p.ProductName FROM bronze.Product AS p ), logical AS ( SELECT i.ProductID, i.ProductName, MAX(i.ProductID) OVER (PARTITION BY i.ProductName) AS max_product_id FROM import AS i ), final AS ( SELECT CAST(l.ProductID AS NVARCHAR(25)) AS ProductID, l.ProductName FROM logical AS l WHERE l.ProductID = l.max_product_id ) SELECT * FROM final",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both extracted and refactored SQL query the same source table: bronze.Product"
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Both return the same two columns: ProductID cast to NVARCHAR(25) and ProductName"
+        },
+        "joins": {
+          "passed": true,
+          "summary": "Neither query uses joins; both operate on a single table (bronze.Product)"
+        },
+        "filters": {
+          "passed": true,
+          "summary": "Both filter to rows where ProductID equals the maximum ProductID for each ProductName group. Extracted uses correlated subquery; refactored uses window function MAX() OVER (PARTITION BY). Both semantically equivalent."
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "Both return one row per ProductName group with the maximum ProductID value, producing identical result sets"
+        }
+      },
+      "issues": []
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
   }
 }

@@ -53,5 +53,47 @@
     "classification": "stg",
     "rationale": "Single-source filter view",
     "source": "llm"
+  },
+  "test_gen": {
+    "status": "ok"
+  },
+  "refactor": {
+    "status": "partial",
+    "extracted_sql": "SELECT c.CustomerID, c.FirstName, c.LastName FROM bronze.CustomerRaw c WHERE c.IsActive = 1",
+    "refactored_sql": "WITH import AS ( SELECT c.CustomerID, c.FirstName, c.LastName, c.IsActive FROM bronze.CustomerRaw c ), logical AS ( SELECT CustomerID, FirstName, LastName FROM import WHERE IsActive = 1 ), final AS ( SELECT CustomerID, FirstName, LastName FROM logical ) SELECT * FROM final",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both queries access bronze.CustomerRaw (bronze.customerraw). Source tables match."
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Both queries return CustomerID, FirstName, LastName in the same order. Output columns match."
+        },
+        "joins": {
+          "passed": true,
+          "summary": "No joins in either query. Both are single-table selects from bronze.CustomerRaw."
+        },
+        "filters": {
+          "passed": true,
+          "summary": "Both queries apply the same filter: IsActive = 1. Filter logic is preserved."
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "Both queries operate at row level with no aggregation. Grain is identical."
+        }
+      },
+      "issues": []
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
   }
 }

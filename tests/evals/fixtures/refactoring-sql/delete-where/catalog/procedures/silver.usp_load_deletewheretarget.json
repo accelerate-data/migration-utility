@@ -54,8 +54,42 @@
     }
   ],
   "refactor": {
-    "status": "ok",
-    "extracted_sql": "SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM [silver].[DeleteWhereTarget] WHERE IsRetired <> 1 OR IsRetired IS NULL",
-    "refactored_sql": "WITH all_records AS ( SELECT * FROM [silver].[DeleteWhereTarget] ), surviving AS ( SELECT * FROM all_records WHERE IsRetired <> 1 OR IsRetired IS NULL ), final AS ( SELECT * FROM surviving ) SELECT * FROM final"
+    "status": "partial",
+    "extracted_sql": "SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM silver.DeleteWhereTarget WHERE IsRetired <> 1",
+    "refactored_sql": "WITH import AS ( SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM silver.DeleteWhereTarget ), logical AS ( SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM import WHERE IsRetired <> 1 ), final AS ( SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM logical ) SELECT * FROM final",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both extracted and refactored SQL source from silver.DeleteWhereTarget exclusively. No mismatched or missing source tables."
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Output columns match exactly: ProductAlternateKey, EnglishProductName, IsRetired in identical order and types."
+        },
+        "joins": {
+          "passed": true,
+          "summary": "No joins in extracted or refactored SQL. Both operate on single source table."
+        },
+        "filters": {
+          "passed": true,
+          "summary": "Both apply identical filter: IsRetired <> 1. This correctly inverts the DELETE WHERE IsRetired = 1 logic to express keep-rows projection."
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "Both return individual rows with no aggregation or grouping. Grain is consistent at row level."
+        }
+      },
+      "issues": []
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
   }
 }
