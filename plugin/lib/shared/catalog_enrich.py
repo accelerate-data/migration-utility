@@ -50,11 +50,7 @@ _EXEC_PROC_RE = re.compile(
     re.IGNORECASE,
 )
 
-_DYNAMIC_EXEC_RE = re.compile(
-    r"\bEXEC(?:UTE)?\s*[(@]|"
-    r"\bsp_executesql\b",
-    re.IGNORECASE,
-)
+from shared.catalog import DYNAMIC_EXEC_BROAD_RE as _DYNAMIC_EXEC_RE
 
 
 def _extract_calls(raw_ddl: str) -> list[str]:

@@ -52,7 +52,15 @@ _STATIC_EXEC_RE = re.compile(
     r"(?:\[[^\]]+\]|\w+)(?:\s*\.\s*(?:\[[^\]]+\]|\w+)){0,3}",
     re.IGNORECASE,
 )
-_DYNAMIC_EXEC_RE = re.compile(r"\bEXEC(?:UTE)?\s*\(", re.IGNORECASE)
+DYNAMIC_EXEC_RE = re.compile(r"\bEXEC(?:UTE)?\s*\(", re.IGNORECASE)
+
+# Broader pattern that also catches EXEC @var and sp_executesql.
+# Used by catalog_enrich.py to skip dynamic SQL during EXEC call extraction.
+DYNAMIC_EXEC_BROAD_RE = re.compile(
+    r"\bEXEC(?:UTE)?\s*[(@]|"
+    r"\bsp_executesql\b",
+    re.IGNORECASE,
+)
 _SP_EXECUTESQL_RE = re.compile(r"\bEXEC(?:UTE)?\s+sp_executesql\b", re.IGNORECASE)
 _SP_EXECUTESQL_LITERAL_RE = re.compile(
     r"\bEXEC(?:UTE)?\s+sp_executesql\s+N?'(?:''|[^'])*'",
@@ -180,7 +188,7 @@ def scan_routing_flags(definition: str) -> dict[str, bool]:
         if pattern.search(masked):
             reasons.append(reason)
 
-    has_dynamic_exec = bool(_DYNAMIC_EXEC_RE.search(masked))
+    has_dynamic_exec = bool(DYNAMIC_EXEC_RE.search(masked))
     has_sp_executesql_literal = bool(_SP_EXECUTESQL_LITERAL_RE.search(masked))
     has_sp_executesql_variable = bool(_SP_EXECUTESQL_VARIABLE_RE.search(masked))
     has_static_exec = bool(_STATIC_EXEC_RE.search(definition))
