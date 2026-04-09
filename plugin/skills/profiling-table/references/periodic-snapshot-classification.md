@@ -125,10 +125,12 @@ SELECT
     MAX(i.ReorderPoint)   AS reorder_point,
     SUM(i.UnitsInTransit) AS units_in_transit
 FROM silver.DimDate cal
-JOIN bronze.Inventory i
+CROSS JOIN silver.DimProduct p
+CROSS JOIN silver.DimWarehouse w
+LEFT JOIN bronze.Inventory i
     ON cal.snapshot_date = CAST(i.InventoryDate AS DATE)
-JOIN silver.DimProduct p ON i.ProductID = p.ProductID
-JOIN silver.DimWarehouse w ON i.WarehouseID = w.WarehouseID
+    AND i.ProductID = p.ProductID
+    AND i.WarehouseID = w.WarehouseID
 WHERE cal.snapshot_date BETWEEN @StartDate AND @EndDate
 GROUP BY cal.snapshot_date, p.ProductKey, w.WarehouseKey;
 ```
