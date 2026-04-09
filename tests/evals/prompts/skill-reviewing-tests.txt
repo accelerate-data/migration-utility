@@ -3,3 +3,12 @@ You are running in a DDL project directory at {{fixture_path}}.
 Run /reviewing-tests for table {{target_table}}{{iteration_suffix}} with writer {{writer}}.
 
 Read the skill at plugin/skills/reviewing-tests/SKILL.md. Wherever it references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead. Pass `--project-root {{fixture_path}}` to all CLI commands and `--writer {{writer}}` to `migrate context`.
+
+`fixture_path` is authoritative. Do not question whether it exists, ask to
+create files, or ask permission to write review outputs.
+
+Do not infer catalog readiness from filenames or directory listings. Run the
+deterministic readiness command from the skill and trust its result.
+
+Return only the final `TestReviewResult` JSON object. Do not return markdown,
+summaries, headings, or follow-up questions.

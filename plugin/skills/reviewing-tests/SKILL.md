@@ -19,13 +19,18 @@ Quality gate for test generation output. Independently enumerates conditional br
 
 ## Before invoking
 
-Run the stage guard:
+Run the stage readiness check:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <table_fqn> reviewing-tests
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <table_fqn> test-gen
 ```
 
-If `passed` is `false`, report the failing guard's `code` and `message` to the user and stop.
+If `ready` is `false`, report the failing readiness `code` and `reason` to the
+caller and stop. Use only codes from
+`../../lib/shared/generate_tests_error_codes.md`.
+
+Do not infer readiness, catalog presence, or prerequisite state from file names
+or directory contents. Run `migrate-util ready` and trust its output.
 
 ## Step 1: Assemble context
 
@@ -123,6 +128,10 @@ Maximum review iterations: 2. If `--iteration 2` and issues remain, approve with
 
 ## Output schema (TestReviewResult)
 
+Use `../../lib/shared/schemas/test_review_output.json` as the output contract.
+Return exactly one JSON object that matches that schema. Do not wrap the JSON
+in markdown, headings, summaries, or follow-up questions.
+
 Emit the following JSON structure as the skill's output:
 
 ```json
@@ -186,7 +195,8 @@ Emit the following JSON structure as the skill's output:
 
 Field requirements:
 
-- `code`: stable machine-readable identifier (e.g., `COVERAGE_INCOMPLETE`, `FIXTURE_UNREALISTIC`, `CONTEXT_MISSING`).
+- `code`: stable machine-readable identifier from
+  `../../lib/shared/generate_tests_error_codes.md`.
 - `message`: human-readable description.
 - `item_id`: fully qualified table name this entry relates to.
 - `severity`: `error` or `warning`.
@@ -199,6 +209,9 @@ Test reviewer must not:
 - Generate or modify fixture data
 - Execute stored procedures
 - Write to `test-specs/` — only the test generator writes there
+- Write review result files
+- Ask permission to write review result files
+- Ask whether the provided `--project-root` fixture path exists or should be created
 - Make migration or profiling decisions
 - Override the test generator's ground truth output (captured proc results are facts)
 
@@ -206,6 +219,9 @@ Test reviewer must not:
 
 | Command | Exit code | Action |
 |---|---|---|
-| `migrate context` | 1 | Prerequisite missing. Report which and set `status: "error"` with code `CONTEXT_PREREQUISITE_MISSING` |
-| `migrate context` | 2 | IO/parse error. Surface error message and set `status: "error"` with code `CONTEXT_IO_ERROR` |
-| `test-specs/<item_id>.json` | missing | Tell caller to run `/generating-tests` first. Set `status: "error"` with code `TEST_SPEC_MISSING` |
+| `migrate context` | 1 | Prerequisite missing. Return valid `TestReviewResult` JSON with `status: "error"` and code `CONTEXT_PREREQUISITE_MISSING` |
+| `migrate context` | 2 | IO/parse error. Return valid `TestReviewResult` JSON with `status: "error"` and code `CONTEXT_IO_ERROR` |
+| `test-specs/<item_id>.json` | missing | Return valid `TestReviewResult` JSON with `status: "error"` and code `TEST_SPEC_MISSING` |
+
+If you hit a handled error, still return a valid `TestReviewResult` JSON
+object. Do not ask follow-up questions.
