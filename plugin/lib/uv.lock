@@ -680,6 +680,7 @@ name = "shared"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "jsonschema" },
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "sqlglot" },
@@ -702,6 +703,7 @@ oracle = [
 
 [package.metadata]
 requires-dist = [
+    { name = "jsonschema", specifier = ">=4.18" },
     { name = "jsonschema", marker = "extra == 'dev'", specifier = ">=4.18" },
     { name = "oracledb", marker = "extra == 'dev'", specifier = ">=2.0" },
     { name = "oracledb", marker = "extra == 'oracle'", specifier = ">=2.0" },

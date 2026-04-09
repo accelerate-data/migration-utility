@@ -127,14 +127,9 @@ The full scoping data lives in the catalog files, not duplicated in the run log.
 
 ## Error and Warning Codes
 
-| Code | Severity | When |
-|---|---|---|
-| `MANIFEST_NOT_FOUND` | error | manifest.json missing — all items fail |
-| `CATALOG_FILE_MISSING` | error | catalog/tables/\<item_id>.json not found — skip item |
-| `CATALOG_FILE_MISSING` | error | catalog/views/\<item_id>.json not found — skip item |
-| `SCOPING_FAILED` | error | `/analyzing-table` skill pipeline failed — skip item |
+Use the canonical `/scope` code list in [../lib/shared/scope_error_codes.md](../lib/shared/scope_error_codes.md).
 
-Each entry in `errors[]` or `warnings[]`:
+Each entry in `errors[]` or `warnings[]` uses this shape:
 
 ```json
 {"code": "CATALOG_FILE_MISSING", "message": "catalog/tables/silver.dimdate.json not found.", "item_id": "silver.dimdate", "severity": "error"}

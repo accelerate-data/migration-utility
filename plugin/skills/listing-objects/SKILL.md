@@ -22,21 +22,26 @@ Read-only catalog viewer. Displays whatever state exists in the catalog — colu
 
 ## Before invoking
 
-Run the stage guard:
+For object-specific subcommands (`show <schema.object>`, `refs <schema.object>`), run the same stage readiness guard used by `analyzing-table`:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <table_fqn> scope
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <fqn> scope
 ```
 
-If `passed` is `false`, report the failing guard's `code` and `message` to the user and stop.
+If `ready` is `false`, report the failing `code` and `reason` to the user and stop.
+If `code` is absent, report the `reason`.
+
+For `list <type>`, do not run a per-item guard because there is no specific FQN yet.
+
+Use the canonical surfaced code list in `../../lib/shared/listing_objects_error_codes.md`. Do not define a competing public error-code list in this skill.
 
 ## Output schemas
 
 | Subcommand | Schema |
 |---|---|
-| `list` | `lib/shared/schemas/discover_list_output.json` |
-| `show` | `lib/shared/schemas/discover_show_output.json` |
-| `refs` | `lib/shared/schemas/discover_refs_output.json` |
+| `list` | `../../lib/shared/schemas/discover_list_output.json` |
+| `show` | `../../lib/shared/schemas/discover_show_output.json` |
+| `refs` | `../../lib/shared/schemas/discover_refs_output.json` |
 
 ## list
 
@@ -75,8 +80,12 @@ Present `writers` (procs that modify the object) and `readers` (procs/views that
 
 ## Error handling
 
-| Command | Exit code | Action |
+Use the canonical `listing-objects` code list in [`../../lib/shared/listing_objects_error_codes.md`](../../lib/shared/listing_objects_error_codes.md).
+
+Map failures like this:
+
+| Command | Exit code / payload | Action |
 |---|---|---|
-| `discover list/show/refs` | 1 | Object not found or catalog file missing. Report which object and stop |
-| `discover list/show/refs` | 2 | Catalog directory unreadable (IO error). Report and stop |
-| `discover show` | 0 + `parse_error` set | Procedure still loaded — `raw_ddl` preserved for inspection |
+| `discover list/show/refs` | 1 | Surface `OBJECT_NOT_FOUND` or `UNSUPPORTED_OBJECT_TYPE` based on the returned message, then stop |
+| `discover list/show/refs` | 2 | Surface `CATALOG_IO_ERROR`, then stop |
+| `discover show` | `parse_error` / parse warning in payload | Surface `PARSE_ERROR` or `DDL_PARSE_ERROR` as a warning and continue showing available raw catalog state |

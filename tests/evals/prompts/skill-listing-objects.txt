@@ -1,0 +1,5 @@
+You are running in a DDL project directory at {{fixture_path}}.
+
+Run /listing-objects {{request_text}}.
+
+Read the skill at plugin/skills/listing-objects/SKILL.md. Wherever it references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead. Pass `--project-root {{fixture_path}}` to all CLI commands so reads target the fixture catalog.

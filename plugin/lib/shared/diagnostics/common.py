@@ -152,6 +152,32 @@ def check_out_of_scope_reference(ctx: CatalogContext) -> list[DiagnosticResult] 
 
 
 @diagnostic(
+    code="REMOTE_EXEC_UNSUPPORTED",
+    objects=["procedure"],
+    severity="error",
+    pass_number=1,
+)
+def check_remote_exec_unsupported(ctx: CatalogContext) -> list[DiagnosticResult] | None:
+    """Flag cross-database or cross-server procedure EXEC targets as unsupported."""
+    refs = ctx.catalog_data.get("references", {})
+    out_of_scope = refs.get("procedures", {}).get("out_of_scope", [])
+    results: list[DiagnosticResult] = []
+    for entry in out_of_scope:
+        reason = entry.get("reason", "unknown")
+        if reason not in {"cross-database", "cross-server"}:
+            continue
+        parts = [entry.get("server", ""), entry.get("database", ""), entry.get("schema", ""), entry.get("name", "")]
+        fqn = ".".join(p for p in parts if p)
+        results.append(DiagnosticResult(
+            code="REMOTE_EXEC_UNSUPPORTED",
+            message=f"Procedure delegates to external procedure {fqn}, which is out of scope for direct migration.",
+            severity="error",
+            details={"fqn": fqn, "reason": reason},
+        ))
+    return results if results else None
+
+
+@diagnostic(
     code="MULTI_TABLE_WRITE",
     objects=["procedure"],
     severity="warning",

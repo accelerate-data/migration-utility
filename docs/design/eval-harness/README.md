@@ -61,6 +61,7 @@ Use these when you are working in a specific area:
 
 | If you changed | Run |
 |---|---|
+| Catalog browsing / `listing-objects` behavior | `npm run eval:listing-objects` |
 | Profiling behavior | `npm run eval:profiling-table` |
 | Table scoping / writer selection | `npm run eval:analyzing-table` or `npm run eval:cmd-scope` |
 | Test review behavior | `npm run eval:reviewing-tests` |
@@ -81,6 +82,7 @@ Use these when you are working in a specific area:
 npm run eval
 
 # Skill packages
+npm run eval:listing-objects
 npm run eval:profiling-table
 npm run eval:reviewing-tests
 npm run eval:reviewing-model

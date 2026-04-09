@@ -3,7 +3,8 @@
   "private": true,
   "description": "Promptfoo eval harness for skill testing",
   "scripts": {
-    "eval": "npm run eval:profiling-table && npm run eval:reviewing-tests && npm run eval:reviewing-model && npm run eval:analyzing-table && npm run eval:refactoring-sql && npm run eval:cmd-scope && npm run eval:cmd-profile && npm run eval:cmd-generate-model && npm run eval:cmd-generate-tests && npm run eval:cmd-refactor && npm run eval:cmd-status && npm run eval:cmd-commit-push-pr",
+    "eval": "npm run eval:listing-objects && npm run eval:profiling-table && npm run eval:reviewing-tests && npm run eval:reviewing-model && npm run eval:analyzing-table && npm run eval:refactoring-sql && npm run eval:cmd-scope && npm run eval:cmd-profile && npm run eval:cmd-generate-model && npm run eval:cmd-generate-tests && npm run eval:cmd-refactor && npm run eval:cmd-status && npm run eval:cmd-commit-push-pr",
+    "eval:listing-objects": "git checkout -- fixtures/ && promptfoo eval --no-cache -c packages/listing-objects/skill-listing-objects.yaml; git checkout -- fixtures/ && git clean -fd fixtures/",
     "eval:profiling-table": "git checkout -- fixtures/ && promptfoo eval --no-cache -c packages/profiling-table/skill-profiling-table.yaml; git checkout -- fixtures/ && git clean -fd fixtures/",
     "eval:reviewing-tests": "git checkout -- fixtures/ && promptfoo eval --no-cache -c packages/reviewing-tests/skill-reviewing-tests.yaml; git checkout -- fixtures/ && git clean -fd fixtures/",
     "eval:reviewing-model": "git checkout -- fixtures/ && promptfoo eval --no-cache -c packages/reviewing-model/skill-reviewing-model.yaml; git checkout -- fixtures/ && git clean -fd fixtures/",

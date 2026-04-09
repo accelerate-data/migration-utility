@@ -12,7 +12,7 @@ prompts:
 providers:
   - id: anthropic:claude-agent-sdk
     config:
-      model: claude-sonnet-4-6
+      model: claude-haiku-4-5-20251001
       working_dir: ../..
       max_turns: 80
       permission_mode: auto
@@ -33,6 +33,7 @@ defaultTest:
 tests:
   # ── truncate-insert: DimCustomer multi-writer resolution ────
   - description: "truncate-insert — DimCustomer multi-writer resolution"
+    prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/analyzing-table/truncate-insert"
       target_table: "silver.DimCustomer"
@@ -43,6 +44,7 @@ tests:
 
   # ── merge: DimProduct single MERGE writer ───────────────────
   - description: "merge — DimProduct single MERGE writer"
+    prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/analyzing-table/merge"
       target_table: "silver.DimProduct"
@@ -53,25 +55,29 @@ tests:
 
   # ── exec-orchestrator: FactInternetSales EXEC chain writer ──
   - description: "exec-orchestrator — FactInternetSales EXEC chain writer"
+    prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/analyzing-table/exec-orchestrator"
       target_table: "silver.FactInternetSales"
-      target_procedure: "silver.usp_load_FactInternetSales"
+      target_procedure: "silver.usp_stage_FactInternetSales"
       expected_status: "resolved"
       expected_writer: "factinternetsales"
       allow_zero_migrate: "true"
 
   # ── cross-db-exec: DimCrossDbProfile cross-database delegation
   - description: "cross-db-exec — DimCrossDbProfile cross-database delegation"
+    prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/analyzing-table/cross-db-exec"
       target_table: "silver.DimCrossDbProfile"
       target_procedure: "silver.usp_load_DimCrossDbProfile"
-      expected_status: "resolved"
-      expected_writer: "dimcrossdbprofile"
+      expected_status: "error"
+      allow_zero_migrate: "true"
+      expected_action: "skip"
 
   # ── dynamic-sql — DimCurrency sp_executesql writer ──────────
   - description: "dynamic-sql — DimCurrency sp_executesql writer"
+    prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/analyzing-table/dynamic-sql"
       target_table: "silver.DimCurrency"
@@ -81,6 +87,7 @@ tests:
 
   # ── exec-variable: ExecVariableTarget dynamic EXEC(@sql) ────
   - description: "exec-variable — ExecVariableTarget dynamic EXEC(@sql)"
+    prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/analyzing-table/exec-variable"
       target_table: "silver.ExecVariableTarget"
@@ -92,6 +99,7 @@ tests:
 
   # ── exec-concat: ExecConcatTarget concatenated EXEC ─────────
   - description: "exec-concat — ExecConcatTarget concatenated EXEC"
+    prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/analyzing-table/exec-concat"
       target_table: "silver.ExecConcatTarget"
@@ -103,16 +111,18 @@ tests:
 
   # ── linked-server-exec: LinkedServerExecTarget skip ────────
   - description: "linked-server-exec — LinkedServerExecTarget linked-server EXEC skip"
+    prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/analyzing-table/linked-server-exec"
       target_table: "silver.LinkedServerExecTarget"
       target_procedure: "silver.usp_scope_LinkedServerExec"
-      expected_status: "resolved,no_writer_found"
+      expected_status: "error"
       allow_zero_migrate: "true"
       expected_action: "skip"
 
   # ── multi-writer — DimMultiWriter 3-writer disambiguation ──
   - description: "multi-writer — DimMultiWriter 3-writer disambiguation"
+    prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/analyzing-table/multi-writer"
       target_table: "silver.DimMultiWriter"
@@ -122,6 +132,7 @@ tests:
 
   # ── if-else — DimDynamicBranch conditional sp_executesql ───
   - description: "if-else — DimDynamicBranch conditional sp_executesql"
+    prompts: ["analyzing-table"]
     vars:
       fixture_path: "tests/evals/fixtures/analyzing-table/if-else"
       target_table: "silver.DimDynamicBranch"

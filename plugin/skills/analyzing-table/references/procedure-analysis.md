@@ -60,6 +60,8 @@ Migration Guidance
   3. [migrate] Computes DateFirstPurchase via OUTER APPLY on bronze.SalesOrderHeader
 ```
 
+If the procedure delegates through a cross-database or linked-server `EXEC`, classify that statement as unsupported/out-of-scope in the rationale. Treat the procedure as a non-migratable candidate for writer selection. The parent skill decides the final table scoping outcome.
+
 ### Step 6 — Persist resolved statements
 
 After presenting the analysis, persist resolved statements to catalog.
@@ -69,8 +71,8 @@ After presenting the analysis, persist resolved statements to catalog.
 **LLM-assisted procedures** (`needs_llm: true` or statements containing `action: "needs_llm"`):
 
 1. Read `raw_ddl` and analyse each `needs_llm` statement — follow the call graph, resolve dynamic SQL, and classify as `migrate` or `skip`.
-2. Present the full resolved statement list for confirmation. Show each statement with its proposed action and rationale.
-3. After confirmation (with any edits), persist. All resolved statements get `source: "llm"`. Each statement must include a `rationale` field (1-2 sentences) explaining why it is `migrate` or `skip`.
+2. Build the final resolved statement list and persist it immediately. Do not ask for confirmation before writing — this is a write-through workflow.
+3. After the write succeeds, present the resolved statement list and the persisted outcome to the user. All resolved statements get `source: "llm"`. Each statement must include a `rationale` field (1-2 sentences) explaining why it is `migrate` or `skip`.
 
 No `needs_llm` actions are written to catalog — all must be resolved before persisting.
 
@@ -82,6 +84,8 @@ mkdir -p .staging
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-statements \
   --name <procedure_name> --statements-file .staging/statements.json; rm -rf .staging
 ```
+
+After `discover write-statements` succeeds, report that the statements were persisted and summarize the migrate/skip decisions.
 
 ## Error handling
 

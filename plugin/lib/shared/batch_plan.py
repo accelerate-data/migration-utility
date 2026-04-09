@@ -43,6 +43,7 @@ _DIAG_STAGE_MAP: dict[str, str] = {
     "PARSE_ERROR": "refactor",
     "DDL_PARSE_ERROR": "refactor",
     "MULTI_TABLE_WRITE": "scope",
+    "REMOTE_EXEC_UNSUPPORTED": "scope",
 }
 
 # Severity rank for worst-severity promotion. Higher rank wins.

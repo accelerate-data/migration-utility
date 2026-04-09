@@ -14,6 +14,18 @@ Scope a table, view, or materialized view and persist the scoping decision to th
 
 `$ARGUMENTS` is the fully-qualified name (e.g. `silver.DimCustomer`, `silver.vw_CustomerSales`). Ask the user if missing.
 
+## Schema discipline
+
+Whenever this skill writes structured JSON back to the catalog, treat the schemas in `../../lib/shared/schemas/` as the contract:
+
+- table scoping: `table_catalog.json#/properties/scoping`
+- view scoping: `view_catalog.json#/properties/scoping`
+- procedure statements: `procedure_catalog.json#/properties/statements`
+
+Do not invent field names or omit required fields. The examples in this skill are minimum valid shapes, not loose suggestions. If `discover write-scoping` or `discover write-statements` returns a schema validation error, fix the JSON to match the schema and retry the command.
+
+Use the canonical `/scope` surfaced code list in `../../lib/shared/scope_error_codes.md`. Do not define a competing public error-code list in this skill.
+
 ## Before invoking
 
 Check stage readiness:
@@ -98,37 +110,9 @@ Read `raw_ddl` and write a plain-language description of what the view computes 
 - What transformations are applied (filtering, joining, aggregating)
 - What the view produces
 
-### Step V5 -- Present and confirm
+### Step V5 -- Persist scoping to catalog
 
-Present findings to the user and wait for explicit confirmation before persisting:
-
-```text
-Analysis of silver.vw_CustomerSales
-
-Call tree:
-  Reads tables: bronze.Customer, bronze.Person
-  Reads views:  (none)
-
-SQL elements:
-  - join: INNER JOIN bronze.Person on CustomerKey
-  - aggregation: COUNT
-
-Logic summary:
-  Joins customer records with person details on CustomerKey. Counts
-  the number of persons per customer. Produces one row per customer
-  with an enriched name and person count.
-
-Persist this analysis to catalog/views/silver.vw_customersales.json? (y/n)
-```
-
-If the view depends on other views, show the warning prominently:
-
-```text
-⚠ VIEW_DEPENDS_ON_VIEWS: silver.vw_addressbase has not been analyzed yet.
-  Run /scope silver.vw_addressbase first for accurate profiling results.
-```
-
-### Step V6 -- Persist scoping to catalog
+Persist the view analysis as soon as the scoping JSON is ready. Do not ask for confirmation before writing — this skill is a write-through workflow.
 
 Write the scoping JSON to a temp file to avoid shell quoting issues:
 
@@ -161,6 +145,36 @@ The scoping JSON shape:
 ```
 
 Include `VIEW_DEPENDS_ON_VIEWS` in `warnings` if applicable.
+
+### Step V6 -- Present persisted result
+
+After `discover write-scoping` succeeds, present the persisted result to the user:
+
+```text
+Analysis of silver.vw_CustomerSales
+
+Call tree:
+  Reads tables: bronze.Customer, bronze.Person
+  Reads views:  (none)
+
+SQL elements:
+  - join: INNER JOIN bronze.Person on CustomerKey
+  - aggregation: COUNT
+
+Logic summary:
+  Joins customer records with person details on CustomerKey. Counts
+  the number of persons per customer. Produces one row per customer
+  with an enriched name and person count.
+
+Persisted to catalog/views/silver.vw_customersales.json.
+```
+
+If the view depends on other views, show the warning prominently:
+
+```text
+⚠ VIEW_DEPENDS_ON_VIEWS: silver.vw_addressbase has not been analyzed yet.
+  Run /scope silver.vw_addressbase first for accurate profiling results.
+```
 
 ---
 
@@ -266,11 +280,16 @@ Include rationale (direct writer, transitive writer), dependencies (reads/writes
 
 Apply resolution rules:
 
-- **1 writer** -- auto-select, confirm with user before persisting
-- **2+ writers** -- present candidates and ask the user to pick
+- **Unsupported external delegate** -- if a candidate procedure only delegates through cross-database or linked-server `EXEC`, mark that candidate as unsupported for writer selection. Do not treat it as a valid resolved writer.
+- **1 writer** -- auto-select and persist
+- **2+ writers** -- present candidates, choose the best-supported writer, and persist with clear rationale
 - **0 writers** -- report `no_writer_found` (already handled in Step 2)
 
-Wait for explicit user confirmation before proceeding to Step 6.
+If all discovered candidates are unsupported external delegates, persist table scoping with `status: "error"`. In that case:
+
+- omit `selected_writer`
+- explain in `selected_writer_rationale` that the apparent writer delegates to an out-of-scope external procedure and cannot be migrated from this project
+- include an `errors` entry with code `REMOTE_EXEC_UNSUPPORTED`
 
 ### Step 6 -- Persist scoping to catalog
 
@@ -285,10 +304,63 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
 
 Do not include `status` in the scoping dict — the CLI determines it from the content. The scoping JSON must include the selected writer and a `selected_writer_rationale` field (1–2 sentences explaining why this writer was chosen over alternatives, or why no writer / ambiguous). If the write exits non-zero, report the error and ask the user to correct.
 
+The table scoping JSON shape:
+
+```json
+{
+  "selected_writer": "silver.usp_load_dimcustomer_full",
+  "selected_writer_rationale": "Full loader is the primary writer because it independently rebuilds the target table from source data.",
+  "candidates": [
+    {
+      "procedure_name": "silver.usp_load_dimcustomer_full",
+      "rationale": "Direct full-load writer for the target table.",
+      "dependencies": {
+        "tables": ["bronze.customer", "bronze.person"],
+        "views": [],
+        "functions": []
+      }
+    },
+    {
+      "procedure_name": "silver.usp_load_dimcustomer_delta",
+      "rationale": "Incremental MERGE writer; supplementary rather than primary."
+    }
+  ],
+  "warnings": [],
+  "errors": []
+}
+```
+
+For multi-writer cases, every entry in `candidates` must use `procedure_name` and `rationale`. `dependencies` is optional. Do not use legacy fields such as `procedure`, `write_type`, or `selected` — the CLI validates against the catalog schema and will reject them.
+
+For unsupported external delegate cases, the scoping JSON should look like:
+
+```json
+{
+  "selected_writer_rationale": "The only discovered writer delegates through a linked-server or cross-database EXEC, which is out of scope for this migration project.",
+  "candidates": [
+    {
+      "procedure_name": "silver.usp_scope_linkedserverexec",
+      "rationale": "Delegates to an external procedure through EXEC and is not a migratable writer candidate."
+    }
+  ],
+  "warnings": [],
+  "errors": [
+    {
+      "code": "REMOTE_EXEC_UNSUPPORTED",
+      "message": "Writer delegates through linked-server or cross-database EXEC, which is out of scope.",
+      "severity": "error"
+    }
+  ]
+}
+```
+
+After `discover write-scoping` succeeds, present the persisted result to the user. Do not ask for confirmation before writing — this skill persists first, then reports what was written.
+
 ## References
 
 - [references/procedure-analysis.md](references/procedure-analysis.md) — six-step deep-dive pipeline: fetch, classify, call graph, logic summary, migration guidance, persist
 - [references/tsql-parse-classification.md](references/tsql-parse-classification.md) — LLM fallback classification tables for migrate/skip statements, control flow, and dynamic SQL
+- [`../../lib/shared/scope_error_codes.md`](../../lib/shared/scope_error_codes.md) — canonical `/scope` statuses and surfaced error/warning codes
 
 ## Error handling
 
