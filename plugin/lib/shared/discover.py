@@ -53,6 +53,7 @@ from shared.loader import (
     extract_refs,
     load_ddl,
 )
+from shared.catalog_models import TableScopingSection, ViewScopingSection
 from shared.cli_utils import emit
 from shared.env_config import resolve_catalog_dir, resolve_project_root
 from shared.name_resolver import normalize
@@ -472,9 +473,6 @@ def run_write_scoping(
     if cat_model is None:
         raise CatalogFileMissingError("table", table_norm)
 
-    # Validate incoming scoping through Pydantic model
-    from shared.catalog_models import TableScopingSection
-
     # Determine status from content
     selected_writer = scoping.get("selected_writer")
     has_errors = any(
@@ -522,9 +520,6 @@ def run_write_view_scoping(
     cat_model = load_view_catalog(project_root, view_norm)
     if cat_model is None:
         raise CatalogFileMissingError("view", view_norm)
-
-    # Validate incoming scoping through Pydantic model
-    from shared.catalog_models import ViewScopingSection
 
     # Determine status from content
     has_sql_elements = "sql_elements" in scoping

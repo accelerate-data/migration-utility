@@ -29,6 +29,7 @@ from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
 from shared.catalog import (
+    load_and_merge_catalog,
     load_proc_catalog,
     load_table_catalog,
     load_view_catalog,
@@ -52,6 +53,7 @@ from shared.loader import (
     CatalogNotFoundError,
     DdlParseError,
 )
+from shared.catalog_models import RefactorSection
 from shared.cli_utils import emit
 from shared.env_config import resolve_catalog_dir, resolve_dbt_project_path, resolve_project_root
 from shared.name_resolver import fqn_parts, normalize
@@ -354,7 +356,6 @@ def run_write(
     view_cat_model = load_view_catalog(project_root, table_norm)
     if view_cat_model is not None:
         _validate_schema_fragment(refactor_data, "view_catalog.json", "properties/refactor")
-        from shared.catalog_models import RefactorSection
         RefactorSection.model_validate(refactor_data)
         return _run_write_view(project_root, table_norm, refactor_data)
 
@@ -383,7 +384,6 @@ def run_write(
         raise
 
     # Validate refactor section through Pydantic model
-    from shared.catalog_models import RefactorSection
     RefactorSection.model_validate(refactor_data)
 
     # Merge refactor section onto procedure catalog
@@ -417,30 +417,13 @@ def _run_write_view(
     refactor_data: dict[str, Any],
 ) -> dict[str, Any]:
     """Write refactor block to a view catalog file."""
-    catalog_path = resolve_catalog_dir(project_root) / "views" / f"{fqn_norm}.json"
-
-    view_cat = json.loads(catalog_path.read_text(encoding="utf-8"))
-    view_cat["refactor"] = refactor_data
-
-    try:
-        _write_catalog_json(catalog_path, view_cat)
-    except OSError as exc:
-        logger.error(
-            "event=write_failed operation=atomic_write view=%s error=%s",
-            fqn_norm, exc,
-        )
-        raise
-
+    result = load_and_merge_catalog(project_root, fqn_norm, "refactor", refactor_data)
+    result["object_type"] = "view"
     logger.info(
         "event=write_complete object_type=view view=%s catalog_path=%s",
-        fqn_norm, catalog_path,
+        fqn_norm, result["catalog_path"],
     )
-    return {
-        "ok": True,
-        "table": fqn_norm,
-        "object_type": "view",
-        "catalog_path": str(catalog_path),
-    }
+    return result
 
 
 # ── Sweep ────────────────────────────────────────────────────────────────────
