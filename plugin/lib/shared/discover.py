@@ -27,6 +27,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, NoReturn, Optional
 
+import sqlglot.errors
 import typer
 from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
@@ -301,7 +302,7 @@ def _analyze_view_select(entry: "DdlEntry") -> dict[str, Any]:
 
         return {"sql_elements": elements, "errors": []}
 
-    except Exception as exc:  # noqa: BLE001
+    except (sqlglot.errors.SqlglotError, AttributeError, TypeError) as exc:
         return {
             "sql_elements": None,
             "errors": [{"code": "DDL_PARSE_ERROR", "severity": "error", "message": str(exc)}],

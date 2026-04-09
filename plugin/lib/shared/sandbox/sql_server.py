@@ -148,7 +148,7 @@ def _get_not_null_defaults(cursor: Any, table: str) -> dict[str, Any]:
             else:
                 defaults[col_name] = ""
         return defaults
-    except Exception:  # noqa: BLE001
+    except pyodbc.Error:
         logger.debug("event=not_null_defaults_lookup_failed table=%s", table)
         return {}
 
@@ -166,7 +166,7 @@ def _get_identity_columns(cursor: Any, table: str) -> set[str]:
             table,
         )
         return {row[0] for row in cursor.fetchall()}
-    except Exception:  # noqa: BLE001 — non-critical; caller falls back to plain INSERT
+    except pyodbc.Error:
         logger.debug(
             "event=identity_column_lookup_failed table=%s", table,
         )
