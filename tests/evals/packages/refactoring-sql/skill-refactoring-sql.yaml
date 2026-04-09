@@ -292,6 +292,7 @@ tests:
   - description: "dbt-aware-stg-reuse — existing stg_dimproduct.sql influences import CTE column names"
     prompts: ["refactoring-sql"]
     vars:
+      fixture_path: "tests/evals/fixtures/refactoring-sql/merge"
       target_table: "silver.DimProduct"
       writer: "silver.usp_load_DimProduct"
       stg_model_file: "stg_dimproduct.sql"

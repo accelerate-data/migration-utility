@@ -15,6 +15,26 @@ const fs = require('fs');
 const path = require('path');
 const { normalizeTerms, validateSection } = require('./schema-helpers');
 
+function findWriteKeyword(sqlText) {
+  const patterns = [
+    /\binsert\b\s+/i,
+    /\bupdate\b\s+/i,
+    /\bdelete\b\s+/i,
+    /\bmerge\b\s+/i,
+    /\bexec(?:ute)?\b\s+/i,
+    /\bcreate\b\s+/i,
+    /\balter\b\s+/i,
+    /\bdrop\b\s+/i,
+  ];
+  for (const pattern of patterns) {
+    const match = sqlText.match(pattern);
+    if (match) {
+      return match[0].trim().toLowerCase();
+    }
+  }
+  return null;
+}
+
 module.exports = (output, context) => {
   const fixturePath = context.vars.fixture_path;
   const table = context.vars.target_table;
@@ -112,11 +132,9 @@ module.exports = (output, context) => {
   }
 
   // Extracted SQL must be a pure SELECT (no DML write keywords)
-  const writeKeywords = ['insert ', 'update ', 'delete ', 'merge ', 'exec ', 'create ', 'alter ', 'drop '];
-  for (const kw of writeKeywords) {
-    if (extractedSql.includes(kw)) {
-      return { pass: false, score: 0, reason: `extracted_sql contains write keyword '${kw.trim()}'` };
-    }
+  const extractedWriteKeyword = findWriteKeyword(extractedSql);
+  if (extractedWriteKeyword) {
+    return { pass: false, score: 0, reason: `extracted_sql contains write keyword '${extractedWriteKeyword}'` };
   }
 
   for (const term of expectedExtractedTerms) {
@@ -137,10 +155,9 @@ module.exports = (output, context) => {
   }
 
   // Refactored SQL must be a pure SELECT
-  for (const kw of writeKeywords) {
-    if (refactoredSql.includes(kw)) {
-      return { pass: false, score: 0, reason: `refactored_sql contains write keyword '${kw.trim()}'` };
-    }
+  const refactoredWriteKeyword = findWriteKeyword(refactoredSql);
+  if (refactoredWriteKeyword) {
+    return { pass: false, score: 0, reason: `refactored_sql contains write keyword '${refactoredWriteKeyword}'` };
   }
 
   for (const term of expectedRefactoredTerms) {

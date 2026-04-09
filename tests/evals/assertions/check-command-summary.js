@@ -19,7 +19,7 @@ const { validateSchema, normalizeTerms } = require('./schema-helpers');
 
 /**
  * Find all per-item result JSON files in .migration-runs/ matching a table FQN.
- * Files follow the pattern: <schema.table>.<epoch>.json
+ * Files follow the pattern: <schema.table>.<run_id>.json where run_id is unique per command run.
  */
 function findItemResults(migrationsDir, tableFqn) {
   if (!fs.existsSync(migrationsDir)) return [];
@@ -27,9 +27,11 @@ function findItemResults(migrationsDir, tableFqn) {
   return fs.readdirSync(migrationsDir)
     .filter(f => f.toLowerCase().startsWith(prefix) && f.endsWith('.json') && !f.startsWith('summary'))
     .sort((a, b) => {
-      const epochA = Number((a.match(/\.([0-9]+)\.json$/) || [])[1] || 0);
-      const epochB = Number((b.match(/\.([0-9]+)\.json$/) || [])[1] || 0);
-      if (epochA !== epochB) return epochA - epochB;
+      const aPath = path.join(migrationsDir, a);
+      const bPath = path.join(migrationsDir, b);
+      const mtimeA = fs.statSync(aPath).mtimeMs;
+      const mtimeB = fs.statSync(bPath).mtimeMs;
+      if (mtimeA !== mtimeB) return mtimeA - mtimeB;
       return a.localeCompare(b);
     })
     .map(f => {
@@ -43,14 +45,20 @@ function findItemResults(migrationsDir, tableFqn) {
 }
 
 /**
- * Find the most recent summary.<epoch>.json file.
+ * Find the most recent summary.<run_id>.json file.
  */
 function findSummary(migrationsDir) {
   if (!fs.existsSync(migrationsDir)) return null;
   const summaryFiles = fs.readdirSync(migrationsDir)
     .filter(f => f.startsWith('summary') && f.endsWith('.json'))
-    .sort()
-    .reverse();
+    .sort((a, b) => {
+      const aPath = path.join(migrationsDir, a);
+      const bPath = path.join(migrationsDir, b);
+      const mtimeA = fs.statSync(aPath).mtimeMs;
+      const mtimeB = fs.statSync(bPath).mtimeMs;
+      if (mtimeA !== mtimeB) return mtimeB - mtimeA;
+      return b.localeCompare(a);
+    });
   if (summaryFiles.length === 0) return null;
   try {
     return JSON.parse(fs.readFileSync(path.join(migrationsDir, summaryFiles[0]), 'utf8'));
@@ -100,7 +108,7 @@ module.exports = (output, context) => {
   // Schema validation when summary exists
   if (summary) {
     if (summary.schema_version && summary.results) {
-      const schemaResult = validateSchema(summary, 'scoping_summary.json');
+      const schemaResult = validateSchema(summary, 'command_run_summary.json');
       if (!schemaResult.valid) {
         return { pass: false, score: 0, reason: `Summary schema validation failed: ${schemaResult.errors}` };
       }

@@ -157,15 +157,20 @@ Instructions:
    target table written
 2. Restructure into import CTE -> logical CTE -> final CTE pattern:
 
-   Import CTEs: One per source table. SELECT * (or needed columns) from the
-   bracket-quoted table reference. Name descriptively after the source.
+   Import CTEs: One per source table. Prefer explicit column selection from the
+   bracket-quoted table reference. Only use SELECT * when there is no existing
+   staging model and the source is being passed through unchanged. Name
+   descriptively after the source.
 
    Logical CTEs: One transformation step per CTE. Each does one thing: join,
    filter, aggregate, or transform. Names describe the transformation.
 
-   Final CTE: Assembles the final column list matching the target table.
+   Final CTE: Assembles the final column list matching the target table. This
+   must always be an explicit `final` CTE, even when it only selects from the
+   previous logical CTE.
 
-3. End with: SELECT * FROM final
+3. End with: SELECT * FROM final. Do not treat the final projection as
+   implicit.
 4. Keep T-SQL syntax (ISNULL, CONVERT, etc.) -- no dialect conversion
 5. Replace procedure parameters with literal defaults where possible
 6. Flatten nested subqueries into sequential CTEs
@@ -196,6 +201,8 @@ File: <mart_model_name>.sql
 
 When an existing staging model defines specific column names, aliases, or
 casts, use those same names in your import CTE rather than SELECT *.
+This is a hard requirement: do not use SELECT * in import CTEs when a staging
+model exists for that source.
 When an existing mart model exists, align your final CTE's column list
 with its SELECT output.
 ```

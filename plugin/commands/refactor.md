@@ -64,7 +64,7 @@ For **single-object runs**: create one `execute: refactor <fqn>` task and one `s
    - If harness mode is active: skip this step and set `<working-directory>` to the current project root.
    - If it returns the default branch name (not a worktree path): proceed without a branch or worktree. All file writes and git operations target the current directory. Set `<working-directory>` to `$(git rev-parse --show-toplevel)` for use in sub-agent prompts below.
    - Otherwise: use the returned path as the working directory for all file writes and git operations in this run. Set `<working-directory>` to the returned path.
-3. Generate a run epoch: seconds since Unix epoch. All run artifacts use this as a filename suffix.
+3. Generate a run ID once for the command run: `<epoch_ms>-<random_8hex>`. Use it as the artifact suffix for every file written by this run so concurrent runs against the same fixture do not collide.
 
 ### Step 1b -- Planning sweep (2+ objects only)
 
@@ -76,7 +76,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" refactor sweep \
   --project-root <working-directory>
 ```
 
-Read the output JSON. It contains per-object signals and a `shared_staging_candidates` list. Write the plan artifact to `.migration-runs/refactor-sweep.<epoch>.json`.
+Read the output JSON. It contains per-object signals and a `shared_staging_candidates` list. Write the plan artifact to `.migration-runs/refactor-sweep.<run_id>.json`.
 
 Present a pre-flight table to the user:
 
@@ -100,7 +100,7 @@ If harness mode is active, do not ask for pre-flight confirmation. Present the p
 
 ### Step 2 -- Execute refactoring (plan-driven)
 
-**Single-object path (1 object):** Run `/refactoring-sql` directly in the current conversation -- do not launch a sub-agent. After the skill completes, write the item result JSON to `.migration-runs/<schema.object>.<epoch>.json`.
+**Single-object path (1 object):** Run `/refactoring-sql` directly in the current conversation -- do not launch a sub-agent. After the skill completes, write the item result JSON to `.migration-runs/<schema.object>.<run_id>.json`.
 
 Create `.migration-runs/` first if it does not already exist.
 
@@ -133,7 +133,7 @@ Claude decides how many agents to spawn and which objects to group into executio
 ```text
 Run the /refactoring-sql skill for <schema.object>.
 The working directory is <working-directory>.
-Write the item result JSON to .migration-runs/<schema.object>.<epoch>.json.
+Write the item result JSON to .migration-runs/<schema.object>.<run_id>.json.
 
 Create `.migration-runs/` first if it does not already exist.
 
@@ -151,8 +151,8 @@ The skill writes the refactored CTE SQL into the catalog `refactor` section.
 
 ### Step 3 -- Summarize
 
-1. Read each `.migration-runs/<schema.table>.<epoch>.json`.
-2. Write `.migration-runs/summary.<epoch>.json` with `{total, ok, partial, error}` counts and per-item status.
+1. Read each `.migration-runs/<schema.table>.<run_id>.json`.
+2. Write `.migration-runs/summary.<run_id>.json` with `{total, ok, partial, error}` counts and per-item status.
 3. Present human-readable summary:
 
    ```text
