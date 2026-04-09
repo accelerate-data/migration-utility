@@ -84,9 +84,6 @@
     "unit_tests": 3,
     "coverage": "complete",
     "warnings": [],
-    "validation": {
-      "passed": true,
-      "issues": []
-    }
+    "errors": []
   }
 }
