@@ -1,7 +1,7 @@
 {
   "item_id": "silver.dimproduct",
-  "status": "partial",
-  "coverage": "partial",
+  "status": "pending",
+  "coverage": "complete",
   "branch_manifest": [
     {
       "id": "case_status_current",
@@ -14,6 +14,42 @@
       "statement_index": 0,
       "description": "CASE branch maps DiscontinuedDate IS NOT NULL to Status = 'Obsolete'",
       "scenarios": ["test_status_obsolete_when_discontinued"]
+    },
+    {
+      "id": "case_status_outdated",
+      "statement_index": 0,
+      "description": "CASE branch maps SellEndDate IS NOT NULL (and DiscontinuedDate IS NULL) to Status = 'Outdated'",
+      "scenarios": ["test_status_outdated_when_sellend_date_set"]
+    },
+    {
+      "id": "coalesce_color_null",
+      "statement_index": 0,
+      "description": "ISNULL function handles NULL Color values by converting to empty string",
+      "scenarios": ["test_color_null_converts_to_empty_string"]
+    },
+    {
+      "id": "coalesce_color_not_null",
+      "statement_index": 0,
+      "description": "ISNULL function preserves non-NULL Color values",
+      "scenarios": ["test_color_not_null_preserved"]
+    },
+    {
+      "id": "merge_matched_update",
+      "statement_index": 0,
+      "description": "MERGE WHEN MATCHED branch updates existing target row",
+      "scenarios": ["test_merge_matched_update_existing_product"]
+    },
+    {
+      "id": "merge_not_matched_by_target_insert",
+      "statement_index": 0,
+      "description": "MERGE WHEN NOT MATCHED BY TARGET branch inserts new row",
+      "scenarios": ["test_merge_insert_new_product"]
+    },
+    {
+      "id": "empty_source_bronze_product",
+      "statement_index": 0,
+      "description": "Source table contains no rows",
+      "scenarios": ["test_empty_source_no_changes"]
     }
   ],
   "unit_tests": [
@@ -120,16 +156,343 @@
       },
       "target_table": "[silver].[DimProduct]",
       "procedure": "[silver].[usp_load_DimProduct]"
+    },
+    {
+      "name": "test_status_outdated_when_sellend_date_set",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "rows": [
+            {
+              "ProductID": 3,
+              "ProductName": "Touring-500",
+              "ProductNumber": "PR-003",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 30.0,
+              "ListPrice": 65.0,
+              "Color": "Green",
+              "Size": "XL",
+              "ProductLine": "T",
+              "Class": "L",
+              "Style": "U",
+              "DaysToManufacture": 3,
+              "SellStartDate": "2023-01-01",
+              "SellEndDate": "2024-06-01",
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-06-01"
+            }
+          ],
+          "table": "[bronze].[Product]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "3",
+            "EnglishProductName": "Touring-500",
+            "StandardCost": 30.0,
+            "ListPrice": 65.0,
+            "Color": "Green",
+            "Size": "XL",
+            "ProductLine": "T",
+            "Class": "L",
+            "Style": "U",
+            "StartDate": "2023-01-01",
+            "EndDate": "2024-06-01",
+            "Status": "Outdated"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
+    },
+    {
+      "name": "test_color_null_converts_to_empty_string",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "rows": [
+            {
+              "ProductID": 4,
+              "ProductName": "Frame-Set",
+              "ProductNumber": "PR-004",
+              "MakeFlag": 0,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 50,
+              "ReorderPoint": 25,
+              "StandardCost": 15.0,
+              "ListPrice": 35.0,
+              "Color": null,
+              "Size": null,
+              "ProductLine": "C",
+              "Class": "H",
+              "Style": "M",
+              "DaysToManufacture": 0,
+              "SellStartDate": "2024-01-15",
+              "SellEndDate": null,
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-01-15"
+            }
+          ],
+          "table": "[bronze].[Product]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "4",
+            "EnglishProductName": "Frame-Set",
+            "StandardCost": 15.0,
+            "ListPrice": 35.0,
+            "Color": "",
+            "Size": null,
+            "ProductLine": "C",
+            "Class": "H",
+            "Style": "M",
+            "StartDate": "2024-01-15",
+            "EndDate": null,
+            "Status": "Current"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
+    },
+    {
+      "name": "test_color_not_null_preserved",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "rows": [
+            {
+              "ProductID": 5,
+              "ProductName": "Pedal-Set",
+              "ProductNumber": "PR-005",
+              "MakeFlag": 0,
+              "FinishedGoodsFlag": 0,
+              "SafetyStockLevel": 200,
+              "ReorderPoint": 100,
+              "StandardCost": 5.0,
+              "ListPrice": 12.0,
+              "Color": "Silver",
+              "Size": "S",
+              "ProductLine": "P",
+              "Class": "L",
+              "Style": "U",
+              "DaysToManufacture": 0,
+              "SellStartDate": "2024-03-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-03-01"
+            }
+          ],
+          "table": "[bronze].[Product]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "5",
+            "EnglishProductName": "Pedal-Set",
+            "StandardCost": 5.0,
+            "ListPrice": 12.0,
+            "Color": "Silver",
+            "Size": "S",
+            "ProductLine": "P",
+            "Class": "L",
+            "Style": "U",
+            "StartDate": "2024-03-01",
+            "EndDate": null,
+            "Status": "Current"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
+    },
+    {
+      "name": "test_merge_matched_update_existing_product",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "rows": [
+            {
+              "ProductKey": 1,
+              "ProductAlternateKey": "1",
+              "EnglishProductName": "Road-150-Old",
+              "StandardCost": 9.0,
+              "ListPrice": 20.0,
+              "Color": "Blue",
+              "Size": "L",
+              "ProductLine": "R",
+              "Class": "L",
+              "Style": "U",
+              "StartDate": "2023-01-01",
+              "EndDate": null,
+              "Status": "Current"
+            }
+          ],
+          "table": "[silver].[DimProduct]"
+        },
+        {
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Road-150",
+              "ProductNumber": "PR-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 10.5,
+              "ListPrice": 25.5,
+              "Color": "Red",
+              "Size": "M",
+              "ProductLine": "R",
+              "Class": "H",
+              "Style": "U",
+              "DaysToManufacture": 1,
+              "SellStartDate": "2024-01-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-04-01"
+            }
+          ],
+          "table": "[bronze].[Product]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150",
+            "StandardCost": 10.5,
+            "ListPrice": 25.5,
+            "Color": "Red",
+            "Size": "M",
+            "ProductLine": "R",
+            "Class": "H",
+            "Style": "U",
+            "StartDate": "2024-01-01",
+            "EndDate": null,
+            "Status": "Current"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
+    },
+    {
+      "name": "test_merge_insert_new_product",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "rows": [],
+          "table": "[silver].[DimProduct]"
+        },
+        {
+          "rows": [
+            {
+              "ProductID": 10,
+              "ProductName": "Helmet-Pro",
+              "ProductNumber": "PR-010",
+              "MakeFlag": 0,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 80,
+              "ReorderPoint": 40,
+              "StandardCost": 25.0,
+              "ListPrice": 55.0,
+              "Color": "Black",
+              "Size": "One",
+              "ProductLine": "H",
+              "Class": "H",
+              "Style": "U",
+              "DaysToManufacture": 1,
+              "SellStartDate": "2024-04-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-04-01"
+            }
+          ],
+          "table": "[bronze].[Product]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "10",
+            "EnglishProductName": "Helmet-Pro",
+            "StandardCost": 25.0,
+            "ListPrice": 55.0,
+            "Color": "Black",
+            "Size": "One",
+            "ProductLine": "H",
+            "Class": "H",
+            "Style": "U",
+            "StartDate": "2024-04-01",
+            "EndDate": null,
+            "Status": "Current"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
+    },
+    {
+      "name": "test_empty_source_no_changes",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "rows": [
+            {
+              "ProductKey": 99,
+              "ProductAlternateKey": "99",
+              "EnglishProductName": "Existing-Product",
+              "StandardCost": 15.0,
+              "ListPrice": 35.0,
+              "Color": "Yellow",
+              "Size": "M",
+              "ProductLine": "E",
+              "Class": "M",
+              "Style": "U",
+              "StartDate": "2024-01-01",
+              "EndDate": null,
+              "Status": "Current"
+            }
+          ],
+          "table": "[silver].[DimProduct]"
+        },
+        {
+          "rows": [],
+          "table": "[bronze].[Product]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "99",
+            "EnglishProductName": "Existing-Product",
+            "StandardCost": 15.0,
+            "ListPrice": 35.0,
+            "Color": "Yellow",
+            "Size": "M",
+            "ProductLine": "E",
+            "Class": "M",
+            "Style": "U",
+            "StartDate": "2024-01-01",
+            "EndDate": null,
+            "Status": "Current"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
     }
   ],
-  "uncovered_branches": [
-    "case_status_outdated",
-    "coalesce_color_null",
-    "coalesce_color_not_null",
-    "empty_source_bronze_product",
-    "merge_matched_update",
-    "merge_not_matched_by_target_insert"
-  ],
+  "uncovered_branches": [],
   "warnings": [],
   "validation": {
     "passed": true,
