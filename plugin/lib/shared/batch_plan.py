@@ -373,6 +373,105 @@ def collect_object_diagnostics(
     return diagnostics
 
 
+def _compute_status_and_diagnostics(
+    project_root: Path,
+    fqn: str,
+    obj_type: str,
+    dbt_root: Path,
+) -> tuple[str, list[dict[str, Any]]]:
+    """Compute pipeline status and diagnostics in a single catalog load pass.
+
+    Combines ``object_pipeline_status`` and ``collect_object_diagnostics``
+    to avoid loading the same catalog files twice per object.
+    """
+    diagnostics: list[dict[str, Any]] = []
+
+    def _gather(source: Any) -> None:
+        if not source:
+            return
+        for entry in getattr(source, "warnings", None) or []:
+            if isinstance(entry, dict) and "severity" not in entry:
+                entry = {**entry, "severity": "warning"}
+            diagnostics.append(entry)
+        for entry in getattr(source, "errors", None) or []:
+            if isinstance(entry, dict) and "severity" not in entry:
+                entry = {**entry, "severity": "error"}
+            diagnostics.append(entry)
+
+    if obj_type in ("view", "mv"):
+        try:
+            cat = load_view_catalog(project_root, fqn)
+        except (json.JSONDecodeError, OSError, CatalogLoadError):
+            return "scope_needed", diagnostics
+        if cat is None:
+            return "scope_needed", diagnostics
+        _gather(cat)
+        _gather(cat.scoping)
+        scoping_status = cat.scoping.status if cat.scoping else None
+        if scoping_status != "analyzed":
+            return "scope_needed", diagnostics
+        profile_status = cat.profile.status if cat.profile else None
+        if profile_status not in ("ok", "partial"):
+            return "profile_needed", diagnostics
+        test_gen_status = cat.test_gen.status if cat.test_gen else None
+        if test_gen_status != "ok":
+            return "test_gen_needed", diagnostics
+        refactor_status = cat.refactor.status if cat.refactor else None
+        if refactor_status != "ok":
+            return "refactor_needed", diagnostics
+        generate_status = cat.generate.status if cat.generate else None
+        if generate_status != "ok":
+            return "migrate_needed", diagnostics
+        return "complete", diagnostics
+
+    # TABLE
+    try:
+        cat = load_table_catalog(project_root, fqn)
+    except (json.JSONDecodeError, OSError, CatalogLoadError):
+        return "scope_needed", diagnostics
+    if cat is None:
+        return "scope_needed", diagnostics
+    _gather(cat)
+    _gather(cat.scoping)
+    _gather(cat.profile)
+    _gather(cat.refactor)
+
+    scoping_status = cat.scoping.status if cat.scoping else None
+    if scoping_status == "no_writer_found":
+        return "n_a", diagnostics
+    if scoping_status != "resolved":
+        return "scope_needed", diagnostics
+
+    profile_status = cat.profile.status if cat.profile else None
+    if profile_status not in ("ok", "partial"):
+        return "profile_needed", diagnostics
+
+    test_gen_status = cat.test_gen.status if cat.test_gen else None
+    if test_gen_status != "ok":
+        return "test_gen_needed", diagnostics
+
+    writer = cat.scoping.selected_writer if cat.scoping else None
+    proc_cat = None
+    if writer:
+        writer_norm = normalize(writer)
+        try:
+            proc_cat = load_proc_catalog(project_root, writer_norm)
+            if proc_cat is not None:
+                _gather(proc_cat)
+                _gather(proc_cat.refactor)
+        except (json.JSONDecodeError, OSError, CatalogLoadError):
+            pass
+        refactor_status = proc_cat.refactor.status if proc_cat and proc_cat.refactor else None
+        if refactor_status != "ok":
+            return "refactor_needed", diagnostics
+
+    generate_status = cat.generate.status if cat.generate else None
+    if generate_status != "ok":
+        return "migrate_needed", diagnostics
+
+    return "complete", diagnostics
+
+
 # ── Topological batch computation ─────────────────────────────────────────────
 
 
@@ -684,23 +783,22 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> dict[s
     obj_type_map = inv.obj_type_map
     all_fqns = set(obj_type_map)
 
-    # ── Determine pipeline status and dbt model presence ──────────────────
+    # ── Determine pipeline status, dbt model presence, and diagnostics ────
+    # Uses _compute_status_and_diagnostics to load each catalog file once
+    # instead of separately via object_pipeline_status + collect_object_diagnostics.
     statuses: dict[str, str] = {}
     dbt_status: dict[str, bool] = {}
+    obj_diagnostics: dict[str, list[dict[str, Any]]] = {}
     for fqn, obj_type in inv.all_objects:
-        statuses[fqn] = object_pipeline_status(project_root, fqn, obj_type, dbt_root)
+        status, diags = _compute_status_and_diagnostics(project_root, fqn, obj_type, dbt_root)
+        statuses[fqn] = status
         dbt_status[fqn] = _has_dbt_model(fqn, dbt_root)
+        obj_diagnostics[fqn] = diags
 
     # ── Build transitive dependency graph ─────────────────────────────────
     raw_deps: dict[str, set[str]] = {}
     for fqn, obj_type in inv.all_objects:
         raw_deps[fqn] = collect_deps(project_root, fqn, obj_type) & all_fqns
-
-    # ── Collect diagnostics ────────────────────────────────────────────────
-    obj_diagnostics: dict[str, list[dict[str, Any]]] = {
-        fqn: collect_object_diagnostics(project_root, fqn, obj_type)
-        for fqn, obj_type in inv.all_objects
-    }
 
     # ── Classify objects into pipeline phases ──────────────────────────────
     scope_phase, profile_phase, migrate_candidates, completed_objects, n_a_objects = (
