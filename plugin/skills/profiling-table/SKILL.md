@@ -142,7 +142,7 @@ If exit code is non-zero, stop and report the error.
 
 ### Step 2 -- LLM Profiling (Reasoning)
 
-Read the context JSON and the signal tables in [profiling-signals.md](references/profiling-signals.md). Answer the six profiling questions (Q1–Q6) defined there. Follow all signal tables and pattern matching rules — do not abbreviate. If any signal tentatively points to `fact_accumulating_snapshot`, also read [accumulating-snapshot-classification.md](references/accumulating-snapshot-classification.md) and apply its decision guide before confirming.
+Read the context JSON and the signal tables in [profiling-signals.md](references/profiling-signals.md). Answer the six profiling questions (Q1–Q6) defined there. Follow all signal tables and pattern matching rules — do not abbreviate. If any signal tentatively points to `fact_accumulating_snapshot`, also read [accumulating-snapshot-classification.md](references/accumulating-snapshot-classification.md) and apply its decision guide before confirming. If any signal tentatively points to `fact_periodic_snapshot`, also read [periodic-snapshot-classification.md](references/periodic-snapshot-classification.md) and apply its decision guide before confirming.
 
 ### Step 3 -- Write to Catalog (Deterministic)
 
@@ -200,6 +200,7 @@ The `profile` section written to `catalog/tables/<table>.json` follows `table_ca
 
 - [references/profiling-signals.md](references/profiling-signals.md) — six profiling questions (Q1–Q6), signal tables, and pattern matching rules for classification, keys, watermark, and PII
 - [references/accumulating-snapshot-classification.md](references/accumulating-snapshot-classification.md) — decision guide for confirming `fact_accumulating_snapshot`: primary write-pattern signals, negative signals, and role-playing FK date key disambiguation
+- [references/periodic-snapshot-classification.md](references/periodic-snapshot-classification.md) — decision guide for confirming `fact_periodic_snapshot`: snapshot date vs. role-playing FK date keys, semi-additive vs. fully additive measures, calendar join and GROUP BY grain signals
 - [`../../lib/shared/profile_error_codes.md`](../../lib/shared/profile_error_codes.md) — canonical `/profile` statuses and surfaced error/warning codes
 
 ## Error handling

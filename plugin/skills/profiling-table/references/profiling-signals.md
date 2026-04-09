@@ -42,13 +42,15 @@ A single signal (e.g. `valid_from` column with no supporting procedure pattern) 
 | Pure `INSERT`, no `UPDATE` or `DELETE` | `fact_transaction` |
 | `INSERT … SELECT … GROUP BY` (aggregation before write) | `fact_aggregate` |
 | `TRUNCATE` + `INSERT` with descriptive VARCHAR columns | `dim_non_scd` |
-| `TRUNCATE` + `INSERT` with measure + FK columns | `fact_periodic_snapshot` |
+| `TRUNCATE` + `INSERT` with measure + FK columns | `fact_periodic_snapshot` (requires confirmation — see gate below) |
 | `MERGE` — simple `WHEN MATCHED THEN UPDATE` only | `dim_scd1` |
 | `MERGE` — expire matched row + insert history row (`valid_to`, `is_current`) | `dim_scd2` |
 | `INSERT` then `UPDATE` targeting milestone date columns on existing rows | `fact_accumulating_snapshot` |
 | Cross-join `INSERT` of low-cardinality flag combinations | `dim_junk` |
 
 > **Accumulating snapshot confirmation required.** If any signal here tentatively points to `fact_accumulating_snapshot`, you MUST read [accumulating-snapshot-classification.md](accumulating-snapshot-classification.md) and apply its decision guide before confirming the classification.
+>
+> **Periodic snapshot confirmation required.** `TRUNCATE + INSERT` alone does not distinguish `fact_periodic_snapshot` from `fact_transaction` — both can use full-reload patterns. If any signal tentatively points to `fact_periodic_snapshot`, you MUST read [periodic-snapshot-classification.md](periodic-snapshot-classification.md) and apply its decision guide before confirming.
 
 ### Column Shape Signals
 
