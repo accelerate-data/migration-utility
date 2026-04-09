@@ -272,8 +272,8 @@
   "test_gen": {
     "status": "ok",
     "test_spec_path": "test-specs/silver.factinternetsales.json",
-    "branches": 8,
-    "unit_tests": 8,
+    "branches": 7,
+    "unit_tests": 6,
     "coverage": "complete",
     "warnings": [],
     "errors": []
