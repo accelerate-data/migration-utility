@@ -9,3 +9,6 @@ Run /status for all tables.
 Read the command at plugin/commands/status.md. Wherever it references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead. Pass `--project-root {{fixture_path}}` to all CLI commands.
 
 Skip git operations — operate directly on the fixture directory.
+Treat this as harness mode: present recommendations, but do not execute the suggested next command and do not delete stale files.
+Follow the command section order exactly. In batch mode, always present the Step 4 summary table before the "What to do next" section.
+Treat `{{fixture_path}}` as the authoritative project root for this run. It exists and contains the fixture data. Do not question whether the fixture directory exists, and resolve file checks relative to that project root rather than the current `tests/evals` working directory.

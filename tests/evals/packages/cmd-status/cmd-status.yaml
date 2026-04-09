@@ -9,7 +9,7 @@ prompts:
 providers:
   - id: anthropic:claude-agent-sdk
     config:
-      model: claude-sonnet-4-6
+      model: claude-haiku-4-5-20251001
       working_dir: ../..
       max_turns: 80
       permission_mode: auto
@@ -57,7 +57,7 @@ tests:
   - description: "status-all-summary — summary report across all catalog tables"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-status/status-all-summary"
-      expected_output_terms: "scope,profile,test-gen,migrate"
+      expected_output_terms: "scope,profile,test-gen,generate"
 
   # ── status-all-objects: views and writerless N/A ─────────────
   - description: "status-all-objects — views and writerless tables with type column and N/A"
