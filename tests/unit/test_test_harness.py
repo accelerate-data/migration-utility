@@ -1001,7 +1001,9 @@ class TestResolveSandboxDb:
         _write_fixture_manifest(tmp_path)
         write_manifest_sandbox(tmp_path, "__test_manifest_run")
 
-        assert _resolve_sandbox_db(tmp_path) == "__test_manifest_run"
+        sandbox_db, manifest = _resolve_sandbox_db(tmp_path)
+        assert sandbox_db == "__test_manifest_run"
+        assert "technology" in manifest
 
     def test_missing_sandbox_exits(self, tmp_path: Path) -> None:
         from click.exceptions import Exit
@@ -1917,8 +1919,7 @@ class TestExecuteSpecViewRouting:
 
         try:
             with patch.object(test_harness, "_create_backend", return_value=mock_backend), \
-                 patch.object(test_harness, "_resolve_sandbox_db", return_value="__test_abc"), \
-                 patch.object(test_harness, "_load_manifest", return_value={}):
+                 patch.object(test_harness, "_resolve_sandbox_db", return_value=("__test_abc", {})):
                 result = runner.invoke(
                     test_harness.app,
                     ["execute-spec", "--spec", spec_path, "--project-root", "."],
@@ -1979,8 +1980,7 @@ class TestExecuteSpecViewRouting:
 
         try:
             with patch.object(test_harness, "_create_backend", return_value=mock_backend), \
-                 patch.object(test_harness, "_resolve_sandbox_db", return_value="__test_abc"), \
-                 patch.object(test_harness, "_load_manifest", return_value={}):
+                 patch.object(test_harness, "_resolve_sandbox_db", return_value=("__test_abc", {})):
                 result = runner.invoke(
                     test_harness.app,
                     ["execute-spec", "--spec", spec_path, "--project-root", "."],
