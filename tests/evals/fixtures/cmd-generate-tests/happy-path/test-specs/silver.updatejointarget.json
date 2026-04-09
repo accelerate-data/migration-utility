@@ -1,7 +1,7 @@
 {
   "item_id": "silver.updatejointarget",
-  "status": "partial",
-  "coverage": "partial",
+  "status": "ok",
+  "coverage": "complete",
   "branch_manifest": [
     {
       "id": "update_matched_rows",
@@ -15,7 +15,9 @@
       "id": "join_miss_no_update",
       "statement_index": 0,
       "description": "Target rows with no matching source row are left unchanged (INNER JOIN miss)",
-      "scenarios": []
+      "scenarios": [
+        "test_join_miss_row_unchanged"
+      ]
     },
     {
       "id": "null_join_key",
@@ -32,8 +34,28 @@
         {
           "rows": [
             {
+              "ProductAlternateKey": "1",
+              "EnglishProductName": "Road-150",
+              "LastSeenDate": "2024-01-01T00:00:00"
+            }
+          ],
+          "table": "[silver].[UpdateJoinTarget]"
+        },
+        {
+          "rows": [
+            {
               "ProductID": 1,
-              "ProductName": "Road-150-Updated"
+              "ProductName": "Road-150-Updated",
+              "ProductNumber": "AR-5381",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 500,
+              "ReorderPoint": 375,
+              "StandardCost": 10.0,
+              "ListPrice": 25.0,
+              "DaysToManufacture": 1,
+              "SellStartDate": "2024-01-01T00:00:00",
+              "ModifiedDate": "2024-01-01T00:00:00"
             }
           ],
           "table": "[bronze].[Product]"
@@ -49,16 +71,50 @@
       },
       "target_table": "[silver].[UpdateJoinTarget]",
       "procedure": "[silver].[usp_load_UpdateJoinTarget]"
+    },
+    {
+      "name": "test_join_miss_row_unchanged",
+      "model": "stg_updatejointarget",
+      "given": [
+        {
+          "rows": [
+            {
+              "ProductAlternateKey": "999",
+              "EnglishProductName": "Obsolete Product",
+              "LastSeenDate": "2024-01-01T00:00:00"
+            }
+          ],
+          "table": "[silver].[UpdateJoinTarget]"
+        },
+        {
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Road-150",
+              "ProductNumber": "AR-5381",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 500,
+              "ReorderPoint": 375,
+              "StandardCost": 10.0,
+              "ListPrice": 25.0,
+              "DaysToManufacture": 1,
+              "SellStartDate": "2024-01-01T00:00:00",
+              "ModifiedDate": "2024-01-01T00:00:00"
+            }
+          ],
+          "table": "[bronze].[Product]"
+        }
+      ],
+      "target_table": "[silver].[UpdateJoinTarget]",
+      "procedure": "[silver].[usp_load_UpdateJoinTarget]"
     }
   ],
-  "uncovered_branches": [
-    "join_miss_no_update",
-    "null_join_key"
-  ],
+  "uncovered_branches": [],
   "warnings": [
     {
-      "code": "BRANCH_NOT_COVERED",
-      "message": "2 of 3 branches have no scenarios: join_miss_no_update, null_join_key.",
+      "code": "FIXTURE_QUALITY_WARNING",
+      "message": "Branch null_join_key is untestable: ProductAlternateKey is declared NOT NULL in silver.UpdateJoinTarget; a NULL target key value cannot be inserted via static fixtures.",
       "item_id": "silver.updatejointarget",
       "severity": "warning",
       "details": {}
