@@ -1,0 +1,7 @@
+{
+  "technology": "mssql",
+  "dialect": "tsql",
+  "sandbox": {
+    "database": "MigrationTest_Sandbox"
+  }
+}

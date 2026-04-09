@@ -1,0 +1,60 @@
+{
+  "schema": "silver",
+  "name": "vw_activeproducts",
+  "is_materialized_view": false,
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "DimProduct",
+          "is_selected": true,
+          "is_updated": false
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "scoping": {
+    "status": "analyzed",
+    "sql_elements": [
+      { "type": "filter", "detail": "WHERE Status = 'Active'" }
+    ],
+    "call_tree": {
+      "reads_from": ["silver.dimproduct"],
+      "views_referenced": []
+    },
+    "logic_summary": "Filters DimProduct to rows where Status is 'Active', exposing ProductKey, EnglishProductName, Status, and ListPrice.",
+    "rationale": "Simple single-table filter view with no joins or aggregations.",
+    "warnings": [],
+    "errors": []
+  },
+  "profile": {
+    "status": "ok",
+    "classification": "stg",
+    "rationale": "Single-source pass-through with a WHERE filter — staging classification.",
+    "source": "llm"
+  }
+}

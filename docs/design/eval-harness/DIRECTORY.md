@@ -32,7 +32,8 @@ tests/evals/
   prompts/
     skill-profiling-table.txt          # prompt template for profiling-table skill
     skill-profiling-table-view.txt     # prompt template for profiling-table view scenarios
-    skill-reviewing-tests.txt          # prompt template for reviewing-tests skill
+    skill-reviewing-tests.txt          # prompt template for reviewing-tests skill (tables)
+    skill-reviewing-tests-view.txt     # prompt template for reviewing-tests skill (views)
     skill-reviewing-model.txt          # prompt template for reviewing-model skill
     skill-analyzing-table.txt          # prompt template for analyzing-table skill
     skill-analyzing-table-view.txt     # prompt template for analyzing-table view scenarios

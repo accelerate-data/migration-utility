@@ -3,17 +3,18 @@ name: reviewing-tests
 description: >
   Reviews test generation output for coverage and quality. Independently
   enumerates branches, scores coverage, and reviews fixture quality.
+  Handles both stored procedure (table) and view test specs.
   Invoked by the /generate-tests command, not directly by the user.
 user-invocable: false
 context: fork
-argument-hint: "<schema.table>"
+argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 ---
 
 # Reviewing Tests
 
 ## Arguments
 
-`$ARGUMENTS` is the fully-qualified table name (the `item_id`), optionally followed by `--iteration <N>` (1-based). Defaults to 1 if not provided.
+`$ARGUMENTS` is the fully-qualified table or view name (the `item_id`), optionally followed by `--iteration <N>` (1-based). Defaults to 1 if not provided.
 
 ## Contracts
 
@@ -35,14 +36,23 @@ If `ready` is `false`, report the failing readiness `code` and `reason` to the
 caller and stop. Use only codes from
 `../../lib/shared/generate_tests_error_codes.md`.
 
+## Object type detection
+
+Check whether `catalog/views/<fqn>.json` exists:
+
+- **If yes** → object is a **view or MV**. Note `object_type = view` for the steps below.
+- **If no** → object is a **table**. Note `object_type = table` for the steps below.
+
 ## Step 1: Assemble context
+
+**For tables:**
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate context \
   --table <item_id>
 ```
 
-Read the output JSON. It contains:
+The output contains:
 
 - `proc_body` — full original procedure SQL
 - `statements` — resolved statement list with action and SQL
@@ -50,17 +60,28 @@ Read the output JSON. It contains:
 - `columns` — target table column list
 - `source_tables` — tables read by the writer
 
-Also read the test generator's output:
+**For views:**
 
-```text
-test-specs/<item_id>.json
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show \
+  --name <view_fqn>
 ```
 
-Read `unit_tests[]` from this file.
+Also read `catalog/views/<fqn>.json` directly to get `profile`, `scoping.logic_summary`, and `references.tables.in_scope`.
+
+Assemble the context:
+
+- `proc_body` — `raw_ddl` from `discover show`
+- `statements` — the view's SELECT body (treat as a single `action: migrate` statement)
+- `source_tables` — from `references.tables.in_scope` in the view catalog
+
+**Both:** Also read the test generator's output at `test-specs/<item_id>.json`. Read `unit_tests[]` from this file.
 
 ## Step 2: Independent branch enumeration
 
 Enumerate all conditional branches from `proc_body` and `statements` independently. Do NOT read or trust the generator's `branch_manifest` — build your own.
+
+**For tables:**
 
 | Pattern | Branches |
 |---|---|
@@ -72,6 +93,18 @@ Enumerate all conditional branches from `proc_body` and `statements` independent
 | NULL handling | NULL vs non-NULL in filters, joins, COALESCE/ISNULL |
 | Aggregation | Single group, multiple groups, empty source |
 | Type boundaries | Watermark edges, MAX int, empty string |
+| Empty source | Zero-row edge case per source table |
+
+**For views**, use SELECT-level patterns only:
+
+| Pattern | Branches |
+|---|---|
+| WHERE | Pass, fail |
+| JOIN | Match, no-match (LEFT JOIN NULL right side), partial multi-condition |
+| CASE/WHEN | One per arm + ELSE |
+| Subquery | EXISTS true/false, IN match/miss |
+| NULL handling | NULL vs non-NULL in filters, joins, COALESCE/ISNULL |
+| Aggregation | Single group, multiple groups, empty source (with/without HAVING) |
 | Empty source | Zero-row edge case per source table |
 
 Assign each branch a stable `id` (snake_case, descriptive) and a human-readable `description`. Record the full list as the reviewer's branch manifest.
@@ -142,8 +175,10 @@ Test reviewer must not:
 
 | Command | Exit code | Action |
 |---|---|---|
-| `migrate context` | 1 | Prerequisite missing. Return valid `TestReviewResult` JSON with `status: "error"` and code `CONTEXT_PREREQUISITE_MISSING` |
-| `migrate context` | 2 | IO/parse error. Return valid `TestReviewResult` JSON with `status: "error"` and code `CONTEXT_IO_ERROR` |
-| `test-specs/<item_id>.json` | missing | Return valid `TestReviewResult` JSON with `status: "error"` and code `TEST_SPEC_MISSING` |
+| `migrate context` | 1 | Prerequisite missing. Return `TestReviewResult` with `status: "error"` and code `CONTEXT_PREREQUISITE_MISSING` |
+| `migrate context` | 2 | IO/parse error. Return `TestReviewResult` with `status: "error"` and code `CONTEXT_IO_ERROR` |
+| `discover show` | 1 | View not found. Return `TestReviewResult` with `status: "error"` and code `CONTEXT_PREREQUISITE_MISSING` |
+| `discover show` | 2 | IO/parse error. Return `TestReviewResult` with `status: "error"` and code `CONTEXT_IO_ERROR` |
+| `test-specs/<item_id>.json` | missing | Return `TestReviewResult` with `status: "error"` and code `TEST_SPEC_MISSING` |
 
 Return a valid `TestReviewResult` JSON for all error paths.
