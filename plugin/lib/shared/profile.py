@@ -76,8 +76,14 @@ VIEW_CLASSIFICATIONS = frozenset({"stg", "mart"})
 VIEW_SOURCES = frozenset({"llm"})
 
 
-def _load_schema_with_store(schema_name: str) -> tuple[dict[str, Any], Registry]:
-    """Load a schema file and registry for local schema references."""
+_SCHEMA_REGISTRY_CACHE: tuple[dict[str, Any], Registry] | None = None
+
+
+def _get_schema_registry() -> tuple[dict[str, Any], Registry]:
+    """Load all schemas and build a registry, cached for the process lifetime."""
+    global _SCHEMA_REGISTRY_CACHE  # noqa: PLW0603
+    if _SCHEMA_REGISTRY_CACHE is not None:
+        return _SCHEMA_REGISTRY_CACHE
     registry = Registry()
     loaded: dict[str, Any] = {}
     for schema_path in _SCHEMA_DIR.glob("*.json"):
@@ -86,6 +92,13 @@ def _load_schema_with_store(schema_name: str) -> tuple[dict[str, Any], Registry]
         resource = Resource.from_contents(schema)
         registry = registry.with_resource(schema_path.name, resource)
         registry = registry.with_resource(schema_path.resolve().as_uri(), resource)
+    _SCHEMA_REGISTRY_CACHE = (loaded, registry)
+    return _SCHEMA_REGISTRY_CACHE
+
+
+def _load_schema_with_store(schema_name: str) -> tuple[dict[str, Any], Registry]:
+    """Load a schema file and registry for local schema references."""
+    loaded, registry = _get_schema_registry()
     return loaded[schema_name], registry
 
 
