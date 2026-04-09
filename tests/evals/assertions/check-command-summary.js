@@ -26,6 +26,12 @@ function findItemResults(migrationsDir, tableFqn) {
   const prefix = tableFqn.toLowerCase() + '.';
   return fs.readdirSync(migrationsDir)
     .filter(f => f.toLowerCase().startsWith(prefix) && f.endsWith('.json') && !f.startsWith('summary'))
+    .sort((a, b) => {
+      const epochA = Number((a.match(/\.([0-9]+)\.json$/) || [])[1] || 0);
+      const epochB = Number((b.match(/\.([0-9]+)\.json$/) || [])[1] || 0);
+      if (epochA !== epochB) return epochA - epochB;
+      return a.localeCompare(b);
+    })
     .map(f => {
       try {
         return JSON.parse(fs.readFileSync(path.join(migrationsDir, f), 'utf8'));

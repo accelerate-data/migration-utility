@@ -83,10 +83,10 @@ npm run eval
 
 # Skill packages
 npm run eval:listing-objects
+npm run eval:analyzing-table
 npm run eval:profiling-table
 npm run eval:reviewing-tests
 npm run eval:reviewing-model
-npm run eval:analyzing-table
 npm run eval:refactoring-sql
 
 # Command packages
