@@ -144,7 +144,7 @@ If you add a new fixture directory, commit it or at least stage it before runnin
 
 If a package contains both table and view scenarios, do not rely on the package-level `prompts:` list alone. Pin each scenario to its intended prompt with `prompts: ["<prompt-id>"]`.
 
-Current examples include `packages/analyzing-table/skill-analyzing-table.yaml`, `packages/profiling-table/skill-profiling-table.yaml`, and `packages/generating-tests/skill-generating-tests.yaml`.
+Current examples include `packages/analyzing-table/skill-analyzing-table.yaml`, `packages/profiling-table/skill-profiling-table.yaml`, `packages/generating-tests/skill-generating-tests.yaml`, and `packages/reviewing-tests/skill-reviewing-tests.yaml`.
 
 Use this whenever:
 
