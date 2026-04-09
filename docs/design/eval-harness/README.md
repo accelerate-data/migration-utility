@@ -180,4 +180,8 @@ Use this rule of thumb:
 
 ## More Detail
 
-For harness internals and maintenance detail, see [MAINTENANCE.md](MAINTENANCE.md).
+For harness internals and maintenance detail, see:
+
+- [MAINTENANCE.md](MAINTENANCE.md)
+- [SCENARIOS.md](SCENARIOS.md)
+- [DIRECTORY.md](DIRECTORY.md)
