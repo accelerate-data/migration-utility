@@ -361,6 +361,110 @@ def write_object_catalog(
     return p
 
 
+def _write_catalog_json(
+    project_root: Path, object_type: str, norm_fqn: str, data: dict[str, Any]
+) -> Path:
+    p = _object_path(project_root, object_type, norm_fqn)
+    write_json(p, data)
+    return p
+
+
+def write_proc_catalog(
+    project_root: Path,
+    fqn: str,
+    references: dict[str, list[dict[str, Any]]],
+    *,
+    needs_llm: bool = False,
+    needs_enrich: bool = False,
+    mode: str | None = None,
+    routing_reasons: list[str] | None = None,
+    params: list[dict[str, Any]] | None = None,
+    ddl_hash: str | None = None,
+    dmf_errors: list[str] | None = None,
+    segmenter_error: str | None = None,
+) -> Path:
+    """Write a procedure catalog file.  Returns the written path."""
+    norm = normalize(fqn)
+    schema, name = fqn_parts(norm)
+    data: dict[str, Any] = {"schema": schema, "name": name, "references": references}
+    if ddl_hash is not None:
+        data["ddl_hash"] = ddl_hash
+    if params is not None:
+        data["params"] = params
+    if needs_llm:
+        data["needs_llm"] = True
+    if needs_enrich:
+        data["needs_enrich"] = True
+    if mode is not None:
+        data["mode"] = mode
+    if routing_reasons is not None:
+        data["routing_reasons"] = routing_reasons
+    if dmf_errors:
+        data["dmf_errors"] = dmf_errors
+    if segmenter_error is not None:
+        data["segmenter_error"] = segmenter_error
+    return _write_catalog_json(project_root, "procedures", norm, data)
+
+
+def write_view_catalog(
+    project_root: Path,
+    fqn: str,
+    references: dict[str, list[dict[str, Any]]],
+    *,
+    sql: str | None = None,
+    columns: list[dict[str, Any]] | None = None,
+    is_materialized_view: bool = False,
+    long_truncation: bool = False,
+    ddl_hash: str | None = None,
+    dmf_errors: list[str] | None = None,
+    segmenter_error: str | None = None,
+) -> Path:
+    """Write a view catalog file.  Returns the written path."""
+    norm = normalize(fqn)
+    schema, name = fqn_parts(norm)
+    data: dict[str, Any] = {"schema": schema, "name": name, "references": references, "excluded": False}
+    if ddl_hash is not None:
+        data["ddl_hash"] = ddl_hash
+    if is_materialized_view:
+        data["is_materialized_view"] = True
+    if sql is not None:
+        data["sql"] = sql
+    if columns is not None:
+        data["columns"] = columns
+    if dmf_errors:
+        data["dmf_errors"] = dmf_errors
+    if segmenter_error is not None:
+        data["segmenter_error"] = segmenter_error
+    if long_truncation:
+        data["long_truncation"] = True
+    return _write_catalog_json(project_root, "views", norm, data)
+
+
+def write_function_catalog(
+    project_root: Path,
+    fqn: str,
+    references: dict[str, list[dict[str, Any]]],
+    *,
+    subtype: str | None = None,
+    ddl_hash: str | None = None,
+    dmf_errors: list[str] | None = None,
+    segmenter_error: str | None = None,
+) -> Path:
+    """Write a function catalog file.  Returns the written path."""
+    norm = normalize(fqn)
+    schema, name = fqn_parts(norm)
+    data: dict[str, Any] = {"schema": schema, "name": name, "references": references}
+    if ddl_hash is not None:
+        data["ddl_hash"] = ddl_hash
+    if subtype is not None:
+        data["subtype"] = subtype
+    if dmf_errors:
+        data["dmf_errors"] = dmf_errors
+    if segmenter_error is not None:
+        data["segmenter_error"] = segmenter_error
+    return _write_catalog_json(project_root, "functions", norm, data)
+
+
 # ── Enrichment field preservation (re-extraction merge) ─────────────────────
 
 # Keys preserved per bucket during re-extraction. ``refactor`` belongs only on
