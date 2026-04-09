@@ -19,6 +19,14 @@ This skill produces scenarios only — no proc execution, no ground truth captur
 
 `$ARGUMENTS` is the fully-qualified table or view name. Ask the user if missing.
 
+## Contracts
+
+Use the canonical test spec schema when writing `test-specs/<item_id>.json`:
+
+- test spec: `../../lib/shared/schemas/test_spec.json`
+
+Do not invent fields. If `test-harness write` rejects the payload, fix the payload and retry.
+
 ## Schema discipline
 
 Use the canonical generating-tests surfaced code list in `../../lib/shared/generate_tests_error_codes.md`. Do not define a competing public error-code list in this skill.
