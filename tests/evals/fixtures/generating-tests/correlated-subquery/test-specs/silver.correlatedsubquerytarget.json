@@ -7,19 +7,25 @@
       "id": "correlated_subquery_hit",
       "statement_index": 0,
       "description": "Row WHERE ProductID equals MAX(ProductID) for its ProductName group — correlated subquery matches, row is inserted",
-      "scenarios": ["test_insert_correlated_subquery_max_product_inserted"]
+      "scenarios": [
+        "test_insert_correlated_subquery_max_product_inserted"
+      ]
     },
     {
       "id": "correlated_subquery_miss",
       "statement_index": 0,
       "description": "Row WHERE ProductID is less than MAX(ProductID) for its ProductName group — correlated subquery does not match, row is filtered out",
-      "scenarios": ["test_insert_correlated_subquery_non_max_product_excluded"]
+      "scenarios": [
+        "test_insert_correlated_subquery_non_max_product_excluded"
+      ]
     },
     {
       "id": "empty_source",
       "statement_index": 0,
       "description": "Zero rows in bronze.Product — INSERT produces no rows, target remains empty",
-      "scenarios": ["test_insert_correlated_subquery_empty_source_no_rows"]
+      "scenarios": [
+        "test_insert_correlated_subquery_empty_source_no_rows"
+      ]
     }
   ],
   "unit_tests": [
@@ -39,7 +45,7 @@
               "FinishedGoodsFlag": 1,
               "SafetyStockLevel": 100,
               "ReorderPoint": 50,
-              "StandardCost": 10.00,
+              "StandardCost": 10.0,
               "ListPrice": 19.99,
               "DaysToManufacture": 1,
               "SellStartDate": "2020-01-01",
@@ -47,7 +53,15 @@
             }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "10",
+            "EnglishProductName": "Widget"
+          }
+        ]
+      }
     },
     {
       "name": "test_insert_correlated_subquery_non_max_product_excluded",
@@ -65,7 +79,7 @@
               "FinishedGoodsFlag": 1,
               "SafetyStockLevel": 100,
               "ReorderPoint": 50,
-              "StandardCost": 5.00,
+              "StandardCost": 5.0,
               "ListPrice": 9.99,
               "DaysToManufacture": 1,
               "SellStartDate": "2020-01-01",
@@ -79,7 +93,7 @@
               "FinishedGoodsFlag": 1,
               "SafetyStockLevel": 100,
               "ReorderPoint": 50,
-              "StandardCost": 5.00,
+              "StandardCost": 5.0,
               "ListPrice": 9.99,
               "DaysToManufacture": 1,
               "SellStartDate": "2020-01-01",
@@ -87,7 +101,15 @@
             }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "20",
+            "EnglishProductName": "Gadget"
+          }
+        ]
+      }
     },
     {
       "name": "test_insert_correlated_subquery_empty_source_no_rows",
@@ -98,7 +120,10 @@
           "table": "[bronze].[Product]",
           "rows": []
         }
-      ]
+      ],
+      "expect": {
+        "rows": []
+      }
     }
   ],
   "uncovered_branches": [],
