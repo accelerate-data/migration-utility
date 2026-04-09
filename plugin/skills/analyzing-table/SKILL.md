@@ -34,8 +34,6 @@ Check stage readiness:
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <fqn> scope
 ```
 
-The `ready` command auto-detects whether the FQN is a table or view — no separate guard set needed.
-
 If `ready` is `false`, report the failing check's `code` and `reason` to the user and stop.
 
 ## Object type detection
@@ -48,8 +46,6 @@ Check whether `catalog/views/<fqn>.json` exists:
 ---
 
 ## View Pipeline
-
-Follow these steps when the FQN refers to a view or materialized view.
 
 ### Step V1 -- Show view from catalog
 
@@ -180,8 +176,6 @@ If the view depends on other views, show the warning prominently:
 
 ## Table Pipeline
 
-Follow these steps when the FQN refers to a table.
-
 ### Step 1 -- Show columns from catalog
 
 Read `catalog/tables/<table>.json` and present the column list:
@@ -293,7 +287,7 @@ If all discovered candidates are unsupported external delegates, persist table s
 
 ### Step 6 -- Persist scoping to catalog
 
-Write the scoping JSON to a temp file to avoid shell quoting issues (rationale text may contain apostrophes):
+Write the scoping JSON to a temp file to avoid shell quoting issues:
 
 ```bash
 mkdir -p .staging
@@ -302,7 +296,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
   --name <table> --scoping-file .staging/scoping.json; rm -rf .staging
 ```
 
-Do not include `status` in the scoping dict — the CLI determines it from the content. The scoping JSON must include the selected writer and a `selected_writer_rationale` field (1–2 sentences explaining why this writer was chosen over alternatives, or why no writer / ambiguous). If the write exits non-zero, report the error and ask the user to correct.
+Do not include `status` in the scoping dict. The scoping JSON must include the selected writer and a `selected_writer_rationale` field (1–2 sentences explaining why this writer was chosen over alternatives, or why no writer / ambiguous). If the write exits non-zero, report the error and ask the user to correct.
 
 The table scoping JSON shape:
 
@@ -330,7 +324,7 @@ The table scoping JSON shape:
 }
 ```
 
-For multi-writer cases, every entry in `candidates` must use `procedure_name` and `rationale`. `dependencies` is optional. Do not use legacy fields such as `procedure`, `write_type`, or `selected` — the CLI validates against the catalog schema and will reject them.
+For multi-writer cases, every entry in `candidates` must use `procedure_name` and `rationale`. `dependencies` is optional. Do not use legacy fields such as `procedure`, `write_type`, or `selected`.
 
 For unsupported external delegate cases, the scoping JSON should look like:
 
@@ -354,7 +348,7 @@ For unsupported external delegate cases, the scoping JSON should look like:
 }
 ```
 
-After `discover write-scoping` succeeds, present the persisted result to the user. Do not ask for confirmation before writing — this skill persists first, then reports what was written.
+After `discover write-scoping` succeeds, present the persisted result to the user.
 
 ## References
 
