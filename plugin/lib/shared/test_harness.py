@@ -12,11 +12,14 @@ from pathlib import Path
 from typing import Any, NoReturn, Optional
 
 import typer
+from jsonschema import Draft202012Validator
+from referencing import Registry, Resource
 
 from shared.catalog import (
     load_and_merge_catalog,
     write_json as _write_catalog_json,
 )
+from shared.catalog_models import TestGenSection
 from shared.cli_utils import emit
 from shared.env_config import resolve_catalog_dir, resolve_project_root
 from shared.loader import CatalogFileMissingError, CatalogLoadError
@@ -27,6 +30,44 @@ from shared.sandbox.base import SandboxBackend
 
 logger = logging.getLogger(__name__)
 app = typer.Typer(name="test-harness", no_args_is_help=True, add_completion=False, pretty_exceptions_enable=False)
+
+_SCHEMA_DIR = Path(__file__).with_name("schemas")
+
+
+# ── Schema validation helpers ────────────────────────────────────────────────
+
+
+def _load_schema_with_store(schema_name: str) -> tuple[dict[str, Any], Registry]:
+    """Load a schema file and a registry for local schema references."""
+    registry = Registry()
+    loaded: dict[str, Any] = {}
+    for schema_path in _SCHEMA_DIR.glob("*.json"):
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        loaded[schema_path.name] = schema
+        resource = Resource.from_contents(schema)
+        registry = registry.with_resource(schema_path.name, resource)
+        registry = registry.with_resource(schema_path.resolve().as_uri(), resource)
+    return loaded[schema_name], registry
+
+
+def _format_validation_errors(errors: list[Any]) -> str:
+    """Render jsonschema validation errors in compact, actionable form."""
+    parts: list[str] = []
+    for error in errors:
+        path = "/" + "/".join(str(segment) for segment in error.absolute_path)
+        parts.append(f"{path or '/'}: {error.message}")
+    return "; ".join(parts)
+
+
+def _validate_test_spec(spec_data: dict[str, Any]) -> None:
+    """Validate a test spec against test_spec.json and raise ValueError with field-level errors."""
+    schema, registry = _load_schema_with_store("test_spec.json")
+    validator = Draft202012Validator(schema, registry=registry)
+    errors = sorted(validator.iter_errors(spec_data), key=lambda err: list(err.absolute_path))
+    if errors:
+        raise ValueError(
+            f"Test spec schema validation failed: {_format_validation_errors(errors)}"
+        )
 
 
 def _load_manifest(project_root: Path) -> dict[str, Any]:
@@ -399,26 +440,35 @@ def run_write_test_gen(
 ) -> dict[str, Any]:
     """Validate test-gen output and write test_gen section to catalog.
 
-    Reads the test-spec file from disk to verify it exists and is valid JSON.
-    Determines status: file exists + valid JSON + branches > 0 → ok; otherwise → error.
-    Writes the test_gen section to the table or view catalog file.
+    Reads the test-spec file from disk, validates it against test_spec.json,
+    and writes the test_gen section to the table or view catalog file.
+    Raises ValueError with field-level errors if the spec is invalid.
     """
     norm = normalize(table_fqn)
 
-    # Check test-spec file exists and is valid JSON
+    # Load and validate the test-spec file
     spec_path = project_root / "test-specs" / f"{norm}.json"
-    spec_valid = False
-    if spec_path.exists():
-        try:
-            json.loads(spec_path.read_text(encoding="utf-8"))
-            spec_valid = True
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            spec_valid = False
+    if not spec_path.exists():
+        raise ValueError(
+            f"Test spec file not found: {spec_path}. "
+            f"Write test-specs/{norm}.json before calling test-harness write."
+        )
+
+    try:
+        spec_data = json.loads(spec_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError(
+            f"Test spec file is not valid JSON: {spec_path}. Parse error: {exc}"
+        ) from exc
+
+    # Validate against test_spec.json schema — raises ValueError with
+    # field-level errors the caller can use to fix the spec and retry.
+    _validate_test_spec(spec_data)
 
     # Determine status
-    status = "ok" if spec_valid and branches > 0 else "error"
+    status = "ok" if branches > 0 else "error"
 
-    # Build test_gen section
+    # Build and validate test_gen section via Pydantic
     test_gen: dict[str, Any] = {
         "status": status,
         "test_spec_path": f"test-specs/{norm}.json",
@@ -428,6 +478,7 @@ def run_write_test_gen(
         "warnings": warnings or [],
         "errors": errors or [],
     }
+    TestGenSection.model_validate(test_gen)
 
     result = load_and_merge_catalog(project_root, norm, "test_gen", test_gen)
     logger.info("event=write_test_gen_complete table=%s status=%s", norm, status)
@@ -472,6 +523,10 @@ def write_cmd(
             warnings=parsed_warnings,
             errors=parsed_errors,
         )
+    except ValueError as exc:
+        logger.error("event=write_failed operation=validation table=%s error=%s", table, exc)
+        emit({"status": "error", "error": str(exc)})
+        raise typer.Exit(code=1) from exc
     except (CatalogFileMissingError, CatalogLoadError) as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)
         raise typer.Exit(code=1) from exc
