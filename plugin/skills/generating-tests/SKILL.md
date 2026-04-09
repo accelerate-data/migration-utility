@@ -76,7 +76,6 @@ The command reads `selected_writer` from the catalog scoping section — no `--w
 - `proc_body` — full original procedure DDL
 - `columns` — target table column list
 - `source_tables` — tables read by the writer
-- `schema_tests` — deterministic test specs (entity integrity, referential integrity, recency, PII)
 
 Record the `selected_writer` procedure name from the catalog's `scoping` section — this becomes the `procedure` field in the test spec.
 
@@ -159,9 +158,8 @@ For each targeted branch, generate minimum synthetic input rows (1-3 per source 
 
 - Each scenario is self-contained — no shared test data across scenarios.
 - Use column types from catalog to generate type-appropriate values.
-- Parameters are ignored or flagged — rare in warehouse procs, typically orchestration concerns.
 
-**For tables:** build a dependency graph from the catalog's `foreign_keys` and generate rows in topological order so FK values align within each scenario.
+**For tables:** build a dependency graph from the catalog's `foreign_keys` and generate rows in topological order so FK values align within each scenario. Procedure parameters are ignored or flagged — rare in warehouse procs, typically orchestration concerns.
 
 **For views:** skip FK graph traversal — source tables are read-only inputs with no write-path FK constraints to enforce.
 
@@ -205,14 +203,7 @@ Do not generate values that violate CHECK constraints — the sandbox does not d
 
 Write the test spec as soon as fixtures are ready. Do not ask for confirmation before writing — this skill is a write-through workflow.
 
-Write the spec JSON to a temp file to avoid any serialization issues, then move it into place:
-
-```bash
-mkdir -p .staging test-specs
-# Write spec JSON to .staging/spec.json, then:
-mv .staging/spec.json test-specs/<item_id>.json
-rm -rf .staging
-```
+Write the spec JSON directly to `test-specs/<item_id>.json`.
 
 **First run (merge_mode = false):**
 
@@ -254,7 +245,8 @@ For merge_mode, include a **Preserved / New** summary:
 
 Naming conventions:
 
-- Test name: `test_<load_pattern>_<scenario_description>`
+- Test name (table): `test_<load_pattern>_<scenario_description>`, e.g. `test_merge_matched_product_updated`
+- Test name (view): `test_<sql_pattern>_<scenario_description>`, e.g. `test_where_filter_active_row`
 - `target_table`: bracket-quoted FQN of the target table, e.g. `[silver].[DimProduct]`
 - `procedure`: bracket-quoted FQN of the writer procedure from catalog scoping, e.g. `[silver].[usp_load_DimProduct]`
 - `given[].table`: bracket-quoted SQL identifier, e.g. `[bronze].[SalesOrderHeader]`
@@ -356,15 +348,13 @@ The `/generate-tests` command adds `expect.rows` to each `unit_tests[]` entry af
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `name` | string | yes | Test name — convention: `test_<load_pattern>_<scenario_description>` |
+| `name` | string | yes | Test name — tables: `test_<load_pattern>_<scenario_description>`; views: `test_<sql_pattern>_<scenario_description>` |
 | `target_table` | string | yes (table) | Bracket-quoted target table identifier, e.g. `[silver].[DimProduct]` |
 | `procedure` | string | yes (table) | Bracket-quoted stored procedure identifier, e.g. `[silver].[usp_load_DimProduct]` |
 | `sql` | string | yes (view) | The view's refactored SELECT statement — used instead of `procedure` and `target_table` for view entries |
-| `model` | string | no | dbt model name — optional; used during dbt YAML conversion |
 | `given` | object[] | yes | One entry per fixture source table |
 | `given[].table` | string | yes | Bracket-quoted SQL identifier for the fixture table |
 | `given[].rows` | object[] | yes | Synthetic fixture input rows as column→value maps (includes all NOT NULL non-identity columns) |
-| `expect.rows` | object[] | no | Ground truth output rows — added by command after execution |
 
 ---
 
