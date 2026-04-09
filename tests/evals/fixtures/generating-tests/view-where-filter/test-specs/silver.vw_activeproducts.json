@@ -1,0 +1,153 @@
+{
+  "item_id": "silver.vw_activeproducts",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {
+      "id": "filter_passes_active",
+      "statement_index": 0,
+      "description": "WHERE Status = 'Active' matches — row is included in view",
+      "scenarios": [
+        "test_filter_passes_active_status"
+      ]
+    },
+    {
+      "id": "filter_excludes_non_active",
+      "statement_index": 0,
+      "description": "WHERE Status != 'Active' fails filter — row is excluded from view",
+      "scenarios": [
+        "test_filter_excludes_non_active_status"
+      ]
+    },
+    {
+      "id": "mixed_active_inactive",
+      "statement_index": 0,
+      "description": "Source contains mix of Active and non-Active rows — only Active rows appear in view",
+      "scenarios": [
+        "test_mixed_active_inactive_rows"
+      ]
+    },
+    {
+      "id": "empty_source",
+      "statement_index": 0,
+      "description": "Empty DimProduct source — view returns no rows",
+      "scenarios": [
+        "test_empty_source_returns_no_rows"
+      ]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_filter_passes_active_status",
+      "sql": "SELECT ProductKey, EnglishProductName, Status, ListPrice FROM silver.DimProduct WHERE Status = 'Active'",
+      "given": [
+        {
+          "table": "[silver].[DimProduct]",
+          "rows": [
+            {
+              "ProductKey": 1,
+              "EnglishProductName": "Road-150",
+              "Status": "Active",
+              "ListPrice": 25.00
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductKey": 1,
+            "EnglishProductName": "Road-150",
+            "Status": "Active",
+            "ListPrice": 25.00
+          }
+        ]
+      }
+    },
+    {
+      "name": "test_filter_excludes_non_active_status",
+      "sql": "SELECT ProductKey, EnglishProductName, Status, ListPrice FROM silver.DimProduct WHERE Status = 'Active'",
+      "given": [
+        {
+          "table": "[silver].[DimProduct]",
+          "rows": [
+            {
+              "ProductKey": 2,
+              "EnglishProductName": "Mountain-200",
+              "Status": "Obsolete",
+              "ListPrice": 45.00
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": []
+      }
+    },
+    {
+      "name": "test_mixed_active_inactive_rows",
+      "sql": "SELECT ProductKey, EnglishProductName, Status, ListPrice FROM silver.DimProduct WHERE Status = 'Active'",
+      "given": [
+        {
+          "table": "[silver].[DimProduct]",
+          "rows": [
+            {
+              "ProductKey": 1,
+              "EnglishProductName": "Road-150",
+              "Status": "Active",
+              "ListPrice": 25.00
+            },
+            {
+              "ProductKey": 2,
+              "EnglishProductName": "Mountain-200",
+              "Status": "Obsolete",
+              "ListPrice": 45.00
+            },
+            {
+              "ProductKey": 3,
+              "EnglishProductName": "Touring-300",
+              "Status": "Active",
+              "ListPrice": 50.00
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductKey": 1,
+            "EnglishProductName": "Road-150",
+            "Status": "Active",
+            "ListPrice": 25.00
+          },
+          {
+            "ProductKey": 3,
+            "EnglishProductName": "Touring-300",
+            "Status": "Active",
+            "ListPrice": 50.00
+          }
+        ]
+      }
+    },
+    {
+      "name": "test_empty_source_returns_no_rows",
+      "sql": "SELECT ProductKey, EnglishProductName, Status, ListPrice FROM silver.DimProduct WHERE Status = 'Active'",
+      "given": [
+        {
+          "table": "[silver].[DimProduct]",
+          "rows": []
+        }
+      ],
+      "expect": {
+        "rows": []
+      }
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "errors": []
+}
