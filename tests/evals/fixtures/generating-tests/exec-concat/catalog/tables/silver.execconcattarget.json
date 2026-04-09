@@ -41,5 +41,19 @@
       "in_scope": [],
       "out_of_scope": []
     }
+  },
+  "test_gen": {
+    "status": "ok",
+    "test_spec_path": "test-specs/silver.execconcattarget.json",
+    "branches": 2,
+    "unit_tests": 2,
+    "coverage": "complete",
+    "warnings": [
+      {
+        "code": "DYNAMIC_SQL_RECOVERED",
+        "message": "Dynamic SQL assembled via concatenation"
+      }
+    ],
+    "errors": []
   }
 }
