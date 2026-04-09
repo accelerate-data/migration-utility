@@ -567,7 +567,7 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
     against hashes stored in existing catalog files, and only rewrites
     changed or new objects.  Removed objects are flagged as stale.
     """
-    from shared.catalog import scan_routing_flags
+    from shared.routing import scan_routing_flags
     from shared.catalog_diff import classify_objects, compute_object_hashes, load_existing_hashes
     from shared.catalog_dmf import write_catalog_files
     from shared.env_config import resolve_catalog_dir

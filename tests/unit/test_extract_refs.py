@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 import sqlglot
 
-from shared.catalog import scan_routing_flags
+from shared.routing import scan_routing_flags
 from shared.loader import (
     collect_refs_from_statements,
     load_directory,

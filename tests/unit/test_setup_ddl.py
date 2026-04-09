@@ -428,21 +428,21 @@ class TestCatalogSchemaNameFields:
         assert data["name"] == "dimcustomer"
 
     def test_proc_catalog_has_schema_name(self, tmp_path):
-        from shared.catalog import write_object_catalog
+        from shared.catalog import write_proc_catalog
         from shared.dmf_processing import empty_scoped
         refs = {"tables": empty_scoped(), "views": empty_scoped(),
                 "functions": empty_scoped(), "procedures": empty_scoped()}
-        write_object_catalog(tmp_path, "procedures", "silver.usp_load_Dim", refs)
+        write_proc_catalog(tmp_path, "silver.usp_load_Dim", refs)
         data = json.loads((tmp_path / "catalog" / "procedures" / "silver.usp_load_dim.json").read_text())
         assert data["schema"] == "silver"
         assert data["name"] == "usp_load_dim"
 
     def test_view_catalog_has_schema_name(self, tmp_path):
-        from shared.catalog import write_object_catalog
+        from shared.catalog import write_view_catalog
         from shared.dmf_processing import empty_scoped
         refs = {"tables": empty_scoped(), "views": empty_scoped(),
                 "functions": empty_scoped(), "procedures": empty_scoped()}
-        write_object_catalog(tmp_path, "views", "dbo.vw_Sales", refs)
+        write_view_catalog(tmp_path, "dbo.vw_Sales", refs)
         data = json.loads((tmp_path / "catalog" / "views" / "dbo.vw_sales.json").read_text())
         assert data["schema"] == "dbo"
         assert data["name"] == "vw_sales"
@@ -451,12 +451,12 @@ class TestCatalogSchemaNameFields:
         assert "columns" not in data
 
     def test_view_catalog_sql_and_columns_written(self, tmp_path):
-        from shared.catalog import write_object_catalog
+        from shared.catalog import write_view_catalog
         from shared.dmf_processing import empty_scoped
         refs = {"tables": empty_scoped(), "views": empty_scoped(),
                 "functions": empty_scoped(), "procedures": empty_scoped()}
-        write_object_catalog(
-            tmp_path, "views", "dbo.vw_Sales", refs,
+        write_view_catalog(
+            tmp_path, "dbo.vw_Sales", refs,
             sql="CREATE VIEW [dbo].[vw_Sales] AS SELECT id FROM [dbo].[Sales]",
             columns=[{"name": "id", "sql_type": "INT", "is_nullable": False}],
         )
@@ -468,11 +468,11 @@ class TestCatalogSchemaNameFields:
         assert data["columns"][0]["is_nullable"] is False
 
     def test_proc_catalog_unaffected_by_view_fields(self, tmp_path):
-        from shared.catalog import write_object_catalog
+        from shared.catalog import write_proc_catalog
         from shared.dmf_processing import empty_scoped
         refs = {"tables": empty_scoped(), "views": empty_scoped(),
                 "functions": empty_scoped(), "procedures": empty_scoped()}
-        write_object_catalog(tmp_path, "procedures", "dbo.usp_load", refs)
+        write_proc_catalog(tmp_path, "dbo.usp_load", refs)
         data = json.loads((tmp_path / "catalog" / "procedures" / "dbo.usp_load.json").read_text())
         assert "sql" not in data
         assert "columns" not in data

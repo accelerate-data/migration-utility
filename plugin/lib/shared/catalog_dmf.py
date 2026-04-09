@@ -12,8 +12,10 @@ from pathlib import Path
 from typing import Any
 
 from shared.catalog import (
-    write_object_catalog,
+    write_function_catalog,
+    write_proc_catalog,
     write_table_catalog,
+    write_view_catalog,
 )
 from shared.dmf_processing import (
     empty_scoped,
@@ -26,6 +28,43 @@ from shared.name_resolver import normalize
 def _empty_refs() -> dict[str, dict[str, list[dict[str, Any]]]]:
     return {"tables": empty_scoped(), "views": empty_scoped(),
             "functions": empty_scoped(), "procedures": empty_scoped()}
+
+
+def _write_one(
+    project_root: Path,
+    object_type: str,
+    fqn: str,
+    refs: dict[str, dict[str, list[dict[str, Any]]]],
+    rflags: dict[str, dict[str, bool]],
+    pparams: dict[str, list[dict[str, Any]]],
+    hashes: dict[str, str],
+    vdefs: dict[str, str] | None,
+    vcols: dict[str, list[dict[str, Any]]] | None,
+    mv: set[str],
+    dmf_errors: dict[str, list[str]],
+    subtypes: dict[str, str],
+    seg_errors: dict[str, str],
+    ltrunc: set[str] | None,
+) -> None:
+    shared = dict(
+        ddl_hash=hashes.get(fqn),
+        dmf_errors=dmf_errors.get(fqn),
+        segmenter_error=seg_errors.get(fqn),
+    )
+    if object_type == "procedures":
+        write_proc_catalog(project_root, fqn, refs, **rflags.get(fqn, {}),
+                           params=pparams.get(fqn), **shared)
+    elif object_type == "views":
+        write_view_catalog(
+            project_root, fqn, refs,
+            sql=vdefs.get(fqn) if vdefs else None,
+            columns=vcols.get(fqn) if vcols else None,
+            is_materialized_view=(fqn in mv),
+            long_truncation=bool(ltrunc and fqn in ltrunc),
+            **shared,
+        )
+    elif object_type == "functions":
+        write_function_catalog(project_root, fqn, refs, subtype=subtypes.get(fqn), **shared)
 
 
 def _write_object_catalogs(
@@ -66,36 +105,18 @@ def _write_object_catalogs(
     for fqn, refs in dmf_refs.items():
         if write_filter is not None and fqn not in write_filter:
             continue
-        params = pparams.get(fqn) if object_type == "procedures" else None
-        write_object_catalog(
-            project_root, object_type, fqn, refs,
-            **rflags.get(fqn, {}), params=params, ddl_hash=_hashes.get(fqn),
-            sql=_vdefs.get(fqn) if _vdefs else None,
-            columns=_vcols.get(fqn) if _vcols else None,
-            is_materialized_view=(object_type == "views" and fqn in _mv),
-            dmf_errors=_dmf_errors.get(fqn),
-            subtype=_subtypes.get(fqn),
-            segmenter_error=_seg_errors.get(fqn),
-            long_truncation=bool(_ltrunc and fqn in _ltrunc),
-        )
+        _write_one(project_root, object_type, fqn, refs,
+                   rflags, pparams, _hashes, _vdefs, _vcols, _mv, _dmf_errors,
+                   _subtypes, _seg_errors, _ltrunc)
         count += 1
 
     for fqn, bucket in (object_types or {}).items():
         if bucket == object_type and fqn not in dmf_refs:
             if write_filter is not None and fqn not in write_filter:
                 continue
-            params = pparams.get(fqn) if object_type == "procedures" else None
-            write_object_catalog(
-                project_root, object_type, fqn, _empty_refs(),
-                **rflags.get(fqn, {}), params=params, ddl_hash=_hashes.get(fqn),
-                sql=_vdefs.get(fqn) if _vdefs else None,
-                columns=_vcols.get(fqn) if _vcols else None,
-                is_materialized_view=(object_type == "views" and fqn in _mv),
-                dmf_errors=_dmf_errors.get(fqn),
-                subtype=_subtypes.get(fqn),
-                segmenter_error=_seg_errors.get(fqn),
-                long_truncation=bool(_ltrunc and fqn in _ltrunc),
-            )
+            _write_one(project_root, object_type, fqn, _empty_refs(),
+                       rflags, pparams, _hashes, _vdefs, _vcols, _mv, _dmf_errors,
+                       _subtypes, _seg_errors, _ltrunc)
             count += 1
 
     return count
