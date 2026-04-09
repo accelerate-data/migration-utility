@@ -67,10 +67,9 @@ class ObjectType(str, Enum):
     functions = "functions"
 
 
-# Re-exports from catalog_writer.py (split for module focus) — consumed by
-# CLI handlers below and by test_discover.py.
+# Re-exports from catalog_writer.py — consumed by CLI handlers below
+# and by test_discover.py (via discover.run_write_* calls).
 from shared.catalog_writer import (  # noqa: F401
-    _validate_schema_fragment,
     run_write_scoping,
     run_write_source,
     run_write_statements,
@@ -194,8 +193,7 @@ def _show_procedure(
     }
 
 
-# Re-export from view_analysis.py (split for module focus).
-from shared.view_analysis import _analyze_view_select  # noqa: F401
+from shared.view_analysis import _analyze_view_select
 
 
 def _show_view_or_function(

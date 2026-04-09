@@ -9,12 +9,15 @@ Split from discover.py for module focus.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import sqlglot.errors
 import sqlglot.expressions as exp
 
 from shared.loader_data import DdlEntry
+
+logger = logging.getLogger(__name__)
 
 
 def _analyze_view_select(entry: DdlEntry) -> dict[str, Any]:
@@ -25,6 +28,10 @@ def _analyze_view_select(entry: DdlEntry) -> dict[str, Any]:
     a DDL_PARSE_ERROR entry. The skill falls back to raw_ddl in that case.
     """
     if entry.parse_error or entry.ast is None:
+        logger.debug(
+            "event=view_parse_error component=view_analysis name=%s error=%s",
+            entry.name, entry.parse_error or "AST is None",
+        )
         return {
             "sql_elements": None,
             "errors": [{"code": "DDL_PARSE_ERROR", "severity": "error", "message": entry.parse_error or "AST is None"}],
@@ -92,6 +99,10 @@ def _analyze_view_select(entry: DdlEntry) -> dict[str, Any]:
         return {"sql_elements": elements, "errors": []}
 
     except (sqlglot.errors.SqlglotError, AttributeError, TypeError) as exc:
+        logger.debug(
+            "event=view_ast_walk_error component=view_analysis name=%s error=%s",
+            entry.name, exc,
+        )
         return {
             "sql_elements": None,
             "errors": [{"code": "DDL_PARSE_ERROR", "severity": "error", "message": str(exc)}],
