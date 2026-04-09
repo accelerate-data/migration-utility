@@ -58,6 +58,14 @@
       "scenarios": [
         "test_insert_detail_id_mod127_zero"
       ]
+    },
+    {
+      "id": "join_miss_no_detail",
+      "statement_index": 0,
+      "description": "Header row exists but no matching SalesOrderDetail rows — INNER JOIN produces no output rows, target table is empty after TRUNCATE",
+      "scenarios": [
+        "test_insert_join_miss_no_detail"
+      ]
     }
   ],
   "unit_tests": [
@@ -347,6 +355,41 @@
               "ModifiedDate": "2024-04-01"
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "test_insert_join_miss_no_detail",
+      "target_table": "[silver].[FactInternetSales]",
+      "procedure": "[silver].[usp_load_FactInternetSales]",
+      "given": [
+        {
+          "table": "[bronze].[SalesOrderHeader]",
+          "rows": [
+            {
+              "SalesOrderID": 43664,
+              "RevisionNumber": 1,
+              "OrderDate": "2024-05-01",
+              "DueDate": "2024-05-15",
+              "ShipDate": "2024-05-10",
+              "Status": 5,
+              "OnlineOrderFlag": 0,
+              "SalesOrderNumber": "SO43664",
+              "CustomerID": 14000,
+              "BillToAddressID": 0,
+              "ShipToAddressID": 0,
+              "ShipMethodID": 1,
+              "SubTotal": 500.00,
+              "TaxAmt": 45.00,
+              "Freight": 15.00,
+              "TotalDue": 560.00,
+              "ModifiedDate": "2024-05-01"
+            }
+          ]
+        },
+        {
+          "table": "[bronze].[SalesOrderDetail]",
+          "rows": []
         }
       ]
     }

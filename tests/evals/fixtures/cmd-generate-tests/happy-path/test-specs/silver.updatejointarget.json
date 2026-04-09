@@ -1,7 +1,7 @@
 {
   "item_id": "silver.updatejointarget",
-  "status": "partial",
-  "coverage": "partial",
+  "status": "ok",
+  "coverage": "complete",
   "branch_manifest": [
     {
       "id": "update_matched_rows",
@@ -15,13 +15,17 @@
       "id": "join_miss_no_update",
       "statement_index": 0,
       "description": "Target rows with no matching source row are left unchanged (INNER JOIN miss)",
-      "scenarios": []
+      "scenarios": [
+        "test_update_join_miss_no_update"
+      ]
     },
     {
       "id": "null_join_key",
       "statement_index": 0,
       "description": "NULL ProductAlternateKey in target never matches source, row unchanged",
-      "scenarios": []
+      "scenarios": [
+        "test_update_null_join_key"
+      ]
     }
   ],
   "unit_tests": [
@@ -37,6 +41,16 @@
             }
           ],
           "table": "[bronze].[Product]"
+        },
+        {
+          "rows": [
+            {
+              "ProductAlternateKey": "1",
+              "EnglishProductName": "Road-150",
+              "LastSeenDate": "2024-01-01T00:00:00"
+            }
+          ],
+          "table": "[silver].[UpdateJoinTarget]"
         }
       ],
       "expect": {
@@ -49,21 +63,64 @@
       },
       "target_table": "[silver].[UpdateJoinTarget]",
       "procedure": "[silver].[usp_load_UpdateJoinTarget]"
-    }
-  ],
-  "uncovered_branches": [
-    "join_miss_no_update",
-    "null_join_key"
-  ],
-  "warnings": [
+    },
     {
-      "code": "BRANCH_NOT_COVERED",
-      "message": "2 of 3 branches have no scenarios: join_miss_no_update, null_join_key.",
-      "item_id": "silver.updatejointarget",
-      "severity": "warning",
-      "details": {}
+      "name": "test_update_join_miss_no_update",
+      "model": "stg_updatejointarget",
+      "given": [
+        {
+          "rows": [
+            {
+              "ProductID": 100,
+              "ProductName": "New-Product"
+            }
+          ],
+          "table": "[bronze].[Product]"
+        },
+        {
+          "rows": [
+            {
+              "ProductAlternateKey": "99",
+              "EnglishProductName": "Old-Product",
+              "LastSeenDate": "2024-01-01T00:00:00"
+            }
+          ],
+          "table": "[silver].[UpdateJoinTarget]"
+        }
+      ],
+      "target_table": "[silver].[UpdateJoinTarget]",
+      "procedure": "[silver].[usp_load_UpdateJoinTarget]"
+    },
+    {
+      "name": "test_update_null_join_key",
+      "model": "stg_updatejointarget",
+      "given": [
+        {
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Road-150-Updated"
+            }
+          ],
+          "table": "[bronze].[Product]"
+        },
+        {
+          "rows": [
+            {
+              "ProductAlternateKey": null,
+              "EnglishProductName": "Unknown-Product",
+              "LastSeenDate": "2024-01-01T00:00:00"
+            }
+          ],
+          "table": "[silver].[UpdateJoinTarget]"
+        }
+      ],
+      "target_table": "[silver].[UpdateJoinTarget]",
+      "procedure": "[silver].[usp_load_UpdateJoinTarget]"
     }
   ],
+  "uncovered_branches": [],
+  "warnings": [],
   "validation": {
     "passed": true,
     "issues": []

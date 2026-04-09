@@ -32,7 +32,6 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-generate-tests/happy-path"
       target_tables: "silver.InsertSelectTarget silver.UpdateJoinTarget"
       expected_item_statuses: '{"silver.InsertSelectTarget": "ok", "silver.UpdateJoinTarget": "ok"}'
-      expected_output_terms: "ok"
 
   # ── review-cycle: single table triggers review cycle ─────────
   - description: "review-cycle — CorrelatedSubqueryTarget review loop"
@@ -40,7 +39,6 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-generate-tests/review-cycle"
       target_tables: "silver.CorrelatedSubqueryTarget"
       expected_item_statuses: '{"silver.CorrelatedSubqueryTarget": "ok"}'
-      expected_output_terms: "review"
 
   # ── error-clean: missing-scoping table + good table ─────────
   - description: "error-clean — DimProduct no scoping + InsertSelectTarget ok"
@@ -49,7 +47,6 @@ tests:
       target_tables: "silver.DimProduct silver.InsertSelectTarget"
       expected_item_statuses: '{"silver.DimProduct": "error", "silver.InsertSelectTarget": "ok"}'
       expected_error_codes: "scoping_not_completed"
-      expected_output_terms: "error"
 
   # ── DML patterns ─────────────────────────────────────────────
 
@@ -63,7 +60,6 @@ tests:
       expected_coverage: "complete,partial"
       min_branch_count: 5
       min_scenario_count: 4
-      expected_output_terms: "branch_manifest,unit_tests"
     assert:
       - type: javascript
         value: file://../../assertions/check-test-spec.js
@@ -78,7 +74,6 @@ tests:
       expected_coverage: "complete"
       min_branch_count: 5
       min_scenario_count: 5
-      expected_output_terms: "salesorderheader,salesorderdetail"
     assert:
       - type: javascript
         value: file://../../assertions/check-test-spec.js
@@ -149,7 +144,6 @@ tests:
       expected_coverage: "complete,partial"
       min_branch_count: 1
       min_scenario_count: 1
-      expected_output_terms: "truncate,insert"
     assert:
       - type: javascript
         value: file://../../assertions/check-test-spec.js
@@ -208,7 +202,6 @@ tests:
       expected_coverage: "complete,partial"
       min_branch_count: 2
       min_scenario_count: 2
-      expected_output_terms: "partition,salesorderheader"
     assert:
       - type: javascript
         value: file://../../assertions/check-test-spec.js

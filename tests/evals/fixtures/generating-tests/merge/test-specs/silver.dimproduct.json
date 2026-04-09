@@ -8,14 +8,18 @@
       "statement_index": 0,
       "description": "MERGE WHEN MATCHED updates an existing product row in the source procedure",
       "testable_in_dbt": false,
-      "scenarios": []
+      "scenarios": [
+        "test_merge_matched_update_existing_product"
+      ]
     },
     {
       "id": "merge_not_matched_by_target_insert",
       "statement_index": 0,
       "description": "MERGE WHEN NOT MATCHED BY TARGET inserts a new product row in the source procedure",
       "testable_in_dbt": false,
-      "scenarios": []
+      "scenarios": [
+        "test_merge_not_matched_insert_new_product"
+      ]
     },
     {
       "id": "case_status_obsolete",
@@ -287,6 +291,93 @@
       "expect": {
         "rows": []
       },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
+    },
+    {
+      "name": "test_merge_matched_update_existing_product",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "table": "[silver].[DimProduct]",
+          "rows": [
+            {
+              "ProductAlternateKey": "5",
+              "EnglishProductName": "Legacy-500",
+              "StandardCost": 20.0,
+              "ListPrice": 40.0,
+              "Color": "White",
+              "Size": "M",
+              "ProductLine": "R",
+              "Class": "H",
+              "Style": "U",
+              "StartDate": "2024-06-01",
+              "EndDate": null,
+              "Status": "Obsolete"
+            }
+          ]
+        },
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 5,
+              "ProductName": "Widget-500",
+              "ProductNumber": "WG-500",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 35.0,
+              "ListPrice": 70.0,
+              "Color": "Silver",
+              "Size": "L",
+              "ProductLine": "R",
+              "Class": "H",
+              "Style": "U",
+              "DaysToManufacture": 1,
+              "SellStartDate": "2024-06-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2025-01-01"
+            }
+          ]
+        }
+      ],
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
+    },
+    {
+      "name": "test_merge_not_matched_insert_new_product",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 6,
+              "ProductName": "Crossover-600",
+              "ProductNumber": "CR-600",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 50.0,
+              "ListPrice": 99.0,
+              "Color": "Black",
+              "Size": "XL",
+              "ProductLine": "T",
+              "Class": "M",
+              "Style": "W",
+              "DaysToManufacture": 2,
+              "SellStartDate": "2025-02-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2025-02-01"
+            }
+          ]
+        }
+      ],
       "target_table": "[silver].[DimProduct]",
       "procedure": "[silver].[usp_load_DimProduct]"
     }

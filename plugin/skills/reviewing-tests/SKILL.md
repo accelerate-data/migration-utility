@@ -11,11 +11,17 @@ argument-hint: "<schema.table>"
 
 # Reviewing Tests
 
-Quality gate for test generation output. Independently enumerates conditional branches from the stored procedure, maps the test generator's scenarios against the reviewer's own branch list, scores coverage, reviews fixture quality, and issues a verdict.
-
 ## Arguments
 
-`$ARGUMENTS` is the fully-qualified table name (the `item_id`), optionally followed by `--iteration <N>` (1-based). Defaults to 1 if not provided. The `/generate-tests` command passes the current iteration number.
+`$ARGUMENTS` is the fully-qualified table name (the `item_id`), optionally followed by `--iteration <N>` (1-based). Defaults to 1 if not provided.
+
+## Contracts
+
+Use the canonical review output schema:
+
+- review result: `../../lib/shared/schemas/test_review_output.json`
+
+Return exactly one JSON object matching that schema. Do not wrap in markdown, headings, summaries, or follow-up questions.
 
 ## Before invoking
 
@@ -29,12 +35,7 @@ If `ready` is `false`, report the failing readiness `code` and `reason` to the
 caller and stop. Use only codes from
 `../../lib/shared/generate_tests_error_codes.md`.
 
-Do not infer readiness, catalog presence, or prerequisite state from file names
-or directory contents. Run `migrate-util ready` and trust its output.
-
 ## Step 1: Assemble context
-
-Run the deterministic context assembly CLI:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate context \
@@ -55,13 +56,11 @@ Also read the test generator's output:
 test-specs/<item_id>.json
 ```
 
-This file contains `unit_tests[]` — the scenarios and fixtures produced by the test generator.
+Read `unit_tests[]` from this file.
 
 ## Step 2: Independent branch enumeration
 
-Enumerate all conditional branches from `proc_body` and `statements` independently. Do NOT read or trust the generator's `branch_manifest` — build your own from scratch.
-
-Use the same coverage model and branch pattern table as the test generator:
+Enumerate all conditional branches from `proc_body` and `statements` independently. Do NOT read or trust the generator's `branch_manifest` — build your own.
 
 | Pattern | Branches |
 |---|---|
@@ -98,7 +97,7 @@ Compute coverage:
 - **uncovered**: list of branch objects (`id`, `description`) that have zero mapped scenarios and are not untestable.
 - **untestable**: list of branch objects (`id`, `description`, `rationale`) that cannot be tested with static fixtures.
 
-A branch is **untestable** when it depends on runtime state that static fixtures cannot reproduce: `GETDATE()`/`SYSDATETIME()` comparisons, dynamic SQL with variable table/column targets, external service calls, or non-deterministic functions. Each untestable classification requires a `rationale` explaining why. Do not use untestable as a catch-all — if a branch can be tested by carefully constructed fixture data, it is testable.
+A branch is **untestable** when it depends on runtime state that static fixtures cannot reproduce: `GETDATE()`/`SYSDATETIME()` comparisons, dynamic SQL with variable table/column targets, external service calls, or non-deterministic functions. Each untestable classification requires a `rationale`.
 
 ## Step 5: Review fixture quality
 
@@ -124,83 +123,7 @@ Apply the following verdict rules:
 | Both coverage gaps and quality issues | **Kick back** — set `status` to `revision_requested`, populate both feedback fields |
 | Iteration 2 and issues remain | **Approve with warnings** — set `status` to `approved_with_warnings`, add a warning entry flagging the item for human review |
 
-Maximum review iterations: 2. If `--iteration 2` and issues remain, approve with warnings rather than looping further.
-
-## Output schema (TestReviewResult)
-
-Use `../../lib/shared/schemas/test_review_output.json` as the output contract.
-Return exactly one JSON object that matches that schema. Do not wrap the JSON
-in markdown, headings, summaries, or follow-up questions.
-
-Emit the following JSON structure as the skill's output:
-
-```json
-{
-  "item_id": "silver.dimproduct",
-  "status": "approved|approved_with_warnings|revision_requested|error",
-  "reviewer_branch_manifest": [
-    {
-      "id": "merge_not_matched_insert",
-      "description": "MERGE WHEN NOT MATCHED → INSERT new product",
-      "covered": true,
-      "covering_scenarios": ["test_merge_not_matched_new_product_inserted"]
-    }
-  ],
-  "coverage": {
-    "total_branches": 8,
-    "covered_branches": 6,
-    "untestable_branches": 1,
-    "score": "partial",
-    "uncovered": [
-      {
-        "id": "left_join_null_category",
-        "description": "LEFT JOIN to category table — no matching category (NULL right side)"
-      }
-    ],
-    "untestable": [
-      {
-        "id": "getdate_expiry_check",
-        "description": "WHERE ExpiryDate < GETDATE() — runtime date comparison",
-        "rationale": "Branch depends on current system time; static fixtures cannot control GETDATE() output"
-      }
-    ]
-  },
-  "quality_issues": [
-    {
-      "scenario": "test_merge_matched_existing_product_updated",
-      "issue": "Fixture uses negative list_price (-10.00) which is unrealistic for this domain",
-      "severity": "warning"
-    }
-  ],
-  "feedback_for_generator": {
-    "uncovered_branches": ["left_join_null_category"],
-    "quality_fixes": ["Use realistic positive prices in test_merge_matched_existing_product_updated"]
-  },
-  "warnings": [],
-  "errors": []
-}
-```
-
-`warnings[]` and `errors[]` use the shared diagnostics schema:
-
-```json
-{
-  "code": "STABLE_MACHINE_READABLE_CODE",
-  "message": "Human-readable description of the diagnostic.",
-  "item_id": "silver.dimproduct",
-  "severity": "error|warning",
-  "details": {}
-}
-```
-
-Field requirements:
-
-- `code`: stable machine-readable identifier from
-  `../../lib/shared/generate_tests_error_codes.md`.
-- `message`: human-readable description.
-- `item_id`: fully qualified table name this entry relates to.
-- `severity`: `error` or `warning`.
-- `details`: optional structured context object.
+Maximum review iterations: 2.
 
 ## Boundary rules
 
@@ -223,5 +146,4 @@ Test reviewer must not:
 | `migrate context` | 2 | IO/parse error. Return valid `TestReviewResult` JSON with `status: "error"` and code `CONTEXT_IO_ERROR` |
 | `test-specs/<item_id>.json` | missing | Return valid `TestReviewResult` JSON with `status: "error"` and code `TEST_SPEC_MISSING` |
 
-If you hit a handled error, still return a valid `TestReviewResult` JSON
-object. Do not ask follow-up questions.
+Return a valid `TestReviewResult` JSON for all error paths.
