@@ -32,6 +32,7 @@ from shared.catalog import (
     read_selected_writer,
     write_json as _write_catalog_json,
 )
+from shared.catalog_models import TableCatalog
 from shared.loader import (
     CatalogFileMissingError,
     CatalogLoadError,
@@ -130,7 +131,7 @@ def _validate_schema_fragment(data: Any, schema_name: str, fragment_path: str) -
 # ── Context assembly (importable for testing) ────────────────────────────────
 
 
-def _extract_catalog_signals(table_cat: dict[str, Any]) -> dict[str, Any]:
+def _extract_catalog_signals(table_cat: TableCatalog) -> dict[str, Any]:
     """Pull the six catalog signal categories from a table catalog dict."""
     return {
         "primary_keys": table_cat.primary_keys,
