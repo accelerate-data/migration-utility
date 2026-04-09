@@ -6,19 +6,125 @@
     {
       "id": "dynamic_sql_variable_insert",
       "statement_index": 0,
-      "description": "Dynamic SQL is assembled through a variable assignment before EXEC \u2014 INSERT INTO silver.ExecVariableTarget from bronze.Product",
+      "description": "Dynamic SQL is assembled through a variable assignment before EXEC — INSERT INTO silver.ExecVariableTarget from bronze.Product",
       "testable_in_dbt": false,
-      "scenarios": []
+      "scenarios": [
+        "test_dynamic_sql_variable_single_row",
+        "test_dynamic_sql_variable_multiple_rows",
+        "test_dynamic_sql_variable_empty_source"
+      ]
     }
   ],
-  "unit_tests": [],
-  "uncovered_branches": [
-    "dynamic_sql_variable_insert"
+  "unit_tests": [
+    {
+      "name": "test_dynamic_sql_variable_single_row",
+      "model": "stg_execvariabletarget",
+      "given": [
+        {
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Road-150",
+              "ProductNumber": "PR-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 10.0,
+              "ListPrice": 25.0,
+              "DaysToManufacture": 1,
+              "SellStartDate": "2024-01-01",
+              "ModifiedDate": "2024-01-01"
+            }
+          ],
+          "table": "[bronze].[Product]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150"
+          }
+        ]
+      },
+      "target_table": "[silver].[ExecVariableTarget]",
+      "procedure": "[silver].[usp_scope_execvariable]"
+    },
+    {
+      "name": "test_dynamic_sql_variable_multiple_rows",
+      "model": "stg_execvariabletarget",
+      "given": [
+        {
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Road-150",
+              "ProductNumber": "PR-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 10.0,
+              "ListPrice": 25.0,
+              "DaysToManufacture": 1,
+              "SellStartDate": "2024-01-01",
+              "ModifiedDate": "2024-01-01"
+            },
+            {
+              "ProductID": 2,
+              "ProductName": "Mountain-200",
+              "ProductNumber": "PR-002",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 20.0,
+              "ListPrice": 45.0,
+              "DaysToManufacture": 2,
+              "SellStartDate": "2024-02-01",
+              "ModifiedDate": "2024-02-01"
+            }
+          ],
+          "table": "[bronze].[Product]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150"
+          },
+          {
+            "ProductAlternateKey": "2",
+            "EnglishProductName": "Mountain-200"
+          }
+        ]
+      },
+      "target_table": "[silver].[ExecVariableTarget]",
+      "procedure": "[silver].[usp_scope_execvariable]"
+    },
+    {
+      "name": "test_dynamic_sql_variable_empty_source",
+      "model": "stg_execvariabletarget",
+      "given": [
+        {
+          "rows": [],
+          "table": "[bronze].[Product]"
+        }
+      ],
+      "expect": {
+        "rows": []
+      },
+      "target_table": "[silver].[ExecVariableTarget]",
+      "procedure": "[silver].[usp_scope_execvariable]"
+    }
   ],
+  "uncovered_branches": [],
   "warnings": [
     {
       "code": "DYNAMIC_SQL_UNTESTABLE",
-      "message": "Write logic is executed via a SQL string stored in a variable before EXEC \u2014 the SQL is not statically visible at parse time and cannot be exercised by fixture-driven unit tests. LLM-recovered SQL is available in details.",
+      "message": "Write logic is executed via a SQL string stored in a variable before EXEC — the SQL is not statically visible at parse time and cannot be exercised by fixture-driven unit tests. LLM-recovered SQL is available in details.",
       "item_id": "silver.execvariabletarget",
       "severity": "warning",
       "details": {
