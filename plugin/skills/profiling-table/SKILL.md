@@ -14,6 +14,17 @@ Profile a single table, view, or materialized view for migration.
 
 `$ARGUMENTS` is the fully-qualified name. Ask the user if missing.
 
+## Schema discipline
+
+Whenever this skill writes structured JSON back to the catalog, treat the schemas in `../../lib/shared/schemas/` as the contract:
+
+- table profile: `table_catalog.json#/$defs/profile_section`
+- view profile: `view_catalog.json#/properties/profile`
+
+Do not invent field names or omit required fields. The examples and enum lists in this skill are minimum valid shapes, not loose suggestions. If `profile write` returns a schema validation error, fix the JSON to match the schema and retry the command.
+
+Use the canonical `/profile` surfaced code list in `../../lib/shared/profile_error_codes.md`. Do not define a competing public error-code list in this skill.
+
 ## Before invoking
 
 Check stage readiness:
@@ -24,7 +35,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <fqn> profile
 
 The `ready` command auto-detects whether the FQN is a table or view — no separate guard set needed.
 
-If `passed` is `false`, report the failing check's `code` and `message` to the user and stop.
+If `ready` is `false`, report the failing `code` and `reason` to the user and stop. If `code` is absent, report the `reason`.
 
 ## Object type detection
 
@@ -72,21 +83,11 @@ Steps:
 
 Write a 1–2 sentence rationale citing the specific signals that drove the decision.
 
-### Step V3 -- Present for Approval
+### Step V3 -- Write to Catalog (Deterministic)
 
-Present the classification summary:
+Persist the view profile as soon as the JSON is ready. Do not ask for approval before writing — this is a write-through workflow.
 
-- Classification (`stg` or `mart`)
-- Rationale (which signals drove the decision)
-- Any dependency views inspected and their classifications
-
-**Stop on ambiguity.** If the classification cannot be determined with reasonable confidence, present the ambiguity and ask for guidance.
-
-Wait for explicit user approval before proceeding to Step V4.
-
-### Step V4 -- Write to Catalog (Deterministic)
-
-After user approval (with any edits), write the profile JSON to a temp file:
+Write the profile JSON to a temp file:
 
 ```bash
 mkdir -p .staging
@@ -98,14 +99,23 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" profile write \
 
 Do not include `status` in the profile JSON — the CLI determines it from the content.
 
-The profile JSON must match the `profile` section in `lib/shared/schemas/view_catalog.json`. Required fields: `classification`, `rationale`, `source`.
+The profile JSON must match `../../lib/shared/schemas/view_catalog.json#/properties/profile`. Required fields: `classification`, `rationale`, `source`.
 
 | Field | Valid values |
 |---|---|
 | `classification` | `stg`, `mart` |
 | `source` | `llm` |
 
-If the write exits non-zero, report the validation errors and ask the user to correct.
+If the write exits non-zero, report the validation errors and retry with corrected JSON.
+
+### Step V4 -- Present Persisted Result
+
+After `profile write` succeeds, present the classification summary:
+
+- Classification (`stg` or `mart`)
+- Rationale (which signals drove the decision)
+- Any dependency views inspected and their classifications
+- Confirmation that the profile was written to the catalog
 
 ### View References
 
@@ -134,24 +144,11 @@ If exit code is non-zero, stop and report the error.
 
 Read the context JSON and the signal tables in [profiling-signals.md](references/profiling-signals.md). Answer the six profiling questions (Q1–Q6) defined there. Follow all signal tables and pattern matching rules — do not abbreviate.
 
-### Step 3 -- Present for Approval
+### Step 3 -- Write to Catalog (Deterministic)
 
-Present the profile as a structured summary for user review. Include:
+Persist the table profile as soon as the JSON is ready. Do not ask for approval before writing — this is a write-through workflow.
 
-- Classification with rationale
-- Primary key with source
-- Foreign keys with types
-- Natural key vs surrogate key determination
-- Watermark column
-- PII actions
-
-**Stop on ambiguity.** If a required question (Q1, Q2, Q4, Q5) cannot be answered with reasonable confidence, present the ambiguity to the user and ask for guidance. Do not auto-resolve unclear classifications.
-
-Wait for explicit user approval before proceeding to Step 4.
-
-### Step 4 -- Write to Catalog (Deterministic)
-
-After user approval (with any edits), write the profile JSON to a temp file to avoid shell escaping issues:
+Write the profile JSON to a temp file to avoid shell escaping issues:
 
 ```bash
 mkdir -p .staging
@@ -163,7 +160,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" profile write \
 
 Do not include `status` in the profile JSON — the CLI determines it from the content.
 
-The profile JSON must match the `profile_section` schema in `lib/shared/schemas/table_catalog.json`. Required fields: `writer`. Each decision point must include a `rationale` field (1–2 sentences): `classification.rationale`, `primary_key.rationale`, `natural_key.rationale`, `watermark.rationale`, and per-entry `rationale` in `foreign_keys[]` and `pii_actions[]`.
+The profile JSON must match `../../lib/shared/schemas/table_catalog.json#/$defs/profile_section`. Required fields: `writer`. Each decision point must include a `rationale` field (1–2 sentences): `classification.rationale`, `primary_key.rationale`, `natural_key.rationale`, `watermark.rationale`, and per-entry `rationale` in `foreign_keys[]` and `pii_actions[]`.
 
 All enum values must be from the allowed sets below (canonical source: `lib/shared/profile.py`):
 
@@ -181,7 +178,19 @@ All enum values must be from the allowed sets below (canonical source: `lib/shar
 | `pii_actions[*].suggested_action` | `mask`, `drop`, `tokenize`, `keep` |
 | `pii_actions[*].source` | `catalog`, `llm`, `catalog+llm` |
 
-If the write exits non-zero, report the validation errors and ask the user to correct.
+If the write exits non-zero, report the validation errors and retry with corrected JSON.
+
+### Step 4 -- Present Persisted Result
+
+After `profile write` succeeds, present the profile as a structured summary. Include:
+
+- Classification with rationale
+- Primary key with source
+- Foreign keys with types
+- Natural key vs surrogate key determination
+- Watermark column
+- PII actions
+- Confirmation that the profile was written to the catalog
 
 ## Output Schema
 
@@ -190,6 +199,7 @@ The `profile` section written to `catalog/tables/<table>.json` follows `table_ca
 ## References
 
 - [references/profiling-signals.md](references/profiling-signals.md) — six profiling questions (Q1–Q6), signal tables, and pattern matching rules for classification, keys, watermark, and PII
+- [`../../lib/shared/profile_error_codes.md`](../../lib/shared/profile_error_codes.md) — canonical `/profile` statuses and surfaced error/warning codes
 
 ## Error handling
 

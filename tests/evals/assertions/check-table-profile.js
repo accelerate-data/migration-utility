@@ -19,10 +19,15 @@ const { validateSection, normalizeTerms } = require('./schema-helpers');
 module.exports = (output, context) => {
   const fixturePath = context.vars.fixture_path;
   const table = context.vars.target_table;
+  const targetView = context.vars.target_view;
   const expectedKind = context.vars.expected_kind;
   const expectedStatus = context.vars.expected_status;
   const expectedSource = context.vars.expected_source;
   const expectedOutputTerms = normalizeTerms(context.vars.expected_output_terms);
+
+  if (!table && targetView) {
+    return { pass: true, score: 1, reason: 'Skipping table profile assertion for view-targeted scenario' };
+  }
 
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
   const catalogFile = path.resolve(repoRoot, fixturePath, 'catalog', 'tables', `${table.toLowerCase()}.json`);

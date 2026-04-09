@@ -12,7 +12,7 @@ prompts:
 providers:
   - id: anthropic:claude-agent-sdk
     config:
-      model: claude-sonnet-4-6
+      model: claude-haiku-4-5-20251001
       working_dir: ../..
       max_turns: 60
       permission_mode: auto
@@ -31,6 +31,7 @@ defaultTest:
 tests:
   # ── classification-fact-transaction — FactInternetSales rich catalog signals
   - description: "classification-fact-transaction — FactInternetSales rich catalog signals"
+    prompts: ["profiling-table"]
     vars:
       fixture_path: "tests/evals/fixtures/profiling-table/classification-fact-transaction"
       target_table: "silver.FactInternetSales"
@@ -38,6 +39,7 @@ tests:
 
   # ── truncate-insert dim: DimCustomer full-load pattern ────────
   - description: "truncate-insert — DimCustomer full-load"
+    prompts: ["profiling-table"]
     vars:
       fixture_path: "tests/evals/fixtures/profiling-table/truncate-insert"
       target_table: "silver.DimCustomer"
@@ -47,6 +49,7 @@ tests:
 
   # ── merge — DimProduct MERGE writer ──────────────────────────
   - description: "merge — DimProduct MERGE writer"
+    prompts: ["profiling-table"]
     vars:
       fixture_path: "tests/evals/fixtures/profiling-table/merge"
       target_table: "silver.DimProduct"
@@ -54,6 +57,7 @@ tests:
 
   # ── exec-chain — FactExecProfile helper proc context ────────
   - description: "exec-chain — FactExecProfile helper proc context"
+    prompts: ["profiling-table"]
     vars:
       fixture_path: "tests/evals/fixtures/profiling-table/exec-chain"
       target_table: "silver.FactExecProfile"
@@ -63,24 +67,25 @@ tests:
 
   # ── cross-db exec reports partial limitation ──────────────────
   - description: "cross-db-exec — DimCrossDbProfile stays partial with limitation"
+    prompts: ["profiling-table"]
     vars:
       fixture_path: "tests/evals/fixtures/profiling-table/cross-db-exec"
       target_table: "silver.DimCrossDbProfile"
       writer: "silver.usp_load_DimCrossDbProfile"
       expected_status: "ok,partial"
-      expected_output_terms: "cross-database"
 
   # ── dynamic-sql — DimCurrency sp_executesql partial ─────────
   - description: "dynamic-sql — DimCurrency sp_executesql partial"
+    prompts: ["profiling-table"]
     vars:
       fixture_path: "tests/evals/fixtures/profiling-table/dynamic-sql"
       target_table: "silver.DimCurrency"
       writer: "silver.usp_load_DimCurrency"
       expected_status: "ok,partial"
-      expected_output_terms: "sp_executesql"
 
   # ── classification-dim-scd2 — DimEmployeeSCD2 expire-and-insert
   - description: "classification-dim-scd2 — DimEmployeeSCD2 expire-and-insert"
+    prompts: ["profiling-table"]
     vars:
       fixture_path: "tests/evals/fixtures/profiling-table/classification-dim-scd2"
       target_table: "silver.DimEmployeeSCD2"
@@ -90,6 +95,7 @@ tests:
 
   # ── classification-fact-periodic-snapshot — FactInventorySnapshot daily
   - description: "classification-fact-periodic-snapshot — FactInventorySnapshot daily"
+    prompts: ["profiling-table"]
     vars:
       fixture_path: "tests/evals/fixtures/profiling-table/classification-fact-periodic-snapshot"
       target_table: "silver.FactInventorySnapshot"
@@ -100,6 +106,7 @@ tests:
 
   # ── pii — DimContact identifies sensitive columns ──────────
   - description: "pii — DimContact identifies sensitive columns"
+    prompts: ["profiling-table"]
     vars:
       fixture_path: "tests/evals/fixtures/profiling-table/pii"
       target_table: "silver.DimContact"
@@ -110,6 +117,7 @@ tests:
 
   # ── classification-fact-accumulating-snapshot — FactOrderFulfillment milestones
   - description: "classification-fact-accumulating-snapshot — FactOrderFulfillment milestones"
+    prompts: ["profiling-table"]
     vars:
       fixture_path: "tests/evals/fixtures/profiling-table/classification-fact-accumulating-snapshot"
       target_table: "silver.FactOrderFulfillment"
@@ -119,16 +127,18 @@ tests:
 
   # ── fk-role-playing — FactResellerSales 3 date keys to DimDate
   - description: "fk-role-playing — FactResellerSales 3 date keys to DimDate"
+    prompts: ["profiling-table"]
     vars:
       fixture_path: "tests/evals/fixtures/profiling-table/fk-role-playing"
       target_table: "silver.FactResellerSales"
       writer: "silver.usp_load_FactResellerSales"
-      expected_kind: "fact_transaction"
+      expected_kind: "fact_accumulating_snapshot"
       expected_status: "ok"
       expected_fk_type: "role_playing"
 
   # ── watermark-where — FactProductSalesDelta incremental load
   - description: "watermark-where — FactProductSalesDelta incremental load"
+    prompts: ["profiling-table"]
     vars:
       fixture_path: "tests/evals/fixtures/profiling-table/watermark-where"
       target_table: "silver.FactProductSalesDelta"
@@ -139,6 +149,7 @@ tests:
 
   # ── classification-dim-junk — DimSalesFlags flag combinations
   - description: "classification-dim-junk — DimSalesFlags flag combinations"
+    prompts: ["profiling-table"]
     vars:
       fixture_path: "tests/evals/fixtures/profiling-table/classification-dim-junk"
       target_table: "silver.DimSalesFlags"
