@@ -1,0 +1,285 @@
+{
+  "item_id": "silver.recursivectetarget",
+  "object_type": "table",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {
+      "id": "recursive_cte_anchor_root_employees",
+      "statement_index": 0,
+      "description": "Anchor branch — employees with no manager (ManagerID IS NULL) selected at OrgLevel 0",
+      "scenarios": ["test_recursive_cte_single_root_no_subordinates", "test_recursive_cte_multiple_root_employees"]
+    },
+    {
+      "id": "recursive_cte_recursive_subordinates",
+      "statement_index": 0,
+      "description": "Recursive branch — employees with managers recursively selected with incremented OrgLevel and hierarchical FullPath",
+      "scenarios": ["test_recursive_cte_single_level_hierarchy", "test_recursive_cte_multilevel_hierarchy"]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_recursive_cte_single_root_no_subordinates",
+      "target_table": "[silver].[RecursiveCteTarget]",
+      "procedure": "[silver].[usp_load_RecursiveCteTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Employee]",
+          "rows": [
+            {
+              "EmployeeID": 1,
+              "LastName": "CEO",
+              "ManagerID": null,
+              "BusinessEntityID": 1,
+              "NationalIDNumber": "123456789",
+              "LoginID": "adventure-works\\ceo",
+              "JobTitle": "Chief Executive Officer",
+              "BirthDate": "1970-01-15",
+              "MaritalStatus": "M",
+              "Gender": "M",
+              "HireDate": "1990-01-01",
+              "SalariedFlag": 1,
+              "VacationHours": 99,
+              "SickLeaveHours": 69,
+              "CurrentFlag": 1,
+              "ModifiedDate": "2025-01-01T00:00:00"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "OrgLevel": 0,
+            "ManagerId": null,
+            "EmployeeId": 1,
+            "FullPath": "CEO"
+          }
+        ]
+      }
+    },
+    {
+      "name": "test_recursive_cte_single_level_hierarchy",
+      "target_table": "[silver].[RecursiveCteTarget]",
+      "procedure": "[silver].[usp_load_RecursiveCteTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Employee]",
+          "rows": [
+            {
+              "EmployeeID": 1,
+              "LastName": "CEO",
+              "ManagerID": null,
+              "BusinessEntityID": 1,
+              "NationalIDNumber": "123456789",
+              "LoginID": "adventure-works\\ceo",
+              "JobTitle": "Chief Executive Officer",
+              "BirthDate": "1970-01-15",
+              "MaritalStatus": "M",
+              "Gender": "M",
+              "HireDate": "1990-01-01",
+              "SalariedFlag": 1,
+              "VacationHours": 99,
+              "SickLeaveHours": 69,
+              "CurrentFlag": 1,
+              "ModifiedDate": "2025-01-01T00:00:00"
+            },
+            {
+              "EmployeeID": 2,
+              "LastName": "VP Sales",
+              "ManagerID": 1,
+              "BusinessEntityID": 2,
+              "NationalIDNumber": "987654321",
+              "LoginID": "adventure-works\\vpsales",
+              "JobTitle": "Vice President of Sales",
+              "BirthDate": "1975-03-20",
+              "MaritalStatus": "S",
+              "Gender": "F",
+              "HireDate": "1995-06-15",
+              "SalariedFlag": 1,
+              "VacationHours": 80,
+              "SickLeaveHours": 55,
+              "CurrentFlag": 1,
+              "ModifiedDate": "2025-01-01T00:00:00"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "OrgLevel": 0,
+            "ManagerId": null,
+            "EmployeeId": 1,
+            "FullPath": "CEO"
+          },
+          {
+            "OrgLevel": 1,
+            "ManagerId": 1,
+            "EmployeeId": 2,
+            "FullPath": "CEO > VP Sales"
+          }
+        ]
+      }
+    },
+    {
+      "name": "test_recursive_cte_multilevel_hierarchy",
+      "target_table": "[silver].[RecursiveCteTarget]",
+      "procedure": "[silver].[usp_load_RecursiveCteTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Employee]",
+          "rows": [
+            {
+              "EmployeeID": 1,
+              "LastName": "CEO",
+              "ManagerID": null,
+              "BusinessEntityID": 1,
+              "NationalIDNumber": "123456789",
+              "LoginID": "adventure-works\\ceo",
+              "JobTitle": "Chief Executive Officer",
+              "BirthDate": "1970-01-15",
+              "MaritalStatus": "M",
+              "Gender": "M",
+              "HireDate": "1990-01-01",
+              "SalariedFlag": 1,
+              "VacationHours": 99,
+              "SickLeaveHours": 69,
+              "CurrentFlag": 1,
+              "ModifiedDate": "2025-01-01T00:00:00"
+            },
+            {
+              "EmployeeID": 2,
+              "LastName": "VP Sales",
+              "ManagerID": 1,
+              "BusinessEntityID": 2,
+              "NationalIDNumber": "987654321",
+              "LoginID": "adventure-works\\vpsales",
+              "JobTitle": "Vice President of Sales",
+              "BirthDate": "1975-03-20",
+              "MaritalStatus": "S",
+              "Gender": "F",
+              "HireDate": "1995-06-15",
+              "SalariedFlag": 1,
+              "VacationHours": 80,
+              "SickLeaveHours": 55,
+              "CurrentFlag": 1,
+              "ModifiedDate": "2025-01-01T00:00:00"
+            },
+            {
+              "EmployeeID": 3,
+              "LastName": "Sales Manager",
+              "ManagerID": 2,
+              "BusinessEntityID": 3,
+              "NationalIDNumber": "555666777",
+              "LoginID": "adventure-works\\salesmanager",
+              "JobTitle": "Sales Manager",
+              "BirthDate": "1980-05-10",
+              "MaritalStatus": "M",
+              "Gender": "M",
+              "HireDate": "2000-01-15",
+              "SalariedFlag": 1,
+              "VacationHours": 70,
+              "SickLeaveHours": 50,
+              "CurrentFlag": 1,
+              "ModifiedDate": "2025-01-01T00:00:00"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "OrgLevel": 0,
+            "ManagerId": null,
+            "EmployeeId": 1,
+            "FullPath": "CEO"
+          },
+          {
+            "OrgLevel": 1,
+            "ManagerId": 1,
+            "EmployeeId": 2,
+            "FullPath": "CEO > VP Sales"
+          },
+          {
+            "OrgLevel": 2,
+            "ManagerId": 2,
+            "EmployeeId": 3,
+            "FullPath": "CEO > VP Sales > Sales Manager"
+          }
+        ]
+      }
+    },
+    {
+      "name": "test_recursive_cte_multiple_root_employees",
+      "target_table": "[silver].[RecursiveCteTarget]",
+      "procedure": "[silver].[usp_load_RecursiveCteTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Employee]",
+          "rows": [
+            {
+              "EmployeeID": 1,
+              "LastName": "CEO",
+              "ManagerID": null,
+              "BusinessEntityID": 1,
+              "NationalIDNumber": "123456789",
+              "LoginID": "adventure-works\\ceo",
+              "JobTitle": "Chief Executive Officer",
+              "BirthDate": "1970-01-15",
+              "MaritalStatus": "M",
+              "Gender": "M",
+              "HireDate": "1990-01-01",
+              "SalariedFlag": 1,
+              "VacationHours": 99,
+              "SickLeaveHours": 69,
+              "CurrentFlag": 1,
+              "ModifiedDate": "2025-01-01T00:00:00"
+            },
+            {
+              "EmployeeID": 4,
+              "LastName": "Chief Operating Officer",
+              "ManagerID": null,
+              "BusinessEntityID": 4,
+              "NationalIDNumber": "111222333",
+              "LoginID": "adventure-works\\coo",
+              "JobTitle": "Chief Operating Officer",
+              "BirthDate": "1972-07-25",
+              "MaritalStatus": "M",
+              "Gender": "M",
+              "HireDate": "1992-03-10",
+              "SalariedFlag": 1,
+              "VacationHours": 95,
+              "SickLeaveHours": 65,
+              "CurrentFlag": 1,
+              "ModifiedDate": "2025-01-01T00:00:00"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "OrgLevel": 0,
+            "ManagerId": null,
+            "EmployeeId": 1,
+            "FullPath": "CEO"
+          },
+          {
+            "OrgLevel": 0,
+            "ManagerId": null,
+            "EmployeeId": 4,
+            "FullPath": "Chief Operating Officer"
+          }
+        ]
+      }
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "errors": []
+}

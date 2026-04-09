@@ -41,5 +41,17 @@
     },
     "foreign_keys": [],
     "pii_actions": []
+  },
+  "test_gen": {
+    "status": "ok",
+    "test_spec_path": "test-specs/silver.recursivectetarget.json",
+    "branches": 2,
+    "unit_tests": 4,
+    "coverage": "complete",
+    "warnings": [],
+    "validation": {
+      "passed": true,
+      "issues": []
+    }
   }
 }
