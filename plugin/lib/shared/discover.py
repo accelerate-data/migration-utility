@@ -163,7 +163,7 @@ def _show_table(project_root: Path, norm: str) -> dict[str, Any]:
     table_cat = load_table_catalog(project_root, norm)
     if table_cat is None:
         _catalog_error("table", norm)
-    return {"columns": table_cat.get("columns", [])}
+    return {"columns": table_cat.columns}
 
 
 def _show_procedure(
@@ -174,21 +174,22 @@ def _show_procedure(
     if proc_cat is None:
         _catalog_error("procedure", norm)
 
-    params = proc_cat.get("params", [])
+    params = proc_cat.params
 
-    cat_refs = proc_cat.get("references", {})
-    tables_in_scope = cat_refs.get("tables", {}).get("in_scope", [])
-    reads = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_selected")]
-    writes = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_updated")]
+    refs_bucket = proc_cat.references
+    tables_in_scope = refs_bucket.tables.in_scope if refs_bucket else []
+    reads = [normalize(f"{t.object_schema}.{t.name}") for t in tables_in_scope if t.is_selected]
+    writes = [normalize(f"{t.object_schema}.{t.name}") for t in tables_in_scope if t.is_updated]
     write_ops: dict[str, list[str]] = {}
     for t in tables_in_scope:
-        if t.get("is_updated"):
-            tfqn = normalize(f"{t['schema']}.{t['name']}")
+        if t.is_updated:
+            tfqn = normalize(f"{t.object_schema}.{t.name}")
             ops = ["WRITE"]
-            if t.get("is_insert_all"):
+            if t.is_insert_all:
                 ops.append("INSERT")
             write_ops[tfqn] = ops
-    funcs = [normalize(f"{f['schema']}.{f['name']}") for f in cat_refs.get("functions", {}).get("in_scope", [])]
+    funcs_in_scope = refs_bucket.functions.in_scope if refs_bucket else []
+    funcs = [normalize(f"{f.object_schema}.{f.name}") for f in funcs_in_scope]
     refs_dict = {
         "reads_from": sorted(set(reads)),
         "writes_to": sorted(set(writes)),
@@ -196,8 +197,8 @@ def _show_procedure(
         "uses_functions": sorted(set(funcs)),
     }
 
-    routing_mode = proc_cat.get("mode")
-    routing_reasons = proc_cat.get("routing_reasons", [])
+    routing_mode = proc_cat.mode
+    routing_reasons = proc_cat.routing_reasons
     parse_error = entry.parse_error
 
     if parse_error:
@@ -316,10 +317,10 @@ def _show_view_or_function(
     if obj_cat is None:
         _catalog_error(type_label, norm)
 
-    cat_refs = obj_cat.get("references", {})
-    tables_in_scope = cat_refs.get("tables", {}).get("in_scope", [])
-    reads = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_selected")]
-    writes = [normalize(f"{t['schema']}.{t['name']}") for t in tables_in_scope if t.get("is_updated")]
+    refs_bucket = obj_cat.references
+    tables_in_scope = refs_bucket.tables.in_scope if refs_bucket else []
+    reads = [normalize(f"{t.object_schema}.{t.name}") for t in tables_in_scope if t.is_selected]
+    writes = [normalize(f"{t.object_schema}.{t.name}") for t in tables_in_scope if t.is_updated]
     result: dict[str, Any] = {
         "refs": {
             "reads_from": sorted(set(reads)),
@@ -401,26 +402,27 @@ def _run_refs_from_catalog(project_root: Path, target: str) -> dict[str, Any]:
             "error": f"no catalog file for {target} — it may not exist in the extracted schemas",
         }
 
-    ref_by = cat.get("referenced_by", {})
+    ref_by = cat.referenced_by
     readers: list[str] = []
     writers: list[dict[str, Any]] = []
 
-    for bucket_type in ("procedures", "views", "functions"):
-        for entry in ref_by.get(bucket_type, {}).get("in_scope", []):
-            fqn = normalize(f"{entry['schema']}.{entry['name']}")
-            is_updated = entry.get("is_updated", False)
-            is_selected = entry.get("is_selected", False)
-
-            if is_updated:
-                writers.append({
-                    "procedure": fqn,
-                    "write_type": "direct",
-                    "is_updated": True,
-                    "is_selected": is_selected,
-                    "is_insert_all": entry.get("is_insert_all", False),
-                })
-            if is_selected and not is_updated:
-                readers.append(fqn)
+    if ref_by is not None:
+        for bucket_type in ("procedures", "views", "functions"):
+            scoped = getattr(ref_by, bucket_type, None)
+            if scoped is None:
+                continue
+            for entry in scoped.in_scope:
+                fqn = normalize(f"{entry.object_schema}.{entry.name}")
+                if entry.is_updated:
+                    writers.append({
+                        "procedure": fqn,
+                        "write_type": "direct",
+                        "is_updated": True,
+                        "is_selected": entry.is_selected,
+                        "is_insert_all": entry.is_insert_all,
+                    })
+                if entry.is_selected and not entry.is_updated:
+                    readers.append(fqn)
 
     return {
         "name": target,
@@ -465,9 +467,12 @@ def run_write_scoping(
     table_norm = normalize(table_fqn)
 
     # Load existing catalog
-    cat = load_table_catalog(project_root, table_norm)
-    if cat is None:
+    cat_model = load_table_catalog(project_root, table_norm)
+    if cat_model is None:
         raise CatalogFileMissingError("table", table_norm)
+
+    # Validate incoming scoping through Pydantic model
+    from shared.catalog_models import TableScopingSection
 
     # Determine status from content
     selected_writer = scoping.get("selected_writer")
@@ -490,13 +495,13 @@ def run_write_scoping(
         status = "no_writer_found"
 
     scoping["status"] = status
+    TableScopingSection.model_validate(scoping)
     _validate_schema_fragment(scoping, "table_catalog.json", "properties/scoping")
 
-    # Merge scoping section
+    # Merge scoping section onto raw JSON
+    cat_path = resolve_catalog_dir(project_root) / "tables" / f"{table_norm}.json"
+    cat = json.loads(cat_path.read_text(encoding="utf-8"))
     cat["scoping"] = scoping
-
-    catalog_dir = resolve_catalog_dir(project_root) / "tables"
-    cat_path = catalog_dir / f"{table_norm}.json"
     write_json(cat_path, cat)
 
     return {"written": str(cat_path), "status": "ok"}
@@ -513,9 +518,12 @@ def run_write_view_scoping(
 
     view_norm = normalize(view_fqn)
 
-    cat = load_view_catalog(project_root, view_norm)
-    if cat is None:
+    cat_model = load_view_catalog(project_root, view_norm)
+    if cat_model is None:
         raise CatalogFileMissingError("view", view_norm)
+
+    # Validate incoming scoping through Pydantic model
+    from shared.catalog_models import ViewScopingSection
 
     # Determine status from content
     has_sql_elements = "sql_elements" in scoping
@@ -529,12 +537,13 @@ def run_write_view_scoping(
         status = "error"
 
     scoping["status"] = status
+    ViewScopingSection.model_validate(scoping)
     _validate_schema_fragment(scoping, "view_catalog.json", "properties/scoping")
 
+    # Merge scoping section onto raw JSON
+    cat_path = resolve_catalog_dir(project_root) / "views" / f"{view_norm}.json"
+    cat = json.loads(cat_path.read_text(encoding="utf-8"))
     cat["scoping"] = scoping
-
-    catalog_dir = resolve_catalog_dir(project_root) / "views"
-    cat_path = catalog_dir / f"{view_norm}.json"
     write_json(cat_path, cat)
 
     return {"written": str(cat_path), "status": "ok"}
@@ -547,20 +556,19 @@ def run_write_source(
 ) -> dict[str, Any]:
     """Set or clear the is_source flag on a table catalog file."""
     table_norm = normalize(table_fqn)
-    cat = load_table_catalog(project_root, table_norm)
-    if cat is None:
+    cat_model = load_table_catalog(project_root, table_norm)
+    if cat_model is None:
         raise CatalogFileMissingError("table", table_norm)
 
-    if "scoping" not in cat:
+    if cat_model.scoping is None:
         raise ValueError(
             f"Table {table_norm!r} has not been analyzed yet. "
             "Run /analyzing-table first."
         )
 
+    cat_path = resolve_catalog_dir(project_root) / "tables" / f"{table_norm}.json"
+    cat = json.loads(cat_path.read_text(encoding="utf-8"))
     cat["is_source"] = value
-
-    catalog_dir = resolve_catalog_dir(project_root) / "tables"
-    cat_path = catalog_dir / f"{table_norm}.json"
     write_json(cat_path, cat)
 
     logger.info(

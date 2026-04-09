@@ -30,8 +30,8 @@ class RefEntry(BaseModel):
 
     model_config = _CATALOG_CONFIG
 
-    object_schema: str = Field(alias="schema")
-    name: str
+    object_schema: str = Field(default="", alias="schema")
+    name: str = ""
     is_selected: bool = False
     is_updated: bool = False
     is_insert_all: bool = False
@@ -77,7 +77,7 @@ class TableScopingSection(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    status: str
+    status: str = ""
     selected_writer: str | None = None
     selected_writer_rationale: str | None = None
     candidates: list[Any] | None = None
@@ -90,7 +90,7 @@ class ViewScopingSection(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    status: str
+    status: str = ""
     sql_elements: list[Any] | None = None
     call_tree: dict[str, Any] | None = None
     logic_summary: str | None = None
@@ -107,8 +107,8 @@ class TableProfileSection(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    status: str
-    writer: str
+    status: str = ""
+    writer: str = ""
     classification: Any | None = None
     primary_key: Any | None = None
     natural_key: Any | None = None
@@ -124,10 +124,10 @@ class ViewProfileSection(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    status: str
-    classification: str
-    rationale: str
-    source: str
+    status: str = ""
+    classification: str = ""
+    rationale: str = ""
+    source: str = ""
     warnings: list[Any] = []
     errors: list[Any] = []
 
@@ -140,7 +140,7 @@ class RefactorSection(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    status: str
+    status: str = ""
     extracted_sql: str | None = None
     refactored_sql: str | None = None
     shared_sources: list[str] | None = None
@@ -153,7 +153,7 @@ class TestGenSection(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    status: str
+    status: str = ""
     test_spec_path: str | None = None
     branches: int | None = None
     unit_tests: int | None = None
@@ -167,7 +167,7 @@ class GenerateSection(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    status: str
+    status: str = ""
     model_path: str | None = None
     schema_yml: bool | None = None
     compiled: bool | None = None
@@ -185,8 +185,8 @@ class TableCatalog(BaseModel):
 
     model_config = _CATALOG_CONFIG
 
-    object_schema: str = Field(alias="schema")
-    name: str
+    object_schema: str = Field(default="", alias="schema")
+    name: str = ""
     columns: list[Any] = []
     primary_keys: list[Any] = []
     unique_indexes: list[Any] = []
@@ -209,8 +209,8 @@ class ProcedureCatalog(BaseModel):
 
     model_config = _CATALOG_CONFIG
 
-    object_schema: str = Field(alias="schema")
-    name: str
+    object_schema: str = Field(default="", alias="schema")
+    name: str = ""
     references: ReferencesBucket | None = None
     referenced_by: ReferencedByBucket | None = None
     params: list[Any] = []
@@ -228,8 +228,8 @@ class ViewCatalog(BaseModel):
 
     model_config = _CATALOG_CONFIG
 
-    object_schema: str = Field(alias="schema")
-    name: str
+    object_schema: str = Field(default="", alias="schema")
+    name: str = ""
     references: ReferencesBucket | None = None
     referenced_by: ReferencedByBucket | None = None
     is_materialized_view: bool = False
@@ -249,7 +249,7 @@ class FunctionCatalog(BaseModel):
 
     model_config = _CATALOG_CONFIG
 
-    object_schema: str = Field(alias="schema")
-    name: str
+    object_schema: str = Field(default="", alias="schema")
+    name: str = ""
     references: ReferencesBucket | None = None
     referenced_by: ReferencedByBucket | None = None

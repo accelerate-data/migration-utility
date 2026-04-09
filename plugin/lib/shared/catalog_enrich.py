@@ -74,12 +74,13 @@ def _extract_calls(raw_ddl: str) -> list[str]:
     return sorted(calls)
 
 
-def _enrich_skip_reason(proc_cat: dict[str, Any] | None) -> str | None:
+def _enrich_skip_reason(proc_cat: Any) -> str | None:
     """Return the reason enrichment should skip this procedure, if any."""
     if proc_cat is None:
         return None
 
-    if proc_cat.get("mode") == "llm_required":
+    mode = proc_cat.mode if hasattr(proc_cat, "mode") else proc_cat.get("mode")
+    if mode == "llm_required":
         return "needs_llm"
     return None
 
@@ -201,12 +202,14 @@ def _augment_proc_catalogs(
 
     for proc_fqn in sorted(all_writer_procs):
         try:
-            proc_data = load_proc_catalog(project_root, proc_fqn)
+            proc_cat = load_proc_catalog(project_root, proc_fqn)
         except CatalogLoadError as exc:
             logger.warning("event=enrich_skip proc=%s reason=corrupt_catalog error=%s", proc_fqn, exc)
             continue
-        if proc_data is None:
-            proc_data = {}
+        if proc_cat is None:
+            proc_data: dict[str, Any] = {}
+        else:
+            proc_data = proc_cat.model_dump(exclude_none=True, by_alias=True)
         proc_data = ensure_references(proc_data)
 
         tables_in_scope = proc_data["references"]["tables"]["in_scope"]
@@ -253,12 +256,13 @@ def _flip_to_table_catalogs(
 
     for proc_fqn in sorted(procedures_augmented):
         try:
-            proc_data = load_proc_catalog(project_root, proc_fqn)
+            proc_cat = load_proc_catalog(project_root, proc_fqn)
         except CatalogLoadError as exc:
             logger.warning("event=enrich_skip proc=%s reason=corrupt_catalog error=%s", proc_fqn, exc)
             continue
-        if proc_data is None:
+        if proc_cat is None:
             continue
+        proc_data = proc_cat.model_dump(exclude_none=True, by_alias=True)
         tables_in_scope = proc_data.get("references", {}).get("tables", {}).get("in_scope", [])
 
         for table_entry in tables_in_scope:
@@ -267,12 +271,14 @@ def _flip_to_table_catalogs(
 
             table_fqn = normalize(f"{table_entry['schema']}.{table_entry['name']}")
             try:
-                table_data = load_table_catalog(project_root, table_fqn)
+                table_cat = load_table_catalog(project_root, table_fqn)
             except CatalogLoadError as exc:
                 logger.warning("event=enrich_skip table=%s reason=corrupt_catalog error=%s", table_fqn, exc)
                 continue
-            if table_data is None:
-                table_data = {}
+            if table_cat is None:
+                table_data: dict[str, Any] = {}
+            else:
+                table_data = table_cat.model_dump(exclude_none=True, by_alias=True)
             table_data = ensure_referenced_by(table_data)
 
             procs_in_scope = table_data["referenced_by"]["procedures"]["in_scope"]

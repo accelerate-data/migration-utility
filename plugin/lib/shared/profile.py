@@ -119,29 +119,31 @@ def _validate_schema_fragment(data: Any, schema_name: str, fragment_path: str) -
 def _extract_catalog_signals(table_cat: dict[str, Any]) -> dict[str, Any]:
     """Pull the six catalog signal categories from a table catalog dict."""
     return {
-        "primary_keys": table_cat.get("primary_keys", []),
-        "foreign_keys": table_cat.get("foreign_keys", []),
-        "auto_increment_columns": table_cat.get("auto_increment_columns", []),
-        "unique_indexes": table_cat.get("unique_indexes", []),
-        "change_capture": table_cat.get("change_capture"),
-        "sensitivity_classifications": table_cat.get("sensitivity_classifications", []),
+        "primary_keys": table_cat.primary_keys,
+        "foreign_keys": table_cat.foreign_keys,
+        "auto_increment_columns": table_cat.auto_increment_columns,
+        "unique_indexes": table_cat.unique_indexes,
+        "change_capture": table_cat.change_capture,
+        "sensitivity_classifications": table_cat.sensitivity_classifications,
     }
 
 
 def _build_related_procedures(
-    project_root: Path, ddl_catalog: Any, writer_references: dict[str, Any],
+    project_root: Path, ddl_catalog: Any, writer_references: Any,
 ) -> list[dict[str, Any]]:
     """Load catalog + DDL body for each procedure in the writer's in_scope refs."""
     related: list[dict[str, Any]] = []
-    proc_refs = writer_references.get("procedures", {})
-    for ref_proc in proc_refs.get("in_scope", []):
-        ref_fqn = normalize(f"{ref_proc['schema']}.{ref_proc['name']}")
+    if writer_references is None:
+        return related
+    proc_refs = writer_references.procedures
+    for ref_proc in proc_refs.in_scope:
+        ref_fqn = normalize(f"{ref_proc.object_schema}.{ref_proc.name}")
         ref_cat = load_proc_catalog(project_root, ref_fqn)
         ref_entry = ddl_catalog.get_procedure(ref_fqn)
         ref_body = ref_entry.raw_ddl if ref_entry else ""
         entry: dict[str, Any] = {"procedure": ref_fqn, "proc_body": ref_body}
         if ref_cat is not None:
-            entry["references"] = ref_cat.get("references", {})
+            entry["references"] = ref_cat.references.model_dump(by_alias=True, exclude_none=True) if ref_cat.references else {}
         related.append(entry)
     return related
 
@@ -175,10 +177,10 @@ def run_context(project_root: Path, table: str, writer: str | None = None) -> di
     if proc_cat is None:
         raise CatalogFileMissingError("procedure", writer_norm)
 
-    table_slices = proc_cat.get("table_slices") or {}
+    table_slices = proc_cat.table_slices or {}
     writer_ddl_slice = table_slices.get(table_norm) or None
 
-    writer_references = proc_cat.get("references", {})
+    writer_references = proc_cat.references
 
     # Load proc body from DDL files
     ddl_catalog, _ = load_ddl(project_root)
@@ -194,9 +196,9 @@ def run_context(project_root: Path, table: str, writer: str | None = None) -> di
         "table": table_norm,
         "writer": writer_norm,
         "catalog_signals": catalog_signals,
-        "writer_references": writer_references,
+        "writer_references": writer_references.model_dump(by_alias=True, exclude_none=True) if writer_references else {},
         "proc_body": proc_body,
-        "columns": table_cat.get("columns", []),
+        "columns": table_cat.columns,
         "related_procedures": related_procedures,
         "writer_ddl_slice": writer_ddl_slice,
     }
@@ -214,42 +216,47 @@ def run_view_context(project_root: Path, view_fqn: str) -> dict[str, Any]:
     if view_cat is None:
         raise CatalogFileMissingError("view", view_norm)
 
-    scoping = view_cat.get("scoping")
-    if scoping is None or scoping.get("status") != "analyzed":
+    if view_cat.scoping is None or view_cat.scoping.status != "analyzed":
         raise ValueError(
             f"View scoping not completed for {view_norm}. Run analyzing-view first."
         )
 
     # Enrich references: add object_type to each in_scope entry
+    refs_bucket = view_cat.references
     references: dict[str, Any] = {}
     for bucket, obj_type in (("tables", "table"), ("views", "view"), ("functions", "function")):
-        raw = view_cat.get("references", {}).get(bucket, {"in_scope": [], "out_of_scope": []})
+        scoped = getattr(refs_bucket, bucket, None) if refs_bucket else None
+        in_scope = [e.model_dump(by_alias=True, exclude_none=True) for e in scoped.in_scope] if scoped else []
+        out_of_scope = [e.model_dump(by_alias=True, exclude_none=True) for e in scoped.out_of_scope] if scoped else []
         references[bucket] = {
-            "in_scope": [{**e, "object_type": obj_type} for e in raw.get("in_scope", [])],
-            "out_of_scope": raw.get("out_of_scope", []),
+            "in_scope": [{**e, "object_type": obj_type} for e in in_scope],
+            "out_of_scope": out_of_scope,
         }
 
     # Enrich referenced_by: add object_type to each in_scope entry
+    refby_bucket = view_cat.referenced_by
     referenced_by: dict[str, Any] = {}
     for bucket, obj_type in (("procedures", "procedure"), ("views", "view"), ("functions", "function")):
-        raw = view_cat.get("referenced_by", {}).get(bucket, {"in_scope": [], "out_of_scope": []})
+        scoped = getattr(refby_bucket, bucket, None) if refby_bucket else None
+        in_scope = [e.model_dump(by_alias=True, exclude_none=True) for e in scoped.in_scope] if scoped else []
+        out_of_scope = [e.model_dump(by_alias=True, exclude_none=True) for e in scoped.out_of_scope] if scoped else []
         referenced_by[bucket] = {
-            "in_scope": [{**e, "object_type": obj_type} for e in raw.get("in_scope", [])],
-            "out_of_scope": raw.get("out_of_scope", []),
+            "in_scope": [{**e, "object_type": obj_type} for e in in_scope],
+            "out_of_scope": out_of_scope,
         }
 
     result: dict[str, Any] = {
         "view": view_norm,
-        "is_materialized_view": view_cat.get("is_materialized_view", False),
-        "sql_elements": scoping.get("sql_elements"),
-        "logic_summary": scoping.get("logic_summary"),
+        "is_materialized_view": view_cat.is_materialized_view,
+        "sql_elements": view_cat.scoping.sql_elements,
+        "logic_summary": view_cat.scoping.logic_summary,
         "references": references,
         "referenced_by": referenced_by,
-        "warnings": view_cat.get("warnings", []),
-        "errors": view_cat.get("errors", []),
+        "warnings": getattr(view_cat, "warnings", []),
+        "errors": getattr(view_cat, "errors", []),
     }
-    if view_cat.get("is_materialized_view"):
-        result["columns"] = view_cat.get("columns", [])
+    if view_cat.is_materialized_view:
+        result["columns"] = view_cat.columns
 
     logger.info("event=view_context_assembled view=%s", view_norm)
     return result

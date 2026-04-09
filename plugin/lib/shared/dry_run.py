@@ -73,7 +73,7 @@ def _detect_object_type(project_root: Path, norm_fqn: str) -> str:
     if view_path.exists():
         try:
             cat = load_view_catalog(project_root, norm_fqn)
-            if cat and cat.get("is_materialized_view"):
+            if cat and cat.is_materialized_view:
                 return "mv"
         except (json.JSONDecodeError, OSError, CatalogLoadError):
             pass
@@ -104,9 +104,9 @@ def run_ready(project_root: Path, fqn: str, stage: str) -> dict[str, Any]:
         except (json.JSONDecodeError, OSError, CatalogLoadError):
             cat = None
         if cat is not None:
-            if cat.get("is_source"):
+            if cat.is_source:
                 return {"ready": False, "reason": "not_applicable", "code": "SOURCE_TABLE"}
-            if cat.get("excluded"):
+            if cat.excluded:
                 return {"ready": False, "reason": "not_applicable", "code": "EXCLUDED"}
     else:
         try:
@@ -114,7 +114,7 @@ def run_ready(project_root: Path, fqn: str, stage: str) -> dict[str, Any]:
         except (json.JSONDecodeError, OSError, CatalogLoadError):
             cat = None
         if cat is not None:
-            if cat.get("excluded"):
+            if cat.excluded:
                 return {"ready": False, "reason": "not_applicable", "code": "EXCLUDED"}
 
     # ── Stage logic ──────────────────────────────────────────────────────
@@ -135,33 +135,33 @@ def run_ready(project_root: Path, fqn: str, stage: str) -> dict[str, Any]:
         if obj_type in ("view", "mv"):
             if cat is None:
                 return {"ready": False, "reason": "catalog_missing"}
-            scoping = cat.get("scoping") or {}
-            if scoping.get("status") != "analyzed":
+            scoping_status = cat.scoping.status if cat.scoping else None
+            if scoping_status != "analyzed":
                 return {"ready": False, "reason": "scoping_not_analyzed"}
             return {"ready": True, "reason": "ok"}
         # table
         if cat is None:
             return {"ready": False, "reason": "catalog_missing"}
-        scoping = cat.get("scoping") or {}
-        if scoping.get("status") == "no_writer_found":
+        scoping_status = cat.scoping.status if cat.scoping else None
+        if scoping_status == "no_writer_found":
             return {"ready": False, "reason": "not_applicable", "code": "WRITERLESS_TABLE"}
-        if scoping.get("status") != "resolved":
+        if scoping_status != "resolved":
             return {"ready": False, "reason": "scoping_not_resolved"}
         return {"ready": True, "reason": "ok"}
 
     if stage == "test-gen":
         if cat is None:
             return {"ready": False, "reason": "catalog_missing"}
-        profile = cat.get("profile") or {}
-        if profile.get("status") not in ("ok", "partial"):
+        profile_status = cat.profile.status if cat.profile else None
+        if profile_status not in ("ok", "partial"):
             return {"ready": False, "reason": "profile_not_complete"}
         return {"ready": True, "reason": "ok"}
 
     if stage == "refactor":
         if cat is None:
             return {"ready": False, "reason": "catalog_missing"}
-        test_gen = cat.get("test_gen") or {}
-        if test_gen.get("status") != "ok":
+        test_gen_status = cat.test_gen.status if cat.test_gen else None
+        if test_gen_status != "ok":
             return {"ready": False, "reason": "test_gen_not_complete"}
         return {"ready": True, "reason": "ok"}
 
@@ -172,24 +172,23 @@ def run_ready(project_root: Path, fqn: str, stage: str) -> dict[str, Any]:
         if obj_type in ("view", "mv"):
             if cat is None:
                 return {"ready": False, "reason": "catalog_missing"}
-            refactor = cat.get("refactor") or {}
-            if refactor.get("status") != "ok":
+            refactor_status = cat.refactor.status if cat.refactor else None
+            if refactor_status != "ok":
                 return {"ready": False, "reason": "refactor_not_complete"}
             return {"ready": True, "reason": "ok"}
         # table — resolve writer, check proc catalog refactor status
         if cat is None:
             return {"ready": False, "reason": "catalog_missing"}
-        scoping = cat.get("scoping") or {}
-        writer = scoping.get("selected_writer")
+        writer = cat.scoping.selected_writer if cat.scoping else None
         if not writer:
             return {"ready": False, "reason": "no_writer"}
         writer_norm = normalize(writer)
         try:
-            proc_cat = load_proc_catalog(project_root, writer_norm) or {}
+            proc_cat = load_proc_catalog(project_root, writer_norm)
         except (json.JSONDecodeError, OSError, CatalogLoadError):
-            proc_cat = {}
-        refactor = proc_cat.get("refactor") or {}
-        if refactor.get("status") != "ok":
+            proc_cat = None
+        refactor_status = proc_cat.refactor.status if proc_cat and proc_cat.refactor else None
+        if refactor_status != "ok":
             return {"ready": False, "reason": "refactor_not_complete"}
         return {"ready": True, "reason": "ok"}
 
@@ -213,37 +212,37 @@ def _single_object_status(project_root: Path, norm_fqn: str) -> dict[str, Any]:
 
     if obj_type in ("view", "mv"):
         try:
-            cat = load_view_catalog(project_root, norm_fqn) or {}
+            cat = load_view_catalog(project_root, norm_fqn)
         except (json.JSONDecodeError, OSError, CatalogLoadError):
-            cat = {}
-        stages["scope"] = (cat.get("scoping") or {}).get("status")
-        stages["profile"] = (cat.get("profile") or {}).get("status")
-        stages["test_gen"] = (cat.get("test_gen") or {}).get("status")
-        stages["refactor"] = (cat.get("refactor") or {}).get("status")
-        stages["generate"] = (cat.get("generate") or {}).get("status")
+            cat = None
+        stages["scope"] = cat.scoping.status if cat and cat.scoping else None
+        stages["profile"] = cat.profile.status if cat and cat.profile else None
+        stages["test_gen"] = cat.test_gen.status if cat and cat.test_gen else None
+        stages["refactor"] = cat.refactor.status if cat and cat.refactor else None
+        stages["generate"] = cat.generate.status if cat and cat.generate else None
     else:
         try:
-            cat = load_table_catalog(project_root, norm_fqn) or {}
+            cat = load_table_catalog(project_root, norm_fqn)
         except (json.JSONDecodeError, OSError, CatalogLoadError):
-            cat = {}
-        stages["scope"] = (cat.get("scoping") or {}).get("status")
-        stages["profile"] = (cat.get("profile") or {}).get("status")
-        stages["test_gen"] = (cat.get("test_gen") or {}).get("status")
+            cat = None
+        stages["scope"] = cat.scoping.status if cat and cat.scoping else None
+        stages["profile"] = cat.profile.status if cat and cat.profile else None
+        stages["test_gen"] = cat.test_gen.status if cat and cat.test_gen else None
         # For tables, refactor lives on the proc catalog via selected_writer.
         refactor_status: str | None = None
-        if cat.get("refactor"):
-            refactor_status = (cat.get("refactor") or {}).get("status")
+        if cat and cat.refactor:
+            refactor_status = cat.refactor.status
         else:
-            writer = (cat.get("scoping") or {}).get("selected_writer")
+            writer = cat.scoping.selected_writer if cat and cat.scoping else None
             if writer:
                 writer_norm = normalize(writer)
                 try:
-                    proc_cat = load_proc_catalog(project_root, writer_norm) or {}
+                    proc_cat = load_proc_catalog(project_root, writer_norm)
                 except (json.JSONDecodeError, OSError, CatalogLoadError):
-                    proc_cat = {}
-                refactor_status = (proc_cat.get("refactor") or {}).get("status")
+                    proc_cat = None
+                refactor_status = proc_cat.refactor.status if proc_cat and proc_cat.refactor else None
         stages["refactor"] = refactor_status
-        stages["generate"] = (cat.get("generate") or {}).get("status")
+        stages["generate"] = cat.generate.status if cat and cat.generate else None
 
     return {"fqn": norm_fqn, "type": obj_type, "stages": stages}
 

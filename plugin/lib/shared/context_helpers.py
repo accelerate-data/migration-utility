@@ -28,10 +28,9 @@ def load_table_profile(project_root: Path, table_fqn: str) -> dict[str, Any]:
     cat = load_table_catalog(project_root, table_fqn)
     if cat is None:
         raise CatalogFileMissingError("table", table_fqn)
-    profile = cat.get("profile")
-    if profile is None:
+    if cat.profile is None:
         raise ProfileMissingError(table_fqn)
-    return profile
+    return cat.profile
 
 
 def load_proc_statements(project_root: Path, writer_fqn: str) -> list[dict[str, Any]]:
@@ -39,10 +38,7 @@ def load_proc_statements(project_root: Path, writer_fqn: str) -> list[dict[str, 
     cat = load_proc_catalog(project_root, writer_fqn)
     if cat is None:
         raise CatalogFileMissingError("procedure", writer_fqn)
-    statements = cat.get("statements")
-    if statements is None:
-        raise ValueError(f"Procedure catalog for {writer_fqn} has no 'statements' section")
-    return statements
+    return cat.statements
 
 
 def load_proc_body(project_root: Path, writer_fqn: str) -> str:
@@ -57,8 +53,8 @@ def load_proc_body(project_root: Path, writer_fqn: str) -> str:
 def load_table_columns(project_root: Path, table_fqn: str) -> list[dict[str, Any]]:
     """Load column list from the table catalog file."""
     cat = load_table_catalog(project_root, table_fqn)
-    if cat and cat.get("columns"):
-        return cat["columns"]
+    if cat and cat.columns:
+        return cat.columns
     return []
 
 
@@ -70,13 +66,13 @@ def load_source_columns(project_root: Path, source_fqn: str) -> list[dict[str, A
     """
     cat = load_table_catalog(project_root, source_fqn)
     if cat:
-        if cat.get("columns"):
-            return cat["columns"]
+        if cat.columns:
+            return cat.columns
         logger.warning("event=source_columns_empty source=%s catalog=tables", source_fqn)
-    cat = load_view_catalog(project_root, source_fqn)
-    if cat:
-        if cat.get("columns"):
-            return cat["columns"]
+    vcat = load_view_catalog(project_root, source_fqn)
+    if vcat:
+        if vcat.columns:
+            return vcat.columns
         logger.warning("event=source_columns_empty source=%s catalog=views", source_fqn)
     return []
 
@@ -92,12 +88,14 @@ def collect_source_tables(project_root: Path, writer_fqn: str) -> list[str]:
     cat = load_proc_catalog(project_root, writer_fqn)
     if cat is None:
         return []
-    refs = cat.get("references", {})
+    refs = cat.references
+    if refs is None:
+        return []
     sources: list[str] = []
-    for section in ("tables", "views"):
-        for entry in refs.get(section, {}).get("in_scope", []):
-            if entry.get("is_selected") and not entry.get("is_updated"):
-                sources.append(normalize(f"{entry['schema']}.{entry['name']}"))
+    for scoped in (refs.tables, refs.views):
+        for entry in scoped.in_scope:
+            if entry.is_selected and not entry.is_updated:
+                sources.append(normalize(f"{entry.object_schema}.{entry.name}"))
     return sorted(set(sources))
 
 
@@ -108,11 +106,11 @@ def load_object_columns(project_root: Path, fqn: str) -> list[dict[str, Any]]:
     whether the FQN refers to a table or a view.
     """
     cat = load_table_catalog(project_root, fqn)
-    if cat and cat.get("columns"):
-        return cat["columns"]
-    cat = load_view_catalog(project_root, fqn)
-    if cat and cat.get("columns"):
-        return cat["columns"]
+    if cat and cat.columns:
+        return cat.columns
+    vcat = load_view_catalog(project_root, fqn)
+    if vcat and vcat.columns:
+        return vcat.columns
     return []
 
 
@@ -137,7 +135,7 @@ def load_view_sql(project_root: Path, view_fqn: str) -> str | None:
     cat = load_view_catalog(project_root, view_fqn)
     if cat is None:
         return None
-    sql = cat.get("sql")
+    sql = (cat.model_extra or {}).get("sql")
     if not sql:
         logger.warning("event=view_sql_empty view=%s", view_fqn)
     return sql
