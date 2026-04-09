@@ -571,53 +571,11 @@ class SqlServerSandbox(SandboxBackend):
 
         Handles trigger disabling, FK constraint toggling, and IDENTITY_INSERT.
         The caller is responsible for opening/rolling-back the transaction.
-        """
-        # Replace any fixture-targeted views with tables BEFORE
-        # disabling triggers/FK constraints (those operations are
-        # only valid on tables, not views).
-        for fixture in fixtures:
-            table = fixture["table"]
-            cursor.execute(
-                "SELECT OBJECTPROPERTY(OBJECT_ID(?), 'IsView')", table
-            )
-            is_view_row = cursor.fetchone()
-            if is_view_row and is_view_row[0] == 1:
-                cursor.execute(
-                    "SELECT c.name, t.name AS data_type, "
-                    "c.max_length, c.precision, c.scale "
-                    "FROM sys.columns c "
-                    "JOIN sys.types t ON c.user_type_id = t.user_type_id "
-                    "WHERE c.object_id = OBJECT_ID(?) "
-                    "ORDER BY c.column_id",
-                    table,
-                )
-                col_defs: list[str] = []
-                for col_name, data_type, max_len, prec, scale in cursor.fetchall():
-                    _validate_identifier(col_name)
-                    if max_len == -1:
-                        col_defs.append(f"[{col_name}] {data_type}(MAX)")
-                    elif data_type in ("nvarchar", "nchar"):
-                        col_defs.append(f"[{col_name}] {data_type}({max_len // 2})")
-                    elif data_type in ("varchar", "char", "varbinary"):
-                        col_defs.append(f"[{col_name}] {data_type}({max_len})")
-                    elif data_type in ("decimal", "numeric") and prec is not None:
-                        col_defs.append(f"[{col_name}] {data_type}({prec},{scale})")
-                    else:
-                        col_defs.append(f"[{col_name}] {data_type}")
-                if not col_defs:
-                    raise ValueError(
-                        f"View {table} has no columns in the sandbox — "
-                        "cannot replace with a table for fixture seeding"
-                    )
-                cursor.execute(f"DROP VIEW {table}")
-                cursor.execute(
-                    f"CREATE TABLE {table} ({', '.join(col_defs)})"
-                )
-                logger.info(
-                    "event=view_replaced_with_table sandbox_db=%s table=%s columns=%d",
-                    sandbox_db, table, len(col_defs),
-                )
 
+        **Important:** View-to-table replacement must be done *before* starting
+        the transaction via ``_ensure_view_tables``, because DDL auto-commits
+        in SQL Server and would break the rollback guarantee.
+        """
         # Disable triggers on ALL user tables in the sandbox
         # before any INSERTs. Triggers may reference objects
         # that don't exist in the sandbox, causing spurious
@@ -976,6 +934,23 @@ class SqlServerSandbox(SandboxBackend):
             "event=compare_two_sql sandbox_db=%s",
             sandbox_db,
         )
+
+        try:
+            self._ensure_view_tables(sandbox_db, fixtures)
+        except pyodbc.Error as exc:
+            logger.error(
+                "event=view_materialize_failed sandbox_db=%s error=%s",
+                sandbox_db, exc,
+            )
+            return {
+                "status": "error",
+                "equivalent": False,
+                "a_count": 0,
+                "b_count": 0,
+                "a_minus_b": [],
+                "b_minus_a": [],
+                "errors": [{"code": "VIEW_MATERIALIZE_FAILED", "message": str(exc)}],
+            }
 
         try:
             with self._connect(database=sandbox_db) as conn:
