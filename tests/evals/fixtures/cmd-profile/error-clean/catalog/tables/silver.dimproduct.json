@@ -174,11 +174,9 @@
   },
   "scoping": {
     "status": "resolved",
-    "selected_writer": "silver.usp_load_DimProduct",
-    "selected_writer_rationale": "Single MERGE writer for DimProduct."
+    "selected_writer": "silver.usp_load_DimProduct"
   },
   "profile": {
-    "status": "ok",
     "writer": "silver.usp_load_dimproduct",
     "classification": {
       "resolved_kind": "dim_scd1",
@@ -201,11 +199,8 @@
       "rationale": "The MERGE ON clause joins on tgt.ProductAlternateKey = src.ProductAlternateKey, where the source value is CAST(ProductID AS NVARCHAR(25)) from bronze.Product, establishing this as the business natural key for the product entity."
     },
     "foreign_keys": [],
-    "pii_actions": []
-  },
-  "scoping": {
-    "status": "resolved",
-    "selected_writer": "silver.usp_load_DimProduct"
+    "pii_actions": [],
+    "status": "ok"
   },
   "refactor": {
     "status": "ok",
