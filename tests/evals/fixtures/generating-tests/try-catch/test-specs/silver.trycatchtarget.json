@@ -1,0 +1,171 @@
+{
+  "item_id": "silver.trycatchtarget",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {
+      "id": "try_path_successful_insert",
+      "statement_index": 0,
+      "description": "TRY block: INSERT succeeds with valid ProductName rows",
+      "scenarios": [
+        "test_try_path_single_valid_row",
+        "test_try_path_multiple_valid_rows"
+      ]
+    },
+    {
+      "id": "catch_path_error_handling",
+      "statement_index": 0,
+      "description": "CATCH block: Error occurs during INSERT, error handler executes",
+      "scenarios": [
+        "test_catch_path_duplicate_key_violation"
+      ]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_try_path_single_valid_row",
+      "model": "stg_trycatchtarget",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Road-150",
+              "ProductNumber": "PR-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "Color": null,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 10.0,
+              "ListPrice": 25.0,
+              "DaysToManufacture": 1,
+              "SellStartDate": "2024-01-01",
+              "ModifiedDate": "2024-01-01"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150"
+          }
+        ]
+      },
+      "target_table": "[silver].[TryCatchTarget]",
+      "procedure": "[silver].[usp_load_TryCatchTarget]"
+    },
+    {
+      "name": "test_try_path_multiple_valid_rows",
+      "model": "stg_trycatchtarget",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Road-150",
+              "ProductNumber": "PR-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "Color": null,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 10.0,
+              "ListPrice": 25.0,
+              "DaysToManufacture": 1,
+              "SellStartDate": "2024-01-01",
+              "ModifiedDate": "2024-01-01"
+            },
+            {
+              "ProductID": 2,
+              "ProductName": "Mountain-200",
+              "ProductNumber": "PR-002",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "Color": "Red",
+              "SafetyStockLevel": 150,
+              "ReorderPoint": 100,
+              "StandardCost": 20.0,
+              "ListPrice": 45.0,
+              "DaysToManufacture": 2,
+              "SellStartDate": "2024-02-01",
+              "ModifiedDate": "2024-02-01"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150"
+          },
+          {
+            "ProductAlternateKey": "2",
+            "EnglishProductName": "Mountain-200"
+          }
+        ]
+      },
+      "target_table": "[silver].[TryCatchTarget]",
+      "procedure": "[silver].[usp_load_TryCatchTarget]"
+    },
+    {
+      "name": "test_catch_path_duplicate_key_violation",
+      "model": "stg_trycatchtarget",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 99,
+              "ProductName": "Duplicate-Product",
+              "ProductNumber": "PR-099",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "Color": null,
+              "SafetyStockLevel": 200,
+              "ReorderPoint": 150,
+              "StandardCost": 30.0,
+              "ListPrice": 60.0,
+              "DaysToManufacture": 3,
+              "SellStartDate": "2024-03-01",
+              "ModifiedDate": "2024-03-01"
+            },
+            {
+              "ProductID": 99,
+              "ProductName": "Another-Duplicate",
+              "ProductNumber": "PR-099-DUP",
+              "MakeFlag": 0,
+              "FinishedGoodsFlag": 0,
+              "Color": "Blue",
+              "SafetyStockLevel": 250,
+              "ReorderPoint": 200,
+              "StandardCost": 35.0,
+              "ListPrice": 70.0,
+              "DaysToManufacture": 4,
+              "SellStartDate": "2024-04-01",
+              "ModifiedDate": "2024-04-01"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [],
+        "error": "Load failed: Violation of PRIMARY KEY constraint 'PK_TryCatchTarget'. Cannot insert duplicate key in object 'silver.TryCatchTarget'."
+      },
+      "target_table": "[silver].[TryCatchTarget]",
+      "procedure": "[silver].[usp_load_TryCatchTarget]"
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "errors": []
+}
