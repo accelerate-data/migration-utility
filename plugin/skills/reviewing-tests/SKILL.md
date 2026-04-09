@@ -158,6 +158,22 @@ Apply the following verdict rules:
 
 Maximum review iterations: 2.
 
+## Step 7: Validate and return
+
+Write the `TestReviewResult` JSON to `.staging/review.json`, then validate:
+
+```bash
+mkdir -p .staging
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness validate-review \
+  --review-file .staging/review.json
+```
+
+If validation fails (exit code 1), fix the JSON fields reported in the error and retry. After validation passes, return the JSON and clean up:
+
+```bash
+rm -rf .staging
+```
+
 ## Boundary rules
 
 Test reviewer must not:
@@ -180,5 +196,6 @@ Test reviewer must not:
 | `discover show` | 1 | View not found. Return `TestReviewResult` with `status: "error"` and code `CONTEXT_PREREQUISITE_MISSING` |
 | `discover show` | 2 | IO/parse error. Return `TestReviewResult` with `status: "error"` and code `CONTEXT_IO_ERROR` |
 | `test-specs/<item_id>.json` | missing | Return `TestReviewResult` with `status: "error"` and code `TEST_SPEC_MISSING` |
+| `test-harness validate-review` | 1 | Validation failure — fix the JSON fields reported in the error and retry |
 
 Return a valid `TestReviewResult` JSON for all error paths.

@@ -536,5 +536,47 @@ def write_cmd(
     emit(result)
 
 
+# ── Validate review output ───────────────────────────────────────────────────
+
+
+def run_validate_review(review_file: Path) -> dict[str, Any]:
+    """Validate a test review JSON file against test_review_output.json schema.
+
+    Returns {"valid": true} on success.
+    Raises ValueError with field-level errors on validation failure.
+    """
+    if not review_file.exists():
+        raise ValueError(f"Review file not found: {review_file}")
+
+    try:
+        review_data = json.loads(review_file.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError(f"Review file is not valid JSON: {review_file}. Parse error: {exc}") from exc
+
+    schema, registry = _load_schema_with_store("test_review_output.json")
+    validator = Draft202012Validator(schema, registry=registry)
+    errors = sorted(validator.iter_errors(review_data), key=lambda err: list(err.absolute_path))
+    if errors:
+        raise ValueError(
+            f"Review schema validation failed: {_format_validation_errors(errors)}"
+        )
+
+    return {"valid": True}
+
+
+@app.command("validate-review")
+def validate_review_cmd(
+    review_file: Path = typer.Option(..., "--review-file", help="Path to review JSON file"),
+) -> None:
+    """Validate a test review result against test_review_output.json schema."""
+    try:
+        result = run_validate_review(review_file)
+    except ValueError as exc:
+        logger.error("event=validate_review_failed file=%s error=%s", review_file, exc)
+        emit({"valid": False, "error": str(exc)})
+        raise typer.Exit(code=1) from exc
+    emit(result)
+
+
 if __name__ == "__main__":
     app()
