@@ -194,6 +194,46 @@ class GenerateSection(BaseModel):
     errors: list[Any] = []
 
 
+# ── Skill output models ────────────────────────────────────────────────────
+
+
+class ReviewCoverageSection(BaseModel):
+    """Coverage scoring from the reviewing-tests skill."""
+
+    model_config = ConfigDict(extra="allow")
+
+    total_branches: int = 0
+    covered_branches: int = 0
+    untestable_branches: int = 0
+    score: str = ""
+    uncovered: list[Any] = []
+    untestable: list[Any] = []
+
+
+class ReviewFeedbackSection(BaseModel):
+    """Feedback for the test generator from the reviewing-tests skill."""
+
+    model_config = ConfigDict(extra="allow")
+
+    uncovered_branches: list[str] = []
+    quality_fixes: list[str] = []
+
+
+class TestReviewResult(BaseModel):
+    """Output of the reviewing-tests skill."""
+
+    model_config = ConfigDict(extra="allow")
+
+    item_id: str = ""
+    status: str = ""
+    reviewer_branch_manifest: list[Any] = []
+    coverage: ReviewCoverageSection = ReviewCoverageSection()
+    quality_issues: list[Any] = []
+    feedback_for_generator: ReviewFeedbackSection = ReviewFeedbackSection()
+    warnings: list[Any] = []
+    errors: list[Any] = []
+
+
 # ── Top-level catalog models ────────────────────────────────────────────────
 
 

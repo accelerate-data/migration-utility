@@ -19,7 +19,7 @@ from shared.catalog import (
     load_and_merge_catalog,
     write_json as _write_catalog_json,
 )
-from shared.catalog_models import TestGenSection
+from shared.catalog_models import TestGenSection, TestReviewResult
 from shared.cli_utils import emit
 from shared.env_config import resolve_catalog_dir, resolve_project_root
 from shared.loader import CatalogFileMissingError, CatalogLoadError
@@ -560,6 +560,8 @@ def run_validate_review(review_file: Path) -> dict[str, Any]:
         raise ValueError(
             f"Review schema validation failed: {_format_validation_errors(errors)}"
         )
+
+    TestReviewResult.model_validate(review_data)
 
     return {"valid": True}
 
