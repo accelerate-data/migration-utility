@@ -25,7 +25,7 @@ from shared.block_segmenter import (
     WhileNode,
     segment_sql,
 )
-from shared.catalog import scan_routing_flags
+from shared.routing import scan_routing_flags
 from shared.loader_data import DdlEntry, DdlParseError, ObjectRefs
 from shared.name_resolver import normalize
 

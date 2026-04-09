@@ -50,7 +50,7 @@ _EXEC_PROC_RE = re.compile(
     re.IGNORECASE,
 )
 
-from shared.catalog import DYNAMIC_EXEC_BROAD_RE as _DYNAMIC_EXEC_RE
+from shared.routing import DYNAMIC_EXEC_BROAD_RE as _DYNAMIC_EXEC_RE
 
 
 def _extract_calls(raw_ddl: str) -> list[str]:
