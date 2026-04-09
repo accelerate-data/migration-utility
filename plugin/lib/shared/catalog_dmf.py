@@ -13,7 +13,6 @@ from typing import Any
 
 from shared.catalog import (
     write_function_catalog,
-    write_object_catalog,
     write_proc_catalog,
     write_table_catalog,
     write_view_catalog,

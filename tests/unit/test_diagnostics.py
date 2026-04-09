@@ -1106,34 +1106,34 @@ class TestMaterializedViewFlag:
 
         assert result is None
 
-    def test_write_object_catalog_sets_mv_flag(self):
-        """write_object_catalog persists is_materialized_view when True."""
-        from shared.catalog import write_object_catalog
+    def test_write_view_catalog_sets_mv_flag(self):
+        """write_view_catalog persists is_materialized_view when True."""
+        from shared.catalog import write_view_catalog
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _git_init(root)
             (root / "catalog" / "views").mkdir(parents=True)
 
-            p = write_object_catalog(
-                root, "views", "sh.mv_sales",
+            p = write_view_catalog(
+                root, "sh.mv_sales",
                 _empty_refs(),
                 is_materialized_view=True,
             )
             data = json.loads(p.read_text())
             assert data["is_materialized_view"] is True
 
-    def test_write_object_catalog_omits_mv_flag_when_false(self):
-        """write_object_catalog does not include is_materialized_view when False."""
-        from shared.catalog import write_object_catalog
+    def test_write_view_catalog_omits_mv_flag_when_false(self):
+        """write_view_catalog does not include is_materialized_view when False."""
+        from shared.catalog import write_view_catalog
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _git_init(root)
             (root / "catalog" / "views").mkdir(parents=True)
 
-            p = write_object_catalog(
-                root, "views", "sh.vw_regular",
+            p = write_view_catalog(
+                root, "sh.vw_regular",
                 _empty_refs(),
             )
             data = json.loads(p.read_text())

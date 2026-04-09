@@ -303,64 +303,6 @@ def write_proc_table_slice(
     return cat_path
 
 
-def write_object_catalog(
-    project_root: Path,
-    object_type: str,
-    fqn: str,
-    references: dict[str, list[dict[str, Any]]],
-    *,
-    needs_llm: bool = False,
-    needs_enrich: bool = False,
-    mode: str | None = None,
-    routing_reasons: list[str] | None = None,
-    params: list[dict[str, Any]] | None = None,
-    ddl_hash: str | None = None,
-    sql: str | None = None,
-    columns: list[dict[str, Any]] | None = None,
-    is_materialized_view: bool = False,
-    dmf_errors: list[str] | None = None,
-    subtype: str | None = None,
-    segmenter_error: str | None = None,
-    long_truncation: bool = False,
-) -> Path:
-    """Write a proc/view/function catalog file.  Returns the written path."""
-    norm = normalize(fqn)
-    schema, name = fqn_parts(norm)
-    data: dict[str, Any] = {"schema": schema, "name": name, "references": references}
-    if object_type == "views":
-        data["excluded"] = False
-    if is_materialized_view:
-        data["is_materialized_view"] = True
-    if ddl_hash is not None:
-        data["ddl_hash"] = ddl_hash
-    if params is not None:
-        data["params"] = params
-    if needs_llm:
-        data["needs_llm"] = True
-    if needs_enrich:
-        data["needs_enrich"] = True
-    if mode is not None:
-        data["mode"] = mode
-    if routing_reasons is not None:
-        data["routing_reasons"] = routing_reasons
-    if sql is not None:
-        data["sql"] = sql
-    if columns is not None:
-        data["columns"] = columns
-    if dmf_errors:
-        data["dmf_errors"] = dmf_errors
-    if subtype is not None:
-        data["subtype"] = subtype
-    if segmenter_error is not None:
-        data["segmenter_error"] = segmenter_error
-    if long_truncation:
-        data["long_truncation"] = True
-
-    p = _object_path(project_root, object_type, norm)
-    write_json(p, data)
-    return p
-
-
 def _write_catalog_json(
     project_root: Path, object_type: str, norm_fqn: str, data: dict[str, Any]
 ) -> Path:

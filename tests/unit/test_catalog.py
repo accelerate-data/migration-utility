@@ -18,7 +18,7 @@ from shared.catalog import (
     read_selected_writer,
     restore_enriched_fields,
     snapshot_enriched_fields,
-    write_object_catalog,
+    write_proc_catalog,
     write_proc_statements,
     write_table_catalog,
 )
@@ -124,7 +124,7 @@ def test_write_object_catalog_round_trip() -> None:
             "functions": {"in_scope": [], "out_of_scope": []},
             "procedures": {"in_scope": [], "out_of_scope": []},
         }
-        write_object_catalog(ddl_path, "procedures", "dbo.usp_test", refs)
+        write_proc_catalog(ddl_path, "dbo.usp_test", refs)
         loaded = load_proc_catalog(ddl_path, "dbo.usp_test")
         assert loaded is not None
         assert loaded.references.tables.in_scope[0].name == "T1"
@@ -440,7 +440,7 @@ def test_write_object_catalog_with_needs_llm_flag() -> None:
             "functions": {"in_scope": [], "out_of_scope": []},
             "procedures": {"in_scope": [], "out_of_scope": []},
         }
-        write_object_catalog(ddl_path, "procedures", "dbo.usp_dynamic", refs, needs_llm=True)
+        write_proc_catalog(ddl_path, "dbo.usp_dynamic", refs, needs_llm=True)
         loaded = load_proc_catalog(ddl_path, "dbo.usp_dynamic")
         assert loaded is not None
         assert loaded.needs_llm is True
@@ -456,7 +456,7 @@ def test_write_object_catalog_with_needs_enrich_flag() -> None:
             "functions": {"in_scope": [], "out_of_scope": []},
             "procedures": {"in_scope": [], "out_of_scope": []},
         }
-        write_object_catalog(ddl_path, "procedures", "dbo.usp_static", refs, needs_enrich=True)
+        write_proc_catalog(ddl_path, "dbo.usp_static", refs, needs_enrich=True)
         loaded = load_proc_catalog(ddl_path, "dbo.usp_static")
         assert loaded is not None
         assert loaded.needs_enrich is True
@@ -472,7 +472,7 @@ def test_write_object_catalog_no_flags() -> None:
             "functions": {"in_scope": [], "out_of_scope": []},
             "procedures": {"in_scope": [], "out_of_scope": []},
         }
-        write_object_catalog(ddl_path, "procedures", "dbo.usp_plain", refs)
+        write_proc_catalog(ddl_path, "dbo.usp_plain", refs)
         loaded = load_proc_catalog(ddl_path, "dbo.usp_plain")
         assert loaded is not None
         assert loaded.needs_llm is False
@@ -488,9 +488,8 @@ def test_write_object_catalog_with_routing_summary() -> None:
             "functions": {"in_scope": [], "out_of_scope": []},
             "procedures": {"in_scope": [], "out_of_scope": []},
         }
-        write_object_catalog(
+        write_proc_catalog(
             ddl_path,
-            "procedures",
             "dbo.usp_route",
             refs,
             mode="control_flow_fallback",
@@ -702,7 +701,7 @@ def test_multi_table_write_no_inline_warning() -> None:
     """write_object_catalog no longer emits MULTI_TABLE_WRITE inline (moved to diagnostics runner)."""
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
-        write_object_catalog(root, "procedures", "dbo.usp_multi", _multi_table_refs(2))
+        write_proc_catalog(root, "dbo.usp_multi", _multi_table_refs(2))
         loaded = load_proc_catalog(root, "dbo.usp_multi")
         assert loaded is not None
         assert not hasattr(loaded, "warnings")
