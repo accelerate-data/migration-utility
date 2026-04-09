@@ -65,7 +65,9 @@ def object_pipeline_status(
 ) -> str:
     """Determine the first incomplete pipeline stage for an object.
 
-    Uses direct status field reads from catalog files rather than inference.
+    Delegates to ``_compute_status_and_diagnostics`` and discards the
+    diagnostics.  Use ``_compute_status_and_diagnostics`` directly when
+    both status and diagnostics are needed to avoid redundant catalog loads.
 
     Returns one of:
         scope_needed    — not yet scoped / view not yet analyzed
@@ -76,68 +78,8 @@ def object_pipeline_status(
         complete        — dbt model exists
         n_a             — writerless table (writer-dependent stages N/A)
     """
-    if obj_type in ("view", "mv"):
-        try:
-            cat = load_view_catalog(project_root, fqn)
-        except (json.JSONDecodeError, OSError, CatalogLoadError):
-            return "scope_needed"
-        if cat is None:
-            return "scope_needed"
-        scoping_status = cat.scoping.status if cat.scoping else None
-        if scoping_status != "analyzed":
-            return "scope_needed"
-        profile_status = cat.profile.status if cat.profile else None
-        if profile_status not in ("ok", "partial"):
-            return "profile_needed"
-        test_gen_status = cat.test_gen.status if cat.test_gen else None
-        if test_gen_status != "ok":
-            return "test_gen_needed"
-        refactor_status = cat.refactor.status if cat.refactor else None
-        if refactor_status != "ok":
-            return "refactor_needed"
-        generate_status = cat.generate.status if cat.generate else None
-        if generate_status != "ok":
-            return "migrate_needed"
-        return "complete"
-
-    # TABLE
-    try:
-        cat = load_table_catalog(project_root, fqn)
-    except (json.JSONDecodeError, OSError, CatalogLoadError):
-        return "scope_needed"
-    if cat is None:
-        return "scope_needed"
-
-    scoping_status = cat.scoping.status if cat.scoping else None
-    if scoping_status == "no_writer_found":
-        return "n_a"
-    if scoping_status != "resolved":
-        return "scope_needed"
-
-    profile_status = cat.profile.status if cat.profile else None
-    if profile_status not in ("ok", "partial"):
-        return "profile_needed"
-
-    test_gen_status = cat.test_gen.status if cat.test_gen else None
-    if test_gen_status != "ok":
-        return "test_gen_needed"
-
-    writer = cat.scoping.selected_writer if cat.scoping else None
-    if writer:
-        writer_norm = normalize(writer)
-        try:
-            proc_cat = load_proc_catalog(project_root, writer_norm)
-        except (json.JSONDecodeError, OSError, CatalogLoadError):
-            proc_cat = None
-        refactor_status = proc_cat.refactor.status if proc_cat and proc_cat.refactor else None
-        if refactor_status != "ok":
-            return "refactor_needed"
-
-    generate_status = cat.generate.status if cat.generate else None
-    if generate_status != "ok":
-        return "migrate_needed"
-
-    return "complete"
+    status, _ = _compute_status_and_diagnostics(project_root, fqn, obj_type, dbt_root)
+    return status
 
 
 # ── Diagnostics ──────────────────────────────────────────────────────────────
