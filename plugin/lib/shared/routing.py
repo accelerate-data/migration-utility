@@ -70,7 +70,6 @@ def scan_routing_flags(definition: str) -> dict[str, bool]:
     ``{"needs_llm", "needs_enrich", "mode", "routing_reasons"}``.
     """
     masked = mask_tsql(definition)
-    masked_for_exec = mask_tsql(definition, mask_bracketed_identifiers=False)
     reasons: list[str] = []
 
     for pattern, reason in _CONTROL_FLOW_REASONS:
