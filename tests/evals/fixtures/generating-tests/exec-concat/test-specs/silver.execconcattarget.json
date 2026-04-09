@@ -45,7 +45,15 @@
             }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150"
+          }
+        ]
+      }
     },
     {
       "name": "test_exec_concat_empty_source_no_rows",
@@ -56,7 +64,10 @@
           "table": "[bronze].[Product]",
           "rows": []
         }
-      ]
+      ],
+      "expect": {
+        "rows": []
+      }
     }
   ],
   "uncovered_branches": [],
@@ -65,7 +76,7 @@
       "code": "DYNAMIC_SQL_RECOVERED",
       "message": "Write logic is executed via a SQL string assembled through concatenation before EXEC. The final SQL is not statically visible at parse time, but LLM-recovered SQL is available and has been used as the basis for test scenarios.",
       "item_id": "silver.execconcattarget",
-      "severity": "info",
+      "severity": "warning",
       "details": {
         "routing": "dynamic_sql_variable",
         "recovered_sql": "INSERT INTO silver.ExecConcatTarget (ProductAlternateKey, EnglishProductName) SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product"
