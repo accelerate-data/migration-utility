@@ -1,0 +1,54 @@
+{
+  "schema": "silver",
+  "name": "usp_stage_factinternetsales",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "SalesOrderHeader",
+          "is_selected": true,
+          "is_updated": false
+        },
+        {
+          "schema": "bronze",
+          "name": "SalesOrderDetail",
+          "is_selected": true,
+          "is_updated": false
+        },
+        {
+          "schema": "silver",
+          "name": "FactInternetSales",
+          "is_selected": false,
+          "is_updated": true
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "statements": [
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "source": "llm",
+      "sql": "INSERT INTO [silver].[FactInternetSales] SELECT ... FROM [bronze].[SalesOrderHeader] INNER JOIN [bronze].[SalesOrderDetail] ... ROW_NUMBER() OVER (PARTITION BY SalesOrderID ORDER BY SalesOrderDetailID)",
+      "rationale": "Core INSERT INTO statement with window function (ROW_NUMBER) for tax/freight distribution across detail lines."
+    }
+  ],
+  "mode": "deterministic",
+  "routing_reasons": [],
+  "needs_llm": false,
+  "needs_enrich": false
+}
