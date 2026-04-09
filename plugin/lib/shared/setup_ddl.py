@@ -619,7 +619,7 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
                     table_data["is_materialized_view"] = True
                     views_dir = catalog_dir / "views"
                     views_dir.mkdir(parents=True, exist_ok=True)
-                    write_json(views_dir / f"{fqn}.json", table_data)
+                    _write_catalog_json(views_dir / f"{fqn}.json", table_data)
                     table_path.unlink()
                 except (json.JSONDecodeError, OSError) as exc:
                     logger.warning("event=mv_reclassify_error fqn=%s error=%s", fqn, exc)

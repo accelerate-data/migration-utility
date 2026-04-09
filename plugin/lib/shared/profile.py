@@ -25,6 +25,7 @@ from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
 from shared.catalog import (
+    load_and_merge_catalog,
     load_proc_catalog,
     load_table_catalog,
     load_view_catalog,
@@ -430,34 +431,9 @@ def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> d
     profile_json["status"] = status
     _validate_schema_fragment(profile_json, "table_catalog.json", "$defs/profile_section")
 
-    # Load existing catalog file
-    catalog_path = resolve_catalog_dir(project_root) / "tables" / f"{norm}.json"
-    if not catalog_path.exists():
-        raise CatalogFileMissingError("table", norm)
-
-    try:
-        existing = json.loads(catalog_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        raise CatalogLoadError(str(catalog_path), exc) from exc
-    except OSError as exc:
-        logger.error("event=write_failed operation=read_catalog table=%s error=%s", norm, exc)
-        raise
-
-    # Merge profile section
-    existing["profile"] = profile_json
-
-    try:
-        _write_catalog_json(catalog_path, existing)
-    except OSError as exc:
-        logger.error("event=write_failed operation=atomic_write table=%s error=%s", norm, exc)
-        raise
-
-    logger.info("event=write_complete table=%s catalog_path=%s", norm, catalog_path)
-    return {
-        "ok": True,
-        "table": norm,
-        "catalog_path": str(catalog_path),
-    }
+    result = load_and_merge_catalog(project_root, norm, "profile", profile_json)
+    logger.info("event=write_complete table=%s catalog_path=%s", norm, result["catalog_path"])
+    return result
 
 
 # ── CLI commands ─────────────────────────────────────────────────────────────

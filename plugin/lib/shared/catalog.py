@@ -241,6 +241,53 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
         raise
 
 
+def resolve_catalog_path(project_root: Path, fqn: str) -> Path:
+    """Resolve the catalog JSON path for a table or view FQN.
+
+    Checks views first, then tables. Raises CatalogFileMissingError if neither exists.
+    """
+    catalog_dir = resolve_catalog_dir(project_root)
+    view_path = catalog_dir / "views" / f"{fqn}.json"
+    if view_path.exists():
+        return view_path
+    table_path = catalog_dir / "tables" / f"{fqn}.json"
+    if table_path.exists():
+        return table_path
+    raise CatalogFileMissingError("table or view", fqn)
+
+
+def load_and_merge_catalog(
+    project_root: Path,
+    fqn: str,
+    section_key: str,
+    section_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Load a catalog file, merge a section into it, and write it back atomically.
+
+    Auto-detects table vs view by checking catalog/views/ first, then catalog/tables/.
+    Returns a confirmation dict with ``ok``, ``table``, ``status``, and ``catalog_path``.
+
+    Raises CatalogFileMissingError if no catalog file exists for the FQN.
+    Raises CatalogLoadError on corrupt JSON.
+    """
+    cat_path = resolve_catalog_path(project_root, fqn)
+
+    try:
+        existing = json.loads(cat_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise CatalogLoadError(str(cat_path), exc) from exc
+
+    existing[section_key] = section_data
+    write_json(cat_path, existing)
+
+    return {
+        "ok": True,
+        "table": fqn,
+        "status": section_data.get("status", "ok"),
+        "catalog_path": str(cat_path),
+    }
+
+
 def ensure_references(data: dict[str, Any]) -> dict[str, Any]:
     """Ensure a proc/view/function catalog dict has a full references structure."""
     if "references" not in data:

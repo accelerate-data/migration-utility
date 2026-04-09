@@ -27,6 +27,7 @@ import typer
 
 from shared.catalog import (
     has_catalog,
+    load_and_merge_catalog,
     load_proc_catalog,
     load_table_catalog,
     read_selected_writer,
@@ -380,30 +381,9 @@ def run_write_generate(
         "errors": errors or [],
     }
 
-    # Auto-detect table vs view: check view catalog first
-    catalog_dir = resolve_catalog_dir(project_root)
-    cat_path = catalog_dir / "views" / f"{norm}.json"
-    if not cat_path.exists():
-        cat_path = catalog_dir / "tables" / f"{norm}.json"
-    if not cat_path.exists():
-        raise CatalogFileMissingError("table or view", norm)
-
-    # Load existing catalog, merge, write back
-    try:
-        existing = json.loads(cat_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        raise CatalogLoadError(str(cat_path), exc) from exc
-
-    existing["generate"] = generate
-
-    try:
-        _write_catalog_json(cat_path, existing)
-    except OSError as exc:
-        logger.error("event=write_failed operation=atomic_write table=%s error=%s", norm, exc)
-        raise
-
+    result = load_and_merge_catalog(project_root, norm, "generate", generate)
     logger.info("event=write_generate_complete table=%s status=%s", norm, status)
-    return {"ok": True, "table": norm, "status": status, "catalog_path": str(cat_path)}
+    return result
 
 
 @app.command("write-catalog")

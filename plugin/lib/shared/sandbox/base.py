@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import re
+import uuid
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
@@ -53,6 +56,54 @@ def validate_fixture_rows(table: str, rows: list[dict[str, Any]]) -> None:
                 f"Fixture row {i} for table {table!r} has "
                 f"different keys than row 0"
             )
+
+
+def generate_sandbox_name() -> str:
+    """Generate a random sandbox database/schema name."""
+    return f"__test_{uuid.uuid4().hex[:12]}"
+
+
+def validate_fixtures(
+    fixtures: list[dict[str, Any]],
+    validate_name: Callable[[str], None],
+) -> None:
+    """Validate fixture structure: table names, column names, row consistency.
+
+    ``validate_name`` is the backend-specific identifier validator
+    (e.g. ``_validate_identifier`` for SQL Server, ``_validate_oracle_identifier``
+    for Oracle).
+    """
+    for fixture in fixtures:
+        validate_name(fixture["table"])
+        rows = fixture.get("rows", [])
+        if rows:
+            for col_name in rows[0].keys():
+                validate_name(col_name)
+            validate_fixture_rows(fixture["table"], rows)
+
+
+def validate_readonly_sql(sql: str, write_re: re.Pattern[str]) -> None:
+    """Reject SQL that contains write operations.
+
+    ``write_re`` is the backend-specific compiled regex of write keywords.
+    Raises ValueError if the SQL is empty or contains write operations.
+    """
+    if not sql or not sql.strip():
+        raise ValueError("SQL is empty")
+    match = write_re.search(sql)
+    if match:
+        keyword = match.group(1)
+        raise ValueError(
+            f"SQL contains write operation '{keyword}'. "
+            "Only SELECT/WITH statements are allowed."
+        )
+
+
+def capture_rows(cursor: Any) -> list[dict[str, Any]]:
+    """Read all rows from the current cursor result set as dicts."""
+    from shared.db_connect import cursor_to_dicts
+
+    return cursor_to_dicts(cursor)
 
 
 class SandboxBackend(ABC):

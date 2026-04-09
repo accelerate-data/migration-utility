@@ -20,6 +20,7 @@ from shared.diagnostics import (
     _THRESHOLDS,
     diagnostic,
 )
+from shared.env_config import resolve_catalog_dir
 
 logger = logging.getLogger(__name__)
 
@@ -243,9 +244,7 @@ def _load_catalog_json(catalog_dir: Path, bucket: str, fqn: str) -> dict[str, An
 )
 def check_circular_reference(ctx: CatalogContext) -> DiagnosticResult | None:
     """Detect cycles in procedure EXEC call chains via BFS."""
-    catalog_dir = ctx.project_root / "catalog"
-    if not catalog_dir.is_dir():
-        catalog_dir = ctx.project_root / "catalog"
+    catalog_dir = resolve_catalog_dir(ctx.project_root)
 
     refs = ctx.catalog_data.get("references", {})
     proc_refs = refs.get("procedures", {}).get("in_scope", [])
@@ -375,7 +374,7 @@ def check_transitive_scope_leak(ctx: CatalogContext) -> list[DiagnosticResult] |
 def check_nested_view_chain(ctx: CatalogContext) -> DiagnosticResult | None:
     """Flag views with deeply nested view-to-view chains (tables are leaves)."""
     threshold = _THRESHOLDS["NESTED_VIEW_CHAIN_DEPTH"]
-    catalog_dir = ctx.project_root / "catalog"
+    catalog_dir = resolve_catalog_dir(ctx.project_root)
 
     refs = ctx.catalog_data.get("references", {})
     view_refs = refs.get("views", {}).get("in_scope", [])

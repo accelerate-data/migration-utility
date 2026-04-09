@@ -30,7 +30,15 @@ from typing import Any
 import oracledb
 
 from shared.db_connect import cursor_to_dicts
-from shared.sandbox.base import SandboxBackend, serialize_rows, validate_fixture_rows
+from shared.sandbox.base import (
+    SandboxBackend,
+    capture_rows as _capture_rows_base,
+    generate_sandbox_name,
+    serialize_rows,
+    validate_fixtures as _validate_fixtures_base,
+    validate_fixture_rows,
+    validate_readonly_sql as _validate_readonly_sql_base,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +71,7 @@ def _validate_oracle_sandbox_name(sandbox_schema: str) -> None:
 
 def _generate_oracle_sandbox_name() -> str:
     """Generate a unique sandbox schema name in the ``__test_<hex>`` format."""
-    return f"__test_{uuid.uuid4().hex[:12]}"
+    return generate_sandbox_name()
 
 
 _ORA_TYPE_DEFAULTS: dict[str, Any] = {
@@ -113,13 +121,7 @@ def _get_oracle_not_null_defaults(
 
 def _validate_fixtures(fixtures: list[dict[str, Any]]) -> None:
     """Validate fixture structure: table names, column names, row consistency."""
-    for fixture in fixtures:
-        _validate_oracle_identifier(fixture["table"])
-        rows = fixture.get("rows", [])
-        if rows:
-            for col_name in rows[0].keys():
-                _validate_oracle_identifier(col_name)
-            validate_fixture_rows(fixture["table"], rows)
+    _validate_fixtures_base(fixtures, _validate_oracle_identifier)
 
 
 _WRITE_SQL_RE = re.compile(
@@ -133,15 +135,7 @@ def _validate_readonly_sql(sql: str) -> None:
 
     The refactored SQL must be a pure SELECT (WITH ... SELECT) statement.
     """
-    if not sql or not sql.strip():
-        raise ValueError("SQL is empty")
-    if _WRITE_SQL_RE.search(sql):
-        match = _WRITE_SQL_RE.search(sql)
-        keyword = match.group(1) if match else "unknown"
-        raise ValueError(
-            f"SQL contains write operation '{keyword}'. "
-            "Only SELECT/WITH statements are allowed."
-        )
+    _validate_readonly_sql_base(sql, _WRITE_SQL_RE)
 
 
 class OracleSandbox(SandboxBackend):
@@ -671,7 +665,7 @@ class OracleSandbox(SandboxBackend):
     @staticmethod
     def _capture_rows(cursor: Any) -> list[dict[str, Any]]:
         """Read all rows from the current cursor result set as dicts."""
-        return cursor_to_dicts(cursor)
+        return _capture_rows_base(cursor)
 
     def execute_scenario(
         self,
