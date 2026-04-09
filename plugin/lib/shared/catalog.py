@@ -75,36 +75,12 @@ _LINKED_SERVER_EXEC_RE = re.compile(
     r"(?:\[[^\]]+\]|\w+)\s*\.\s*(?:\[[^\]]+\]|\w+)\s*\.\s*(?:\[[^\]]+\]|\w+)\s*\.\s*(?:\[[^\]]+\]|\w+)",
     re.IGNORECASE,
 )
-# ── Schemas (TypedDict-style, but plain dicts in practice) ──────────────────
-#
-# We define the shapes here as documentation.  At runtime everything is
-# ``dict[str, Any]`` — no Pydantic overhead for what are pure serialisation
-# containers.
-#
-# ReferenceEntry:
-#   schema: str
-#   name: str
-#   is_selected: bool
-#   is_updated: bool
-#   is_insert_all: bool          (procs only)
-#   columns: list[ColumnRef]     (optional)
-#
-# ColumnRef:
-#   name: str
-#   is_selected: bool
-#   is_updated: bool
-#
-# TableCatalog:
-#   primary_keys: list[PrimaryKey]
-#   unique_indexes: list[UniqueIndex]
-#   foreign_keys: list[ForeignKey]
-#   auto_increment_columns: list[dict]   (column, mechanism, seed?, increment?)
-#   change_capture: {enabled: bool, mechanism: str} | None
-#   sensitivity_classifications: list[SensitivityEntry]
-#   referenced_by: {procedures: [...], views: [...], functions: [...]}
-#
-# ProcCatalog / ViewCatalog / FunctionCatalog:
-#   references: {tables: [...], views: [...], functions: [...], procedures: [...]}
+from shared.catalog_models import (
+    FunctionCatalog,
+    ProcedureCatalog,
+    TableCatalog,
+    ViewCatalog,
+)
 
 
 # ── File naming ─────────────────────────────────────────────────────────────
@@ -145,27 +121,31 @@ def _load_catalog_file(project_root: Path, object_type: str, fqn: str) -> dict[s
         raise CatalogLoadError(str(p), exc) from exc
 
 
-def load_table_catalog(project_root: Path, table_fqn: str) -> dict[str, Any] | None:
-    return _load_catalog_file(project_root, "tables", table_fqn)
+def load_table_catalog(project_root: Path, table_fqn: str) -> TableCatalog | None:
+    data = _load_catalog_file(project_root, "tables", table_fqn)
+    return TableCatalog.model_validate(data) if data is not None else None
 
 
-def load_proc_catalog(project_root: Path, proc_fqn: str) -> dict[str, Any] | None:
-    return _load_catalog_file(project_root, "procedures", proc_fqn)
+def load_proc_catalog(project_root: Path, proc_fqn: str) -> ProcedureCatalog | None:
+    data = _load_catalog_file(project_root, "procedures", proc_fqn)
+    return ProcedureCatalog.model_validate(data) if data is not None else None
 
 
-def load_view_catalog(project_root: Path, view_fqn: str) -> dict[str, Any] | None:
-    return _load_catalog_file(project_root, "views", view_fqn)
+def load_view_catalog(project_root: Path, view_fqn: str) -> ViewCatalog | None:
+    data = _load_catalog_file(project_root, "views", view_fqn)
+    return ViewCatalog.model_validate(data) if data is not None else None
 
 
-def load_function_catalog(project_root: Path, func_fqn: str) -> dict[str, Any] | None:
-    return _load_catalog_file(project_root, "functions", func_fqn)
+def load_function_catalog(project_root: Path, func_fqn: str) -> FunctionCatalog | None:
+    data = _load_catalog_file(project_root, "functions", func_fqn)
+    return FunctionCatalog.model_validate(data) if data is not None else None
 
 
-def load_mv_catalog(project_root: Path, view_fqn: str) -> dict[str, Any] | None:
+def load_mv_catalog(project_root: Path, view_fqn: str) -> ViewCatalog | None:
     """Load a materialized view catalog entry (a view with is_materialized_view=True)."""
-    cat = _load_catalog_file(project_root, "views", view_fqn)
-    if cat is not None and cat.get("is_materialized_view"):
-        return cat
+    data = _load_catalog_file(project_root, "views", view_fqn)
+    if data is not None and data.get("is_materialized_view"):
+        return ViewCatalog.model_validate(data)
     return None
 
 
@@ -178,10 +158,9 @@ def read_selected_writer(project_root: Path, table_fqn: str) -> str | None:
     cat = load_table_catalog(project_root, table_fqn)
     if cat is None:
         return None
-    scoping = cat.get("scoping")
-    if scoping is None:
+    if cat.scoping is None:
         return None
-    return scoping.get("selected_writer")
+    return cat.scoping.selected_writer
 
 
 # ── Routing flag detection ──────────────────────────────────────────────────
