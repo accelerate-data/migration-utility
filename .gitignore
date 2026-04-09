@@ -27,6 +27,7 @@ tests/output/
 tests/evals/fixtures/**/.migration-runs/*.json
 tests/evals/fixtures/**/model-review-results/*.json
 tests/evals/fixtures/**/test-review-results/*.json
+tests/evals/fixtures/**/context.json
 
 # IDE and tool directories
 .vscode/
