@@ -133,17 +133,9 @@ The actual profile data lives in the catalog file, not duplicated in the run log
 
 ## Error and Warning Codes
 
-| Code | Severity | When |
-|---|---|---|
-| `MANIFEST_NOT_FOUND` | error | manifest.json missing — all items fail |
-| `CATALOG_FILE_MISSING` | error | catalog/tables/\<item_id>.json not found — skip item |
-| `VIEW_CATALOG_FILE_MISSING` | error | catalog/views/\<item_id>.json not found — skip item |
-| `SCOPING_NOT_COMPLETED` | error | scoping section missing or no selected_writer — skip table item |
-| `VIEW_SCOPING_NOT_COMPLETED` | error | view scoping.status not analyzed — skip view item |
-| `PROFILING_FAILED` | error | `/profiling-table` or `/profiling-view` skill pipeline failed — skip item |
-| `PARTIAL_PROFILE` | warning | LLM could not answer a required question — item proceeds as partial |
+Use the canonical `/profile` code list in [../lib/shared/profile_error_codes.md](../lib/shared/profile_error_codes.md).
 
-Each entry in `errors[]` or `warnings[]`:
+Each entry in `errors[]` or `warnings[]` uses this shape:
 
 ```json
 {"code": "PARTIAL_PROFILE", "message": "Could not determine watermark column for silver.dimcustomer.", "item_id": "silver.dimcustomer", "severity": "warning"}

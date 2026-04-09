@@ -21,6 +21,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 import typer
+from jsonschema import Draft202012Validator
+from referencing import Registry, Resource
 
 from shared.catalog import (
     load_proc_catalog,
@@ -43,6 +45,7 @@ from shared.name_resolver import normalize
 logger = logging.getLogger(__name__)
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
+_SCHEMA_DIR = Path(__file__).with_name("schemas")
 
 
 # ── Constants ────────────────────────────────────────────────────────────────
@@ -70,6 +73,44 @@ PK_TYPES = frozenset({"surrogate", "natural", "composite", "unknown"})
 
 VIEW_CLASSIFICATIONS = frozenset({"stg", "mart"})
 VIEW_SOURCES = frozenset({"llm"})
+
+
+def _load_schema_with_store(schema_name: str) -> tuple[dict[str, Any], Registry]:
+    """Load a schema file and registry for local schema references."""
+    registry = Registry()
+    loaded: dict[str, Any] = {}
+    for schema_path in _SCHEMA_DIR.glob("*.json"):
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        loaded[schema_path.name] = schema
+        resource = Resource.from_contents(schema)
+        registry = registry.with_resource(schema_path.name, resource)
+        registry = registry.with_resource(schema_path.resolve().as_uri(), resource)
+    return loaded[schema_name], registry
+
+
+def _format_validation_errors(errors: list[Any]) -> str:
+    """Render jsonschema validation errors in compact, retry-friendly form."""
+    parts: list[str] = []
+    for error in errors:
+        path = "/" + "/".join(str(segment) for segment in error.absolute_path)
+        parts.append(f"{path or '/'}: {error.message}")
+    return "; ".join(parts)
+
+
+def _validate_schema_fragment(data: Any, schema_name: str, fragment_path: str) -> None:
+    """Validate data against a schema fragment and raise field-level ValueError."""
+    schema, registry = _load_schema_with_store(schema_name)
+    wrapper_schema = {
+        "$schema": schema.get("$schema", "https://json-schema.org/draft/2020-12/schema"),
+        "$ref": f"{schema_name}#/{fragment_path}",
+    }
+    validator = Draft202012Validator(wrapper_schema, registry=registry)
+    errors = sorted(validator.iter_errors(data), key=lambda err: list(err.absolute_path))
+    if errors:
+        raise ValueError(
+            f"Schema validation failed for {schema_name}#/{fragment_path}: "
+            f"{_format_validation_errors(errors)}"
+        )
 
 
 # ── Context assembly (importable for testing) ────────────────────────────────
@@ -315,6 +356,7 @@ def _write_view_profile(project_root: Path, view_norm: str, profile_json: dict[s
     else:
         status = "partial"
     profile_json["status"] = status
+    _validate_schema_fragment(profile_json, "view_catalog.json", "properties/profile")
 
     catalog_path = resolve_catalog_dir(project_root) / "views" / f"{view_norm}.json"
     if not catalog_path.exists():
@@ -379,6 +421,7 @@ def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> d
     else:
         status = "error"
     profile_json["status"] = status
+    _validate_schema_fragment(profile_json, "table_catalog.json", "$defs/profile_section")
 
     # Load existing catalog file
     catalog_path = resolve_catalog_dir(project_root) / "tables" / f"{norm}.json"
