@@ -150,6 +150,22 @@ def _read_json_optional(path: Path) -> Any:
         raise CorruptJSONError(path, exc) from exc
 
 
+def _read_manifest_or_empty(project_root: Path) -> dict[str, Any]:
+    """Read manifest.json from project root, returning {} if missing or corrupt.
+
+    Logs a warning on parse failure so corruption is visible, unlike the
+    previous pattern which silently returned {}.
+    """
+    manifest_path = project_root / "manifest.json"
+    if not manifest_path.exists():
+        return {}
+    try:
+        return json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("event=manifest_read_error path=%s error=%s", manifest_path, exc)
+        return {}
+
+
 # ── write-catalog helpers ────────────────────────────────────────────────────
 
 _TYPE_MAPPING = {"U": "tables", "V": "views", "P": "procedures",
@@ -683,12 +699,7 @@ def run_write_partial_manifest(
 
     # Merge over existing manifest so post-extraction fields
     # (source_database, extracted_schemas, etc.) are not wiped on re-run.
-    existing: dict[str, Any] = {}
-    if out_path.exists():
-        try:
-            existing = json.loads(out_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            existing = {}
+    existing = _read_manifest_or_empty(project_root)
 
     manifest: dict[str, Any] = {
         **existing,
@@ -755,12 +766,7 @@ def run_write_manifest(
     out_path = project_root / "manifest.json"
 
     # Read existing partial manifest if present
-    existing: dict[str, Any] = {}
-    if out_path.exists():
-        try:
-            existing = json.loads(out_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            existing = {}
+    existing = _read_manifest_or_empty(project_root)
 
     manifest = {
         **existing,
@@ -867,6 +873,52 @@ def run_list_schemas(project_root: Path, database: Optional[str]) -> dict[str, A
     raise ValueError(f"list-schemas is not supported for technology '{technology}'")
 
 
+def _run_db_extraction(
+    technology: str, staging_dir: Path, db_name: str, schemas: list[str],
+) -> None:
+    """Run vendor-specific extraction queries into the staging directory."""
+    if technology in ("sql_server", "fabric_warehouse"):
+        from shared.sqlserver_extract import run_sqlserver_extraction
+        run_sqlserver_extraction(staging_dir, db_name, schemas)
+    elif technology == "oracle":
+        from shared.oracle_extract import run_oracle_extraction
+        run_oracle_extraction(staging_dir, schemas)
+    else:
+        raise ValueError(
+            f"setup-ddl extract is not supported for technology '{technology}'"
+        )
+
+
+def _assemble_ddl_from_staging(staging_dir: Path, project_root: Path) -> None:
+    """Split definitions.json by object type and assemble per-type .sql files."""
+    obj_type_rows = _read_json_optional(staging_dir / "object_types.json")
+    type_lookup = {
+        normalize(f"{r['schema_name']}.{r['name']}"): r.get("type", "").strip()
+        for r in obj_type_rows
+    }
+    definitions_rows_all = _read_json_optional(staging_dir / "definitions.json")
+
+    for obj_label, type_codes in [
+        ("procedures", {"P"}),
+        ("views", {"V"}),
+        ("functions", {"FN", "IF", "TF"}),
+    ]:
+        typed_defs = [
+            r for r in definitions_rows_all
+            if type_lookup.get(normalize(f"{r['schema_name']}.{r['object_name']}")) in type_codes
+        ]
+        if typed_defs:
+            typed_path = staging_dir / f"{obj_label}.json"
+            typed_path.write_text(
+                json.dumps(typed_defs, ensure_ascii=False), encoding="utf-8"
+            )
+            run_assemble_modules(typed_path, project_root, obj_label)
+
+    table_cols_path = staging_dir / "table_columns.json"
+    if table_cols_path.exists():
+        run_assemble_tables(table_cols_path, project_root)
+
+
 def run_extract(
     project_root: Path,
     database: str | None,
@@ -905,13 +957,7 @@ def run_extract(
     )
 
     # ── Identity check: pre-mark all catalog objects stale if source changed ──
-    manifest_path = project_root / "manifest.json"
-    existing_manifest: dict[str, Any] = {}
-    if manifest_path.exists():
-        try:
-            existing_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            existing_manifest = {}
+    existing_manifest = _read_manifest_or_empty(project_root)
     current_identity = _get_connection_identity(technology, db_name)
     if _identity_changed(existing_manifest, current_identity):
         logger.info(
@@ -924,47 +970,8 @@ def run_extract(
 
     with tempfile.TemporaryDirectory() as _tmp:
         staging_dir = Path(_tmp)
-
-        if technology in ("sql_server", "fabric_warehouse"):
-            from shared.sqlserver_extract import run_sqlserver_extraction
-            run_sqlserver_extraction(staging_dir, db_name, schemas)
-        elif technology == "oracle":
-            from shared.oracle_extract import run_oracle_extraction
-            run_oracle_extraction(staging_dir, schemas)
-        else:
-            raise ValueError(
-                f"setup-ddl extract is not supported for technology '{technology}'"
-            )
-
-        # ── Assemble DDL files ────────────────────────────────────────────
-        # Split definitions.json by object type and assemble per-type .sql files.
-        obj_type_rows = _read_json_optional(staging_dir / "object_types.json")
-        type_lookup = {
-            normalize(f"{r['schema_name']}.{r['name']}"): r.get("type", "").strip()
-            for r in obj_type_rows
-        }
-        definitions_rows_all = _read_json_optional(staging_dir / "definitions.json")
-
-        for obj_label, type_codes in [
-            ("procedures", {"P"}),
-            ("views", {"V"}),
-            ("functions", {"FN", "IF", "TF"}),
-        ]:
-            typed_defs = [
-                r for r in definitions_rows_all
-                if type_lookup.get(normalize(f"{r['schema_name']}.{r['object_name']}")) in type_codes
-            ]
-            if typed_defs:
-                typed_path = staging_dir / f"{obj_label}.json"
-                typed_path.write_text(
-                    json.dumps(typed_defs, ensure_ascii=False), encoding="utf-8"
-                )
-                run_assemble_modules(typed_path, project_root, obj_label)
-
-        table_cols_path = staging_dir / "table_columns.json"
-        if table_cols_path.exists():
-            run_assemble_tables(table_cols_path, project_root)
-
+        _run_db_extraction(technology, staging_dir, db_name, schemas)
+        _assemble_ddl_from_staging(staging_dir, project_root)
         run_write_manifest(project_root, technology, db_name, schemas)
         counts = run_write_catalog(staging_dir, project_root, db_name)
 
