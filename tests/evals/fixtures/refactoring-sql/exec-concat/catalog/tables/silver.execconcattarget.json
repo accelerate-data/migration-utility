@@ -41,5 +41,35 @@
       "in_scope": [],
       "out_of_scope": []
     }
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_scope_ExecConcat",
+    "selected_writer_rationale": "Single recovered writer for the EXEC-concatenation target."
+  },
+  "profile": {
+    "status": "partial",
+    "writer": "silver.usp_scope_ExecConcat",
+    "classification": {
+      "resolved_kind": "fact_transaction",
+      "source": "catalog+llm",
+      "rationale": "Dynamic EXEC concatenation recovers a single INSERT...SELECT into the target, but the write path remains partially inferred."
+    },
+    "primary_key": {
+      "columns": [],
+      "primary_key_type": "unknown",
+      "source": "catalog",
+      "rationale": "No primary key constraint is declared in the fixture catalog."
+    },
+    "foreign_keys": [],
+    "pii_actions": [],
+    "warnings": [
+      {
+        "code": "DYNAMIC_SQL_UNTESTABLE",
+        "message": "Write logic is recovered from concatenated dynamic SQL and remains partially inferred.",
+        "item_id": "silver.execconcattarget",
+        "severity": "warning"
+      }
+    ]
   }
 }

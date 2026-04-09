@@ -85,16 +85,17 @@ npm run eval
 npm run eval:listing-objects
 npm run eval:analyzing-table
 npm run eval:profiling-table
+npm run eval:refactoring-sql
 npm run eval:reviewing-tests
 npm run eval:reviewing-model
-npm run eval:refactoring-sql
+
 
 # Command packages
 npm run eval:cmd-scope
 npm run eval:cmd-profile
+npm run eval:cmd-refactor
 npm run eval:cmd-generate-model
 npm run eval:cmd-generate-tests
-npm run eval:cmd-refactor
 npm run eval:cmd-status
 npm run eval:cmd-commit-push-pr
 
@@ -134,6 +135,18 @@ npx promptfoo eval -c packages/refactoring-sql/skill-refactoring-sql.yaml --filt
 The package scripts restore their fixture roots before and after each run. Most offline package scripts reset `tests/evals/fixtures/`; the Oracle and live-DB scripts reset their package-local fixture roots; `eval:cmd-commit-push-pr` is text-only and does not restore fixtures because it does not operate on a fixture tree.
 
 All eval scripts use `--no-cache` to force fresh LLM invocations.
+
+If you add a new fixture directory, commit it or at least stage it before running the package script. The reset step uses `git clean`, so untracked fixture directories will be deleted.
+
+### Mixed prompt packages
+
+If a package contains both table and view scenarios, do not rely on the package-level `prompts:` list alone. Pin each scenario to its intended prompt with `prompts: ["<prompt-id>"]`.
+
+Use this whenever:
+
+- the package has separate table and view prompts
+- the package has object-type-specific prompts with different required vars
+- adding a new scenario would otherwise expand against every prompt in the package
 
 ---
 
@@ -177,6 +190,7 @@ Use this rule of thumb:
 - Change the prompt when the scenario is valid but the agent needs better instructions.
 - Change the assertion when the expected outcome is right but the check is stale or too brittle.
 - Change the package YAML when the wrong prompt, fixture, or vars are wired together.
+- If a package mixes table and view scenarios, pin each scenario to the correct prompt before rerunning the package.
 
 ---
 

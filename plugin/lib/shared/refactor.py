@@ -25,6 +25,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 import typer
+from jsonschema import Draft202012Validator
+from referencing import Registry, Resource
 
 from shared.catalog import (
     load_proc_catalog,
@@ -57,14 +59,54 @@ from shared.name_resolver import fqn_parts, normalize
 logger = logging.getLogger(__name__)
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
+_SCHEMA_DIR = Path(__file__).with_name("schemas")
 
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
 REFACTOR_STATUSES = frozenset({"ok", "partial", "error"})
+WRITE_KEYWORDS = ("insert ", "update ", "delete ", "merge ", "exec ", "create ", "alter ", "drop ")
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
+
+def _load_schema_with_store(schema_name: str) -> tuple[dict[str, Any], Registry]:
+    """Load a schema file and registry for local schema references."""
+    registry = Registry()
+    loaded: dict[str, Any] = {}
+    for schema_path in _SCHEMA_DIR.glob("*.json"):
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        loaded[schema_path.name] = schema
+        resource = Resource.from_contents(schema)
+        registry = registry.with_resource(schema_path.name, resource)
+        registry = registry.with_resource(schema_path.resolve().as_uri(), resource)
+    return loaded[schema_name], registry
+
+
+def _format_validation_errors(errors: list[Any]) -> str:
+    """Render jsonschema validation errors in compact, retry-friendly form."""
+    parts: list[str] = []
+    for error in errors:
+        path = "/" + "/".join(str(segment) for segment in error.absolute_path)
+        parts.append(f"{path or '/'}: {error.message}")
+    return "; ".join(parts)
+
+
+def _validate_schema_fragment(data: Any, schema_name: str, fragment_path: str) -> None:
+    """Validate data against a schema fragment and raise field-level ValueError."""
+    schema, registry = _load_schema_with_store(schema_name)
+    wrapper_schema = {
+        "$schema": schema.get("$schema", "https://json-schema.org/draft/2020-12/schema"),
+        "$ref": f"{schema_name}#/{fragment_path}",
+    }
+    validator = Draft202012Validator(wrapper_schema, registry=registry)
+    errors = sorted(validator.iter_errors(data), key=lambda err: list(err.absolute_path))
+    if errors:
+        raise ValueError(
+            f"Schema validation failed for {schema_name}#/{fragment_path}: "
+            f"{_format_validation_errors(errors)}"
+        )
 
 
 # ── Symmetric diff ───────────────────────────────────────────────────────────
@@ -246,8 +288,14 @@ def _validate_refactor(refactor: dict[str, Any]) -> list[str]:
     """Validate a refactor dict. Returns a list of error messages (empty = valid)."""
     errors: list[str] = []
 
-    # extracted_sql and refactored_sql are validated structurally;
-    # status is determined by run_write after validation, not required here.
+    extracted_sql = (refactor.get("extracted_sql") or "").lower()
+    refactored_sql = (refactor.get("refactored_sql") or "").lower()
+
+    for keyword in WRITE_KEYWORDS:
+        if extracted_sql and keyword in extracted_sql:
+            errors.append(f"extracted_sql must be a pure SELECT and cannot contain '{keyword.strip()}'")
+        if refactored_sql and keyword in refactored_sql:
+            errors.append(f"refactored_sql must be a pure SELECT and cannot contain '{keyword.strip()}'")
 
     return errors
 
@@ -296,6 +344,7 @@ def run_write(
     # Auto-detect: check view catalog first
     view_cat = load_view_catalog(project_root, table_norm)
     if view_cat is not None:
+        _validate_schema_fragment(refactor_data, "view_catalog.json", "properties/refactor")
         return _run_write_view(project_root, table_norm, view_cat, refactor_data)
 
     # Table path: resolve writer from table catalog
@@ -324,6 +373,7 @@ def run_write(
 
     # Merge refactor section onto procedure catalog
     existing["refactor"] = refactor_data
+    _validate_schema_fragment(refactor_data, "table_catalog.json", "properties/refactor")
 
     try:
         _write_catalog_json(catalog_path, existing)

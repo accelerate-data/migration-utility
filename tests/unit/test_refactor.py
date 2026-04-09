@@ -195,6 +195,22 @@ def test_write_both_empty_yields_error() -> None:
         assert proc_cat["refactor"]["status"] == "error"
 
 
+def test_write_rejects_write_keywords_in_extracted_sql() -> None:
+    """Write rejects extracted SQL that still contains DML write keywords."""
+    tmp, root = _make_writable_copy()
+    with tmp:
+        with pytest.raises(ValueError, match="extracted_sql must be a pure SELECT"):
+            refactor.run_write(root, "silver.DimCustomer", "UPDATE dbo.t SET x = 1", "WITH src AS (SELECT 1) SELECT * FROM src")
+
+
+def test_write_rejects_write_keywords_in_refactored_sql() -> None:
+    """Write rejects refactored SQL that still contains DML write keywords."""
+    tmp, root = _make_writable_copy()
+    with tmp:
+        with pytest.raises(ValueError, match="refactored_sql must be a pure SELECT"):
+            refactor.run_write(root, "silver.DimCustomer", "SELECT 1", "WITH src AS (SELECT 1) UPDATE dbo.t SET x = 1")
+
+
 def test_write_missing_procedure_catalog() -> None:
     """Write raises CatalogFileMissingError when procedure catalog is absent."""
     tmp, root = _make_writable_copy()
@@ -254,6 +270,26 @@ def test_cli_write_success() -> None:
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert data["ok"] is True
+
+
+def test_cli_write_validation_failure() -> None:
+    """CLI write surfaces validation failures for non-SELECT refactored SQL."""
+    tmp, root = _make_writable_copy()
+    with tmp:
+        import subprocess
+        subprocess.run(["git", "init", str(root)], capture_output=True, check=True)
+        result = _cli_runner.invoke(
+            refactor.app,
+            [
+                "write",
+                "--table", "silver.DimCustomer",
+                "--extracted-sql", "SELECT CustomerID FROM [bronze].[CustomerRaw]",
+                "--refactored-sql", "UPDATE dbo.t SET x = 1",
+                "--project-root", str(root),
+            ],
+        )
+        assert result.exit_code == 1
+        assert "refactored_sql must be a pure SELECT" in result.output
 
 
 def test_cli_context_missing_table() -> None:

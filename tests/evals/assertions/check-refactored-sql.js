@@ -3,7 +3,8 @@
 // Expects context.vars:
 // {
 //   fixture_path,
-//   target_table,
+//   target_table?,
+//   target_view?,
 //   expected_extracted_terms?,   -- comma-separated terms expected in extracted SQL
 //   expected_refactored_terms?,  -- comma-separated terms expected in refactored CTE SQL
 //   forbidden_refactored_terms?, -- comma-separated terms that must NOT appear in refactored SQL
@@ -14,9 +15,30 @@ const fs = require('fs');
 const path = require('path');
 const { normalizeTerms, validateSection } = require('./schema-helpers');
 
+function findWriteKeyword(sqlText) {
+  const patterns = [
+    /\binsert\b\s+/i,
+    /\bupdate\b\s+/i,
+    /\bdelete\b\s+/i,
+    /\bmerge\b\s+/i,
+    /\bexec(?:ute)?\b\s+/i,
+    /\bcreate\b\s+/i,
+    /\balter\b\s+/i,
+    /\bdrop\b\s+/i,
+  ];
+  for (const pattern of patterns) {
+    const match = sqlText.match(pattern);
+    if (match) {
+      return match[0].trim().toLowerCase();
+    }
+  }
+  return null;
+}
+
 module.exports = (output, context) => {
   const fixturePath = context.vars.fixture_path;
   const table = context.vars.target_table;
+  const targetView = context.vars.target_view;
   const expectedExtractedTerms = normalizeTerms(context.vars.expected_extracted_terms);
   const expectedRefactoredTerms = normalizeTerms(context.vars.expected_refactored_terms);
   const forbiddenRefactoredTerms = normalizeTerms(context.vars.forbidden_refactored_terms);
@@ -24,11 +46,16 @@ module.exports = (output, context) => {
   const gracefulPartial = String(context.vars.graceful_partial || '').toLowerCase() === 'true';
 
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
-  const catalogDir = path.resolve(repoRoot, fixturePath, 'catalog', 'tables');
+  const tableCatalogDir = path.resolve(repoRoot, fixturePath, 'catalog', 'tables');
+  const viewCatalogDir = path.resolve(repoRoot, fixturePath, 'catalog', 'views');
 
-  // Normalize table name for file lookup
-  const tableLower = table.toLowerCase().replace(/\[|\]/g, '');
-  const catalogPath = path.resolve(catalogDir, `${tableLower}.json`);
+  if (!table && !targetView) {
+    return { pass: false, score: 0, reason: 'Expected one of target_table or target_view in test vars' };
+  }
+
+  const objectFqn = (table || targetView).toLowerCase().replace(/\[|\]/g, '');
+  const tableCatalogPath = path.resolve(tableCatalogDir, `${objectFqn}.json`);
+  const viewCatalogPath = path.resolve(viewCatalogDir, `${objectFqn}.json`);
 
   // Helper: check if the LLM output text contains both SQL blocks as fallback
   const outputStr = String(output || '').toLowerCase();
@@ -36,7 +63,8 @@ module.exports = (output, context) => {
   const outputHasRefactored = outputStr.includes('with') && outputStr.includes('select') && (outputStr.includes('final') || outputStr.includes('cte'));
   const outputFallback = outputHasExtracted && outputHasRefactored;
 
-  if (!fs.existsSync(catalogPath)) {
+  const primaryCatalogPath = table ? tableCatalogPath : viewCatalogPath;
+  if (!fs.existsSync(primaryCatalogPath)) {
     if (outputFallback) {
       // Agent produced both SQLs in text but didn't persist to catalog (e.g. ran out of turns)
       for (const term of expectedRefactoredTerms) {
@@ -46,17 +74,32 @@ module.exports = (output, context) => {
       }
       return { pass: true, score: 0.7, reason: 'Both SQL blocks found in output text (catalog not written — likely ran out of turns)' };
     }
-    return { pass: false, score: 0, reason: `Catalog file not found: ${catalogPath}` };
+    return { pass: false, score: 0, reason: `Catalog file not found: ${primaryCatalogPath}` };
   }
 
-  let catalog;
+  let tableCatalog;
   try {
-    catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+    tableCatalog = JSON.parse(fs.readFileSync(primaryCatalogPath, 'utf8'));
   } catch (e) {
     return { pass: false, score: 0, reason: `Cannot parse catalog: ${e.message}` };
   }
 
-  const refactor = catalog.refactor;
+  let catalog = tableCatalog;
+  let refactor = catalog.refactor;
+  if (!refactor && table) {
+    const writer = tableCatalog?.scoping?.selected_writer;
+    if (writer) {
+      const procedureCatalogPath = path.resolve(repoRoot, fixturePath, 'catalog', 'procedures', `${writer.toLowerCase()}.json`);
+      if (fs.existsSync(procedureCatalogPath)) {
+        try {
+          catalog = JSON.parse(fs.readFileSync(procedureCatalogPath, 'utf8'));
+          refactor = catalog.refactor;
+        } catch (e) {
+          return { pass: false, score: 0, reason: `Cannot parse procedure catalog: ${e.message}` };
+        }
+      }
+    }
+  }
   if (!refactor) {
     if (outputFallback) {
       return { pass: true, score: 0.7, reason: 'Both SQL blocks found in output text (refactor section not written to catalog)' };
@@ -65,7 +108,9 @@ module.exports = (output, context) => {
   }
 
   // Schema validation of the refactor section
-  const schemaResult = validateSection(refactor, 'table_catalog.json', 'properties/refactor');
+  const schemaResult = table
+    ? validateSection(refactor, 'table_catalog.json', 'properties/refactor')
+    : validateSection(refactor, 'view_catalog.json', 'properties/refactor');
   if (!schemaResult.valid) {
     return { pass: false, score: 0, reason: `Refactor section schema validation failed: ${schemaResult.errors}` };
   }
@@ -87,11 +132,9 @@ module.exports = (output, context) => {
   }
 
   // Extracted SQL must be a pure SELECT (no DML write keywords)
-  const writeKeywords = ['insert ', 'update ', 'delete ', 'merge ', 'exec ', 'create ', 'alter ', 'drop '];
-  for (const kw of writeKeywords) {
-    if (extractedSql.includes(kw)) {
-      return { pass: false, score: 0, reason: `extracted_sql contains write keyword '${kw.trim()}'` };
-    }
+  const extractedWriteKeyword = findWriteKeyword(extractedSql);
+  if (extractedWriteKeyword) {
+    return { pass: false, score: 0, reason: `extracted_sql contains write keyword '${extractedWriteKeyword}'` };
   }
 
   for (const term of expectedExtractedTerms) {
@@ -112,10 +155,9 @@ module.exports = (output, context) => {
   }
 
   // Refactored SQL must be a pure SELECT
-  for (const kw of writeKeywords) {
-    if (refactoredSql.includes(kw)) {
-      return { pass: false, score: 0, reason: `refactored_sql contains write keyword '${kw.trim()}'` };
-    }
+  const refactoredWriteKeyword = findWriteKeyword(refactoredSql);
+  if (refactoredWriteKeyword) {
+    return { pass: false, score: 0, reason: `refactored_sql contains write keyword '${refactoredWriteKeyword}'` };
   }
 
   for (const term of expectedRefactoredTerms) {
