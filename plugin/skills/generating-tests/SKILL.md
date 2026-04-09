@@ -215,8 +215,6 @@ For merge_mode, include a **Preserved / New** summary:
   New: M scenarios added for X branches
 ```
 
-**CLI-ready format:** The test spec uses bracket-quoted SQL identifiers for direct consumption by `test-harness execute`. The `/generate-tests` command converts to dbt YAML after ground truth capture.
-
 Naming conventions:
 
 - Test name (table): `test_<load_pattern>_<scenario_description>`, e.g. `test_merge_matched_product_updated`
