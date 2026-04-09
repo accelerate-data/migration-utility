@@ -85,16 +85,17 @@ npm run eval
 npm run eval:listing-objects
 npm run eval:analyzing-table
 npm run eval:profiling-table
+npm run eval:refactoring-sql
 npm run eval:reviewing-tests
 npm run eval:reviewing-model
-npm run eval:refactoring-sql
+
 
 # Command packages
 npm run eval:cmd-scope
 npm run eval:cmd-profile
+npm run eval:cmd-refactor
 npm run eval:cmd-generate-model
 npm run eval:cmd-generate-tests
-npm run eval:cmd-refactor
 npm run eval:cmd-status
 npm run eval:cmd-commit-push-pr
 
