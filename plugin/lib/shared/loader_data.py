@@ -41,6 +41,20 @@ class CatalogLoadError(Exception):
         self.cause = cause
 
 
+class CorruptJSONError(ValueError):
+    """Raised when a JSON file exists but contains invalid JSON.
+
+    Subclass of ValueError so existing ``except ValueError`` handlers
+    still catch it, while callers that need to distinguish corruption
+    from other validation failures can ``isinstance``-check.
+    """
+
+    def __init__(self, path: Any, cause: Exception) -> None:
+        super().__init__(f"Corrupt JSON in {path}: {cause}")
+        self.path = path
+        self.cause = cause
+
+
 class ProfileMissingError(Exception):
     """Raised when a table catalog file has no profile section."""
 

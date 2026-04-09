@@ -33,6 +33,7 @@ from typing import Any, Optional
 import typer
 
 from shared.catalog import write_json as _write_catalog_json
+from shared.loader_data import CorruptJSONError
 from shared.db_connect import cursor_to_dicts as _cursor_to_dicts
 from shared.db_connect import oracle_connect as _oracle_connect
 from shared.db_connect import sql_server_connect as _sql_server_connect
@@ -136,7 +137,7 @@ def _read_json(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        raise ValueError(f"Corrupt JSON in {path}: {exc}") from exc
+        raise CorruptJSONError(path, exc) from exc
 
 
 def _read_json_optional(path: Path) -> Any:
@@ -146,7 +147,7 @@ def _read_json_optional(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        raise ValueError(f"Corrupt JSON in {path}: {exc}") from exc
+        raise CorruptJSONError(path, exc) from exc
 
 
 # ── write-catalog helpers ────────────────────────────────────────────────────
@@ -998,7 +999,7 @@ def assemble_modules(
         result = run_assemble_modules(input, project_root, type)
     except ValueError as exc:
         typer.echo(str(exc), err=True)
-        raise typer.Exit(2 if "Corrupt JSON" in str(exc) else 1) from exc
+        raise typer.Exit(2 if isinstance(exc, CorruptJSONError) else 1) from exc
     typer.echo(json.dumps(result))
 
 
@@ -1017,7 +1018,7 @@ def assemble_tables(
         result = run_assemble_tables(input, project_root)
     except ValueError as exc:
         typer.echo(str(exc), err=True)
-        raise typer.Exit(2 if "Corrupt JSON" in str(exc) else 1) from exc
+        raise typer.Exit(2 if isinstance(exc, CorruptJSONError) else 1) from exc
     typer.echo(json.dumps(result))
 
 
@@ -1045,7 +1046,7 @@ def write_catalog(
         result = run_write_catalog(staging_dir, project_root, database)
     except ValueError as exc:
         typer.echo(str(exc), err=True)
-        raise typer.Exit(2 if "Corrupt JSON" in str(exc) else 1) from exc
+        raise typer.Exit(2 if isinstance(exc, CorruptJSONError) else 1) from exc
     typer.echo(json.dumps(result))
 
 
