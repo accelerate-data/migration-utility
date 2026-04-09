@@ -17,12 +17,12 @@ from shared.catalog import (
     load_view_catalog,
     read_selected_writer,
     restore_enriched_fields,
-    scan_routing_flags,
     snapshot_enriched_fields,
     write_object_catalog,
     write_proc_statements,
     write_table_catalog,
 )
+from shared.routing import scan_routing_flags
 from shared.loader_data import CatalogLoadError
 from shared.dmf_processing import (
     flip_references,

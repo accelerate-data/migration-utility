@@ -37,7 +37,6 @@ from shared.dmf_processing import empty_scoped
 from shared.env_config import resolve_catalog_dir
 from shared.loader_data import CatalogFileMissingError, CatalogLoadError
 from shared.name_resolver import fqn_parts, normalize
-from shared.routing import DYNAMIC_EXEC_BROAD_RE, DYNAMIC_EXEC_RE, scan_routing_flags  # noqa: F401 — re-exported for callers
 
 
 # ── File naming ─────────────────────────────────────────────────────────────
