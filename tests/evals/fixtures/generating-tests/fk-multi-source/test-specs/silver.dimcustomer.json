@@ -1,25 +1,32 @@
 {
   "item_id": "silver.dimcustomer",
-  "status": "partial",
-  "coverage": "partial",
+  "status": "ok",
+  "coverage": "complete",
   "branch_manifest": [
     {
       "id": "truncate_before_reload",
       "statement_index": 0,
       "description": "TRUNCATE clears existing customer rows before reload",
-      "scenarios": []
+      "scenarios": [
+        "test_outer_apply_with_orders",
+        "test_null_person_branch"
+      ]
     },
     {
       "id": "insert_with_outer_apply",
       "statement_index": 1,
       "description": "INSERT with OUTER APPLY derives DateFirstPurchase from minimum order date",
-      "scenarios": []
+      "scenarios": [
+        "test_outer_apply_with_orders"
+      ]
     },
     {
       "id": "null_person_handling",
       "statement_index": 1,
       "description": "NULL PersonID in Customer table produces NULL name columns via LEFT JOIN to Person",
-      "scenarios": []
+      "scenarios": [
+        "test_null_person_branch"
+      ]
     },
     {
       "id": "no_orders_null_date",
@@ -36,19 +43,183 @@
       "model": "stg_dimcustomer",
       "given": [
         {
+          "table": "[bronze].[Customer]",
           "rows": [
             {
               "CustomerID": 101,
-              "PersonID": 1001
+              "PersonID": 1001,
+              "AccountNumber": "AW00000101",
+              "ModifiedDate": "2024-01-01"
             }
-          ],
-          "table": "[bronze].[Customer]"
+          ]
+        },
+        {
+          "table": "[bronze].[Person]",
+          "rows": [
+            {
+              "BusinessEntityID": 1001,
+              "PersonType": "EM",
+              "FirstName": "John",
+              "LastName": "Doe",
+              "EmailPromotion": 0,
+              "ModifiedDate": "2024-01-01"
+            }
+          ]
+        },
+        {
+          "table": "[bronze].[SalesOrderHeader]",
+          "rows": []
         }
       ],
       "expect": {
         "rows": [
           {
-            "CustomerAlternateKey": "101"
+            "CustomerAlternateKey": "101",
+            "FirstName": "John",
+            "LastName": "Doe",
+            "DateFirstPurchase": null
+          }
+        ]
+      },
+      "target_table": "[silver].[DimCustomer]",
+      "procedure": "[silver].[usp_load_DimCustomer_Full]"
+    },
+    {
+      "name": "test_outer_apply_with_orders",
+      "model": "stg_dimcustomer",
+      "given": [
+        {
+          "table": "[bronze].[Customer]",
+          "rows": [
+            {
+              "CustomerID": 102,
+              "PersonID": 1002,
+              "AccountNumber": "AW00000102",
+              "ModifiedDate": "2024-01-01"
+            }
+          ]
+        },
+        {
+          "table": "[bronze].[Person]",
+          "rows": [
+            {
+              "BusinessEntityID": 1002,
+              "PersonType": "EM",
+              "FirstName": "Jane",
+              "LastName": "Smith",
+              "EmailPromotion": 1,
+              "ModifiedDate": "2024-01-01"
+            }
+          ]
+        },
+        {
+          "table": "[bronze].[SalesOrderHeader]",
+          "rows": [
+            {
+              "SalesOrderID": 1001,
+              "RevisionNumber": 0,
+              "OrderDate": "2024-03-15",
+              "DueDate": "2024-03-22",
+              "Status": 5,
+              "OnlineOrderFlag": 1,
+              "SalesOrderNumber": "SO43659",
+              "CustomerID": 102,
+              "BillToAddressID": 1,
+              "ShipToAddressID": 1,
+              "ShipMethodID": 1,
+              "SubTotal": 100.00,
+              "TaxAmt": 10.00,
+              "Freight": 5.00,
+              "TotalDue": 115.00,
+              "ModifiedDate": "2024-01-01"
+            },
+            {
+              "SalesOrderID": 1002,
+              "RevisionNumber": 0,
+              "OrderDate": "2024-02-10",
+              "DueDate": "2024-02-17",
+              "Status": 5,
+              "OnlineOrderFlag": 0,
+              "SalesOrderNumber": "SO43660",
+              "CustomerID": 102,
+              "BillToAddressID": 1,
+              "ShipToAddressID": 1,
+              "ShipMethodID": 1,
+              "SubTotal": 150.00,
+              "TaxAmt": 15.00,
+              "Freight": 7.50,
+              "TotalDue": 172.50,
+              "ModifiedDate": "2024-01-01"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "CustomerAlternateKey": "102",
+            "FirstName": "Jane",
+            "LastName": "Smith",
+            "EmailPromotion": 1,
+            "DateFirstPurchase": "2024-02-10"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimCustomer]",
+      "procedure": "[silver].[usp_load_DimCustomer_Full]"
+    },
+    {
+      "name": "test_null_person_branch",
+      "model": "stg_dimcustomer",
+      "given": [
+        {
+          "table": "[bronze].[Customer]",
+          "rows": [
+            {
+              "CustomerID": 103,
+              "PersonID": null,
+              "AccountNumber": "AW00000103",
+              "ModifiedDate": "2024-01-01"
+            }
+          ]
+        },
+        {
+          "table": "[bronze].[Person]",
+          "rows": []
+        },
+        {
+          "table": "[bronze].[SalesOrderHeader]",
+          "rows": [
+            {
+              "SalesOrderID": 1003,
+              "RevisionNumber": 0,
+              "OrderDate": "2024-04-01",
+              "DueDate": "2024-04-08",
+              "Status": 5,
+              "OnlineOrderFlag": 1,
+              "SalesOrderNumber": "SO43661",
+              "CustomerID": 103,
+              "BillToAddressID": 1,
+              "ShipToAddressID": 1,
+              "ShipMethodID": 1,
+              "SubTotal": 200.00,
+              "TaxAmt": 20.00,
+              "Freight": 10.00,
+              "TotalDue": 230.00,
+              "ModifiedDate": "2024-01-01"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "CustomerAlternateKey": "103",
+            "FirstName": null,
+            "MiddleName": null,
+            "LastName": null,
+            "Title": null,
+            "DateFirstPurchase": "2024-04-01"
           }
         ]
       },
@@ -56,38 +227,8 @@
       "procedure": "[silver].[usp_load_DimCustomer_Full]"
     }
   ],
-  "uncovered_branches": [
-    "truncate_before_reload",
-    "insert_with_outer_apply",
-    "null_person_handling"
-  ],
-  "warnings": [
-    {
-      "code": "FIXTURE_UNREALISTIC",
-      "message": "test_single_customer_no_orders is missing the Person source table entirely \u2014 JOIN will fail or produce NULLs for all name columns.",
-      "item_id": "silver.dimcustomer",
-      "severity": "warning",
-      "details": {
-        "scenario": "test_single_customer_no_orders"
-      }
-    },
-    {
-      "code": "FIXTURE_INCOMPLETE",
-      "message": "Expected output only checks CustomerAlternateKey \u2014 8 other target columns (FirstName, MiddleName, LastName, Title, Gender, MaritalStatus, EmailPromotion, DateFirstPurchase) are not verified.",
-      "item_id": "silver.dimcustomer",
-      "severity": "warning",
-      "details": {
-        "scenario": "test_single_customer_no_orders"
-      }
-    },
-    {
-      "code": "BRANCH_NOT_COVERED",
-      "message": "3 of 4 branches have no scenarios: truncate_before_reload, insert_with_outer_apply, null_person_handling.",
-      "item_id": "silver.dimcustomer",
-      "severity": "warning",
-      "details": {}
-    }
-  ],
+  "uncovered_branches": [],
+  "warnings": [],
   "validation": {
     "passed": true,
     "issues": []
