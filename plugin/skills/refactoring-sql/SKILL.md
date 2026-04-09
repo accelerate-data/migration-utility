@@ -1,27 +1,23 @@
 ---
 name: refactoring-sql
 description: >
-  Refactors table-producing procedure SQL or view SQL into a pure T-SQL CTE
-  query. Extract the table-producing SQL, restructure it, prove semantic
-  equivalence, and persist the result through the shared refactor CLI.
+  Refactors raw T-SQL stored procedure SQL into an import/logical/final CTE
+  pattern. Uses two isolated sub-agents to avoid context pollution: one extracts
+  the core SELECT from the proc, the other restructures it into CTEs. Proves
+  equivalence via semantic review and, when available, sandbox execution. Invoke
+  when the user asks to "refactor SQL", "restructure to CTEs", or "prepare SQL
+  for migration".
 user-invocable: true
 argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 ---
 
 # Refactoring SQL
 
-Refactor one table or view into a pure T-SQL CTE query. Do four things:
-
-1. extract the table-producing SQL
-2. rewrite it into import/logical/final CTE form
-3. prove equivalence with semantic review and, when available, executable compare
-4. persist the refactor result to catalog
-
-Stay in T-SQL. Do not generate dbt SQL here.
+Restructure a view or stored procedure's SQL into import/logical/final CTEs while proving the refactored SQL produces identical results. Uses two isolated sub-agents to produce independent outputs, validates them with a semantic review, then compares them in the sandbox when available. Finally, writes the refactored SQL back to the catalog with a status of `refactored` when all checks pass, or `partial` when semantic review or sandbox comparison fails.
 
 ## Arguments
 
-`$ARGUMENTS` is the fully qualified object name. Ask only if it is missing.
+`$ARGUMENTS` is the fully-qualified object name (table or view). Ask the user if missing.
 
 ## Contracts
 
@@ -55,9 +51,9 @@ When you skip executable compare:
 
 This path should normally persist `status: partial`, not `ok`.
 
-## Step 1 — Read deterministic context
+## Before invoking
 
-Run:
+Run the stage guard:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <table_fqn> refactor
@@ -65,82 +61,128 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <table_fqn> refa
 
 If `ready` is `false`, stop and report the returned `code` and `reason`.
 
-Then run:
+## Step 1: Assemble context
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" refactor context \
   --table <table_fqn>
 ```
 
-Use the returned context as the source of truth.
+The CLI auto-detects the object type: if `catalog/views/<fqn>.json` exists it takes the view path; otherwise it takes the table path and reads `scoping.selected_writer` automatically.
 
-Important fields:
+Read `object_type` from the output to know which path you are on:
 
-- `writer`
-- `proc_body`
-- `writer_ddl_slice` for multi-table writers
-- `view_sql` for views
-- `statements`
-- `columns`
-- `source_tables`
-- `test_spec`
-- `sandbox`
+**Table (`object_type: "table"`):**
 
-Rules:
+- `proc_body` — full original procedure SQL
+- `writer` — procedure FQN
+- `statements` — resolved statement list with action (migrate/skip) and SQL
+- `columns` — target table column list
+- `source_tables` — tables read by the writer
+- `test_spec` — full test-spec JSON with fixtures and expect.rows
+- `sandbox` — sandbox database metadata
+- `writer_ddl_slice` — present for multi-table writers; use this as the SQL to refactor instead of the full `proc_body`
 
-- If `writer_ddl_slice` is present, that is the SQL you are refactoring for this table.
-- If `object_type` is `view` or `mv`, use `view_sql` as the ground truth SQL.
-- Do not refactor the whole procedure body when the context already gives you the table-specific slice.
+**View (`object_type: "view"` or `"mv"`):**
 
-## Step 2 — Produce the two SQL artifacts
+- `view_sql` — original view SQL body; this is the ground truth for sub-agent A
+- `columns`, `source_tables`, `test_spec`, `sandbox` — same as table path
+- No `writer`, `proc_body`, or `statements` — absent for views
+- Write-back via `refactor write` auto-detects the view and writes to the view catalog
 
-Create `.staging/` if needed.
+## Step 2: Launch two sub-agents in parallel
 
-Write these files:
+Launch both sub-agents simultaneously. They must not see each other's output — this prevents context pollution so the equivalence comparison is meaningful. Both agents use [references/sp-migration-ref.md](references/sp-migration-ref.md) for DML extraction and CTE restructuring rules.
 
-- `.staging/<table_fqn>-extracted.sql`
-- `.staging/<table_fqn>-refactored.sql`
+### Sub-agent A: Extract core SELECT
 
-Use two isolated sub-agents:
+Launch a sub-agent with this prompt. For tables, include `proc_body`, `statements`, and `columns` (or `writer_ddl_slice` if present). For views, include `view_sql` and `columns` in place of `proc_body`/`statements`.
 
-### Sub-agent A — extracted SQL
+```text
+You are extracting the core transformation logic from a T-SQL stored procedure
+as a pure SELECT statement.
 
-Task:
+Read the references/sp-migration-ref.md reference for extraction rules per DML type.
 
-- derive one pure T-SQL `SELECT`
-- return the rows and columns the procedure writes to the target table
-- preserve T-SQL syntax
-- never emit write keywords
+Procedure body:
+<proc_body>
 
-Use:
+Resolved statements (action=migrate only):
+<statements>
 
-- `writer_ddl_slice` when present
-- otherwise the table-producing logic from `proc_body` plus `statements`
+Target table columns:
+<columns>
 
-Return SQL only.
+Instructions:
+1. Identify the DML pattern(s) in the migrate statements (INSERT...SELECT, MERGE,
+   UPDATE, DELETE, temp table chains, cursor loops, dynamic SQL)
+2. Apply the extraction rules from references/sp-migration-ref.md for each pattern
+3. Produce a single pure T-SQL SELECT statement that returns exactly the rows
+   and columns the procedure would write to the target table
+4. Keep T-SQL syntax (ISNULL, CONVERT, etc.) -- no dialect conversion
+5. Replace procedure parameters with literal defaults where possible
 
-### Sub-agent B — refactored SQL
+Return ONLY the extracted SELECT SQL, nothing else.
+```
 
-Task:
+The sub-agent writes the result to `.staging/<table_fqn>-extracted.sql`.
 
-- rewrite the extracted logic into import/logical/final CTE form
-- keep the same output semantics
-- end with `select * from final`
-- preserve T-SQL syntax
-- never emit write keywords
+### Sub-agent B: Refactor into CTEs
 
-If existing dbt staging or mart models are present on disk, you may use them as naming guidance only. Do not let them change the refactor semantics.
+Launch a sub-agent with this prompt. For tables, include `proc_body`, `statements`, `columns`, `source_tables`, and `profile` (or `writer_ddl_slice` if present). For views, include `view_sql`, `columns`, and `source_tables` in place of `proc_body`/`statements`.
 
-Return SQL only.
+```text
+You are restructuring a T-SQL stored procedure into a clean CTE-based SELECT
+following the import/logical/final CTE pattern.
 
-## Step 3 — Semantic review
+Procedure body:
+<proc_body>
 
-Launch a third isolated sub-agent after both SQL files exist.
+Resolved statements (action=migrate only):
+<statements>
+
+Target table columns:
+<columns>
+
+Source tables:
+<source_tables>
+
+Profile:
+<profile>
+
+Instructions:
+1. Analyse the procedure's data flow: source tables read, transformations applied,
+   target table written
+2. Restructure into import CTE -> logical CTE -> final CTE pattern:
+
+   Import CTEs: One per source table. SELECT * (or needed columns) from the
+   bracket-quoted table reference. Name descriptively after the source.
+
+   Logical CTEs: One transformation step per CTE. Each does one thing: join,
+   filter, aggregate, or transform. Names describe the transformation.
+
+   Final CTE: Assembles the final column list matching the target table.
+
+3. End with: SELECT * FROM final
+4. Keep T-SQL syntax (ISNULL, CONVERT, etc.) -- no dialect conversion
+5. Replace procedure parameters with literal defaults where possible
+6. Flatten nested subqueries into sequential CTEs
+7. Temp tables become logical CTEs
+8. Cursor loops become set-based operations (window functions, JOINs)
+
+Return ONLY the refactored CTE SELECT SQL, nothing else.
+```
+
+The sub-agent writes the result to `.staging/<table_fqn>-refactored.sql`.
+
+## Step 3: Semantic review
+
+After both sub-agents complete, launch a third isolated sub-agent to validate semantic equivalence between the extracted SQL and the refactored SQL before running the sandbox comparison.
 
 Inputs:
 
-- extracted SQL
-- refactored SQL
+- extracted SQL (`.staging/<table_fqn>-extracted.sql`)
+- refactored SQL (`.staging/<table_fqn>-refactored.sql`)
 - target columns
 - source tables
 
@@ -169,50 +211,50 @@ The sub-agent must return exactly one JSON object with this shape:
 Rules for the semantic-review sub-agent:
 
 - compare extracted SQL to refactored SQL, not to dbt expectations
-- use only these checks:
-  - source tables
-  - output columns
-  - joins
-  - filters
-  - aggregation grain
+- use only these checks: source tables, output columns, joins, filters, aggregation grain
 - `issues[]` must use diagnostics-style entries
 - if any check fails, `passed` must be `false`
 
-Write the JSON to:
+Write the JSON to `.staging/<table_fqn>-semantic-review.json`.
 
-- `.staging/<table_fqn>-semantic-review.json`
+**If semantic review fails (`passed: false`):** do not proceed to the equivalence audit. Skip to Step 5 and persist with `--no-compare-required`. Status will be `partial`.
 
-## Step 4 — Executable compare
+## Step 4: Equivalence audit
 
-When sandbox status succeeds and the caller did not tell you to skip `compare-sql`, run:
+When sandbox status succeeds and the caller did not say to skip `compare-sql`, run the comparison CLI which seeds fixtures, executes both SELECTs, and returns the difference in rows:
 
 ```bash
+mkdir -p .staging
+
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness compare-sql \
   --sql-a-file .staging/<table_fqn>-extracted.sql \
   --sql-b-file .staging/<table_fqn>-refactored.sql \
   --spec test-specs/<table_fqn>.json
 ```
 
-Write the JSON output to:
+Write the JSON output to `.staging/<table_fqn>-compare.json`.
 
-- `.staging/<table_fqn>-compare.json`
+Read the output JSON. For each scenario:
 
-If compare fails:
+- `equivalent: true` — refactored CTE SQL produces identical rows to extracted core SELECT
+- `equivalent: false` — `a_minus_b` shows rows in A (extracted) but not B (refactored), `b_minus_a` shows the reverse
 
-1. inspect the scenario diffs
-2. revise only `.staging/<table_fqn>-refactored.sql`
-3. rerun semantic review
-4. rerun compare
+### Self-correction loop (max 3 iterations)
 
-Retry at most 3 times.
+If any scenario fails (`equivalent: false`):
 
-Do not modify the extracted SQL during this loop.
+1. Analyse the diff: which rows differ and why (missing join, wrong filter, dropped column, type mismatch)
+2. Revise **only the refactored CTE SQL** (sub-agent B's output) to fix the semantic gap. The extracted SQL (sub-agent A's output) is the ground truth — never modify it.
+3. Rewrite `.staging/<table_fqn>-refactored.sql`
+4. Rerun semantic review and write the updated result to `.staging/<table_fqn>-semantic-review.json`
+5. Rerun `compare-sql`
+6. Repeat up to 3 times total
 
-## Step 5 — Persist
+After 3 failed iterations, proceed to Step 5 with the partial result.
 
-Run `refactor write` with the evidence you produced.
+## Step 5: Write to catalog
 
-When sandbox status succeeds and the caller did not tell you to skip `compare-sql`:
+### When sandbox comparison ran and passed
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" refactor write \
@@ -223,7 +265,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" refactor write \
   --compare-sql-file .staging/<table_fqn>-compare.json
 ```
 
-When the caller told you to skip `compare-sql`, or sandbox status failed:
+### When sandbox was unavailable or semantic review failed
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" refactor write \
@@ -234,28 +276,38 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" refactor write \
   --no-compare-required
 ```
 
-The CLI derives the final status. Do not invent or override it in the skill.
+The CLI derives the final status from the evidence files. Do not invent or override it.
 
-## Step 6 — Clean up and report
+## Step 6: Clean up and report
 
-Delete the staging files after `refactor write` succeeds.
+Delete the staging files after `refactor write` succeeds:
 
-Report briefly:
+```bash
+rm -f .staging/<table_fqn>-extracted.sql \
+       .staging/<table_fqn>-refactored.sql \
+       .staging/<table_fqn>-semantic-review.json \
+       .staging/<table_fqn>-compare.json
+```
 
-- extracted SQL written
-- refactored SQL written
-- semantic review verdict
-- compare result when available
-- final persisted status
+Report:
 
-## Error handling
-
-- `refactor context` exit `1`: prerequisite missing, report the returned reason
-- `refactor context` exit `2`: IO or parse error, surface it directly
-- `test-harness compare-sql` failure: retry within the allowed loop, then persist `partial`
-- `refactor write` exit `1`: payload or validation failure, fix and retry once
-- `refactor write` exit `2`: IO failure, surface it directly
+1. Extracted core SELECT (sub-agent A output)
+2. Refactored CTE SQL (sub-agent B output)
+3. CTE structure summary (import CTEs, logical CTEs, final)
+4. Semantic review verdict (passed/failed, any issues)
+5. Equivalence audit results (per-scenario pass/fail, or skipped with reason)
+6. Final persisted status
 
 ## References
 
-- [references/sp-migration-ref.md](references/sp-migration-ref.md)
+- [references/sp-migration-ref.md](references/sp-migration-ref.md) — DML extraction rules per statement type (INSERT, MERGE, UPDATE, etc.) and CTE restructuring patterns for sub-agents A and B
+
+## Error handling
+
+| Command | Exit code | Action |
+|---|---|---|
+| `refactor context` | 1 | Missing catalog/profile/test-spec. Tell user which prerequisite is missing |
+| `refactor context` | 2 | IO/parse error. Surface the error message |
+| `refactor write` | 1 | Validation failure. Fix payload and retry once |
+| `refactor write` | 2 | IO error. Surface the error message |
+| `test-harness compare-sql` | 1 | All scenarios failed. Enter self-correction loop |
