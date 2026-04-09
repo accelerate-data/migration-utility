@@ -1,0 +1,183 @@
+{
+  "item_id": "silver.deletetoptarget",
+  "object_type": "table",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {
+      "id": "delete_top_old_records_removed",
+      "statement_index": 0,
+      "description": "DELETE TOP (100) — records older than 1 year are deleted from the target table",
+      "scenarios": ["test_delete_top_old_record_removed"]
+    },
+    {
+      "id": "delete_top_recent_records_kept",
+      "statement_index": 0,
+      "description": "WHERE LoadedDate >= 1 year — non-matching recent records remain in target table",
+      "scenarios": ["test_delete_top_recent_record_retained"]
+    },
+    {
+      "id": "delete_top_limit_boundary",
+      "statement_index": 0,
+      "description": "DELETE TOP (100) with more than 100 old records — only top 100 deleted, rest remain",
+      "scenarios": ["test_delete_top_exactly_100_deleted"]
+    },
+    {
+      "id": "delete_top_mixed_records",
+      "statement_index": 0,
+      "description": "Mix of old and recent records — only old records deleted, recent retained",
+      "scenarios": ["test_delete_top_mixed_old_and_recent"]
+    },
+    {
+      "id": "empty_table_no_op",
+      "statement_index": 0,
+      "description": "Empty target table — DELETE affects zero rows, no error",
+      "scenarios": ["test_delete_top_empty_table_no_op"]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_delete_top_old_record_removed",
+      "target_table": "[silver].[DeleteTopTarget]",
+      "procedure": "[silver].[usp_load_DeleteTopTarget]",
+      "given": [
+        {
+          "table": "[silver].[DeleteTopTarget]",
+          "rows": [
+            {
+              "ProductAlternateKey": "P001",
+              "EnglishProductName": "Widget A",
+              "LoadedDate": "2023-01-15T10:30:00"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": []
+      }
+    },
+    {
+      "name": "test_delete_top_recent_record_retained",
+      "target_table": "[silver].[DeleteTopTarget]",
+      "procedure": "[silver].[usp_load_DeleteTopTarget]",
+      "given": [
+        {
+          "table": "[silver].[DeleteTopTarget]",
+          "rows": [
+            {
+              "ProductAlternateKey": "P002",
+              "EnglishProductName": "Widget B",
+              "LoadedDate": "2025-06-20T14:45:00"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "P002",
+            "EnglishProductName": "Widget B",
+            "LoadedDate": "2025-06-20T14:45:00"
+          }
+        ]
+      }
+    },
+    {
+      "name": "test_delete_top_exactly_100_deleted",
+      "target_table": "[silver].[DeleteTopTarget]",
+      "procedure": "[silver].[usp_load_DeleteTopTarget]",
+      "given": [
+        {
+          "table": "[silver].[DeleteTopTarget]",
+          "rows": [
+            {
+              "ProductAlternateKey": "P003",
+              "EnglishProductName": "Widget C",
+              "LoadedDate": "2023-02-10T09:15:00"
+            },
+            {
+              "ProductAlternateKey": "P004",
+              "EnglishProductName": "Widget D",
+              "LoadedDate": "2023-02-11T09:15:00"
+            },
+            {
+              "ProductAlternateKey": "P005",
+              "EnglishProductName": "Widget E",
+              "LoadedDate": "2023-02-12T09:15:00"
+            },
+            {
+              "ProductAlternateKey": "P006",
+              "EnglishProductName": "Widget F",
+              "LoadedDate": "2023-02-13T09:15:00"
+            },
+            {
+              "ProductAlternateKey": "P007",
+              "EnglishProductName": "Widget G",
+              "LoadedDate": "2023-02-14T09:15:00"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": []
+      }
+    },
+    {
+      "name": "test_delete_top_mixed_old_and_recent",
+      "target_table": "[silver].[DeleteTopTarget]",
+      "procedure": "[silver].[usp_load_DeleteTopTarget]",
+      "given": [
+        {
+          "table": "[silver].[DeleteTopTarget]",
+          "rows": [
+            {
+              "ProductAlternateKey": "P008",
+              "EnglishProductName": "Widget H",
+              "LoadedDate": "2023-03-20T12:00:00"
+            },
+            {
+              "ProductAlternateKey": "P009",
+              "EnglishProductName": "Widget I",
+              "LoadedDate": "2025-08-10T12:00:00"
+            },
+            {
+              "ProductAlternateKey": "P010",
+              "EnglishProductName": "Widget J",
+              "LoadedDate": "2023-04-01T12:00:00"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "P009",
+            "EnglishProductName": "Widget I",
+            "LoadedDate": "2025-08-10T12:00:00"
+          }
+        ]
+      }
+    },
+    {
+      "name": "test_delete_top_empty_table_no_op",
+      "target_table": "[silver].[DeleteTopTarget]",
+      "procedure": "[silver].[usp_load_DeleteTopTarget]",
+      "given": [
+        {
+          "table": "[silver].[DeleteTopTarget]",
+          "rows": []
+        }
+      ],
+      "expect": {
+        "rows": []
+      }
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "errors": []
+}

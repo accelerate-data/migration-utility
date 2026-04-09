@@ -2,24 +2,68 @@
   "schema": "silver",
   "name": "deletetoptarget",
   "columns": [
-    { "name": "ProductKey", "sql_type": "INT", "is_nullable": false, "is_identity": true },
-    { "name": "ProductAlternateKey", "sql_type": "NVARCHAR(25)", "is_nullable": false, "is_identity": false },
-    { "name": "EnglishProductName", "sql_type": "NVARCHAR(50)", "is_nullable": false, "is_identity": false },
-    { "name": "LoadedDate", "sql_type": "DATETIME", "is_nullable": false, "is_identity": false }
+    {
+      "name": "ProductKey",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": true
+    },
+    {
+      "name": "ProductAlternateKey",
+      "sql_type": "NVARCHAR(25)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "EnglishProductName",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "LoadedDate",
+      "sql_type": "DATETIME",
+      "is_nullable": false,
+      "is_identity": false
+    }
   ],
-  "primary_keys": [{ "constraint_name": "PK_DeleteTopTarget", "columns": ["ProductKey"] }],
+  "primary_keys": [
+    {
+      "constraint_name": "PK_DeleteTopTarget",
+      "columns": [
+        "ProductKey"
+      ]
+    }
+  ],
   "unique_indexes": [],
   "foreign_keys": [],
-  "auto_increment_columns": [{ "column": "ProductKey" }],
+  "auto_increment_columns": [
+    {
+      "column": "ProductKey"
+    }
+  ],
   "change_capture": null,
   "sensitivity_classifications": [],
   "referenced_by": {
     "procedures": {
-      "in_scope": [{ "schema": "silver", "name": "usp_load_deletetoptarget", "is_selected": true, "is_updated": true }],
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "usp_load_deletetoptarget",
+          "is_selected": true,
+          "is_updated": true
+        }
+      ],
       "out_of_scope": []
     },
-    "views": { "in_scope": [], "out_of_scope": [] },
-    "functions": { "in_scope": [], "out_of_scope": [] }
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
   },
   "scoping": {
     "status": "resolved",
@@ -34,12 +78,23 @@
       "rationale": "Simple dimension table with DELETE TOP cleanup pattern."
     },
     "primary_key": {
-      "columns": ["ProductKey"],
+      "columns": [
+        "ProductKey"
+      ],
       "primary_key_type": "surrogate",
       "source": "catalog",
       "rationale": "ProductKey is a surrogate identity key."
     },
     "foreign_keys": [],
     "pii_actions": []
+  },
+  "test_gen": {
+    "status": "ok",
+    "test_spec_path": "test-specs/silver.deletetoptarget.json",
+    "branches": 5,
+    "unit_tests": 5,
+    "coverage": "complete",
+    "warnings": [],
+    "errors": []
   }
 }
