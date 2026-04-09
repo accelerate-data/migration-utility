@@ -3,3 +3,17 @@ You are running in a DDL project directory at {{fixture_path}}.
 Run /reviewing-model for table {{target_table}} with writer {{writer}}.
 
 Read the skill at plugin/skills/reviewing-model/SKILL.md. Wherever it references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead. Pass `--project-root {{fixture_path}}` to all CLI commands and `--writer {{writer}}` to `migrate context`.
+
+`fixture_path` is authoritative. Do not question whether it exists, ask to
+create files, or ask permission to write review outputs.
+
+Do not infer catalog readiness from filenames or directory listings. Run the
+context assembly command from the skill and trust its result. Do not run
+`migrate-util ready` in this review step.
+
+Review the generated model files already present under `dbt/models/staging/`
+and `dbt/models/marts/`. Do not try to repair fixtures, add missing catalog
+fields, or create model files during review.
+
+Return only the final `ModelReviewResult` JSON object. Do not return markdown,
+summaries, headings, or follow-up questions.

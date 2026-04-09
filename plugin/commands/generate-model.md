@@ -50,7 +50,8 @@ For **single-table runs**: create one `execute: generate <fqn>` task and one `su
 2. Run the `git-checkpoints` skill with the run slug as the argument.
    - If it returns the default branch name (not a worktree path): proceed without a branch or worktree. All file writes and git operations target the current directory. Set `<working-directory>` to `$(git rev-parse --show-toplevel)` for use in sub-agent prompts below.
    - Otherwise: use the returned path as the working directory for all file writes and git operations in this run. Set `<working-directory>` to the returned path.
-3. Generate a run epoch: seconds since Unix epoch (e.g. `1743868200`). All run artifacts use this as a filename suffix.
+3. Generate a run ID in the form `<epoch_ms>-<random_8hex>` (for example
+   `1743868200123-a1b2c3d4`). All run artifacts use this as the filename suffix.
 
 ### Step 1b — Model sweep (2+ tables only)
 
@@ -79,7 +80,7 @@ For each shared staging candidate not already on disk, write `dbt/models/staging
 select * from {{ source('<schema>', '<table>') }}
 ```
 
-Write plan artifact to `.migration-runs/model-sweep.<epoch>.json` (schema: `plugin/lib/shared/schemas/model_sweep_output.json`).
+Write plan artifact to `.migration-runs/model-sweep.<run_id>.json` (schema: `plugin/lib/shared/schemas/model_sweep_output.json`).
 
 Show pre-flight table:
 
@@ -100,7 +101,7 @@ On `edit`: user specifies per-table action overrides (e.g. `silver.DimProduct: r
 
 ### Step 2 — Execute generation (plan-driven)
 
-**Single-table path (1 table):** Run `migration:generating-model` directly in the current conversation — do not launch a sub-agent. Pass the model sweep artifact path if it exists. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<epoch>.json`. Then continue to Step 3 (review).
+**Single-table path (1 table):** Run `migration:generating-model` directly in the current conversation — do not launch a sub-agent. Pass the model sweep artifact path if it exists. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<run_id>.json`. Then continue to Step 3 (review).
 
 **Multi-table path (2+ tables):** Read the model sweep plan. For each table:
 
@@ -115,11 +116,11 @@ Claude decides how many agents to spawn and which tables to group, based on shar
 ```text
 Run the migration:generating-model skill for <schema.table>.
 The working directory is <working-directory>.
-Model sweep artifact: .migration-runs/model-sweep.<epoch>.json
+Model sweep artifact: .migration-runs/model-sweep.<run_id>.json
 Skip the Step 4 user confirmation prompt and the Step 6 approval prompt — proceed automatically. Still run the full equivalence analysis in Step 4.
 Equivalence warnings: proceed and write the model. Record each gap as EQUIVALENCE_GAP warning.
 dbt compile/test failure: attempt up to 3 self-corrections. If still failing, write as-is with DBT_TEST_FAILED warning.
-Write the item result JSON to .migration-runs/<schema.table>.<epoch>.json.
+Write the item result JSON to .migration-runs/<schema.table>.<run_id>.json.
 On failure, write result with status: "error" and error details.
 Return the item result JSON.
 ```
@@ -129,16 +130,16 @@ Return the item result JSON.
 ```text
 Run the migration:generating-model skill for <schema.table> in test-only mode.
 The working directory is <working-directory>.
-Model sweep artifact: .migration-runs/model-sweep.<epoch>.json
+Model sweep artifact: .migration-runs/model-sweep.<run_id>.json
 The mart model already exists on disk. Skip Steps 2–7. Proceed directly to Step 8 (compile + test).
-Write the item result JSON to .migration-runs/<schema.table>.<epoch>.json.
+Write the item result JSON to .migration-runs/<schema.table>.<run_id>.json.
 On failure, write result with status: "error" and error details.
 Return the item result JSON.
 ```
 
 ### Step 3 — Review Model
 
-For each item, read `.migration-runs/<item_id>.<epoch>.json` from Step 2. If `status` is `error`, skip the item. For each remaining item, invoke `/reviewing-model <item_id>`.
+For each item, read `.migration-runs/<item_id>.<run_id>.json` from Step 2. If `status` is `error`, skip the item. For each remaining item, invoke `/reviewing-model <item_id>`.
 
 - If verdict is `approved`: proceed to commit/revert below.
 - `revision_requested`: invoke `/generating-model <item_id>` with the reviewer's `feedback_for_model_generator` as additional context. The model-generator must re-run `dbt test` to confirm unit tests still pass after revisions. Then invoke `/reviewing-model <item_id>` again. Maximum 2 review iterations per item.
@@ -160,8 +161,8 @@ For multi-table sub-agents: include the commit/revert instructions in the sub-ag
 
 ### Step 4 — Summarize
 
-1. Read each `.migration-runs/<schema.table>.<epoch>.json`.
-2. Write `.migration-runs/summary.<epoch>.json` with `{total, ok, partial, error}` counts and per-item status.
+1. Read each `.migration-runs/<schema.table>.<run_id>.json`.
+2. Write `.migration-runs/summary.<run_id>.json` with `{total, ok, partial, error}` counts and per-item status.
 3. Present human-readable summary:
 
    ```text
@@ -235,22 +236,7 @@ For multi-table sub-agents: include the commit/revert instructions in the sub-ag
 
 ## Error and Warning Codes
 
-| Code | Severity | When |
-|---|---|---|
-| `MANIFEST_NOT_FOUND` | error | manifest.json missing — all items fail |
-| `DBT_PROJECT_MISSING` | error | dbt_project.yml not found — all items fail |
-| `DBT_PROFILE_MISSING` | error | dbt/profiles.yml not found — run `/init-dbt` — all items fail |
-| `DBT_CONNECTION_FAILED` | error | `dbt debug` connection test failed — check credentials — all items fail |
-| `CATALOG_FILE_MISSING` | error | catalog/tables/\<item_id>.json not found — skip item |
-| `SCOPING_NOT_COMPLETED` | error | scoping section missing or no selected_writer — skip item |
-| `PROFILE_NOT_COMPLETED` | error | profile section missing or status != ok — skip item |
-| `TEST_SPEC_NOT_FOUND` | error | test-specs/\<item_id>.json not found — skip item |
-| `GENERATION_FAILED` | error | `/generating-model` skill pipeline failed — skip item |
-| `EQUIVALENCE_GAP` | warning | semantic gap found between proc and generated model — item proceeds as partial |
-| `DBT_COMPILE_FAILED` | warning | `dbt compile` failed after retries — item proceeds as partial |
-| `DBT_TEST_FAILED` | warning | `dbt test` failed after 3 self-correction iterations — item proceeds as partial |
-| `REVIEW_KICKED_BACK` | warning | reviewer requested revision — item retried |
-| `REVIEW_APPROVED_WITH_WARNINGS` | warning | reviewer approved with remaining issues after max iterations — item proceeds |
+Use only the shared canonical codes in `../lib/shared/generate_model_error_codes.md`.
 
 Each entry in `errors[]` or `warnings[]`:
 

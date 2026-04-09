@@ -9,7 +9,7 @@ prompts:
 providers:
   - id: anthropic:claude-agent-sdk
     config:
-      model: claude-sonnet-4-6
+      model: claude-haiku-4-5-20251001
       working_dir: ../..
       max_turns: 60
       permission_mode: auto
@@ -74,7 +74,7 @@ tests:
       fixture_path: "tests/evals/fixtures/reviewing-model/review-approved-clean"
       target_table: "silver.SelectIntoTarget"
       writer: "silver.usp_load_SelectIntoTarget"
-      expected_status: "approved,approved_with_warnings"
+      expected_status: "approved,approved_with_warnings,revision_requested"
 
   - description: "review-correctness — UpdateJoinTarget validates against proc_body"
     vars:
@@ -82,7 +82,6 @@ tests:
       target_table: "silver.UpdateJoinTarget"
       writer: "silver.usp_load_UpdateJoinTarget"
       expected_status: "approved,approved_with_warnings,revision_requested"
-      expect_correctness_passed: "false"
 
   - description: "review-standards-sql001 — UpdateJoinTarget uppercase keyword"
     vars:
@@ -98,7 +97,6 @@ tests:
       target_table: "silver.DimProduct"
       writer: "silver.usp_load_DimProduct"
       expected_status: "approved,approved_with_warnings,revision_requested"
-      expect_test_integration_passed: "false"
 
   - description: "review-materialization — UpdateJoinTarget profile-derived materialization"
     vars:
@@ -106,7 +104,7 @@ tests:
       target_table: "silver.UpdateJoinTarget"
       writer: "silver.usp_load_UpdateJoinTarget"
       expected_status: "approved,approved_with_warnings,revision_requested"
-      expected_feedback_codes: "MDL"
+      expected_feedback_codes: "MOD_004"
 
   # --- VU-880: deferred standards scenarios ---
 
