@@ -87,8 +87,8 @@ npm run eval:listing-objects
 npm run eval:analyzing-table
 npm run eval:profiling-table
 npm run eval:generating-tests
-npm run eval:refactoring-sql
 npm run eval:reviewing-tests
+npm run eval:refactoring-sql
 npm run eval:reviewing-model
 
 
