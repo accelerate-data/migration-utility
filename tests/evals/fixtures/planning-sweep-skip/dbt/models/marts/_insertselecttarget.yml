@@ -2,11 +2,12 @@ version: 2
 
 models:
   - name: insertselecttarget
+    description: "Migrated from silver.usp_load_InsertSelectTarget. Target: silver.insertselecttarget."
     columns:
       - name: ProductAlternateKey
-        tests:
-          - not_null
+        description: "Primary key"
+        data_tests:
           - unique
-      - name: EnglishProductName
-        tests:
           - not_null
+      - name: EnglishProductName
+        description: "Product name in English"

@@ -1,0 +1,17 @@
+version: 2
+
+models:
+  - name: insertselecttarget
+    description: Materialized insert-select from bronze.Product
+    columns:
+      - name: ProductAlternateKey
+        description: Product alternate key (cast from ProductID)
+        data_type: nvarchar(25)
+        tests:
+          - not_null
+          - unique
+      - name: EnglishProductName
+        description: Product name
+        data_type: nvarchar(50)
+        tests:
+          - not_null

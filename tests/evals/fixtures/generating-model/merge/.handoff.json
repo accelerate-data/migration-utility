@@ -1,0 +1,16 @@
+{
+  "item_id": "silver.DimProduct",
+  "execution_mode": "generate",
+  "artifact_paths": {
+    "model_sql": "models/marts/dim_product.sql",
+    "model_yaml": "models/marts/_dim_product.yml"
+  },
+  "relation_bindings": [
+    {
+      "relation": "bronze.Product",
+      "binding_type": "ref",
+      "binding_name": "stg_dimproduct"
+    }
+  ],
+  "shared_staging_candidates": []
+}

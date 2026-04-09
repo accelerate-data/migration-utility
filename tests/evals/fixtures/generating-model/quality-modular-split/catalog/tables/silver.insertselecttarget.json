@@ -76,5 +76,15 @@
     },
     "foreign_keys": [],
     "pii_actions": []
+  },
+  "generate": {
+    "status": "error",
+    "model_path": "dbt/models/marts/insertselecttarget.sql",
+    "schema_yml": true,
+    "compiled": true,
+    "tests_passed": true,
+    "test_count": 4,
+    "warnings": [],
+    "errors": []
   }
 }

@@ -13,3 +13,7 @@ sources:
       data_type: nvarchar(50)
     - name: MaritalStatus
       data_type: nchar(1)
+
+models:
+  - name: stg_employee
+    description: "Staging model for bronze.employee source table."

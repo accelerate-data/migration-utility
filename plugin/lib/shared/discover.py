@@ -27,22 +27,15 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, NoReturn, Optional
 
-import sqlglot.errors
 import typer
-from jsonschema import Draft202012Validator
-from referencing import Registry, Resource
 
 from shared.catalog import (
     has_catalog,
-    load_and_merge_catalog,
     load_proc_catalog,
     load_table_catalog,
     load_view_catalog,
     load_function_catalog,
     resolve_catalog_path,
-    write_json,
-    write_proc_statements,
-    write_proc_table_slice,
 )
 from shared.loader import (
     CatalogFileMissingError,
@@ -55,7 +48,6 @@ from shared.loader import (
     extract_refs,
     load_ddl,
 )
-from shared.catalog_models import TableScopingSection, ViewScopingSection
 from shared.cli_utils import emit
 from shared.env_config import resolve_catalog_dir, resolve_project_root
 from shared.name_resolver import normalize
@@ -63,7 +55,6 @@ from shared.name_resolver import normalize
 logger = logging.getLogger(__name__)
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
-_SCHEMA_DIR = Path(__file__).with_name("schemas")
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -76,42 +67,15 @@ class ObjectType(str, Enum):
     functions = "functions"
 
 
-def _load_schema_with_store(schema_name: str) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Load a schema file and a registry for local schema references."""
-    registry = Registry()
-    loaded: dict[str, Any] = {}
-    for schema_path in _SCHEMA_DIR.glob("*.json"):
-        schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        loaded[schema_path.name] = schema
-        resource = Resource.from_contents(schema)
-        registry = registry.with_resource(schema_path.name, resource)
-        registry = registry.with_resource(schema_path.resolve().as_uri(), resource)
-    return loaded[schema_name], registry
-
-
-def _format_validation_errors(errors: list[Any]) -> str:
-    """Render jsonschema validation errors in compact, retry-friendly form."""
-    parts: list[str] = []
-    for error in errors:
-        path = "/" + "/".join(str(segment) for segment in error.absolute_path)
-        parts.append(f"{path or '/'}: {error.message}")
-    return "; ".join(parts)
-
-
-def _validate_schema_fragment(data: Any, schema_name: str, fragment_path: str) -> None:
-    """Validate data against a schema fragment and raise a field-level ValueError."""
-    schema, registry = _load_schema_with_store(schema_name)
-    wrapper_schema = {
-        "$schema": schema.get("$schema", "https://json-schema.org/draft/2020-12/schema"),
-        "$ref": f"{schema_name}#/{fragment_path}",
-    }
-    validator = Draft202012Validator(wrapper_schema, registry=registry)
-    errors = sorted(validator.iter_errors(data), key=lambda err: list(err.absolute_path))
-    if errors:
-        raise ValueError(
-            f"Schema validation failed for {schema_name}#/{fragment_path}: "
-            f"{_format_validation_errors(errors)}"
-        )
+# Re-exports from catalog_writer.py — consumed by CLI handlers below
+# and by test_discover.py (via discover.run_write_* calls).
+from shared.catalog_writer import (  # noqa: F401
+    run_write_scoping,
+    run_write_source,
+    run_write_statements,
+    run_write_table_slice,
+    run_write_view_scoping,
+)
 
 
 def _load(project_root: Path) -> tuple[DdlCatalog, str]:
@@ -229,87 +193,7 @@ def _show_procedure(
     }
 
 
-def _analyze_view_select(entry: "DdlEntry") -> dict[str, Any]:
-    """Extract SQL elements from a view's AST. Returns sql_elements and errors.
-
-    Views are always deterministic SELECT statements — there is no needs_llm routing.
-    If parse_error is set or the AST walk fails, sql_elements is null and errors contains
-    a DDL_PARSE_ERROR entry. The skill falls back to raw_ddl in that case.
-    """
-    import sqlglot.expressions as exp
-
-    if entry.parse_error or entry.ast is None:
-        return {
-            "sql_elements": None,
-            "errors": [{"code": "DDL_PARSE_ERROR", "severity": "error", "message": entry.parse_error or "AST is None"}],
-        }
-
-    try:
-        elements: list[dict[str, Any]] = []
-        ast = entry.ast
-
-        # JOINs — one element per unique (join_type, target) pair
-        seen_joins: set[str] = set()
-        for join in ast.find_all(exp.Join):
-            join_type = "JOIN"
-            if join.args.get("kind"):
-                kind = str(join.args["kind"]).upper()
-                side = str(join.args.get("side", "")).upper()
-                join_type = f"{side} {kind}".strip() if side else kind
-            table = join.this
-            target = table.name if hasattr(table, "name") else str(table)
-            if table.args.get("db"):
-                target = f"{table.args['db']}.{target}"
-            detail = f"{join_type} {target}"
-            if detail not in seen_joins:
-                seen_joins.add(detail)
-                elements.append({"type": "join", "detail": detail})
-
-        # CTEs (WITH clause) — use direct children to avoid counting nested subquery CTEs
-        for cte_node in ast.find_all(exp.With):
-            cte_count = len(cte_node.expressions)
-            elements.append({"type": "cte", "detail": f"{cte_count} CTE(s)"})
-            break  # only report the outermost WITH clause
-
-        # GROUP BY
-        for _ in ast.find_all(exp.Group):
-            elements.append({"type": "group_by", "detail": "GROUP BY"})
-            break
-
-        # Aggregation functions
-        agg_funcs: list[str] = []
-        for agg in ast.find_all(exp.AggFunc):
-            name = type(agg).__name__.upper()
-            if name not in agg_funcs:
-                agg_funcs.append(name)
-        if agg_funcs:
-            elements.append({"type": "aggregation", "detail": ", ".join(sorted(agg_funcs))})
-
-        # Window functions (OVER)
-        for _ in ast.find_all(exp.Window):
-            elements.append({"type": "window_function", "detail": "OVER clause"})
-            break
-
-        # CASE expressions
-        for _ in ast.find_all(exp.Case):
-            elements.append({"type": "case", "detail": "CASE expression"})
-            break
-
-        # Subqueries — exclude CTE bodies (they are Subquery nodes but not inline subqueries)
-        subquery_count = sum(
-            1 for node in ast.find_all(exp.Subquery)
-            if not isinstance(node.parent, exp.CTE)
-        )
-        if subquery_count:
-            elements.append({"type": "subquery", "detail": f"{subquery_count} subquery(ies)"})
-
-        return {"sql_elements": elements, "errors": []}
-
-    except (sqlglot.errors.SqlglotError, AttributeError, TypeError) as exc:
-        return {
-            "sql_elements": None,
-            "errors": [{"code": "DDL_PARSE_ERROR", "severity": "error", "message": str(exc)}],
-        }
+from shared.view_analysis import _analyze_view_select
 
 
 def _show_view_or_function(
@@ -435,148 +319,6 @@ def _run_refs_from_catalog(project_root: Path, target: str) -> dict[str, Any]:
         "readers": sorted(set(readers)),
         "writers": sorted(writers, key=lambda w: w["procedure"]),
     }
-
-
-def run_write_statements(
-    project_root: Path, name: str, statements: list[dict[str, Any]],
-) -> dict[str, Any]:
-    """Persist resolved statements into a procedure catalog file.
-
-    All statements must have ``action`` set to ``migrate`` or ``skip`` —
-    unresolved ``needs_llm`` actions are rejected.
-
-    Returns a dict with ``written`` (path) and ``statement_count``.
-    """
-    for stmt in statements:
-        action = stmt.get("action")
-        if action not in ("migrate", "skip"):
-            raise ValueError(
-                f"Unresolved statement action {action!r} for {stmt.get('id', '?')} — "
-                "all actions must be 'migrate' or 'skip' before writing."
-            )
-    _validate_schema_fragment(statements, "procedure_catalog.json", "properties/statements")
-    path = write_proc_statements(project_root, name, statements)
-    return {"written": str(path), "statement_count": len(statements)}
-
-
-def run_write_scoping(
-    project_root: Path,
-    table_fqn: str,
-    scoping: dict[str, Any],
-) -> dict[str, Any]:
-    """Validate and merge scoping results into a table catalog file."""
-    if "status" in scoping:
-        raise ValueError("status must not be passed — determined by CLI")
-
-    table_norm = normalize(table_fqn)
-
-    # Load existing catalog
-    cat_model = load_table_catalog(project_root, table_norm)
-    if cat_model is None:
-        raise CatalogFileMissingError("table", table_norm)
-
-    # Determine status from content
-    selected_writer = scoping.get("selected_writer")
-    has_errors = any(
-        entry.get("severity") == "error"
-        for entry in scoping.get("errors", [])
-        if isinstance(entry, dict)
-    )
-    if has_errors:
-        status = "error"
-    elif selected_writer:
-        proc_cat = load_proc_catalog(project_root, selected_writer)
-        if proc_cat is not None:
-            status = "resolved"
-        else:
-            status = "error"
-    elif scoping.get("candidates"):
-        status = "ambiguous_multi_writer"
-    else:
-        status = "no_writer_found"
-
-    scoping["status"] = status
-    TableScopingSection.model_validate(scoping)
-    _validate_schema_fragment(scoping, "table_catalog.json", "properties/scoping")
-
-    result = load_and_merge_catalog(project_root, table_norm, "scoping", scoping)
-    return {"written": result["catalog_path"], "status": "ok"}
-
-
-def run_write_view_scoping(
-    project_root: Path,
-    view_fqn: str,
-    scoping: dict[str, Any],
-) -> dict[str, Any]:
-    """Validate and merge scoping results into a view catalog file."""
-    if "status" in scoping:
-        raise ValueError("status must not be passed — determined by CLI")
-
-    view_norm = normalize(view_fqn)
-
-    cat_model = load_view_catalog(project_root, view_norm)
-    if cat_model is None:
-        raise CatalogFileMissingError("view", view_norm)
-
-    # Determine status from content
-    has_sql_elements = "sql_elements" in scoping
-    has_parse_errors = any(
-        e.get("code") == "DDL_PARSE_ERROR"
-        for e in scoping.get("errors", [])
-    )
-    if has_sql_elements or has_parse_errors:
-        status = "analyzed"
-    else:
-        status = "error"
-
-    scoping["status"] = status
-    ViewScopingSection.model_validate(scoping)
-    _validate_schema_fragment(scoping, "view_catalog.json", "properties/scoping")
-
-    result = load_and_merge_catalog(project_root, view_norm, "scoping", scoping)
-    return {"written": result["catalog_path"], "status": "ok"}
-
-
-def run_write_source(
-    project_root: Path,
-    table_fqn: str,
-    value: bool,
-) -> dict[str, Any]:
-    """Set or clear the is_source flag on a table catalog file."""
-    table_norm = normalize(table_fqn)
-    cat_model = load_table_catalog(project_root, table_norm)
-    if cat_model is None:
-        raise CatalogFileMissingError("table", table_norm)
-
-    if cat_model.scoping is None:
-        raise ValueError(
-            f"Table {table_norm!r} has not been analyzed yet. "
-            "Run /analyzing-table first."
-        )
-
-    result = load_and_merge_catalog(project_root, table_norm, "is_source", value)
-
-    logger.info(
-        "event=write_source_complete component=discover operation=run_write_source "
-        "table=%s is_source=%s status=success",
-        table_norm,
-        value,
-    )
-
-    return {"written": result["catalog_path"], "is_source": value, "status": "ok"}
-
-
-def run_write_table_slice(
-    project_root: Path, proc_fqn: str, table_fqn: str, ddl_slice: str
-) -> dict[str, Any]:
-    """Write a per-table DDL slice into the proc catalog."""
-    path = write_proc_table_slice(project_root, proc_fqn, table_fqn, ddl_slice)
-    logger.info(
-        "event=write_table_slice proc=%s table=%s status=success",
-        normalize(proc_fqn),
-        normalize(table_fqn),
-    )
-    return {"written": str(path), "status": "ok"}
 
 
 def run_refs(project_root: Path, name: str) -> dict[str, Any]:

@@ -11,6 +11,8 @@ models:
           - unique
       - name: EnglishProductName
         description: "Product name projected from bronze.Product.ProductName."
+      - name: _dbt_run_id
+        description: "dbt invocation ID for run tracking."
 
 unit_tests:
   - name: test_insert_select_projects_source_row

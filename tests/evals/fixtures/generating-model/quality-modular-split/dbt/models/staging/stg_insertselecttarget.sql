@@ -1,5 +1,5 @@
 {{ config(
-    materialized='table'
+    materialized='ephemeral'
 ) }}
 
 with source_product as (
@@ -16,7 +16,8 @@ prepared_product as (
 final as (
     select
         ProductAlternateKey,
-        EnglishProductName
+        EnglishProductName,
+        cast('{{ invocation_id }}' as nvarchar(max)) as _dbt_run_id
     from prepared_product
 )
 

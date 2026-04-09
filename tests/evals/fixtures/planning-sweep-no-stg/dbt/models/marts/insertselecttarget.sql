@@ -2,7 +2,7 @@
     materialized='table'
 ) }}
 
-with stg_product as (
+with source_product as (
     select * from {{ ref('stg_product') }}
 ),
 
@@ -10,7 +10,7 @@ final as (
     select
         ProductAlternateKey,
         EnglishProductName
-    from stg_product
+    from source_product
 )
 
 select * from final

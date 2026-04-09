@@ -39,7 +39,8 @@ from typing import Any, List, Optional
 
 import typer
 
-from shared.batch_plan import build_batch_plan, collect_deps
+from shared.batch_plan import build_batch_plan
+from shared.deps import collect_deps
 from shared.catalog import (
     load_proc_catalog,
     load_table_catalog,

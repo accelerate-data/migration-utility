@@ -1,5 +1,9 @@
 version: 2
 
+models:
+  - name: stg_employee
+    description: "Staging model for bronze.employee source table."
+
 snapshots:
   - name: dimemployeescd2_snapshot
     description: "Migrated from silver.usp_load_DimEmployeeSCD2. Target: silver.DimEmployeeSCD2."

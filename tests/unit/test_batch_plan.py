@@ -19,13 +19,15 @@ from shared.batch_plan import (
     _build_plan_output,
     _classify_phases,
     _compute_blocking_deps,
-    _compute_diagnostic_stage_flags,
     _enumerate_catalog,
     _make_node,
     _resolve_excluded_type,
     _topological_batches,
     build_batch_plan,
-    collect_deps,
+)
+from shared.deps import collect_deps
+from shared.pipeline_status import (
+    _compute_diagnostic_stage_flags,
     collect_object_diagnostics,
     object_pipeline_status,
 )
