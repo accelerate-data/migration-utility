@@ -82,5 +82,21 @@
     },
     "foreign_keys": [],
     "pii_actions": []
+  },
+  "test_gen": {
+    "status": "ok",
+    "test_spec_path": "test-specs/silver.dimcurrency.json",
+    "branches": 8,
+    "unit_tests": 8,
+    "coverage": "complete",
+    "warnings": [
+      {
+        "code": "dynamic_sql_variable",
+        "message": "Write logic is embedded in sp_executesql called with a NVARCHAR variable (@sql), so the INSERT SQL is not statically visible to the scoping agent. The recovered SQL semantics and schema mappings are fully documented in test specifications: TRUNCATE + INSERT SELECT from [MigrationTest].[bronze].[Currency] to [silver].[DimCurrency] with column mappings CurrencyCode-CurrencyAlternateKey and CurrencyName-CurrencyName.",
+        "item_id": "silver.dimcurrency",
+        "severity": "warning"
+      }
+    ],
+    "errors": []
   }
 }

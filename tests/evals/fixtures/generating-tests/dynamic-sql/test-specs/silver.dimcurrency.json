@@ -354,7 +354,7 @@
       "code": "dynamic_sql_variable",
       "message": "Write logic is embedded in sp_executesql called with a NVARCHAR variable (@sql), so the INSERT SQL is not statically visible to the scoping agent. The recovered SQL semantics and schema mappings are fully documented in test specifications: TRUNCATE + INSERT SELECT from [MigrationTest].[bronze].[Currency] to [silver].[DimCurrency] with column mappings CurrencyCode→CurrencyAlternateKey and CurrencyName→CurrencyName.",
       "item_id": "silver.dimcurrency",
-      "severity": "info",
+      "severity": "warning",
       "details": {
         "routing_reason": "dynamic_sql_variable",
         "recovered_sql": "INSERT INTO silver.DimCurrency (CurrencyAlternateKey, CurrencyName) SELECT CurrencyCode, CurrencyName FROM MigrationTest.bronze.Currency",
