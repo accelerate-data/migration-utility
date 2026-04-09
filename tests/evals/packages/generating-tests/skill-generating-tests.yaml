@@ -1,0 +1,305 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "Generating-tests skill — branch enumeration and fixture synthesis for tables and views"
+
+prompts:
+  - id: generating-tests
+    label: generating-tests
+    raw: file://../../prompts/skill-generating-tests.txt
+  - id: generating-tests-view
+    label: generating-tests-view
+    raw: file://../../prompts/skill-generating-tests-view.txt
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    config:
+      model: claude-haiku-4-5-20251001
+      working_dir: ../..
+      max_turns: 80
+      permission_mode: auto
+      append_allowed_tools:
+        - Read
+        - Write
+        - Bash
+        - Glob
+        - Grep
+
+defaultTest:
+  assert:
+    - type: javascript
+      value: file://../../assertions/check-test-spec.js
+
+tests:
+  # ── merge — DimProduct MERGE WHEN MATCHED / NOT MATCHED ─────────────────────
+  - description: "merge — DimProduct MERGE matched and not-matched branches"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/merge"
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      min_branch_count: "2"
+      min_scenario_count: "2"
+      expected_coverage: "complete"
+
+  # ── insert-select — InsertSelectTarget INSERT INTO ... SELECT ────────────────
+  - description: "insert-select — InsertSelectTarget insert-select"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/insert-select"
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      min_branch_count: "1"
+      min_scenario_count: "1"
+
+  # ── truncate-insert — InsertSelectTarget truncate + insert pattern ───────────
+  - description: "truncate-insert — InsertSelectTarget truncate-and-insert"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/truncate-insert"
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      min_branch_count: "1"
+      min_scenario_count: "1"
+
+  # ── if-else — IfElseTarget conditional branch ────────────────────────────────
+  - description: "if-else — IfElseTarget IF/ELSE branch"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/if-else"
+      target_table: "silver.IfElseTarget"
+      writer: "silver.usp_load_IfElseTarget"
+      min_branch_count: "2"
+      min_scenario_count: "2"
+
+  # ── cte — SingleCteTarget CTE + INSERT ──────────────────────────────────────
+  - description: "cte — SingleCteTarget WITH clause"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/cte"
+      target_table: "silver.SingleCteTarget"
+      writer: "silver.usp_load_SingleCteTarget"
+      min_branch_count: "1"
+      min_scenario_count: "1"
+
+  # ── delete-where — DeleteWhereTarget DELETE with WHERE ───────────────────────
+  - description: "delete-where — DeleteWhereTarget DELETE WHERE"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/delete-where"
+      target_table: "silver.DeleteWhereTarget"
+      writer: "silver.usp_load_DeleteWhereTarget"
+      min_branch_count: "2"
+      min_scenario_count: "2"
+
+  # ── delete-top — DeleteTopTarget DELETE TOP N ────────────────────────────────
+  - description: "delete-top — DeleteTopTarget DELETE TOP"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/delete-top"
+      target_table: "silver.DeleteTopTarget"
+      writer: "silver.usp_load_DeleteTopTarget"
+      min_branch_count: "1"
+      min_scenario_count: "1"
+
+  # ── update-join — UpdateJoinTarget UPDATE with JOIN ──────────────────────────
+  - description: "update-join — UpdateJoinTarget UPDATE FROM JOIN"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/update-join"
+      target_table: "silver.UpdateJoinTarget"
+      writer: "silver.usp_load_UpdateJoinTarget"
+      min_branch_count: "2"
+      min_scenario_count: "2"
+
+  # ── fk-multi-source — DimCustomer multi-source FK graph ─────────────────────
+  - description: "fk-multi-source — DimCustomer FK-consistent multi-source fixtures"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/fk-multi-source"
+      target_table: "silver.DimCustomer"
+      writer: "silver.usp_load_DimCustomer_Full"
+      min_branch_count: "1"
+      min_scenario_count: "1"
+
+  # ── outer-apply — DimCustomer OUTER APPLY ───────────────────────────────────
+  - description: "outer-apply — DimCustomer OUTER APPLY match/no-match"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/outer-apply"
+      target_table: "silver.DimCustomer"
+      writer: "silver.usp_load_DimCustomer_Full"
+      min_branch_count: "2"
+      min_scenario_count: "2"
+
+  # ── correlated-subquery — CorrelatedSubqueryTarget correlated subquery ───────
+  - description: "correlated-subquery — CorrelatedSubqueryTarget EXISTS correlated"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/correlated-subquery"
+      target_table: "silver.CorrelatedSubqueryTarget"
+      writer: "silver.usp_load_CorrelatedSubqueryTarget"
+      min_branch_count: "2"
+      min_scenario_count: "2"
+
+  # ── window-fn — FactInternetSales window function ────────────────────────────
+  - description: "window-fn — FactInternetSales ROW_NUMBER window function"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/window-fn"
+      target_table: "silver.FactInternetSales"
+      writer: "silver.usp_stage_FactInternetSales"
+      min_branch_count: "1"
+      min_scenario_count: "1"
+
+  # ── exec-chain — FactInternetSales EXEC chain ────────────────────────────────
+  - description: "exec-chain — FactInternetSales EXEC helper proc chain"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/exec-chain"
+      target_table: "silver.FactInternetSales"
+      writer: "silver.usp_stage_FactInternetSales"
+      min_branch_count: "1"
+      min_scenario_count: "1"
+
+  # ── dynamic-sql — DimCurrency sp_executesql ──────────────────────────────────
+  - description: "dynamic-sql — DimCurrency sp_executesql dynamic branch"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/dynamic-sql"
+      target_table: "silver.DimCurrency"
+      writer: "silver.usp_load_DimCurrency"
+      min_scenario_count: "1"
+
+  # ── recursive-cte — RecursiveCteTarget recursive CTE ────────────────────────
+  - description: "recursive-cte — RecursiveCteTarget recursive CTE anchor/recursive"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/recursive-cte"
+      target_table: "silver.RecursiveCteTarget"
+      writer: "silver.usp_load_RecursiveCteTarget"
+      min_branch_count: "2"
+      min_scenario_count: "2"
+
+  # ── nested-flow — NestedFlowTarget nested IF branches ───────────────────────
+  - description: "nested-flow — NestedFlowTarget nested IF/ELSE flow"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/nested-flow"
+      target_table: "silver.NestedFlowTarget"
+      writer: "silver.usp_load_NestedFlowTarget"
+      min_branch_count: "2"
+      min_scenario_count: "2"
+
+  # ── while-loop — WhileTarget WHILE loop ─────────────────────────────────────
+  - description: "while-loop — WhileTarget WHILE loop empty/non-empty"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/while-loop"
+      target_table: "silver.WhileTarget"
+      writer: "silver.usp_load_WhileTarget"
+      min_branch_count: "2"
+      min_scenario_count: "2"
+
+  # ── try-catch — TryCatchTarget TRY/CATCH ────────────────────────────────────
+  - description: "try-catch — TryCatchTarget TRY/CATCH error path"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/try-catch"
+      target_table: "silver.TryCatchTarget"
+      writer: "silver.usp_load_TryCatchTarget"
+      min_branch_count: "2"
+      min_scenario_count: "2"
+
+  # ── select-into — SelectIntoTarget SELECT INTO ───────────────────────────────
+  - description: "select-into — SelectIntoTarget SELECT INTO temp table"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/select-into"
+      target_table: "silver.SelectIntoTarget"
+      writer: "silver.usp_load_SelectIntoTarget"
+      min_branch_count: "1"
+      min_scenario_count: "1"
+
+  # ── static-sp-exec — StaticSpExecTarget static EXEC helper ──────────────────
+  - description: "static-sp-exec — StaticSpExecTarget static EXEC chain"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/static-sp-exec"
+      target_table: "silver.StaticSpExecTarget"
+      writer: "silver.usp_load_StaticSpExecTarget"
+      min_branch_count: "1"
+      min_scenario_count: "1"
+
+  # ── exec-variable — ExecVariableTarget dynamic EXEC(@sql) ───────────────────
+  - description: "exec-variable — ExecVariableTarget dynamic EXEC variable"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/exec-variable"
+      target_table: "silver.ExecVariableTarget"
+      writer: "silver.usp_scope_execvariable"
+      min_scenario_count: "1"
+
+  # ── exec-concat — ExecConcatTarget concatenated EXEC ────────────────────────
+  - description: "exec-concat — ExecConcatTarget concatenated EXEC"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/exec-concat"
+      target_table: "silver.ExecConcatTarget"
+      writer: "silver.usp_scope_execconcat"
+      min_scenario_count: "1"
+
+  # ── cross-db-exec — DimCrossDbProfile cross-database exec (error) ────────────
+  - description: "cross-db-exec — DimCrossDbProfile cross-database exec skip"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/cross-db-exec"
+      target_table: "silver.DimCrossDbProfile"
+      writer: "silver.usp_load_DimCrossDbProfile"
+      expected_status: "error,partial"
+
+  # ── quality-not-null — DimProduct NOT NULL fixture quality ──────────────────
+  - description: "quality-not-null — DimProduct NOT NULL column coverage"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/quality-not-null"
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      min_branch_count: "1"
+      min_scenario_count: "1"
+
+  # ── idempotent-fully-covered — DimProduct fully covered re-invocation ────────
+  - description: "idempotent-fully-covered — DimProduct merge_mode all branches covered"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/idempotent-fully-covered"
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      expected_coverage: "complete"
+
+  # ── idempotent-partial-spec — DimProduct partial spec merge_mode ─────────────
+  - description: "idempotent-partial-spec — DimProduct merge_mode adds missing scenarios"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/idempotent-partial-spec"
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      min_scenario_count: "1"
+
+  # ── view scenarios ────────────────────────────────────────────────────────────
+
+  # WHERE filter — vw_ActiveProducts match/no-match rows
+  - description: "view-where-filter — vw_ActiveProducts WHERE Status = Active"
+    prompts: ["generating-tests-view"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/view-where-filter"
+      target_table: "silver.vw_ActiveProducts"
+      min_branch_count: "2"
+      min_scenario_count: "2"
+
+  # LEFT JOIN — vw_CustomerSales match/no-match branches
+  - description: "view-join — vw_CustomerSales LEFT JOIN match and no-match"
+    prompts: ["generating-tests-view"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/view-join"
+      target_table: "silver.vw_CustomerSales"
+      min_branch_count: "2"
+      min_scenario_count: "2"

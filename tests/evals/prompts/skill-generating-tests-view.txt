@@ -1,0 +1,5 @@
+You are working on a dbt migration project. The project root is {{fixture_path}}.
+
+Generate test specifications for the view {{target_table}}.
+
+Use `plugin/lib` wherever the skill references `${CLAUDE_PLUGIN_ROOT}/lib`. Pass `--project-root {{fixture_path}}` to all CLI commands. Proceed autonomously through all steps.

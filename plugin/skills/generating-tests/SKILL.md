@@ -1,7 +1,7 @@
 ---
 name: generating-tests
 description: >
-  Generates test scenarios for a stored procedure migration. Enumerates
+  Generates test scenarios for a stored procedure or view migration. Enumerates
   conditional branches and synthesizes minimal fixtures. Does not execute
   procs or capture ground truth — that is done by the /generate-tests
   command after review approval.
@@ -11,13 +11,17 @@ argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 
 # Generating Tests
 
-Generate test scenarios for a stored procedure migration. Reads deterministic context from catalog, uses LLM to enumerate conditional branches and synthesize minimal fixtures, and writes structured JSON to `test-specs/`.
+Generate test scenarios for a stored procedure or view migration. Reads deterministic context from catalog, uses LLM to enumerate conditional branches and synthesize minimal fixtures, and writes structured JSON to `test-specs/`.
 
 This skill produces scenarios only — no proc execution, no ground truth capture. The `/generate-tests` command bulk-executes approved scenarios after the review loop completes.
 
 ## Arguments
 
-`$ARGUMENTS` is the fully-qualified table name. Ask the user if missing.
+`$ARGUMENTS` is the fully-qualified table or view name. Ask the user if missing.
+
+## Schema discipline
+
+Use the canonical generating-tests surfaced code list in `../../lib/shared/generate_tests_error_codes.md`. Do not define a competing public error-code list in this skill.
 
 ## Load existing spec
 
@@ -42,32 +46,66 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <table_fqn> test
 
 If `passed` is `false`, report the failing check's `code` and `message` to the user and stop.
 
+## Object type detection
+
+Check whether `catalog/views/<fqn>.json` exists:
+
+- **If yes** → object is a **view or MV**. Note `object_type = view` for the steps below.
+- **If no** → object is a **table**. Note `object_type = table` for the steps below.
+
+The pipeline is the same for both — `object_type` controls which branch patterns apply in Step 2 and which output fields are used in Step 4.
+
+---
+
 ## Step 1: Assemble context
+
+Context assembly uses different CLIs for tables and views — `migrate context` requires a writer procedure and does not support views.
+
+**For tables:**
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate context \
   --table <item_id>
 ```
 
-The command reads `selected_writer` from the catalog scoping section — no `--writer` argument needed.
-
-Read the output JSON. It contains:
+The command reads `selected_writer` from the catalog scoping section — no `--writer` argument needed. The output contains:
 
 - `profile` — classification, keys, watermark, PII answers
 - `materialization` — derived from profile (snapshot/table/incremental)
 - `statements` — resolved statement list with action (migrate/skip) and SQL
-- `proc_body` — full original procedure SQL
+- `proc_body` — full original procedure DDL
 - `columns` — target table column list
 - `source_tables` — tables read by the writer
 - `schema_tests` — deterministic test specs (entity integrity, referential integrity, recency, PII)
 
-**Source table catalog lookup:** For each table in `source_tables`, read `catalog/tables/<schema>.<table>.json` to get the full column list with `is_nullable`, `is_identity`, and type metadata. Also read `auto_increment_columns` to identify identity columns. This metadata is required for Step 3 (NOT NULL column coverage).
-
 Record the `selected_writer` procedure name from the catalog's `scoping` section — this becomes the `procedure` field in the test spec.
+
+**For views:**
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show \
+  --name <view_fqn>
+```
+
+This returns `raw_ddl`, `refs`, `sql_elements`, and `errors`. Also read `catalog/views/<fqn>.json` directly to get `profile`, `scoping.logic_summary`, and `references.tables.in_scope`.
+
+Assemble the context:
+
+- `profile` — from view catalog `profile` section
+- `statements` — the view's SELECT body from `raw_ddl` (treat as a single `action: migrate` statement)
+- `proc_body` — `raw_ddl` from `discover show`
+- `source_tables` — from `references.tables.in_scope` in the view catalog
+- If `errors` contains `DDL_PARSE_ERROR`, note it and proceed using `raw_ddl` directly for branch extraction
+
+There is no `selected_writer` for views — the view's refactored SELECT statement becomes the `sql` field in the test spec.
+
+**Source table catalog lookup (both):** For each table in `source_tables`, read `catalog/tables/<schema>.<table>.json` to get the full column list with `is_nullable`, `is_identity`, and type metadata. Also read `auto_increment_columns` to identify identity columns. This metadata is required for Step 3 (NOT NULL column coverage).
 
 ## Step 2: Extract branches
 
 For each statement where `action == migrate`, identify all conditional branches. Use the proc body and statement SQL to enumerate every code path that produces different output behavior.
+
+**For tables**, enumerate all patterns:
 
 | Pattern | Branches to enumerate |
 |---|---|
@@ -81,25 +119,21 @@ For each statement where `action == migrate`, identify all conditional branches.
 | Type boundaries | Watermark date edges, MAX int, empty string |
 | Empty source | Zero-row edge case |
 
-**View branch enumeration:** For views (detected when `object_type = "view"` or `"mv"` in the context), branch enumeration targets SELECT-level patterns only:
+**For views**, use SELECT-level patterns only — there are no MERGE, INSERT, UPDATE, or DELETE patterns:
 
-- WHERE filter conditions (match/no-match)
-- JOIN match/no-match (INNER, LEFT, RIGHT — null join key, missing match)
-- CASE/WHEN arms (each arm is a branch)
-- Aggregation (GROUP BY with/without HAVING filter)
-- Subquery (EXISTS/NOT EXISTS, IN/NOT IN — match/empty)
-- NULL handling (COALESCE, ISNULL, NVL — null/non-null inputs)
-- Empty source table (no rows in a referenced table)
-
-There are no MERGE, INSERT, UPDATE, or DELETE patterns for views.
+| Pattern | Branches to enumerate |
+|---|---|
+| WHERE | Row that passes, row that fails |
+| JOIN | Match, no-match (NULL right side for LEFT JOIN), partial multi-condition match |
+| CASE/WHEN | One per arm + ELSE |
+| Subquery | EXISTS true/false, IN match/miss, correlated hit/miss |
+| NULL handling | Nullable columns in filters/joins/COALESCE — NULL vs non-NULL |
+| Aggregation | Single group, multiple groups, empty group (with/without HAVING) |
+| Empty source | Zero-row edge case |
 
 Output: branch manifest — a list of branches with IDs, descriptions, the statement index they belong to, and the pattern they exercise.
 
-If **merge_mode**, compare the re-extracted branch IDs against the `branch_manifest` stored in the existing spec. For any branch IDs present in the stored manifest but absent from the re-extracted manifest, add a warning:
-
-```json
-{ "code": "STALE_BRANCH", "message": "Branch '<id>' in stored manifest not found in re-extracted SQL — procedure may have changed.", "severity": "warning" }
-```
+If **merge_mode**, compare the re-extracted branch IDs against the `branch_manifest` stored in the existing spec. For any branch IDs present in the stored manifest but absent from the re-extracted manifest, add a `STALE_BRANCH` warning (see `../../lib/shared/generate_tests_error_codes.md`).
 
 ## Step 2.5: Coverage gate (merge_mode only)
 
@@ -124,9 +158,12 @@ When **not merge_mode** (first run), generate for all branches.
 For each targeted branch, generate minimum synthetic input rows (1-3 per source table):
 
 - Each scenario is self-contained — no shared test data across scenarios.
-- FK-consistent within each scenario: use the catalog's `foreign_keys` to build a dependency graph and generate rows in topological order so FK values align.
 - Use column types from catalog to generate type-appropriate values.
 - Parameters are ignored or flagged — rare in warehouse procs, typically orchestration concerns.
+
+**For tables:** build a dependency graph from the catalog's `foreign_keys` and generate rows in topological order so FK values align within each scenario.
+
+**For views:** skip FK graph traversal — source tables are read-only inputs with no write-path FK constraints to enforce.
 
 ### Columns to exclude from fixtures
 
@@ -164,29 +201,18 @@ If the DDL or proc context reveals CHECK constraints on a source table, generate
 
 Do not generate values that violate CHECK constraints — the sandbox does not disable CHECK constraints because violations indicate wrong fixture data.
 
-## Step 4: Present for approval
+## Step 4: Write test spec
 
-**First run (merge_mode = false):**
+Write the test spec as soon as fixtures are ready. Do not ask for confirmation before writing — this skill is a write-through workflow.
 
-Show the user:
+Write the spec JSON to a temp file to avoid any serialization issues, then move it into place:
 
-1. Branch manifest (all identified branches with descriptions)
-2. Generated fixtures (inputs per scenario)
-3. Any uncovered branches or warnings
-
-**Re-invocation (merge_mode = true):**
-
-Show the user a merge summary before asking for approval:
-
-1. **Preserved** — list of existing scenario names that will not be touched (N scenarios).
-2. **New** — list of new scenarios being added with the branch they cover (M scenarios for X branches). If M = 0, state "0 new scenarios — all branches already covered."
-3. **Warnings** — any stale branch warnings from Step 2.
-
-Then show the fixtures for new scenarios only.
-
-Ask the user: "Approve these test scenarios? (y/n/edit)". If the user requests edits, apply them and re-present.
-
-## Step 5: Write test spec
+```bash
+mkdir -p .staging test-specs
+# Write spec JSON to .staging/spec.json, then:
+mv .staging/spec.json test-specs/<item_id>.json
+rm -rf .staging
+```
 
 **First run (merge_mode = false):**
 
@@ -202,6 +228,28 @@ Merge into the existing `test-specs/<item_id>.json`:
 - **`coverage`** and **`status`**: recalculate using the Coverage and Status Rules after the merge.
 - **`warnings[]`**: append new warnings (e.g., stale branch warnings from Step 2); do not remove existing warnings.
 
+**Table vs view output format:**
+
+- **Tables:** each `unit_tests[]` entry includes `target_table` and `procedure` fields (bracket-quoted FQNs).
+- **Views:** each `unit_tests[]` entry uses `sql` in place of `target_table` and `procedure`. The `sql` field contains the view's refactored SELECT statement.
+
+After writing, print the result:
+
+```text
+Test spec written: test-specs/<item_id>.json
+  Branches: N  (new: X)
+  Scenarios: M  (new: Y)
+  Coverage: complete|partial
+  Warnings: (if any)
+```
+
+For merge_mode, include a **Preserved / New** summary:
+
+```text
+  Preserved: N existing scenarios unchanged
+  New: M scenarios added for X branches
+```
+
 **CLI-ready format:** The test spec uses bracket-quoted SQL identifiers for direct consumption by `test-harness execute`. The `/generate-tests` command converts to dbt YAML after ground truth capture.
 
 Naming conventions:
@@ -211,12 +259,48 @@ Naming conventions:
 - `procedure`: bracket-quoted FQN of the writer procedure from catalog scoping, e.g. `[silver].[usp_load_DimProduct]`
 - `given[].table`: bracket-quoted SQL identifier, e.g. `[bronze].[SalesOrderHeader]`
 
-## Step 6: Validate output
+## Step 5: Validate output
 
 - Every `unit_tests[]` entry has at least one `given` entry with rows.
 - Every `given[].rows` entry includes all NOT NULL non-identity columns for that source table.
 - Set `coverage` field: `complete` when all branches have scenarios, `partial` otherwise.
 - Set `status`: `ok | partial | error`.
+
+## Final Step: Write test-gen status to catalog
+
+After the test spec has been written to `test-specs/<item_id>.json`, record the summary in the catalog:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness write \
+  --table <fqn> \
+  --branches <number_of_branches> \
+  --unit-tests <number_of_unit_tests> \
+  --coverage <complete|partial|none>
+```
+
+If there are warnings or errors to report, pass them as JSON arrays:
+
+```bash
+  --warnings '[{"code": "...", "message": "..."}]' \
+  --errors '[{"code": "...", "message": "..."}]'
+```
+
+The CLI reads the test-spec from disk, validates it, and writes the `test_gen` section to the catalog with a CLI-determined status.
+
+---
+
+## Handling reviewer feedback
+
+If `$ARGUMENTS` or the invoking prompt includes a `feedback_for_generator` JSON block, apply it before running the normal pipeline:
+
+- **`uncovered_branches`**: list of branch IDs missing coverage. Read the existing `test-specs/<item_id>.json`, then generate new scenarios targeting each listed branch and add them to `unit_tests[]`.
+- **`quality_fixes`**: list of per-scenario remediation instructions. Locate the named scenario in `unit_tests[]` and revise its fixtures according to the instruction (e.g., fix unrealistic values, align FK consistency).
+
+After applying feedback, re-run Steps 2–5 with the revised scenarios. Do not discard previously approved scenarios — only add or revise as directed.
+
+If no `feedback_for_generator` is present, skip this section.
+
+---
 
 ## Output Schema (TestSpec)
 
@@ -273,25 +357,16 @@ The `/generate-tests` command adds `expect.rows` to each `unit_tests[]` entry af
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `name` | string | yes | Test name — convention: `test_<load_pattern>_<scenario_description>` |
-| `target_table` | string | yes | Bracket-quoted target table identifier, e.g. `[silver].[DimProduct]` |
-| `procedure` | string | yes | Bracket-quoted stored procedure identifier, e.g. `[silver].[usp_load_DimProduct]` |
+| `target_table` | string | yes (table) | Bracket-quoted target table identifier, e.g. `[silver].[DimProduct]` |
+| `procedure` | string | yes (table) | Bracket-quoted stored procedure identifier, e.g. `[silver].[usp_load_DimProduct]` |
+| `sql` | string | yes (view) | The view's refactored SELECT statement — used instead of `procedure` and `target_table` for view entries |
 | `model` | string | no | dbt model name — optional; used during dbt YAML conversion |
 | `given` | object[] | yes | One entry per fixture source table |
 | `given[].table` | string | yes | Bracket-quoted SQL identifier for the fixture table |
 | `given[].rows` | object[] | yes | Synthetic fixture input rows as column→value maps (includes all NOT NULL non-identity columns) |
 | `expect.rows` | object[] | no | Ground truth output rows — added by command after execution |
 
-**View test entries:** For views, each `unit_tests[]` entry uses `sql` instead of `procedure` and `target_table`:
-
-```json
-{
-  "name": "test_<scenario>",
-  "sql": "SELECT ... FROM [schema].[source_table] ...",
-  "given": [{"table": "[schema].[source_table]", "rows": [...]}]
-}
-```
-
-The `sql` field contains the view's refactored SELECT statement. Ground truth is captured by `execute_select` (not `execute_scenario`).
+---
 
 ## Coverage and Status Rules
 
@@ -300,6 +375,8 @@ The `sql` field contains the view's refactored SELECT statement. Ground truth is
 | All branches have scenarios | `complete` | `ok` |
 | Branches remain after review loop | `partial` | `partial` |
 | Generation failed (context assembly, branch extraction, or fixture synthesis error) | — | `error` |
+
+---
 
 ## Boundary Rules
 
@@ -310,6 +387,8 @@ Test generator must not:
 - Render YAML — `unit_tests[]` is structured JSON; dbt YAML conversion happens post-execution
 - Make materialization or business key decisions
 - Score its own coverage authoritatively — the test reviewer does that
+
+---
 
 ## Diagnostics
 
@@ -327,44 +406,14 @@ Test generator must not:
 
 Field requirements:
 
-- `code`: stable machine-readable identifier.
+- `code`: stable machine-readable identifier — use codes from `../../lib/shared/generate_tests_error_codes.md`.
 - `message`: human-readable description.
-- `item_id`: fully qualified table name this entry relates to.
+- `item_id`: fully qualified table or view name this entry relates to.
 - `field`: optional field path associated with the issue (empty or omitted for non-field errors).
 - `severity`: `error` or `warning`.
 - `details`: optional structured context object.
 
-## Handling reviewer feedback
-
-If `$ARGUMENTS` or the invoking prompt includes a `feedback_for_generator` JSON block, apply it before running the normal pipeline:
-
-- **`uncovered_branches`**: list of branch IDs missing coverage. Read the existing `test-specs/<item_id>.json`, then generate new scenarios targeting each listed branch and add them to `unit_tests[]`.
-- **`quality_fixes`**: list of per-scenario remediation instructions. Locate the named scenario in `unit_tests[]` and revise its fixtures according to the instruction (e.g., fix unrealistic values, align FK consistency).
-
-After applying feedback, re-run Steps 2–6 with the revised scenarios. Do not discard previously approved scenarios — only add or revise as directed.
-
-If no `feedback_for_generator` is present, skip this section.
-
-## Final Step — Write test-gen status to catalog
-
-After the test spec has been written to `test-specs/<item_id>.json`, record the summary in the catalog:
-
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness write \
-  --table <fqn> \
-  --branches <number_of_branches> \
-  --unit-tests <number_of_unit_tests> \
-  --coverage <complete|partial|none>
-```
-
-If there are warnings or errors to report, pass them as JSON arrays:
-
-```bash
-  --warnings '[{"code": "...", "message": "..."}]' \
-  --errors '[{"code": "...", "message": "..."}]'
-```
-
-The CLI reads the test-spec from disk, validates it, and writes the `test_gen` section to the catalog with a CLI-determined status.
+---
 
 ## Error handling
 
@@ -372,3 +421,11 @@ The CLI reads the test-spec from disk, validates it, and writes the `test_gen` s
 |---|---|---|
 | `migrate context` | 1 | No profile or no statements. Tell user to run scoping and profiling first |
 | `migrate context` | 2 | IO/parse error. Surface the error message |
+| `test-harness write` | 1 | Validation failure — report field-level errors, correct payload, retry |
+| `test-harness write` | 2 | IO/parse error — report and stop |
+
+---
+
+## References
+
+- [`../../lib/shared/generate_tests_error_codes.md`](../../lib/shared/generate_tests_error_codes.md) — canonical generating-tests and reviewing-tests statuses and surfaced error/warning codes

@@ -3,8 +3,8 @@
 Use only these statuses and surfaced codes for `/generate-tests` and
 `/reviewing-tests`.
 
-This file is the shared source of truth for the `/generate-tests` command and
-the `reviewing-tests` skill.
+This file is the shared source of truth for the `/generate-tests` command, the
+`generating-tests` skill, and the `reviewing-tests` skill.
 
 ## Statuses
 
@@ -39,6 +39,7 @@ the `reviewing-tests` skill.
 | `COVERAGE_PARTIAL` | warning | coverage is still incomplete after the allowed review loop | `partial` or `approved_with_warnings` |
 | `SCENARIO_EXECUTION_FAILED` | warning | one or more scenarios failed during ground-truth capture | `partial` |
 | `FIXTURE_QUALITY_WARNING` | warning | fixture realism or isolation issues were found but review can proceed | `revision_requested` or `approved_with_warnings` |
+| `STALE_BRANCH` | warning | a branch in the stored manifest was not found in re-extracted SQL — procedure may have changed since spec was written | `partial` |
 
 ## Rules
 
