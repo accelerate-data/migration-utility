@@ -69,6 +69,21 @@ class ReferencedByBucket(BaseModel):
     functions: ScopedRefList = ScopedRefList()
 
 
+# ── Statement entry ─────────────────────────────────────────────────────────
+
+
+class StatementEntry(BaseModel):
+    """A single resolved statement in a procedure catalog."""
+
+    model_config = ConfigDict(extra="allow")
+
+    action: str
+    source: str
+    sql: str
+    type: str | None = None
+    rationale: str | None = None
+
+
 # ── Per-type scoping sections ───────────────────────────────────────────────
 
 

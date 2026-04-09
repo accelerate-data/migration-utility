@@ -32,7 +32,7 @@ from shared.catalog import (
     read_selected_writer,
     write_json as _write_catalog_json,
 )
-from shared.catalog_models import TableCatalog
+from shared.catalog_models import TableCatalog, TableProfileSection, ViewProfileSection
 from shared.loader import (
     CatalogFileMissingError,
     CatalogLoadError,
@@ -379,6 +379,7 @@ def _write_view_profile(project_root: Path, view_norm: str, profile_json: dict[s
         status = "partial"
     profile_json["status"] = status
     _validate_schema_fragment(profile_json, "view_catalog.json", "properties/profile")
+    ViewProfileSection.model_validate(profile_json)
 
     catalog_path = resolve_catalog_dir(project_root) / "views" / f"{view_norm}.json"
     if not catalog_path.exists():
@@ -444,6 +445,7 @@ def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> d
         status = "error"
     profile_json["status"] = status
     _validate_schema_fragment(profile_json, "table_catalog.json", "$defs/profile_section")
+    TableProfileSection.model_validate(profile_json)
 
     result = load_and_merge_catalog(project_root, norm, "profile", profile_json)
     logger.info("event=write_complete table=%s catalog_path=%s", norm, result["catalog_path"])
