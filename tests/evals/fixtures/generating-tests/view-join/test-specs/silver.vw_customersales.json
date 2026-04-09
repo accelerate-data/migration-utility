@@ -1,0 +1,132 @@
+{
+  "item_id": "silver.vw_customersales",
+  "object_type": "view",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {
+      "id": "join_match",
+      "statement_index": 0,
+      "description": "LEFT JOIN matches — customer with matching sales row returns all columns populated",
+      "scenarios": [
+        "test_select_join_match"
+      ]
+    },
+    {
+      "id": "join_nomatch",
+      "statement_index": 0,
+      "description": "LEFT JOIN no match — customer with no matching sales returns customer columns with NULL sales columns",
+      "scenarios": [
+        "test_select_join_nomatch"
+      ]
+    },
+    {
+      "id": "empty_source",
+      "statement_index": 0,
+      "description": "Empty source — no rows in either table returns no result rows",
+      "scenarios": [
+        "test_select_empty_source"
+      ]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_select_join_match",
+      "sql": "SELECT c.CustomerKey, c.FirstName, c.LastName, f.SalesOrderNumber, f.OrderDate, f.SalesAmount FROM [silver].[DimCustomer] c LEFT JOIN [silver].[FactInternetSales] f ON c.CustomerKey = f.CustomerKey ORDER BY c.CustomerKey, f.SalesOrderNumber;",
+      "given": [
+        {
+          "table": "[silver].[DimCustomer]",
+          "rows": [
+            {
+              "CustomerKey": 1,
+              "FirstName": "John",
+              "LastName": "Doe",
+              "EmailAddress": "john.doe@example.com"
+            }
+          ]
+        },
+        {
+          "table": "[silver].[FactInternetSales]",
+          "rows": [
+            {
+              "SalesOrderNumber": "SO001",
+              "CustomerKey": 1,
+              "OrderDate": "2024-01-15",
+              "SalesAmount": 100.0,
+              "TaxAmt": 10.0
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "CustomerKey": 1,
+            "FirstName": "John",
+            "LastName": "Doe",
+            "SalesOrderNumber": "SO001",
+            "OrderDate": "2024-01-15",
+            "SalesAmount": 100.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "test_select_join_nomatch",
+      "sql": "SELECT c.CustomerKey, c.FirstName, c.LastName, f.SalesOrderNumber, f.OrderDate, f.SalesAmount FROM [silver].[DimCustomer] c LEFT JOIN [silver].[FactInternetSales] f ON c.CustomerKey = f.CustomerKey ORDER BY c.CustomerKey, f.SalesOrderNumber;",
+      "given": [
+        {
+          "table": "[silver].[DimCustomer]",
+          "rows": [
+            {
+              "CustomerKey": 2,
+              "FirstName": "Jane",
+              "LastName": "Smith",
+              "EmailAddress": "jane.smith@example.com"
+            }
+          ]
+        },
+        {
+          "table": "[silver].[FactInternetSales]",
+          "rows": []
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "CustomerKey": 2,
+            "FirstName": "Jane",
+            "LastName": "Smith",
+            "SalesOrderNumber": null,
+            "OrderDate": null,
+            "SalesAmount": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "test_select_empty_source",
+      "sql": "SELECT c.CustomerKey, c.FirstName, c.LastName, f.SalesOrderNumber, f.OrderDate, f.SalesAmount FROM [silver].[DimCustomer] c LEFT JOIN [silver].[FactInternetSales] f ON c.CustomerKey = f.CustomerKey ORDER BY c.CustomerKey, f.SalesOrderNumber;",
+      "given": [
+        {
+          "table": "[silver].[DimCustomer]",
+          "rows": []
+        },
+        {
+          "table": "[silver].[FactInternetSales]",
+          "rows": []
+        }
+      ],
+      "expect": {
+        "rows": []
+      }
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "errors": []
+}
