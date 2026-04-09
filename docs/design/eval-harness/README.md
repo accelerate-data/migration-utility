@@ -46,37 +46,40 @@ tests/evals/
     schema-helpers.js                  # shared AJV validation, JSON extraction, term normalization
     check-procedure-catalog.js         # validates procedure catalog statements
     check-table-profile.js             # validates table profile classification
+    check-table-scoping.js             # validates table scoping decisions
+    check-view-catalog.js              # validates view scoping/profile catalog sections
+    check-command-summary.js           # validates command orchestration summary
+    check-status-output.js             # validates /status command output
     check-dbt-model.js                 # validates generated dbt model SQL
+    check-dbt-refs.js                  # validates ref()/source() usage in generated dbt files
+    check-model-generator-input.js     # validates model-generator input manifest
+    check-refactored-sql.js            # validates refactored SQL extraction and CTE structure
+    check-dbt-aware-refactored-sql.js  # validates dbt-aware refactor output against staging models
     check-test-spec.js                 # validates generated test specifications
     check-test-review.js               # validates test review results
     check-model-review.js              # validates model review results
-    check-table-scoping.js             # validates table scoping decisions
-    check-command-summary.js           # validates command orchestration summary
-    check-status-output.js             # validates /status command output
-    check-model-generator-input.js     # validates model-generator input manifest
-    check-refactored-sql.js            # validates refactored SQL extraction and CTE structure
+    check-sweep-action.js              # validates planning-sweep skip/test-only behavior
+    check-pr-safety.js                 # validates commit/push/PR failure handling
     validate-candidate-writers.js      # validates candidate writers against schema
   prompts/
     skill-profiling-table.txt          # prompt template for profiling-table skill
-    skill-generating-model.txt         # prompt template for generating-model skill
-    skill-generating-tests.txt         # prompt template for generating-tests skill
+    skill-profiling-table-view.txt     # prompt template for profiling-table view scenarios
     skill-reviewing-tests.txt          # prompt template for reviewing-tests skill
     skill-reviewing-model.txt          # prompt template for reviewing-model skill
     skill-analyzing-table.txt          # prompt template for analyzing-table skill
+    skill-analyzing-table-view.txt     # prompt template for analyzing-table view scenarios
     skill-refactoring-sql.txt          # prompt template for refactoring-sql skill
     cmd-scope.txt                      # prompt template for /scope command
     cmd-profile.txt                    # prompt template for /profile command
     cmd-generate-model.txt             # prompt template for /generate-model command
     cmd-generate-tests.txt             # prompt template for /generate-tests command
     cmd-refactor.txt                   # prompt template for /refactor command
+    cmd-status.txt                     # prompt template for /status command
+    cmd-commit-push-pr.txt             # prompt template for /commit-push-pr command
     cmd-live-pipeline.txt              # prompt template for live DB extract → scope → profile
   packages/                            # SQL Server offline packages (per-scenario fixtures)
     profiling-table/
       skill-profiling-table.yaml
-    generating-model/
-      skill-generating-model.yaml
-    generating-tests/
-      skill-generating-tests.yaml
     reviewing-tests/
       skill-reviewing-tests.yaml
     reviewing-model/
@@ -97,6 +100,8 @@ tests/evals/
       cmd-refactor.yaml
     cmd-status/
       cmd-status.yaml
+    cmd-commit-push-pr/
+      cmd-commit-push-pr.yaml
   oracle-regression/                   # Oracle offline package (SH schema fixtures)
     promptfooconfig.yaml
     fixtures/                          # pre-committed Oracle SH schema fixtures
@@ -120,7 +125,8 @@ tests/evals/
     planning-sweep-shared-stg/         # synthetic: 2 tables sharing bronze.Product
     planning-sweep-skip/               # synthetic: planning sweep skip scenario
     planning-sweep-test-only/          # synthetic: planning sweep test-only scenario
-    idempotency-test/                  # synthetic: idempotency scenario
+    generating-model/                  # fixture families consumed by cmd-generate-model
+    generating-tests/                  # fixture families consumed by cmd-generate-tests
 ```
 
 ---
@@ -136,13 +142,12 @@ Test individual skills in isolation (single-table, no orchestration). Each scena
 | Package | Skill |
 |---|---|
 | `profiling-table` | `/profiling-table` — includes view profiling scenarios |
-| `generating-model` | `/generating-model` |
-| `generating-tests` | `/generating-tests` |
 | `reviewing-tests` | `/reviewing-tests` |
 | `reviewing-model` | `/reviewing-model` |
 | `analyzing-table` | `/analyzing-table` — validates both scoping decisions and procedure catalog; includes view scoping scenarios |
 | `refactoring-sql` | `/refactoring-sql` — DML extraction + CTE restructuring |
-| `git-checkpoints` | `/git-checkpoints` |
+
+There are no standalone `generating-model` or `generating-tests` Promptfoo packages in the current harness. Their scenario fixtures live under `tests/evals/fixtures/generating-model/` and `tests/evals/fixtures/generating-tests/`, but they are exercised via the command packages below.
 
 ### Command packages
 
@@ -156,6 +161,7 @@ Test batch command orchestration (multi-table dispatch, error handling, review l
 | `cmd-generate-tests` | `/generate-tests` |
 | `cmd-refactor` | `/refactor` |
 | `cmd-status` | `/status` |
+| `cmd-commit-push-pr` | `/commit-push-pr` |
 
 ### Oracle regression package
 
@@ -174,7 +180,7 @@ Validate the full extract → scope → profile pipeline against running Docker 
 | `oracle-live` | Docker Oracle (FREEPDB1, SH schema) |
 | `mssql-live` | Docker SQL Server (MigrationTest, silver schema) |
 
-Use `npm run eval` to run all packages sequentially. Command and dialect-specific packages can also be run individually.
+`npm run eval` runs the offline package chain defined in `package.json`. The Oracle regression and live DB packages are available as separate scripts and are not part of the default chain.
 
 ---
 
@@ -193,8 +199,6 @@ npm run eval
 
 # Single skill package
 npm run eval:profiling-table
-npm run eval:generating-model
-npm run eval:generating-tests
 npm run eval:reviewing-tests
 npm run eval:reviewing-model
 npm run eval:analyzing-table
@@ -207,6 +211,7 @@ npm run eval:cmd-generate-model
 npm run eval:cmd-generate-tests
 npm run eval:cmd-refactor
 npm run eval:cmd-status
+npm run eval:cmd-commit-push-pr
 
 # Oracle regression (offline, no live DB needed)
 npm run eval:oracle-regression
@@ -223,7 +228,7 @@ npm run view
 
 ### Idempotency
 
-Every npm eval script restores fixtures before and after each run (`git checkout -- fixtures/ && git clean -fd fixtures/`). This ensures each run starts from a clean state regardless of whether the previous run modified catalog files or dbt/test artifacts.
+The package scripts restore their fixture roots before and after each run. Most offline package scripts reset `tests/evals/fixtures/`; the Oracle and live-DB scripts reset their package-local fixture roots; `eval:cmd-commit-push-pr` is text-only and does not restore fixtures because it does not operate on a fixture tree.
 
 All eval scripts use `--no-cache` to force fresh LLM invocations.
 
@@ -313,8 +318,8 @@ All commands assume you are in `tests/evals/`.
 # All scenarios for a skill package
 npm run eval:profiling-table
 
-# Filter by statement type across all skills
-npx promptfoo eval -c packages/generating-tests/skill-generating-tests.yaml --filter-pattern "merge"
+# Filter by statement type within the cmd-generate-tests package
+npx promptfoo eval -c packages/cmd-generate-tests/cmd-generate-tests.yaml --filter-pattern "merge"
 
 # Filter by behavioral category
 npx promptfoo eval -c packages/reviewing-model/skill-reviewing-model.yaml --filter-pattern "review-standards"
@@ -327,97 +332,30 @@ npx promptfoo eval -c packages/refactoring-sql/skill-refactoring-sql.yaml --filt
 
 ## Scenarios
 
-> **Note:** The scenario tables below are a historical snapshot. Scenario descriptions have been renamed and new scenarios added as part of the per-scenario fixture redesign. For current scenario lists, see the package YAML files directly under `tests/evals/packages/`.
+The current scenario inventory lives in code, not in this document. Use the package YAMLs as the source of truth:
 
-### Profiler
+- `tests/evals/packages/profiling-table/skill-profiling-table.yaml`
+- `tests/evals/packages/reviewing-tests/skill-reviewing-tests.yaml`
+- `tests/evals/packages/reviewing-model/skill-reviewing-model.yaml`
+- `tests/evals/packages/analyzing-table/skill-analyzing-table.yaml`
+- `tests/evals/packages/refactoring-sql/skill-refactoring-sql.yaml`
+- `tests/evals/packages/cmd-scope/cmd-scope.yaml`
+- `tests/evals/packages/cmd-profile/cmd-profile.yaml`
+- `tests/evals/packages/cmd-generate-model/cmd-generate-model.yaml`
+- `tests/evals/packages/cmd-generate-tests/cmd-generate-tests.yaml`
+- `tests/evals/packages/cmd-refactor/cmd-refactor.yaml`
+- `tests/evals/packages/cmd-status/cmd-status.yaml`
+- `tests/evals/packages/cmd-commit-push-pr/cmd-commit-push-pr.yaml`
+- `tests/evals/oracle-regression/promptfooconfig.yaml`
+- `tests/evals/oracle-live/promptfooconfig.yaml`
+- `tests/evals/mssql-live/promptfooconfig.yaml`
 
-| Scenario | Target table | Writer | Key assertion |
-|---|---|---|---|
-| fact-transaction | silver.FactInternetSales | usp_stage_FactInternetSales | fact_transaction classification |
-| merge | silver.DimProduct | usp_load_DimProduct | Valid classification kind |
-| exec-chain | silver.FactExecProfile | usp_load_FactExecProfile | fact_transaction, status ok |
-| cross-db-exec | silver.DimCrossDbProfile | usp_load_DimCrossDbProfile | Cross-database mention |
+In the current harness:
 
-### Model-generator
-
-| Scenario (pattern tag) | Target table | Notes |
-|---|---|---|
-| `insert-select` | silver.InsertSelectTarget | Simple full-refresh |
-| `update-join` | silver.UpdateJoinTarget | UPDATE FROM JOIN rewritten |
-| `delete-where` | silver.DeleteWhereTarget | Graceful no-model |
-| `delete-top` | silver.DeleteTopTarget | Graceful no-model |
-| `select-into` | silver.SelectIntoTarget | Table materialization |
-| `cte` | silver.SingleCteTarget | CTE restructured |
-| `correlated-subquery` | silver.CorrelatedSubqueryTarget | Subquery preserved |
-| `union-all` | silver.UnionAllTarget | UNION ALL bare |
-| `union-all-in-cte` | silver.UnionAllCteTarget | UNION ALL inside CTE branch |
-| `intersect` | silver.IntersectTarget | INTERSECT preserved |
-| `except` | silver.ExceptTarget | EXCEPT preserved |
-| `grouping-sets` | silver.GroupingSetsTarget | GROUPING SETS / GROUP BY |
-| `cube` | silver.CubeTarget | CUBE preserved |
-| `rollup` | silver.RollupTarget | ROLLUP preserved |
-| `pivot` | silver.PivotTarget | PIVOT to conditional aggregation |
-| `window-fn` | silver.FactInternetSales | Window expressions preserved |
-| `cross-join` | silver.CrossJoinTarget | CROSS JOIN scaffold |
-| `not-exists` | silver.NotExistsTarget | NOT EXISTS anti-join |
-| `not-in` | silver.NotInTarget | NOT IN subquery |
-| `recursive-cte` | silver.RecursiveCteTarget | Recursive CTE hierarchy |
-| `truncate-insert-outer-apply` | silver.DimCustomer | Full-reload + OUTER APPLY |
-| `try-catch` | silver.TryCatchTarget | TRY/CATCH wrapping deterministic |
-| `if-else` | silver.IfElseTarget | IF/ELSE branches (llm_required) |
-| `nested-flow` | silver.NestedFlowTarget | control_flow_fallback |
-| `while-loop` | silver.WhileTarget | Graceful no-model (llm_required) |
-| `static-sp-exec` | silver.StaticSpExecTarget | sp_executesql literal resolved |
-| `exec-orchestrator` | silver.FactInternetSales | Graceful no-model |
-| `dynamic-sql` | silver.DimCurrency | Graceful no-model |
-| `linked-server-exec` | silver.LinkedServerExecTarget | Graceful no-model, out-of-scope |
-| `planning-sweep-stg-reuse` | silver.InsertSelectTarget | `stg_product.sql` pre-seeded — mart uses `ref('stg_product')`, not `source('bronze'` |
-| `planning-sweep-no-stg` | silver.InsertSelectTarget | No staging on disk — `stg_product.sql` created with `ephemeral`, mart uses `ref()` |
-
-### Test-generator
-
-| Scenario | Target table | Key assertion |
-|---|---|---|
-| merge | silver.DimProduct | Branch manifest, min 2 arms (WHEN MATCHED + WHEN NOT MATCHED BY TARGET) |
-| exec-chain | silver.FactInternetSales | Transitive writer logic, min 3 branches |
-| dynamic-sql | silver.DimCurrency | Dynamic SQL warning recorded |
-
-### Test-review
-
-| Scenario | Target table | Key assertion |
-|---|---|---|
-| merge | silver.DimProduct | Approved — complete branch coverage (min 2 covered) |
-| truncate-insert | silver.DimCustomer | Revision requested — incomplete coverage |
-
-### Scoping-table
-
-| Scenario | Target table | Expected writer |
-|---|---|---|
-| truncate-insert — DimCustomer | silver.DimCustomer | usp_load_DimCustomer_Full |
-| merge — DimProduct | silver.DimProduct | usp_load_DimProduct |
-| exec-orchestrator — FactInternetSales | silver.FactInternetSales | usp_load_FactInternetSales |
-| cross-db-exec — DimCrossDbProfile | silver.DimCrossDbProfile | usp_load_DimCrossDbProfile |
-| dynamic-sp-executesql — DimCurrency | silver.DimCurrency | usp_load_DimCurrency |
-| exec-variable — ExecVariableTarget | silver.ExecVariableTarget | usp_scope_ExecVariable |
-| exec-concat — ExecConcatTarget | silver.ExecConcatTarget | usp_scope_ExecConcat |
-
-### Refactoring-sql
-
-| Scenario (pattern tag) | Target table | Key assertion |
-|---|---|---|
-| `insert-select` | silver.InsertSelectTarget | Extracted SELECT + CTE with final |
-| `merge` | silver.DimProduct | USING clause extracted, import CTEs, isnull preserved |
-| `window-fn` | silver.FactInternetSales | COUNT OVER + PARTITION BY preserved in both outputs |
-| `truncate-insert` | silver.DimCustomer | Full reload, MIN(OrderDate) via OUTER APPLY |
-| `recursive-cte` | silver.RecursiveCteTarget | UNION ALL anchor + step preserved |
-| `union-all-in-cte` | silver.UnionAllCteTarget | UNION ALL inside CTE branch preserved |
-
-### Command: scope
-
-| Scenario | Tables | Key assertion |
-|---|---|---|
-| happy-path — both resolve | DimProduct + DimCustomer | Summary shows 2 resolved, `check-table-scoping.js` validates artifact |
-| error+clean — missing catalog | DimDate + DimProduct | CATALOG_FILE_MISSING for DimDate, DimProduct still resolves |
+- `cmd-generate-model` owns the model-generation scenarios and planning-sweep scenarios.
+- `cmd-generate-tests` owns the test-generation scenarios, including idempotency coverage.
+- View scenarios are handled by dedicated view prompts inside `profiling-table` and `analyzing-table`.
+- Oracle regression covers `/scope`, `/profile`, `/generate-model`, `/generate-tests`, and `/refactor` against a shared SH-schema fixture.
 
 ### Command: profile
 
@@ -564,7 +502,7 @@ fixtures/<package>/<scenario-slug>/
 
 Planning-sweep scenarios use synthetic fixtures (`planning-sweep-stg-reuse`, `planning-sweep-no-stg`, `planning-sweep-shared-stg`, `planning-sweep-skip`, `planning-sweep-test-only`) that differ only in which staging files are pre-seeded, allowing the eval to assert exactly which files the sweep creates or reuses. Synthetic fixtures are hand-crafted — do not re-extract them from the Docker database.
 
-Per-scenario fixtures for downstream skills (test-generator, test-review, code-review) include pre-seeded artifacts (dbt models, test specs, profiles) so they can run without depending on upstream skill output.
+Per-scenario fixtures for downstream packages (`cmd-generate-model`, `cmd-generate-tests`, `reviewing-tests`, `reviewing-model`) include pre-seeded artifacts such as dbt models, test specs, and profiles so they can run without depending on upstream package output.
 
 ---
 
@@ -627,7 +565,7 @@ providers:
       permission_mode: auto
       append_allowed_tools:
         - Read
-        - Write              # omitted for test-review and code-review
+        - Write              # omitted for review-only packages
         - Bash
         - Glob
         - Grep
@@ -635,7 +573,7 @@ providers:
 
 - `working_dir: ../..` — repo root relative to `tests/evals/packages/<pkg>/`; for top-level packages (oracle-regression, oracle-live, mssql-live) the path is `../..` relative to their own directory
 - `max_turns` — 80 for analyzing-table, cmd-scope, cmd-profile; 100 for cmd-generate-tests; 120 for cmd-generate-model, oracle-live, mssql-live; 60-70 for other skill packages
-- `test-review` and `code-review` omit Write from allowed tools (read-only review)
+- `reviewing-tests` and `reviewing-model` omit Write from allowed tools (read-only review)
 
 ---
 
