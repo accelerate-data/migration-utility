@@ -72,7 +72,7 @@ def _make_bare_project() -> tuple[tempfile.TemporaryDirectory, Path]:
         "unique_indexes": [],
         "foreign_keys": [],
         "auto_increment_columns": [],
-        "referenced_by": [],
+        "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}},
     }
     (dst / "catalog" / "tables" / "silver.dimdate.json").write_text(
         json.dumps(table_cat), encoding="utf-8",
@@ -423,7 +423,7 @@ def _add_table_to_project(
         "unique_indexes": [],
         "foreign_keys": [],
         "auto_increment_columns": [],
-        "referenced_by": [],
+        "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}},
     }
     if include_scoping:
         cat["scoping"] = {
@@ -476,7 +476,7 @@ def _add_source_table(root: Path, schema: str, name: str) -> None:
         "unique_indexes": [],
         "foreign_keys": [],
         "auto_increment_columns": [],
-        "referenced_by": [],
+        "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}},
         "is_source": True,
         "scoping": {
             "status": "no_writer_found",

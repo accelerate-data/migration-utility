@@ -252,15 +252,15 @@ class TestRunContext:
         with pytest.raises(ProfileMissingError):
             run_context(ddl_path, "silver.FactSales", "dbo.usp_load_fact_sales")
 
-    def test_missing_statements_raises(self, ddl_path: Path) -> None:
-        """Procedure without statements section raises ValueError."""
+    def test_missing_statements_returns_empty(self, ddl_path: Path) -> None:
+        """Procedure without statements section returns empty statements list."""
         cat_path = ddl_path / "catalog" / "procedures" / "dbo.usp_load_fact_sales.json"
         data = json.loads(cat_path.read_text())
         del data["statements"]
         cat_path.write_text(json.dumps(data))
 
-        with pytest.raises(ValueError):
-            run_context(ddl_path, "silver.FactSales", "dbo.usp_load_fact_sales")
+        result = run_context(ddl_path, "silver.FactSales", "dbo.usp_load_fact_sales")
+        assert result["statements"] == []
 
     def test_truncate_insert_context_includes_skip_and_migrate_statements(self, ddl_path: Path) -> None:
         _seed_migrate_fixture(

@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from shared.catalog import load_proc_catalog, load_table_catalog, load_view_catalog
+from shared.catalog_models import ReferencesBucket, RefEntry, ScopedRefList
 from shared.env_config import resolve_dbt_project_path
 from shared.loader_data import CatalogLoadError
 from shared.name_resolver import fqn_parts, normalize
@@ -73,18 +74,20 @@ def _compute_diagnostic_stage_flags(diagnostics: list[dict[str, Any]]) -> dict[s
 # ── Low-level helpers ─────────────────────────────────────────────────────────
 
 
-def _iter_in_scope(refs: dict[str, Any], kind: str) -> list[dict[str, Any]]:
+def _iter_in_scope(refs: ReferencesBucket | None, kind: str) -> list[RefEntry]:
     """Return the in_scope list for a reference kind (tables/views/procedures)."""
-    bucket = refs.get(kind)
-    if not isinstance(bucket, dict):
+    if refs is None:
         return []
-    return bucket.get("in_scope") or []
+    scoped: ScopedRefList | None = getattr(refs, kind, None)
+    if scoped is None:
+        return []
+    return scoped.in_scope
 
 
-def _ref_fqn(entry: dict[str, Any]) -> str:
+def _ref_fqn(entry: RefEntry) -> str:
     """Build a normalized FQN from a catalog reference entry."""
-    schema = entry.get("schema", "")
-    name = entry.get("name", "")
+    schema = entry.object_schema
+    name = entry.name
     if not schema:
         logger.debug(
             "event=ref_fqn_no_schema component=batch_plan name=%s "
@@ -139,59 +142,63 @@ def object_pipeline_status(
     """
     if obj_type in ("view", "mv"):
         try:
-            cat = load_view_catalog(project_root, fqn) or {}
+            cat = load_view_catalog(project_root, fqn)
         except (json.JSONDecodeError, OSError, CatalogLoadError):
             return "scope_needed"
-        scoping = cat.get("scoping") or {}
-        if scoping.get("status") != "analyzed":
+        if cat is None:
             return "scope_needed"
-        profile = cat.get("profile") or {}
-        if profile.get("status") not in ("ok", "partial"):
+        scoping_status = cat.scoping.status if cat.scoping else None
+        if scoping_status != "analyzed":
+            return "scope_needed"
+        profile_status = cat.profile.status if cat.profile else None
+        if profile_status not in ("ok", "partial"):
             return "profile_needed"
-        test_gen = cat.get("test_gen") or {}
-        if test_gen.get("status") != "ok":
+        test_gen_status = cat.test_gen.status if cat.test_gen else None
+        if test_gen_status != "ok":
             return "test_gen_needed"
-        refactor = cat.get("refactor") or {}
-        if refactor.get("status") != "ok":
+        refactor_status = cat.refactor.status if cat.refactor else None
+        if refactor_status != "ok":
             return "refactor_needed"
-        generate = cat.get("generate") or {}
-        if generate.get("status") != "ok":
+        generate_status = cat.generate.status if cat.generate else None
+        if generate_status != "ok":
             return "migrate_needed"
         return "complete"
 
     # TABLE
     try:
-        cat = load_table_catalog(project_root, fqn) or {}
+        cat = load_table_catalog(project_root, fqn)
     except (json.JSONDecodeError, OSError, CatalogLoadError):
         return "scope_needed"
-
-    scoping = cat.get("scoping") or {}
-    if scoping.get("status") == "no_writer_found":
-        return "n_a"
-    if scoping.get("status") != "resolved":
+    if cat is None:
         return "scope_needed"
 
-    profile = cat.get("profile") or {}
-    if profile.get("status") not in ("ok", "partial"):
+    scoping_status = cat.scoping.status if cat.scoping else None
+    if scoping_status == "no_writer_found":
+        return "n_a"
+    if scoping_status != "resolved":
+        return "scope_needed"
+
+    profile_status = cat.profile.status if cat.profile else None
+    if profile_status not in ("ok", "partial"):
         return "profile_needed"
 
-    test_gen = cat.get("test_gen") or {}
-    if test_gen.get("status") != "ok":
+    test_gen_status = cat.test_gen.status if cat.test_gen else None
+    if test_gen_status != "ok":
         return "test_gen_needed"
 
-    writer = scoping.get("selected_writer")
+    writer = cat.scoping.selected_writer if cat.scoping else None
     if writer:
         writer_norm = normalize(writer)
         try:
-            proc_cat = load_proc_catalog(project_root, writer_norm) or {}
+            proc_cat = load_proc_catalog(project_root, writer_norm)
         except (json.JSONDecodeError, OSError, CatalogLoadError):
-            proc_cat = {}
-        refactor = proc_cat.get("refactor") or {}
-        if refactor.get("status") != "ok":
+            proc_cat = None
+        refactor_status = proc_cat.refactor.status if proc_cat and proc_cat.refactor else None
+        if refactor_status != "ok":
             return "refactor_needed"
 
-    generate = cat.get("generate") or {}
-    if generate.get("status") != "ok":
+    generate_status = cat.generate.status if cat.generate else None
+    if generate_status != "ok":
         return "migrate_needed"
 
     return "complete"
@@ -212,11 +219,13 @@ def _expand_view_refs(
     visited.add(view_fqn)
 
     try:
-        cat = load_view_catalog(project_root, view_fqn) or {}
+        cat = load_view_catalog(project_root, view_fqn)
     except (json.JSONDecodeError, OSError, CatalogLoadError):
         return set()
+    if cat is None:
+        return set()
 
-    refs = cat.get("references") or {}
+    refs = cat.references
     deps: set[str] = set()
 
     for entry in _iter_in_scope(refs, "tables"):
@@ -249,11 +258,13 @@ def _expand_proc_refs(
     visited_procs.add(proc_fqn)
 
     try:
-        cat = load_proc_catalog(project_root, proc_fqn) or {}
+        cat = load_proc_catalog(project_root, proc_fqn)
     except (json.JSONDecodeError, OSError, CatalogLoadError):
         return set()
+    if cat is None:
+        return set()
 
-    refs = cat.get("references") or {}
+    refs = cat.references
     deps: set[str] = set()
 
     for entry in _iter_in_scope(refs, "tables"):
@@ -293,12 +304,13 @@ def collect_deps(
         return _expand_view_refs(project_root, fqn, set(), 0)
 
     try:
-        cat = load_table_catalog(project_root, fqn) or {}
+        cat = load_table_catalog(project_root, fqn)
     except (json.JSONDecodeError, OSError, CatalogLoadError):
         return set()
+    if cat is None:
+        return set()
 
-    scoping = cat.get("scoping") or {}
-    writer = scoping.get("selected_writer")
+    writer = cat.scoping.selected_writer if cat.scoping else None
     if not writer:
         return set()
 
@@ -318,35 +330,40 @@ def collect_object_diagnostics(
     """Collect all warnings and errors from a catalog object and its sub-sections."""
     diagnostics: list[dict[str, Any]] = []
 
-    def _gather(source: dict[str, Any] | None) -> None:
+    def _gather(source: Any) -> None:
         if not source:
             return
-        for entry in source.get("warnings") or []:
-            if "severity" not in entry:
+        for entry in getattr(source, "warnings", None) or []:
+            if isinstance(entry, dict) and "severity" not in entry:
                 entry = {**entry, "severity": "warning"}
             diagnostics.append(entry)
-        for entry in source.get("errors") or []:
-            if "severity" not in entry:
+        for entry in getattr(source, "errors", None) or []:
+            if isinstance(entry, dict) and "severity" not in entry:
                 entry = {**entry, "severity": "error"}
             diagnostics.append(entry)
 
     try:
         if obj_type in ("view", "mv"):
-            cat = load_view_catalog(project_root, fqn) or {}
+            cat = load_view_catalog(project_root, fqn)
+            if cat is None:
+                return diagnostics
             _gather(cat)
-            _gather(cat.get("scoping"))
+            _gather(cat.scoping)
         else:
-            cat = load_table_catalog(project_root, fqn) or {}
+            cat = load_table_catalog(project_root, fqn)
+            if cat is None:
+                return diagnostics
             _gather(cat)
-            _gather(cat.get("scoping"))
-            _gather(cat.get("profile"))
-            _gather(cat.get("refactor"))
-            writer = (cat.get("scoping") or {}).get("selected_writer")
+            _gather(cat.scoping)
+            _gather(cat.profile)
+            _gather(cat.refactor)
+            writer = cat.scoping.selected_writer if cat.scoping else None
             if writer:
                 try:
-                    proc_cat = load_proc_catalog(project_root, normalize(writer)) or {}
-                    _gather(proc_cat)
-                    _gather(proc_cat.get("refactor"))
+                    proc_cat = load_proc_catalog(project_root, normalize(writer))
+                    if proc_cat is not None:
+                        _gather(proc_cat)
+                        _gather(proc_cat.refactor)
                 except (json.JSONDecodeError, OSError, CatalogLoadError):
                     pass
     except (json.JSONDecodeError, OSError, CatalogLoadError):
@@ -443,14 +460,14 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> dict[s
         for p in sorted(table_dir.glob("*.json")):
             fqn = p.stem
             try:
-                cat = load_table_catalog(project_root, fqn) or {}
+                cat = load_table_catalog(project_root, fqn)
             except (json.JSONDecodeError, OSError, CatalogLoadError):
-                cat = {}
-            if cat.get("excluded"):
+                cat = None
+            if cat is not None and cat.excluded:
                 excluded_fqns.add(fqn)
-            elif cat.get("is_source") is True:
+            elif cat is not None and cat.is_source:
                 source_table_fqns.append(fqn)
-            elif (cat.get("scoping") or {}).get("status") == "no_writer_found":
+            elif cat is not None and cat.scoping and cat.scoping.status == "no_writer_found":
                 source_pending_fqns.append(fqn)
             else:
                 table_fqns.append(fqn)
@@ -460,12 +477,12 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> dict[s
         for p in sorted(view_dir.glob("*.json")):
             fqn = p.stem
             try:
-                cat = load_view_catalog(project_root, fqn) or {}
-                obj_type = "mv" if cat.get("is_materialized_view") else "view"
+                cat = load_view_catalog(project_root, fqn)
+                obj_type = "mv" if cat is not None and cat.is_materialized_view else "view"
             except (json.JSONDecodeError, OSError, CatalogLoadError):
-                cat = {}
+                cat = None
                 obj_type = "view"
-            if cat.get("excluded"):
+            if cat is not None and cat.excluded:
                 excluded_fqns.add(fqn)
             else:
                 view_entries.append((fqn, obj_type))
@@ -664,8 +681,8 @@ def build_batch_plan(project_root: Path, dbt_root: Path | None = None) -> dict[s
             return "table"
         # Check for MV flag in the view catalog.
         try:
-            cat = load_view_catalog(project_root, fqn) or {}
-            return "mv" if cat.get("is_materialized_view") else "view"
+            cat = load_view_catalog(project_root, fqn)
+            return "mv" if cat is not None and cat.is_materialized_view else "view"
         except (json.JSONDecodeError, OSError, CatalogLoadError):
             return "view"
 

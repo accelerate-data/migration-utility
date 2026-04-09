@@ -39,24 +39,24 @@ FIXTURES = Path(__file__).parent / "fixtures" / "catalog"
 def test_load_table_catalog_from_fixture() -> None:
     data = load_table_catalog(FIXTURES.parent, "silver.FactSales")
     assert data is not None
-    assert data["change_capture"] is None
-    assert len(data["primary_keys"]) == 1
-    assert data["primary_keys"][0]["columns"] == ["sale_id"]
+    assert data.change_capture is None
+    assert len(data.primary_keys) == 1
+    assert data.primary_keys[0]["columns"] == ["sale_id"]
     writers = [
-        e for e in data["referenced_by"]["procedures"]["in_scope"] if e["is_updated"]
+        e for e in data.referenced_by.procedures.in_scope if e.is_updated
     ]
     assert len(writers) == 1
-    assert writers[0]["name"] == "usp_load_fact_sales"
+    assert writers[0].name == "usp_load_fact_sales"
 
 
 def test_load_proc_catalog_from_fixture() -> None:
     data = load_proc_catalog(FIXTURES.parent, "dbo.usp_load_fact_sales")
     assert data is not None
-    tables = data["references"]["tables"]["in_scope"]
+    tables = data.references.tables.in_scope
     assert len(tables) == 2
-    written = [t for t in tables if t["is_updated"]]
+    written = [t for t in tables if t.is_updated]
     assert len(written) == 1
-    assert written[0]["name"] == "FactSales"
+    assert written[0].name == "FactSales"
 
 
 def test_load_missing_returns_none() -> None:
@@ -105,9 +105,9 @@ def test_write_table_catalog_round_trip() -> None:
         write_table_catalog(ddl_path, "dbo.T1", signals, ref_by)
         loaded = load_table_catalog(ddl_path, "dbo.T1")
         assert loaded is not None
-        assert loaded["change_capture"] == {"enabled": True, "mechanism": "cdc"}
-        assert loaded["auto_increment_columns"] == [{"column": "id", "mechanism": "identity"}]
-        assert len(loaded["referenced_by"]["procedures"]["in_scope"]) == 1
+        assert loaded.change_capture == {"enabled": True, "mechanism": "cdc"}
+        assert loaded.auto_increment_columns == [{"column": "id", "mechanism": "identity"}]
+        assert len(loaded.referenced_by.procedures.in_scope) == 1
 
 
 def test_write_object_catalog_round_trip() -> None:
@@ -127,7 +127,7 @@ def test_write_object_catalog_round_trip() -> None:
         write_object_catalog(ddl_path, "procedures", "dbo.usp_test", refs)
         loaded = load_proc_catalog(ddl_path, "dbo.usp_test")
         assert loaded is not None
-        assert loaded["references"]["tables"]["in_scope"][0]["name"] == "T1"
+        assert loaded.references.tables.in_scope[0].name == "T1"
 
 
 # ── DMF result processing ──────────────────────────────────────────────────
@@ -302,16 +302,16 @@ def test_write_catalog_files_end_to_end() -> None:
         table_data = load_table_catalog(ddl_path, "silver.FactSales")
         assert table_data is not None
         proc_writers = [
-            e for e in table_data["referenced_by"]["procedures"]["in_scope"] if e["is_updated"]
+            e for e in table_data.referenced_by.procedures.in_scope if e.is_updated
         ]
         assert len(proc_writers) == 1
-        view_readers = table_data["referenced_by"]["views"]["in_scope"]
+        view_readers = table_data.referenced_by.views.in_scope
         assert len(view_readers) == 1
 
         # Verify proc file has outbound references
         proc_data = load_proc_catalog(ddl_path, "dbo.usp_load_fact_sales")
         assert proc_data is not None
-        assert len(proc_data["references"]["tables"]["in_scope"]) == 2
+        assert len(proc_data.references.tables.in_scope) == 2
 
 
 # ── scan_routing_flags ──────────────────────────────────────────────────────
@@ -443,8 +443,8 @@ def test_write_object_catalog_with_needs_llm_flag() -> None:
         write_object_catalog(ddl_path, "procedures", "dbo.usp_dynamic", refs, needs_llm=True)
         loaded = load_proc_catalog(ddl_path, "dbo.usp_dynamic")
         assert loaded is not None
-        assert loaded["needs_llm"] is True
-        assert "needs_enrich" not in loaded
+        assert loaded.needs_llm is True
+        assert loaded.needs_enrich is False
 
 
 def test_write_object_catalog_with_needs_enrich_flag() -> None:
@@ -459,8 +459,8 @@ def test_write_object_catalog_with_needs_enrich_flag() -> None:
         write_object_catalog(ddl_path, "procedures", "dbo.usp_static", refs, needs_enrich=True)
         loaded = load_proc_catalog(ddl_path, "dbo.usp_static")
         assert loaded is not None
-        assert loaded["needs_enrich"] is True
-        assert "needs_llm" not in loaded
+        assert loaded.needs_enrich is True
+        assert loaded.needs_llm is False
 
 
 def test_write_object_catalog_no_flags() -> None:
@@ -475,8 +475,8 @@ def test_write_object_catalog_no_flags() -> None:
         write_object_catalog(ddl_path, "procedures", "dbo.usp_plain", refs)
         loaded = load_proc_catalog(ddl_path, "dbo.usp_plain")
         assert loaded is not None
-        assert "needs_llm" not in loaded
-        assert "needs_enrich" not in loaded
+        assert loaded.needs_llm is False
+        assert loaded.needs_enrich is False
 
 
 def test_write_object_catalog_with_routing_summary() -> None:
@@ -498,8 +498,8 @@ def test_write_object_catalog_with_routing_summary() -> None:
         )
         loaded = load_proc_catalog(ddl_path, "dbo.usp_route")
         assert loaded is not None
-        assert loaded["mode"] == "control_flow_fallback"
-        assert loaded["routing_reasons"] == ["if_else", "static_exec"]
+        assert loaded.mode == "control_flow_fallback"
+        assert loaded.routing_reasons == ["if_else", "static_exec"]
 
 
 # ── Cross-database / cross-server scoping ─────────────────────────────────
@@ -705,7 +705,7 @@ def test_multi_table_write_no_inline_warning() -> None:
         write_object_catalog(root, "procedures", "dbo.usp_multi", _multi_table_refs(2))
         loaded = load_proc_catalog(root, "dbo.usp_multi")
         assert loaded is not None
-        assert "warnings" not in loaded
+        assert not hasattr(loaded, "warnings")
 
 
 # ── scan_routing_flags — cross_db_exec ──────────────────────────────────────

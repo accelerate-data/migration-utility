@@ -60,7 +60,7 @@ app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 # ── Materialization derivation ────────────────────────────────────────────────
 
 
-def derive_materialization(profile: dict[str, Any]) -> str:
+def derive_materialization(profile: Any) -> str:
     """Derive dbt materialization from profile classification and watermark.
 
     Rules:
@@ -68,11 +68,12 @@ def derive_materialization(profile: dict[str, Any]) -> str:
     - No watermark (or watermark column is null/empty) → ``table``
     - Otherwise → ``incremental``
     """
-    classification = profile.get("classification") or {}
-    if classification.get("resolved_kind") == "dim_scd2":
+    _get = profile.get if isinstance(profile, dict) else lambda k, d=None: getattr(profile, k, d)
+    classification = _get("classification") or {}
+    if isinstance(classification, dict) and classification.get("resolved_kind") == "dim_scd2":
         return "snapshot"
-    watermark = profile.get("watermark")
-    if watermark and watermark.get("column"):
+    watermark = _get("watermark")
+    if watermark and (watermark.get("column") if isinstance(watermark, dict) else getattr(watermark, "column", None)):
         return "incremental"
     return "table"
 
@@ -80,7 +81,7 @@ def derive_materialization(profile: dict[str, Any]) -> str:
 # ── Schema test derivation ────────────────────────────────────────────────────
 
 
-def derive_schema_tests(profile: dict[str, Any]) -> dict[str, Any]:
+def derive_schema_tests(profile: Any) -> dict[str, Any]:
     """Build dbt schema test specs from profile answers.
 
     Returns a dict with:
@@ -89,24 +90,26 @@ def derive_schema_tests(profile: dict[str, Any]) -> dict[str, Any]:
     - ``recency``: watermark column → recency test (incremental only)
     - ``pii``: sensitive columns → meta tags
     """
+    _get = profile.get if isinstance(profile, dict) else lambda k, d=None: getattr(profile, k, d)
     tests: dict[str, Any] = {}
 
     # Entity integrity from primary key
-    pk = profile.get("primary_key")
-    if pk and pk.get("columns"):
+    pk = _get("primary_key")
+    if pk and (pk.get("columns") if isinstance(pk, dict) else getattr(pk, "columns", None)):
+        cols = pk.get("columns") if isinstance(pk, dict) else pk.columns
         tests["entity_integrity"] = [
             {"column": col, "tests": ["unique", "not_null"]}
-            for col in pk["columns"]
+            for col in cols
         ]
 
     # Referential integrity from foreign keys
-    fks = profile.get("foreign_keys", [])
+    fks = _get("foreign_keys") or []
     if fks:
         ri_tests = []
         for fk in fks:
-            col = fk.get("column", "")
-            ref_relation = fk.get("references_source_relation", "")
-            ref_col = fk.get("references_column", "")
+            col = fk.get("column", "") if isinstance(fk, dict) else getattr(fk, "column", "")
+            ref_relation = fk.get("references_source_relation", "") if isinstance(fk, dict) else getattr(fk, "references_source_relation", "")
+            ref_col = fk.get("references_column", "") if isinstance(fk, dict) else getattr(fk, "references_column", "")
             if col and ref_relation:
                 model_ref = f"ref('{model_name_from_table(ref_relation)}')"
                 ri_tests.append({
@@ -118,17 +121,19 @@ def derive_schema_tests(profile: dict[str, Any]) -> dict[str, Any]:
             tests["referential_integrity"] = ri_tests
 
     # Recency from watermark
-    watermark = profile.get("watermark")
-    if watermark and watermark.get("column"):
-        tests["recency"] = {"column": watermark["column"]}
+    watermark = _get("watermark")
+    if watermark and (watermark.get("column") if isinstance(watermark, dict) else getattr(watermark, "column", None)):
+        col = watermark.get("column") if isinstance(watermark, dict) else watermark.column
+        tests["recency"] = {"column": col}
 
     # PII from sensitivity / pii_actions
-    pii_actions = profile.get("pii_actions", [])
+    pii_actions = _get("pii_actions") or []
     if pii_actions:
         tests["pii"] = [
-            {"column": p.get("column", ""), "suggested_action": p.get("suggested_action", "mask")}
+            {"column": p.get("column", "") if isinstance(p, dict) else getattr(p, "column", ""),
+             "suggested_action": p.get("suggested_action", "mask") if isinstance(p, dict) else getattr(p, "suggested_action", "mask")}
             for p in pii_actions
-            if p.get("column")
+            if (p.get("column") if isinstance(p, dict) else getattr(p, "column", None))
         ]
 
     return tests
@@ -143,7 +148,7 @@ def _classify_proc(project_root: Path, writer_fqn: str) -> bool:
     cat = load_proc_catalog(project_root, writer_fqn)
     if cat is None:
         raise CatalogFileMissingError("procedure", writer_fqn)
-    return cat.get("mode") == "llm_required"
+    return cat.mode == "llm_required"
 
 
 def _load_refactored_sql(project_root: Path, table_fqn: str) -> str | None:
@@ -162,10 +167,9 @@ def _load_refactored_sql(project_root: Path, table_fqn: str) -> str | None:
     cat = load_proc_catalog(project_root, normalize(writer_fqn))
     if cat is None:
         return None
-    refactor = cat.get("refactor")
-    if not refactor:
+    if not cat.refactor:
         return None
-    return refactor.get("refactored_sql") or None
+    return cat.refactor.refactored_sql or None
 
 
 
@@ -208,7 +212,7 @@ def run_context(
         "table": table_norm,
         "writer": writer_norm,
         "needs_llm": needs_llm,
-        "profile": profile,
+        "profile": profile.model_dump(by_alias=True, exclude_none=True) if hasattr(profile, "model_dump") else profile,
         "materialization": materialization,
         "statements": statements,
         "proc_body": proc_body,

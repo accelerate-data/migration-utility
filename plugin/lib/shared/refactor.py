@@ -175,25 +175,26 @@ def symmetric_diff(
 def _run_context_view(
     project_root: Path,
     fqn_norm: str,
-    cat: dict[str, Any],
+    cat: Any,
 ) -> dict[str, Any]:
     """Assemble refactoring context for a view or materialized view."""
-    view_sql = cat.get("sql")
+    view_sql = (cat.model_extra or {}).get("sql")
     if not view_sql:
         raise ValueError(f"View catalog for {fqn_norm} has no 'sql' key")
 
-    columns = cat.get("columns", [])
-    profile = cat.get("profile")
+    columns = cat.columns
+    profile = cat.profile
     if profile is None:
         raise ValueError(f"View catalog for {fqn_norm} has no 'profile' section — run /profile first")
 
-    refs = cat.get("references", {})
+    refs = cat.references
     source_tables: list[str] = []
-    for t in refs.get("tables", {}).get("in_scope", []):
-        source_tables.append(normalize(f"{t['schema']}.{t['name']}"))
+    if refs is not None:
+        for t in refs.tables.in_scope:
+            source_tables.append(normalize(f"{t.object_schema}.{t.name}"))
     source_tables = sorted(set(source_tables))
 
-    object_type = "mv" if cat.get("is_materialized_view") else "view"
+    object_type = "mv" if cat.is_materialized_view else "view"
     test_spec = load_test_spec(project_root, fqn_norm)
     sandbox = sandbox_metadata(project_root)
 
@@ -206,7 +207,7 @@ def _run_context_view(
         "table": fqn_norm,
         "object_type": object_type,
         "view_sql": view_sql,
-        "profile": profile,
+        "profile": profile.model_dump(by_alias=True, exclude_none=True) if hasattr(profile, "model_dump") else profile,
         "columns": columns,
         "source_tables": source_tables,
         "test_spec": test_spec,
@@ -246,7 +247,7 @@ def run_context(
     writer_norm = normalize(writer_fqn)
 
     proc_cat = load_proc_catalog(project_root, writer_norm)
-    table_slices = (proc_cat.get("table_slices") or {}) if proc_cat else {}
+    table_slices = (proc_cat.table_slices or {}) if proc_cat else {}
     writer_ddl_slice = table_slices.get(fqn_norm) or None
 
     profile = load_table_profile(project_root, fqn_norm)
@@ -270,7 +271,7 @@ def run_context(
         "table": fqn_norm,
         "writer": writer_norm,
         "proc_body": proc_body,
-        "profile": profile,
+        "profile": profile.model_dump(by_alias=True, exclude_none=True) if hasattr(profile, "model_dump") else profile,
         "statements": statements,
         "columns": columns,
         "source_tables": source_tables,
@@ -342,10 +343,12 @@ def run_write(
         raise ValueError(f"Refactor validation failed for {table_norm}: {'; '.join(errors)}")
 
     # Auto-detect: check view catalog first
-    view_cat = load_view_catalog(project_root, table_norm)
-    if view_cat is not None:
+    view_cat_model = load_view_catalog(project_root, table_norm)
+    if view_cat_model is not None:
         _validate_schema_fragment(refactor_data, "view_catalog.json", "properties/refactor")
-        return _run_write_view(project_root, table_norm, view_cat, refactor_data)
+        from shared.catalog_models import RefactorSection
+        RefactorSection.model_validate(refactor_data)
+        return _run_write_view(project_root, table_norm, refactor_data)
 
     # Table path: resolve writer from table catalog
     writer_fqn = read_selected_writer(project_root, table_norm)
@@ -370,6 +373,10 @@ def run_write(
             table_norm, writer_norm, exc,
         )
         raise
+
+    # Validate refactor section through Pydantic model
+    from shared.catalog_models import RefactorSection
+    RefactorSection.model_validate(refactor_data)
 
     # Merge refactor section onto procedure catalog
     existing["refactor"] = refactor_data
@@ -399,12 +406,12 @@ def run_write(
 def _run_write_view(
     project_root: Path,
     fqn_norm: str,
-    view_cat: dict[str, Any],
     refactor_data: dict[str, Any],
 ) -> dict[str, Any]:
     """Write refactor block to a view catalog file."""
     catalog_path = resolve_catalog_dir(project_root) / "views" / f"{fqn_norm}.json"
 
+    view_cat = json.loads(catalog_path.read_text(encoding="utf-8"))
     view_cat["refactor"] = refactor_data
 
     try:
@@ -432,21 +439,25 @@ def _run_write_view(
 
 
 def _collect_source_tables_from_refs(
-    refs: dict[str, Any],
+    refs: Any,
 ) -> list[str]:
     """Extract normalized source table FQNs from a catalog references section."""
+    if refs is None:
+        return []
     result: list[str] = []
-    for t in refs.get("tables", {}).get("in_scope", []):
-        if t.get("is_selected", False) and not t.get("is_updated", False):
-            result.append(normalize(f"{t['schema']}.{t['name']}"))
+    for t in refs.tables.in_scope:
+        if t.is_selected and not t.is_updated:
+            result.append(normalize(f"{t.object_schema}.{t.name}"))
     return sorted(set(result))
 
 
-def _collect_view_source_tables(refs: dict[str, Any]) -> list[str]:
+def _collect_view_source_tables(refs: Any) -> list[str]:
     """Extract normalized source table FQNs from a view catalog references section."""
+    if refs is None:
+        return []
     result: list[str] = []
-    for t in refs.get("tables", {}).get("in_scope", []):
-        result.append(normalize(f"{t['schema']}.{t['name']}"))
+    for t in refs.tables.in_scope:
+        result.append(normalize(f"{t.object_schema}.{t.name}"))
     return sorted(set(result))
 
 
@@ -508,9 +519,8 @@ def run_sweep(
         # Auto-detect object type
         view_cat = load_view_catalog(project_root, fqn_norm)
         if view_cat is not None:
-            refactor_section = view_cat.get("refactor", {})
-            refactor_status = refactor_section.get("status")
-            refs = view_cat.get("references", {})
+            refactor_status = view_cat.refactor.status if view_cat.refactor else None
+            refs = view_cat.references
             source_tables = _collect_view_source_tables(refs)
             obj = {
                 "fqn": fqn_norm,
@@ -530,9 +540,8 @@ def run_sweep(
                 writer_norm = normalize(writer_fqn)
                 proc_cat = load_proc_catalog(project_root, writer_norm)
                 if proc_cat:
-                    refactor_section = proc_cat.get("refactor", {})
-                    refactor_status = refactor_section.get("status")
-                    refs = proc_cat.get("references", {})
+                    refactor_status = proc_cat.refactor.status if proc_cat.refactor else None
+                    refs = proc_cat.references
                     source_tables = _collect_source_tables_from_refs(refs)
             obj = {
                 "fqn": fqn_norm,
