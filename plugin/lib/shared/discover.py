@@ -28,6 +28,8 @@ from pathlib import Path
 from typing import Any, NoReturn, Optional
 
 import typer
+from jsonschema import Draft202012Validator
+from referencing import Registry, Resource
 
 from shared.catalog import (
     has_catalog,
@@ -57,6 +59,7 @@ from shared.name_resolver import normalize
 logger = logging.getLogger(__name__)
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
+_SCHEMA_DIR = Path(__file__).with_name("schemas")
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -67,6 +70,44 @@ class ObjectType(str, Enum):
     procedures = "procedures"
     views = "views"
     functions = "functions"
+
+
+def _load_schema_with_store(schema_name: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Load a schema file and a registry for local schema references."""
+    registry = Registry()
+    loaded: dict[str, Any] = {}
+    for schema_path in _SCHEMA_DIR.glob("*.json"):
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        loaded[schema_path.name] = schema
+        resource = Resource.from_contents(schema)
+        registry = registry.with_resource(schema_path.name, resource)
+        registry = registry.with_resource(schema_path.resolve().as_uri(), resource)
+    return loaded[schema_name], registry
+
+
+def _format_validation_errors(errors: list[Any]) -> str:
+    """Render jsonschema validation errors in compact, retry-friendly form."""
+    parts: list[str] = []
+    for error in errors:
+        path = "/" + "/".join(str(segment) for segment in error.absolute_path)
+        parts.append(f"{path or '/'}: {error.message}")
+    return "; ".join(parts)
+
+
+def _validate_schema_fragment(data: Any, schema_name: str, fragment_path: str) -> None:
+    """Validate data against a schema fragment and raise a field-level ValueError."""
+    schema, registry = _load_schema_with_store(schema_name)
+    wrapper_schema = {
+        "$schema": schema.get("$schema", "https://json-schema.org/draft/2020-12/schema"),
+        "$ref": f"{schema_name}#/{fragment_path}",
+    }
+    validator = Draft202012Validator(wrapper_schema, registry=registry)
+    errors = sorted(validator.iter_errors(data), key=lambda err: list(err.absolute_path))
+    if errors:
+        raise ValueError(
+            f"Schema validation failed for {schema_name}#/{fragment_path}: "
+            f"{_format_validation_errors(errors)}"
+        )
 
 
 def _load(project_root: Path) -> tuple[DdlCatalog, str]:
@@ -407,6 +448,7 @@ def run_write_statements(
                 f"Unresolved statement action {action!r} for {stmt.get('id', '?')} — "
                 "all actions must be 'migrate' or 'skip' before writing."
             )
+    _validate_schema_fragment(statements, "procedure_catalog.json", "properties/statements")
     path = write_proc_statements(project_root, name, statements)
     return {"written": str(path), "statement_count": len(statements)}
 
@@ -429,7 +471,14 @@ def run_write_scoping(
 
     # Determine status from content
     selected_writer = scoping.get("selected_writer")
-    if selected_writer:
+    has_errors = any(
+        entry.get("severity") == "error"
+        for entry in scoping.get("errors", [])
+        if isinstance(entry, dict)
+    )
+    if has_errors:
+        status = "error"
+    elif selected_writer:
         proc_cat = load_proc_catalog(project_root, selected_writer)
         if proc_cat is not None:
             status = "resolved"
@@ -441,6 +490,7 @@ def run_write_scoping(
         status = "no_writer_found"
 
     scoping["status"] = status
+    _validate_schema_fragment(scoping, "table_catalog.json", "properties/scoping")
 
     # Merge scoping section
     cat["scoping"] = scoping
@@ -479,6 +529,7 @@ def run_write_view_scoping(
         status = "error"
 
     scoping["status"] = status
+    _validate_schema_fragment(scoping, "view_catalog.json", "properties/scoping")
 
     cat["scoping"] = scoping
 

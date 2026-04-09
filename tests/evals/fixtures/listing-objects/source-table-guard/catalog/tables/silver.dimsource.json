@@ -1,0 +1,33 @@
+{
+  "schema": "silver",
+  "name": "DimSource",
+  "columns": [
+    {
+      "name": "SourceKey",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": false
+    }
+  ],
+  "primary_keys": [],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "change_capture": null,
+  "sensitivity_classifications": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "is_source": true
+}

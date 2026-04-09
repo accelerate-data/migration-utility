@@ -28,6 +28,7 @@ from shared.diagnostics.common import (
     check_nested_view_chain,
     check_out_of_scope_reference,
     check_parse_error,
+    check_remote_exec_unsupported,
     check_stale_object,
     check_transitive_scope_leak,
     check_unsupported_syntax,
@@ -328,6 +329,65 @@ class TestOutOfScopeReference:
         ctx = _make_ctx(Path("/tmp/fake"), "dbo.usp_clean", "procedure", catalog_data)
 
         result = check_out_of_scope_reference(ctx)
+
+        assert result is None
+
+
+# ── REMOTE_EXEC_UNSUPPORTED ─────────────────────────────────────────────────
+
+
+class TestRemoteExecUnsupported:
+
+    def test_remote_exec_unsupported_positive(self):
+        """Out-of-scope procedure refs produce REMOTE_EXEC_UNSUPPORTED."""
+        catalog_data = {
+            "references": {
+                "tables": {"in_scope": [], "out_of_scope": []},
+                "views": {"in_scope": [], "out_of_scope": []},
+                "functions": {"in_scope": [], "out_of_scope": []},
+                "procedures": {
+                    "in_scope": [],
+                    "out_of_scope": [
+                        {
+                            "server": "remote_srv",
+                            "database": "OtherDB",
+                            "schema": "dbo",
+                            "name": "usp_load_ext",
+                            "reason": "cross-server",
+                        }
+                    ],
+                },
+            }
+        }
+        ctx = _make_ctx(Path("/tmp/fake"), "dbo.usp_wrapper", "procedure", catalog_data)
+
+        result = check_remote_exec_unsupported(ctx)
+
+        assert result is not None
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0].code == "REMOTE_EXEC_UNSUPPORTED"
+        assert result[0].severity == "error"
+        assert "remote_srv.OtherDB.dbo.usp_load_ext" in result[0].details["fqn"]
+
+    def test_remote_exec_unsupported_negative(self):
+        """Non-procedure out-of-scope refs do not trigger REMOTE_EXEC_UNSUPPORTED."""
+        catalog_data = {
+            "references": {
+                "tables": {
+                    "in_scope": [],
+                    "out_of_scope": [
+                        {"server": "", "database": "OtherDB", "schema": "dbo", "name": "ext_table", "reason": "cross-database"}
+                    ],
+                },
+                "views": {"in_scope": [], "out_of_scope": []},
+                "functions": {"in_scope": [], "out_of_scope": []},
+                "procedures": {"in_scope": [], "out_of_scope": []},
+            }
+        }
+        ctx = _make_ctx(Path("/tmp/fake"), "dbo.usp_wrapper", "procedure", catalog_data)
+
+        result = check_remote_exec_unsupported(ctx)
 
         assert result is None
 

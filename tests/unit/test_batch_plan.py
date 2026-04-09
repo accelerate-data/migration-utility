@@ -1416,6 +1416,11 @@ class TestComputeDiagnosticStageFlags:
         diags = [{"code": "MULTI_TABLE_WRITE", "severity": "warning", "message": "multi write"}]
         assert _compute_diagnostic_stage_flags(diags) == {"scope": "warning"}
 
+    def test_remote_exec_unsupported_maps_to_scope(self):
+        """REMOTE_EXEC_UNSUPPORTED maps to scope stage with error severity."""
+        diags = [{"code": "REMOTE_EXEC_UNSUPPORTED", "severity": "error", "message": "remote exec"}]
+        assert _compute_diagnostic_stage_flags(diags) == {"scope": "error"}
+
     def test_error_beats_warning_same_stage(self):
         """Two diagnostics for the same stage: error severity wins over warning."""
         diags = [

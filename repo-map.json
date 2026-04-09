@@ -101,7 +101,7 @@
     },
     "tests_evals": {
       "path": "tests/evals/",
-      "description": "Promptfoo eval harness for skill and command testing against MigrationTest schema. Per-scenario fixtures under fixtures/<package>/<scenario-slug>/ — each scenario has its own isolated fixture directory. Skill packages: profiling-table, generating-model, generating-tests, reviewing-tests, reviewing-model, analyzing-table, refactoring-sql, view-pipeline. Command packages: cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests, cmd-status, cmd-refactor, cmd-commit-push-pr. Live DB packages: oracle-live (extract+scope+profile against Docker Oracle), mssql-live (extract+scope+profile against Docker SQL Server). Regression packages: oracle-regression (per-command pipeline coverage against SH schema fixtures). Assertions use AJV schema validation via shared schema-helpers.js module. No top-level config — npm run eval chains all package evals. See docs/design/eval-harness/README.md."
+      "description": "Promptfoo eval harness for skill and command testing against MigrationTest schema. Per-scenario fixtures under fixtures/<package>/<scenario-slug>/ — each scenario has its own isolated fixture directory. Skill packages: listing-objects, profiling-table, generating-model, generating-tests, reviewing-tests, reviewing-model, analyzing-table, refactoring-sql, view-pipeline. Command packages: cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests, cmd-status, cmd-refactor, cmd-commit-push-pr. Live DB packages: oracle-live (extract+scope+profile against Docker Oracle), mssql-live (extract+scope+profile against Docker SQL Server). Regression packages: oracle-regression (per-command pipeline coverage against SH schema fixtures). Assertions use AJV schema validation via shared schema-helpers.js module. No top-level config — npm run eval chains all package evals. See docs/design/eval-harness/README.md."
     },
     "tests_ddl_mcp": {
       "path": "plugin/mcp/ddl/tests/",
@@ -129,7 +129,7 @@
     "plugin/lib/": "Python DDL analysis library (uv project, sqlglot-based)",
     "plugin/lib/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
     "tests/unit/": "Python pytest tests for shared library (discover, catalog, catalog_enrich, diagnostics, extract_refs, integration). diagnostics_helpers.py: shared helpers for diagnostic tests. Dialect-specific diagnostic tests: test_diagnostics_sqlserver.py, test_diagnostics_oracle.py",
-    "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages: profiling-table, generating-model, generating-tests, reviewing-tests, reviewing-model, analyzing-table, view-pipeline; command packages: cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests)",
+    "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages: listing-objects, profiling-table, generating-model, generating-tests, reviewing-tests, reviewing-model, analyzing-table, view-pipeline; command packages: cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests)",
     "plugin/mcp/ddl/tests/": "Python pytest tests for the DDL MCP server. fixtures/oracle/ holds Oracle SH-schema DDL fixtures and manifest.",
     "test-fixtures/": "Cross-dialect Kimball DW fixture: schema DDL, baseline seed data, and delta scenarios for SQL Server, Oracle, PostgreSQL",
     "docs/design/": "Architecture decision records and design specs",
@@ -154,6 +154,7 @@
     "compare_sql": "cd plugin/lib && uv run test-harness compare-sql --sql-a-file <extracted.sql> --sql-b-file <refactored.sql> --spec <spec-path>",
     "lint_md": "markdownlint <file>",
     "eval_all": "cd tests/evals && npm run eval",
+    "eval_listing_objects": "cd tests/evals && npm run eval:listing-objects",
     "eval_profiling_table": "cd tests/evals && npm run eval:profiling-table",
     "eval_generating_model": "cd tests/evals && npm run eval:generating-model",
     "eval_generating_tests": "cd tests/evals && npm run eval:generating-tests",

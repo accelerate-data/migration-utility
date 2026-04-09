@@ -20,6 +20,7 @@ const { validateSection, normalizeTerms } = require('./schema-helpers');
 module.exports = (output, context) => {
   const fixturePath = context.vars.fixture_path;
   const proc = context.vars.target_procedure || context.vars.target_table;
+  const view = context.vars.target_view;
   const expectedAction = context.vars.expected_action;
   const expectedContent = context.vars.expected_content;
   const expectedOutputTerms = normalizeTerms(context.vars.expected_output_terms);
@@ -27,6 +28,21 @@ module.exports = (output, context) => {
   const expectedRationaleTerms = normalizeTerms(context.vars.expected_rationale_terms);
   const allowZeroMigrate = String(context.vars.allow_zero_migrate || '').toLowerCase() === 'true';
   const expectedSource = context.vars.expected_source;
+
+  if (!proc) {
+    if (view) {
+      return {
+        pass: true,
+        score: 1,
+        reason: `Skipped procedure catalog assertion for view target '${view}'`
+      };
+    }
+    return {
+      pass: false,
+      score: 0,
+      reason: 'target_procedure or target_table is required unless this is a view scenario with target_view'
+    };
+  }
 
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
   // Procedure catalog files use lowercase names

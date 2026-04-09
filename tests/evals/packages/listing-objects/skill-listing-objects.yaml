@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "Listing-objects skill — read-only catalog browsing via list/show/refs"
+
+prompts:
+  - id: listing-objects
+    label: listing-objects
+    raw: file://../../prompts/skill-listing-objects.txt
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    config:
+      model: claude-haiku-4-5-20251001
+      working_dir: ../..
+      max_turns: 40
+      permission_mode: auto
+      append_allowed_tools:
+        - Read
+        - Bash
+        - Glob
+        - Grep
+
+defaultTest:
+  assert:
+    - type: javascript
+      value: file://../../assertions/check-listing-output.js
+
+tests:
+  - description: "list-tables — reads catalog object names"
+    vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/merge"
+      request_text: "list tables"
+      expected_terms: "silver.dimproduct"
+
+  - description: "show-table — surfaces columns and selected writer context"
+    vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/merge"
+      request_text: "show silver.DimProduct"
+      expected_terms: "productkey,productalternatekey,silver.usp_load_dimproduct,resolved"
+
+  - description: "refs-table — surfaces writer references"
+    vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/merge"
+      request_text: "refs silver.DimProduct"
+      expected_terms: "writers,silver.usp_load_dimproduct"
+
+  - description: "show-view — surfaces referenced base table"
+    vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/view-scope-passthrough"
+      request_text: "show silver.vDimSalesTerritory"
+      expected_terms: "silver.vdimsalesterritory,dimsalesterritory"
+
+  - description: "guard-source-table — blocks object-specific show when table is source"
+    vars:
+      fixture_path: "tests/evals/fixtures/listing-objects/source-table-guard"
+      request_text: "show silver.DimSource"
+      expected_terms: "source_table,not_applicable"
+      unexpected_terms: "productkey,columns"
