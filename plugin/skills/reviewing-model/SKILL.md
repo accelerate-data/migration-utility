@@ -19,13 +19,9 @@ Quality gate for model generation output. Reviews the generated dbt model SQL an
 
 ## Before invoking
 
-Run the stage guard:
-
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <table_fqn> reviewing-model
-```
-
-If `passed` is `false`, report the failing guard's `code` and `message` to the user and stop.
+Review the generated model artifacts already present on disk. Validate
+prerequisites through `migrate context`, test-spec presence, and model file
+discovery.
 
 ## Step 1: Assemble context
 
@@ -50,6 +46,17 @@ Also read:
 
 - The generated model SQL and schema YAML from the dbt project.
 - The approved test spec from `test-specs/<item_id>.json`.
+
+Model file discovery rules:
+
+- Review the generated dbt files that already exist under `dbt/models/`.
+- Check both `dbt/models/staging/` and `dbt/models/marts/`.
+- For staging reviews, prefer `stg_<table>.sql` and `_stg_<table>.yml` when present.
+- For mart reviews, use the mart model files already on disk.
+- If SQL exists but YAML is missing, treat that as a review issue rather than a
+  fatal discovery error.
+- Return `MODEL_NOT_FOUND` only when no generated model SQL file for the target
+  object exists anywhere under `dbt/models/`.
 
 Do NOT use `refactored_sql`. It is an intermediate artifact produced by the refactor stage. The reviewer validates the generated dbt model directly against the original proc DDL (`proc_body`). Ground truth is always the original proc.
 
@@ -109,6 +116,10 @@ Evaluate the generated model SQL and schema YAML against the reference files. Ea
 After kicking back, the model-generator revises the model, re-runs `dbt test` to confirm unit tests still pass, and resubmits. The resubmission must include an `acknowledgements` block mapping each feedback code to `fixed` or `ignored: <reason>`. Maximum review / model-generator iterations: 2 (configurable).
 
 ## Output schema (ModelReviewResult)
+
+Use `../../lib/shared/schemas/model_review_output.json` as the output contract.
+Return exactly one JSON object that matches that schema. Do not wrap the JSON
+in markdown, headings, summaries, or follow-up questions.
 
 Emit the following JSON structure as the skill's output:
 
@@ -177,6 +188,14 @@ Emit the following JSON structure as the skill's output:
 }
 ```
 
+These diagnostics entries may use only these severities:
+
+- `error`
+- `warning`
+
+Use `severity: "info"` only in `feedback_for_model_generator`. Do not place
+`info` entries in `checks.*.issues[]`, `warnings[]`, or `errors[]`.
+
 `feedback_for_model_generator` items use this schema:
 
 ```json
@@ -190,7 +209,14 @@ Emit the following JSON structure as the skill's output:
 
 `ack_required` is `true` for `error` and `warning` severity; `false` for `info` severity.
 
+Use `feedback_for_model_generator` for informational style guidance that should
+not appear in diagnostics entries.
+
 `acknowledgements` is present on resubmission only — a flat map of `{ "<code>": "fixed" | "ignored: <reason>" }`.
+
+All `code` values in `warnings[]` and `errors[]` must come from
+`../../lib/shared/generate_model_error_codes.md`. Stable standards codes in
+`feedback_for_model_generator` must come from the referenced standards files.
 
 ## References
 
@@ -205,13 +231,20 @@ Emit the following JSON structure as the skill's output:
 Reviewing-model must not:
 
 - Modify model SQL or schema YAML files
+- Repair fixture or catalog files
 - Run dbt tests or compile commands
 - Generate or modify test fixtures
+- Write review result files
+- Ask permission to write review result files
+- Ask whether the provided `--project-root` fixture path exists or should be created
 - Override profile decisions (classification, materialization, keys)
 - Override ground truth (captured proc output is fact)
 
 ## Error handling
 
-- `migrate context` exits 1 — a prerequisite is missing (no profile, no writer, no statements). Report which prerequisite is missing and set `status` to `error` with code `CONTEXT_PREREQUISITE_MISSING`.
-- `migrate context` exits 2 — IO or parse error. Surface the CLI error message and set `status` to `error` with code `CONTEXT_IO_ERROR`.
-- Generated model files missing — stop before review. Set `status` to `error` with code `MODEL_NOT_FOUND`.
+- `migrate context` exits 1 — prerequisite missing. Return valid `ModelReviewResult` JSON with `status: "error"` and code `CONTEXT_PREREQUISITE_MISSING`.
+- `migrate context` exits 2 — IO or parse error. Return valid `ModelReviewResult` JSON with `status: "error"` and code `CONTEXT_IO_ERROR`.
+- Generated model files missing — return valid `ModelReviewResult` JSON with `status: "error"` and code `MODEL_NOT_FOUND`.
+
+If you hit a handled error, still return a valid `ModelReviewResult` JSON
+object. Do not ask follow-up questions.
