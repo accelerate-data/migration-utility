@@ -37,13 +37,13 @@ from shared.catalog import (
 )
 from shared.context_helpers import (
     collect_source_tables,
+    collect_view_source_tables,
     load_object_columns,
     load_proc_body,
     load_proc_statements,
     load_table_columns,
     load_table_profile,
     load_test_spec,
-    load_view_sql,
     sandbox_metadata,
 )
 from shared.loader import (
@@ -187,12 +187,7 @@ def _run_context_view(
     if profile is None:
         raise ValueError(f"View catalog for {fqn_norm} has no 'profile' section — run /profile first")
 
-    refs = cat.references
-    source_tables: list[str] = []
-    if refs is not None:
-        for t in refs.tables.in_scope:
-            source_tables.append(normalize(f"{t.object_schema}.{t.name}"))
-    source_tables = sorted(set(source_tables))
+    source_tables = collect_view_source_tables(project_root, fqn_norm)
 
     object_type = "mv" if cat.is_materialized_view else "view"
     test_spec = load_test_spec(project_root, fqn_norm)
@@ -438,29 +433,6 @@ def _run_write_view(
 # ── Sweep ────────────────────────────────────────────────────────────────────
 
 
-def _collect_source_tables_from_refs(
-    refs: Any,
-) -> list[str]:
-    """Extract normalized source table FQNs from a catalog references section."""
-    if refs is None:
-        return []
-    result: list[str] = []
-    for t in refs.tables.in_scope:
-        if t.is_selected and not t.is_updated:
-            result.append(normalize(f"{t.object_schema}.{t.name}"))
-    return sorted(set(result))
-
-
-def _collect_view_source_tables(refs: Any) -> list[str]:
-    """Extract normalized source table FQNs from a view catalog references section."""
-    if refs is None:
-        return []
-    result: list[str] = []
-    for t in refs.tables.in_scope:
-        result.append(normalize(f"{t.object_schema}.{t.name}"))
-    return sorted(set(result))
-
-
 def _check_stg_models(
     dbt_path: Path, source_tables: list[str],
 ) -> list[str]:
@@ -520,8 +492,7 @@ def run_sweep(
         view_cat = load_view_catalog(project_root, fqn_norm)
         if view_cat is not None:
             refactor_status = view_cat.refactor.status if view_cat.refactor else None
-            refs = view_cat.references
-            source_tables = _collect_view_source_tables(refs)
+            source_tables = collect_view_source_tables(project_root, fqn_norm)
             obj = {
                 "fqn": fqn_norm,
                 "object_type": "view",
@@ -541,8 +512,7 @@ def run_sweep(
                 proc_cat = load_proc_catalog(project_root, writer_norm)
                 if proc_cat:
                     refactor_status = proc_cat.refactor.status if proc_cat.refactor else None
-                    refs = proc_cat.references
-                    source_tables = _collect_source_tables_from_refs(refs)
+                    source_tables = collect_source_tables(project_root, writer_norm)
             obj = {
                 "fqn": fqn_norm,
                 "object_type": "table",

@@ -99,6 +99,26 @@ def collect_source_tables(project_root: Path, writer_fqn: str) -> list[str]:
     return sorted(set(sources))
 
 
+def collect_view_source_tables(project_root: Path, view_fqn: str) -> list[str]:
+    """Collect source table FQNs from a view's references.
+
+    Unlike ``collect_source_tables`` for procedures, view references do not
+    carry ``is_selected``/``is_updated`` flags from the DMF, so all in-scope
+    table and view refs are collected unconditionally.
+    """
+    cat = load_view_catalog(project_root, view_fqn)
+    if cat is None:
+        return []
+    refs = cat.references
+    if refs is None:
+        return []
+    sources: list[str] = []
+    for scoped in (refs.tables, refs.views):
+        for entry in scoped.in_scope:
+            sources.append(normalize(f"{entry.object_schema}.{entry.name}"))
+    return sorted(set(sources))
+
+
 def load_object_columns(project_root: Path, fqn: str) -> list[dict[str, Any]]:
     """Load column list for a table or view, trying tables first.
 
