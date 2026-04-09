@@ -27,22 +27,15 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, NoReturn, Optional
 
-import sqlglot.errors
 import typer
-from jsonschema import Draft202012Validator
-from referencing import Registry, Resource
 
 from shared.catalog import (
     has_catalog,
-    load_and_merge_catalog,
     load_proc_catalog,
     load_table_catalog,
     load_view_catalog,
     load_function_catalog,
     resolve_catalog_path,
-    write_json,
-    write_proc_statements,
-    write_proc_table_slice,
 )
 from shared.loader import (
     CatalogFileMissingError,
@@ -55,7 +48,6 @@ from shared.loader import (
     extract_refs,
     load_ddl,
 )
-from shared.catalog_models import TableScopingSection, ViewScopingSection
 from shared.cli_utils import emit
 from shared.env_config import resolve_catalog_dir, resolve_project_root
 from shared.name_resolver import normalize
@@ -63,7 +55,6 @@ from shared.name_resolver import normalize
 logger = logging.getLogger(__name__)
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
-_SCHEMA_DIR = Path(__file__).with_name("schemas")
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

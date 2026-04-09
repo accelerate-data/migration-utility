@@ -29,37 +29,16 @@ from pathlib import Path
 from typing import Any, Optional
 
 from shared.catalog import load_proc_catalog, load_table_catalog, load_view_catalog
-from shared.catalog_models import ReferencesBucket, RefEntry, ScopedRefList
 from shared.env_config import resolve_catalog_dir, resolve_dbt_project_path
 from shared.loader_data import CatalogLoadError
-from shared.name_resolver import fqn_parts, normalize
 
-# Re-exports from deps.py (split for module focus) — consumed by tests and
-# dry_run.py.  Will be removed once all importers are updated.
-from shared.deps import (  # noqa: F401
-    _MAX_DEPTH,
-    _expand_proc_refs,
-    _expand_view_refs,
-    _has_dbt_model,
-    _iter_in_scope,
-    _locate_dbt_model,
-    _model_name_for,
-    _ref_fqn,
-    collect_deps,
+from shared.deps import _has_dbt_model, collect_deps
+from shared.pipeline_status import (
+    _compute_diagnostic_stage_flags,
+    _compute_status_and_diagnostics,
 )
 
 logger = logging.getLogger(__name__)
-
-# Re-exports from pipeline_status.py (split for module focus) — consumed by
-# tests and batch_plan internals.  Will be removed once all importers are updated.
-from shared.pipeline_status import (  # noqa: F401, E402
-    _DIAG_STAGE_MAP,
-    _SEV_RANK,
-    _compute_diagnostic_stage_flags,
-    _compute_status_and_diagnostics,
-    collect_object_diagnostics,
-    object_pipeline_status,
-)
 
 
 # ── Topological batch computation ─────────────────────────────────────────────
