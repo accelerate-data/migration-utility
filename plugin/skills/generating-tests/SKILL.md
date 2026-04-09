@@ -11,9 +11,7 @@ argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 
 # Generating Tests
 
-Generate test scenarios for a stored procedure or view migration. Reads deterministic context from catalog, uses LLM to enumerate conditional branches and synthesize minimal fixtures, and writes structured JSON to `test-specs/`.
-
-This skill produces scenarios only — no proc execution, no ground truth capture. The `/generate-tests` command bulk-executes approved scenarios after the review loop completes.
+Generate test scenarios for a stored procedure or view migration. Reads deterministic context from catalog, enumerates conditional branches, synthesizes minimal fixtures, and writes structured JSON to `test-specs/`.
 
 ## Arguments
 
@@ -61,13 +59,9 @@ Check whether `catalog/views/<fqn>.json` exists:
 - **If yes** → object is a **view or MV**. Note `object_type = view` for the steps below.
 - **If no** → object is a **table**. Note `object_type = table` for the steps below.
 
-The pipeline is the same for both — `object_type` controls which branch patterns apply in Step 2 and which output fields are used in Step 4.
-
 ---
 
 ## Step 1: Assemble context
-
-Context assembly uses different CLIs for tables and views — `migrate context` requires a writer procedure and does not support views.
 
 **For tables:**
 
@@ -106,7 +100,7 @@ Assemble the context:
 
 There is no `selected_writer` for views — the view's refactored SELECT statement becomes the `sql` field in the test spec.
 
-**Source table catalog lookup (both):** For each table in `source_tables`, read `catalog/tables/<schema>.<table>.json` to get the full column list with `is_nullable`, `is_identity`, and type metadata. Also read `auto_increment_columns` to identify identity columns. This metadata is required for Step 3 (NOT NULL column coverage).
+**Source table catalog lookup (both):** For each table in `source_tables`, read `catalog/tables/<schema>.<table>.json` to get the full column list with `is_nullable`, `is_identity`, and type metadata. Also read `auto_increment_columns` to identify identity columns.
 
 ## Step 2: Extract branches
 
@@ -126,7 +120,7 @@ For each statement where `action == migrate`, identify all conditional branches.
 | Type boundaries | Watermark date edges, MAX int, empty string |
 | Empty source | Zero-row edge case |
 
-**For views**, use SELECT-level patterns only — there are no MERGE, INSERT, UPDATE, or DELETE patterns:
+**For views**, use SELECT-level patterns only:
 
 | Pattern | Branches to enumerate |
 |---|---|
@@ -181,7 +175,7 @@ Write the spec JSON directly to `test-specs/<item_id>.json`.
 
 **First run (merge_mode = false):**
 
-Write `test-specs/<item_id>.json` with the TestSpec schema. The `expect` field is omitted — ground truth is captured later by the command after review approval.
+Write `test-specs/<item_id>.json` with the TestSpec schema. Omit the `expect` field.
 
 **Re-invocation (merge_mode = true):**
 
@@ -248,8 +242,6 @@ If there are warnings or errors to report, pass them as JSON arrays:
   --warnings '[{"code": "...", "message": "..."}]' \
   --errors '[{"code": "...", "message": "..."}]'
 ```
-
-The CLI reads the test-spec from disk, validates it, and writes the `test_gen` section to the catalog with a CLI-determined status.
 
 ---
 
