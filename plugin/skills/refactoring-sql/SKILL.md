@@ -13,8 +13,6 @@ argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 
 # Refactoring SQL
 
-Restructure a view or stored procedure's SQL into import/logical/final CTEs while proving the refactored SQL produces identical results. Uses two isolated sub-agents to produce independent outputs, validates them with a semantic review, then compares them in the sandbox when available. Finally, writes the refactored SQL back to the catalog with a status of `refactored` when all checks pass, or `partial` when semantic review or sandbox comparison fails.
-
 ## Arguments
 
 `$ARGUMENTS` is the fully-qualified object name (table or view). Ask the user if missing.
@@ -68,8 +66,6 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" refactor context \
   --table <table_fqn>
 ```
 
-The CLI auto-detects the object type: if `catalog/views/<fqn>.json` exists it takes the view path; otherwise it takes the table path and reads `scoping.selected_writer` automatically.
-
 Read `object_type` from the output to know which path you are on:
 
 **Table (`object_type: "table"`):**
@@ -92,7 +88,7 @@ Read `object_type` from the output to know which path you are on:
 
 ## Step 2: Launch two sub-agents in parallel
 
-Launch both sub-agents simultaneously. They must not see each other's output — this prevents context pollution so the equivalence comparison is meaningful. Both agents use [references/sp-migration-ref.md](references/sp-migration-ref.md) for DML extraction and CTE restructuring rules.
+Launch both sub-agents simultaneously. They must not see each other's output. Both agents use [references/sp-migration-ref.md](references/sp-migration-ref.md) for DML extraction and CTE restructuring rules.
 
 ### Sub-agent A: Extract core SELECT
 
@@ -177,7 +173,7 @@ The sub-agent writes the result to `.staging/<table_fqn>-refactored.sql`.
 
 ## Step 3: Semantic review
 
-After both sub-agents complete, launch a third isolated sub-agent to validate semantic equivalence between the extracted SQL and the refactored SQL before running the sandbox comparison.
+After both sub-agents complete, launch a third isolated sub-agent to validate semantic equivalence between the extracted SQL and the refactored SQL.
 
 Inputs:
 
@@ -221,7 +217,7 @@ Write the JSON to `.staging/<table_fqn>-semantic-review.json`.
 
 ## Step 4: Equivalence audit
 
-When sandbox status succeeds and the caller did not say to skip `compare-sql`, run the comparison CLI which seeds fixtures, executes both SELECTs, and returns the difference in rows:
+When sandbox status succeeds and the caller did not say to skip `compare-sql`, run the comparison CLI:
 
 ```bash
 mkdir -p .staging
@@ -276,7 +272,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" refactor write \
   --no-compare-required
 ```
 
-The CLI derives the final status from the evidence files. Do not invent or override it.
+Do not invent or override the status.
 
 ## Step 6: Clean up and report
 
