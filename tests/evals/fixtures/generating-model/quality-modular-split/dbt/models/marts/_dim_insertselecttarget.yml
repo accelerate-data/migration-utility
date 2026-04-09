@@ -1,0 +1,45 @@
+version: 2
+
+models:
+  - name: dim_insertselecttarget
+    description: "Migrated from silver.usp_load_insertselecttarget. Target: silver.insertselecttarget."
+    columns:
+      - name: ProductAlternateKey
+        description: "Primary key. Cast from ProductID."
+        data_tests:
+          - unique
+          - not_null
+      - name: EnglishProductName
+        description: "Product name from source."
+      - name: _dbt_run_id
+        description: "dbt invocation ID for run tracking."
+      - name: _loaded_at
+        description: "Timestamp when record was loaded into warehouse."
+
+unit_tests:
+  - name: test_insert_select_single_row
+    model: dim_insertselecttarget
+    given:
+      - input: ref('stg_insertselecttarget')
+        rows:
+          - ProductAlternateKey: "1"
+            EnglishProductName: "Road-150"
+    expect:
+      rows:
+        - ProductAlternateKey: "1"
+          EnglishProductName: "Road-150"
+  - name: test_insert_select_multiple_rows
+    model: dim_insertselecttarget
+    given:
+      - input: ref('stg_insertselecttarget')
+        rows:
+          - ProductAlternateKey: "1"
+            EnglishProductName: "Road-150"
+          - ProductAlternateKey: "2"
+            EnglishProductName: "Mountain-200"
+    expect:
+      rows:
+        - ProductAlternateKey: "1"
+          EnglishProductName: "Road-150"
+        - ProductAlternateKey: "2"
+          EnglishProductName: "Mountain-200"

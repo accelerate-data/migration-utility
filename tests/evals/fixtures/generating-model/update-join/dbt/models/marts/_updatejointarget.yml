@@ -1,0 +1,62 @@
+version: 2
+
+models:
+  - name: updatejointarget
+    description: "Migrated from silver.usp_load_UpdateJoinTarget. Target: silver.updatejointarget."
+    columns:
+      - name: ProductAlternateKey
+        description: "Primary key"
+        data_tests:
+          - unique
+          - not_null
+      - name: EnglishProductName
+        description: "Product name from bronze.Product.ProductName"
+        data_tests:
+          - not_null
+      - name: LastSeenDate
+        description: "Refresh timestamp"
+        data_tests:
+          - not_null
+
+    unit_tests:
+      - name: test_update_matched_row
+        model: updatejointarget
+        given:
+          - input: ref('stg_updatejointarget')
+            rows:
+              - ProductAlternateKey: "1"
+                EnglishProductName: "Road-150-Updated"
+                LastSeenDate: "2024-01-15"
+        expect:
+          rows:
+            - ProductAlternateKey: "1"
+              EnglishProductName: "Road-150-Updated"
+              LastSeenDate: "2024-01-15"
+
+      - name: test_gap_multiple_products_all_projected
+        model: updatejointarget
+        given:
+          - input: ref('stg_updatejointarget')
+            rows:
+              - ProductAlternateKey: "1"
+                EnglishProductName: "Widget-A"
+                LastSeenDate: "2024-01-15"
+              - ProductAlternateKey: "2"
+                EnglishProductName: "Widget-B"
+                LastSeenDate: "2024-01-15"
+        expect:
+          rows:
+            - ProductAlternateKey: "1"
+              EnglishProductName: "Widget-A"
+              LastSeenDate: "2024-01-15"
+            - ProductAlternateKey: "2"
+              EnglishProductName: "Widget-B"
+              LastSeenDate: "2024-01-15"
+
+      - name: test_gap_empty_source_returns_no_rows
+        model: updatejointarget
+        given:
+          - input: ref('stg_updatejointarget')
+            rows: []
+        expect:
+          rows: []

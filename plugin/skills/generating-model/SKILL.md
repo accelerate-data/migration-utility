@@ -12,7 +12,7 @@ argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 
 # Generating Model
 
-Generate a dbt model from a profiled stored procedure. Reads deterministic context from catalog, uses LLM to produce dbt-idiomatic SQL, validates logical equivalence, and writes artifacts to the dbt project. The reviewer will check the output against the same reference files loaded above.
+Generate one dbt model for one table or view. Use deterministic context from catalog, generate dbt SQL and YAML, validate equivalence, write artifacts, run dbt validation, and return one JSON result.
 
 ## Arguments
 
@@ -20,13 +20,44 @@ Generate a dbt model from a profiled stored procedure. Reads deterministic conte
 
 ## Before invoking
 
+Use the canonical `/generate-model` codes in [../../lib/shared/generate_model_error_codes.md](../../lib/shared/generate_model_error_codes.md).
+
 Check stage readiness:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <table_fqn> migrate
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <table_fqn> generate
 ```
 
-If `passed` is `false`, report the failing check's `code` and `message` to the user and stop.
+If `ready` is `false`, report the failing check's `code` and `reason` to the user and stop.
+
+## Caller handoff
+
+The caller may provide a structured handoff object matching [../../lib/shared/schemas/model_generation_handoff.json](../../lib/shared/schemas/model_generation_handoff.json).
+
+If a handoff is provided:
+
+- use `execution_mode` exactly as given
+- use `artifact_paths` exactly as given
+- use `relation_bindings` exactly as given
+- use `revision_feedback` exactly as given
+- do not read or interpret sweep artifacts from `.migration-runs/`
+
+If no handoff is provided:
+
+- assume `execution_mode: "generate"`
+- derive `artifact_paths` locally
+- derive relation bindings from the dbt project and context
+- assume no `revision_feedback`
+
+## Output contract
+
+Return exactly one JSON object matching [../../lib/shared/schemas/model_generation_output.json](../../lib/shared/schemas/model_generation_output.json).
+
+- Do not return markdown or prose outside the JSON object.
+- Do not ask the user to write or save files.
+- Do not ask the user for approval at any step in this skill.
+- Use only the canonical codes from [../../lib/shared/generate_model_error_codes.md](../../lib/shared/generate_model_error_codes.md) in `warnings[]` and `errors[]`.
+- The JSON object is the item result consumed by `/generate-model`.
 
 ## Step 1: Assemble context
 
@@ -57,30 +88,14 @@ Use `refactored_sql` as your sole SQL input. Ignore `proc_body` and `statements`
 - `stg` classification → `materialized='ephemeral'` staging model
 - `mart` classification → use the same materialization decision rules as tables (table/incremental/snapshot based on profile signals)
 
-## Step 1.5: Pre-generation check
+## Step 1.5: Execution mode
 
-Check whether the model sweep plan and existing dbt artifacts indicate this table should be skipped or run in test-only mode.
+- `generate` — run the full generation flow
+- `test_only` — skip Steps 2–7 and start at Step 8 using the existing artifacts already on disk
 
-### 1.5a — Read the plan artifact
+If the caller wants to skip an item entirely, the caller should not invoke this skill.
 
-If a model sweep artifact path was provided (via `--model-sweep-file` argument or referenced in the agent prompt), read `.migration-runs/model-sweep.<epoch>.json`. Find this table's entry by matching `fqn`.
-
-If no sweep artifact is available (single-table interactive run), skip to step 1.5c.
-
-### 1.5b — Act on recommended_action
-
-| `recommended_action` | Action |
-|---|---|
-| `"skip"` | Report "Model exists with passing tests — skipping generation." Write item result with `status: "ok"` and `"skipped": true`. Stop — do not proceed to Step 2. |
-| `"test-only"` | Skip Steps 2–7. Jump directly to Step 8 (compile + test) using the existing mart model on disk. |
-| `"generate"` | Proceed normally through all steps. |
-
-### 1.5c — Shared staging models
-
-When proceeding with `"generate"`:
-
-- Check `shared_staging_candidates` in the sweep artifact. For any source table listed there, do **not** create a new `stg_*` file — it was already written by the planning sweep. Use `{{ ref('stg_<table>') }}` in the mart model.
-- For source tables not in `shared_staging_candidates`, apply the normal check: look for an existing `stg_*.sql` in `dbt/models/staging/`. If one exists with a compatible column set, use `{{ ref() }}` — do not duplicate. If no stg file exists, you will create one in Step 3.
+If `shared_staging_candidates` is present in the handoff, treat those staging models as already planned by the caller. Do not recompute planning decisions here.
 
 **Rule:** mart models must never use `{{ source() }}` directly. For each table the procedure reads from:
 
@@ -100,7 +115,9 @@ Produce two outputs from the `refactored_sql`. Apply [sql-style.md](../reviewing
 
 **Mandatory pre-step — resolve table references, then write stg files:**
 
-From the `migrate context` output, read `source_tables`. For each source table where `is_selected=true` and `is_updated=false`, classify it:
+From the `migrate context` output, read `source_tables`. For each source table where `is_selected=true` and `is_updated=false`, classify it.
+
+Use caller-provided `relation_bindings` first. Only fall back to local discovery when a relation binding was not supplied.
 
 1. **Read `dbt/models/staging/_sources.yml`** — collect every `{schema}.{table}` entry listed as a source.
 2. **Glob `dbt/models/**/*.sql` and `dbt/snapshots/**/*.sql`** — collect the file stems of existing dbt models (e.g., `fact_sales`, `dim_customer`).
@@ -109,7 +126,7 @@ From the `migrate context` output, read `source_tables`. For each source table w
    - **Matching model file exists on disk** → existing dbt model. Do not create a stg wrapper. The mart references it directly via `{{ ref('<model_name>') }}`.
    - **Neither** → flag as unresolved. Do not emit a `source()` or `ref()` call for it. Surface as a warning in Step 6.
 
-Only after all stg files are confirmed on disk (existing or newly written), generate the mart SQL using the resolved references above.
+Only after all required staging files are confirmed on disk, generate the mart SQL using the resolved references above.
 
 ### Staging models (`stg_<source_table>.sql`)
 
@@ -218,20 +235,9 @@ For each check:
 
 - **Match**: proceed silently
 - **Intentional divergence** (e.g., T-SQL `ISNULL` replaced with `COALESCE`): note as informational
-- **Semantic gap** (missing join, different grain, dropped column): flag as **warning** and present to user
+- **Semantic gap** (missing join, different grain, dropped column): record an `EQUIVALENCE_GAP` warning
 
-If warnings exist, present them before proceeding:
-
-```text
-Equivalence check found 2 warnings:
-
-  1. [columns] Original INSERT includes column 'legacy_flag' not in generated model
-  2. [filter] Original WHERE clause has 'IsActive = 1' not present in generated model
-
-Proceed with these differences? (y/n)
-```
-
-Ask the user and wait. If the user says no, revise the model.
+If warnings exist, record them in the item result and continue.
 
 ## Step 5: Build schema.yml
 
@@ -301,20 +307,24 @@ Generate 1-3 additional unit test scenarios for uncovered branches. Add them to 
 
 Gap tests follow the same structure as test-spec tests (`name`, `model`, `given[]`, `expect`). Since there is no ground-truth execution for gap tests, derive `expect.rows` from the model's logic — these are best-effort expectations that `dbt test` will validate.
 
-## Step 6: Present for approval
+## Step 6: Prepare final result
 
-Show the user:
+Include these in the final item result:
 
-1. Generated model SQL (full file)
-2. Schema YAML (full file)
-3. Equivalence check results (if any warnings)
-4. Materialization and config decisions
-
-Ask the user: "Approve this model to write to the dbt project? (y/n/edit)". If the user requests edits, apply them and re-run the equivalence check on the edited version.
+1. generated model SQL
+2. schema YAML
+3. equivalence warnings, if any
+4. materialization and config decisions
 
 ## Step 7: Write artifacts
 
-After approval:
+Before writing, decide the exact output paths.
+
+If the caller supplied `artifact_paths`, use them exactly. Otherwise decide them locally:
+
+- staging model → `dbt/models/staging/stg_<source_table>.sql` and `dbt/models/staging/_stg_<source_table>.yml`
+- mart model → `dbt/models/<layer>/<model_name>.sql` and `dbt/models/<layer>/_<model_name>.yml`
+- snapshot → `dbt/snapshots/<model_name>.sql` and `dbt/snapshots/schema.yml`
 
 Write the generated SQL and YAML to temporary files first to avoid shell escaping issues with multi-line content:
 
@@ -325,15 +335,19 @@ Write the generated SQL and YAML to temporary files first to avoid shell escapin
 mkdir -p .staging
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate write \
   --table <table_fqn> \
+  --model-path <relative_path_to_model.sql> \
+  --schema-yml-path <relative_path_to_schema.yml> \
   --model-sql-file .staging/model.sql \
   --schema-yml-file .staging/schema.yml; rm -rf .staging
 ```
 
 The dbt project path is resolved automatically from `$DBT_PROJECT_PATH` or defaults to `./dbt` relative to the project root. Pass `--dbt-project-path <path>` only if you need to override this.
 
-Report the written file paths to the user.
+Use the CLI-returned written paths when constructing the final item result.
 
 ## Step 8: Compile and test
+
+If `execution_mode` is `test_only`, start here. Do not regenerate model SQL or schema YAML in that mode.
 
 ### 8a — Compile
 

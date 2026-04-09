@@ -1,0 +1,27 @@
+version: 2
+
+models:
+  - name: dimcustomer
+    description: "Customer dimension table — full reload of customer and person data with order history."
+    columns:
+      - name: CustomerAlternateKey
+        description: "Customer business key derived from Customer.CustomerID."
+        tests:
+          - unique
+          - not_null
+      - name: FirstName
+        description: "Customer first name from Person table."
+      - name: MiddleName
+        description: "Customer middle name from Person table."
+      - name: LastName
+        description: "Customer last name from Person table."
+      - name: Title
+        description: "Customer title/salutation from Person table."
+      - name: Gender
+        description: "Customer gender (null for all records — not sourced)."
+      - name: MaritalStatus
+        description: "Customer marital status (null for all records — not sourced)."
+      - name: EmailPromotion
+        description: "Customer email promotion preference from Person table."
+      - name: DateFirstPurchase
+        description: "Date of customer's first order from SalesOrderHeader."

@@ -4,3 +4,5 @@ sources:
   schema: bronze
   tables:
   - name: customer
+  - name: person
+  - name: salesorderheader
