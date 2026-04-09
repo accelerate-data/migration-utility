@@ -32,8 +32,7 @@
       "statement_index": 1,
       "description": "CurrencyKey is an identity column that auto-increments; each inserted row receives the next sequential identity value",
       "scenarios": [
-        "test_identity_key_auto_increment",
-        "test_identity_key_respects_seed_after_truncate"
+        "test_identity_key_auto_increment"
       ]
     },
     {
@@ -65,105 +64,301 @@
       "statement_index": 1,
       "description": "All target columns (CurrencyAlternateKey, CurrencyName) are NOT NULL; source data must have valid values",
       "scenarios": [
-        "test_non_null_constraint_on_alternate_key",
-        "test_non_null_constraint_on_currency_name"
+        "test_non_null_constraint_enforced"
       ]
     }
   ],
   "unit_tests": [
     {
-      "id": "test_truncate_clears_existing_rows",
-      "description": "Verify TRUNCATE removes all pre-existing rows before INSERT",
-      "test_type": "unit",
-      "precondition": "silver.DimCurrency has existing rows",
-      "action": "Execute usp_load_DimCurrency with empty source",
-      "assertion": "table is empty (row count = 0)"
+      "name": "test_truncate_clears_existing_rows",
+      "model": "stg_dimcurrency",
+      "given": [
+        {
+          "rows": [
+            {
+              "CurrencyKey": 1,
+              "CurrencyAlternateKey": "USD",
+              "CurrencyName": "US Dollar"
+            },
+            {
+              "CurrencyKey": 2,
+              "CurrencyAlternateKey": "EUR",
+              "CurrencyName": "Euro"
+            }
+          ],
+          "table": "[silver].[DimCurrency]"
+        }
+      ],
+      "expect": {
+        "rows": []
+      },
+      "target_table": "[silver].[DimCurrency]",
+      "procedure": "[silver].[usp_load_DimCurrency]"
     },
     {
-      "id": "test_insert_currencies_from_bronze_source",
-      "description": "Verify INSERT SELECT correctly loads currencies from bronze source",
-      "test_type": "unit",
-      "precondition": "MigrationTest.bronze.Currency has 3 currencies (USD, EUR, GBP)",
-      "action": "Execute usp_load_DimCurrency",
-      "assertion": "silver.DimCurrency contains 3 rows with correct currency codes and names"
+      "name": "test_insert_currencies_from_bronze_source",
+      "model": "stg_dimcurrency",
+      "given": [
+        {
+          "rows": [
+            {
+              "CurrencyCode": "USD",
+              "CurrencyName": "US Dollar"
+            },
+            {
+              "CurrencyCode": "EUR",
+              "CurrencyName": "Euro"
+            },
+            {
+              "CurrencyCode": "GBP",
+              "CurrencyName": "British Pound"
+            }
+          ],
+          "table": "[MigrationTest].[bronze].[Currency]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "CurrencyKey": 1,
+            "CurrencyAlternateKey": "USD",
+            "CurrencyName": "US Dollar"
+          },
+          {
+            "CurrencyKey": 2,
+            "CurrencyAlternateKey": "EUR",
+            "CurrencyName": "Euro"
+          },
+          {
+            "CurrencyKey": 3,
+            "CurrencyAlternateKey": "GBP",
+            "CurrencyName": "British Pound"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimCurrency]",
+      "procedure": "[silver].[usp_load_DimCurrency]"
     },
     {
-      "id": "test_insert_empty_when_source_empty",
-      "description": "Verify no rows are inserted when source is empty",
-      "test_type": "unit",
-      "precondition": "MigrationTest.bronze.Currency is empty",
-      "action": "Execute usp_load_DimCurrency",
-      "assertion": "silver.DimCurrency has 0 rows"
+      "name": "test_insert_empty_when_source_empty",
+      "model": "stg_dimcurrency",
+      "given": [
+        {
+          "rows": [],
+          "table": "[MigrationTest].[bronze].[Currency]"
+        }
+      ],
+      "expect": {
+        "rows": []
+      },
+      "target_table": "[silver].[DimCurrency]",
+      "procedure": "[silver].[usp_load_DimCurrency]"
     },
     {
-      "id": "test_identity_key_auto_increment",
-      "description": "Verify identity column auto-increments for each inserted row",
-      "test_type": "unit",
-      "precondition": "silver.DimCurrency is empty; MigrationTest.bronze.Currency has 3 currencies",
-      "action": "Execute usp_load_DimCurrency",
-      "assertion": "CurrencyKey values are sequential (1, 2, 3)"
+      "name": "test_identity_key_auto_increment",
+      "model": "stg_dimcurrency",
+      "given": [
+        {
+          "rows": [
+            {
+              "CurrencyCode": "JPY",
+              "CurrencyName": "Japanese Yen"
+            },
+            {
+              "CurrencyCode": "CAD",
+              "CurrencyName": "Canadian Dollar"
+            },
+            {
+              "CurrencyCode": "AUD",
+              "CurrencyName": "Australian Dollar"
+            }
+          ],
+          "table": "[MigrationTest].[bronze].[Currency]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "CurrencyKey": 1,
+            "CurrencyAlternateKey": "JPY",
+            "CurrencyName": "Japanese Yen"
+          },
+          {
+            "CurrencyKey": 2,
+            "CurrencyAlternateKey": "CAD",
+            "CurrencyName": "Canadian Dollar"
+          },
+          {
+            "CurrencyKey": 3,
+            "CurrencyAlternateKey": "AUD",
+            "CurrencyName": "Australian Dollar"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimCurrency]",
+      "procedure": "[silver].[usp_load_DimCurrency]"
     },
     {
-      "id": "test_identity_key_respects_seed_after_truncate",
-      "description": "Verify identity seed continues after TRUNCATE (identity is not reset to seed)",
-      "test_type": "unit",
-      "precondition": "Execute usp_load_DimCurrency to insert rows with keys 1, 2, 3; then execute again",
-      "action": "Execute usp_load_DimCurrency again",
-      "assertion": "New rows get keys 4, 5, 6 (not restarting from 1)"
+      "name": "test_currency_code_maps_to_alternate_key",
+      "model": "stg_dimcurrency",
+      "given": [
+        {
+          "rows": [
+            {
+              "CurrencyCode": "CHF",
+              "CurrencyName": "Swiss Franc"
+            }
+          ],
+          "table": "[MigrationTest].[bronze].[Currency]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "CurrencyKey": 1,
+            "CurrencyAlternateKey": "CHF",
+            "CurrencyName": "Swiss Franc"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimCurrency]",
+      "procedure": "[silver].[usp_load_DimCurrency]"
     },
     {
-      "id": "test_currency_code_maps_to_alternate_key",
-      "description": "Verify CurrencyCode from source maps to CurrencyAlternateKey in target",
-      "test_type": "unit",
-      "precondition": "MigrationTest.bronze.Currency has row with CurrencyCode='USD'",
-      "action": "Execute usp_load_DimCurrency",
-      "assertion": "silver.DimCurrency has row with CurrencyAlternateKey='USD'"
+      "name": "test_currency_name_flows_to_target",
+      "model": "stg_dimcurrency",
+      "given": [
+        {
+          "rows": [
+            {
+              "CurrencyCode": "MXN",
+              "CurrencyName": "Mexican Peso"
+            }
+          ],
+          "table": "[MigrationTest].[bronze].[Currency]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "CurrencyKey": 1,
+            "CurrencyAlternateKey": "MXN",
+            "CurrencyName": "Mexican Peso"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimCurrency]",
+      "procedure": "[silver].[usp_load_DimCurrency]"
     },
     {
-      "id": "test_currency_name_flows_to_target",
-      "description": "Verify CurrencyName from source flows to target",
-      "test_type": "unit",
-      "precondition": "MigrationTest.bronze.Currency has row with CurrencyName='US Dollar'",
-      "action": "Execute usp_load_DimCurrency",
-      "assertion": "silver.DimCurrency has row with CurrencyName='US Dollar'"
+      "name": "test_insert_multiple_currencies_batch",
+      "model": "stg_dimcurrency",
+      "given": [
+        {
+          "rows": [
+            {
+              "CurrencyCode": "INR",
+              "CurrencyName": "Indian Rupee"
+            },
+            {
+              "CurrencyCode": "SGD",
+              "CurrencyName": "Singapore Dollar"
+            },
+            {
+              "CurrencyCode": "HKD",
+              "CurrencyName": "Hong Kong Dollar"
+            },
+            {
+              "CurrencyCode": "KRW",
+              "CurrencyName": "South Korean Won"
+            },
+            {
+              "CurrencyCode": "TWD",
+              "CurrencyName": "Taiwan Dollar"
+            }
+          ],
+          "table": "[MigrationTest].[bronze].[Currency]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "CurrencyKey": 1,
+            "CurrencyAlternateKey": "INR",
+            "CurrencyName": "Indian Rupee"
+          },
+          {
+            "CurrencyKey": 2,
+            "CurrencyAlternateKey": "SGD",
+            "CurrencyName": "Singapore Dollar"
+          },
+          {
+            "CurrencyKey": 3,
+            "CurrencyAlternateKey": "HKD",
+            "CurrencyName": "Hong Kong Dollar"
+          },
+          {
+            "CurrencyKey": 4,
+            "CurrencyAlternateKey": "KRW",
+            "CurrencyName": "South Korean Won"
+          },
+          {
+            "CurrencyKey": 5,
+            "CurrencyAlternateKey": "TWD",
+            "CurrencyName": "Taiwan Dollar"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimCurrency]",
+      "procedure": "[silver].[usp_load_DimCurrency]"
     },
     {
-      "id": "test_insert_multiple_currencies_batch",
-      "description": "Verify batch INSERT handles multiple rows correctly",
-      "test_type": "unit",
-      "precondition": "MigrationTest.bronze.Currency has 5 currencies",
-      "action": "Execute usp_load_DimCurrency",
-      "assertion": "silver.DimCurrency contains all 5 currencies with correct mappings"
-    },
-    {
-      "id": "test_non_null_constraint_on_alternate_key",
-      "description": "Verify NOT NULL constraint on CurrencyAlternateKey is enforced",
-      "test_type": "unit",
-      "precondition": "MigrationTest.bronze.Currency has all non-null CurrencyCode values",
-      "action": "Execute usp_load_DimCurrency",
-      "assertion": "All inserted rows have non-null CurrencyAlternateKey; no constraint violation"
-    },
-    {
-      "id": "test_non_null_constraint_on_currency_name",
-      "description": "Verify NOT NULL constraint on CurrencyName is enforced",
-      "test_type": "unit",
-      "precondition": "MigrationTest.bronze.Currency has all non-null CurrencyName values",
-      "action": "Execute usp_load_DimCurrency",
-      "assertion": "All inserted rows have non-null CurrencyName; no constraint violation"
+      "name": "test_non_null_constraint_enforced",
+      "model": "stg_dimcurrency",
+      "given": [
+        {
+          "rows": [
+            {
+              "CurrencyCode": "SEK",
+              "CurrencyName": "Swedish Krona"
+            },
+            {
+              "CurrencyCode": "NOK",
+              "CurrencyName": "Norwegian Krone"
+            }
+          ],
+          "table": "[MigrationTest].[bronze].[Currency]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "CurrencyKey": 1,
+            "CurrencyAlternateKey": "SEK",
+            "CurrencyName": "Swedish Krona"
+          },
+          {
+            "CurrencyKey": 2,
+            "CurrencyAlternateKey": "NOK",
+            "CurrencyName": "Norwegian Krone"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimCurrency]",
+      "procedure": "[silver].[usp_load_DimCurrency]"
     }
   ],
   "uncovered_branches": [],
   "warnings": [
     {
-      "code": "dynamic_sql_untestable_in_scoping",
-      "message": "Write logic is embedded in sp_executesql called with a NVARCHAR variable (@sql), so the INSERT SQL is not statically visible to the scoping agent. However, the recovered SQL is documented, and test specifications can be created based on the known semantics of the INSERT SELECT and source/target schema mappings.",
+      "code": "dynamic_sql_variable",
+      "message": "Write logic is embedded in sp_executesql called with a NVARCHAR variable (@sql), so the INSERT SQL is not statically visible to the scoping agent. The recovered SQL semantics and schema mappings are fully documented in test specifications: TRUNCATE + INSERT SELECT from [MigrationTest].[bronze].[Currency] to [silver].[DimCurrency] with column mappings CurrencyCode→CurrencyAlternateKey and CurrencyName→CurrencyName.",
       "item_id": "silver.dimcurrency",
       "severity": "info",
       "details": {
         "routing_reason": "dynamic_sql_variable",
         "recovered_sql": "INSERT INTO silver.DimCurrency (CurrencyAlternateKey, CurrencyName) SELECT CurrencyCode, CurrencyName FROM MigrationTest.bronze.Currency",
-        "cross_database_reference": "MigrationTest.bronze.Currency",
-        "note": "Tests can cover the fixture-resolvable parts: TRUNCATE, identity generation, column mapping, NOT NULL constraints, and multi-row insert handling."
+        "cross_database_reference": "MigrationTest.bronze.Currency"
       }
     }
   ],
