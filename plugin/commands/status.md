@@ -13,6 +13,20 @@ argument-hint: "[schema.table]"
 
 Show migration progress for one table (detailed) or all tables (summary). Calls the `migrate-util status` CLI for deterministic stage statuses, then applies LLM reasoning to interpret patterns and recommend next steps.
 
+Use the canonical `/status` code list in [../lib/shared/status_error_codes.md](../lib/shared/status_error_codes.md).
+
+## Harness Mode
+
+When the caller explicitly says to skip git operations, to operate directly on a fixture directory, or to use eval or harness mode, treat that as a non-interactive harness mode.
+
+In harness mode:
+
+- Skip git operations.
+- Use the caller-specified project root for all CLI commands.
+- Present the "What to do next" section, but do not execute the suggested follow-on command.
+- Present stale-file cleanup candidates, but do not delete files.
+- Preserve the same dashboard content and recommendations you would show in a normal run.
+
 ## Guards
 
 - `manifest.json` must exist. If missing, tell the user to run `/setup-ddl` first.
