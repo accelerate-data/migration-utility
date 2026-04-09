@@ -25,12 +25,14 @@ from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
 from shared.catalog import (
+    load_and_merge_catalog,
     load_proc_catalog,
     load_table_catalog,
     load_view_catalog,
     read_selected_writer,
     write_json as _write_catalog_json,
 )
+from shared.catalog_models import TableCatalog
 from shared.loader import (
     CatalogFileMissingError,
     CatalogLoadError,
@@ -75,8 +77,14 @@ VIEW_CLASSIFICATIONS = frozenset({"stg", "mart"})
 VIEW_SOURCES = frozenset({"llm"})
 
 
-def _load_schema_with_store(schema_name: str) -> tuple[dict[str, Any], Registry]:
-    """Load a schema file and registry for local schema references."""
+_SCHEMA_REGISTRY_CACHE: tuple[dict[str, Any], Registry] | None = None
+
+
+def _get_schema_registry() -> tuple[dict[str, Any], Registry]:
+    """Load all schemas and build a registry, cached for the process lifetime."""
+    global _SCHEMA_REGISTRY_CACHE  # noqa: PLW0603
+    if _SCHEMA_REGISTRY_CACHE is not None:
+        return _SCHEMA_REGISTRY_CACHE
     registry = Registry()
     loaded: dict[str, Any] = {}
     for schema_path in _SCHEMA_DIR.glob("*.json"):
@@ -85,6 +93,13 @@ def _load_schema_with_store(schema_name: str) -> tuple[dict[str, Any], Registry]
         resource = Resource.from_contents(schema)
         registry = registry.with_resource(schema_path.name, resource)
         registry = registry.with_resource(schema_path.resolve().as_uri(), resource)
+    _SCHEMA_REGISTRY_CACHE = (loaded, registry)
+    return _SCHEMA_REGISTRY_CACHE
+
+
+def _load_schema_with_store(schema_name: str) -> tuple[dict[str, Any], Registry]:
+    """Load a schema file and registry for local schema references."""
+    loaded, registry = _get_schema_registry()
     return loaded[schema_name], registry
 
 
@@ -116,7 +131,7 @@ def _validate_schema_fragment(data: Any, schema_name: str, fragment_path: str) -
 # ── Context assembly (importable for testing) ────────────────────────────────
 
 
-def _extract_catalog_signals(table_cat: dict[str, Any]) -> dict[str, Any]:
+def _extract_catalog_signals(table_cat: TableCatalog) -> dict[str, Any]:
     """Pull the six catalog signal categories from a table catalog dict."""
     return {
         "primary_keys": table_cat.primary_keys,
@@ -430,34 +445,9 @@ def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> d
     profile_json["status"] = status
     _validate_schema_fragment(profile_json, "table_catalog.json", "$defs/profile_section")
 
-    # Load existing catalog file
-    catalog_path = resolve_catalog_dir(project_root) / "tables" / f"{norm}.json"
-    if not catalog_path.exists():
-        raise CatalogFileMissingError("table", norm)
-
-    try:
-        existing = json.loads(catalog_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        raise CatalogLoadError(str(catalog_path), exc) from exc
-    except OSError as exc:
-        logger.error("event=write_failed operation=read_catalog table=%s error=%s", norm, exc)
-        raise
-
-    # Merge profile section
-    existing["profile"] = profile_json
-
-    try:
-        _write_catalog_json(catalog_path, existing)
-    except OSError as exc:
-        logger.error("event=write_failed operation=atomic_write table=%s error=%s", norm, exc)
-        raise
-
-    logger.info("event=write_complete table=%s catalog_path=%s", norm, catalog_path)
-    return {
-        "ok": True,
-        "table": norm,
-        "catalog_path": str(catalog_path),
-    }
+    result = load_and_merge_catalog(project_root, norm, "profile", profile_json)
+    logger.info("event=write_complete table=%s catalog_path=%s", norm, result["catalog_path"])
+    return result
 
 
 # ── CLI commands ─────────────────────────────────────────────────────────────

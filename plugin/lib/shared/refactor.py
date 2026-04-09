@@ -29,6 +29,7 @@ from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
 from shared.catalog import (
+    load_and_merge_catalog,
     load_proc_catalog,
     load_table_catalog,
     load_view_catalog,
@@ -37,13 +38,13 @@ from shared.catalog import (
 )
 from shared.context_helpers import (
     collect_source_tables,
+    collect_view_source_tables,
     load_object_columns,
     load_proc_body,
     load_proc_statements,
     load_table_columns,
     load_table_profile,
     load_test_spec,
-    load_view_sql,
     sandbox_metadata,
 )
 from shared.loader import (
@@ -52,6 +53,7 @@ from shared.loader import (
     CatalogNotFoundError,
     DdlParseError,
 )
+from shared.catalog_models import RefactorSection
 from shared.cli_utils import emit
 from shared.env_config import resolve_catalog_dir, resolve_dbt_project_path, resolve_project_root
 from shared.name_resolver import fqn_parts, normalize
@@ -71,8 +73,14 @@ WRITE_KEYWORDS = ("insert ", "update ", "delete ", "merge ", "exec ", "create ",
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
-def _load_schema_with_store(schema_name: str) -> tuple[dict[str, Any], Registry]:
-    """Load a schema file and registry for local schema references."""
+_SCHEMA_REGISTRY_CACHE: tuple[dict[str, Any], Registry] | None = None
+
+
+def _get_schema_registry() -> tuple[dict[str, Any], Registry]:
+    """Load all schemas and build a registry, cached for the process lifetime."""
+    global _SCHEMA_REGISTRY_CACHE  # noqa: PLW0603
+    if _SCHEMA_REGISTRY_CACHE is not None:
+        return _SCHEMA_REGISTRY_CACHE
     registry = Registry()
     loaded: dict[str, Any] = {}
     for schema_path in _SCHEMA_DIR.glob("*.json"):
@@ -81,6 +89,13 @@ def _load_schema_with_store(schema_name: str) -> tuple[dict[str, Any], Registry]
         resource = Resource.from_contents(schema)
         registry = registry.with_resource(schema_path.name, resource)
         registry = registry.with_resource(schema_path.resolve().as_uri(), resource)
+    _SCHEMA_REGISTRY_CACHE = (loaded, registry)
+    return _SCHEMA_REGISTRY_CACHE
+
+
+def _load_schema_with_store(schema_name: str) -> tuple[dict[str, Any], Registry]:
+    """Load a schema file and registry for local schema references."""
+    loaded, registry = _get_schema_registry()
     return loaded[schema_name], registry
 
 
@@ -187,12 +202,7 @@ def _run_context_view(
     if profile is None:
         raise ValueError(f"View catalog for {fqn_norm} has no 'profile' section — run /profile first")
 
-    refs = cat.references
-    source_tables: list[str] = []
-    if refs is not None:
-        for t in refs.tables.in_scope:
-            source_tables.append(normalize(f"{t.object_schema}.{t.name}"))
-    source_tables = sorted(set(source_tables))
+    source_tables = collect_view_source_tables(project_root, fqn_norm)
 
     object_type = "mv" if cat.is_materialized_view else "view"
     test_spec = load_test_spec(project_root, fqn_norm)
@@ -346,7 +356,6 @@ def run_write(
     view_cat_model = load_view_catalog(project_root, table_norm)
     if view_cat_model is not None:
         _validate_schema_fragment(refactor_data, "view_catalog.json", "properties/refactor")
-        from shared.catalog_models import RefactorSection
         RefactorSection.model_validate(refactor_data)
         return _run_write_view(project_root, table_norm, refactor_data)
 
@@ -375,7 +384,6 @@ def run_write(
         raise
 
     # Validate refactor section through Pydantic model
-    from shared.catalog_models import RefactorSection
     RefactorSection.model_validate(refactor_data)
 
     # Merge refactor section onto procedure catalog
@@ -409,56 +417,16 @@ def _run_write_view(
     refactor_data: dict[str, Any],
 ) -> dict[str, Any]:
     """Write refactor block to a view catalog file."""
-    catalog_path = resolve_catalog_dir(project_root) / "views" / f"{fqn_norm}.json"
-
-    view_cat = json.loads(catalog_path.read_text(encoding="utf-8"))
-    view_cat["refactor"] = refactor_data
-
-    try:
-        _write_catalog_json(catalog_path, view_cat)
-    except OSError as exc:
-        logger.error(
-            "event=write_failed operation=atomic_write view=%s error=%s",
-            fqn_norm, exc,
-        )
-        raise
-
+    result = load_and_merge_catalog(project_root, fqn_norm, "refactor", refactor_data)
+    result["object_type"] = "view"
     logger.info(
         "event=write_complete object_type=view view=%s catalog_path=%s",
-        fqn_norm, catalog_path,
+        fqn_norm, result["catalog_path"],
     )
-    return {
-        "ok": True,
-        "table": fqn_norm,
-        "object_type": "view",
-        "catalog_path": str(catalog_path),
-    }
+    return result
 
 
 # ── Sweep ────────────────────────────────────────────────────────────────────
-
-
-def _collect_source_tables_from_refs(
-    refs: Any,
-) -> list[str]:
-    """Extract normalized source table FQNs from a catalog references section."""
-    if refs is None:
-        return []
-    result: list[str] = []
-    for t in refs.tables.in_scope:
-        if t.is_selected and not t.is_updated:
-            result.append(normalize(f"{t.object_schema}.{t.name}"))
-    return sorted(set(result))
-
-
-def _collect_view_source_tables(refs: Any) -> list[str]:
-    """Extract normalized source table FQNs from a view catalog references section."""
-    if refs is None:
-        return []
-    result: list[str] = []
-    for t in refs.tables.in_scope:
-        result.append(normalize(f"{t.object_schema}.{t.name}"))
-    return sorted(set(result))
 
 
 def _check_stg_models(
@@ -520,8 +488,7 @@ def run_sweep(
         view_cat = load_view_catalog(project_root, fqn_norm)
         if view_cat is not None:
             refactor_status = view_cat.refactor.status if view_cat.refactor else None
-            refs = view_cat.references
-            source_tables = _collect_view_source_tables(refs)
+            source_tables = collect_view_source_tables(project_root, fqn_norm)
             obj = {
                 "fqn": fqn_norm,
                 "object_type": "view",
@@ -541,8 +508,7 @@ def run_sweep(
                 proc_cat = load_proc_catalog(project_root, writer_norm)
                 if proc_cat:
                     refactor_status = proc_cat.refactor.status if proc_cat.refactor else None
-                    refs = proc_cat.references
-                    source_tables = _collect_source_tables_from_refs(refs)
+                    source_tables = collect_source_tables(project_root, writer_norm)
             obj = {
                 "fqn": fqn_norm,
                 "object_type": "table",

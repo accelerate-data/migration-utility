@@ -23,7 +23,7 @@ from shared.catalog import (
     has_catalog,
     load_proc_catalog,
     load_table_catalog,
-    write_object_catalog,
+    write_json,
     write_table_catalog,
 )
 from shared.loader import (
@@ -34,7 +34,7 @@ from shared.loader import (
     extract_refs,
     load_directory,
 )
-from shared.env_config import resolve_project_root
+from shared.env_config import resolve_catalog_dir, resolve_project_root
 from shared.name_resolver import fqn_parts, normalize
 
 logger = logging.getLogger(__name__)
@@ -50,11 +50,7 @@ _EXEC_PROC_RE = re.compile(
     re.IGNORECASE,
 )
 
-_DYNAMIC_EXEC_RE = re.compile(
-    r"\bEXEC(?:UTE)?\s*[(@]|"
-    r"\bsp_executesql\b",
-    re.IGNORECASE,
-)
+from shared.catalog import DYNAMIC_EXEC_BROAD_RE as _DYNAMIC_EXEC_RE
 
 
 def _extract_calls(raw_ddl: str) -> list[str]:
@@ -234,13 +230,9 @@ def _augment_proc_catalogs(
         if proc_modified:
             procedures_augmented.add(proc_fqn)
             tables_in_scope.sort(key=lambda e: f"{e['schema']}.{e['name']}".lower())
-            write_object_catalog(
-                project_root, "procedures", proc_fqn, proc_data["references"],
-                needs_llm=proc_data.get("needs_llm", False),
-                needs_enrich=False,
-                mode=proc_data.get("mode"),
-                routing_reasons=proc_data.get("routing_reasons"),
-            )
+            proc_data["needs_enrich"] = False
+            cat_path = resolve_catalog_dir(project_root) / "procedures" / f"{normalize(proc_fqn)}.json"
+            write_json(cat_path, proc_data)
 
     return procedures_augmented, entries_added
 

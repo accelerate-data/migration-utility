@@ -14,6 +14,7 @@ from typing import Any, NoReturn, Optional
 import typer
 
 from shared.catalog import (
+    load_and_merge_catalog,
     write_json as _write_catalog_json,
 )
 from shared.cli_utils import emit
@@ -54,8 +55,11 @@ def _create_backend(manifest: dict[str, Any]) -> SandboxBackend:
         _error_exit("MISSING_ENV_VARS", str(exc), exc)
 
 
-def _resolve_sandbox_db(project_root: Path) -> str:
-    """Read sandbox.database from manifest, or fail with SANDBOX_NOT_CONFIGURED."""
+def _resolve_sandbox_db(project_root: Path) -> tuple[str, dict[str, Any]]:
+    """Read sandbox.database from manifest, or fail with SANDBOX_NOT_CONFIGURED.
+
+    Returns ``(sandbox_db, manifest)`` to avoid re-reading manifest.json.
+    """
     manifest = read_manifest(project_root)
     sandbox = manifest.get("sandbox")
     if not sandbox or not sandbox.get("database"):
@@ -63,7 +67,7 @@ def _resolve_sandbox_db(project_root: Path) -> str:
             "SANDBOX_NOT_CONFIGURED",
             "No sandbox configured in manifest.json. Run /setup-sandbox first.",
         )
-    return sandbox["database"]
+    return sandbox["database"], manifest
 
 
 def _error_exit(code: str, message: str, exc: Exception | None = None) -> NoReturn:
@@ -114,9 +118,8 @@ def sandbox_down(
     """Drop a sandbox database."""
     logger.info("event=cli_invoked command=sandbox_down")
     root = resolve_project_root(Path(project_root))
-    sandbox_db = _resolve_sandbox_db(root)
+    sandbox_db, manifest = _resolve_sandbox_db(root)
     logger.info("event=cli_resolved command=sandbox_down sandbox_db=%s", sandbox_db)
-    manifest = _load_manifest(root)
     backend = _create_backend(manifest)
 
     try:
@@ -138,9 +141,8 @@ def sandbox_status(
     """Check whether a sandbox database exists."""
     logger.info("event=cli_invoked command=sandbox_status")
     root = resolve_project_root(Path(project_root))
-    sandbox_db = _resolve_sandbox_db(root)
+    sandbox_db, manifest = _resolve_sandbox_db(root)
     logger.info("event=cli_resolved command=sandbox_status sandbox_db=%s", sandbox_db)
-    manifest = _load_manifest(root)
     backend = _create_backend(manifest)
 
     try:
@@ -163,9 +165,8 @@ def execute(
     """Execute a test scenario in the sandbox and capture ground truth."""
     logger.info("event=cli_invoked command=execute")
     root = resolve_project_root(Path(project_root))
-    sandbox_db = _resolve_sandbox_db(root)
+    sandbox_db, manifest = _resolve_sandbox_db(root)
     logger.info("event=cli_resolved command=execute sandbox_db=%s scenario=%s", sandbox_db, scenario)
-    manifest = _load_manifest(root)
     backend = _create_backend(manifest)
 
     scenario_path = Path(scenario)
@@ -195,9 +196,8 @@ def execute_spec(
     """Bulk-execute all scenarios in a test spec and write expect.rows back."""
     logger.info("event=cli_invoked command=execute_spec")
     root = resolve_project_root(Path(project_root))
-    sandbox_db = _resolve_sandbox_db(root)
+    sandbox_db, manifest = _resolve_sandbox_db(root)
     logger.info("event=cli_resolved command=execute_spec sandbox_db=%s spec=%s", sandbox_db, spec)
-    manifest = _load_manifest(root)
     backend = _create_backend(manifest)
 
     spec_path = Path(spec)
@@ -301,8 +301,7 @@ def compare_sql(
     """
     logger.info("event=cli_invoked command=compare_sql")
     root = resolve_project_root(Path(project_root))
-    sandbox_db = _resolve_sandbox_db(root)
-    manifest = _load_manifest(root)
+    sandbox_db, manifest = _resolve_sandbox_db(root)
     backend = _create_backend(manifest)
 
     # Load both SQL files
@@ -430,30 +429,9 @@ def run_write_test_gen(
         "errors": errors or [],
     }
 
-    # Auto-detect table vs view: check view catalog first
-    catalog_dir = resolve_catalog_dir(project_root)
-    cat_path = catalog_dir / "views" / f"{norm}.json"
-    if not cat_path.exists():
-        cat_path = catalog_dir / "tables" / f"{norm}.json"
-    if not cat_path.exists():
-        raise CatalogFileMissingError("table or view", norm)
-
-    # Load existing catalog, merge, write back
-    try:
-        existing = json.loads(cat_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        raise CatalogLoadError(str(cat_path), exc) from exc
-
-    existing["test_gen"] = test_gen
-
-    try:
-        _write_catalog_json(cat_path, existing)
-    except OSError as exc:
-        logger.error("event=write_failed operation=atomic_write table=%s error=%s", norm, exc)
-        raise
-
+    result = load_and_merge_catalog(project_root, norm, "test_gen", test_gen)
     logger.info("event=write_test_gen_complete table=%s status=%s", norm, status)
-    return {"ok": True, "table": norm, "status": status, "catalog_path": str(cat_path)}
+    return result
 
 
 @app.command("write")

@@ -52,7 +52,15 @@ _STATIC_EXEC_RE = re.compile(
     r"(?:\[[^\]]+\]|\w+)(?:\s*\.\s*(?:\[[^\]]+\]|\w+)){0,3}",
     re.IGNORECASE,
 )
-_DYNAMIC_EXEC_RE = re.compile(r"\bEXEC(?:UTE)?\s*\(", re.IGNORECASE)
+DYNAMIC_EXEC_RE = re.compile(r"\bEXEC(?:UTE)?\s*\(", re.IGNORECASE)
+
+# Broader pattern that also catches EXEC @var and sp_executesql.
+# Used by catalog_enrich.py to skip dynamic SQL during EXEC call extraction.
+DYNAMIC_EXEC_BROAD_RE = re.compile(
+    r"\bEXEC(?:UTE)?\s*[(@]|"
+    r"\bsp_executesql\b",
+    re.IGNORECASE,
+)
 _SP_EXECUTESQL_RE = re.compile(r"\bEXEC(?:UTE)?\s+sp_executesql\b", re.IGNORECASE)
 _SP_EXECUTESQL_LITERAL_RE = re.compile(
     r"\bEXEC(?:UTE)?\s+sp_executesql\s+N?'(?:''|[^'])*'",
@@ -180,7 +188,7 @@ def scan_routing_flags(definition: str) -> dict[str, bool]:
         if pattern.search(masked):
             reasons.append(reason)
 
-    has_dynamic_exec = bool(_DYNAMIC_EXEC_RE.search(masked))
+    has_dynamic_exec = bool(DYNAMIC_EXEC_RE.search(masked))
     has_sp_executesql_literal = bool(_SP_EXECUTESQL_LITERAL_RE.search(masked))
     has_sp_executesql_variable = bool(_SP_EXECUTESQL_VARIABLE_RE.search(masked))
     has_static_exec = bool(_STATIC_EXEC_RE.search(definition))
@@ -239,6 +247,55 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
     except OSError:
         tmp_path.unlink(missing_ok=True)
         raise
+
+
+def resolve_catalog_path(project_root: Path, fqn: str) -> Path:
+    """Resolve the catalog JSON path for a table or view FQN.
+
+    Checks views first, then tables. Raises CatalogFileMissingError if neither exists.
+    """
+    catalog_dir = resolve_catalog_dir(project_root)
+    view_path = catalog_dir / "views" / f"{fqn}.json"
+    if view_path.exists():
+        return view_path
+    table_path = catalog_dir / "tables" / f"{fqn}.json"
+    if table_path.exists():
+        return table_path
+    raise CatalogFileMissingError("table or view", fqn)
+
+
+def load_and_merge_catalog(
+    project_root: Path,
+    fqn: str,
+    section_key: str,
+    section_data: Any,
+) -> dict[str, Any]:
+    """Load a catalog file, merge a section into it, and write it back atomically.
+
+    Auto-detects table vs view by checking catalog/views/ first, then catalog/tables/.
+    Returns a confirmation dict with ``ok``, ``table``, ``status``, and ``catalog_path``.
+
+    Raises CatalogFileMissingError if no catalog file exists for the FQN.
+    Raises CatalogLoadError on corrupt JSON.
+    """
+    cat_path = resolve_catalog_path(project_root, fqn)
+
+    try:
+        existing = json.loads(cat_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise CatalogLoadError(str(cat_path), exc) from exc
+
+    existing[section_key] = section_data
+    write_json(cat_path, existing)
+
+    result: dict[str, Any] = {
+        "ok": True,
+        "table": fqn,
+        "catalog_path": str(cat_path),
+    }
+    if isinstance(section_data, dict) and "status" in section_data:
+        result["status"] = section_data["status"]
+    return result
 
 
 def ensure_references(data: dict[str, Any]) -> dict[str, Any]:

@@ -30,7 +30,15 @@ from typing import Any
 import oracledb
 
 from shared.db_connect import cursor_to_dicts
-from shared.sandbox.base import SandboxBackend, serialize_rows, validate_fixture_rows
+from shared.sandbox.base import (
+    SandboxBackend,
+    capture_rows as _capture_rows_base,
+    generate_sandbox_name,
+    serialize_rows,
+    validate_fixtures as _validate_fixtures_base,
+    validate_fixture_rows,
+    validate_readonly_sql as _validate_readonly_sql_base,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +71,7 @@ def _validate_oracle_sandbox_name(sandbox_schema: str) -> None:
 
 def _generate_oracle_sandbox_name() -> str:
     """Generate a unique sandbox schema name in the ``__test_<hex>`` format."""
-    return f"__test_{uuid.uuid4().hex[:12]}"
+    return generate_sandbox_name()
 
 
 _ORA_TYPE_DEFAULTS: dict[str, Any] = {
@@ -113,13 +121,7 @@ def _get_oracle_not_null_defaults(
 
 def _validate_fixtures(fixtures: list[dict[str, Any]]) -> None:
     """Validate fixture structure: table names, column names, row consistency."""
-    for fixture in fixtures:
-        _validate_oracle_identifier(fixture["table"])
-        rows = fixture.get("rows", [])
-        if rows:
-            for col_name in rows[0].keys():
-                _validate_oracle_identifier(col_name)
-            validate_fixture_rows(fixture["table"], rows)
+    _validate_fixtures_base(fixtures, _validate_oracle_identifier)
 
 
 _WRITE_SQL_RE = re.compile(
@@ -133,15 +135,7 @@ def _validate_readonly_sql(sql: str) -> None:
 
     The refactored SQL must be a pure SELECT (WITH ... SELECT) statement.
     """
-    if not sql or not sql.strip():
-        raise ValueError("SQL is empty")
-    if _WRITE_SQL_RE.search(sql):
-        match = _WRITE_SQL_RE.search(sql)
-        keyword = match.group(1) if match else "unknown"
-        raise ValueError(
-            f"SQL contains write operation '{keyword}'. "
-            "Only SELECT/WITH statements are allowed."
-        )
+    _validate_readonly_sql_base(sql, _WRITE_SQL_RE)
 
 
 class OracleSandbox(SandboxBackend):
@@ -536,55 +530,13 @@ class OracleSandbox(SandboxBackend):
         from fixture rows are auto-filled with safe defaults.
 
         CTAS does not copy FK constraints, so no FK disabling is required.
+
+        **Important:** View-to-table replacement must be done *before* starting
+        the transaction via ``_ensure_view_tables``, because DDL auto-commits
+        in Oracle and would break the rollback guarantee.
         """
         for fixture in fixtures:
             table_name = fixture["table"]
-
-            # Detect views and replace with tables so fixture INSERTs work.
-            cursor.execute(
-                "SELECT COUNT(*) FROM ALL_VIEWS "
-                "WHERE OWNER = UPPER(:1) AND VIEW_NAME = UPPER(:2)",
-                [sandbox_schema, table_name],
-            )
-            is_view = cursor.fetchone()[0] > 0
-            if is_view:
-                cursor.execute(
-                    "SELECT COLUMN_NAME, DATA_TYPE, DATA_LENGTH, "
-                    "DATA_PRECISION, DATA_SCALE, CHAR_LENGTH "
-                    "FROM ALL_TAB_COLUMNS "
-                    "WHERE OWNER = UPPER(:1) AND TABLE_NAME = UPPER(:2) "
-                    "ORDER BY COLUMN_ID",
-                    [sandbox_schema, table_name],
-                )
-                col_defs = []
-                for col_name, data_type, data_length, data_prec, data_scale, char_len in cursor.fetchall():
-                    _validate_oracle_identifier(col_name)
-                    if data_type in ("VARCHAR2", "NVARCHAR2", "CHAR", "NCHAR", "RAW"):
-                        length = char_len if char_len and char_len > 0 else data_length
-                        col_defs.append(f'"{col_name}" {data_type}({length})')
-                    elif data_type == "NUMBER" and data_prec is not None:
-                        if data_scale and data_scale > 0:
-                            col_defs.append(f'"{col_name}" {data_type}({data_prec},{data_scale})')
-                        else:
-                            col_defs.append(f'"{col_name}" {data_type}({data_prec})')
-                    else:
-                        col_defs.append(f'"{col_name}" {data_type}')
-                if not col_defs:
-                    raise ValueError(
-                        f"View {table_name} has no columns in sandbox "
-                        f"{sandbox_schema} — cannot replace with a table"
-                    )
-                cursor.execute(
-                    f'DROP VIEW "{sandbox_schema}"."{table_name}"'
-                )
-                cursor.execute(
-                    f'CREATE TABLE "{sandbox_schema}"."{table_name}" '
-                    f'({", ".join(col_defs)})'
-                )
-                logger.info(
-                    "event=oracle_view_replaced_with_table sandbox=%s table=%s columns=%d",
-                    sandbox_schema, table_name, len(col_defs),
-                )
 
             rows = fixture.get("rows", [])
             if not rows:
@@ -671,7 +623,7 @@ class OracleSandbox(SandboxBackend):
     @staticmethod
     def _capture_rows(cursor: Any) -> list[dict[str, Any]]:
         """Read all rows from the current cursor result set as dicts."""
-        return cursor_to_dicts(cursor)
+        return _capture_rows_base(cursor)
 
     def execute_scenario(
         self,
@@ -848,6 +800,23 @@ class OracleSandbox(SandboxBackend):
         _validate_readonly_sql(sql_b)
 
         logger.info("event=oracle_compare_two_sql sandbox=%s", sandbox_db)
+
+        try:
+            self._ensure_view_tables(sandbox_db, fixtures)
+        except oracledb.DatabaseError as exc:
+            logger.error(
+                "event=view_materialize_failed sandbox=%s error=%s",
+                sandbox_db, exc,
+            )
+            return {
+                "status": "error",
+                "equivalent": False,
+                "a_count": 0,
+                "b_count": 0,
+                "a_minus_b": [],
+                "b_minus_a": [],
+                "errors": [{"code": "VIEW_MATERIALIZE_FAILED", "message": str(exc)}],
+            }
 
         try:
             with self._connect() as conn:

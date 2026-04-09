@@ -13,7 +13,15 @@ from typing import Any
 import pyodbc
 
 from shared.db_connect import cursor_to_dicts
-from shared.sandbox.base import SandboxBackend, serialize_rows, validate_fixture_rows
+from shared.sandbox.base import (
+    SandboxBackend,
+    capture_rows as _capture_rows_base,
+    generate_sandbox_name,
+    serialize_rows,
+    validate_fixtures as _validate_fixtures_base,
+    validate_fixture_rows,
+    validate_readonly_sql as _validate_readonly_sql_base,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +80,7 @@ def _validate_sandbox_db_name(sandbox_db: str) -> None:
 
 def _generate_sandbox_db_name() -> str:
     """Generate a random sandbox database name."""
-    return f"__test_{uuid.uuid4().hex[:12]}"
+    return generate_sandbox_name()
 
 
 def _split_identifier_parts(identifier: str) -> list[str]:
@@ -140,7 +148,7 @@ def _get_not_null_defaults(cursor: Any, table: str) -> dict[str, Any]:
             else:
                 defaults[col_name] = ""
         return defaults
-    except Exception:  # noqa: BLE001
+    except pyodbc.Error:
         logger.debug("event=not_null_defaults_lookup_failed table=%s", table)
         return {}
 
@@ -158,7 +166,7 @@ def _get_identity_columns(cursor: Any, table: str) -> set[str]:
             table,
         )
         return {row[0] for row in cursor.fetchall()}
-    except Exception:  # noqa: BLE001 — non-critical; caller falls back to plain INSERT
+    except pyodbc.Error:
         logger.debug(
             "event=identity_column_lookup_failed table=%s", table,
         )
@@ -167,13 +175,7 @@ def _get_identity_columns(cursor: Any, table: str) -> set[str]:
 
 def _validate_fixtures(fixtures: list[dict[str, Any]]) -> None:
     """Validate fixture structure: table names, column names, row consistency."""
-    for fixture in fixtures:
-        _validate_identifier(fixture["table"])
-        rows = fixture.get("rows", [])
-        if rows:
-            for col_name in rows[0].keys():
-                _validate_identifier(col_name)
-            validate_fixture_rows(fixture["table"], rows)
+    _validate_fixtures_base(fixtures, _validate_identifier)
 
 
 _WRITE_SQL_RE = re.compile(
@@ -188,15 +190,7 @@ def _validate_readonly_sql(sql: str) -> None:
     The refactored SQL must be a pure SELECT (WITH ... SELECT) statement.
     Raises ValueError if write keywords are detected.
     """
-    if not sql or not sql.strip():
-        raise ValueError("Refactored SQL is empty")
-    if _WRITE_SQL_RE.search(sql):
-        match = _WRITE_SQL_RE.search(sql)
-        keyword = match.group(1) if match else "unknown"
-        raise ValueError(
-            f"Refactored SQL contains write operation '{keyword}'. "
-            "Only SELECT/WITH statements are allowed."
-        )
+    _validate_readonly_sql_base(sql, _WRITE_SQL_RE)
 
 
 def _detect_remote_exec_target(definition: str) -> dict[str, str] | None:
@@ -577,53 +571,11 @@ class SqlServerSandbox(SandboxBackend):
 
         Handles trigger disabling, FK constraint toggling, and IDENTITY_INSERT.
         The caller is responsible for opening/rolling-back the transaction.
-        """
-        # Replace any fixture-targeted views with tables BEFORE
-        # disabling triggers/FK constraints (those operations are
-        # only valid on tables, not views).
-        for fixture in fixtures:
-            table = fixture["table"]
-            cursor.execute(
-                "SELECT OBJECTPROPERTY(OBJECT_ID(?), 'IsView')", table
-            )
-            is_view_row = cursor.fetchone()
-            if is_view_row and is_view_row[0] == 1:
-                cursor.execute(
-                    "SELECT c.name, t.name AS data_type, "
-                    "c.max_length, c.precision, c.scale "
-                    "FROM sys.columns c "
-                    "JOIN sys.types t ON c.user_type_id = t.user_type_id "
-                    "WHERE c.object_id = OBJECT_ID(?) "
-                    "ORDER BY c.column_id",
-                    table,
-                )
-                col_defs: list[str] = []
-                for col_name, data_type, max_len, prec, scale in cursor.fetchall():
-                    _validate_identifier(col_name)
-                    if max_len == -1:
-                        col_defs.append(f"[{col_name}] {data_type}(MAX)")
-                    elif data_type in ("nvarchar", "nchar"):
-                        col_defs.append(f"[{col_name}] {data_type}({max_len // 2})")
-                    elif data_type in ("varchar", "char", "varbinary"):
-                        col_defs.append(f"[{col_name}] {data_type}({max_len})")
-                    elif data_type in ("decimal", "numeric") and prec is not None:
-                        col_defs.append(f"[{col_name}] {data_type}({prec},{scale})")
-                    else:
-                        col_defs.append(f"[{col_name}] {data_type}")
-                if not col_defs:
-                    raise ValueError(
-                        f"View {table} has no columns in the sandbox — "
-                        "cannot replace with a table for fixture seeding"
-                    )
-                cursor.execute(f"DROP VIEW {table}")
-                cursor.execute(
-                    f"CREATE TABLE {table} ({', '.join(col_defs)})"
-                )
-                logger.info(
-                    "event=view_replaced_with_table sandbox_db=%s table=%s columns=%d",
-                    sandbox_db, table, len(col_defs),
-                )
 
+        **Important:** View-to-table replacement must be done *before* starting
+        the transaction via ``_ensure_view_tables``, because DDL auto-commits
+        in SQL Server and would break the rollback guarantee.
+        """
         # Disable triggers on ALL user tables in the sandbox
         # before any INSERTs. Triggers may reference objects
         # that don't exist in the sandbox, causing spurious
@@ -783,7 +735,7 @@ class SqlServerSandbox(SandboxBackend):
     @staticmethod
     def _capture_rows(cursor: Any) -> list[dict[str, Any]]:
         """Read all rows from the current cursor result set as dicts."""
-        return cursor_to_dicts(cursor)
+        return _capture_rows_base(cursor)
 
     def execute_scenario(
         self,
@@ -982,6 +934,23 @@ class SqlServerSandbox(SandboxBackend):
             "event=compare_two_sql sandbox_db=%s",
             sandbox_db,
         )
+
+        try:
+            self._ensure_view_tables(sandbox_db, fixtures)
+        except pyodbc.Error as exc:
+            logger.error(
+                "event=view_materialize_failed sandbox_db=%s error=%s",
+                sandbox_db, exc,
+            )
+            return {
+                "status": "error",
+                "equivalent": False,
+                "a_count": 0,
+                "b_count": 0,
+                "a_minus_b": [],
+                "b_minus_a": [],
+                "errors": [{"code": "VIEW_MATERIALIZE_FAILED", "message": str(exc)}],
+            }
 
         try:
             with self._connect(database=sandbox_db) as conn:
