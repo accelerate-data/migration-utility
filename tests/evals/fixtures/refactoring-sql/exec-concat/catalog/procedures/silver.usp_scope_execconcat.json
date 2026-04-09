@@ -10,8 +10,16 @@
           "is_selected": false,
           "is_updated": true,
           "columns": [
-            {"name": "ProductAlternateKey", "is_selected": false, "is_updated": true},
-            {"name": "EnglishProductName", "is_selected": false, "is_updated": true}
+            {
+              "name": "ProductAlternateKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "EnglishProductName",
+              "is_selected": false,
+              "is_updated": true
+            }
           ]
         }
       ],
@@ -43,5 +51,44 @@
       "sql": "INSERT INTO silver.ExecConcatTarget (ProductAlternateKey, EnglishProductName) SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product",
       "rationale": "Dynamic SQL is built with concatenation before EXEC, so LLM-assisted resolution is required to recover the final statement."
     }
-  ]
+  ],
+  "refactor": {
+    "status": "partial",
+    "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM bronze.Product",
+    "refactored_sql": "WITH import AS ( SELECT ProductID, ProductName FROM bronze.Product ), logical AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM import ), final AS ( SELECT * FROM logical ) SELECT * FROM final",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both statements reference the same source table: bronze.Product"
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Both statements output the same columns: ProductAlternateKey (CAST(ProductID AS NVARCHAR(25))) and EnglishProductName (ProductName)"
+        },
+        "joins": {
+          "passed": true,
+          "summary": "No joins present in either statement"
+        },
+        "filters": {
+          "passed": true,
+          "summary": "No filters present in either statement"
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "Both statements have the same grain - row-by-row selection with no aggregation. The refactored version uses CTEs but produces identical results"
+        }
+      },
+      "issues": []
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
+  }
 }

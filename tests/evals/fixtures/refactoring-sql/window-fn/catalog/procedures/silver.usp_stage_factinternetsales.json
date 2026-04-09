@@ -202,8 +202,42 @@
     }
   ],
   "refactor": {
-    "status": "ok",
+    "status": "partial",
     "extracted_sql": "SELECT h.SalesOrderNumber, CAST(d.SalesOrderDetailID % 127 AS TINYINT) AS SalesOrderLineNumber, d.ProductID AS ProductKey, h.CustomerID AS CustomerKey, h.TerritoryID AS SalesTerritoryKey, d.OrderQty AS OrderQuantity, d.UnitPrice, CAST(d.UnitPrice * d.OrderQty AS MONEY) AS ExtendedAmount, d.LineTotal AS SalesAmount, CAST(h.TaxAmt / COUNT(*) OVER (PARTITION BY h.SalesOrderID) AS MONEY) AS TaxAmt, CAST(h.Freight / COUNT(*) OVER (PARTITION BY h.SalesOrderID) AS MONEY) AS Freight, h.OrderDate, h.DueDate, h.ShipDate FROM bronze.SalesOrderHeader h JOIN bronze.SalesOrderDetail d ON h.SalesOrderID = d.SalesOrderID",
-    "refactored_sql": "WITH import_sales_order_header AS ( SELECT * FROM [bronze].[SalesOrderHeader] ), import_sales_order_detail AS ( SELECT * FROM [bronze].[SalesOrderDetail] ), joined_orders AS ( SELECT h.SalesOrderID, h.SalesOrderNumber, d.SalesOrderDetailID, d.ProductID, h.CustomerID, h.TerritoryID, d.OrderQty, d.UnitPrice, d.LineTotal, h.TaxAmt, h.Freight, h.OrderDate, h.DueDate, h.ShipDate, COUNT(*) OVER (PARTITION BY h.SalesOrderID) AS detail_count FROM import_sales_order_header h JOIN import_sales_order_detail d ON h.SalesOrderID = d.SalesOrderID ), transformed_columns AS ( SELECT SalesOrderNumber, CAST(SalesOrderDetailID % 127 AS TINYINT) AS SalesOrderLineNumber, ProductID AS ProductKey, CustomerID AS CustomerKey, TerritoryID AS SalesTerritoryKey, OrderQty AS OrderQuantity, UnitPrice, CAST(UnitPrice * OrderQty AS MONEY) AS ExtendedAmount, LineTotal AS SalesAmount, CAST(TaxAmt / detail_count AS MONEY) AS TaxAmt, CAST(Freight / detail_count AS MONEY) AS Freight, OrderDate, DueDate, ShipDate FROM joined_orders ), final AS ( SELECT SalesOrderNumber, SalesOrderLineNumber, ProductKey, CustomerKey, SalesTerritoryKey, OrderQuantity, UnitPrice, ExtendedAmount, SalesAmount, TaxAmt, Freight, OrderDate, DueDate, ShipDate FROM transformed_columns ) SELECT * FROM final"
+    "refactored_sql": "WITH import_sales_order_header AS ( SELECT h.SalesOrderID, h.SalesOrderNumber, h.CustomerID, h.TerritoryID, h.TaxAmt, h.Freight, h.OrderDate, h.DueDate, h.ShipDate FROM bronze.SalesOrderHeader h ), import_sales_order_detail AS ( SELECT d.SalesOrderID, d.SalesOrderDetailID, d.ProductID, d.OrderQty, d.UnitPrice, d.LineTotal FROM bronze.SalesOrderDetail d ), logical_sales_order_line_items AS ( SELECT h.SalesOrderNumber, CAST(d.SalesOrderDetailID % 127 AS TINYINT) AS SalesOrderLineNumber, d.ProductID AS ProductKey, h.CustomerID AS CustomerKey, h.TerritoryID AS SalesTerritoryKey, d.OrderQty AS OrderQuantity, d.UnitPrice, CAST(d.UnitPrice * d.OrderQty AS MONEY) AS ExtendedAmount, d.LineTotal AS SalesAmount, CAST(h.TaxAmt / COUNT(*) OVER (PARTITION BY h.SalesOrderID) AS MONEY) AS TaxAmt, CAST(h.Freight / COUNT(*) OVER (PARTITION BY h.SalesOrderID) AS MONEY) AS Freight, h.OrderDate, h.DueDate, h.ShipDate FROM import_sales_order_header h JOIN import_sales_order_detail d ON h.SalesOrderID = d.SalesOrderID ), final AS ( SELECT SalesOrderNumber, SalesOrderLineNumber, ProductKey, CustomerKey, SalesTerritoryKey, OrderQuantity, UnitPrice, ExtendedAmount, SalesAmount, TaxAmt, Freight, OrderDate, DueDate, ShipDate FROM logical_sales_order_line_items ) SELECT * FROM final",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both queries use bronze.SalesOrderHeader and bronze.SalesOrderDetail as source tables."
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Both queries produce identical columns in the same order: SalesOrderNumber, SalesOrderLineNumber, ProductKey, CustomerKey, SalesTerritoryKey, OrderQuantity, UnitPrice, ExtendedAmount, SalesAmount, TaxAmt, Freight, OrderDate, DueDate, ShipDate."
+        },
+        "joins": {
+          "passed": true,
+          "summary": "Both queries use an inner JOIN on h.SalesOrderID = d.SalesOrderID with identical join semantics."
+        },
+        "filters": {
+          "passed": true,
+          "summary": "Both queries have no WHERE clause filters; equivalence preserved."
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "Both queries apply identical window functions: COUNT(*) OVER (PARTITION BY SalesOrderID) for distributing TaxAmt and Freight across detail rows."
+        }
+      },
+      "issues": []
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
   }
 }

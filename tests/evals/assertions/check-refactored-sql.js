@@ -8,7 +8,7 @@
 //   expected_extracted_terms?,   -- comma-separated terms expected in extracted SQL
 //   expected_refactored_terms?,  -- comma-separated terms expected in refactored CTE SQL
 //   forbidden_refactored_terms?, -- comma-separated terms that must NOT appear in refactored SQL
-//   expected_status?,            -- comma-separated acceptable statuses (default: "ok")
+//   expected_status?,            -- comma-separated acceptable statuses (default: "partial")
 //   graceful_partial?            -- "true" if partial status is acceptable
 // }
 const fs = require('fs');
@@ -42,7 +42,7 @@ module.exports = (output, context) => {
   const expectedExtractedTerms = normalizeTerms(context.vars.expected_extracted_terms);
   const expectedRefactoredTerms = normalizeTerms(context.vars.expected_refactored_terms);
   const forbiddenRefactoredTerms = normalizeTerms(context.vars.forbidden_refactored_terms);
-  const expectedStatuses = normalizeTerms(context.vars.expected_status || 'ok');
+  const expectedStatuses = normalizeTerms(context.vars.expected_status || 'partial');
   const gracefulPartial = String(context.vars.graceful_partial || '').toLowerCase() === 'true';
 
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
@@ -86,14 +86,21 @@ module.exports = (output, context) => {
 
   let catalog = tableCatalog;
   let refactor = catalog.refactor;
-  if (!refactor && table) {
+  if (table) {
     const writer = tableCatalog?.scoping?.selected_writer;
     if (writer) {
       const procedureCatalogPath = path.resolve(repoRoot, fixturePath, 'catalog', 'procedures', `${writer.toLowerCase()}.json`);
       if (fs.existsSync(procedureCatalogPath)) {
         try {
-          catalog = JSON.parse(fs.readFileSync(procedureCatalogPath, 'utf8'));
-          refactor = catalog.refactor;
+          const procedureCatalog = JSON.parse(fs.readFileSync(procedureCatalogPath, 'utf8'));
+          const procedureRefactor = procedureCatalog.refactor;
+          const procedureHasProof =
+            !!procedureRefactor?.semantic_review ||
+            !!procedureRefactor?.compare_sql;
+          if (!refactor || procedureHasProof) {
+            catalog = procedureCatalog;
+            refactor = procedureRefactor;
+          }
         } catch (e) {
           return { pass: false, score: 0, reason: `Cannot parse procedure catalog: ${e.message}` };
         }
@@ -113,6 +120,31 @@ module.exports = (output, context) => {
     : validateSection(refactor, 'view_catalog.json', 'properties/refactor');
   if (!schemaResult.valid) {
     return { pass: false, score: 0, reason: `Refactor section schema validation failed: ${schemaResult.errors}` };
+  }
+
+  if (!refactor.semantic_review) {
+    return { pass: false, score: 0, reason: 'No semantic_review section in refactor catalog payload' };
+  }
+  if (typeof refactor.semantic_review.passed !== 'boolean') {
+    return { pass: false, score: 0, reason: 'semantic_review.passed must be a boolean' };
+  }
+  if (!refactor.semantic_review.checks) {
+    return { pass: false, score: 0, reason: 'semantic_review.checks missing from refactor catalog payload' };
+  }
+
+  const semanticChecks = ['source_tables', 'output_columns', 'joins', 'filters', 'aggregation_grain'];
+  for (const checkName of semanticChecks) {
+    const check = refactor.semantic_review.checks[checkName];
+    if (!check) {
+      return { pass: false, score: 0, reason: `semantic_review.checks.${checkName} missing` };
+    }
+    if (typeof check.passed !== 'boolean') {
+      return { pass: false, score: 0, reason: `semantic_review.checks.${checkName}.passed must be boolean` };
+    }
+  }
+
+  if (!refactor.compare_sql) {
+    return { pass: false, score: 0, reason: 'No compare_sql summary in refactor catalog payload' };
   }
 
   // Status check

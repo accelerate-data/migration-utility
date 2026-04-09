@@ -67,8 +67,42 @@
     }
   ],
   "refactor": {
-    "status": "ok",
+    "status": "partial",
     "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM bronze.Product",
-    "refactored_sql": "WITH import_product AS ( SELECT * FROM [bronze].[Product] ), logical_cast_and_rename AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM import_product ), final AS ( SELECT ProductAlternateKey, EnglishProductName FROM logical_cast_and_rename ) SELECT * FROM final"
+    "refactored_sql": "with import as ( select ProductID, ProductName from bronze.Product ), logical as ( select cast(ProductID as nvarchar(25)) as ProductAlternateKey, ProductName as EnglishProductName from import ), final as ( select * from logical ) select * from final",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both queries source from bronze.Product"
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Both queries return ProductAlternateKey (NVARCHAR(25)) and EnglishProductName (NVARCHAR(50)). Refactored query wraps extraction in CTEs but maintains identical column names and types."
+        },
+        "joins": {
+          "passed": true,
+          "summary": "No joins in either query; both are single-table selects"
+        },
+        "filters": {
+          "passed": true,
+          "summary": "Neither query applies filters; both are unfiltered selects from the source"
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "Both queries operate at row level with no aggregation functions; grain is equivalent"
+        }
+      },
+      "issues": []
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
   }
 }

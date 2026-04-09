@@ -74,6 +74,51 @@
         }
       }
     },
+    "refactor_semantic_check": {
+      "type": "object",
+      "required": ["passed", "summary"],
+      "properties": {
+        "passed": { "type": "boolean" },
+        "summary": { "type": "string" }
+      }
+    },
+    "refactor_semantic_review": {
+      "type": "object",
+      "required": ["passed", "checks", "issues"],
+      "properties": {
+        "passed": { "type": "boolean" },
+        "checks": {
+          "type": "object",
+          "required": ["source_tables", "output_columns", "joins", "filters", "aggregation_grain"],
+          "properties": {
+            "source_tables": { "$ref": "#/$defs/refactor_semantic_check" },
+            "output_columns": { "$ref": "#/$defs/refactor_semantic_check" },
+            "joins": { "$ref": "#/$defs/refactor_semantic_check" },
+            "filters": { "$ref": "#/$defs/refactor_semantic_check" },
+            "aggregation_grain": { "$ref": "#/$defs/refactor_semantic_check" }
+          }
+        },
+        "issues": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/diagnostics_entry" }
+        }
+      }
+    },
+    "refactor_compare_sql_summary": {
+      "type": "object",
+      "required": ["required", "executed", "passed", "scenarios_total", "scenarios_passed", "failed_scenarios"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "executed": { "type": "boolean" },
+        "passed": { "type": "boolean" },
+        "scenarios_total": { "type": "integer", "minimum": 0 },
+        "scenarios_passed": { "type": "integer", "minimum": 0 },
+        "failed_scenarios": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
     "summary_section": {
       "type": "object",
       "required": ["total", "ok", "partial", "error"],

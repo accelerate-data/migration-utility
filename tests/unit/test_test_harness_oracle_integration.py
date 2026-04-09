@@ -556,6 +556,61 @@ class TestOracleExecuteSelectIntegration:
         finally:
             backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
 
+    def test_compare_two_sql_returns_equivalent_for_same_result_set(self) -> None:
+        """compare_two_sql reports equivalent when both SQLs return the same rows."""
+        backend = _make_backend()
+
+        try:
+            up_result = backend.sandbox_up(schemas=["SH"])
+            sandbox_schema = up_result["sandbox_database"]
+            fixtures = [
+                {
+                    "table": "CHANNELS",
+                    "rows": [
+                        {
+                            "CHANNEL_ID": 1,
+                            "CHANNEL_DESC": "Direct",
+                            "CHANNEL_CLASS": "Direct",
+                            "CHANNEL_CLASS_ID": 12,
+                            "CHANNEL_TOTAL": "Channel total",
+                            "CHANNEL_TOTAL_ID": 1,
+                        },
+                        {
+                            "CHANNEL_ID": 2,
+                            "CHANNEL_DESC": "Internet",
+                            "CHANNEL_CLASS": "Indirect",
+                            "CHANNEL_CLASS_ID": 13,
+                            "CHANNEL_TOTAL": "Channel total",
+                            "CHANNEL_TOTAL_ID": 1,
+                        },
+                    ],
+                },
+            ]
+            sql_a = (
+                f'SELECT "CHANNEL_ID", "CHANNEL_DESC" '
+                f'FROM "{sandbox_schema}"."CHANNELS"'
+            )
+            sql_b = (
+                "WITH src AS ("
+                f'  SELECT "CHANNEL_ID", "CHANNEL_DESC" FROM "{sandbox_schema}"."CHANNELS"'
+                ") "
+                'SELECT "CHANNEL_ID", "CHANNEL_DESC" FROM src'
+            )
+
+            result = backend.compare_two_sql(
+                sandbox_db=sandbox_schema,
+                sql_a=sql_a,
+                sql_b=sql_b,
+                fixtures=fixtures,
+            )
+
+            assert result["status"] == "ok", result["errors"]
+            assert result["equivalent"] is True
+            assert result["a_minus_b"] == []
+            assert result["b_minus_a"] == []
+        finally:
+            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+
     def test_execute_select_empty_fixtures(self) -> None:
         """execute_select with no fixture rows returns 0 rows."""
         backend = _make_backend()

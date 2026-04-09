@@ -8,7 +8,7 @@
 //   target_table,
 //   stg_model_file,            -- relative path to staging model under dbt/models/staging/ (e.g. "stg_dimproduct.sql")
 //   expected_stg_columns,      -- comma-separated column names from the staging model that should appear in refactored SQL
-//   expected_status?,           -- acceptable statuses (default: "ok")
+//   expected_status?,           -- acceptable statuses (default: "partial")
 //   graceful_partial?           -- "true" if partial is acceptable
 // }
 //
@@ -27,7 +27,7 @@ module.exports = (output, context) => {
   const table = context.vars.target_table;
   const stgModelFile = context.vars.stg_model_file;
   const expectedStgColumns = normalizeTerms(context.vars.expected_stg_columns);
-  const expectedStatuses = normalizeTerms(context.vars.expected_status || 'ok');
+  const expectedStatuses = normalizeTerms(context.vars.expected_status || 'partial');
   const gracefulPartial = String(context.vars.graceful_partial || '').toLowerCase() === 'true';
 
   const repoRoot = path.resolve(__dirname, '..', '..', '..');

@@ -163,8 +163,42 @@
     }
   ],
   "refactor": {
-    "status": "ok",
+    "status": "partial",
     "extracted_sql": "SELECT CAST(c.CustomerID AS NVARCHAR(15)) AS CustomerAlternateKey, p.FirstName, p.MiddleName, p.LastName, p.Title, NULL AS Gender, NULL AS MaritalStatus, p.EmailPromotion, CAST(h.MinOrderDate AS DATE) AS DateFirstPurchase FROM bronze.Customer c JOIN bronze.Person p ON c.PersonID = p.BusinessEntityID OUTER APPLY ( SELECT MIN(OrderDate) AS MinOrderDate FROM bronze.SalesOrderHeader sh WHERE sh.CustomerID = c.CustomerID ) h",
-    "refactored_sql": "WITH import_customer AS ( SELECT CustomerID, PersonID FROM bronze.Customer ), import_person AS ( SELECT BusinessEntityID, FirstName, MiddleName, LastName, Title, EmailPromotion FROM bronze.Person ), import_order_dates AS ( SELECT CustomerID, MIN(OrderDate) AS MinOrderDate FROM bronze.SalesOrderHeader GROUP BY CustomerID ), customer_with_names AS ( SELECT ic.CustomerID, ip.FirstName, ip.MiddleName, ip.LastName, ip.Title, ip.EmailPromotion FROM import_customer ic JOIN import_person ip ON ic.PersonID = ip.BusinessEntityID ), customer_with_order_dates AS ( SELECT cwn.CustomerID, cwn.FirstName, cwn.MiddleName, cwn.LastName, cwn.Title, cwn.EmailPromotion, iod.MinOrderDate FROM customer_with_names cwn LEFT JOIN import_order_dates iod ON cwn.CustomerID = iod.CustomerID ), final AS ( SELECT CAST(CustomerID AS NVARCHAR(15)) AS CustomerAlternateKey, FirstName, MiddleName, LastName, Title, NULL AS Gender, NULL AS MaritalStatus, EmailPromotion, CAST(MinOrderDate AS DATE) AS DateFirstPurchase FROM customer_with_order_dates ) SELECT * FROM final;"
+    "refactored_sql": "WITH import_customers AS ( SELECT CustomerID, PersonID FROM bronze.Customer ), import_persons AS ( SELECT BusinessEntityID, FirstName, MiddleName, LastName, Title, EmailPromotion FROM bronze.Person ), import_orders AS ( SELECT CustomerID, OrderDate FROM bronze.SalesOrderHeader ), logical_customer_first_purchase AS ( SELECT CustomerID, MIN(OrderDate) AS MinOrderDate FROM import_orders GROUP BY CustomerID ), logical_customer_person_join AS ( SELECT c.CustomerID, p.FirstName, p.MiddleName, p.LastName, p.Title, p.EmailPromotion, cfp.MinOrderDate FROM import_customers c JOIN import_persons p ON c.PersonID = p.BusinessEntityID LEFT JOIN logical_customer_first_purchase cfp ON c.CustomerID = cfp.CustomerID ), final AS ( SELECT CAST(CustomerID AS NVARCHAR(15)) AS CustomerAlternateKey, FirstName, MiddleName, LastName, Title, NULL AS Gender, NULL AS MaritalStatus, EmailPromotion, CAST(MinOrderDate AS DATE) AS DateFirstPurchase FROM logical_customer_person_join ) SELECT * FROM final",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both queries access bronze.Customer, bronze.Person, and bronze.SalesOrderHeader identically."
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Both produce the exact same nine columns (CustomerAlternateKey, FirstName, MiddleName, LastName, Title, Gender, MaritalStatus, EmailPromotion, DateFirstPurchase) with matching data types and NULL values in the same positions."
+        },
+        "joins": {
+          "passed": true,
+          "summary": "The OUTER APPLY is correctly converted to a LEFT JOIN with explicit CTE-based aggregation. Customer-Person INNER JOIN on PersonID/BusinessEntityID is preserved."
+        },
+        "filters": {
+          "passed": true,
+          "summary": "Neither query applies WHERE filters—both retrieve all matching rows."
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "Both compute MIN(OrderDate) per CustomerID with identical granularity. The extracted query's implicit per-customer grouping in the OUTER APPLY is explicitly defined via GROUP BY CustomerID in the refactored version."
+        }
+      },
+      "issues": []
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
   }
 }

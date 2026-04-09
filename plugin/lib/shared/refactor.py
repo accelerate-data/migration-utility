@@ -311,11 +311,101 @@ def _validate_refactor(refactor: dict[str, Any]) -> list[str]:
     return errors
 
 
+def _normalize_semantic_review(semantic_review: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Normalize semantic-review payload from the LLM sub-agent."""
+    if semantic_review is None:
+        return None
+
+    checks = semantic_review.get("checks") or {}
+    return {
+        "passed": bool(semantic_review.get("passed")),
+        "checks": {
+            "source_tables": {
+                "passed": bool((checks.get("source_tables") or {}).get("passed")),
+                "summary": str((checks.get("source_tables") or {}).get("summary") or ""),
+            },
+            "output_columns": {
+                "passed": bool((checks.get("output_columns") or {}).get("passed")),
+                "summary": str((checks.get("output_columns") or {}).get("summary") or ""),
+            },
+            "joins": {
+                "passed": bool((checks.get("joins") or {}).get("passed")),
+                "summary": str((checks.get("joins") or {}).get("summary") or ""),
+            },
+            "filters": {
+                "passed": bool((checks.get("filters") or {}).get("passed")),
+                "summary": str((checks.get("filters") or {}).get("summary") or ""),
+            },
+            "aggregation_grain": {
+                "passed": bool((checks.get("aggregation_grain") or {}).get("passed")),
+                "summary": str((checks.get("aggregation_grain") or {}).get("summary") or ""),
+            },
+        },
+        "issues": list(semantic_review.get("issues") or []),
+    }
+
+
+def _summarize_compare_sql(compare_sql_result: dict[str, Any] | None, compare_required: bool) -> dict[str, Any]:
+    """Reduce compare-sql output to the persisted proof summary."""
+    if compare_sql_result is None:
+        return {
+            "required": compare_required,
+            "executed": False,
+            "passed": False,
+            "scenarios_total": 0,
+            "scenarios_passed": 0,
+            "failed_scenarios": [],
+        }
+
+    failed_scenarios = [
+        result.get("scenario_name", "unknown")
+        for result in compare_sql_result.get("results", [])
+        if result.get("status") != "ok" or result.get("equivalent") is False
+    ]
+    scenarios_total = int(compare_sql_result.get("total", 0))
+    scenarios_passed = int(compare_sql_result.get("passed", 0))
+    return {
+        "required": compare_required,
+        "executed": True,
+        "passed": len(failed_scenarios) == 0 and scenarios_total > 0,
+        "scenarios_total": scenarios_total,
+        "scenarios_passed": scenarios_passed,
+        "failed_scenarios": failed_scenarios,
+    }
+
+
+def _derive_refactor_status(
+    extracted_sql: str,
+    refactored_sql: str,
+    semantic_review: dict[str, Any] | None,
+    compare_sql: dict[str, Any],
+) -> str:
+    """Derive persisted refactor status from proof evidence."""
+    extracted_stripped = extracted_sql.strip()
+    refactored_stripped = refactored_sql.strip()
+    if not extracted_stripped and not refactored_stripped:
+        return "error"
+    if not extracted_stripped or not refactored_stripped:
+        return "partial"
+
+    semantic_passed = bool((semantic_review or {}).get("passed"))
+    if compare_sql["required"]:
+        if semantic_passed and compare_sql["executed"] and compare_sql["passed"]:
+            return "ok"
+        return "partial"
+
+    # Harness/logical-only mode never upgrades to ok.
+    return "partial"
+
+
 def run_write(
     project_root: Path,
     table_fqn: str,
     extracted_sql: str,
     refactored_sql: str,
+    semantic_review: dict[str, Any] | None = None,
+    compare_sql_result: dict[str, Any] | None = None,
+    compare_required: bool = True,
 ) -> dict[str, Any]:
     """Validate and merge a refactor section into the catalog.
 
@@ -323,29 +413,32 @@ def run_write(
     - If ``catalog/views/<fqn>.json`` exists → writes refactor block to view catalog
     - Otherwise → resolves writer from table catalog, writes to procedure catalog
 
-    Status is determined from content:
-    - Both extracted_sql and refactored_sql non-empty → ``ok``
-    - One present, one empty → ``partial``
-    - Neither → ``error``
+    Status is derived from persisted proof evidence:
+    - ``ok`` only when semantic review passes and executable compare passes
+    - ``partial`` when only logical review exists, executable compare is skipped,
+      or unresolved equivalence issues remain
+    - ``error`` when no usable SQL exists
 
     Returns a confirmation dict on success.
     Raises ValueError on validation failure, OSError/json.JSONDecodeError on IO error.
     """
     table_norm = normalize(table_fqn)
 
-    extracted_stripped = extracted_sql.strip()
-    refactored_stripped = refactored_sql.strip()
-    if extracted_stripped and refactored_stripped:
-        status = "ok"
-    elif extracted_stripped or refactored_stripped:
-        status = "partial"
-    else:
-        status = "error"
+    normalized_semantic_review = _normalize_semantic_review(semantic_review)
+    compare_sql_summary = _summarize_compare_sql(compare_sql_result, compare_required)
+    status = _derive_refactor_status(
+        extracted_sql=extracted_sql,
+        refactored_sql=refactored_sql,
+        semantic_review=normalized_semantic_review,
+        compare_sql=compare_sql_summary,
+    )
 
     refactor_data: dict[str, Any] = {
         "status": status,
         "extracted_sql": " ".join(extracted_sql.split()),
         "refactored_sql": " ".join(refactored_sql.split()),
+        "semantic_review": normalized_semantic_review,
+        "compare_sql": compare_sql_summary,
     }
 
     errors = _validate_refactor(refactor_data)
@@ -406,6 +499,7 @@ def run_write(
     return {
         "ok": True,
         "table": table_norm,
+        "status": status,
         "writer": writer_norm,
         "catalog_path": str(catalog_path),
     }
@@ -628,19 +722,36 @@ def write(
     extracted_sql_file: Optional[Path] = typer.Option(None, "--extracted-sql-file", help="Path to file containing extracted core SQL"),
     refactored_sql: str = typer.Option("", help="Refactored SQL string"),
     refactored_sql_file: Optional[Path] = typer.Option(None, "--refactored-sql-file", help="Path to file containing refactored SQL"),
+    semantic_review_file: Optional[Path] = typer.Option(None, "--semantic-review-file", help="Path to JSON file containing structured semantic review evidence"),
+    compare_sql_file: Optional[Path] = typer.Option(None, "--compare-sql-file", help="Path to JSON file containing compare-sql output"),
+    compare_required: bool = typer.Option(True, "--compare-required/--no-compare-required", help="Require executable compare-sql proof for status=ok"),
 ) -> None:
     """Validate and merge a refactor section into the writer procedure's catalog."""
     if extracted_sql_file:
         extracted_sql = extracted_sql_file.read_text(encoding="utf-8")
     if refactored_sql_file:
         refactored_sql = refactored_sql_file.read_text(encoding="utf-8")
+    semantic_review = None
+    compare_sql_result = None
+    if semantic_review_file:
+        semantic_review = json.loads(semantic_review_file.read_text(encoding="utf-8"))
+    if compare_sql_file:
+        compare_sql_result = json.loads(compare_sql_file.read_text(encoding="utf-8"))
     if not extracted_sql and not refactored_sql:
         logger.error("event=write_failed table=%s error=no SQL provided", table)
         raise typer.Exit(code=1)
     project_root = resolve_project_root(project_root)
 
     try:
-        result = run_write(project_root, table, extracted_sql, refactored_sql)
+        result = run_write(
+            project_root,
+            table,
+            extracted_sql,
+            refactored_sql,
+            semantic_review=semantic_review,
+            compare_sql_result=compare_sql_result,
+            compare_required=compare_required,
+        )
     except (ValueError, CatalogFileMissingError) as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)
         emit({"ok": False, "error": str(exc), "table": normalize(table)})

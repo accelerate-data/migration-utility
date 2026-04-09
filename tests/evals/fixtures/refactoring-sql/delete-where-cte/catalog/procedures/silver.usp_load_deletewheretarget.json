@@ -54,8 +54,42 @@
     }
   ],
   "refactor": {
-    "status": "ok",
-    "extracted_sql": "SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM [silver].[DeleteWhereTarget] WHERE IsRetired <> 1 OR IsRetired IS NULL",
-    "refactored_sql": "WITH import_DeleteWhereTarget AS ( SELECT * FROM [silver].[DeleteWhereTarget] ), logical_keep_active_rows AS ( SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM import_DeleteWhereTarget WHERE IsRetired = 0 ), final AS ( SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM logical_keep_active_rows ) SELECT * FROM final"
+    "status": "partial",
+    "extracted_sql": "SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM silver.DeleteWhereTarget WHERE IsRetired = 0",
+    "refactored_sql": "with import as ( select ProductAlternateKey, EnglishProductName, IsRetired from silver.DeleteWhereTarget ), logical as ( select ProductAlternateKey, EnglishProductName, IsRetired from import where IsRetired = 0 ), final as ( select ProductAlternateKey, EnglishProductName, IsRetired from logical ) select * from final",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both queries reference the same source table: silver.DeleteWhereTarget"
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Both queries return identical columns (ProductAlternateKey, EnglishProductName, IsRetired) with matching types (NVARCHAR(25), NVARCHAR(50), BIT)"
+        },
+        "joins": {
+          "passed": true,
+          "summary": "No joins present in either query"
+        },
+        "filters": {
+          "passed": true,
+          "summary": "Both queries apply identical filter condition: IsRetired = 0"
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "No aggregations in either query; grain is row-level in both"
+        }
+      },
+      "issues": []
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
   }
 }

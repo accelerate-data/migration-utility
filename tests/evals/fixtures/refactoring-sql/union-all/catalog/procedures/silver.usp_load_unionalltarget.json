@@ -77,8 +77,42 @@
     }
   ],
   "refactor": {
-    "status": "ok",
-    "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, 'red' AS Segment FROM [bronze].[Product] WHERE Color = 'Red' UNION ALL SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, 'other' AS Segment FROM [bronze].[Product] WHERE Color <> 'Red' OR Color IS NULL",
-    "refactored_sql": "WITH red_products AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, 'red' AS Segment FROM [bronze].[Product] WHERE Color = 'Red' ), other_products AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, 'other' AS Segment FROM [bronze].[Product] WHERE Color <> 'Red' OR Color IS NULL ), final AS ( SELECT * FROM red_products UNION ALL SELECT * FROM other_products ) SELECT * FROM final"
+    "status": "partial",
+    "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, 'red' AS Segment FROM bronze.Product WHERE Color = 'Red' UNION ALL SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, 'other' AS Segment FROM bronze.Product WHERE Color <> 'Red' OR Color IS NULL",
+    "refactored_sql": "WITH import AS ( SELECT ProductID, ProductName, Color FROM bronze.Product ), logical AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, 'red' AS Segment FROM import WHERE Color = 'Red' UNION ALL SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, 'other' AS Segment FROM import WHERE Color <> 'Red' OR Color IS NULL ), final AS ( SELECT ProductAlternateKey, EnglishProductName, Segment FROM logical ) SELECT * FROM final",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both SQLs use the same source table: bronze.Product"
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Both SQLs return identical columns in the same order: ProductAlternateKey, EnglishProductName, Segment"
+        },
+        "joins": {
+          "passed": true,
+          "summary": "No joins present in either SQL"
+        },
+        "filters": {
+          "passed": true,
+          "summary": "Filter conditions are logically equivalent. Both use UNION ALL to split rows into two segments: Color = 'Red' and Color <> 'Red' OR Color IS NULL. The refactored version applies the same filters within the logical CTE but maintains equivalence."
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "No aggregation in either SQL. Both operate at row level with no GROUP BY. The grain is identical: one output row per input row from bronze.Product."
+        }
+      },
+      "issues": []
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
   }
 }

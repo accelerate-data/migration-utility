@@ -53,8 +53,42 @@
     }
   ],
   "refactor": {
-    "status": "ok",
-    "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM [bronze].[Product]",
-    "refactored_sql": "WITH import_product AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM bronze.Product ) SELECT ProductAlternateKey, EnglishProductName FROM import_product"
+    "status": "partial",
+    "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM bronze.Product",
+    "refactored_sql": "WITH import_bronze_product AS ( SELECT ProductID, ProductName FROM bronze.Product ), logical_transformations AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM import_bronze_product ), final AS ( SELECT ProductAlternateKey, EnglishProductName FROM logical_transformations ) SELECT * FROM final",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both queries use the same source table: bronze.Product"
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Both queries produce identical output columns: ProductAlternateKey (NVARCHAR(25)) and EnglishProductName (NVARCHAR(50))"
+        },
+        "joins": {
+          "passed": true,
+          "summary": "No joins present in either query"
+        },
+        "filters": {
+          "passed": true,
+          "summary": "No filters present in either query"
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "Both queries return all rows from bronze.Product with 1:1 cardinality; no aggregation in either query"
+        }
+      },
+      "issues": []
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
   }
 }

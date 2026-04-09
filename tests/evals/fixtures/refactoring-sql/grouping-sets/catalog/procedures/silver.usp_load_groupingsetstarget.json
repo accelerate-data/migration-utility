@@ -67,8 +67,42 @@
     }
   ],
   "refactor": {
-    "status": "ok",
+    "status": "partial",
     "extracted_sql": "SELECT COALESCE(Color, 'all') AS GroupKey, COUNT(*) AS ProductCount FROM bronze.Product GROUP BY GROUPING SETS ((Color), ())",
-    "refactored_sql": "WITH import_product AS ( SELECT * FROM bronze.Product ), logical_grouped AS ( SELECT COALESCE(Color, 'all') AS GroupKey, COUNT(*) AS ProductCount FROM import_product GROUP BY GROUPING SETS ((Color), ()) ), final AS ( SELECT GroupKey, ProductCount FROM logical_grouped ) SELECT * FROM final"
+    "refactored_sql": "WITH import AS ( SELECT Color FROM bronze.Product ), logical AS ( SELECT COALESCE(Color, 'all') AS GroupKey, COUNT(*) AS ProductCount FROM import GROUP BY GROUPING SETS ((Color), ()) ), final AS ( SELECT GroupKey, ProductCount FROM logical ) SELECT * FROM final",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both queries use the same source table: bronze.Product"
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Output columns are identical: GroupKey (NVARCHAR(20)) and ProductCount (INT) in both queries"
+        },
+        "joins": {
+          "passed": true,
+          "summary": "No joins present in either query"
+        },
+        "filters": {
+          "passed": true,
+          "summary": "No WHERE filters in either query; both are unfiltered"
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "Both queries use identical GROUP BY GROUPING SETS ((Color), ()) with COUNT(*) aggregation"
+        }
+      },
+      "issues": []
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
   }
 }

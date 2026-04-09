@@ -71,5 +71,8 @@
         "severity": "warning"
       }
     ]
+  },
+  "test_gen": {
+    "status": "ok"
   }
 }

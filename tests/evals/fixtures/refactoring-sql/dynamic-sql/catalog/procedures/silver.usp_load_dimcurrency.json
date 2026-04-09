@@ -47,8 +47,42 @@
     }
   ],
   "refactor": {
-    "status": "ok",
+    "status": "partial",
     "extracted_sql": "SELECT CurrencyCode, CurrencyName FROM MigrationTest.bronze.Currency",
-    "refactored_sql": "WITH import AS ( SELECT CurrencyCode AS CurrencyAlternateKey, CurrencyName FROM [MigrationTest].[bronze].[Currency] ), final AS ( SELECT CurrencyAlternateKey, CurrencyName FROM import ) SELECT * FROM final"
+    "refactored_sql": "with import as ( select CurrencyCode, CurrencyName from MigrationTest.bronze.Currency ), logical as ( select CurrencyCode as CurrencyAlternateKey, CurrencyName from import ), final as ( select CurrencyAlternateKey, CurrencyName from logical ) select * from final",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both extracted and refactored SQL use the same source table: MigrationTest.bronze.Currency"
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Extracted SQL selects CurrencyCode and CurrencyName; refactored SQL aliases CurrencyCode as CurrencyAlternateKey and keeps CurrencyName. Output columns are semantically equivalent to target columns (CurrencyAlternateKey, CurrencyName)"
+        },
+        "joins": {
+          "passed": true,
+          "summary": "No joins in either extracted or refactored SQL"
+        },
+        "filters": {
+          "passed": true,
+          "summary": "No WHERE conditions in either extracted or refactored SQL"
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "Both queries return all distinct rows from the source table with no aggregation. Cardinality is equivalent"
+        }
+      },
+      "issues": []
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
   }
 }

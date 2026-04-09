@@ -163,8 +163,48 @@
     }
   ],
   "refactor": {
-    "status": "ok",
+    "status": "partial",
     "extracted_sql": "SELECT CAST(c.CustomerID AS NVARCHAR(15)) AS CustomerAlternateKey, p.FirstName, p.MiddleName, p.LastName, p.Title, NULL AS Gender, NULL AS MaritalStatus, p.EmailPromotion, CAST(h.MinOrderDate AS DATE) AS DateFirstPurchase FROM bronze.Customer c JOIN bronze.Person p ON c.PersonID = p.BusinessEntityID OUTER APPLY ( SELECT MIN(OrderDate) AS MinOrderDate FROM bronze.SalesOrderHeader sh WHERE sh.CustomerID = c.CustomerID ) h",
-    "refactored_sql": "WITH source_customer AS ( SELECT * FROM [bronze].[Customer] ), source_person AS ( SELECT * FROM [bronze].[Person] ), source_orders AS ( SELECT * FROM [bronze].[SalesOrderHeader] ), customer_first_purchase AS ( SELECT CustomerID, MIN(OrderDate) AS MinOrderDate FROM source_orders GROUP BY CustomerID ), final AS ( SELECT CAST(c.CustomerID AS NVARCHAR(15)) AS CustomerAlternateKey, p.FirstName, p.MiddleName, p.LastName, p.Title, NULL AS Gender, NULL AS MaritalStatus, p.EmailPromotion, CAST(fp.MinOrderDate AS DATE) AS DateFirstPurchase FROM source_customer c JOIN source_person p ON c.PersonID = p.BusinessEntityID LEFT JOIN customer_first_purchase fp ON fp.CustomerID = c.CustomerID ) SELECT * FROM final"
+    "refactored_sql": "WITH import AS ( SELECT c.CustomerID, c.PersonID, p.FirstName, p.MiddleName, p.LastName, p.Title, p.EmailPromotion, sh.OrderDate FROM bronze.Customer c INNER JOIN bronze.Person p ON c.PersonID = p.BusinessEntityID LEFT JOIN bronze.SalesOrderHeader sh ON sh.CustomerID = c.CustomerID ), logical AS ( SELECT c.CustomerID, c.PersonID, c.FirstName, c.MiddleName, c.LastName, c.Title, c.EmailPromotion, MIN(c.OrderDate) AS MinOrderDate FROM import c GROUP BY c.CustomerID, c.PersonID, c.FirstName, c.MiddleName, c.LastName, c.Title, c.EmailPromotion ), final AS ( SELECT CAST(CustomerID AS NVARCHAR(15)) AS CustomerAlternateKey, FirstName, MiddleName, LastName, Title, NULL AS Gender, NULL AS MaritalStatus, EmailPromotion, CAST(MinOrderDate AS DATE) AS DateFirstPurchase FROM logical ) SELECT * FROM final",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both queries access bronze.Customer, bronze.Person, and bronze.SalesOrderHeader identically"
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Both queries produce identical output columns with matching data types and transformations (CAST, NULL literals)"
+        },
+        "joins": {
+          "passed": true,
+          "summary": "EXTRACTED uses INNER JOIN + OUTER APPLY (scalar subquery per outer row). REFACTORED uses INNER JOIN + LEFT JOIN with explicit GROUP BY. Both semantically equivalent for the final result set: all customers are included with NULL MinOrderDate for those without orders"
+        },
+        "filters": {
+          "passed": true,
+          "summary": "No WHERE filters in either query; both preserve all matched rows and aggregations"
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "Both produce exactly one row per customer. EXTRACTED achieves this through scalar subquery MIN() in OUTER APPLY. REFACTORED achieves this through explicit GROUP BY with MIN() aggregation. The intermediate row cardinality differs (implicit vs explicit) but the final result is identical: one row per customer with all source customers represented"
+        }
+      },
+      "issues": [
+        {
+          "code": "AGGREGATION_STYLE_DIFFERENCE",
+          "message": "Refactored SQL uses explicit GROUP BY aggregation while extracted uses implicit scalar subquery aggregation. Both methods produce identical final results, but the refactored version is clearer and more maintainable.",
+          "severity": "warning"
+        }
+      ]
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
   }
 }

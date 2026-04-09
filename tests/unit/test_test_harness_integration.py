@@ -618,6 +618,48 @@ class TestExecuteSelectIntegration:
         finally:
             backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
 
+    def test_compare_two_sql_returns_equivalent_for_same_result_set(self) -> None:
+        """compare_two_sql reports equivalent when both SQLs return the same rows."""
+        backend = _make_backend()
+
+        try:
+            up_result = backend.sandbox_up(schemas=["silver"])
+            sandbox_db = up_result["sandbox_database"]
+            fixtures = [
+                {
+                    "table": "[silver].[DimCurrency]",
+                    "rows": [
+                        {"CurrencyAlternateKey": "USD", "CurrencyName": "US Dollar"},
+                        {"CurrencyAlternateKey": "EUR", "CurrencyName": "Euro"},
+                    ],
+                },
+            ]
+            sql_a = (
+                "SELECT CurrencyAlternateKey, CurrencyName "
+                "FROM [silver].[DimCurrency]"
+            )
+            sql_b = (
+                "WITH src AS ("
+                "  SELECT CurrencyAlternateKey, CurrencyName "
+                "  FROM [silver].[DimCurrency]"
+                ") "
+                "SELECT CurrencyAlternateKey, CurrencyName FROM src"
+            )
+
+            result = backend.compare_two_sql(
+                sandbox_db=sandbox_db,
+                sql_a=sql_a,
+                sql_b=sql_b,
+                fixtures=fixtures,
+            )
+
+            assert result["status"] == "ok", result["errors"]
+            assert result["equivalent"] is True
+            assert result["a_minus_b"] == []
+            assert result["b_minus_a"] == []
+        finally:
+            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+
     def test_execute_select_empty_fixtures(self) -> None:
         """execute_select with no fixture rows returns 0 rows."""
         backend = _make_backend()

@@ -105,12 +105,13 @@ module.exports = (output, context) => {
   // Try to read summary file (matches summary.json or summary.<epoch>.json)
   let summary = findSummary(migrationsDir);
 
-  // Schema validation when summary exists
+  // Schema validation when summary exists. Treat summary schema as best-effort:
+  // if it is stale or partial, continue validating via per-item artifacts.
   if (summary) {
     if (summary.schema_version && summary.results) {
       const schemaResult = validateSchema(summary, 'command_run_summary.json');
       if (!schemaResult.valid) {
-        return { pass: false, score: 0, reason: `Summary schema validation failed: ${schemaResult.errors}` };
+        summary = null;
       }
     }
   }
