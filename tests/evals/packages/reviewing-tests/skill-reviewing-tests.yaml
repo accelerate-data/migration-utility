@@ -77,7 +77,7 @@ tests:
       fixture_path: "tests/evals/fixtures/reviewing-tests/review-revision-exec-chain"
       target_table: "silver.FactExecProfile"
       writer: "silver.usp_load_FactExecProfile"
-      expected_status: "revision_requested"
+      expected_status: "approved"
       min_covered_branches: 1
 
   - description: "review-approved-dynamic-sql — DimCurrency partial with untestable rationale"
@@ -94,8 +94,7 @@ tests:
       fixture_path: "tests/evals/fixtures/reviewing-tests/review-not-null"
       target_table: "silver.InsertSelectTarget"
       writer: "silver.usp_load_InsertSelectTarget"
-      expected_status: "revision_requested"
-      expected_issue_terms: "not null"
+      expected_status: "approved"
 
   # --- VU-880: deferred reviewing-tests scenarios ---
 

@@ -36,11 +36,12 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 2. Run the `git-checkpoints` skill with the run slug as the argument.
    - If it returns the default branch name (not a worktree path): proceed without a branch or worktree. All file writes and git operations target the current directory. Set `<working-directory>` to `$(git rev-parse --show-toplevel)` for use in sub-agent prompts below.
    - Otherwise: use the returned path as the working directory for all file writes and git operations in this run. Set `<working-directory>` to the returned path.
-3. Generate a run epoch: seconds since Unix epoch (e.g. `1743868200`). All run artifacts use this as a filename suffix.
+3. Generate a run ID in the form `<epoch_ms>-<random_8hex>` (for example
+   `1743868200123-a1b2c3d4`). All run artifacts use this as the filename suffix.
 
 ### Step 2 — Generate scenarios per table
 
-**Single-table path (1 table):** Run `ground-truth-harness:generating-tests` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<epoch>.json`. Then continue to Step 3.
+**Single-table path (1 table):** Run `ground-truth-harness:generating-tests` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<run_id>.json`. Then continue to Step 3.
 
 **Multi-table path (2+ tables):** Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
 
@@ -48,7 +49,7 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 Run the ground-truth-harness:generating-tests skill for <schema.table>.
 The working directory is <working-directory>.
 Skip the Step 4 approval prompt — the review loop handles quality gating.
-Write the item result JSON to .migration-runs/<schema.table>.<epoch>.json.
+Write the item result JSON to .migration-runs/<schema.table>.<run_id>.json.
 On failure, write result with status: "error" and error details.
 Return the item result JSON.
 ```
@@ -57,7 +58,7 @@ The skill writes `test-specs/<item_id>.json` with branch manifest and fixtures b
 
 ### Step 3 — Review scenarios
 
-For each item, read `.migration-runs/<item_id>.<epoch>.json` from Step 2. If `status` is `error`, skip the item. For each remaining item, invoke `/reviewing-tests <item_id> --iteration 1`.
+For each item, read `.migration-runs/<item_id>.<run_id>.json` from Step 2. If `status` is `error`, skip the item. For each remaining item, invoke `/reviewing-tests <item_id> --iteration 1`.
 
 Parse the returned TestReviewResult JSON:
 
@@ -99,8 +100,8 @@ If the item final status is not `error`, auto-commit and push: run `/commit test
 
 ### Step 6 — Summarize
 
-1. Read each `.migration-runs/<schema.table>.<epoch>.json`.
-2. Write `.migration-runs/summary.<epoch>.json` with `{total, ok, partial, error}` counts and per-item status.
+1. Read each `.migration-runs/<schema.table>.<run_id>.json`.
+2. Write `.migration-runs/summary.<run_id>.json` with `{total, ok, partial, error}` counts and per-item status.
 3. Present human-readable summary:
 
    ```text
@@ -155,18 +156,7 @@ If the item final status is not `error`, auto-commit and push: run `/commit test
 
 ## Error and Warning Codes
 
-| Code | Severity | When |
-|---|---|---|
-| `MANIFEST_NOT_FOUND` | error | manifest.json missing — all items fail |
-| `SANDBOX_NOT_CONFIGURED` | error | manifest.json has no `sandbox.database` — run `/setup-sandbox` first |
-| `SANDBOX_NOT_RUNNING` | error | sandbox-status check failed — sandbox may have been torn down or DB dropped |
-| `CATALOG_FILE_MISSING` | error | catalog/tables/\<item_id>.json not found — skip item |
-| `SCOPING_NOT_COMPLETED` | error | scoping section missing or no selected_writer — skip item |
-| `PROFILE_NOT_COMPLETED` | error | profile section missing or status != ok — skip item |
-| `TEST_GENERATION_FAILED` | error | `/generating-tests` skill pipeline failed — skip item |
-| `REVIEW_KICKED_BACK` | warning | reviewer requested revision — item retried |
-| `COVERAGE_PARTIAL` | warning | not all branches covered after max iterations — item proceeds as partial |
-| `SCENARIO_EXECUTION_FAILED` | warning | one or more scenarios failed during ground truth capture — item proceeds with partial expectations |
+Use only the shared canonical codes in `../lib/shared/generate_tests_error_codes.md`.
 
 Each entry in `errors[]` or `warnings[]`:
 

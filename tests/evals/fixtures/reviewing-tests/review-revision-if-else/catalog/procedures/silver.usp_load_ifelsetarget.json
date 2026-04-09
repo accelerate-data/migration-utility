@@ -34,12 +34,7 @@
     "procedures": { "in_scope": [], "out_of_scope": [] }
   },
   "mode": "llm_required",
-  "routing_reasons": [
-    {
-      "routing": "control_flow",
-      "rationale": "IF/ELSE control flow requires LLM-assisted branch enumeration to identify both conditional paths."
-    }
-  ],
+  "routing_reasons": ["control_flow"],
   "statements": [
     {
       "type": "Insert",
