@@ -24,12 +24,12 @@ import typer
 import yaml
 
 from shared.cli_utils import emit
-from shared.output_models import GenerateSourcesOutput
 from shared.env_config import (
     resolve_catalog_dir,
     resolve_dbt_project_path,
     resolve_project_root,
 )
+from shared.output_models.generate_sources import GenerateSourcesOutput
 
 logger = logging.getLogger(__name__)
 

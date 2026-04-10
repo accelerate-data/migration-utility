@@ -27,7 +27,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, NoReturn, Optional
 
-from shared.output_models import (
+from shared.output_models.discover import (
     BasicRefs,
     DiscoverListOutput,
     DiscoverRefsOutput,

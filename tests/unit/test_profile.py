@@ -18,7 +18,7 @@ from typer.testing import CliRunner
 
 from shared import profile
 from shared.loader import CatalogFileMissingError, CatalogLoadError
-from shared.output_models import ProfileContext, ViewProfileContext
+from shared.output_models.profile import ProfileContext, ViewProfileContext
 
 _cli_runner = CliRunner()
 

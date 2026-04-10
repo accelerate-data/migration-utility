@@ -24,7 +24,7 @@ from shared.sandbox.oracle import (
     _validate_oracle_sandbox_name,
 )
 from shared.sandbox.base import serialize_rows as _serialize_rows
-from shared.output_models import (
+from shared.output_models.sandbox import (
     ErrorEntry,
     ExecuteSpecOutput,
     ExecuteSpecResult,
@@ -33,6 +33,7 @@ from shared.output_models import (
     SandboxUpOutput,
     TestHarnessExecuteOutput,
 )
+from shared.output_models.test_specs import TestSpec, TestSpecOutput
 from shared.sandbox.sql_server import (
     SqlServerSandbox,
     _detect_remote_exec_target,
@@ -934,7 +935,7 @@ class TestOutputModels:
             ErrorEntry.model_validate({"code": "ERR", "message": "msg", "severity": "high"})
 
     def test_test_spec_per_item_valid(self) -> None:
-        from shared.output_models import TestSpec
+        from shared.output_models.test_specs import TestSpec
 
         spec = TestSpec.model_validate({
             "item_id": "silver.dimproduct",
@@ -982,7 +983,7 @@ class TestOutputModels:
         assert spec.validation.passed is True
 
     def test_test_spec_output_valid(self) -> None:
-        from shared.output_models import TestSpecOutput
+        from shared.output_models.test_specs import TestSpecOutput
 
         output = TestSpecOutput.model_validate({
             "schema_version": "1.0",

@@ -52,13 +52,10 @@ from shared.loader import (
 )
 from shared.catalog_models import RefactorSection
 from shared.cli_utils import emit
-from shared.output_models import (
-    CompareSqlOutput,
-    RefactorContextOutput,
-    RefactorWriteOutput,
-)
 from shared.env_config import resolve_catalog_dir, resolve_project_root
 from shared.name_resolver import fqn_parts, normalize
+from shared.output_models.refactor import RefactorContextOutput, RefactorWriteOutput
+from shared.output_models.sandbox import CompareSqlOutput
 
 logger = logging.getLogger(__name__)
 

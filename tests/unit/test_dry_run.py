@@ -18,7 +18,7 @@ from typer.testing import CliRunner
 
 from shared import dry_run
 from shared import generate_sources as gen_src
-from shared.output_models import DryRunOutput
+from shared.output_models.dry_run import DryRunOutput
 
 _cli_runner = CliRunner()
 

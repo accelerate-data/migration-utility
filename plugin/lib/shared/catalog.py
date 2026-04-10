@@ -97,14 +97,6 @@ def load_function_catalog(project_root: Path, func_fqn: str) -> FunctionCatalog 
     return FunctionCatalog.model_validate(data) if data is not None else None
 
 
-def load_mv_catalog(project_root: Path, view_fqn: str) -> ViewCatalog | None:
-    """Load a materialized view catalog entry (a view with is_materialized_view=True)."""
-    data = _load_catalog_file(project_root, "views", view_fqn)
-    if data is not None and data.get("is_materialized_view"):
-        return ViewCatalog.model_validate(data)
-    return None
-
-
 def read_selected_writer(project_root: Path, table_fqn: str) -> str | None:
     """Read selected_writer from the scoping section of a table catalog file.
 
@@ -149,6 +141,34 @@ def resolve_catalog_path(project_root: Path, fqn: str) -> Path:
     if table_path.exists():
         return table_path
     raise CatalogFileMissingError("table or view", fqn)
+
+
+def detect_catalog_bucket(project_root: Path, fqn: str) -> str | None:
+    """Return ``tables`` or ``views`` if a catalog file exists for the FQN."""
+    norm = normalize(fqn)
+    catalog_dir = resolve_catalog_dir(project_root)
+    if (catalog_dir / "tables" / f"{norm}.json").exists():
+        return "tables"
+    if (catalog_dir / "views" / f"{norm}.json").exists():
+        return "views"
+    return None
+
+
+def detect_object_type(project_root: Path, fqn: str) -> str:
+    """Detect whether a normalized FQN refers to a table, view, or MV."""
+    norm = normalize(fqn)
+    bucket = detect_catalog_bucket(project_root, norm)
+    if bucket == "tables":
+        return "table"
+    if bucket == "views":
+        try:
+            cat = load_view_catalog(project_root, norm)
+            if cat and cat.is_materialized_view:
+                return "mv"
+        except (json.JSONDecodeError, OSError, CatalogLoadError):
+            pass
+        return "view"
+    return "table"
 
 
 def load_and_merge_catalog(

@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from shared.output_models import (
+    from shared.output_models.sandbox import (
         SandboxDownOutput,
         SandboxStatusOutput,
         SandboxUpOutput,

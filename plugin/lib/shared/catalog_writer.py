@@ -13,8 +13,6 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from shared.output_models import WriteSliceOutput, WriteSourceOutput
-
 from shared.catalog import (
     load_and_merge_catalog,
     load_proc_catalog,
@@ -26,6 +24,7 @@ from shared.catalog import (
 from shared.loader import CatalogFileMissingError
 from shared.catalog_models import StatementEntry, TableScopingSection, ViewScopingSection
 from shared.name_resolver import normalize
+from shared.output_models.writeback import WriteSliceOutput, WriteSourceOutput
 
 logger = logging.getLogger(__name__)
 

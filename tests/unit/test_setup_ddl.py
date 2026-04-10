@@ -100,13 +100,14 @@ def test_run_extract_fails_loudly_on_manifest_read_error(tmp_path: Path) -> None
     import sys
     sys.path.insert(0, str(Path(__file__).parents[2] / "plugin" / "lib"))
     from shared import setup_ddl
+    from shared.setup_ddl_support import extract as setup_ddl_extract
 
     (tmp_path / "manifest.json").write_text(
         '{"technology": "sql_server", "dialect": "tsql"}',
         encoding="utf-8",
     )
 
-    with patch.object(setup_ddl, "_read_manifest_strict", side_effect=ValueError("manifest.json is not valid JSON: boom")):
+    with patch.object(setup_ddl_extract, "read_manifest_strict", side_effect=ValueError("manifest.json is not valid JSON: boom")):
         with pytest.raises(ValueError, match="manifest.json is not valid JSON"):
             setup_ddl.run_extract(tmp_path, database="MigrationTest", schemas=["dbo"])
 
@@ -597,7 +598,7 @@ class TestViewEnrichmentHelpers:
     """Tests for _build_view_columns_map and _build_view_definitions_map."""
 
     def test_build_view_columns_map_basic(self):
-        from shared.setup_ddl import _build_view_columns_map
+        from shared.setup_ddl_support.staging import build_view_columns_map
         rows = [
             {"schema_name": "dbo", "view_name": "vw_Sales", "column_name": "id",
              "column_id": 1, "type_name": "int", "max_length": 4, "precision": 10,
@@ -606,7 +607,7 @@ class TestViewEnrichmentHelpers:
              "column_id": 2, "type_name": "nvarchar", "max_length": 200, "precision": 0,
              "scale": 0, "is_nullable": True},
         ]
-        result = _build_view_columns_map(rows)
+        result = build_view_columns_map(rows)
         assert "dbo.vw_sales" in result
         cols = result["dbo.vw_sales"]
         assert len(cols) == 2
@@ -618,7 +619,7 @@ class TestViewEnrichmentHelpers:
         assert "_column_id" not in cols[0]
 
     def test_build_view_columns_map_ordering(self):
-        from shared.setup_ddl import _build_view_columns_map
+        from shared.setup_ddl_support.staging import build_view_columns_map
         rows = [
             {"schema_name": "dbo", "view_name": "vw_x", "column_name": "z",
              "column_id": 3, "type_name": "int", "max_length": 4, "precision": 10,
@@ -627,12 +628,12 @@ class TestViewEnrichmentHelpers:
              "column_id": 1, "type_name": "int", "max_length": 4, "precision": 10,
              "scale": 0, "is_nullable": False},
         ]
-        result = _build_view_columns_map(rows)
+        result = build_view_columns_map(rows)
         cols = result["dbo.vw_x"]
         assert [c["name"] for c in cols] == ["a", "z"]
 
     def test_build_view_definitions_map_filters_to_views(self):
-        from shared.setup_ddl import _build_view_definitions_map
+        from shared.setup_ddl_support.staging import build_view_definitions_map
         definitions = [
             {"schema_name": "dbo", "object_name": "vw_sales",
              "definition": "CREATE VIEW [dbo].[vw_sales] AS SELECT 1"},
@@ -640,18 +641,18 @@ class TestViewEnrichmentHelpers:
              "definition": "CREATE PROC [dbo].[usp_load] AS SELECT 1"},
         ]
         object_types = {"dbo.vw_sales": "views", "dbo.usp_load": "procedures"}
-        result = _build_view_definitions_map(definitions, object_types)
+        result = build_view_definitions_map(definitions, object_types)
         assert "dbo.vw_sales" in result
         assert "dbo.usp_load" not in result
         assert "CREATE VIEW" in result["dbo.vw_sales"]
 
     def test_build_view_definitions_map_skips_null_definition(self):
-        from shared.setup_ddl import _build_view_definitions_map
+        from shared.setup_ddl_support.staging import build_view_definitions_map
         definitions = [
             {"schema_name": "dbo", "object_name": "vw_empty", "definition": None},
         ]
         object_types = {"dbo.vw_empty": "views"}
-        result = _build_view_definitions_map(definitions, object_types)
+        result = build_view_definitions_map(definitions, object_types)
         assert "dbo.vw_empty" not in result
 
 
@@ -1187,36 +1188,36 @@ class TestListSchemasGuards:
 
 class TestOracleSchemaProcessing:
     def test_groups_by_owner_from_fixture(self):
-        from shared.setup_ddl import _build_oracle_schema_summary
+        from shared.setup_ddl_support.manifest import build_oracle_schema_summary
         rows = json.loads((FIXTURE_DIR / "list_schemas.json").read_text(encoding="utf-8"))
-        summary = _build_oracle_schema_summary(rows)
+        summary = build_oracle_schema_summary(rows)
         owners = {entry["owner"] for entry in summary}
         assert "SH" in owners
         sh_entry = next(e for e in summary if e["owner"] == "SH")
         assert sh_entry["tables"] > 0
 
     def test_empty_input_returns_empty_list(self):
-        from shared.setup_ddl import _build_oracle_schema_summary
-        assert _build_oracle_schema_summary([]) == []
+        from shared.setup_ddl_support.manifest import build_oracle_schema_summary
+        assert build_oracle_schema_summary([]) == []
 
     def test_sorted_by_owner(self):
-        from shared.setup_ddl import _build_oracle_schema_summary
+        from shared.setup_ddl_support.manifest import build_oracle_schema_summary
         rows = [
             {"OWNER": "ZZ", "OBJECT_TYPE": "TABLE", "OBJECT_NAME": "T1"},
             {"OWNER": "AA", "OBJECT_TYPE": "TABLE", "OBJECT_NAME": "T2"},
             {"OWNER": "MM", "OBJECT_TYPE": "TABLE", "OBJECT_NAME": "T3"},
         ]
-        summary = _build_oracle_schema_summary(rows)
+        summary = build_oracle_schema_summary(rows)
         owners = [e["owner"] for e in summary]
         assert owners == sorted(owners)
 
     def test_lowercase_keys_handled(self):
-        from shared.setup_ddl import _build_oracle_schema_summary
+        from shared.setup_ddl_support.manifest import build_oracle_schema_summary
         rows = [
             {"owner": "SH", "object_type": "TABLE", "object_name": "SALES"},
             {"owner": "SH", "object_type": "TABLE", "object_name": "COSTS"},
         ]
-        summary = _build_oracle_schema_summary(rows)
+        summary = build_oracle_schema_summary(rows)
         assert len(summary) == 1
         assert summary[0]["owner"] == "SH"
         assert summary[0]["tables"] == 2
@@ -1401,11 +1402,11 @@ class TestExtractOracleUnit:
         """Verify PK rows from Oracle fixture are consumed correctly by _apply_pk_unique_rows."""
         import sys
         sys.path.insert(0, str(Path(__file__).parents[2] / "plugin" / "lib"))
-        from shared.setup_ddl import _apply_pk_unique_rows
+        from shared.setup_ddl_support.staging import apply_pk_unique_rows
 
         rows = json.loads((ORACLE_FIXTURE_DIR / "all_constraints_pk_uk.json").read_text())
         signals: dict = {}
-        _apply_pk_unique_rows(signals, rows)
+        apply_pk_unique_rows(signals, rows)
         assert len(signals) > 0
         for fqn, sig in signals.items():
             for pk in sig.get("primary_keys", []):
@@ -1417,11 +1418,11 @@ class TestExtractOracleUnit:
         """Verify FK rows from Oracle fixture are consumed correctly by _apply_fk_rows."""
         import sys
         sys.path.insert(0, str(Path(__file__).parents[2] / "plugin" / "lib"))
-        from shared.setup_ddl import _apply_fk_rows
+        from shared.setup_ddl_support.staging import apply_fk_rows
 
         rows = json.loads((ORACLE_FIXTURE_DIR / "all_constraints_fk.json").read_text())
         signals: dict = {}
-        _apply_fk_rows(signals, rows)
+        apply_fk_rows(signals, rows)
         assert len(signals) > 0
         for fqn, sig in signals.items():
             for fk in sig.get("foreign_keys", []):
@@ -1807,32 +1808,32 @@ def test_run_assemble_tables_missing_manifest_raises(tmp_path: Path) -> None:
 
 
 class TestConnectionIdentity:
-    """Tests for _get_connection_identity, _identity_changed, and _mark_all_catalog_stale."""
+    """Tests for setup-ddl source identity and stale-marking helpers."""
 
     @staticmethod
     def _import():
         import sys
         sys.path.insert(0, str(Path(__file__).parents[2] / "plugin" / "lib"))
-        from shared.setup_ddl import (
-            _get_connection_identity,
-            _identity_changed,
-            _mark_all_catalog_stale,
+        from shared.setup_ddl_support.catalog_write import mark_all_catalog_stale
+        from shared.setup_ddl_support.manifest import (
+            get_connection_identity,
+            identity_changed,
         )
-        return _get_connection_identity, _identity_changed, _mark_all_catalog_stale
+        return get_connection_identity, identity_changed, mark_all_catalog_stale
 
     def test_sqlserver_identity_reads_env(self, monkeypatch):
-        _get_connection_identity, _, _ = self._import()
+        get_connection_identity, _, _ = self._import()
         monkeypatch.setenv("MSSQL_HOST", "server1.example.com")
         monkeypatch.setenv("MSSQL_PORT", "1433")
-        identity = _get_connection_identity("sql_server", "AdventureWorks")
+        identity = get_connection_identity("sql_server", "AdventureWorks")
         assert identity["source_host"] == "server1.example.com"
         assert identity["source_port"] == "1433"
         assert identity["source_database"] == "AdventureWorks"
 
     def test_oracle_identity_reads_dsn(self, monkeypatch):
-        _get_connection_identity, _, _ = self._import()
+        get_connection_identity, _, _ = self._import()
         monkeypatch.setenv("ORACLE_DSN", "localhost:1521/FREEPDB1")
-        identity = _get_connection_identity("oracle", "")
+        identity = get_connection_identity("oracle", "")
         assert identity["source_dsn"] == "localhost:1521/FREEPDB1"
         assert "source_host" not in identity
 
@@ -1866,46 +1867,46 @@ class TestConnectionIdentity:
         assert manifest["source_dsn"] == "oraclehost:1521/PROD"
 
     def test_identity_changed_host(self):
-        _, _identity_changed, _ = self._import()
+        _, identity_changed_fn, _ = self._import()
         existing = {"source_host": "old-server", "source_port": "1433", "source_database": "DB1"}
         current = {"source_host": "new-server", "source_port": "1433", "source_database": "DB1"}
-        assert _identity_changed(existing, current) is True
+        assert identity_changed_fn(existing, current) is True
 
     def test_identity_changed_database(self):
-        _, _identity_changed, _ = self._import()
+        _, identity_changed_fn, _ = self._import()
         existing = {"source_host": "server1", "source_port": "1433", "source_database": "DB1"}
         current = {"source_host": "server1", "source_port": "1433", "source_database": "DB2"}
-        assert _identity_changed(existing, current) is True
+        assert identity_changed_fn(existing, current) is True
 
     def test_identity_unchanged(self):
-        _, _identity_changed, _ = self._import()
+        _, identity_changed_fn, _ = self._import()
         existing = {"source_host": "server1", "source_port": "1433", "source_database": "DB1"}
         current = {"source_host": "server1", "source_port": "1433", "source_database": "DB1"}
-        assert _identity_changed(existing, current) is False
+        assert identity_changed_fn(existing, current) is False
 
     def test_identity_changed_oracle_dsn(self):
-        _, _identity_changed, _ = self._import()
+        _, identity_changed_fn, _ = self._import()
         existing = {"source_dsn": "host1:1521/SVC1"}
         current = {"source_dsn": "host2:1521/SVC1"}
-        assert _identity_changed(existing, current) is True
+        assert identity_changed_fn(existing, current) is True
 
     def test_identity_missing_env_no_false_positive(self):
-        _, _identity_changed, _ = self._import()
+        _, identity_changed_fn, _ = self._import()
         # No current env values (all empty) — must not trigger stale flush
         existing = {"source_host": "server1", "source_port": "1433", "source_database": "DB1"}
         current = {"source_host": "", "source_port": "", "source_database": "DB1"}
         # source_database is non-empty and matches — no change
-        assert _identity_changed(existing, current) is False
+        assert identity_changed_fn(existing, current) is False
 
     def test_identity_empty_env_vars_no_false_positive(self):
-        _, _identity_changed, _ = self._import()
+        _, identity_changed_fn, _ = self._import()
         existing = {"source_host": "server1", "source_port": "1433", "source_database": "DB1"}
         # All identity values empty → treat as absent, no false positive
         current = {"source_host": "", "source_port": ""}
-        assert _identity_changed(existing, current) is False
+        assert identity_changed_fn(existing, current) is False
 
     def test_mark_all_catalog_stale(self, tmp_path):
-        _, _, _mark_all_catalog_stale = self._import()
+        _, _, mark_all_catalog_stale_fn = self._import()
         # resolve_catalog_dir returns project_root / "catalog" by default (no env override in tests).
         # Seed catalog with one proc and one table (neither stale)
         proc_path = tmp_path / "catalog" / "procedures" / "dbo.usp_load.json"
@@ -1915,7 +1916,7 @@ class TestConnectionIdentity:
         proc_path.write_text(json.dumps({"ddl_hash": "abc"}), encoding="utf-8")
         table_path.write_text(json.dumps({"ddl_hash": "xyz"}), encoding="utf-8")
 
-        _mark_all_catalog_stale(tmp_path)
+        mark_all_catalog_stale_fn(tmp_path)
 
         assert json.loads(proc_path.read_text())["stale"] is True
         assert json.loads(table_path.read_text())["stale"] is True
@@ -1946,11 +1947,12 @@ class TestConnectionIdentity:
 
         import sys
         sys.path.insert(0, str(Path(__file__).parents[2] / "plugin" / "lib"))
-        from shared.setup_ddl import _get_connection_identity, _identity_changed, _mark_all_catalog_stale
+        from shared.setup_ddl_support.catalog_write import mark_all_catalog_stale
+        from shared.setup_ddl_support.manifest import get_connection_identity, identity_changed
 
-        current_identity = _get_connection_identity("sql_server", "DB1")
-        assert _identity_changed(manifest, current_identity) is True
-        _mark_all_catalog_stale(tmp_path)
+        current_identity = get_connection_identity("sql_server", "DB1")
+        assert identity_changed(manifest, current_identity) is True
+        mark_all_catalog_stale(tmp_path)
 
         assert json.loads(proc_path.read_text())["stale"] is True
 
@@ -1973,7 +1975,7 @@ class TestConnectionIdentity:
 
         import sys
         sys.path.insert(0, str(Path(__file__).parents[2] / "plugin" / "lib"))
-        from shared.setup_ddl import _get_connection_identity, _identity_changed
+        from shared.setup_ddl_support.manifest import get_connection_identity, identity_changed
 
-        current_identity = _get_connection_identity("sql_server", "DB1")
-        assert _identity_changed(manifest, current_identity) is False
+        current_identity = get_connection_identity("sql_server", "DB1")
+        assert identity_changed(manifest, current_identity) is False

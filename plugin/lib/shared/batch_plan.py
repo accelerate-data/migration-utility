@@ -31,7 +31,7 @@ from typing import Any, Optional
 from shared.catalog import load_proc_catalog, load_table_catalog, load_view_catalog
 from shared.env_config import resolve_catalog_dir, resolve_dbt_project_path
 from shared.loader_data import CatalogLoadError
-from shared.output_models import (
+from shared.output_models.dry_run import (
     BatchPlanOutput,
     BatchSummary,
     CatalogDiagnosticEntry,
