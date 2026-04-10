@@ -248,7 +248,7 @@ def _build_enriched_ref_list(
         for e in scoped.in_scope
     ]
     out_of_scope = [
-        OutOfScopeRef(**e.model_dump(by_alias=True, exclude_none=True))
+        OutOfScopeRef(schema=e.object_schema, name=e.name)
         for e in scoped.out_of_scope
     ]
     return EnrichedScopedRefList(in_scope=in_scope, out_of_scope=out_of_scope)

@@ -403,6 +403,8 @@ class ProcedureCatalog(BaseModel):
     refactor: RefactorSection | None = None
     ddl_hash: str | None = None
     stale: bool = False
+    dmf_errors: list[str] | None = None
+    segmenter_error: str | None = None
     warnings: list[Any] = []
     errors: list[Any] = []
 
@@ -429,6 +431,10 @@ class ViewCatalog(BaseModel):
     excluded: bool = False
     ddl_hash: str | None = None
     stale: bool = False
+    dmf_errors: list[str] | None = None
+    segmenter_error: str | None = None
+    long_truncation: bool = False
+    parse_error: str | None = None
     warnings: list[Any] = []
     errors: list[Any] = []
 
@@ -444,5 +450,9 @@ class FunctionCatalog(BaseModel):
     referenced_by: ReferencedByBucket | None = None
     ddl_hash: str | None = None
     stale: bool = False
+    dmf_errors: list[str] | None = None
+    segmenter_error: str | None = None
+    subtype: str | None = None
+    parse_error: str | None = None
     warnings: list[Any] = []
     errors: list[Any] = []
