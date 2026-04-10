@@ -65,6 +65,10 @@ Do not invent fields. If `test-harness write` rejects the payload, fix the paylo
 
 Use the canonical generating-tests surfaced code list in `../../lib/shared/generate_tests_error_codes.md`. Do not define a competing public error-code list in this skill.
 
+## Feedback override
+
+If `$ARGUMENTS` or the invoking prompt includes a `feedback_for_generator` JSON block, apply it before running the normal pipeline. See [Handling reviewer feedback](#handling-reviewer-feedback) at the end of this skill for the full protocol.
+
 ## Load existing spec
 
 Before running the stage guard, check whether `test-specs/<item_id>.json` already exists.

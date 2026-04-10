@@ -16,6 +16,8 @@ argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 
 `$ARGUMENTS` is the fully-qualified table or view name (the `item_id`), optionally followed by `--iteration <N>` (1-based). Defaults to 1 if not provided.
 
+The iteration number controls the verdict in Step 6: on iteration 1, unresolved issues trigger `revision_requested`; on iteration 2, remaining issues are accepted as `approved_with_warnings` to prevent infinite review loops.
+
 ## Contracts
 
 Contracts are enforced by the Pydantic `TestReviewOutput` model in `../../lib/shared/output_models.py`.

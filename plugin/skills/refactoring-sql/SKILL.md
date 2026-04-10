@@ -121,6 +121,8 @@ Read `object_type` from the output to know which path you are on:
 
 Launch both sub-agents simultaneously. They must not see each other's output. Both agents use [references/sp-migration-ref.md](references/sp-migration-ref.md) for DML extraction and CTE restructuring rules.
 
+The prompt templates below use angle-bracket placeholders (`<proc_body>`, `<statements>`, `<columns>`, `<source_tables>`, `<profile>`) — substitute the actual values from the Step 1 context output before passing to the sub-agent. For views, substitute `<view_sql>` for `<proc_body>` and omit `<statements>` as noted per sub-agent.
+
 ### Sub-agent A: Extract core SELECT
 
 Launch a sub-agent with this prompt. For tables, include `proc_body`, `statements`, and `columns` (or `writer_ddl_slice` if present). For views, include `view_sql` and `columns` in place of `proc_body`/`statements`.
