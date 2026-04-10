@@ -153,13 +153,13 @@ class TestCompareTwoSqlEquivalent:
         up = backend.sandbox_up(schemas=["bronze", "silver"])
         try:
             return backend.compare_two_sql(
-                sandbox_db=up["sandbox_database"],
+                sandbox_db=up.sandbox_database,
                 sql_a=sql_a,
                 sql_b=sql_b,
                 fixtures=fixtures,
             )
         finally:
-            backend.sandbox_down(sandbox_db=up["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up.sandbox_database)
 
     def test_insert_select_extraction(self) -> None:
         """INSERT...SELECT: extracted SELECT == CTE refactored SELECT."""
@@ -627,13 +627,13 @@ class TestCompareTwoSqlNotEquivalent:
         up = backend.sandbox_up(schemas=["bronze", "silver"])
         try:
             return backend.compare_two_sql(
-                sandbox_db=up["sandbox_database"],
+                sandbox_db=up.sandbox_database,
                 sql_a=sql_a,
                 sql_b=sql_b,
                 fixtures=fixtures,
             )
         finally:
-            backend.sandbox_down(sandbox_db=up["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up.sandbox_database)
 
     def test_missing_column(self) -> None:
         """Refactored SQL drops a column: produces different rows."""
@@ -677,13 +677,13 @@ class TestCompareTwoSqlWithFixtures:
         up = backend.sandbox_up(schemas=["bronze", "silver"])
         try:
             return backend.compare_two_sql(
-                sandbox_db=up["sandbox_database"],
+                sandbox_db=up.sandbox_database,
                 sql_a=sql_a,
                 sql_b=sql_b,
                 fixtures=fixtures,
             )
         finally:
-            backend.sandbox_down(sandbox_db=up["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up.sandbox_database)
 
     def test_fixtures_with_identity_column(self) -> None:
         """Fixtures include explicit identity column values — IDENTITY_INSERT toggled."""
@@ -810,7 +810,7 @@ class TestCompareTwoSqlTransactionRollback:
         """After compare_two_sql, fixture data is gone (transaction rolled back)."""
         backend = _make_backend()
         up = backend.sandbox_up(schemas=["bronze", "silver"])
-        sandbox_db = up["sandbox_database"]
+        sandbox_db = up.sandbox_database
 
         try:
             fixtures = [
@@ -848,13 +848,13 @@ class TestCompareTwoSqlValidation:
         try:
             with pytest.raises(ValueError, match="write operation"):
                 backend.compare_two_sql(
-                    sandbox_db=up["sandbox_database"],
+                    sandbox_db=up.sandbox_database,
                     sql_a="INSERT INTO bronze.Currency VALUES ('BAD', 'Bad', GETDATE())",
                     sql_b="SELECT 1",
                     fixtures=[],
                 )
         finally:
-            backend.sandbox_down(sandbox_db=up["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up.sandbox_database)
 
     def test_rejects_exec_in_sql(self) -> None:
         """SQL containing EXEC is rejected."""
@@ -863,13 +863,13 @@ class TestCompareTwoSqlValidation:
         try:
             with pytest.raises(ValueError, match="write operation"):
                 backend.compare_two_sql(
-                    sandbox_db=up["sandbox_database"],
+                    sandbox_db=up.sandbox_database,
                     sql_a="SELECT 1",
                     sql_b="EXEC silver.usp_load_DimProduct",
                     fixtures=[],
                 )
         finally:
-            backend.sandbox_down(sandbox_db=up["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up.sandbox_database)
 
     def test_rejects_invalid_syntax_in_sql_a(self) -> None:
         """Malformed SQL A is caught by PARSEONLY before execution."""
@@ -877,7 +877,7 @@ class TestCompareTwoSqlValidation:
         up = backend.sandbox_up(schemas=["bronze"])
         try:
             result = backend.compare_two_sql(
-                sandbox_db=up["sandbox_database"],
+                sandbox_db=up.sandbox_database,
                 sql_a="SELEC BROKEN SYNTAX FROM",
                 sql_b="SELECT 1 AS x",
                 fixtures=[],
@@ -886,7 +886,7 @@ class TestCompareTwoSqlValidation:
             assert result["errors"][0]["code"] == "SQL_SYNTAX_ERROR"
             assert "A" in result["errors"][0]["message"]
         finally:
-            backend.sandbox_down(sandbox_db=up["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up.sandbox_database)
 
     def test_rejects_invalid_syntax_in_sql_b(self) -> None:
         """Malformed SQL B is caught by PARSEONLY before execution."""
@@ -894,7 +894,7 @@ class TestCompareTwoSqlValidation:
         up = backend.sandbox_up(schemas=["bronze"])
         try:
             result = backend.compare_two_sql(
-                sandbox_db=up["sandbox_database"],
+                sandbox_db=up.sandbox_database,
                 sql_a="SELECT 1 AS x",
                 sql_b="WITH broken AS (SELECT FROM WHERE",
                 fixtures=[],
@@ -903,7 +903,7 @@ class TestCompareTwoSqlValidation:
             assert result["errors"][0]["code"] == "SQL_SYNTAX_ERROR"
             assert "B" in result["errors"][0]["message"]
         finally:
-            backend.sandbox_down(sandbox_db=up["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up.sandbox_database)
 
     def test_rejects_empty_sql(self) -> None:
         """Empty SQL string is rejected."""
@@ -912,10 +912,10 @@ class TestCompareTwoSqlValidation:
         try:
             with pytest.raises(ValueError, match="empty"):
                 backend.compare_two_sql(
-                    sandbox_db=up["sandbox_database"],
+                    sandbox_db=up.sandbox_database,
                     sql_a="",
                     sql_b="SELECT 1",
                     fixtures=[],
                 )
         finally:
-            backend.sandbox_down(sandbox_db=up["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up.sandbox_database)

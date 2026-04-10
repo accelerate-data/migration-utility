@@ -984,7 +984,7 @@ class SqlServerSandbox(SandboxBackend):
                             cursor.execute("SET PARSEONLY ON")
                             cursor.execute(sql)
                             cursor.execute("SET PARSEONLY OFF")
-                        except pyodbc.Error as parse_exc:
+                        except _import_pyodbc().Error as parse_exc:
                             cursor.execute("SET PARSEONLY OFF")
                             logger.error(
                                 "event=sql_syntax_error sandbox_db=%s label=%s error=%s",
