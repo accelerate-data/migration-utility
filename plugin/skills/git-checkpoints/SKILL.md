@@ -117,3 +117,11 @@ Return the absolute worktree path. All subsequent file writes and git operations
 | Already on a feature branch | `git rev-parse --show-toplevel` output (current tree root) |
 | User chose the default branch | The detected `<default-branch>` name (e.g. `"main"`, `"master"`) |
 | User created a new worktree | Absolute path to the new worktree |
+
+## Error handling
+
+| Command | Exit code | Action |
+|---|---|---|
+| `gh repo view` | non-zero | Fall back to `git symbolic-ref` |
+| `git symbolic-ref` | non-zero | Stop — cannot detect default branch |
+| `git worktree add` | non-zero | Report error and stop |

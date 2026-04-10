@@ -8,7 +8,7 @@ argument-hint: "<subcommand> [object]"
 
 # Listing Objects
 
-Read-only catalog viewer. Displays whatever state exists in the catalog — columns, refs, scoping results, analyzed statements. Never writes to the catalog.
+Read-only catalog viewer. Displays whatever state exists in the catalog.
 
 ## Arguments
 
@@ -22,50 +22,13 @@ Read-only catalog viewer. Displays whatever state exists in the catalog — colu
 
 ## Before invoking
 
-For object-specific subcommands (`show <schema.object>`, `refs <schema.object>`), run the same stage readiness guard used by `analyzing-table`:
+No stage guard. This skill is read-only — it shows whatever exists in the catalog. The CLI commands handle missing catalog files via their own exit codes.
 
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <fqn> scope
-```
-
-If `ready` is `false`, report the failing `code` and `reason` to the user and stop.
-If `code` is absent, report the `reason`.
-
-For `list <type>`, do not run a per-item guard because there is no specific FQN yet.
-
-Use the canonical surfaced code list in `../../lib/shared/listing_objects_error_codes.md`. Do not define a competing public error-code list in this skill.
+Use the canonical surfaced code list in `../../lib/shared/listing_objects_error_codes.md`.
 
 ## Output shapes
 
-### `discover list` → `DiscoverListOutput`
-
-Returns `objects[]` — list of FQN strings.
-
-### `discover show` → `DiscoverShowOutput`
-
-| Field | Type | Notes |
-|---|---|---|
-| `name` | string | Normalized FQN |
-| `type` | string | `table`, `procedure`, `view`, or `function` |
-| `raw_ddl` | string | Original DDL |
-| `columns` | array | Column definitions (name, sql_type, is_nullable, is_identity) |
-| `params` | array | Procedure parameters (name, sql_type, is_output, has_default) |
-| `refs` | object | `reads_from`, `writes_to`, `write_operations`, `uses_functions` |
-| `statements` | array | Classified statements (type, action, sql) |
-| `sql_elements` | array | Parsed SQL elements (type, detail) |
-| `errors` | array | Parse errors or warnings |
-
-Fields are `null` or `[]` when not applicable to the object type.
-
-### `discover refs` → `DiscoverRefsOutput`
-
-| Field | Type | Notes |
-|---|---|---|
-| `name` | string | Normalized FQN |
-| `type` | string | Object type |
-| `readers` | array | Procedures/views that SELECT from this object |
-| `writers` | array | Procedures that write (procedure, write_type, flags) |
-| `error` | string | Error message if target is invalid (e.g. procedure target) |
+All CLI commands return JSON. Key fields: `objects[]` (list), `columns`/`refs`/`statements` (show), `readers`/`writers` (refs). Fields are `null` or `[]` when not applicable to the object type.
 
 ## list
 

@@ -121,9 +121,7 @@ Read `object_type` from the output to know which path you are on:
 
 ## Step 2: Launch two sub-agents in parallel
 
-Launch both sub-agents simultaneously. They must not see each other's output. Both agents use [references/sp-migration-ref.md](references/sp-migration-ref.md) for DML extraction and CTE restructuring rules.
-
-The prompt templates below use angle-bracket placeholders (`<proc_body>`, `<statements>`, `<columns>`, `<source_tables>`, `<profile>`) — substitute the actual values from the Step 1 context output before passing to the sub-agent. For views, substitute `<view_sql>` for `<proc_body>` and omit `<statements>` as noted per sub-agent.
+Launch both sub-agents simultaneously. They must not see each other's output. Both agents use [references/routine-migration-ref.md](references/routine-migration-ref.md) for DML extraction and CTE restructuring rules. Substitute placeholders in the prompt templates with actual values from Step 1 context.
 
 ### Sub-agent A: Extract core SELECT
 
@@ -259,12 +257,12 @@ Report:
 
 ## References
 
-- [references/sp-migration-ref.md](references/sp-migration-ref.md) — DML extraction and CTE restructuring rules (routes to `_shared/references/dialects/{dialect}/routine-migration-ref.md`)
+- [references/routine-migration-ref.md](references/routine-migration-ref.md) — dialect-routed DML extraction and CTE restructuring rules
 - [references/sub-agent-prompts.md](references/sub-agent-prompts.md) — Prompt templates for sub-agent A (extract core SELECT) and sub-agent B (refactor into CTEs)
 
 ## Schema discipline
 
-Use the canonical `/refactor` surfaced code list in [`../../lib/shared/refactor_error_codes.md`](../../lib/shared/refactor_error_codes.md). Do not define a competing public error-code list in this skill.
+Use the canonical `/refactor` surfaced code list in [`../../lib/shared/refactor_error_codes.md`](../../lib/shared/refactor_error_codes.md).
 
 ## Error handling
 

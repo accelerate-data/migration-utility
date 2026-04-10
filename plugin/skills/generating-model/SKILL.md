@@ -74,10 +74,7 @@ Return exactly one JSON object:
 }
 ```
 
-- Do not return markdown or prose outside the JSON object.
-- Do not ask the user to write or save files.
-- Do not ask the user for approval at any step in this skill.
-- Use only the canonical codes from [../../lib/shared/generate_model_error_codes.md](../../lib/shared/generate_model_error_codes.md) in `warnings[]` and `errors[]`.
+Return only this JSON object. Use codes from [../../lib/shared/generate_model_error_codes.md](../../lib/shared/generate_model_error_codes.md) in `warnings[]` and `errors[]`.
 
 ## Step 1: Assemble context
 
