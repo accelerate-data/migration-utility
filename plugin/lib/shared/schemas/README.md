@@ -87,7 +87,7 @@ Discover CLI output shapes are now enforced by Pydantic models in `output_models
 
 | Schema | Agent | Required fields |
 |---|---|---|
-| [model_generator_input.json](model_generator_input.json) | Model Generator | `schema_version`, `run_id`, `items[].item_id` |
+| _(deleted)_ | Model Generator | Replaced by `ModelGeneratorInput` Pydantic model in `output_models.py` |
 
 The profiler input contract is documented inline in `profiling-table/SKILL.md`. Shape: `{schema_version: "1.0", run_id: UUID, items: [{item_id: "<schema.table>", selected_writer: "<schema.proc>"}]}`.
 
@@ -102,6 +102,8 @@ The profiler input contract is documented inline in `profiling-table/SKILL.md`. 
 ## Skill output schemas
 
 Test spec and review output shapes (`TestSpec`, `TestSpecOutput`, `TestReviewOutput`) are enforced by Pydantic models in `output_models.py`. The JSON schema files have been removed.
+
+Model generation and review contracts (`ModelSweepOutput`, `ModelGeneratorInput`, `ModelGenerationHandoff`, `ModelGenerationOutput`, `ModelReviewOutput`) are enforced by Pydantic models in `output_models.py`. The JSON schema files have been removed.
 
 Profile context output shapes (`ProfileContext`, `ViewProfileContext`) are enforced by Pydantic models in `output_models.py`. The JSON schema files have been removed.
 
