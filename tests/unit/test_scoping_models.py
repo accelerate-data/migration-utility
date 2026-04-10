@@ -180,7 +180,7 @@ class TestScopingSummary:
                 ScopingResultItem(item_id="silver.dimdate", status="error"),
             ],
             summary=ScopingSummaryCounts(
-                total=2, resolved=1, ambiguous_multi_writer=0, no_writer_found=0, error=1,
+                total=2, resolved=1, ambiguous_multi_writer=0, no_writer_found=0, analyzed=0, error=1,
             ),
         )
         assert summary.schema_version == "1.0"
@@ -196,7 +196,7 @@ class TestScopingSummary:
             ],
             "summary": {
                 "total": 2, "resolved": 1,
-                "ambiguous_multi_writer": 0, "no_writer_found": 1, "error": 0,
+                "ambiguous_multi_writer": 0, "no_writer_found": 1, "analyzed": 0, "error": 0,
             },
         }
         summary = ScopingSummary.model_validate(data)
@@ -209,7 +209,7 @@ class TestScopingSummary:
                 run_id="x",
                 results=[],
                 summary=ScopingSummaryCounts(
-                    total=0, resolved=0, ambiguous_multi_writer=0, no_writer_found=0, error=0,
+                    total=0, resolved=0, ambiguous_multi_writer=0, no_writer_found=0, analyzed=0, error=0,
                 ),
             )
 
@@ -220,7 +220,7 @@ class TestScopingSummary:
                 run_id="x",
                 results=[],
                 summary=ScopingSummaryCounts(
-                    total=0, resolved=0, ambiguous_multi_writer=0, no_writer_found=0, error=0,
+                    total=0, resolved=0, ambiguous_multi_writer=0, no_writer_found=0, analyzed=0, error=0,
                 ),
                 extra_field="bad",
             )
@@ -229,13 +229,24 @@ class TestScopingSummary:
         with pytest.raises(ValidationError):
             ScopingSummary(schema_version="1.0", run_id="x")
 
+    def test_analyzed_status_for_views(self) -> None:
+        item = ScopingResultItem(item_id="silver.vw_test", status="analyzed")
+        assert item.status == "analyzed"
+
     def test_rejects_invalid_item_status(self) -> None:
         with pytest.raises(ValidationError, match="status"):
             ScopingResultItem(item_id="silver.t", status="unknown")
+
+    def test_summary_counts_with_analyzed(self) -> None:
+        counts = ScopingSummaryCounts(
+            total=3, resolved=1, ambiguous_multi_writer=0,
+            no_writer_found=0, analyzed=1, error=1,
+        )
+        assert counts.analyzed == 1
 
     def test_summary_counts_rejects_extra(self) -> None:
         with pytest.raises(ValidationError, match="extra_forbidden"):
             ScopingSummaryCounts(
                 total=1, resolved=1, ambiguous_multi_writer=0,
-                no_writer_found=0, error=0, partial=0,
+                no_writer_found=0, analyzed=0, error=0, partial=0,
             )

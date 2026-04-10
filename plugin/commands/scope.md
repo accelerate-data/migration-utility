@@ -143,7 +143,7 @@ Written to `.migration-runs/summary.<epoch>.json`:
     {"item_id": "silver.dimcurrency", "status": "resolved"},
     {"item_id": "silver.dimdate", "status": "error"}
   ],
-  "summary": {"total": 2, "resolved": 1, "ambiguous_multi_writer": 0, "no_writer_found": 0, "error": 1}
+  "summary": {"total": 2, "resolved": 1, "ambiguous_multi_writer": 0, "no_writer_found": 0, "analyzed": 0, "error": 1}
 }
 ```
 

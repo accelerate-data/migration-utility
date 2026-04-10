@@ -287,9 +287,13 @@ def run_view_context(project_root: Path, view_fqn: str) -> ViewProfileContext:
         functions=_build_enriched_ref_list(getattr(refby_bucket, "functions", None) if refby_bucket else None, "function"),
     )
 
-    # Build sql_elements as typed models
+    # Build sql_elements as typed models — catalog loads as catalog_models.SqlElement,
+    # convert to output_models.SqlElement via dict round-trip
     raw_elements = view_cat.scoping.sql_elements
-    sql_elements = [SqlElement.model_validate(e) for e in raw_elements] if raw_elements else None
+    sql_elements = [
+        SqlElement.model_validate(e.model_dump() if hasattr(e, "model_dump") else e)
+        for e in raw_elements
+    ] if raw_elements else None
 
     columns = [ViewColumnDef.model_validate(c) for c in view_cat.columns] if view_cat.is_materialized_view else []
 
