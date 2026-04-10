@@ -62,12 +62,33 @@ After the user confirms, invoke the CLI:
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-up
 ```
 
-The CLI auto-generates a random database name, creates the sandbox, and writes `sandbox.database` into `manifest.json`. Parse the JSON output and report:
+The CLI auto-generates a random database name, creates the sandbox, and writes `sandbox.database` into `manifest.json`. Contracts are enforced at runtime by Pydantic models in `../lib/shared/output_models.py`.
+
+`SandboxUpOutput` shape:
+
+```json
+{
+  "sandbox_database": "__test_abc123def456",
+  "status": "ok | partial | error",
+  "tables_cloned": ["dbo.Product"],
+  "views_cloned": ["dbo.vProduct"],
+  "procedures_cloned": ["dbo.usp_load"],
+  "errors": [{"code": "TABLE_CLONE_FAILED", "message": "..."}]
+}
+```
+
+Parse the JSON output and report:
 
 - Sandbox database name (persisted in manifest)
-- Number of tables cloned
+- Number of tables and views cloned
 - Number of procedures cloned
 - Any errors or warnings
+
+You can also check sandbox existence with `test-harness sandbox-status`. `SandboxStatusOutput` shape:
+
+```json
+{"sandbox_database": "__test_abc123def456", "status": "ok | not_found | error", "exists": true}
+```
 
 ## Step 5: Report
 
@@ -82,12 +103,6 @@ If there were errors, list them and recommend checking the source database conne
 | `test-harness sandbox-up` | 1 | Sandbox creation or schema cloning failed. Report errors from JSON output |
 | `test-harness sandbox-up` | 0 + `status: "partial"` | Some tables/procs failed to clone. Report which ones failed, sandbox is still usable |
 | `test-harness --help` | non-zero | CLI not installed. Tell user to run `uv sync` in the lib directory |
-
-Errors in JSON output use this format:
-
-```json
-{"code": "TABLE_CLONE_FAILED", "message": "Failed to clone [silver].[DimProduct]: ..."}
-```
 
 ## Idempotency
 

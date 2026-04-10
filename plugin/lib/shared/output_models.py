@@ -9,6 +9,8 @@ the contract and code must stay in sync.
 Replaces the JSON schemas that previously lived in ``schemas/``.
 """
 
+# NOTE: sandbox / test-harness models are at the bottom of this file.
+
 from __future__ import annotations
 
 from typing import Any, Literal
@@ -693,3 +695,94 @@ class CompareSqlOutput(BaseModel):
     passed: int
     failed: int
     results: list[CompareSqlScenario]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# sandbox / test-harness
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class ErrorEntry(BaseModel):
+    """Reusable error item for sandbox and test-harness outputs."""
+
+    model_config = _OUTPUT_CONFIG
+
+    code: str
+    message: str
+
+
+class SandboxUpOutput(BaseModel):
+    """Output of ``test-harness sandbox-up``.
+
+    Reports which objects were cloned into the sandbox database.
+    """
+
+    model_config = _OUTPUT_CONFIG
+
+    sandbox_database: str
+    status: Literal["ok", "partial", "error"]
+    tables_cloned: list[str]
+    views_cloned: list[str]
+    procedures_cloned: list[str]
+    errors: list[ErrorEntry]
+
+
+class SandboxDownOutput(BaseModel):
+    """Output of ``test-harness sandbox-down``."""
+
+    model_config = _OUTPUT_CONFIG
+
+    sandbox_database: str
+    status: Literal["ok", "error"]
+    errors: list[ErrorEntry] = Field(default_factory=list)
+
+
+class SandboxStatusOutput(BaseModel):
+    """Output of ``test-harness sandbox-status``."""
+
+    model_config = _OUTPUT_CONFIG
+
+    sandbox_database: str
+    status: Literal["ok", "not_found", "error"]
+    exists: bool
+    errors: list[ErrorEntry] = Field(default_factory=list)
+
+
+class TestHarnessExecuteOutput(BaseModel):  # noqa: N801 — "Test" prefix is domain name, not a test class
+    """Output of ``test-harness execute`` — ground truth from one scenario."""
+
+    __test__ = False  # prevent pytest collection
+
+    model_config = _OUTPUT_CONFIG
+
+    schema_version: Literal["1.0"] = "1.0"
+    scenario_name: str
+    status: Literal["ok", "error"]
+    ground_truth_rows: list[dict[str, Any]]
+    row_count: int = Field(ge=0)
+    errors: list[ErrorEntry]
+
+
+class ExecuteSpecResult(BaseModel):
+    """Per-scenario result within ``execute-spec`` output."""
+
+    model_config = _OUTPUT_CONFIG
+
+    scenario_name: str
+    status: Literal["ok", "error"]
+    row_count: int = Field(ge=0)
+    errors: list[ErrorEntry]
+
+
+class ExecuteSpecOutput(BaseModel):
+    """Output of ``test-harness execute-spec`` — bulk scenario results."""
+
+    model_config = _OUTPUT_CONFIG
+
+    schema_version: Literal["1.0"] = "1.0"
+    sandbox_database: str
+    spec_path: str
+    total: int = Field(ge=0)
+    ok: int = Field(ge=0)
+    failed: int = Field(ge=0)
+    results: list[ExecuteSpecResult]
