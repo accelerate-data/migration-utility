@@ -11,7 +11,7 @@
 // }
 const fs = require('fs');
 const path = require('path');
-const { validateSection, normalizeTerms } = require('./schema-helpers');
+const { normalizeTerms } = require('./schema-helpers');
 
 module.exports = (output, context) => {
   const fixturePath = context.vars.fixture_path;
@@ -57,12 +57,6 @@ module.exports = (output, context) => {
   }
 
   const scoping = catalog.scoping;
-
-  // Schema validation of the scoping section
-  const schemaResult = validateSection(scoping, 'table_catalog.json', 'properties/scoping');
-  if (!schemaResult.valid) {
-    return { pass: false, score: 0, reason: `Scoping section schema validation failed: ${schemaResult.errors}` };
-  }
 
   // Check scoping.status is in expected list
   if (expectedStatuses.length > 0) {

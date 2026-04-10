@@ -25,23 +25,20 @@ Assertions validate JSON artifacts against schemas in `plugin/lib/shared/schemas
 - `extractJsonObject(output)`
 - `normalizeTerms(value)`
 
-Catalog assertions use section-level validation because fixtures may contain pre-existing data outside the section under test.
+All output shape enforcement is handled by Pydantic models (`extra="forbid"`) in `output_models.py` and `catalog_models.py`. JSON Schema files and AJV validation have been removed. JS assertions now focus on cross-artifact consistency and expected-term matching only.
 
-Review assertions and standalone schemas use full-schema validation because the entire JSON is produced in one pass.
-
-| Assertion | Schema | Validation level |
-|---|---|---|
-| `check-table-scoping.js` | `table_catalog.json` | Section: `properties/scoping` |
-| `check-table-profile.js` | `table_catalog.json` | Section: `profile_section` ($defs) |
-| `check-procedure-catalog.js` | `procedure_catalog.json` | Section: `properties/statements` |
-| `check-test-spec.js` | `output_models.TestSpec` (Pydantic) | Runtime contract — JS validates cross-artifact consistency |
-| `check-model-review.js` | `model_review_output.json` | Full schema |
-| `check-test-review.js` | `output_models.TestReviewOutput` (Pydantic) | Runtime contract — JS validates cross-artifact consistency |
-| `check-command-summary.js` | `command_run_summary.json` | Full schema (when summary has `schema_version`) |
-| `check-status-output.js` | `output_models.DryRunOutput` (Pydantic) | Runtime contract — no JSON schema |
-| `check-refactored-sql.js` | `table_catalog.json` | Section: `properties/refactor` |
-| `check-model-generator-input.js` | `model_generator_input.json` | Full schema |
-| _(deleted)_ `validate-candidate-writers.js` | — | Removed (dead code; schema never existed) |
+| Assertion | What it checks |
+|---|---|
+| `check-table-scoping.js` | Scoping section structure, candidate writers, status values |
+| `check-table-profile.js` | Profile section structure, classification, writer match |
+| `check-procedure-catalog.js` | Statement entries, routing flags |
+| `check-test-spec.js` | Branch manifest, unit test scenarios, coverage |
+| `check-model-review.js` | Review checks, feedback items |
+| `check-test-review.js` | Coverage scoring, quality issues |
+| `check-command-summary.js` | Per-item statuses, total/ok/error counts |
+| `check-status-output.js` | Stage statuses, recommendations |
+| `check-refactored-sql.js` | Refactor section, extracted/refactored SQL |
+| `check-model-generator-input.js` | Generator input manifest fields |
 
 ### Cross-Artifact Consistency Checks
 

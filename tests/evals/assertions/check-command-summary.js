@@ -15,7 +15,7 @@
 // }
 const fs = require('fs');
 const path = require('path');
-const { validateSchema, normalizeTerms } = require('./schema-helpers');
+const { normalizeTerms } = require('./schema-helpers');
 
 /**
  * Find all per-item result JSON files in .migration-runs/ matching a table FQN.
@@ -104,17 +104,6 @@ module.exports = (output, context) => {
 
   // Try to read summary file (matches summary.json or summary.<epoch>.json)
   let summary = findSummary(migrationsDir);
-
-  // Schema validation when summary exists. Treat summary schema as best-effort:
-  // if it is stale or partial, continue validating via per-item artifacts.
-  if (summary) {
-    if (summary.schema_version && summary.results) {
-      const schemaResult = validateSchema(summary, 'command_run_summary.json');
-      if (!schemaResult.valid) {
-        summary = null;
-      }
-    }
-  }
 
   // Summary count checks (best-effort)
   if (summary) {

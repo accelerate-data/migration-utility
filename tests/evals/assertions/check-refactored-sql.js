@@ -13,7 +13,7 @@
 // }
 const fs = require('fs');
 const path = require('path');
-const { normalizeTerms, validateSection } = require('./schema-helpers');
+const { normalizeTerms } = require('./schema-helpers');
 
 function findWriteKeyword(sqlText) {
   const patterns = [
@@ -112,14 +112,6 @@ module.exports = (output, context) => {
       return { pass: true, score: 0.7, reason: 'Both SQL blocks found in output text (refactor section not written to catalog)' };
     }
     return { pass: false, score: 0, reason: 'No refactor section in catalog' };
-  }
-
-  // Schema validation of the refactor section
-  const schemaResult = table
-    ? validateSection(refactor, 'table_catalog.json', 'properties/refactor')
-    : validateSection(refactor, 'view_catalog.json', 'properties/refactor');
-  if (!schemaResult.valid) {
-    return { pass: false, score: 0, reason: `Refactor section schema validation failed: ${schemaResult.errors}` };
   }
 
   if (!refactor.semantic_review) {

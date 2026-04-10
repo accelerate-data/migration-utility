@@ -25,18 +25,17 @@ from shared.init import (
 
 
 class TestScaffoldProject:
-    def test_creates_all_files_in_empty_dir(self, tmp_path: Path, assert_valid_schema) -> None:
+    def test_creates_all_files_in_empty_dir(self, tmp_path: Path) -> None:
         config = get_source_config("sql_server")
         result = run_scaffold_project(tmp_path)
-        assert_valid_schema(result, "init_scaffold_project_output.json")
-        assert "CLAUDE.md" in result["files_created"]
-        assert "README.md" in result["files_created"]
-        assert "repo-map.json" in result["files_created"]
-        assert ".gitignore" in result["files_created"]
-        assert ".envrc" in result["files_created"]
-        assert ".claude/rules/git-workflow.md" in result["files_created"]
-        assert result["files_updated"] == []
-        assert result["files_skipped"] == []
+        assert "CLAUDE.md" in result.files_created
+        assert "README.md" in result.files_created
+        assert "repo-map.json" in result.files_created
+        assert ".gitignore" in result.files_created
+        assert ".envrc" in result.files_created
+        assert ".claude/rules/git-workflow.md" in result.files_created
+        assert result.files_updated == []
+        assert result.files_skipped == []
 
         # Verify file contents match sql_server templates
         assert (tmp_path / "CLAUDE.md").read_text() == config.claude_md_fn()
@@ -53,14 +52,14 @@ class TestScaffoldProject:
     def test_idempotent_skips_existing_files(self, tmp_path: Path) -> None:
         run_scaffold_project(tmp_path)
         result = run_scaffold_project(tmp_path)
-        assert result["files_created"] == []
-        assert result["files_updated"] == []
-        assert len(result["files_skipped"]) == 6
+        assert result.files_created == []
+        assert result.files_updated == []
+        assert len(result.files_skipped) == 6
 
     def test_merges_missing_gitignore_entries(self, tmp_path: Path) -> None:
         (tmp_path / ".gitignore").write_text("# Custom\n.DS_Store\n")
         result = run_scaffold_project(tmp_path)
-        updated = [f for f in result["files_updated"] if f.startswith(".gitignore")]
+        updated = [f for f in result.files_updated if f.startswith(".gitignore")]
         assert len(updated) == 1
         content = (tmp_path / ".gitignore").read_text()
         assert "# Custom" in content
@@ -70,7 +69,7 @@ class TestScaffoldProject:
     def test_reports_missing_claude_md_sections(self, tmp_path: Path) -> None:
         (tmp_path / "CLAUDE.md").write_text("# Project\n\n## Domain\n\nSome domain info.\n")
         result = run_scaffold_project(tmp_path)
-        skipped = [f for f in result["files_skipped"] if f.startswith("CLAUDE.md")]
+        skipped = [f for f in result.files_skipped if f.startswith("CLAUDE.md")]
         assert len(skipped) == 1
         assert "missing sections" in skipped[0]
 
@@ -78,7 +77,7 @@ class TestScaffoldProject:
         config = get_source_config("sql_server")
         (tmp_path / "CLAUDE.md").write_text(config.claude_md_fn())
         result = run_scaffold_project(tmp_path)
-        assert "CLAUDE.md" in result["files_skipped"]
+        assert "CLAUDE.md" in result.files_skipped
 
 
 # ── scaffold-project (oracle) ───────────────────────────────────────────────
@@ -87,8 +86,8 @@ class TestScaffoldProject:
 class TestScaffoldProjectOracle:
     def test_creates_oracle_files(self, tmp_path: Path) -> None:
         result = run_scaffold_project(tmp_path, technology="oracle")
-        assert "CLAUDE.md" in result["files_created"]
-        assert ".envrc" in result["files_created"]
+        assert "CLAUDE.md" in result.files_created
+        assert ".envrc" in result.files_created
 
         # Oracle-specific content
         envrc = (tmp_path / ".envrc").read_text()
@@ -122,12 +121,11 @@ class TestScaffoldProjectOracle:
 
 
 class TestScaffoldHooks:
-    def test_creates_pre_commit_hook(self, tmp_path: Path, assert_valid_schema) -> None:
+    def test_creates_pre_commit_hook(self, tmp_path: Path) -> None:
         subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
         result = run_scaffold_hooks(tmp_path)
-        assert_valid_schema(result, "init_scaffold_hooks_output.json")
-        assert result["hook_created"] is True
-        assert result["hooks_path_configured"] is True
+        assert result.hook_created is True
+        assert result.hooks_path_configured is True
 
         hook_path = tmp_path / ".githooks" / "pre-commit"
         assert hook_path.exists()
@@ -138,13 +136,13 @@ class TestScaffoldHooks:
         subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
         run_scaffold_hooks(tmp_path)
         result = run_scaffold_hooks(tmp_path)
-        assert result["hook_created"] is False
-        assert result["hooks_path_configured"] is True
+        assert result.hook_created is False
+        assert result.hooks_path_configured is True
 
     def test_no_git_repo_still_creates_hook(self, tmp_path: Path) -> None:
         result = run_scaffold_hooks(tmp_path)
-        assert result["hook_created"] is True
-        assert result["hooks_path_configured"] is False
+        assert result.hook_created is True
+        assert result.hooks_path_configured is False
         assert (tmp_path / ".githooks" / "pre-commit").exists()
 
     def test_oracle_hook_blocks_oracle_creds(self, tmp_path: Path) -> None:

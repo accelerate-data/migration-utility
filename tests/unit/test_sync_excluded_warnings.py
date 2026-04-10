@@ -9,8 +9,6 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
-from typing import Any
-
 import pytest
 
 from shared.dry_run import run_sync_excluded_warnings, app as dry_run_app
@@ -73,14 +71,16 @@ def test_no_op_when_nothing_excluded(tmp_path: Path) -> None:
     _make_table(tmp_path, "silver.dimdate")
     _make_table(tmp_path, "silver.factsales")
     result = run_sync_excluded_warnings(tmp_path)
-    assert result == {"warnings_written": 0, "warnings_cleared": 0}
+    assert result.warnings_written == 0
+    assert result.warnings_cleared == 0
 
 
 def test_no_op_on_empty_catalog(tmp_path: Path) -> None:
     """Returns zero written/cleared when catalog directories are empty."""
     (tmp_path / "catalog" / "tables").mkdir(parents=True)
     result = run_sync_excluded_warnings(tmp_path)
-    assert result == {"warnings_written": 0, "warnings_cleared": 0}
+    assert result.warnings_written == 0
+    assert result.warnings_cleared == 0
 
 
 # ── Writing warnings ─────────────────────────────────────────────────────────
@@ -93,7 +93,7 @@ def test_no_warning_when_active_table_has_no_deps(tmp_path: Path) -> None:
 
     result = run_sync_excluded_warnings(tmp_path)
     # Active table has no deps (no writer proc) → no EXCLUDED_DEP warning
-    assert result["warnings_written"] == 0
+    assert result.warnings_written == 0
     active_data = _read(active_path)
     assert not any(
         w.get("code") == "EXCLUDED_DEP"
@@ -125,7 +125,7 @@ def test_clears_stale_warning_when_nothing_excluded(tmp_path: Path) -> None:
     }])
     # No excluded objects in the catalog at all
     result = run_sync_excluded_warnings(tmp_path)
-    assert result["warnings_cleared"] == 1
+    assert result.warnings_cleared == 1
     data = _read(active_path)
     assert not any(w.get("code") == "EXCLUDED_DEP" for w in data.get("warnings", []))
 
@@ -158,26 +158,8 @@ def test_no_write_when_no_stale_warnings_and_no_excluded(tmp_path: Path) -> None
     ])
     mtime_before = active_path.stat().st_mtime
     result = run_sync_excluded_warnings(tmp_path)
-    assert result["warnings_cleared"] == 0
+    assert result.warnings_cleared == 0
     assert active_path.stat().st_mtime == mtime_before
-
-
-# ── Output schema ─────────────────────────────────────────────────────────────
-
-
-def test_output_schema(tmp_path: Path, assert_valid_schema: Any) -> None:
-    """run_sync_excluded_warnings output conforms to sync_excluded_warnings_output.json schema."""
-    _make_table(tmp_path, "silver.dimdate")
-    result = run_sync_excluded_warnings(tmp_path)
-    assert_valid_schema(result, "sync_excluded_warnings_output.json")
-
-
-def test_output_schema_with_excluded(tmp_path: Path, assert_valid_schema: Any) -> None:
-    """Output schema valid when excluded objects exist."""
-    _make_table(tmp_path, "silver.excluded_source", excluded=True)
-    _make_table(tmp_path, "silver.active")
-    result = run_sync_excluded_warnings(tmp_path)
-    assert_valid_schema(result, "sync_excluded_warnings_output.json")
 
 
 # ── CLI subcommand ─────────────────────────────────────────────────────────────

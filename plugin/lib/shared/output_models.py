@@ -1,12 +1,11 @@
 """Pydantic v2 models for CLI command output contracts.
 
-These models enforce the shape of JSON emitted by ``run_*`` functions in
-``discover.py``, ``dry_run.py``, ``batch_plan.py``, ``profile.py``,
-``refactor.py``, and ``test_harness.py``.
-All models use ``extra="forbid"`` so unexpected fields raise immediately —
-the contract and code must stay in sync.
+These models enforce the shape of JSON emitted by ``run_*`` functions across
+all CLI modules.  All models use ``extra="forbid"`` so unexpected fields raise
+immediately — the contract and code must stay in sync.
 
-Replaces the JSON schemas that previously lived in ``schemas/``.
+Single source of truth for all output shapes (replaces the JSON schemas that
+previously lived in ``schemas/``).
 """
 
 # NOTE: sandbox / test-harness models are at the bottom of this file.
@@ -1191,3 +1190,133 @@ class ModelReviewOutput(BaseModel):
     acknowledgements: dict[str, str] | None = None
     warnings: list[DiagnosticsEntry] = Field(default_factory=list)
     errors: list[DiagnosticsEntry] = Field(default_factory=list)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# init (scaffold)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class ScaffoldProjectOutput(BaseModel):
+    """Output of ``init scaffold-project``."""
+
+    model_config = _OUTPUT_CONFIG
+
+    files_created: list[str]
+    files_updated: list[str]
+    files_skipped: list[str]
+
+
+class ScaffoldHooksOutput(BaseModel):
+    """Output of ``init scaffold-hooks``."""
+
+    model_config = _OUTPUT_CONFIG
+
+    hook_created: bool
+    hooks_path_configured: bool
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# migrate (context + write)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class MigrateContextOutput(BaseModel):
+    """Output of ``migrate context``."""
+
+    model_config = _OUTPUT_CONFIG
+
+    table: str
+    writer: str
+    needs_llm: bool
+    profile: dict[str, Any]
+    materialization: Literal["table", "incremental", "snapshot"]
+    statements: list[dict[str, Any]]
+    proc_body: str
+    columns: list[Any]
+    source_tables: list[str]
+    source_columns: dict[str, list[Any]]
+    schema_tests: dict[str, Any]
+    refactored_sql: str | None = None
+
+
+class MigrateWriteOutput(BaseModel):
+    """Output of ``migrate write``."""
+
+    model_config = _OUTPUT_CONFIG
+
+    written: list[str]
+    status: Literal["ok"]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# sync-excluded-warnings
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class SyncExcludedWarningsOutput(BaseModel):
+    """Output of ``migrate-util sync-excluded-warnings``."""
+
+    model_config = _OUTPUT_CONFIG
+
+    warnings_written: int = Field(ge=0)
+    warnings_cleared: int = Field(ge=0)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# generate-sources
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class GenerateSourcesOutput(BaseModel):
+    """Output of ``generate-sources`` and ``write-sources-yml``."""
+
+    model_config = _OUTPUT_CONFIG
+
+    sources: dict[str, Any] | None = None
+    included: list[str]
+    excluded: list[str]
+    unconfirmed: list[str]
+    incomplete: list[str]
+    path: str | None = None
+    error: str | None = None
+    message: str | None = None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# catalog-writer (write-source, write-slice)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class WriteSourceOutput(BaseModel):
+    """Output of ``discover write-source``."""
+
+    model_config = _OUTPUT_CONFIG
+
+    written: str
+    is_source: bool
+    status: Literal["ok"]
+
+
+class WriteSliceOutput(BaseModel):
+    """Output of ``discover write-slice``."""
+
+    model_config = _OUTPUT_CONFIG
+
+    written: str
+    status: Literal["ok"]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# catalog-enrich
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class CatalogEnrichOutput(BaseModel):
+    """Output of ``catalog-enrich``."""
+
+    model_config = _OUTPUT_CONFIG
+
+    tables_augmented: int = Field(ge=0)
+    procedures_augmented: int = Field(ge=0)
+    entries_added: int = Field(ge=0)

@@ -17,6 +17,8 @@ from typing import Any, Optional
 
 import typer
 
+from shared.output_models import CatalogEnrichOutput
+
 from shared.catalog import (
     ensure_referenced_by,
     ensure_references,
@@ -291,7 +293,7 @@ def _flip_to_table_catalogs(
     return tables_augmented
 
 
-def enrich_catalog(project_root: Path, dialect: str = "tsql") -> dict[str, Any]:
+def enrich_catalog(project_root: Path, dialect: str = "tsql") -> CatalogEnrichOutput:
     """Enrich catalog files with AST-derived references.
 
     Args:
@@ -305,7 +307,7 @@ def enrich_catalog(project_root: Path, dialect: str = "tsql") -> dict[str, Any]:
 
     if not has_catalog(project_root):
         logger.warning("event=enrich_catalog status=skip reason=no_catalog path=%s", project_root)
-        return {"tables_augmented": 0, "procedures_augmented": 0, "entries_added": 0}
+        return CatalogEnrichOutput(tables_augmented=0, procedures_augmented=0, entries_added=0)
 
     ddl_catalog = load_directory(project_root, dialect=dialect)
 
@@ -314,11 +316,11 @@ def enrich_catalog(project_root: Path, dialect: str = "tsql") -> dict[str, Any]:
     procedures_augmented, entries_added = _augment_proc_catalogs(project_root, direct_writers, indirect_writers)
     tables_augmented = _flip_to_table_catalogs(project_root, procedures_augmented)
 
-    summary = {
-        "tables_augmented": len(tables_augmented),
-        "procedures_augmented": len(procedures_augmented),
-        "entries_added": entries_added,
-    }
+    summary = CatalogEnrichOutput(
+        tables_augmented=len(tables_augmented),
+        procedures_augmented=len(procedures_augmented),
+        entries_added=entries_added,
+    )
     logger.info("event=enrich_catalog_complete %s", summary)
     return summary
 
@@ -346,7 +348,7 @@ def main(
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         dialect = manifest["dialect"]
     result = enrich_catalog(project_root, dialect)
-    json.dump(result, sys.stdout, indent=2)
+    json.dump(result.model_dump(mode="json", exclude_none=True), sys.stdout, indent=2)
     print(file=sys.stdout)  # trailing newline
 
 

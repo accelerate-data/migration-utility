@@ -44,6 +44,7 @@ from shared.output_models import (
     StageStatuses,
     StatusOutput,
     StatusSummary,
+    SyncExcludedWarningsOutput,
 )
 
 import typer
@@ -430,7 +431,7 @@ def run_exclude(project_root: Path, fqns: list[str]) -> ExcludeOutput:
     return ExcludeOutput(marked=marked, not_found=not_found)
 
 
-def run_sync_excluded_warnings(project_root: Path) -> dict[str, Any]:
+def run_sync_excluded_warnings(project_root: Path) -> SyncExcludedWarningsOutput:
     """Write or clear EXCLUDED_DEP warnings on active catalog objects.
 
     For every active (non-excluded) table and view, checks whether any of its
@@ -442,7 +443,7 @@ def run_sync_excluded_warnings(project_root: Path) -> dict[str, Any]:
     Full replacement of ``warnings[]`` is idempotent — matches the pattern
     used by the diagnostics runner.
 
-    Returns a dict matching schemas/sync_excluded_warnings_output.json.
+    Returns a SyncExcludedWarningsOutput.
     """
     catalog_dir = project_root / "catalog"
     table_dir = catalog_dir / "tables"
@@ -482,7 +483,7 @@ def run_sync_excluded_warnings(project_root: Path) -> dict[str, Any]:
                 data["warnings"] = cleaned
                 write_json(catalog_path, data)
                 warnings_cleared += len(existing_warnings) - len(cleaned)
-        return {"warnings_written": warnings_written, "warnings_cleared": warnings_cleared}
+        return SyncExcludedWarningsOutput(warnings_written=warnings_written, warnings_cleared=warnings_cleared)
 
     # ── Determine all_fqns (active only, for dep graph) ────────────────────
     active_entries = [(fqn, bucket) for fqn, bucket in all_entries if fqn not in excluded_fqns]
@@ -538,7 +539,7 @@ def run_sync_excluded_warnings(project_root: Path) -> dict[str, Any]:
                 fqn,
             )
 
-    return {"warnings_written": warnings_written, "warnings_cleared": warnings_cleared}
+    return SyncExcludedWarningsOutput(warnings_written=warnings_written, warnings_cleared=warnings_cleared)
 
 
 @app.command("exclude")
@@ -574,7 +575,7 @@ def sync_excluded_warnings_cmd(
     """Write or clear EXCLUDED_DEP warnings on active catalog objects.
 
     Idempotent — safe to run on every /status invocation.
-    Output matches schemas/sync_excluded_warnings_output.json.
+    Output contract: output_models.SyncExcludedWarningsOutput.
     """
     try:
         root = resolve_project_root(project_root)

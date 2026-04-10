@@ -319,14 +319,13 @@ GO
 # ── Tests ───────────────────────────────────────────────────────────────────
 
 
-def test_enrich_detects_select_into(tmp_path: Path, assert_valid_schema) -> None:
+def test_enrich_detects_select_into(tmp_path: Path) -> None:
     """Proc with SELECT INTO — AST should detect target table DMF missed."""
     ddl = _setup_select_into(tmp_path)
     result = enrich_catalog(ddl)
-    assert_valid_schema(result, "catalog_enrich_output.json")
 
-    assert result["procedures_augmented"] >= 1
-    assert result["entries_added"] >= 1
+    assert result.procedures_augmented >= 1
+    assert result.entries_added >= 1
 
     # Proc catalog should now have silver.Snapshot as a write target
     proc_data = _read_catalog_json(ddl, "procedures", "dbo.usp_create_snapshot")
@@ -357,8 +356,8 @@ def test_enrich_detects_exec_chain(tmp_path: Path) -> None:
     ddl = _setup_exec_chain(tmp_path)
     result = enrich_catalog(ddl)
 
-    assert result["procedures_augmented"] >= 1
-    assert result["entries_added"] >= 1
+    assert result.procedures_augmented >= 1
+    assert result.entries_added >= 1
 
 
 def test_augment_proc_catalogs_skips_missing_catalog_on_second_load(
@@ -395,7 +394,7 @@ def test_enrich_preserves_catalog_query_entries(tmp_path: Path) -> None:
     result = enrich_catalog(ddl)
 
     # Nothing should be added — DMF already captured everything
-    assert result["entries_added"] == 0
+    assert result.entries_added == 0
 
     # Proc catalog should be unchanged (no detection field on DMF entries)
     proc_data = _read_catalog_json(ddl, "procedures", "dbo.usp_simple_insert")
@@ -410,14 +409,14 @@ def test_enrich_idempotent(tmp_path: Path) -> None:
     ddl = _setup_select_into(tmp_path)
 
     result1 = enrich_catalog(ddl)
-    assert result1["entries_added"] >= 1
+    assert result1.entries_added >= 1
 
     # Snapshot after first run
     proc_after_1 = _read_catalog_json(ddl, "procedures", "dbo.usp_create_snapshot")
     table_after_1 = _read_catalog_json(ddl, "tables", "silver.snapshot")
 
     result2 = enrich_catalog(ddl)
-    assert result2["entries_added"] == 0
+    assert result2.entries_added == 0
 
     # Data should be identical
     proc_after_2 = _read_catalog_json(ddl, "procedures", "dbo.usp_create_snapshot")
@@ -433,7 +432,7 @@ def test_enrich_dynamic_sql_not_augmented(tmp_path: Path) -> None:
 
     # The proc body has no parseable write statements (it is all dynamic SQL),
     # so AST enrichment should not add any table references.
-    assert result["entries_added"] == 0
+    assert result.entries_added == 0
 
     proc_data = _read_catalog_json(ddl, "procedures", "dbo.usp_dynamic")
     assert proc_data is not None
@@ -484,7 +483,7 @@ def test_enrich_skips_corrupt_proc_catalog(tmp_path: Path) -> None:
     (ddl / "manifest.json").write_text('{"dialect":"tsql"}', encoding="utf-8")
 
     result = enrich_catalog(ddl)
-    assert result["procedures_augmented"] == 1  # only usp_valid was enriched; usp_corrupt was skipped
+    assert result.procedures_augmented == 1  # only usp_valid was enriched; usp_corrupt was skipped
 
 
 def test_enrich_skips_corrupt_table_catalog(tmp_path: Path) -> None:
@@ -514,7 +513,7 @@ def test_enrich_skips_corrupt_table_catalog(tmp_path: Path) -> None:
 
     # Should complete without error — corrupt table catalog is skipped in flip phase
     result = enrich_catalog(ddl)
-    assert result["procedures_augmented"] >= 0
+    assert result.procedures_augmented >= 0
 
 
 def test_enrich_partial_corruption_enriches_valid(tmp_path: Path) -> None:
@@ -554,7 +553,7 @@ def test_enrich_partial_corruption_enriches_valid(tmp_path: Path) -> None:
 
     result = enrich_catalog(ddl)
     # The valid proc should still be processed despite the corrupt one
-    assert result["procedures_augmented"] >= 1
+    assert result.procedures_augmented >= 1
 
 
 # ── View classification via object_types ─────────────────────────────────────

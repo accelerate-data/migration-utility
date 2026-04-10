@@ -14,7 +14,7 @@
 // }
 const fs = require('fs');
 const path = require('path');
-const { validateSection, normalizeTerms } = require('./schema-helpers');
+const { normalizeTerms } = require('./schema-helpers');
 
 module.exports = (output, context) => {
   const fixturePath = context.vars.fixture_path;
@@ -48,12 +48,6 @@ module.exports = (output, context) => {
   }
 
   const profile = catalog.profile;
-
-  // Schema validation of the profile section (validates enums, required fields, and structure)
-  const schemaResult = validateSection(profile, 'table_catalog.json', 'profile_section');
-  if (!schemaResult.valid) {
-    return { pass: false, score: 0, reason: `Profile section schema validation failed: ${schemaResult.errors}` };
-  }
 
   if (expectedStatus) {
     const validStatuses = normalizeTerms(expectedStatus);

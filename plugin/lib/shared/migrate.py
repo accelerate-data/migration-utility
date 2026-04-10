@@ -25,6 +25,8 @@ from typing import Any, Optional
 
 import typer
 
+from shared.output_models import MigrateContextOutput, MigrateWriteOutput
+
 from shared.catalog import (
     has_catalog,
     load_and_merge_catalog,
@@ -178,7 +180,7 @@ def run_context(
     project_root: Path,
     table_fqn: str,
     writer_fqn: str | None = None,
-) -> dict[str, Any]:
+) -> MigrateContextOutput:
     """Assemble migration context for a single table/writer pair.
 
     If *writer_fqn* is not provided, reads ``scoping.selected_writer``
@@ -209,20 +211,20 @@ def run_context(
     schema_tests = derive_schema_tests(profile)
     refactored_sql = _load_refactored_sql(project_root, table_norm)
 
-    return {
-        "table": table_norm,
-        "writer": writer_norm,
-        "needs_llm": needs_llm,
-        "profile": profile.model_dump(by_alias=True, exclude_none=True) if hasattr(profile, "model_dump") else profile,
-        "materialization": materialization,
-        "statements": statements,
-        "proc_body": proc_body,
-        "columns": columns,
-        "source_tables": source_tables,
-        "source_columns": source_columns,
-        "schema_tests": schema_tests,
-        "refactored_sql": refactored_sql,
-    }
+    return MigrateContextOutput(
+        table=table_norm,
+        writer=writer_norm,
+        needs_llm=needs_llm,
+        profile=profile.model_dump(by_alias=True, exclude_none=True) if hasattr(profile, "model_dump") else profile,
+        materialization=materialization,
+        statements=statements,
+        proc_body=proc_body,
+        columns=columns,
+        source_tables=source_tables,
+        source_columns=source_columns,
+        schema_tests=schema_tests,
+        refactored_sql=refactored_sql,
+    )
 
 
 # ── Write artifacts ───────────────────────────────────────────────────────────
@@ -245,7 +247,7 @@ def run_write(
     dbt_project_path: Path,
     model_sql: str,
     schema_yml: str,
-) -> dict[str, Any]:
+) -> MigrateWriteOutput:
     """Validate and write model SQL + schema YAML to a dbt project.
 
     Returns ``{"written": [...], "status": "ok"}``.
@@ -282,7 +284,7 @@ def run_write(
         _atomic_write(yml_path, schema_yml)
         written.append(str(yml_path.relative_to(dbt_project_path)))
 
-    return {"written": written, "status": "ok"}
+    return MigrateWriteOutput(written=written, status="ok")
 
 
 # ── CLI commands ──────────────────────────────────────────────────────────────

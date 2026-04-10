@@ -24,6 +24,7 @@ import typer
 import yaml
 
 from shared.cli_utils import emit
+from shared.output_models import GenerateSourcesOutput
 from shared.env_config import (
     resolve_catalog_dir,
     resolve_dbt_project_path,
@@ -35,7 +36,7 @@ logger = logging.getLogger(__name__)
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
 
-def generate_sources(project_root: Path) -> dict[str, Any]:
+def generate_sources(project_root: Path) -> GenerateSourcesOutput:
     """Build sources.yml content from catalog tables.
 
     Only tables with ``is_source: true`` are included. Tables with
@@ -55,13 +56,13 @@ def generate_sources(project_root: Path) -> dict[str, Any]:
     tables_dir = catalog_dir / "tables"
 
     if not tables_dir.is_dir():
-        return {
-            "sources": None,
-            "included": [],
-            "excluded": [],
-            "unconfirmed": [],
-            "incomplete": [],
-        }
+        return GenerateSourcesOutput(
+            sources=None,
+            included=[],
+            excluded=[],
+            unconfirmed=[],
+            incomplete=[],
+        )
 
     included: list[str] = []
     excluded: list[str] = []
@@ -101,13 +102,13 @@ def generate_sources(project_root: Path) -> dict[str, Any]:
             incomplete.append(fqn)
 
     if not sources_by_schema:
-        return {
-            "sources": None,
-            "included": included,
-            "excluded": excluded,
-            "unconfirmed": unconfirmed,
-            "incomplete": incomplete,
-        }
+        return GenerateSourcesOutput(
+            sources=None,
+            included=included,
+            excluded=excluded,
+            unconfirmed=unconfirmed,
+            incomplete=incomplete,
+        )
 
     source_entries = []
     for schema_name in sorted(sources_by_schema):
@@ -123,16 +124,16 @@ def generate_sources(project_root: Path) -> dict[str, Any]:
 
     sources_dict: dict[str, Any] = {"version": 2, "sources": source_entries}
 
-    return {
-        "sources": sources_dict,
-        "included": included,
-        "excluded": excluded,
-        "unconfirmed": unconfirmed,
-        "incomplete": incomplete,
-    }
+    return GenerateSourcesOutput(
+        sources=sources_dict,
+        included=included,
+        excluded=excluded,
+        unconfirmed=unconfirmed,
+        incomplete=incomplete,
+    )
 
 
-def write_sources_yml(project_root: Path) -> dict[str, Any]:
+def write_sources_yml(project_root: Path) -> GenerateSourcesOutput:
     """Generate sources.yml and write it to the dbt project.
 
     Returns the generate_sources result dict with an added ``path`` field.
@@ -141,22 +142,20 @@ def write_sources_yml(project_root: Path) -> dict[str, Any]:
     dbt_root = resolve_dbt_project_path(project_root)
     sources_path = dbt_root / "models" / "staging" / "sources.yml"
 
-    if result["sources"] is None:
-        result["path"] = None
-        return result
+    if result.sources is None:
+        return result.model_copy(update={"path": None})
 
     sources_path.parent.mkdir(parents=True, exist_ok=True)
     with sources_path.open("w", encoding="utf-8") as f:
         yaml.dump(
-            result["sources"],
+            result.sources,
             f,
             default_flow_style=False,
             sort_keys=False,
             allow_unicode=True,
         )
 
-    result["path"] = str(sources_path)
-    return result
+    return result.model_copy(update={"path": str(sources_path)})
 
 
 @app.command()
@@ -194,11 +193,11 @@ def main(
         emit({"error": "IO_ERROR", "message": str(exc)})
         raise typer.Exit(code=2) from exc
 
-    if strict and result["incomplete"]:
+    if strict and result.incomplete:
         emit({
             "error": "INCOMPLETE_SCOPING",
-            "message": f"{len(result['incomplete'])} tables have incomplete scoping",
-            "incomplete": result["incomplete"],
+            "message": f"{len(result.incomplete)} tables have incomplete scoping",
+            "incomplete": result.incomplete,
         })
         raise typer.Exit(code=1)
 

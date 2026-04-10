@@ -503,21 +503,20 @@ def _add_source_table(root: Path, schema: str, name: str) -> None:
     )
 
 
-def test_generate_sources_only_includes_is_source_true(assert_valid_schema) -> None:
+def test_generate_sources_only_includes_is_source_true() -> None:
     """Only tables with is_source: true are included in sources."""
     tmp, root = _make_project()
     with tmp:
         _add_source_table(root, "bronze", "CustomerRaw")
 
         result = gen_src.generate_sources(root)
-        assert_valid_schema(result, "generate_sources_output.json")
-        assert "bronze.customerraw" in result["included"]
-        assert "silver.refcurrency" not in result["included"]
-        assert "silver.refcurrency" in result["unconfirmed"]
-        assert "silver.dimcustomer" in result["excluded"]
-        assert result["incomplete"] == []
-        assert result["sources"] is not None
-        schema_names = [s["name"] for s in result["sources"]["sources"]]
+        assert "bronze.customerraw" in result.included
+        assert "silver.refcurrency" not in result.included
+        assert "silver.refcurrency" in result.unconfirmed
+        assert "silver.dimcustomer" in result.excluded
+        assert result.incomplete == []
+        assert result.sources is not None
+        schema_names = [s["name"] for s in result.sources["sources"]]
         assert "bronze" in schema_names
         assert "silver" not in schema_names
 
@@ -527,10 +526,10 @@ def test_generate_sources_excludes_resolved_tables() -> None:
     tmp, root = _make_project()
     with tmp:
         result = gen_src.generate_sources(root)
-        assert "silver.dimcustomer" in result["excluded"]
-        assert "silver.refcurrency" in result["unconfirmed"]
-        assert "silver.refcurrency" not in result["included"]
-        assert result["sources"] is None
+        assert "silver.dimcustomer" in result.excluded
+        assert "silver.refcurrency" in result.unconfirmed
+        assert "silver.refcurrency" not in result.included
+        assert result.sources is None
 
 
 def test_generate_sources_detects_incomplete_scoping() -> None:
@@ -539,7 +538,7 @@ def test_generate_sources_detects_incomplete_scoping() -> None:
     with tmp:
         _add_table_to_project(root, "silver.DimDate")
         result = gen_src.generate_sources(root)
-        assert "silver.dimdate" in result["incomplete"]
+        assert "silver.dimdate" in result.incomplete
 
 
 def test_generate_sources_mixed_statuses() -> None:
@@ -551,11 +550,11 @@ def test_generate_sources_mixed_statuses() -> None:
         _add_table_to_project(root, "silver.DimDate")
 
         result = gen_src.generate_sources(root)
-        assert sorted(result["included"]) == ["bronze.customerraw", "bronze.orderraw"]
-        assert result["excluded"] == ["silver.dimcustomer"]
-        assert result["unconfirmed"] == ["silver.refcurrency"]
-        assert result["incomplete"] == ["silver.dimdate"]
-        schema_names = {s["name"] for s in result["sources"]["sources"]}
+        assert sorted(result.included) == ["bronze.customerraw", "bronze.orderraw"]
+        assert result.excluded == ["silver.dimcustomer"]
+        assert result.unconfirmed == ["silver.refcurrency"]
+        assert result.incomplete == ["silver.dimdate"]
+        schema_names = {s["name"] for s in result.sources["sources"]}
         assert "bronze" in schema_names
         assert "silver" not in schema_names
 
@@ -567,10 +566,10 @@ def test_generate_sources_empty_catalog() -> None:
         for f in (root / "catalog" / "tables").glob("*.json"):
             f.unlink()
         result = gen_src.generate_sources(root)
-        assert result["sources"] is None
-        assert result["included"] == []
-        assert result["excluded"] == []
-        assert result["incomplete"] == []
+        assert result.sources is None
+        assert result.included == []
+        assert result.excluded == []
+        assert result.incomplete == []
 
 
 def test_generate_sources_multiple_schemas() -> None:
@@ -581,7 +580,7 @@ def test_generate_sources_multiple_schemas() -> None:
         _add_source_table(root, "staging", "LookupRegion")
 
         result = gen_src.generate_sources(root)
-        schema_names = sorted(s["name"] for s in result["sources"]["sources"])
+        schema_names = sorted(s["name"] for s in result.sources["sources"])
         assert "bronze" in schema_names
         assert "staging" in schema_names
         assert "silver" not in schema_names
@@ -595,8 +594,8 @@ def test_write_sources_yml() -> None:
     with tmp:
         _add_source_table(root, "bronze", "CustomerRaw")
         result = gen_src.write_sources_yml(root)
-        assert result["path"] is not None
-        sources_path = Path(result["path"])
+        assert result.path is not None
+        sources_path = Path(result.path)
         assert sources_path.exists()
         content = yaml.safe_load(sources_path.read_text(encoding="utf-8"))
         assert content["version"] == 2
@@ -610,8 +609,8 @@ def test_write_sources_yml_no_confirmed_sources() -> None:
     tmp, root = _make_project()
     with tmp:
         result = gen_src.write_sources_yml(root)
-        assert result["path"] is None
-        assert result["sources"] is None
+        assert result.path is None
+        assert result.sources is None
 
 
 def test_cli_generate_sources() -> None:

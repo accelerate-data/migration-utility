@@ -185,37 +185,36 @@ class TestDeriveSchemaTests:
 class TestRunContext:
     """Context assembly from catalog + DDL."""
 
-    def test_full_context_all_fields_present(self, ddl_path: Path, assert_valid_schema) -> None:
+    def test_full_context_all_fields_present(self, ddl_path: Path) -> None:
         result = run_context(ddl_path, "silver.FactSales", "dbo.usp_load_fact_sales")
-        assert_valid_schema(result, "migrate_context_output.json")
 
-        assert result["table"] == "silver.factsales"
-        assert result["writer"] == "dbo.usp_load_fact_sales"
-        assert result["needs_llm"] is False
-        assert result["profile"]["classification"]["resolved_kind"] == "fact_transaction"
-        assert result["materialization"] == "incremental"
-        assert len(result["statements"]) >= 1
-        assert result["statements"][0]["action"] == "migrate"
-        assert "proc_body" in result
-        assert len(result["proc_body"]) > 0
-        assert isinstance(result["columns"], list)
-        assert isinstance(result["source_tables"], list)
-        assert "bronze.sales" in result["source_tables"]
-        assert "schema_tests" in result
-        assert "refactored_sql" in result
-        assert len(result["refactored_sql"]) > 0
+        assert result.table == "silver.factsales"
+        assert result.writer == "dbo.usp_load_fact_sales"
+        assert result.needs_llm is False
+        assert result.profile["classification"]["resolved_kind"] == "fact_transaction"
+        assert result.materialization == "incremental"
+        assert len(result.statements) >= 1
+        assert result.statements[0]["action"] == "migrate"
+        assert result.proc_body is not None
+        assert len(result.proc_body) > 0
+        assert isinstance(result.columns, list)
+        assert isinstance(result.source_tables, list)
+        assert "bronze.sales" in result.source_tables
+        assert result.schema_tests is not None
+        assert result.refactored_sql is not None
+        assert len(result.refactored_sql) > 0
 
     def test_dim_scd2_materialization_snapshot(self, ddl_path: Path) -> None:
         result = run_context(ddl_path, "silver.DimCustomer", "dbo.usp_load_dim_customer")
-        assert result["materialization"] == "snapshot"
+        assert result.materialization == "snapshot"
 
     def test_no_watermark_materialization_table(self, ddl_path: Path) -> None:
         result = run_context(ddl_path, "silver.DimProduct", "dbo.usp_load_dim_product")
-        assert result["materialization"] == "table"
+        assert result.materialization == "table"
 
     def test_schema_tests_pk_unique_not_null(self, ddl_path: Path) -> None:
         result = run_context(ddl_path, "silver.FactSales", "dbo.usp_load_fact_sales")
-        tests = result["schema_tests"]
+        tests = result.schema_tests
         assert "entity_integrity" in tests
         ei = tests["entity_integrity"]
         assert any(t["column"] == "sale_id" for t in ei)
@@ -225,20 +224,20 @@ class TestRunContext:
 
     def test_schema_tests_fk_relationships(self, ddl_path: Path) -> None:
         result = run_context(ddl_path, "silver.FactSales", "dbo.usp_load_fact_sales")
-        tests = result["schema_tests"]
+        tests = result.schema_tests
         assert "referential_integrity" in tests
         ri = tests["referential_integrity"]
         assert any(t["column"] == "customer_sk" for t in ri)
 
     def test_schema_tests_recency_when_incremental(self, ddl_path: Path) -> None:
         result = run_context(ddl_path, "silver.FactSales", "dbo.usp_load_fact_sales")
-        tests = result["schema_tests"]
+        tests = result.schema_tests
         assert "recency" in tests
         assert tests["recency"]["column"] == "load_date"
 
     def test_schema_tests_pii_meta(self, ddl_path: Path) -> None:
         result = run_context(ddl_path, "silver.DimCustomer", "dbo.usp_load_dim_customer")
-        tests = result["schema_tests"]
+        tests = result.schema_tests
         assert "pii" in tests
         assert any(p["column"] == "email" for p in tests["pii"])
 
@@ -260,7 +259,7 @@ class TestRunContext:
         cat_path.write_text(json.dumps(data))
 
         result = run_context(ddl_path, "silver.FactSales", "dbo.usp_load_fact_sales")
-        assert result["statements"] == []
+        assert result.statements == []
 
     def test_truncate_insert_context_includes_skip_and_migrate_statements(self, ddl_path: Path) -> None:
         _seed_migrate_fixture(
@@ -341,9 +340,9 @@ END
 
         result = run_context(ddl_path, "silver.dimcurrency", "dbo.usp_load_dim_currency")
 
-        assert result["needs_llm"] is False
-        assert result["materialization"] == "table"
-        assert [stmt["action"] for stmt in result["statements"]] == ["skip", "migrate"]
+        assert result.needs_llm is False
+        assert result.materialization == "table"
+        assert [stmt["action"] for stmt in result.statements] == ["skip", "migrate"]
 
     def test_exec_only_orchestrator_context_allows_empty_statements(self, ddl_path: Path) -> None:
         _seed_migrate_fixture(
@@ -411,9 +410,9 @@ END
 
         result = run_context(ddl_path, "silver.factorders", "dbo.usp_load_fact_orders")
 
-        assert result["needs_llm"] is False
-        assert result["statements"] == []
-        assert result["source_tables"] == []
+        assert result.needs_llm is False
+        assert result.statements == []
+        assert result.source_tables == []
 
     def test_dynamic_sp_executesql_context_needs_llm(self, ddl_path: Path) -> None:
         _seed_migrate_fixture(
@@ -481,8 +480,8 @@ END
 
         result = run_context(ddl_path, "silver.dimgeography", "dbo.usp_load_dim_geography")
 
-        assert result["needs_llm"] is True
-        assert result["statements"] == []
+        assert result.needs_llm is True
+        assert result.statements == []
 
     def test_source_columns_populated_from_view_catalog(self, ddl_path: Path) -> None:
         """When a source is a view, source_columns falls back to catalog/views/<fqn>.json."""
@@ -546,9 +545,9 @@ END
             ddl_path, "silver.factcurrencyrate", "dbo.usp_load_fact_currency_rate"
         )
 
-        assert "source_columns" in result
-        assert "silver.vw_currency" in result["source_columns"]
-        assert result["source_columns"]["silver.vw_currency"] == view_columns
+        assert result.source_columns is not None
+        assert "silver.vw_currency" in result.source_columns
+        assert result.source_columns["silver.vw_currency"] == view_columns
 
 
 class TestRunContextViewSources:
@@ -625,21 +624,21 @@ class TestRunContextViewSources:
 
         result = run_context(ddl_path, "silver.DimCustomer", "dbo.usp_load_from_view")
 
-        assert "silver.vw_customer_360" in result["source_tables"]
-        assert "source_columns" in result
-        assert "silver.vw_customer_360" in result["source_columns"]
-        view_cols = result["source_columns"]["silver.vw_customer_360"]
+        assert "silver.vw_customer_360" in result.source_tables
+        assert result.source_columns is not None
+        assert "silver.vw_customer_360" in result.source_columns
+        view_cols = result.source_columns["silver.vw_customer_360"]
         assert len(view_cols) == 2
         assert view_cols[0]["name"] == "customer_id"
 
     def test_source_columns_has_entry_per_source(self, ddl_path: Path) -> None:
         """source_columns has an entry for every source, even without catalog."""
         result = run_context(ddl_path, "silver.DimProduct", "dbo.usp_load_dim_product")
-        assert "source_columns" in result
-        assert "bronze.product" in result["source_tables"]
+        assert result.source_columns is not None
+        assert "bronze.product" in result.source_tables
         # Every source_table has an entry in source_columns (may be empty)
-        for fqn in result["source_tables"]:
-            assert fqn in result["source_columns"]
+        for fqn in result.source_tables:
+            assert fqn in result.source_columns
 
 
 # ── run_write ─────────────────────────────────────────────────────────────────
@@ -648,7 +647,7 @@ class TestRunContextViewSources:
 class TestRunWrite:
     """Artifact writing to dbt project."""
 
-    def test_write_valid_sql_and_yml(self, dbt_project: Path, assert_valid_schema) -> None:
+    def test_write_valid_sql_and_yml(self, dbt_project: Path) -> None:
         model_sql = "select 1 as id"
         schema_yml = "version: 2\nmodels:\n  - name: stg_factsales\n"
 
@@ -659,10 +658,9 @@ class TestRunWrite:
             model_sql,
             schema_yml,
         )
-        assert_valid_schema(result, "migrate_write_output.json")
 
-        assert result["status"] == "ok"
-        assert len(result["written"]) == 2
+        assert result.status == "ok"
+        assert len(result.written) == 2
         assert (dbt_project / "models" / "staging" / "stg_factsales.sql").exists()
         assert (dbt_project / "models" / "staging" / "_stg_factsales.yml").exists()
 
@@ -675,8 +673,8 @@ class TestRunWrite:
             "",
         )
 
-        assert result["status"] == "ok"
-        assert len(result["written"]) == 1
+        assert result.status == "ok"
+        assert len(result.written) == 1
         assert (dbt_project / "models" / "staging" / "stg_factsales.sql").exists()
 
     def test_write_empty_sql_raises(self, dbt_project: Path) -> None:
@@ -717,7 +715,7 @@ class TestRunWrite:
         (dbt / "dbt_project.yml").write_text("name: test\n")
 
         result = run_write("silver.FactSales", Path("/tmp"), dbt, "select 1", "")
-        assert result["status"] == "ok"
+        assert result.status == "ok"
         assert (dbt / "models" / "staging" / "stg_factsales.sql").exists()
 
     def test_write_nonexistent_project_exits_2(self, tmp_path: Path) -> None:
@@ -773,7 +771,7 @@ def test_write_does_not_read_catalog(tmp_path: Path) -> None:
     (dbt / "dbt_project.yml").write_text("name: test\nversion: '1.0.0'\nconfig-version: 2\n")
     (dbt / "models" / "staging").mkdir(parents=True)
     result = run_write("silver.FactSales", Path("/tmp"), dbt, "select 1", "")
-    assert result["status"] == "ok"
+    assert result.status == "ok"
 
 
 # ── _load_refactored_sql ──────────────────────────────────────────────────────
