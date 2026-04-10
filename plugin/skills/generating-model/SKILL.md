@@ -1,7 +1,7 @@
 ---
 name: generating-model
 description: >
-  Generates a dbt model from a stored procedure. Requires catalog profile,
+  Generates a dbt model from a source routine. Requires catalog profile,
   resolved statements from prior discover + profile stages, and an approved
   test spec from the test-generation stage.
 user-invocable: false
@@ -101,47 +101,7 @@ Produce the model SQL from the `refactored_sql`. Apply [sql-style.md](../_shared
 
 **Source table references:** All source table references use `{{ source('<schema>', '<table>') }}` directly in import CTEs. Do not generate separate `stg_*.sql` files.
 
-The full CTE chain (import → logical → final) stays inline in a single model file:
-
-```sql
-{{ config(
-    materialized='<materialization>'
-) }}
-
-with <source_table> as (
-    select * from {{ source('<schema>', '<table>') }}
-),
-
-<logical_cte> as (
-    ...
-),
-
-final as (
-    ...
-)
-
-select * from final
-```
-
-For incremental models, add the watermark to the config:
-
-```sql
-{{ config(
-    materialized='incremental',
-    unique_key='<pk_column>',
-    incremental_strategy='merge'
-) }}
-```
-
-And add the incremental filter in the appropriate logical CTE:
-
-```sql
-{% if is_incremental() %}
-where <watermark_column> > (select max(<watermark_column>) from {{ this }})
-{% endif %}
-```
-
-For snapshot models, follow the rules in [references/snapshot-generation.md](references/snapshot-generation.md) for file placement, strategy selection, and config templates.
+Follow the import → logical → final CTE pattern from cte-structure.md. For incremental models, add `unique_key` and `incremental_strategy='merge'` to the config, and add the watermark filter in the appropriate logical CTE. For snapshot models, follow [references/snapshot-generation.md](references/snapshot-generation.md).
 
 ## Step 3: Logical equivalence check
 
@@ -159,7 +119,7 @@ Compare the generated model against `refactored_sql`. Check each of these:
 For each check:
 
 - **Match**: proceed silently
-- **Intentional divergence** (e.g., T-SQL `ISNULL` replaced with `COALESCE`): note as informational
+- **Intentional divergence** (e.g., dialect-specific functions replaced with ANSI equivalents (e.g. `ISNULL` → `COALESCE`, `NVL` → `COALESCE`)): note as informational
 - **Semantic gap** (missing join, different grain, dropped column): record an `EQUIVALENCE_GAP` warning
 
 If warnings exist, record them in the item result and continue.
@@ -170,33 +130,7 @@ Apply [yaml-style.md](../_shared/references/yaml-style.md) (indentation, `versio
 
 ### 4a — Schema tests
 
-Render `schema_tests` from context into the `columns:` section of the schema YAML:
-
-```yaml
-version: 2
-
-models:
-  - name: <model_name>
-    description: "Migrated from <writer_fqn>. Target: <table_fqn>."
-    columns:
-      - name: <pk_column>
-        description: "Primary key"
-        data_tests:
-          - unique
-          - not_null
-      - name: <fk_column>
-        description: "Foreign key to <ref_table>"
-        data_tests:
-          - relationships:
-              to: ref('<ref_model>')
-              field: <ref_column>
-      - name: <pii_column>
-        meta:
-          contains_pii: true
-          pii_action: <action>
-```
-
-Include `recency` test for incremental models if watermark is present.
+Render `schema_tests` from context into the `columns:` section following yaml-style.md. Include `unique` and `not_null` for PK columns, `relationships` for FK columns, PII `meta` tags, and `recency` for incremental models with watermark.
 
 ### 4b — Render test-spec unit tests
 
@@ -299,7 +233,7 @@ Analyze the generated model's logic for branches not covered by existing test-sp
 
 - JOIN conditions with no matching/non-matching test case
 - CASE/WHEN arms not exercised
-- NULL handling paths (COALESCE, ISNULL replacements)
+- NULL handling paths (dialect-specific function replacements)
 - Incremental filter (`is_incremental()`) boundary cases
 - Empty source table edge cases
 

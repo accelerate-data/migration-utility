@@ -114,24 +114,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
 
 Do not include `status` in the scoping dict.
 
-The scoping JSON shape:
-
-```json
-{
-  "sql_elements": [
-    {"type": "join", "detail": "INNER JOIN bronze.person"},
-    {"type": "aggregation", "detail": "COUNT"}
-  ],
-  "call_tree": {
-    "reads_from": ["bronze.customer", "bronze.person"],
-    "views_referenced": []
-  },
-  "logic_summary": "...",
-  "rationale": "...",
-  "warnings": [],
-  "errors": []
-}
-```
+Shape must match `view_catalog.json#/properties/scoping`. Required fields: `sql_elements`, `call_tree`, `logic_summary`, `rationale`, `warnings`, `errors`.
 
 Include `VIEW_DEPENDS_ON_VIEWS` in `warnings` if applicable.
 
@@ -176,9 +159,9 @@ Read `catalog/tables/<table>.json` and present the column list:
 ```text
 silver.DimCustomer (table, 3 columns)
 
-  CustomerKey   BIGINT       NOT NULL
-  FirstName     NVARCHAR(50) NULL
-  Region        NVARCHAR(50) NULL
+  CustomerKey   INTEGER      NOT NULL
+  FirstName     VARCHAR(50)  NULL
+  Region        VARCHAR(50)  NULL
 ```
 
 ### Step 2 -- Discover writer candidates
@@ -308,10 +291,6 @@ The table scoping JSON shape:
         "views": [],
         "functions": []
       }
-    },
-    {
-      "procedure_name": "silver.usp_load_dimcustomer_delta",
-      "rationale": "Incremental MERGE writer; supplementary rather than primary."
     }
   ],
   "warnings": [],
@@ -321,34 +300,14 @@ The table scoping JSON shape:
 
 For multi-writer cases, every entry in `candidates` must use `procedure_name` and `rationale`. `dependencies` is optional. Do not use legacy fields such as `procedure`, `write_type`, or `selected`.
 
-For unsupported external delegate cases, the scoping JSON should look like:
-
-```json
-{
-  "selected_writer_rationale": "The only discovered writer delegates through a linked-server or cross-database EXEC, which is out of scope for this migration project.",
-  "candidates": [
-    {
-      "procedure_name": "silver.usp_scope_linkedserverexec",
-      "rationale": "Delegates to an external procedure through EXEC and is not a migratable writer candidate."
-    }
-  ],
-  "warnings": [],
-  "errors": [
-    {
-      "code": "REMOTE_EXEC_UNSUPPORTED",
-      "message": "Writer delegates through linked-server or cross-database EXEC, which is out of scope.",
-      "severity": "error"
-    }
-  ]
-}
-```
+For unsupported external delegate cases: omit `selected_writer`, explain in `selected_writer_rationale`, add `REMOTE_EXEC_UNSUPPORTED` to `errors[]`.
 
 After `discover write-scoping` succeeds, present the persisted result to the user.
 
 ## References
 
 - [references/procedure-analysis.md](references/procedure-analysis.md) — six-step deep-dive pipeline: fetch, classify, call graph, logic summary, migration guidance, persist
-- [references/tsql-parse-classification.md](references/tsql-parse-classification.md) — LLM fallback classification tables for migrate/skip statements, control flow, and dynamic SQL
+- Statement classification: read the dialect-appropriate file via [references/tsql-parse-classification.md](references/tsql-parse-classification.md) (routes to `_shared/references/dialects/{dialect}/statement-classification.md`)
 - [`../../lib/shared/scope_error_codes.md`](../../lib/shared/scope_error_codes.md) — canonical `/scope` statuses and surfaced error/warning codes
 
 ## Error handling

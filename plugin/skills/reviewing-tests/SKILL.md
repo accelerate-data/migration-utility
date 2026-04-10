@@ -3,7 +3,7 @@ name: reviewing-tests
 description: >
   Reviews test generation output for coverage and quality. Independently
   enumerates branches, scores coverage, and reviews fixture quality.
-  Handles both stored procedure (table) and view test specs.
+  Handles both source routine (table) and view test specs.
   Invoked by the /generate-tests command, not directly by the user.
 user-invocable: false
 context: fork
@@ -11,6 +11,8 @@ argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 ---
 
 # Reviewing Tests
+
+Quality gate for test generation output — independently enumerates branches, scores coverage, and reviews fixture quality.
 
 ## Arguments
 
@@ -141,17 +143,17 @@ Compute coverage:
 - **uncovered**: list of branch objects (`id`, `description`) that have zero mapped scenarios and are not untestable.
 - **untestable**: list of branch objects (`id`, `description`, `rationale`) that cannot be tested with static fixtures.
 
-A branch is **untestable** when it depends on runtime state that static fixtures cannot reproduce: `GETDATE()`/`SYSDATETIME()` comparisons, dynamic SQL with variable table/column targets, external service calls, or non-deterministic functions. Each untestable classification requires a `rationale`.
+A branch is **untestable** when it depends on runtime state that static fixtures cannot reproduce: non-deterministic date/time functions (`GETDATE()`, `SYSDATE`, `now()`, etc.), dynamic SQL with variable table/column targets, external service calls, or non-deterministic functions. Each untestable classification requires a `rationale`.
 
 ## Step 5: Review fixture quality
 
 For each test scenario in `unit_tests[]`, assess these dimensions:
 
-- **Fixture realism:** Are synthetic values type-appropriate and reasonable? Flag unrealistic values like negative prices, future dates for historical data, or strings in numeric fields.
-- **Scenario isolation:** Does each scenario test one branch clearly, or are multiple branches tangled in a way that makes failure diagnosis ambiguous?
-- **FK consistency:** Do foreign key values in fixture rows align across source tables within each scenario? A row referencing `customer_key = 42` in the fact table should have a matching `customer_key = 42` in the dimension fixture.
+- **Fixture realism:** Are synthetic values type-appropriate and reasonable?
+- **Scenario isolation:** Does each scenario test one branch clearly?
+- **FK consistency:** Do foreign key values in fixture rows align across source tables within each scenario?
 - **Edge cases:** Are boundary values present where appropriate (NULLs, empty strings, MAX values, zero-row inputs)?
-- **NOT NULL completeness:** For every source table in `given[]`, load the catalog column list from `source_tables` in the context output. Check that every column where `is_nullable` is false and `is_identity` is false appears in `rows[0]`. Missing NOT NULL columns will cause SQL Server INSERT failures at execution time. Severity: `error` (not warning — these always fail).
+- **NOT NULL completeness:** For every source table in `given[]`, load the catalog column list from `source_tables` in the context output. Check that every column where `is_nullable` is false and `is_identity` is false appears in `rows[0]`. Severity: `error` (not warning — these always fail).
 
 Record each issue with the scenario name, a description of the concern, and a severity (`warning` or `error`).
 
@@ -190,13 +192,13 @@ rm -rf .staging
 Test reviewer must not:
 
 - Generate or modify fixture data
-- Execute stored procedures
+- Execute source routines
 - Write to `test-specs/` — only the test generator writes there
 - Write review result files
 - Ask permission to write review result files
 - Ask whether the provided `--project-root` fixture path exists or should be created
 - Make migration or profiling decisions
-- Override the test generator's ground truth output (captured proc results are facts)
+- Override the test generator's ground truth output (captured execution results are facts)
 
 ## Error handling
 

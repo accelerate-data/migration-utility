@@ -2,29 +2,24 @@
 name: reviewing-model
 description: >
   Reviews generated dbt model for standards compliance and correctness relative
-  to the original proc. Invoked by the /generate-model command after dbt tests
+  to the original source routine. Invoked by the /generate-model command after dbt tests
   pass, not directly by FDE.
 context: fork
 user-invocable: false
 argument-hint: "<schema.table>"
 ---
 
-# Review Model
+# Reviewing Model
 
-Quality gate for model generation output. Reviews the generated dbt model SQL and schema YAML for standards compliance and correctness against the original proc context. Issues a verdict: approve or kick back with specific fixes.
+Quality gate for model generation output. Reviews the generated dbt model SQL and schema YAML for standards compliance and correctness against the original source routine context. Issues a verdict: approve or kick back with specific fixes.
 
 ## Arguments
 
 `$ARGUMENTS` is the fully-qualified table name (the `item_id`). Ask the caller if missing.
 
-## Before invoking
-
-Review the generated model artifacts already present on disk. Validate
-prerequisites through `migrate context`, and model file discovery.
-
 ## Step 1: Assemble context
 
-Run the deterministic context assembly CLI:
+Review the generated model artifacts already present on disk. Run the deterministic context assembly CLI:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate context \
@@ -33,7 +28,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate context \
 
 Read the output JSON. It contains:
 
-- `proc_body` — full original procedure SQL (use this as the ground truth for correctness checks)
+- `proc_body` — full original source SQL (use this as the ground truth for correctness checks)
 - `statements` — resolved statement list with action and SQL
 - `profile` — classification, keys, watermark, PII answers
 - `materialization` — derived materialization
@@ -41,11 +36,7 @@ Read the output JSON. It contains:
 - `source_tables` — tables read by the writer
 - `refactored_sql` — intermediate refactored SQL (present but **not used** — see below)
 
-Also read:
-
-- The generated model SQL and schema YAML from the dbt project.
-
-Model file discovery rules:
+Also read the generated model SQL and schema YAML from the dbt project using these discovery rules:
 
 - Review the generated dbt files that already exist under `dbt/models/`.
 - Check both `dbt/models/staging/` and `dbt/models/marts/`.
@@ -56,17 +47,17 @@ Model file discovery rules:
 - Return `MODEL_NOT_FOUND` only when no generated model SQL file for the target
   object exists anywhere under `dbt/models/`.
 
-Do NOT use `refactored_sql`. It is an intermediate artifact produced by the refactor stage. The reviewer validates the generated dbt model directly against the original proc DDL (`proc_body`). Ground truth is always the original proc.
+Do NOT use `refactored_sql`. It is an intermediate artifact produced by the refactor stage. The reviewer validates the generated dbt model directly against the original source DDL (`proc_body`). Ground truth is always the original source routine.
 
 ## Step 2: Check correctness
 
-Compare the generated model against `proc_body` (the original proc DDL). This is the primary check.
+Compare the generated model against `proc_body` (the original source DDL). This is the primary check.
 
 | Check | What to verify |
 |---|---|
 | Source tables | All `source_tables` from context are referenced in the model |
 | Column completeness | All target `columns` from context are selected in the final CTE |
-| Join semantics | JOIN types and conditions match the original proc |
+| Join semantics | JOIN types and conditions match the original source routine |
 | Filter predicates | WHERE/HAVING clauses preserved |
 | Aggregation | GROUP BY grain matches |
 | MERGE semantics | Incremental config correctly implements MERGE logic |
@@ -106,101 +97,48 @@ After kicking back, the model-generator revises the model, re-runs `dbt test` to
 
 ## Output schema (ModelReviewResult)
 
-Return exactly one JSON object matching this shape. Do not wrap the JSON
-in markdown, headings, summaries, or follow-up questions.
-
-Emit the following JSON structure as the skill's output:
+Return exactly one JSON object matching this shape. Do not wrap the JSON in markdown, headings, summaries, or follow-up questions.
 
 ```json
 {
   "item_id": "silver.dimproduct",
   "status": "approved|revision_requested|approved_with_warnings|error",
   "checks": {
-    "standards": {
-      "passed": true,
-      "issues": []
-    },
+    "standards": { "passed": true, "issues": [] },
     "correctness": {
       "passed": false,
       "issues": [
         {
-          "code": "MISSING_SOURCE_TABLE",
-          "message": "bronze.product_category referenced in proc but not in model import CTEs",
+          "code": "MISSING_SOURCE_TABLE",                              // diagnostics: error|warning only
+          "message": "bronze.product_category referenced in source routine but not in model import CTEs",
           "severity": "error"
         }
       ]
     }
   },
   "feedback_for_model_generator": [
-    {
-      "code": "SQL_001",
-      "message": "Keywords should be lowercase — found uppercase SELECT on line 4",
-      "severity": "error",
-      "ack_required": true
-    },
-    {
-      "code": "CTE_002",
-      "message": "Final CTE must be named 'final' — currently named 'output'",
-      "severity": "error",
-      "ack_required": true
-    },
-    {
-      "code": "SQL_013",
-      "message": "Line 12 exceeds 80 characters",
-      "severity": "info",
-      "ack_required": false
-    }
+    { "code": "SQL_001",  "message": "Keywords should be lowercase — found uppercase SELECT on line 4",
+      "severity": "error", "ack_required": true },                     // error/warning → ack_required: true
+    { "code": "CTE_002",  "message": "Final CTE must be named 'final' — currently named 'output'",
+      "severity": "error", "ack_required": true },
+    { "code": "SQL_013",  "message": "Line 12 exceeds 80 characters",
+      "severity": "info",  "ack_required": false }                     // info → ack_required: false
   ],
-  "acknowledgements": {
+  "acknowledgements": {                                                // present on resubmission only
     "SQL_001": "fixed",
     "CTE_002": "ignored: legacy naming convention required by downstream tool"
   },
-  "warnings": [],
-  "errors": []
+  "warnings": [],                                                      // diagnostics: error|warning only
+  "errors": []                                                         // diagnostics: error|warning only
 }
 ```
 
-`checks.*.issues[]`, `warnings[]`, and `errors[]` use the shared diagnostics schema:
+Severity and acknowledgement rules:
 
-```json
-{
-  "code": "STABLE_MACHINE_READABLE_CODE",
-  "message": "Human-readable description of the diagnostic.",
-  "item_id": "silver.dimproduct",
-  "severity": "error|warning",
-  "details": {}
-}
-```
-
-These diagnostics entries may use only these severities:
-
-- `error`
-- `warning`
-
-Use `severity: "info"` only in `feedback_for_model_generator`. Do not place
-`info` entries in `checks.*.issues[]`, `warnings[]`, or `errors[]`.
-
-`feedback_for_model_generator` items use this schema:
-
-```json
-{
-  "code": "SQL_001",
-  "message": "Human-readable description with specific location where possible",
-  "severity": "error|warning|info",
-  "ack_required": true
-}
-```
-
-`ack_required` is `true` for `error` and `warning` severity; `false` for `info` severity.
-
-Use `feedback_for_model_generator` for informational style guidance that should
-not appear in diagnostics entries.
-
-`acknowledgements` is present on resubmission only — a flat map of `{ "<code>": "fixed" | "ignored: <reason>" }`.
-
-All `code` values in `warnings[]` and `errors[]` must come from
-`../../lib/shared/generate_model_error_codes.md`. Stable standards codes in
-`feedback_for_model_generator` must come from the referenced standards files.
+- `checks.*.issues[]`, `warnings[]`, and `errors[]` use only `error` or `warning` severity. Never place `info` entries in these arrays.
+- `feedback_for_model_generator` may use `error`, `warning`, or `info`. Set `ack_required: true` for `error`/`warning`, `false` for `info`.
+- `acknowledgements` is a flat map of `{ "<code>": "fixed" | "ignored: <reason>" }`, present on resubmission only.
+- All `code` values in `warnings[]` and `errors[]` must come from `../../lib/shared/generate_model_error_codes.md`. Stable standards codes in `feedback_for_model_generator` must come from the referenced standards files.
 
 ## References
 
@@ -221,7 +159,7 @@ Reviewing-model must not:
 - Ask permission to write review result files
 - Ask whether the provided `--project-root` fixture path exists or should be created
 - Override profile decisions (classification, materialization, keys)
-- Override ground truth (captured proc output is fact)
+- Override ground truth (captured execution output is fact)
 
 ## Error handling
 

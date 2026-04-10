@@ -1,7 +1,7 @@
 ---
 name: refactoring-sql
 description: >
-  Refactors raw T-SQL stored procedure SQL into an import/logical/final CTE
+  Refactors raw source SQL from a stored procedure or view into an import/logical/final CTE
   pattern. Uses two isolated sub-agents to avoid context pollution: one extracts
   the core SELECT from the proc, the other restructures it into CTEs. Proves
   equivalence via semantic review and, when available, sandbox execution. Invoke
@@ -12,6 +12,8 @@ argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 ---
 
 # Refactoring SQL
+
+Refactor source SQL into an import/logical/final CTE pattern using isolated sub-agents, with semantic review and optional sandbox equivalence audit.
 
 ## Arguments
 
@@ -125,82 +127,13 @@ The prompt templates below use angle-bracket placeholders (`<proc_body>`, `<stat
 
 ### Sub-agent A: Extract core SELECT
 
-Launch a sub-agent with this prompt. For tables, include `proc_body`, `statements`, and `columns` (or `writer_ddl_slice` if present). For views, include `view_sql` and `columns` in place of `proc_body`/`statements`.
-
-```text
-You are extracting the core transformation logic from a T-SQL stored procedure
-as a pure SELECT statement.
-
-Read the references/sp-migration-ref.md reference for extraction rules per DML type.
-
-Procedure body:
-<proc_body>
-
-Resolved statements (action=migrate only):
-<statements>
-
-Target table columns:
-<columns>
-
-Instructions:
-1. Identify the DML pattern(s) in the migrate statements (INSERT...SELECT, MERGE,
-   UPDATE, DELETE, temp table chains, cursor loops, dynamic SQL)
-2. Apply the extraction rules from references/sp-migration-ref.md for each pattern
-3. Produce a single pure T-SQL SELECT statement that returns exactly the rows
-   and columns the procedure would write to the target table
-4. Keep T-SQL syntax (ISNULL, CONVERT, etc.) -- no dialect conversion
-5. Replace procedure parameters with literal defaults where possible
-
-Return ONLY the extracted SELECT SQL, nothing else.
-```
+Launch a sub-agent using the prompt template in [references/sub-agent-prompts.md -- Sub-agent A](references/sub-agent-prompts.md). For tables, include `proc_body`, `statements`, and `columns` (or `writer_ddl_slice` if present). For views, include `view_sql` and `columns` in place of `proc_body`/`statements`.
 
 The sub-agent writes the result to `.staging/<table_fqn>-extracted.sql`.
 
 ### Sub-agent B: Refactor into CTEs
 
-Launch a sub-agent with this prompt. For tables, include `proc_body`, `statements`, `columns`, `source_tables`, and `profile` (or `writer_ddl_slice` if present). For views, include `view_sql`, `columns`, and `source_tables` in place of `proc_body`/`statements`.
-
-```text
-You are restructuring a T-SQL stored procedure into a clean CTE-based SELECT
-following the import/logical/final CTE pattern.
-
-Procedure body:
-<proc_body>
-
-Resolved statements (action=migrate only):
-<statements>
-
-Target table columns:
-<columns>
-
-Source tables:
-<source_tables>
-
-Profile:
-<profile>
-
-Instructions:
-1. Analyse the procedure's data flow: source tables read, transformations applied,
-   target table written
-2. Restructure into import CTE -> logical CTE -> final CTE pattern:
-
-   Import CTEs: One per source table. SELECT * (or needed columns) from the
-   bracket-quoted table reference. Name descriptively after the source.
-
-   Logical CTEs: One transformation step per CTE. Each does one thing: join,
-   filter, aggregate, or transform. Names describe the transformation.
-
-   Final CTE: Assembles the final column list matching the target table.
-
-3. End with: SELECT * FROM final
-4. Keep T-SQL syntax (ISNULL, CONVERT, etc.) -- no dialect conversion
-5. Replace procedure parameters with literal defaults where possible
-6. Flatten nested subqueries into sequential CTEs
-7. Temp tables become logical CTEs
-8. Cursor loops become set-based operations (window functions, JOINs)
-
-Return ONLY the refactored CTE SELECT SQL, nothing else.
-```
+Launch a sub-agent using the prompt template in [references/sub-agent-prompts.md -- Sub-agent B](references/sub-agent-prompts.md). For tables, include `proc_body`, `statements`, `columns`, `source_tables`, and `profile` (or `writer_ddl_slice` if present). For views, include `view_sql`, `columns`, and `source_tables` in place of `proc_body`/`statements`.
 
 The sub-agent writes the result to `.staging/<table_fqn>-refactored.sql`.
 
@@ -326,7 +259,8 @@ Report:
 
 ## References
 
-- [references/sp-migration-ref.md](references/sp-migration-ref.md) — DML extraction rules per statement type (INSERT, MERGE, UPDATE, etc.) and CTE restructuring patterns for sub-agents A and B
+- [references/sp-migration-ref.md](references/sp-migration-ref.md) — DML extraction and CTE restructuring rules (routes to `_shared/references/dialects/{dialect}/routine-migration-ref.md`)
+- [references/sub-agent-prompts.md](references/sub-agent-prompts.md) — Prompt templates for sub-agent A (extract core SELECT) and sub-agent B (refactor into CTEs)
 
 ## Schema discipline
 

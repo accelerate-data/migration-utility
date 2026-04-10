@@ -6,7 +6,7 @@ user-invocable: true
 argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 ---
 
-# Profiling
+# Profiling Table
 
 Profile a single table, view, or materialized view for migration.
 

@@ -1,7 +1,7 @@
 ---
 name: generating-tests
 description: >
-  Generates test scenarios for a stored procedure or view migration. Enumerates
+  Generates test scenarios for a source routine or view migration. Enumerates
   conditional branches and synthesizes minimal fixtures. Does not execute
   procs or capture ground truth — that is done by the /generate-tests
   command after review approval.
@@ -11,7 +11,7 @@ argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 
 # Generating Tests
 
-Generate test scenarios for a stored procedure or view migration. Reads deterministic context from catalog, enumerates conditional branches, synthesizes minimal fixtures, and writes structured JSON to `test-specs/`.
+Generate test scenarios for a source routine or view migration. Reads deterministic context from catalog, enumerates conditional branches, synthesizes minimal fixtures, and writes structured JSON to `test-specs/`.
 
 ## Arguments
 
@@ -40,10 +40,10 @@ Do not invent fields. If `test-harness write` rejects the payload, fix the paylo
   "unit_tests": [
     {
       "name": "test_merge_matched_product_updated",
-      "target_table": "[silver].[DimProduct]",
-      "procedure": "[silver].[usp_load_DimProduct]",
+      "target_table": "silver.DimProduct",
+      "procedure": "silver.usp_load_DimProduct",
       "given": [
-        { "table": "[bronze].[Product]", "rows": [{"ProductID": 1, "Name": "Widget"}] }
+        { "table": "bronze.Product", "rows": [{"ProductID": 1, "Name": "Widget"}] }
       ],
       "expect": { "rows": [{"ProductKey": 1, "ProductName": "Widget"}] }
     }
@@ -143,17 +143,12 @@ If **merge_mode**, compare the re-extracted branch IDs against the `branch_manif
 
 ## Step 2.5: Coverage gate (merge_mode only)
 
-Skip this step if merge_mode is false.
+Skip if merge_mode is false.
 
-Pass to the LLM:
+Compare the re-extracted branch manifest against existing `unit_tests[]` to find branches with no covering scenario.
 
-- The full re-extracted branch manifest (all branch IDs and descriptions).
-- The existing `unit_tests[]` list with each scenario's `name` and `branch_id` (or inferred branch mapping from the stored `branch_manifest[].scenarios` lists).
-
-Ask: "For each branch in the manifest, is there an existing scenario that exercises it? Return the list of branch IDs that have no covering scenario."
-
-- **No uncovered branches**: skip Step 3 entirely. Proceed to Step 4 carrying `new_scenarios = []`.
-- **Uncovered branches found**: proceed to Step 3 scoped to those branches only. Carry `uncovered_branch_ids` into Step 3.
+- **All branches covered**: skip Step 3. Set `new_scenarios = []`.
+- **Uncovered branches found**: proceed to Step 3 scoped to `uncovered_branch_ids` only.
 
 ## Step 3: Generate fixtures
 
@@ -194,7 +189,7 @@ Merge into the existing `test-specs/<item_id>.json`:
 
 **Table vs view output format:**
 
-- **Tables:** each `unit_tests[]` entry includes `target_table` and `procedure` fields (bracket-quoted FQNs).
+- **Tables:** each `unit_tests[]` entry includes `target_table` and `procedure` fields (dialect-quoted FQNs).
 - **Views:** each `unit_tests[]` entry uses `sql` in place of `target_table` and `procedure`. The `sql` field contains the view's refactored SELECT statement.
 
 After writing, print the result:
@@ -218,9 +213,11 @@ Naming conventions:
 
 - Test name (table): `test_<load_pattern>_<scenario_description>`, e.g. `test_merge_matched_product_updated`
 - Test name (view): `test_<sql_pattern>_<scenario_description>`, e.g. `test_where_filter_active_row`
-- `target_table`: bracket-quoted FQN of the target table, e.g. `[silver].[DimProduct]`
-- `procedure`: bracket-quoted FQN of the writer procedure from catalog scoping, e.g. `[silver].[usp_load_DimProduct]`
-- `given[].table`: bracket-quoted SQL identifier, e.g. `[bronze].[SalesOrderHeader]`
+- `target_table`: dialect-quoted FQN of the target table, e.g. `silver.DimProduct`
+- `procedure`: dialect-quoted FQN of the writer procedure from catalog scoping, e.g. `silver.usp_load_DimProduct`
+- `given[].table`: dialect-quoted SQL identifier, e.g. `bronze.SalesOrderHeader`
+
+Use the quoting convention for the source dialect from `manifest.json` (T-SQL: `[schema].[object]`, Oracle: `"SCHEMA"."OBJECT"`).
 
 ## Step 5: Validate output
 
@@ -277,7 +274,7 @@ If no `feedback_for_generator` is present, skip this section.
 
 Test generator must not:
 
-- Execute stored procedures or access the sandbox
+- Execute source routines or access the sandbox
 - Generate dbt SQL model files
 - Render YAML — `unit_tests[]` is structured JSON; dbt YAML conversion happens post-execution
 - Make materialization or business key decisions

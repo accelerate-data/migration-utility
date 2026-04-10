@@ -112,6 +112,11 @@ Currently shared:
 - `_shared/references/model-naming.md` — Model naming rules (MDL_001--MDL_013)
 - `_shared/references/yaml-style.md` — YAML formatting rules (YML_001--YML_008)
 - `_shared/references/branch-patterns.md` — Conditional branch enumeration patterns for tables and views
+- `_shared/references/dialects/` — dialect-specific references (statement classification, routine migration patterns). Skills read `dialect` from `manifest.json` to select the right file.
+  - `tsql/statement-classification.md` — T-SQL statement migrate/skip classification
+  - `tsql/routine-migration-ref.md` — T-SQL DML extraction and CTE refactoring patterns
+  - `oracle/statement-classification.md` — Oracle PL/SQL statement classification
+  - `oracle/routine-migration-ref.md` — Oracle PL/SQL extraction and CTE refactoring patterns
 
 ### Error handling table
 

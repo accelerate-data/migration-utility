@@ -2,7 +2,7 @@
 
 Conditional branch enumeration patterns for test generation and review. Both the test generator and test reviewer use these tables to identify code paths that produce different output behavior.
 
-## Table patterns (stored procedures)
+## Table patterns (source routines)
 
 | Pattern | Branches to enumerate |
 |---|---|

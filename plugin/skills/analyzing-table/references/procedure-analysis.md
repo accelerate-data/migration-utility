@@ -20,8 +20,8 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show \
 Check the `needs_llm` field and `statements` array:
 
 - **`needs_llm: false`** with `statements` populated and no `action: "needs_llm"` entries — `refs` and `statements` are pre-classified by the AST. Use them alongside the body as the authoritative source of truth.
-- **`needs_llm: false`** but `statements` is null, empty, or contains `action: "needs_llm"` entries — safety-net fallback. Treat as needs_llm: classify each statement yourself from `raw_ddl`. See [`tsql-parse-classification.md`](tsql-parse-classification.md) for classification guidance.
-- **`needs_llm: true`** or `statements` is null — classify each statement yourself from `raw_ddl`. See [`tsql-parse-classification.md`](tsql-parse-classification.md) for classification guidance.
+- **`needs_llm: false`** but `statements` is null, empty, or contains `action: "needs_llm"` entries — safety-net fallback. Treat as needs_llm: classify each statement yourself from `raw_ddl`. See the dialect-appropriate statement classification via [`tsql-parse-classification.md`](tsql-parse-classification.md).
+- **`needs_llm: true`** or `statements` is null — classify each statement yourself from `raw_ddl`. See the dialect-appropriate statement classification via [`tsql-parse-classification.md`](tsql-parse-classification.md).
 
 ### Step 3 — Resolve call graph
 
