@@ -3,4 +3,3 @@
 from pydantic import ConfigDict
 
 OUTPUT_CONFIG = ConfigDict(extra="forbid")
-
