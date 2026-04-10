@@ -7,7 +7,15 @@ import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from shared.output_models import (
+        SandboxDownOutput,
+        SandboxStatusOutput,
+        SandboxUpOutput,
+        TestHarnessExecuteOutput,
+    )
 
 
 def serialize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -118,11 +126,11 @@ class SandboxBackend(ABC):
     def sandbox_up(
         self,
         schemas: list[str],
-    ) -> dict[str, Any]:
+    ) -> SandboxUpOutput:
         """Create the sandbox database and clone schema from the source."""
 
     @abstractmethod
-    def sandbox_down(self, sandbox_db: str) -> dict[str, Any]:
+    def sandbox_down(self, sandbox_db: str) -> SandboxDownOutput:
         """Drop the sandbox database."""
 
     @abstractmethod
@@ -130,11 +138,11 @@ class SandboxBackend(ABC):
         self,
         sandbox_db: str,
         scenario: dict[str, Any],
-    ) -> dict[str, Any]:
+    ) -> TestHarnessExecuteOutput:
         """Run one test scenario: insert fixtures, exec proc, capture output."""
 
     @abstractmethod
-    def sandbox_status(self, sandbox_db: str) -> dict[str, Any]:
+    def sandbox_status(self, sandbox_db: str) -> SandboxStatusOutput:
         """Check whether the sandbox database exists and is accessible."""
 
     @abstractmethod
@@ -143,23 +151,13 @@ class SandboxBackend(ABC):
         sandbox_db: str,
         sql: str,
         fixtures: list[dict[str, Any]],
-    ) -> dict[str, Any]:
+    ) -> TestHarnessExecuteOutput:
         """Seed fixtures, run a SELECT, return result rows.
 
         Within a single transaction (rolled back at the end):
         1. Seed fixture rows into tables
         2. Execute *sql* (a pure SELECT/WITH statement)
         3. Capture and return result rows
-
-        Returns::
-
-            {
-                "status": "ok" | "error",
-                "scenario_name": str,
-                "ground_truth_rows": list[dict],
-                "row_count": int,
-                "errors": list[dict],
-            }
         """
 
     @abstractmethod

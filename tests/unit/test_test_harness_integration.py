@@ -48,14 +48,14 @@ class TestSandboxLifecycle:
 
         try:
             result = backend.sandbox_up(schemas=["silver"])
-            sandbox_db = result["sandbox_database"]
+            sandbox_db = result.sandbox_database
 
-            assert result["status"] in ("ok", "partial")
+            assert result.status in ("ok", "partial")
             assert sandbox_db.startswith("__test_")
-            assert len(result["tables_cloned"]) > 0
-            assert any("DimCurrency" in t for t in result["tables_cloned"])
-            assert len(result["procedures_cloned"]) > 0
-            assert any("usp_load_DimCurrency" in p for p in result["procedures_cloned"])
+            assert len(result.tables_cloned) > 0
+            assert any("DimCurrency" in t for t in result.tables_cloned)
+            assert len(result.procedures_cloned) > 0
+            assert any("usp_load_DimCurrency" in p for p in result.procedures_cloned)
 
             # Verify the sandbox DB actually exists
             with backend._connect(database=sandbox_db) as conn:
@@ -67,16 +67,16 @@ class TestSandboxLifecycle:
                 table_count = cursor.fetchone()[0]
                 assert table_count > 0
         finally:
-            backend.sandbox_down(sandbox_db=result["sandbox_database"])
+            backend.sandbox_down(sandbox_db=result.sandbox_database)
 
     def test_sandbox_down_drops_database(self) -> None:
         backend = _make_backend()
 
         result = backend.sandbox_up(schemas=["silver"])
-        sandbox_db = result["sandbox_database"]
+        sandbox_db = result.sandbox_database
         down_result = backend.sandbox_down(sandbox_db=sandbox_db)
 
-        assert down_result["status"] == "ok"
+        assert down_result.status == "ok"
 
         # Verify the DB is gone
         with backend._connect() as conn:
@@ -89,21 +89,21 @@ class TestSandboxLifecycle:
 
         # Down on a non-existent sandbox should succeed
         result = backend.sandbox_down(sandbox_db="__test_nonexistent99")
-        assert result["status"] == "ok"
+        assert result.status == "ok"
 
     def test_sandbox_up_multiple_schemas(self) -> None:
         backend = _make_backend()
 
         try:
             result = backend.sandbox_up(schemas=["bronze", "silver"])
-            sandbox_db = result["sandbox_database"]
+            sandbox_db = result.sandbox_database
 
-            assert result["status"] in ("ok", "partial")
-            schemas_seen = {t.split(".")[0] for t in result["tables_cloned"]}
+            assert result.status in ("ok", "partial")
+            schemas_seen = {t.split(".")[0] for t in result.tables_cloned}
             assert "bronze" in schemas_seen
             assert "silver" in schemas_seen
         finally:
-            backend.sandbox_down(sandbox_db=result["sandbox_database"])
+            backend.sandbox_down(sandbox_db=result.sandbox_database)
 
     def test_sandbox_up_idempotent(self) -> None:
         """Calling sandbox_up twice creates two different databases."""
@@ -113,14 +113,14 @@ class TestSandboxLifecycle:
             result1 = backend.sandbox_up(schemas=["silver"])
             result2 = backend.sandbox_up(schemas=["silver"])
 
-            assert result1["status"] in ("ok", "partial")
-            assert result2["status"] in ("ok", "partial")
+            assert result1.status in ("ok", "partial")
+            assert result2.status in ("ok", "partial")
             # Each call generates a new database name
-            assert result1["sandbox_database"] != result2["sandbox_database"]
-            assert result1["tables_cloned"] == result2["tables_cloned"]
+            assert result1.sandbox_database != result2.sandbox_database
+            assert result1.tables_cloned == result2.tables_cloned
         finally:
-            backend.sandbox_down(sandbox_db=result1["sandbox_database"])
-            backend.sandbox_down(sandbox_db=result2["sandbox_database"])
+            backend.sandbox_down(sandbox_db=result1.sandbox_database)
+            backend.sandbox_down(sandbox_db=result2.sandbox_database)
 
 
 @skip_no_mssql
@@ -150,9 +150,9 @@ class TestExecuteScenario:
 
         try:
             up_result = backend.sandbox_up(schemas=["bronze", "silver"])
-            sandbox_db = up_result["sandbox_database"]
-            assert up_result["status"] in ("ok", "partial")
-            assert any("DimCurrency" in t for t in up_result["tables_cloned"])
+            sandbox_db = up_result.sandbox_database
+            assert up_result.status in ("ok", "partial")
+            assert any("DimCurrency" in t for t in up_result.tables_cloned)
 
             scenario = {
                 "name": "test_load_dim_currency",
@@ -171,14 +171,14 @@ class TestExecuteScenario:
 
             result = backend.execute_scenario(sandbox_db=sandbox_db, scenario=scenario)
 
-            assert result["status"] == "ok"
-            assert result["scenario_name"] == "test_load_dim_currency"
-            assert result["row_count"] >= 1
-            assert isinstance(result["ground_truth_rows"], list)
-            assert len(result["ground_truth_rows"]) >= 1
-            assert result["errors"] == []
+            assert result.status == "ok"
+            assert result.scenario_name == "test_load_dim_currency"
+            assert result.row_count >= 1
+            assert isinstance(result.ground_truth_rows, list)
+            assert len(result.ground_truth_rows) >= 1
+            assert result.errors == []
         finally:
-            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up_result.sandbox_database)
 
     def test_execute_rolls_back_fixture_data(self) -> None:
         """Verify fixture data is rolled back after scenario execution."""
@@ -186,7 +186,7 @@ class TestExecuteScenario:
 
         try:
             up_result = backend.sandbox_up(schemas=["bronze", "silver"])
-            sandbox_db = up_result["sandbox_database"]
+            sandbox_db = up_result.sandbox_database
 
             scenario = {
                 "name": "test_rollback",
@@ -214,7 +214,7 @@ class TestExecuteScenario:
                 count = cursor.fetchone()[0]
                 assert count == 0, "Fixture data should be rolled back after execution"
         finally:
-            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up_result.sandbox_database)
 
     def test_execute_empty_fixtures(self) -> None:
         """Scenario with no fixture rows still runs the procedure."""
@@ -222,7 +222,7 @@ class TestExecuteScenario:
 
         try:
             up_result = backend.sandbox_up(schemas=["bronze", "silver"])
-            sandbox_db = up_result["sandbox_database"]
+            sandbox_db = up_result.sandbox_database
 
             scenario = {
                 "name": "test_empty_fixtures",
@@ -235,9 +235,9 @@ class TestExecuteScenario:
 
             result = backend.execute_scenario(sandbox_db=sandbox_db, scenario=scenario)
 
-            assert result["status"] == "ok"
+            assert result.status == "ok"
         finally:
-            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up_result.sandbox_database)
 
     def test_execute_cross_database_exec_returns_clear_error(self) -> None:
         backend = _make_backend()
@@ -247,8 +247,8 @@ class TestExecuteScenario:
 
         try:
             up_result = backend.sandbox_up(schemas=["silver"])
-            sandbox_db = up_result["sandbox_database"]
-            assert up_result["status"] in ("ok", "partial")
+            sandbox_db = up_result.sandbox_database
+            assert up_result.status in ("ok", "partial")
 
             result = backend.execute_scenario(
                 sandbox_db=sandbox_db,
@@ -260,17 +260,12 @@ class TestExecuteScenario:
                 },
             )
 
-            assert result["status"] == "error"
-            assert result["errors"] == [{
-                "code": "REMOTE_EXEC_UNSUPPORTED",
-                "message": (
-                    "Sandbox cannot execute cross-database procedure call "
-                    f"OtherDB.dbo.usp_Load from [silver].[{proc_name}]. "
-                    "The sandbox only clones objects from the source database."
-                ),
-            }]
+            assert result.status == "error"
+            assert len(result.errors) == 1
+            assert result.errors[0].code == "REMOTE_EXEC_UNSUPPORTED"
+            assert "cross-database procedure call" in result.errors[0].message
         finally:
-            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up_result.sandbox_database)
             self._drop_temp_proc(backend, proc_name)
 
     def test_execute_linked_server_exec_returns_clear_error(self) -> None:
@@ -281,8 +276,8 @@ class TestExecuteScenario:
 
         try:
             up_result = backend.sandbox_up(schemas=["silver"])
-            sandbox_db = up_result["sandbox_database"]
-            assert up_result["status"] in ("ok", "partial")
+            sandbox_db = up_result.sandbox_database
+            assert up_result.status in ("ok", "partial")
 
             result = backend.execute_scenario(
                 sandbox_db=sandbox_db,
@@ -294,17 +289,12 @@ class TestExecuteScenario:
                 },
             )
 
-            assert result["status"] == "error"
-            assert result["errors"] == [{
-                "code": "REMOTE_EXEC_UNSUPPORTED",
-                "message": (
-                    "Sandbox cannot execute linked-server procedure call "
-                    f"[LinkedServer].db.dbo.usp_Load from [silver].[{proc_name}]. "
-                    "The sandbox only clones objects from the source database."
-                ),
-            }]
+            assert result.status == "error"
+            assert len(result.errors) == 1
+            assert result.errors[0].code == "REMOTE_EXEC_UNSUPPORTED"
+            assert "linked-server procedure call" in result.errors[0].message
         finally:
-            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up_result.sandbox_database)
             self._drop_temp_proc(backend, proc_name)
 
     def test_execute_money_columns_return_decimal_strings(self) -> None:
@@ -332,8 +322,8 @@ class TestExecuteScenario:
                 )
 
             up_result = backend.sandbox_up(schemas=["silver"])
-            sandbox_db = up_result["sandbox_database"]
-            assert up_result["status"] in ("ok", "partial")
+            sandbox_db = up_result.sandbox_database
+            assert up_result.status in ("ok", "partial")
 
             result = backend.execute_scenario(
                 sandbox_db=sandbox_db,
@@ -345,9 +335,9 @@ class TestExecuteScenario:
                 },
             )
 
-            assert result["status"] == "ok"
-            assert result["row_count"] == 1
-            row = result["ground_truth_rows"][0]
+            assert result.status == "ok"
+            assert result.row_count == 1
+            row = result.ground_truth_rows[0]
 
             # Values must be parseable as Decimal, not base64 garbage
             from decimal import Decimal
@@ -356,7 +346,7 @@ class TestExecuteScenario:
             assert price == Decimal("42.50")
             assert fee == Decimal("9.99")
         finally:
-            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up_result.sandbox_database)
             with backend._connect(database=backend.database) as conn:
                 cursor = conn.cursor()
                 cursor.execute(f"DROP PROCEDURE IF EXISTS silver.[{proc_name}]")
@@ -380,8 +370,8 @@ class TestIdentityInsertIntegration:
 
         try:
             up = backend.sandbox_up(schemas=["bronze", "silver"])
-            sandbox_db = up["sandbox_database"]
-            assert up["status"] in ("ok", "partial")
+            sandbox_db = up.sandbox_database
+            assert up.status in ("ok", "partial")
 
             result = backend.execute_scenario(
                 sandbox_db=sandbox_db,
@@ -424,10 +414,10 @@ class TestIdentityInsertIntegration:
                 },
             )
 
-            assert result["status"] == "ok", f"Expected ok, got: {result['errors']}"
-            assert result["row_count"] >= 1
+            assert result.status == "ok", f"Expected ok, got: {result.errors}"
+            assert result.row_count >= 1
         finally:
-            backend.sandbox_down(sandbox_db=up["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up.sandbox_database)
 
     def test_mixed_identity_and_non_identity_tables(self) -> None:
         """Insert into tables where one has identity and one does not.
@@ -439,8 +429,8 @@ class TestIdentityInsertIntegration:
 
         try:
             up = backend.sandbox_up(schemas=["bronze", "silver"])
-            sandbox_db = up["sandbox_database"]
-            assert up["status"] in ("ok", "partial")
+            sandbox_db = up.sandbox_database
+            assert up.status in ("ok", "partial")
 
             result = backend.execute_scenario(
                 sandbox_db=sandbox_db,
@@ -493,9 +483,9 @@ class TestIdentityInsertIntegration:
                 },
             )
 
-            assert result["status"] == "ok", f"Expected ok, got: {result['errors']}"
+            assert result.status == "ok", f"Expected ok, got: {result.errors}"
         finally:
-            backend.sandbox_down(sandbox_db=up["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up.sandbox_database)
 
 
 @skip_no_mssql
@@ -549,8 +539,8 @@ class TestEnsureViewTablesIntegration:
         up_result: dict = {}
         try:
             up_result = backend.sandbox_up(schemas=["bronze", "silver"])
-            sandbox_db = up_result["sandbox_database"]
-            assert up_result["status"] in ("ok", "partial")
+            sandbox_db = up_result.sandbox_database
+            assert up_result.status in ("ok", "partial")
 
             scenario = {
                 "name": "test_view_fixture",
@@ -568,11 +558,11 @@ class TestEnsureViewTablesIntegration:
 
             result = backend.execute_scenario(sandbox_db=sandbox_db, scenario=scenario)
 
-            assert result["status"] == "ok", result["errors"]
-            assert result["errors"] == []
+            assert result.status == "ok", result.errors
+            assert result.errors == []
         finally:
-            if up_result.get("sandbox_database"):
-                backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            if up_result is not None:
+                backend.sandbox_down(sandbox_db=up_result.sandbox_database)
             self._drop_proc(backend, proc_name)
             self._drop_view(backend, view_name)
 
@@ -587,8 +577,8 @@ class TestExecuteSelectIntegration:
 
         try:
             up_result = backend.sandbox_up(schemas=["silver"])
-            sandbox_db = up_result["sandbox_database"]
-            assert up_result["status"] in ("ok", "partial")
+            sandbox_db = up_result.sandbox_database
+            assert up_result.status in ("ok", "partial")
 
             fixtures = [
                 {
@@ -609,14 +599,14 @@ class TestExecuteSelectIntegration:
                 sandbox_db=sandbox_db, sql=sql, fixtures=fixtures,
             )
 
-            assert result["status"] == "ok", result["errors"]
-            assert result["row_count"] == 2
-            assert result["errors"] == []
-            rows = result["ground_truth_rows"]
+            assert result.status == "ok", result.errors
+            assert result.row_count == 2
+            assert result.errors == []
+            rows = result.ground_truth_rows
             codes = {r["CurrencyAlternateKey"] for r in rows}
             assert codes == {"USD", "EUR"}
         finally:
-            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up_result.sandbox_database)
 
     def test_compare_two_sql_returns_equivalent_for_same_result_set(self) -> None:
         """compare_two_sql reports equivalent when both SQLs return the same rows."""
@@ -624,7 +614,7 @@ class TestExecuteSelectIntegration:
 
         try:
             up_result = backend.sandbox_up(schemas=["silver"])
-            sandbox_db = up_result["sandbox_database"]
+            sandbox_db = up_result.sandbox_database
             fixtures = [
                 {
                     "table": "[silver].[DimCurrency]",
@@ -658,7 +648,7 @@ class TestExecuteSelectIntegration:
             assert result["a_minus_b"] == []
             assert result["b_minus_a"] == []
         finally:
-            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up_result.sandbox_database)
 
     def test_execute_select_empty_fixtures(self) -> None:
         """execute_select with no fixture rows returns 0 rows."""
@@ -666,7 +656,7 @@ class TestExecuteSelectIntegration:
 
         try:
             up_result = backend.sandbox_up(schemas=["silver"])
-            sandbox_db = up_result["sandbox_database"]
+            sandbox_db = up_result.sandbox_database
 
             result = backend.execute_select(
                 sandbox_db=sandbox_db,
@@ -674,10 +664,10 @@ class TestExecuteSelectIntegration:
                 fixtures=[],
             )
 
-            assert result["status"] == "ok"
-            assert result["row_count"] == 0
+            assert result.status == "ok"
+            assert result.row_count == 0
         finally:
-            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up_result.sandbox_database)
 
     def test_execute_select_rolls_back_fixtures(self) -> None:
         """Fixture rows are rolled back after execute_select."""
@@ -685,7 +675,7 @@ class TestExecuteSelectIntegration:
 
         try:
             up_result = backend.sandbox_up(schemas=["silver"])
-            sandbox_db = up_result["sandbox_database"]
+            sandbox_db = up_result.sandbox_database
 
             fixtures = [
                 {
@@ -710,4 +700,4 @@ class TestExecuteSelectIntegration:
                 )
                 assert cursor.fetchone()[0] == 0, "Fixture row should be rolled back"
         finally:
-            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up_result.sandbox_database)

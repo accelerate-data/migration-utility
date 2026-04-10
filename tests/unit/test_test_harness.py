@@ -24,6 +24,15 @@ from shared.sandbox.oracle import (
     _validate_oracle_sandbox_name,
 )
 from shared.sandbox.base import serialize_rows as _serialize_rows
+from shared.output_models import (
+    ErrorEntry,
+    ExecuteSpecOutput,
+    ExecuteSpecResult,
+    SandboxDownOutput,
+    SandboxStatusOutput,
+    SandboxUpOutput,
+    TestHarnessExecuteOutput,
+)
 from shared.sandbox.sql_server import (
     SqlServerSandbox,
     _detect_remote_exec_target,
@@ -243,12 +252,12 @@ class TestSqlServerSandboxUp:
                 schemas=["dbo", "silver"],
             )
 
-        assert result["status"] in ("ok", "partial")
-        assert result["sandbox_database"].startswith("__test_")
-        assert result["tables_cloned"] == ["dbo.Product", "silver.DimProduct"]
-        assert result["views_cloned"] == ["silver.vw_customer"]
-        assert result["procedures_cloned"] == ["dbo.usp_load"]
-        assert "run_id" not in result
+        assert result.status in ("ok", "partial")
+        assert result.sandbox_database.startswith("__test_")
+        assert result.tables_cloned == ["dbo.Product", "silver.DimProduct"]
+        assert result.views_cloned == ["silver.vw_customer"]
+        assert result.procedures_cloned == ["dbo.usp_load"]
+        assert not hasattr(result, "run_id")
 
         calls = [str(c) for c in default_cursor.execute.call_args_list]
         create_db_calls = [c for c in calls if "CREATE DATABASE" in c]
@@ -272,9 +281,9 @@ class TestSqlServerSandboxStatus:
         with patch.object(backend, "_connect", side_effect=fake_connect):
             result = backend.sandbox_status(sandbox_db="__test_abc123")
 
-        assert result["status"] == "ok"
-        assert result["exists"] is True
-        assert "run_id" not in result
+        assert result.status == "ok"
+        assert result.exists is True
+        assert not hasattr(result, "run_id")
 
     def test_sandbox_status_not_found(self) -> None:
         backend = _make_backend()
@@ -286,8 +295,8 @@ class TestSqlServerSandboxStatus:
         with patch.object(backend, "_connect", side_effect=fake_connect):
             result = backend.sandbox_status(sandbox_db="__test_abc123")
 
-        assert result["status"] == "not_found"
-        assert result["exists"] is False
+        assert result.status == "not_found"
+        assert result.exists is False
 
 
 class TestSqlServerSandboxDown:
@@ -300,8 +309,8 @@ class TestSqlServerSandboxDown:
         with patch.object(backend, "_connect", side_effect=fake_connect):
             result = backend.sandbox_down(sandbox_db="__test_abc123")
 
-        assert result["status"] == "ok"
-        assert "run_id" not in result
+        assert result.status == "ok"
+        assert not hasattr(result, "run_id")
 
         calls = [str(c) for c in default_cursor.execute.call_args_list]
         drop_calls = [c for c in calls if "DROP DATABASE" in c]
@@ -365,15 +374,10 @@ class TestSqlServerExecuteScenario:
         with patch.object(backend, "_connect", side_effect=fake_connect):
             result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
-        assert result["status"] == "error"
-        assert result["errors"] == [{
-            "code": "REMOTE_EXEC_UNSUPPORTED",
-            "message": (
-                "Sandbox cannot execute cross-database procedure call "
-                "OtherDB.dbo.usp_load from [silver].[usp_load_dimproduct]. "
-                "The sandbox only clones objects from the source database."
-            ),
-        }]
+        assert result.status == "error"
+        assert len(result.errors) == 1
+        assert result.errors[0].code == "REMOTE_EXEC_UNSUPPORTED"
+        assert "cross-database procedure call" in result.errors[0].message
         sandbox_cursor.execute.assert_called_once_with(
             "SELECT OBJECT_DEFINITION(OBJECT_ID(?))",
             "[silver].[usp_load_dimproduct]",
@@ -405,11 +409,11 @@ class TestSqlServerExecuteScenario:
         with patch.object(backend, "_connect", side_effect=fake_connect):
             result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
-        assert result["status"] == "ok"
-        assert result["row_count"] == 1
-        assert result["ground_truth_rows"] == [{"id": 1, "name": "Widget"}]
-        assert result["scenario_name"] == "test_insert_new_product"
-        assert "run_id" not in result
+        assert result.status == "ok"
+        assert result.row_count == 1
+        assert result.ground_truth_rows == [{"id": 1, "name": "Widget"}]
+        assert result.scenario_name == "test_insert_new_product"
+        assert not hasattr(result, "run_id")
 
     def test_execute_missing_required_key_raises(self) -> None:
         backend = _make_backend()
@@ -458,7 +462,7 @@ class TestIdentityInsert:
         with patch.object(backend, "_connect", side_effect=fake_connect):
             result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
-        assert result["status"] == "ok"
+        assert result.status == "ok"
 
         # Verify SET IDENTITY_INSERT ON/OFF were called
         execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
@@ -498,7 +502,7 @@ class TestIdentityInsert:
         with patch.object(backend, "_connect", side_effect=fake_connect):
             result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
-        assert result["status"] == "ok"
+        assert result.status == "ok"
         execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
         identity_calls = [c for c in execute_calls if "IDENTITY_INSERT" in c]
         assert len(identity_calls) == 0, f"Unexpected IDENTITY_INSERT calls: {identity_calls}"
@@ -555,7 +559,7 @@ class TestNotNullDefaultsQuery:
         with patch.object(backend, "_connect", side_effect=fake_connect):
             result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
-        assert result["status"] == "ok"
+        assert result.status == "ok"
         execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
         # Only table 1 should have IDENTITY_INSERT
         identity_on = [c for c in execute_calls if "IDENTITY_INSERT" in c and "SalesOrderHeader" in c and "ON" in c and "OFF" not in c]
@@ -604,7 +608,7 @@ class TestFkConstraintDisabling:
         with patch.object(backend, "_connect", side_effect=fake_connect):
             result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
-        assert result["status"] == "ok"
+        assert result.status == "ok"
         execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
 
         # NOCHECK before inserts
@@ -651,7 +655,7 @@ class TestFkConstraintDisabling:
         with patch.object(backend, "_connect", side_effect=fake_connect):
             result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
-        assert result["status"] == "ok"
+        assert result.status == "ok"
         execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
         nocheck = [c for c in execute_calls if "NOCHECK" in c]
         assert len(nocheck) == 0, "No NOCHECK for empty fixture rows"
@@ -695,7 +699,7 @@ class TestTriggerDisabling:
         with patch.object(backend, "_connect", side_effect=fake_connect):
             result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
-        assert result["status"] == "ok"
+        assert result.status == "ok"
         execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
 
         disable_trigger = [c for c in execute_calls if "DISABLE TRIGGER ALL" in c]
@@ -732,7 +736,7 @@ class TestTriggerDisabling:
         with patch.object(backend, "_connect", side_effect=fake_connect):
             result = backend.execute_scenario(sandbox_db="__test_abc123", scenario=scenario)
 
-        assert result["status"] == "ok"
+        assert result.status == "ok"
         execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
         disable_idx = next(i for i, c in enumerate(execute_calls) if "DISABLE TRIGGER" in c)
         exec_idx = next(i for i, c in enumerate(execute_calls) if "EXEC [dbo]" in c)
@@ -787,79 +791,147 @@ class TestSerializeRows:
 # ── Schema validation ────────────────────────────────────────────────────────
 
 
-class TestSchemaValidation:
-    def test_execute_output_valid(self, assert_valid_schema) -> None:
-        data = {
+class TestOutputModels:
+    """Validate Pydantic output models for sandbox and test-harness commands."""
+
+    def test_execute_output_valid(self) -> None:
+        result = TestHarnessExecuteOutput.model_validate({
             "schema_version": "1.0",
             "scenario_name": "test_scenario",
             "status": "ok",
             "ground_truth_rows": [{"id": 1, "name": "Widget"}],
             "row_count": 1,
             "errors": [],
-        }
-        assert_valid_schema(data, "test_harness_execute_output.json")
+        })
+        assert result.status == "ok"
+        assert result.row_count == 1
+        assert result.ground_truth_rows == [{"id": 1, "name": "Widget"}]
 
-    def test_execute_output_error(self, assert_valid_schema) -> None:
-        data = {
+    def test_execute_output_error(self) -> None:
+        result = TestHarnessExecuteOutput.model_validate({
             "schema_version": "1.0",
             "scenario_name": "test_scenario",
             "status": "error",
             "ground_truth_rows": [],
             "row_count": 0,
             "errors": [{"code": "SCENARIO_FAILED", "message": "connection refused"}],
-        }
-        assert_valid_schema(data, "test_harness_execute_output.json")
+        })
+        assert result.status == "error"
+        assert result.errors[0].code == "SCENARIO_FAILED"
 
-    def test_sandbox_up_output_ok(self, assert_valid_schema) -> None:
-        data = {
+    def test_sandbox_up_output_ok(self) -> None:
+        result = SandboxUpOutput.model_validate({
             "sandbox_database": "__test_abc_123",
             "status": "ok",
             "tables_cloned": ["dbo.Product"],
+            "views_cloned": ["dbo.vProduct"],
             "procedures_cloned": ["dbo.usp_load"],
             "errors": [],
-        }
-        assert_valid_schema(data, "sandbox_up_output.json")
+        })
+        assert result.status == "ok"
+        assert result.tables_cloned == ["dbo.Product"]
+        assert result.views_cloned == ["dbo.vProduct"]
 
-    def test_sandbox_up_output_error(self, assert_valid_schema) -> None:
-        data = {
+    def test_sandbox_up_output_error(self) -> None:
+        result = SandboxUpOutput.model_validate({
             "sandbox_database": "__test_abc_123",
             "status": "error",
             "tables_cloned": [],
+            "views_cloned": [],
             "procedures_cloned": [],
             "errors": [{"code": "SANDBOX_UP_FAILED", "message": "connection refused"}],
-        }
-        assert_valid_schema(data, "sandbox_up_output.json")
+        })
+        assert result.status == "error"
+        assert result.errors[0].code == "SANDBOX_UP_FAILED"
 
-    def test_sandbox_down_output_ok(self, assert_valid_schema) -> None:
-        data = {
+    def test_sandbox_down_output_ok(self) -> None:
+        result = SandboxDownOutput.model_validate({
             "sandbox_database": "__test_abc_123",
             "status": "ok",
-        }
-        assert_valid_schema(data, "sandbox_down_output.json")
+        })
+        assert result.status == "ok"
+        assert result.errors == []
 
-    def test_sandbox_down_output_error(self, assert_valid_schema) -> None:
-        data = {
+    def test_sandbox_down_output_error(self) -> None:
+        result = SandboxDownOutput.model_validate({
             "sandbox_database": "__test_abc_123",
             "status": "error",
             "errors": [{"code": "SANDBOX_DOWN_FAILED", "message": "timeout"}],
-        }
-        assert_valid_schema(data, "sandbox_down_output.json")
+        })
+        assert result.status == "error"
+        assert result.errors[0].message == "timeout"
 
-    def test_sandbox_status_output_exists(self, assert_valid_schema) -> None:
-        data = {
+    def test_sandbox_status_output_exists(self) -> None:
+        result = SandboxStatusOutput.model_validate({
             "sandbox_database": "__test_abc_123",
             "status": "ok",
             "exists": True,
-        }
-        assert_valid_schema(data, "sandbox_status_output.json")
+        })
+        assert result.exists is True
 
-    def test_sandbox_status_output_not_found(self, assert_valid_schema) -> None:
-        data = {
+    def test_sandbox_status_output_not_found(self) -> None:
+        result = SandboxStatusOutput.model_validate({
             "sandbox_database": "__test_abc_123",
             "status": "not_found",
             "exists": False,
-        }
-        assert_valid_schema(data, "sandbox_status_output.json")
+        })
+        assert result.exists is False
+        assert result.status == "not_found"
+
+    def test_execute_spec_output_valid(self) -> None:
+        result = ExecuteSpecOutput.model_validate({
+            "schema_version": "1.0",
+            "sandbox_database": "__test_abc_123",
+            "spec_path": "test-specs/silver.dimproduct.json",
+            "total": 2,
+            "ok": 1,
+            "failed": 1,
+            "results": [
+                {"scenario_name": "test_a", "status": "ok", "row_count": 3, "errors": []},
+                {"scenario_name": "test_b", "status": "error", "row_count": 0,
+                 "errors": [{"code": "SCENARIO_FAILED", "message": "timeout"}]},
+            ],
+        })
+        assert result.total == 2
+        assert result.results[0].status == "ok"
+        assert result.results[1].errors[0].code == "SCENARIO_FAILED"
+
+    # ── Negative cases: extra="forbid" rejects unknown fields ────────────
+
+    def test_sandbox_up_rejects_extra_field(self) -> None:
+        from pydantic import ValidationError
+        with pytest.raises(ValidationError, match="extra_field"):
+            SandboxUpOutput.model_validate({
+                "sandbox_database": "__test_abc_123",
+                "status": "ok",
+                "tables_cloned": [],
+                "views_cloned": [],
+                "procedures_cloned": [],
+                "errors": [],
+                "extra_field": "unexpected",
+            })
+
+    def test_execute_output_rejects_invalid_status(self) -> None:
+        from pydantic import ValidationError
+        with pytest.raises(ValidationError):
+            TestHarnessExecuteOutput.model_validate({
+                "schema_version": "1.0",
+                "scenario_name": "test",
+                "status": "unknown",
+                "ground_truth_rows": [],
+                "row_count": 0,
+                "errors": [],
+            })
+
+    def test_sandbox_down_rejects_missing_required(self) -> None:
+        from pydantic import ValidationError
+        with pytest.raises(ValidationError):
+            SandboxDownOutput.model_validate({"status": "ok"})
+
+    def test_error_entry_rejects_extra_field(self) -> None:
+        from pydantic import ValidationError
+        with pytest.raises(ValidationError, match="severity"):
+            ErrorEntry.model_validate({"code": "ERR", "message": "msg", "severity": "high"})
 
     def test_test_spec_per_item_valid(self, assert_valid_schema) -> None:
         data = {
@@ -1070,13 +1142,14 @@ class TestCLISandboxUpPersists:
         runner = CliRunner()
 
         backend_mock = MagicMock()
-        backend_mock.sandbox_up.return_value = {
-            "sandbox_database": "__test_e2e_run",
-            "status": "ok",
-            "tables_cloned": ["dbo.Product"],
-            "procedures_cloned": [],
-            "errors": [],
-        }
+        backend_mock.sandbox_up.return_value = SandboxUpOutput(
+            sandbox_database="__test_e2e_run",
+            status="ok",
+            tables_cloned=["dbo.Product"],
+            views_cloned=[],
+            procedures_cloned=[],
+            errors=[],
+        )
 
         with (
             patch("shared.test_harness.resolve_project_root", return_value=tmp_path),
@@ -1098,13 +1171,14 @@ class TestCLISandboxUpPersists:
         runner = CliRunner()
 
         backend_mock = MagicMock()
-        backend_mock.sandbox_up.return_value = {
-            "sandbox_database": "__test_e2e_run",
-            "status": "error",
-            "tables_cloned": [],
-            "procedures_cloned": [],
-            "errors": [{"code": "CONNECT_FAILED", "message": "timeout"}],
-        }
+        backend_mock.sandbox_up.return_value = SandboxUpOutput(
+            sandbox_database="__test_e2e_run",
+            status="error",
+            tables_cloned=[],
+            views_cloned=[],
+            procedures_cloned=[],
+            errors=[ErrorEntry(code="CONNECT_FAILED", message="timeout")],
+        )
 
         with (
             patch("shared.test_harness.resolve_project_root", return_value=tmp_path),
@@ -1131,10 +1205,9 @@ class TestCLISandboxDownClears:
         runner = CliRunner()
 
         backend_mock = MagicMock()
-        backend_mock.sandbox_down.return_value = {
-            "sandbox_database": "__test_e2e_run",
-            "status": "ok",
-        }
+        backend_mock.sandbox_down.return_value = SandboxDownOutput(
+            sandbox_database="__test_e2e_run", status="ok",
+        )
 
         with (
             patch("shared.test_harness.resolve_project_root", return_value=tmp_path),
@@ -1157,10 +1230,9 @@ class TestCLISandboxDownClears:
         runner = CliRunner()
 
         backend_mock = MagicMock()
-        backend_mock.sandbox_down.return_value = {
-            "sandbox_database": "__test_manifest_run",
-            "status": "ok",
-        }
+        backend_mock.sandbox_down.return_value = SandboxDownOutput(
+            sandbox_database="__test_manifest_run", status="ok",
+        )
 
         with (
             patch("shared.test_harness.resolve_project_root", return_value=tmp_path),
@@ -1186,11 +1258,9 @@ class TestCLIStatusFallback:
         runner = CliRunner()
 
         backend_mock = MagicMock()
-        backend_mock.sandbox_status.return_value = {
-            "sandbox_database": "__test_manifest_run",
-            "status": "ok",
-            "exists": True,
-        }
+        backend_mock.sandbox_status.return_value = SandboxStatusOutput(
+            sandbox_database="__test_manifest_run", status="ok", exists=True,
+        )
 
         with (
             patch("shared.test_harness.resolve_project_root", return_value=tmp_path),
@@ -1268,14 +1338,13 @@ class TestCLIExecuteSpec:
         runner = CliRunner()
 
         backend_mock = MagicMock()
-        backend_mock.execute_scenario.return_value = {
-            "schema_version": "1.0",
-            "scenario_name": "test_merge_matched",
-            "status": "ok",
-            "ground_truth_rows": [{"ProductKey": 1, "Name": "Widget"}],
-            "row_count": 1,
-            "errors": [],
-        }
+        backend_mock.execute_scenario.return_value = TestHarnessExecuteOutput(
+            scenario_name="test_merge_matched",
+            status="ok",
+            ground_truth_rows=[{"ProductKey": 1, "Name": "Widget"}],
+            row_count=1,
+            errors=[],
+        )
 
         with (
             patch("shared.test_harness.resolve_project_root", return_value=tmp_path),
@@ -1326,20 +1395,20 @@ class TestCLIExecuteSpec:
 
         backend_mock = MagicMock()
         backend_mock.execute_scenario.side_effect = [
-            {
-                "scenario_name": "test_ok",
-                "status": "ok",
-                "ground_truth_rows": [{"id": 1}],
-                "row_count": 1,
-                "errors": [],
-            },
-            {
-                "scenario_name": "test_fail",
-                "status": "error",
-                "ground_truth_rows": [],
-                "row_count": 0,
-                "errors": [{"code": "SCENARIO_FAILED", "message": "insert failed"}],
-            },
+            TestHarnessExecuteOutput(
+                scenario_name="test_ok",
+                status="ok",
+                ground_truth_rows=[{"id": 1}],
+                row_count=1,
+                errors=[],
+            ),
+            TestHarnessExecuteOutput(
+                scenario_name="test_fail",
+                status="error",
+                ground_truth_rows=[],
+                row_count=0,
+                errors=[ErrorEntry(code="SCENARIO_FAILED", message="insert failed")],
+            ),
         ]
 
         with (
@@ -1378,13 +1447,13 @@ class TestCLIExecuteSpec:
         runner = CliRunner()
 
         backend_mock = MagicMock()
-        backend_mock.execute_scenario.return_value = {
-            "scenario_name": "test_fail",
-            "status": "error",
-            "ground_truth_rows": [],
-            "row_count": 0,
-            "errors": [{"code": "SCENARIO_FAILED", "message": "connection refused"}],
-        }
+        backend_mock.execute_scenario.return_value = TestHarnessExecuteOutput(
+            scenario_name="test_fail",
+            status="error",
+            ground_truth_rows=[],
+            row_count=0,
+            errors=[ErrorEntry(code="SCENARIO_FAILED", message="connection refused")],
+        )
 
         with (
             patch("shared.test_harness.resolve_project_root", return_value=tmp_path),
@@ -1399,8 +1468,8 @@ class TestCLIExecuteSpec:
 
         assert result.exit_code == 1
 
-    def test_execute_spec_output_schema(self, assert_valid_schema) -> None:
-        data = {
+    def test_execute_spec_output_model(self) -> None:
+        result = ExecuteSpecOutput.model_validate({
             "schema_version": "1.0",
             "sandbox_database": "__test_abc123",
             "spec_path": "test-specs/silver.dimproduct.json",
@@ -1421,8 +1490,10 @@ class TestCLIExecuteSpec:
                     "errors": [{"code": "SCENARIO_FAILED", "message": "insert failed"}],
                 },
             ],
-        }
-        assert_valid_schema(data, "execute_spec_output.json")
+        })
+        assert result.ok == 1
+        assert result.failed == 1
+        assert len(result.results) == 2
 
 
 # ── Corrupt JSON tests ──────────────────────────────────────────────
@@ -1813,10 +1884,10 @@ class TestExecuteSelectSqlServer:
                 fixtures=[],
             )
 
-        assert result["status"] == "ok"
-        assert result["row_count"] == 2
-        assert len(result["ground_truth_rows"]) == 2
-        assert result["errors"] == []
+        assert result.status == "ok"
+        assert result.row_count == 2
+        assert len(result.ground_truth_rows) == 2
+        assert result.errors == []
         conn.rollback.assert_called_once()
 
     def test_empty_result(self) -> None:
@@ -1845,9 +1916,9 @@ class TestExecuteSelectSqlServer:
                 fixtures=[],
             )
 
-        assert result["status"] == "ok"
-        assert result["row_count"] == 0
-        assert result["ground_truth_rows"] == []
+        assert result.status == "ok"
+        assert result.row_count == 0
+        assert result.ground_truth_rows == []
 
     def test_rejects_write_sql(self) -> None:
         """execute_select rejects SQL containing write operations."""
@@ -1892,9 +1963,9 @@ class TestExecuteSelectOracle:
                 fixtures=[],
             )
 
-        assert result["status"] == "ok"
-        assert result["row_count"] == 2
-        assert len(result["ground_truth_rows"]) == 2
+        assert result.status == "ok"
+        assert result.row_count == 2
+        assert len(result.ground_truth_rows) == 2
         conn.rollback.assert_called_once()
 
 
@@ -1933,13 +2004,13 @@ class TestExecuteSpecViewRouting:
         }
 
         mock_backend = MagicMock()
-        mock_backend.execute_select.return_value = {
-            "status": "ok",
-            "scenario_name": "execute_select",
-            "ground_truth_rows": [{"id": 1}],
-            "row_count": 1,
-            "errors": [],
-        }
+        mock_backend.execute_select.return_value = TestHarnessExecuteOutput(
+            scenario_name="execute_select",
+            status="ok",
+            ground_truth_rows=[{"id": 1}],
+            row_count=1,
+            errors=[],
+        )
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(spec, f)
@@ -1994,13 +2065,13 @@ class TestExecuteSpecViewRouting:
         }
 
         mock_backend = MagicMock()
-        mock_backend.execute_scenario.return_value = {
-            "status": "ok",
-            "scenario_name": "test_merge_insert",
-            "ground_truth_rows": [{"id": 1}],
-            "row_count": 1,
-            "errors": [],
-        }
+        mock_backend.execute_scenario.return_value = TestHarnessExecuteOutput(
+            scenario_name="test_merge_insert",
+            status="ok",
+            ground_truth_rows=[{"id": 1}],
+            row_count=1,
+            errors=[],
+        )
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(spec, f)

@@ -30,6 +30,14 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     import oracledb
 
+from shared.output_models import (
+    ErrorEntry,
+    SandboxDownOutput,
+    SandboxStatusOutput,
+    SandboxUpOutput,
+    TestHarnessExecuteOutput,
+)
+
 _oracledb = None
 
 
@@ -409,7 +417,7 @@ class OracleSandbox(SandboxBackend):
 
         return cloned, errors
 
-    def sandbox_up(self, schemas: list[str]) -> dict[str, Any]:
+    def sandbox_up(self, schemas: list[str]) -> SandboxUpOutput:
         """Create sandbox schema and clone tables + procedures from source.
 
         The first element of ``schemas`` is used as the source schema name,
@@ -425,7 +433,7 @@ class OracleSandbox(SandboxBackend):
             sandbox_schema, source_schema,
         )
 
-        errors: list[dict[str, str]] = []
+        errors: list[ErrorEntry] = []
         tables_cloned: list[str] = []
         views_cloned: list[str] = []
         procedures_cloned: list[str] = []
@@ -437,30 +445,30 @@ class OracleSandbox(SandboxBackend):
 
                 t_cloned, t_errors = self._clone_tables(cursor, sandbox_schema, source_schema)
                 tables_cloned.extend(t_cloned)
-                errors.extend(t_errors)
+                errors.extend(ErrorEntry(**e) for e in t_errors)
 
                 v_cloned, v_errors = self._clone_views(cursor, sandbox_schema, source_schema)
                 views_cloned.extend(v_cloned)
-                errors.extend(v_errors)
+                errors.extend(ErrorEntry(**e) for e in v_errors)
 
                 p_cloned, p_errors = self._clone_procedures(
                     cursor, sandbox_schema, source_schema,
                 )
                 procedures_cloned.extend(p_cloned)
-                errors.extend(p_errors)
+                errors.extend(ErrorEntry(**e) for e in p_errors)
 
         except _import_oracledb().DatabaseError as exc:
             logger.error(
                 "event=oracle_sandbox_up_failed sandbox=%s error=%s", sandbox_schema, exc,
             )
-            return {
-                "sandbox_database": sandbox_schema,
-                "status": "error",
-                "tables_cloned": tables_cloned,
-                "views_cloned": views_cloned,
-                "procedures_cloned": procedures_cloned,
-                "errors": [{"code": "SANDBOX_UP_FAILED", "message": str(exc)}],
-            }
+            return SandboxUpOutput(
+                sandbox_database=sandbox_schema,
+                status="error",
+                tables_cloned=tables_cloned,
+                views_cloned=views_cloned,
+                procedures_cloned=procedures_cloned,
+                errors=[ErrorEntry(code="SANDBOX_UP_FAILED", message=str(exc))],
+            )
 
         status = "ok" if not errors else "partial"
         logger.info(
@@ -469,16 +477,16 @@ class OracleSandbox(SandboxBackend):
             sandbox_schema, status, len(tables_cloned), len(views_cloned),
             len(procedures_cloned), len(errors),
         )
-        return {
-            "sandbox_database": sandbox_schema,
-            "status": status,
-            "tables_cloned": tables_cloned,
-            "views_cloned": views_cloned,
-            "procedures_cloned": procedures_cloned,
-            "errors": errors,
-        }
+        return SandboxUpOutput(
+            sandbox_database=sandbox_schema,
+            status=status,
+            tables_cloned=tables_cloned,
+            views_cloned=views_cloned,
+            procedures_cloned=procedures_cloned,
+            errors=errors,
+        )
 
-    def sandbox_down(self, sandbox_db: str) -> dict[str, Any]:
+    def sandbox_down(self, sandbox_db: str) -> SandboxDownOutput:
         _validate_oracle_sandbox_name(sandbox_db)
         logger.info("event=oracle_sandbox_down sandbox=%s", sandbox_db)
 
@@ -492,18 +500,18 @@ class OracleSandbox(SandboxBackend):
                 if cursor.fetchone()[0] > 0:
                     cursor.execute(f'DROP USER "{sandbox_db}" CASCADE')
             logger.info("event=oracle_sandbox_down_complete sandbox=%s", sandbox_db)
-            return {"sandbox_database": sandbox_db, "status": "ok"}
+            return SandboxDownOutput(sandbox_database=sandbox_db, status="ok")
         except _import_oracledb().DatabaseError as exc:
             logger.error(
                 "event=oracle_sandbox_down_failed sandbox=%s error=%s", sandbox_db, exc,
             )
-            return {
-                "sandbox_database": sandbox_db,
-                "status": "error",
-                "errors": [{"code": "SANDBOX_DOWN_FAILED", "message": str(exc)}],
-            }
+            return SandboxDownOutput(
+                sandbox_database=sandbox_db,
+                status="error",
+                errors=[ErrorEntry(code="SANDBOX_DOWN_FAILED", message=str(exc))],
+            )
 
-    def sandbox_status(self, sandbox_db: str) -> dict[str, Any]:
+    def sandbox_status(self, sandbox_db: str) -> SandboxStatusOutput:
         _validate_oracle_sandbox_name(sandbox_db)
         logger.info("event=oracle_sandbox_status sandbox=%s", sandbox_db)
 
@@ -520,21 +528,25 @@ class OracleSandbox(SandboxBackend):
                 logger.info(
                     "event=oracle_sandbox_status_complete sandbox=%s exists=true", sandbox_db,
                 )
-                return {"sandbox_database": sandbox_db, "status": "ok", "exists": True}
+                return SandboxStatusOutput(
+                    sandbox_database=sandbox_db, status="ok", exists=True,
+                )
             logger.info(
                 "event=oracle_sandbox_status_complete sandbox=%s exists=false", sandbox_db,
             )
-            return {"sandbox_database": sandbox_db, "status": "not_found", "exists": False}
+            return SandboxStatusOutput(
+                sandbox_database=sandbox_db, status="not_found", exists=False,
+            )
         except _import_oracledb().DatabaseError as exc:
             logger.error(
                 "event=oracle_sandbox_status_failed sandbox=%s error=%s", sandbox_db, exc,
             )
-            return {
-                "sandbox_database": sandbox_db,
-                "status": "error",
-                "exists": False,
-                "errors": [{"code": "SANDBOX_STATUS_FAILED", "message": str(exc)}],
-            }
+            return SandboxStatusOutput(
+                sandbox_database=sandbox_db,
+                status="error",
+                exists=False,
+                errors=[ErrorEntry(code="SANDBOX_STATUS_FAILED", message=str(exc))],
+            )
 
     def _seed_fixtures(
         self,
@@ -648,7 +660,7 @@ class OracleSandbox(SandboxBackend):
         self,
         sandbox_db: str,
         scenario: dict[str, Any],
-    ) -> dict[str, Any]:
+    ) -> TestHarnessExecuteOutput:
         """Run one test scenario: seed fixtures, execute procedure, capture output.
 
         ``procedure`` and ``target_table`` in the scenario are bare object names
@@ -676,14 +688,13 @@ class OracleSandbox(SandboxBackend):
                 "event=oracle_view_materialize_failed sandbox=%s scenario=%s error=%s",
                 sandbox_db, scenario_name, exc,
             )
-            return {
-                "schema_version": "1.0",
-                "scenario_name": scenario_name,
-                "status": "error",
-                "ground_truth_rows": [],
-                "row_count": 0,
-                "errors": [{"code": "VIEW_MATERIALIZE_FAILED", "message": str(exc)}],
-            }
+            return TestHarnessExecuteOutput(
+                scenario_name=scenario_name,
+                status="error",
+                ground_truth_rows=[],
+                row_count=0,
+                errors=[ErrorEntry(code="VIEW_MATERIALIZE_FAILED", message=str(exc))],
+            )
 
         logger.info(
             "event=oracle_execute_scenario sandbox=%s scenario=%s procedure=%s",
@@ -711,34 +722,32 @@ class OracleSandbox(SandboxBackend):
                 "event=oracle_scenario_complete sandbox=%s scenario=%s rows=%d",
                 sandbox_db, scenario_name, len(result_rows),
             )
-            return {
-                "schema_version": "1.0",
-                "scenario_name": scenario_name,
-                "status": "ok",
-                "ground_truth_rows": serialize_rows(result_rows),
-                "row_count": len(result_rows),
-                "errors": [],
-            }
+            return TestHarnessExecuteOutput(
+                scenario_name=scenario_name,
+                status="ok",
+                ground_truth_rows=serialize_rows(result_rows),
+                row_count=len(result_rows),
+                errors=[],
+            )
         except _import_oracledb().DatabaseError as exc:
             logger.error(
                 "event=oracle_scenario_failed sandbox=%s scenario=%s error=%s",
                 sandbox_db, scenario_name, exc,
             )
-            return {
-                "schema_version": "1.0",
-                "scenario_name": scenario_name,
-                "status": "error",
-                "ground_truth_rows": [],
-                "row_count": 0,
-                "errors": [{"code": "SCENARIO_FAILED", "message": str(exc)}],
-            }
+            return TestHarnessExecuteOutput(
+                scenario_name=scenario_name,
+                status="error",
+                ground_truth_rows=[],
+                row_count=0,
+                errors=[ErrorEntry(code="SCENARIO_FAILED", message=str(exc))],
+            )
 
     def execute_select(
         self,
         sandbox_db: str,
         sql: str,
         fixtures: list[dict[str, Any]],
-    ) -> dict[str, Any]:
+    ) -> TestHarnessExecuteOutput:
         _validate_oracle_sandbox_name(sandbox_db)
         _validate_fixtures(fixtures)
         _validate_readonly_sql(sql)
@@ -753,14 +762,13 @@ class OracleSandbox(SandboxBackend):
                 "event=oracle_view_materialize_failed sandbox=%s error=%s",
                 sandbox_db, exc,
             )
-            return {
-                "schema_version": "1.0",
-                "scenario_name": scenario_name,
-                "status": "error",
-                "ground_truth_rows": [],
-                "row_count": 0,
-                "errors": [{"code": "VIEW_MATERIALIZE_FAILED", "message": str(exc)}],
-            }
+            return TestHarnessExecuteOutput(
+                scenario_name=scenario_name,
+                status="error",
+                ground_truth_rows=[],
+                row_count=0,
+                errors=[ErrorEntry(code="VIEW_MATERIALIZE_FAILED", message=str(exc))],
+            )
 
         result_rows: list[dict[str, Any]] = []
         try:
@@ -778,27 +786,25 @@ class OracleSandbox(SandboxBackend):
                 "event=oracle_execute_select_complete sandbox=%s rows=%d",
                 sandbox_db, len(result_rows),
             )
-            return {
-                "schema_version": "1.0",
-                "scenario_name": scenario_name,
-                "status": "ok",
-                "ground_truth_rows": serialize_rows(result_rows),
-                "row_count": len(result_rows),
-                "errors": [],
-            }
+            return TestHarnessExecuteOutput(
+                scenario_name=scenario_name,
+                status="ok",
+                ground_truth_rows=serialize_rows(result_rows),
+                row_count=len(result_rows),
+                errors=[],
+            )
         except _import_oracledb().DatabaseError as exc:
             logger.error(
                 "event=oracle_execute_select_failed sandbox=%s error=%s",
                 sandbox_db, exc,
             )
-            return {
-                "schema_version": "1.0",
-                "scenario_name": scenario_name,
-                "status": "error",
-                "ground_truth_rows": [],
-                "row_count": 0,
-                "errors": [{"code": "EXECUTE_SELECT_FAILED", "message": str(exc)}],
-            }
+            return TestHarnessExecuteOutput(
+                scenario_name=scenario_name,
+                status="error",
+                ground_truth_rows=[],
+                row_count=0,
+                errors=[ErrorEntry(code="EXECUTE_SELECT_FAILED", message=str(exc))],
+            )
 
     def compare_two_sql(
         self,

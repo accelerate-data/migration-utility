@@ -25,6 +25,12 @@ from shared.env_config import resolve_catalog_dir, resolve_project_root
 from shared.loader import CatalogFileMissingError, CatalogLoadError
 from shared.loader_io import clear_manifest_sandbox, read_manifest, write_manifest_sandbox
 from shared.name_resolver import normalize
+from shared.output_models import (
+    ErrorEntry,
+    ExecuteSpecOutput,
+    ExecuteSpecResult,
+    TestHarnessExecuteOutput,
+)
 from shared.sandbox import get_backend
 from shared.sandbox.base import SandboxBackend
 
@@ -157,11 +163,11 @@ def sandbox_up(
         )
     except (ValueError, KeyError) as exc:
         _error_exit("SANDBOX_UP_INVALID_INPUT", str(exc), exc)
-    if result.get("status") != "error":
-        write_manifest_sandbox(root, result["sandbox_database"])
-    typer.echo(json.dumps(result, indent=2))
-    logger.info("event=cli_complete command=sandbox_up sandbox_db=%s status=%s", result.get("sandbox_database"), result.get("status"))
-    if result.get("status") == "error":
+    if result.status != "error":
+        write_manifest_sandbox(root, result.sandbox_database)
+    emit(result)
+    logger.info("event=cli_complete command=sandbox_up sandbox_db=%s status=%s", result.sandbox_database, result.status)
+    if result.status == "error":
         raise typer.Exit(code=1)
 
 
@@ -180,11 +186,11 @@ def sandbox_down(
         result = backend.sandbox_down(sandbox_db=sandbox_db)
     except (ValueError, KeyError) as exc:
         _error_exit("SANDBOX_DOWN_INVALID_INPUT", str(exc), exc)
-    if result.get("status") != "error":
+    if result.status != "error":
         clear_manifest_sandbox(root)
-    typer.echo(json.dumps(result, indent=2))
-    logger.info("event=cli_complete command=sandbox_down sandbox_db=%s status=%s", sandbox_db, result.get("status"))
-    if result.get("status") == "error":
+    emit(result)
+    logger.info("event=cli_complete command=sandbox_down sandbox_db=%s status=%s", sandbox_db, result.status)
+    if result.status == "error":
         raise typer.Exit(code=1)
 
 
@@ -203,11 +209,11 @@ def sandbox_status(
         result = backend.sandbox_status(sandbox_db=sandbox_db)
     except (ValueError, KeyError) as exc:
         _error_exit("SANDBOX_STATUS_INVALID_INPUT", str(exc), exc)
-    typer.echo(json.dumps(result, indent=2))
-    logger.info("event=cli_complete command=sandbox_status sandbox_db=%s status=%s", sandbox_db, result.get("status"))
-    if result.get("status") == "error":
+    emit(result)
+    logger.info("event=cli_complete command=sandbox_status sandbox_db=%s status=%s", sandbox_db, result.status)
+    if result.status == "error":
         raise typer.Exit(code=1)
-    if not result.get("exists"):
+    if not result.exists:
         raise typer.Exit(code=1)
 
 
@@ -236,9 +242,9 @@ def execute(
         result = backend.execute_scenario(sandbox_db=sandbox_db, scenario=scenario_data)
     except (ValueError, KeyError) as exc:
         _error_exit("EXECUTE_INVALID_INPUT", str(exc), exc)
-    typer.echo(json.dumps(result, indent=2))
-    logger.info("event=cli_complete command=execute sandbox_db=%s status=%s", sandbox_db, result.get("status"))
-    if result.get("status") == "error":
+    emit(result)
+    logger.info("event=cli_complete command=execute sandbox_db=%s status=%s", sandbox_db, result.status)
+    if result.status == "error":
         raise typer.Exit(code=1)
 
 
@@ -267,7 +273,7 @@ def execute_spec(
     if not unit_tests:
         _error_exit("SPEC_EMPTY", "Test spec has no unit_tests entries")
 
-    results: list[dict[str, Any]] = []
+    results: list[ExecuteSpecResult] = []
     ok_count = 0
     failed_count = 0
 
@@ -281,57 +287,58 @@ def execute_spec(
                     "procedure": test_entry["procedure"],
                     "given": test_entry["given"],
                 }
-                result = backend.execute_scenario(sandbox_db=sandbox_db, scenario=scenario)
+                exec_result = backend.execute_scenario(sandbox_db=sandbox_db, scenario=scenario)
             else:
                 # View-based test: run a SELECT directly
-                result = backend.execute_select(
+                exec_result = backend.execute_select(
                     sandbox_db=sandbox_db,
                     sql=test_entry["sql"],
                     fixtures=test_entry["given"],
                 )
-                result["scenario_name"] = test_entry["name"]
+                exec_result = exec_result.model_copy(
+                    update={"scenario_name": test_entry["name"]},
+                )
         except (ValueError, KeyError) as exc:
-            result = {
-                "scenario_name": test_entry.get("name", "unknown"),
-                "status": "error",
-                "ground_truth_rows": [],
-                "row_count": 0,
-                "errors": [{"code": "EXECUTE_INVALID_INPUT", "message": str(exc)}],
-            }
+            exec_result = TestHarnessExecuteOutput(
+                scenario_name=test_entry.get("name", "unknown"),
+                status="error",
+                ground_truth_rows=[],
+                row_count=0,
+                errors=[ErrorEntry(code="EXECUTE_INVALID_INPUT", message=str(exc))],
+            )
 
-        results.append({
-            "scenario_name": result.get("scenario_name", test_entry.get("name", "unknown")),
-            "status": result["status"],
-            "row_count": result.get("row_count", 0),
-            "errors": result.get("errors", []),
-        })
+        results.append(ExecuteSpecResult(
+            scenario_name=exec_result.scenario_name,
+            status=exec_result.status,
+            row_count=exec_result.row_count,
+            errors=exec_result.errors,
+        ))
 
-        if result["status"] == "ok":
-            test_entry["expect"] = {"rows": result["ground_truth_rows"]}
+        if exec_result.status == "ok":
+            test_entry["expect"] = {"rows": exec_result.ground_truth_rows}
             ok_count += 1
         else:
             test_entry.pop("expect", None)  # clear stale ground truth
             failed_count += 1
             logger.warning(
                 "event=scenario_failed command=execute_spec sandbox_db=%s scenario=%s errors=%s",
-                sandbox_db, test_entry["name"], result.get("errors"),
+                sandbox_db, test_entry["name"], exec_result.errors,
             )
 
     # Write updated spec back with expect.rows populated
     with spec_path.open("w") as f:
         json.dump(spec_data, f, indent=2)
 
-    output = {
-        "schema_version": "1.0",
-        "sandbox_database": sandbox_db,
-        "spec_path": str(spec_path),
-        "total": len(unit_tests),
-        "ok": ok_count,
-        "failed": failed_count,
-        "results": results,
-    }
+    output = ExecuteSpecOutput(
+        sandbox_database=sandbox_db,
+        spec_path=str(spec_path),
+        total=len(unit_tests),
+        ok=ok_count,
+        failed=failed_count,
+        results=results,
+    )
 
-    typer.echo(json.dumps(output, indent=2))
+    emit(output)
     logger.info(
         "event=cli_complete command=execute_spec sandbox_db=%s total=%d ok=%d failed=%d",
         sandbox_db, len(unit_tests), ok_count, failed_count,
