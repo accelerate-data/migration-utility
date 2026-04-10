@@ -79,15 +79,9 @@ Every `references` and `referenced_by` group splits entries into:
 - `in_scope` -- object is within the extracted schemas. Full metadata available.
 - `out_of_scope` -- cross-database or cross-server reference. Only name/database/reason captured.
 
-## discover CLI output schemas
+## discover CLI output contracts
 
-Structured JSON output from the `discover` CLI subcommands, consumed by skills and agents.
-
-| Schema | Subcommand | Notes |
-|---|---|---|
-| [discover_list_output.json](discover_list_output.json) | `discover list` | `{objects: [string]}` |
-| [discover_show_output.json](discover_show_output.json) | `discover show` | columns, params, refs (from catalog), statements (AST, deterministic only), needs_llm |
-| [discover_refs_output.json](discover_refs_output.json) | `discover refs` | readers, writers with `is_updated`/`is_selected` from catalog. No confidence scoring. |
+Discover CLI output shapes are now enforced by Pydantic models in `output_models.py` (`DiscoverListOutput`, `DiscoverShowOutput`, `DiscoverRefsOutput`). The JSON schema files have been removed.
 
 ## Agent input schemas
 

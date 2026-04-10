@@ -673,19 +673,10 @@ class TestBuildBatchPlan:
         tmp, dst = _make_empty_project()
         try:
             result = build_batch_plan(dst)
-            assert result["summary"]["total_objects"] == 0
-            assert result["scope_phase"] == []
-            assert result["profile_phase"] == []
-            assert result["migrate_batches"] == []
-        finally:
-            tmp.cleanup()
-
-    def test_schema_valid(self, assert_valid_schema):
-        """build_batch_plan output conforms to batch_plan_output.json schema."""
-        tmp, dst = _make_project()
-        try:
-            result = build_batch_plan(dst)
-            assert_valid_schema(result, "batch_plan_output.json")
+            assert result.summary.total_objects == 0
+            assert result.scope_phase == []
+            assert result.profile_phase == []
+            assert result.migrate_batches == []
         finally:
             tmp.cleanup()
 
@@ -694,15 +685,15 @@ class TestBuildBatchPlan:
         tmp, dst = _make_project()
         try:
             result = build_batch_plan(dst)
-            summary = result["summary"]
+            summary = result.summary
             # refcurrency has no_writer_found → goes to source_pending, not pipeline
             # 5 pipeline tables + 2 views = 7 pipeline objects
-            assert summary["total_objects"] == 7
-            assert summary["tables"] == 5
-            assert summary["views"] == 2
-            assert summary["writerless_tables"] == 0
-            assert summary["source_pending"] == 1  # refcurrency awaits confirmation
-            assert summary["source_tables"] == 0
+            assert summary.total_objects == 7
+            assert summary.tables == 5
+            assert summary.views == 2
+            assert summary.writerless_tables == 0
+            assert summary.source_pending == 1  # refcurrency awaits confirmation
+            assert summary.source_tables == 0
         finally:
             tmp.cleanup()
 
@@ -711,7 +702,7 @@ class TestBuildBatchPlan:
         tmp, dst = _make_project()
         try:
             result = build_batch_plan(dst)
-            scope_fqns = {n["fqn"] for n in result["scope_phase"]}
+            scope_fqns = {n.fqn for n in result.scope_phase}
             assert "silver.dimdate" in scope_fqns      # no scoping
             assert "silver.vw_territory" in scope_fqns  # view not analyzed
         finally:
@@ -722,7 +713,7 @@ class TestBuildBatchPlan:
         tmp, dst = _make_project()
         try:
             result = build_batch_plan(dst)
-            profile_fqns = {n["fqn"] for n in result["profile_phase"]}
+            profile_fqns = {n.fqn for n in result.profile_phase}
             assert "silver.dimgeography" in profile_fqns
         finally:
             tmp.cleanup()
@@ -732,7 +723,7 @@ class TestBuildBatchPlan:
         tmp, dst = _make_project()
         try:
             result = build_batch_plan(dst)
-            assert result["n_a_objects"] == []
+            assert result.n_a_objects == []
         finally:
             tmp.cleanup()
 
@@ -741,7 +732,7 @@ class TestBuildBatchPlan:
         tmp, dst = _make_project()
         try:
             result = build_batch_plan(dst)
-            pending_fqns = {o["fqn"] for o in result["source_pending"]}
+            pending_fqns = {o.fqn for o in result.source_pending}
             assert "silver.refcurrency" in pending_fqns
         finally:
             tmp.cleanup()
@@ -751,7 +742,7 @@ class TestBuildBatchPlan:
         tmp, dst = _make_project()
         try:
             result = build_batch_plan(dst)
-            done_fqns = {n["fqn"] for n in result["completed_objects"]}
+            done_fqns = {n.fqn for n in result.completed_objects}
             assert "silver.dimcustomer" in done_fqns
         finally:
             tmp.cleanup()
@@ -761,7 +752,7 @@ class TestBuildBatchPlan:
         tmp, dst = _make_project()
         try:
             result = build_batch_plan(dst)
-            assert len(result["migrate_batches"]) >= 2
+            assert len(result.migrate_batches) >= 2
         finally:
             tmp.cleanup()
 
@@ -771,9 +762,9 @@ class TestBuildBatchPlan:
         try:
             result = build_batch_plan(dst)
             batch_for = {}
-            for batch in result["migrate_batches"]:
-                for node in batch["objects"]:
-                    batch_for[node["fqn"]] = batch["batch"]
+            for batch in result.migrate_batches:
+                for node in batch.objects:
+                    batch_for[node.fqn] = batch.batch
 
             assert "silver.factsales" in batch_for
             assert "silver.dimproduct" in batch_for
@@ -788,11 +779,11 @@ class TestBuildBatchPlan:
             result = build_batch_plan(dst)
             factsales_node = next(
                 n
-                for batch in result["migrate_batches"]
-                for n in batch["objects"]
-                if n["fqn"] == "silver.factsales"
+                for batch in result.migrate_batches
+                for n in batch.objects
+                if n.fqn == "silver.factsales"
             )
-            blocking = set(factsales_node["blocking_deps"])
+            blocking = set(factsales_node.blocking_deps)
             # dimproduct is in migrate phase (test_gen_needed) — blocking
             assert "silver.dimproduct" in blocking
             # vw_territory is scope_needed — blocking
@@ -809,10 +800,10 @@ class TestBuildBatchPlan:
         tmp, dst = _make_project()
         try:
             result = build_batch_plan(dst)
-            for batch in result["migrate_batches"]:
-                for node in batch["objects"]:
-                    assert "silver.refcurrency" not in node["blocking_deps"], (
-                        f"{node['fqn']} wrongly lists writerless refcurrency as a blocker"
+            for batch in result.migrate_batches:
+                for node in batch.objects:
+                    assert "silver.refcurrency" not in node.blocking_deps, (
+                        f"{node.fqn} wrongly lists writerless refcurrency as a blocker"
                     )
         finally:
             tmp.cleanup()
@@ -855,13 +846,13 @@ class TestBuildBatchPlan:
 
         result = build_batch_plan(tmp_path)
         # vw_report should be in migrate_batches (migrate_needed), not blocked
-        batch_fqns = {n["fqn"] for batch in result["migrate_batches"] for n in batch["objects"]}
+        batch_fqns = {n.fqn for batch in result.migrate_batches for n in batch.objects}
         assert "src.vw_report" in batch_fqns
 
-        vw_node = next(n for batch in result["migrate_batches"] for n in batch["objects"]
-                       if n["fqn"] == "src.vw_report")
-        assert vw_node["blocking_deps"] == [], (
-            f"Expected no blocking_deps, got {vw_node['blocking_deps']}"
+        vw_node = next(n for batch in result.migrate_batches for n in batch.objects
+                       if n.fqn == "src.vw_report")
+        assert vw_node.blocking_deps == [], (
+            f"Expected no blocking_deps, got {vw_node.blocking_deps}"
         )
 
     def test_writerless_and_migrate_candidate_dep(self, tmp_path):
@@ -923,9 +914,9 @@ class TestBuildBatchPlan:
         }), encoding="utf-8")
 
         result = build_batch_plan(tmp_path)
-        vw_node = next(n for batch in result["migrate_batches"] for n in batch["objects"]
-                       if n["fqn"] == "src.vw_fact")
-        blocking = set(vw_node["blocking_deps"])
+        vw_node = next(n for batch in result.migrate_batches for n in batch.objects
+                       if n.fqn == "src.vw_fact")
+        blocking = set(vw_node.blocking_deps)
         assert "src.dim_product" in blocking, "migrate-candidate dep must be blocking"
         assert "src.dim_lookup" not in blocking, "writerless dep must not be blocking"
 
@@ -1001,10 +992,10 @@ class TestBuildBatchPlan:
         try:
             result = build_batch_plan(dst)
             fact_node = next(
-                n for batch in result["migrate_batches"] for n in batch["objects"]
-                if n["fqn"] == "silver.fact"
+                n for batch in result.migrate_batches for n in batch.objects
+                if n.fqn == "silver.fact"
             )
-            blocking = set(fact_node["blocking_deps"])
+            blocking = set(fact_node.blocking_deps)
             # vw_mid is scope_needed, no model → blocking
             assert "silver.vw_mid" in blocking
             # vw_base is scope_needed, no model → also blocking (transitive)
@@ -1089,10 +1080,10 @@ class TestBuildBatchPlan:
         try:
             result = build_batch_plan(dst)
             fact_node = next(
-                n for batch in result["migrate_batches"] for n in batch["objects"]
-                if n["fqn"] == "silver.fact"
+                n for batch in result.migrate_batches for n in batch.objects
+                if n.fqn == "silver.fact"
             )
-            blocking = set(fact_node["blocking_deps"])
+            blocking = set(fact_node.blocking_deps)
             # vw_mid is complete (has dbt model) → NOT blocking
             assert "silver.vw_mid" not in blocking
             # vw_base and leaf are still incomplete but vw_mid acts as a boundary —
@@ -1107,10 +1098,10 @@ class TestBuildBatchPlan:
         tmp, dst = _make_project()
         try:
             result = build_batch_plan(dst)
-            for node in result["completed_objects"]:
-                assert node["has_dbt_model"] is True, node["fqn"]
-            for node in result["scope_phase"]:
-                assert node["has_dbt_model"] is False, node["fqn"]
+            for node in result.completed_objects:
+                assert node.has_dbt_model is True, node.fqn
+            for node in result.scope_phase:
+                assert node.has_dbt_model is False, node.fqn
         finally:
             tmp.cleanup()
 
@@ -1157,8 +1148,8 @@ class TestBuildBatchPlan:
             extra_table_refs=[{"schema": "bronze", "name": "RawAgg"}],
         )
         result = build_batch_plan(tmp_path, dbt_root=tmp_path / "dbt")
-        scheduled = {n["fqn"] for batch in result["migrate_batches"] for n in batch["objects"]}
-        circular = {r["fqn"] for r in result["circular_refs"]}
+        scheduled = {n.fqn for batch in result.migrate_batches for n in batch.objects}
+        circular = {r.fqn for r in result.circular_refs}
         assert "silver.factagg" in scheduled
         assert "silver.factagg" not in circular
 
@@ -1172,8 +1163,8 @@ class TestBuildBatchPlan:
             extra_table_refs=[{"schema": "bronze", "name": "RawProduct"}],
         )
         result = build_batch_plan(tmp_path, dbt_root=tmp_path / "dbt")
-        scheduled = {n["fqn"] for batch in result["migrate_batches"] for n in batch["objects"]}
-        circular = {r["fqn"] for r in result["circular_refs"]}
+        scheduled = {n.fqn for batch in result.migrate_batches for n in batch.objects}
+        circular = {r.fqn for r in result.circular_refs}
         assert "silver.dimproduct" in scheduled
         assert "silver.dimproduct" not in circular
 
@@ -1233,9 +1224,9 @@ class TestCollectObjectDiagnostics:
             dimdate_path.write_text(json.dumps(cat))
 
             result = build_batch_plan(dst)
-            warning_codes = [w["code"] for w in result["catalog_diagnostics"]["warnings"]]
+            warning_codes = [w.code for w in result.catalog_diagnostics.warnings]
             assert "STALE_OBJECT" in warning_codes
-            assert result["catalog_diagnostics"]["total_warnings"] >= 1
+            assert result.catalog_diagnostics.total_warnings >= 1
         finally:
             tmp.cleanup()
 
@@ -1266,11 +1257,11 @@ class TestExcludedObjects:
         dst = self._make_single_table_project(tmp_path, excluded=True)
         result = build_batch_plan(dst)
         all_active_fqns = (
-            {n["fqn"] for n in result["scope_phase"]}
-            | {n["fqn"] for n in result["profile_phase"]}
-            | {n["fqn"] for batch in result["migrate_batches"] for n in batch["objects"]}
-            | {n["fqn"] for n in result["completed_objects"]}
-            | {n["fqn"] for n in result["n_a_objects"]}
+            {n.fqn for n in result.scope_phase}
+            | {n.fqn for n in result.profile_phase}
+            | {n.fqn for batch in result.migrate_batches for n in batch.objects}
+            | {n.fqn for n in result.completed_objects}
+            | {n.fqn for n in result.n_a_objects}
         )
         assert "silver.dimdate" not in all_active_fqns
 
@@ -1278,24 +1269,24 @@ class TestExcludedObjects:
         """Excluded table appears in excluded_objects with correct shape."""
         dst = self._make_single_table_project(tmp_path, excluded=True)
         result = build_batch_plan(dst)
-        assert len(result["excluded_objects"]) == 1
-        entry = result["excluded_objects"][0]
-        assert entry["fqn"] == "silver.dimdate"
-        assert entry["type"] == "table"
-        assert "note" in entry
+        assert len(result.excluded_objects) == 1
+        entry = result.excluded_objects[0]
+        assert entry.fqn == "silver.dimdate"
+        assert entry.type == "table"
+        assert hasattr(entry, "note")
 
     def test_excluded_count_in_summary(self, tmp_path):
         """summary.excluded_count reflects number of excluded objects."""
         dst = self._make_single_table_project(tmp_path, excluded=True)
         result = build_batch_plan(dst)
-        assert result["summary"]["excluded_count"] == 1
+        assert result.summary.excluded_count == 1
 
     def test_non_excluded_table_has_zero_excluded_count(self, tmp_path):
         """summary.excluded_count is 0 when nothing is excluded."""
         dst = self._make_single_table_project(tmp_path, excluded=False)
         result = build_batch_plan(dst)
-        assert result["summary"]["excluded_count"] == 0
-        assert result["excluded_objects"] == []
+        assert result.summary.excluded_count == 0
+        assert result.excluded_objects == []
 
     def test_excluded_view_absent_from_all_phases(self, tmp_path):
         """Excluded view does not appear in any active phase."""
@@ -1313,12 +1304,12 @@ class TestExcludedObjects:
             encoding="utf-8",
         )
         result = build_batch_plan(tmp_path)
-        assert len(result["excluded_objects"]) == 1
-        assert result["excluded_objects"][0]["fqn"] == "silver.vw_legacy"
-        assert result["excluded_objects"][0]["type"] == "view"
+        assert len(result.excluded_objects) == 1
+        assert result.excluded_objects[0].fqn == "silver.vw_legacy"
+        assert result.excluded_objects[0].type == "view"
         all_active = (
-            {n["fqn"] for n in result["scope_phase"]}
-            | {n["fqn"] for n in result["profile_phase"]}
+            {n.fqn for n in result.scope_phase}
+            | {n.fqn for n in result.profile_phase}
         )
         assert "silver.vw_legacy" not in all_active
 
@@ -1350,25 +1341,19 @@ class TestExcludedObjects:
             encoding="utf-8",
         )
         result = build_batch_plan(tmp_path)
-        excluded_fqns_in_output = {e["fqn"] for e in result["excluded_objects"]}
+        excluded_fqns_in_output = {e.fqn for e in result.excluded_objects}
         assert "silver.excludedsource" in excluded_fqns_in_output
         # silver.facttable has no_writer_found → goes to source_pending with VU-948
-        pending_fqns = {n["fqn"] for n in result["source_pending"]}
+        pending_fqns = {n.fqn for n in result.source_pending}
         assert "silver.facttable" in pending_fqns
-
-    def test_schema_valid_with_excluded(self, assert_valid_schema, tmp_path):
-        """build_batch_plan output with excluded objects conforms to schema."""
-        dst = self._make_single_table_project(tmp_path, excluded=True)
-        result = build_batch_plan(dst)
-        assert_valid_schema(result, "batch_plan_output.json")
 
     def test_full_fixture_excluded_count_zero(self):
         """Standard fixture (no excluded objects) has excluded_count=0."""
         tmp, dst = _make_project()
         try:
             result = build_batch_plan(dst)
-            assert result["summary"]["excluded_count"] == 0
-            assert result["excluded_objects"] == []
+            assert result.summary.excluded_count == 0
+            assert result.excluded_objects == []
         finally:
             tmp.cleanup()
 
@@ -1382,15 +1367,15 @@ class TestExcludedObjects:
             dimdate_path.write_text(json.dumps(cat))
 
             result = build_batch_plan(dst)
-            assert result["summary"]["excluded_count"] == 1
-            assert result["summary"]["total_objects"] == 6  # refcurrency in source_pending, dimdate excluded
-            excluded_fqns = {e["fqn"] for e in result["excluded_objects"]}
+            assert result.summary.excluded_count == 1
+            assert result.summary.total_objects == 6  # refcurrency in source_pending, dimdate excluded
+            excluded_fqns = {e.fqn for e in result.excluded_objects}
             assert "silver.dimdate" in excluded_fqns
             # silver.dimdate must not appear in any active phase
             all_active = (
-                {n["fqn"] for n in result["scope_phase"]}
-                | {n["fqn"] for n in result["profile_phase"]}
-                | {n["fqn"] for b in result["migrate_batches"] for n in b["objects"]}
+                {n.fqn for n in result.scope_phase}
+                | {n.fqn for n in result.profile_phase}
+                | {n.fqn for b in result.migrate_batches for n in b.objects}
             )
             assert "silver.dimdate" not in all_active
         finally:
@@ -1459,10 +1444,10 @@ class TestComputeDiagnosticStageFlags:
 
             result = build_batch_plan(dst)
             dimdate_node = next(
-                n for n in result["scope_phase"] if n["fqn"] == "silver.dimdate"
+                n for n in result.scope_phase if n.fqn == "silver.dimdate"
             )
-            assert "diagnostic_stage_flags" in dimdate_node
-            assert dimdate_node["diagnostic_stage_flags"].get("refactor") == "error"
+            assert hasattr(dimdate_node, "diagnostic_stage_flags")
+            assert dimdate_node.diagnostic_stage_flags.get("refactor") == "error"
         finally:
             tmp.cleanup()
 
@@ -1500,12 +1485,12 @@ class TestIsSourceBatchPlan:
         )
         result = build_batch_plan(root)
         all_fqns = (
-            {n["fqn"] for n in result["scope_phase"]}
-            | {n["fqn"] for n in result["profile_phase"]}
-            | {n["fqn"] for batch in result["migrate_batches"] for n in batch["objects"]}
-            | {n["fqn"] for n in result["completed_objects"]}
-            | {n["fqn"] for n in result["n_a_objects"]}
-            | {n["fqn"] for n in result["source_pending"]}
+            {n.fqn for n in result.scope_phase}
+            | {n.fqn for n in result.profile_phase}
+            | {n.fqn for batch in result.migrate_batches for n in batch.objects}
+            | {n.fqn for n in result.completed_objects}
+            | {n.fqn for n in result.n_a_objects}
+            | {n.fqn for n in result.source_pending}
         )
         assert "silver.audit" not in all_fqns
 
@@ -1520,8 +1505,8 @@ class TestIsSourceBatchPlan:
             {"is_source": True},
         )
         result = build_batch_plan(root)
-        assert result["summary"]["source_tables"] == 1
-        assert result["summary"]["total_objects"] == 0  # excluded from pipeline
+        assert result.summary.source_tables == 1
+        assert result.summary.total_objects == 0  # excluded from pipeline
 
     def test_is_source_appears_in_source_tables_list(self, tmp_path):
         """is_source: true table appears in source_tables output list."""
@@ -1534,7 +1519,7 @@ class TestIsSourceBatchPlan:
             {"is_source": True},
         )
         result = build_batch_plan(root)
-        source_fqns = {o["fqn"] for o in result["source_tables"]}
+        source_fqns = {o.fqn for o in result.source_tables}
         assert "silver.audit" in source_fqns
 
     def test_resolved_table_with_is_source_excluded_from_pipeline(self, tmp_path):
@@ -1548,8 +1533,8 @@ class TestIsSourceBatchPlan:
             {"is_source": True},
         )
         result = build_batch_plan(root)
-        assert result["summary"]["source_tables"] == 1
-        assert result["summary"]["total_objects"] == 0
+        assert result.summary.source_tables == 1
+        assert result.summary.total_objects == 0
 
     def test_source_pending_populated(self, tmp_path):
         """no_writer_found table without is_source appears in source_pending."""
@@ -1561,9 +1546,9 @@ class TestIsSourceBatchPlan:
             {"status": "no_writer_found"},
         )
         result = build_batch_plan(root)
-        pending_fqns = {o["fqn"] for o in result["source_pending"]}
+        pending_fqns = {o.fqn for o in result.source_pending}
         assert "silver.lookup" in pending_fqns
-        assert result["summary"]["source_pending"] == 1
+        assert result.summary.source_pending == 1
 
     def test_source_pending_not_in_pipeline(self, tmp_path):
         """source_pending tables do not appear in any pipeline phase."""
@@ -1576,21 +1561,14 @@ class TestIsSourceBatchPlan:
         )
         result = build_batch_plan(root)
         all_pipeline_fqns = (
-            {n["fqn"] for n in result["scope_phase"]}
-            | {n["fqn"] for n in result["profile_phase"]}
-            | {n["fqn"] for batch in result["migrate_batches"] for n in batch["objects"]}
-            | {n["fqn"] for n in result["n_a_objects"]}
+            {n.fqn for n in result.scope_phase}
+            | {n.fqn for n in result.profile_phase}
+            | {n.fqn for batch in result.migrate_batches for n in batch.objects}
+            | {n.fqn for n in result.n_a_objects}
         )
         assert "silver.lookup" not in all_pipeline_fqns
 
-    def test_schema_valid_with_source_fields(self, assert_valid_schema):
-        """build_batch_plan output with source fields still matches schema."""
-        tmp, dst = _make_project()
-        try:
-            result = build_batch_plan(dst)
-            assert_valid_schema(result, "batch_plan_output.json")
-        finally:
-            tmp.cleanup()
+
 
 
 # ── _enumerate_catalog tests ────────────────────────────────────────────────
@@ -1785,14 +1763,14 @@ class TestMakeNode:
             blocking={"dbo.t": {"dbo.s"}},
             obj_diagnostics={"dbo.t": []},
         )
-        assert node["fqn"] == "dbo.t"
-        assert node["type"] == "table"
-        assert node["pipeline_status"] == "scope_needed"
-        assert node["has_dbt_model"] is False
-        assert node["direct_deps"] == ["dbo.s"]
-        assert node["blocking_deps"] == ["dbo.s"]
-        assert node["diagnostics"] == []
-        assert node["diagnostic_stage_flags"] == {}
+        assert node.fqn == "dbo.t"
+        assert node.type == "table"
+        assert node.pipeline_status == "scope_needed"
+        assert node.has_dbt_model is False
+        assert node.direct_deps == ["dbo.s"]
+        assert node.blocking_deps == ["dbo.s"]
+        assert node.diagnostics == []
+        assert node.diagnostic_stage_flags == {}
 
     def test_node_with_diagnostics(self):
         diags = [{"code": "PARSE_ERROR", "severity": "error", "message": "bad"}]
@@ -1805,7 +1783,7 @@ class TestMakeNode:
             blocking={},
             obj_diagnostics={"dbo.t": diags},
         )
-        assert node["diagnostic_stage_flags"] == {"refactor": "error"}
+        assert node.diagnostic_stage_flags == {"refactor": "error"}
 
 
 # ── _resolve_excluded_type tests ────────────────────────────────────────────
@@ -1847,10 +1825,10 @@ class TestBuildPlanOutput:
         (tmp_path / "catalog" / "tables").mkdir(parents=True)
         inv = _CatalogInventory()
         result = _build_plan_output(inv=inv, project_root=tmp_path)
-        assert result["summary"]["total_objects"] == 0
-        assert result["scope_phase"] == []
-        assert result["migrate_batches"] == []
-        assert result["catalog_diagnostics"]["total_errors"] == 0
+        assert result.summary.total_objects == 0
+        assert result.scope_phase == []
+        assert result.migrate_batches == []
+        assert result.catalog_diagnostics.total_errors == 0
 
     def test_counts_match_inventory(self, tmp_path):
         """Summary counts reflect inventory contents."""
@@ -1863,12 +1841,12 @@ class TestBuildPlanOutput:
             source_pending_fqns=["g"],
         )
         result = _build_plan_output(inv=inv, project_root=tmp_path, n_a_fqns=["h"])
-        s = result["summary"]
-        assert s["total_objects"] == 4  # 2 tables + 2 views
-        assert s["tables"] == 2
-        assert s["views"] == 1
-        assert s["mvs"] == 1
-        assert s["writerless_tables"] == 1
-        assert s["excluded_count"] == 1
-        assert s["source_tables"] == 1
-        assert s["source_pending"] == 1
+        s = result.summary
+        assert s.total_objects == 4  # 2 tables + 2 views
+        assert s.tables == 2
+        assert s.views == 1
+        assert s.mvs == 1
+        assert s.writerless_tables == 1
+        assert s.excluded_count == 1
+        assert s.source_tables == 1
+        assert s.source_pending == 1
