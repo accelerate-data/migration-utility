@@ -5,7 +5,8 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from shared.output_models import (
+from shared.output_models.migrate import RenderUnitTestsOutput
+from shared.output_models.model_generation import (
     ArtifactPaths,
     CheckResult,
     ExecutionInfo,
@@ -19,7 +20,6 @@ from shared.output_models import (
     ModelGenerationOutput,
     ModelGeneratorInput,
     ModelReviewOutput,
-    RenderUnitTestsOutput,
     ReviewChecks,
     ReviewInfo,
 )

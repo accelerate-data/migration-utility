@@ -10,7 +10,7 @@ import pytest
 import yaml
 
 from shared.migrate import run_render_unit_tests
-from shared.output_models import RenderUnitTestsOutput
+from shared.output_models.migrate import RenderUnitTestsOutput
 
 
 def _minimal_spec(

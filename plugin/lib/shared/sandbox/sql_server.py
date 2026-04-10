@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import os
 import re
-import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
@@ -13,22 +12,19 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     import pyodbc
 
-from shared.output_models import (
+from shared.output_models.sandbox import (
     ErrorEntry,
     SandboxDownOutput,
     SandboxStatusOutput,
     SandboxUpOutput,
     TestHarnessExecuteOutput,
 )
-
-from shared.db_connect import cursor_to_dicts
 from shared.sandbox.base import (
     SandboxBackend,
     capture_rows as _capture_rows_base,
     generate_sandbox_name,
     serialize_rows,
     validate_fixtures as _validate_fixtures_base,
-    validate_fixture_rows,
     validate_readonly_sql as _validate_readonly_sql_base,
 )
 
@@ -1047,4 +1043,3 @@ class SqlServerSandbox(SandboxBackend):
                 "b_minus_a": [],
                 "errors": [{"code": "COMPARE_SQL_FAILED", "message": str(exc)}],
             }
-

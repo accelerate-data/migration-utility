@@ -41,7 +41,8 @@ from shared.loader import (
 from shared.cli_utils import emit
 from shared.env_config import resolve_catalog_dir, resolve_project_root
 from shared.name_resolver import normalize
-from shared.output_models import (
+from shared.output_models.discover import SqlElement
+from shared.output_models.profile import (
     CatalogSignals,
     EnrichedInScopeRef,
     EnrichedScopedRefList,
@@ -49,7 +50,6 @@ from shared.output_models import (
     ProfileColumnDef,
     ProfileContext,
     RelatedProcedure,
-    SqlElement,
     ViewColumnDef,
     ViewProfileContext,
     ViewReferencedBy,

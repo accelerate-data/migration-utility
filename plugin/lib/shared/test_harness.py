@@ -14,24 +14,20 @@ from typing import Any, NoReturn, Optional
 import typer
 from pydantic import ValidationError
 
-from shared.catalog import (
-    load_and_merge_catalog,
-    write_json as _write_catalog_json,
-)
+from shared.catalog import load_and_merge_catalog
 from shared.catalog_models import TestGenSection
 from shared.cli_utils import emit
-from shared.env_config import resolve_catalog_dir, resolve_project_root
+from shared.env_config import resolve_project_root
 from shared.loader import CatalogFileMissingError, CatalogLoadError
 from shared.loader_io import clear_manifest_sandbox, read_manifest, write_manifest_sandbox
 from shared.name_resolver import normalize
-from shared.output_models import (
+from shared.output_models.sandbox import (
     ErrorEntry,
     ExecuteSpecOutput,
     ExecuteSpecResult,
     TestHarnessExecuteOutput,
-    TestReviewOutput,
-    TestSpec,
 )
+from shared.output_models.test_specs import TestReviewOutput, TestSpec
 from shared.sandbox import get_backend
 from shared.sandbox.base import SandboxBackend
 

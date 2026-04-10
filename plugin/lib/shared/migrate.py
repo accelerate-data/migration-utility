@@ -25,13 +25,13 @@ from typing import Any, Optional
 
 import typer
 
-from shared.output_models import (
+from shared.catalog_models import DiagnosticsEntry
+from shared.output_models.migrate import (
     MigrateContextOutput,
     MigrateWriteOutput,
     RenderUnitTestsOutput,
-    TestSpec,
 )
-from shared.catalog_models import DiagnosticsEntry
+from shared.output_models.test_specs import TestSpec
 
 from shared.catalog import (
     has_catalog,

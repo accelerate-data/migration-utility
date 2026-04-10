@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from shared.output_models import (
+from shared.output_models.test_specs import (
     BranchEntry,
     CommandSummary,
     CoverageSection,

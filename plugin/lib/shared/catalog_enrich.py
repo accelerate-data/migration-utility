@@ -17,8 +17,6 @@ from typing import Any, Optional
 
 import typer
 
-from shared.output_models import CatalogEnrichOutput
-
 from shared.catalog import (
     ensure_referenced_by,
     ensure_references,
@@ -38,6 +36,7 @@ from shared.loader import (
 )
 from shared.env_config import resolve_catalog_dir, resolve_project_root
 from shared.name_resolver import fqn_parts, normalize
+from shared.output_models.catalog_enrich import CatalogEnrichOutput
 
 logger = logging.getLogger(__name__)
 

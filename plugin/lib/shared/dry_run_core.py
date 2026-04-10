@@ -15,11 +15,10 @@ from shared.catalog import (
     load_view_catalog,
     write_json,
 )
-from shared.batch_plan import build_batch_plan
 from shared.deps import collect_deps
 from shared.loader_data import CatalogLoadError
 from shared.name_resolver import normalize
-from shared.output_models import (
+from shared.output_models.dry_run import (
     DryRunOutput,
     ExcludeOutput,
     ObjectStatus,

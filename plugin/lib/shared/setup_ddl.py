@@ -26,32 +26,13 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import typer
 
-import shared.setup_ddl_core as _core
 from shared.loader_data import CorruptJSONError
 from shared.setup_ddl_core import (
     UnsupportedOperationError,
-    _apply_change_capture_rows,
-    _apply_column_rows,
-    _apply_fk_rows,
-    _apply_identity_rows,
-    _apply_pk_unique_rows,
-    _apply_sensitivity_rows,
-    _build_function_subtypes,
-    _build_long_truncation_map,
-    _build_object_types_map,
-    _build_oracle_schema_summary,
-    _build_proc_params,
-    _build_routing_flags,
-    _build_view_columns_map,
-    _build_view_definitions_map,
-    _get_connection_identity,
-    _identity_changed,
-    _mark_all_catalog_stale,
-    _read_manifest_strict,
     run_assemble_modules,
     run_assemble_tables,
     run_extract,
@@ -66,12 +47,6 @@ from shared.setup_ddl_core import (
 logger = logging.getLogger(__name__)
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
-
-
-def run_extract(project_root: Path, database: str | None, schemas: list[str]) -> dict[str, object]:
-    """Compatibility wrapper that preserves patchability from shared.setup_ddl."""
-    _core._read_manifest_strict = _read_manifest_strict
-    return _core.run_extract(project_root, database, schemas)
 
 
 # ── CLI wrappers ─────────────────────────────────────────────────────────────

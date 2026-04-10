@@ -20,12 +20,8 @@ from shared.catalog_models import (
     SemanticReview,
 )
 from shared.loader import CatalogFileMissingError
-from shared.output_models import (
-    CompareSqlOutput,
-    CompareSqlScenario,
-    RefactorContextOutput,
-    RefactorWriteOutput,
-)
+from shared.output_models.refactor import RefactorContextOutput, RefactorWriteOutput
+from shared.output_models.sandbox import CompareSqlOutput, CompareSqlScenario
 
 _cli_runner = CliRunner()
 

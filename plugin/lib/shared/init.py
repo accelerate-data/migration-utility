@@ -31,8 +31,6 @@ from typing import Any, Callable, Optional
 
 import typer
 
-from shared.output_models import ScaffoldHooksOutput, ScaffoldProjectOutput
-
 from shared.init_templates import (
     _claude_md_oracle,
     _claude_md_sql_server,
@@ -45,6 +43,7 @@ from shared.init_templates import (
     _repo_map_oracle,
     _repo_map_sql_server,
 )
+from shared.output_models.init import ScaffoldHooksOutput, ScaffoldProjectOutput
 
 logger = logging.getLogger(__name__)
 
