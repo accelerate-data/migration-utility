@@ -17,7 +17,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from shared.catalog_models import ReferencesBucket
+from shared.catalog_models import DiagnosticsEntry, ReferencesBucket
 
 
 # ── Shared config ───────────────────────────────────────────────────────────
@@ -966,3 +966,223 @@ class TestReviewOutput(BaseModel):
     feedback_for_generator: GeneratorFeedback
     warnings: list[DiagnosticEntry] = Field(default_factory=list)
     errors: list[DiagnosticEntry] = Field(default_factory=list)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# model generation / review contracts
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class SweepTableEntry(BaseModel):
+    """One entry per FQN in a planning sweep batch."""
+
+    model_config = _OUTPUT_CONFIG
+
+    fqn: str
+    writer: str | None
+    source_tables: list[str]
+    existing_stg_models: list[str]
+    existing_mart_model: str | None
+    test_status: Literal["passing", "failing", "none"]
+    recommended_action: Literal["generate", "test-only", "skip"]
+
+
+class ModelSweepOutput(BaseModel):
+    """Plan artifact produced by ``/generate-model`` planning sweep.
+
+    Written to ``.migration-runs/model-sweep.<run_id>.json`` before
+    execution threads spawn.
+    """
+
+    model_config = _OUTPUT_CONFIG
+
+    epoch: int = Field(ge=0)
+    tables: list[SweepTableEntry]
+    shared_staging_candidates: list[str]
+    shared_staging_files_written: list[str]
+
+
+class GeneratorItem(BaseModel):
+    """Single item in a model-generator batch manifest."""
+
+    model_config = _OUTPUT_CONFIG
+
+    item_id: str
+    selected_writer: str | None = None
+
+
+class ModelGeneratorInput(BaseModel):
+    """Input manifest for the model-generator agent (batch mode).
+
+    Written by ``/generate-model`` to ``.migration-runs/``.
+    """
+
+    model_config = _OUTPUT_CONFIG
+
+    schema_version: Literal["2.0"]
+    run_id: str
+    items: list[GeneratorItem] = Field(min_length=1)
+
+
+class ArtifactPaths(BaseModel):
+    """Paths to generated dbt model SQL and schema YAML files."""
+
+    model_config = _OUTPUT_CONFIG
+
+    model_sql: str
+    model_yaml: str
+
+
+class FeedbackItem(BaseModel):
+    """Structured feedback from ``/reviewing-model`` with stable reference codes."""
+
+    model_config = _OUTPUT_CONFIG
+
+    code: str
+    message: str
+    severity: Literal["error", "warning", "info"]
+    ack_required: bool
+
+
+class HandoffRelationBinding(BaseModel):
+    """Pre-computed table reference resolution for a source FQN."""
+
+    model_config = _OUTPUT_CONFIG
+
+    type: Literal["source", "ref"]
+    ref_name: str
+
+
+class ModelGenerationHandoff(BaseModel):
+    """Caller-provided execution context for ``/generating-model``.
+
+    Written by ``/generate-model`` command; read by the skill.
+    All fields except ``execution_mode`` are optional — the skill
+    derives missing values locally.
+    """
+
+    model_config = _OUTPUT_CONFIG
+
+    execution_mode: Literal["generate", "test_only"]
+    artifact_paths: ArtifactPaths | None = None
+    relation_bindings: dict[str, HandoffRelationBinding] | None = None
+    revision_feedback: list[FeedbackItem] | None = None
+    shared_staging_candidates: list[str] | None = None
+    shared_staging_files_written: list[str] | None = None
+
+
+class GeneratedModelInfo(BaseModel):
+    """Metadata about the generated dbt model SQL."""
+
+    model_config = _OUTPUT_CONFIG
+
+    materialized: str
+    uses_watermark: bool
+
+
+class GeneratedYamlInfo(BaseModel):
+    """Metadata about the generated schema YAML."""
+
+    model_config = _OUTPUT_CONFIG
+
+    has_model_description: bool
+    schema_tests_rendered: list[str]
+    has_unit_tests: bool
+
+
+class GeneratedInfo(BaseModel):
+    """Combined metadata for model SQL and schema YAML."""
+
+    model_config = _OUTPUT_CONFIG
+
+    model_sql: GeneratedModelInfo
+    model_yaml: GeneratedYamlInfo
+
+
+class ExecutionInfo(BaseModel):
+    """dbt compile/test execution results."""
+
+    model_config = _OUTPUT_CONFIG
+
+    dbt_compile_passed: bool
+    dbt_test_passed: bool
+    self_correction_iterations: int = Field(ge=0)
+    dbt_errors: list[str]
+
+
+class ReviewInfo(BaseModel):
+    """Review loop outcome for a generated model."""
+
+    model_config = _OUTPUT_CONFIG
+
+    iterations: int = Field(ge=0)
+    verdict: Literal["approved", "approved_with_warnings"]
+
+
+class ModelGenerationItemOutput(BaseModel):
+    """Detailed output of a single model generation run."""
+
+    model_config = _OUTPUT_CONFIG
+
+    table_ref: str
+    model_name: str
+    artifact_paths: ArtifactPaths
+    generated: GeneratedInfo
+    execution: ExecutionInfo
+    review: ReviewInfo
+    warnings: list[DiagnosticsEntry] = Field(default_factory=list)
+    errors: list[DiagnosticsEntry] = Field(default_factory=list)
+
+
+class ModelGenerationOutput(BaseModel):
+    """Per-item result from ``/generating-model`` skill.
+
+    Written to ``.migration-runs/<schema.table>.<run_id>.json``.
+    """
+
+    model_config = _OUTPUT_CONFIG
+
+    item_id: str
+    status: Literal["ok", "partial", "error"]
+    output: ModelGenerationItemOutput
+
+
+class CheckResult(BaseModel):
+    """Result of a single review check category."""
+
+    model_config = _OUTPUT_CONFIG
+
+    passed: bool
+    issues: list[DiagnosticsEntry] = Field(default_factory=list)
+
+
+class ReviewChecks(BaseModel):
+    """All review check categories."""
+
+    model_config = _OUTPUT_CONFIG
+
+    standards: CheckResult
+    correctness: CheckResult
+    test_integration: CheckResult
+
+
+class ModelReviewOutput(BaseModel):
+    """Output of ``/reviewing-model`` skill.
+
+    Returned as the skill's JSON verdict — approve or kick back
+    with specific fixes.
+    """
+
+    model_config = _OUTPUT_CONFIG
+
+    item_id: str
+    status: Literal[
+        "approved", "revision_requested", "approved_with_warnings", "error"
+    ]
+    checks: ReviewChecks
+    feedback_for_model_generator: list[FeedbackItem] = Field(
+        default_factory=list
+    )
+    acknowledgements: dict[str, str] | None = None
+    warnings: list[DiagnosticsEntry] = Field(default_factory=list)
+    errors: list[DiagnosticsEntry] = Field(default_factory=list)
