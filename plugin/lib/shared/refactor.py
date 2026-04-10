@@ -193,7 +193,7 @@ def _run_context_view(
     cat: Any,
 ) -> dict[str, Any]:
     """Assemble refactoring context for a view or materialized view."""
-    view_sql = (cat.model_extra or {}).get("sql")
+    view_sql = cat.sql
     if not view_sql:
         raise ValueError(f"View catalog for {fqn_norm} has no 'sql' key")
 
