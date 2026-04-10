@@ -503,6 +503,9 @@ class EnrichedInScopeRef(BaseModel):
     is_selected: bool | None = None
     is_updated: bool | None = None
     is_insert_all: bool | None = None
+    is_schema_bound: bool = False
+    is_caller_dependent: bool = False
+    is_ambiguous: bool = False
     detection: str | None = None
     columns: list[Any] | None = None
 
