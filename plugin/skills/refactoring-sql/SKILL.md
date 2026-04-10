@@ -66,6 +66,11 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" refactor context \
   --table <table_fqn>
 ```
 
+If `refactor context` fails because a prerequisite is missing, return `status: "error"` with
+code `CONTEXT_PREREQUISITE_MISSING`. If it fails due to IO or parse issues, return
+`status: "error"` with code `CONTEXT_IO_ERROR`. Do not surface raw labels such as
+`no_writer_configured` in the result JSON.
+
 Read `object_type` from the output to know which path you are on:
 
 **Table (`object_type: "table"`):**
@@ -302,8 +307,8 @@ Report:
 
 | Command | Exit code | Action |
 |---|---|---|
-| `refactor context` | 1 | Missing catalog/profile/test-spec. Tell user which prerequisite is missing |
-| `refactor context` | 2 | IO/parse error. Surface the error message |
+| `refactor context` | 1 | Missing catalog/profile/test-spec. Return `status: "error"` with code `CONTEXT_PREREQUISITE_MISSING` and mention the missing prerequisite in the message |
+| `refactor context` | 2 | IO/parse error. Return `status: "error"` with code `CONTEXT_IO_ERROR` and surface the error message |
 | `refactor write` | 1 | Validation failure. Fix payload and retry once |
 | `refactor write` | 2 | IO error. Surface the error message |
 | `test-harness compare-sql` | 1 | All scenarios failed. Enter self-correction loop |

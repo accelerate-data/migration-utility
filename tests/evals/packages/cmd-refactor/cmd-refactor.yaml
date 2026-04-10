@@ -39,7 +39,7 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-refactor/error-clean"
       target_tables: "silver.DimGeography silver.InsertSelectTarget"
       expected_item_statuses: '{"silver.DimGeography": "error", "silver.InsertSelectTarget": "ok,partial"}'
-      expected_error_codes: "no_writer_configured"
+      expected_error_codes: "CONTEXT_PREREQUISITE_MISSING"
 
   # ── guard fails: no scoping ────────────────────────────────────
   - description: "guard-fail — DimPromotion has no scoping, blocked at guard"

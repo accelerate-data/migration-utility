@@ -84,7 +84,9 @@ If the item status is not `error`, run `/commit <persisted-catalog-path>`.
 
 Then continue to Step 3.
 
-**Multi-object path (2+ objects):** Launch one sub-agent per item in parallel. For each object:
+**Multi-object path (2+ objects):** Launch one sub-agent per item in parallel.
+
+For each object:
 
 - if the current persisted refactor already has `status: ok` and the user did not explicitly ask for a rerun, write the same skip result immediately
 - otherwise spawn one sub-agent per object for `/refactoring-sql`
@@ -106,10 +108,12 @@ After writing the result:
 - If status != "error": invoke the /commit command with <persisted-catalog-path>
 
 On failure, write result with status: "error" and error details, then revert as above.
+
 Return the item result JSON.
 ```
 
 The skill writes the extracted SQL, refactored SQL, semantic-review evidence, and compare summary into the persisted catalog `refactor` section.
+If one table fails, continue processing the remaining tables and then write the summary.
 
 ### Step 3 -- Summarize
 
