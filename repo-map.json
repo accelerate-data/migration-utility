@@ -150,7 +150,6 @@
     "generate_sources": "cd plugin/lib && uv run generate-sources [--write] [--strict] [--project-root <path>]",
     "refactor_context": "cd plugin/lib && uv run refactor context --table <schema.table>",
     "refactor_write": "cd plugin/lib && uv run refactor write --table <schema.table> --refactored-sql-file <path> --status ok|partial|error",
-    "refactor_sweep": "cd plugin/lib && uv run refactor sweep --tables <fqn1> --tables <fqn2> [--project-root <path>]",
     "compare_sql": "cd plugin/lib && uv run test-harness compare-sql --sql-a-file <extracted.sql> --sql-b-file <refactored.sql> --spec <spec-path>",
     "lint_md": "markdownlint <file>",
     "eval_all": "cd tests/evals && npm run eval",

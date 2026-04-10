@@ -614,39 +614,6 @@ class RefactorWriteOutput(BaseModel):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# refactor sweep
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-class SweepObject(BaseModel):
-    """A single object entry in a refactor sweep plan."""
-
-    model_config = _OUTPUT_CONFIG
-
-    fqn: str
-    object_type: Literal["table", "view"]
-    writer: str | None = None
-    refactor_status: Literal["ok", "partial", "error"] | None = None
-    source_tables: list[str]
-    existing_stg_models: list[str]
-    existing_mart_model: str | None = None
-    recommended_action: Literal["skip", "re-refactor", "refactor"]
-
-
-class RefactorSweepOutput(BaseModel):
-    """Output of ``refactor sweep``.
-
-    Plan artifact produced before execution threads spawn.
-    """
-
-    model_config = _OUTPUT_CONFIG
-
-    epoch: int
-    objects: list[SweepObject]
-    shared_staging_candidates: list[str]
-
-
-# ═══════════════════════════════════════════════════════════════════════════
 # shared error entry (used by compare-sql + sandbox + test-harness)
 # ═══════════════════════════════════════════════════════════════════════════
 
