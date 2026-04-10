@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { validateSchema, extractJsonObject, normalizeTerms } = require('./schema-helpers');
+const { extractJsonObject, normalizeTerms } = require('./schema-helpers');
 
 module.exports = (output, context) => {
   const fixturePath = context.vars.fixture_path;
@@ -46,11 +46,8 @@ module.exports = (output, context) => {
     }
   }
 
-  // Schema validation gate
-  const schemaResult = validateSchema(spec, 'test_spec.json');
-  if (!schemaResult.valid) {
-    return { pass: false, score: 0, reason: `Test spec schema validation failed: ${schemaResult.errors}` };
-  }
+  // Schema validation is now handled by Pydantic TestSpec at runtime.
+  // This assertion focuses on cross-artifact consistency and behavioral checks.
 
   // Cross-artifact: item_id should match target_table
   if (spec.item_id && table) {

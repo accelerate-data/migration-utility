@@ -34,9 +34,9 @@ Review assertions and standalone schemas use full-schema validation because the 
 | `check-table-scoping.js` | `table_catalog.json` | Section: `properties/scoping` |
 | `check-table-profile.js` | `table_catalog.json` | Section: `profile_section` ($defs) |
 | `check-procedure-catalog.js` | `procedure_catalog.json` | Section: `properties/statements` |
-| `check-test-spec.js` | `test_spec.json` | Full schema |
+| `check-test-spec.js` | `output_models.TestSpec` (Pydantic) | Runtime contract — JS validates cross-artifact consistency |
 | `check-model-review.js` | `model_review_output.json` | Full schema |
-| `check-test-review.js` | `test_review_output.json` | Full schema |
+| `check-test-review.js` | `output_models.TestReviewOutput` (Pydantic) | Runtime contract — JS validates cross-artifact consistency |
 | `check-command-summary.js` | `command_run_summary.json` | Full schema (when summary has `schema_version`) |
 | `check-status-output.js` | `output_models.DryRunOutput` (Pydantic) | Runtime contract — no JSON schema |
 | `check-refactored-sql.js` | `table_catalog.json` | Section: `properties/refactor` |

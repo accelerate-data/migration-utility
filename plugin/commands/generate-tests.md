@@ -22,6 +22,14 @@ Generate test scenarios, review for coverage, then bulk-execute approved scenari
 
 Per-item readiness is checked by the skill via `migrate-util ready`.
 
+## Contracts
+
+Test spec and review output shapes are enforced by Pydantic models in `../lib/shared/output_models.py`:
+
+- `TestSpec` — per-item spec written to `test-specs/<item_id>.json` (see `generating-tests/SKILL.md` for shape)
+- `TestReviewOutput` — review result returned by the reviewing-tests skill (see `reviewing-tests/SKILL.md` for shape)
+- `TestSpecOutput` — batch wrapper: `{"schema_version": "1.0", "results": [TestSpec, ...], "summary": {"total": N, "ok": N, "partial": N, "error": N}}`
+
 ## Progress Tracking
 
 Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2, create one task per table with status `pending`. Update each task to `in_progress` before it starts processing, and to `completed` (ok/partial result) or `cancelled` (error — include the error code) after its final step completes (Step 5 commit, or the last step at which the item is abandoned).

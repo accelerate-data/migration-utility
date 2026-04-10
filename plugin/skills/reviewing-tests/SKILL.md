@@ -18,11 +18,46 @@ argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 
 ## Contracts
 
-Use the canonical review output schema:
+Contracts are enforced by the Pydantic `TestReviewOutput` model in `../../lib/shared/output_models.py`.
 
-- review result: `../../lib/shared/schemas/test_review_output.json`
+Return exactly one JSON object matching that shape. Do not wrap in markdown, headings, summaries, or follow-up questions.
 
-Return exactly one JSON object matching that schema. Do not wrap in markdown, headings, summaries, or follow-up questions.
+## Output shape — `TestReviewOutput`
+
+```json
+{
+  "item_id": "<schema>.<table>",
+  "status": "approved | approved_with_warnings | revision_requested | error",
+  "reviewer_branch_manifest": [
+    {
+      "id": "merge_matched_update",
+      "description": "MERGE WHEN MATCHED → UPDATE",
+      "covered": true,
+      "covering_scenarios": ["test_merge_matched_product_updated"]
+    }
+  ],
+  "coverage": {
+    "total_branches": 5,
+    "covered_branches": 4,
+    "untestable_branches": 0,
+    "score": "complete | partial",
+    "uncovered": [{"id": "branch_id", "description": "..."}],
+    "untestable": [{"id": "dynamic_sql", "description": "...", "rationale": "needs runtime state"}]
+  },
+  "quality_issues": [
+    { "scenario": "test_merge_matched", "issue": "Missing NOT NULL column", "severity": "error | warning" }
+  ],
+  "feedback_for_generator": {
+    "uncovered_branches": ["branch_id"],
+    "quality_fixes": ["Add NOT NULL column to test_merge_matched given rows"]
+  },
+  "warnings": [],
+  "errors": []
+}
+```
+
+- `untestable_branches` defaults to 0 when absent.
+- `uncovered` and `untestable` arrays are empty when not applicable.
 
 ## Before invoking
 

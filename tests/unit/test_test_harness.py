@@ -918,8 +918,10 @@ class TestOutputModels:
         with pytest.raises(ValidationError, match="severity"):
             ErrorEntry.model_validate({"code": "ERR", "message": "msg", "severity": "high"})
 
-    def test_test_spec_per_item_valid(self, assert_valid_schema) -> None:
-        data = {
+    def test_test_spec_per_item_valid(self) -> None:
+        from shared.output_models import TestSpec
+
+        spec = TestSpec.model_validate({
             "item_id": "silver.dimproduct",
             "status": "ok",
             "coverage": "complete",
@@ -951,11 +953,23 @@ class TestOutputModels:
             "warnings": [],
             "validation": {"passed": True, "issues": []},
             "errors": [],
-        }
-        assert_valid_schema(data, "test_spec.json")
+        })
+        assert spec.item_id == "silver.dimproduct"
+        assert spec.status == "ok"
+        assert spec.coverage == "complete"
+        assert len(spec.branch_manifest) == 1
+        assert spec.branch_manifest[0].id == "merge_matched_update"
+        assert spec.branch_manifest[0].statement_index == 0
+        assert len(spec.unit_tests) == 1
+        assert spec.unit_tests[0].name == "test_merge_matched"
+        assert spec.unit_tests[0].expect is not None
+        assert spec.unit_tests[0].expect.rows == [{"product_key": 1}]
+        assert spec.validation.passed is True
 
-    def test_test_spec_output_valid(self, assert_valid_schema) -> None:
-        data = {
+    def test_test_spec_output_valid(self) -> None:
+        from shared.output_models import TestSpecOutput
+
+        output = TestSpecOutput.model_validate({
             "schema_version": "1.0",
             "results": [
                 {
@@ -993,8 +1007,12 @@ class TestOutputModels:
                 }
             ],
             "summary": {"total": 1, "ok": 1, "partial": 0, "error": 0},
-        }
-        assert_valid_schema(data, "test_spec_output.json")
+        })
+        assert isinstance(output, TestSpecOutput)
+        assert output.schema_version == "1.0"
+        assert len(output.results) == 1
+        assert output.summary.total == 1
+        assert output.summary.ok == 1
 
 
 # ── CLI manifest routing ─────────────────────────────────────────────────────
