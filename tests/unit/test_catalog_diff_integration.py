@@ -104,6 +104,7 @@ def _extract_staging(conn: pyodbc.Connection, staging_dir: Path, database: str, 
         JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
         WHERE (i.is_unique = 1 OR i.is_primary_key = 1)
           AND SCHEMA_NAME(t.schema_id) IN ({schema_filter})
+        ORDER BY schema_name, table_name, i.index_id, ic.key_ordinal
     """)
     _write_json(staging_dir / "pk_unique.json", rows)
 
@@ -119,6 +120,7 @@ def _extract_staging(conn: pyodbc.Connection, staging_dir: Path, database: str, 
         JOIN sys.tables rt ON rt.object_id = fk.referenced_object_id
         JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
         WHERE SCHEMA_NAME(t.schema_id) IN ({schema_filter})
+        ORDER BY schema_name, table_name, fk.name, fkc.constraint_column_id
     """)
     _write_json(staging_dir / "foreign_keys.json", rows)
 
@@ -389,8 +391,8 @@ class TestViewCatalogEnrichmentIntegration:
         source_table = f"[{tables[0]['schema_name']}].[{tables[0]['table_name']}]"
         cursor = conn.cursor()
 
-        # Drop any leftover view from a previous failed run
-        cursor.execute(f"IF OBJECT_ID('{fqn}', 'V') IS NOT NULL DROP VIEW [{view_schema}].[{view_name}]")
+        # Drop any leftover view from a previous failed run.
+        cursor.execute(f"DROP VIEW IF EXISTS [{view_schema}].[{view_name}]")
 
         # Create a simple test view
         cursor.execute(f"""

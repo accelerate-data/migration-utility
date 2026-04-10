@@ -68,7 +68,7 @@ _MIGRATE_TYPES = (exp.Insert, exp.Update, exp.Delete, exp.Merge)
 _SKIP_TYPES = (exp.TruncateTable, exp.Drop)
 
 _BODY_RE = re.compile(
-    r"\bAS\s+BEGIN\b(.*)\bEND\s*;?\s*$",
+    r"\bAS\s+BEGIN\b(.*)\bEND\b(?:\s*;)?(?:\s*(?:--[^\n]*|/\*.*?\*/))*\s*$",
     re.IGNORECASE | re.DOTALL,
 )
 

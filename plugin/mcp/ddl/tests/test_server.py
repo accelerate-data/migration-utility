@@ -4,7 +4,9 @@ Exercises the internal helper functions directly so tests don't need
 a running MCP server process.
 """
 
+import asyncio
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -83,7 +85,7 @@ END
 GO
 """
 
-# usp_exec: EXEC causes parse error — should be skipped gracefully
+# usp_exec: EXEC stays on the LLM path and should be skipped from AST refs
 PROC_EXEC = """\
 CREATE PROCEDURE silver.usp_exec
 AS
@@ -210,6 +212,36 @@ def test_get_dependencies_exec_procs_need_enrich(ddl_dir: Path) -> None:
     assert refs.reads_from == []
 
 
+def test_get_dependencies_logs_skipped_procedures(
+    ddl_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Parse failures are logged with the procedure name instead of being hidden."""
+    catalog = load_directory(ddl_dir)
+    catalog.procedures["silver.usp_bad_parse"] = ddl_server.DdlEntry(
+        raw_ddl="CREATE PROCEDURE silver.usp_bad_parse AS",
+        ast=None,
+        parse_error="synthetic parse failure",
+    )
+    monkeypatch.setattr(ddl_server, "_project_root", lambda: ddl_dir)
+    monkeypatch.setattr(ddl_server, "_catalog", lambda _root: catalog)
+
+    with caplog.at_level(logging.WARNING):
+        result = asyncio.run(
+            ddl_server.call_tool("get_dependencies", {"table_name": "silver.DimProduct"})
+        )
+
+    assert result[0].text == "silver.usp_load_dimproduct\nsilver.usp_read_dimproduct"
+    assert any(
+        record.levelname == "WARNING"
+        and "skip_procedure" in record.message
+        and "silver.usp_bad_parse" in record.message
+        and "silver.DimProduct" in record.message
+        for record in caplog.records
+    )
+
+
 # ── get_table_schema — structured JSON ───────────────────────────────────────
 
 def test_get_table_schema_returns_json(ddl_dir: Path) -> None:
@@ -226,6 +258,25 @@ def test_get_table_schema_returns_json(ddl_dir: Path) -> None:
     assert "ddl" in result
     assert "columns" in result
     assert "DimProduct" in result["ddl"]
+
+
+def test_get_table_schema_uses_cached_catalog_dialect(
+    oracle_ddl_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Column rendering follows the catalog dialect, not a later manifest read."""
+    ddl_server._catalog_cache.clear()
+    ddl_server._catalog_dialect_cache.clear()
+    ddl_server._catalog(oracle_ddl_dir)
+    monkeypatch.setattr(ddl_server, "_project_root", lambda: oracle_ddl_dir)
+    monkeypatch.setattr(ddl_server, "read_manifest", lambda _root: {"dialect": "tsql"})
+
+    result = asyncio.run(
+        ddl_server.call_tool("get_table_schema", {"name": "SH.CUSTOMERS"})
+    )
+    payload = json.loads(result[0].text)
+
+    assert payload["columns"][0]["type"] == "NUMBER"
+    assert any(col["type"] == "VARCHAR2(20)" for col in payload["columns"])
 
 
 def test_get_table_schema_column_count(ddl_dir: Path) -> None:
@@ -259,6 +310,38 @@ def test_get_table_schema_nullable_column(ddl_dir: Path) -> None:
     cols = {c["name"]: c for c in ddl_server._parse_columns(entry)}
     assert cols["Color"]["nullable"] is True
     assert cols["Name"]["nullable"] is False
+
+
+def test_project_root_is_cached(
+    oracle_ddl_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Project-root resolution only performs filesystem and git checks once."""
+    ddl_server._project_root_cache.clear()
+
+    exists_calls = 0
+    git_calls = 0
+    original_exists = Path.exists
+
+    def tracked_exists(self: Path) -> bool:
+        nonlocal exists_calls
+        exists_calls += 1
+        return original_exists(self)
+
+    def tracked_assert_git_repo(path: Path) -> None:
+        nonlocal git_calls
+        git_calls += 1
+
+    monkeypatch.setenv("DDL_PATH", str(oracle_ddl_dir))
+    monkeypatch.setattr(Path, "exists", tracked_exists)
+    monkeypatch.setattr(ddl_server, "assert_git_repo", tracked_assert_git_repo)
+
+    first = ddl_server._project_root()
+    second = ddl_server._project_root()
+
+    assert first == oracle_ddl_dir
+    assert second == oracle_ddl_dir
+    assert exists_calls == 2
+    assert git_calls == 1
 
 
 # ── list_functions / get_function_body ───────────────────────────────────────

@@ -76,6 +76,13 @@ def _load_manifest(project_root: Path) -> dict[str, Any]:
         manifest = read_manifest(project_root)
     except ValueError as exc:
         _error_exit("MANIFEST_INVALID", str(exc), exc)
+    except OSError as exc:
+        _error_exit(
+            "MANIFEST_READ_ERROR",
+            f"Cannot read manifest.json: {exc}",
+            exc,
+            exit_code=2,
+        )
 
     if "technology" not in manifest:
         _error_exit(
@@ -101,7 +108,7 @@ def _resolve_sandbox_db(project_root: Path) -> tuple[str, dict[str, Any]]:
 
     Returns ``(sandbox_db, manifest)`` to avoid re-reading manifest.json.
     """
-    manifest = read_manifest(project_root)
+    manifest = _load_manifest(project_root)
     sandbox = manifest.get("sandbox")
     if not sandbox or not sandbox.get("database"):
         _error_exit(
@@ -111,14 +118,20 @@ def _resolve_sandbox_db(project_root: Path) -> tuple[str, dict[str, Any]]:
     return sandbox["database"], manifest
 
 
-def _error_exit(code: str, message: str, exc: Exception | None = None) -> NoReturn:
+def _error_exit(
+    code: str,
+    message: str,
+    exc: Exception | None = None,
+    *,
+    exit_code: int = 1,
+) -> NoReturn:
     """Emit a JSON error and raise typer.Exit."""
     typer.echo(json.dumps({"status": "error", "errors": [
         {"code": code, "message": message}
     ]}))
     if exc is not None:
-        raise typer.Exit(code=1) from exc
-    raise typer.Exit(code=1)
+        raise typer.Exit(code=exit_code) from exc
+    raise typer.Exit(code=exit_code)
 
 
 @app.command()
@@ -422,7 +435,7 @@ def compare_sql(
         "event=cli_complete command=compare_sql sandbox_db=%s total=%d passed=%d failed=%d",
         sandbox_db, len(unit_tests), passed_count, failed_count,
     )
-    if passed_count == 0:
+    if failed_count > 0:
         raise typer.Exit(code=1)
 
 

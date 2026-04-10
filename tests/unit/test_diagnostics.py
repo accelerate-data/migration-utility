@@ -16,6 +16,7 @@ from shared.diagnostics import (
     DiagnosticResult,
     _build_ddl_lookup,
     _build_known_fqns,
+    _CheckSpec,
     diagnostic,
     run_diagnostics,
 )
@@ -121,6 +122,40 @@ class TestRegistryInfrastructure:
 
         assert any(c.code == "PASS2" for c in p2)
         assert not any(c.code == "PASS1" for c in p2)
+
+    def test_run_diagnostics_reports_suppressed_check_count(self, tmp_path: Path):
+        _git_init(tmp_path)
+        _write_ddl(
+            tmp_path,
+            "procedures.sql",
+            "CREATE PROCEDURE dbo.usp_test AS BEGIN SELECT 1 END\nGO\n",
+        )
+        _write_catalog(
+            tmp_path,
+            "procedures",
+            "dbo.usp_test",
+            {"references": _empty_refs()},
+        )
+
+        def _boom(_ctx: CatalogContext) -> None:
+            raise RuntimeError("boom")
+
+        spec = _CheckSpec(
+            fn=_boom,
+            code="TEST_BROKEN_CHECK",
+            objects=["procedure"],
+            dialects=("tsql",),
+            severity="warning",
+            pass_number=1,
+        )
+        _REGISTRY._checks.append(spec)
+        try:
+            result = run_diagnostics(tmp_path, dialect="tsql")
+        finally:
+            _REGISTRY._checks.remove(spec)
+
+        assert result["objects_checked"] == 1
+        assert result["suppressed_checks"] == 1
 
 
 # ── PARSE_ERROR ──────────────────────────────────────────────────────────────

@@ -307,6 +307,32 @@ def test_write_failed_semantic_review_persists_partial() -> None:
         assert proc_cat["refactor"]["semantic_review"]["passed"] is False
 
 
+def test_write_validates_procedure_refactor_against_procedure_schema(monkeypatch: pytest.MonkeyPatch) -> None:
+    tmp, root = _make_writable_copy()
+    with tmp:
+        seen_schema_names: list[str] = []
+        original_validate = refactor._validate_schema_fragment
+
+        def _capture(data, schema_name, fragment_path):
+            seen_schema_names.append(schema_name)
+            return original_validate(data, schema_name, fragment_path)
+
+        monkeypatch.setattr(refactor, "_validate_schema_fragment", _capture)
+
+        result = refactor.run_write(
+            root,
+            "silver.DimCustomer",
+            "SELECT 1",
+            "WITH src AS (SELECT 1) SELECT * FROM src",
+            semantic_review=_semantic_review(),
+            compare_sql_result=_compare_sql_result(),
+        )
+
+        assert result["ok"] is True
+        assert "procedure_catalog.json" in seen_schema_names
+        assert "table_catalog.json" not in seen_schema_names
+
+
 def test_write_rejects_write_keywords_in_extracted_sql() -> None:
     """Write rejects extracted SQL that still contains DML write keywords."""
     tmp, root = _make_writable_copy()

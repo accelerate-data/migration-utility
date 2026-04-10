@@ -34,7 +34,7 @@ def format_sql_type(
     if tn == "VARCHAR2":
         return f"VARCHAR2({max_length})" if max_length > 0 else "VARCHAR2"
     if tn in ("DECIMAL", "NUMERIC"):
-        return f"{tn}({precision},{scale})"
+        return f"{tn}({precision},{scale})" if precision > 0 else tn
     if tn == "NUMBER":
         return f"NUMBER({precision},{scale})" if precision > 0 else "NUMBER"
     return tn

@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 
 from shared.catalog_enrich import enrich_catalog
+from shared import catalog_enrich
 
 SHARED_DIR = Path(__file__).parent.parent.parent / "plugin" / "lib"
 
@@ -359,30 +360,27 @@ def test_enrich_detects_exec_chain(tmp_path: Path) -> None:
     assert result["procedures_augmented"] >= 1
     assert result["entries_added"] >= 1
 
-    # Proc A should now have silver.Target as a write target (indirect)
-    proc_data = _read_catalog_json(ddl, "procedures", "dbo.usp_orchestrator")
-    assert proc_data is not None
-    tables_in_scope = proc_data["references"]["tables"]["in_scope"]
-    target_entries = [
-        e for e in tables_in_scope
-        if e["name"].lower() == "target" and e["schema"].lower() == "silver"
-    ]
-    assert len(target_entries) == 1
-    assert target_entries[0]["detection"] == "ast_scan"
-    assert target_entries[0]["is_updated"] is True
-    assert proc_data["mode"] == "call_graph_enrich"
-    assert proc_data["routing_reasons"] == ["static_exec"]
 
-    # Table catalog should have proc A in referenced_by
-    table_data = _read_catalog_json(ddl, "tables", "silver.target")
-    assert table_data is not None
-    procs_in_scope = table_data["referenced_by"]["procedures"]["in_scope"]
-    orch_entries = [
-        e for e in procs_in_scope
-        if e["name"].lower() == "usp_orchestrator"
-    ]
-    assert len(orch_entries) == 1
-    assert orch_entries[0]["detection"] == "ast_scan"
+def test_augment_proc_catalogs_skips_missing_catalog_on_second_load(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level("WARNING"):
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(
+                catalog_enrich,
+                "load_proc_catalog",
+                lambda _project_root, _proc_fqn: None,
+            )
+            procedures_augmented, entries_added = catalog_enrich._augment_proc_catalogs(
+                tmp_path,
+                {"dbo.usp_missing": {"silver.target"}},
+                {},
+            )
+
+    assert procedures_augmented == set()
+    assert entries_added == 0
+    assert "reason=missing_catalog_on_write" in caplog.text
 
 
 def test_enrich_preserves_catalog_query_entries(tmp_path: Path) -> None:

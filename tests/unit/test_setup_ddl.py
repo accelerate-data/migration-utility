@@ -10,8 +10,12 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
+
+from shared.sql_types import format_sql_type
+from shared.sqlserver_extract import _run_dmf_queries
 
 SHARED_DIR = (
     Path(__file__).parent.parent.parent
@@ -36,6 +40,110 @@ def _run_cli(args: list[str], cwd: Path = SHARED_DIR, timeout: int = 30) -> subp
 def _write_json(path: Path, data) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def test_run_dmf_queries_escapes_single_quotes(tmp_path) -> None:
+    conn = MagicMock()
+    list_cursor = MagicMock()
+    dmf_cursor = MagicMock()
+
+    list_cursor.fetchall.return_value = [("o'brien", "proc'name")]
+    dmf_cursor.fetchall.return_value = []
+
+    conn.cursor.side_effect = [list_cursor, dmf_cursor]
+
+    _run_dmf_queries(
+        conn=conn,
+        schemas=["dbo"],
+        object_type_filter="P",
+        staging_dir=tmp_path,
+        filename="proc_dmf.json",
+    )
+
+    dmf_sql = dmf_cursor.execute.call_args.args[0]
+    assert "'o''brien' AS referencing_schema" in dmf_sql
+    assert "'proc''name' AS referencing_name" in dmf_sql
+
+
+class _FakeSqlCursor:
+    def __init__(self, failure_map: dict[str, Exception] | None = None) -> None:
+        self.failure_map = failure_map or {}
+        self.description = []
+        self.last_sql = ""
+
+    def execute(self, sql: str):
+        self.last_sql = sql
+        for needle, exc in self.failure_map.items():
+            if needle in sql:
+                raise exc
+        return self
+
+    def fetchall(self):
+        return []
+
+    def close(self) -> None:
+        return None
+
+
+class _FakeSqlConn:
+    def __init__(self, failure_map: dict[str, Exception] | None = None) -> None:
+        self.failure_map = failure_map or {}
+
+    def cursor(self):
+        return _FakeSqlCursor(self.failure_map)
+
+    def close(self) -> None:
+        return None
+
+
+def test_run_extract_fails_loudly_on_manifest_read_error(tmp_path: Path) -> None:
+    import sys
+    sys.path.insert(0, str(Path(__file__).parents[2] / "plugin" / "lib"))
+    from shared import setup_ddl
+
+    (tmp_path / "manifest.json").write_text(
+        '{"technology": "sql_server", "dialect": "tsql"}',
+        encoding="utf-8",
+    )
+
+    with patch.object(setup_ddl, "_read_manifest_strict", side_effect=ValueError("manifest.json is not valid JSON: boom")):
+        with pytest.raises(ValueError, match="manifest.json is not valid JSON"):
+            setup_ddl.run_extract(tmp_path, database="MigrationTest", schemas=["dbo"])
+
+
+def test_sqlserver_optional_metadata_unsupported_feature_writes_empty_files(tmp_path: Path) -> None:
+    from shared import sqlserver_extract
+
+    conn = _FakeSqlConn(
+        {
+            "FROM sys.change_tracking_tables": RuntimeError("Invalid object name 'sys.change_tracking_tables'"),
+            "FROM sys.sensitivity_classifications": RuntimeError("Invalid object name 'sys.sensitivity_classifications'"),
+        }
+    )
+
+    with (
+        patch.object(sqlserver_extract, "_sql_server_connect", return_value=conn),
+        patch.object(sqlserver_extract, "_rows_to_dicts", return_value=[]),
+    ):
+        sqlserver_extract.run_sqlserver_extraction(tmp_path, database="MigrationTest", schemas=["dbo"])
+
+    assert json.loads((tmp_path / "change_tracking.json").read_text(encoding="utf-8")) == []
+    assert json.loads((tmp_path / "sensitivity.json").read_text(encoding="utf-8")) == []
+
+
+def test_sqlserver_optional_metadata_unexpected_error_raises(tmp_path: Path) -> None:
+    from shared import sqlserver_extract
+
+    conn = _FakeSqlConn(
+        {"FROM sys.change_tracking_tables": RuntimeError("permission denied")}
+    )
+
+    with (
+        patch.object(sqlserver_extract, "_sql_server_connect", return_value=conn),
+        patch.object(sqlserver_extract, "_rows_to_dicts", return_value=[]),
+    ):
+        with pytest.raises(RuntimeError, match="permission denied"):
+            sqlserver_extract.run_sqlserver_extraction(tmp_path, database="MigrationTest", schemas=["dbo"])
 
 
 # ── Unit: assemble-modules ───────────────────────────────────────────────────
@@ -188,6 +296,10 @@ class TestAssembleTables:
         assert result.returncode == 0
         sql = (project_root / "ddl" / "tables.sql").read_text()
         assert "DECIMAL(18,2)" in sql
+
+    def test_decimal_without_precision_emits_bare_type(self) -> None:
+        assert format_sql_type("decimal", max_length=9, precision=0, scale=0) == "DECIMAL"
+        assert format_sql_type("numeric", max_length=9, precision=0, scale=0) == "NUMERIC"
 
     def test_multiple_tables_go_delimited(self, tmp_path):
         rows = [

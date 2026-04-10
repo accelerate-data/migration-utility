@@ -481,7 +481,7 @@ def run_write(
 
     # Merge refactor section onto procedure catalog
     existing["refactor"] = refactor_data
-    _validate_schema_fragment(refactor_data, "table_catalog.json", "properties/refactor")
+    _validate_schema_fragment(refactor_data, "procedure_catalog.json", "properties/refactor")
 
     try:
         _write_catalog_json(catalog_path, existing)

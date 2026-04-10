@@ -162,13 +162,16 @@ def run_write_view_scoping(
         raise CatalogFileMissingError("view", view_norm)
 
     # Determine status from content
-    has_sql_elements = "sql_elements" in scoping
+    has_sql_elements = scoping.get("sql_elements") is not None
     has_parse_errors = any(
-        e.get("code") == "DDL_PARSE_ERROR"
-        for e in scoping.get("errors", [])
+        entry.get("code") == "DDL_PARSE_ERROR"
+        for entry in scoping.get("errors", [])
+        if isinstance(entry, dict)
     )
-    if has_sql_elements or has_parse_errors:
+    if has_sql_elements:
         status = "analyzed"
+    elif has_parse_errors:
+        status = "error"
     else:
         status = "error"
 

@@ -150,6 +150,19 @@ def _read_json_optional(path: Path) -> Any:
         raise CorruptJSONError(path, exc) from exc
 
 
+def _read_manifest_strict(project_root: Path) -> dict[str, Any]:
+    """Read manifest.json from project root and fail on missing/corrupt content."""
+    manifest_path = project_root / "manifest.json"
+    if not manifest_path.exists():
+        raise ValueError(
+            "manifest.json not found. Run /init-ad-migration to initialise the project."
+        )
+    try:
+        return json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        raise ValueError(f"manifest.json is not valid JSON: {exc}") from exc
+
+
 def _read_manifest_or_empty(project_root: Path) -> dict[str, Any]:
     """Read manifest.json from project root, returning {} if missing or corrupt.
 
@@ -560,6 +573,105 @@ def _mark_all_catalog_stale(project_root: Path) -> None:
     logger.info("event=mark_all_stale_identity_changed count=%d", count)
 
 
+def _load_staging_catalog_inputs(staging_dir: Path) -> dict[str, Any]:
+    """Load the staging JSON inputs consumed by catalog writing."""
+    return {
+        "table_columns_rows": _read_json_optional(staging_dir / "table_columns.json"),
+        "pk_unique_rows": _read_json_optional(staging_dir / "pk_unique.json"),
+        "fk_rows": _read_json_optional(staging_dir / "foreign_keys.json"),
+        "identity_rows": _read_json_optional(staging_dir / "identity_columns.json"),
+        "cdc_rows": _read_json_optional(staging_dir / "cdc.json"),
+        "ct_rows": _read_json_optional(staging_dir / "change_tracking.json"),
+        "sensitivity_rows": _read_json_optional(staging_dir / "sensitivity.json"),
+        "object_types_raw": _read_json_optional(staging_dir / "object_types.json"),
+        "proc_dmf_rows": _read_json_optional(staging_dir / "proc_dmf.json"),
+        "view_dmf_rows": _read_json_optional(staging_dir / "view_dmf.json"),
+        "func_dmf_rows": _read_json_optional(staging_dir / "func_dmf.json"),
+        "proc_params_rows": _read_json_optional(staging_dir / "proc_params.json"),
+        "definitions_rows": _read_json_optional(staging_dir / "definitions.json"),
+        "view_columns_rows": _read_json_optional(staging_dir / "view_columns.json"),
+        "mv_fqns_list": _read_json_optional(staging_dir / "mv_fqns.json")
+        or _read_json_optional(staging_dir / "indexed_views.json")
+        or [],
+    }
+
+
+def _build_catalog_write_inputs(staging_inputs: dict[str, Any]) -> dict[str, Any]:
+    """Build derived catalog structures from loaded staging inputs."""
+    from shared.routing import scan_routing_flags
+
+    object_types = _build_object_types_map(staging_inputs["object_types_raw"])
+
+    table_signals: dict[str, dict[str, Any]] = {}
+    _apply_column_rows(table_signals, staging_inputs["table_columns_rows"])
+    _apply_pk_unique_rows(table_signals, staging_inputs["pk_unique_rows"])
+    _apply_fk_rows(table_signals, staging_inputs["fk_rows"])
+    _apply_identity_rows(table_signals, staging_inputs["identity_rows"])
+    _apply_change_capture_rows(
+        table_signals,
+        staging_inputs["cdc_rows"],
+        staging_inputs["ct_rows"],
+    )
+    _apply_sensitivity_rows(table_signals, staging_inputs["sensitivity_rows"])
+
+    return {
+        "object_types": object_types,
+        "table_signals": table_signals,
+        "routing_flags": _build_routing_flags(
+            staging_inputs["definitions_rows"],
+            scan_routing_flags,
+        ),
+        "proc_params": _build_proc_params(staging_inputs["proc_params_rows"]),
+        "view_definitions": _build_view_definitions_map(
+            staging_inputs["definitions_rows"],
+            object_types,
+        ),
+        "view_columns": _build_view_columns_map(staging_inputs["view_columns_rows"]),
+        "function_subtypes": _build_function_subtypes(staging_inputs["object_types_raw"]),
+        "long_truncation_fqns": _build_long_truncation_map(
+            staging_inputs["definitions_rows"],
+            object_types,
+        ),
+        "mv_fqns": {
+            normalize(fqn) if "." in fqn else fqn
+            for fqn in staging_inputs["mv_fqns_list"]
+        },
+    }
+
+
+def _reclassify_materialized_views(project_root: Path, mv_fqns: set[str]) -> None:
+    """Move legacy materialized views from tables/ to views/."""
+    from shared.env_config import resolve_catalog_dir
+
+    if not mv_fqns:
+        return
+
+    catalog_dir = resolve_catalog_dir(project_root)
+    for fqn in mv_fqns:
+        table_path = catalog_dir / "tables" / f"{fqn}.json"
+        if not table_path.exists():
+            continue
+        logger.info("event=mv_reclassify fqn=%s from=tables to=views", fqn)
+        try:
+            table_data = json.loads(table_path.read_text(encoding="utf-8"))
+            table_data["is_materialized_view"] = True
+            views_dir = catalog_dir / "views"
+            views_dir.mkdir(parents=True, exist_ok=True)
+            _write_catalog_json(views_dir / f"{fqn}.json", table_data)
+            table_path.unlink()
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("event=mv_reclassify_error fqn=%s error=%s", fqn, exc)
+
+
+def _ensure_catalog_subdirectories(project_root: Path) -> None:
+    """Ensure the per-object catalog directories exist."""
+    from shared.env_config import resolve_catalog_dir
+
+    catalog_dir = resolve_catalog_dir(project_root)
+    for subdir in ("tables", "procedures", "views", "functions"):
+        (catalog_dir / subdir).mkdir(parents=True, exist_ok=True)
+
+
 def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> dict[str, Any]:
     """Process staging JSON files and write all catalog JSON files.
 
@@ -567,51 +679,18 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
     against hashes stored in existing catalog files, and only rewrites
     changed or new objects.  Removed objects are flagged as stale.
     """
-    from shared.routing import scan_routing_flags
     from shared.catalog_diff import classify_objects, compute_object_hashes, load_existing_hashes
     from shared.catalog_dmf import write_catalog_files
-    from shared.env_config import resolve_catalog_dir
 
-    # ── Load staging files ────────────────────────────────────────────────
-    table_columns_rows = _read_json_optional(staging_dir / "table_columns.json")
-    pk_unique_rows = _read_json_optional(staging_dir / "pk_unique.json")
-    fk_rows = _read_json_optional(staging_dir / "foreign_keys.json")
-    identity_rows = _read_json_optional(staging_dir / "identity_columns.json")
-    cdc_rows = _read_json_optional(staging_dir / "cdc.json")
-    ct_rows = _read_json_optional(staging_dir / "change_tracking.json")
-    sensitivity_rows = _read_json_optional(staging_dir / "sensitivity.json")
-    object_types_raw = _read_json_optional(staging_dir / "object_types.json")
-    proc_dmf_rows = _read_json_optional(staging_dir / "proc_dmf.json")
-    view_dmf_rows = _read_json_optional(staging_dir / "view_dmf.json")
-    func_dmf_rows = _read_json_optional(staging_dir / "func_dmf.json")
-    proc_params_rows = _read_json_optional(staging_dir / "proc_params.json")
-    definitions_rows = _read_json_optional(staging_dir / "definitions.json")
-    view_columns_rows = _read_json_optional(staging_dir / "view_columns.json")
-
-    # ── Build derived structures ─────────────────────────────────────────
-    object_types = _build_object_types_map(object_types_raw)
-
-    table_signals: dict[str, dict[str, Any]] = {}
-    _apply_column_rows(table_signals, table_columns_rows)
-    _apply_pk_unique_rows(table_signals, pk_unique_rows)
-    _apply_fk_rows(table_signals, fk_rows)
-    _apply_identity_rows(table_signals, identity_rows)
-    _apply_change_capture_rows(table_signals, cdc_rows, ct_rows)
-    _apply_sensitivity_rows(table_signals, sensitivity_rows)
-
-    routing_flags = _build_routing_flags(definitions_rows, scan_routing_flags)
-    proc_params = _build_proc_params(proc_params_rows)
-    view_definitions = _build_view_definitions_map(definitions_rows, object_types)
-    view_columns = _build_view_columns_map(view_columns_rows)
-    function_subtypes = _build_function_subtypes(object_types_raw)
-    long_truncation_fqns = _build_long_truncation_map(definitions_rows, object_types)
-
-    # Load materialized view FQNs from staging (Oracle: mv_fqns.json, SQL Server: indexed_views.json)
-    mv_fqns_list = _read_json_optional(staging_dir / "mv_fqns.json") or _read_json_optional(staging_dir / "indexed_views.json") or []
-    mv_fqns: set[str] = {normalize(fqn) if "." in fqn else fqn for fqn in mv_fqns_list}
+    staging_inputs = _load_staging_catalog_inputs(staging_dir)
+    derived_inputs = _build_catalog_write_inputs(staging_inputs)
 
     # ── Diff-aware classification ─────────────────────────────────────────
-    fresh_hashes = compute_object_hashes(definitions_rows, table_signals, object_types)
+    fresh_hashes = compute_object_hashes(
+        staging_inputs["definitions_rows"],
+        derived_inputs["table_signals"],
+        derived_inputs["object_types"],
+    )
     existing_hashes = load_existing_hashes(project_root)
     diff = classify_objects(fresh_hashes, existing_hashes)
 
@@ -625,46 +704,31 @@ def run_write_catalog(staging_dir: Path, project_root: Path, database: str) -> d
         _mark_stale(project_root, diff.removed)
 
     # ── Reclassify MVs from tables to views (backward compat) ───────────
-    if mv_fqns:
-        catalog_dir = resolve_catalog_dir(project_root)
-        for fqn in mv_fqns:
-            table_path = catalog_dir / "tables" / f"{fqn}.json"
-            if table_path.exists():
-                logger.info("event=mv_reclassify fqn=%s from=tables to=views", fqn)
-                try:
-                    table_data = json.loads(table_path.read_text(encoding="utf-8"))
-                    table_data["is_materialized_view"] = True
-                    views_dir = catalog_dir / "views"
-                    views_dir.mkdir(parents=True, exist_ok=True)
-                    _write_catalog_json(views_dir / f"{fqn}.json", table_data)
-                    table_path.unlink()
-                except (json.JSONDecodeError, OSError) as exc:
-                    logger.warning("event=mv_reclassify_error fqn=%s error=%s", fqn, exc)
+    _reclassify_materialized_views(project_root, derived_inputs["mv_fqns"])
 
     # ── Ensure catalog subdirectories exist (without wiping) ──────────────
-    for subdir in ("tables", "procedures", "views", "functions"):
-        (resolve_catalog_dir(project_root) / subdir).mkdir(parents=True, exist_ok=True)
+    _ensure_catalog_subdirectories(project_root)
 
     # ── Write only changed + new objects ──────────────────────────────────
     write_filter = diff.changed | diff.new
 
     counts = write_catalog_files(
         project_root,
-        table_signals=table_signals,
-        proc_dmf_rows=proc_dmf_rows,
-        view_dmf_rows=view_dmf_rows,
-        func_dmf_rows=func_dmf_rows,
-        object_types=object_types,
-        routing_flags=routing_flags,
+        table_signals=derived_inputs["table_signals"],
+        proc_dmf_rows=staging_inputs["proc_dmf_rows"],
+        view_dmf_rows=staging_inputs["view_dmf_rows"],
+        func_dmf_rows=staging_inputs["func_dmf_rows"],
+        object_types=derived_inputs["object_types"],
+        routing_flags=derived_inputs["routing_flags"],
         database=database,
-        proc_params=proc_params,
+        proc_params=derived_inputs["proc_params"],
         write_filter=write_filter,
         hashes=fresh_hashes,
-        view_definitions=view_definitions,
-        view_columns=view_columns,
-        mv_fqns=mv_fqns,
-        subtypes=function_subtypes,
-        long_truncation_fqns=long_truncation_fqns,
+        view_definitions=derived_inputs["view_definitions"],
+        view_columns=derived_inputs["view_columns"],
+        mv_fqns=derived_inputs["mv_fqns"],
+        subtypes=derived_inputs["function_subtypes"],
+        long_truncation_fqns=derived_inputs["long_truncation_fqns"],
     )
 
     counts["unchanged"] = len(diff.unchanged)
@@ -957,7 +1021,7 @@ def run_extract(
     )
 
     # ── Identity check: pre-mark all catalog objects stale if source changed ──
-    existing_manifest = _read_manifest_or_empty(project_root)
+    existing_manifest = _read_manifest_strict(project_root)
     current_identity = _get_connection_identity(technology, db_name)
     if _identity_changed(existing_manifest, current_identity):
         logger.info(

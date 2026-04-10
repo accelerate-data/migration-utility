@@ -207,6 +207,24 @@ def test_process_dmf_results_classifies_types() -> None:
     assert refs["tables"]["in_scope"] == []
 
 
+def test_process_dmf_results_logs_object_or_column_fallback(caplog: pytest.LogCaptureFixture) -> None:
+    rows = [
+        _make_dmf_row(
+            tgt_entity="FactSales",
+            minor_name="sale_id",
+            class_desc="OBJECT_OR_COLUMN",
+            is_updated=True,
+        ),
+    ]
+
+    with caplog.at_level("WARNING"):
+        result, _dmf_errors = process_dmf_results(rows)
+
+    refs = result["dbo.usp_load"]
+    assert len(refs["tables"]["in_scope"]) == 1
+    assert "event=dmf_type_fallback" in caplog.text
+
+
 # ── flip_references ─────────────────────────────────────────────────────────
 
 

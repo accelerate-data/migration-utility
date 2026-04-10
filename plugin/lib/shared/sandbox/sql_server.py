@@ -133,8 +133,8 @@ def _get_not_null_defaults(cursor: Any, table: str) -> dict[str, Any]:
         cursor.execute(
             "SELECT c.COLUMN_NAME, c.DATA_TYPE "
             "FROM INFORMATION_SCHEMA.COLUMNS c "
-            "WHERE c.TABLE_SCHEMA + '.' + c.TABLE_NAME = ? "
-            "   OR '[' + c.TABLE_SCHEMA + '].[' + c.TABLE_NAME + ']' = ? "
+            "WHERE (c.TABLE_SCHEMA + '.' + c.TABLE_NAME = ? "
+            "   OR '[' + c.TABLE_SCHEMA + '].[' + c.TABLE_NAME + ']' = ?) "
             "AND c.IS_NULLABLE = 'NO' "
             "AND c.COLUMN_DEFAULT IS NULL "
             "AND COLUMNPROPERTY(OBJECT_ID(?), c.COLUMN_NAME, 'IsIdentity') = 0",
@@ -1028,5 +1028,4 @@ class SqlServerSandbox(SandboxBackend):
                 "b_minus_a": [],
                 "errors": [{"code": "COMPARE_SQL_FAILED", "message": str(exc)}],
             }
-
 

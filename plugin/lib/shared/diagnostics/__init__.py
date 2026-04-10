@@ -189,9 +189,10 @@ def _run_checks(
     pass_number: int,
     pass1_results: dict[str, list[DiagnosticResult]] | None = None,
     package_members: set[str] | None = None,
-) -> dict[str, list[DiagnosticResult]]:
+) -> tuple[dict[str, list[DiagnosticResult]], int]:
     """Run all checks for a given pass number across all catalog objects."""
     results: dict[str, list[DiagnosticResult]] = defaultdict(list)
+    suppressed_checks = 0
 
     for bucket in _OBJECT_BUCKETS:
         object_type = bucket.rstrip("s")  # "procedures" -> "procedure"
@@ -224,6 +225,7 @@ def _run_checks(
                     result = spec.fn(ctx)
                 except Exception:
                     logger.exception("event=diagnostic_check_error code=%s fqn=%s", spec.code, fqn)
+                    suppressed_checks += 1
                     continue
                 if result is None:
                     continue
@@ -232,7 +234,7 @@ def _run_checks(
                 else:
                     results[fqn].append(result)
 
-    return dict(results)
+    return dict(results), suppressed_checks
 
 
 def _write_results(catalog_dir: Path, all_results: dict[str, list[DiagnosticResult]]) -> tuple[int, int]:
@@ -297,10 +299,27 @@ def run_diagnostics(project_root: Path, dialect: str = "tsql") -> dict[str, Any]
     package_members = _load_package_members(project_root) if dialect == "oracle" else None
 
     # Pass 1: per-object + reference resolution
-    pass1_results = _run_checks(catalog_dir, project_root, dialect, known_fqns, ddl_lookup, pass_number=1, package_members=package_members)
+    pass1_results, pass1_suppressed = _run_checks(
+        catalog_dir,
+        project_root,
+        dialect,
+        known_fqns,
+        ddl_lookup,
+        pass_number=1,
+        package_members=package_members,
+    )
 
     # Pass 2: graph traversal (receives pass 1 results)
-    pass2_results = _run_checks(catalog_dir, project_root, dialect, known_fqns, ddl_lookup, pass_number=2, pass1_results=pass1_results, package_members=package_members)
+    pass2_results, pass2_suppressed = _run_checks(
+        catalog_dir,
+        project_root,
+        dialect,
+        known_fqns,
+        ddl_lookup,
+        pass_number=2,
+        pass1_results=pass1_results,
+        package_members=package_members,
+    )
 
     # Merge results
     all_results: dict[str, list[DiagnosticResult]] = defaultdict(list)
@@ -322,6 +341,7 @@ def run_diagnostics(project_root: Path, dialect: str = "tsql") -> dict[str, Any]
         "objects_checked": objects_checked,
         "warnings_added": warnings_added,
         "errors_added": errors_added,
+        "suppressed_checks": pass1_suppressed + pass2_suppressed,
     }
     logger.info("event=run_diagnostics_complete %s", summary)
     return summary

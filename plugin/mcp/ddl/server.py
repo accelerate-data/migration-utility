@@ -27,6 +27,7 @@ function) are auto-detected from the DDL — filenames are not significant.
 
 import asyncio
 import json
+import logging
 import os
 from pathlib import Path
 
@@ -40,7 +41,11 @@ from shared.name_resolver import normalize
 
 server = Server("ddl-mcp")
 
+logger = logging.getLogger(__name__)
+
+_project_root_cache: dict[tuple[str, str], Path] = {}
 _catalog_cache: dict[Path, DdlCatalog] = {}
+_catalog_dialect_cache: dict[Path, str] = {}
 
 _DDL_PATH_SCHEMA: dict = {}
 
@@ -48,6 +53,11 @@ _DDL_PATH_SCHEMA: dict = {}
 # ── Path helpers ──────────────────────────────────────────────────────────────
 
 def _project_root() -> Path:
+    cache_key = (os.environ.get("DDL_PATH", "").strip(), str(Path.cwd()))
+    cached = _project_root_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     raw = os.environ.get("DDL_PATH", "").strip()
     p = Path(raw) if raw else Path.cwd()
     if not p.exists():
@@ -58,6 +68,7 @@ def _project_root() -> Path:
         raise FileNotFoundError(
             f"manifest.json not found in {p}. Run setup-ddl first or set DDL_PATH."
         )
+    _project_root_cache[cache_key] = p
     return p
 
 
@@ -65,8 +76,17 @@ def _catalog(project_root: Path) -> DdlCatalog:
     resolved = project_root.resolve()
     if resolved not in _catalog_cache:
         manifest = read_manifest(project_root)
-        _catalog_cache[resolved] = load_directory(project_root, dialect=manifest["dialect"])
+        dialect = manifest["dialect"]
+        _catalog_cache[resolved] = load_directory(project_root, dialect=dialect)
+        _catalog_dialect_cache[resolved] = dialect
     return _catalog_cache[resolved]
+
+
+def _catalog_dialect(project_root: Path) -> str:
+    resolved = project_root.resolve()
+    if resolved not in _catalog_dialect_cache:
+        _catalog(project_root)
+    return _catalog_dialect_cache[resolved]
 
 
 # ── Column metadata ───────────────────────────────────────────────────────────
@@ -237,7 +257,7 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         entry = catalog.get_table(arguments["name"])
         if not entry:
             return [types.TextContent(type="text", text=f"Table not found: {arguments['name']}")]
-        dialect = read_manifest(project_root)["dialect"]
+        dialect = _catalog_dialect(project_root)
         return [types.TextContent(type="text", text=json.dumps({
             "ddl": entry.raw_ddl,
             "columns": _parse_columns(entry, dialect),
@@ -260,8 +280,13 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
                 refs = extract_refs(entry)
                 if target in refs.reads_from or target in refs.writes_to:
                     matches.append(proc_name)
-            except DdlParseError:
-                pass  # cannot determine refs for EXEC/MERGE/complex IF-ELSE bodies
+            except DdlParseError as exc:
+                logger.warning(
+                    "event=get_dependencies operation=skip_procedure procedure=%s table=%s error=%s",
+                    proc_name,
+                    arguments["table_name"],
+                    exc,
+                )
         return [types.TextContent(
             type="text",
             text="\n".join(sorted(matches)) if matches else "(none)",

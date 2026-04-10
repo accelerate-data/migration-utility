@@ -29,6 +29,7 @@ from shared.sandbox.sql_server import (
     _detect_remote_exec_target,
     _generate_sandbox_db_name,
     _get_identity_columns,
+    _get_not_null_defaults,
     _validate_identifier,
     _validate_sandbox_db_name,
 )
@@ -501,6 +502,20 @@ class TestIdentityInsert:
         execute_calls = [str(c) for c in sandbox_cursor.execute.call_args_list]
         identity_calls = [c for c in execute_calls if "IDENTITY_INSERT" in c]
         assert len(identity_calls) == 0, f"Unexpected IDENTITY_INSERT calls: {identity_calls}"
+
+
+class TestNotNullDefaultsQuery:
+    """Regression coverage for the NOT NULL defaults lookup SQL."""
+
+    def test_plain_schema_table_groups_or_predicates_before_and_filters(self) -> None:
+        cursor = MagicMock()
+        cursor.fetchall.return_value = []
+
+        _get_not_null_defaults(cursor, "dbo.Product")
+
+        sql = cursor.execute.call_args.args[0]
+        assert sql.index("WHERE (") < sql.index(") AND c.IS_NULLABLE = 'NO'")
+        assert sql.index("OR '[' + c.TABLE_SCHEMA + '].[' + c.TABLE_NAME + ']' = ?") < sql.index(") AND c.IS_NULLABLE = 'NO'")
 
     def test_identity_insert_toggles_per_table(self) -> None:
         backend = _make_backend()
@@ -1014,6 +1029,20 @@ class TestResolveSandboxDb:
 
         with pytest.raises(Exit):
             _resolve_sandbox_db(tmp_path)
+
+    def test_manifest_read_error_uses_strict_loader(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        from click.exceptions import Exit
+
+        from shared import test_harness
+
+        with patch.object(test_harness, "read_manifest", side_effect=PermissionError("permission denied")):
+            with pytest.raises(Exit) as exc_info:
+                test_harness._resolve_sandbox_db(tmp_path)
+
+        assert exc_info.value.exit_code == 2
+        output = json.loads(capsys.readouterr().out)
+        assert output["status"] == "error"
+        assert output["errors"][0]["code"] == "MANIFEST_READ_ERROR"
 
 
 # ── E2E CLI invocation ────────────────────────────────────────────────────────
@@ -1991,3 +2020,101 @@ class TestExecuteSpecViewRouting:
         finally:
             import os
             os.unlink(spec_path)
+
+
+class TestCompareSqlExitCodes:
+    """Regression coverage for compare-sql CLI exit behavior."""
+
+    def test_partial_failure_exits_non_zero(self, tmp_path: Path) -> None:
+        from shared import test_harness
+        from typer.testing import CliRunner
+
+        runner = CliRunner()
+        sql_a = tmp_path / "sql_a.sql"
+        sql_b = tmp_path / "sql_b.sql"
+        spec_path = tmp_path / "spec.json"
+
+        sql_a.write_text("SELECT 1 AS value", encoding="utf-8")
+        sql_b.write_text("SELECT 1 AS value", encoding="utf-8")
+        spec_path.write_text(
+            json.dumps(
+                {
+                    "item_id": "silver.dimproduct",
+                    "status": "ok",
+                    "coverage": "complete",
+                    "branch_manifest": [],
+                    "unit_tests": [
+                        {"name": "test_ok", "given": []},
+                        {"name": "test_fail", "given": []},
+                    ],
+                    "uncovered_branches": [],
+                    "warnings": [],
+                    "validation": {"status": "ok"},
+                    "errors": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        mock_backend = MagicMock()
+        mock_backend.compare_two_sql.side_effect = [
+            {
+                "status": "ok",
+                "equivalent": True,
+                "a_count": 1,
+                "b_count": 1,
+                "a_minus_b": [],
+                "b_minus_a": [],
+                "errors": [],
+            },
+            {
+                "status": "error",
+                "equivalent": False,
+                "a_count": 1,
+                "b_count": 0,
+                "a_minus_b": [{"value": 1}],
+                "b_minus_a": [],
+                "errors": [{"code": "COMPARE_FAILED", "message": "mismatch"}],
+            },
+        ]
+
+        with (
+            patch.object(test_harness, "resolve_project_root", return_value=tmp_path),
+            patch.object(test_harness, "_resolve_sandbox_db", return_value=("__test_abc", {})),
+            patch.object(test_harness, "_create_backend", return_value=mock_backend),
+        ):
+            result = runner.invoke(
+                test_harness.app,
+                [
+                    "compare-sql",
+                    "--sql-a-file", str(sql_a),
+                    "--sql-b-file", str(sql_b),
+                    "--spec", str(spec_path),
+                    "--project-root", str(tmp_path),
+                ],
+            )
+
+        assert result.exit_code == 1
+        output = json.loads(result.output)
+        assert output["passed"] == 1
+        assert output["failed"] == 1
+
+    def test_manifest_permission_error_uses_json_error_path(self, tmp_path: Path) -> None:
+        from shared import test_harness
+        from typer.testing import CliRunner
+
+        runner = CliRunner()
+
+        with (
+            patch.object(test_harness, "resolve_project_root", return_value=tmp_path),
+            patch.object(test_harness, "read_manifest", side_effect=PermissionError("permission denied")),
+        ):
+            result = runner.invoke(
+                test_harness.app,
+                ["sandbox-up", "--project-root", str(tmp_path)],
+            )
+
+        assert result.exit_code == 2
+        output = json.loads(result.output)
+        assert output["status"] == "error"
+        assert output["errors"][0]["code"] == "MANIFEST_READ_ERROR"

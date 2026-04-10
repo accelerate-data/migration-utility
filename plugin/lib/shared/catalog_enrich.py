@@ -203,7 +203,11 @@ def _augment_proc_catalogs(
             logger.warning("event=enrich_skip proc=%s reason=corrupt_catalog error=%s", proc_fqn, exc)
             continue
         if proc_cat is None:
-            proc_data: dict[str, Any] = {}
+            logger.warning(
+                "event=enrich_skip proc=%s reason=missing_catalog_on_write",
+                proc_fqn,
+            )
+            continue
         else:
             proc_data = proc_cat.model_dump(exclude_none=True, by_alias=True)
         proc_data = ensure_references(proc_data)

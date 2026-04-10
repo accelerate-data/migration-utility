@@ -115,6 +115,11 @@ def _catalog_error(type_label: str, norm: str) -> NoReturn:
     raise CatalogFileMissingError(type_label, norm)
 
 
+def _is_view_catalog_path(cat_path: Path) -> bool:
+    """Return True when a catalog path points at catalog/views/."""
+    return cat_path.parent.name == "views"
+
+
 # ── Core logic (importable for testing) ───────────────────────────────────────
 
 
@@ -457,7 +462,7 @@ def write_scoping(
     try:
         # Auto-detect: route to view or table scoping based on catalog presence
         cat_path = resolve_catalog_path(project_root, normalize(name))
-        if "/views/" in str(cat_path):
+        if _is_view_catalog_path(cat_path):
             result = run_write_view_scoping(project_root, name, scoping_data)
         else:
             result = run_write_scoping(project_root, name, scoping_data)

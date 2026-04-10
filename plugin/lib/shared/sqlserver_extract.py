@@ -26,6 +26,43 @@ def _build_in_clause(schemas: list[str]) -> str:
     return ", ".join(f"'{s}'" for s in schemas)
 
 
+def _is_optional_metadata_unavailable(exc: Exception) -> bool:
+    """Return True when a metadata query failed because the feature is unavailable."""
+    message = str(exc).lower()
+    markers = (
+        "invalid object name",
+        "is not supported",
+        "not supported in this version",
+        "could not find stored procedure",
+        "cannot find the object",
+    )
+    return any(marker in message for marker in markers)
+
+
+def _run_optional_metadata_query(
+    conn: Any,
+    *,
+    sql: str,
+    filename: str,
+    staging_dir: Path,
+) -> None:
+    """Run an optional metadata query, swallowing only known feature-absence errors."""
+    try:
+        cursor = conn.cursor()
+        cursor.execute(sql)
+        _write_json(staging_dir, filename, _rows_to_dicts(cursor))
+        cursor.close()
+    except Exception as exc:  # noqa: BLE001
+        if not _is_optional_metadata_unavailable(exc):
+            raise
+        logger.warning(
+            "event=sqlserver_query_skip file=%s reason=feature_unavailable error=%s",
+            filename,
+            exc,
+        )
+        _write_json(staging_dir, filename, [])
+
+
 def _run_dmf_queries(
     conn: Any,
     schemas: list[str],
@@ -77,10 +114,12 @@ def _run_dmf_queries(
 
     for schema_name, obj_name in objects:
         qualified = f"[{schema_name}].[{obj_name}]"
+        schema_name_lit = schema_name.replace("'", "''")
+        obj_name_lit = obj_name.replace("'", "''")
         dmf_sql = (
             f"SELECT "
-            f"    '{schema_name}' AS referencing_schema, "
-            f"    '{obj_name}' AS referencing_name, "
+            f"    '{schema_name_lit}' AS referencing_schema, "
+            f"    '{obj_name_lit}' AS referencing_name, "
             f"    ISNULL(ref.referenced_schema_name, '') AS referenced_schema, "
             f"    ISNULL(ref.referenced_entity_name, '') AS referenced_entity, "
             f"    ISNULL(ref.referenced_minor_name, '') AS referenced_minor_name, "
@@ -249,43 +288,35 @@ def run_sqlserver_extraction(
         _write_json(staging_dir, "cdc.json", _rows_to_dicts(cursor))
         cursor.close()
 
-        # --- change_tracking.json (graceful) ---
-        try:
-            sql = (
-                f"SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name "
-                f"FROM sys.change_tracking_tables ct "
-                f"JOIN sys.tables t ON t.object_id = ct.object_id "
-                f"WHERE SCHEMA_NAME(t.schema_id) IN ({in_clause})"
-            )
-            cursor = conn.cursor()
-            cursor.execute(sql)
-            _write_json(staging_dir, "change_tracking.json", _rows_to_dicts(cursor))
-            cursor.close()
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "event=sqlserver_query_skip file=change_tracking.json error=%s", exc
-            )
-            _write_json(staging_dir, "change_tracking.json", [])
+        # --- change_tracking.json (feature optional, other errors are fatal) ---
+        sql = (
+            f"SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name "
+            f"FROM sys.change_tracking_tables ct "
+            f"JOIN sys.tables t ON t.object_id = ct.object_id "
+            f"WHERE SCHEMA_NAME(t.schema_id) IN ({in_clause})"
+        )
+        _run_optional_metadata_query(
+            conn,
+            sql=sql,
+            filename="change_tracking.json",
+            staging_dir=staging_dir,
+        )
 
-        # --- sensitivity.json (graceful) ---
-        try:
-            sql = (
-                f"SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name, "
-                f"       sc.label, sc.information_type, "
-                f"       COL_NAME(sc.major_id, sc.minor_id) AS column_name "
-                f"FROM sys.sensitivity_classifications sc "
-                f"JOIN sys.tables t ON t.object_id = sc.major_id "
-                f"WHERE t.is_ms_shipped = 0 AND SCHEMA_NAME(t.schema_id) IN ({in_clause})"
-            )
-            cursor = conn.cursor()
-            cursor.execute(sql)
-            _write_json(staging_dir, "sensitivity.json", _rows_to_dicts(cursor))
-            cursor.close()
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "event=sqlserver_query_skip file=sensitivity.json error=%s", exc
-            )
-            _write_json(staging_dir, "sensitivity.json", [])
+        # --- sensitivity.json (feature optional, other errors are fatal) ---
+        sql = (
+            f"SELECT SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name, "
+            f"       sc.label, sc.information_type, "
+            f"       COL_NAME(sc.major_id, sc.minor_id) AS column_name "
+            f"FROM sys.sensitivity_classifications sc "
+            f"JOIN sys.tables t ON t.object_id = sc.major_id "
+            f"WHERE t.is_ms_shipped = 0 AND SCHEMA_NAME(t.schema_id) IN ({in_clause})"
+        )
+        _run_optional_metadata_query(
+            conn,
+            sql=sql,
+            filename="sensitivity.json",
+            staging_dir=staging_dir,
+        )
 
         # --- object_types.json ---
         sql = (

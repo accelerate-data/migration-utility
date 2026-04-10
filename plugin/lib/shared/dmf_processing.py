@@ -7,9 +7,12 @@ flips outbound references to build ``referenced_by`` for tables.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from shared.name_resolver import fqn_parts, normalize
+
+logger = logging.getLogger(__name__)
 
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
@@ -130,6 +133,12 @@ def _group_dmf_rows(
         if bucket is None:
             bucket = object_types.get(tgt_fqn)
         if bucket is None:
+            logger.warning(
+                "event=dmf_type_fallback referencing=%s target=%s class_desc=%s fallback=tables",
+                referencing_fqn,
+                tgt_fqn,
+                class_desc or "<empty>",
+            )
             bucket = "tables"
 
         if referencing_fqn not in grouped:
