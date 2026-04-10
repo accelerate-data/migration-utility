@@ -9,7 +9,7 @@ argument-hint: "<schema.table_or_view> [schema.table_or_view ...]"
 
 # Scope
 
-Identify which procedures write to each table, or analyze SQL structure for each view or materialized view. Launches one sub-agent per item in parallel using `migration:analyzing-table` (which auto-detects table vs view).
+Identify which procedures write to each table, or analyze SQL structure for each view or materialized view. Launches one sub-agent per item in parallel using `/analyzing-table` (which auto-detects table vs view).
 
 ## Guards
 
@@ -38,13 +38,13 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
    - Else → `table`
 
    Store the type alongside each FQN for use in Step 2.
-4. Generate a run epoch: seconds since Unix epoch (e.g. `1743868200`). All run artifacts use this as a filename suffix.
+4. Generate a run ID in the form `<epoch_ms>-<random_8hex>` (for example `1743868200123-a1b2c3d4`). All run artifacts use this as the filename suffix.
 
 ### Step 2 — Run skill per item
 
-**Single-item path (1 item):** Run `migration:analyzing-table` directly in the current conversation — do not launch a sub-agent. The skill auto-detects table vs view from catalog presence.
+**Single-item path (1 item):** Run `/analyzing-table` directly in the current conversation — do not launch a sub-agent. The skill auto-detects table vs view from catalog presence.
 
-After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.item>.<epoch>.json`.
+After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.item>.<run_id>.json`.
 
 If the item status is `error`, immediately revert any files the skill may have partially modified:
 
@@ -61,9 +61,9 @@ Then continue to Step 3.
 **Multi-item path (2+ items):** Launch one sub-agent per item in parallel. Each sub-agent receives this prompt:
 
 ```text
-Run the migration:analyzing-table skill for <schema.item>.
+Run the /analyzing-table skill for <schema.item>.
 The working directory is <working-directory>.
-Write the item result JSON to .migration-runs/<schema.item>.<epoch>.json.
+Write the item result JSON to .migration-runs/<schema.item>.<run_id>.json.
 
 After writing the result:
 - If status == "error": run `git checkout -- catalog/<object_type>s/<item_id>.json` (ignore errors).
@@ -75,8 +75,8 @@ Return the item result JSON.
 
 ### Step 3 — Summarize
 
-1. Read each `.migration-runs/<schema.item>.<epoch>.json`.
-2. Write `.migration-runs/summary.<epoch>.json` with `{total, ok, partial, error}` counts and per-item status.
+1. Read each `.migration-runs/<schema.item>.<run_id>.json`.
+2. Write `.migration-runs/summary.<run_id>.json` with `{total, ok, partial, error}` counts and per-item status.
 3. Present human-readable summary:
 
    ```text
@@ -113,7 +113,7 @@ Return the item result JSON.
 
 ### Item result (per-item run artifact)
 
-Written to `.migration-runs/<schema.item>.<epoch>.json`:
+Written to `.migration-runs/<schema.item>.<run_id>.json`:
 
 ```json
 {
@@ -129,7 +129,7 @@ Written to `.migration-runs/<schema.item>.<epoch>.json`:
 
 ### Batch summary
 
-Written to `.migration-runs/summary.<epoch>.json`:
+Written to `.migration-runs/summary.<run_id>.json`:
 
 ```json
 {

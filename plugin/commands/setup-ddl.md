@@ -1,3 +1,12 @@
+---
+name: setup-ddl
+description: >
+  Extract DDL from a live SQL Server or Oracle database, write local artifact files
+  (ddl/, catalog/, manifest.json) that the ddl MCP server reads for schema information.
+  Supports diff-aware re-extraction with enriched-field preservation.
+user-invocable: true
+---
+
 # Setting Up DDL
 
 Extract DDL from a live SQL Server or Oracle database and write local artifact files that the `ddl` MCP server used by `listing-objects` / `analyzing-table` skills reads for schema information.

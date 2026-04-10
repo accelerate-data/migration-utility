@@ -11,19 +11,6 @@ argument-hint: "<schema.table_or_view> [schema.table_or_view ...]"
 
 Produce migration profiles for each table, view, or materialized view. Launches one sub-agent per item in parallel using `/profiling-table` (which auto-detects table vs view).
 
-## Harness Mode
-
-When the caller explicitly says to skip git operations, worktree creation, or PR steps, treat that as a non-interactive harness mode. Do not ask follow-up questions about those skips.
-
-In harness mode:
-
-- Skip `git-checkpoints`.
-- Use the current project root as `<working-directory>`.
-- Write `.migration-runs/` artifacts under the caller-specified project root. Create the directory if it does not exist.
-- Skip per-item `/commit` calls.
-- Skip the final PR prompt and `/commit-push-pr`.
-- Still run the full profiling flow and write item/summary artifacts.
-
 ## Guards
 
 - `manifest.json` must exist. If missing, fail all items with `MANIFEST_NOT_FOUND`.
@@ -44,16 +31,15 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
    - **Single object (1 item):** use the object FQN directly — `profile-<schema>-<name>` (lowercase, dots → hyphens). No LLM reasoning needed.
    - **Multiple objects (2+):** reason about the conversation context — what is the user trying to accomplish with this batch? Generate a short, descriptive slug that captures the intent (e.g. `profile-customer-dims`, `profile-order-pipeline`). The full slug (including the `profile-` prefix) must be lowercase, hyphen-separated, and at most 40 characters.
 2. Run the `git-checkpoints` skill with the run slug as the argument.
-   - If harness mode is active: skip this step and set `<working-directory>` to the current project root.
    - If it returns the default branch name (not a worktree path): proceed without a branch or worktree. All file writes and git operations target the current directory. Set `<working-directory>` to `$(git rev-parse --show-toplevel)` for use in sub-agent prompts below.
    - Otherwise: use the returned path as the working directory for all file writes and git operations in this run. Set `<working-directory>` to the returned path.
-3. Generate a run epoch: seconds since Unix epoch (e.g. `1743868200`). All run artifacts use this as a filename suffix.
+3. Generate a run ID in the form `<epoch_ms>-<random_8hex>` (for example `1743868200123-a1b2c3d4`). All run artifacts use this as the filename suffix.
 
 ### Step 2 — Route and run per item
 
 **Single-item path (1 item):** Run `/profiling-table` directly in the current conversation — do not launch a sub-agent. The skill auto-detects table vs view from catalog presence. Set `catalog_path` in the item result accordingly (`catalog/views/` or `catalog/tables/`).
 
-After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.item>.<epoch>.json`.
+After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.item>.<run_id>.json`.
 
 Create `.migration-runs/` first if it does not already exist.
 
@@ -67,8 +53,6 @@ Ignore errors from `git checkout` (the file may not have been modified).
 
 If the item status is not `error`, auto-commit and push: run `/commit catalog/tables/<item_id>.json` (or `catalog/views/<item_id>.json` for views).
 
-If harness mode is active, skip both the revert and commit steps and leave files in place for the eval harness to inspect.
-
 Then continue to Step 3.
 
 **Multi-item path (2+ items):** Launch one sub-agent per item in parallel. Each sub-agent receives this prompt:
@@ -76,7 +60,7 @@ Then continue to Step 3.
 ```text
 Run /profiling-table for <schema.item>. The skill auto-detects table vs view.
 The working directory is <working-directory>.
-Write the item result JSON to .migration-runs/<schema.item>.<epoch>.json.
+Write the item result JSON to .migration-runs/<schema.item>.<run_id>.json.
 
 Create `.migration-runs/` first if it does not already exist.
 
@@ -84,16 +68,14 @@ After writing the result:
 - If status == "error": run `git checkout -- catalog/tables/<item_id>.json` or `catalog/views/<item_id>.json` (ignore errors).
 - If status != "error": invoke the /commit command with the appropriate catalog path.
 
-If harness mode is active, skip both the revert and commit steps.
-
 On failure before writing a result, write result with status: "error" and error details, then revert as above.
 Return the item result JSON.
 ```
 
 ### Step 3 — Summarize
 
-1. Read each `.migration-runs/<schema.table>.<epoch>.json`.
-2. Write `.migration-runs/summary.<epoch>.json` with `{total, ok, partial, error}` counts and per-item status.
+1. Read each `.migration-runs/<schema.table>.<run_id>.json`.
+2. Write `.migration-runs/summary.<run_id>.json` with `{total, ok, partial, error}` counts and per-item status.
 3. Present human-readable summary:
 
    ```text
@@ -122,8 +104,6 @@ Return the item result JSON.
    ```
 
    If on a feature branch, also tell the user: "Once the PR is merged, run /cleanup-worktrees to remove the worktree and branches."
-
-   If harness mode is active, skip this entire PR step and end after printing the summary.
 
 6. Suggest running `/status` to see overall migration readiness across all tables.
 

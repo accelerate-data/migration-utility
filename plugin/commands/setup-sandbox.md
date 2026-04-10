@@ -20,7 +20,7 @@ If `CLAUDE_PLUGIN_ROOT` is not set, stop and tell the user to load the plugin wi
 
 Run all checks silently — do not change anything yet.
 
-1. Check `manifest.json` exists in the current working directory. Read it to confirm `technology` and `source_database` are present.
+1. Check `manifest.json` exists in the current working directory. Read it to confirm `technology` and `source_database` are present. If `technology` is not `sql_server` or `fabric_warehouse`, stop and tell the user: "Sandbox setup currently supports SQL Server only. Oracle sandbox is not yet available."
 2. Check that `extracted_schemas` in the manifest is a non-empty array.
 3. Check FreeTDS is installed: `brew list --formula freetds 2>/dev/null`. If missing, tell the user to run `brew install freetds` (or run `/init-ad-migration` which auto-installs it) and stop.
 4. Check whether each MSSQL environment variable is set (non-empty): `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD`. Do not print their values.

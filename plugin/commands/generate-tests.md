@@ -10,7 +10,7 @@ argument-hint: "<schema.table> [schema.table ...]"
 
 # Generate Tests
 
-Generate test scenarios, review for coverage, then bulk-execute approved scenarios to capture ground truth. Launches one sub-agent per table in parallel, each running `ground-truth-harness:generating-tests`. Review runs as a separate sub-agent via `ground-truth-harness:reviewing-tests`.
+Generate test scenarios, review for coverage, then bulk-execute approved scenarios to capture ground truth. Launches one sub-agent per table in parallel, each running `/generating-tests`. Review runs as a separate sub-agent via `/reviewing-tests`.
 
 ## Guards
 
@@ -41,12 +41,14 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 
 ### Step 2 — Generate scenarios per table
 
-**Single-table path (1 table):** Run `ground-truth-harness:generating-tests` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<run_id>.json`. Then continue to Step 3.
+Create `.migration-runs/` first if it does not already exist.
+
+**Single-table path (1 table):** Run `/generating-tests` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<run_id>.json`. Then continue to Step 3.
 
 **Multi-table path (2+ tables):** Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
 
 ```text
-Run the ground-truth-harness:generating-tests skill for <schema.table>.
+Run the /generating-tests skill for <schema.table>.
 The working directory is <working-directory>.
 Skip the Step 4 approval prompt — the review loop handles quality gating.
 Write the item result JSON to .migration-runs/<schema.table>.<run_id>.json.
