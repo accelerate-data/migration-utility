@@ -158,7 +158,7 @@ class TestFromEnv:
         backend = SqlServerSandbox(
             host="localhost", port="1433", database="testdb", password="pass",
         )
-        with patch("shared.sandbox.sql_server.pyodbc") as mock_pyodbc:
+        with patch("shared.sandbox.sql_server._pyodbc") as mock_pyodbc:
             mock_pyodbc.Error = type("Error", (Exception,), {})
             mock_pyodbc.connect.side_effect = mock_pyodbc.Error(
                 "[unixODBC][Driver Manager]Can't open lib 'FreeTDS'"
@@ -1634,8 +1634,7 @@ class TestEnsureViewTablesSqlServer:
 
     def test_stale_object_dropped_before_ctas(self) -> None:
         """If DROP raises pyodbc.Error, the exception is swallowed and CTAS still runs."""
-        import pyodbc
-
+        pyodbc = pytest.importorskip("pyodbc")
         backend = _make_backend()
         source_cursor = MagicMock()
         source_cursor.fetchone.return_value = (1,)  # IS a view
