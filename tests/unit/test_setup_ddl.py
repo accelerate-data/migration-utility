@@ -1114,6 +1114,7 @@ class TestOracleSchemaProcessing:
 
 
 @pytest.mark.integration
+@pytest.mark.integration
 class TestListDatabasesIntegration:
     def test_sql_server_returns_list(self, tmp_path):
         if not os.environ.get("MSSQL_HOST"):
