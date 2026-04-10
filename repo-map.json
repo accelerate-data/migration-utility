@@ -77,7 +77,7 @@
     },
     "shared_schemas": {
       "path": "plugin/lib/shared/schemas/",
-      "description": "JSON Schema files for catalog objects, agent I/O, skill output, test harness output, model sweep output, and shared definitions. Discover CLI output, status, batch-plan, ready, and exclude contracts have moved to Pydantic models in output_models.py. Scoping contracts (ScopingSummary, TableScopingSection, ViewScopingSection, CandidateWriter, SqlElement, DiagnosticsEntry) live in catalog_models.py."
+      "description": "JSON Schema files for catalog objects, agent I/O, skill output, test harness output, and shared definitions. Model generation contracts (ModelSweepOutput, ModelGeneratorInput, ModelGenerationHandoff, ModelGenerationOutput, ModelReviewOutput), discover CLI output, status, batch-plan, ready, and exclude contracts have moved to Pydantic models in output_models.py. Scoping contracts (ScopingSummary, TableScopingSection, ViewScopingSection, CandidateWriter, SqlElement, DiagnosticsEntry) live in catalog_models.py."
     },
     "ddl_mcp": {
       "path": "plugin/mcp/ddl/",
