@@ -15,8 +15,9 @@ from shared.output_models.shared import OUTPUT_CONFIG
 class PrimaryKeyConstraint(BaseModel):
     model_config = OUTPUT_CONFIG
 
-    constraint_name: str
-    columns: list[str]
+    constraint_name: str | None = None
+    columns: list[str] = Field(default_factory=list)
+    type: Literal["PRIMARY KEY", "UNIQUE"] | None = None
 
 
 class ForeignKeySignal(BaseModel):

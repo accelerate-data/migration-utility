@@ -101,13 +101,14 @@ class MigrateBatch(BaseModel):
     model_config = OUTPUT_CONFIG
 
     batch: int
-    objects: list[str]
+    objects: list[ObjectNode]
 
 
 class NaObject(BaseModel):
     model_config = OUTPUT_CONFIG
 
     fqn: str
+    type: Literal["table", "view", "mv"]
     reason: str
 
 
@@ -115,41 +116,51 @@ class ExcludedObject(BaseModel):
     model_config = OUTPUT_CONFIG
 
     fqn: str
-    reason: str
+    type: Literal["table", "view", "mv"]
+    note: str
 
 
 class SourceTable(BaseModel):
     model_config = OUTPUT_CONFIG
 
     fqn: str
+    type: Literal["table", "view", "mv"]
+    reason: str
 
 
 class SourcePending(BaseModel):
     model_config = OUTPUT_CONFIG
 
     fqn: str
-    reason: str
+    type: Literal["table", "view", "mv"]
 
 
 class CircularRef(BaseModel):
     model_config = OUTPUT_CONFIG
 
-    object: str
-    cycle: list[str]
+    fqn: str
+    type: Literal["table", "view", "mv"]
+    note: str
 
 
 class CatalogDiagnosticEntry(BaseModel):
     model_config = OUTPUT_CONFIG
 
     fqn: str
-    code: str
+    object_type: Literal["table", "view", "mv"]
+    code: str | None = None
+    message: str | None = None
     severity: Literal["warning", "error"]
-    message: str
+    item_id: str | None = None
+    field: str | None = None
+    details: dict[str, object] | None = None
 
 
 class CatalogDiagnostics(BaseModel):
     model_config = OUTPUT_CONFIG
 
+    total_errors: int
+    total_warnings: int
     warnings: list[CatalogDiagnosticEntry]
     errors: list[CatalogDiagnosticEntry]
 
@@ -158,26 +169,29 @@ class BatchSummary(BaseModel):
     model_config = OUTPUT_CONFIG
 
     total_objects: int
-    batched_objects: int
+    tables: int
+    views: int
+    mvs: int
+    writerless_tables: int
+    excluded_count: int
     source_tables: int
     source_pending: int
-    n_a_objects: int
-    excluded_objects: int
-    circular_refs: int
 
 
 class BatchPlanOutput(BaseModel):
     model_config = OUTPUT_CONFIG
 
-    objects: list[ObjectNode]
+    summary: BatchSummary
+    scope_phase: list[ObjectNode]
+    profile_phase: list[ObjectNode]
     migrate_batches: list[MigrateBatch]
+    completed_objects: list[ObjectNode]
     source_tables: list[SourceTable]
     source_pending: list[SourcePending]
     n_a_objects: list[NaObject]
     excluded_objects: list[ExcludedObject]
     circular_refs: list[CircularRef]
     catalog_diagnostics: CatalogDiagnostics
-    summary: BatchSummary
 
 
 class ExcludeOutput(BaseModel):
@@ -190,5 +204,5 @@ class ExcludeOutput(BaseModel):
 class SyncExcludedWarningsOutput(BaseModel):
     model_config = OUTPUT_CONFIG
 
-    updated: list[str]
-    cleared: list[str]
+    warnings_written: int
+    warnings_cleared: int
