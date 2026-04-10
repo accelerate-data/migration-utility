@@ -111,7 +111,7 @@ Use `refactored_sql` as your sole SQL input. Ignore `proc_body` and `statements`
 
 ## Step 2: Generate dbt SQL
 
-Produce the model SQL from the `refactored_sql`. Apply [sql-style.md](../reviewing-model/references/sql-style.md) (keywords, indentation, commas) and [cte-structure.md](../reviewing-model/references/cte-structure.md) (import/logical/final pattern) throughout. Apply [model-naming.md](../reviewing-model/references/model-naming.md) for layer prefixes, `_dbt_run_id`, and `_loaded_at` rules.
+Produce the model SQL from the `refactored_sql`. Apply [sql-style.md](../_shared/references/sql-style.md) (keywords, indentation, commas) and [cte-structure.md](../_shared/references/cte-structure.md) (import/logical/final pattern) throughout. Apply [model-naming.md](../_shared/references/model-naming.md) for layer prefixes, `_dbt_run_id`, and `_loaded_at` rules.
 
 **Source table references:** All source table references use `{{ source('<schema>', '<table>') }}` directly in import CTEs. Do not generate separate `stg_*.sql` files.
 
@@ -155,43 +155,7 @@ where <watermark_column> > (select max(<watermark_column>) from {{ this }})
 {% endif %}
 ```
 
-For snapshot models, generate a dbt snapshot block instead of a model file. Place the file in `snapshots/` (not `models/staging/`). The snapshot file replaces the `.sql` model — do not generate both.
-
-**When the profile has a watermark column** — use `strategy='timestamp'`:
-
-```sql
-{% snapshot <model_name>_snapshot %}
-
-{{ config(
-    target_schema='snapshots',
-    unique_key='<pk_column>',
-    strategy='timestamp',
-    updated_at='<watermark_column>',
-) }}
-
-select * from {{ source('<source_name>', '<table_name>') }}
-
-{% endsnapshot %}
-```
-
-**When the profile has no watermark column** — use `strategy='check'`:
-
-```sql
-{% snapshot <model_name>_snapshot %}
-
-{{ config(
-    target_schema='snapshots',
-    unique_key='<pk_column>',
-    strategy='check',
-    check_cols='all',
-) }}
-
-select * from {{ source('<source_name>', '<table_name>') }}
-
-{% endsnapshot %}
-```
-
-Use a specific column list for `check_cols` if the profile identifies mutable columns.
+For snapshot models, follow the rules in [references/snapshot-generation.md](references/snapshot-generation.md) for file placement, strategy selection, and config templates.
 
 ## Step 3: Logical equivalence check
 
@@ -216,7 +180,7 @@ If warnings exist, record them in the item result and continue.
 
 ## Step 4: Build schema.yml
 
-Apply [yaml-style.md](../reviewing-model/references/yaml-style.md) (indentation, `version: 2`, required descriptions) throughout.
+Apply [yaml-style.md](../_shared/references/yaml-style.md) (indentation, `version: 2`, required descriptions) throughout.
 
 ### 4a — Schema tests
 
@@ -292,7 +256,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate write \
   --model-path <relative_path_to_model.sql> \
   --schema-yml-path <relative_path_to_schema.yml> \
   --model-sql-file .staging/model.sql \
-  --schema-yml-file .staging/schema.yml; rm -rf .staging
+  --schema-yml-file .staging/schema.yml && rm -rf .staging
 ```
 
 The dbt project path is resolved automatically from `$DBT_PROJECT_PATH` or defaults to `./dbt` relative to the project root. Pass `--dbt-project-path <path>` only if you need to override this.
@@ -408,7 +372,8 @@ The CLI verifies the model file exists on disk and writes the `generate` section
 
 ## References
 
-- [../reviewing-model/references/sql-style.md](../reviewing-model/references/sql-style.md) — SQL formatting rules with stable codes (SQL_001-SQL_013): keywords, indentation, commas, aliases
-- [../reviewing-model/references/cte-structure.md](../reviewing-model/references/cte-structure.md) — CTE pattern rules (CTE_001-CTE_008): import-first order, `final` naming, no nested CTEs
-- [../reviewing-model/references/model-naming.md](../reviewing-model/references/model-naming.md) — layer prefix, snake_case, `_dbt_run_id` and `_loaded_at` ETL control column rules (MDL_001-MDL_013)
-- [../reviewing-model/references/yaml-style.md](../reviewing-model/references/yaml-style.md) — YAML formatting rules (YML_001-YML_008): `version: 2`, descriptions, indentation
+- [../_shared/references/sql-style.md](../_shared/references/sql-style.md) — SQL formatting rules with stable codes (SQL_001-SQL_013): keywords, indentation, commas, aliases
+- [../_shared/references/cte-structure.md](../_shared/references/cte-structure.md) — CTE pattern rules (CTE_001-CTE_008): import-first order, `final` naming, no nested CTEs
+- [../_shared/references/model-naming.md](../_shared/references/model-naming.md) — layer prefix, snake_case, `_dbt_run_id` and `_loaded_at` ETL control column rules (MDL_001-MDL_013)
+- [../_shared/references/yaml-style.md](../_shared/references/yaml-style.md) — YAML formatting rules (YML_001-YML_008): `version: 2`, descriptions, indentation
+- [references/snapshot-generation.md](references/snapshot-generation.md) — snapshot file placement, strategy selection (timestamp vs check), and config templates

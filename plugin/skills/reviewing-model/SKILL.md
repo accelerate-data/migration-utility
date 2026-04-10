@@ -80,10 +80,10 @@ Evaluate the generated model SQL and schema YAML against the reference files. Ea
 
 | Area | Reference file | Key checks |
 |---|---|---|
-| SQL style | [references/sql-style.md](references/sql-style.md) | Lowercase keywords (`SQL_001`), indentation (`SQL_002`), trailing commas (`SQL_003`), one column per line (`SQL_004`), table alias prefixes (`SQL_005`), no `SELECT *` in marts (`SQL_006`) |
-| CTE structure | [references/cte-structure.md](references/cte-structure.md) | Import CTEs first (`CTE_001`), final CTE named `final` (`CTE_002`), `select * from final` last (`CTE_003`), single-purpose CTEs (`CTE_004`), no nested CTEs (`CTE_006`) |
-| Model naming | [references/model-naming.md](references/model-naming.md) | Correct layer prefix (`MDL_001`--`MDL_003`), `snake_case` names (`MDL_004`), `_dbt_run_id` present (`MDL_005`), `_loaded_at` rules (`MDL_006`, `MDL_007`), locked columns unchanged (`MDL_008`) |
-| YAML style | [references/yaml-style.md](references/yaml-style.md) | `version: 2` at top (`YML_004`), model description present (`YML_002`), PK column descriptions present (`YML_003`), 2-space indentation (`YML_001`) |
+| SQL style | [../_shared/references/sql-style.md](../_shared/references/sql-style.md) | Lowercase keywords (`SQL_001`), indentation (`SQL_002`), trailing commas (`SQL_003`), one column per line (`SQL_004`), table alias prefixes (`SQL_005`), no `SELECT *` in marts (`SQL_006`) |
+| CTE structure | [../_shared/references/cte-structure.md](../_shared/references/cte-structure.md) | Import CTEs first (`CTE_001`), final CTE named `final` (`CTE_002`), `select * from final` last (`CTE_003`), single-purpose CTEs (`CTE_004`), no nested CTEs (`CTE_006`) |
+| Model naming | [../_shared/references/model-naming.md](../_shared/references/model-naming.md) | Correct layer prefix (`MDL_001`--`MDL_003`), `snake_case` names (`MDL_004`), `_dbt_run_id` present (`MDL_005`), `_loaded_at` rules (`MDL_006`, `MDL_007`), locked columns unchanged (`MDL_008`) |
+| YAML style | [../_shared/references/yaml-style.md](../_shared/references/yaml-style.md) | `version: 2` at top (`YML_004`), model description present (`YML_002`), PK column descriptions present (`YML_003`), 2-space indentation (`YML_001`) |
 
 ## Feedback tiers
 
@@ -205,10 +205,10 @@ All `code` values in `warnings[]` and `errors[]` must come from
 
 ## References
 
-- [references/sql-style.md](references/sql-style.md) — SQL formatting rules with stable codes (SQL_001--SQL_013): keywords, indentation, commas, aliases, JOIN style
-- [references/cte-structure.md](references/cte-structure.md) — CTE pattern rules (CTE_001--CTE_008): import-first order, `final` naming, single-purpose CTEs, no nesting
-- [references/model-naming.md](references/model-naming.md) — layer prefix, snake_case, `_dbt_run_id` and `_loaded_at` ETL control column rules (MDL_001--MDL_013)
-- [references/yaml-style.md](references/yaml-style.md) — YAML formatting rules (YML_001--YML_008): `version: 2`, required descriptions, indentation
+- [../_shared/references/sql-style.md](../_shared/references/sql-style.md) — SQL formatting rules with stable codes (SQL_001--SQL_013): keywords, indentation, commas, aliases, JOIN style
+- [../_shared/references/cte-structure.md](../_shared/references/cte-structure.md) — CTE pattern rules (CTE_001--CTE_008): import-first order, `final` naming, single-purpose CTEs, no nesting
+- [../_shared/references/model-naming.md](../_shared/references/model-naming.md) — layer prefix, snake_case, `_dbt_run_id` and `_loaded_at` ETL control column rules (MDL_001--MDL_013)
+- [../_shared/references/yaml-style.md](../_shared/references/yaml-style.md) — YAML formatting rules (YML_001--YML_008): `version: 2`, required descriptions, indentation
 
 ## Boundary rules
 

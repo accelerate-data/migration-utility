@@ -307,13 +307,10 @@ Do not invent or override the status.
 
 ## Step 6: Clean up and report
 
-Delete the staging files after `refactor write` succeeds:
+Delete the staging directory after `refactor write` succeeds:
 
 ```bash
-rm -f .staging/<table_fqn>-extracted.sql \
-       .staging/<table_fqn>-refactored.sql \
-       .staging/<table_fqn>-semantic-review.json \
-       .staging/<table_fqn>-compare.json
+rm -rf .staging
 ```
 
 Report:
@@ -328,6 +325,10 @@ Report:
 ## References
 
 - [references/sp-migration-ref.md](references/sp-migration-ref.md) — DML extraction rules per statement type (INSERT, MERGE, UPDATE, etc.) and CTE restructuring patterns for sub-agents A and B
+
+## Schema discipline
+
+Use the canonical `/refactor` surfaced code list in [`../../lib/shared/refactor_error_codes.md`](../../lib/shared/refactor_error_codes.md). Do not define a competing public error-code list in this skill.
 
 ## Error handling
 

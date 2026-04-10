@@ -61,9 +61,8 @@ Create `.migration-runs/` first if it does not already exist.
 **Multi-table path (2+ tables):** Launch one sub-agent per table in parallel (skipping items that passed the idempotency check above). Each sub-agent receives this prompt:
 
 ```text
-Run the /generating-model skill for <schema.table>.
+Run /generating-model for <schema.table>.
 The working directory is <working-directory>.
-Skip the user confirmation prompt — proceed automatically. Still run the full equivalence analysis.
 Equivalence warnings: proceed and write the model. Record each gap as EQUIVALENCE_GAP warning.
 dbt compile/test failure: attempt up to 3 self-corrections. If still failing, write as-is with DBT_TEST_FAILED warning.
 Write the item result JSON to .migration-runs/<schema.table>.<run_id>.json.

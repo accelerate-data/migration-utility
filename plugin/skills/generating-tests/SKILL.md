@@ -142,31 +142,7 @@ There is no `selected_writer` for views — the view's refactored SELECT stateme
 
 For each statement where `action == migrate`, identify all conditional branches. Use the proc body and statement SQL to enumerate every code path that produces different output behavior.
 
-**For tables**, enumerate all patterns:
-
-| Pattern | Branches to enumerate |
-|---|---|
-| MERGE WHEN clauses | One per WHEN MATCHED, WHEN NOT MATCHED, WHEN NOT MATCHED BY SOURCE |
-| CASE/WHEN | One per arm + ELSE |
-| JOIN | Match, no-match (NULL right side for LEFT JOIN), partial multi-condition match |
-| WHERE | Row that passes, row that fails |
-| Subquery | EXISTS true/false, IN match/miss, correlated hit/miss |
-| NULL handling | Nullable columns in filters/joins/COALESCE — NULL vs non-NULL |
-| Aggregation | Single group, multiple groups, empty group |
-| Type boundaries | Watermark date edges, MAX int, empty string |
-| Empty source | Zero-row edge case |
-
-**For views**, use SELECT-level patterns only:
-
-| Pattern | Branches to enumerate |
-|---|---|
-| WHERE | Row that passes, row that fails |
-| JOIN | Match, no-match (NULL right side for LEFT JOIN), partial multi-condition match |
-| CASE/WHEN | One per arm + ELSE |
-| Subquery | EXISTS true/false, IN match/miss, correlated hit/miss |
-| NULL handling | Nullable columns in filters/joins/COALESCE — NULL vs non-NULL |
-| Aggregation | Single group, multiple groups, empty group (with/without HAVING) |
-| Empty source | Zero-row edge case |
+Use the pattern tables in [../_shared/references/branch-patterns.md](../_shared/references/branch-patterns.md) to enumerate branches. Apply the **Table patterns** section for tables and the **View patterns** section for views.
 
 Output: branch manifest — a list of branches with IDs, descriptions, the statement index they belong to, and the pattern they exercise.
 
@@ -356,3 +332,4 @@ Field requirements:
 
 - [`../../lib/shared/generate_tests_error_codes.md`](../../lib/shared/generate_tests_error_codes.md) — canonical generating-tests and reviewing-tests statuses and surfaced error/warning codes
 - [`references/fixture-synthesis-ref.md`](references/fixture-synthesis-ref.md) — column exclusion, NOT NULL defaults, and CHECK constraint rules for fixture generation
+- [`../_shared/references/branch-patterns.md`](../_shared/references/branch-patterns.md) — conditional branch enumeration patterns for tables and views
