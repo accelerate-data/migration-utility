@@ -111,8 +111,6 @@ Return the item result JSON.
 
 ## Output shapes
 
-Contracts are enforced at runtime by Pydantic models in `../lib/shared/catalog_models.py`.
-
 ### Item result (per-item run artifact)
 
 Written to `.migration-runs/<schema.item>.<epoch>.json`:
@@ -129,9 +127,7 @@ Written to `.migration-runs/<schema.item>.<epoch>.json`:
 }
 ```
 
-The full scoping data lives in the catalog files, not duplicated in the run log.
-
-### Batch summary → `ScopingSummary`
+### Batch summary
 
 Written to `.migration-runs/summary.<epoch>.json`:
 
@@ -147,7 +143,7 @@ Written to `.migration-runs/summary.<epoch>.json`:
 }
 ```
 
-### Table scoping (catalog write-back) → `TableScopingSection`
+### Table scoping (catalog write-back)
 
 Written to `catalog/tables/<fqn>.json` → `scoping` section:
 
@@ -162,7 +158,7 @@ Written to `catalog/tables/<fqn>.json` → `scoping` section:
 }
 ```
 
-### View scoping (catalog write-back) → `ViewScopingSection`
+### View scoping (catalog write-back)
 
 Written to `catalog/views/<fqn>.json` → `scoping` section:
 
@@ -182,7 +178,7 @@ Written to `catalog/views/<fqn>.json` → `scoping` section:
 
 Use the canonical `/scope` code list in [../lib/shared/scope_error_codes.md](../lib/shared/scope_error_codes.md).
 
-Each entry in `errors[]` or `warnings[]` uses the `DiagnosticsEntry` shape from `catalog_models.py`:
+Each entry in `errors[]` or `warnings[]`:
 
 ```json
 {"code": "CATALOG_FILE_MISSING", "message": "catalog/tables/silver.dimdate.json not found.", "item_id": "silver.dimdate", "severity": "error"}

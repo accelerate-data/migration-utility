@@ -23,13 +23,6 @@ Generate dbt models for a batch of tables. Launches one sub-agent per table in p
 
 Per-item readiness is checked by the skill via `migrate-util ready` (which enforces that refactor and test generation are complete before model generation can proceed).
 
-## Contracts
-
-Handoff and output shapes are enforced by Pydantic models in `../lib/shared/output_models.py`:
-
-- `ModelGenerationHandoff` — caller-provided execution context (`artifact_paths`, `revision_feedback`). Both fields are optional; the skill derives missing values locally.
-- `ModelGenerationOutput` — per-item result written to `.migration-runs/<item_id>.<run_id>.json` (see Item Result Schema below).
-
 ## Progress Tracking
 
 Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2, create one task per table with status `pending`. Update each task to `in_progress` before it starts processing, and to `completed` (ok/partial result) or `cancelled` (error — include the error code) after its final step completes (Step 3 commit, or the last step at which the item is abandoned).
@@ -128,8 +121,6 @@ For multi-table sub-agents: include the commit/revert instructions in the sub-ag
 6. Suggest running `/status` to see overall migration readiness across all tables.
 
 ## Item Result Schema
-
-Contract: `ModelGenerationOutput` in `plugin/lib/shared/output_models.py`.
 
 ```json
 {

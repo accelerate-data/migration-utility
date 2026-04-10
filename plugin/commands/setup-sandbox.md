@@ -62,9 +62,7 @@ After the user confirms, invoke the CLI:
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-up
 ```
 
-The CLI auto-generates a random database name, creates the sandbox, and writes `sandbox.database` into `manifest.json`. Contracts are enforced at runtime by Pydantic models in `../lib/shared/output_models.py`.
-
-`SandboxUpOutput` shape:
+Output shape:
 
 ```json
 {
@@ -84,7 +82,7 @@ Parse the JSON output and report:
 - Number of procedures cloned
 - Any errors or warnings
 
-You can also check sandbox existence with `test-harness sandbox-status`. `SandboxStatusOutput` shape:
+You can also check sandbox existence with `test-harness sandbox-status`:
 
 ```json
 {"sandbox_database": "__test_abc123def456", "status": "ok | not_found | error", "exists": true}

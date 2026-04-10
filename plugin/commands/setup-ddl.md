@@ -10,7 +10,7 @@ Run the stage guard before doing anything else:
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard _ setup-ddl
 ```
 
-If `passed` is `false`, report the failing guard's `code` and `message` and stop. The guard now includes `check_init_prerequisites` which verifies that `/init-ad-migration` has been run and recorded prerequisites in `manifest.json`.
+If `passed` is `false`, report the failing guard's `code` and `message` and stop.
 
 ## Confirm project root
 
@@ -96,11 +96,9 @@ uv run --project <shared-path> setup-ddl extract \
   --schemas <comma-separated-schemas>
 ```
 
-This command connects to the database, extracts all DDL and catalog data, writes `ddl/`, `catalog/`, and `manifest.json`, then runs catalog enrichment. It returns a JSON summary of counts.
-
 ### Step 5 — Report
 
-After extraction completes, report a summary using the counts from the `extract` output:
+Report a summary using the counts from the `extract` output:
 
 ```text
 DDL extraction complete → ./
@@ -208,11 +206,9 @@ uv run --project <shared-path> setup-ddl extract \
   --schemas <comma-separated-owners>
 ```
 
-This command connects to Oracle, extracts all DDL and catalog data, writes `ddl/`, `catalog/`, and `manifest.json`, then runs catalog enrichment. It returns a JSON summary of counts.
-
 ### Step 4 — Report
 
-After extraction completes, report a summary using the counts from the `extract` output:
+Report a summary using the counts from the `extract` output:
 
 ```text
 DDL extraction complete → ./

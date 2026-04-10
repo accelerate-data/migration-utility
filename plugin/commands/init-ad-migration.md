@@ -197,7 +197,7 @@ Pass it to the CLI:
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" setup-ddl write-partial-manifest --project-root . --technology $SOURCE --prereqs-json '$PREREQS'
 ```
 
-This creates `manifest.json` with the chosen technology, dialect, and an `init_handoff` section recording all validated prerequisites with a timestamp. `/setup-ddl` will later enrich it with database and schema details. Re-running `/init-ad-migration` reads this handoff and skips already-passing checks.
+Re-running `/init-ad-migration` reads the handoff from `manifest.json` and skips already-passing checks.
 
 ## Step 7: Commit
 

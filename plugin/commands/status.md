@@ -52,8 +52,6 @@ Run a single status call for all objects:
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util status
 ```
 
-This returns a `StatusOutput` (all-objects mode) or `ObjectStatus` (single-object mode). Contracts are enforced at runtime by Pydantic models in `../lib/shared/output_models.py`.
-
 All-objects mode shape:
 
 ```json
@@ -69,7 +67,7 @@ Single-object mode shape:
 {"fqn": "silver.dimproduct", "type": "table", "stages": {"scope": "resolved", "profile": "ok", "test_gen": null, "refactor": null, "generate": null}}
 ```
 
-The `batch-plan` command returns a `BatchPlanOutput`:
+The `batch-plan` command returns:
 
 ```json
 {
@@ -85,19 +83,17 @@ The `batch-plan` command returns a `BatchPlanOutput`:
 }
 ```
 
-The `ready` command returns a `DryRunOutput`:
+The `ready` command returns:
 
 ```json
 {"ready": true, "reason": "ok", "code": null}
 ```
 
-The `exclude` command returns an `ExcludeOutput`:
+The `exclude` command returns:
 
 ```json
 {"marked": ["silver.auditlog"], "not_found": []}
 ```
-
-Each object has `fqn`, `type`, and `stages` (scope, profile, test_gen, refactor, generate statuses).
 
 Map the status values to table cells:
 
