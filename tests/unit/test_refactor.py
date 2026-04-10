@@ -8,10 +8,26 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from shared import refactor
+from shared.catalog_models import (
+    CompareSqlSummary,
+    RefactorSection,
+    SemanticCheck,
+    SemanticChecks,
+    SemanticReview,
+)
 from shared.loader import CatalogFileMissingError
+from shared.output_models import (
+    CompareSqlOutput,
+    CompareSqlScenario,
+    RefactorContextOutput,
+    RefactorSweepOutput,
+    RefactorWriteOutput,
+    SweepObject,
+)
 
 _cli_runner = CliRunner()
 
@@ -126,24 +142,24 @@ class TestSymmetricDiff:
 # ── run_context ──────────────────────────────────────────────────────────────
 
 
-def test_context_happy_path(assert_valid_schema) -> None:
+def test_context_happy_path() -> None:
     """Context returns all expected fields with proper values."""
     result = refactor.run_context(
         _REFACTOR_FIXTURES, "silver.DimCustomer",
     )
-    assert_valid_schema(result, "refactor_context_output.json")
-    assert result["table"] == "silver.dimcustomer"
-    assert result["writer"] == "dbo.usp_load_dimcustomer"
-    assert "proc_body" in result
-    assert "MERGE" in result["proc_body"]
-    assert result["profile"]["status"] == "ok"
-    assert len(result["statements"]) == 1
-    assert result["statements"][0]["action"] == "migrate"
-    assert result["columns"][0]["name"] == "CustomerKey"
-    assert "bronze.customerraw" in result["source_tables"]
-    assert result["test_spec"] is not None
-    assert len(result["test_spec"]["unit_tests"]) == 2
-    assert result["sandbox"]["database"] == "__test_abc123"
+    assert isinstance(result, RefactorContextOutput)
+    assert result.table == "silver.dimcustomer"
+    assert result.writer == "dbo.usp_load_dimcustomer"
+    assert result.proc_body is not None
+    assert "MERGE" in result.proc_body
+    assert result.profile["status"] == "ok"
+    assert len(result.statements) == 1
+    assert result.statements[0]["action"] == "migrate"
+    assert result.columns[0]["name"] == "CustomerKey"
+    assert "bronze.customerraw" in result.source_tables
+    assert result.test_spec is not None
+    assert len(result.test_spec["unit_tests"]) == 2
+    assert result.sandbox["database"] == "__test_abc123"
 
 
 def test_context_missing_writer() -> None:
@@ -166,13 +182,13 @@ def test_context_explicit_writer() -> None:
     result = refactor.run_context(
         _REFACTOR_FIXTURES, "silver.DimCustomer", "dbo.usp_load_dimcustomer",
     )
-    assert result["writer"] == "dbo.usp_load_dimcustomer"
+    assert result.writer == "dbo.usp_load_dimcustomer"
 
 
 # ── run_write ────────────────────────────────────────────────────────────────
 
 
-def test_write_happy_path(assert_valid_schema) -> None:
+def test_write_happy_path() -> None:
     """Write merges refactor section into the writer procedure's catalog."""
     tmp, root = _make_writable_copy()
     with tmp:
@@ -183,11 +199,11 @@ def test_write_happy_path(assert_valid_schema) -> None:
             semantic_review=_semantic_review(),
             compare_sql_result=_compare_sql_result(),
         )
-        assert_valid_schema(result, "refactor_write_output.json")
-        assert result["ok"] is True
-        assert result["table"] == "silver.dimcustomer"
-        assert result["writer"] == "dbo.usp_load_dimcustomer"
-        assert result["status"] == "ok"
+        assert isinstance(result, RefactorWriteOutput)
+        assert result.ok is True
+        assert result.table == "silver.dimcustomer"
+        assert result.writer == "dbo.usp_load_dimcustomer"
+        assert result.status == "ok"
 
         # Verify procedure catalog was updated (not table catalog)
         proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
@@ -216,8 +232,8 @@ def test_write_both_sql_yields_ok_status() -> None:
             semantic_review=_semantic_review(),
             compare_sql_result=_compare_sql_result(),
         )
-        assert result["ok"] is True
-        assert result["status"] == "ok"
+        assert result.ok is True
+        assert result.status == "ok"
         proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
         proc_cat = json.loads(proc_path.read_text())
         assert proc_cat["refactor"]["status"] == "ok"
@@ -228,8 +244,8 @@ def test_write_only_extracted_yields_partial() -> None:
     tmp, root = _make_writable_copy()
     with tmp:
         result = refactor.run_write(root, "silver.DimCustomer", "SELECT 1", "", semantic_review=_semantic_review(), compare_sql_result=_compare_sql_result())
-        assert result["ok"] is True
-        assert result["status"] == "partial"
+        assert result.ok is True
+        assert result.status == "partial"
         proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
         proc_cat = json.loads(proc_path.read_text())
         assert proc_cat["refactor"]["status"] == "partial"
@@ -240,8 +256,8 @@ def test_write_both_empty_yields_error() -> None:
     tmp, root = _make_writable_copy()
     with tmp:
         result = refactor.run_write(root, "silver.DimCustomer", "", "", semantic_review=_semantic_review(), compare_sql_result=_compare_sql_result())
-        assert result["ok"] is True
-        assert result["status"] == "error"
+        assert result.ok is True
+        assert result.status == "error"
         proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
         proc_cat = json.loads(proc_path.read_text())
         assert proc_cat["refactor"]["status"] == "error"
@@ -259,7 +275,7 @@ def test_write_harness_mode_persists_partial_even_when_semantic_review_passes() 
             semantic_review=_semantic_review(),
             compare_required=False,
         )
-        assert result["status"] == "partial"
+        assert result.status == "partial"
         proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
         proc_cat = json.loads(proc_path.read_text())
         assert proc_cat["refactor"]["compare_sql"]["required"] is False
@@ -279,7 +295,7 @@ def test_write_failed_compare_sql_persists_partial() -> None:
             semantic_review=_semantic_review(),
             compare_sql_result=_compare_sql_result(passed=False),
         )
-        assert result["status"] == "partial"
+        assert result.status == "partial"
         proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
         proc_cat = json.loads(proc_path.read_text())
         assert proc_cat["refactor"]["compare_sql"]["passed"] is False
@@ -301,7 +317,7 @@ def test_write_failed_semantic_review_persists_partial() -> None:
             ),
             compare_sql_result=_compare_sql_result(),
         )
-        assert result["status"] == "partial"
+        assert result.status == "partial"
         proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
         proc_cat = json.loads(proc_path.read_text())
         assert proc_cat["refactor"]["semantic_review"]["passed"] is False
@@ -426,16 +442,17 @@ def test_cli_context_missing_table() -> None:
 def test_context_view_auto_detect() -> None:
     """run_context auto-detects a view FQN and returns view-specific fields."""
     result = refactor.run_context(_REFACTOR_FIXTURES, "silver.vw_active_customers")
-    assert result["table"] == "silver.vw_active_customers"
-    assert result["object_type"] == "view"
-    assert "view_sql" in result
-    assert "CustomerID" in result["view_sql"]
-    assert "writer" not in result
-    assert "proc_body" not in result
-    assert "statements" not in result
-    assert result["profile"]["status"] == "ok"
-    assert result["columns"][0]["name"] == "CustomerID"
-    assert "bronze.customerraw" in result["source_tables"]
+    assert isinstance(result, RefactorContextOutput)
+    assert result.table == "silver.vw_active_customers"
+    assert result.object_type == "view"
+    assert result.view_sql is not None
+    assert "CustomerID" in result.view_sql
+    assert result.writer is None
+    assert result.proc_body is None
+    assert result.statements is None
+    assert result.profile["status"] == "ok"
+    assert result.columns[0]["name"] == "CustomerID"
+    assert "bronze.customerraw" in result.source_tables
 
 
 def test_context_view_missing_profile() -> None:
@@ -489,9 +506,10 @@ def test_write_view_happy_path() -> None:
             semantic_review=_semantic_review(),
             compare_sql_result=_compare_sql_result(),
         )
-        assert result["ok"] is True
-        assert result["table"] == "silver.vw_active_customers"
-        assert result.get("object_type") == "view"
+        assert isinstance(result, RefactorWriteOutput)
+        assert result.ok is True
+        assert result.table == "silver.vw_active_customers"
+        assert result.object_type == "view"
 
         # Verify view catalog was updated (not procedure catalog)
         view_path = root / "catalog" / "views" / "silver.vw_active_customers.json"
@@ -512,13 +530,15 @@ class TestSweep:
         result = refactor.run_sweep(
             _REFACTOR_FIXTURES, ["silver.DimCustomer"],
         )
-        obj = result["objects"][0]
-        assert obj["fqn"] == "silver.dimcustomer"
-        assert obj["object_type"] == "table"
-        assert obj["refactor_status"] is None
-        assert obj["recommended_action"] == "refactor"
+        assert isinstance(result, RefactorSweepOutput)
+        obj = result.objects[0]
+        assert isinstance(obj, SweepObject)
+        assert obj.fqn == "silver.dimcustomer"
+        assert obj.object_type == "table"
+        assert obj.refactor_status is None
+        assert obj.recommended_action == "refactor"
 
-    def test_mixed_statuses(self, assert_valid_schema) -> None:
+    def test_mixed_statuses(self) -> None:
         """ok=skip, partial=re-refactor, absent=refactor."""
         tmp, root = _make_writable_copy()
         with tmp:
@@ -526,15 +546,15 @@ class TestSweep:
                 root,
                 ["silver.FactSales", "silver.DimProduct", "silver.DimCustomer"],
             )
-            assert_valid_schema(result, "refactor_sweep_output.json")
+            assert isinstance(result, RefactorSweepOutput)
 
-            by_fqn = {o["fqn"]: o for o in result["objects"]}
-            assert by_fqn["silver.factsales"]["recommended_action"] == "skip"
-            assert by_fqn["silver.factsales"]["refactor_status"] == "ok"
-            assert by_fqn["silver.dimproduct"]["recommended_action"] == "re-refactor"
-            assert by_fqn["silver.dimproduct"]["refactor_status"] == "partial"
-            assert by_fqn["silver.dimcustomer"]["recommended_action"] == "refactor"
-            assert by_fqn["silver.dimcustomer"]["refactor_status"] is None
+            by_fqn = {o.fqn: o for o in result.objects}
+            assert by_fqn["silver.factsales"].recommended_action == "skip"
+            assert by_fqn["silver.factsales"].refactor_status == "ok"
+            assert by_fqn["silver.dimproduct"].recommended_action == "re-refactor"
+            assert by_fqn["silver.dimproduct"].refactor_status == "partial"
+            assert by_fqn["silver.dimcustomer"].recommended_action == "refactor"
+            assert by_fqn["silver.dimcustomer"].refactor_status is None
 
     def test_view_with_ok_status(self) -> None:
         """View with refactor.status=ok gets skip recommendation."""
@@ -546,10 +566,10 @@ class TestSweep:
             view_path.write_text(json.dumps(view_cat))
 
             result = refactor.run_sweep(root, ["silver.vw_active_customers"])
-            obj = result["objects"][0]
-            assert obj["object_type"] == "view"
-            assert obj["recommended_action"] == "skip"
-            assert obj["writer"] is None
+            obj = result.objects[0]
+            assert obj.object_type == "view"
+            assert obj.recommended_action == "skip"
+            assert obj.writer is None
 
     def test_shared_staging_detected(self) -> None:
         """Source tables referenced by 2+ non-skip FQNs are shared staging candidates."""
@@ -558,24 +578,24 @@ class TestSweep:
             result = refactor.run_sweep(
                 root, ["silver.DimCustomer", "silver.DimProduct"],
             )
-            assert "bronze.customerraw" in result["shared_staging_candidates"]
+            assert "bronze.customerraw" in result.shared_staging_candidates
 
     def test_single_table_no_shared_staging(self) -> None:
         """Single table sweep has no shared staging candidates."""
         tmp, root = _make_writable_copy()
         with tmp:
             result = refactor.run_sweep(root, ["silver.DimCustomer"])
-            assert result["shared_staging_candidates"] == []
+            assert result.shared_staging_candidates == []
 
     def test_existing_dbt_models_detected(self) -> None:
         """Sweep detects existing staging and mart models on disk."""
         result = refactor.run_sweep(
             _REFACTOR_FIXTURES, ["silver.FactSales"],
         )
-        obj = result["objects"][0]
-        assert "stg_customerraw.sql" in obj["existing_stg_models"]
-        assert obj["existing_mart_model"] is not None
-        assert "factsales.sql" in obj["existing_mart_model"]
+        obj = result.objects[0]
+        assert "stg_customerraw.sql" in obj.existing_stg_models
+        assert obj.existing_mart_model is not None
+        assert "factsales.sql" in obj.existing_mart_model
 
     def test_shared_sources_persisted(self) -> None:
         """Sweep persists shared_sources on affected catalog entries."""
@@ -598,7 +618,7 @@ class TestSweep:
             _REFACTOR_FIXTURES,
             ["silver.FactSales", "silver.DimCustomer"],
         )
-        assert "bronze.customerraw" not in result["shared_staging_candidates"]
+        assert "bronze.customerraw" not in result.shared_staging_candidates
 
 
 # ── CLI sweep command ────────────────────────────────────────────────────────
@@ -622,7 +642,7 @@ def test_cli_sweep_success() -> None:
 
 class TestContextWriterSlice:
 
-    def test_run_context_includes_writer_ddl_slice(self, assert_valid_schema) -> None:
+    def test_run_context_includes_writer_ddl_slice(self) -> None:
         """run_context returns writer_ddl_slice when the proc catalog has table_slices for the target table."""
         tmp, root = _make_writable_copy()
         with tmp:
@@ -632,11 +652,122 @@ class TestContextWriterSlice:
             proc_path.write_text(json.dumps(proc_cat), encoding="utf-8")
 
             result = refactor.run_context(root, "silver.DimCustomer")
-            assert_valid_schema(result, "refactor_context_output.json")
-            assert result["writer_ddl_slice"] == "MERGE INTO dim.dimcustomer ..."
+            assert isinstance(result, RefactorContextOutput)
+            assert result.writer_ddl_slice == "MERGE INTO dim.dimcustomer ..."
 
-    def test_run_context_writer_ddl_slice_absent(self, assert_valid_schema) -> None:
+    def test_run_context_writer_ddl_slice_absent(self) -> None:
         """run_context returns writer_ddl_slice as None when proc catalog has no table_slices."""
         result = refactor.run_context(_REFACTOR_FIXTURES, "silver.DimCustomer")
-        assert_valid_schema(result, "refactor_context_output.json")
-        assert result.get("writer_ddl_slice") is None
+        assert isinstance(result, RefactorContextOutput)
+        assert result.writer_ddl_slice is None
+
+
+# ── Pydantic model validation ─────────────────────────────────────────────────
+
+
+class TestCatalogModels:
+    """Tests for tightened RefactorSection and related models."""
+
+    def test_semantic_review_valid(self) -> None:
+        data = _semantic_review()
+        model = SemanticReview.model_validate(data)
+        assert model.passed is True
+        assert model.checks.source_tables.passed is True
+        assert model.checks.aggregation_grain.summary == "aggregation grain matches"
+
+    def test_semantic_review_rejects_extra_field(self) -> None:
+        data = _semantic_review()
+        data["unexpected_field"] = "boom"
+        with pytest.raises(ValidationError):
+            SemanticReview.model_validate(data)
+
+    def test_compare_sql_summary_valid(self) -> None:
+        model = CompareSqlSummary(
+            required=True, executed=True, passed=True,
+            scenarios_total=2, scenarios_passed=2,
+        )
+        assert model.passed is True
+        assert model.failed_scenarios == []
+
+    def test_compare_sql_summary_rejects_extra_field(self) -> None:
+        with pytest.raises(ValidationError):
+            CompareSqlSummary(
+                required=True, executed=True, passed=True,
+                scenarios_total=2, scenarios_passed=2,
+                bogus="nope",
+            )
+
+    def test_refactor_section_typed_fields(self) -> None:
+        section = RefactorSection(
+            status="ok",
+            extracted_sql="SELECT 1",
+            refactored_sql="WITH src AS (SELECT 1) SELECT * FROM src",
+            semantic_review=SemanticReview.model_validate(_semantic_review()),
+            compare_sql=CompareSqlSummary(
+                required=True, executed=True, passed=True,
+                scenarios_total=2, scenarios_passed=2,
+            ),
+        )
+        assert section.semantic_review.passed is True
+        assert section.compare_sql.scenarios_total == 2
+
+    def test_refactor_section_rejects_extra_field(self) -> None:
+        with pytest.raises(ValidationError):
+            RefactorSection(status="ok", extra_junk="bad")
+
+
+class TestOutputModels:
+    """Tests for CLI output Pydantic models."""
+
+    def test_refactor_context_output_rejects_extra(self) -> None:
+        with pytest.raises(ValidationError):
+            RefactorContextOutput(
+                table="silver.t", profile={}, columns=[], source_tables=[],
+                bogus="nope",
+            )
+
+    def test_refactor_write_output_success(self) -> None:
+        model = RefactorWriteOutput(
+            ok=True, table="silver.t", status="ok",
+            writer="dbo.usp", catalog_path="/tmp/x.json",
+        )
+        assert model.ok is True
+        assert model.writer == "dbo.usp"
+
+    def test_refactor_write_output_failure(self) -> None:
+        model = RefactorWriteOutput(
+            ok=False, table="silver.t", error="something broke",
+        )
+        assert model.ok is False
+        assert model.error == "something broke"
+
+    def test_sweep_object_valid(self) -> None:
+        obj = SweepObject(
+            fqn="silver.t", object_type="table", writer="dbo.usp",
+            refactor_status=None, source_tables=["bronze.src"],
+            existing_stg_models=[], existing_mart_model=None,
+            recommended_action="refactor",
+        )
+        assert obj.recommended_action == "refactor"
+
+    def test_sweep_object_rejects_extra(self) -> None:
+        with pytest.raises(ValidationError):
+            SweepObject(
+                fqn="silver.t", object_type="table", writer=None,
+                refactor_status=None, source_tables=[],
+                existing_stg_models=[], existing_mart_model=None,
+                recommended_action="refactor", bogus="nope",
+            )
+
+    def test_compare_sql_output_valid(self) -> None:
+        data = _compare_sql_result()
+        model = CompareSqlOutput.model_validate(data)
+        assert model.total == 2
+        assert len(model.results) == 2
+        assert isinstance(model.results[0], CompareSqlScenario)
+
+    def test_compare_sql_output_rejects_extra(self) -> None:
+        data = _compare_sql_result()
+        data["bogus"] = "nope"
+        with pytest.raises(ValidationError):
+            CompareSqlOutput.model_validate(data)
