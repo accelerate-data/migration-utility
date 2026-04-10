@@ -45,7 +45,6 @@ The `refactor write` CLI validates all data through Pydantic models (`extra="for
     "scenarios_passed": 3,
     "failed_scenarios": []
   },
-  "shared_sources": ["bronze.src1"],
   "warnings": [],
   "errors": []
 }

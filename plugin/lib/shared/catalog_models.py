@@ -278,7 +278,6 @@ class RefactorSection(BaseModel):
     refactored_sql: str | None = None
     semantic_review: SemanticReview | None = None
     compare_sql: CompareSqlSummary | None = None
-    shared_sources: list[str] | None = None
     warnings: list[DiagnosticsEntry] = []
     errors: list[DiagnosticsEntry] = []
 
