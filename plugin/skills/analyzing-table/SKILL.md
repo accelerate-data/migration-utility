@@ -16,15 +16,7 @@ Analyze a table, view, or materialized view — discover writer candidates, eval
 
 ## Schema discipline
 
-Whenever this skill writes structured JSON back to the catalog, treat the schemas in `../../lib/shared/schemas/` as the contract:
-
-- table scoping: `table_catalog.json#/properties/scoping`
-- view scoping: `view_catalog.json#/properties/scoping`
-- procedure statements: `procedure_catalog.json#/properties/statements`
-
-Do not invent field names or omit required fields. The examples in this skill are minimum valid shapes, not loose suggestions. If `discover write-scoping` or `discover write-statements` returns a schema validation error, fix the JSON to match the schema and retry the command.
-
-Use the canonical `/scope` surfaced code list in `../../lib/shared/scope_error_codes.md`. Do not define a competing public error-code list in this skill.
+Use the canonical `/scope` surfaced code list in `../../lib/shared/scope_error_codes.md`. If `discover write-scoping` or `discover write-statements` returns a validation error, fix the JSON and retry.
 
 ## Before invoking
 
@@ -93,15 +85,11 @@ If `sql_elements` is null (parse error), read `raw_ddl` and identify SQL feature
 
 ### Step V4 -- Logic summary
 
-Read `raw_ddl` and write a plain-language description of what the view computes (2-4 sentences). Focus on:
-
-- What data sources are combined
-- What transformations are applied (filtering, joining, aggregating)
-- What the view produces
+Read `raw_ddl` and write a plain-language description of what the view computes (2-4 sentences).
 
 ### Step V5 -- Persist scoping to catalog
 
-Persist the view analysis as soon as the scoping JSON is ready. Do not ask for confirmation before writing — this skill is a write-through workflow.
+Persist the view analysis:
 
 Write the scoping JSON to a temp file:
 
@@ -114,39 +102,13 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
 
 Do not include `status` in the scoping dict.
 
-Shape must match `view_catalog.json#/properties/scoping`. Required fields: `sql_elements`, `call_tree`, `logic_summary`, `rationale`, `warnings`, `errors`.
+Required fields: `sql_elements`, `call_tree`, `logic_summary`, `rationale`, `warnings`, `errors`.
 
 Include `VIEW_DEPENDS_ON_VIEWS` in `warnings` if applicable.
 
 ### Step V6 -- Present persisted result
 
-After `discover write-scoping` succeeds, present the persisted result to the user:
-
-```text
-Analysis of silver.vw_CustomerSales
-
-Call tree:
-  Reads tables: bronze.Customer, bronze.Person
-  Reads views:  (none)
-
-SQL elements:
-  - join: INNER JOIN bronze.Person on CustomerKey
-  - aggregation: COUNT
-
-Logic summary:
-  Joins customer records with person details on CustomerKey. Counts
-  the number of persons per customer. Produces one row per customer
-  with an enriched name and person count.
-
-Persisted to catalog/views/silver.vw_customersales.json.
-```
-
-If the view depends on other views, show the warning prominently:
-
-```text
-⚠ VIEW_DEPENDS_ON_VIEWS: silver.vw_addressbase has not been analyzed yet.
-  Run /scope silver.vw_addressbase first for accurate profiling results.
-```
+Present the persisted result: call tree, SQL elements, logic summary. Show `VIEW_DEPENDS_ON_VIEWS` warning prominently if applicable.
 
 ---
 
@@ -307,7 +269,7 @@ After `discover write-scoping` succeeds, present the persisted result to the use
 ## References
 
 - [references/procedure-analysis.md](references/procedure-analysis.md) — six-step deep-dive pipeline: fetch, classify, call graph, logic summary, migration guidance, persist
-- Statement classification: read the dialect-appropriate file via [references/tsql-parse-classification.md](references/tsql-parse-classification.md) (routes to `_shared/references/dialects/{dialect}/statement-classification.md`)
+- [references/statement-classification.md](references/statement-classification.md) — dialect-routed statement classification
 - [`../../lib/shared/scope_error_codes.md`](../../lib/shared/scope_error_codes.md) — canonical `/scope` statuses and surfaced error/warning codes
 
 ## Error handling

@@ -22,7 +22,7 @@ The iteration number controls the verdict in Step 6: on iteration 1, unresolved 
 
 ## Contracts
 
-Return exactly one JSON object matching this shape. Do not wrap in markdown, headings, summaries, or follow-up questions.
+Return exactly one JSON object matching this shape:
 
 ## Output shape — `TestReviewOutput`
 
@@ -189,16 +189,7 @@ rm -rf .staging
 
 ## Boundary rules
 
-Test reviewer must not:
-
-- Generate or modify fixture data
-- Execute source routines
-- Write to `test-specs/` — only the test generator writes there
-- Write persisted review result files outside the temporary `.staging/review.json` validation flow
-- Ask permission to write review result files
-- Ask whether the provided `--project-root` fixture path exists or should be created
-- Make migration or profiling decisions
-- Override the test generator's ground truth output (captured execution results are facts)
+This skill is read-only except for `.staging/review.json` validation. It must not write to `test-specs/`, modify fixtures, execute routines, or override ground truth.
 
 ## Error handling
 

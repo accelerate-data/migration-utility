@@ -10,7 +10,7 @@ Extract core SELECT prompt template:
 You are extracting the core transformation logic from a source routine
 as a pure SELECT statement.
 
-Read references/sp-migration-ref.md for extraction rules per DML type (routes to dialect-specific routine-migration-ref.md).
+Read references/routine-migration-ref.md for extraction rules per DML type (routes to dialect-specific routine-migration-ref.md).
 
 Procedure body:
 <proc_body>
@@ -24,7 +24,7 @@ Target table columns:
 Instructions:
 1. Identify the DML pattern(s) in the migrate statements (INSERT...SELECT, MERGE,
    UPDATE, DELETE, temp table chains, cursor loops, dynamic SQL)
-2. Apply the extraction rules from references/sp-migration-ref.md for each pattern
+2. Apply the extraction rules from references/routine-migration-ref.md for each pattern
 3. Produce a single pure SELECT statement that returns exactly the rows
    and columns the procedure would write to the target table
 4. Keep source dialect syntax (e.g. ISNULL/NVL, CONVERT/TO_CHAR) — no dialect conversion at this stage

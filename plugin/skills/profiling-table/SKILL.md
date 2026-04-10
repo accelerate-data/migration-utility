@@ -16,14 +16,7 @@ Profile a single table, view, or materialized view for migration.
 
 ## Schema discipline
 
-Whenever this skill writes structured JSON back to the catalog, treat the schemas in `../../lib/shared/schemas/` as the contract:
-
-- table profile: `table_catalog.json#/$defs/profile_section`
-- view profile: `view_catalog.json#/properties/profile`
-
-Do not invent field names or omit required fields. The examples and enum lists in this skill are minimum valid shapes, not loose suggestions. If `profile write` returns a schema validation error, fix the JSON to match the schema and retry the command.
-
-Use the canonical `/profile` surfaced code list in `../../lib/shared/profile_error_codes.md`. Do not define a competing public error-code list in this skill.
+Use the canonical `/profile` surfaced code list in `../../lib/shared/profile_error_codes.md`. If `profile write` returns a validation error, fix the JSON and retry.
 
 ## Before invoking
 
@@ -93,9 +86,7 @@ Write a 1–2 sentence rationale citing the specific signals that drove the deci
 
 ### Step V3 -- Write to Catalog (Deterministic)
 
-Persist the view profile as soon as the JSON is ready. Do not ask for approval before writing — this is a write-through workflow.
-
-Write the profile JSON to a temp file:
+Persist the view profile. Write the profile JSON to a temp file:
 
 ```bash
 mkdir -p .staging
@@ -107,7 +98,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" profile write \
 
 Do not include `status` in the profile JSON.
 
-The profile JSON must match `../../lib/shared/schemas/view_catalog.json#/properties/profile`. Required fields: `classification`, `rationale`, `source`.
+Required fields: `classification`, `rationale`, `source`.
 
 | Field | Valid values |
 |---|---|
@@ -165,9 +156,7 @@ Read the context JSON and the signal tables in [profiling-signals.md](references
 
 ### Step 3 -- Write to Catalog (Deterministic)
 
-Persist the table profile as soon as the JSON is ready. Do not ask for approval before writing — this is a write-through workflow.
-
-Write the profile JSON to a temp file to avoid shell escaping issues:
+Persist the table profile. Write the profile JSON to a temp file:
 
 ```bash
 mkdir -p .staging
@@ -179,7 +168,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" profile write \
 
 Do not include `status` in the profile JSON.
 
-The profile JSON must match `../../lib/shared/schemas/table_catalog.json#/$defs/profile_section`. Required fields: `writer`. Each decision point must include a `rationale` field (1–2 sentences): `classification.rationale`, `primary_key.rationale`, `natural_key.rationale`, `watermark.rationale`, and per-entry `rationale` in `foreign_keys[]` and `pii_actions[]`.
+Required fields: `writer`. Each decision point must include a `rationale` field (1–2 sentences): `classification.rationale`, `primary_key.rationale`, `natural_key.rationale`, `watermark.rationale`, and per-entry `rationale` in `foreign_keys[]` and `pii_actions[]`.
 
 All enum values must be from the allowed sets below:
 
@@ -210,10 +199,6 @@ After `profile write` succeeds, present the profile as a structured summary. Inc
 - Watermark column
 - PII actions
 - Confirmation that the profile was written to the catalog
-
-## Output Schema
-
-The `profile` section written to `catalog/tables/<table>.json` follows `table_catalog.json#/$defs/profile_section`.
 
 ## References
 

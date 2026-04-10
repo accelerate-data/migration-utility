@@ -57,7 +57,7 @@ from the SQL filename and check it against the naming contract used by
   [model-naming.md](../_shared/references/model-naming.md) and matches the
   expected target-object convention for the selected layer
 
-Do NOT use `refactored_sql`. It is an intermediate artifact produced by the refactor stage. The reviewer validates the generated dbt model directly against the original source DDL (`proc_body`). Ground truth is always the original source routine.
+Ignore `refactored_sql` — validate the generated model against `proc_body` (the ground truth).
 
 ## Step 2: Check correctness
 
@@ -115,7 +115,7 @@ After kicking back, the model-generator revises the model, re-runs `dbt test` to
 
 ## Output schema (ModelReviewResult)
 
-Return exactly one JSON object matching this shape. Do not wrap the JSON in markdown, headings, summaries, or follow-up questions.
+Return exactly one JSON object matching this shape:
 
 ```json
 {
@@ -167,17 +167,7 @@ Severity and acknowledgement rules:
 
 ## Boundary rules
 
-Reviewing-model must not:
-
-- Modify model SQL or schema YAML files
-- Repair fixture or catalog files
-- Run dbt tests or compile commands
-- Generate or modify test fixtures
-- Write review result files
-- Ask permission to write review result files
-- Ask whether the provided `--project-root` fixture path exists or should be created
-- Override profile decisions (classification, materialization, keys)
-- Override ground truth (captured execution output is fact)
+This skill is read-only. It must not modify files, run dbt commands, or override profile decisions.
 
 ## Error handling
 
@@ -185,5 +175,4 @@ Reviewing-model must not:
 - `migrate context` exits 2 — IO or parse error. Return valid `ModelReviewResult` JSON with `status: "error"` and code `CONTEXT_IO_ERROR`.
 - Generated model files missing — return valid `ModelReviewResult` JSON with `status: "error"` and code `MODEL_NOT_FOUND`.
 
-If you hit a handled error, still return a valid `ModelReviewResult` JSON
-object. Do not ask follow-up questions.
+Always return valid `ModelReviewResult` JSON, even on error paths.

@@ -61,7 +61,7 @@ Do not invent fields. If `test-harness write` rejects the payload, fix the paylo
 
 ## Schema discipline
 
-Use the canonical generating-tests surfaced code list in `../../lib/shared/generate_tests_error_codes.md`. Do not define a competing public error-code list in this skill.
+Use the canonical generating-tests surfaced code list in `../../lib/shared/generate_tests_error_codes.md`.
 
 ## Feedback override
 
@@ -169,7 +169,7 @@ Apply column exclusion, NOT NULL coverage, and CHECK constraint rules from [refe
 
 ## Step 4: Write test spec
 
-Write the test spec as soon as fixtures are ready. Do not ask for confirmation before writing — this skill is a write-through workflow.
+Write the test spec as soon as fixtures are ready.
 
 Write the spec JSON directly to `test-specs/<item_id>.json`.
 
@@ -192,22 +192,7 @@ Merge into the existing `test-specs/<item_id>.json`:
 - **Tables:** each `unit_tests[]` entry includes `target_table` and `procedure` fields (dialect-quoted FQNs).
 - **Views:** each `unit_tests[]` entry uses `sql` in place of `target_table` and `procedure`. The `sql` field contains the view's refactored SELECT statement.
 
-After writing, print the result:
-
-```text
-Test spec written: test-specs/<item_id>.json
-  Branches: N  (new: X)
-  Scenarios: M  (new: Y)
-  Coverage: complete|partial
-  Warnings: (if any)
-```
-
-For merge_mode, include a **Preserved / New** summary:
-
-```text
-  Preserved: N existing scenarios unchanged
-  New: M scenarios added for X branches
-```
+After writing, print branch count, scenario count, coverage score, and any warnings.
 
 Naming conventions:
 
@@ -272,38 +257,13 @@ If no `feedback_for_generator` is present, skip this section.
 
 ## Boundary Rules
 
-Test generator must not:
-
-- Execute source routines or access the sandbox
-- Generate dbt SQL model files
-- Render YAML — `unit_tests[]` is structured JSON; dbt YAML conversion happens post-execution
-- Make materialization or business key decisions
-- Score its own coverage authoritatively — the test reviewer does that
+Writes only to `test-specs/`. Must not execute routines, access the sandbox, generate dbt SQL, or make profiling decisions. Coverage scoring is the reviewer's job.
 
 ---
 
 ## Diagnostics
 
-`validation.issues[]`, `warnings[]`, and `errors[]` use the shared diagnostics schema:
-
-```json
-{
-  "code": "SCOPING_NOT_COMPLETED",
-  "message": "scoping section missing or no selected_writer in catalog for silver.dimcustomer.",
-  "item_id": "silver.dimcustomer",
-  "severity": "error",
-  "details": {}
-}
-```
-
-Field requirements:
-
-- `code`: stable machine-readable identifier — use codes from `../../lib/shared/generate_tests_error_codes.md`.
-- `message`: human-readable description.
-- `item_id`: fully qualified table or view name this entry relates to.
-- `field`: optional field path associated with the issue (empty or omitted for non-field errors).
-- `severity`: `error` or `warning`.
-- `details`: optional structured context object.
+`validation.issues[]`, `warnings[]`, and `errors[]` use the diagnostics schema from `../../lib/shared/generate_tests_error_codes.md`. Required fields: `code`, `message`, `item_id`, `severity` (`error` or `warning`). Optional: `field`, `details`.
 
 ---
 
