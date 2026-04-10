@@ -25,9 +25,27 @@ import re
 import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import oracledb
+if TYPE_CHECKING:
+    import oracledb
+
+_oracledb = None
+
+
+def _import_oracledb():
+    """Lazy-import oracledb so the module can be imported without it installed."""
+    global _oracledb
+    if _oracledb is None:
+        try:
+            import oracledb
+        except ImportError as exc:
+            raise ImportError(
+                "oracledb is required for Oracle connectivity. "
+                "Install it with: uv pip install oracledb"
+            ) from exc
+        _oracledb = oracledb
+    return _oracledb
 
 from shared.db_connect import cursor_to_dicts
 from shared.sandbox.base import (
@@ -111,7 +129,7 @@ def _get_oracle_not_null_defaults(
             base_type = re.sub(r"\(.*\)", "", data_type.lower()).strip()
             defaults[col_name] = _ORA_TYPE_DEFAULTS.get(base_type, "")
         return defaults
-    except oracledb.DatabaseError:
+    except _import_oracledb().DatabaseError:
         logger.debug(
             "event=oracle_not_null_defaults_failed schema=%s table=%s",
             sandbox_schema, table_name,
@@ -202,12 +220,13 @@ class OracleSandbox(SandboxBackend):
     def _connect(self) -> Generator[oracledb.Connection, None, None]:
         """Open an admin connection (SYSDBA when admin_user is ``sys``)."""
         dsn = f"{self.host}:{self.port}/{self.service}"
+        _ora = _import_oracledb()
         mode = (
-            oracledb.AUTH_MODE_SYSDBA
+            _ora.AUTH_MODE_SYSDBA
             if self.admin_user.lower() == "sys"
-            else oracledb.AUTH_MODE_DEFAULT
+            else _ora.AUTH_MODE_DEFAULT
         )
-        conn = oracledb.connect(
+        conn = _ora.connect(
             user=self.admin_user,
             password=self.password,
             dsn=dsn,
@@ -277,7 +296,7 @@ class OracleSandbox(SandboxBackend):
                     f'AS SELECT * FROM "{source_schema}"."{table_name}" WHERE 1=0'
                 )
                 cloned.append(f"{source_schema}.{table_name}")
-            except oracledb.DatabaseError as exc:
+            except _import_oracledb().DatabaseError as exc:
                 errors.append({
                     "code": "TABLE_CLONE_FAILED",
                     "message": f"Failed to clone {source_schema}.{table_name}: {exc}",
@@ -315,7 +334,7 @@ class OracleSandbox(SandboxBackend):
             try:
                 cursor.execute(ddl)
                 cloned.append(f"{source_schema}.{view_name}")
-            except oracledb.DatabaseError as exc:
+            except _import_oracledb().DatabaseError as exc:
                 errors.append({
                     "code": "VIEW_CLONE_FAILED",
                     "message": f"Failed to clone view {source_schema}.{view_name}: {exc}",
@@ -378,7 +397,7 @@ class OracleSandbox(SandboxBackend):
             try:
                 cursor.execute(ddl)
                 cloned.append(f"{source_schema}.{proc_name}")
-            except oracledb.DatabaseError as exc:
+            except _import_oracledb().DatabaseError as exc:
                 errors.append({
                     "code": "PROC_CLONE_FAILED",
                     "message": f"Failed to clone {source_schema}.{proc_name}: {exc}",
@@ -430,7 +449,7 @@ class OracleSandbox(SandboxBackend):
                 procedures_cloned.extend(p_cloned)
                 errors.extend(p_errors)
 
-        except oracledb.DatabaseError as exc:
+        except _import_oracledb().DatabaseError as exc:
             logger.error(
                 "event=oracle_sandbox_up_failed sandbox=%s error=%s", sandbox_schema, exc,
             )
@@ -474,7 +493,7 @@ class OracleSandbox(SandboxBackend):
                     cursor.execute(f'DROP USER "{sandbox_db}" CASCADE')
             logger.info("event=oracle_sandbox_down_complete sandbox=%s", sandbox_db)
             return {"sandbox_database": sandbox_db, "status": "ok"}
-        except oracledb.DatabaseError as exc:
+        except _import_oracledb().DatabaseError as exc:
             logger.error(
                 "event=oracle_sandbox_down_failed sandbox=%s error=%s", sandbox_db, exc,
             )
@@ -506,7 +525,7 @@ class OracleSandbox(SandboxBackend):
                 "event=oracle_sandbox_status_complete sandbox=%s exists=false", sandbox_db,
             )
             return {"sandbox_database": sandbox_db, "status": "not_found", "exists": False}
-        except oracledb.DatabaseError as exc:
+        except _import_oracledb().DatabaseError as exc:
             logger.error(
                 "event=oracle_sandbox_status_failed sandbox=%s error=%s", sandbox_db, exc,
             )
@@ -604,7 +623,7 @@ class OracleSandbox(SandboxBackend):
                     continue  # base table — already cloned by _clone_tables
                 try:
                     cursor.execute(f'DROP TABLE "{sandbox_db}"."{view_name}"')
-                except oracledb.DatabaseError as exc:
+                except _import_oracledb().DatabaseError as exc:
                     logger.debug(
                         "event=oracle_view_drop_skipped sandbox=%s view=%s error=%s",
                         sandbox_db, view_name, exc,
@@ -652,7 +671,7 @@ class OracleSandbox(SandboxBackend):
 
         try:
             self._ensure_view_tables(sandbox_db, given)
-        except oracledb.DatabaseError as exc:
+        except _import_oracledb().DatabaseError as exc:
             logger.error(
                 "event=oracle_view_materialize_failed sandbox=%s scenario=%s error=%s",
                 sandbox_db, scenario_name, exc,
@@ -700,7 +719,7 @@ class OracleSandbox(SandboxBackend):
                 "row_count": len(result_rows),
                 "errors": [],
             }
-        except oracledb.DatabaseError as exc:
+        except _import_oracledb().DatabaseError as exc:
             logger.error(
                 "event=oracle_scenario_failed sandbox=%s scenario=%s error=%s",
                 sandbox_db, scenario_name, exc,
@@ -729,7 +748,7 @@ class OracleSandbox(SandboxBackend):
 
         try:
             self._ensure_view_tables(sandbox_db, fixtures)
-        except oracledb.DatabaseError as exc:
+        except _import_oracledb().DatabaseError as exc:
             logger.error(
                 "event=oracle_view_materialize_failed sandbox=%s error=%s",
                 sandbox_db, exc,
@@ -767,7 +786,7 @@ class OracleSandbox(SandboxBackend):
                 "row_count": len(result_rows),
                 "errors": [],
             }
-        except oracledb.DatabaseError as exc:
+        except _import_oracledb().DatabaseError as exc:
             logger.error(
                 "event=oracle_execute_select_failed sandbox=%s error=%s",
                 sandbox_db, exc,
@@ -803,7 +822,7 @@ class OracleSandbox(SandboxBackend):
 
         try:
             self._ensure_view_tables(sandbox_db, fixtures)
-        except oracledb.DatabaseError as exc:
+        except _import_oracledb().DatabaseError as exc:
             logger.error(
                 "event=view_materialize_failed sandbox=%s error=%s",
                 sandbox_db, exc,
@@ -848,7 +867,7 @@ class OracleSandbox(SandboxBackend):
                 "b_minus_a": diff["b_minus_a"],
                 "errors": [],
             }
-        except oracledb.DatabaseError as exc:
+        except _import_oracledb().DatabaseError as exc:
             logger.error(
                 "event=oracle_compare_two_sql_failed sandbox=%s error=%s", sandbox_db, exc,
             )

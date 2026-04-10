@@ -8,9 +8,10 @@ import re
 import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import pyodbc
+if TYPE_CHECKING:
+    import pyodbc
 
 from shared.db_connect import cursor_to_dicts
 from shared.sandbox.base import (
@@ -24,6 +25,24 @@ from shared.sandbox.base import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+_pyodbc = None
+
+
+def _import_pyodbc():
+    """Lazy-import pyodbc so the module can be imported without it installed."""
+    global _pyodbc
+    if _pyodbc is None:
+        try:
+            import pyodbc
+        except ImportError as exc:
+            raise ImportError(
+                "pyodbc is required for SQL Server connectivity. "
+                "Install it with: uv pip install pyodbc"
+            ) from exc
+        _pyodbc = pyodbc
+    return _pyodbc
 
 _IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_ ]*$")
 # Bracket-quoted identifiers may additionally contain hyphens
@@ -148,7 +167,7 @@ def _get_not_null_defaults(cursor: Any, table: str) -> dict[str, Any]:
             else:
                 defaults[col_name] = ""
         return defaults
-    except pyodbc.Error:
+    except _import_pyodbc().Error:
         logger.debug("event=not_null_defaults_lookup_failed table=%s", table)
         return {}
 
@@ -166,7 +185,7 @@ def _get_identity_columns(cursor: Any, table: str) -> set[str]:
             table,
         )
         return {row[0] for row in cursor.fetchall()}
-    except pyodbc.Error:
+    except _import_pyodbc().Error:
         logger.debug(
             "event=identity_column_lookup_failed table=%s", table,
         )
@@ -262,8 +281,8 @@ class SqlServerSandbox(SandboxBackend):
             f"TrustServerCertificate=yes;"
         )
         try:
-            conn = pyodbc.connect(conn_str, autocommit=True)
-        except pyodbc.Error as exc:
+            conn = _import_pyodbc().connect(conn_str, autocommit=True)
+        except _import_pyodbc().Error as exc:
             msg = str(exc)
             if "Can't open lib" in msg:
                 raise RuntimeError(
@@ -307,7 +326,7 @@ class SqlServerSandbox(SandboxBackend):
                 )
                 if sandbox_cursor.fetchone() is None:
                     sandbox_cursor.execute(f"CREATE SCHEMA [{schema}]")
-            except pyodbc.Error as exc:
+            except _import_pyodbc().Error as exc:
                 errors.append({
                     "code": "SCHEMA_CREATE_FAILED",
                     "message": f"Failed to create schema {schema}: {exc}",
@@ -342,7 +361,7 @@ class SqlServerSandbox(SandboxBackend):
                     f"FROM [{self.database}].{fqn}"
                 )
                 cloned.append(f"{schema_name}.{table_name}")
-            except pyodbc.Error as exc:
+            except _import_pyodbc().Error as exc:
                 errors.append({
                     "code": "TABLE_CLONE_FAILED",
                     "message": f"Failed to clone {fqn}: {exc}",
@@ -386,7 +405,7 @@ class SqlServerSandbox(SandboxBackend):
             try:
                 sandbox_cursor.execute(definition)
                 cloned.append(f"{schema_name}.{view_name}")
-            except pyodbc.Error as exc:
+            except _import_pyodbc().Error as exc:
                 errors.append({
                     "code": "VIEW_CLONE_FAILED",
                     "message": f"Failed to clone view {fqn}: {exc}",
@@ -426,7 +445,7 @@ class SqlServerSandbox(SandboxBackend):
             try:
                 sandbox_cursor.execute(definition)
                 cloned.append(fqn)
-            except pyodbc.Error as exc:
+            except _import_pyodbc().Error as exc:
                 errors.append({
                     "code": "PROC_CLONE_FAILED",
                     "message": f"Failed to clone procedure {fqn}: {exc}",
@@ -478,7 +497,7 @@ class SqlServerSandbox(SandboxBackend):
                 procedures_cloned.extend(p_cloned)
                 errors.extend(p_errors)
 
-        except pyodbc.Error as exc:
+        except _import_pyodbc().Error as exc:
             logger.error("event=sandbox_up_failed sandbox_db=%s error=%s", sandbox_db, exc)
             return {
                 "sandbox_database": sandbox_db,
@@ -521,7 +540,7 @@ class SqlServerSandbox(SandboxBackend):
                     cursor.execute(f"DROP DATABASE {quoted}")
             logger.info("event=sandbox_down_complete sandbox_db=%s", sandbox_db)
             return {"sandbox_database": sandbox_db, "status": "ok"}
-        except pyodbc.Error as exc:
+        except _import_pyodbc().Error as exc:
             logger.error("event=sandbox_down_failed sandbox_db=%s error=%s", sandbox_db, exc)
             return {
                 "sandbox_database": sandbox_db,
@@ -552,7 +571,7 @@ class SqlServerSandbox(SandboxBackend):
                 "status": "not_found",
                 "exists": False,
             }
-        except pyodbc.Error as exc:
+        except _import_pyodbc().Error as exc:
             logger.error("event=sandbox_status_failed sandbox_db=%s error=%s", sandbox_db, exc)
             return {
                 "sandbox_database": sandbox_db,
@@ -716,11 +735,11 @@ class SqlServerSandbox(SandboxBackend):
                 fqn = f"[{schema_name}].[{obj_name}]"
                 try:
                     sb_cur.execute(f"DROP TABLE IF EXISTS {fqn}")
-                except pyodbc.Error:
+                except _import_pyodbc().Error:
                     pass  # object did not exist; nothing to drop
                 try:
                     sb_cur.execute(f"DROP VIEW IF EXISTS {fqn}")
-                except pyodbc.Error:
+                except _import_pyodbc().Error:
                     pass  # sandbox_up may not have cloned the view
                 sb_cur.execute(
                     f"SELECT TOP 0 * INTO {fqn} FROM [{self.database}].{fqn}"
@@ -758,7 +777,7 @@ class SqlServerSandbox(SandboxBackend):
 
         try:
             self._ensure_view_tables(sandbox_db, given)
-        except pyodbc.Error as exc:
+        except _import_pyodbc().Error as exc:
             logger.error(
                 "event=view_materialize_failed sandbox_db=%s scenario=%s error=%s",
                 sandbox_db, scenario_name, exc,
@@ -837,7 +856,7 @@ class SqlServerSandbox(SandboxBackend):
                 "errors": [],
             }
 
-        except pyodbc.Error as exc:
+        except _import_pyodbc().Error as exc:
             logger.error(
                 "event=scenario_failed sandbox_db=%s scenario=%s error=%s",
                 sandbox_db, scenario_name, exc,
@@ -866,7 +885,7 @@ class SqlServerSandbox(SandboxBackend):
 
         try:
             self._ensure_view_tables(sandbox_db, fixtures)
-        except pyodbc.Error as exc:
+        except _import_pyodbc().Error as exc:
             logger.error(
                 "event=view_materialize_failed sandbox_db=%s error=%s",
                 sandbox_db, exc,
@@ -904,7 +923,7 @@ class SqlServerSandbox(SandboxBackend):
                 "row_count": len(result_rows),
                 "errors": [],
             }
-        except pyodbc.Error as exc:
+        except _import_pyodbc().Error as exc:
             logger.error(
                 "event=execute_select_failed sandbox_db=%s error=%s",
                 sandbox_db, exc,
@@ -937,7 +956,7 @@ class SqlServerSandbox(SandboxBackend):
 
         try:
             self._ensure_view_tables(sandbox_db, fixtures)
-        except pyodbc.Error as exc:
+        except _import_pyodbc().Error as exc:
             logger.error(
                 "event=view_materialize_failed sandbox_db=%s error=%s",
                 sandbox_db, exc,
@@ -1014,7 +1033,7 @@ class SqlServerSandbox(SandboxBackend):
                 "errors": [],
             }
 
-        except pyodbc.Error as exc:
+        except _import_pyodbc().Error as exc:
             logger.error(
                 "event=compare_two_sql_failed sandbox_db=%s error=%s",
                 sandbox_db, exc,
