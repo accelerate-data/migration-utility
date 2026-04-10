@@ -103,15 +103,15 @@ class DiscoverShowOutput(BaseModel):
     name: str
     type: Literal["table", "procedure", "view", "function"]
     raw_ddl: str
-    columns: list[ColumnDef | dict[str, Any]] = Field(default_factory=list)
-    params: list[ParamDef | dict[str, Any]] = Field(default_factory=list)
+    columns: list[ColumnDef] = Field(default_factory=list)
+    params: list[ParamDef] = Field(default_factory=list)
     refs: ProcRefs | BasicRefs | None = None
     routing_reasons: list[str] = Field(default_factory=list)
-    statements: list[StatementEntry | dict[str, Any]] | None = None
+    statements: list[StatementEntry] | None = None
     needs_llm: bool | None = None
     parse_error: str | None = None
-    sql_elements: list[SqlElement | dict[str, Any]] | None = None
-    errors: list[AnalysisError | dict[str, Any]] | None = None
+    sql_elements: list[SqlElement] | None = None
+    errors: list[AnalysisError] | None = None
 
 
 # ═══════════════════════════════════════════════════════════════════════════
