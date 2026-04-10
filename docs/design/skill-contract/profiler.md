@@ -26,7 +26,7 @@ The command reads `selected_writer` from the catalog scoping section — no `--w
 - `tables.sql` — column list
 - Related procedure catalog files and bodies where referenced
 
-Outputs a single context JSON to stdout. See `lib/shared/schemas/profile_context.json` for the full output schema.
+Outputs a single context JSON to stdout. Shape is enforced by the `ProfileContext` Pydantic model in `lib/shared/output_models.py`.
 
 ### 2. ProfileWithLLM
 

@@ -29,7 +29,7 @@ Trigger phrases: "profile a table", "classify a table", "what kind of model is t
 uv run --project <shared-path> profile context --table <table>
 ```
 
-The CLI reads the selected writer from the table's catalog scoping section. Output is a JSON matching `profile_context.json` schema containing:
+The CLI reads the selected writer from the table's catalog scoping section. Output shape is enforced by the `ProfileContext` Pydantic model in `lib/shared/output_models.py`:
 
 - `catalog_signals` -- PKs, FKs, identity columns, unique indexes, change capture, sensitivity classifications
 - `writer_references` -- outbound references from the writer procedure with column-level read/write flags
