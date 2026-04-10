@@ -486,13 +486,8 @@ class ProfileContext(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class ViewColumnDef(BaseModel):
-    model_config = _OUTPUT_CONFIG
-
-    name: str
-    sql_type: str
-    is_nullable: bool | None = None
-    is_identity: bool | None = None
+# ViewColumnDef is identical to ColumnDef — use ColumnDef directly.
+ViewColumnDef = ColumnDef
 
 
 class EnrichedInScopeRef(BaseModel):
@@ -657,15 +652,6 @@ class RefactorSweepOutput(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class CompareSqlScenarioError(BaseModel):
-    """An error entry in a compare-sql scenario result."""
-
-    model_config = _OUTPUT_CONFIG
-
-    code: str
-    message: str
-
-
 class CompareSqlScenario(BaseModel):
     """Per-scenario equivalence result from test-harness compare-sql."""
 
@@ -678,7 +664,7 @@ class CompareSqlScenario(BaseModel):
     b_count: int | None = None
     a_minus_b: list[dict[str, Any]] | None = None
     b_minus_a: list[dict[str, Any]] | None = None
-    errors: list[CompareSqlScenarioError] | None = None
+    errors: list[ErrorEntry] | None = None
 
 
 class CompareSqlOutput(BaseModel):
