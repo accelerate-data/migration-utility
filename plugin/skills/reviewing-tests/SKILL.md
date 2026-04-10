@@ -20,9 +20,7 @@ The iteration number controls the verdict in Step 6: on iteration 1, unresolved 
 
 ## Contracts
 
-Contracts are enforced by the Pydantic `TestReviewOutput` model in `../../lib/shared/output_models.py`.
-
-Return exactly one JSON object matching that shape. Do not wrap in markdown, headings, summaries, or follow-up questions.
+Return exactly one JSON object matching this shape. Do not wrap in markdown, headings, summaries, or follow-up questions.
 
 ## Output shape — `TestReviewOutput`
 

@@ -37,8 +37,6 @@ Use the canonical surfaced code list in `../../lib/shared/listing_objects_error_
 
 ## Output shapes
 
-Contracts are enforced at runtime by Pydantic models in `../../lib/shared/output_models.py`.
-
 ### `discover list` → `DiscoverListOutput`
 
 ```json
@@ -113,8 +111,6 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover refs \
 ```
 
 Present `writers` (procs that modify the object) and `readers` (procs/views that select from it), grouped.
-
-**Known limitation:** Procs that write only via dynamic SQL (`EXEC(@sql)`, `sp_executesql`) will not appear as writers.
 
 ## Error handling
 

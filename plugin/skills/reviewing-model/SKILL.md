@@ -106,8 +106,7 @@ After kicking back, the model-generator revises the model, re-runs `dbt test` to
 
 ## Output schema (ModelReviewResult)
 
-Contract: `ModelReviewOutput` in `../../lib/shared/output_models.py`.
-Return exactly one JSON object that matches that contract. Do not wrap the JSON
+Return exactly one JSON object matching this shape. Do not wrap the JSON
 in markdown, headings, summaries, or follow-up questions.
 
 Emit the following JSON structure as the skill's output:

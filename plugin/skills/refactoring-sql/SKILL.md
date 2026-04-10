@@ -19,7 +19,7 @@ argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 
 ## Contracts
 
-The `refactor write` CLI validates all data through Pydantic models (`extra="forbid"`). The refactor section persisted to catalog uses `RefactorSection` from `catalog_models.py`:
+The refactor section persisted to catalog has this shape:
 
 ```json
 {

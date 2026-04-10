@@ -19,8 +19,6 @@ Generate test scenarios for a stored procedure or view migration. Reads determin
 
 ## Contracts
 
-Contracts are enforced at runtime by Pydantic models in `../../lib/shared/output_models.py`.
-
 Do not invent fields. If `test-harness write` rejects the payload, fix the payload and retry.
 
 ## Output shape — `TestSpec`
@@ -110,15 +108,6 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate context \
   --table <item_id>
 ```
 
-The command reads `selected_writer` from the catalog scoping section — no `--writer` argument needed. The output contains:
-
-- `profile` — classification, keys, watermark, PII answers
-- `materialization` — derived from profile (snapshot/table/incremental)
-- `statements` — resolved statement list with action (migrate/skip) and SQL
-- `proc_body` — full original procedure DDL
-- `columns` — target table column list
-- `source_tables` — tables read by the writer
-
 Record the `selected_writer` procedure name from the catalog's `scoping` section — this becomes the `procedure` field in the test spec.
 
 **For views:**
@@ -128,7 +117,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show \
   --name <view_fqn>
 ```
 
-This returns `raw_ddl`, `refs`, `sql_elements`, and `errors`. Also read `catalog/views/<fqn>.json` directly to get `profile`, `scoping.logic_summary`, and `references.tables.in_scope`.
+Also read `catalog/views/<fqn>.json` directly to get `profile`, `scoping.logic_summary`, and `references.tables.in_scope`.
 
 Assemble the context:
 

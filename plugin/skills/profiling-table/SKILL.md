@@ -33,8 +33,6 @@ Check stage readiness:
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <fqn> profile
 ```
 
-The `ready` command auto-detects whether the FQN is a table or view — no separate guard set needed.
-
 If `ready` is `false`, report the failing `code` and `reason` to the user and stop. If `code` is absent, report the `reason`.
 
 ## Object type detection
@@ -55,7 +53,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" profile view-context \
   --view <view_fqn>
 ```
 
-Output is a `ViewProfileContext` (Pydantic model in `lib/shared/output_models.py`):
+Output shape:
 
 ```json
 {
@@ -107,7 +105,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" profile write \
   --profile-file .staging/view_profile.json && rm -rf .staging
 ```
 
-Do not include `status` in the profile JSON — the CLI determines it from the content.
+Do not include `status` in the profile JSON.
 
 The profile JSON must match `../../lib/shared/schemas/view_catalog.json#/properties/profile`. Required fields: `classification`, `rationale`, `source`.
 
@@ -142,9 +140,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" profile context \
   --table <table>
 ```
 
-The CLI reads the selected writer from the table's catalog scoping section — no `--writer` argument needed.
-
-This reads catalog signals, writer references, proc body, column list, and related procedure context. Output is a `ProfileContext` (Pydantic model in `lib/shared/output_models.py`):
+Output shape:
 
 ```json
 {
@@ -175,17 +171,17 @@ Write the profile JSON to a temp file to avoid shell escaping issues:
 
 ```bash
 mkdir -p .staging
-# Write profile JSON to .staging/profile.json (avoids shell quoting breakage from apostrophes in rationale text)
+# Write profile JSON to .staging/profile.json
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" profile write \
   --table <table> \
   --profile-file .staging/profile.json; rm -rf .staging
 ```
 
-Do not include `status` in the profile JSON — the CLI determines it from the content.
+Do not include `status` in the profile JSON.
 
 The profile JSON must match `../../lib/shared/schemas/table_catalog.json#/$defs/profile_section`. Required fields: `writer`. Each decision point must include a `rationale` field (1–2 sentences): `classification.rationale`, `primary_key.rationale`, `natural_key.rationale`, `watermark.rationale`, and per-entry `rationale` in `foreign_keys[]` and `pii_actions[]`.
 
-All enum values must be from the allowed sets below (canonical source: `lib/shared/profile.py`):
+All enum values must be from the allowed sets below:
 
 | Field | Valid values |
 |---|---|

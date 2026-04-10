@@ -54,13 +54,6 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show \
   --name <view_fqn>
 ```
 
-This returns:
-
-- `raw_ddl` — the full CREATE VIEW DDL text
-- `refs` — `reads_from` (source tables) and any view refs
-- `sql_elements` — SQLglot-extracted SQL features (JOINs, aggregations, etc.). `null` when `errors` contains `DDL_PARSE_ERROR`.
-- `errors` — any parse errors (e.g. `DDL_PARSE_ERROR` when SQLglot could not parse the DDL)
-
 Read `catalog/views/<view_fqn>.json` to get `is_materialized_view` and `references.views.in_scope`.
 
 Present the object type and, for materialized views, column count:
@@ -110,7 +103,7 @@ Read `raw_ddl` and write a plain-language description of what the view computes 
 
 Persist the view analysis as soon as the scoping JSON is ready. Do not ask for confirmation before writing — this skill is a write-through workflow.
 
-Write the scoping JSON to a temp file to avoid shell quoting issues:
+Write the scoping JSON to a temp file:
 
 ```bash
 mkdir -p .staging
@@ -119,9 +112,9 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
   --name <view_fqn> --scoping-file .staging/scoping.json && rm -rf .staging
 ```
 
-Do not include `status` in the scoping dict — the CLI determines it from the content.
+Do not include `status` in the scoping dict.
 
-The scoping JSON shape (contract: `ViewScopingSection` in `catalog_models.py`):
+The scoping JSON shape:
 
 ```json
 {
@@ -287,7 +280,7 @@ If all discovered candidates are unsupported external delegates, persist table s
 
 ### Step 6 -- Persist scoping to catalog
 
-Write the scoping JSON to a temp file to avoid shell quoting issues:
+Write the scoping JSON to a temp file:
 
 ```bash
 mkdir -p .staging
@@ -296,9 +289,11 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
   --name <table> --scoping-file .staging/scoping.json && rm -rf .staging
 ```
 
-Do not include `status` in the scoping dict. The scoping JSON must include the selected writer and a `selected_writer_rationale` field (1–2 sentences explaining why this writer was chosen over alternatives, or why no writer / ambiguous). If the write exits non-zero, report the error and ask the user to correct.
+Do not include `status` in the scoping dict.
 
-The table scoping JSON shape (contract: `TableScopingSection` in `catalog_models.py`):
+The scoping JSON must include the selected writer and a `selected_writer_rationale` field (1–2 sentences explaining why this writer was chosen over alternatives, or why no writer / ambiguous). If the write exits non-zero, report the error and ask the user to correct.
+
+The table scoping JSON shape:
 
 ```json
 {

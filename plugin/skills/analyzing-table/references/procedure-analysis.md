@@ -15,8 +15,6 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show \
   --name <proc>
 ```
 
-This returns `refs`, `statements`, `needs_llm`, and `raw_ddl`.
-
 ### Step 2 — Classify statements
 
 Check the `needs_llm` field and `statements` array:
@@ -76,7 +74,7 @@ After presenting the analysis, persist resolved statements to catalog.
 
 No `needs_llm` actions are written to catalog — all must be resolved before persisting.
 
-Write the statements JSON to a temp file to avoid shell quoting issues (rationale text may contain apostrophes):
+Write the statements JSON to a temp file:
 
 ```bash
 mkdir -p .staging

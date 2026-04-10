@@ -14,7 +14,7 @@ Generate one dbt model for one table or view. Use deterministic context from cat
 
 ## Arguments
 
-`$ARGUMENTS` is the fully-qualified table name. Ask the user if missing. The writer is read from the catalog scoping section (`catalog/tables/<table>.json` → `scoping.selected_writer`).
+`$ARGUMENTS` is the fully-qualified table name. Ask the user if missing.
 
 ## Before invoking
 
@@ -30,7 +30,7 @@ If `ready` is `false`, report the failing check's `code` and `reason` to the use
 
 ## Caller handoff
 
-The caller may provide a structured handoff object (contract: `ModelGenerationHandoff` in `../../lib/shared/output_models.py`):
+The caller may provide a structured handoff object:
 
 ```json
 {
@@ -52,7 +52,7 @@ If no handoff is provided:
 
 ## Output contract
 
-Return exactly one JSON object (contract: `ModelGenerationOutput` in `../../lib/shared/output_models.py`):
+Return exactly one JSON object:
 
 ```json
 {
@@ -78,7 +78,6 @@ Return exactly one JSON object (contract: `ModelGenerationOutput` in `../../lib/
 - Do not ask the user to write or save files.
 - Do not ask the user for approval at any step in this skill.
 - Use only the canonical codes from [../../lib/shared/generate_model_error_codes.md](../../lib/shared/generate_model_error_codes.md) in `warnings[]` and `errors[]`.
-- The JSON object is the item result consumed by `/generate-model`.
 
 ## Step 1: Assemble context
 
@@ -86,19 +85,6 @@ Return exactly one JSON object (contract: `ModelGenerationOutput` in `../../lib/
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate context \
   --table <table_fqn>
 ```
-
-The CLI reads the selected writer from the table's catalog scoping section — no `--writer` argument needed.
-
-Read the output JSON. It contains:
-
-- `profile` — classification, keys, watermark, PII answers
-- `materialization` — derived from profile (snapshot/table/incremental)
-- `statements` — resolved statement list with action (migrate/skip) and SQL
-- `proc_body` — full original procedure SQL
-- `columns` — target table column list
-- `source_tables` — tables read by the writer
-- `schema_tests` — deterministic test specs (entity integrity, referential integrity, recency, PII)
-- `refactored_sql` — cleaned, CTE-structured SQL produced by the refactor stage
 
 Use `refactored_sql` as your sole SQL input. Ignore `proc_body` and `statements` — they are not relevant to model generation.
 
@@ -259,8 +245,6 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate write \
   --schema-yml-file .staging/schema.yml && rm -rf .staging
 ```
 
-The dbt project path is resolved automatically from `$DBT_PROJECT_PATH` or defaults to `./dbt` relative to the project root. Pass `--dbt-project-path <path>` only if you need to override this.
-
 Use the CLI-returned written paths when constructing the final item result.
 
 ## Step 7: Compile and run canonical tests
@@ -351,8 +335,6 @@ If there are warnings or errors to report, pass them as JSON arrays:
   --warnings '[{"code": "...", "message": "..."}]' \
   --errors '[{"code": "...", "message": "..."}]'
 ```
-
-The CLI verifies the model file exists on disk and writes the `generate` section to the catalog with a CLI-determined status.
 
 ## Output schemas
 
