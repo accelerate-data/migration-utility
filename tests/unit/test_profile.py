@@ -18,6 +18,7 @@ from typer.testing import CliRunner
 
 from shared import profile
 from shared.loader import CatalogFileMissingError, CatalogLoadError
+from shared.output_models import ProfileContext, ViewProfileContext
 
 _cli_runner = CliRunner()
 
@@ -36,26 +37,26 @@ def _make_writable_copy() -> tuple[tempfile.TemporaryDirectory, Path]:
 # ── Context: rich catalog signals ────────────────────────────────────────────
 
 
-def test_context_rich_catalog_all_signals_present(assert_valid_schema) -> None:
+def test_context_rich_catalog_all_signals_present() -> None:
     """Context with rich catalog returns all catalog signals."""
     result = profile.run_context(
         _PROFILE_FIXTURES, "silver.FactSales", "dbo.usp_load_fact_sales",
     )
-    assert_valid_schema(result, "profile_context.json")
-    assert result["table"] == "silver.factsales"
-    assert result["writer"] == "dbo.usp_load_fact_sales"
+    assert isinstance(result, ProfileContext)
+    assert result.table == "silver.factsales"
+    assert result.writer == "dbo.usp_load_fact_sales"
 
-    signals = result["catalog_signals"]
-    assert len(signals["primary_keys"]) == 1
-    assert signals["primary_keys"][0]["columns"] == ["sale_id"]
-    assert len(signals["foreign_keys"]) == 1
-    assert signals["foreign_keys"][0]["columns"] == ["customer_key"]
-    assert len(signals["auto_increment_columns"]) == 1
-    assert signals["auto_increment_columns"][0]["column"] == "sale_id"
-    assert signals["change_capture"]["enabled"] is True
-    assert signals["change_capture"]["mechanism"] == "cdc"
-    assert len(signals["sensitivity_classifications"]) == 1
-    assert signals["sensitivity_classifications"][0]["column"] == "customer_email"
+    signals = result.catalog_signals
+    assert len(signals.primary_keys) == 1
+    assert signals.primary_keys[0].columns == ["sale_id"]
+    assert len(signals.foreign_keys) == 1
+    assert signals.foreign_keys[0].columns == ["customer_key"]
+    assert len(signals.auto_increment_columns) == 1
+    assert signals.auto_increment_columns[0].column == "sale_id"
+    assert signals.change_capture.enabled is True
+    assert signals.change_capture.mechanism == "cdc"
+    assert len(signals.sensitivity_classifications) == 1
+    assert signals.sensitivity_classifications[0].column == "customer_email"
 
 
 def test_context_rich_catalog_columns() -> None:
@@ -63,7 +64,7 @@ def test_context_rich_catalog_columns() -> None:
     result = profile.run_context(
         _PROFILE_FIXTURES, "silver.FactSales", "dbo.usp_load_fact_sales",
     )
-    col_names = [c["name"] for c in result["columns"]]
+    col_names = [c.name for c in result.columns]
     assert "sale_id" in col_names
     assert "customer_key" in col_names
     assert "load_date" in col_names
@@ -74,9 +75,9 @@ def test_context_rich_catalog_writer_references() -> None:
     result = profile.run_context(
         _PROFILE_FIXTURES, "silver.FactSales", "dbo.usp_load_fact_sales",
     )
-    refs = result["writer_references"]
-    table_refs = refs["tables"]["in_scope"]
-    ref_names = [f"{t['schema']}.{t['name']}" for t in table_refs]
+    refs = result.writer_references
+    table_refs = refs.tables.in_scope
+    ref_names = [f"{t.object_schema}.{t.name}" for t in table_refs]
     assert any("FactSales" in n for n in ref_names)
 
 
@@ -85,26 +86,26 @@ def test_context_rich_catalog_proc_body() -> None:
     result = profile.run_context(
         _PROFILE_FIXTURES, "silver.FactSales", "dbo.usp_load_fact_sales",
     )
-    assert "INSERT INTO" in result["proc_body"]
-    assert "silver.FactSales" in result["proc_body"]
+    assert "INSERT INTO" in result.proc_body
+    assert "silver.FactSales" in result.proc_body
 
 
 # ── Context: bare catalog (no constraints) ───────────────────────────────────
 
 
-def test_context_bare_catalog_empty_arrays(assert_valid_schema) -> None:
+def test_context_bare_catalog_empty_arrays() -> None:
     """Context with bare catalog returns empty arrays, no errors."""
     result = profile.run_context(
         _PROFILE_FIXTURES, "silver.DimCustomer", "dbo.usp_merge_dim_customer",
     )
-    assert_valid_schema(result, "profile_context.json")
-    signals = result["catalog_signals"]
-    assert signals["primary_keys"] == []
-    assert signals["foreign_keys"] == []
-    assert signals["auto_increment_columns"] == []
-    assert signals["unique_indexes"] == []
-    assert signals["change_capture"] is None
-    assert signals["sensitivity_classifications"] == []
+    assert isinstance(result, ProfileContext)
+    signals = result.catalog_signals
+    assert signals.primary_keys == []
+    assert signals.foreign_keys == []
+    assert signals.auto_increment_columns == []
+    assert signals.unique_indexes == []
+    assert signals.change_capture is None
+    assert signals.sensitivity_classifications == []
 
 
 # ── Context: related procedures ──────────────────────────────────────────────
@@ -115,13 +116,13 @@ def test_context_related_procedures_included() -> None:
     result = profile.run_context(
         _PROFILE_FIXTURES, "silver.DimCustomer", "dbo.usp_merge_dim_customer",
     )
-    related = result["related_procedures"]
+    related = result.related_procedures
     assert len(related) >= 1
-    related_names = [r["procedure"] for r in related]
+    related_names = [r.procedure for r in related]
     assert "dbo.usp_helper_log" in related_names
-    helper = next(r for r in related if r["procedure"] == "dbo.usp_helper_log")
-    assert "proc_body" in helper
-    assert "INSERT INTO" in helper["proc_body"]
+    helper = next(r for r in related if r.procedure == "dbo.usp_helper_log")
+    assert helper.proc_body is not None
+    assert "INSERT INTO" in helper.proc_body
 
 
 # ── Context: error paths ────────────────────────────────────────────────────
@@ -159,7 +160,7 @@ def test_context_missing_proc_body_returns_empty_string() -> None:
             json.dumps(ghost_proc, indent=2), encoding="utf-8",
         )
         result = profile.run_context(ddl_path, "silver.FactSales", "dbo.usp_ghost")
-        assert result["proc_body"] == ""
+        assert result.proc_body == ""
     finally:
         tmp.cleanup()
 
@@ -445,65 +446,65 @@ def test_write_invalid_profile_json_arg_exit_2() -> None:
 # ── Context: TRUNCATE+INSERT pattern (statement 6) ──────────────────────────
 
 
-def test_context_truncate_insert_proc_body(assert_valid_schema) -> None:
+def test_context_truncate_insert_proc_body() -> None:
     """Context for a TRUNCATE+INSERT procedure includes both statements."""
     result = profile.run_context(
         _PROFILE_FIXTURES, "silver.DimProduct", "dbo.usp_truncate_insert_dim_product",
     )
-    assert_valid_schema(result, "profile_context.json")
-    assert result["table"] == "silver.dimproduct"
-    assert result["writer"] == "dbo.usp_truncate_insert_dim_product"
-    assert "TRUNCATE TABLE silver.DimProduct" in result["proc_body"]
-    assert "INSERT INTO silver.DimProduct" in result["proc_body"]
+    assert isinstance(result, ProfileContext)
+    assert result.table == "silver.dimproduct"
+    assert result.writer == "dbo.usp_truncate_insert_dim_product"
+    assert "TRUNCATE TABLE silver.DimProduct" in result.proc_body
+    assert "INSERT INTO silver.DimProduct" in result.proc_body
 
 
 # ── run_view_context ──────────────────────────────────────────────────────────
 
 
-def test_view_context_object_types(assert_valid_schema) -> None:
+def test_view_context_object_types() -> None:
     """object_type is stamped correctly on all reference buckets."""
     result = profile.run_view_context(_PROFILE_FIXTURES, "silver.vw_Multi")
-    assert_valid_schema(result, "view_profile_context.json")
+    assert isinstance(result, ViewProfileContext)
 
     # references.tables in_scope → "table"
-    for entry in result["references"]["tables"]["in_scope"]:
-        assert entry["object_type"] == "table"
+    for entry in result.references.tables.in_scope:
+        assert entry.object_type == "table"
     # references.views in_scope → "view"
-    for entry in result["references"]["views"]["in_scope"]:
-        assert entry["object_type"] == "view"
+    for entry in result.references.views.in_scope:
+        assert entry.object_type == "view"
     # references.functions in_scope → "function"
-    for entry in result["references"]["functions"]["in_scope"]:
-        assert entry["object_type"] == "function"
+    for entry in result.references.functions.in_scope:
+        assert entry.object_type == "function"
     # referenced_by.procedures in_scope → "procedure"
-    for entry in result["referenced_by"]["procedures"]["in_scope"]:
-        assert entry["object_type"] == "procedure"
+    for entry in result.referenced_by.procedures.in_scope:
+        assert entry.object_type == "procedure"
 
 
-def test_view_context_multi_sql_elements(assert_valid_schema) -> None:
+def test_view_context_multi_sql_elements() -> None:
     """sql_elements and logic_summary are surfaced from scoping."""
     result = profile.run_view_context(_PROFILE_FIXTURES, "silver.vw_Multi")
-    assert_valid_schema(result, "view_profile_context.json")
-    element_types = {e["type"] for e in result["sql_elements"]}
+    assert isinstance(result, ViewProfileContext)
+    element_types = {e.type for e in result.sql_elements}
     assert "join" in element_types
     assert "aggregation" in element_types
     assert "group_by" in element_types
-    assert "Joins FactSales" in result["logic_summary"]
+    assert "Joins FactSales" in result.logic_summary
 
 
-def test_view_context_mv_includes_columns(assert_valid_schema) -> None:
+def test_view_context_mv_includes_columns() -> None:
     """Materialized views surface columns; is_materialized_view is True."""
     result = profile.run_view_context(_PROFILE_FIXTURES, "silver.mv_Monthly")
-    assert_valid_schema(result, "view_profile_context.json")
-    assert result["is_materialized_view"] is True
-    col_names = [c["name"] for c in result["columns"]]
+    assert isinstance(result, ViewProfileContext)
+    assert result.is_materialized_view is True
+    col_names = [c.name for c in result.columns]
     assert "month_key" in col_names
     assert "total_amount" in col_names
 
 
 def test_view_context_non_mv_no_columns() -> None:
-    """Non-materialized view does not include columns key."""
+    """Non-materialized view returns empty columns list."""
     result = profile.run_view_context(_PROFILE_FIXTURES, "silver.vw_Simple")
-    assert "columns" not in result
+    assert result.columns == []
 
 
 def test_view_context_missing_catalog_raises() -> None:
@@ -621,7 +622,7 @@ def test_write_view_profile_idempotent() -> None:
 
 class TestContextWriterSlice:
 
-    def test_run_context_includes_writer_ddl_slice(self, assert_valid_schema) -> None:
+    def test_run_context_includes_writer_ddl_slice(self) -> None:
         """run_context returns writer_ddl_slice when the proc catalog has table_slices for the target table."""
         tmp, root = _make_writable_copy()
         try:
@@ -631,15 +632,15 @@ class TestContextWriterSlice:
             proc_path.write_text(json.dumps(proc_cat), encoding="utf-8")
 
             result = profile.run_context(root, "silver.FactSales", "dbo.usp_load_fact_sales")
-            assert_valid_schema(result, "profile_context.json")
-            assert result["writer_ddl_slice"] == "MERGE INTO silver.FactSales ..."
+            assert isinstance(result, ProfileContext)
+            assert result.writer_ddl_slice == "MERGE INTO silver.FactSales ..."
         finally:
             tmp.cleanup()
 
-    def test_run_context_writer_ddl_slice_absent(self, assert_valid_schema) -> None:
+    def test_run_context_writer_ddl_slice_absent(self) -> None:
         """run_context returns writer_ddl_slice as None when proc catalog has no table_slices."""
         result = profile.run_context(
             _PROFILE_FIXTURES, "silver.FactSales", "dbo.usp_load_fact_sales",
         )
-        assert_valid_schema(result, "profile_context.json")
-        assert result.get("writer_ddl_slice") is None
+        assert isinstance(result, ProfileContext)
+        assert result.writer_ddl_slice is None

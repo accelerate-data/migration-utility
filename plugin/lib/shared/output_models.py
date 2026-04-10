@@ -1,9 +1,9 @@
 """Pydantic v2 models for CLI command output contracts.
 
 These models enforce the shape of JSON emitted by ``run_*`` functions in
-``discover.py``, ``dry_run.py``, and ``batch_plan.py``.  All models use
-``extra="forbid"`` so unexpected fields raise immediately — the contract
-and code must stay in sync.
+``discover.py``, ``dry_run.py``, ``batch_plan.py``, and ``profile.py``.
+All models use ``extra="forbid"`` so unexpected fields raise immediately —
+the contract and code must stay in sync.
 
 Replaces the JSON schemas that previously lived in ``schemas/``.
 """
@@ -13,6 +13,8 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from shared.catalog_models import ReferencesBucket
 
 
 # ── Shared config ───────────────────────────────────────────────────────────
@@ -367,3 +369,191 @@ class ExcludeOutput(BaseModel):
 
     marked: list[str]
     not_found: list[str]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# profile context
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class PrimaryKeyConstraint(BaseModel):
+    model_config = _OUTPUT_CONFIG
+
+    constraint_name: str | None = None
+    columns: list[str] = Field(default_factory=list)
+    type: Literal["PRIMARY KEY", "UNIQUE"] | None = None
+
+
+class ForeignKeySignal(BaseModel):
+    model_config = _OUTPUT_CONFIG
+
+    constraint_name: str | None = None
+    columns: list[str] = Field(default_factory=list)
+    referenced_schema: str | None = None
+    referenced_table: str | None = None
+    referenced_columns: list[str] = Field(default_factory=list)
+
+
+class AutoIncrementSignal(BaseModel):
+    model_config = _OUTPUT_CONFIG
+
+    column: str
+    mechanism: Literal[
+        "identity", "autoincrement", "sequence", "generated_always",
+    ] | None = None
+    seed: int | None = None
+    increment: int | None = None
+
+
+class UniqueIndexSignal(BaseModel):
+    model_config = _OUTPUT_CONFIG
+
+    index_name: str | None = None
+    columns: list[str] = Field(default_factory=list)
+
+
+class ChangeCaptureSignal(BaseModel):
+    model_config = _OUTPUT_CONFIG
+
+    enabled: bool
+    mechanism: Literal[
+        "cdc", "change_tracking", "stream", "change_data_feed",
+    ] | None = None
+
+
+class SensitivitySignal(BaseModel):
+    model_config = _OUTPUT_CONFIG
+
+    column: str
+    label: str | None = None
+    information_type: str | None = None
+
+
+class CatalogSignals(BaseModel):
+    model_config = _OUTPUT_CONFIG
+
+    primary_keys: list[PrimaryKeyConstraint] = Field(default_factory=list)
+    foreign_keys: list[ForeignKeySignal] = Field(default_factory=list)
+    auto_increment_columns: list[AutoIncrementSignal] = Field(default_factory=list)
+    unique_indexes: list[UniqueIndexSignal] = Field(default_factory=list)
+    change_capture: ChangeCaptureSignal | None = None
+    sensitivity_classifications: list[SensitivitySignal] = Field(default_factory=list)
+
+
+class ProfileColumnDef(BaseModel):
+    model_config = _OUTPUT_CONFIG
+
+    name: str
+    sql_type: str
+    is_nullable: bool | None = None
+    is_identity: bool | None = None
+    max_length: int | None = None
+    precision: int | None = None
+    scale: int | None = None
+
+
+class RelatedProcedure(BaseModel):
+    model_config = _OUTPUT_CONFIG
+
+    procedure: str
+    proc_body: str
+    references: dict[str, Any] | None = None
+
+
+class ProfileContext(BaseModel):
+    """Output of ``profile context``.
+
+    Assembles all deterministic context needed for LLM profiling reasoning.
+    """
+
+    model_config = _OUTPUT_CONFIG
+
+    table: str
+    writer: str
+    catalog_signals: CatalogSignals
+    writer_references: ReferencesBucket
+    proc_body: str
+    columns: list[ProfileColumnDef]
+    related_procedures: list[RelatedProcedure]
+    writer_ddl_slice: str | None = None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# view profile context
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class ViewColumnDef(BaseModel):
+    model_config = _OUTPUT_CONFIG
+
+    name: str
+    sql_type: str
+    is_nullable: bool | None = None
+    is_identity: bool | None = None
+
+
+class EnrichedInScopeRef(BaseModel):
+    """In-scope reference with object_type added for view context."""
+
+    model_config = _OUTPUT_CONFIG
+
+    object_schema: str = Field(default="", alias="schema")
+    name: str = ""
+    object_type: Literal["table", "view", "function", "procedure"]
+    is_selected: bool | None = None
+    is_updated: bool | None = None
+    is_insert_all: bool | None = None
+    detection: str | None = None
+    columns: list[Any] | None = None
+
+
+class OutOfScopeRef(BaseModel):
+    """Out-of-scope reference entry."""
+
+    model_config = _OUTPUT_CONFIG
+
+    object_schema: str = Field(default="", alias="schema")
+    name: str = ""
+
+
+class EnrichedScopedRefList(BaseModel):
+    model_config = _OUTPUT_CONFIG
+
+    in_scope: list[EnrichedInScopeRef] = Field(default_factory=list)
+    out_of_scope: list[OutOfScopeRef] = Field(default_factory=list)
+
+
+class ViewReferences(BaseModel):
+    model_config = _OUTPUT_CONFIG
+
+    tables: EnrichedScopedRefList = EnrichedScopedRefList()
+    views: EnrichedScopedRefList = EnrichedScopedRefList()
+    functions: EnrichedScopedRefList = EnrichedScopedRefList()
+
+
+class ViewReferencedBy(BaseModel):
+    model_config = _OUTPUT_CONFIG
+
+    procedures: EnrichedScopedRefList = EnrichedScopedRefList()
+    views: EnrichedScopedRefList = EnrichedScopedRefList()
+    functions: EnrichedScopedRefList = EnrichedScopedRefList()
+
+
+class ViewProfileContext(BaseModel):
+    """Output of ``profile view-context``.
+
+    View catalog data with object_type added to each in_scope entry.
+    LLM uses sql_elements + logic_summary for classification.
+    """
+
+    model_config = _OUTPUT_CONFIG
+
+    view: str
+    is_materialized_view: bool
+    sql_elements: list[SqlElement] | None = None
+    logic_summary: str | None = None
+    columns: list[ViewColumnDef] = Field(default_factory=list)
+    references: ViewReferences
+    referenced_by: ViewReferencedBy
+    warnings: list[DiagnosticEntry] = Field(default_factory=list)
+    errors: list[DiagnosticEntry] = Field(default_factory=list)
