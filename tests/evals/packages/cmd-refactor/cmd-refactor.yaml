@@ -47,7 +47,7 @@ tests:
       fixture_path: "tests/evals/fixtures/cmd-refactor/guard-fail"
       target_tables: "silver.DimPromotion"
       expected_item_statuses: '{"silver.DimPromotion": "error"}'
-      expected_error_codes: "context_prerequisite_missing"
+      expected_error_codes: "test_gen_not_complete"
 
   # ── partial: complex proc may not fully pass audit ─────────────
   - description: "partial — DimCurrency dynamic SQL partial status"
