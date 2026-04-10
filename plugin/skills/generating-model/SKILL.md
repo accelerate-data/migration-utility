@@ -32,7 +32,18 @@ If `ready` is `false`, report the failing check's `code` and `reason` to the use
 
 ## Caller handoff
 
-The caller may provide a structured handoff object matching [../../lib/shared/schemas/model_generation_handoff.json](../../lib/shared/schemas/model_generation_handoff.json).
+The caller may provide a structured handoff object (contract: `ModelGenerationHandoff` in `../../lib/shared/output_models.py`):
+
+```json
+{
+  "execution_mode": "generate | test_only",
+  "artifact_paths": {"model_sql": "...", "model_yaml": "..."} | null,
+  "relation_bindings": {"<source_fqn>": {"type": "source | ref", "ref_name": "..."}} | null,
+  "revision_feedback": [{"code": "SQL_001", "message": "...", "severity": "error | warning | info", "ack_required": true}] | null,
+  "shared_staging_candidates": ["<table_fqn>", ...] | null,
+  "shared_staging_files_written": ["relative/stg_*.sql", ...] | null
+}
+```
 
 If a handoff is provided:
 
@@ -51,7 +62,27 @@ If no handoff is provided:
 
 ## Output contract
 
-Return exactly one JSON object matching [../../lib/shared/schemas/model_generation_output.json](../../lib/shared/schemas/model_generation_output.json).
+Return exactly one JSON object (contract: `ModelGenerationOutput` in `../../lib/shared/output_models.py`):
+
+```json
+{
+  "item_id": "<table_fqn>",
+  "status": "ok | partial | error",
+  "output": {
+    "table_ref": "<table_fqn>",
+    "model_name": "<model_name>",
+    "artifact_paths": {"model_sql": "...", "model_yaml": "..."},
+    "generated": {
+      "model_sql": {"materialized": "<materialization>", "uses_watermark": bool},
+      "model_yaml": {"has_model_description": bool, "schema_tests_rendered": [...], "has_unit_tests": bool}
+    },
+    "execution": {"dbt_compile_passed": bool, "dbt_test_passed": bool, "self_correction_iterations": int, "dbt_errors": []},
+    "review": {"iterations": int, "verdict": "approved | approved_with_warnings"},
+    "warnings": [],
+    "errors": []
+  }
+}
+```
 
 - Do not return markdown or prose outside the JSON object.
 - Do not ask the user to write or save files.

@@ -80,7 +80,7 @@ For each shared staging candidate not already on disk, write `dbt/models/staging
 select * from {{ source('<schema>', '<table>') }}
 ```
 
-Write plan artifact to `.migration-runs/model-sweep.<run_id>.json` (schema: `plugin/lib/shared/schemas/model_sweep_output.json`).
+Write plan artifact to `.migration-runs/model-sweep.<run_id>.json` (contract: `ModelSweepOutput` in `plugin/lib/shared/output_models.py`).
 
 Show pre-flight table:
 
@@ -195,6 +195,8 @@ For multi-table sub-agents: include the commit/revert instructions in the sub-ag
 6. Suggest running `/status` to see overall migration readiness across all tables.
 
 ## Item Result Schema
+
+Contract: `ModelGenerationOutput` in `plugin/lib/shared/output_models.py`.
 
 ```json
 {
