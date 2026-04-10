@@ -37,11 +37,11 @@ Review assertions and standalone schemas use full-schema validation because the 
 | `check-test-spec.js` | `test_spec.json` | Full schema |
 | `check-model-review.js` | `model_review_output.json` | Full schema |
 | `check-test-review.js` | `test_review_output.json` | Full schema |
-| `check-command-summary.js` | `scoping_summary.json` | Full schema (when summary has `schema_version`) |
+| `check-command-summary.js` | `command_run_summary.json` | Full schema (when summary has `schema_version`) |
 | `check-status-output.js` | `output_models.DryRunOutput` (Pydantic) | Runtime contract — no JSON schema |
 | `check-refactored-sql.js` | `table_catalog.json` | Section: `properties/refactor` |
 | `check-model-generator-input.js` | `model_generator_input.json` | Full schema |
-| `validate-candidate-writers.js` | `candidate_writers.json` | Full schema |
+| _(deleted)_ `validate-candidate-writers.js` | — | Removed (dead code; schema never existed) |
 
 ### Cross-Artifact Consistency Checks
 

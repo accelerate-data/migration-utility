@@ -140,7 +140,6 @@ def run_write_scoping(
 
     scoping["status"] = status
     TableScopingSection.model_validate(scoping)
-    _validate_schema_fragment(scoping, "table_catalog.json", "properties/scoping")
 
     result = load_and_merge_catalog(project_root, table_norm, "scoping", scoping)
     return {"written": result["catalog_path"], "status": "ok"}
@@ -177,7 +176,6 @@ def run_write_view_scoping(
 
     scoping["status"] = status
     ViewScopingSection.model_validate(scoping)
-    _validate_schema_fragment(scoping, "view_catalog.json", "properties/scoping")
 
     result = load_and_merge_catalog(project_root, view_norm, "scoping", scoping)
     return {"written": result["catalog_path"], "status": "ok"}

@@ -95,7 +95,7 @@ The profiler input contract is documented inline in `profiling-table/SKILL.md`. 
 
 | Schema | Agent | Notes |
 |---|---|---|
-| [scoping_summary.json](scoping_summary.json) | Scoping | Lightweight batch rollup with per-item `status` — full scoping data lives in `catalog/tables/<table>.json` |
+| _(deleted)_ | Scoping | Replaced by `ScopingSummary` Pydantic model in `catalog_models.py` |
 | [fixture_manifest.json](fixture_manifest.json) | Test Generator | Branch-covering unit test fixtures with coverage tracking |
 | [migration_artifact_manifest.json](migration_artifact_manifest.json) | Migrator | Generated dbt artifact paths, metadata, and execution results |
 

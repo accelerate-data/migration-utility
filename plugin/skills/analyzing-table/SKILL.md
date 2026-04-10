@@ -121,7 +121,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
 
 Do not include `status` in the scoping dict — the CLI determines it from the content.
 
-The scoping JSON shape:
+The scoping JSON shape (contract: `ViewScopingSection` in `catalog_models.py`):
 
 ```json
 {
@@ -298,7 +298,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
 
 Do not include `status` in the scoping dict. The scoping JSON must include the selected writer and a `selected_writer_rationale` field (1–2 sentences explaining why this writer was chosen over alternatives, or why no writer / ambiguous). If the write exits non-zero, report the error and ask the user to correct.
 
-The table scoping JSON shape:
+The table scoping JSON shape (contract: `TableScopingSection` in `catalog_models.py`):
 
 ```json
 {

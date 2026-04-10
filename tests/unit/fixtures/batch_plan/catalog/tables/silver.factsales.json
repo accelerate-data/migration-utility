@@ -9,20 +9,35 @@
     "status": "resolved",
     "selected_writer": "dbo.usp_load_factsales",
     "candidates": [],
-    "rationale": ""
+    "selected_writer_rationale": ""
   },
   "profile": {
     "status": "ok",
-    "classification": {"resolved_kind": "fact_transaction"},
-    "primary_key": {"primary_key_type": "surrogate"},
-    "watermark": {"column": "LoadDate"},
+    "classification": {
+      "resolved_kind": "fact_transaction"
+    },
+    "primary_key": {
+      "primary_key_type": "surrogate"
+    },
+    "watermark": {
+      "column": "LoadDate"
+    },
     "foreign_keys": [],
     "pii_actions": [],
     "natural_key": {}
   },
   "referenced_by": {
-    "procedures": {"in_scope": [], "out_of_scope": []},
-    "views": {"in_scope": [], "out_of_scope": []},
-    "functions": {"in_scope": [], "out_of_scope": []}
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
   }
 }
