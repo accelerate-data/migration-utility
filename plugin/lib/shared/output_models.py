@@ -667,7 +667,7 @@ class CompareSqlScenarioError(BaseModel):
 class CompareSqlScenario(BaseModel):
     """Per-scenario equivalence result from test-harness compare-sql."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = _OUTPUT_CONFIG
 
     scenario_name: str
     status: Literal["ok", "error"] | None = None
