@@ -2,12 +2,8 @@
 
 These models type the JSON files produced by ``setup-ddl`` and enriched by
 skills (scoping, profiling, refactoring, test generation, model generation).
-All models use ``extra="allow"`` so unknown fields pass through without
-validation errors — this provides forward compatibility with future schema
-additions.
-
-The JSON schemas in ``schemas/`` remain authoritative for external validation
-(AJV in evals).  These Pydantic models are the internal Python API.
+All models use ``extra="forbid"`` so unexpected fields raise immediately —
+the contract and code must stay in sync.
 """
 
 from __future__ import annotations
@@ -19,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # ── Shared config ───────────────────────────────────────────────────────────
 
-_CATALOG_CONFIG = ConfigDict(extra="allow", populate_by_name=True)
+_CATALOG_CONFIG = ConfigDict(extra="forbid", populate_by_name=True)
 
 
 # ── Shared reference models ─────────────────────────────────────────────────
@@ -36,13 +32,16 @@ class RefEntry(BaseModel):
     is_updated: bool = False
     is_insert_all: bool = False
     detection: str | None = None
+    is_schema_bound: bool = False
+    is_caller_dependent: bool = False
+    is_ambiguous: bool = False
     columns: list[Any] = []
 
 
 class ScopedRefList(BaseModel):
     """Scoped reference list: in_scope + out_of_scope."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     in_scope: list[RefEntry] = []
     out_of_scope: list[RefEntry] = []
@@ -51,7 +50,7 @@ class ScopedRefList(BaseModel):
 class ReferencesBucket(BaseModel):
     """Outbound references from a proc/view/function to other objects."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     tables: ScopedRefList = ScopedRefList()
     views: ScopedRefList = ScopedRefList()
@@ -62,7 +61,7 @@ class ReferencesBucket(BaseModel):
 class ReferencedByBucket(BaseModel):
     """Inbound references to a table/view from other objects."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     procedures: ScopedRefList = ScopedRefList()
     views: ScopedRefList = ScopedRefList()
@@ -75,13 +74,14 @@ class ReferencedByBucket(BaseModel):
 class StatementEntry(BaseModel):
     """A single resolved statement in a procedure catalog."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     action: str
     source: str
     sql: str
     type: str | None = None
     rationale: str | None = None
+    index: int | None = None
 
 
 # ── Per-type scoping sections ───────────────────────────────────────────────
@@ -90,12 +90,14 @@ class StatementEntry(BaseModel):
 class TableScopingSection(BaseModel):
     """Writer-selection results from the analyzing-table skill."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     status: str = ""
     selected_writer: str | None = None
     selected_writer_rationale: str | None = None
+    rationale: str | None = None
     candidates: list[Any] | None = None
+    validation: dict[str, Any] | None = None
     warnings: list[Any] = []
     errors: list[Any] = []
 
@@ -103,13 +105,14 @@ class TableScopingSection(BaseModel):
 class ViewScopingSection(BaseModel):
     """SQL analysis results from the analyzing-table/view skill."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     status: str = ""
     sql_elements: list[Any] | None = None
     call_tree: dict[str, Any] | None = None
     logic_summary: str | None = None
     rationale: str | None = None
+    validation: dict[str, Any] | None = None
     warnings: list[Any] = []
     errors: list[Any] = []
 
@@ -120,7 +123,7 @@ class ViewScopingSection(BaseModel):
 class TableProfileSection(BaseModel):
     """Profiling results for a table (classification, keys, PII, etc.)."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     status: str = ""
     writer: str = ""
@@ -137,7 +140,7 @@ class TableProfileSection(BaseModel):
 class ViewProfileSection(BaseModel):
     """Profiling results for a view (stg/mart classification)."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     status: str = ""
     classification: str = ""
@@ -153,7 +156,7 @@ class ViewProfileSection(BaseModel):
 class RefactorSection(BaseModel):
     """CTE restructuring results from the refactoring-sql skill."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     status: str = ""
     extracted_sql: str | None = None
@@ -168,7 +171,7 @@ class RefactorSection(BaseModel):
 class TestGenSection(BaseModel):
     """Test generation summary from the test-harness write command."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     status: str = ""
     test_spec_path: str | None = None
@@ -182,7 +185,7 @@ class TestGenSection(BaseModel):
 class GenerateSection(BaseModel):
     """dbt model generation summary from the migrate write-catalog command."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     status: str = ""
     model_path: str | None = None
@@ -200,7 +203,7 @@ class GenerateSection(BaseModel):
 class ReviewCoverageSection(BaseModel):
     """Coverage scoring from the reviewing-tests skill."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     total_branches: int = 0
     covered_branches: int = 0
@@ -213,7 +216,7 @@ class ReviewCoverageSection(BaseModel):
 class ReviewFeedbackSection(BaseModel):
     """Feedback for the test generator from the reviewing-tests skill."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     uncovered_branches: list[str] = []
     quality_fixes: list[str] = []
@@ -222,7 +225,7 @@ class ReviewFeedbackSection(BaseModel):
 class TestReviewResult(BaseModel):
     """Output of the reviewing-tests skill."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     item_id: str = ""
     status: str = ""
@@ -251,6 +254,7 @@ class TableCatalog(BaseModel):
     auto_increment_columns: list[Any] = []
     change_capture: Any | None = None
     sensitivity_classifications: list[Any] = []
+    statements: list[Any] = []
     referenced_by: ReferencedByBucket | None = None
     scoping: TableScopingSection | None = None
     profile: TableProfileSection | None = None
@@ -259,6 +263,10 @@ class TableCatalog(BaseModel):
     generate: GenerateSection | None = None
     excluded: bool = False
     is_source: bool = False
+    ddl_hash: str | None = None
+    stale: bool = False
+    warnings: list[Any] = []
+    errors: list[Any] = []
 
 
 class ProcedureCatalog(BaseModel):
@@ -278,6 +286,10 @@ class ProcedureCatalog(BaseModel):
     statements: list[Any] = []
     table_slices: dict[str, Any] = {}
     refactor: RefactorSection | None = None
+    ddl_hash: str | None = None
+    stale: bool = False
+    warnings: list[Any] = []
+    errors: list[Any] = []
 
 
 class ViewCatalog(BaseModel):
@@ -290,6 +302,7 @@ class ViewCatalog(BaseModel):
     references: ReferencesBucket | None = None
     referenced_by: ReferencedByBucket | None = None
     is_materialized_view: bool = False
+    sql: str | None = None
     columns: list[Any] = []
     primary_keys: list[Any] = []
     unique_indexes: list[Any] = []
@@ -299,6 +312,10 @@ class ViewCatalog(BaseModel):
     test_gen: TestGenSection | None = None
     generate: GenerateSection | None = None
     excluded: bool = False
+    ddl_hash: str | None = None
+    stale: bool = False
+    warnings: list[Any] = []
+    errors: list[Any] = []
 
 
 class FunctionCatalog(BaseModel):
@@ -310,3 +327,7 @@ class FunctionCatalog(BaseModel):
     name: str = ""
     references: ReferencesBucket | None = None
     referenced_by: ReferencedByBucket | None = None
+    ddl_hash: str | None = None
+    stale: bool = False
+    warnings: list[Any] = []
+    errors: list[Any] = []
