@@ -173,9 +173,7 @@
     }
   },
   "scoping": {
-    "status": "resolved",
-    "selected_writer": "silver.usp_load_DimProduct",
-    "selected_writer_rationale": "Single MERGE writer for DimProduct."
+    "status": "pending"
   },
   "profile": {
     "status": "ok",
@@ -204,8 +202,7 @@
     "pii_actions": []
   },
   "scoping": {
-    "status": "resolved",
-    "selected_writer": "silver.usp_load_DimProduct"
+    "status": "pending"
   },
   "refactor": {
     "status": "ok",
