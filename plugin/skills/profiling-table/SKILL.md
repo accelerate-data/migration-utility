@@ -55,13 +55,23 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" profile view-context \
   --view <view_fqn>
 ```
 
-Output is a JSON matching `lib/shared/schemas/view_profile_context.json`. It contains:
+Output is a `ViewProfileContext` (Pydantic model in `lib/shared/output_models.py`):
 
-- `view` — normalized FQN
-- `is_materialized_view` — true for Oracle MVs and SQL Server indexed views
-- `sql_elements` — SQLglot-extracted SQL features (join, aggregation, window_function, case, subquery, cte, group_by); null if DDL parse failed
-- `logic_summary` — plain-language description of what the view computes
-- `columns` — present only for materialized views
+```json
+{
+  "view": "<normalized FQN>",
+  "is_materialized_view": bool,
+  "sql_elements": [{"type": "join|aggregation|window_function|case|subquery|cte|group_by", "detail": "..."}] | null,
+  "logic_summary": "<plain-language description>" | null,
+  "columns": [{"name": str, "sql_type": str}],  // MV only
+  "references": {"tables|views|functions": {"in_scope": [{"schema": str, "name": str, "object_type": str}], "out_of_scope": [...]}},
+  "referenced_by": {"procedures|views|functions": {"in_scope": [{"schema": str, "name": str, "object_type": str}], "out_of_scope": [...]}},
+  "warnings": [], "errors": []
+}
+```
+
+Key fields:
+
 - `references` — outbound refs (tables, views, functions) with `object_type` on each in_scope entry
 - `referenced_by` — inbound refs (procedures, views, functions) with `object_type` on each in_scope entry
 
@@ -134,7 +144,20 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" profile context \
 
 The CLI reads the selected writer from the table's catalog scoping section — no `--writer` argument needed.
 
-This reads catalog signals, writer references, proc body, column list, and related procedure context. Output is a JSON matching `lib/shared/schemas/profile_context.json`.
+This reads catalog signals, writer references, proc body, column list, and related procedure context. Output is a `ProfileContext` (Pydantic model in `lib/shared/output_models.py`):
+
+```json
+{
+  "table": "<normalized FQN>",
+  "writer": "<writer procedure FQN>",
+  "catalog_signals": {"primary_keys": [...], "foreign_keys": [...], "auto_increment_columns": [...], "unique_indexes": [...], "change_capture": {...} | null, "sensitivity_classifications": [...]},
+  "writer_references": {"tables|views|functions|procedures": {"in_scope": [...], "out_of_scope": [...]}},
+  "proc_body": "<full SQL body>",
+  "columns": [{"name": str, "sql_type": str, "is_nullable": bool, "is_identity": bool}],
+  "related_procedures": [{"procedure": "<FQN>", "proc_body": "<SQL>", "references": {...}}],
+  "writer_ddl_slice": "<DDL slice for target table>" | null
+}
+```
 
 If exit code is non-zero, stop and report the error.
 

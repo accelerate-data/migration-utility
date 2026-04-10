@@ -87,8 +87,9 @@ Discover CLI output shapes are now enforced by Pydantic models in `output_models
 
 | Schema | Agent | Required fields |
 |---|---|---|
-| [profiler_input.json](profiler_input.json) | Profiler | `schema_version`, `run_id`, `items[].item_id` |
 | [model_generator_input.json](model_generator_input.json) | Model Generator | `schema_version`, `run_id`, `items[].item_id` |
+
+The profiler input contract is documented inline in `profiling-table/SKILL.md`. Shape: `{schema_version: "1.0", run_id: UUID, items: [{item_id: "<schema.table>", selected_writer: "<schema.proc>"}]}`.
 
 ## Agent output schemas
 
@@ -102,6 +103,7 @@ Discover CLI output shapes are now enforced by Pydantic models in `output_models
 
 | Schema | Skill / Command | Notes |
 |---|---|---|
-| [profile_context.json](profile_context.json) | `profile.py context` | Deterministic context assembly for LLM profiling: table, writer, catalog signals, writer references, proc body, columns, related procedures |
 | [test_spec.json](test_spec.json) | `/generating-tests` skill | Per-item test spec written to `test-specs/<item_id>.json`: branch manifest, unit tests with fixtures and ground truth, coverage status |
+
+Profile context output shapes (`ProfileContext`, `ViewProfileContext`) are enforced by Pydantic models in `output_models.py`. The JSON schema files have been removed.
 | [sandbox_status_output.json](sandbox_status_output.json) | `test-harness sandbox-status` | Sandbox existence check result: database name, exists boolean |
