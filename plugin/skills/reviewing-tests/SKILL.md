@@ -116,31 +116,7 @@ Assemble the context:
 
 Enumerate all conditional branches from `proc_body` and `statements` independently. Do NOT read or trust the generator's `branch_manifest` — build your own.
 
-**For tables:**
-
-| Pattern | Branches |
-|---|---|
-| MERGE WHEN clauses | One per clause (MATCHED, NOT MATCHED, NOT MATCHED BY SOURCE) |
-| CASE/WHEN | One per arm + ELSE |
-| JOIN | Match, no-match (LEFT JOIN NULL right side), partial multi-condition |
-| WHERE | Pass, fail |
-| Subquery | EXISTS true/false, IN match/miss |
-| NULL handling | NULL vs non-NULL in filters, joins, COALESCE/ISNULL |
-| Aggregation | Single group, multiple groups, empty source |
-| Type boundaries | Watermark edges, MAX int, empty string |
-| Empty source | Zero-row edge case per source table |
-
-**For views**, use SELECT-level patterns only:
-
-| Pattern | Branches |
-|---|---|
-| WHERE | Pass, fail |
-| JOIN | Match, no-match (LEFT JOIN NULL right side), partial multi-condition |
-| CASE/WHEN | One per arm + ELSE |
-| Subquery | EXISTS true/false, IN match/miss |
-| NULL handling | NULL vs non-NULL in filters, joins, COALESCE/ISNULL |
-| Aggregation | Single group, multiple groups, empty source (with/without HAVING) |
-| Empty source | Zero-row edge case per source table |
+Use the pattern tables in [../_shared/references/branch-patterns.md](../_shared/references/branch-patterns.md) to enumerate branches. Apply the **Table patterns** section for tables and the **View patterns** section for views.
 
 Assign each branch a stable `id` (snake_case, descriptive) and a human-readable `description`. Record the full list as the reviewer's branch manifest.
 
@@ -234,3 +210,8 @@ Test reviewer must not:
 | `test-harness validate-review` | 1 | Validation failure — fix the JSON fields reported in the error and retry |
 
 Return a valid `TestReviewResult` JSON for all error paths.
+
+## References
+
+- [`../_shared/references/branch-patterns.md`](../_shared/references/branch-patterns.md) — conditional branch enumeration patterns for tables and views
+- [`../../lib/shared/generate_tests_error_codes.md`](../../lib/shared/generate_tests_error_codes.md) — canonical generating-tests and reviewing-tests statuses and surfaced error/warning codes

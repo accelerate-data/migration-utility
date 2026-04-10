@@ -1,14 +1,14 @@
 ---
 name: analyzing-table
 description: >
-  Scoping for a single table, view, or materialized view. For tables: discovers writer procedures, analyzes candidates, resolves the selected writer. For views/MVs: extracts SQL elements, builds call tree, generates logic summary. Auto-detects object type from catalog presence.
+  Analyzes a single table, view, or materialized view for migration scoping. For tables: discovers writer procedures, analyzes candidates, resolves the selected writer. For views/MVs: extracts SQL elements, builds call tree, generates logic summary. Auto-detects object type from catalog presence.
 user-invocable: true
 argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 ---
 
-# Scoping
+# Analyzing Table
 
-Scope a table, view, or materialized view and persist the scoping decision to the catalog.
+Analyze a table, view, or materialized view — discover writer candidates, evaluate them, and persist the scoping decision to the catalog.
 
 ## Arguments
 
