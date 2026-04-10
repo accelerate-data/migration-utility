@@ -8,11 +8,20 @@
   "scoping": {
     "status": "no_writer_found",
     "candidates": [],
-    "rationale": "No procedures write to this table"
+    "selected_writer_rationale": "No procedures write to this table"
   },
   "referenced_by": {
-    "procedures": {"in_scope": [], "out_of_scope": []},
-    "views": {"in_scope": [], "out_of_scope": []},
-    "functions": {"in_scope": [], "out_of_scope": []}
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
   }
 }

@@ -8,7 +8,7 @@ the contract and code must stay in sync.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 # ── Shared config ───────────────────────────────────────────────────────────
 
 _CATALOG_CONFIG = ConfigDict(extra="forbid", populate_by_name=True)
+_STRICT_CONFIG = ConfigDict(extra="forbid")
 
 
 # ── Shared reference models ─────────────────────────────────────────────────
@@ -41,7 +42,7 @@ class RefEntry(BaseModel):
 class ScopedRefList(BaseModel):
     """Scoped reference list: in_scope + out_of_scope."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = _STRICT_CONFIG
 
     in_scope: list[RefEntry] = []
     out_of_scope: list[RefEntry] = []
@@ -50,7 +51,7 @@ class ScopedRefList(BaseModel):
 class ReferencesBucket(BaseModel):
     """Outbound references from a proc/view/function to other objects."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = _STRICT_CONFIG
 
     tables: ScopedRefList = ScopedRefList()
     views: ScopedRefList = ScopedRefList()
@@ -61,7 +62,7 @@ class ReferencesBucket(BaseModel):
 class ReferencedByBucket(BaseModel):
     """Inbound references to a table/view from other objects."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = _STRICT_CONFIG
 
     procedures: ScopedRefList = ScopedRefList()
     views: ScopedRefList = ScopedRefList()
@@ -74,7 +75,7 @@ class ReferencedByBucket(BaseModel):
 class StatementEntry(BaseModel):
     """A single resolved statement in a procedure catalog."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = _STRICT_CONFIG
 
     action: str
     source: str
@@ -84,37 +85,107 @@ class StatementEntry(BaseModel):
     index: int | None = None
 
 
+# ── Diagnostics entry ──────────────────────────────────────────────────────
+
+
+class DiagnosticsEntry(BaseModel):
+    """A single warning or error entry (mirrors common.json#/$defs/diagnostics_entry)."""
+
+    model_config = _STRICT_CONFIG
+
+    code: str
+    message: str
+    severity: Literal["error", "warning"]
+    item_id: str | None = None
+    field: str | None = None
+    details: dict[str, Any] | None = None
+
+
 # ── Per-type scoping sections ───────────────────────────────────────────────
+
+
+class CandidateWriter(BaseModel):
+    """A single candidate writer procedure discovered during table scoping."""
+
+    model_config = _STRICT_CONFIG
+
+    procedure_name: str
+    rationale: str
+    dependencies: dict[str, Any] | None = None
 
 
 class TableScopingSection(BaseModel):
     """Writer-selection results from the analyzing-table skill."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = _STRICT_CONFIG
 
     status: str = ""
     selected_writer: str | None = None
     selected_writer_rationale: str | None = None
-    rationale: str | None = None
-    candidates: list[Any] | None = None
-    validation: dict[str, Any] | None = None
-    warnings: list[Any] = []
-    errors: list[Any] = []
+    candidates: list[CandidateWriter] | None = None
+    warnings: list[DiagnosticsEntry] = []
+    errors: list[DiagnosticsEntry] = []
+
+
+class SqlElement(BaseModel):
+    """A single SQL structural element discovered during view scoping."""
+
+    model_config = _STRICT_CONFIG
+
+    type: str
+    detail: str
 
 
 class ViewScopingSection(BaseModel):
     """SQL analysis results from the analyzing-table/view skill."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = _STRICT_CONFIG
 
     status: str = ""
-    sql_elements: list[Any] | None = None
+    sql_elements: list[SqlElement] | None = None
     call_tree: dict[str, Any] | None = None
     logic_summary: str | None = None
     rationale: str | None = None
-    validation: dict[str, Any] | None = None
-    warnings: list[Any] = []
-    errors: list[Any] = []
+    warnings: list[DiagnosticsEntry] = []
+    errors: list[DiagnosticsEntry] = []
+
+
+# ── Scoping summary (batch rollup) ────────────────────────────────────────
+
+
+class ScopingResultItem(BaseModel):
+    """Per-item status in a scoping batch run."""
+
+    model_config = _STRICT_CONFIG
+
+    item_id: str
+    status: Literal[
+        "resolved", "ambiguous_multi_writer", "no_writer_found", "analyzed", "error",
+    ]
+
+
+class ScopingSummaryCounts(BaseModel):
+    """Aggregate counts for a scoping batch run."""
+
+    model_config = _STRICT_CONFIG
+
+    total: int
+    resolved: int
+    ambiguous_multi_writer: int
+    no_writer_found: int
+    analyzed: int
+    error: int
+
+
+class ScopingSummary(BaseModel):
+    """Batch rollup written to ``.migration-runs/summary.<epoch>.json`` by the scope command."""
+
+    model_config = _STRICT_CONFIG
+
+    schema_version: Literal["1.0"]
+    run_id: str
+    results: list[ScopingResultItem]
+    summary: ScopingSummaryCounts
 
 
 # ── Per-type profile sections ───────────────────────────────────────────────
@@ -123,7 +194,7 @@ class ViewScopingSection(BaseModel):
 class TableProfileSection(BaseModel):
     """Profiling results for a table (classification, keys, PII, etc.)."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = _STRICT_CONFIG
 
     status: str = ""
     writer: str = ""
@@ -140,7 +211,7 @@ class TableProfileSection(BaseModel):
 class ViewProfileSection(BaseModel):
     """Profiling results for a view (stg/mart classification)."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = _STRICT_CONFIG
 
     status: str = ""
     classification: str = ""
@@ -156,7 +227,7 @@ class ViewProfileSection(BaseModel):
 class RefactorSection(BaseModel):
     """CTE restructuring results from the refactoring-sql skill."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = _STRICT_CONFIG
 
     status: str = ""
     extracted_sql: str | None = None
@@ -171,7 +242,7 @@ class RefactorSection(BaseModel):
 class TestGenSection(BaseModel):
     """Test generation summary from the test-harness write command."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = _STRICT_CONFIG
 
     status: str = ""
     test_spec_path: str | None = None
@@ -185,7 +256,7 @@ class TestGenSection(BaseModel):
 class GenerateSection(BaseModel):
     """dbt model generation summary from the migrate write-catalog command."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = _STRICT_CONFIG
 
     status: str = ""
     model_path: str | None = None
@@ -203,7 +274,7 @@ class GenerateSection(BaseModel):
 class ReviewCoverageSection(BaseModel):
     """Coverage scoring from the reviewing-tests skill."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = _STRICT_CONFIG
 
     total_branches: int = 0
     covered_branches: int = 0
@@ -216,7 +287,7 @@ class ReviewCoverageSection(BaseModel):
 class ReviewFeedbackSection(BaseModel):
     """Feedback for the test generator from the reviewing-tests skill."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = _STRICT_CONFIG
 
     uncovered_branches: list[str] = []
     quality_fixes: list[str] = []
@@ -225,7 +296,7 @@ class ReviewFeedbackSection(BaseModel):
 class TestReviewResult(BaseModel):
     """Output of the reviewing-tests skill."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = _STRICT_CONFIG
 
     item_id: str = ""
     status: str = ""

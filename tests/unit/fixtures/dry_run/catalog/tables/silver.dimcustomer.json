@@ -56,10 +56,6 @@
       }
     ],
     "warnings": [],
-    "validation": {
-      "passed": true,
-      "issues": []
-    },
     "errors": []
   },
   "profile": {

@@ -9,11 +9,20 @@
     "status": "resolved",
     "selected_writer": "dbo.usp_load_dimgeography",
     "candidates": [],
-    "rationale": ""
+    "selected_writer_rationale": ""
   },
   "referenced_by": {
-    "procedures": {"in_scope": [], "out_of_scope": []},
-    "views": {"in_scope": [], "out_of_scope": []},
-    "functions": {"in_scope": [], "out_of_scope": []}
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
   }
 }
