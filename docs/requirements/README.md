@@ -53,6 +53,7 @@ UAT is Vibedata's standard CI/CD — the utility doesn't own it. When the FDE op
 | Document | Purpose |
 |----------|---------|
 | [decisions.md](decisions.md) | Binding architectural decisions (DEC-01 through DEC-24). Read before changing any architectural boundary. |
+| [migration-project-management/README.md](migration-project-management/README.md) | Paperclip orchestration model for one migration project: planner, workers, heartbeat reconciliation, scope ownership, and human escalation. |
 | [research/vibedata-architecture.md](research/vibedata-architecture.md) | Vibedata platform architecture: modules, agents, deployment, CI/CD. |
 | [research/vibedata-strategy.md](research/vibedata-strategy.md) | Problem statement, personas, differentiation, metrics. |
 | [research/](research/) | dbt unit test strategy, domain memory management, competitor analysis. |
