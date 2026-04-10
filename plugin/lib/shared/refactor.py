@@ -25,8 +25,6 @@ from pathlib import Path
 from typing import Any, Optional
 
 import typer
-from jsonschema import Draft202012Validator
-from referencing import Registry, Resource
 
 from shared.catalog import (
     load_and_merge_catalog,
@@ -55,73 +53,25 @@ from shared.loader import (
 )
 from shared.catalog_models import RefactorSection
 from shared.cli_utils import emit
+from shared.output_models import (
+    CompareSqlOutput,
+    RefactorContextOutput,
+    RefactorSweepOutput,
+    RefactorWriteOutput,
+    SweepObject,
+)
 from shared.env_config import resolve_catalog_dir, resolve_dbt_project_path, resolve_project_root
 from shared.name_resolver import fqn_parts, normalize
 
 logger = logging.getLogger(__name__)
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
-_SCHEMA_DIR = Path(__file__).with_name("schemas")
 
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
 REFACTOR_STATUSES = frozenset({"ok", "partial", "error"})
 WRITE_KEYWORDS = ("insert ", "update ", "delete ", "merge ", "exec ", "create ", "alter ", "drop ")
-
-
-# ── Helpers ──────────────────────────────────────────────────────────────────
-
-
-_SCHEMA_REGISTRY_CACHE: tuple[dict[str, Any], Registry] | None = None
-
-
-def _get_schema_registry() -> tuple[dict[str, Any], Registry]:
-    """Load all schemas and build a registry, cached for the process lifetime."""
-    global _SCHEMA_REGISTRY_CACHE  # noqa: PLW0603
-    if _SCHEMA_REGISTRY_CACHE is not None:
-        return _SCHEMA_REGISTRY_CACHE
-    registry = Registry()
-    loaded: dict[str, Any] = {}
-    for schema_path in _SCHEMA_DIR.glob("*.json"):
-        schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        loaded[schema_path.name] = schema
-        resource = Resource.from_contents(schema)
-        registry = registry.with_resource(schema_path.name, resource)
-        registry = registry.with_resource(schema_path.resolve().as_uri(), resource)
-    _SCHEMA_REGISTRY_CACHE = (loaded, registry)
-    return _SCHEMA_REGISTRY_CACHE
-
-
-def _load_schema_with_store(schema_name: str) -> tuple[dict[str, Any], Registry]:
-    """Load a schema file and registry for local schema references."""
-    loaded, registry = _get_schema_registry()
-    return loaded[schema_name], registry
-
-
-def _format_validation_errors(errors: list[Any]) -> str:
-    """Render jsonschema validation errors in compact, retry-friendly form."""
-    parts: list[str] = []
-    for error in errors:
-        path = "/" + "/".join(str(segment) for segment in error.absolute_path)
-        parts.append(f"{path or '/'}: {error.message}")
-    return "; ".join(parts)
-
-
-def _validate_schema_fragment(data: Any, schema_name: str, fragment_path: str) -> None:
-    """Validate data against a schema fragment and raise field-level ValueError."""
-    schema, registry = _load_schema_with_store(schema_name)
-    wrapper_schema = {
-        "$schema": schema.get("$schema", "https://json-schema.org/draft/2020-12/schema"),
-        "$ref": f"{schema_name}#/{fragment_path}",
-    }
-    validator = Draft202012Validator(wrapper_schema, registry=registry)
-    errors = sorted(validator.iter_errors(data), key=lambda err: list(err.absolute_path))
-    if errors:
-        raise ValueError(
-            f"Schema validation failed for {schema_name}#/{fragment_path}: "
-            f"{_format_validation_errors(errors)}"
-        )
 
 
 # ── Symmetric diff ───────────────────────────────────────────────────────────
@@ -191,7 +141,7 @@ def _run_context_view(
     project_root: Path,
     fqn_norm: str,
     cat: Any,
-) -> dict[str, Any]:
+) -> RefactorContextOutput:
     """Assemble refactoring context for a view or materialized view."""
     view_sql = cat.sql
     if not view_sql:
@@ -213,23 +163,23 @@ def _run_context_view(
         object_type, fqn_norm, len(source_tables),
     )
 
-    return {
-        "table": fqn_norm,
-        "object_type": object_type,
-        "view_sql": view_sql,
-        "profile": profile.model_dump(by_alias=True, exclude_none=True) if hasattr(profile, "model_dump") else profile,
-        "columns": columns,
-        "source_tables": source_tables,
-        "test_spec": test_spec,
-        "sandbox": sandbox,
-    }
+    return RefactorContextOutput(
+        table=fqn_norm,
+        object_type=object_type,
+        view_sql=view_sql,
+        profile=profile.model_dump(by_alias=True, exclude_none=True) if hasattr(profile, "model_dump") else profile,
+        columns=columns,
+        source_tables=source_tables,
+        test_spec=test_spec,
+        sandbox=sandbox,
+    )
 
 
 def run_context(
     project_root: Path,
     table_fqn: str,
     writer_fqn: str | None = None,
-) -> dict[str, Any]:
+) -> RefactorContextOutput:
     """Assemble refactoring context for a table, view, or materialized view.
 
     Auto-detects object type from catalog presence:
@@ -277,19 +227,19 @@ def run_context(
         len(test_spec.get("unit_tests", [])) if test_spec else 0,
     )
 
-    return {
-        "table": fqn_norm,
-        "writer": writer_norm,
-        "proc_body": proc_body,
-        "profile": profile.model_dump(by_alias=True, exclude_none=True) if hasattr(profile, "model_dump") else profile,
-        "statements": statements,
-        "columns": columns,
-        "source_tables": source_tables,
-        "source_columns": source_columns,
-        "test_spec": test_spec,
-        "sandbox": sandbox,
-        "writer_ddl_slice": writer_ddl_slice,
-    }
+    return RefactorContextOutput(
+        table=fqn_norm,
+        writer=writer_norm,
+        proc_body=proc_body,
+        profile=profile.model_dump(by_alias=True, exclude_none=True) if hasattr(profile, "model_dump") else profile,
+        statements=statements,
+        columns=columns,
+        source_tables=source_tables,
+        source_columns=source_columns,
+        test_spec=test_spec,
+        sandbox=sandbox,
+        writer_ddl_slice=writer_ddl_slice,
+    )
 
 
 # ── Write validation and merge ───────────────────────────────────────────────
@@ -357,19 +307,20 @@ def _summarize_compare_sql(compare_sql_result: dict[str, Any] | None, compare_re
             "failed_scenarios": [],
         }
 
+    # Validate input shape from test-harness compare-sql
+    validated = CompareSqlOutput.model_validate(compare_sql_result)
+
     failed_scenarios = [
-        result.get("scenario_name", "unknown")
-        for result in compare_sql_result.get("results", [])
-        if result.get("status") != "ok" or result.get("equivalent") is False
+        r.scenario_name
+        for r in validated.results
+        if r.status != "ok" or r.equivalent is False
     ]
-    scenarios_total = int(compare_sql_result.get("total", 0))
-    scenarios_passed = int(compare_sql_result.get("passed", 0))
     return {
         "required": compare_required,
         "executed": True,
-        "passed": len(failed_scenarios) == 0 and scenarios_total > 0,
-        "scenarios_total": scenarios_total,
-        "scenarios_passed": scenarios_passed,
+        "passed": len(failed_scenarios) == 0 and validated.total > 0,
+        "scenarios_total": validated.total,
+        "scenarios_passed": validated.passed,
         "failed_scenarios": failed_scenarios,
     }
 
@@ -406,7 +357,7 @@ def run_write(
     semantic_review: dict[str, Any] | None = None,
     compare_sql_result: dict[str, Any] | None = None,
     compare_required: bool = True,
-) -> dict[str, Any]:
+) -> RefactorWriteOutput:
     """Validate and merge a refactor section into the catalog.
 
     Auto-detects object type:
@@ -448,7 +399,6 @@ def run_write(
     # Auto-detect: check view catalog first
     view_cat_model = load_view_catalog(project_root, table_norm)
     if view_cat_model is not None:
-        _validate_schema_fragment(refactor_data, "view_catalog.json", "properties/refactor")
         RefactorSection.model_validate(refactor_data)
         return _run_write_view(project_root, table_norm, refactor_data)
 
@@ -481,7 +431,6 @@ def run_write(
 
     # Merge refactor section onto procedure catalog
     existing["refactor"] = refactor_data
-    _validate_schema_fragment(refactor_data, "procedure_catalog.json", "properties/refactor")
 
     try:
         _write_catalog_json(catalog_path, existing)
@@ -496,28 +445,33 @@ def run_write(
         "event=write_complete table=%s writer=%s catalog_path=%s",
         table_norm, writer_norm, catalog_path,
     )
-    return {
-        "ok": True,
-        "table": table_norm,
-        "status": status,
-        "writer": writer_norm,
-        "catalog_path": str(catalog_path),
-    }
+    return RefactorWriteOutput(
+        ok=True,
+        table=table_norm,
+        status=status,
+        writer=writer_norm,
+        catalog_path=str(catalog_path),
+    )
 
 
 def _run_write_view(
     project_root: Path,
     fqn_norm: str,
     refactor_data: dict[str, Any],
-) -> dict[str, Any]:
+) -> RefactorWriteOutput:
     """Write refactor block to a view catalog file."""
     result = load_and_merge_catalog(project_root, fqn_norm, "refactor", refactor_data)
-    result["object_type"] = "view"
     logger.info(
         "event=write_complete object_type=view view=%s catalog_path=%s",
         fqn_norm, result["catalog_path"],
     )
-    return result
+    return RefactorWriteOutput(
+        ok=result["ok"],
+        table=result["table"],
+        status=result.get("status"),
+        catalog_path=result["catalog_path"],
+        object_type="view",
+    )
 
 
 # ── Sweep ────────────────────────────────────────────────────────────────────
@@ -559,19 +513,19 @@ def _recommend_action(refactor_status: str | None) -> str:
 def run_sweep(
     project_root: Path,
     fqns: list[str],
-) -> dict[str, Any]:
+) -> RefactorSweepOutput:
     """Run the planning sweep across a batch of FQNs.
 
     For each FQN, reads catalog status and checks for existing dbt models.
     Detects shared staging candidates across the batch and persists
     ``refactor.shared_sources`` on each affected catalog entry.
 
-    Returns the sweep plan artifact dict.
+    Returns the sweep plan artifact.
     """
     dbt_path = resolve_dbt_project_path(project_root)
     catalog_dir = resolve_catalog_dir(project_root)
 
-    objects: list[dict[str, Any]] = []
+    objects: list[SweepObject] = []
     # Track source tables per non-skip FQN for shared staging detection
     source_map: dict[str, list[str]] = {}
 
@@ -583,16 +537,16 @@ def run_sweep(
         if view_cat is not None:
             refactor_status = view_cat.refactor.status if view_cat.refactor else None
             source_tables = collect_view_source_tables(project_root, fqn_norm)
-            obj = {
-                "fqn": fqn_norm,
-                "object_type": "view",
-                "writer": None,
-                "refactor_status": refactor_status,
-                "source_tables": source_tables,
-                "existing_stg_models": _check_stg_models(dbt_path, source_tables),
-                "existing_mart_model": _check_mart_model(dbt_path, fqn_norm),
-                "recommended_action": _recommend_action(refactor_status),
-            }
+            obj = SweepObject(
+                fqn=fqn_norm,
+                object_type="view",
+                writer=None,
+                refactor_status=refactor_status,
+                source_tables=source_tables,
+                existing_stg_models=_check_stg_models(dbt_path, source_tables),
+                existing_mart_model=_check_mart_model(dbt_path, fqn_norm),
+                recommended_action=_recommend_action(refactor_status),
+            )
         else:
             writer_fqn = read_selected_writer(project_root, fqn_norm)
             refactor_status: str | None = None
@@ -603,22 +557,22 @@ def run_sweep(
                 if proc_cat:
                     refactor_status = proc_cat.refactor.status if proc_cat.refactor else None
                     source_tables = collect_source_tables(project_root, writer_norm)
-            obj = {
-                "fqn": fqn_norm,
-                "object_type": "table",
-                "writer": normalize(writer_fqn) if writer_fqn else None,
-                "refactor_status": refactor_status,
-                "source_tables": source_tables,
-                "existing_stg_models": _check_stg_models(dbt_path, source_tables),
-                "existing_mart_model": _check_mart_model(dbt_path, fqn_norm),
-                "recommended_action": _recommend_action(refactor_status),
-            }
+            obj = SweepObject(
+                fqn=fqn_norm,
+                object_type="table",
+                writer=normalize(writer_fqn) if writer_fqn else None,
+                refactor_status=refactor_status,
+                source_tables=source_tables,
+                existing_stg_models=_check_stg_models(dbt_path, source_tables),
+                existing_mart_model=_check_mart_model(dbt_path, fqn_norm),
+                recommended_action=_recommend_action(refactor_status),
+            )
 
         objects.append(obj)
 
         # Track sources for non-skip objects
-        if obj["recommended_action"] != "skip":
-            source_map[fqn_norm] = obj["source_tables"]
+        if obj.recommended_action != "skip":
+            source_map[fqn_norm] = obj.source_tables
 
     # Detect shared staging candidates
     all_sources: list[str] = []
@@ -636,34 +590,34 @@ def run_sweep(
         len(objects), len(shared_staging),
     )
 
-    return {
-        "epoch": int(_time.time()),
-        "objects": objects,
-        "shared_staging_candidates": shared_staging,
-    }
+    return RefactorSweepOutput(
+        epoch=int(_time.time()),
+        objects=objects,
+        shared_staging_candidates=shared_staging,
+    )
 
 
 def _persist_shared_sources(
     project_root: Path,
     catalog_dir: Path,
-    objects: list[dict[str, Any]],
+    objects: list[SweepObject],
     shared_staging: list[str],
 ) -> None:
     """Write shared_sources into each affected procedure/view catalog's refactor section."""
     shared_set = set(shared_staging)
 
     for obj in objects:
-        if obj["recommended_action"] == "skip":
+        if obj.recommended_action == "skip":
             continue
-        obj_shared = sorted(set(obj["source_tables"]) & shared_set)
+        obj_shared = sorted(set(obj.source_tables) & shared_set)
         if not obj_shared:
             continue
 
-        fqn = obj["fqn"]
-        if obj["object_type"] == "view":
+        fqn = obj.fqn
+        if obj.object_type == "view":
             cat_path = catalog_dir / "views" / f"{fqn}.json"
         else:
-            writer = obj.get("writer")
+            writer = obj.writer
             if not writer:
                 continue
             cat_path = catalog_dir / "procedures" / f"{writer}.json"
@@ -754,11 +708,11 @@ def write(
         )
     except (ValueError, CatalogFileMissingError) as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)
-        emit({"ok": False, "error": str(exc), "table": normalize(table)})
+        emit(RefactorWriteOutput(ok=False, error=str(exc), table=normalize(table)))
         raise typer.Exit(code=1) from exc
     except (FileNotFoundError, OSError, CatalogLoadError) as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)
-        emit({"ok": False, "error": str(exc), "table": normalize(table)})
+        emit(RefactorWriteOutput(ok=False, error=str(exc), table=normalize(table)))
         raise typer.Exit(code=2) from exc
     emit(result)
 

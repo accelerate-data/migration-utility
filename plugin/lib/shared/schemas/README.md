@@ -106,4 +106,7 @@ The profiler input contract is documented inline in `profiling-table/SKILL.md`. 
 | [test_spec.json](test_spec.json) | `/generating-tests` skill | Per-item test spec written to `test-specs/<item_id>.json`: branch manifest, unit tests with fixtures and ground truth, coverage status |
 
 Profile context output shapes (`ProfileContext`, `ViewProfileContext`) are enforced by Pydantic models in `output_models.py`. The JSON schema files have been removed.
+
+Refactor CLI output shapes (`RefactorContextOutput`, `RefactorWriteOutput`, `RefactorSweepOutput`) and compare-sql input shape (`CompareSqlOutput`) are enforced by Pydantic models in `output_models.py`. The catalog `RefactorSection` model in `catalog_models.py` uses typed `SemanticReview` and `CompareSqlSummary` sub-models. The JSON schema files have been removed.
+
 | [sandbox_status_output.json](sandbox_status_output.json) | `test-harness sandbox-status` | Sandbox existence check result: database name, exists boolean |

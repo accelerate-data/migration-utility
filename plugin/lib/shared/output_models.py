@@ -1,7 +1,8 @@
 """Pydantic v2 models for CLI command output contracts.
 
 These models enforce the shape of JSON emitted by ``run_*`` functions in
-``discover.py``, ``dry_run.py``, ``batch_plan.py``, and ``profile.py``.
+``discover.py``, ``dry_run.py``, ``batch_plan.py``, ``profile.py``, and
+``refactor.py``.
 All models use ``extra="forbid"`` so unexpected fields raise immediately —
 the contract and code must stay in sync.
 
@@ -560,3 +561,135 @@ class ViewProfileContext(BaseModel):
     referenced_by: ViewReferencedBy
     warnings: list[DiagnosticEntry] = Field(default_factory=list)
     errors: list[DiagnosticEntry] = Field(default_factory=list)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# refactor context
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class RefactorContextOutput(BaseModel):
+    """Output of ``refactor context``.
+
+    Assembles all deterministic context needed for LLM SQL refactoring.
+    Auto-detects object type: tables include writer/proc_body/statements/source_columns;
+    views include view_sql instead.
+    """
+
+    model_config = _OUTPUT_CONFIG
+
+    table: str
+    object_type: Literal["table", "view", "mv"] | None = None
+    writer: str | None = None
+    proc_body: str | None = None
+    view_sql: str | None = None
+    profile: dict[str, Any]
+    statements: list[dict[str, Any]] | None = None
+    columns: list[Any]
+    source_tables: list[str]
+    source_columns: dict[str, list[Any]] | None = None
+    test_spec: dict[str, Any] | None = None
+    sandbox: dict[str, Any] | None = None
+    writer_ddl_slice: str | None = None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# refactor write
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class RefactorWriteOutput(BaseModel):
+    """Output of ``refactor write``.
+
+    On success (ok=True): table, status, writer/catalog_path are present.
+    On failure (ok=False): error is present.
+    Views include object_type="view" instead of writer.
+    """
+
+    model_config = _OUTPUT_CONFIG
+
+    ok: bool
+    table: str
+    status: str | None = None
+    writer: str | None = None
+    catalog_path: str | None = None
+    object_type: str | None = None
+    error: str | None = None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# refactor sweep
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class SweepObject(BaseModel):
+    """A single object entry in a refactor sweep plan."""
+
+    model_config = _OUTPUT_CONFIG
+
+    fqn: str
+    object_type: Literal["table", "view"]
+    writer: str | None = None
+    refactor_status: Literal["ok", "partial", "error"] | None = None
+    source_tables: list[str]
+    existing_stg_models: list[str]
+    existing_mart_model: str | None = None
+    recommended_action: Literal["skip", "re-refactor", "refactor"]
+
+
+class RefactorSweepOutput(BaseModel):
+    """Output of ``refactor sweep``.
+
+    Plan artifact produced before execution threads spawn.
+    """
+
+    model_config = _OUTPUT_CONFIG
+
+    epoch: int
+    objects: list[SweepObject]
+    shared_staging_candidates: list[str]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# compare-sql (input validation for _summarize_compare_sql)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class CompareSqlScenarioError(BaseModel):
+    """An error entry in a compare-sql scenario result."""
+
+    model_config = _OUTPUT_CONFIG
+
+    code: str
+    message: str
+
+
+class CompareSqlScenario(BaseModel):
+    """Per-scenario equivalence result from test-harness compare-sql."""
+
+    model_config = ConfigDict(extra="allow")
+
+    scenario_name: str
+    status: Literal["ok", "error"] | None = None
+    equivalent: bool | None = None
+    a_count: int | None = None
+    b_count: int | None = None
+    a_minus_b: list[dict[str, Any]] | None = None
+    b_minus_a: list[dict[str, Any]] | None = None
+    errors: list[CompareSqlScenarioError] | None = None
+
+
+class CompareSqlOutput(BaseModel):
+    """Output of ``test-harness compare-sql``.
+
+    Validated as input to ``_summarize_compare_sql()`` in ``refactor.py``.
+    """
+
+    model_config = _OUTPUT_CONFIG
+
+    schema_version: Literal["1.0"]
+    sandbox_database: str
+    total: int
+    passed: int
+    failed: int
+    results: list[CompareSqlScenario]
