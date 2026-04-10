@@ -94,7 +94,7 @@ def collect_object_diagnostics(
     diagnostics: list[dict[str, Any]] = []
 
     def _as_dict(entry: Any, default_severity: str) -> dict[str, Any]:
-        d = entry.model_dump() if hasattr(entry, "model_dump") else entry
+        d = entry.model_dump(exclude_none=True) if hasattr(entry, "model_dump") else entry
         if isinstance(d, dict) and "severity" not in d:
             d = {**d, "severity": default_severity}
         return d
@@ -151,7 +151,7 @@ def _compute_status_and_diagnostics(
     diagnostics: list[dict[str, Any]] = []
 
     def _as_dict(entry: Any, default_severity: str) -> dict[str, Any]:
-        d = entry.model_dump() if hasattr(entry, "model_dump") else entry
+        d = entry.model_dump(exclude_none=True) if hasattr(entry, "model_dump") else entry
         if isinstance(d, dict) and "severity" not in d:
             d = {**d, "severity": default_severity}
         return d

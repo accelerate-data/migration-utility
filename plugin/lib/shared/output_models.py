@@ -648,6 +648,20 @@ class RefactorSweepOutput(BaseModel):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# shared error entry (used by compare-sql + sandbox + test-harness)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class ErrorEntry(BaseModel):
+    """Reusable error item for sandbox and test-harness outputs."""
+
+    model_config = _OUTPUT_CONFIG
+
+    code: str
+    message: str
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # compare-sql (input validation for _summarize_compare_sql)
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -686,15 +700,6 @@ class CompareSqlOutput(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════
 # sandbox / test-harness
 # ═══════════════════════════════════════════════════════════════════════════
-
-
-class ErrorEntry(BaseModel):
-    """Reusable error item for sandbox and test-harness outputs."""
-
-    model_config = _OUTPUT_CONFIG
-
-    code: str
-    message: str
 
 
 class SandboxUpOutput(BaseModel):
