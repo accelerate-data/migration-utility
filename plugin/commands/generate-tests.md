@@ -10,7 +10,7 @@ argument-hint: "<schema.table> [schema.table ...]"
 
 # Generate Tests
 
-Generate test scenarios, review for coverage, then bulk-execute approved scenarios to capture ground truth. Launches one sub-agent per table in parallel, each running `ground-truth-harness:generating-tests`. Review runs as a separate sub-agent via `ground-truth-harness:reviewing-tests`.
+Generate test scenarios, review for coverage, then bulk-execute approved scenarios to capture ground truth. Launches one sub-agent per table in parallel, each running `/generating-tests`. Review runs as a separate sub-agent via `/reviewing-tests`.
 
 ## Guards
 
@@ -21,14 +21,6 @@ Generate test scenarios, review for coverage, then bulk-execute approved scenari
 - Check sandbox exists via `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-status`. If not found, fail all items with `SANDBOX_NOT_RUNNING` and tell user to check the sandbox with `/setup-sandbox` (it may have been torn down or the database dropped).
 
 Per-item readiness is checked by the skill via `migrate-util ready`.
-
-## Contracts
-
-Test spec and review output shapes are enforced by Pydantic models in `../lib/shared/output_models.py`:
-
-- `TestSpec` — per-item spec written to `test-specs/<item_id>.json` (see `generating-tests/SKILL.md` for shape)
-- `TestReviewOutput` — review result returned by the reviewing-tests skill (see `reviewing-tests/SKILL.md` for shape)
-- `TestSpecOutput` — batch wrapper: `{"schema_version": "1.0", "results": [TestSpec, ...], "summary": {"total": N, "ok": N, "partial": N, "error": N}}`
 
 ## Progress Tracking
 
@@ -49,12 +41,14 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 
 ### Step 2 — Generate scenarios per table
 
-**Single-table path (1 table):** Run `ground-truth-harness:generating-tests` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<run_id>.json`. Then continue to Step 3.
+Create `.migration-runs/` first if it does not already exist.
+
+**Single-table path (1 table):** Run `/generating-tests` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<run_id>.json`. Then continue to Step 3.
 
 **Multi-table path (2+ tables):** Launch one sub-agent per table in parallel. Each sub-agent receives this prompt:
 
 ```text
-Run the ground-truth-harness:generating-tests skill for <schema.table>.
+Run the /generating-tests skill for <schema.table>.
 The working directory is <working-directory>.
 Skip the Step 4 approval prompt — the review loop handles quality gating.
 Write the item result JSON to .migration-runs/<schema.table>.<run_id>.json.
@@ -82,8 +76,6 @@ For each item with approved scenarios:
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness execute-spec \
   --spec test-specs/<item_id>.json
 ```
-
-The CLI reads `sandbox.database` from `manifest.json`, executes all scenarios, captures ground truth, and writes `expect.rows` back into the file.
 
 **View entries:** When `execute-spec` encounters a test entry without a `procedure` key, it calls `execute_select` instead of `execute_scenario`, running the entry's `sql` SELECT directly against the sandbox. Fixture seeding and rollback work the same way.
 

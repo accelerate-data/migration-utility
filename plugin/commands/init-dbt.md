@@ -233,7 +233,7 @@ Once confirmation is done (or if `unconfirmed` was empty), generate and write `s
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" generate-sources --write --strict
 ```
 
-This reads every `.json` file in `catalog/tables/`, includes only tables where `is_source: true`, and excludes tables with `scoping.status == "resolved"` (procedure targets that become dbt models via `{{ ref() }}`). The output JSON reports `included`, `excluded`, `unconfirmed`, and `incomplete` table lists plus the written file path.
+The output JSON reports `included`, `excluded`, `unconfirmed`, and `incomplete` table lists plus the written file path.
 
 ## Step 5: Install and validate
 

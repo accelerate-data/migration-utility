@@ -1,13 +1,13 @@
 # Model Generator Skill Contract
 
-The model-generator skill reads approved profile and resolved statements from catalog files, consumes the approved test spec from `test-specs/` (mandatory — test generation runs before migration), then generates dbt project artifacts. The generator uses `refactored_sql` (CTE-structured SQL from the refactor stage) as its sole SQL input and applies a staging/mart split: import CTEs become ephemeral `stg_*` models, logical+final CTEs become the mart model. After generating the model, the model-generator runs `dbt test` against the test spec's `unit_tests:` and self-corrects until tests pass (or max iterations reached). The model-generator may also create additional tests beyond the spec. The code reviewer then reviews the output.
+The model-generator skill reads approved profile and resolved statements from catalog files, consumes the approved test spec from `test-specs/` (mandatory — test generation runs before migration), then generates dbt project artifacts. The generator uses `refactored_sql` (CTE-structured SQL from the refactor stage) as its sole SQL input and produces a single model that references sources via `{{ source() }}` directly with the full CTE chain inline. After generating the model, the model-generator runs `dbt test` against the test spec's `unit_tests:` and self-corrects until tests pass (or max iterations reached). The model-generator may also create additional tests beyond the spec. The code reviewer then reviews the output.
 
 ## Philosophy and Boundary
 
 - Model generator owns artifact generation (`.sql`, `.yml`, and related dbt resources).
 - Model generator reads approved profile from `catalog/tables/<item_id>.json` and resolved statements from `catalog/procedures/<writer>.json`. It derives materialization deterministically from profile classification and generates schema tests from profile answers.
 - Model generator uses `refactored_sql` as its sole SQL input. `proc_body` and `statements` are ignored during generation — they exist in context for the reviewer's correctness checks.
-- Model generator applies a staging/mart split: import CTEs from `refactored_sql` become ephemeral `stg_*` models, logical+final CTEs become the mart model. Before creating a new `stg_*` model, existing staging models are checked for reuse.
+- Model generator produces a single model that references sources via `{{ source() }}` directly with the full CTE chain inline. No staging models are generated.
 - Model generator reads the approved test spec from `test-specs/<item_id>.json` and renders `unit_tests[]` into the schema YAML alongside schema tests.
 - After generating artifacts, the model-generator runs `dbt test` against the unit tests. If tests fail, the model-generator revises the model and re-tests. Maximum self-correction iterations: 3.
 - Model generator fetches direct facts (schema, column types, relation metadata) using tools.
@@ -26,17 +26,13 @@ Outputs: profile (classification, keys, watermark, PII), derived materialization
 
 ### 2. GenerateModel (LLM)
 
-Using `refactored_sql` as the sole SQL input, apply the staging/mart split:
-
-1. **Staging models (`stg_<source_table>.sql`)** — one per import CTE in `refactored_sql`. Each is `materialized='ephemeral'` and does `select * from {{ source('<schema>', '<table>') }}` with light transforms only. Before creating a new staging model, check `dbt/models/staging/` for an existing one on the same source table — reuse via `{{ ref() }}` if compatible.
-2. **Mart model (`<target_table>.sql`)** — replaces import CTEs with `{{ ref('stg_...') }}` calls; logical and final CTEs stay as-is. Config block uses the profile-derived materialization.
+Using `refactored_sql` as the sole SQL input, generate a single model file (`<target_table>.sql`) that references sources via `{{ source() }}` directly. The full CTE chain (import, logical, final) stays inline in one file — no staging models are generated. Config block uses the profile-derived materialization.
 
 Apply style guides throughout:
 
 - [sql-style.md](../../../plugin/skills/reviewing-model/references/sql-style.md) — keywords, indentation, commas, aliases
 - [cte-structure.md](../../../plugin/skills/reviewing-model/references/cte-structure.md) — import-first order, `final` naming, no nested CTEs
 - [model-naming.md](../../../plugin/skills/reviewing-model/references/model-naming.md) — layer prefixes, `_dbt_run_id`, `_loaded_at` rules
-- [modular-modeling-ref.md](../../../plugin/skills/generating-model/references/modular-modeling-ref.md) — staging/mart split decision rules
 
 ### 3. LogicalEquivalenceCheck (LLM)
 
@@ -153,7 +149,7 @@ Per-item output written to `.migration-runs/`:
 ## Required Model Generator Guarantees
 
 - Generated dbt artifacts must reflect profile answers and `refactored_sql` faithfully.
-- Staging/mart split follows the rules in `modular-modeling-ref.md`: import CTEs become ephemeral `stg_*` models, logical+final CTEs become the mart model.
+- Models use `{{ source() }}` directly with the full CTE chain inline — no staging models are generated.
 - Schema tests are derived deterministically from profile (PK, FK, watermark, PII) and rendered into column/model-level dbt tests in `model_yaml`.
 - `unit_tests[]` from `test-specs/<item_id>.json` is rendered into `unit_tests:` blocks in `model_yaml`. All scenarios must be present — none dropped.
 - All unit tests must pass before the model-generator reports `status: "ok"`.

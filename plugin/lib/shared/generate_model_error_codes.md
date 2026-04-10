@@ -33,6 +33,7 @@ the `reviewing-model` skill.
 | `SCOPING_NOT_COMPLETED` | error | scoping is missing or unresolved for the target object | `error` |
 | `PROFILE_NOT_COMPLETED` | error | profile is missing or not complete enough for model generation | `error` |
 | `TEST_SPEC_NOT_FOUND` | error | approved test spec is missing when review or generation depends on it | `error` |
+| `TEST_SPEC_MISSING` | error | test spec not found for the table — run `/generate-tests` before `/generate-model` | `error` |
 | `CONTEXT_PREREQUISITE_MISSING` | error | `migrate context` could not assemble because a prerequisite is missing | `error` |
 | `CONTEXT_IO_ERROR` | error | `migrate context` failed with an IO or parse error | `error` |
 | `MODEL_NOT_FOUND` | error | generated model SQL or YAML files required for review are missing | `error` |

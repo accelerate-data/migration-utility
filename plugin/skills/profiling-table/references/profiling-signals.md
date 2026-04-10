@@ -109,8 +109,8 @@ If no declared PK:
 
 | Signal | Notes |
 |---|---|
-| MERGE ON clause in proc body | Business key / table grain — strongest code-level signal. Fabric Warehouse schemas often omit declared constraints. |
-| UPDATE / DELETE `WHERE col = @param` in proc | Single-row lookup key |
+| MERGE ON clause in proc body | Business key / table grain — strongest code-level signal. Source schemas may omit declared constraints. |
+| UPDATE / DELETE `WHERE col = @param` (T-SQL) / `WHERE col = :param` (Oracle) in proc | Single-row lookup key |
 
 ---
 
@@ -144,7 +144,7 @@ If no identity column:
 
 | Signal | Notes |
 |---|---|
-| `NEWID()` / `NEWSEQUENTIALID()` / `NEXT VALUE FOR` in proc body | Definitive proc-assigned surrogate |
+| `NEWID()` / `SYS_GUID()` / `NEXT VALUE FOR` / `sequence.NEXTVAL` in routine body | Definitive proc-assigned surrogate |
 | Column name suffix: `_sk` / `_guid` → surrogate; `_code` / `_number` → natural | Reliable in well-named Kimball schemas |
 | MERGE ON uses different column from INSERT's PK column | Classic pattern: MERGE ON `customer_id` (natural); INSERT populates `customer_sk` (surrogate) |
 
@@ -180,7 +180,7 @@ For remaining columns:
 | Signal | Notes |
 |---|---|
 | Column name patterns | `email`, `ssn`, `dob`, `phone`, `mobile`, `address`, `zip`, `postal_code`, `credit_card`, `card_number`, `passport`, `national_id`, `ip_address`, `birth_date`, `first_name`, `last_name`, `full_name`. Case-insensitive, fuzzy match. |
-| Column type + context | VARCHAR/NVARCHAR columns with PII-suggestive names deserve higher scrutiny |
+| Column type + context | VARCHAR/NVARCHAR/VARCHAR2 columns with PII-suggestive names deserve higher scrutiny |
 
 ### Suggested Actions
 

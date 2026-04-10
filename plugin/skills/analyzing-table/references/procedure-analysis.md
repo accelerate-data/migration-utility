@@ -15,15 +15,13 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show \
   --name <proc>
 ```
 
-This returns `refs`, `statements`, `needs_llm`, and `raw_ddl`.
-
 ### Step 2 — Classify statements
 
 Check the `needs_llm` field and `statements` array:
 
 - **`needs_llm: false`** with `statements` populated and no `action: "needs_llm"` entries — `refs` and `statements` are pre-classified by the AST. Use them alongside the body as the authoritative source of truth.
-- **`needs_llm: false`** but `statements` is null, empty, or contains `action: "needs_llm"` entries — safety-net fallback. Treat as needs_llm: classify each statement yourself from `raw_ddl`. See [`tsql-parse-classification.md`](tsql-parse-classification.md) for classification guidance.
-- **`needs_llm: true`** or `statements` is null — classify each statement yourself from `raw_ddl`. See [`tsql-parse-classification.md`](tsql-parse-classification.md) for classification guidance.
+- **`needs_llm: false`** but `statements` is null, empty, or contains `action: "needs_llm"` entries — safety-net fallback. Treat as needs_llm: classify each statement yourself from `raw_ddl`. See the dialect-appropriate statement classification via [`tsql-parse-classification.md`](tsql-parse-classification.md).
+- **`needs_llm: true`** or `statements` is null — classify each statement yourself from `raw_ddl`. See the dialect-appropriate statement classification via [`tsql-parse-classification.md`](tsql-parse-classification.md).
 
 ### Step 3 — Resolve call graph
 
@@ -76,13 +74,13 @@ After presenting the analysis, persist resolved statements to catalog.
 
 No `needs_llm` actions are written to catalog — all must be resolved before persisting.
 
-Write the statements JSON to a temp file to avoid shell quoting issues (rationale text may contain apostrophes):
+Write the statements JSON to a temp file:
 
 ```bash
 mkdir -p .staging
 # Write statements JSON to .staging/statements.json
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-statements \
-  --name <procedure_name> --statements-file .staging/statements.json; rm -rf .staging
+  --name <procedure_name> --statements-file .staging/statements.json && rm -rf .staging
 ```
 
 After `discover write-statements` succeeds, report that the statements were persisted and summarize the migrate/skip decisions.

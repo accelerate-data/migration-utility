@@ -38,7 +38,6 @@ All output shape enforcement is handled by Pydantic models (`extra="forbid"`) in
 | `check-command-summary.js` | Per-item statuses, total/ok/error counts |
 | `check-status-output.js` | Stage statuses, recommendations |
 | `check-refactored-sql.js` | Refactor section, extracted/refactored SQL |
-| `check-model-generator-input.js` | Generator input manifest fields |
 
 ### Cross-Artifact Consistency Checks
 

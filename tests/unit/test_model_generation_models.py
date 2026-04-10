@@ -14,43 +14,18 @@ from shared.output_models import (
     GeneratedModelInfo,
     GeneratedYamlInfo,
     GeneratorItem,
-    HandoffRelationBinding,
     ModelGenerationHandoff,
     ModelGenerationItemOutput,
     ModelGenerationOutput,
     ModelGeneratorInput,
     ModelReviewOutput,
-    ModelSweepOutput,
+    RenderUnitTestsOutput,
     ReviewChecks,
     ReviewInfo,
-    SweepTableEntry,
 )
 
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
-
-
-def _sweep_table_entry(**overrides: object) -> dict:
-    base = {
-        "fqn": "silver.dimcustomer",
-        "writer": "silver.usp_load_dimcustomer",
-        "source_tables": ["bronze.customer"],
-        "existing_stg_models": [],
-        "existing_mart_model": None,
-        "test_status": "none",
-        "recommended_action": "generate",
-    }
-    return {**base, **overrides}
-
-
-def _sweep_output(**overrides: object) -> dict:
-    base = {
-        "epoch": 1712000000,
-        "tables": [_sweep_table_entry()],
-        "shared_staging_candidates": [],
-        "shared_staging_files_written": [],
-    }
-    return {**base, **overrides}
 
 
 def _generator_item(**overrides: object) -> dict:
@@ -86,7 +61,7 @@ def _feedback_item(**overrides: object) -> dict:
 
 
 def _handoff(**overrides: object) -> dict:
-    base = {"execution_mode": "generate"}
+    base: dict = {}
     return {**base, **overrides}
 
 
@@ -135,58 +110,12 @@ def _review_output(**overrides: object) -> dict:
         "checks": {
             "standards": _check_result(),
             "correctness": _check_result(),
-            "test_integration": _check_result(),
         },
         "feedback_for_model_generator": [],
         "warnings": [],
         "errors": [],
     }
     return {**base, **overrides}
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# ModelSweepOutput
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-class TestModelSweepOutput:
-    def test_valid(self) -> None:
-        m = ModelSweepOutput.model_validate(_sweep_output())
-        assert len(m.tables) == 1
-        assert m.tables[0].fqn == "silver.dimcustomer"
-        assert m.tables[0].recommended_action == "generate"
-
-    def test_extra_field_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="extra"):
-            ModelSweepOutput.model_validate(_sweep_output(extra_field="bad"))
-
-    def test_missing_required(self) -> None:
-        data = _sweep_output()
-        del data["epoch"]
-        with pytest.raises(ValidationError, match="epoch"):
-            ModelSweepOutput.model_validate(data)
-
-    def test_invalid_test_status(self) -> None:
-        data = _sweep_output(tables=[_sweep_table_entry(test_status="unknown")])
-        with pytest.raises(ValidationError, match="test_status"):
-            ModelSweepOutput.model_validate(data)
-
-    def test_invalid_recommended_action(self) -> None:
-        data = _sweep_output(tables=[_sweep_table_entry(recommended_action="rebuild")])
-        with pytest.raises(ValidationError, match="recommended_action"):
-            ModelSweepOutput.model_validate(data)
-
-    def test_negative_epoch_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="epoch"):
-            ModelSweepOutput.model_validate(_sweep_output(epoch=-1))
-
-    def test_null_writer_allowed(self) -> None:
-        m = ModelSweepOutput.model_validate(_sweep_output(tables=[_sweep_table_entry(writer=None)]))
-        assert m.tables[0].writer is None
-
-    def test_sweep_table_extra_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="extra"):
-            SweepTableEntry.model_validate(_sweep_table_entry(bonus="x"))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -238,46 +167,22 @@ class TestModelGeneratorInput:
 class TestModelGenerationHandoff:
     def test_minimal(self) -> None:
         m = ModelGenerationHandoff.model_validate(_handoff())
-        assert m.execution_mode == "generate"
         assert m.artifact_paths is None
+        assert m.revision_feedback is None
 
     def test_full(self) -> None:
         m = ModelGenerationHandoff.model_validate(
             _handoff(
-                execution_mode="test_only",
                 artifact_paths=_artifact_paths(),
-                relation_bindings={
-                    "bronze.customer": {"type": "source", "ref_name": "customer"},
-                },
                 revision_feedback=[_feedback_item()],
-                shared_staging_candidates=["bronze.customer"],
-                shared_staging_files_written=["dbt/models/staging/stg_customer.sql"],
             )
         )
-        assert m.execution_mode == "test_only"
         assert m.artifact_paths is not None
-        assert m.relation_bindings is not None
-        assert "bronze.customer" in m.relation_bindings
-        assert m.relation_bindings["bronze.customer"].type == "source"
         assert len(m.revision_feedback) == 1
 
     def test_extra_field_rejected(self) -> None:
         with pytest.raises(ValidationError, match="extra"):
             ModelGenerationHandoff.model_validate(_handoff(extra="bad"))
-
-    def test_invalid_execution_mode(self) -> None:
-        with pytest.raises(ValidationError, match="execution_mode"):
-            ModelGenerationHandoff.model_validate(_handoff(execution_mode="rebuild"))
-
-    def test_invalid_relation_binding_type(self) -> None:
-        with pytest.raises(ValidationError, match="type"):
-            ModelGenerationHandoff.model_validate(
-                _handoff(
-                    relation_bindings={
-                        "bronze.x": {"type": "view", "ref_name": "x"},
-                    }
-                )
-            )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -349,7 +254,6 @@ class TestModelReviewOutput:
         assert m.status == "approved"
         assert m.checks.standards.passed is True
         assert m.checks.correctness.passed is True
-        assert m.checks.test_integration.passed is True
 
     def test_revision_requested(self) -> None:
         data = _review_output(
@@ -454,3 +358,43 @@ class TestCheckResult:
     def test_extra_rejected(self) -> None:
         with pytest.raises(ValidationError, match="extra"):
             CheckResult.model_validate({"passed": True, "issues": [], "extra": "bad"})
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# RenderUnitTestsOutput
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestRenderUnitTestsOutput:
+    def test_valid(self) -> None:
+        m = RenderUnitTestsOutput.model_validate({
+            "tests_rendered": 5,
+            "model_name": "stg_dimcustomer",
+        })
+        assert m.tests_rendered == 5
+        assert m.model_name == "stg_dimcustomer"
+        assert m.warnings == []
+        assert m.errors == []
+
+    def test_with_warnings(self) -> None:
+        m = RenderUnitTestsOutput.model_validate({
+            "tests_rendered": 0,
+            "model_name": "stg_dimcustomer",
+            "warnings": [{"code": "NO_UNIT_TESTS", "message": "empty", "severity": "warning"}],
+        })
+        assert len(m.warnings) == 1
+
+    def test_extra_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="extra"):
+            RenderUnitTestsOutput.model_validate({
+                "tests_rendered": 1,
+                "model_name": "x",
+                "extra": "bad",
+            })
+
+    def test_negative_count_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="tests_rendered"):
+            RenderUnitTestsOutput.model_validate({
+                "tests_rendered": -1,
+                "model_name": "x",
+            })

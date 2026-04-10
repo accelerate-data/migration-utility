@@ -1,14 +1,14 @@
 ---
 name: analyzing-table
 description: >
-  Scoping for a single table, view, or materialized view. For tables: discovers writer procedures, analyzes candidates, resolves the selected writer. For views/MVs: extracts SQL elements, builds call tree, generates logic summary. Auto-detects object type from catalog presence.
+  Analyzes a single table, view, or materialized view for migration scoping. For tables: discovers writer procedures, analyzes candidates, resolves the selected writer. For views/MVs: extracts SQL elements, builds call tree, generates logic summary. Auto-detects object type from catalog presence.
 user-invocable: true
 argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 ---
 
-# Scoping
+# Analyzing Table
 
-Scope a table, view, or materialized view and persist the scoping decision to the catalog.
+Analyze a table, view, or materialized view — discover writer candidates, evaluate them, and persist the scoping decision to the catalog.
 
 ## Arguments
 
@@ -53,13 +53,6 @@ Check whether `catalog/views/<fqn>.json` exists:
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show \
   --name <view_fqn>
 ```
-
-This returns:
-
-- `raw_ddl` — the full CREATE VIEW DDL text
-- `refs` — `reads_from` (source tables) and any view refs
-- `sql_elements` — SQLglot-extracted SQL features (JOINs, aggregations, etc.). `null` when `errors` contains `DDL_PARSE_ERROR`.
-- `errors` — any parse errors (e.g. `DDL_PARSE_ERROR` when SQLglot could not parse the DDL)
 
 Read `catalog/views/<view_fqn>.json` to get `is_materialized_view` and `references.views.in_scope`.
 
@@ -110,35 +103,18 @@ Read `raw_ddl` and write a plain-language description of what the view computes 
 
 Persist the view analysis as soon as the scoping JSON is ready. Do not ask for confirmation before writing — this skill is a write-through workflow.
 
-Write the scoping JSON to a temp file to avoid shell quoting issues:
+Write the scoping JSON to a temp file:
 
 ```bash
 mkdir -p .staging
 # Write scoping JSON to .staging/scoping.json
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
-  --name <view_fqn> --scoping-file .staging/scoping.json; rm -rf .staging
+  --name <view_fqn> --scoping-file .staging/scoping.json && rm -rf .staging
 ```
 
-Do not include `status` in the scoping dict — the CLI determines it from the content.
+Do not include `status` in the scoping dict.
 
-The scoping JSON shape (contract: `ViewScopingSection` in `catalog_models.py`):
-
-```json
-{
-  "sql_elements": [
-    {"type": "join", "detail": "INNER JOIN bronze.person"},
-    {"type": "aggregation", "detail": "COUNT"}
-  ],
-  "call_tree": {
-    "reads_from": ["bronze.customer", "bronze.person"],
-    "views_referenced": []
-  },
-  "logic_summary": "...",
-  "rationale": "...",
-  "warnings": [],
-  "errors": []
-}
-```
+Shape must match `view_catalog.json#/properties/scoping`. Required fields: `sql_elements`, `call_tree`, `logic_summary`, `rationale`, `warnings`, `errors`.
 
 Include `VIEW_DEPENDS_ON_VIEWS` in `warnings` if applicable.
 
@@ -183,9 +159,9 @@ Read `catalog/tables/<table>.json` and present the column list:
 ```text
 silver.DimCustomer (table, 3 columns)
 
-  CustomerKey   BIGINT       NOT NULL
-  FirstName     NVARCHAR(50) NULL
-  Region        NVARCHAR(50) NULL
+  CustomerKey   INTEGER      NOT NULL
+  FirstName     VARCHAR(50)  NULL
+  Region        VARCHAR(50)  NULL
 ```
 
 ### Step 2 -- Discover writer candidates
@@ -287,18 +263,20 @@ If all discovered candidates are unsupported external delegates, persist table s
 
 ### Step 6 -- Persist scoping to catalog
 
-Write the scoping JSON to a temp file to avoid shell quoting issues:
+Write the scoping JSON to a temp file:
 
 ```bash
 mkdir -p .staging
 # Write scoping JSON to .staging/scoping.json
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
-  --name <table> --scoping-file .staging/scoping.json; rm -rf .staging
+  --name <table> --scoping-file .staging/scoping.json && rm -rf .staging
 ```
 
-Do not include `status` in the scoping dict. The scoping JSON must include the selected writer and a `selected_writer_rationale` field (1–2 sentences explaining why this writer was chosen over alternatives, or why no writer / ambiguous). If the write exits non-zero, report the error and ask the user to correct.
+Do not include `status` in the scoping dict.
 
-The table scoping JSON shape (contract: `TableScopingSection` in `catalog_models.py`):
+The scoping JSON must include the selected writer and a `selected_writer_rationale` field (1–2 sentences explaining why this writer was chosen over alternatives, or why no writer / ambiguous). If the write exits non-zero, report the error and ask the user to correct.
+
+The table scoping JSON shape:
 
 ```json
 {
@@ -313,10 +291,6 @@ The table scoping JSON shape (contract: `TableScopingSection` in `catalog_models
         "views": [],
         "functions": []
       }
-    },
-    {
-      "procedure_name": "silver.usp_load_dimcustomer_delta",
-      "rationale": "Incremental MERGE writer; supplementary rather than primary."
     }
   ],
   "warnings": [],
@@ -326,34 +300,14 @@ The table scoping JSON shape (contract: `TableScopingSection` in `catalog_models
 
 For multi-writer cases, every entry in `candidates` must use `procedure_name` and `rationale`. `dependencies` is optional. Do not use legacy fields such as `procedure`, `write_type`, or `selected`.
 
-For unsupported external delegate cases, the scoping JSON should look like:
-
-```json
-{
-  "selected_writer_rationale": "The only discovered writer delegates through a linked-server or cross-database EXEC, which is out of scope for this migration project.",
-  "candidates": [
-    {
-      "procedure_name": "silver.usp_scope_linkedserverexec",
-      "rationale": "Delegates to an external procedure through EXEC and is not a migratable writer candidate."
-    }
-  ],
-  "warnings": [],
-  "errors": [
-    {
-      "code": "REMOTE_EXEC_UNSUPPORTED",
-      "message": "Writer delegates through linked-server or cross-database EXEC, which is out of scope.",
-      "severity": "error"
-    }
-  ]
-}
-```
+For unsupported external delegate cases: omit `selected_writer`, explain in `selected_writer_rationale`, add `REMOTE_EXEC_UNSUPPORTED` to `errors[]`.
 
 After `discover write-scoping` succeeds, present the persisted result to the user.
 
 ## References
 
 - [references/procedure-analysis.md](references/procedure-analysis.md) — six-step deep-dive pipeline: fetch, classify, call graph, logic summary, migration guidance, persist
-- [references/tsql-parse-classification.md](references/tsql-parse-classification.md) — LLM fallback classification tables for migrate/skip statements, control flow, and dynamic SQL
+- Statement classification: read the dialect-appropriate file via [references/tsql-parse-classification.md](references/tsql-parse-classification.md) (routes to `_shared/references/dialects/{dialect}/statement-classification.md`)
 - [`../../lib/shared/scope_error_codes.md`](../../lib/shared/scope_error_codes.md) — canonical `/scope` statuses and surfaced error/warning codes
 
 ## Error handling

@@ -15,18 +15,6 @@ Show migration progress for one table (detailed) or all tables (summary). Calls 
 
 Use the canonical `/status` code list in [../lib/shared/status_error_codes.md](../lib/shared/status_error_codes.md).
 
-## Harness Mode
-
-When the caller explicitly says to skip git operations, to operate directly on a fixture directory, or to use eval or harness mode, treat that as a non-interactive harness mode.
-
-In harness mode:
-
-- Skip git operations.
-- Use the caller-specified project root for all CLI commands.
-- Present the "What to do next" section, but do not execute the suggested follow-on command.
-- Present stale-file cleanup candidates, but do not delete files.
-- Preserve the same dashboard content and recommendations you would show in a normal run.
-
 ## Guards
 
 - `manifest.json` must exist. If missing, tell the user to run `/setup-ddl` first.
@@ -52,8 +40,6 @@ Run a single status call for all objects:
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util status
 ```
 
-This returns a `StatusOutput` (all-objects mode) or `ObjectStatus` (single-object mode). Contracts are enforced at runtime by Pydantic models in `../lib/shared/output_models.py`.
-
 All-objects mode shape:
 
 ```json
@@ -69,7 +55,7 @@ Single-object mode shape:
 {"fqn": "silver.dimproduct", "type": "table", "stages": {"scope": "resolved", "profile": "ok", "test_gen": null, "refactor": null, "generate": null}}
 ```
 
-The `batch-plan` command returns a `BatchPlanOutput`:
+The `batch-plan` command returns:
 
 ```json
 {
@@ -85,19 +71,17 @@ The `batch-plan` command returns a `BatchPlanOutput`:
 }
 ```
 
-The `ready` command returns a `DryRunOutput`:
+The `ready` command returns:
 
 ```json
 {"ready": true, "reason": "ok", "code": null}
 ```
 
-The `exclude` command returns an `ExcludeOutput`:
+The `exclude` command returns:
 
 ```json
 {"marked": ["silver.auditlog"], "not_found": []}
 ```
-
-Each object has `fqn`, `type`, and `stages` (scope, profile, test_gen, refactor, generate statuses).
 
 Map the status values to table cells:
 
@@ -311,10 +295,11 @@ If one or more `STALE_OBJECT` entries are present:
 
 3. Ask: **"Delete these N stale catalog files?"**
 
-4. If the user confirms: delete each file. Then show:
+4. If the user confirms: delete each file, then commit the deletions:
 
-   ```text
-   Deleted N file(s). Run `git add -u && git commit -m "remove stale catalog objects"` to record the cleanup.
+   ```bash
+   git add -u catalog/
+   git commit -m "chore: remove stale catalog objects"
    ```
 
 5. If the user declines: leave the files intact and continue normally.

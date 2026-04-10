@@ -3,7 +3,6 @@ name: commit
 description: Stage specific files, commit, and push to remote
 user-invocable: true
 argument-hint: "[files or message hint]"
-allowed-tools: Bash(git add:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git commit:*), Bash(git push:*), Bash(git branch:*)
 ---
 
 # Commit
@@ -24,7 +23,7 @@ Stage specific files, create a single focused commit, and push to remote. Never 
 3. Append the co-author trailer:
 
    ```text
-   Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+   Co-Authored-By: Claude <noreply@anthropic.com>
    ```
 
 4. Create the commit.

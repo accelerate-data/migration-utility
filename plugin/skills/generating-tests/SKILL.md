@@ -1,25 +1,23 @@
 ---
 name: generating-tests
 description: >
-  Generates test scenarios for a stored procedure or view migration. Enumerates
+  Generates test scenarios for a source routine or view migration. Enumerates
   conditional branches and synthesizes minimal fixtures. Does not execute
   procs or capture ground truth — that is done by the /generate-tests
   command after review approval.
-user-invocable: true
+user-invocable: false
 argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 ---
 
 # Generating Tests
 
-Generate test scenarios for a stored procedure or view migration. Reads deterministic context from catalog, enumerates conditional branches, synthesizes minimal fixtures, and writes structured JSON to `test-specs/`.
+Generate test scenarios for a source routine or view migration. Reads deterministic context from catalog, enumerates conditional branches, synthesizes minimal fixtures, and writes structured JSON to `test-specs/`.
 
 ## Arguments
 
 `$ARGUMENTS` is the fully-qualified table or view name. Ask the user if missing.
 
 ## Contracts
-
-Contracts are enforced at runtime by Pydantic models in `../../lib/shared/output_models.py`.
 
 Do not invent fields. If `test-harness write` rejects the payload, fix the payload and retry.
 
@@ -42,10 +40,10 @@ Do not invent fields. If `test-harness write` rejects the payload, fix the paylo
   "unit_tests": [
     {
       "name": "test_merge_matched_product_updated",
-      "target_table": "[silver].[DimProduct]",
-      "procedure": "[silver].[usp_load_DimProduct]",
+      "target_table": "silver.DimProduct",
+      "procedure": "silver.usp_load_DimProduct",
       "given": [
-        { "table": "[bronze].[Product]", "rows": [{"ProductID": 1, "Name": "Widget"}] }
+        { "table": "bronze.Product", "rows": [{"ProductID": 1, "Name": "Widget"}] }
       ],
       "expect": { "rows": [{"ProductKey": 1, "ProductName": "Widget"}] }
     }
@@ -64,6 +62,10 @@ Do not invent fields. If `test-harness write` rejects the payload, fix the paylo
 ## Schema discipline
 
 Use the canonical generating-tests surfaced code list in `../../lib/shared/generate_tests_error_codes.md`. Do not define a competing public error-code list in this skill.
+
+## Feedback override
+
+If `$ARGUMENTS` or the invoking prompt includes a `feedback_for_generator` JSON block, apply it before running the normal pipeline. See [Handling reviewer feedback](#handling-reviewer-feedback) at the end of this skill for the full protocol.
 
 ## Load existing spec
 
@@ -106,15 +108,6 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate context \
   --table <item_id>
 ```
 
-The command reads `selected_writer` from the catalog scoping section — no `--writer` argument needed. The output contains:
-
-- `profile` — classification, keys, watermark, PII answers
-- `materialization` — derived from profile (snapshot/table/incremental)
-- `statements` — resolved statement list with action (migrate/skip) and SQL
-- `proc_body` — full original procedure DDL
-- `columns` — target table column list
-- `source_tables` — tables read by the writer
-
 Record the `selected_writer` procedure name from the catalog's `scoping` section — this becomes the `procedure` field in the test spec.
 
 **For views:**
@@ -124,7 +117,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show \
   --name <view_fqn>
 ```
 
-This returns `raw_ddl`, `refs`, `sql_elements`, and `errors`. Also read `catalog/views/<fqn>.json` directly to get `profile`, `scoping.logic_summary`, and `references.tables.in_scope`.
+Also read `catalog/views/<fqn>.json` directly to get `profile`, `scoping.logic_summary`, and `references.tables.in_scope`.
 
 Assemble the context:
 
@@ -142,31 +135,7 @@ There is no `selected_writer` for views — the view's refactored SELECT stateme
 
 For each statement where `action == migrate`, identify all conditional branches. Use the proc body and statement SQL to enumerate every code path that produces different output behavior.
 
-**For tables**, enumerate all patterns:
-
-| Pattern | Branches to enumerate |
-|---|---|
-| MERGE WHEN clauses | One per WHEN MATCHED, WHEN NOT MATCHED, WHEN NOT MATCHED BY SOURCE |
-| CASE/WHEN | One per arm + ELSE |
-| JOIN | Match, no-match (NULL right side for LEFT JOIN), partial multi-condition match |
-| WHERE | Row that passes, row that fails |
-| Subquery | EXISTS true/false, IN match/miss, correlated hit/miss |
-| NULL handling | Nullable columns in filters/joins/COALESCE — NULL vs non-NULL |
-| Aggregation | Single group, multiple groups, empty group |
-| Type boundaries | Watermark date edges, MAX int, empty string |
-| Empty source | Zero-row edge case |
-
-**For views**, use SELECT-level patterns only:
-
-| Pattern | Branches to enumerate |
-|---|---|
-| WHERE | Row that passes, row that fails |
-| JOIN | Match, no-match (NULL right side for LEFT JOIN), partial multi-condition match |
-| CASE/WHEN | One per arm + ELSE |
-| Subquery | EXISTS true/false, IN match/miss, correlated hit/miss |
-| NULL handling | Nullable columns in filters/joins/COALESCE — NULL vs non-NULL |
-| Aggregation | Single group, multiple groups, empty group (with/without HAVING) |
-| Empty source | Zero-row edge case |
+Use the pattern tables in [../_shared/references/branch-patterns.md](../_shared/references/branch-patterns.md) to enumerate branches. Apply the **Table patterns** section for tables and the **View patterns** section for views.
 
 Output: branch manifest — a list of branches with IDs, descriptions, the statement index they belong to, and the pattern they exercise.
 
@@ -174,17 +143,12 @@ If **merge_mode**, compare the re-extracted branch IDs against the `branch_manif
 
 ## Step 2.5: Coverage gate (merge_mode only)
 
-Skip this step if merge_mode is false.
+Skip if merge_mode is false.
 
-Pass to the LLM:
+Compare the re-extracted branch manifest against existing `unit_tests[]` to find branches with no covering scenario.
 
-- The full re-extracted branch manifest (all branch IDs and descriptions).
-- The existing `unit_tests[]` list with each scenario's `name` and `branch_id` (or inferred branch mapping from the stored `branch_manifest[].scenarios` lists).
-
-Ask: "For each branch in the manifest, is there an existing scenario that exercises it? Return the list of branch IDs that have no covering scenario."
-
-- **No uncovered branches**: skip Step 3 entirely. Proceed to Step 4 carrying `new_scenarios = []`.
-- **Uncovered branches found**: proceed to Step 3 scoped to those branches only. Carry `uncovered_branch_ids` into Step 3.
+- **All branches covered**: skip Step 3. Set `new_scenarios = []`.
+- **Uncovered branches found**: proceed to Step 3 scoped to `uncovered_branch_ids` only.
 
 ## Step 3: Generate fixtures
 
@@ -225,7 +189,7 @@ Merge into the existing `test-specs/<item_id>.json`:
 
 **Table vs view output format:**
 
-- **Tables:** each `unit_tests[]` entry includes `target_table` and `procedure` fields (bracket-quoted FQNs).
+- **Tables:** each `unit_tests[]` entry includes `target_table` and `procedure` fields (dialect-quoted FQNs).
 - **Views:** each `unit_tests[]` entry uses `sql` in place of `target_table` and `procedure`. The `sql` field contains the view's refactored SELECT statement.
 
 After writing, print the result:
@@ -249,9 +213,11 @@ Naming conventions:
 
 - Test name (table): `test_<load_pattern>_<scenario_description>`, e.g. `test_merge_matched_product_updated`
 - Test name (view): `test_<sql_pattern>_<scenario_description>`, e.g. `test_where_filter_active_row`
-- `target_table`: bracket-quoted FQN of the target table, e.g. `[silver].[DimProduct]`
-- `procedure`: bracket-quoted FQN of the writer procedure from catalog scoping, e.g. `[silver].[usp_load_DimProduct]`
-- `given[].table`: bracket-quoted SQL identifier, e.g. `[bronze].[SalesOrderHeader]`
+- `target_table`: dialect-quoted FQN of the target table, e.g. `silver.DimProduct`
+- `procedure`: dialect-quoted FQN of the writer procedure from catalog scoping, e.g. `silver.usp_load_DimProduct`
+- `given[].table`: dialect-quoted SQL identifier, e.g. `bronze.SalesOrderHeader`
+
+Use the quoting convention for the source dialect from `manifest.json` (T-SQL: `[schema].[object]`, Oracle: `"SCHEMA"."OBJECT"`).
 
 ## Step 5: Validate output
 
@@ -308,7 +274,7 @@ If no `feedback_for_generator` is present, skip this section.
 
 Test generator must not:
 
-- Execute stored procedures or access the sandbox
+- Execute source routines or access the sandbox
 - Generate dbt SQL model files
 - Render YAML — `unit_tests[]` is structured JSON; dbt YAML conversion happens post-execution
 - Make materialization or business key decisions
@@ -356,3 +322,4 @@ Field requirements:
 
 - [`../../lib/shared/generate_tests_error_codes.md`](../../lib/shared/generate_tests_error_codes.md) — canonical generating-tests and reviewing-tests statuses and surfaced error/warning codes
 - [`references/fixture-synthesis-ref.md`](references/fixture-synthesis-ref.md) — column exclusion, NOT NULL defaults, and CHECK constraint rules for fixture generation
+- [`../_shared/references/branch-patterns.md`](../_shared/references/branch-patterns.md) — conditional branch enumeration patterns for tables and views

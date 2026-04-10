@@ -32,6 +32,16 @@ This changes only the proof path. Keep the normal git/worktree, commit, and PR f
 
 Per-item readiness is checked by the skill via `migrate-util ready`.
 
+**Sandbox hint:** Before processing any items, check sandbox availability:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-status
+```
+
+If the sandbox is not found (`status: "not_found"` or non-zero exit), warn the user upfront:
+
+> ⚠️ Sandbox not available — `compare-sql` proof will be skipped. All items will receive `partial` status (semantic review only). Run `/setup-sandbox` first if you want full `ok` proofs.
+
 ## Progress Tracking
 
 Use `TaskCreate` and `TaskUpdate` to show live progress.
@@ -94,7 +104,7 @@ For each object:
 **Refactor agent prompt:**
 
 ```text
-Run the /refactoring-sql skill for <schema.object>.
+Run /refactoring-sql for <schema.object>.
 The working directory is <working-directory>.
 Write the item result JSON to .migration-runs/<schema.object>.<run_id>.json.
 
@@ -132,7 +142,12 @@ If one table fails, continue processing the remaining tables and then write the 
    ```
 
 4. If all items errored, report errors only and stop.
-5. Run `/commit-push-pr refactor <comma-separated list of successfully processed tables>`.
+5. Ask the user:
+
+   > All successful items have been committed and pushed.
+   > Raise a PR for this run? (y/n)
+
+   If yes: run `/commit-push-pr refactor <comma-separated list of successfully processed tables>`.
    After the PR is created or updated, tell the user:
 
    ```text

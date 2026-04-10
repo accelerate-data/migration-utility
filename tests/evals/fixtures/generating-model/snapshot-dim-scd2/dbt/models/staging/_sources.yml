@@ -13,7 +13,20 @@ sources:
       data_type: nvarchar(50)
     - name: MaritalStatus
       data_type: nchar(1)
-
-models:
-  - name: stg_employee
-    description: "Staging model for bronze.employee source table."
+- name: silver
+  schema: silver
+  tables:
+  - name: dimemployeescd2
+    columns:
+    - name: EmployeeSCD2Key
+      data_type: int
+    - name: EmployeeNaturalKey
+      data_type: nvarchar(15)
+    - name: JobTitle
+      data_type: nvarchar(50)
+    - name: IsCurrent
+      data_type: bit
+    - name: ValidFrom
+      data_type: datetime2
+    - name: ValidTo
+      data_type: datetime2

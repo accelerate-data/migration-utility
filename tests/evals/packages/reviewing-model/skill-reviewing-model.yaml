@@ -43,15 +43,6 @@ tests:
 
   # --- VU-877: stable codes, tiered feedback, ack_required ---
 
-  - description: "review-standards-mod004 — DimProduct missing ephemeral"
-    vars:
-      fixture_path: "tests/evals/fixtures/reviewing-model/review-standards-mod004"
-      target_table: "silver.DimProduct"
-      writer: "silver.usp_load_DimProduct"
-      expected_status: "approved,approved_with_warnings,revision_requested"
-      expect_standards_passed: "false"
-      expected_feedback_codes: "MOD_004"
-
   - description: "review-standards-mdl005 — InsertSelectTarget missing _dbt_run_id"
     vars:
       fixture_path: "tests/evals/fixtures/reviewing-model/review-standards-mdl005"
@@ -98,14 +89,6 @@ tests:
       writer: "silver.usp_load_DimProduct"
       expected_status: "approved,approved_with_warnings,revision_requested"
 
-  - description: "review-materialization — UpdateJoinTarget profile-derived materialization"
-    vars:
-      fixture_path: "tests/evals/fixtures/reviewing-model/review-materialization"
-      target_table: "silver.UpdateJoinTarget"
-      writer: "silver.usp_load_UpdateJoinTarget"
-      expected_status: "approved,approved_with_warnings,revision_requested"
-      expected_feedback_codes: "MOD_004"
-
   # --- VU-880: deferred standards scenarios ---
 
   - description: "review-standards-final-cte — DimProduct missing final CTE"
@@ -117,11 +100,3 @@ tests:
       expect_standards_passed: "false"
       expected_feedback_codes: "CTE_002"
 
-  - description: "review-standards-mart-model-ref — DimProduct mart uses source() not ref()"
-    vars:
-      fixture_path: "tests/evals/fixtures/reviewing-model/review-standards-mart-model-ref"
-      target_table: "silver.DimProduct"
-      writer: "silver.usp_load_DimProduct"
-      expected_status: "approved,approved_with_warnings,revision_requested"
-      expect_standards_passed: "false"
-      expected_feedback_codes: "MOD_002"

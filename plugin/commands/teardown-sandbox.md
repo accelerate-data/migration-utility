@@ -26,9 +26,7 @@ After the user confirms:
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-down
 ```
 
-The CLI reads the sandbox database name from `manifest.json`, drops the database, and clears the `sandbox` section from the manifest. Contracts are enforced at runtime by Pydantic models in `../lib/shared/output_models.py`.
-
-`SandboxDownOutput` shape:
+Output shape:
 
 ```json
 {"sandbox_database": "__test_abc123def456", "status": "ok | error", "errors": []}

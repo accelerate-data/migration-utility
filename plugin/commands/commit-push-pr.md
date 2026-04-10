@@ -3,7 +3,6 @@ name: commit-push-pr
 description: Commit, push, and open a PR. Derives title from step and tables context.
 user-invocable: true
 argument-hint: "[<step> <tables>] [files]"
-allowed-tools: Bash(git add:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git commit:*), Bash(git push:*), Bash(git branch --show-current:*), Bash(git symbolic-ref:*), Bash(gh repo view:*), Bash(gh pr create:*), Bash(gh pr list:*), Bash(gh pr edit:*)
 ---
 
 # Commit, Push, and Open PR
@@ -43,7 +42,7 @@ Store the result as `<default-branch>` for use in all subsequent steps.
 2. **Derive commit message** from the staged diff — read the diff, summarise *why* in a short conventional commit message. Append the co-author trailer:
 
    ```text
-   Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+   Co-Authored-By: Claude <noreply@anthropic.com>
    ```
 
 ### Step 2 — Push

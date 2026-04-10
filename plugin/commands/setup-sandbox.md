@@ -20,7 +20,7 @@ If `CLAUDE_PLUGIN_ROOT` is not set, stop and tell the user to load the plugin wi
 
 Run all checks silently — do not change anything yet.
 
-1. Check `manifest.json` exists in the current working directory. Read it to confirm `technology` and `source_database` are present.
+1. Check `manifest.json` exists in the current working directory. Read it to confirm `technology` and `source_database` are present. If `technology` is not `sql_server` or `fabric_warehouse`, stop and tell the user: "Sandbox setup currently supports SQL Server only. Oracle sandbox is not yet available."
 2. Check that `extracted_schemas` in the manifest is a non-empty array.
 3. Check FreeTDS is installed: `brew list --formula freetds 2>/dev/null`. If missing, tell the user to run `brew install freetds` (or run `/init-ad-migration` which auto-installs it) and stop.
 4. Check whether each MSSQL environment variable is set (non-empty): `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD`. Do not print their values.
@@ -62,9 +62,7 @@ After the user confirms, invoke the CLI:
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-up
 ```
 
-The CLI auto-generates a random database name, creates the sandbox, and writes `sandbox.database` into `manifest.json`. Contracts are enforced at runtime by Pydantic models in `../lib/shared/output_models.py`.
-
-`SandboxUpOutput` shape:
+Output shape:
 
 ```json
 {
@@ -84,7 +82,7 @@ Parse the JSON output and report:
 - Number of procedures cloned
 - Any errors or warnings
 
-You can also check sandbox existence with `test-harness sandbox-status`. `SandboxStatusOutput` shape:
+You can also check sandbox existence with `test-harness sandbox-status`:
 
 ```json
 {"sandbox_database": "__test_abc123def456", "status": "ok | not_found | error", "exists": true}

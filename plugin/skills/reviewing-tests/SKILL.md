@@ -3,7 +3,7 @@ name: reviewing-tests
 description: >
   Reviews test generation output for coverage and quality. Independently
   enumerates branches, scores coverage, and reviews fixture quality.
-  Handles both stored procedure (table) and view test specs.
+  Handles both source routine (table) and view test specs.
   Invoked by the /generate-tests command, not directly by the user.
 user-invocable: false
 context: fork
@@ -12,15 +12,17 @@ argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 
 # Reviewing Tests
 
+Quality gate for test generation output — independently enumerates branches, scores coverage, and reviews fixture quality.
+
 ## Arguments
 
 `$ARGUMENTS` is the fully-qualified table or view name (the `item_id`), optionally followed by `--iteration <N>` (1-based). Defaults to 1 if not provided.
 
+The iteration number controls the verdict in Step 6: on iteration 1, unresolved issues trigger `revision_requested`; on iteration 2, remaining issues are accepted as `approved_with_warnings` to prevent infinite review loops.
+
 ## Contracts
 
-Contracts are enforced by the Pydantic `TestReviewOutput` model in `../../lib/shared/output_models.py`.
-
-Return exactly one JSON object matching that shape. Do not wrap in markdown, headings, summaries, or follow-up questions.
+Return exactly one JSON object matching this shape. Do not wrap in markdown, headings, summaries, or follow-up questions.
 
 ## Output shape — `TestReviewOutput`
 
@@ -116,31 +118,7 @@ Assemble the context:
 
 Enumerate all conditional branches from `proc_body` and `statements` independently. Do NOT read or trust the generator's `branch_manifest` — build your own.
 
-**For tables:**
-
-| Pattern | Branches |
-|---|---|
-| MERGE WHEN clauses | One per clause (MATCHED, NOT MATCHED, NOT MATCHED BY SOURCE) |
-| CASE/WHEN | One per arm + ELSE |
-| JOIN | Match, no-match (LEFT JOIN NULL right side), partial multi-condition |
-| WHERE | Pass, fail |
-| Subquery | EXISTS true/false, IN match/miss |
-| NULL handling | NULL vs non-NULL in filters, joins, COALESCE/ISNULL |
-| Aggregation | Single group, multiple groups, empty source |
-| Type boundaries | Watermark edges, MAX int, empty string |
-| Empty source | Zero-row edge case per source table |
-
-**For views**, use SELECT-level patterns only:
-
-| Pattern | Branches |
-|---|---|
-| WHERE | Pass, fail |
-| JOIN | Match, no-match (LEFT JOIN NULL right side), partial multi-condition |
-| CASE/WHEN | One per arm + ELSE |
-| Subquery | EXISTS true/false, IN match/miss |
-| NULL handling | NULL vs non-NULL in filters, joins, COALESCE/ISNULL |
-| Aggregation | Single group, multiple groups, empty source (with/without HAVING) |
-| Empty source | Zero-row edge case per source table |
+Use the pattern tables in [../_shared/references/branch-patterns.md](../_shared/references/branch-patterns.md) to enumerate branches. Apply the **Table patterns** section for tables and the **View patterns** section for views.
 
 Assign each branch a stable `id` (snake_case, descriptive) and a human-readable `description`. Record the full list as the reviewer's branch manifest.
 
@@ -165,17 +143,17 @@ Compute coverage:
 - **uncovered**: list of branch objects (`id`, `description`) that have zero mapped scenarios and are not untestable.
 - **untestable**: list of branch objects (`id`, `description`, `rationale`) that cannot be tested with static fixtures.
 
-A branch is **untestable** when it depends on runtime state that static fixtures cannot reproduce: `GETDATE()`/`SYSDATETIME()` comparisons, dynamic SQL with variable table/column targets, external service calls, or non-deterministic functions. Each untestable classification requires a `rationale`.
+A branch is **untestable** when it depends on runtime state that static fixtures cannot reproduce: non-deterministic date/time functions (`GETDATE()`, `SYSDATE`, `now()`, etc.), dynamic SQL with variable table/column targets, external service calls, or non-deterministic functions. Each untestable classification requires a `rationale`.
 
 ## Step 5: Review fixture quality
 
 For each test scenario in `unit_tests[]`, assess these dimensions:
 
-- **Fixture realism:** Are synthetic values type-appropriate and reasonable? Flag unrealistic values like negative prices, future dates for historical data, or strings in numeric fields.
-- **Scenario isolation:** Does each scenario test one branch clearly, or are multiple branches tangled in a way that makes failure diagnosis ambiguous?
-- **FK consistency:** Do foreign key values in fixture rows align across source tables within each scenario? A row referencing `customer_key = 42` in the fact table should have a matching `customer_key = 42` in the dimension fixture.
+- **Fixture realism:** Are synthetic values type-appropriate and reasonable?
+- **Scenario isolation:** Does each scenario test one branch clearly?
+- **FK consistency:** Do foreign key values in fixture rows align across source tables within each scenario?
 - **Edge cases:** Are boundary values present where appropriate (NULLs, empty strings, MAX values, zero-row inputs)?
-- **NOT NULL completeness:** For every source table in `given[]`, load the catalog column list from `source_tables` in the context output. Check that every column where `is_nullable` is false and `is_identity` is false appears in `rows[0]`. Missing NOT NULL columns will cause SQL Server INSERT failures at execution time. Severity: `error` (not warning — these always fail).
+- **NOT NULL completeness:** For every source table in `given[]`, load the catalog column list from `source_tables` in the context output. Check that every column where `is_nullable` is false and `is_identity` is false appears in `rows[0]`. Severity: `error` (not warning — these always fail).
 
 Record each issue with the scenario name, a description of the concern, and a severity (`warning` or `error`).
 
@@ -214,13 +192,13 @@ rm -rf .staging
 Test reviewer must not:
 
 - Generate or modify fixture data
-- Execute stored procedures
+- Execute source routines
 - Write to `test-specs/` — only the test generator writes there
-- Write review result files
+- Write persisted review result files outside the temporary `.staging/review.json` validation flow
 - Ask permission to write review result files
 - Ask whether the provided `--project-root` fixture path exists or should be created
 - Make migration or profiling decisions
-- Override the test generator's ground truth output (captured proc results are facts)
+- Override the test generator's ground truth output (captured execution results are facts)
 
 ## Error handling
 
@@ -234,3 +212,8 @@ Test reviewer must not:
 | `test-harness validate-review` | 1 | Validation failure — fix the JSON fields reported in the error and retry |
 
 Return a valid `TestReviewResult` JSON for all error paths.
+
+## References
+
+- [`../_shared/references/branch-patterns.md`](../_shared/references/branch-patterns.md) — conditional branch enumeration patterns for tables and views
+- [`../../lib/shared/generate_tests_error_codes.md`](../../lib/shared/generate_tests_error_codes.md) — canonical generating-tests and reviewing-tests statuses and surfaced error/warning codes

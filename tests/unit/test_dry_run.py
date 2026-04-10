@@ -189,6 +189,10 @@ def test_ready_refactor_needs_test_gen() -> None:
     """Refactor not ready when test_gen.status is absent."""
     tmp, root = _make_project()
     with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        del cat["test_gen"]
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
         result = dry_run.run_ready(root, "silver.DimCustomer", "refactor")
         assert isinstance(result, DryRunOutput)
         assert result.ready is False
@@ -234,6 +238,34 @@ def test_ready_migrate_no_refactor() -> None:
         assert isinstance(result, DryRunOutput)
         assert result.ready is False
         assert result.reason == "refactor_not_complete"
+
+
+# ── run_ready tests: generate stage ──────────────────────────────────────────
+
+
+def test_ready_generate_requires_test_gen() -> None:
+    """Generate not ready when test_gen.status is absent."""
+    tmp, root = _make_project()
+    with tmp:
+        cat_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        del cat["test_gen"]
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+        result = dry_run.run_ready(root, "silver.DimCustomer", "generate")
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.reason == "test_gen_not_complete"
+        assert result.code == "TEST_SPEC_MISSING"
+
+
+def test_ready_generate_passes_with_both_gates() -> None:
+    """Generate ready when both test_gen and refactor are ok."""
+    tmp, root = _make_project()
+    with tmp:
+        result = dry_run.run_ready(root, "silver.DimCustomer", "generate")
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is True
+        assert result.reason == "ok"
 
 
 # ── run_ready tests: special cases ───────────────────────────────────────────
@@ -326,8 +358,7 @@ def test_status_single_object() -> None:
         assert result.type == "table"
         assert result.stages.scope == "resolved"
         assert result.stages.profile == "ok"
-        # test_gen is None because no test_gen section in fixture
-        assert result.stages.test_gen is None
+        assert result.stages.test_gen == "ok"
 
 
 def test_status_all_objects() -> None:

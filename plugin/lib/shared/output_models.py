@@ -944,35 +944,6 @@ class TestReviewOutput(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class SweepTableEntry(BaseModel):
-    """One entry per FQN in a planning sweep batch."""
-
-    model_config = _OUTPUT_CONFIG
-
-    fqn: str
-    writer: str | None
-    source_tables: list[str]
-    existing_stg_models: list[str]
-    existing_mart_model: str | None
-    test_status: Literal["passing", "failing", "none"]
-    recommended_action: Literal["generate", "test-only", "skip"]
-
-
-class ModelSweepOutput(BaseModel):
-    """Plan artifact produced by ``/generate-model`` planning sweep.
-
-    Written to ``.migration-runs/model-sweep.<run_id>.json`` before
-    execution threads spawn.
-    """
-
-    model_config = _OUTPUT_CONFIG
-
-    epoch: int = Field(ge=0)
-    tables: list[SweepTableEntry]
-    shared_staging_candidates: list[str]
-    shared_staging_files_written: list[str]
-
-
 class GeneratorItem(BaseModel):
     """Single item in a model-generator batch manifest."""
 
@@ -1015,31 +986,17 @@ class FeedbackItem(BaseModel):
     ack_required: bool
 
 
-class HandoffRelationBinding(BaseModel):
-    """Pre-computed table reference resolution for a source FQN."""
-
-    model_config = _OUTPUT_CONFIG
-
-    type: Literal["source", "ref"]
-    ref_name: str
-
-
 class ModelGenerationHandoff(BaseModel):
     """Caller-provided execution context for ``/generating-model``.
 
     Written by ``/generate-model`` command; read by the skill.
-    All fields except ``execution_mode`` are optional — the skill
-    derives missing values locally.
+    Both fields are optional — the skill derives missing values locally.
     """
 
     model_config = _OUTPUT_CONFIG
 
-    execution_mode: Literal["generate", "test_only"]
     artifact_paths: ArtifactPaths | None = None
-    relation_bindings: dict[str, HandoffRelationBinding] | None = None
     revision_feedback: list[FeedbackItem] | None = None
-    shared_staging_candidates: list[str] | None = None
-    shared_staging_files_written: list[str] | None = None
 
 
 class GeneratedModelInfo(BaseModel):
@@ -1134,7 +1091,6 @@ class ReviewChecks(BaseModel):
 
     standards: CheckResult
     correctness: CheckResult
-    test_integration: CheckResult
 
 
 class ModelReviewOutput(BaseModel):
@@ -1214,6 +1170,26 @@ class MigrateWriteOutput(BaseModel):
 
     written: list[str]
     status: Literal["ok"]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# render-unit-tests
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class RenderUnitTestsOutput(BaseModel):
+    """Output of ``migrate render-unit-tests``.
+
+    Reports how many test-spec scenarios were translated into dbt unit
+    tests in the target schema YAML.
+    """
+
+    model_config = _OUTPUT_CONFIG
+
+    tests_rendered: int = Field(ge=0)
+    model_name: str
+    warnings: list[DiagnosticsEntry] = Field(default_factory=list)
+    errors: list[DiagnosticsEntry] = Field(default_factory=list)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
