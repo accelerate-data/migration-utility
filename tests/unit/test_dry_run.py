@@ -448,7 +448,6 @@ def _add_table_to_project(
                 {"procedure_name": f"dbo.usp_load_{name}", "dependencies": {"tables": [], "views": [], "functions": []}, "rationale": "test"}
             ],
             "warnings": [],
-            "validation": {"passed": True, "issues": []},
             "errors": [],
         }
         # Also create proc catalog with resolved statements

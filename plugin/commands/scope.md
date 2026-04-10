@@ -109,7 +109,13 @@ Return the item result JSON.
 
 6. Suggest running `/status` to see overall migration readiness across all tables.
 
-## Item Result Schema
+## Output shapes
+
+Contracts are enforced at runtime by Pydantic models in `../lib/shared/catalog_models.py`.
+
+### Item result (per-item run artifact)
+
+Written to `.migration-runs/<schema.item>.<epoch>.json`:
 
 ```json
 {
@@ -125,11 +131,58 @@ Return the item result JSON.
 
 The full scoping data lives in the catalog files, not duplicated in the run log.
 
+### Batch summary → `ScopingSummary`
+
+Written to `.migration-runs/summary.<epoch>.json`:
+
+```json
+{
+  "schema_version": "1.0",
+  "run_id": "<uuid>",
+  "results": [
+    {"item_id": "silver.dimcurrency", "status": "resolved"},
+    {"item_id": "silver.dimdate", "status": "error"}
+  ],
+  "summary": {"total": 2, "resolved": 1, "ambiguous_multi_writer": 0, "no_writer_found": 0, "analyzed": 0, "error": 1}
+}
+```
+
+### Table scoping (catalog write-back) → `TableScopingSection`
+
+Written to `catalog/tables/<fqn>.json` → `scoping` section:
+
+```json
+{
+  "status": "resolved",
+  "selected_writer": "silver.usp_load_dimcurrency",
+  "selected_writer_rationale": "Only direct writer for this table.",
+  "candidates": [{"procedure_name": "silver.usp_load_dimcurrency", "rationale": "Direct writer.", "dependencies": {"tables": ["bronze.currency"], "views": [], "functions": []}}],
+  "warnings": [],
+  "errors": []
+}
+```
+
+### View scoping (catalog write-back) → `ViewScopingSection`
+
+Written to `catalog/views/<fqn>.json` → `scoping` section:
+
+```json
+{
+  "status": "analyzed",
+  "sql_elements": [{"type": "join", "detail": "INNER JOIN bronze.person"}],
+  "call_tree": {"reads_from": ["bronze.customer", "bronze.person"], "views_referenced": []},
+  "logic_summary": "Joins customer and person data.",
+  "rationale": "Simple join view.",
+  "warnings": [],
+  "errors": []
+}
+```
+
 ## Error and Warning Codes
 
 Use the canonical `/scope` code list in [../lib/shared/scope_error_codes.md](../lib/shared/scope_error_codes.md).
 
-Each entry in `errors[]` or `warnings[]` uses this shape:
+Each entry in `errors[]` or `warnings[]` uses the `DiagnosticsEntry` shape from `catalog_models.py`:
 
 ```json
 {"code": "CATALOG_FILE_MISSING", "message": "catalog/tables/silver.dimdate.json not found.", "item_id": "silver.dimdate", "severity": "error"}

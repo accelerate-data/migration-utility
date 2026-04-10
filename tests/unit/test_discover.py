@@ -883,7 +883,7 @@ def test_write_scoping_cli_reports_schema_validation_errors(caplog: pytest.LogCa
             ],
         )
         assert result.exit_code == 1
-        assert "Schema validation failed" in caplog.text
+        assert "validation errors for TableScopingSection" in caplog.text
         assert "procedure_name" in caplog.text
     finally:
         cat_file.unlink(missing_ok=True)
