@@ -90,5 +90,16 @@
     },
     "foreign_keys": [],
     "pii_actions": []
+  },
+  "test_gen": {
+    "status": "ok",
+    "test_spec_path": "test-specs/silver.dimcrossdbprofile.json",
+    "branches": 1,
+    "unit_tests": 0,
+    "coverage": "partial",
+    "warnings": [
+      "cross_db_untestable"
+    ],
+    "errors": []
   }
 }

@@ -1,24 +1,80 @@
 {
   "item_id": "silver.execconcattarget",
-  "status": "partial",
-  "coverage": "partial",
+  "status": "ok",
+  "coverage": "complete",
   "branch_manifest": [
     {
-      "id": "dynamic_sql_concat_insert",
+      "id": "dynamic_sql_concat_insert_happy_path",
       "statement_index": 0,
-      "description": "Dynamic SQL is built via string concatenation before EXEC \u2014 INSERT INTO silver.ExecConcatTarget from bronze.Product",
-      "testable_in_dbt": false,
-      "scenarios": []
+      "description": "bronze.Product has rows — EXEC with concatenated SQL populates silver.ExecConcatTarget with CAST(ProductID) and ProductName",
+      "scenarios": [
+        "test_exec_concat_rows_present_populates_target"
+      ]
+    },
+    {
+      "id": "empty_source_no_rows_inserted",
+      "statement_index": 0,
+      "description": "bronze.Product is empty — EXEC with concatenated SQL produces no rows in silver.ExecConcatTarget",
+      "scenarios": [
+        "test_exec_concat_empty_source_no_rows"
+      ]
     }
   ],
-  "unit_tests": [],
-  "uncovered_branches": [
-    "dynamic_sql_concat_insert"
+  "unit_tests": [
+    {
+      "name": "test_exec_concat_rows_present_populates_target",
+      "target_table": "[silver].[ExecConcatTarget]",
+      "procedure": "[silver].[usp_scope_ExecConcat]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Road-150",
+              "ProductNumber": "PR-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 10.0,
+              "ListPrice": 25.0,
+              "DaysToManufacture": 1,
+              "SellStartDate": "2024-01-01",
+              "ModifiedDate": "2024-01-01"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150"
+          }
+        ]
+      }
+    },
+    {
+      "name": "test_exec_concat_empty_source_no_rows",
+      "target_table": "[silver].[ExecConcatTarget]",
+      "procedure": "[silver].[usp_scope_ExecConcat]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": []
+        }
+      ],
+      "expect": {
+        "rows": []
+      }
+    }
   ],
+  "uncovered_branches": [],
   "warnings": [
     {
-      "code": "DYNAMIC_SQL_UNTESTABLE",
-      "message": "Write logic is executed via a SQL string assembled through concatenation before EXEC \u2014 the final SQL is not statically visible at parse time and cannot be exercised by fixture-driven unit tests. LLM-recovered SQL is available in details.",
+      "code": "DYNAMIC_SQL_RECOVERED",
+      "message": "Write logic is executed via a SQL string assembled through concatenation before EXEC. The final SQL is not statically visible at parse time, but LLM-recovered SQL is available and has been used as the basis for test scenarios.",
       "item_id": "silver.execconcattarget",
       "severity": "warning",
       "details": {

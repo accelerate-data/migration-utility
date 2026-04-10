@@ -1,7 +1,16 @@
-You are running in a DDL project directory at {{fixture_path}}.
+You are running an eval harness for `/generate-tests` in the fixture project at `{{fixture_path}}`.
 
-Run /generate-tests for tables: {{target_tables}}.
+Run `/generate-tests` for these tables: `{{target_tables}}`.
 
-Read the command at plugin/commands/generate-tests.md. Wherever it references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead. Pass `--project-root {{fixture_path}}` to all CLI commands.
+Read `plugin/commands/generate-tests.md`, but treat the following harness rules as authoritative overrides for this eval. Do not ask clarifying questions. Do not pause for confirmation. Execute the task directly.
 
-Skip git operations, worktree creation, and sandbox execution — operate directly on the fixture directory. Write `.migration-runs/` artifacts to `{{fixture_path}}/.migration-runs/`.
+Harness overrides:
+- Operate directly on `{{fixture_path}}`. Do not create or use a worktree.
+- Do not run git commands, `/commit`, `/commit-push-pr`, or `git-checkpoints`.
+- Do not spawn sub-agents for this eval. Process the target tables sequentially in the current conversation.
+- Wherever the command references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead.
+- Pass `--project-root {{fixture_path}}` to every CLI command that accepts `--project-root`.
+- Skip sandbox execution for this eval.
+- Write run artifacts to `{{fixture_path}}/.migration-runs/` using the command's normal item-result and summary formats.
+
+If one table fails, continue processing the remaining tables and then write the summary.

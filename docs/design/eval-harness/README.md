@@ -64,6 +64,7 @@ Use these when you are working in a specific area:
 | Catalog browsing / `listing-objects` behavior | `npm run eval:listing-objects` |
 | Profiling behavior | `npm run eval:profiling-table` |
 | Table scoping / writer selection | `npm run eval:analyzing-table` or `npm run eval:cmd-scope` |
+| Test generation skill behavior | `npm run eval:generating-tests` |
 | Test review behavior | `npm run eval:reviewing-tests` |
 | Model review behavior | `npm run eval:reviewing-model` |
 | SQL refactoring behavior | `npm run eval:refactoring-sql` or `npm run eval:cmd-refactor` |
@@ -85,8 +86,9 @@ npm run eval
 npm run eval:listing-objects
 npm run eval:analyzing-table
 npm run eval:profiling-table
-npm run eval:refactoring-sql
+npm run eval:generating-tests
 npm run eval:reviewing-tests
+npm run eval:refactoring-sql
 npm run eval:reviewing-model
 
 
@@ -141,6 +143,8 @@ If you add a new fixture directory, commit it or at least stage it before runnin
 ### Mixed prompt packages
 
 If a package contains both table and view scenarios, do not rely on the package-level `prompts:` list alone. Pin each scenario to its intended prompt with `prompts: ["<prompt-id>"]`.
+
+Current examples include `packages/analyzing-table/skill-analyzing-table.yaml`, `packages/profiling-table/skill-profiling-table.yaml`, `packages/generating-tests/skill-generating-tests.yaml`, and `packages/reviewing-tests/skill-reviewing-tests.yaml`.
 
 Use this whenever:
 

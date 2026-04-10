@@ -77,5 +77,14 @@
     "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM [bronze].[Product]",
     "refactored_sql": "with source_product as (\n    select * from [bronze].[Product]\n),\n\nfinal as (\n    select\n        cast(ProductID as nvarchar(25)) as ProductAlternateKey,\n        ProductName as EnglishProductName\n    from source_product\n)\n\nselect * from final"
   },
-  "statements": []
+  "statements": [],
+  "test_gen": {
+    "status": "ok",
+    "test_spec_path": "test-specs/silver.selectintotarget.json",
+    "branches": 2,
+    "unit_tests": 2,
+    "coverage": "complete",
+    "warnings": [],
+    "errors": []
+  }
 }

@@ -1,12 +1,12 @@
 {
   "item_id": "silver.ifelsetarget",
-  "status": "partial",
-  "coverage": "partial",
+  "status": "ok",
+  "coverage": "complete",
   "branch_manifest": [
     {
       "id": "if_premium_path",
       "statement_index": 0,
-      "description": "IF branch: when AVG(ListPrice) > 100, insert only premium-priced products with PriceCategory='Premium'",
+      "description": "IF branch: when ListPrice > 100, insert premium-priced products",
       "scenarios": [
         "test_premium_path_high_avg"
       ]
@@ -14,24 +14,33 @@
     {
       "id": "else_standard_path",
       "statement_index": 1,
-      "description": "ELSE branch: when AVG(ListPrice) <= 100, insert all products with PriceCategory='Standard'",
-      "scenarios": []
+      "description": "ELSE branch: insert all products regardless of price",
+      "scenarios": [
+        "test_standard_path_all_products"
+      ]
     }
   ],
   "unit_tests": [
     {
       "name": "test_premium_path_high_avg",
       "model": "stg_ifelsetarget",
+      "target_table": "[silver].[IfElseTarget]",
+      "procedure": "[silver].[usp_load_IfElseTarget]",
       "given": [
         {
+          "table": "[bronze].[Product]",
           "rows": [
             {
               "ProductID": 1,
               "ProductName": "Road-150",
               "ListPrice": 200.0
+            },
+            {
+              "ProductID": 2,
+              "ProductName": "Mountain-200",
+              "ListPrice": 180.0
             }
-          ],
-          "table": "[bronze].[Product]"
+          ]
         }
       ],
       "expect": {
@@ -40,25 +49,55 @@
             "ProductAlternateKey": "1",
             "EnglishProductName": "Road-150",
             "PriceCategory": "Premium"
+          },
+          {
+            "ProductAlternateKey": "2",
+            "EnglishProductName": "Mountain-200",
+            "PriceCategory": "Premium"
           }
         ]
-      },
-      "target_table": "[silver].[IfElseTarget]",
-      "procedure": "[silver].[usp_load_IfElseTarget]"
-    }
-  ],
-  "uncovered_branches": [
-    "else_standard_path"
-  ],
-  "warnings": [
+      }
+    },
     {
-      "code": "BRANCH_NOT_COVERED",
-      "message": "1 of 2 control-flow branches has no scenarios: else_standard_path.",
-      "item_id": "silver.ifelsetarget",
-      "severity": "warning",
-      "details": {}
+      "name": "test_standard_path_all_products",
+      "model": "stg_ifelsetarget",
+      "target_table": "[silver].[IfElseTarget]",
+      "procedure": "[silver].[usp_load_IfElseTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Budget-Bike",
+              "ListPrice": 50.0
+            },
+            {
+              "ProductID": 2,
+              "ProductName": "Economy-Wheel",
+              "ListPrice": 25.0
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Budget-Bike",
+            "PriceCategory": "Standard"
+          },
+          {
+            "ProductAlternateKey": "2",
+            "EnglishProductName": "Economy-Wheel",
+            "PriceCategory": "Standard"
+          }
+        ]
+      }
     }
   ],
+  "uncovered_branches": [],
+  "warnings": [],
   "validation": {
     "passed": true,
     "issues": []

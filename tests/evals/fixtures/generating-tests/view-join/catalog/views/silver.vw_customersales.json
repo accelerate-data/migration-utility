@@ -1,0 +1,66 @@
+{
+  "schema": "silver",
+  "name": "vw_customersales",
+  "is_materialized_view": false,
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "DimCustomer",
+          "is_selected": true,
+          "is_updated": false
+        },
+        {
+          "schema": "silver",
+          "name": "FactInternetSales",
+          "is_selected": true,
+          "is_updated": false
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "scoping": {
+    "status": "analyzed",
+    "sql_elements": [
+      { "type": "join", "detail": "LEFT JOIN silver.FactInternetSales ON CustomerKey" }
+    ],
+    "call_tree": {
+      "reads_from": ["silver.dimcustomer", "silver.factinternetsales"],
+      "views_referenced": []
+    },
+    "logic_summary": "Left-joins DimCustomer to FactInternetSales on CustomerKey, returning customer name and sales order details. Customers with no sales produce NULL sales columns.",
+    "rationale": "Two-table LEFT JOIN view — tests match and no-match branches.",
+    "warnings": [],
+    "errors": []
+  },
+  "profile": {
+    "status": "ok",
+    "classification": "mart",
+    "rationale": "Multi-source join view combining customer and sales data — mart classification.",
+    "source": "llm"
+  }
+}

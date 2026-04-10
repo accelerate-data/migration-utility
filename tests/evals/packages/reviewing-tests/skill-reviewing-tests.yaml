@@ -5,6 +5,9 @@ prompts:
   - id: reviewing-tests
     label: reviewing-tests
     raw: file://../../prompts/skill-reviewing-tests.txt
+  - id: reviewing-tests-view
+    label: reviewing-tests-view
+    raw: file://../../prompts/skill-reviewing-tests-view.txt
 
 providers:
   - id: anthropic:claude-agent-sdk
@@ -31,6 +34,7 @@ tests:
   # from given[] even though the proc never SELECTs them — these are irrelevant to dbt
   # unit tests and the fixtures correctly include all proc-used columns.
   - description: "review-approved — DimProduct complete branch coverage"
+    prompts: ["reviewing-tests"]
     vars:
       fixture_path: "tests/evals/fixtures/reviewing-tests/review-approved"
       target_table: "silver.DimProduct"
@@ -39,6 +43,7 @@ tests:
       min_covered_branches: 2
 
   - description: "review-revision — DimCustomer incomplete coverage"
+    prompts: ["reviewing-tests"]
     vars:
       fixture_path: "tests/evals/fixtures/reviewing-tests/review-revision"
       target_table: "silver.DimCustomer"
@@ -51,6 +56,7 @@ tests:
   # from given[] — the proc only SELECTs ProductID and ProductName from bronze.Product,
   # so the other NOT NULL columns are irrelevant to dbt unit test fixtures.
   - description: "review-approved-insert-select — InsertSelectTarget non-MERGE pattern"
+    prompts: ["reviewing-tests"]
     vars:
       fixture_path: "tests/evals/fixtures/reviewing-tests/review-approved-insert-select"
       target_table: "silver.InsertSelectTarget"
@@ -59,6 +65,7 @@ tests:
       min_covered_branches: 1
 
   - description: "review-revision-update-join — UpdateJoinTarget missing join-miss"
+    prompts: ["reviewing-tests"]
     vars:
       fixture_path: "tests/evals/fixtures/reviewing-tests/review-revision-update-join"
       target_table: "silver.UpdateJoinTarget"
@@ -66,6 +73,7 @@ tests:
       expected_status: "revision_requested"
 
   - description: "review-revision-if-else — IfElseTarget missing control-flow arm"
+    prompts: ["reviewing-tests"]
     vars:
       fixture_path: "tests/evals/fixtures/reviewing-tests/review-revision-if-else"
       target_table: "silver.IfElseTarget"
@@ -73,6 +81,7 @@ tests:
       expected_status: "revision_requested"
 
   - description: "review-revision-exec-chain — FactExecProfile catalog mismatch"
+    prompts: ["reviewing-tests"]
     vars:
       fixture_path: "tests/evals/fixtures/reviewing-tests/review-revision-exec-chain"
       target_table: "silver.FactExecProfile"
@@ -81,6 +90,7 @@ tests:
       min_covered_branches: 1
 
   - description: "review-approved-dynamic-sql — DimCurrency partial with untestable rationale"
+    prompts: ["reviewing-tests"]
     vars:
       fixture_path: "tests/evals/fixtures/reviewing-tests/review-approved-dynamic-sql"
       target_table: "silver.DimCurrency"
@@ -90,6 +100,7 @@ tests:
   # --- VU-878: fixture quality review scenarios ---
 
   - description: "review-not-null — InsertSelectTarget missing NOT NULL columns"
+    prompts: ["reviewing-tests"]
     vars:
       fixture_path: "tests/evals/fixtures/reviewing-tests/review-not-null"
       target_table: "silver.InsertSelectTarget"
@@ -99,9 +110,20 @@ tests:
   # --- VU-880: deferred reviewing-tests scenarios ---
 
   - description: "review-approved-with-warnings — DimCustomer approves with warnings at iteration 2"
+    prompts: ["reviewing-tests"]
     vars:
       fixture_path: "tests/evals/fixtures/reviewing-tests/review-approved-with-warnings"
       target_table: "silver.DimCustomer"
       writer: "silver.usp_load_DimCustomer_Full"
       iteration_suffix: " --iteration 2"
       expected_status: "approved_with_warnings,revision_requested"
+
+  # --- view scenarios ---
+
+  - description: "review-approved-view-where — vw_ActiveProducts WHERE filter coverage"
+    prompts: ["reviewing-tests-view"]
+    vars:
+      fixture_path: "tests/evals/fixtures/reviewing-tests/review-approved-view-where"
+      target_table: "silver.vw_ActiveProducts"
+      expected_status: "approved"
+      min_covered_branches: 2

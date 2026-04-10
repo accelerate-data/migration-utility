@@ -26,7 +26,7 @@ from shared.catalog import (
     write_proc_table_slice,
 )
 from shared.loader import CatalogFileMissingError
-from shared.catalog_models import TableScopingSection, ViewScopingSection
+from shared.catalog_models import StatementEntry, TableScopingSection, ViewScopingSection
 from shared.name_resolver import normalize
 
 logger = logging.getLogger(__name__)
@@ -95,6 +95,8 @@ def run_write_statements(
                 f"Unresolved statement action {action!r} for {stmt.get('id', '?')} — "
                 "all actions must be 'migrate' or 'skip' before writing."
             )
+    for stmt in statements:
+        StatementEntry.model_validate(stmt)
     _validate_schema_fragment(statements, "procedure_catalog.json", "properties/statements")
     path = write_proc_statements(project_root, name, statements)
     return {"written": str(path), "statement_count": len(statements)}

@@ -27,7 +27,7 @@
         {
           "schema": "silver",
           "name": "usp_scope_execvariable",
-          "is_selected": false,
+          "is_selected": true,
           "is_updated": true
         }
       ],
@@ -41,5 +41,46 @@
       "in_scope": [],
       "out_of_scope": []
     }
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_scope_execvariable"
+  },
+  "profile": {
+    "status": "ok",
+    "writer": "silver.usp_scope_execvariable",
+    "classification": {
+      "resolved_kind": "insert",
+      "source": "catalog+llm",
+      "rationale": "Dynamic SQL insert via EXEC materializes rows from bronze.Product."
+    },
+    "primary_key": {
+      "columns": [],
+      "primary_key_type": "none",
+      "source": "catalog",
+      "rationale": "No primary key defined."
+    },
+    "foreign_keys": [],
+    "pii_actions": []
+  },
+  "test_gen": {
+    "status": "ok",
+    "test_spec_path": "test-specs/silver.execvariabletarget.json",
+    "branches": 1,
+    "unit_tests": 3,
+    "coverage": "partial",
+    "warnings": [
+      {
+        "code": "DYNAMIC_SQL_UNTESTABLE",
+        "message": "Write logic is executed via a SQL string stored in a variable before EXEC — the SQL is not statically visible at parse time and cannot be exercised by fixture-driven unit tests. LLM-recovered SQL is available in details.",
+        "item_id": "silver.execvariabletarget",
+        "severity": "warning",
+        "details": {
+          "routing": "dynamic_sql_variable",
+          "recovered_sql": "INSERT INTO silver.ExecVariableTarget (ProductAlternateKey, EnglishProductName) SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product"
+        }
+      }
+    ],
+    "errors": []
   }
 }

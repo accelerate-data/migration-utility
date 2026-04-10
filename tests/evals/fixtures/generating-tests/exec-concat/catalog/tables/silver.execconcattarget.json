@@ -41,5 +41,35 @@
       "in_scope": [],
       "out_of_scope": []
     }
+  },
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_scope_execconcat"
+  },
+  "profile": {
+    "status": "ok",
+    "writer": "silver.usp_scope_execconcat",
+    "classification": {
+      "resolved_kind": "fact",
+      "source": "catalog+llm",
+      "rationale": "Simple insert-based fact load from product source"
+    },
+    "primary_key": {
+      "columns": [],
+      "primary_key_type": "none",
+      "source": "catalog",
+      "rationale": "No primary key defined"
+    },
+    "foreign_keys": [],
+    "pii_actions": []
+  },
+  "test_gen": {
+    "status": "ok",
+    "test_spec_path": "test-specs/silver.execconcattarget.json",
+    "branches": 2,
+    "unit_tests": 2,
+    "coverage": "complete",
+    "warnings": [],
+    "errors": []
   }
 }

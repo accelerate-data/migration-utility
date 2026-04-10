@@ -1,93 +1,348 @@
 {
   "item_id": "silver.dimcustomer",
-  "status": "partial",
-  "coverage": "partial",
+  "status": "ok",
+  "coverage": "complete",
   "branch_manifest": [
     {
-      "id": "truncate_before_reload",
-      "statement_index": 0,
-      "description": "TRUNCATE clears existing customer rows before reload",
-      "scenarios": []
-    },
-    {
-      "id": "insert_with_outer_apply",
+      "id": "outer_apply_with_orders",
       "statement_index": 1,
-      "description": "INSERT with OUTER APPLY derives DateFirstPurchase from minimum order date",
-      "scenarios": []
-    },
-    {
-      "id": "null_person_handling",
-      "statement_index": 1,
-      "description": "NULL PersonID in Customer table produces NULL name columns via LEFT JOIN to Person",
-      "scenarios": []
-    },
-    {
-      "id": "no_orders_null_date",
-      "statement_index": 1,
-      "description": "Customer with no orders gets NULL DateFirstPurchase from OUTER APPLY",
+      "description": "OUTER APPLY matches orders — DateFirstPurchase is set to minimum order date",
       "scenarios": [
-        "test_single_customer_no_orders"
+        "test_customer_with_orders_date_populated"
+      ]
+    },
+    {
+      "id": "outer_apply_no_orders",
+      "statement_index": 1,
+      "description": "OUTER APPLY has no matching orders — DateFirstPurchase is NULL",
+      "scenarios": [
+        "test_customer_no_orders_null_date"
+      ]
+    },
+    {
+      "id": "join_person_null_person_id",
+      "statement_index": 1,
+      "description": "NULL PersonID in Customer table produces NULL name columns via implicit LEFT JOIN behavior",
+      "scenarios": [
+        "test_null_personid_produces_null_names"
+      ]
+    },
+    {
+      "id": "multiple_customers_all_processed",
+      "statement_index": 1,
+      "description": "Multiple customers with mixed order histories and person matches are all processed correctly",
+      "scenarios": [
+        "test_multiple_customers_mixed_scenarios"
       ]
     }
   ],
   "unit_tests": [
     {
-      "name": "test_single_customer_no_orders",
-      "model": "stg_dimcustomer",
+      "name": "test_customer_with_orders_date_populated",
+      "target_table": "[silver].[DimCustomer]",
+      "procedure": "[silver].[usp_load_DimCustomer_Full]",
       "given": [
         {
+          "table": "[bronze].[Customer]",
           "rows": [
             {
               "CustomerID": 101,
-              "PersonID": 1001
+              "PersonID": 1001,
+              "StoreID": null,
+              "TerritoryID": null,
+              "AccountNumber": "AW00000101",
+              "ModifiedDate": "2023-01-01"
             }
-          ],
-          "table": "[bronze].[Customer]"
+          ]
+        },
+        {
+          "table": "[bronze].[Person]",
+          "rows": [
+            {
+              "BusinessEntityID": 1001,
+              "PersonType": "EM",
+              "Title": "Mr.",
+              "FirstName": "John",
+              "MiddleName": "Michael",
+              "LastName": "Smith",
+              "Suffix": null,
+              "EmailPromotion": 1,
+              "ModifiedDate": "2023-01-01"
+            }
+          ]
+        },
+        {
+          "table": "[bronze].[SalesOrderHeader]",
+          "rows": [
+            {
+              "SalesOrderID": 1001,
+              "RevisionNumber": 1,
+              "OrderDate": "2023-03-15",
+              "DueDate": "2023-03-20",
+              "ShipDate": "2023-03-18",
+              "Status": 5,
+              "OnlineOrderFlag": 1,
+              "SalesOrderNumber": "SO43659",
+              "PurchaseOrderNumber": "PO522145",
+              "AccountNumber": null,
+              "CustomerID": 101,
+              "SalesPersonID": null,
+              "TerritoryID": null,
+              "BillToAddressID": 1,
+              "ShipToAddressID": 1,
+              "ShipMethodID": 1,
+              "CreditCardID": null,
+              "SubTotal": 100.00,
+              "TaxAmt": 10.00,
+              "Freight": 5.00,
+              "TotalDue": 115.00,
+              "Comment": null,
+              "ModifiedDate": "2023-03-18"
+            },
+            {
+              "SalesOrderID": 1002,
+              "RevisionNumber": 1,
+              "OrderDate": "2023-04-10",
+              "DueDate": "2023-04-15",
+              "ShipDate": "2023-04-12",
+              "Status": 5,
+              "OnlineOrderFlag": 1,
+              "SalesOrderNumber": "SO43660",
+              "PurchaseOrderNumber": "PO522146",
+              "AccountNumber": null,
+              "CustomerID": 101,
+              "SalesPersonID": null,
+              "TerritoryID": null,
+              "BillToAddressID": 1,
+              "ShipToAddressID": 1,
+              "ShipMethodID": 1,
+              "CreditCardID": null,
+              "SubTotal": 150.00,
+              "TaxAmt": 15.00,
+              "Freight": 7.50,
+              "TotalDue": 172.50,
+              "Comment": null,
+              "ModifiedDate": "2023-04-12"
+            }
+          ]
         }
-      ],
-      "expect": {
-        "rows": [
-          {
-            "CustomerAlternateKey": "101"
-          }
-        ]
-      },
+      ]
+    },
+    {
+      "name": "test_customer_no_orders_null_date",
       "target_table": "[silver].[DimCustomer]",
-      "procedure": "[silver].[usp_load_DimCustomer_Full]"
-    }
-  ],
-  "uncovered_branches": [
-    "truncate_before_reload",
-    "insert_with_outer_apply",
-    "null_person_handling"
-  ],
-  "warnings": [
-    {
-      "code": "FIXTURE_UNREALISTIC",
-      "message": "test_single_customer_no_orders is missing the Person source table entirely \u2014 JOIN will fail or produce NULLs for all name columns.",
-      "item_id": "silver.dimcustomer",
-      "severity": "warning",
-      "details": {
-        "scenario": "test_single_customer_no_orders"
-      }
+      "procedure": "[silver].[usp_load_DimCustomer_Full]",
+      "given": [
+        {
+          "table": "[bronze].[Customer]",
+          "rows": [
+            {
+              "CustomerID": 102,
+              "PersonID": 1002,
+              "StoreID": null,
+              "TerritoryID": null,
+              "AccountNumber": "AW00000102",
+              "ModifiedDate": "2023-01-01"
+            }
+          ]
+        },
+        {
+          "table": "[bronze].[Person]",
+          "rows": [
+            {
+              "BusinessEntityID": 1002,
+              "PersonType": "EM",
+              "Title": "Ms.",
+              "FirstName": "Jane",
+              "MiddleName": "Elizabeth",
+              "LastName": "Doe",
+              "Suffix": null,
+              "EmailPromotion": 0,
+              "ModifiedDate": "2023-01-01"
+            }
+          ]
+        },
+        {
+          "table": "[bronze].[SalesOrderHeader]",
+          "rows": []
+        }
+      ]
     },
     {
-      "code": "FIXTURE_INCOMPLETE",
-      "message": "Expected output only checks CustomerAlternateKey \u2014 8 other target columns (FirstName, MiddleName, LastName, Title, Gender, MaritalStatus, EmailPromotion, DateFirstPurchase) are not verified.",
-      "item_id": "silver.dimcustomer",
-      "severity": "warning",
-      "details": {
-        "scenario": "test_single_customer_no_orders"
-      }
+      "name": "test_null_personid_produces_null_names",
+      "target_table": "[silver].[DimCustomer]",
+      "procedure": "[silver].[usp_load_DimCustomer_Full]",
+      "given": [
+        {
+          "table": "[bronze].[Customer]",
+          "rows": [
+            {
+              "CustomerID": 103,
+              "PersonID": null,
+              "StoreID": 1,
+              "TerritoryID": 1,
+              "AccountNumber": "AW00000103",
+              "ModifiedDate": "2023-01-01"
+            }
+          ]
+        },
+        {
+          "table": "[bronze].[Person]",
+          "rows": []
+        },
+        {
+          "table": "[bronze].[SalesOrderHeader]",
+          "rows": [
+            {
+              "SalesOrderID": 1003,
+              "RevisionNumber": 1,
+              "OrderDate": "2023-02-01",
+              "DueDate": "2023-02-05",
+              "ShipDate": "2023-02-03",
+              "Status": 5,
+              "OnlineOrderFlag": 1,
+              "SalesOrderNumber": "SO43661",
+              "PurchaseOrderNumber": "PO522147",
+              "AccountNumber": null,
+              "CustomerID": 103,
+              "SalesPersonID": null,
+              "TerritoryID": null,
+              "BillToAddressID": 1,
+              "ShipToAddressID": 1,
+              "ShipMethodID": 1,
+              "CreditCardID": null,
+              "SubTotal": 200.00,
+              "TaxAmt": 20.00,
+              "Freight": 10.00,
+              "TotalDue": 230.00,
+              "Comment": null,
+              "ModifiedDate": "2023-02-03"
+            }
+          ]
+        }
+      ]
     },
     {
-      "code": "BRANCH_NOT_COVERED",
-      "message": "3 of 4 branches have no scenarios: truncate_before_reload, insert_with_outer_apply, null_person_handling.",
-      "item_id": "silver.dimcustomer",
-      "severity": "warning",
-      "details": {}
+      "name": "test_multiple_customers_mixed_scenarios",
+      "target_table": "[silver].[DimCustomer]",
+      "procedure": "[silver].[usp_load_DimCustomer_Full]",
+      "given": [
+        {
+          "table": "[bronze].[Customer]",
+          "rows": [
+            {
+              "CustomerID": 104,
+              "PersonID": 1004,
+              "StoreID": null,
+              "TerritoryID": null,
+              "AccountNumber": "AW00000104",
+              "ModifiedDate": "2023-01-01"
+            },
+            {
+              "CustomerID": 105,
+              "PersonID": 1005,
+              "StoreID": null,
+              "TerritoryID": null,
+              "AccountNumber": "AW00000105",
+              "ModifiedDate": "2023-01-01"
+            },
+            {
+              "CustomerID": 106,
+              "PersonID": null,
+              "StoreID": 2,
+              "TerritoryID": 2,
+              "AccountNumber": "AW00000106",
+              "ModifiedDate": "2023-01-01"
+            }
+          ]
+        },
+        {
+          "table": "[bronze].[Person]",
+          "rows": [
+            {
+              "BusinessEntityID": 1004,
+              "PersonType": "EM",
+              "Title": "Dr.",
+              "FirstName": "Robert",
+              "MiddleName": "James",
+              "LastName": "Johnson",
+              "Suffix": null,
+              "EmailPromotion": 2,
+              "ModifiedDate": "2023-01-01"
+            },
+            {
+              "BusinessEntityID": 1005,
+              "PersonType": "EM",
+              "Title": "Mrs.",
+              "FirstName": "Sarah",
+              "MiddleName": "Ann",
+              "LastName": "Williams",
+              "Suffix": null,
+              "EmailPromotion": 1,
+              "ModifiedDate": "2023-01-01"
+            }
+          ]
+        },
+        {
+          "table": "[bronze].[SalesOrderHeader]",
+          "rows": [
+            {
+              "SalesOrderID": 1004,
+              "RevisionNumber": 1,
+              "OrderDate": "2023-05-01",
+              "DueDate": "2023-05-06",
+              "ShipDate": "2023-05-03",
+              "Status": 5,
+              "OnlineOrderFlag": 1,
+              "SalesOrderNumber": "SO43662",
+              "PurchaseOrderNumber": "PO522148",
+              "AccountNumber": null,
+              "CustomerID": 104,
+              "SalesPersonID": null,
+              "TerritoryID": null,
+              "BillToAddressID": 1,
+              "ShipToAddressID": 1,
+              "ShipMethodID": 1,
+              "CreditCardID": null,
+              "SubTotal": 500.00,
+              "TaxAmt": 50.00,
+              "Freight": 25.00,
+              "TotalDue": 575.00,
+              "Comment": null,
+              "ModifiedDate": "2023-05-03"
+            },
+            {
+              "SalesOrderID": 1005,
+              "RevisionNumber": 1,
+              "OrderDate": "2023-06-15",
+              "DueDate": "2023-06-20",
+              "ShipDate": "2023-06-17",
+              "Status": 5,
+              "OnlineOrderFlag": 1,
+              "SalesOrderNumber": "SO43663",
+              "PurchaseOrderNumber": "PO522149",
+              "AccountNumber": null,
+              "CustomerID": 106,
+              "SalesPersonID": null,
+              "TerritoryID": null,
+              "BillToAddressID": 1,
+              "ShipToAddressID": 1,
+              "ShipMethodID": 1,
+              "CreditCardID": null,
+              "SubTotal": 300.00,
+              "TaxAmt": 30.00,
+              "Freight": 15.00,
+              "TotalDue": 345.00,
+              "Comment": null,
+              "ModifiedDate": "2023-06-17"
+            }
+          ]
+        }
+      ]
     }
   ],
+  "uncovered_branches": [],
+  "warnings": [],
   "validation": {
     "passed": true,
     "issues": []

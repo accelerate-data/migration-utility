@@ -1,0 +1,21 @@
+{
+  "schema": "silver",
+  "name": "factinternetsales",
+  "columns": [
+    { "name": "SalesOrderNumber", "sql_type": "NVARCHAR(20)", "is_nullable": false, "is_identity": false },
+    { "name": "CustomerKey", "sql_type": "INT", "is_nullable": false, "is_identity": false },
+    { "name": "OrderDate", "sql_type": "DATETIME", "is_nullable": false, "is_identity": false },
+    { "name": "SalesAmount", "sql_type": "MONEY", "is_nullable": false, "is_identity": false },
+    { "name": "TaxAmt", "sql_type": "MONEY", "is_nullable": true, "is_identity": false }
+  ],
+  "primary_keys": ["SalesOrderNumber"],
+  "auto_increment_columns": [],
+  "foreign_keys": [
+    { "column": "CustomerKey", "referenced_table": "silver.DimCustomer", "referenced_column": "CustomerKey" }
+  ],
+  "referenced_by": {
+    "procedures": { "in_scope": [], "out_of_scope": [] },
+    "views": { "in_scope": [], "out_of_scope": [] },
+    "functions": { "in_scope": [], "out_of_scope": [] }
+  }
+}

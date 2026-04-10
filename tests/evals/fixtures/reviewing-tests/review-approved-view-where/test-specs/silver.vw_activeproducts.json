@@ -1,0 +1,53 @@
+{
+  "item_id": "silver.vw_activeproducts",
+  "object_type": "view",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {
+      "id": "where_status_active_match",
+      "statement_index": 0,
+      "description": "WHERE Status = 'Active' — row matches filter",
+      "scenarios": ["test_where_filter_active_row_included"]
+    },
+    {
+      "id": "where_status_active_no_match",
+      "statement_index": 0,
+      "description": "WHERE Status = 'Active' — row does not match filter",
+      "scenarios": ["test_where_filter_inactive_row_excluded"]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_where_filter_active_row_included",
+      "sql": "SELECT [ProductKey], [EnglishProductName], [Status], [ListPrice] FROM [silver].[DimProduct] WHERE [Status] = 'Active'",
+      "given": [
+        {
+          "table": "[silver].[DimProduct]",
+          "rows": [
+            { "ProductKey": 1, "EnglishProductName": "Widget", "Status": "Active", "ListPrice": 29.99 }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "test_where_filter_inactive_row_excluded",
+      "sql": "SELECT [ProductKey], [EnglishProductName], [Status], [ListPrice] FROM [silver].[DimProduct] WHERE [Status] = 'Active'",
+      "given": [
+        {
+          "table": "[silver].[DimProduct]",
+          "rows": [
+            { "ProductKey": 2, "EnglishProductName": "Gadget", "Status": "Discontinued", "ListPrice": 49.99 }
+          ]
+        }
+      ]
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "errors": []
+}

@@ -1,0 +1,645 @@
+{
+  "item_id": "silver.nestedflowtarget",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {
+      "id": "full_load_insert",
+      "statement_index": 0,
+      "description": "INSERT statement loads products with LoadMode='full' for products where ProductName IS NOT NULL",
+      "scenarios": [
+        "test_full_load_single_product",
+        "test_full_load_multiple_products",
+        "test_full_load_filters_null_product_name",
+        "test_full_load_empty_source"
+      ]
+    },
+    {
+      "id": "delta_load_merge_matched",
+      "statement_index": 1,
+      "description": "MERGE WHEN MATCHED updates existing products with LoadMode='delta'",
+      "scenarios": [
+        "test_delta_load_update_existing_product",
+        "test_delta_load_update_multiple_existing_products"
+      ]
+    },
+    {
+      "id": "delta_load_merge_not_matched",
+      "statement_index": 1,
+      "description": "MERGE WHEN NOT MATCHED inserts new products with LoadMode='delta'",
+      "scenarios": [
+        "test_delta_load_insert_new_product",
+        "test_delta_load_insert_multiple_new_products"
+      ]
+    },
+    {
+      "id": "delta_load_merge_combined",
+      "statement_index": 1,
+      "description": "MERGE with both MATCHED and NOT MATCHED handles mixed update and insert scenarios",
+      "scenarios": [
+        "test_delta_load_mixed_update_and_insert"
+      ]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_full_load_single_product",
+      "model": "stg_nestedflowtarget",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Road-150",
+              "ProductNumber": "PR-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "Color": "Red",
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 10.0,
+              "ListPrice": 25.0,
+              "Size": "M",
+              "SizeUnitMeasureCode": "CM",
+              "WeightUnitMeasureCode": "LB",
+              "Weight": 15.5,
+              "DaysToManufacture": 1,
+              "ProductLine": "R",
+              "Class": "H",
+              "Style": "U",
+              "ProductSubcategoryID": 1,
+              "ProductModelID": 10,
+              "SellStartDate": "2024-01-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-01-01"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150",
+            "LoadMode": "full"
+          }
+        ]
+      },
+      "target_table": "[silver].[NestedFlowTarget]",
+      "procedure": "[silver].[usp_load_NestedFlowTarget]"
+    },
+    {
+      "name": "test_full_load_multiple_products",
+      "model": "stg_nestedflowtarget",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Road-150",
+              "ProductNumber": "PR-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "Color": "Red",
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 10.0,
+              "ListPrice": 25.0,
+              "Size": "M",
+              "SizeUnitMeasureCode": "CM",
+              "WeightUnitMeasureCode": "LB",
+              "Weight": 15.5,
+              "DaysToManufacture": 1,
+              "ProductLine": "R",
+              "Class": "H",
+              "Style": "U",
+              "ProductSubcategoryID": 1,
+              "ProductModelID": 10,
+              "SellStartDate": "2024-01-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-01-01"
+            },
+            {
+              "ProductID": 2,
+              "ProductName": "Mountain-200",
+              "ProductNumber": "PR-002",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "Color": "Blue",
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 20.0,
+              "ListPrice": 45.0,
+              "Size": "L",
+              "SizeUnitMeasureCode": "CM",
+              "WeightUnitMeasureCode": "LB",
+              "Weight": 25.0,
+              "DaysToManufacture": 2,
+              "ProductLine": "M",
+              "Class": "M",
+              "Style": "U",
+              "ProductSubcategoryID": 2,
+              "ProductModelID": 20,
+              "SellStartDate": "2024-02-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-02-01"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150",
+            "LoadMode": "full"
+          },
+          {
+            "ProductAlternateKey": "2",
+            "EnglishProductName": "Mountain-200",
+            "LoadMode": "full"
+          }
+        ]
+      },
+      "target_table": "[silver].[NestedFlowTarget]",
+      "procedure": "[silver].[usp_load_NestedFlowTarget]"
+    },
+    {
+      "name": "test_full_load_filters_null_product_name",
+      "model": "stg_nestedflowtarget",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Valid-Product",
+              "ProductNumber": "PR-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "Color": "Red",
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 10.0,
+              "ListPrice": 25.0,
+              "Size": "M",
+              "SizeUnitMeasureCode": "CM",
+              "WeightUnitMeasureCode": "LB",
+              "Weight": 15.5,
+              "DaysToManufacture": 1,
+              "ProductLine": "R",
+              "Class": "H",
+              "Style": "U",
+              "ProductSubcategoryID": 1,
+              "ProductModelID": 10,
+              "SellStartDate": "2024-01-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-01-01"
+            },
+            {
+              "ProductID": 2,
+              "ProductName": null,
+              "ProductNumber": "PR-002",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "Color": "Blue",
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 20.0,
+              "ListPrice": 45.0,
+              "Size": "L",
+              "SizeUnitMeasureCode": "CM",
+              "WeightUnitMeasureCode": "LB",
+              "Weight": 25.0,
+              "DaysToManufacture": 2,
+              "ProductLine": "M",
+              "Class": "M",
+              "Style": "U",
+              "ProductSubcategoryID": 2,
+              "ProductModelID": 20,
+              "SellStartDate": "2024-02-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-02-01"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Valid-Product",
+            "LoadMode": "full"
+          }
+        ]
+      },
+      "target_table": "[silver].[NestedFlowTarget]",
+      "procedure": "[silver].[usp_load_NestedFlowTarget]"
+    },
+    {
+      "name": "test_full_load_empty_source",
+      "model": "stg_nestedflowtarget",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": []
+        }
+      ],
+      "expect": {
+        "rows": []
+      },
+      "target_table": "[silver].[NestedFlowTarget]",
+      "procedure": "[silver].[usp_load_NestedFlowTarget]"
+    },
+    {
+      "name": "test_delta_load_update_existing_product",
+      "model": "stg_nestedflowtarget",
+      "given": [
+        {
+          "table": "[silver].[NestedFlowTarget]",
+          "rows": [
+            {
+              "ProductAlternateKey": "1",
+              "EnglishProductName": "Old-Product-Name",
+              "LoadMode": "full"
+            }
+          ]
+        },
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Updated-Product-Name",
+              "ProductNumber": "PR-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "Color": "Green",
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 10.0,
+              "ListPrice": 25.0,
+              "Size": "M",
+              "SizeUnitMeasureCode": "CM",
+              "WeightUnitMeasureCode": "LB",
+              "Weight": 15.5,
+              "DaysToManufacture": 1,
+              "ProductLine": "R",
+              "Class": "H",
+              "Style": "U",
+              "ProductSubcategoryID": 1,
+              "ProductModelID": 10,
+              "SellStartDate": "2024-01-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-03-15"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Updated-Product-Name",
+            "LoadMode": "delta"
+          }
+        ]
+      },
+      "target_table": "[silver].[NestedFlowTarget]",
+      "procedure": "[silver].[usp_load_NestedFlowTarget]"
+    },
+    {
+      "name": "test_delta_load_update_multiple_existing_products",
+      "model": "stg_nestedflowtarget",
+      "given": [
+        {
+          "table": "[silver].[NestedFlowTarget]",
+          "rows": [
+            {
+              "ProductAlternateKey": "1",
+              "EnglishProductName": "Old-Product-1",
+              "LoadMode": "full"
+            },
+            {
+              "ProductAlternateKey": "2",
+              "EnglishProductName": "Old-Product-2",
+              "LoadMode": "full"
+            }
+          ]
+        },
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Updated-Product-1",
+              "ProductNumber": "PR-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "Color": "Red",
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 10.0,
+              "ListPrice": 25.0,
+              "Size": "M",
+              "SizeUnitMeasureCode": "CM",
+              "WeightUnitMeasureCode": "LB",
+              "Weight": 15.5,
+              "DaysToManufacture": 1,
+              "ProductLine": "R",
+              "Class": "H",
+              "Style": "U",
+              "ProductSubcategoryID": 1,
+              "ProductModelID": 10,
+              "SellStartDate": "2024-01-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-03-15"
+            },
+            {
+              "ProductID": 2,
+              "ProductName": "Updated-Product-2",
+              "ProductNumber": "PR-002",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "Color": "Blue",
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 20.0,
+              "ListPrice": 45.0,
+              "Size": "L",
+              "SizeUnitMeasureCode": "CM",
+              "WeightUnitMeasureCode": "LB",
+              "Weight": 25.0,
+              "DaysToManufacture": 2,
+              "ProductLine": "M",
+              "Class": "M",
+              "Style": "U",
+              "ProductSubcategoryID": 2,
+              "ProductModelID": 20,
+              "SellStartDate": "2024-02-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-03-15"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Updated-Product-1",
+            "LoadMode": "delta"
+          },
+          {
+            "ProductAlternateKey": "2",
+            "EnglishProductName": "Updated-Product-2",
+            "LoadMode": "delta"
+          }
+        ]
+      },
+      "target_table": "[silver].[NestedFlowTarget]",
+      "procedure": "[silver].[usp_load_NestedFlowTarget]"
+    },
+    {
+      "name": "test_delta_load_insert_new_product",
+      "model": "stg_nestedflowtarget",
+      "given": [
+        {
+          "table": "[silver].[NestedFlowTarget]",
+          "rows": []
+        },
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 3,
+              "ProductName": "New-Product",
+              "ProductNumber": "PR-003",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "Color": "Yellow",
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 15.0,
+              "ListPrice": 30.0,
+              "Size": "S",
+              "SizeUnitMeasureCode": "CM",
+              "WeightUnitMeasureCode": "LB",
+              "Weight": 10.0,
+              "DaysToManufacture": 3,
+              "ProductLine": "T",
+              "Class": "L",
+              "Style": "W",
+              "ProductSubcategoryID": 3,
+              "ProductModelID": 30,
+              "SellStartDate": "2024-03-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-03-01"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "3",
+            "EnglishProductName": "New-Product",
+            "LoadMode": "delta"
+          }
+        ]
+      },
+      "target_table": "[silver].[NestedFlowTarget]",
+      "procedure": "[silver].[usp_load_NestedFlowTarget]"
+    },
+    {
+      "name": "test_delta_load_insert_multiple_new_products",
+      "model": "stg_nestedflowtarget",
+      "given": [
+        {
+          "table": "[silver].[NestedFlowTarget]",
+          "rows": []
+        },
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 3,
+              "ProductName": "New-Product-3",
+              "ProductNumber": "PR-003",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "Color": "Yellow",
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 15.0,
+              "ListPrice": 30.0,
+              "Size": "S",
+              "SizeUnitMeasureCode": "CM",
+              "WeightUnitMeasureCode": "LB",
+              "Weight": 10.0,
+              "DaysToManufacture": 3,
+              "ProductLine": "T",
+              "Class": "L",
+              "Style": "W",
+              "ProductSubcategoryID": 3,
+              "ProductModelID": 30,
+              "SellStartDate": "2024-03-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-03-01"
+            },
+            {
+              "ProductID": 4,
+              "ProductName": "New-Product-4",
+              "ProductNumber": "PR-004",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "Color": "Orange",
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 18.0,
+              "ListPrice": 35.0,
+              "Size": "XL",
+              "SizeUnitMeasureCode": "CM",
+              "WeightUnitMeasureCode": "LB",
+              "Weight": 20.0,
+              "DaysToManufacture": 4,
+              "ProductLine": "S",
+              "Class": "H",
+              "Style": "M",
+              "ProductSubcategoryID": 4,
+              "ProductModelID": 40,
+              "SellStartDate": "2024-04-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-04-01"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "3",
+            "EnglishProductName": "New-Product-3",
+            "LoadMode": "delta"
+          },
+          {
+            "ProductAlternateKey": "4",
+            "EnglishProductName": "New-Product-4",
+            "LoadMode": "delta"
+          }
+        ]
+      },
+      "target_table": "[silver].[NestedFlowTarget]",
+      "procedure": "[silver].[usp_load_NestedFlowTarget]"
+    },
+    {
+      "name": "test_delta_load_mixed_update_and_insert",
+      "model": "stg_nestedflowtarget",
+      "given": [
+        {
+          "table": "[silver].[NestedFlowTarget]",
+          "rows": [
+            {
+              "ProductAlternateKey": "1",
+              "EnglishProductName": "Old-Product-1",
+              "LoadMode": "full"
+            }
+          ]
+        },
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Updated-Product-1",
+              "ProductNumber": "PR-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "Color": "Red",
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 10.0,
+              "ListPrice": 25.0,
+              "Size": "M",
+              "SizeUnitMeasureCode": "CM",
+              "WeightUnitMeasureCode": "LB",
+              "Weight": 15.5,
+              "DaysToManufacture": 1,
+              "ProductLine": "R",
+              "Class": "H",
+              "Style": "U",
+              "ProductSubcategoryID": 1,
+              "ProductModelID": 10,
+              "SellStartDate": "2024-01-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-03-15"
+            },
+            {
+              "ProductID": 5,
+              "ProductName": "New-Product-5",
+              "ProductNumber": "PR-005",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "Color": "Purple",
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 22.0,
+              "ListPrice": 50.0,
+              "Size": "XL",
+              "SizeUnitMeasureCode": "CM",
+              "WeightUnitMeasureCode": "LB",
+              "Weight": 30.0,
+              "DaysToManufacture": 5,
+              "ProductLine": "A",
+              "Class": "L",
+              "Style": "Y",
+              "ProductSubcategoryID": 5,
+              "ProductModelID": 50,
+              "SellStartDate": "2024-05-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-05-01"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Updated-Product-1",
+            "LoadMode": "delta"
+          },
+          {
+            "ProductAlternateKey": "5",
+            "EnglishProductName": "New-Product-5",
+            "LoadMode": "delta"
+          }
+        ]
+      },
+      "target_table": "[silver].[NestedFlowTarget]",
+      "procedure": "[silver].[usp_load_NestedFlowTarget]"
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "errors": []
+}

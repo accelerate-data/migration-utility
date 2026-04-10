@@ -32,11 +32,14 @@ tests/evals/
   prompts/
     skill-profiling-table.txt          # prompt template for profiling-table skill
     skill-profiling-table-view.txt     # prompt template for profiling-table view scenarios
-    skill-reviewing-tests.txt          # prompt template for reviewing-tests skill
+    skill-reviewing-tests.txt          # prompt template for reviewing-tests skill (tables)
+    skill-reviewing-tests-view.txt     # prompt template for reviewing-tests skill (views)
     skill-reviewing-model.txt          # prompt template for reviewing-model skill
     skill-analyzing-table.txt          # prompt template for analyzing-table skill
     skill-analyzing-table-view.txt     # prompt template for analyzing-table view scenarios
     skill-refactoring-sql.txt          # prompt template for refactoring-sql skill
+    skill-generating-tests.txt         # prompt template for generating-tests skill (tables)
+    skill-generating-tests-view.txt    # prompt template for generating-tests skill (views)
     cmd-scope.txt                      # prompt template for /scope command
     cmd-profile.txt                    # prompt template for /profile command
     cmd-generate-model.txt             # prompt template for /generate-model command
@@ -56,6 +59,8 @@ tests/evals/
       skill-analyzing-table.yaml
     refactoring-sql/
       skill-refactoring-sql.yaml
+    generating-tests/
+      skill-generating-tests.yaml
     cmd-scope/
       cmd-scope.yaml
     cmd-profile/

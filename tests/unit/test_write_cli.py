@@ -19,6 +19,32 @@ def _seed_catalog(project_root: Path, fqn: str, *, kind: str = "tables") -> Path
     return cat_path
 
 
+def _valid_spec(fqn: str, unit_test_name: str = "t1") -> dict:
+    """Return a minimal schema-valid test spec payload."""
+    schema, name = fqn.split(".", 1)
+    title = "".join(part.capitalize() for part in name.split("_"))
+    return {
+        "item_id": fqn,
+        "status": "ok",
+        "coverage": "complete",
+        "branch_manifest": [],
+        "unit_tests": [
+            {
+                "name": unit_test_name,
+                "model": f"stg_{name}",
+                "given": [{"table": f"[{schema}].[{title}]", "rows": []}],
+                "expect": {"rows": []},
+                "target_table": f"[{schema}].[{title}]",
+                "procedure": f"[{schema}].[usp_load_{title}]",
+            }
+        ],
+        "uncovered_branches": [],
+        "warnings": [],
+        "validation": {"passed": True, "issues": []},
+        "errors": [],
+    }
+
+
 def _seed_spec(project_root: Path, fqn: str, payload: dict | str | None = None) -> Path:
     """Create a test-spec JSON file and return its path.
 
@@ -31,7 +57,7 @@ def _seed_spec(project_root: Path, fqn: str, payload: dict | str | None = None) 
     if isinstance(payload, str):
         spec_path.write_text(payload)
     else:
-        spec_path.write_text(json.dumps(payload or {"unit_tests": []}))
+        spec_path.write_text(json.dumps(payload or _valid_spec(fqn)))
     return spec_path
 
 
@@ -42,7 +68,7 @@ def test_write_test_gen_ok(tmp_path: Path) -> None:
     """Spec file exists, valid JSON, branches > 0 → status ok, test_gen written."""
     fqn = "dbo.my_table"
     _seed_catalog(tmp_path, fqn)
-    _seed_spec(tmp_path, fqn, {"unit_tests": [{"name": "t1"}]})
+    _seed_spec(tmp_path, fqn, _valid_spec(fqn))
 
     result = run_write_test_gen(
         project_root=tmp_path,
@@ -73,15 +99,14 @@ def test_write_test_gen_error_no_spec(tmp_path: Path) -> None:
     _seed_catalog(tmp_path, fqn)
     # No spec file created
 
-    result = run_write_test_gen(
-        project_root=tmp_path,
-        table_fqn=fqn,
-        branches=3,
-        unit_tests=5,
-        coverage="complete",
-    )
-
-    assert result["status"] == "error"
+    with pytest.raises(ValueError, match="Test spec file not found"):
+        run_write_test_gen(
+            project_root=tmp_path,
+            table_fqn=fqn,
+            branches=3,
+            unit_tests=5,
+            coverage="complete",
+        )
 
 
 # ── Error: invalid JSON in spec ───────────────────────────────────────────────
@@ -93,15 +118,14 @@ def test_write_test_gen_error_invalid_json(tmp_path: Path) -> None:
     _seed_catalog(tmp_path, fqn)
     _seed_spec(tmp_path, fqn, "{not valid json")
 
-    result = run_write_test_gen(
-        project_root=tmp_path,
-        table_fqn=fqn,
-        branches=3,
-        unit_tests=5,
-        coverage="complete",
-    )
-
-    assert result["status"] == "error"
+    with pytest.raises(ValueError, match="Test spec file is not valid JSON"):
+        run_write_test_gen(
+            project_root=tmp_path,
+            table_fqn=fqn,
+            branches=3,
+            unit_tests=5,
+            coverage="complete",
+        )
 
 
 # ── Error: zero branches ─────────────────────────────────────────────────────
@@ -111,7 +135,7 @@ def test_write_test_gen_error_zero_branches(tmp_path: Path) -> None:
     """branches == 0 → status error even with valid spec."""
     fqn = "dbo.my_table"
     _seed_catalog(tmp_path, fqn)
-    _seed_spec(tmp_path, fqn, {"unit_tests": [{"name": "t1"}]})
+    _seed_spec(tmp_path, fqn, _valid_spec(fqn))
 
     result = run_write_test_gen(
         project_root=tmp_path,
@@ -130,7 +154,7 @@ def test_write_test_gen_error_zero_branches(tmp_path: Path) -> None:
 def test_write_test_gen_missing_catalog(tmp_path: Path) -> None:
     """Neither table nor view catalog exists → CatalogFileMissingError."""
     fqn = "dbo.my_table"
-    _seed_spec(tmp_path, fqn, {"unit_tests": []})
+    _seed_spec(tmp_path, fqn, _valid_spec(fqn))
     # No catalog created
 
     with pytest.raises(CatalogFileMissingError):
@@ -150,7 +174,7 @@ def test_write_test_gen_view_autodetect(tmp_path: Path) -> None:
     """View catalog exists (no table catalog) → writes test_gen to view catalog."""
     fqn = "dbo.my_view"
     _seed_catalog(tmp_path, fqn, kind="views")
-    _seed_spec(tmp_path, fqn, {"unit_tests": [{"name": "v1"}]})
+    _seed_spec(tmp_path, fqn, _valid_spec(fqn, unit_test_name="v1"))
 
     result = run_write_test_gen(
         project_root=tmp_path,
