@@ -12,14 +12,13 @@ from pathlib import Path
 from typing import Any, NoReturn, Optional
 
 import typer
-from jsonschema import Draft202012Validator
-from referencing import Registry, Resource
+from pydantic import ValidationError
 
 from shared.catalog import (
     load_and_merge_catalog,
     write_json as _write_catalog_json,
 )
-from shared.catalog_models import TestGenSection, TestReviewResult
+from shared.catalog_models import TestGenSection
 from shared.cli_utils import emit
 from shared.env_config import resolve_catalog_dir, resolve_project_root
 from shared.loader import CatalogFileMissingError, CatalogLoadError
@@ -30,6 +29,8 @@ from shared.output_models import (
     ExecuteSpecOutput,
     ExecuteSpecResult,
     TestHarnessExecuteOutput,
+    TestReviewOutput,
+    TestSpec,
 )
 from shared.sandbox import get_backend
 from shared.sandbox.base import SandboxBackend
@@ -37,43 +38,12 @@ from shared.sandbox.base import SandboxBackend
 logger = logging.getLogger(__name__)
 app = typer.Typer(name="test-harness", no_args_is_help=True, add_completion=False, pretty_exceptions_enable=False)
 
-_SCHEMA_DIR = Path(__file__).with_name("schemas")
-
-
-# ── Schema validation helpers ────────────────────────────────────────────────
-
-
-def _load_schema_with_store(schema_name: str) -> tuple[dict[str, Any], Registry]:
-    """Load a schema file and a registry for local schema references."""
-    registry = Registry()
-    loaded: dict[str, Any] = {}
-    for schema_path in _SCHEMA_DIR.glob("*.json"):
-        schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        loaded[schema_path.name] = schema
-        resource = Resource.from_contents(schema)
-        registry = registry.with_resource(schema_path.name, resource)
-        registry = registry.with_resource(schema_path.resolve().as_uri(), resource)
-    return loaded[schema_name], registry
-
-
-def _format_validation_errors(errors: list[Any]) -> str:
-    """Render jsonschema validation errors in compact, actionable form."""
-    parts: list[str] = []
-    for error in errors:
-        path = "/" + "/".join(str(segment) for segment in error.absolute_path)
-        parts.append(f"{path or '/'}: {error.message}")
-    return "; ".join(parts)
-
-
-def _validate_test_spec(spec_data: dict[str, Any]) -> None:
-    """Validate a test spec against test_spec.json and raise ValueError with field-level errors."""
-    schema, registry = _load_schema_with_store("test_spec.json")
-    validator = Draft202012Validator(schema, registry=registry)
-    errors = sorted(validator.iter_errors(spec_data), key=lambda err: list(err.absolute_path))
-    if errors:
-        raise ValueError(
-            f"Test spec schema validation failed: {_format_validation_errors(errors)}"
-        )
+def _validate_test_spec(spec_data: dict[str, Any]) -> TestSpec:
+    """Validate a test spec via Pydantic and raise ValueError with field-level errors."""
+    try:
+        return TestSpec.model_validate(spec_data)
+    except ValidationError as exc:
+        raise ValueError(f"Test spec validation failed: {exc}") from exc
 
 
 def _load_manifest(project_root: Path) -> dict[str, Any]:
@@ -460,7 +430,7 @@ def run_write_test_gen(
 ) -> dict[str, Any]:
     """Validate test-gen output and write test_gen section to catalog.
 
-    Reads the test-spec file from disk, validates it against test_spec.json,
+    Reads the test-spec file from disk, validates it via Pydantic TestSpec,
     and writes the test_gen section to the table or view catalog file.
     Raises ValueError with field-level errors if the spec is invalid.
     """
@@ -481,7 +451,7 @@ def run_write_test_gen(
             f"Test spec file is not valid JSON: {spec_path}. Parse error: {exc}"
         ) from exc
 
-    # Validate against test_spec.json schema — raises ValueError with
+    # Validate via Pydantic TestSpec — raises ValueError with
     # field-level errors the caller can use to fix the spec and retry.
     _validate_test_spec(spec_data)
 
@@ -560,7 +530,7 @@ def write_cmd(
 
 
 def run_validate_review(review_file: Path) -> dict[str, Any]:
-    """Validate a test review JSON file against test_review_output.json schema.
+    """Validate a test review JSON file via Pydantic.
 
     Returns {"valid": true} on success.
     Raises ValueError with field-level errors on validation failure.
@@ -573,15 +543,10 @@ def run_validate_review(review_file: Path) -> dict[str, Any]:
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise ValueError(f"Review file is not valid JSON: {review_file}. Parse error: {exc}") from exc
 
-    schema, registry = _load_schema_with_store("test_review_output.json")
-    validator = Draft202012Validator(schema, registry=registry)
-    errors = sorted(validator.iter_errors(review_data), key=lambda err: list(err.absolute_path))
-    if errors:
-        raise ValueError(
-            f"Review schema validation failed: {_format_validation_errors(errors)}"
-        )
-
-    TestReviewResult.model_validate(review_data)
+    try:
+        TestReviewOutput.model_validate(review_data)
+    except ValidationError as exc:
+        raise ValueError(f"Review validation failed: {exc}") from exc
 
     return {"valid": True}
 
@@ -590,7 +555,7 @@ def run_validate_review(review_file: Path) -> dict[str, Any]:
 def validate_review_cmd(
     review_file: Path = typer.Option(..., "--review-file", help="Path to review JSON file"),
 ) -> None:
-    """Validate a test review result against test_review_output.json schema."""
+    """Validate a test review result via Pydantic TestReviewOutput model."""
     try:
         result = run_validate_review(review_file)
     except ValueError as exc:

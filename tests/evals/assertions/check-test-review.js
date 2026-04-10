@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { validateSchema, extractJsonObject, normalizeTerms } = require('./schema-helpers');
+const { extractJsonObject, normalizeTerms } = require('./schema-helpers');
 
 module.exports = (output, context) => {
   const fixturePath = context.vars.fixture_path;
@@ -27,11 +27,8 @@ module.exports = (output, context) => {
     return { pass: false, score: 0, reason: 'No review JSON found in output or artifact file' };
   }
 
-  // Schema validation gate
-  const schemaResult = validateSchema(review, 'test_review_output.json');
-  if (!schemaResult.valid) {
-    return { pass: false, score: 0, reason: `Test review schema validation failed: ${schemaResult.errors}` };
-  }
+  // Schema validation is now handled by Pydantic TestReviewOutput at runtime.
+  // This assertion focuses on cross-artifact consistency and behavioral checks.
 
   // Cross-artifact: item_id should match target_table
   if (review.item_id && table) {

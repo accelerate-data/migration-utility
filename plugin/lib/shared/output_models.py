@@ -1,8 +1,8 @@
 """Pydantic v2 models for CLI command output contracts.
 
 These models enforce the shape of JSON emitted by ``run_*`` functions in
-``discover.py``, ``dry_run.py``, ``batch_plan.py``, ``profile.py``, and
-``refactor.py``.
+``discover.py``, ``dry_run.py``, ``batch_plan.py``, ``profile.py``,
+``refactor.py``, and ``test_harness.py``.
 All models use ``extra="forbid"`` so unexpected fields raise immediately —
 the contract and code must stay in sync.
 
@@ -772,3 +772,197 @@ class ExecuteSpecOutput(BaseModel):
     ok: int = Field(ge=0)
     failed: int = Field(ge=0)
     results: list[ExecuteSpecResult]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# test spec (per-item)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class BranchEntry(BaseModel):
+    """A conditional branch in the stored procedure / view."""
+
+    model_config = _OUTPUT_CONFIG
+
+    id: str
+    statement_index: int = Field(ge=0)
+    description: str
+    scenarios: list[str]
+
+
+class GivenEntry(BaseModel):
+    """Fixture table with rows for a test scenario."""
+
+    model_config = _OUTPUT_CONFIG
+
+    table: str
+    rows: list[dict[str, Any]]
+
+
+class ExpectEntry(BaseModel):
+    """Expected output rows for a test scenario."""
+
+    model_config = _OUTPUT_CONFIG
+
+    rows: list[dict[str, Any]]
+
+
+class UnitTestEntry(BaseModel):
+    """A single test scenario in a test spec."""
+
+    model_config = _OUTPUT_CONFIG
+
+    name: str
+    target_table: str | None = None
+    procedure: str | None = None
+    sql: str | None = None
+    model: str | None = None
+    given: list[GivenEntry] = Field(min_length=1)
+    expect: ExpectEntry | None = None
+
+
+class ValidationSection(BaseModel):
+    """Passed/failed validation with issues list."""
+
+    model_config = _OUTPUT_CONFIG
+
+    passed: bool
+    issues: list[DiagnosticEntry] = Field(default_factory=list)
+
+
+class TestSpec(BaseModel):
+    """Per-item test spec written to ``test-specs/<item_id>.json``.
+
+    CLI-ready branch-covering fixtures with ground truth.
+    Uses bracket-quoted SQL identifiers for sandbox execution.
+    """
+
+    __test__ = False  # not a pytest class
+    model_config = _OUTPUT_CONFIG
+
+    item_id: str
+    object_type: Literal["table", "view", "mv"] = "table"
+    status: Literal["ok", "partial", "error"]
+    coverage: Literal["complete", "partial"]
+    branch_manifest: list[BranchEntry]
+    unit_tests: list[UnitTestEntry]
+    uncovered_branches: list[str]
+    warnings: list[DiagnosticEntry] = Field(default_factory=list)
+    validation: ValidationSection
+    errors: list[DiagnosticEntry] = Field(default_factory=list)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# test spec output (batch command wrapper)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class CommandSummary(BaseModel):
+    """Summary counts for batch command output."""
+
+    model_config = _OUTPUT_CONFIG
+
+    total: int = Field(ge=0)
+    ok: int = Field(ge=0)
+    partial: int = Field(ge=0)
+    error: int = Field(ge=0)
+
+
+class TestSpecOutput(BaseModel):
+    """Batch output of the ``/generate-tests`` command.
+
+    Wraps per-item test specs with run metadata and summary.
+    """
+
+    __test__ = False  # not a pytest class
+    model_config = _OUTPUT_CONFIG
+
+    schema_version: Literal["1.0"]
+    results: list[TestSpec]
+    summary: CommandSummary
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# test review output
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class ReviewerBranchEntry(BaseModel):
+    """A branch entry from the reviewer's independent enumeration."""
+
+    model_config = _OUTPUT_CONFIG
+
+    id: str
+    description: str
+    covered: bool
+    covering_scenarios: list[str]
+
+
+class UncoveredBranch(BaseModel):
+    """A branch that lacks test scenarios."""
+
+    model_config = _OUTPUT_CONFIG
+
+    id: str
+    description: str
+
+
+class UntestableBranch(BaseModel):
+    """A branch that cannot be tested with static fixtures."""
+
+    model_config = _OUTPUT_CONFIG
+
+    id: str
+    description: str
+    rationale: str
+
+
+class CoverageSection(BaseModel):
+    """Branch coverage scoring from the reviewer."""
+
+    model_config = _OUTPUT_CONFIG
+
+    total_branches: int = Field(ge=0)
+    covered_branches: int = Field(ge=0)
+    untestable_branches: int = Field(default=0, ge=0)
+    score: Literal["complete", "partial"]
+    uncovered: list[UncoveredBranch] = Field(default_factory=list)
+    untestable: list[UntestableBranch] = Field(default_factory=list)
+
+
+class QualityIssue(BaseModel):
+    """A quality issue found during test review."""
+
+    model_config = _OUTPUT_CONFIG
+
+    scenario: str
+    issue: str
+    severity: Literal["warning", "error"]
+
+
+class GeneratorFeedback(BaseModel):
+    """Feedback for the test generator from the reviewer."""
+
+    model_config = _OUTPUT_CONFIG
+
+    uncovered_branches: list[str]
+    quality_fixes: list[str]
+
+
+class TestReviewOutput(BaseModel):
+    """Output contract for the ``/reviewing-tests`` skill.
+
+    Returned as JSON in the LLM response.
+    """
+
+    __test__ = False  # not a pytest class
+    model_config = _OUTPUT_CONFIG
+
+    item_id: str
+    status: Literal["approved", "approved_with_warnings", "revision_requested", "error"]
+    reviewer_branch_manifest: list[ReviewerBranchEntry]
+    coverage: CoverageSection
+    quality_issues: list[QualityIssue]
+    feedback_for_generator: GeneratorFeedback
+    warnings: list[DiagnosticEntry] = Field(default_factory=list)
+    errors: list[DiagnosticEntry] = Field(default_factory=list)
