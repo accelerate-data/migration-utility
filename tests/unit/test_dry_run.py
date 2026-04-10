@@ -18,6 +18,7 @@ from typer.testing import CliRunner
 
 from shared import dry_run
 from shared import generate_sources as gen_src
+from shared.output_models import DryRunOutput
 
 _cli_runner = CliRunner()
 
@@ -94,8 +95,9 @@ def test_ready_scope_passes() -> None:
     tmp, root = _make_project()
     with tmp:
         result = dry_run.run_ready(root, "silver.DimCustomer", "scope")
-        assert result["ready"] is True
-        assert result["reason"] == "ok"
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is True
+        assert result.reason == "ok"
 
 
 def test_ready_scope_no_manifest() -> None:
@@ -104,8 +106,9 @@ def test_ready_scope_no_manifest() -> None:
     with tmp:
         (root / "manifest.json").unlink()
         result = dry_run.run_ready(root, "silver.DimCustomer", "scope")
-        assert result["ready"] is False
-        assert result["reason"] == "manifest_missing"
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.reason == "manifest_missing"
 
 
 def test_ready_scope_no_catalog_file() -> None:
@@ -113,8 +116,9 @@ def test_ready_scope_no_catalog_file() -> None:
     tmp, root = _make_project()
     with tmp:
         result = dry_run.run_ready(root, "silver.NonExistent", "scope")
-        assert result["ready"] is False
-        assert result["reason"] == "catalog_missing"
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.reason == "catalog_missing"
 
 
 # ── run_ready tests: profile stage ───────────────────────────────────────────
@@ -125,8 +129,9 @@ def test_ready_profile_passes() -> None:
     tmp, root = _make_project()
     with tmp:
         result = dry_run.run_ready(root, "silver.DimCustomer", "profile")
-        assert result["ready"] is True
-        assert result["reason"] == "ok"
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is True
+        assert result.reason == "ok"
 
 
 def test_ready_profile_not_scoped() -> None:
@@ -134,8 +139,9 @@ def test_ready_profile_not_scoped() -> None:
     tmp, root = _make_bare_project()
     with tmp:
         result = dry_run.run_ready(root, "silver.DimDate", "profile")
-        assert result["ready"] is False
-        assert result["reason"] == "scoping_not_resolved"
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.reason == "scoping_not_resolved"
 
 
 def test_ready_profile_writerless_table() -> None:
@@ -143,9 +149,10 @@ def test_ready_profile_writerless_table() -> None:
     tmp, root = _make_project()
     with tmp:
         result = dry_run.run_ready(root, "silver.RefCurrency", "profile")
-        assert result["ready"] is False
-        assert result["reason"] == "not_applicable"
-        assert result["code"] == "WRITERLESS_TABLE"
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.reason == "not_applicable"
+        assert result.code == "WRITERLESS_TABLE"
 
 
 # ── run_ready tests: test-gen stage ──────────────────────────────────────────
@@ -156,8 +163,9 @@ def test_ready_test_gen_passes() -> None:
     tmp, root = _make_project()
     with tmp:
         result = dry_run.run_ready(root, "silver.DimCustomer", "test-gen")
-        assert result["ready"] is True
-        assert result["reason"] == "ok"
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is True
+        assert result.reason == "ok"
 
 
 def test_ready_test_gen_no_profile() -> None:
@@ -169,8 +177,9 @@ def test_ready_test_gen_no_profile() -> None:
         del cat["profile"]
         cat_path.write_text(json.dumps(cat), encoding="utf-8")
         result = dry_run.run_ready(root, "silver.DimCustomer", "test-gen")
-        assert result["ready"] is False
-        assert result["reason"] == "profile_not_complete"
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.reason == "profile_not_complete"
 
 
 # ── run_ready tests: refactor stage ──────────────────────────────────────────
@@ -181,8 +190,9 @@ def test_ready_refactor_needs_test_gen() -> None:
     tmp, root = _make_project()
     with tmp:
         result = dry_run.run_ready(root, "silver.DimCustomer", "refactor")
-        assert result["ready"] is False
-        assert result["reason"] == "test_gen_not_complete"
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.reason == "test_gen_not_complete"
 
 
 def test_ready_refactor_passes_with_test_gen() -> None:
@@ -194,8 +204,9 @@ def test_ready_refactor_passes_with_test_gen() -> None:
         cat["test_gen"] = {"status": "ok"}
         cat_path.write_text(json.dumps(cat), encoding="utf-8")
         result = dry_run.run_ready(root, "silver.DimCustomer", "refactor")
-        assert result["ready"] is True
-        assert result["reason"] == "ok"
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is True
+        assert result.reason == "ok"
 
 
 # ── run_ready tests: migrate stage ───────────────────────────────────────────
@@ -206,8 +217,9 @@ def test_ready_migrate_passes() -> None:
     tmp, root = _make_project()
     with tmp:
         result = dry_run.run_ready(root, "silver.DimCustomer", "migrate")
-        assert result["ready"] is True
-        assert result["reason"] == "ok"
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is True
+        assert result.reason == "ok"
 
 
 def test_ready_migrate_no_refactor() -> None:
@@ -219,8 +231,9 @@ def test_ready_migrate_no_refactor() -> None:
         del proc["refactor"]
         proc_path.write_text(json.dumps(proc), encoding="utf-8")
         result = dry_run.run_ready(root, "silver.DimCustomer", "migrate")
-        assert result["ready"] is False
-        assert result["reason"] == "refactor_not_complete"
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.reason == "refactor_not_complete"
 
 
 # ── run_ready tests: special cases ───────────────────────────────────────────
@@ -235,9 +248,10 @@ def test_ready_source_table() -> None:
         cat["is_source"] = True
         cat_path.write_text(json.dumps(cat), encoding="utf-8")
         result = dry_run.run_ready(root, "silver.DimCustomer", "scope")
-        assert result["ready"] is False
-        assert result["reason"] == "not_applicable"
-        assert result["code"] == "SOURCE_TABLE"
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.reason == "not_applicable"
+        assert result.code == "SOURCE_TABLE"
 
 
 def test_ready_excluded_table() -> None:
@@ -249,9 +263,10 @@ def test_ready_excluded_table() -> None:
         cat["excluded"] = True
         cat_path.write_text(json.dumps(cat), encoding="utf-8")
         result = dry_run.run_ready(root, "silver.DimCustomer", "profile")
-        assert result["ready"] is False
-        assert result["reason"] == "not_applicable"
-        assert result["code"] == "EXCLUDED"
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.reason == "not_applicable"
+        assert result.code == "EXCLUDED"
 
 
 def test_ready_invalid_stage() -> None:
@@ -259,8 +274,9 @@ def test_ready_invalid_stage() -> None:
     tmp, root = _make_project()
     with tmp:
         result = dry_run.run_ready(root, "silver.DimCustomer", "bogus")
-        assert result["ready"] is False
-        assert result["reason"] == "invalid_stage"
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.reason == "invalid_stage"
 
 
 # ── run_ready tests: view stages ─────────────────────────────────────────────
@@ -271,7 +287,8 @@ def test_ready_view_scope_passes() -> None:
     tmp, root = _make_project()
     with tmp:
         result = dry_run.run_ready(root, "silver.vDimSalesTerritory", "scope")
-        assert result["ready"] is True
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is True
 
 
 def test_ready_view_profile_not_scoped() -> None:
@@ -279,8 +296,9 @@ def test_ready_view_profile_not_scoped() -> None:
     tmp, root = _make_project()
     with tmp:
         result = dry_run.run_ready(root, "silver.vDimSalesTerritory", "profile")
-        assert result["ready"] is False
-        assert result["reason"] == "scoping_not_analyzed"
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.reason == "scoping_not_analyzed"
 
 
 def test_ready_view_profile_when_analyzed() -> None:
@@ -292,7 +310,8 @@ def test_ready_view_profile_when_analyzed() -> None:
         cat["scoping"] = {"status": "analyzed", "sql_elements": [], "logic_summary": "test"}
         view_path.write_text(json.dumps(cat), encoding="utf-8")
         result = dry_run.run_ready(root, "silver.vDimSalesTerritory", "profile")
-        assert result["ready"] is True
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is True
 
 
 # ── run_status tests ─────────────────────────────────────────────────────────
@@ -303,13 +322,12 @@ def test_status_single_object() -> None:
     tmp, root = _make_project()
     with tmp:
         result = dry_run.run_status(root, "silver.DimCustomer")
-        assert result["fqn"] == "silver.dimcustomer"
-        assert result["type"] == "table"
-        stages = result["stages"]
-        assert stages["scope"] == "resolved"
-        assert stages["profile"] == "ok"
+        assert result.fqn == "silver.dimcustomer"
+        assert result.type == "table"
+        assert result.stages.scope == "resolved"
+        assert result.stages.profile == "ok"
         # test_gen is None because no test_gen section in fixture
-        assert stages["test_gen"] is None
+        assert result.stages.test_gen is None
 
 
 def test_status_all_objects() -> None:
@@ -317,11 +335,9 @@ def test_status_all_objects() -> None:
     tmp, root = _make_project()
     with tmp:
         result = dry_run.run_status(root)
-        assert "objects" in result
-        assert "summary" in result
-        assert result["summary"]["total"] > 0
+        assert result.summary.total > 0
         # Check that silver.dimcustomer is in the list
-        fqns = [obj["fqn"] for obj in result["objects"]]
+        fqns = [obj.fqn for obj in result.objects]
         assert "silver.dimcustomer" in fqns
 
 
@@ -330,10 +346,9 @@ def test_status_view_object() -> None:
     tmp, root = _make_project()
     with tmp:
         result = dry_run.run_status(root, "silver.vDimSalesTerritory")
-        assert result["type"] == "view"
-        assert "stages" in result
+        assert result.type == "view"
         # View without scoping → scope is None
-        assert result["stages"]["scope"] is None
+        assert result.stages.scope is None
 
 
 def test_status_mv_object() -> None:
@@ -341,7 +356,7 @@ def test_status_mv_object() -> None:
     tmp, root = _make_project()
     with tmp:
         result = dry_run.run_status(root, "silver.mv_FactSales")
-        assert result["type"] == "mv"
+        assert result.type == "mv"
 
 
 # ── CLI: ready subcommand ────────────────────────────────────────────────────
@@ -433,7 +448,6 @@ def _add_table_to_project(
                 {"procedure_name": f"dbo.usp_load_{name}", "dependencies": {"tables": [], "views": [], "functions": []}, "rationale": "test"}
             ],
             "warnings": [],
-            "validation": {"passed": True, "issues": []},
             "errors": [],
         }
         # Also create proc catalog with resolved statements
@@ -489,21 +503,20 @@ def _add_source_table(root: Path, schema: str, name: str) -> None:
     )
 
 
-def test_generate_sources_only_includes_is_source_true(assert_valid_schema) -> None:
+def test_generate_sources_only_includes_is_source_true() -> None:
     """Only tables with is_source: true are included in sources."""
     tmp, root = _make_project()
     with tmp:
         _add_source_table(root, "bronze", "CustomerRaw")
 
         result = gen_src.generate_sources(root)
-        assert_valid_schema(result, "generate_sources_output.json")
-        assert "bronze.customerraw" in result["included"]
-        assert "silver.refcurrency" not in result["included"]
-        assert "silver.refcurrency" in result["unconfirmed"]
-        assert "silver.dimcustomer" in result["excluded"]
-        assert result["incomplete"] == []
-        assert result["sources"] is not None
-        schema_names = [s["name"] for s in result["sources"]["sources"]]
+        assert "bronze.customerraw" in result.included
+        assert "silver.refcurrency" not in result.included
+        assert "silver.refcurrency" in result.unconfirmed
+        assert "silver.dimcustomer" in result.excluded
+        assert result.incomplete == []
+        assert result.sources is not None
+        schema_names = [s["name"] for s in result.sources["sources"]]
         assert "bronze" in schema_names
         assert "silver" not in schema_names
 
@@ -513,10 +526,10 @@ def test_generate_sources_excludes_resolved_tables() -> None:
     tmp, root = _make_project()
     with tmp:
         result = gen_src.generate_sources(root)
-        assert "silver.dimcustomer" in result["excluded"]
-        assert "silver.refcurrency" in result["unconfirmed"]
-        assert "silver.refcurrency" not in result["included"]
-        assert result["sources"] is None
+        assert "silver.dimcustomer" in result.excluded
+        assert "silver.refcurrency" in result.unconfirmed
+        assert "silver.refcurrency" not in result.included
+        assert result.sources is None
 
 
 def test_generate_sources_detects_incomplete_scoping() -> None:
@@ -525,7 +538,7 @@ def test_generate_sources_detects_incomplete_scoping() -> None:
     with tmp:
         _add_table_to_project(root, "silver.DimDate")
         result = gen_src.generate_sources(root)
-        assert "silver.dimdate" in result["incomplete"]
+        assert "silver.dimdate" in result.incomplete
 
 
 def test_generate_sources_mixed_statuses() -> None:
@@ -537,11 +550,11 @@ def test_generate_sources_mixed_statuses() -> None:
         _add_table_to_project(root, "silver.DimDate")
 
         result = gen_src.generate_sources(root)
-        assert sorted(result["included"]) == ["bronze.customerraw", "bronze.orderraw"]
-        assert result["excluded"] == ["silver.dimcustomer"]
-        assert result["unconfirmed"] == ["silver.refcurrency"]
-        assert result["incomplete"] == ["silver.dimdate"]
-        schema_names = {s["name"] for s in result["sources"]["sources"]}
+        assert sorted(result.included) == ["bronze.customerraw", "bronze.orderraw"]
+        assert result.excluded == ["silver.dimcustomer"]
+        assert result.unconfirmed == ["silver.refcurrency"]
+        assert result.incomplete == ["silver.dimdate"]
+        schema_names = {s["name"] for s in result.sources["sources"]}
         assert "bronze" in schema_names
         assert "silver" not in schema_names
 
@@ -553,10 +566,10 @@ def test_generate_sources_empty_catalog() -> None:
         for f in (root / "catalog" / "tables").glob("*.json"):
             f.unlink()
         result = gen_src.generate_sources(root)
-        assert result["sources"] is None
-        assert result["included"] == []
-        assert result["excluded"] == []
-        assert result["incomplete"] == []
+        assert result.sources is None
+        assert result.included == []
+        assert result.excluded == []
+        assert result.incomplete == []
 
 
 def test_generate_sources_multiple_schemas() -> None:
@@ -567,7 +580,7 @@ def test_generate_sources_multiple_schemas() -> None:
         _add_source_table(root, "staging", "LookupRegion")
 
         result = gen_src.generate_sources(root)
-        schema_names = sorted(s["name"] for s in result["sources"]["sources"])
+        schema_names = sorted(s["name"] for s in result.sources["sources"])
         assert "bronze" in schema_names
         assert "staging" in schema_names
         assert "silver" not in schema_names
@@ -581,8 +594,8 @@ def test_write_sources_yml() -> None:
     with tmp:
         _add_source_table(root, "bronze", "CustomerRaw")
         result = gen_src.write_sources_yml(root)
-        assert result["path"] is not None
-        sources_path = Path(result["path"])
+        assert result.path is not None
+        sources_path = Path(result.path)
         assert sources_path.exists()
         content = yaml.safe_load(sources_path.read_text(encoding="utf-8"))
         assert content["version"] == 2
@@ -596,8 +609,8 @@ def test_write_sources_yml_no_confirmed_sources() -> None:
     tmp, root = _make_project()
     with tmp:
         result = gen_src.write_sources_yml(root)
-        assert result["path"] is None
-        assert result["sources"] is None
+        assert result.path is None
+        assert result.sources is None
 
 
 def test_cli_generate_sources() -> None:
@@ -690,13 +703,12 @@ def _make_exclude_project(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def test_run_exclude_table_sets_flag(tmp_path: Path, assert_valid_schema: Any) -> None:
+def test_run_exclude_table_sets_flag(tmp_path: Path) -> None:
     """run_exclude sets excluded: true on a table catalog file."""
     dst = _make_exclude_project(tmp_path)
     result = dry_run.run_exclude(dst, ["silver.AuditLog"])
-    assert_valid_schema(result, "exclude_output.json")
-    assert result["marked"] == ["silver.auditlog"]
-    assert result["not_found"] == []
+    assert result.marked == ["silver.auditlog"]
+    assert result.not_found == []
     cat = json.loads((dst / "catalog" / "tables" / "silver.auditlog.json").read_text())
     assert cat.get("excluded") is True
 
@@ -705,8 +717,8 @@ def test_run_exclude_view_sets_flag(tmp_path: Path) -> None:
     """run_exclude sets excluded: true on a view catalog file."""
     dst = _make_exclude_project(tmp_path)
     result = dry_run.run_exclude(dst, ["silver.vw_legacy"])
-    assert result["marked"] == ["silver.vw_legacy"]
-    assert result["not_found"] == []
+    assert result.marked == ["silver.vw_legacy"]
+    assert result.not_found == []
     cat = json.loads((dst / "catalog" / "views" / "silver.vw_legacy.json").read_text())
     assert cat.get("excluded") is True
 
@@ -715,24 +727,24 @@ def test_run_exclude_multiple_fqns(tmp_path: Path) -> None:
     """run_exclude marks multiple objects in one call."""
     dst = _make_exclude_project(tmp_path)
     result = dry_run.run_exclude(dst, ["silver.AuditLog", "silver.vw_legacy"])
-    assert sorted(result["marked"]) == ["silver.auditlog", "silver.vw_legacy"]
-    assert result["not_found"] == []
+    assert sorted(result.marked) == ["silver.auditlog", "silver.vw_legacy"]
+    assert result.not_found == []
 
 
 def test_run_exclude_not_found_reported(tmp_path: Path) -> None:
     """FQN with no catalog file appears in not_found, does not raise."""
     dst = _make_exclude_project(tmp_path)
     result = dry_run.run_exclude(dst, ["silver.Nonexistent"])
-    assert result["marked"] == []
-    assert result["not_found"] == ["silver.nonexistent"]
+    assert result.marked == []
+    assert result.not_found == ["silver.nonexistent"]
 
 
 def test_run_exclude_mixed_found_and_not_found(tmp_path: Path) -> None:
     """Partial success: found items are marked, missing items are in not_found."""
     dst = _make_exclude_project(tmp_path)
     result = dry_run.run_exclude(dst, ["silver.AuditLog", "silver.Missing"])
-    assert result["marked"] == ["silver.auditlog"]
-    assert result["not_found"] == ["silver.missing"]
+    assert result.marked == ["silver.auditlog"]
+    assert result.not_found == ["silver.missing"]
 
 
 def test_run_exclude_idempotent(tmp_path: Path) -> None:
@@ -740,7 +752,7 @@ def test_run_exclude_idempotent(tmp_path: Path) -> None:
     dst = _make_exclude_project(tmp_path)
     dry_run.run_exclude(dst, ["silver.AuditLog"])
     result = dry_run.run_exclude(dst, ["silver.AuditLog"])
-    assert result["marked"] == ["silver.auditlog"]
+    assert result.marked == ["silver.auditlog"]
     cat = json.loads((dst / "catalog" / "tables" / "silver.auditlog.json").read_text())
     assert cat.get("excluded") is True
     assert cat.get("primary_keys") is not None

@@ -8,9 +8,18 @@ import re
 import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import pyodbc
+if TYPE_CHECKING:
+    import pyodbc
+
+from shared.output_models import (
+    ErrorEntry,
+    SandboxDownOutput,
+    SandboxStatusOutput,
+    SandboxUpOutput,
+    TestHarnessExecuteOutput,
+)
 
 from shared.db_connect import cursor_to_dicts
 from shared.sandbox.base import (
@@ -24,6 +33,24 @@ from shared.sandbox.base import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+_pyodbc = None
+
+
+def _import_pyodbc():
+    """Lazy-import pyodbc so the module can be imported without it installed."""
+    global _pyodbc
+    if _pyodbc is None:
+        try:
+            import pyodbc
+        except ImportError as exc:
+            raise ImportError(
+                "pyodbc is required for SQL Server connectivity. "
+                "Install it with: uv pip install pyodbc"
+            ) from exc
+        _pyodbc = pyodbc
+    return _pyodbc
 
 _IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_ ]*$")
 # Bracket-quoted identifiers may additionally contain hyphens
@@ -148,7 +175,7 @@ def _get_not_null_defaults(cursor: Any, table: str) -> dict[str, Any]:
             else:
                 defaults[col_name] = ""
         return defaults
-    except pyodbc.Error:
+    except _import_pyodbc().Error:
         logger.debug("event=not_null_defaults_lookup_failed table=%s", table)
         return {}
 
@@ -166,7 +193,7 @@ def _get_identity_columns(cursor: Any, table: str) -> set[str]:
             table,
         )
         return {row[0] for row in cursor.fetchall()}
-    except pyodbc.Error:
+    except _import_pyodbc().Error:
         logger.debug(
             "event=identity_column_lookup_failed table=%s", table,
         )
@@ -262,8 +289,8 @@ class SqlServerSandbox(SandboxBackend):
             f"TrustServerCertificate=yes;"
         )
         try:
-            conn = pyodbc.connect(conn_str, autocommit=True)
-        except pyodbc.Error as exc:
+            conn = _import_pyodbc().connect(conn_str, autocommit=True)
+        except _import_pyodbc().Error as exc:
             msg = str(exc)
             if "Can't open lib" in msg:
                 raise RuntimeError(
@@ -307,7 +334,7 @@ class SqlServerSandbox(SandboxBackend):
                 )
                 if sandbox_cursor.fetchone() is None:
                     sandbox_cursor.execute(f"CREATE SCHEMA [{schema}]")
-            except pyodbc.Error as exc:
+            except _import_pyodbc().Error as exc:
                 errors.append({
                     "code": "SCHEMA_CREATE_FAILED",
                     "message": f"Failed to create schema {schema}: {exc}",
@@ -342,7 +369,7 @@ class SqlServerSandbox(SandboxBackend):
                     f"FROM [{self.database}].{fqn}"
                 )
                 cloned.append(f"{schema_name}.{table_name}")
-            except pyodbc.Error as exc:
+            except _import_pyodbc().Error as exc:
                 errors.append({
                     "code": "TABLE_CLONE_FAILED",
                     "message": f"Failed to clone {fqn}: {exc}",
@@ -386,7 +413,7 @@ class SqlServerSandbox(SandboxBackend):
             try:
                 sandbox_cursor.execute(definition)
                 cloned.append(f"{schema_name}.{view_name}")
-            except pyodbc.Error as exc:
+            except _import_pyodbc().Error as exc:
                 errors.append({
                     "code": "VIEW_CLONE_FAILED",
                     "message": f"Failed to clone view {fqn}: {exc}",
@@ -426,7 +453,7 @@ class SqlServerSandbox(SandboxBackend):
             try:
                 sandbox_cursor.execute(definition)
                 cloned.append(fqn)
-            except pyodbc.Error as exc:
+            except _import_pyodbc().Error as exc:
                 errors.append({
                     "code": "PROC_CLONE_FAILED",
                     "message": f"Failed to clone procedure {fqn}: {exc}",
@@ -436,7 +463,7 @@ class SqlServerSandbox(SandboxBackend):
     def sandbox_up(
         self,
         schemas: list[str],
-    ) -> dict[str, Any]:
+    ) -> SandboxUpOutput:
         _validate_identifier(self.database)
         sandbox_db = _generate_sandbox_db_name()
 
@@ -447,7 +474,7 @@ class SqlServerSandbox(SandboxBackend):
 
         self._create_sandbox_db(sandbox_db)
 
-        errors: list[dict[str, str]] = []
+        errors: list[ErrorEntry] = []
         tables_cloned: list[str] = []
         views_cloned: list[str] = []
         procedures_cloned: list[str] = []
@@ -458,36 +485,39 @@ class SqlServerSandbox(SandboxBackend):
                 sandbox_cursor = sandbox_conn.cursor()
                 source_cursor = source_conn.cursor()
 
-                errors.extend(self._create_schemas(sandbox_cursor, schemas))
+                errors.extend(
+                    ErrorEntry(**e)
+                    for e in self._create_schemas(sandbox_cursor, schemas)
+                )
 
                 t_cloned, t_errors = self._clone_tables(
                     source_cursor, sandbox_cursor, schemas,
                 )
                 tables_cloned.extend(t_cloned)
-                errors.extend(t_errors)
+                errors.extend(ErrorEntry(**e) for e in t_errors)
 
                 v_cloned, v_errors = self._clone_views(
                     source_cursor, sandbox_cursor, schemas,
                 )
                 views_cloned.extend(v_cloned)
-                errors.extend(v_errors)
+                errors.extend(ErrorEntry(**e) for e in v_errors)
 
                 p_cloned, p_errors = self._clone_procedures(
                     source_cursor, sandbox_cursor, schemas,
                 )
                 procedures_cloned.extend(p_cloned)
-                errors.extend(p_errors)
+                errors.extend(ErrorEntry(**e) for e in p_errors)
 
-        except pyodbc.Error as exc:
+        except _import_pyodbc().Error as exc:
             logger.error("event=sandbox_up_failed sandbox_db=%s error=%s", sandbox_db, exc)
-            return {
-                "sandbox_database": sandbox_db,
-                "status": "error",
-                "tables_cloned": tables_cloned,
-                "views_cloned": views_cloned,
-                "procedures_cloned": procedures_cloned,
-                "errors": [{"code": "SANDBOX_UP_FAILED", "message": str(exc)}],
-            }
+            return SandboxUpOutput(
+                sandbox_database=sandbox_db,
+                status="error",
+                tables_cloned=tables_cloned,
+                views_cloned=views_cloned,
+                procedures_cloned=procedures_cloned,
+                errors=[ErrorEntry(code="SANDBOX_UP_FAILED", message=str(exc))],
+            )
 
         status = "ok" if not errors else "partial"
         logger.info(
@@ -495,16 +525,16 @@ class SqlServerSandbox(SandboxBackend):
             "tables=%d views=%d procedures=%d errors=%d",
             sandbox_db, status, len(tables_cloned), len(views_cloned), len(procedures_cloned), len(errors),
         )
-        return {
-            "sandbox_database": sandbox_db,
-            "status": status,
-            "tables_cloned": tables_cloned,
-            "views_cloned": views_cloned,
-            "procedures_cloned": procedures_cloned,
-            "errors": errors,
-        }
+        return SandboxUpOutput(
+            sandbox_database=sandbox_db,
+            status=status,
+            tables_cloned=tables_cloned,
+            views_cloned=views_cloned,
+            procedures_cloned=procedures_cloned,
+            errors=errors,
+        )
 
-    def sandbox_down(self, sandbox_db: str) -> dict[str, Any]:
+    def sandbox_down(self, sandbox_db: str) -> SandboxDownOutput:
         _validate_sandbox_db_name(sandbox_db)
         logger.info("event=sandbox_down sandbox_db=%s", sandbox_db)
 
@@ -520,16 +550,16 @@ class SqlServerSandbox(SandboxBackend):
                     )
                     cursor.execute(f"DROP DATABASE {quoted}")
             logger.info("event=sandbox_down_complete sandbox_db=%s", sandbox_db)
-            return {"sandbox_database": sandbox_db, "status": "ok"}
-        except pyodbc.Error as exc:
+            return SandboxDownOutput(sandbox_database=sandbox_db, status="ok")
+        except _import_pyodbc().Error as exc:
             logger.error("event=sandbox_down_failed sandbox_db=%s error=%s", sandbox_db, exc)
-            return {
-                "sandbox_database": sandbox_db,
-                "status": "error",
-                "errors": [{"code": "SANDBOX_DOWN_FAILED", "message": str(exc)}],
-            }
+            return SandboxDownOutput(
+                sandbox_database=sandbox_db,
+                status="error",
+                errors=[ErrorEntry(code="SANDBOX_DOWN_FAILED", message=str(exc))],
+            )
 
-    def sandbox_status(self, sandbox_db: str) -> dict[str, Any]:
+    def sandbox_status(self, sandbox_db: str) -> SandboxStatusOutput:
         _validate_sandbox_db_name(sandbox_db)
         logger.info("event=sandbox_status sandbox_db=%s", sandbox_db)
 
@@ -541,25 +571,21 @@ class SqlServerSandbox(SandboxBackend):
 
             if exists:
                 logger.info("event=sandbox_status_complete sandbox_db=%s exists=true", sandbox_db)
-                return {
-                    "sandbox_database": sandbox_db,
-                    "status": "ok",
-                    "exists": True,
-                }
+                return SandboxStatusOutput(
+                    sandbox_database=sandbox_db, status="ok", exists=True,
+                )
             logger.info("event=sandbox_status_complete sandbox_db=%s exists=false", sandbox_db)
-            return {
-                "sandbox_database": sandbox_db,
-                "status": "not_found",
-                "exists": False,
-            }
-        except pyodbc.Error as exc:
+            return SandboxStatusOutput(
+                sandbox_database=sandbox_db, status="not_found", exists=False,
+            )
+        except _import_pyodbc().Error as exc:
             logger.error("event=sandbox_status_failed sandbox_db=%s error=%s", sandbox_db, exc)
-            return {
-                "sandbox_database": sandbox_db,
-                "status": "error",
-                "exists": False,
-                "errors": [{"code": "SANDBOX_STATUS_FAILED", "message": str(exc)}],
-            }
+            return SandboxStatusOutput(
+                sandbox_database=sandbox_db,
+                status="error",
+                exists=False,
+                errors=[ErrorEntry(code="SANDBOX_STATUS_FAILED", message=str(exc))],
+            )
 
     def _seed_fixtures(
         self,
@@ -716,11 +742,11 @@ class SqlServerSandbox(SandboxBackend):
                 fqn = f"[{schema_name}].[{obj_name}]"
                 try:
                     sb_cur.execute(f"DROP TABLE IF EXISTS {fqn}")
-                except pyodbc.Error:
+                except _import_pyodbc().Error:
                     pass  # object did not exist; nothing to drop
                 try:
                     sb_cur.execute(f"DROP VIEW IF EXISTS {fqn}")
-                except pyodbc.Error:
+                except _import_pyodbc().Error:
                     pass  # sandbox_up may not have cloned the view
                 sb_cur.execute(
                     f"SELECT TOP 0 * INTO {fqn} FROM [{self.database}].{fqn}"
@@ -741,7 +767,7 @@ class SqlServerSandbox(SandboxBackend):
         self,
         sandbox_db: str,
         scenario: dict[str, Any],
-    ) -> dict[str, Any]:
+    ) -> TestHarnessExecuteOutput:
         _validate_sandbox_db_name(sandbox_db)
 
         scenario_name = scenario.get("name", "unnamed")
@@ -758,19 +784,18 @@ class SqlServerSandbox(SandboxBackend):
 
         try:
             self._ensure_view_tables(sandbox_db, given)
-        except pyodbc.Error as exc:
+        except _import_pyodbc().Error as exc:
             logger.error(
                 "event=view_materialize_failed sandbox_db=%s scenario=%s error=%s",
                 sandbox_db, scenario_name, exc,
             )
-            return {
-                "schema_version": "1.0",
-                "scenario_name": scenario_name,
-                "status": "error",
-                "ground_truth_rows": [],
-                "row_count": 0,
-                "errors": [{"code": "VIEW_MATERIALIZE_FAILED", "message": str(exc)}],
-            }
+            return TestHarnessExecuteOutput(
+                scenario_name=scenario_name,
+                status="error",
+                ground_truth_rows=[],
+                row_count=0,
+                errors=[ErrorEntry(code="VIEW_MATERIALIZE_FAILED", message=str(exc))],
+            )
 
         logger.info(
             "event=execute_scenario sandbox_db=%s scenario=%s procedure=%s",
@@ -799,21 +824,20 @@ class SqlServerSandbox(SandboxBackend):
                             "procedure=%s target=%s kind=%s",
                             sandbox_db, scenario_name, procedure, target, kind,
                         )
-                        return {
-                            "schema_version": "1.0",
-                            "scenario_name": scenario_name,
-                            "status": "error",
-                            "ground_truth_rows": [],
-                            "row_count": 0,
-                            "errors": [{
-                                "code": "REMOTE_EXEC_UNSUPPORTED",
-                                "message": (
+                        return TestHarnessExecuteOutput(
+                            scenario_name=scenario_name,
+                            status="error",
+                            ground_truth_rows=[],
+                            row_count=0,
+                            errors=[ErrorEntry(
+                                code="REMOTE_EXEC_UNSUPPORTED",
+                                message=(
                                     f"Sandbox cannot execute {kind} procedure call "
                                     f"{target} from {procedure}. The sandbox only clones "
                                     "objects from the source database."
                                 ),
-                            }],
-                        }
+                            )],
+                        )
 
                     self._seed_fixtures(cursor, sandbox_db, given)
 
@@ -828,35 +852,33 @@ class SqlServerSandbox(SandboxBackend):
                 "event=scenario_complete sandbox_db=%s scenario=%s rows=%d",
                 sandbox_db, scenario_name, len(result_rows),
             )
-            return {
-                "schema_version": "1.0",
-                "scenario_name": scenario_name,
-                "status": "ok",
-                "ground_truth_rows": serialize_rows(result_rows),
-                "row_count": len(result_rows),
-                "errors": [],
-            }
+            return TestHarnessExecuteOutput(
+                scenario_name=scenario_name,
+                status="ok",
+                ground_truth_rows=serialize_rows(result_rows),
+                row_count=len(result_rows),
+                errors=[],
+            )
 
-        except pyodbc.Error as exc:
+        except _import_pyodbc().Error as exc:
             logger.error(
                 "event=scenario_failed sandbox_db=%s scenario=%s error=%s",
                 sandbox_db, scenario_name, exc,
             )
-            return {
-                "schema_version": "1.0",
-                "scenario_name": scenario_name,
-                "status": "error",
-                "ground_truth_rows": [],
-                "row_count": 0,
-                "errors": [{"code": "SCENARIO_FAILED", "message": str(exc)}],
-            }
+            return TestHarnessExecuteOutput(
+                scenario_name=scenario_name,
+                status="error",
+                ground_truth_rows=[],
+                row_count=0,
+                errors=[ErrorEntry(code="SCENARIO_FAILED", message=str(exc))],
+            )
 
     def execute_select(
         self,
         sandbox_db: str,
         sql: str,
         fixtures: list[dict[str, Any]],
-    ) -> dict[str, Any]:
+    ) -> TestHarnessExecuteOutput:
         _validate_sandbox_db_name(sandbox_db)
         _validate_fixtures(fixtures)
         _validate_readonly_sql(sql)
@@ -866,19 +888,18 @@ class SqlServerSandbox(SandboxBackend):
 
         try:
             self._ensure_view_tables(sandbox_db, fixtures)
-        except pyodbc.Error as exc:
+        except _import_pyodbc().Error as exc:
             logger.error(
                 "event=view_materialize_failed sandbox_db=%s error=%s",
                 sandbox_db, exc,
             )
-            return {
-                "schema_version": "1.0",
-                "scenario_name": scenario_name,
-                "status": "error",
-                "ground_truth_rows": [],
-                "row_count": 0,
-                "errors": [{"code": "VIEW_MATERIALIZE_FAILED", "message": str(exc)}],
-            }
+            return TestHarnessExecuteOutput(
+                scenario_name=scenario_name,
+                status="error",
+                ground_truth_rows=[],
+                row_count=0,
+                errors=[ErrorEntry(code="VIEW_MATERIALIZE_FAILED", message=str(exc))],
+            )
 
         result_rows: list[dict[str, Any]] = []
         try:
@@ -896,27 +917,25 @@ class SqlServerSandbox(SandboxBackend):
                 "event=execute_select_complete sandbox_db=%s rows=%d",
                 sandbox_db, len(result_rows),
             )
-            return {
-                "schema_version": "1.0",
-                "scenario_name": scenario_name,
-                "status": "ok",
-                "ground_truth_rows": serialize_rows(result_rows),
-                "row_count": len(result_rows),
-                "errors": [],
-            }
-        except pyodbc.Error as exc:
+            return TestHarnessExecuteOutput(
+                scenario_name=scenario_name,
+                status="ok",
+                ground_truth_rows=serialize_rows(result_rows),
+                row_count=len(result_rows),
+                errors=[],
+            )
+        except _import_pyodbc().Error as exc:
             logger.error(
                 "event=execute_select_failed sandbox_db=%s error=%s",
                 sandbox_db, exc,
             )
-            return {
-                "schema_version": "1.0",
-                "scenario_name": scenario_name,
-                "status": "error",
-                "ground_truth_rows": [],
-                "row_count": 0,
-                "errors": [{"code": "EXECUTE_SELECT_FAILED", "message": str(exc)}],
-            }
+            return TestHarnessExecuteOutput(
+                scenario_name=scenario_name,
+                status="error",
+                ground_truth_rows=[],
+                row_count=0,
+                errors=[ErrorEntry(code="EXECUTE_SELECT_FAILED", message=str(exc))],
+            )
 
     def compare_two_sql(
         self,
@@ -937,7 +956,7 @@ class SqlServerSandbox(SandboxBackend):
 
         try:
             self._ensure_view_tables(sandbox_db, fixtures)
-        except pyodbc.Error as exc:
+        except _import_pyodbc().Error as exc:
             logger.error(
                 "event=view_materialize_failed sandbox_db=%s error=%s",
                 sandbox_db, exc,
@@ -965,7 +984,7 @@ class SqlServerSandbox(SandboxBackend):
                             cursor.execute("SET PARSEONLY ON")
                             cursor.execute(sql)
                             cursor.execute("SET PARSEONLY OFF")
-                        except pyodbc.Error as parse_exc:
+                        except _import_pyodbc().Error as parse_exc:
                             cursor.execute("SET PARSEONLY OFF")
                             logger.error(
                                 "event=sql_syntax_error sandbox_db=%s label=%s error=%s",
@@ -1014,7 +1033,7 @@ class SqlServerSandbox(SandboxBackend):
                 "errors": [],
             }
 
-        except pyodbc.Error as exc:
+        except _import_pyodbc().Error as exc:
             logger.error(
                 "event=compare_two_sql_failed sandbox_db=%s error=%s",
                 sandbox_db, exc,

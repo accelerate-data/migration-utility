@@ -722,7 +722,7 @@ def test_multi_table_write_no_inline_warning() -> None:
         write_proc_catalog(root, "dbo.usp_multi", _multi_table_refs(2))
         loaded = load_proc_catalog(root, "dbo.usp_multi")
         assert loaded is not None
-        assert not hasattr(loaded, "warnings")
+        assert loaded.warnings == []
 
 
 # ── scan_routing_flags — cross_db_exec ──────────────────────────────────────

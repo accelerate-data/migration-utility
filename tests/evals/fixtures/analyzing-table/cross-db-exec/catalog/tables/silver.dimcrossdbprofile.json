@@ -63,7 +63,7 @@
   "scoping": {
     "status": "resolved",
     "selected_writer": "silver.usp_load_DimCrossDbProfile",
-    "rationale": "The load procedure is the selected writer even though it delegates cross-database work to a helper."
+    "selected_writer_rationale": "The load procedure is the selected writer even though it delegates cross-database work to a helper."
   },
   "profile": {
     "status": "partial",

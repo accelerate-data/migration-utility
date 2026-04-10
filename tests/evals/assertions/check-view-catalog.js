@@ -16,7 +16,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { validateSection, normalizeTerms } = require('./schema-helpers');
+const { normalizeTerms } = require('./schema-helpers');
 
 module.exports = (_output, context) => {
   const fixturePath = context.vars.fixture_path;
@@ -76,11 +76,6 @@ function checkProfile(catalog, context) {
   }
 
   const { profile } = catalog;
-
-  const schemaResult = validateSection(profile, 'view_catalog.json', 'properties/profile');
-  if (!schemaResult.valid) {
-    return { pass: false, score: 0, reason: `Profile schema validation failed: ${schemaResult.errors}` };
-  }
 
   if (!['stg', 'mart'].includes(profile.classification)) {
     return { pass: false, score: 0, reason: `profile.classification must be "stg" or "mart", got "${profile.classification}"` };

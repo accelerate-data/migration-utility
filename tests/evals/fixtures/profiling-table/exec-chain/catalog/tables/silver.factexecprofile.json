@@ -87,7 +87,7 @@
   "scoping": {
     "status": "resolved",
     "selected_writer": "silver.usp_load_FactExecProfile",
-    "rationale": "The orchestrator proc is the table writer for profiling and delegates the actual insert to its helper."
+    "selected_writer_rationale": "The orchestrator proc is the table writer for profiling and delegates the actual insert to its helper."
   },
   "profile": {
     "status": "ok",

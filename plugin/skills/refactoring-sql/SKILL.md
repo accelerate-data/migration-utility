@@ -19,10 +19,37 @@ argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 
 ## Contracts
 
-Use these schema contracts when you write refactor data:
+The `refactor write` CLI validates all data through Pydantic models (`extra="forbid"`). The refactor section persisted to catalog uses `RefactorSection` from `catalog_models.py`:
 
-- table refactor: `../../lib/shared/schemas/table_catalog.json#/properties/refactor`
-- view refactor: `../../lib/shared/schemas/view_catalog.json#/properties/refactor`
+```json
+{
+  "status": "ok | partial | error",
+  "extracted_sql": "pure SELECT extracted from DML",
+  "refactored_sql": "WITH ... CTE-structured SELECT",
+  "semantic_review": {
+    "passed": true,
+    "checks": {
+      "source_tables": { "passed": true, "summary": "..." },
+      "output_columns": { "passed": true, "summary": "..." },
+      "joins": { "passed": true, "summary": "..." },
+      "filters": { "passed": true, "summary": "..." },
+      "aggregation_grain": { "passed": true, "summary": "..." }
+    },
+    "issues": []
+  },
+  "compare_sql": {
+    "required": true,
+    "executed": true,
+    "passed": true,
+    "scenarios_total": 3,
+    "scenarios_passed": 3,
+    "failed_scenarios": []
+  },
+  "shared_sources": ["bronze.src1"],
+  "warnings": [],
+  "errors": []
+}
+```
 
 Do not invent fields. If `refactor write` rejects the payload, fix the payload and retry.
 

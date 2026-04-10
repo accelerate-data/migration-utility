@@ -1,21 +1,19 @@
-"""catalog_writer.py — Schema-validated catalog write-back operations.
+"""catalog_writer.py — Pydantic-validated catalog write-back operations.
 
 Provides the run_write_* functions that persist agent/skill outputs
 (statements, scoping, source flags, table slices) into catalog JSON
-files with JSON Schema validation.
+files with Pydantic model validation.
 
 Split from discover.py for module focus.
 """
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 from typing import Any
 
-from jsonschema import Draft202012Validator
-from referencing import Registry, Resource
+from shared.output_models import WriteSliceOutput, WriteSourceOutput
 
 from shared.catalog import (
     load_and_merge_catalog,
@@ -30,49 +28,6 @@ from shared.catalog_models import StatementEntry, TableScopingSection, ViewScopi
 from shared.name_resolver import normalize
 
 logger = logging.getLogger(__name__)
-
-_SCHEMA_DIR = Path(__file__).with_name("schemas")
-
-
-# ── Schema validation helpers ────────────────────────────────────────────────
-
-
-def _load_schema_with_store(schema_name: str) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Load a schema file and a registry for local schema references."""
-    registry = Registry()
-    loaded: dict[str, Any] = {}
-    for schema_path in _SCHEMA_DIR.glob("*.json"):
-        schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        loaded[schema_path.name] = schema
-        resource = Resource.from_contents(schema)
-        registry = registry.with_resource(schema_path.name, resource)
-        registry = registry.with_resource(schema_path.resolve().as_uri(), resource)
-    return loaded[schema_name], registry
-
-
-def _format_validation_errors(errors: list[Any]) -> str:
-    """Render jsonschema validation errors in compact, retry-friendly form."""
-    parts: list[str] = []
-    for error in errors:
-        path = "/" + "/".join(str(segment) for segment in error.absolute_path)
-        parts.append(f"{path or '/'}: {error.message}")
-    return "; ".join(parts)
-
-
-def _validate_schema_fragment(data: Any, schema_name: str, fragment_path: str) -> None:
-    """Validate data against a schema fragment and raise a field-level ValueError."""
-    schema, registry = _load_schema_with_store(schema_name)
-    wrapper_schema = {
-        "$schema": schema.get("$schema", "https://json-schema.org/draft/2020-12/schema"),
-        "$ref": f"{schema_name}#/{fragment_path}",
-    }
-    validator = Draft202012Validator(wrapper_schema, registry=registry)
-    errors = sorted(validator.iter_errors(data), key=lambda err: list(err.absolute_path))
-    if errors:
-        raise ValueError(
-            f"Schema validation failed for {schema_name}#/{fragment_path}: "
-            f"{_format_validation_errors(errors)}"
-        )
 
 
 # ── Write-back operations ────────────────────────────────────────────────────
@@ -97,7 +52,6 @@ def run_write_statements(
             )
     for stmt in statements:
         StatementEntry.model_validate(stmt)
-    _validate_schema_fragment(statements, "procedure_catalog.json", "properties/statements")
     path = write_proc_statements(project_root, name, statements)
     return {"written": str(path), "statement_count": len(statements)}
 
@@ -140,7 +94,6 @@ def run_write_scoping(
 
     scoping["status"] = status
     TableScopingSection.model_validate(scoping)
-    _validate_schema_fragment(scoping, "table_catalog.json", "properties/scoping")
 
     result = load_and_merge_catalog(project_root, table_norm, "scoping", scoping)
     return {"written": result["catalog_path"], "status": "ok"}
@@ -177,7 +130,6 @@ def run_write_view_scoping(
 
     scoping["status"] = status
     ViewScopingSection.model_validate(scoping)
-    _validate_schema_fragment(scoping, "view_catalog.json", "properties/scoping")
 
     result = load_and_merge_catalog(project_root, view_norm, "scoping", scoping)
     return {"written": result["catalog_path"], "status": "ok"}
@@ -187,7 +139,7 @@ def run_write_source(
     project_root: Path,
     table_fqn: str,
     value: bool,
-) -> dict[str, Any]:
+) -> WriteSourceOutput:
     """Set or clear the is_source flag on a table catalog file."""
     table_norm = normalize(table_fqn)
     cat_model = load_table_catalog(project_root, table_norm)
@@ -209,12 +161,12 @@ def run_write_source(
         value,
     )
 
-    return {"written": result["catalog_path"], "is_source": value, "status": "ok"}
+    return WriteSourceOutput(written=result["catalog_path"], is_source=value, status="ok")
 
 
 def run_write_table_slice(
     project_root: Path, proc_fqn: str, table_fqn: str, ddl_slice: str
-) -> dict[str, Any]:
+) -> WriteSliceOutput:
     """Write a per-table DDL slice into the proc catalog."""
     path = write_proc_table_slice(project_root, proc_fqn, table_fqn, ddl_slice)
     logger.info(
@@ -222,4 +174,4 @@ def run_write_table_slice(
         normalize(proc_fqn),
         normalize(table_fqn),
     )
-    return {"written": str(path), "status": "ok"}
+    return WriteSliceOutput(written=str(path), status="ok")

@@ -33,8 +33,6 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.94",
     "@anthropic-ai/claude-code": "^2.1.92",
-    "ajv": "latest",
-    "ajv-formats": "^3.0.1",
     "promptfoo": "latest"
   },
   "overrides": {

@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { validateSchema, extractJsonObject, normalizeTerms } = require('./schema-helpers');
+const { extractJsonObject, normalizeTerms } = require('./schema-helpers');
 
 module.exports = (output, context) => {
   const fixturePath = context.vars.fixture_path;
@@ -25,12 +25,6 @@ module.exports = (output, context) => {
 
   if (!review) {
     return { pass: false, score: 0, reason: 'No review JSON found in output or artifact file' };
-  }
-
-  // Schema validation gate
-  const schemaResult = validateSchema(review, 'model_review_output.json');
-  if (!schemaResult.valid) {
-    return { pass: false, score: 0, reason: `Model review schema validation failed: ${schemaResult.errors}` };
   }
 
   const expectedStatuses = normalizeTerms(context.vars.expected_status);

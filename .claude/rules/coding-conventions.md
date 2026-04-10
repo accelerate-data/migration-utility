@@ -35,8 +35,8 @@ Never hard-wrap prose at 80 characters (or any fixed column). Let each sentence 
 
 ## Testing
 
-- Tests that call CLI `run_*` functions (`run_list`, `run_show`, `run_refs`, `run_context`, `run_write`) must validate the return value with `assert_valid_schema(result, "<schema_name>.json")` using the matching schema from `lib/shared/schemas/`
-- If no matching output schema exists for a new `run_*` function, create one before the test is merged
+- All `run_*` functions must return a Pydantic model instance (defined in `output_models.py` with `extra="forbid"`). The model enforces the output contract at construction time — no separate schema validation step needed.
+- If no matching Pydantic output model exists for a new `run_*` function, create one in `output_models.py` before the test is merged
 
 ## Error Handling
 

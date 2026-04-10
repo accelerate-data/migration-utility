@@ -44,8 +44,8 @@ def test_is_source_true_included() -> None:
     ])
     try:
         result = generate_sources(root)
-        assert "silver.lookup" in result["included"]
-        assert result["sources"] is not None
+        assert "silver.lookup" in result.included
+        assert result.sources is not None
     finally:
         tmp.cleanup()
 
@@ -58,9 +58,9 @@ def test_no_writer_found_without_flag_goes_to_unconfirmed() -> None:
     ])
     try:
         result = generate_sources(root)
-        assert "silver.audit" not in result["included"]
-        assert "silver.audit" in result["unconfirmed"]
-        assert result["sources"] is None
+        assert "silver.audit" not in result.included
+        assert "silver.audit" in result.unconfirmed
+        assert result.sources is None
     finally:
         tmp.cleanup()
 
@@ -73,8 +73,8 @@ def test_resolved_table_excluded() -> None:
     ])
     try:
         result = generate_sources(root)
-        assert "silver.dimcustomer" in result["excluded"]
-        assert "silver.dimcustomer" not in result["included"]
+        assert "silver.dimcustomer" in result.excluded
+        assert "silver.dimcustomer" not in result.included
     finally:
         tmp.cleanup()
 
@@ -88,8 +88,8 @@ def test_resolved_with_is_source_included() -> None:
     ])
     try:
         result = generate_sources(root)
-        assert "silver.crossdomain" in result["included"]
-        assert "silver.crossdomain" not in result["excluded"]
+        assert "silver.crossdomain" in result.included
+        assert "silver.crossdomain" not in result.excluded
     finally:
         tmp.cleanup()
 
@@ -101,7 +101,7 @@ def test_unscoped_table_goes_to_incomplete() -> None:
     ])
     try:
         result = generate_sources(root)
-        assert "silver.fresh" in result["incomplete"]
+        assert "silver.fresh" in result.incomplete
     finally:
         tmp.cleanup()
 
@@ -114,8 +114,8 @@ def test_unconfirmed_list_populated() -> None:
     ])
     try:
         result = generate_sources(root)
-        assert set(result["unconfirmed"]) == {"silver.audit", "silver.lookup"}
-        assert result["included"] == []
+        assert set(result.unconfirmed) == {"silver.audit", "silver.lookup"}
+        assert result.included == []
     finally:
         tmp.cleanup()
 
@@ -125,11 +125,11 @@ def test_empty_catalog() -> None:
     tmp, root = _make_project([])
     try:
         result = generate_sources(root)
-        assert result["sources"] is None
-        assert result["included"] == []
-        assert result["excluded"] == []
-        assert result["unconfirmed"] == []
-        assert result["incomplete"] == []
+        assert result.sources is None
+        assert result.included == []
+        assert result.excluded == []
+        assert result.unconfirmed == []
+        assert result.incomplete == []
     finally:
         tmp.cleanup()
 
@@ -147,10 +147,10 @@ def test_mixed_tables() -> None:
     ])
     try:
         result = generate_sources(root)
-        assert result["included"] == ["silver.src"]
-        assert result["excluded"] == ["silver.model"]
-        assert result["unconfirmed"] == ["silver.pending"]
-        assert result["incomplete"] == ["silver.fresh"]
+        assert result.included == ["silver.src"]
+        assert result.excluded == ["silver.model"]
+        assert result.unconfirmed == ["silver.pending"]
+        assert result.incomplete == ["silver.fresh"]
     finally:
         tmp.cleanup()
 
@@ -166,7 +166,7 @@ def test_strict_mode_passes_when_no_incomplete() -> None:
     ])
     try:
         result = generate_sources(root)
-        assert result["incomplete"] == []
+        assert result.incomplete == []
     finally:
         tmp.cleanup()
 
@@ -178,7 +178,7 @@ def test_strict_mode_flags_incomplete_scoping() -> None:
     ])
     try:
         result = generate_sources(root)
-        assert "silver.fresh" in result["incomplete"]
+        assert "silver.fresh" in result.incomplete
     finally:
         tmp.cleanup()
 
@@ -190,8 +190,8 @@ def test_strict_mode_does_not_flag_unconfirmed() -> None:
     ])
     try:
         result = generate_sources(root)
-        assert result["incomplete"] == []
-        assert "silver.pending" in result["unconfirmed"]
+        assert result.incomplete == []
+        assert "silver.pending" in result.unconfirmed
     finally:
         tmp.cleanup()
 
@@ -211,8 +211,8 @@ def test_sources_yml_groups_by_schema() -> None:
     ])
     try:
         result = generate_sources(root)
-        assert result["sources"] is not None
-        schemas = {s["name"] for s in result["sources"]["sources"]}
+        assert result.sources is not None
+        schemas = {s["name"] for s in result.sources["sources"]}
         assert schemas == {"silver", "bronze"}
     finally:
         tmp.cleanup()
@@ -227,7 +227,7 @@ def test_excluded_table_with_is_source_not_in_sources() -> None:
     ])
     try:
         result = generate_sources(root)
-        assert "silver.ghost" not in result["included"]
+        assert "silver.ghost" not in result.included
     finally:
         tmp.cleanup()
 
@@ -254,7 +254,7 @@ def test_write_sources_yml_creates_file(tmp_path) -> None:
              "HOME": str(Path.home())},
     )
     result = write_sources_yml(tmp_path)
-    assert result["path"] is not None
-    sources_path = Path(result["path"])
+    assert result.path is not None
+    sources_path = Path(result.path)
     assert sources_path.exists()
-    assert "silver.src" in result["included"]
+    assert "silver.src" in result.included

@@ -1,4 +1,5 @@
-// Validates that the model-generator input manifest conforms to model_generator_input.json schema.
+// Validates that the model-generator input manifest is well-formed JSON.
+// Schema shape is enforced by ModelGeneratorInput Pydantic model in output_models.py.
 // Usage: type: javascript, value: file://../../assertions/check-model-generator-input.js
 // Expects context.vars:
 // {
@@ -6,7 +7,6 @@
 // }
 const fs = require('fs');
 const path = require('path');
-const { validateSchema } = require('./schema-helpers');
 
 module.exports = (output, context) => {
   const fixturePath = context.vars.fixture_path;
@@ -25,16 +25,10 @@ module.exports = (output, context) => {
   }
 
   for (const file of files) {
-    let data;
     try {
-      data = JSON.parse(fs.readFileSync(path.join(runsDir, file), 'utf8'));
+      JSON.parse(fs.readFileSync(path.join(runsDir, file), 'utf8'));
     } catch (e) {
       return { pass: false, score: 0, reason: `Failed to parse ${file}: ${e.message}` };
-    }
-
-    const schemaResult = validateSchema(data, 'model_generator_input.json');
-    if (!schemaResult.valid) {
-      return { pass: false, score: 0, reason: `${file} schema validation failed: ${schemaResult.errors}` };
     }
   }
 

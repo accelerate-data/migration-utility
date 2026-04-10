@@ -28,7 +28,7 @@ tests/evals/
     check-model-review.js              # validates model review results
     check-sweep-action.js              # validates planning-sweep skip/test-only behavior
     check-pr-safety.js                 # validates commit/push/PR failure handling
-    validate-candidate-writers.js      # validates candidate writers against schema
+
   prompts/
     skill-profiling-table.txt          # prompt template for profiling-table skill
     skill-profiling-table-view.txt     # prompt template for profiling-table view scenarios

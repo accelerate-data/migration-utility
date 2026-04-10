@@ -44,3 +44,23 @@ else
     echo "direnv: skipped (no .envrc in worktree)"
   fi
 fi
+
+# ── 3. Sync Python dev dependencies ──────────────────────────────────────
+
+lib_dir="$worktree_path/plugin/lib"
+if [[ -f "$lib_dir/pyproject.toml" ]]; then
+  echo "uv: syncing dev dependencies in $lib_dir"
+  (cd "$lib_dir" && uv sync --extra dev 2>&1) || echo "uv: sync failed (non-fatal)"
+else
+  echo "uv: skipped (no pyproject.toml in plugin/lib)"
+fi
+
+# ── 4. Install Node.js eval dependencies ─────────────────────────────────
+
+evals_dir="$worktree_path/tests/evals"
+if [[ -f "$evals_dir/package.json" ]]; then
+  echo "npm: installing eval dependencies in $evals_dir"
+  (cd "$evals_dir" && npm install --no-audit --no-fund 2>&1) || echo "npm: install failed (non-fatal)"
+else
+  echo "npm: skipped (no package.json in tests/evals)"
+fi

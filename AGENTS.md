@@ -71,6 +71,8 @@ When a change depends on local infrastructure (for example SQL Server-backed ign
 
 **Stale venv after a repo move:** If `plugin/mcp/ddl` tests fail with `cannot execute: No such file or directory`, the `.venv` has a stale interpreter path from a prior directory location. Fix: `rm -rf plugin/mcp/ddl/.venv && cd plugin/mcp/ddl && uv sync`.
 
+**Worktree venv for integration tests:** Worktrees get a fresh `.venv` on first run. For integration tests (pyodbc, oracledb), sync with the `dev` extra: `cd plugin/lib && rm -rf .venv && uv sync --extra dev`.
+
 ## Design Docs
 
 Design notes live in `docs/design/`. Each topic gets its own subdirectory with a `README.md`

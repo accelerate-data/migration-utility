@@ -24,10 +24,9 @@ _UNPARSEABLE_FIXTURES = _TESTS_DIR / "fixtures" / "discover" / "unparseable"
 # ── test_list_flat_tables ──────────────────────────────────────────────────
 
 
-def test_list_flat_tables(assert_valid_schema) -> None:
+def test_list_flat_tables() -> None:
     result = discover.run_list(_FLAT_FIXTURES, discover.ObjectType.tables)
-    assert_valid_schema(result, "discover_list_output.json")
-    objects = result["objects"]
+    objects = result.objects
     assert "silver.dimproduct" in objects
     assert "bronze.product" in objects
     assert "bronze.customer" in objects
@@ -41,10 +40,9 @@ def test_list_flat_tables(assert_valid_schema) -> None:
 # ── test_list_flat_procedures ─────────────────────────────────────────────
 
 
-def test_list_flat_procedures(assert_valid_schema) -> None:
+def test_list_flat_procedures() -> None:
     result = discover.run_list(_FLAT_FIXTURES, discover.ObjectType.procedures)
-    assert_valid_schema(result, "discover_list_output.json")
-    objects = result["objects"]
+    objects = result.objects
     assert "dbo.usp_loaddimproduct" in objects
     assert "dbo.usp_logmessage" in objects
     assert "dbo.usp_mergedimproduct" in objects
@@ -79,7 +77,7 @@ def test_list_flat_missing_optional() -> None:
             encoding="utf-8",
         )
         result = discover.run_list(p, discover.ObjectType.views)
-    assert result["objects"] == []
+    assert result.objects == []
 
 
 # ── test_list_indexed_same_as_flat ────────────────────────────────────────
@@ -100,7 +98,7 @@ def test_list_indexed_same_as_flat() -> None:
         flat_result = discover.run_list(_FLAT_FIXTURES, discover.ObjectType.tables)
         indexed_result = discover.run_list(out, discover.ObjectType.tables)
 
-    assert flat_result["objects"] == indexed_result["objects"]
+    assert flat_result.objects == indexed_result.objects
 
 
 # ── test_list_unparseable_stored_with_error ──────────────────────────────
@@ -118,22 +116,21 @@ def test_list_unparseable_stored_with_error() -> None:
 # ── test_show_table_columns ───────────────────────────────────────────────
 
 
-def test_show_table_columns(assert_valid_schema) -> None:
+def test_show_table_columns() -> None:
     """show on a table returns columns list populated from AST."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.DimProduct")
-    assert_valid_schema(result, "discover_show_output.json")
-    assert result["type"] == "table"
-    assert result["parse_error"] is None
-    columns = result["columns"]
+    assert result.type == "table"
+    assert result.parse_error is None
+    columns = result.columns
     assert isinstance(columns, list)
-    col_names = [c["name"] for c in columns]
+    col_names = [c.name for c in columns]
     assert "ProductKey" in col_names
     assert "ProductAlternateKey" in col_names
     assert "EnglishProductName" in col_names
-    # Every column entry has name and sql_type keys
+    # Every column entry has name and sql_type
     for col in columns:
-        assert "name" in col
-        assert "sql_type" in col
+        assert col.name
+        assert col.sql_type
 
 
 # ── test_show_unparseable_has_parse_error ─────────────────────────────────
@@ -166,33 +163,32 @@ def test_discover_cli_list_succeeds_with_unparseable() -> None:
 # ── show: statement analysis (no catalog needed) ─────────────────────────
 
 
-def test_show_deterministic_has_statements(assert_valid_schema) -> None:
+def test_show_deterministic_has_statements() -> None:
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadDimProduct")
-    assert_valid_schema(result, "discover_show_output.json")
-    assert result["needs_llm"] is False
-    assert result["routing_reasons"] == []
-    assert result["statements"] is not None
-    actions = {s["action"] for s in result["statements"]}
+    assert result.needs_llm is False
+    assert result.routing_reasons == []
+    assert result.statements is not None
+    actions = {s.action for s in result.statements}
     assert "migrate" in actions
 
 
 def test_show_static_exec_is_deterministic() -> None:
     """Static EXEC procs are deterministic — catalog-enrich resolves them."""
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecSimple")
-    assert result["needs_llm"] is False
-    assert result["routing_reasons"] == []
-    assert result["statements"] is not None
+    assert result.needs_llm is False
+    assert result.routing_reasons == []
+    assert result.statements is not None
 
 
 def test_show_dynamic_exec_needs_llm() -> None:
     """Dynamic EXEC(@var) procs need LLM — reads raw_ddl."""
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_ExecDynamic")
-    assert result["needs_llm"] is True
-    assert result["routing_reasons"] == ["dynamic_sql_variable"]
-    assert result["statements"] is None
+    assert result.needs_llm is True
+    assert result.routing_reasons == ["dynamic_sql_variable"]
+    assert result.statements is None
 
 
-def test_show_uses_routing_mode_and_reasons(tmp_path, assert_valid_schema) -> None:
+def test_show_uses_routing_mode_and_reasons(tmp_path) -> None:
     import shutil
 
     shutil.copytree(_FLAT_FIXTURES / "ddl", tmp_path / "ddl")
@@ -206,22 +202,21 @@ def test_show_uses_routing_mode_and_reasons(tmp_path, assert_valid_schema) -> No
     proc_path.write_text(json.dumps(proc_cat, indent=2) + "\n", encoding="utf-8")
 
     result = discover.run_show(tmp_path, "dbo.usp_ConditionalMerge")
-    assert_valid_schema(result, "discover_show_output.json")
-    assert result["needs_llm"] is False
-    assert result["routing_reasons"] == ["if_else"]
-    assert result["statements"] is not None
+    assert result.needs_llm is False
+    assert result.routing_reasons == ["if_else"]
+    assert result.statements is not None
 
 
 def test_show_statements_truncate_is_skip() -> None:
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_TruncateOnly")
-    actions = [s["action"] for s in result["statements"]]
+    actions = [s.action for s in result.statements]
     assert "skip" in actions
     assert "migrate" not in actions
 
 
 def test_show_statements_table_has_none() -> None:
     result = discover.run_show(_FLAT_FIXTURES, "silver.DimProduct")
-    assert result["statements"] is None
+    assert result.statements is None
 
 
 def test_show_errors_without_catalog() -> None:
@@ -246,33 +241,33 @@ def test_show_errors_without_catalog() -> None:
 _CATALOG_FIXTURES = _TESTS_DIR / "fixtures" / "catalog"
 
 
-def test_refs_catalog_finds_writers(assert_valid_schema) -> None:
+def test_refs_catalog_finds_writers() -> None:
     """refs uses catalog data when catalog/tables/*.json exists."""
     result = discover.run_refs(_CATALOG_FIXTURES.parent, "silver.FactSales")
-    assert_valid_schema(result, "discover_refs_output.json")
-    assert result["source"] == "catalog"
-    writer_names = [w["procedure"] for w in result["writers"]]
+    assert result.source == "catalog"
+    writer_names = [w.procedure for w in result.writers]
     assert "dbo.usp_load_fact_sales" in writer_names
     # Writer has is_updated flag
-    writer = next(w for w in result["writers"] if w["procedure"] == "dbo.usp_load_fact_sales")
-    assert writer["is_updated"] is True
+    writer = next(w for w in result.writers if w.procedure == "dbo.usp_load_fact_sales")
+    assert writer.is_updated is True
 
 
 def test_refs_catalog_finds_readers() -> None:
     """refs catalog path correctly identifies readers (is_selected only)."""
     result = discover.run_refs(_CATALOG_FIXTURES.parent, "silver.FactSales")
-    assert result["source"] == "catalog"
-    assert "dbo.usp_read_fact_sales" in result["readers"]
-    assert "dbo.vw_sales_summary" in result["readers"]
+    assert result.source == "catalog"
+    assert "dbo.usp_read_fact_sales" in result.readers
+    assert "dbo.vw_sales_summary" in result.readers
 
 
 def test_refs_catalog_no_confidence() -> None:
     """Catalog-path refs output has no confidence or status fields."""
     result = discover.run_refs(_CATALOG_FIXTURES.parent, "silver.FactSales")
-    assert result["source"] == "catalog"
-    for w in result["writers"]:
-        assert "confidence" not in w
-        assert "status" not in w
+    assert result.source == "catalog"
+    for w in result.writers:
+        w_dict = w.model_dump()
+        assert "confidence" not in w_dict
+        assert "status" not in w_dict
 
 
 def test_refs_errors_without_catalog() -> None:
@@ -340,7 +335,7 @@ def test_list_succeeds_despite_corrupt_catalog() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = _make_project_with_corrupt_catalog(Path(tmp), "tables", "dbo.t")
         result = discover.run_list(root, discover.ObjectType.tables)
-        assert "dbo.t" in result["objects"]
+        assert "dbo.t" in result.objects
 
 
 def test_write_scoping_corrupt_table_catalog_raises() -> None:
@@ -504,14 +499,14 @@ def test_show_proc_view_refs_not_in_reads_from() -> None:
         root = _make_project_with_proc_view_refs(Path(tmp))
         result = discover.run_show(root, "dbo.usp_LoadData")
 
-    refs = result["refs"]
+    refs = result.refs
     assert refs is not None
     # Table that is read should be present
-    assert "silver.factsales" in refs["reads_from"]
+    assert "silver.factsales" in refs.reads_from
     # The view dependency must NOT appear in the tables reads_from list
-    assert "dbo.vw_customer_dim" not in refs["reads_from"]
+    assert "dbo.vw_customer_dim" not in refs.reads_from
     # The table that is written should be present
-    assert "silver.factsales" in refs["writes_to"]
+    assert "silver.factsales" in refs.writes_to
 
 
 def _make_project_with_view_catalog(tmp: Path) -> Path:
@@ -557,44 +552,44 @@ def test_refs_view_catalog_returns_view_type() -> None:
         root = _make_project_with_view_catalog(Path(tmp))
         result = discover.run_refs(root, "dbo.vw_customer_dim")
 
-    assert result["source"] == "catalog"
-    assert result["type"] == "view"
-    assert "dbo.usp_load_fact_sales" in result["readers"]
+    assert result.source == "catalog"
+    assert result.type == "view"
+    assert "dbo.usp_load_fact_sales" in result.readers
 
 
 def test_show_delete_top_is_migrate() -> None:
     """Pattern #4: DELETE TOP procedure is deterministic with migrate action."""
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_DeleteTop")
-    assert result["needs_llm"] is False
-    assert result["statements"] is not None
-    actions = {s["action"] for s in result["statements"]}
+    assert result.needs_llm is False
+    assert result.statements is not None
+    actions = {s.action for s in result.statements}
     assert "migrate" in actions
 
 
 def test_show_try_catch_is_deterministic() -> None:
     """Pattern #46: TRY/CATCH procedure is deterministic — branches are flattened."""
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_TryCatchLoad")
-    assert result["needs_llm"] is False
-    assert result["statements"] is not None
-    actions = {s["action"] for s in result["statements"]}
+    assert result.needs_llm is False
+    assert result.statements is not None
+    actions = {s.action for s in result.statements}
     assert "migrate" in actions
 
 
 def test_show_nested_control_flow_is_deterministic() -> None:
     """Pattern #48: Nested IF inside TRY/CATCH is deterministic — all branches flattened."""
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_NestedControlFlow")
-    assert result["needs_llm"] is False
-    assert result["statements"] is not None
-    actions = {s["action"] for s in result["statements"]}
+    assert result.needs_llm is False
+    assert result.statements is not None
+    actions = {s.action for s in result.statements}
     assert "migrate" in actions
 
 
 def test_show_recursive_cte_is_migrate() -> None:
     """Pattern #36: Recursive CTE procedure is deterministic with migrate action."""
     result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_RecursiveCTE")
-    assert result["needs_llm"] is False
-    assert result["statements"] is not None
-    actions = {s["action"] for s in result["statements"]}
+    assert result.needs_llm is False
+    assert result.statements is not None
+    actions = {s.action for s in result.statements}
     assert "migrate" in actions
 
 
@@ -671,20 +666,20 @@ def test_run_write_view_scoping_missing_catalog() -> None:
 def test_show_view_join_returns_sql_elements() -> None:
     """run_show for a view with a JOIN returns sql_elements containing a join entry."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.vw_ProductCatalog")
-    assert result["type"] == "view"
-    assert result["needs_llm"] is None  # not applicable for views
-    assert result["sql_elements"] is not None
-    element_types = {e["type"] for e in result["sql_elements"]}
+    assert result.type == "view"
+    assert result.needs_llm is None  # not applicable for views
+    assert result.sql_elements is not None
+    element_types = {e.type for e in result.sql_elements}
     assert "join" in element_types
 
 
 def test_show_view_aggregation_returns_sql_elements() -> None:
     """run_show for a view with GROUP BY + SUM/COUNT returns aggregation and group_by elements."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.vw_SalesSummary")
-    assert result["type"] == "view"
-    assert result["needs_llm"] is None  # not applicable for views
-    assert result["sql_elements"] is not None
-    element_types = {e["type"] for e in result["sql_elements"]}
+    assert result.type == "view"
+    assert result.needs_llm is None  # not applicable for views
+    assert result.sql_elements is not None
+    element_types = {e.type for e in result.sql_elements}
     assert "aggregation" in element_types
     assert "group_by" in element_types
 
@@ -692,69 +687,69 @@ def test_show_view_aggregation_returns_sql_elements() -> None:
 def test_show_view_window_function_returns_sql_elements() -> None:
     """run_show for a view with ROW_NUMBER OVER returns window_function element."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.vw_RankedProducts")
-    assert result["type"] == "view"
-    assert result["needs_llm"] is None  # not applicable for views
-    assert result["sql_elements"] is not None
-    element_types = {e["type"] for e in result["sql_elements"]}
+    assert result.type == "view"
+    assert result.needs_llm is None  # not applicable for views
+    assert result.sql_elements is not None
+    element_types = {e.type for e in result.sql_elements}
     assert "window_function" in element_types
 
 
 def test_show_view_errors_key_present_for_all_types() -> None:
     """run_show always returns an errors key regardless of object type."""
     view_result = discover.run_show(_FLAT_FIXTURES, "silver.vw_ProductCatalog")
-    assert "errors" in view_result
+    assert hasattr(view_result, "errors")
     proc_result = discover.run_show(_FLAT_FIXTURES, "dbo.usp_LoadDimProduct")
-    assert "errors" in proc_result
+    assert hasattr(proc_result, "errors")
 
 
 def test_show_view_case_expression_returns_sql_elements() -> None:
     """View with CASE expression returns case element."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.vw_CustomerTier")
-    assert result["needs_llm"] is None
-    element_types = {e["type"] for e in result["sql_elements"]}
+    assert result.needs_llm is None
+    element_types = {e.type for e in result.sql_elements}
     assert "case" in element_types
 
 
 def test_show_view_subquery_returns_sql_elements() -> None:
     """View with scalar subquery and EXISTS returns subquery element."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.vw_ActiveCustomers")
-    assert result["needs_llm"] is None
-    element_types = {e["type"] for e in result["sql_elements"]}
+    assert result.needs_llm is None
+    element_types = {e.type for e in result.sql_elements}
     assert "subquery" in element_types
 
 
 def test_show_view_single_cte_returns_sql_elements() -> None:
     """View with a single CTE returns cte element with count 1."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.vw_TopProducts")
-    assert result["needs_llm"] is None
-    element_types = {e["type"] for e in result["sql_elements"]}
+    assert result.needs_llm is None
+    element_types = {e.type for e in result.sql_elements}
     assert "cte" in element_types
-    cte_el = next(e for e in result["sql_elements"] if e["type"] == "cte")
-    assert "1" in cte_el["detail"]
+    cte_el = next(e for e in result.sql_elements if e.type == "cte")
+    assert "1" in cte_el.detail
 
 
 def test_show_view_multi_cte_returns_correct_count() -> None:
     """View with two CTEs returns cte element with count 2."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.vw_SalesWithRegion")
-    assert result["needs_llm"] is None
-    element_types = {e["type"] for e in result["sql_elements"]}
+    assert result.needs_llm is None
+    element_types = {e.type for e in result.sql_elements}
     assert "cte" in element_types
-    cte_el = next(e for e in result["sql_elements"] if e["type"] == "cte")
-    assert "2" in cte_el["detail"]
+    cte_el = next(e for e in result.sql_elements if e.type == "cte")
+    assert "2" in cte_el.detail
 
 
 def test_show_view_simple_select_returns_empty_elements() -> None:
     """Simple SELECT view with no joins/aggregations returns empty sql_elements."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.vw_SimpleCustomer")
-    assert result["needs_llm"] is None
-    assert result["sql_elements"] == []
+    assert result.needs_llm is None
+    assert result.sql_elements == []
 
 
 def test_show_view_duplicate_join_deduplicated() -> None:
     """View joining the same table twice produces deduplicated join elements."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.vw_DuplicateJoin")
-    assert result["needs_llm"] is None
-    join_details = [e["detail"] for e in result["sql_elements"] if e["type"] == "join"]
+    assert result.needs_llm is None
+    join_details = [e.detail for e in result.sql_elements if e.type == "join"]
     # Two joins to bronze.Orders — detail strings differ by alias target but same table;
     # at minimum, no exact-duplicate detail strings should appear
     assert len(join_details) == len(set(join_details))
@@ -763,8 +758,8 @@ def test_show_view_duplicate_join_deduplicated() -> None:
 def test_show_view_combined_elements() -> None:
     """View with JOIN + GROUP BY + WINDOW returns all three element types."""
     result = discover.run_show(_FLAT_FIXTURES, "silver.vw_Combined")
-    assert result["needs_llm"] is None
-    element_types = {e["type"] for e in result["sql_elements"]}
+    assert result.needs_llm is None
+    element_types = {e.type for e in result.sql_elements}
     assert "join" in element_types
     assert "group_by" in element_types
     assert "window_function" in element_types
@@ -888,7 +883,7 @@ def test_write_scoping_cli_reports_schema_validation_errors(caplog: pytest.LogCa
             ],
         )
         assert result.exit_code == 1
-        assert "Schema validation failed" in caplog.text
+        assert "validation errors for TableScopingSection" in caplog.text
         assert "procedure_name" in caplog.text
     finally:
         cat_file.unlink(missing_ok=True)
@@ -1041,19 +1036,18 @@ def _make_table_cat(root: Path, fqn: str, scoping: dict, extra: dict | None = No
     return path
 
 
-def test_write_source_sets_flag(assert_valid_schema) -> None:
+def test_write_source_sets_flag() -> None:
     """run_write_source sets is_source: true on a no_writer_found table."""
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         cat_path = _make_table_cat(root, "silver.lookup", {"status": "no_writer_found"})
         result = discover.run_write_source(root, "silver.lookup", True)
-        assert_valid_schema(result, "write_source_output.json")
-        assert result["is_source"] is True
+        assert result.is_source is True
         written = json.loads(cat_path.read_text(encoding="utf-8"))
         assert written["is_source"] is True
 
 
-def test_write_source_resolved_table(assert_valid_schema) -> None:
+def test_write_source_resolved_table() -> None:
     """run_write_source accepts resolved tables (cross-domain source scenario)."""
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -1062,12 +1056,11 @@ def test_write_source_resolved_table(assert_valid_schema) -> None:
             {"status": "resolved", "selected_writer": "dbo.usp_other"},
         )
         result = discover.run_write_source(root, "silver.crossdomain", True)
-        assert_valid_schema(result, "write_source_output.json")
         written = json.loads(cat_path.read_text(encoding="utf-8"))
         assert written["is_source"] is True
 
 
-def test_write_source_false_resets_flag(assert_valid_schema) -> None:
+def test_write_source_false_resets_flag() -> None:
     """run_write_source with value=False writes is_source: false (always present)."""
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -1075,8 +1068,7 @@ def test_write_source_false_resets_flag(assert_valid_schema) -> None:
             root, "silver.audit", {"status": "no_writer_found"}, {"is_source": True}
         )
         result = discover.run_write_source(root, "silver.audit", False)
-        assert_valid_schema(result, "write_source_output.json")
-        assert result["is_source"] is False
+        assert result.is_source is False
         written = json.loads(cat_path.read_text(encoding="utf-8"))
         assert written["is_source"] is False
 
@@ -1125,19 +1117,18 @@ def _make_proc_cat(root: Path, fqn: str) -> Path:
 
 class TestWriteTableSlice:
 
-    def test_write_table_slice_happy_path(self, assert_valid_schema) -> None:
+    def test_write_table_slice_happy_path(self) -> None:
         """run_write_table_slice writes slice text into proc catalog table_slices."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _make_proc_cat(root, "dbo.usp_multi")
             result = discover.run_write_table_slice(root, "dbo.usp_multi", "dim.target", "MERGE INTO dim.target ...")
-            assert_valid_schema(result, "write_slice_output.json")
-            assert result["status"] == "ok"
+            assert result.status == "ok"
             proc_path = root / "catalog" / "procedures" / "dbo.usp_multi.json"
             written = json.loads(proc_path.read_text(encoding="utf-8"))
             assert written["table_slices"]["dim.target"] == "MERGE INTO dim.target ..."
 
-    def test_write_table_slice_accumulates(self, assert_valid_schema) -> None:
+    def test_write_table_slice_accumulates(self) -> None:
         """run_write_table_slice accumulates slices for distinct tables under the same proc."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

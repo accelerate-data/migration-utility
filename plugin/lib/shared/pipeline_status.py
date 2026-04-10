@@ -93,17 +93,19 @@ def collect_object_diagnostics(
     """Collect all warnings and errors from a catalog object and its sub-sections."""
     diagnostics: list[dict[str, Any]] = []
 
+    def _as_dict(entry: Any, default_severity: str) -> dict[str, Any]:
+        d = entry.model_dump(exclude_none=True) if hasattr(entry, "model_dump") else entry
+        if isinstance(d, dict) and "severity" not in d:
+            d = {**d, "severity": default_severity}
+        return d
+
     def _gather(source: Any) -> None:
         if not source:
             return
         for entry in getattr(source, "warnings", None) or []:
-            if isinstance(entry, dict) and "severity" not in entry:
-                entry = {**entry, "severity": "warning"}
-            diagnostics.append(entry)
+            diagnostics.append(_as_dict(entry, "warning"))
         for entry in getattr(source, "errors", None) or []:
-            if isinstance(entry, dict) and "severity" not in entry:
-                entry = {**entry, "severity": "error"}
-            diagnostics.append(entry)
+            diagnostics.append(_as_dict(entry, "error"))
 
     try:
         if obj_type in ("view", "mv"):
@@ -148,17 +150,19 @@ def _compute_status_and_diagnostics(
     """
     diagnostics: list[dict[str, Any]] = []
 
+    def _as_dict(entry: Any, default_severity: str) -> dict[str, Any]:
+        d = entry.model_dump(exclude_none=True) if hasattr(entry, "model_dump") else entry
+        if isinstance(d, dict) and "severity" not in d:
+            d = {**d, "severity": default_severity}
+        return d
+
     def _gather(source: Any) -> None:
         if not source:
             return
         for entry in getattr(source, "warnings", None) or []:
-            if isinstance(entry, dict) and "severity" not in entry:
-                entry = {**entry, "severity": "warning"}
-            diagnostics.append(entry)
+            diagnostics.append(_as_dict(entry, "warning"))
         for entry in getattr(source, "errors", None) or []:
-            if isinstance(entry, dict) and "severity" not in entry:
-                entry = {**entry, "severity": "error"}
-            diagnostics.append(entry)
+            diagnostics.append(_as_dict(entry, "error"))
 
     if obj_type in ("view", "mv"):
         try:

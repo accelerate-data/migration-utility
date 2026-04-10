@@ -12,62 +12,38 @@ from pathlib import Path
 from typing import Any, NoReturn, Optional
 
 import typer
-from jsonschema import Draft202012Validator
-from referencing import Registry, Resource
+from pydantic import ValidationError
 
 from shared.catalog import (
     load_and_merge_catalog,
     write_json as _write_catalog_json,
 )
-from shared.catalog_models import TestGenSection, TestReviewResult
+from shared.catalog_models import TestGenSection
 from shared.cli_utils import emit
 from shared.env_config import resolve_catalog_dir, resolve_project_root
 from shared.loader import CatalogFileMissingError, CatalogLoadError
 from shared.loader_io import clear_manifest_sandbox, read_manifest, write_manifest_sandbox
 from shared.name_resolver import normalize
+from shared.output_models import (
+    ErrorEntry,
+    ExecuteSpecOutput,
+    ExecuteSpecResult,
+    TestHarnessExecuteOutput,
+    TestReviewOutput,
+    TestSpec,
+)
 from shared.sandbox import get_backend
 from shared.sandbox.base import SandboxBackend
 
 logger = logging.getLogger(__name__)
 app = typer.Typer(name="test-harness", no_args_is_help=True, add_completion=False, pretty_exceptions_enable=False)
 
-_SCHEMA_DIR = Path(__file__).with_name("schemas")
-
-
-# ── Schema validation helpers ────────────────────────────────────────────────
-
-
-def _load_schema_with_store(schema_name: str) -> tuple[dict[str, Any], Registry]:
-    """Load a schema file and a registry for local schema references."""
-    registry = Registry()
-    loaded: dict[str, Any] = {}
-    for schema_path in _SCHEMA_DIR.glob("*.json"):
-        schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        loaded[schema_path.name] = schema
-        resource = Resource.from_contents(schema)
-        registry = registry.with_resource(schema_path.name, resource)
-        registry = registry.with_resource(schema_path.resolve().as_uri(), resource)
-    return loaded[schema_name], registry
-
-
-def _format_validation_errors(errors: list[Any]) -> str:
-    """Render jsonschema validation errors in compact, actionable form."""
-    parts: list[str] = []
-    for error in errors:
-        path = "/" + "/".join(str(segment) for segment in error.absolute_path)
-        parts.append(f"{path or '/'}: {error.message}")
-    return "; ".join(parts)
-
-
-def _validate_test_spec(spec_data: dict[str, Any]) -> None:
-    """Validate a test spec against test_spec.json and raise ValueError with field-level errors."""
-    schema, registry = _load_schema_with_store("test_spec.json")
-    validator = Draft202012Validator(schema, registry=registry)
-    errors = sorted(validator.iter_errors(spec_data), key=lambda err: list(err.absolute_path))
-    if errors:
-        raise ValueError(
-            f"Test spec schema validation failed: {_format_validation_errors(errors)}"
-        )
+def _validate_test_spec(spec_data: dict[str, Any]) -> TestSpec:
+    """Validate a test spec via Pydantic and raise ValueError with field-level errors."""
+    try:
+        return TestSpec.model_validate(spec_data)
+    except ValidationError as exc:
+        raise ValueError(f"Test spec validation failed: {exc}") from exc
 
 
 def _load_manifest(project_root: Path) -> dict[str, Any]:
@@ -157,11 +133,11 @@ def sandbox_up(
         )
     except (ValueError, KeyError) as exc:
         _error_exit("SANDBOX_UP_INVALID_INPUT", str(exc), exc)
-    if result.get("status") != "error":
-        write_manifest_sandbox(root, result["sandbox_database"])
-    typer.echo(json.dumps(result, indent=2))
-    logger.info("event=cli_complete command=sandbox_up sandbox_db=%s status=%s", result.get("sandbox_database"), result.get("status"))
-    if result.get("status") == "error":
+    if result.status != "error":
+        write_manifest_sandbox(root, result.sandbox_database)
+    emit(result)
+    logger.info("event=cli_complete command=sandbox_up sandbox_db=%s status=%s", result.sandbox_database, result.status)
+    if result.status == "error":
         raise typer.Exit(code=1)
 
 
@@ -180,11 +156,11 @@ def sandbox_down(
         result = backend.sandbox_down(sandbox_db=sandbox_db)
     except (ValueError, KeyError) as exc:
         _error_exit("SANDBOX_DOWN_INVALID_INPUT", str(exc), exc)
-    if result.get("status") != "error":
+    if result.status != "error":
         clear_manifest_sandbox(root)
-    typer.echo(json.dumps(result, indent=2))
-    logger.info("event=cli_complete command=sandbox_down sandbox_db=%s status=%s", sandbox_db, result.get("status"))
-    if result.get("status") == "error":
+    emit(result)
+    logger.info("event=cli_complete command=sandbox_down sandbox_db=%s status=%s", sandbox_db, result.status)
+    if result.status == "error":
         raise typer.Exit(code=1)
 
 
@@ -203,11 +179,11 @@ def sandbox_status(
         result = backend.sandbox_status(sandbox_db=sandbox_db)
     except (ValueError, KeyError) as exc:
         _error_exit("SANDBOX_STATUS_INVALID_INPUT", str(exc), exc)
-    typer.echo(json.dumps(result, indent=2))
-    logger.info("event=cli_complete command=sandbox_status sandbox_db=%s status=%s", sandbox_db, result.get("status"))
-    if result.get("status") == "error":
+    emit(result)
+    logger.info("event=cli_complete command=sandbox_status sandbox_db=%s status=%s", sandbox_db, result.status)
+    if result.status == "error":
         raise typer.Exit(code=1)
-    if not result.get("exists"):
+    if not result.exists:
         raise typer.Exit(code=1)
 
 
@@ -236,9 +212,9 @@ def execute(
         result = backend.execute_scenario(sandbox_db=sandbox_db, scenario=scenario_data)
     except (ValueError, KeyError) as exc:
         _error_exit("EXECUTE_INVALID_INPUT", str(exc), exc)
-    typer.echo(json.dumps(result, indent=2))
-    logger.info("event=cli_complete command=execute sandbox_db=%s status=%s", sandbox_db, result.get("status"))
-    if result.get("status") == "error":
+    emit(result)
+    logger.info("event=cli_complete command=execute sandbox_db=%s status=%s", sandbox_db, result.status)
+    if result.status == "error":
         raise typer.Exit(code=1)
 
 
@@ -267,7 +243,7 @@ def execute_spec(
     if not unit_tests:
         _error_exit("SPEC_EMPTY", "Test spec has no unit_tests entries")
 
-    results: list[dict[str, Any]] = []
+    results: list[ExecuteSpecResult] = []
     ok_count = 0
     failed_count = 0
 
@@ -281,57 +257,58 @@ def execute_spec(
                     "procedure": test_entry["procedure"],
                     "given": test_entry["given"],
                 }
-                result = backend.execute_scenario(sandbox_db=sandbox_db, scenario=scenario)
+                exec_result = backend.execute_scenario(sandbox_db=sandbox_db, scenario=scenario)
             else:
                 # View-based test: run a SELECT directly
-                result = backend.execute_select(
+                exec_result = backend.execute_select(
                     sandbox_db=sandbox_db,
                     sql=test_entry["sql"],
                     fixtures=test_entry["given"],
                 )
-                result["scenario_name"] = test_entry["name"]
+                exec_result = exec_result.model_copy(
+                    update={"scenario_name": test_entry["name"]},
+                )
         except (ValueError, KeyError) as exc:
-            result = {
-                "scenario_name": test_entry.get("name", "unknown"),
-                "status": "error",
-                "ground_truth_rows": [],
-                "row_count": 0,
-                "errors": [{"code": "EXECUTE_INVALID_INPUT", "message": str(exc)}],
-            }
+            exec_result = TestHarnessExecuteOutput(
+                scenario_name=test_entry.get("name", "unknown"),
+                status="error",
+                ground_truth_rows=[],
+                row_count=0,
+                errors=[ErrorEntry(code="EXECUTE_INVALID_INPUT", message=str(exc))],
+            )
 
-        results.append({
-            "scenario_name": result.get("scenario_name", test_entry.get("name", "unknown")),
-            "status": result["status"],
-            "row_count": result.get("row_count", 0),
-            "errors": result.get("errors", []),
-        })
+        results.append(ExecuteSpecResult(
+            scenario_name=exec_result.scenario_name,
+            status=exec_result.status,
+            row_count=exec_result.row_count,
+            errors=exec_result.errors,
+        ))
 
-        if result["status"] == "ok":
-            test_entry["expect"] = {"rows": result["ground_truth_rows"]}
+        if exec_result.status == "ok":
+            test_entry["expect"] = {"rows": exec_result.ground_truth_rows}
             ok_count += 1
         else:
             test_entry.pop("expect", None)  # clear stale ground truth
             failed_count += 1
             logger.warning(
                 "event=scenario_failed command=execute_spec sandbox_db=%s scenario=%s errors=%s",
-                sandbox_db, test_entry["name"], result.get("errors"),
+                sandbox_db, test_entry["name"], exec_result.errors,
             )
 
     # Write updated spec back with expect.rows populated
     with spec_path.open("w") as f:
         json.dump(spec_data, f, indent=2)
 
-    output = {
-        "schema_version": "1.0",
-        "sandbox_database": sandbox_db,
-        "spec_path": str(spec_path),
-        "total": len(unit_tests),
-        "ok": ok_count,
-        "failed": failed_count,
-        "results": results,
-    }
+    output = ExecuteSpecOutput(
+        sandbox_database=sandbox_db,
+        spec_path=str(spec_path),
+        total=len(unit_tests),
+        ok=ok_count,
+        failed=failed_count,
+        results=results,
+    )
 
-    typer.echo(json.dumps(output, indent=2))
+    emit(output)
     logger.info(
         "event=cli_complete command=execute_spec sandbox_db=%s total=%d ok=%d failed=%d",
         sandbox_db, len(unit_tests), ok_count, failed_count,
@@ -453,7 +430,7 @@ def run_write_test_gen(
 ) -> dict[str, Any]:
     """Validate test-gen output and write test_gen section to catalog.
 
-    Reads the test-spec file from disk, validates it against test_spec.json,
+    Reads the test-spec file from disk, validates it via Pydantic TestSpec,
     and writes the test_gen section to the table or view catalog file.
     Raises ValueError with field-level errors if the spec is invalid.
     """
@@ -474,7 +451,7 @@ def run_write_test_gen(
             f"Test spec file is not valid JSON: {spec_path}. Parse error: {exc}"
         ) from exc
 
-    # Validate against test_spec.json schema — raises ValueError with
+    # Validate via Pydantic TestSpec — raises ValueError with
     # field-level errors the caller can use to fix the spec and retry.
     _validate_test_spec(spec_data)
 
@@ -553,7 +530,7 @@ def write_cmd(
 
 
 def run_validate_review(review_file: Path) -> dict[str, Any]:
-    """Validate a test review JSON file against test_review_output.json schema.
+    """Validate a test review JSON file via Pydantic.
 
     Returns {"valid": true} on success.
     Raises ValueError with field-level errors on validation failure.
@@ -566,15 +543,10 @@ def run_validate_review(review_file: Path) -> dict[str, Any]:
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise ValueError(f"Review file is not valid JSON: {review_file}. Parse error: {exc}") from exc
 
-    schema, registry = _load_schema_with_store("test_review_output.json")
-    validator = Draft202012Validator(schema, registry=registry)
-    errors = sorted(validator.iter_errors(review_data), key=lambda err: list(err.absolute_path))
-    if errors:
-        raise ValueError(
-            f"Review schema validation failed: {_format_validation_errors(errors)}"
-        )
-
-    TestReviewResult.model_validate(review_data)
+    try:
+        TestReviewOutput.model_validate(review_data)
+    except ValidationError as exc:
+        raise ValueError(f"Review validation failed: {exc}") from exc
 
     return {"valid": True}
 
@@ -583,7 +555,7 @@ def run_validate_review(review_file: Path) -> dict[str, Any]:
 def validate_review_cmd(
     review_file: Path = typer.Option(..., "--review-file", help="Path to review JSON file"),
 ) -> None:
-    """Validate a test review result against test_review_output.json schema."""
+    """Validate a test review result via Pydantic TestReviewOutput model."""
     try:
         result = run_validate_review(review_file)
     except ValueError as exc:

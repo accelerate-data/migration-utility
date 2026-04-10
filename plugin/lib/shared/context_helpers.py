@@ -155,7 +155,7 @@ def load_view_sql(project_root: Path, view_fqn: str) -> str | None:
     cat = load_view_catalog(project_root, view_fqn)
     if cat is None:
         return None
-    sql = (cat.model_extra or {}).get("sql")
+    sql = cat.sql
     if not sql:
         logger.warning("event=view_sql_empty view=%s", view_fqn)
     return sql

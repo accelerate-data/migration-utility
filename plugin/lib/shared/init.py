@@ -31,6 +31,8 @@ from typing import Any, Callable, Optional
 
 import typer
 
+from shared.output_models import ScaffoldHooksOutput, ScaffoldProjectOutput
+
 from shared.init_templates import (
     _claude_md_oracle,
     _claude_md_sql_server,
@@ -167,7 +169,7 @@ _CLAUDE_MD_REQUIRED_SECTIONS = [
 # ── Business logic (run_* functions) ─────────────────────────────────────────
 
 
-def run_scaffold_project(project_root: Path, technology: str = "sql_server") -> dict[str, Any]:
+def run_scaffold_project(project_root: Path, technology: str = "sql_server") -> ScaffoldProjectOutput:
     """Scaffold project files. Idempotent: skips existing, merges .gitignore."""
     config = get_source_config(technology)
     project_root.mkdir(parents=True, exist_ok=True)
@@ -261,14 +263,14 @@ def run_scaffold_project(project_root: Path, technology: str = "sql_server") -> 
     else:
         files_skipped.append(".claude/rules/git-workflow.md")
 
-    return {
-        "files_created": files_created,
-        "files_updated": files_updated,
-        "files_skipped": files_skipped,
-    }
+    return ScaffoldProjectOutput(
+        files_created=files_created,
+        files_updated=files_updated,
+        files_skipped=files_skipped,
+    )
 
 
-def run_scaffold_hooks(project_root: Path, technology: str = "sql_server") -> dict[str, Any]:
+def run_scaffold_hooks(project_root: Path, technology: str = "sql_server") -> ScaffoldHooksOutput:
     """Create .githooks/pre-commit and configure git hooks path. Idempotent."""
     config = get_source_config(technology)
     hook_dir = project_root / ".githooks"
@@ -302,10 +304,10 @@ def run_scaffold_hooks(project_root: Path, technology: str = "sql_server") -> di
             exc.stderr.strip(),
         )
 
-    return {
-        "hook_created": hook_created,
-        "hooks_path_configured": hooks_path_configured,
-    }
+    return ScaffoldHooksOutput(
+        hook_created=hook_created,
+        hooks_path_configured=hooks_path_configured,
+    )
 
 
 # ── CLI wrappers ─────────────────────────────────────────────────────────────
@@ -330,7 +332,7 @@ def scaffold_project(
     except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
-    typer.echo(json.dumps(result))
+    typer.echo(json.dumps(result.model_dump(mode="json", exclude_none=True)))
 
 
 @app.command("scaffold-hooks")
@@ -352,7 +354,7 @@ def scaffold_hooks(
     except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
-    typer.echo(json.dumps(result))
+    typer.echo(json.dumps(result.model_dump(mode="json", exclude_none=True)))
 
 
 if __name__ == "__main__":

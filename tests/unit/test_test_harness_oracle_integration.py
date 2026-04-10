@@ -50,17 +50,17 @@ class TestOracleSandboxLifecycle:
 
         try:
             result = backend.sandbox_up(schemas=["SH"])
-            sandbox_schema = result["sandbox_database"]
+            sandbox_schema = result.sandbox_database
 
-            assert result["status"] in ("ok", "partial"), result["errors"]
+            assert result.status in ("ok", "partial"), result.errors
             assert sandbox_schema.startswith("__test_")
-            assert len(result["tables_cloned"]) > 0
-            assert any("CHANNELS" in t for t in result["tables_cloned"])
-            assert any("SALES" in t for t in result["tables_cloned"])
-            assert any("CHANNEL_SALES_SUMMARY" in t for t in result["tables_cloned"])
+            assert len(result.tables_cloned) > 0
+            assert any("CHANNELS" in t for t in result.tables_cloned)
+            assert any("SALES" in t for t in result.tables_cloned)
+            assert any("CHANNEL_SALES_SUMMARY" in t for t in result.tables_cloned)
 
-            assert len(result["procedures_cloned"]) > 0
-            assert any("SUMMARIZE_CHANNEL_SALES" in p for p in result["procedures_cloned"])
+            assert len(result.procedures_cloned) > 0
+            assert any("SUMMARIZE_CHANNEL_SALES" in p for p in result.procedures_cloned)
 
             # Verify sandbox user exists and tables are accessible
             with backend._connect() as conn:
@@ -72,16 +72,16 @@ class TestOracleSandboxLifecycle:
                 table_count = cursor.fetchone()[0]
                 assert table_count > 0
         finally:
-            backend.sandbox_down(sandbox_db=result["sandbox_database"])
+            backend.sandbox_down(sandbox_db=result.sandbox_database)
 
     def test_sandbox_down_removes_user(self) -> None:
         backend = _make_backend()
 
         result = backend.sandbox_up(schemas=["SH"])
-        sandbox_schema = result["sandbox_database"]
+        sandbox_schema = result.sandbox_database
         down_result = backend.sandbox_down(sandbox_db=sandbox_schema)
 
-        assert down_result["status"] == "ok"
+        assert down_result.status == "ok"
 
         # Verify user is gone from ALL_USERS — no orphaned schema
         with backend._connect() as conn:
@@ -96,23 +96,23 @@ class TestOracleSandboxLifecycle:
         backend = _make_backend()
 
         result = backend.sandbox_up(schemas=["SH"])
-        sandbox_schema = result["sandbox_database"]
+        sandbox_schema = result.sandbox_database
 
         try:
             status_up = backend.sandbox_status(sandbox_db=sandbox_schema)
-            assert status_up["exists"] is True
-            assert status_up["status"] == "ok"
+            assert status_up.exists is True
+            assert status_up.status == "ok"
         finally:
             backend.sandbox_down(sandbox_db=sandbox_schema)
 
         status_down = backend.sandbox_status(sandbox_db=sandbox_schema)
-        assert status_down["exists"] is False
-        assert status_down["status"] == "not_found"
+        assert status_down.exists is False
+        assert status_down.status == "not_found"
 
     def test_sandbox_down_idempotent(self) -> None:
         backend = _make_backend()
         result = backend.sandbox_down(sandbox_db="__test_nonexistent99")
-        assert result["status"] == "ok"
+        assert result.status == "ok"
 
 
 @skip_no_oracle
@@ -125,8 +125,8 @@ class TestOracleExecuteScenario:
 
         try:
             up_result = backend.sandbox_up(schemas=["SH"])
-            sandbox_schema = up_result["sandbox_database"]
-            assert up_result["status"] in ("ok", "partial"), up_result["errors"]
+            sandbox_schema = up_result.sandbox_database
+            assert up_result.status in ("ok", "partial"), up_result.errors
 
             scenario = {
                 "name": "test_summarize_channel_sales",
@@ -184,19 +184,19 @@ class TestOracleExecuteScenario:
                 sandbox_db=sandbox_schema, scenario=scenario,
             )
 
-            assert result["status"] == "ok", result["errors"]
-            assert result["scenario_name"] == "test_summarize_channel_sales"
-            assert result["row_count"] == 2
-            assert result["errors"] == []
+            assert result.status == "ok", result.errors
+            assert result.scenario_name == "test_summarize_channel_sales"
+            assert result.row_count == 2
+            assert result.errors == []
 
-            rows = {r["CHANNEL_ID"]: r for r in result["ground_truth_rows"]}
+            rows = {r["CHANNEL_ID"]: r for r in result.ground_truth_rows}
             # Channel 1 had 600000 → HIGH tier
             assert rows[1]["TIER"] == "HIGH"
             # Channel 2 had 50000 → LOW tier
             assert rows[2]["TIER"] == "LOW"
 
         finally:
-            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up_result.sandbox_database)
 
     def test_execute_rolls_back_fixture_data(self) -> None:
         """Fixture rows seeded during execute_scenario are rolled back."""
@@ -204,7 +204,7 @@ class TestOracleExecuteScenario:
 
         try:
             up_result = backend.sandbox_up(schemas=["SH"])
-            sandbox_schema = up_result["sandbox_database"]
+            sandbox_schema = up_result.sandbox_database
 
             scenario = {
                 "name": "test_rollback",
@@ -238,7 +238,7 @@ class TestOracleExecuteScenario:
                 )
                 assert cursor.fetchone()[0] == 0, "Fixture row should be rolled back"
         finally:
-            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up_result.sandbox_database)
 
     def test_execute_empty_fixtures(self) -> None:
         """Scenario with no fixture rows still runs the procedure (produces 0 rows)."""
@@ -246,7 +246,7 @@ class TestOracleExecuteScenario:
 
         try:
             up_result = backend.sandbox_up(schemas=["SH"])
-            sandbox_schema = up_result["sandbox_database"]
+            sandbox_schema = up_result.sandbox_database
 
             scenario = {
                 "name": "test_empty",
@@ -256,10 +256,10 @@ class TestOracleExecuteScenario:
             }
 
             result = backend.execute_scenario(sandbox_db=sandbox_schema, scenario=scenario)
-            assert result["status"] == "ok"
-            assert result["row_count"] == 0
+            assert result.status == "ok"
+            assert result.row_count == 0
         finally:
-            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up_result.sandbox_database)
 
 
 @skip_no_oracle
@@ -271,7 +271,7 @@ class TestOracleCompareTwoSql:
 
         try:
             up_result = backend.sandbox_up(schemas=["SH"])
-            sandbox_schema = up_result["sandbox_database"]
+            sandbox_schema = up_result.sandbox_database
 
             fixtures = [
                 {
@@ -321,14 +321,14 @@ class TestOracleCompareTwoSql:
             assert result["a_minus_b"] == []
             assert result["b_minus_a"] == []
         finally:
-            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up_result.sandbox_database)
 
     def test_non_equivalent_selects_return_equivalent_false(self) -> None:
         backend = _make_backend()
 
         try:
             up_result = backend.sandbox_up(schemas=["SH"])
-            sandbox_schema = up_result["sandbox_database"]
+            sandbox_schema = up_result.sandbox_database
 
             fixtures = [
                 {
@@ -376,7 +376,7 @@ class TestOracleCompareTwoSql:
             assert result["a_count"] == 2
             assert result["b_count"] == 1
         finally:
-            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up_result.sandbox_database)
 
 
 @skip_no_oracle
@@ -445,8 +445,8 @@ class TestOracleEnsureViewTablesIntegration:
         up_result: dict = {}
         try:
             up_result = backend.sandbox_up(schemas=["SH"])
-            sandbox_schema = up_result["sandbox_database"]
-            assert up_result["status"] in ("ok", "partial"), up_result["errors"]
+            sandbox_schema = up_result.sandbox_database
+            assert up_result.status in ("ok", "partial"), up_result.errors
 
             scenario = {
                 "name": "test_view_fixture",
@@ -469,11 +469,11 @@ class TestOracleEnsureViewTablesIntegration:
                 sandbox_db=sandbox_schema, scenario=scenario
             )
 
-            assert result["status"] == "ok", result["errors"]
-            assert result["errors"] == []
+            assert result.status == "ok", result.errors
+            assert result.errors == []
         finally:
-            if up_result.get("sandbox_database"):
-                backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            if up_result is not None:
+                backend.sandbox_down(sandbox_db=up_result.sandbox_database)
             self._drop_proc(backend, proc_name)
             self._drop_view(backend, view_name)
 
@@ -486,8 +486,8 @@ class TestOracleSandboxNoOrphanedUsers:
         backend = _make_backend()
 
         result = backend.sandbox_up(schemas=["SH"])
-        sandbox_schema = result["sandbox_database"]
-        assert result["status"] in ("ok", "partial")
+        sandbox_schema = result.sandbox_database
+        assert result.status in ("ok", "partial")
 
         backend.sandbox_down(sandbox_db=sandbox_schema)
 
@@ -511,8 +511,8 @@ class TestOracleExecuteSelectIntegration:
 
         try:
             up_result = backend.sandbox_up(schemas=["SH"])
-            sandbox_schema = up_result["sandbox_database"]
-            assert up_result["status"] in ("ok", "partial")
+            sandbox_schema = up_result.sandbox_database
+            assert up_result.status in ("ok", "partial")
 
             fixtures = [
                 {
@@ -547,14 +547,14 @@ class TestOracleExecuteSelectIntegration:
                 sandbox_db=sandbox_schema, sql=sql, fixtures=fixtures,
             )
 
-            assert result["status"] == "ok", result["errors"]
-            assert result["row_count"] == 2
-            assert result["errors"] == []
-            rows = result["ground_truth_rows"]
+            assert result.status == "ok", result.errors
+            assert result.row_count == 2
+            assert result.errors == []
+            rows = result.ground_truth_rows
             descs = {r["CHANNEL_DESC"] for r in rows}
             assert descs == {"Direct", "Internet"}
         finally:
-            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up_result.sandbox_database)
 
     def test_compare_two_sql_returns_equivalent_for_same_result_set(self) -> None:
         """compare_two_sql reports equivalent when both SQLs return the same rows."""
@@ -562,7 +562,7 @@ class TestOracleExecuteSelectIntegration:
 
         try:
             up_result = backend.sandbox_up(schemas=["SH"])
-            sandbox_schema = up_result["sandbox_database"]
+            sandbox_schema = up_result.sandbox_database
             fixtures = [
                 {
                     "table": "CHANNELS",
@@ -609,7 +609,7 @@ class TestOracleExecuteSelectIntegration:
             assert result["a_minus_b"] == []
             assert result["b_minus_a"] == []
         finally:
-            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up_result.sandbox_database)
 
     def test_execute_select_empty_fixtures(self) -> None:
         """execute_select with no fixture rows returns 0 rows."""
@@ -617,7 +617,7 @@ class TestOracleExecuteSelectIntegration:
 
         try:
             up_result = backend.sandbox_up(schemas=["SH"])
-            sandbox_schema = up_result["sandbox_database"]
+            sandbox_schema = up_result.sandbox_database
 
             result = backend.execute_select(
                 sandbox_db=sandbox_schema,
@@ -625,10 +625,10 @@ class TestOracleExecuteSelectIntegration:
                 fixtures=[],
             )
 
-            assert result["status"] == "ok"
-            assert result["row_count"] == 0
+            assert result.status == "ok"
+            assert result.row_count == 0
         finally:
-            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up_result.sandbox_database)
 
     def test_execute_select_rolls_back_fixtures(self) -> None:
         """Fixture rows are rolled back after execute_select."""
@@ -636,7 +636,7 @@ class TestOracleExecuteSelectIntegration:
 
         try:
             up_result = backend.sandbox_up(schemas=["SH"])
-            sandbox_schema = up_result["sandbox_database"]
+            sandbox_schema = up_result.sandbox_database
 
             fixtures = [
                 {
@@ -668,4 +668,4 @@ class TestOracleExecuteSelectIntegration:
                 )
                 assert cursor.fetchone()[0] == 0, "Fixture row should be rolled back"
         finally:
-            backend.sandbox_down(sandbox_db=up_result["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up_result.sandbox_database)

@@ -1048,7 +1048,11 @@ def run_extract(
         technology, counts.get("tables"), counts.get("procedures"), enrich_result, diag_result,
     )
 
-    return {**counts, "enrich": enrich_result, "diagnostics": diag_result}
+    return {
+        **counts,
+        "enrich": enrich_result.model_dump() if hasattr(enrich_result, "model_dump") else enrich_result,
+        "diagnostics": diag_result,
+    }
 
 
 # ── CLI wrappers ─────────────────────────────────────────────────────────────

@@ -19,11 +19,47 @@ Generate test scenarios for a stored procedure or view migration. Reads determin
 
 ## Contracts
 
-Use the canonical test spec schema when writing `test-specs/<item_id>.json`:
-
-- test spec: `../../lib/shared/schemas/test_spec.json`
+Contracts are enforced at runtime by Pydantic models in `../../lib/shared/output_models.py`.
 
 Do not invent fields. If `test-harness write` rejects the payload, fix the payload and retry.
+
+## Output shape — `TestSpec`
+
+```json
+{
+  "item_id": "<schema>.<object>",
+  "object_type": "table | view | mv",
+  "status": "ok | partial | error",
+  "coverage": "complete | partial",
+  "branch_manifest": [
+    {
+      "id": "merge_matched_update",
+      "statement_index": 0,
+      "description": "MERGE WHEN MATCHED → UPDATE",
+      "scenarios": ["test_merge_matched_product_updated"]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_merge_matched_product_updated",
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]",
+      "given": [
+        { "table": "[bronze].[Product]", "rows": [{"ProductID": 1, "Name": "Widget"}] }
+      ],
+      "expect": { "rows": [{"ProductKey": 1, "ProductName": "Widget"}] }
+    }
+  ],
+  "uncovered_branches": ["branch_id_without_scenario"],
+  "warnings": [{"code": "...", "message": "...", "severity": "warning"}],
+  "validation": { "passed": true, "issues": [] },
+  "errors": []
+}
+```
+
+- `object_type` defaults to `"table"` when absent.
+- `expect` is omitted on first write; populated by `execute-spec`.
+- View tests use `sql` instead of `target_table`/`procedure`.
 
 ## Schema discipline
 
