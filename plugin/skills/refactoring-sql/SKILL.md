@@ -191,7 +191,7 @@ mkdir -p .staging
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness compare-sql \
   --sql-a-file .staging/<table_fqn>-extracted.sql \
   --sql-b-file .staging/<table_fqn>-refactored.sql \
-  --spec test-specs/<table_fqn>.json
+  --spec test-specs/<table_fqn>.json > .staging/<table_fqn>-compare.json
 ```
 
 Write the JSON output to `.staging/<table_fqn>-compare.json`.
@@ -274,4 +274,4 @@ Use the canonical `/refactor` surfaced code list in [`../../lib/shared/refactor_
 | `refactor context` | 2 | IO/parse error. Return `status: "error"` with code `CONTEXT_IO_ERROR` and surface the error message |
 | `refactor write` | 1 | Validation failure. Fix payload and retry once |
 | `refactor write` | 2 | IO error. Surface the error message |
-| `test-harness compare-sql` | 1 | All scenarios failed. Enter self-correction loop |
+| `test-harness compare-sql` | 1 | One or more scenarios failed. Enter self-correction loop |

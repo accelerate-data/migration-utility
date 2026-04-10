@@ -194,7 +194,7 @@ Test reviewer must not:
 - Generate or modify fixture data
 - Execute source routines
 - Write to `test-specs/` — only the test generator writes there
-- Write review result files
+- Write persisted review result files outside the temporary `.staging/review.json` validation flow
 - Ask permission to write review result files
 - Ask whether the provided `--project-root` fixture path exists or should be created
 - Make migration or profiling decisions

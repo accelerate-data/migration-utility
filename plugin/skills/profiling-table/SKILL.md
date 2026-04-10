@@ -174,7 +174,7 @@ mkdir -p .staging
 # Write profile JSON to .staging/profile.json
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" profile write \
   --table <table> \
-  --profile-file .staging/profile.json; rm -rf .staging
+  --profile-file .staging/profile.json && rm -rf .staging
 ```
 
 Do not include `status` in the profile JSON.

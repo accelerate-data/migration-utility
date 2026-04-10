@@ -80,7 +80,7 @@ Write the statements JSON to a temp file:
 mkdir -p .staging
 # Write statements JSON to .staging/statements.json
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-statements \
-  --name <procedure_name> --statements-file .staging/statements.json; rm -rf .staging
+  --name <procedure_name> --statements-file .staging/statements.json && rm -rf .staging
 ```
 
 After `discover write-statements` succeeds, report that the statements were persisted and summarize the migrate/skip decisions.
