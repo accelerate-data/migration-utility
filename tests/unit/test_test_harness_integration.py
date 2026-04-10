@@ -113,14 +113,14 @@ class TestSandboxLifecycle:
             result1 = backend.sandbox_up(schemas=["silver"])
             result2 = backend.sandbox_up(schemas=["silver"])
 
-            assert result1["status"] in ("ok", "partial")
-            assert result2["status"] in ("ok", "partial")
+            assert result1.status in ("ok", "partial")
+            assert result2.status in ("ok", "partial")
             # Each call generates a new database name
-            assert result1["sandbox_database"] != result2["sandbox_database"]
-            assert result1["tables_cloned"] == result2["tables_cloned"]
+            assert result1.sandbox_database != result2.sandbox_database
+            assert result1.tables_cloned == result2.tables_cloned
         finally:
-            backend.sandbox_down(sandbox_db=result1["sandbox_database"])
-            backend.sandbox_down(sandbox_db=result2["sandbox_database"])
+            backend.sandbox_down(sandbox_db=result1.sandbox_database)
+            backend.sandbox_down(sandbox_db=result2.sandbox_database)
 
 
 @skip_no_mssql
@@ -370,8 +370,8 @@ class TestIdentityInsertIntegration:
 
         try:
             up = backend.sandbox_up(schemas=["bronze", "silver"])
-            sandbox_db = up["sandbox_database"]
-            assert up["status"] in ("ok", "partial")
+            sandbox_db = up.sandbox_database
+            assert up.status in ("ok", "partial")
 
             result = backend.execute_scenario(
                 sandbox_db=sandbox_db,
@@ -414,10 +414,10 @@ class TestIdentityInsertIntegration:
                 },
             )
 
-            assert result.status == "ok", f"Expected ok, got: {result['errors']}"
+            assert result.status == "ok", f"Expected ok, got: {result.errors}"
             assert result.row_count >= 1
         finally:
-            backend.sandbox_down(sandbox_db=up["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up.sandbox_database)
 
     def test_mixed_identity_and_non_identity_tables(self) -> None:
         """Insert into tables where one has identity and one does not.
@@ -429,8 +429,8 @@ class TestIdentityInsertIntegration:
 
         try:
             up = backend.sandbox_up(schemas=["bronze", "silver"])
-            sandbox_db = up["sandbox_database"]
-            assert up["status"] in ("ok", "partial")
+            sandbox_db = up.sandbox_database
+            assert up.status in ("ok", "partial")
 
             result = backend.execute_scenario(
                 sandbox_db=sandbox_db,
@@ -483,9 +483,9 @@ class TestIdentityInsertIntegration:
                 },
             )
 
-            assert result.status == "ok", f"Expected ok, got: {result['errors']}"
+            assert result.status == "ok", f"Expected ok, got: {result.errors}"
         finally:
-            backend.sandbox_down(sandbox_db=up["sandbox_database"])
+            backend.sandbox_down(sandbox_db=up.sandbox_database)
 
 
 @skip_no_mssql
@@ -561,7 +561,7 @@ class TestEnsureViewTablesIntegration:
             assert result.status == "ok", result.errors
             assert result.errors == []
         finally:
-            if up_result.get("sandbox_database"):
+            if up_result is not None:
                 backend.sandbox_down(sandbox_db=up_result.sandbox_database)
             self._drop_proc(backend, proc_name)
             self._drop_view(backend, view_name)
