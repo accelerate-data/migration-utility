@@ -47,6 +47,16 @@ Also read the generated model SQL and schema YAML from the dbt project using the
 - Return `MODEL_NOT_FOUND` only when no generated model SQL file for the target
   object exists anywhere under `dbt/models/`.
 
+When reading the generated artifacts, also derive the generated `model_name`
+from the SQL filename and check it against the naming contract used by
+`/generating-model`:
+
+- model files live at `dbt/models/<layer>/<model_name>.sql`
+- schema files live at `dbt/models/<layer>/_<model_name>.yml`
+- the reviewer must verify that `<model_name>` follows
+  [model-naming.md](../_shared/references/model-naming.md) and matches the
+  expected target-object convention for the selected layer
+
 Do NOT use `refactored_sql`. It is an intermediate artifact produced by the refactor stage. The reviewer validates the generated dbt model directly against the original source DDL (`proc_body`). Ground truth is always the original source routine.
 
 ## Step 2: Check correctness
@@ -73,8 +83,16 @@ Evaluate the generated model SQL and schema YAML against the reference files. Ea
 |---|---|---|
 | SQL style | [../_shared/references/sql-style.md](../_shared/references/sql-style.md) | Lowercase keywords (`SQL_001`), indentation (`SQL_002`), trailing commas (`SQL_003`), one column per line (`SQL_004`), table alias prefixes (`SQL_005`), no `SELECT *` in marts (`SQL_006`) |
 | CTE structure | [../_shared/references/cte-structure.md](../_shared/references/cte-structure.md) | Import CTEs first (`CTE_001`), final CTE named `final` (`CTE_002`), `select * from final` last (`CTE_003`), single-purpose CTEs (`CTE_004`), no nested CTEs (`CTE_006`) |
-| Model naming | [../_shared/references/model-naming.md](../_shared/references/model-naming.md) | Correct layer prefix (`MDL_001`--`MDL_003`), `snake_case` names (`MDL_004`), `_dbt_run_id` present (`MDL_005`), `_loaded_at` rules (`MDL_006`, `MDL_007`), locked columns unchanged (`MDL_008`) |
+| Model naming | [../_shared/references/model-naming.md](../_shared/references/model-naming.md) | Correct generated `model_name` and artifact filenames for the layer, correct layer prefix (`MDL_001`--`MDL_003`), `snake_case` names (`MDL_004`), `_dbt_run_id` present (`MDL_005`), `_loaded_at` rules (`MDL_006`, `MDL_007`), locked columns unchanged (`MDL_008`) |
 | YAML style | [../_shared/references/yaml-style.md](../_shared/references/yaml-style.md) | `version: 2` at top (`YML_004`), model description present (`YML_002`), PK column descriptions present (`YML_003`), 2-space indentation (`YML_001`) |
+
+For model naming review specifically:
+
+- compare the generated `model_name` and file paths to the target object name
+- flag any mismatch between the SQL filename, YAML filename, and declared model
+  name using the appropriate `MDL_*` code
+- treat a wrong layer prefix or non-`snake_case` filename as a standards issue,
+  even if the SQL body itself is otherwise correct
 
 ## Feedback tiers
 
