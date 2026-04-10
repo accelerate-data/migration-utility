@@ -35,13 +35,51 @@ For `list <type>`, do not run a per-item guard because there is no specific FQN 
 
 Use the canonical surfaced code list in `../../lib/shared/listing_objects_error_codes.md`. Do not define a competing public error-code list in this skill.
 
-## Output schemas
+## Output shapes
 
-| Subcommand | Schema |
-|---|---|
-| `list` | `../../lib/shared/schemas/discover_list_output.json` |
-| `show` | `../../lib/shared/schemas/discover_show_output.json` |
-| `refs` | `../../lib/shared/schemas/discover_refs_output.json` |
+Contracts are enforced at runtime by Pydantic models in `../../lib/shared/output_models.py`.
+
+### `discover list` → `DiscoverListOutput`
+
+```json
+{ "objects": ["silver.dimcurrency", "silver.dimproduct"] }
+```
+
+### `discover show` → `DiscoverShowOutput`
+
+```json
+{
+  "name": "silver.dimproduct",
+  "type": "table | procedure | view | function",
+  "raw_ddl": "CREATE ...",
+  "columns": [{"name": "ProductKey", "sql_type": "INTEGER", "is_nullable": true, "is_identity": false}],
+  "params": [{"name": "@Mode", "sql_type": "INT", "is_output": false, "has_default": false}],
+  "refs": {"reads_from": [...], "writes_to": [...], "write_operations": {...}, "uses_functions": [...]},
+  "routing_reasons": ["MULTI_TABLE_WRITE"],
+  "statements": [{"type": "Insert", "action": "migrate | skip | needs_llm", "sql": "INSERT ..."}],
+  "needs_llm": false,
+  "parse_error": null,
+  "sql_elements": [{"type": "join", "detail": "INNER JOIN silver.DimDate"}],
+  "errors": [{"code": "DDL_PARSE_ERROR", "severity": "error", "message": "..."}]
+}
+```
+
+Fields are `null` or `[]` when not applicable to the object type.
+
+### `discover refs` → `DiscoverRefsOutput`
+
+```json
+{
+  "name": "silver.dimproduct",
+  "type": "table | view | function | object",
+  "source": "catalog",
+  "readers": ["silver.usp_report_products"],
+  "writers": [{"procedure": "silver.usp_load_dimproduct", "write_type": "direct", "is_updated": true, "is_selected": false, "is_insert_all": true}],
+  "error": null
+}
+```
+
+Error-only shape (procedure target): `{"error": "... is a procedure ..."}`.
 
 ## list
 

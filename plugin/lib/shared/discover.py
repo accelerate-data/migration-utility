@@ -27,6 +27,15 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, NoReturn, Optional
 
+from shared.output_models import (
+    BasicRefs,
+    DiscoverListOutput,
+    DiscoverRefsOutput,
+    DiscoverShowOutput,
+    ProcRefs,
+    WriterEntry,
+)
+
 import typer
 
 from shared.catalog import (
@@ -123,12 +132,12 @@ def _is_view_catalog_path(cat_path: Path) -> bool:
 # ── Core logic (importable for testing) ───────────────────────────────────────
 
 
-def run_list(project_root: Path, object_type: ObjectType) -> dict[str, Any]:
-    """Return the list subcommand result dict."""
+def run_list(project_root: Path, object_type: ObjectType) -> DiscoverListOutput:
+    """Return the list subcommand result."""
     catalog, _ = _load(project_root)
     bucket = _bucket(catalog, object_type)
     objects = sorted(bucket.keys())
-    return {"objects": objects}
+    return DiscoverListOutput(objects=objects)
 
 
 def _show_table(project_root: Path, norm: str) -> dict[str, Any]:
@@ -163,12 +172,12 @@ def _show_procedure(
             write_ops[tfqn] = ops
     funcs_in_scope = refs_bucket.functions.in_scope if refs_bucket else []
     funcs = [normalize(f"{f.object_schema}.{f.name}") for f in funcs_in_scope]
-    refs_dict = {
-        "reads_from": sorted(set(reads)),
-        "writes_to": sorted(set(writes)),
-        "write_operations": write_ops,
-        "uses_functions": sorted(set(funcs)),
-    }
+    refs_model = ProcRefs(
+        reads_from=sorted(set(reads)),
+        writes_to=sorted(set(writes)),
+        write_operations=write_ops,
+        uses_functions=sorted(set(funcs)),
+    )
 
     routing_mode = proc_cat.mode
     routing_reasons = proc_cat.routing_reasons
@@ -191,7 +200,7 @@ def _show_procedure(
 
     return {
         "params": params,
-        "refs": refs_dict,
+        "refs": refs_model,
         "needs_llm": needs_llm,
         "routing_reasons": routing_reasons,
         "statements": statements,
@@ -215,10 +224,10 @@ def _show_view_or_function(
     reads = [normalize(f"{t.object_schema}.{t.name}") for t in tables_in_scope if t.is_selected]
     writes = [normalize(f"{t.object_schema}.{t.name}") for t in tables_in_scope if t.is_updated]
     result: dict[str, Any] = {
-        "refs": {
-            "reads_from": sorted(set(reads)),
-            "writes_to": sorted(set(writes)),
-        },
+        "refs": BasicRefs(
+            reads_from=sorted(set(reads)),
+            writes_to=sorted(set(writes)),
+        ),
     }
 
     if type_label == "view":
@@ -229,8 +238,8 @@ def _show_view_or_function(
     return result
 
 
-def run_show(project_root: Path, name: str) -> dict[str, Any]:
-    """Return the show subcommand result dict.
+def run_show(project_root: Path, name: str) -> DiscoverShowOutput:
+    """Return the show subcommand result.
 
     Reads all metadata from catalog files. AST parsing is only used for
     statement breakdown on deterministic (needs_llm=false) procedures.
@@ -251,7 +260,7 @@ def run_show(project_root: Path, name: str) -> dict[str, Any]:
     else:
         extra = {}
 
-    return {
+    base = {
         "name": norm,
         "type": type_label,
         "raw_ddl": entry.raw_ddl,
@@ -263,11 +272,12 @@ def run_show(project_root: Path, name: str) -> dict[str, Any]:
         "needs_llm": None,
         "errors": [],
         "parse_error": entry.parse_error,
-        **extra,
     }
+    base.update(extra)
+    return DiscoverShowOutput(**base)
 
 
-def _run_refs_from_catalog(project_root: Path, target: str) -> dict[str, Any]:
+def _run_refs_from_catalog(project_root: Path, target: str) -> DiscoverRefsOutput:
     """Build refs result from catalog JSON files.
 
     Looks up tables, views, and functions — any object that can be
@@ -287,17 +297,17 @@ def _run_refs_from_catalog(project_root: Path, target: str) -> dict[str, Any]:
             break
 
     if cat is None:
-        return {
-            "name": target,
-            "source": "catalog",
-            "readers": [],
-            "writers": [],
-            "error": f"no catalog file for {target} — it may not exist in the extracted schemas",
-        }
+        return DiscoverRefsOutput(
+            name=target,
+            source="catalog",
+            readers=[],
+            writers=[],
+            error=f"no catalog file for {target} — it may not exist in the extracted schemas",
+        )
 
     ref_by = cat.referenced_by
     readers: list[str] = []
-    writers: list[dict[str, Any]] = []
+    writer_entries: list[WriterEntry] = []
 
     if ref_by is not None:
         for bucket_type in ("procedures", "views", "functions"):
@@ -307,27 +317,25 @@ def _run_refs_from_catalog(project_root: Path, target: str) -> dict[str, Any]:
             for entry in scoped.in_scope:
                 fqn = normalize(f"{entry.object_schema}.{entry.name}")
                 if entry.is_updated:
-                    writers.append({
-                        "procedure": fqn,
-                        "write_type": "direct",
-                        "is_updated": True,
-                        "is_selected": entry.is_selected,
-                        "is_insert_all": entry.is_insert_all,
-                    })
+                    writer_entries.append(WriterEntry(
+                        procedure=fqn,
+                        is_selected=entry.is_selected,
+                        is_insert_all=entry.is_insert_all,
+                    ))
                 if entry.is_selected and not entry.is_updated:
                     readers.append(fqn)
 
-    return {
-        "name": target,
-        "type": object_type,
-        "source": "catalog",
-        "readers": sorted(set(readers)),
-        "writers": sorted(writers, key=lambda w: w["procedure"]),
-    }
+    return DiscoverRefsOutput(
+        name=target,
+        type=object_type,
+        source="catalog",
+        readers=sorted(set(readers)),
+        writers=sorted(writer_entries, key=lambda w: w.procedure),
+    )
 
 
-def run_refs(project_root: Path, name: str) -> dict[str, Any]:
-    """Return the refs subcommand result dict.
+def run_refs(project_root: Path, name: str) -> DiscoverRefsOutput:
+    """Return the refs subcommand result.
 
     Reads catalog/tables/<name>.json -> referenced_by for instant
     writer identification. Requires catalog files from setup-ddl.
@@ -341,9 +349,9 @@ def run_refs(project_root: Path, name: str) -> dict[str, Any]:
     if found is not None:
         _, type_label, _ = found
         if type_label == "procedure":
-            return {
-                "error": f"{target} is a procedure — refs only works for tables, views, and functions. Use 'show {name}' to see what this procedure reads/writes.",
-            }
+            return DiscoverRefsOutput(
+                error=f"{target} is a procedure — refs only works for tables, views, and functions. Use 'show {name}' to see what this procedure reads/writes.",
+            )
 
     result = _run_refs_from_catalog(project_root, target)
     logger.info("event=refs_complete target=%s source=catalog", target)

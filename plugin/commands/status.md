@@ -52,7 +52,52 @@ Run a single status call for all objects:
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util status
 ```
 
-This returns a JSON object with an `objects` array. Each object has `fqn`, `type`, and `stages` (scope, profile, test_gen, refactor, generate statuses).
+This returns a `StatusOutput` (all-objects mode) or `ObjectStatus` (single-object mode). Contracts are enforced at runtime by Pydantic models in `../lib/shared/output_models.py`.
+
+All-objects mode shape:
+
+```json
+{
+  "objects": [{"fqn": "silver.dimproduct", "type": "table", "stages": {"scope": "resolved", "profile": "ok", "test_gen": null, "refactor": null, "generate": null}}],
+  "summary": {"total": 5, "by_stage": {"scope": {"resolved": 3, "pending": 2}}}
+}
+```
+
+Single-object mode shape:
+
+```json
+{"fqn": "silver.dimproduct", "type": "table", "stages": {"scope": "resolved", "profile": "ok", "test_gen": null, "refactor": null, "generate": null}}
+```
+
+The `batch-plan` command returns a `BatchPlanOutput`:
+
+```json
+{
+  "summary": {"total_objects": 10, "tables": 7, "views": 3, "mvs": 0, "writerless_tables": 1, "excluded_count": 0, "source_tables": 0, "source_pending": 0},
+  "scope_phase": [{"fqn": "...", "type": "table", "pipeline_status": "scope_needed", "has_dbt_model": false, "direct_deps": [], "blocking_deps": [], "diagnostics": [], "diagnostic_stage_flags": {}}],
+  "profile_phase": [],
+  "migrate_batches": [{"batch": 0, "objects": []}],
+  "completed_objects": [],
+  "n_a_objects": [{"fqn": "...", "type": "table", "reason": "writerless"}],
+  "excluded_objects": [{"fqn": "...", "type": "table", "note": "excluded from pipeline"}],
+  "source_tables": [], "source_pending": [], "circular_refs": [],
+  "catalog_diagnostics": {"total_errors": 0, "total_warnings": 0, "errors": [], "warnings": []}
+}
+```
+
+The `ready` command returns a `DryRunOutput`:
+
+```json
+{"ready": true, "reason": "ok", "code": null}
+```
+
+The `exclude` command returns an `ExcludeOutput`:
+
+```json
+{"marked": ["silver.auditlog"], "not_found": []}
+```
+
+Each object has `fqn`, `type`, and `stages` (scope, profile, test_gen, refactor, generate statuses).
 
 Map the status values to table cells:
 

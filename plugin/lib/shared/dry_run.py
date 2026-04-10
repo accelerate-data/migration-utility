@@ -37,6 +37,15 @@ import logging
 from pathlib import Path
 from typing import Any, List, Optional
 
+from shared.output_models import (
+    DryRunOutput,
+    ExcludeOutput,
+    ObjectStatus,
+    StageStatuses,
+    StatusOutput,
+    StatusSummary,
+)
+
 import typer
 
 from shared.batch_plan import build_batch_plan
@@ -87,16 +96,19 @@ def _detect_object_type(project_root: Path, norm_fqn: str) -> str:
 _VALID_STAGES = frozenset({"scope", "profile", "test-gen", "refactor", "migrate", "generate"})
 
 
-def run_ready(project_root: Path, fqn: str, stage: str) -> dict[str, Any]:
+def run_ready(project_root: Path, fqn: str, stage: str) -> DryRunOutput:
     """Check whether the prior stage's CLI-written status allows proceeding.
 
-    Returns {"ready": True/False, "reason": "..."} JSON.
+    Returns a DryRunOutput with ready/reason fields.
     """
     norm = normalize(fqn)
     obj_type = _detect_object_type(project_root, norm)
 
+    def _out(ready: bool, reason: str, code: str | None = None) -> DryRunOutput:
+        return DryRunOutput(ready=ready, reason=reason, code=code)
+
     if stage not in _VALID_STAGES:
-        return {"ready": False, "reason": "invalid_stage"}
+        return _out(False, "invalid_stage")
 
     # ── Special cases (check BEFORE stage logic) ─────────────────────────
     if obj_type == "table":
@@ -106,9 +118,9 @@ def run_ready(project_root: Path, fqn: str, stage: str) -> dict[str, Any]:
             cat = None
         if cat is not None:
             if cat.is_source:
-                return {"ready": False, "reason": "not_applicable", "code": "SOURCE_TABLE"}
+                return _out(False, "not_applicable", "SOURCE_TABLE")
             if cat.excluded:
-                return {"ready": False, "reason": "not_applicable", "code": "EXCLUDED"}
+                return _out(False, "not_applicable", "EXCLUDED")
     else:
         try:
             cat = load_view_catalog(project_root, norm)
@@ -116,55 +128,53 @@ def run_ready(project_root: Path, fqn: str, stage: str) -> dict[str, Any]:
             cat = None
         if cat is not None:
             if cat.excluded:
-                return {"ready": False, "reason": "not_applicable", "code": "EXCLUDED"}
+                return _out(False, "not_applicable", "EXCLUDED")
 
     # ── Stage logic ──────────────────────────────────────────────────────
     if stage == "scope":
-        # No prior stage to check — manifest + catalog file existence.
         manifest_path = project_root / "manifest.json"
         if not manifest_path.exists():
-            return {"ready": False, "reason": "manifest_missing"}
+            return _out(False, "manifest_missing")
         if obj_type == "table":
             catalog_exists = (project_root / "catalog" / "tables" / f"{norm}.json").exists()
         else:
             catalog_exists = (project_root / "catalog" / "views" / f"{norm}.json").exists()
         if not catalog_exists:
-            return {"ready": False, "reason": "catalog_missing"}
-        return {"ready": True, "reason": "ok"}
+            return _out(False, "catalog_missing")
+        return _out(True, "ok")
 
     if stage == "profile":
         if obj_type in ("view", "mv"):
             if cat is None:
-                return {"ready": False, "reason": "catalog_missing"}
+                return _out(False, "catalog_missing")
             scoping_status = cat.scoping.status if cat.scoping else None
             if scoping_status != "analyzed":
-                return {"ready": False, "reason": "scoping_not_analyzed"}
-            return {"ready": True, "reason": "ok"}
-        # table
+                return _out(False, "scoping_not_analyzed")
+            return _out(True, "ok")
         if cat is None:
-            return {"ready": False, "reason": "catalog_missing"}
+            return _out(False, "catalog_missing")
         scoping_status = cat.scoping.status if cat.scoping else None
         if scoping_status == "no_writer_found":
-            return {"ready": False, "reason": "not_applicable", "code": "WRITERLESS_TABLE"}
+            return _out(False, "not_applicable", "WRITERLESS_TABLE")
         if scoping_status != "resolved":
-            return {"ready": False, "reason": "scoping_not_resolved"}
-        return {"ready": True, "reason": "ok"}
+            return _out(False, "scoping_not_resolved")
+        return _out(True, "ok")
 
     if stage == "test-gen":
         if cat is None:
-            return {"ready": False, "reason": "catalog_missing"}
+            return _out(False, "catalog_missing")
         profile_status = cat.profile.status if cat.profile else None
         if profile_status not in ("ok", "partial"):
-            return {"ready": False, "reason": "profile_not_complete"}
-        return {"ready": True, "reason": "ok"}
+            return _out(False, "profile_not_complete")
+        return _out(True, "ok")
 
     if stage == "refactor":
         if cat is None:
-            return {"ready": False, "reason": "catalog_missing"}
+            return _out(False, "catalog_missing")
         test_gen_status = cat.test_gen.status if cat.test_gen else None
         if test_gen_status != "ok":
-            return {"ready": False, "reason": "test_gen_not_complete"}
-        return {"ready": True, "reason": "ok"}
+            return _out(False, "test_gen_not_complete")
+        return _out(True, "ok")
 
     # "generate"/"migrate" checks whether refactor is complete (can I start?),
     # NOT whether generate already succeeded. Use run_status() to check if
@@ -172,17 +182,16 @@ def run_ready(project_root: Path, fqn: str, stage: str) -> dict[str, Any]:
     if stage in ("migrate", "generate"):
         if obj_type in ("view", "mv"):
             if cat is None:
-                return {"ready": False, "reason": "catalog_missing"}
+                return _out(False, "catalog_missing")
             refactor_status = cat.refactor.status if cat.refactor else None
             if refactor_status != "ok":
-                return {"ready": False, "reason": "refactor_not_complete"}
-            return {"ready": True, "reason": "ok"}
-        # table — resolve writer, check proc catalog refactor status
+                return _out(False, "refactor_not_complete")
+            return _out(True, "ok")
         if cat is None:
-            return {"ready": False, "reason": "catalog_missing"}
+            return _out(False, "catalog_missing")
         writer = cat.scoping.selected_writer if cat.scoping else None
         if not writer:
-            return {"ready": False, "reason": "no_writer"}
+            return _out(False, "no_writer")
         writer_norm = normalize(writer)
         try:
             proc_cat = load_proc_catalog(project_root, writer_norm)
@@ -190,46 +199,39 @@ def run_ready(project_root: Path, fqn: str, stage: str) -> dict[str, Any]:
             proc_cat = None
         refactor_status = proc_cat.refactor.status if proc_cat and proc_cat.refactor else None
         if refactor_status != "ok":
-            return {"ready": False, "reason": "refactor_not_complete"}
-        return {"ready": True, "reason": "ok"}
+            return _out(False, "refactor_not_complete")
+        return _out(True, "ok")
 
-    return {"ready": False, "reason": "invalid_stage"}
+    return _out(False, "invalid_stage")
 
 
 # ── Status subcommand ────────────────────────────────────────────────────────
 
 
-def _single_object_status(project_root: Path, norm_fqn: str) -> dict[str, Any]:
+def _single_object_status(project_root: Path, norm_fqn: str) -> ObjectStatus:
     """Collate all stage statuses for a single object."""
     obj_type = _detect_object_type(project_root, norm_fqn)
 
-    stages: dict[str, str | None] = {
-        "scope": None,
-        "profile": None,
-        "test_gen": None,
-        "refactor": None,
-        "generate": None,
-    }
+    scope = profile = test_gen = refactor = generate = None
 
     if obj_type in ("view", "mv"):
         try:
             cat = load_view_catalog(project_root, norm_fqn)
         except (json.JSONDecodeError, OSError, CatalogLoadError):
             cat = None
-        stages["scope"] = cat.scoping.status if cat and cat.scoping else None
-        stages["profile"] = cat.profile.status if cat and cat.profile else None
-        stages["test_gen"] = cat.test_gen.status if cat and cat.test_gen else None
-        stages["refactor"] = cat.refactor.status if cat and cat.refactor else None
-        stages["generate"] = cat.generate.status if cat and cat.generate else None
+        scope = cat.scoping.status if cat and cat.scoping else None
+        profile = cat.profile.status if cat and cat.profile else None
+        test_gen = cat.test_gen.status if cat and cat.test_gen else None
+        refactor = cat.refactor.status if cat and cat.refactor else None
+        generate = cat.generate.status if cat and cat.generate else None
     else:
         try:
             cat = load_table_catalog(project_root, norm_fqn)
         except (json.JSONDecodeError, OSError, CatalogLoadError):
             cat = None
-        stages["scope"] = cat.scoping.status if cat and cat.scoping else None
-        stages["profile"] = cat.profile.status if cat and cat.profile else None
-        stages["test_gen"] = cat.test_gen.status if cat and cat.test_gen else None
-        # For tables, refactor lives on the proc catalog via selected_writer.
+        scope = cat.scoping.status if cat and cat.scoping else None
+        profile = cat.profile.status if cat and cat.profile else None
+        test_gen = cat.test_gen.status if cat and cat.test_gen else None
         refactor_status: str | None = None
         if cat and cat.refactor:
             refactor_status = cat.refactor.status
@@ -242,29 +244,35 @@ def _single_object_status(project_root: Path, norm_fqn: str) -> dict[str, Any]:
                 except (json.JSONDecodeError, OSError, CatalogLoadError):
                     proc_cat = None
                 refactor_status = proc_cat.refactor.status if proc_cat and proc_cat.refactor else None
-        stages["refactor"] = refactor_status
-        stages["generate"] = cat.generate.status if cat and cat.generate else None
+        refactor = refactor_status
+        generate = cat.generate.status if cat and cat.generate else None
 
-    return {"fqn": norm_fqn, "type": obj_type, "stages": stages}
+    return ObjectStatus(
+        fqn=norm_fqn,
+        type=obj_type,
+        stages=StageStatuses(
+            scope=scope, profile=profile, test_gen=test_gen,
+            refactor=refactor, generate=generate,
+        ),
+    )
 
 
-def run_status(project_root: Path, fqn: str | None = None) -> dict[str, Any]:
+def run_status(project_root: Path, fqn: str | None = None) -> StatusOutput | ObjectStatus:
     """Collate CLI-written statuses from catalog files.
 
-    With fqn: returns all stage statuses for one object.
-    Without fqn: returns full matrix for all objects.
+    With fqn: returns an ObjectStatus for one object.
+    Without fqn: returns a StatusOutput with full matrix for all objects.
     """
     if fqn is not None:
         norm = normalize(fqn)
-        obj_status = _single_object_status(project_root, norm)
-        return obj_status
+        return _single_object_status(project_root, norm)
 
     # ── All-objects mode ─────────────────────────────────────────────────
     catalog_dir = project_root / "catalog"
     table_dir = catalog_dir / "tables"
     view_dir = catalog_dir / "views"
 
-    objects: list[dict[str, Any]] = []
+    objects: list[ObjectStatus] = []
     stage_counts: dict[str, dict[str, int]] = {
         stage: {} for stage in ("scope", "profile", "test_gen", "refactor", "generate")
     }
@@ -274,7 +282,6 @@ def run_status(project_root: Path, fqn: str | None = None) -> dict[str, Any]:
             continue
         for p in sorted(bucket_dir.glob("*.json")):
             norm_fqn = p.stem
-            # Skip is_source objects.
             if bucket == "tables":
                 try:
                     cat_data = json.loads(p.read_text(encoding="utf-8"))
@@ -286,17 +293,15 @@ def run_status(project_root: Path, fqn: str | None = None) -> dict[str, Any]:
             obj_status = _single_object_status(project_root, norm_fqn)
             objects.append(obj_status)
 
-            for stage_name, status_val in obj_status["stages"].items():
+            stages_dict = obj_status.stages.model_dump()
+            for stage_name, status_val in stages_dict.items():
                 label = status_val if status_val else "pending"
                 stage_counts[stage_name][label] = stage_counts[stage_name].get(label, 0) + 1
 
-    return {
-        "objects": objects,
-        "summary": {
-            "total": len(objects),
-            "by_stage": stage_counts,
-        },
-    }
+    return StatusOutput(
+        objects=objects,
+        summary=StatusSummary(total=len(objects), by_stage=stage_counts),
+    )
 
 
 # ── CLI ──────────────────────────────────────────────────────────────────────
@@ -352,7 +357,7 @@ def batch_plan_cmd(
     Reads all table and view catalog files, builds the transitive dependency
     graph (proc → tables/views, view → views, proc → procs transitively),
     and outputs a JSON batch plan with pipeline status and catalog diagnostics
-    per object.  Output matches schemas/batch_plan_output.json.
+    per object.  Output contract: output_models.BatchPlanOutput.
     """
     try:
         root = resolve_project_root(project_root)
@@ -382,10 +387,10 @@ def _detect_catalog_bucket(project_root: Path, norm_fqn: str) -> str | None:
     return None
 
 
-def run_exclude(project_root: Path, fqns: list[str]) -> dict[str, Any]:
+def run_exclude(project_root: Path, fqns: list[str]) -> ExcludeOutput:
     """Set ``excluded: true`` on each named table or view catalog file.
 
-    Returns a dict matching schemas/exclude_output.json.
+    Returns an ExcludeOutput with marked/not_found lists.
     """
     marked: list[str] = []
     not_found: list[str] = []
@@ -422,7 +427,7 @@ def run_exclude(project_root: Path, fqns: list[str]) -> dict[str, Any]:
             norm, bucket,
         )
 
-    return {"marked": marked, "not_found": not_found}
+    return ExcludeOutput(marked=marked, not_found=not_found)
 
 
 def run_sync_excluded_warnings(project_root: Path) -> dict[str, Any]:
@@ -547,7 +552,7 @@ def exclude_cmd(
 
     Sets ``excluded: true`` in each named catalog file.  Excluded objects are
     hidden from batch-plan output and skipped by pipeline scheduling.
-    Output matches schemas/exclude_output.json.
+    Output contract: output_models.ExcludeOutput.
     """
     try:
         root = resolve_project_root(project_root)
