@@ -1,12 +1,10 @@
 ---
 name: generating-model
 description: >
-  Generates a dbt model from a stored procedure. Invoke when the user asks to
-  "migrate a procedure", "generate a dbt model", "convert SP to dbt", or
-  "create a model for <table>". Requires catalog profile, resolved
-  statements from prior discover + profile stages, and an approved test spec
-  from the test-generation stage.
-user-invocable: true
+  Generates a dbt model from a stored procedure. Requires catalog profile,
+  resolved statements from prior discover + profile stages, and an approved
+  test spec from the test-generation stage.
+user-invocable: false
 argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 ---
 
@@ -36,28 +34,20 @@ The caller may provide a structured handoff object (contract: `ModelGenerationHa
 
 ```json
 {
-  "execution_mode": "generate | test_only",
   "artifact_paths": {"model_sql": "...", "model_yaml": "..."} | null,
-  "relation_bindings": {"<source_fqn>": {"type": "source | ref", "ref_name": "..."}} | null,
-  "revision_feedback": [{"code": "SQL_001", "message": "...", "severity": "error | warning | info", "ack_required": true}] | null,
-  "shared_staging_candidates": ["<table_fqn>", ...] | null,
-  "shared_staging_files_written": ["relative/stg_*.sql", ...] | null
+  "revision_feedback": [{"code": "SQL_001", "message": "...", "severity": "error | warning | info", "ack_required": true}] | null
 }
 ```
 
 If a handoff is provided:
 
-- use `execution_mode` exactly as given
 - use `artifact_paths` exactly as given
-- use `relation_bindings` exactly as given
 - use `revision_feedback` exactly as given
 - do not read or interpret sweep artifacts from `.migration-runs/`
 
 If no handoff is provided:
 
-- assume `execution_mode: "generate"`
 - derive `artifact_paths` locally
-- derive relation bindings from the dbt project and context
 - assume no `revision_feedback`
 
 ## Output contract
@@ -119,59 +109,13 @@ Use `refactored_sql` as your sole SQL input. Ignore `proc_body` and `statements`
 - `stg` classification → `materialized='ephemeral'` staging model
 - `mart` classification → use the same materialization decision rules as tables (table/incremental/snapshot based on profile signals)
 
-## Step 1.5: Execution mode
+## Step 2: Generate dbt SQL
 
-- `generate` — run the full generation flow
-- `test_only` — skip Steps 2–7 and start at Step 8 using the existing artifacts already on disk
+Produce the model SQL from the `refactored_sql`. Apply [sql-style.md](../reviewing-model/references/sql-style.md) (keywords, indentation, commas) and [cte-structure.md](../reviewing-model/references/cte-structure.md) (import/logical/final pattern) throughout. Apply [model-naming.md](../reviewing-model/references/model-naming.md) for layer prefixes, `_dbt_run_id`, and `_loaded_at` rules.
 
-If the caller wants to skip an item entirely, the caller should not invoke this skill.
+**Source table references:** All source table references use `{{ source('<schema>', '<table>') }}` directly in import CTEs. Do not generate separate `stg_*.sql` files.
 
-If `shared_staging_candidates` is present in the handoff, treat those staging models as already planned by the caller. Do not recompute planning decisions here.
-
-**Rule:** mart models must never use `{{ source() }}` directly. For each table the procedure reads from:
-
-- If the table is a true source (listed in `dbt/models/staging/_sources.yml`) → it must go through a `stg_*` model referenced via `{{ ref('stg_<table>') }}`.
-- If a dbt model file already exists for the table (`dbt/models/**/<name>.sql` or `dbt/snapshots/**/<name>.sql`) → reference it directly as `{{ ref('<model_name>') }}` in the mart model. Do not create a redundant `stg_*` wrapper.
-- If neither → flag as unresolved in Step 6; do not guess.
-
-## Step 2: Decide model structure
-
-The refactored SQL already has import/logical/final CTE structure. Apply the staging/mart split — see [modular-modeling-ref.md](references/modular-modeling-ref.md) for decision rules: import CTEs → ephemeral `stg_*` models, logical+final CTEs → mart model.
-
-Before creating a new `stg_*` model, check `dbt/models/staging/` for an existing one on the same source table. If it exists and its column set is compatible, use `{{ ref() }}` — do not duplicate.
-
-## Step 3: Generate dbt SQL
-
-Produce two outputs from the `refactored_sql`. Apply [sql-style.md](../reviewing-model/references/sql-style.md) (keywords, indentation, commas) and [cte-structure.md](../reviewing-model/references/cte-structure.md) (import/logical/final pattern) throughout. Apply [model-naming.md](../reviewing-model/references/model-naming.md) for layer prefixes, `_dbt_run_id`, and `_loaded_at` rules.
-
-**Mandatory pre-step — resolve table references, then write stg files:**
-
-From the `migrate context` output, read `source_tables`. For each source table where `is_selected=true` and `is_updated=false`, classify it.
-
-Use caller-provided `relation_bindings` first. Only fall back to local discovery when a relation binding was not supplied.
-
-1. **Read `dbt/models/staging/_sources.yml`** — collect every `{schema}.{table}` entry listed as a source.
-2. **Glob `dbt/models/**/*.sql` and `dbt/snapshots/**/*.sql`** — collect the file stems of existing dbt models (e.g., `fact_sales`, `dim_customer`).
-3. For each referenced table, normalize its name (lowercase, schema.table) and check:
-   - **In sources.yml** → true source. Check whether `dbt/models/staging/stg_<table>.sql` already exists. If not, create it: `{{ config(materialized='ephemeral') }}` + `select * from {{ source('<schema>', '<table>') }}`. The mart references it via `{{ ref('stg_<table>') }}`.
-   - **Matching model file exists on disk** → existing dbt model. Do not create a stg wrapper. The mart references it directly via `{{ ref('<model_name>') }}`.
-   - **Neither** → flag as unresolved. Do not emit a `source()` or `ref()` call for it. Surface as a warning in Step 6.
-
-Only after all required staging files are confirmed on disk, generate the mart SQL using the resolved references above.
-
-### Staging models (`stg_<source_table>.sql`)
-
-One staging model per import CTE in the refactored SQL. Each is `materialized='ephemeral'` and does `select * from {{ source('<schema>', '<table>') }}` with light transforms only.
-
-```sql
-{{ config(materialized='ephemeral') }}
-
-select * from {{ source('<schema>', '<table>') }}
-```
-
-### Mart model (`<target_table>.sql`)
-
-The mart model replaces import CTEs with `{{ ref('stg_...') }}` calls; logical and final CTEs stay as-is. The config block uses the profile-derived materialization.
+The full CTE chain (import → logical → final) stays inline in a single model file:
 
 ```sql
 {{ config(
@@ -179,7 +123,7 @@ The mart model replaces import CTEs with `{{ ref('stg_...') }}` calls; logical a
 ) }}
 
 with <source_table> as (
-    select * from {{ ref('stg_<source_table>') }}
+    select * from {{ source('<schema>', '<table>') }}
 ),
 
 <logical_cte> as (
@@ -249,7 +193,7 @@ select * from {{ source('<source_name>', '<table_name>') }}
 
 Use a specific column list for `check_cols` if the profile identifies mutable columns.
 
-## Step 4: Logical equivalence check
+## Step 3: Logical equivalence check
 
 Compare the generated model against `refactored_sql`. Check each of these:
 
@@ -270,11 +214,11 @@ For each check:
 
 If warnings exist, record them in the item result and continue.
 
-## Step 5: Build schema.yml
+## Step 4: Build schema.yml
 
 Apply [yaml-style.md](../reviewing-model/references/yaml-style.md) (indentation, `version: 2`, required descriptions) throughout.
 
-### 5a — Schema tests
+### 4a — Schema tests
 
 Render `schema_tests` from context into the `columns:` section of the schema YAML:
 
@@ -304,41 +248,21 @@ models:
 
 Include `recency` test for incremental models if watermark is present.
 
-### 5b — Render test-spec unit tests
+### 4b — Render test-spec unit tests
 
-Read `test-specs/<item_id>.json` and render every entry in `unit_tests[]` into a `unit_tests:` block in the schema YAML, at the same level as `columns:` under the model. Preserve every scenario exactly — none may be dropped or modified.
+Run the CLI to render unit tests from the test spec into schema.yml:
 
-```yaml
-    unit_tests:
-      - name: test_merge_matched_existing_product_updated
-        model: stg_dimproduct
-        given:
-          - input: source('bronze', 'product')
-            rows:
-              - { product_id: 1, product_name: "Widget", list_price: 99.99 }
-          - input: ref('stg_dimproduct')
-            rows:
-              - { product_key: 1, product_name: "Old Widget", list_price: 50.00 }
-        expect:
-          rows:
-            - { product_key: 1, product_name: "Widget", list_price: 99.99 }
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate render-unit-tests \
+  --table <fqn> --model-name <model_name> \
+  --spec test-specs/<item_id>.json \
+  --schema-yml <schema_yml_path> \
+  --project-root <project_root>
 ```
 
-### 5c — Identify coverage gaps and create additional tests
+This writes the canonical test scenarios from the test spec into the `unit_tests:` block of the schema YAML. The CLI is the single source of truth for unit test rendering — do not manually construct the YAML block.
 
-After rendering the test-spec's unit tests, analyze the generated model's logic for branches not covered by existing scenarios. Look for:
-
-- JOIN conditions with no matching/non-matching test case
-- CASE/WHEN arms not exercised
-- NULL handling paths (COALESCE, ISNULL replacements)
-- Incremental filter (`is_incremental()`) boundary cases
-- Empty source table edge cases
-
-Generate 1-3 additional unit test scenarios for uncovered branches. Add them to the `unit_tests:` block alongside the test-spec scenarios. Use the naming convention `test_gap_<description>` to distinguish LLM-generated tests from ground-truth test-spec tests.
-
-Gap tests follow the same structure as test-spec tests (`name`, `model`, `given[]`, `expect`). Since there is no ground-truth execution for gap tests, derive `expect.rows` from the model's logic — these are best-effort expectations that `dbt test` will validate.
-
-## Step 6: Prepare final result
+## Step 5: Prepare final result
 
 Include these in the final item result:
 
@@ -347,14 +271,13 @@ Include these in the final item result:
 3. equivalence warnings, if any
 4. materialization and config decisions
 
-## Step 7: Write artifacts
+## Step 6: Write artifacts
 
 Before writing, decide the exact output paths.
 
 If the caller supplied `artifact_paths`, use them exactly. Otherwise decide them locally:
 
-- staging model → `dbt/models/staging/stg_<source_table>.sql` and `dbt/models/staging/_stg_<source_table>.yml`
-- mart model → `dbt/models/<layer>/<model_name>.sql` and `dbt/models/<layer>/_<model_name>.yml`
+- model → `dbt/models/<layer>/<model_name>.sql` and `dbt/models/<layer>/_<model_name>.yml`
 - snapshot → `dbt/snapshots/<model_name>.sql` and `dbt/snapshots/schema.yml`
 
 Write the generated SQL and YAML to temporary files first to avoid shell escaping issues with multi-line content:
@@ -376,11 +299,9 @@ The dbt project path is resolved automatically from `$DBT_PROJECT_PATH` or defau
 
 Use the CLI-returned written paths when constructing the final item result.
 
-## Step 8: Compile and test
+## Step 7: Compile and run canonical tests
 
-If `execution_mode` is `test_only`, start here. Do not regenerate model SQL or schema YAML in that mode.
-
-### 8a — Compile
+### 7a — Compile
 
 Run `dbt compile` to verify the generated model compiles:
 
@@ -394,9 +315,9 @@ If compile fails with a **connection error** (adapter cannot reach the warehouse
 2. Run `dbt parse` in the dbt project directory instead.
 3. Report parse results. If parse fails, attempt to fix (max 3 iterations as below). Skip `dbt test` — unit tests require compilation.
 
-If compile fails with a **non-connection error** (syntax, bad ref, macro resolution), proceed to the self-correction loop in 8c.
+If compile fails with a **non-connection error** (syntax, bad ref, macro resolution), proceed to the self-correction loop in 7c.
 
-### 8b — Run unit tests
+### 7b — Run canonical unit tests
 
 On compile success, run unit tests:
 
@@ -404,14 +325,14 @@ On compile success, run unit tests:
 cd "${DBT_PROJECT_PATH:-./dbt}" && dbt test --select <model_name>
 ```
 
-If all tests pass, report success and proceed to the next step.
+All canonical tests (from the test spec) must pass before proceeding.
 
-### 8c — Self-correction loop (max 3 iterations)
+### 7c — Self-correction loop (max 3 iterations)
 
 If compile or test fails:
 
 1. Analyze the failure output — identify which test failed and why (wrong column, missing row, type mismatch, etc.).
-2. Revise the model SQL to fix the issue. Do not modify test-spec unit tests — they are ground truth. Gap tests (`test_gap_*`) may be revised if their expectations were incorrect.
+2. Revise the model SQL to fix the issue. Do not modify test-spec unit tests — they are immutable ground truth. Only the model SQL is mutable during self-correction.
 3. Re-run `migrate write` with the revised SQL and schema YAML.
 4. Re-run `dbt compile` and `dbt test`.
 5. Repeat up to 3 iterations total.
@@ -421,6 +342,30 @@ After 3 failed iterations:
 - Report the failing test names and error details to the user.
 - Leave the model as-is with `status: "partial"`.
 - Record failures in `execution.dbt_errors[]`.
+
+## Step 8: Gap tests
+
+Run this step only after all canonical tests pass in Step 7.
+
+Analyze the generated model's logic for branches not covered by existing test-spec scenarios. Look for:
+
+- JOIN conditions with no matching/non-matching test case
+- CASE/WHEN arms not exercised
+- NULL handling paths (COALESCE, ISNULL replacements)
+- Incremental filter (`is_incremental()`) boundary cases
+- Empty source table edge cases
+
+Generate 1-3 additional unit test scenarios for uncovered branches. Add them to the `unit_tests:` block in the schema YAML alongside the canonical scenarios. Use the naming convention `test_gap_<description>` to distinguish LLM-generated tests from ground-truth test-spec tests.
+
+Gap tests follow the same structure as test-spec tests (`name`, `model`, `given[]`, `expect`). Since there is no ground-truth execution for gap tests, derive `expect.rows` from the model's logic — these are best-effort expectations that `dbt test` will validate.
+
+After adding gap tests, re-run `migrate write` with the updated schema YAML and run:
+
+```bash
+cd "${DBT_PROJECT_PATH:-./dbt}" && dbt test --select <model_name>
+```
+
+If gap tests fail, revise or remove the failing gap test (gap tests are mutable, unlike canonical tests). Do not re-enter the self-correction loop — a single fix attempt is sufficient for gap tests.
 
 ## Final Step — Write generate status to catalog
 
@@ -463,8 +408,7 @@ The CLI verifies the model file exists on disk and writes the `generate` section
 
 ## References
 
-- [references/modular-modeling-ref.md](references/modular-modeling-ref.md) — staging/mart split decision rules, file layout, and CTE mapping
-- [../reviewing-model/references/sql-style.md](../reviewing-model/references/sql-style.md) — SQL formatting rules with stable codes (SQL_001–SQL_013): keywords, indentation, commas, aliases
-- [../reviewing-model/references/cte-structure.md](../reviewing-model/references/cte-structure.md) — CTE pattern rules (CTE_001–CTE_008): import-first order, `final` naming, no nested CTEs
-- [../reviewing-model/references/model-naming.md](../reviewing-model/references/model-naming.md) — layer prefix, snake_case, `_dbt_run_id` and `_loaded_at` ETL control column rules (MDL_001–MDL_013)
-- [../reviewing-model/references/yaml-style.md](../reviewing-model/references/yaml-style.md) — YAML formatting rules (YML_001–YML_008): `version: 2`, descriptions, indentation
+- [../reviewing-model/references/sql-style.md](../reviewing-model/references/sql-style.md) — SQL formatting rules with stable codes (SQL_001-SQL_013): keywords, indentation, commas, aliases
+- [../reviewing-model/references/cte-structure.md](../reviewing-model/references/cte-structure.md) — CTE pattern rules (CTE_001-CTE_008): import-first order, `final` naming, no nested CTEs
+- [../reviewing-model/references/model-naming.md](../reviewing-model/references/model-naming.md) — layer prefix, snake_case, `_dbt_run_id` and `_loaded_at` ETL control column rules (MDL_001-MDL_013)
+- [../reviewing-model/references/yaml-style.md](../reviewing-model/references/yaml-style.md) — YAML formatting rules (YML_001-YML_008): `version: 2`, descriptions, indentation

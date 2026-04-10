@@ -47,7 +47,6 @@ Evaluate against reference files. Each issue must include a stable reference cod
 | CTE structure | `cte-structure.md` | Import CTEs first (`CTE_001`), final CTE named `final` (`CTE_002`), `select * from final` last (`CTE_003`), single-purpose CTEs (`CTE_004`), no nested CTEs (`CTE_006`) |
 | Model naming | `model-naming.md` | Correct layer prefix (`MDL_001`–`MDL_003`), `snake_case` names (`MDL_004`), `_dbt_run_id` present (`MDL_005`), `_loaded_at` rules (`MDL_006`, `MDL_007`), locked columns unchanged (`MDL_008`) |
 | YAML style | `yaml-style.md` | `version: 2` at top (`YML_004`), model description present (`YML_002`), PK column descriptions present (`YML_003`), 2-space indentation (`YML_001`) |
-| Modularity | `modularity.md` | No joins in staging (`MOD_001`), mart refs use `ref()` not `source()` (`MOD_002`), one staging model per source table (`MOD_003`), staging materialized as ephemeral (`MOD_004`), business logic in mart not staging (`MOD_005`) |
 
 ### 4. CheckTestIntegration
 

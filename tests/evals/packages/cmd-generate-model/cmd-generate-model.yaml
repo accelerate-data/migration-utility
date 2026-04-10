@@ -25,8 +25,6 @@ defaultTest:
     - type: javascript
       value: file://../../assertions/check-command-summary.js
     - type: javascript
-      value: file://../../assertions/check-model-generator-input.js
-    - type: javascript
       value: file://../../assertions/check-dbt-refs.js
 
 tests:
@@ -74,21 +72,6 @@ tests:
       forbidden_model_terms: "source('silver'"
       expected_stg_files: "stg_salesorder"
       expected_stg_terms: "source("
-    assert:
-      - type: javascript
-        value: file://../../assertions/check-dbt-model.js
-
-  # ── planning sweep: 2 tables share source → 1 shared stg ─────
-  - description: "planning-sweep-shared-stg — InsertSelectTarget + SingleCteTarget share bronze.Product, sweep creates ONE stg_product.sql used by both marts"
-    vars:
-      fixture_path: "tests/evals/fixtures/planning-sweep-shared-stg"
-      target_tables: "silver.InsertSelectTarget silver.SingleCteTarget"
-      target_table: "silver.InsertSelectTarget"
-      expected_item_statuses: '{"silver.InsertSelectTarget": "ok,partial", "silver.SingleCteTarget": "ok,partial"}'
-      expected_output_terms: "ok"
-      expected_stg_files: "stg_product"
-      expected_stg_terms: "ephemeral"
-      expected_model_terms: "ref('stg_product')"
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
@@ -192,57 +175,6 @@ tests:
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
-
-  # ── planning sweep: stg already on disk ──────────────────────
-  - description: "planning-sweep-stg-reuse — stg_product.sql pre-seeded, reuses via ref() not source()"
-    vars:
-      fixture_path: "tests/evals/fixtures/planning-sweep-stg-reuse"
-      target_tables: "silver.InsertSelectTarget"
-      target_table: "silver.InsertSelectTarget"
-      expected_item_statuses: '{"silver.InsertSelectTarget": "ok,partial"}'
-      expected_model_terms: "ref('stg_product')"
-      forbidden_model_terms: "source('bronze'"
-    assert:
-      - type: javascript
-        value: file://../../assertions/check-dbt-model.js
-
-  # ── planning sweep: no stg on disk ───────────────────────────
-  - description: "planning-sweep-no-stg — no staging on disk, creates stg_product.sql with ephemeral"
-    vars:
-      fixture_path: "tests/evals/fixtures/planning-sweep-no-stg"
-      target_tables: "silver.InsertSelectTarget"
-      target_table: "silver.InsertSelectTarget"
-      expected_item_statuses: '{"silver.InsertSelectTarget": "ok,partial"}'
-      expected_stg_files: "stg_product"
-      expected_stg_terms: "ephemeral"
-      expected_model_terms: "ref('stg_product')"
-    assert:
-      - type: javascript
-        value: file://../../assertions/check-dbt-model.js
-
-  # ── planning sweep: skip ──────────────────────────────────────
-  - description: "planning-sweep-skip — sweep artifact recommends skip, exits without generating model"
-    vars:
-      fixture_path: "tests/evals/fixtures/planning-sweep-skip"
-      target_tables: "silver.InsertSelectTarget"
-      target_table: "silver.InsertSelectTarget"
-      expected_item_statuses: '{"silver.InsertSelectTarget": "ok"}'
-      expected_action: "skip"
-    assert:
-      - type: javascript
-        value: file://../../assertions/check-sweep-action.js
-
-  # ── planning sweep: test-only ─────────────────────────────────
-  - description: "planning-sweep-test-only — sweep artifact recommends test-only, skips generation"
-    vars:
-      fixture_path: "tests/evals/fixtures/planning-sweep-test-only"
-      target_tables: "silver.InsertSelectTarget"
-      target_table: "silver.InsertSelectTarget"
-      expected_item_statuses: '{"silver.InsertSelectTarget": "ok,partial"}'
-      expected_action: "test-only"
-    assert:
-      - type: javascript
-        value: file://../../assertions/check-sweep-action.js
 
   # ── snapshot-dim-scd2 ─────────────────────────────────────────
   - description: "snapshot-dim-scd2 — SCD2 table produces dbt snapshot"

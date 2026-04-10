@@ -7,7 +7,7 @@ description: >
   equivalence via semantic review and, when available, sandbox execution. Invoke
   when the user asks to "refactor SQL", "restructure to CTEs", or "prepare SQL
   for migration".
-user-invocable: true
+user-invocable: false
 argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 ---
 

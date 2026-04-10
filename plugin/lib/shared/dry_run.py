@@ -177,19 +177,22 @@ def run_ready(project_root: Path, fqn: str, stage: str) -> DryRunOutput:
             return _out(False, "test_gen_not_complete")
         return _out(True, "ok")
 
-    # "generate"/"migrate" checks whether refactor is complete (can I start?),
-    # NOT whether generate already succeeded. Use run_status() to check if
-    # generate.status == "ok" (is it done?).
+    # "generate"/"migrate" checks whether both test_gen and refactor are
+    # complete (can I start?), NOT whether generate already succeeded.
+    # Use run_status() to check if generate.status == "ok" (is it done?).
     if stage in ("migrate", "generate"):
+        if cat is None:
+            return _out(False, "catalog_missing")
+        # Gate 1: test_gen must be complete (applies to all object types)
+        test_gen_status = cat.test_gen.status if cat.test_gen else None
+        if test_gen_status != "ok":
+            return _out(False, "test_gen_not_complete", "TEST_SPEC_MISSING")
+        # Gate 2: refactor must be complete
         if obj_type in ("view", "mv"):
-            if cat is None:
-                return _out(False, "catalog_missing")
             refactor_status = cat.refactor.status if cat.refactor else None
             if refactor_status != "ok":
                 return _out(False, "refactor_not_complete")
             return _out(True, "ok")
-        if cat is None:
-            return _out(False, "catalog_missing")
         writer = cat.scoping.selected_writer if cat.scoping else None
         if not writer:
             return _out(False, "no_writer")

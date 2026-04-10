@@ -44,32 +44,11 @@ Output JSON contains:
 
 Use `refactored_sql` as the sole SQL input for generation. `proc_body` and `statements` are ignored during generation -- they exist in context for the reviewer's correctness checks.
 
-### 2. Decide model structure (staging/mart split)
+### 2. Generate dbt SQL
 
-The refactored SQL already has import/logical/final CTE structure. Apply the staging/mart split:
+Generates a single model from `refactored_sql` using `{{ source() }}` directly — no staging models are generated. The full CTE chain is kept inline in one model file.
 
-- **Import CTEs** become ephemeral `stg_*` models (one per source table).
-- **Logical + final CTEs** become the mart model.
-
-Before creating a new `stg_*` model, check `dbt/models/staging/` for an existing one on the same source table. If it exists and its column set is compatible, use `{{ ref() }}` -- do not duplicate.
-
-See `modular-modeling-ref.md` in the skill's references for full decision rules.
-
-### 3. Generate dbt SQL
-
-Produces two output types from `refactored_sql`:
-
-**Staging models (`stg_<source_table>.sql`)** -- one per import CTE:
-
-```sql
-{{ config(materialized='ephemeral') }}
-
-select * from {{ source('<schema>', '<table>') }}
-```
-
-Light transforms only. No joins, no business logic.
-
-**Mart model (`<target_table>.sql`)** -- replaces import CTEs with `{{ ref('stg_...') }}` calls; logical and final CTEs stay as-is:
+**Model (`<target_table>.sql`)**:
 
 ```sql
 {{ config(
@@ -77,7 +56,7 @@ Light transforms only. No joins, no business logic.
 ) }}
 
 with <source_table> as (
-    select * from {{ ref('stg_<source_table>') }}
+    select * from {{ source('<schema>', '<table>') }}
 ),
 
 <logical_cte> as (

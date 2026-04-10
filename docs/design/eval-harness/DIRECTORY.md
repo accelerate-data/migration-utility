@@ -20,13 +20,11 @@ tests/evals/
     check-status-output.js             # validates /status command output
     check-dbt-model.js                 # validates generated dbt model SQL
     check-dbt-refs.js                  # validates ref()/source() usage in generated dbt files
-    check-model-generator-input.js     # validates model-generator input manifest
     check-refactored-sql.js            # validates refactored SQL extraction and CTE structure
     check-dbt-aware-refactored-sql.js  # validates dbt-aware refactor output against staging models
     check-test-spec.js                 # validates generated test specifications
     check-test-review.js               # validates test review results
     check-model-review.js              # validates model review results
-    check-sweep-action.js              # validates planning-sweep skip/test-only behavior
     check-pr-safety.js                 # validates commit/push/PR failure handling
 
   prompts/

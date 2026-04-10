@@ -1,9 +1,9 @@
 ---
 name: reviewing-model
 description: >
-  Reviews generated dbt model for standards compliance, correctness relative
-  to the original proc, and test integration. Invoked by the /generate-model
-  command after dbt tests pass, not directly by FDE.
+  Reviews generated dbt model for standards compliance and correctness relative
+  to the original proc. Invoked by the /generate-model command after dbt tests
+  pass, not directly by FDE.
 context: fork
 user-invocable: false
 argument-hint: "<schema.table>"
@@ -11,7 +11,7 @@ argument-hint: "<schema.table>"
 
 # Review Model
 
-Quality gate for model generation output. Reviews the generated dbt model SQL and schema YAML for standards compliance, correctness against the original proc context, and test integration with the approved test spec. Issues a verdict: approve or kick back with specific fixes.
+Quality gate for model generation output. Reviews the generated dbt model SQL and schema YAML for standards compliance and correctness against the original proc context. Issues a verdict: approve or kick back with specific fixes.
 
 ## Arguments
 
@@ -20,8 +20,7 @@ Quality gate for model generation output. Reviews the generated dbt model SQL an
 ## Before invoking
 
 Review the generated model artifacts already present on disk. Validate
-prerequisites through `migrate context`, test-spec presence, and model file
-discovery.
+prerequisites through `migrate context`, and model file discovery.
 
 ## Step 1: Assemble context
 
@@ -45,7 +44,6 @@ Read the output JSON. It contains:
 Also read:
 
 - The generated model SQL and schema YAML from the dbt project.
-- The approved test spec from `test-specs/<item_id>.json`.
 
 Model file discovery rules:
 
@@ -84,16 +82,8 @@ Evaluate the generated model SQL and schema YAML against the reference files. Ea
 |---|---|---|
 | SQL style | [references/sql-style.md](references/sql-style.md) | Lowercase keywords (`SQL_001`), indentation (`SQL_002`), trailing commas (`SQL_003`), one column per line (`SQL_004`), table alias prefixes (`SQL_005`), no `SELECT *` in marts (`SQL_006`) |
 | CTE structure | [references/cte-structure.md](references/cte-structure.md) | Import CTEs first (`CTE_001`), final CTE named `final` (`CTE_002`), `select * from final` last (`CTE_003`), single-purpose CTEs (`CTE_004`), no nested CTEs (`CTE_006`) |
-| Model naming | [references/model-naming.md](references/model-naming.md) | Correct layer prefix (`MDL_001`–`MDL_003`), `snake_case` names (`MDL_004`), `_dbt_run_id` present (`MDL_005`), `_loaded_at` rules (`MDL_006`, `MDL_007`), locked columns unchanged (`MDL_008`) |
+| Model naming | [references/model-naming.md](references/model-naming.md) | Correct layer prefix (`MDL_001`--`MDL_003`), `snake_case` names (`MDL_004`), `_dbt_run_id` present (`MDL_005`), `_loaded_at` rules (`MDL_006`, `MDL_007`), locked columns unchanged (`MDL_008`) |
 | YAML style | [references/yaml-style.md](references/yaml-style.md) | `version: 2` at top (`YML_004`), model description present (`YML_002`), PK column descriptions present (`YML_003`), 2-space indentation (`YML_001`) |
-| Modularity | [references/modularity.md](references/modularity.md) | No joins in staging (`MOD_001`), mart refs use `ref()` not `source()` (`MOD_002`), one staging model per source table (`MOD_003`), staging materialized as ephemeral (`MOD_004`), business logic in mart not staging (`MOD_005`) |
-
-## Step 4: Check test integration
-
-- Verify every `unit_tests[]` entry from the test spec is rendered in the schema YAML.
-- Verify `given[].input` references match actual `source()` / `ref()` calls in the model.
-- Verify no test scenarios were dropped or modified during rendering.
-- Verify gap tests (`test_gap_*`) have reasonable expectations consistent with the model logic.
 
 ## Feedback tiers
 
@@ -103,14 +93,13 @@ Evaluate the generated model SQL and schema YAML against the reference files. Ea
 | `warning` | Model-generator must respond with `fixed` or `ignored: <reason>` |
 | `info` | Acknowledgement optional; ignoring is always acceptable |
 
-## Step 5: Verdict
+## Step 4: Verdict
 
 | Condition | Action |
 |---|---|
 | All checks pass | **Approve** — set `status` to `approved` |
 | Standards issues found | **Kick back** — set `status` to `revision_requested`, populate `feedback_for_model_generator` with objects including stable code and tier |
 | Correctness issues found | **Kick back** — set `status` to `revision_requested`, populate `feedback_for_model_generator` with objects including stable code and tier |
-| Test integration issues found | **Kick back** — set `status` to `revision_requested`, populate `feedback_for_model_generator` with objects including stable code and tier |
 | Max review iterations reached (2) | **Approve with warnings** — set `status` to `approved_with_warnings`, flag remaining issues for human review |
 
 After kicking back, the model-generator revises the model, re-runs `dbt test` to confirm unit tests still pass, and resubmits. The resubmission must include an `acknowledgements` block mapping each feedback code to `fixed` or `ignored: <reason>`. Maximum review / model-generator iterations: 2 (configurable).
@@ -141,10 +130,6 @@ Emit the following JSON structure as the skill's output:
           "severity": "error"
         }
       ]
-    },
-    "test_integration": {
-      "passed": true,
-      "issues": []
     }
   },
   "feedback_for_model_generator": [
@@ -220,11 +205,10 @@ All `code` values in `warnings[]` and `errors[]` must come from
 
 ## References
 
-- [references/sql-style.md](references/sql-style.md) — SQL formatting rules with stable codes (SQL_001–SQL_013): keywords, indentation, commas, aliases, JOIN style
-- [references/cte-structure.md](references/cte-structure.md) — CTE pattern rules (CTE_001–CTE_008): import-first order, `final` naming, single-purpose CTEs, no nesting
-- [references/model-naming.md](references/model-naming.md) — layer prefix, snake_case, `_dbt_run_id` and `_loaded_at` ETL control column rules (MDL_001–MDL_013)
-- [references/yaml-style.md](references/yaml-style.md) — YAML formatting rules (YML_001–YML_008): `version: 2`, required descriptions, indentation
-- [references/modularity.md](references/modularity.md) — staging/mart separation rules (MOD_001–MOD_008): no joins in staging, ephemeral materialization, mart uses `ref()` not `source()`
+- [references/sql-style.md](references/sql-style.md) — SQL formatting rules with stable codes (SQL_001--SQL_013): keywords, indentation, commas, aliases, JOIN style
+- [references/cte-structure.md](references/cte-structure.md) — CTE pattern rules (CTE_001--CTE_008): import-first order, `final` naming, single-purpose CTEs, no nesting
+- [references/model-naming.md](references/model-naming.md) — layer prefix, snake_case, `_dbt_run_id` and `_loaded_at` ETL control column rules (MDL_001--MDL_013)
+- [references/yaml-style.md](references/yaml-style.md) — YAML formatting rules (YML_001--YML_008): `version: 2`, required descriptions, indentation
 
 ## Boundary rules
 

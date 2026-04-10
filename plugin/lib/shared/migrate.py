@@ -25,7 +25,13 @@ from typing import Any, Optional
 
 import typer
 
-from shared.output_models import MigrateContextOutput, MigrateWriteOutput
+from shared.output_models import (
+    MigrateContextOutput,
+    MigrateWriteOutput,
+    RenderUnitTestsOutput,
+    TestSpec,
+)
+from shared.catalog_models import DiagnosticsEntry
 
 from shared.catalog import (
     has_catalog,
@@ -435,6 +441,146 @@ def write_catalog_cmd(
         raise typer.Exit(code=1) from exc
     except OSError as exc:
         logger.error("event=write_catalog_failed table=%s error=%s", table, exc)
+        raise typer.Exit(code=2) from exc
+    emit(result)
+
+
+# ── Render unit tests ────────────────────────────────────────────────────────
+
+
+def _spec_given_to_dbt_input(table_ref: str) -> str:
+    """Convert a test-spec ``given[].table`` value to a dbt unit test ``input``.
+
+    Example: ``"bronze.Currency"`` → ``"source('bronze', 'Currency')"``
+    """
+    parts = table_ref.split(".", 1)
+    if len(parts) == 2:
+        return f"source('{parts[0]}', '{parts[1]}')"
+    return f"source('{table_ref}', '{table_ref}')"
+
+
+def _unit_test_to_dbt(entry: dict[str, Any], model_name: str) -> dict[str, Any]:
+    """Translate one test-spec UnitTestEntry dict to a dbt unit test dict."""
+    dbt_test: dict[str, Any] = {
+        "name": entry["name"],
+        "model": model_name,
+        "given": [],
+    }
+    for given in entry.get("given", []):
+        dbt_given: dict[str, Any] = {
+            "input": _spec_given_to_dbt_input(given["table"]),
+            "rows": given.get("rows", []),
+        }
+        dbt_test["given"].append(dbt_given)
+    expect = entry.get("expect")
+    if expect and expect.get("rows"):
+        dbt_test["expect"] = {"rows": expect["rows"]}
+    return dbt_test
+
+
+def run_render_unit_tests(
+    project_root: Path,
+    table_fqn: str,
+    model_name: str,
+    spec_path: Path,
+    schema_yml_path: Path,
+) -> RenderUnitTestsOutput:
+    """Translate test-spec scenarios into dbt unit tests and write schema YAML.
+
+    Reads the test spec JSON, converts each ``unit_tests[]`` entry to dbt
+    unit test format, merges into the target schema YAML (preserving
+    existing schema tests and model descriptions), and writes the result.
+    """
+    import yaml  # local import — only needed for this subcommand
+
+    norm = normalize(table_fqn)
+    warnings: list[DiagnosticsEntry] = []
+
+    # 1. Read and validate test spec
+    if not spec_path.is_file():
+        return RenderUnitTestsOutput(
+            tests_rendered=0,
+            model_name=model_name,
+            errors=[DiagnosticsEntry(
+                code="SPEC_NOT_FOUND",
+                severity="error",
+                message=f"Test spec not found: {spec_path}",
+            )],
+        )
+
+    spec_data = json.loads(spec_path.read_text(encoding="utf-8"))
+    spec = TestSpec(**spec_data)
+
+    # 2. Translate each unit test entry
+    dbt_unit_tests = []
+    for ut in spec.unit_tests:
+        ut_dict = ut.model_dump(mode="json", exclude_none=True)
+        dbt_unit_tests.append(_unit_test_to_dbt(ut_dict, model_name))
+
+    if not dbt_unit_tests:
+        return RenderUnitTestsOutput(
+            tests_rendered=0,
+            model_name=model_name,
+            warnings=[DiagnosticsEntry(
+                code="NO_UNIT_TESTS",
+                severity="warning",
+                message=f"Test spec {spec.item_id} has no unit tests to render",
+            )],
+        )
+
+    # 3. Read existing schema YAML if present
+    schema: dict[str, Any] = {"version": 2, "models": []}
+    if schema_yml_path.is_file():
+        existing = yaml.safe_load(schema_yml_path.read_text(encoding="utf-8"))
+        if isinstance(existing, dict):
+            schema = existing
+
+    # 4. Find or create the model entry
+    models = schema.setdefault("models", [])
+    model_entry = None
+    for m in models:
+        if isinstance(m, dict) and m.get("name") == model_name:
+            model_entry = m
+            break
+    if model_entry is None:
+        model_entry = {"name": model_name}
+        models.append(model_entry)
+
+    # 5. Replace unit_tests block (canonical tests are authoritative)
+    model_entry["unit_tests"] = dbt_unit_tests
+
+    # 6. Write schema YAML
+    schema_yml_path.parent.mkdir(parents=True, exist_ok=True)
+    schema_yml_path.write_text(
+        yaml.dump(schema, default_flow_style=False, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+
+    logger.info(
+        "event=render_unit_tests table=%s model=%s tests_rendered=%d",
+        norm, model_name, len(dbt_unit_tests),
+    )
+    return RenderUnitTestsOutput(
+        tests_rendered=len(dbt_unit_tests),
+        model_name=model_name,
+        warnings=warnings,
+    )
+
+
+@app.command("render-unit-tests")
+def render_unit_tests_cmd(
+    table: str = typer.Option(..., help="Fully-qualified table/view name"),
+    model_name: str = typer.Option(..., "--model-name", help="dbt model name"),
+    spec: Path = typer.Option(..., help="Path to test-specs/<item_id>.json"),
+    schema_yml: Path = typer.Option(..., "--schema-yml", help="Path to target schema YAML file"),
+    project_root: Optional[Path] = typer.Option(None, "--project-root"),
+) -> None:
+    """Translate test-spec scenarios into dbt unit tests in schema YAML."""
+    root = resolve_project_root(project_root)
+    try:
+        result = run_render_unit_tests(root, table, model_name, spec, schema_yml)
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.error("event=render_unit_tests_failed table=%s error=%s", table, exc)
         raise typer.Exit(code=2) from exc
     emit(result)
 

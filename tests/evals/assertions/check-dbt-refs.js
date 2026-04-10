@@ -1,11 +1,8 @@
 // Validates dbt ref() and source() correctness in generated model files.
 //
 // Rules enforced on the target model and its staging models:
-//   - Mart models (non-stg_, non-snapshot): must contain ZERO source() calls.
-//     All table reads must go through ref() — either ref('stg_...') for sources
-//     or ref('model_name') for existing dbt models.
-//   - Staging models (stg_*.sql) and snapshot files: source() is allowed, but
-//     every source('schema', 'table') must reference an entry in _sources.yml.
+//   - All models (mart, staging, snapshot): every source('schema', 'table')
+//     call must reference an entry in _sources.yml.
 //
 // Only validates files written by the skill for the target table:
 //   - The mart/snapshot model matching target_table
@@ -97,26 +94,17 @@ module.exports = (output, context) => {
   const errors = [];
   const checked = [];
 
-  // Validate the target mart/snapshot model
-  const isSnapshot = targetFile.includes(`${path.sep}snapshots${path.sep}`);
+  // Validate the target model (mart or snapshot)
   const sql = fs.readFileSync(targetFile, 'utf8');
   const sourceCalls = extractSourceCalls(sql);
   checked.push(path.basename(targetFile));
 
-  if (!isSnapshot && sourceCalls.length > 0) {
-    for (const call of sourceCalls) {
+  for (const call of sourceCalls) {
+    const key = `${call.schema}.${call.table}`;
+    if (!validSources.has(key)) {
       errors.push(
-        `${path.basename(targetFile)}: mart model contains ${call.raw} — mart models must use ref(), not source()`
+        `${path.basename(targetFile)}: ${call.raw} references '${key}' which is not in _sources.yml`
       );
-    }
-  } else if (isSnapshot) {
-    for (const call of sourceCalls) {
-      const key = `${call.schema}.${call.table}`;
-      if (!validSources.has(key)) {
-        errors.push(
-          `${path.basename(targetFile)}: ${call.raw} references '${key}' which is not in _sources.yml`
-        );
-      }
     }
   }
 

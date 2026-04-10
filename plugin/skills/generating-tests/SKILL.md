@@ -5,7 +5,7 @@ description: >
   conditional branches and synthesizes minimal fixtures. Does not execute
   procs or capture ground truth — that is done by the /generate-tests
   command after review approval.
-user-invocable: true
+user-invocable: false
 argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 ---
 

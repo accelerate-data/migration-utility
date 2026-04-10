@@ -58,6 +58,15 @@
     "warnings": [],
     "errors": []
   },
+  "test_gen": {
+    "status": "ok",
+    "test_spec_path": "test-specs/silver.dimcustomer.json",
+    "branches": 4,
+    "unit_tests": 4,
+    "coverage": "complete",
+    "warnings": [],
+    "errors": []
+  },
   "profile": {
     "status": "ok",
     "writer": "dbo.usp_load_dimcustomer",
