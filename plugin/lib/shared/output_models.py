@@ -166,7 +166,7 @@ class DryRunOutput(BaseModel):
     model_config = _OUTPUT_CONFIG
 
     table: str | None = None
-    stage: Literal["scope", "profile", "test-gen", "refactor", "migrate"] | None = None
+    stage: Literal["scope", "profile", "test-gen", "refactor", "migrate", "generate"] | None = None
     object_type: Literal["table", "view", "mv"] | None = None
     guards_passed: bool | None = None
     not_applicable: bool | None = None
