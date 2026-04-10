@@ -57,6 +57,7 @@ tests:
     vars:
       fixture_path: "tests/evals/fixtures/cmd-generate-model/error-clean"
       target_tables: "silver.DimProduct silver.InsertSelectTarget"
+      target_table: "silver.InsertSelectTarget"
       expected_item_statuses: '{"silver.DimProduct": "error", "silver.InsertSelectTarget": "ok,partial"}'
       expected_error_codes: "scoping_not_completed"
       expected_output_terms: "error"
@@ -68,7 +69,7 @@ tests:
       target_tables: "silver.FactSales"
       target_table: "silver.FactSales"
       expected_item_statuses: '{"silver.FactSales": "ok,partial"}'
-      expected_model_terms: "ref('dim_customer'),source("
+      expected_model_terms: "source("
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
@@ -87,15 +88,13 @@ tests:
         value: file://../../assertions/check-dbt-model.js
 
   # ── select-into ─────────────────────────────────────────────
-  - description: "select-into — SelectIntoTarget single import CTE stg + mart"
+  - description: "select-into — SelectIntoTarget single import CTE inline model"
     vars:
       fixture_path: "tests/evals/fixtures/generating-model/select-into"
       target_tables: "silver.SelectIntoTarget"
       target_table: "silver.SelectIntoTarget"
       expected_item_statuses: '{"silver.SelectIntoTarget": "ok,partial"}'
-      expected_stg_files: "stg_selectintotarget"
-      expected_stg_terms: "source("
-      forbidden_stg_terms: "join,group by"
+      expected_model_terms: "source("
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
@@ -119,7 +118,7 @@ tests:
       target_tables: "silver.DimProduct"
       target_table: "silver.DimProduct"
       expected_item_statuses: '{"silver.DimProduct": "ok,partial"}'
-      expected_model_terms: "materialized='table',ref("
+      expected_model_terms: "materialized='table',source("
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
