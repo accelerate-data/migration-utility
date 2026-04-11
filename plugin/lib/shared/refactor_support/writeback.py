@@ -172,12 +172,29 @@ def run_write(
 
     try:
         existing = json.loads(catalog_path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        logger.error(
+            "event=write_failed operation=read_catalog table=%s writer=%s error=%s",
+            table_norm, writer_norm, exc,
+        )
+        raise
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        logger.error(
+            "event=write_failed operation=read_catalog table=%s writer=%s error=%s",
+            table_norm, writer_norm, exc,
+        )
         raise CatalogLoadError(str(catalog_path), exc) from exc
 
     RefactorSection.model_validate(refactor_data)
     existing["refactor"] = refactor_data
-    _write_catalog_json(catalog_path, existing)
+    try:
+        _write_catalog_json(catalog_path, existing)
+    except OSError as exc:
+        logger.error(
+            "event=write_failed operation=atomic_write table=%s writer=%s error=%s",
+            table_norm, writer_norm, exc,
+        )
+        raise
     logger.info(
         "event=write_complete table=%s writer=%s catalog_path=%s",
         table_norm, writer_norm, catalog_path,

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import typer
 
@@ -33,8 +33,8 @@ def run_write(
     table_fqn: str,
     extracted_sql: str,
     refactored_sql: str,
-    semantic_review: dict | None = None,
-    compare_sql_result: dict | None = None,
+    semantic_review: dict[str, Any] | None = None,
+    compare_sql_result: dict[str, Any] | None = None,
     compare_required: bool = True,
 ) -> RefactorWriteOutput:
     """Compatibility wrapper for refactor writes."""
@@ -101,7 +101,7 @@ def write(
     project_root = resolve_project_root(project_root)
 
     try:
-        result = _run_write_impl(
+        result = run_write(
             project_root=project_root,
             table_fqn=table,
             extracted_sql=extracted_sql,
@@ -109,7 +109,6 @@ def write(
             semantic_review=semantic_review,
             compare_sql_result=compare_sql_result,
             compare_required=compare_required,
-            catalog_dir=resolve_catalog_dir(project_root),
         )
     except (ValueError, CatalogFileMissingError) as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)

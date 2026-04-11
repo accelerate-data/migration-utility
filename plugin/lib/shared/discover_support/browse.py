@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from enum import Enum
 from pathlib import Path
 from typing import Any, NoReturn
@@ -33,6 +34,8 @@ from shared.output_models.discover import (
     WriterEntry,
 )
 from shared.view_analysis import _analyze_view_select
+
+logger = logging.getLogger(__name__)
 
 
 class ObjectType(str, Enum):
@@ -257,4 +260,6 @@ def run_refs(project_root: Path, name: str) -> DiscoverRefsOutput:
                 error=f"{target} is a procedure — refs only works for tables, views, and functions. Use 'show {name}' to see what this procedure reads/writes.",
             )
 
-    return _run_refs_from_catalog(project_root, target)
+    result = _run_refs_from_catalog(project_root, target)
+    logger.info("event=refs_complete target=%s source=catalog", target)
+    return result
