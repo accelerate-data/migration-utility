@@ -132,6 +132,13 @@ Follow the signal tables and pattern-matching rules in those references complete
 - If you cannot support a defensible table classification at all, add `PROFILING_FAILED`, explain why, and stop instead of writing guessed output.
 - Dynamic SQL and opaque helper cases are still write-through cases when table shape and catalog evidence support classification. Do not downgrade them to analysis-only output.
 
+Required partial-friendly warning behavior:
+
+- Opaque writer but defensible classification from catalog and table shape → include `PARTIAL_PROFILE`
+- Opaque writer because of parse limits, dynamic SQL, or helper `EXEC` routing → include both `PARTIAL_PROFILE` and `PARSE_ERROR`
+- For both codes above, `severity` must be exactly `"warning"`
+- Dynamic SQL counts as partial even when classification, keys, and watermark can still be inferred confidently from catalog and table shape.
+
 ### 4. Write the Table Profile
 
 Write the profile JSON to a temp file, then persist it:
@@ -148,12 +155,29 @@ Payload rules:
 
 - `writer` is required.
 - Every persisted decision must include a short `rationale`, including `classification`, `primary_key`, `natural_key`, `watermark`, each `foreign_keys[]` entry, and each `pii_actions[]` entry you emit.
+- Use this payload shape:
+
+  ```json
+  {
+    "writer": "<writer fqn>",
+    "classification": {"resolved_kind": "...", "source": "...", "rationale": "..."},
+    "primary_key": {"columns": ["..."], "primary_key_type": "...", "source": "...", "rationale": "..."},
+    "natural_key": {"columns": ["..."], "source": "...", "rationale": "..."},
+    "watermark": {"column": "...", "source": "...", "rationale": "..."},
+    "foreign_keys": [{"column": "...", "fk_type": "...", "source": "...", "rationale": "..."}],
+    "pii_actions": [{"column": "...", "suggested_action": "...", "source": "...", "rationale": "..."}],
+    "warnings": [{"code": "...", "severity": "...", "message": "..."}],
+    "errors": [{"code": "...", "severity": "...", "message": "..."}]
+  }
+  ```
+
+- Omit unresolved sections entirely. Do not emit `null` placeholders.
 - `foreign_keys[]` entries are per local FK column and use this shape: `{"column": "<local column>", "fk_type": "...", "source": "...", "rationale": "..."}`.
 - Do not replace `column` with `columns`. Do not emit `reference` or nested `references` objects in the profile payload.
 - Include every section you can support; omit unresolved sections instead of inventing values.
 - Use canonical `warnings` and `errors` to explain omissions or reduced confidence.
 - If `profile write` fails validation, correct the payload shape and retry before presenting results.
-- Do not stop after reasoning. Persist the profile first, then summarize the persisted result.
+- Do not set `status`. Do not stop after reasoning. Persist the profile first, then summarize the persisted result.
 
 After a successful write, report:
 
