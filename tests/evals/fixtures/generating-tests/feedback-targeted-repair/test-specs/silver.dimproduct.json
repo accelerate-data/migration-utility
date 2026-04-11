@@ -31,7 +31,8 @@
       "scenarios": [
         "test_status_outdated_with_sell_end_date_and_no_discontinued",
         "test_status_outdated_when_sell_end_date_set",
-        "test_status_outdated_explicit_sell_end_date_coverage"
+        "test_status_outdated_explicit_sell_end_date_coverage",
+        "test_status_outdated_sell_end_date_not_null"
       ]
     },
     {
@@ -388,6 +389,63 @@
             "Style": "U",
             "StartDate": "2023-05-01",
             "EndDate": "2025-06-30",
+            "Status": "Outdated"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
+    },
+    {
+      "name": "test_status_outdated_sell_end_date_not_null",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 999,
+              "ProductName": "OutdatedProduct",
+              "ProductNumber": "PR-999",
+              "MakeFlag": 0,
+              "FinishedGoodsFlag": 1,
+              "Color": "White",
+              "SafetyStockLevel": 10,
+              "ReorderPoint": 5,
+              "StandardCost": 5.0,
+              "ListPrice": 15.0,
+              "Size": null,
+              "SizeUnitMeasureCode": null,
+              "WeightUnitMeasureCode": null,
+              "Weight": null,
+              "DaysToManufacture": 1,
+              "ProductLine": "X",
+              "Class": "L",
+              "Style": "U",
+              "ProductSubcategoryID": null,
+              "ProductModelID": null,
+              "SellStartDate": "2024-01-01",
+              "SellEndDate": "2025-12-31",
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-01-01"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "999",
+            "EnglishProductName": "OutdatedProduct",
+            "StandardCost": 5.0,
+            "ListPrice": 15.0,
+            "Color": "White",
+            "Size": null,
+            "ProductLine": "X",
+            "Class": "L",
+            "Style": "U",
+            "StartDate": "2024-01-01",
+            "EndDate": "2025-12-31",
             "Status": "Outdated"
           }
         ]
