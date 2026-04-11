@@ -51,7 +51,8 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show \
 Present whatever the catalog currently holds for the object.
 
 Do not special-case `is_source` tables. If `discover show` returns columns for a source table, present them as normal catalog state.
-For a direct `show <schema.object>` request, run `discover show` once and answer from that payload. Do not ask follow-up questions before presenting the result.
+For a direct `show <schema.object>` request, run `discover show` once and treat a successful payload as the source of truth for the response. Present the returned catalog state directly.
+Do not inspect sibling files, diagnose catalog/setup problems, or infer missing extraction steps unless `discover show` itself fails.
 
 **Tables:** columns, plus scoping results and analyzed statements if present.
 
