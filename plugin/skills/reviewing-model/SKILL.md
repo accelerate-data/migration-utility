@@ -46,18 +46,9 @@ Derive `model_name` from the SQL filename and verify it matches the naming contr
 
 ## Step 2: Verify artifact fundamentals
 
-Before deeper review, verify the written artifacts directly from disk. Do not trust generator self-reported booleans such as `generated.*`.
+Before deeper review, verify the written artifacts directly from disk against [../_shared/references/model-artifact-invariants.md](../_shared/references/model-artifact-invariants.md). Do not trust generator self-reported booleans such as `generated.*`.
 
-Verify:
-
-- SQL file exists
-- paired schema YAML exists
-- SQL contains a dbt `config(` block
-- SQL/model name/file path match the naming contract
-- SQL text explicitly contains `_dbt_run_id` when `MDL_005` applies
-- SQL text explicitly contains `_loaded_at` when `MDL_006` applies
-- YAML includes `version: 2`
-- YAML includes the required model description
+Also verify the SQL/model name/file path match the naming contract.
 
 These are reviewable artifact failures, not generator metadata disputes. Add them to `checks.standards.issues[]` and `feedback_for_model_generator[]`, then continue with the remaining review steps.
 
@@ -109,9 +100,8 @@ Verify at minimum:
 - SQL style and casing
 - CTE order and `final` shape
 - model/file naming and layer rules
-- required control columns such as `_dbt_run_id` and `_loaded_at`
-- YAML structure, `version: 2`, descriptions, and indentation
-- canonical unit tests still appear in the written YAML when the approved test spec includes them
+- any remaining shared artifact invariant failures not already recorded in Step 2
+- YAML indentation and structure beyond the shared invariants
 
 Use `REVIEW_STANDARDS_VIOLATION` in `checks.standards.issues[]`.
 Report every directly observable stable standards code that applies in `feedback_for_model_generator`; do not collapse multiple standards failures into one representative item.

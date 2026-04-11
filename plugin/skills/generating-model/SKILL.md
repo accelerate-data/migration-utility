@@ -32,15 +32,7 @@ Do not use this skill for batch orchestration. `/generate-model` owns batching, 
 | No reviewer handoff | Derive paths from `migrate write` output; assume no revision feedback |
 | Connection failure on `dbt compile` | Fall back to `dbt parse`; skip `dbt test` |
 
-## Required Output Invariants
-
-Before returning `ok` or `partial`, make sure the written artifacts are reviewable:
-
-- SQL file exists and contains `config(`
-- paired schema YAML exists
-- required control columns such as `_dbt_run_id` and `_loaded_at` follow the naming rules
-- schema YAML includes `version: 2` and required descriptions
-- canonical `unit_tests:` from the approved spec are rendered in YAML
+Before returning `ok` or `partial`, make sure the written artifacts satisfy [../_shared/references/model-artifact-invariants.md](../_shared/references/model-artifact-invariants.md).
 
 ## Happy Path
 
@@ -67,6 +59,7 @@ Before returning `ok` or `partial`, make sure the written artifacts are reviewab
    - [../_shared/references/sql-style.md](../_shared/references/sql-style.md)
    - [../_shared/references/cte-structure.md](../_shared/references/cte-structure.md)
    - [../_shared/references/model-naming.md](../_shared/references/model-naming.md)
+   - [../_shared/references/model-artifact-invariants.md](../_shared/references/model-artifact-invariants.md)
 
    Rules:
    - Keep one dbt model artifact per target. Do not split one target across multiple helper SQL files.
@@ -177,6 +170,7 @@ The generator owns generation facts, not reviewer judgment. If the output contra
 - Hardcoding `migrate write` output paths. The CLI decides written paths; report what it returned.
 - Reducing snapshot models to raw `select * from {{ source(...) }}`. Snapshot config may change, but transformed logic must still be preserved.
 - Hand-writing canonical `unit_tests:` blocks. Use `migrate render-unit-tests`.
+- Returning `ok` for artifacts that do not satisfy the shared artifact invariants.
 - Treating review state as generation state. The reviewer owns review findings; generator revisions respond to them.
 
 ## References
