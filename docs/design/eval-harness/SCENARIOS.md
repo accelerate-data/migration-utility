@@ -12,15 +12,19 @@ A scenario is one test case inside a package YAML: one prompt, one fixture path,
 
 Current package groups:
 
-- Skill packages: `profiling-table`, `generating-tests`, `reviewing-tests`, `reviewing-model`, `analyzing-table`, `refactoring-sql`
+- Skill packages: `profiling-table`, `generating-tests`, `generating-model`, `reviewing-tests`, `reviewing-model`, `analyzing-table`, `refactoring-sql`
 - Command packages: `cmd-scope`, `cmd-profile`, `cmd-generate-model`, `cmd-generate-tests`, `cmd-refactor`, `cmd-status`, `cmd-commit-push-pr`
 - Dialect packages: `oracle-regression`, `oracle-live`, `mssql-live`
 
-There is a standalone `generating-tests` Promptfoo package in the current harness:
+There are standalone generation packages in the current harness:
 
 - `tests/evals/packages/generating-tests/skill-generating-tests.yaml`
+- `tests/evals/packages/generating-model/skill-generating-model.yaml`
 
-There is still no standalone `generating-model` package. `generating-model` fixtures live under `tests/evals/fixtures/generating-model/` and are exercised via `cmd-generate-model`.
+Use the split intentionally:
+
+- `generating-model` covers generator-owned baselines such as artifact writing, materialization shape, control columns, and snapshot rendering.
+- `cmd-generate-model` covers readiness checks, orchestration, review loops, and final summaries.
 
 ## Scenario Names
 
@@ -54,6 +58,7 @@ Use these files as the source of truth:
 
 - `tests/evals/packages/profiling-table/skill-profiling-table.yaml`
 - `tests/evals/packages/generating-tests/skill-generating-tests.yaml`
+- `tests/evals/packages/generating-model/skill-generating-model.yaml`
 - `tests/evals/packages/reviewing-tests/skill-reviewing-tests.yaml`
 - `tests/evals/packages/reviewing-model/skill-reviewing-model.yaml`
 - `tests/evals/packages/analyzing-table/skill-analyzing-table.yaml`
@@ -71,7 +76,8 @@ Use these files as the source of truth:
 
 ## Ownership Notes
 
-- `cmd-generate-model` owns the model-generation scenarios and planning-sweep scenarios.
+- `generating-model` owns direct generator baselines for single-table artifact generation.
+- `cmd-generate-model` owns model-generation orchestration scenarios and planning-sweep scenarios.
 - `generating-tests` owns the skill-level branch enumeration and fixture-synthesis scenarios.
 - `cmd-generate-tests` owns command orchestration and review-loop behavior for test generation.
 - View scenarios are handled by dedicated view prompts inside `profiling-table` and `analyzing-table`.
