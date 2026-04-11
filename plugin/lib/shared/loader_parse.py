@@ -68,7 +68,7 @@ _MIGRATE_TYPES = (exp.Insert, exp.Update, exp.Delete, exp.Merge)
 _SKIP_TYPES = (exp.TruncateTable, exp.Drop)
 
 _BODY_RE = re.compile(
-    r"\bAS\s+BEGIN\b(.*)\bEND\b(?:\s*;)?(?:\s*(?:--[^\n]*|/\*.*?\*/))*\s*$",
+    r"\bAS\s+BEGIN\b(.*)\bEND\b(?:\s*;)?\s*$",
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -172,6 +172,36 @@ def _table_fqn(table: exp.Table) -> str:
     return normalize(f"{table.db}.{table.name}")
 
 
+def _strip_trailing_sql_comments(sql: str) -> str:
+    """Remove whitespace and trailing SQL comments without regex backtracking."""
+    end = len(sql)
+    while True:
+        while end > 0 and sql[end - 1].isspace():
+            end -= 1
+
+        if end >= 2 and sql[end - 2:end] == "*/":
+            start = sql.rfind("/*", 0, end - 2)
+            if start == -1:
+                break
+            end = start
+            continue
+
+        line_start = sql.rfind("\n", 0, end) + 1
+        line = sql[line_start:end]
+        line_comment_offset = line.find("--")
+        comment_start = line_start + line_comment_offset if line_comment_offset != -1 else -1
+        if comment_start != -1:
+            prefix = sql[:comment_start]
+            if prefix and not prefix[-1].isspace() and prefix[-1] != ";":
+                break
+            end = comment_start
+            continue
+
+        break
+
+    return sql[:end].rstrip()
+
+
 def parse_body_statements(raw_ddl: str, dialect: str = "tsql") -> tuple[list[Any], bool, str | None]:
     """Parse procedure body, flattening recoverable control-flow branches.
 
@@ -181,7 +211,7 @@ def parse_body_statements(raw_ddl: str, dialect: str = "tsql") -> tuple[list[Any
         LLM analysis
       - segmenter_error: error message when the segmenter hit a limit, else None
     """
-    m = _BODY_RE.search(raw_ddl)
+    m = _BODY_RE.search(_strip_trailing_sql_comments(raw_ddl))
     if not m:
         return [], False, None
     body = m.group(1).strip()
