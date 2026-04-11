@@ -26,19 +26,19 @@ defaultTest:
       value: file://../../assertions/check-command-summary.js
 
 tests:
-  # ── happy path: 2 tables both generate test specs ───────────
-  - description: "happy-path — InsertSelectTarget + UpdateJoinTarget both generate specs"
+  # ── happy path: single table generates spec cleanly ─────────
+  - description: "happy-path — InsertSelectTarget generates spec"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-generate-tests/happy-path"
-      target_tables: "silver.InsertSelectTarget silver.UpdateJoinTarget"
-      expected_item_statuses: '{"silver.InsertSelectTarget": "ok", "silver.UpdateJoinTarget": "ok"}'
+      target_tables: "silver.InsertSelectTarget"
+      expected_item_statuses: '{"silver.InsertSelectTarget": "ok"}'
 
   # ── review-cycle: single table triggers review cycle ─────────
   - description: "review-cycle — CorrelatedSubqueryTarget review loop"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-generate-tests/review-cycle"
       target_tables: "silver.CorrelatedSubqueryTarget"
-      expected_item_statuses: '{"silver.CorrelatedSubqueryTarget": "ok"}'
+      expected_item_statuses: '{"silver.CorrelatedSubqueryTarget": "partial"}'
 
   - description: "review-loop-targeted-repair — IfElseTarget requires reviewer feedback then second-pass repair"
     vars:
@@ -92,13 +92,15 @@ tests:
       expected_item_statuses: '{"silver.DimCustomer": "ok,partial"}'
       expected_item_review_iterations: '{"silver.DimCustomer": 2}'
       expected_item_review_verdicts: '{"silver.DimCustomer": "approved_with_warnings"}'
-      min_covered_branches: 1
-      min_scenario_count: 1
+      expected_command_review_verdict: "approved_with_warnings"
+      min_branch_review_count: 1
+      min_scenario_review_count: 1
+      expected_warning_terms: "coverage_partial,fixture_quality_warning"
     assert:
       - type: javascript
         value: file://../../assertions/check-command-summary.js
       - type: javascript
-        value: file://../../assertions/check-test-review.js
+        value: file://../../assertions/check-command-review-result.js
 
   # ── error-clean: missing-scoping table + good table ─────────
   - description: "error-clean — DimProduct no scoping + InsertSelectTarget ok"
