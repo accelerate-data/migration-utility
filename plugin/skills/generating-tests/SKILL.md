@@ -10,7 +10,7 @@ argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 
 # Generating Tests
 
-Generate or extend a `TestSpec` for one migrated object. Core rule: regenerate coverage from current SQL and merge safely with approved tests instead of rewriting from memory.
+Generate or extend a `TestSpec` for one migrated object. Follow [../test-invariants/SKILL.md](../test-invariants/SKILL.md) for the shared generator-reviewer contract.
 
 ## When To Use
 
@@ -29,7 +29,7 @@ Do not use this skill to review coverage, run sandbox execution, or generate dbt
 |---|---|
 | Guard | Ready check must pass before any write |
 | Type | Detect `table`, `view`, or `mv` from catalog |
-| Branches | Re-extract current `branch_manifest`; never trust the stored one |
+| Invariants | Apply [../test-invariants/SKILL.md](../test-invariants/SKILL.md) for branch authority, repair scope, and evidence rules |
 | Merge mode | Preserve approved scenarios and `expect` blocks |
 | Feedback | On repair passes, follow reviewer feedback before broad regeneration |
 | Guard rails | Use [references/guard-rails-ref.md](references/guard-rails-ref.md) when merge, feedback, or coverage judgment is ambiguous |
@@ -46,12 +46,7 @@ Do not use this skill to review coverage, run sandbox execution, or generate dbt
 
 ## Handling Reviewer Feedback
 
-When `reviewing-tests` returns `feedback_for_generator`:
-
-- start from the existing `test-specs/<fqn>.json` as the base artifact, not from a blank regenerated file
-- treat `uncovered_branches` as the first repair target
-- preserve non-targeted approved scenarios and `expect` blocks in merge mode
-- do not infer extra reviewer requests from the generator's own `branch_manifest`; apply `quality_fixes` only to named scenarios, and leave unrelated uncovered branches unchanged unless the reviewer explicitly requested them
+When `reviewing-tests` returns `feedback_for_generator`, follow [../test-invariants/SKILL.md](../test-invariants/SKILL.md): start from the existing spec, repair named gaps first, and preserve non-targeted approved scenarios and `expect` blocks.
 
 Repair-pass algorithm:
 
@@ -68,16 +63,6 @@ Use the exact command flow from [references/command-workflow-ref.md](references/
 - Treating stored specs or branch manifests as authority instead of current SQL and catalog state.
 - Treating all `catalog/views/*.json` entries as `view` instead of detecting `mv`.
 - Rewriting approved scenarios or schema shape when only incremental coverage is needed.
-
-## Rationalization Checks
-
-| Rationalization | Correct behavior |
-|---|---|
-| "The old branch manifest is close enough." | Re-extract from current SQL and warn on stale branches. |
-| "Merge mode means I can rewrite the whole file." | Preserve existing scenarios unless feedback requires a targeted revision. |
-| "`feedback_for_generator` is advisory." | Apply requested branch and quality-fix work before broad generation. |
-| "If I am already editing the file, I might as well regenerate everything." | Repair only the reviewer-requested gaps unless broader regeneration is required to keep the spec valid. |
-| "I found other uncovered branches while I was here, so I should fix them too." | On a feedback-driven rerun, leave unrelated gaps alone unless the reviewer requested them. |
 
 ## Boundary Rules
 
