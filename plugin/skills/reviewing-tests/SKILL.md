@@ -8,7 +8,7 @@ argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 
 # Reviewing Tests
 
-Quality gate for generated test specs. The reviewer owns branch coverage, fixture quality, and the final verdict.
+Quality gate for generated test specs. Follow [../test-invariants/SKILL.md](../test-invariants/SKILL.md) for the shared generator-reviewer contract.
 
 ## When to Use
 
@@ -26,7 +26,7 @@ Quality gate for generated test specs. The reviewer owns branch coverage, fixtur
 1. Run `migrate-util ready <item_id> test-gen`. Stop on readiness failure.
 2. Assemble context using the table or view path in [references/table-vs-view-context.md](references/table-vs-view-context.md).
 3. Read `test-specs/<item_id>.json`.
-4. Build your own branch manifest from the source logic. Do not trust the generator's `branch_manifest`.
+4. Build your own branch manifest from the source logic. Apply [../test-invariants/SKILL.md](../test-invariants/SKILL.md): reviewer-owned evidence must not come from the generator's `branch_manifest`.
 5. Map each scenario to the reviewer-owned branches.
 6. Review fixture quality using [references/fixture-quality-rules.md](references/fixture-quality-rules.md).
 7. Write and validate the final review JSON.
@@ -131,13 +131,7 @@ Maximum review iterations: 2.
 
 ## Step 7: Validate and Return
 
-Before schema validation, verify that the review is self-consistent from reviewer-owned evidence:
-
-- `coverage.total_branches` must equal `len(reviewer_branch_manifest)`
-- `coverage.covered_branches` must equal the number of `reviewer_branch_manifest` entries where `covered: true`
-- every `coverage.uncovered[].id`, `coverage.untestable[].id`, and `feedback_for_generator.uncovered_branches[]` entry must come from `reviewer_branch_manifest`
-
-Do not rely on the generator's `branch_manifest` to fill those fields. The review must remain valid even if the generator's branch manifest is stale or wrong.
+Before schema validation, verify the review is self-consistent according to [../test-invariants/SKILL.md](../test-invariants/SKILL.md): coverage counts and uncovered/untestable/feedback IDs must all derive from `reviewer_branch_manifest`, not the generator's `branch_manifest`.
 
 Write the `TestReviewResult` JSON to `.staging/review.json`, then validate:
 
