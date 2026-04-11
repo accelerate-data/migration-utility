@@ -65,14 +65,16 @@
     {
       "type": "Set",
       "action": "skip",
+      "sql": "SET NOCOUNT ON",
       "source": "ast",
-      "sql": "SET NOCOUNT ON"
+      "rationale": "Operational setting that suppresses row count messages."
     },
     {
       "type": "Update",
       "action": "migrate",
+      "sql": "UPDATE silver.DimMultiWriter SET IsActive = 0, ModifiedDate = GETDATE() WHERE AlternateKey IN (SELECT CAST(ProductID AS NVARCHAR(20)) FROM bronze.Product WHERE DiscontinuedDate IS NOT NULL)",
       "source": "ast",
-      "sql": "UPDATE silver.DimMultiWriter SET IsActive = 0, ModifiedDate = GETDATE() WHERE AlternateKey IN (SELECT CAST(ProductID AS NVARCHAR(20)) FROM bronze.Product WHERE DiscontinuedDate IS NOT NULL)"
+      "rationale": "Core transformation that implements soft-delete logic by marking discontinued products as inactive."
     }
   ]
 }
