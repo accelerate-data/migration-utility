@@ -641,5 +641,6 @@
     "passed": true,
     "issues": []
   },
-  "errors": []
+  "errors": [],
+  "object_type": "table"
 }
