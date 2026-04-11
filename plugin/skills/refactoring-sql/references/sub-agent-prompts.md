@@ -71,14 +71,16 @@ Instructions:
    Logical CTEs: One transformation step per CTE. Each does one thing: join,
    filter, aggregate, or transform. Names describe the transformation.
 
-   Final CTE: Assembles the final column list matching the target table.
+   Final CTE: Must be literally named `final` and must assemble the final column list matching the target table.
 
-3. End with: SELECT * FROM final
-4. Keep source dialect syntax (e.g. ISNULL/NVL, CONVERT/TO_CHAR) — no dialect conversion at this stage
-5. Replace procedure parameters with literal defaults where possible
-6. Flatten nested subqueries into sequential CTEs
-7. Temp tables become logical CTEs
-8. Cursor loops become set-based operations (window functions, JOINs)
+3. You MUST create a CTE literally named `final AS (...)`
+4. End with: SELECT * FROM final
+5. Do not end with `SELECT * FROM updated`, `SELECT * FROM surviving`, or any other non-`final` CTE
+6. Keep source dialect syntax (e.g. ISNULL/NVL, CONVERT/TO_CHAR) — no dialect conversion at this stage
+7. Replace procedure parameters with literal defaults where possible
+8. Flatten nested subqueries into sequential CTEs
+9. Temp tables become logical CTEs
+10. Cursor loops become set-based operations (window functions, JOINs)
 
 Return ONLY the refactored CTE SELECT SQL, nothing else.
 ```

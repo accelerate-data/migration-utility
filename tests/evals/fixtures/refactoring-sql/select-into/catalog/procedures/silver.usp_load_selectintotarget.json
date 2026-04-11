@@ -68,30 +68,30 @@
   ],
   "refactor": {
     "status": "partial",
-    "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM bronze.Product",
-    "refactored_sql": "with import as ( select ProductID, ProductName from bronze.Product ), logical as ( select cast(ProductID as nvarchar(25)) as ProductAlternateKey, ProductName as EnglishProductName from import ), final as ( select * from logical ) select * from final",
+    "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM [bronze].[Product]",
+    "refactored_sql": "WITH source_product AS ( SELECT * FROM [bronze].[Product] ), final AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM source_product ) SELECT * FROM final",
     "semantic_review": {
       "passed": true,
       "checks": {
         "source_tables": {
           "passed": true,
-          "summary": "Both queries source from bronze.Product"
+          "summary": "Both queries read from [bronze].[Product]. The refactored version uses a CTE but sources the same table."
         },
         "output_columns": {
           "passed": true,
-          "summary": "Both queries return ProductAlternateKey (NVARCHAR(25)) and EnglishProductName (NVARCHAR(50)). Refactored query wraps extraction in CTEs but maintains identical column names and types."
+          "summary": "Both produce identical output columns: ProductAlternateKey (CAST(ProductID AS NVARCHAR(25))) and EnglishProductName (ProductName). Column order and types match."
         },
         "joins": {
           "passed": true,
-          "summary": "No joins in either query; both are single-table selects"
+          "summary": "Neither query contains joins. Both are single-table selects."
         },
         "filters": {
           "passed": true,
-          "summary": "Neither query applies filters; both are unfiltered selects from the source"
+          "summary": "Neither query applies WHERE conditions. Both select all rows from the source."
         },
         "aggregation_grain": {
           "passed": true,
-          "summary": "Both queries operate at row level with no aggregation functions; grain is equivalent"
+          "summary": "Neither query performs aggregation. Both operate at row level without GROUP BY."
         }
       },
       "issues": []

@@ -18,6 +18,7 @@ providers:
       permission_mode: auto
       append_allowed_tools:
         - Read
+        - Edit
         - Write
         - Bash
         - Glob

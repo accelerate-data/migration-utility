@@ -55,33 +55,39 @@
   ],
   "refactor": {
     "status": "partial",
-    "extracted_sql": "SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM silver.DeleteWhereTarget WHERE IsRetired <> 1",
-    "refactored_sql": "WITH import AS ( SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM silver.DeleteWhereTarget ), logical AS ( SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM import WHERE IsRetired <> 1 ), final AS ( SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM logical ) SELECT * FROM final",
+    "extracted_sql": "SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM silver.DeleteWhereTarget WHERE IsRetired <> 1;",
+    "refactored_sql": "WITH import AS ( SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM silver.DeleteWhereTarget ), logical AS ( SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM import WHERE IsRetired <> 1 OR IsRetired IS NULL ), final AS ( SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM logical ) SELECT * FROM final",
     "semantic_review": {
-      "passed": true,
+      "passed": false,
       "checks": {
         "source_tables": {
           "passed": true,
-          "summary": "Both extracted and refactored SQL source from silver.DeleteWhereTarget exclusively. No mismatched or missing source tables."
+          "summary": "Both SELECTs read from silver.DeleteWhereTarget only"
         },
         "output_columns": {
           "passed": true,
-          "summary": "Output columns match exactly: ProductAlternateKey, EnglishProductName, IsRetired in identical order and types."
+          "summary": "Both return ProductAlternateKey, EnglishProductName, IsRetired with matching types"
         },
         "joins": {
           "passed": true,
-          "summary": "No joins in extracted or refactored SQL. Both operate on single source table."
+          "summary": "No joins applicable; both queries are simple SELECTs from single source table"
         },
         "filters": {
-          "passed": true,
-          "summary": "Both apply identical filter: IsRetired <> 1. This correctly inverts the DELETE WHERE IsRetired = 1 logic to express keep-rows projection."
+          "passed": false,
+          "summary": "WHERE clauses are semantically different: extracted uses 'IsRetired <> 1' while refactored uses 'IsRetired <> 1 OR IsRetired IS NULL'. The refactored version includes additional NULL handling logic not present in extracted baseline"
         },
         "aggregation_grain": {
           "passed": true,
-          "summary": "Both return individual rows with no aggregation or grouping. Grain is consistent at row level."
+          "summary": "No aggregation; both queries return row-level detail"
         }
       },
-      "issues": []
+      "issues": [
+        {
+          "code": "EQUIVALENCE_PARTIAL",
+          "message": "The refactored WHERE clause adds 'OR IsRetired IS NULL' condition not present in extracted SQL. While this is more semantically correct for handling NULL values in a BIT column, it represents a functional difference from the extracted baseline that would produce different result sets if NULL values exist",
+          "severity": "warning"
+        }
+      ]
     },
     "compare_sql": {
       "required": false,

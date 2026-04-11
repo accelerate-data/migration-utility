@@ -7,58 +7,37 @@
     {
       "id": "insert_happy_path",
       "statement_index": 0,
-      "description": "INNER JOIN matches — single header + single detail row inserts one fact row with all fields populated including ShipDate",
-      "scenarios": [
-        "test_insert_single_line_all_fields"
-      ]
+      "description": "INNER JOIN matches — single header + single detail row inserts one fact row with all fields populated including ShipDate"
     },
     {
       "id": "empty_source",
       "statement_index": 0,
-      "description": "Both source tables empty — INSERT produces no rows",
-      "scenarios": [
-        "test_insert_empty_source"
-      ]
+      "description": "Both source tables empty — INSERT produces no rows"
     },
     {
       "id": "join_miss_no_header",
       "statement_index": 0,
-      "description": "Detail row exists but no matching header (INNER JOIN) — detail is excluded from output",
-      "scenarios": [
-        "test_insert_join_miss_no_header"
-      ]
+      "description": "Detail row exists but no matching header (INNER JOIN) — detail is excluded from output"
     },
     {
       "id": "multi_line_tax_freight_distribution",
       "statement_index": 0,
-      "description": "One header + multiple detail rows — TaxAmt and Freight are divided equally across lines via COUNT(*) OVER (PARTITION BY SalesOrderID)",
-      "scenarios": [
-        "test_insert_multi_line_tax_freight_split"
-      ]
+      "description": "One header + multiple detail rows — TaxAmt and Freight are divided equally across lines via COUNT(*) OVER (PARTITION BY SalesOrderID)"
     },
     {
       "id": "null_shipdate",
       "statement_index": 0,
-      "description": "Header has NULL ShipDate — nullable column flows through to target ShipDate as NULL",
-      "scenarios": [
-        "test_insert_null_shipdate"
-      ]
+      "description": "Header has NULL ShipDate — nullable column flows through to target ShipDate as NULL"
     },
     {
       "id": "null_territory",
       "statement_index": 0,
-      "description": "Header has NULL TerritoryID — nullable SalesTerritoryKey flows through as NULL",
-      "scenarios": [
-        "test_insert_null_territory"
-      ]
+      "description": "Header has NULL TerritoryID — nullable SalesTerritoryKey flows through as NULL"
     },
     {
       "id": "detail_id_mod127_zero",
       "statement_index": 0,
-      "description": "SalesOrderDetailID = 127 — modulo expression 127 % 127 = 0, SalesOrderLineNumber is cast to TINYINT value 0",
-      "scenarios": [
-        "test_insert_detail_id_mod127_zero"
-      ]
+      "description": "SalesOrderDetailID = 127 — modulo expression 127 % 127 = 0, SalesOrderLineNumber is cast to TINYINT value 0"
     }
   ],
   "unit_tests": [
@@ -107,7 +86,28 @@
             }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": [
+          {
+            "SalesOrderNumber": "SO43659",
+            "SalesOrderLineNumber": 1,
+            "ProductKey": 776,
+            "CustomerKey": 29825,
+            "SalesTerritoryKey": null,
+            "OrderQuantity": 1,
+            "UnitPrice": 2024.99,
+            "ExtendedAmount": 2024.99,
+            "SalesAmount": 2024.99,
+            "TaxAmt": 1971.52,
+            "Freight": 616.09,
+            "OrderDate": "2011-05-31",
+            "DueDate": "2011-06-12",
+            "ShipDate": "2011-06-07"
+          }
+        ],
+        "row_count": 1
+      }
     },
     {
       "name": "test_insert_empty_source",
@@ -122,7 +122,11 @@
           "table": "[bronze].[SalesOrderDetail]",
           "rows": []
         }
-      ]
+      ],
+      "expect": {
+        "rows": [],
+        "row_count": 0
+      }
     },
     {
       "name": "test_insert_join_miss_no_header",
@@ -149,7 +153,11 @@
             }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": [],
+        "row_count": 0
+      }
     },
     {
       "name": "test_insert_multi_line_tax_freight_split",
@@ -207,7 +215,44 @@
             }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": [
+          {
+            "SalesOrderNumber": "SO43660",
+            "SalesOrderLineNumber": 10,
+            "ProductKey": 754,
+            "CustomerKey": 29672,
+            "SalesTerritoryKey": null,
+            "OrderQuantity": 1,
+            "UnitPrice": 419.46,
+            "ExtendedAmount": 419.46,
+            "SalesAmount": 419.46,
+            "TaxAmt": 62.12,
+            "Freight": 19.41,
+            "OrderDate": "2011-05-31",
+            "DueDate": "2011-06-12",
+            "ShipDate": "2011-06-07"
+          },
+          {
+            "SalesOrderNumber": "SO43660",
+            "SalesOrderLineNumber": 11,
+            "ProductKey": 755,
+            "CustomerKey": 29672,
+            "SalesTerritoryKey": null,
+            "OrderQuantity": 3,
+            "UnitPrice": 291.66,
+            "ExtendedAmount": 874.99,
+            "SalesAmount": 874.99,
+            "TaxAmt": 62.12,
+            "Freight": 19.41,
+            "OrderDate": "2011-05-31",
+            "DueDate": "2011-06-12",
+            "ShipDate": "2011-06-07"
+          }
+        ],
+        "row_count": 2
+      }
     },
     {
       "name": "test_insert_null_shipdate",
@@ -254,7 +299,28 @@
             }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": [
+          {
+            "SalesOrderNumber": "SO43661",
+            "SalesOrderLineNumber": 20,
+            "ProductKey": 200,
+            "CustomerKey": 11000,
+            "SalesTerritoryKey": null,
+            "OrderQuantity": 2,
+            "UnitPrice": 100.00,
+            "ExtendedAmount": 200.00,
+            "SalesAmount": 200.00,
+            "TaxAmt": 50.00,
+            "Freight": 10.00,
+            "OrderDate": "2024-02-01",
+            "DueDate": "2024-02-15",
+            "ShipDate": null
+          }
+        ],
+        "row_count": 1
+      }
     },
     {
       "name": "test_insert_null_territory",
@@ -302,7 +368,28 @@
             }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": [
+          {
+            "SalesOrderNumber": "SO43662",
+            "SalesOrderLineNumber": 30,
+            "ProductKey": 300,
+            "CustomerKey": 12000,
+            "SalesTerritoryKey": null,
+            "OrderQuantity": 1,
+            "UnitPrice": 50.00,
+            "ExtendedAmount": 50.00,
+            "SalesAmount": 50.00,
+            "TaxAmt": 8.00,
+            "Freight": 2.00,
+            "OrderDate": "2024-03-01",
+            "DueDate": "2024-03-15",
+            "ShipDate": "2024-03-10"
+          }
+        ],
+        "row_count": 1
+      }
     },
     {
       "name": "test_insert_detail_id_mod127_zero",
@@ -349,7 +436,28 @@
             }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": [
+          {
+            "SalesOrderNumber": "SO43663",
+            "SalesOrderLineNumber": 0,
+            "ProductKey": 400,
+            "CustomerKey": 13000,
+            "SalesTerritoryKey": null,
+            "OrderQuantity": 1,
+            "UnitPrice": 99.99,
+            "ExtendedAmount": 99.99,
+            "SalesAmount": 99.99,
+            "TaxAmt": 12.70,
+            "Freight": 5.00,
+            "OrderDate": "2024-04-01",
+            "DueDate": "2024-04-15",
+            "ShipDate": "2024-04-10"
+          }
+        ],
+        "row_count": 1
+      }
     }
   ],
   "uncovered_branches": [],

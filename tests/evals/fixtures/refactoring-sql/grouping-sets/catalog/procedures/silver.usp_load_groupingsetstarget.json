@@ -68,30 +68,30 @@
   ],
   "refactor": {
     "status": "partial",
-    "extracted_sql": "SELECT COALESCE(Color, 'all') AS GroupKey, COUNT(*) AS ProductCount FROM bronze.Product GROUP BY GROUPING SETS ((Color), ())",
-    "refactored_sql": "WITH import AS ( SELECT Color FROM bronze.Product ), logical AS ( SELECT COALESCE(Color, 'all') AS GroupKey, COUNT(*) AS ProductCount FROM import GROUP BY GROUPING SETS ((Color), ()) ), final AS ( SELECT GroupKey, ProductCount FROM logical ) SELECT * FROM final",
+    "extracted_sql": "SELECT COALESCE(Color, 'all') AS GroupKey, COUNT(*) AS ProductCount FROM [bronze].[Product] GROUP BY GROUPING SETS ((Color), ())",
+    "refactored_sql": "WITH source_product AS ( SELECT * FROM [bronze].[Product] ), grouped_data AS ( SELECT COALESCE(Color, 'all') AS GroupKey, COUNT(*) AS ProductCount FROM source_product GROUP BY GROUPING SETS ((Color), ()) ), final AS ( SELECT GroupKey, ProductCount FROM grouped_data ) SELECT * FROM final",
     "semantic_review": {
       "passed": true,
       "checks": {
         "source_tables": {
           "passed": true,
-          "summary": "Both queries use the same source table: bronze.Product"
+          "summary": "Both extracted and refactored SQL extract from [bronze].[Product]. Refactored uses a CTE chain but sources from the same table."
         },
         "output_columns": {
           "passed": true,
-          "summary": "Output columns are identical: GroupKey (NVARCHAR(20)) and ProductCount (INT) in both queries"
+          "summary": "Both return GroupKey (NVARCHAR(20), derived from COALESCE(Color, 'all')) and ProductCount (INT). Column names and types match."
         },
         "joins": {
           "passed": true,
-          "summary": "No joins present in either query"
+          "summary": "Both queries have identical join structure: single source table with no joins."
         },
         "filters": {
           "passed": true,
-          "summary": "No WHERE filters in either query; both are unfiltered"
+          "summary": "Both queries have no WHERE clause or filtering logic. Filter behavior is identical."
         },
         "aggregation_grain": {
           "passed": true,
-          "summary": "Both queries use identical GROUP BY GROUPING SETS ((Color), ()) with COUNT(*) aggregation"
+          "summary": "Both use GROUP BY GROUPING SETS ((Color), ()) to produce per-color subtotals and a grand total. Aggregation logic is identical."
         }
       },
       "issues": []

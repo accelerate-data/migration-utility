@@ -145,6 +145,8 @@ Launch a sub-agent using the prompt template in [references/sub-agent-prompts.md
 - For tables: include `proc_body`, `statements`, `columns`, `source_tables`, and `profile`. If `writer_ddl_slice` is present, use it in place of the full `proc_body`.
 - For views: include `view_sql`, `columns`, `source_tables`, and `profile` in place of `proc_body`/`statements`.
 
+The refactored SQL must contain a CTE literally named `final`, followed by `SELECT * FROM final`.
+
 The sub-agent writes the result to `.staging/<table_fqn>-refactored.sql`.
 
 ### Step 4: Run semantic review
@@ -295,6 +297,7 @@ Report:
 - Writing to `.staging` before creating it. Create the directory first.
 - Editing extracted SQL during self-correction. Only refactored SQL may change.
 - Comparing refactored SQL to dbt expectations. Compare extracted SQL to refactored SQL.
+- Treating `final` as a conceptual last step instead of a literal CTE name. The refactored SQL must define `final AS (...)`.
 - Blocking on sandbox access when semantic-review-only fallback is allowed.
 - Inventing surfaced error codes or result fields outside the canonical `/refactor` schema.
 

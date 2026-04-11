@@ -79,5 +79,14 @@
     },
     "foreign_keys": [],
     "pii_actions": []
+  },
+  "test_gen": {
+    "status": "ok",
+    "test_spec_path": "test-specs/silver.whiletarget.json",
+    "branches": 4,
+    "unit_tests": 3,
+    "coverage": "complete",
+    "warnings": [],
+    "errors": []
   }
 }
