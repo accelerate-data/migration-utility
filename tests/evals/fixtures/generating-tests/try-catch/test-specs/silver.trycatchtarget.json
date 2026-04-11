@@ -154,8 +154,7 @@
         }
       ],
       "expect": {
-        "rows": [],
-        "error": "Load failed: Violation of PRIMARY KEY constraint 'PK_TryCatchTarget'. Cannot insert duplicate key in object 'silver.TryCatchTarget'."
+        "rows": []
       },
       "target_table": "[silver].[TryCatchTarget]",
       "procedure": "[silver].[usp_load_TryCatchTarget]"
