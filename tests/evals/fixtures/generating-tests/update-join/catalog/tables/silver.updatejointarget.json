@@ -90,5 +90,14 @@
     "extracted_sql": "SELECT tgt.ProductAlternateKey, src.ProductName AS EnglishProductName, GETDATE() AS LastSeenDate FROM [silver].[UpdateJoinTarget] AS tgt INNER JOIN [bronze].[Product] AS src ON tgt.ProductAlternateKey = CAST(src.ProductID AS NVARCHAR(25))",
     "refactored_sql": "with source_product as (\n    select * from [bronze].[Product]\n),\n\ntarget_table as (\n    select * from [silver].[UpdateJoinTarget]\n),\n\njoined_update as (\n    select\n        tgt.ProductAlternateKey,\n        src.ProductName as EnglishProductName,\n        getdate() as LastSeenDate\n    from target_table as tgt\n    inner join source_product as src\n        on tgt.ProductAlternateKey = cast(src.ProductID as nvarchar(25))\n),\n\nfinal as (\n    select\n        ProductAlternateKey,\n        EnglishProductName,\n        LastSeenDate\n    from joined_update\n)\n\nselect * from final"
   },
-  "statements": []
+  "statements": [],
+  "test_gen": {
+    "status": "ok",
+    "test_spec_path": "test-specs/silver.updatejointarget.json",
+    "branches": 3,
+    "unit_tests": 3,
+    "coverage": "complete",
+    "warnings": [],
+    "errors": []
+  }
 }
