@@ -1,7 +1,7 @@
 ---
 name: listing-objects
 description: >
-  Read-only catalog viewer. Use when the user asks to "list tables", "list procedures", "show me object X", "what references Y", or wants to browse catalog contents.
+  Use when the user asks to "list tables", "list procedures", "show me object X", "what references Y", or wants to browse catalog contents.
 user-invocable: true
 argument-hint: "<subcommand> [object]"
 ---
@@ -39,6 +39,8 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover list \
 
 Present as a numbered list. If the user selects an object, proceed to `show`. If they ask what references it, proceed to `refs`.
 
+If `objects[]` is empty, say there are no objects of that type in the current catalog state. Do not troubleshoot fixtures or infer missing extraction steps unless the user asks.
+
 ## show
 
 ```bash
@@ -47,6 +49,8 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show \
 ```
 
 Present whatever the catalog currently holds for the object.
+
+Do not special-case `is_source` tables. If `discover show` returns columns for a source table, present them as normal catalog state.
 
 **Tables:** columns, plus scoping results and analyzed statements if present.
 
@@ -63,14 +67,18 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover refs \
 
 Present `writers` (procs that modify the object) and `readers` (procs/views that select from it), grouped.
 
+If the payload contains `error`, surface that error instead of inventing refs output from other catalog data.
+
 ## Error handling
 
 Use the canonical `listing-objects` code list in [`../../lib/shared/listing_objects_error_codes.md`](../../lib/shared/listing_objects_error_codes.md).
 
-Map failures like this:
+Map command results like this:
 
 | Command | Exit code / payload | Action |
 |---|---|---|
-| `discover list/show/refs` | 1 | Surface `OBJECT_NOT_FOUND` or `UNSUPPORTED_OBJECT_TYPE` based on the returned message, then stop |
+| `discover list/show` | 1 | Surface `OBJECT_NOT_FOUND`, then stop |
 | `discover list/show/refs` | 2 | Surface `CATALOG_IO_ERROR`, then stop |
+| `discover refs` | payload `error` saying the target is a procedure or unsupported target for refs | Surface `UNSUPPORTED_OBJECT_TYPE`, include the returned guidance, do not fall back to `show`, then stop |
+| `discover refs` | payload `error` saying `no catalog file for ...` | Surface `OBJECT_NOT_FOUND`, then stop |
 | `discover show` | `parse_error` / parse warning in payload | Surface `PARSE_ERROR` or `DDL_PARSE_ERROR` as a warning and continue showing available raw catalog state |
