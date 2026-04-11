@@ -47,6 +47,8 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <fqn> scope
 
 If `ready` is `false`, report the failing check's `code` and `reason` to the user and stop.
 
+All temp payloads for this skill must live under `.staging/` in the current project root. In eval fixtures, the project root is the fixture root passed via `--project-root`. Do not use `/tmp` or any temp path outside the active project root.
+
 ## Object type detection
 
 Check whether `catalog/views/<fqn>.json` exists:
@@ -125,6 +127,8 @@ mkdir -p .staging
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
   --name <view_fqn> --scoping-file .staging/scoping.json && rm -rf .staging
 ```
+
+The `.staging/` directory must be created under the current project root before writing `scoping.json`.
 
 Do not include `status` in the scoping dict.
 
@@ -215,6 +219,8 @@ If a candidate proc has a `MULTI_TABLE_WRITE` warning, do **not** disqualify it.
    rm -rf .staging
    ```
 
+   Create `.staging/` under the current project root before writing `slice.sql`.
+
 3. Proceed to evaluate this candidate normally. If it is the best writer, persist it through the standard table scoping payload and let `discover write-scoping` derive the final `status`.
 4. In `selected_writer_rationale`, note that this is a multi-table-writer proc and name the other tables it writes to.
 
@@ -278,6 +284,8 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
   --name <table> --scoping-file .staging/scoping.json && rm -rf .staging
 ```
 
+The `.staging/` directory must be created under the current project root before writing `scoping.json`.
+
 Do not include `status` in the scoping dict.
 
 The scoping JSON must include a `selected_writer_rationale` field (1–2 sentences explaining why this writer was chosen over alternatives, or why no writer / ambiguous). If the write exits non-zero, report the error and ask the user to correct.
@@ -310,6 +318,7 @@ The table scoping JSON shape:
 - Do not write diagnostics as code-only strings. Use canonical entries with `code`, `severity`, and `message`.
 - Do not reject every `MULTI_TABLE_WRITE` candidate. Separable writers stay valid after slicing.
 - Do not skip readiness checks or fixture-local `--project-root` overrides when running eval scenarios.
+- Do not write temp payloads to `/tmp` or another external directory. Use `.staging/` under the active project root only.
 
 For multi-writer cases, every entry in `candidates` must use `procedure_name` and `rationale`. `dependencies` is optional. Do not use legacy fields such as `procedure`, `write_type`, or `selected`.
 

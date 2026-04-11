@@ -46,18 +46,17 @@ When these patterns are observed, record them in the view's profiling rationale 
 The context JSON provides `references` and `referenced_by` with `object_type` on each `in_scope` entry.
 
 - `references.tables` — tables this view reads from; `object_type: "table"`
-- `references.views` — views this view reads from; `object_type: "view"` — call `discover show --name <fqn>` to inspect their profile if needed
+- `references.views` — views this view reads from; `object_type: "view"` — run `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show --name <fqn>` to inspect their profile if needed
 - `references.functions` — functions used; `object_type: "function"`
 - `referenced_by.procedures` — procedures that read this view; `object_type: "procedure"`
 - `referenced_by.views` — views that depend on this view; `object_type: "view"`
 
-When any `references.views.in_scope` entry is present, call `discover show --name <fqn>` to check if it already has a `profile.classification`. Inherit `mart` if any dependency is classified `mart`. This is rare — most views read directly from tables.
+When any `references.views.in_scope` entry is present, run `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show --name <fqn>` to check if it already has a `profile.classification`. Inherit `mart` if any dependency is classified `mart`. This is rare — most views read directly from tables.
 
 ## Output format
 
 ```json
 {
-  "status": "ok",
   "classification": "stg",
   "rationale": "Single source table with no aggregation or join — pass-through column selection.",
   "source": "llm"
@@ -66,6 +65,5 @@ When any `references.views.in_scope` entry is present, call `discover show --nam
 
 | Field | Valid values |
 |---|---|
-| `status` | `ok`, `partial`, `error` |
 | `classification` | `stg`, `mart` |
 | `source` | `llm` |
