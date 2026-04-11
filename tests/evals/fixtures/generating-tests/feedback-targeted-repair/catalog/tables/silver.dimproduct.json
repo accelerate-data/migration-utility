@@ -212,7 +212,7 @@
     "status": "ok",
     "test_spec_path": "test-specs/silver.dimproduct.json",
     "branches": 8,
-    "unit_tests": 7,
+    "unit_tests": 8,
     "coverage": "complete",
     "warnings": [],
     "errors": []
