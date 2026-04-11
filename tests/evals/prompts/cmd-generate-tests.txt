@@ -12,5 +12,8 @@ Harness overrides:
 - Pass `--project-root {{fixture_path}}` to every CLI command that accepts `--project-root`.
 - Skip sandbox execution for this eval.
 - Write run artifacts to `{{fixture_path}}/.migration-runs/` using the command's normal item-result and summary formats.
+- During the review step, write the final review JSON for each table to `{{fixture_path}}/test-review-results/<schema.table>.json`.
+- Do not finalize `.migration-runs/<schema.table>.<run_id>.json` or the summary until the review loop for that table has completed or failed.
+- Do not approve or summarize a table as `ok`/`complete` unless the final `test-specs/<schema.table>.json` contains valid `expect.rows` for every covering scenario.
 
 If one table fails, continue processing the remaining tables and then write the summary.
