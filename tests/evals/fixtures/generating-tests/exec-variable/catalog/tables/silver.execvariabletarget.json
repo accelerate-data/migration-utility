@@ -68,7 +68,7 @@
     "test_spec_path": "test-specs/silver.execvariabletarget.json",
     "branches": 1,
     "unit_tests": 3,
-    "coverage": "partial",
+    "coverage": "complete",
     "warnings": [],
     "errors": []
   }
