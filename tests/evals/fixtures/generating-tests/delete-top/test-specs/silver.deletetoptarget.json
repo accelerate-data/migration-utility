@@ -7,32 +7,42 @@
     {
       "id": "delete_top_old_records_removed",
       "statement_index": 0,
-      "description": "DELETE TOP (100) — records older than 1 year are deleted from the target table",
-      "scenarios": ["test_delete_top_old_record_removed"]
+      "description": "DELETE TOP (100) \u2014 records older than 1 year are deleted from the target table",
+      "scenarios": [
+        "test_delete_top_old_record_removed"
+      ]
     },
     {
       "id": "delete_top_recent_records_kept",
       "statement_index": 0,
-      "description": "WHERE LoadedDate >= 1 year — non-matching recent records remain in target table",
-      "scenarios": ["test_delete_top_recent_record_retained"]
+      "description": "WHERE LoadedDate >= 1 year \u2014 non-matching recent records remain in target table",
+      "scenarios": [
+        "test_delete_top_recent_record_retained"
+      ]
     },
     {
       "id": "delete_top_limit_boundary",
       "statement_index": 0,
-      "description": "DELETE TOP (100) with more than 100 old records — only top 100 deleted, rest remain",
-      "scenarios": ["test_delete_top_exactly_100_deleted"]
+      "description": "DELETE TOP (100) with more than 100 old records \u2014 only top 100 deleted, rest remain",
+      "scenarios": [
+        "test_delete_top_exactly_100_deleted"
+      ]
     },
     {
       "id": "delete_top_mixed_records",
       "statement_index": 0,
-      "description": "Mix of old and recent records — only old records deleted, recent retained",
-      "scenarios": ["test_delete_top_mixed_old_and_recent"]
+      "description": "Mix of old and recent records \u2014 only old records deleted, recent retained",
+      "scenarios": [
+        "test_delete_top_mixed_old_and_recent"
+      ]
     },
     {
       "id": "empty_table_no_op",
       "statement_index": 0,
-      "description": "Empty target table — DELETE affects zero rows, no error",
-      "scenarios": ["test_delete_top_empty_table_no_op"]
+      "description": "Empty target table \u2014 DELETE affects zero rows, no error",
+      "scenarios": [
+        "test_delete_top_empty_table_no_op"
+      ]
     }
   ],
   "unit_tests": [
@@ -91,27 +101,27 @@
           "table": "[silver].[DeleteTopTarget]",
           "rows": [
             {
-              "ProductAlternateKey": "P003",
+              "ProductAlternateKey": "P100",
               "EnglishProductName": "Widget C",
               "LoadedDate": "2023-02-10T09:15:00"
             },
             {
-              "ProductAlternateKey": "P004",
+              "ProductAlternateKey": "P101",
               "EnglishProductName": "Widget D",
               "LoadedDate": "2023-02-11T09:15:00"
             },
             {
-              "ProductAlternateKey": "P005",
+              "ProductAlternateKey": "P102",
               "EnglishProductName": "Widget E",
               "LoadedDate": "2023-02-12T09:15:00"
             },
             {
-              "ProductAlternateKey": "P006",
+              "ProductAlternateKey": "P103",
               "EnglishProductName": "Widget F",
               "LoadedDate": "2023-02-13T09:15:00"
             },
             {
-              "ProductAlternateKey": "P007",
+              "ProductAlternateKey": "P104",
               "EnglishProductName": "Widget G",
               "LoadedDate": "2023-02-14T09:15:00"
             }
