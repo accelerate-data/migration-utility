@@ -1,27 +1,48 @@
 ---
 name: refactoring-sql
 description: >
-  Refactors raw source SQL from a stored procedure or view into an import/logical/final CTE
-  pattern. Uses two isolated sub-agents to avoid context pollution: one extracts
-  the core SELECT from the proc, the other restructures it into CTEs. Proves
-  equivalence via semantic review and, when available, sandbox execution. Invoke
-  when the user asks to "refactor SQL", "restructure to CTEs", or "prepare SQL
-  for migration".
+  Use when a stored procedure, view, or materialized view must be rewritten into
+  import/logical/final CTEs for migration, especially when semantic equivalence
+  must be proven with semantic review and optional sandbox compare-sql.
 user-invocable: false
 argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 ---
 
 # Refactoring SQL
 
-Refactor source SQL into an import/logical/final CTE pattern using isolated sub-agents, with semantic review and optional sandbox equivalence audit.
+Refactor source SQL into an import/logical/final CTE pattern, keep the extracted SQL as the ground truth, and persist only proof-backed results.
 
 ## Arguments
 
 `$ARGUMENTS` is the fully-qualified object name (table or view). Ask the user if missing.
 
-## Contracts
+## When to Use
 
-The refactor section persisted to catalog has this shape:
+Use this skill when:
+
+- a stored procedure, view, or materialized view must be restructured into import/logical/final CTEs before downstream model generation
+- semantic equivalence must be checked before persisting the `refactor` section
+- sandbox execution may be unavailable and the run must degrade cleanly to semantic-review-only proof
+
+Do not use this skill when:
+
+- the readiness guard for `refactor` fails
+- the task is generating dbt models or test specs rather than restructuring source SQL
+- the object already has a proof-backed refactor and the user did not ask for a rerun
+
+## Quick Reference
+
+| Item | Rule |
+|---|---|
+| Readiness guard | `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <table_fqn> refactor` |
+| Context assembly | `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" refactor context --table <table_fqn>` |
+| Sandbox check | `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-status` |
+| Compare behavior | If caller skips compare, or sandbox is unavailable, do semantic review only and persist with `--no-compare-required` |
+| Statuses | `ok`, `partial`, `error` |
+| Surfaced codes | Use only `../../lib/shared/refactor_error_codes.md` |
+| Ground truth | Never modify the extracted SQL during self-correction |
+
+The persisted `refactor` section has this shape:
 
 ```json
 {
@@ -54,32 +75,11 @@ The refactor section persisted to catalog has this shape:
 
 Do not invent fields. If `refactor write` rejects the payload, fix the payload and retry.
 
-## Compare decision
+## Implementation
 
-Decide whether to run executable `compare-sql` using this order:
+### Step 1: Run the guard
 
-1. If the caller explicitly says to skip `compare-sql`, skip it.
-2. Otherwise check sandbox availability:
-
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-status
-```
-
-1. If sandbox status succeeds, run `compare-sql`.
-2. If sandbox status fails, do not block. Fall back to semantic review only.
-
-When you skip executable compare:
-
-- do not ask for approval
-- do not block on missing sandbox access
-- still run semantic review
-- write refactor evidence with `--no-compare-required`
-
-This path should normally persist `status: partial`, not `ok`.
-
-## Before invoking
-
-Run the stage guard:
+Run the readiness guard:
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <table_fqn> refactor
@@ -87,7 +87,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <table_fqn> refa
 
 If `ready` is `false`, stop and report the returned `code` and `reason`.
 
-## Step 1: Assemble context
+### Step 2: Assemble context
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" refactor context \
@@ -99,7 +99,7 @@ code `CONTEXT_PREREQUISITE_MISSING`. If it fails due to IO or parse issues, retu
 `status: "error"` with code `CONTEXT_IO_ERROR`. Do not surface raw labels such as
 `no_writer_configured` in the result JSON.
 
-Read `object_type` from the output to know which path you are on:
+Read `object_type` from the output:
 
 **Table (`object_type: "table"`):**
 
@@ -115,27 +115,39 @@ Read `object_type` from the output to know which path you are on:
 **View (`object_type: "view"` or `"mv"`):**
 
 - `view_sql` — original view SQL body; this is the ground truth for sub-agent A
-- `columns`, `source_tables`, `test_spec`, `sandbox` — same as table path
+- `profile`, `columns`, `source_tables`, `test_spec`, `sandbox` — same as table path
 - No `writer`, `proc_body`, or `statements` — absent for views
 - Write-back via `refactor write` auto-detects the view and writes to the view catalog
 
-## Step 2: Launch two sub-agents in parallel
+### Step 3: Create staging files and launch extraction/refactor agents
+
+Create the staging directory before either sub-agent writes to it:
+
+```bash
+mkdir -p .staging
+```
 
 Launch both sub-agents simultaneously. They must not see each other's output. Both agents use [references/routine-migration-ref.md](references/routine-migration-ref.md) for DML extraction and CTE restructuring rules. Substitute placeholders in the prompt templates with actual values from Step 1 context.
 
 ### Sub-agent A: Extract core SELECT
 
-Launch a sub-agent using the prompt template in [references/sub-agent-prompts.md -- Sub-agent A](references/sub-agent-prompts.md). For tables, include `proc_body`, `statements`, and `columns` (or `writer_ddl_slice` if present). For views, include `view_sql` and `columns` in place of `proc_body`/`statements`.
+Launch a sub-agent using the prompt template in [references/sub-agent-prompts.md -- Sub-agent A](references/sub-agent-prompts.md).
+
+- For tables: include `proc_body`, `statements`, and `columns`. If `writer_ddl_slice` is present, use it in place of the full `proc_body`.
+- For views: include `view_sql` and `columns` in place of `proc_body`/`statements`.
 
 The sub-agent writes the result to `.staging/<table_fqn>-extracted.sql`.
 
 ### Sub-agent B: Refactor into CTEs
 
-Launch a sub-agent using the prompt template in [references/sub-agent-prompts.md -- Sub-agent B](references/sub-agent-prompts.md). For tables, include `proc_body`, `statements`, `columns`, `source_tables`, and `profile` (or `writer_ddl_slice` if present). For views, include `view_sql`, `columns`, and `source_tables` in place of `proc_body`/`statements`.
+Launch a sub-agent using the prompt template in [references/sub-agent-prompts.md -- Sub-agent B](references/sub-agent-prompts.md).
+
+- For tables: include `proc_body`, `statements`, `columns`, `source_tables`, and `profile`. If `writer_ddl_slice` is present, use it in place of the full `proc_body`.
+- For views: include `view_sql`, `columns`, `source_tables`, and `profile` in place of `proc_body`/`statements`.
 
 The sub-agent writes the result to `.staging/<table_fqn>-refactored.sql`.
 
-## Step 3: Semantic review
+### Step 4: Run semantic review
 
 After both sub-agents complete, launch a third isolated sub-agent to validate semantic equivalence between the extracted SQL and the refactored SQL.
 
@@ -179,18 +191,41 @@ Write the JSON to `.staging/<table_fqn>-semantic-review.json`.
 
 **If semantic review fails (`passed: false`):** do not proceed to the equivalence audit. Skip to Step 5 and persist with `--no-compare-required`. Status will be `partial`.
 
-## Step 4: Equivalence audit
+### Step 5: Decide whether to run compare-sql
+
+Use this order:
+
+1. If the caller explicitly says to skip `compare-sql`, skip it.
+2. Otherwise run:
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-status
+```
+
+1. If sandbox status succeeds, run `compare-sql`.
+2. If sandbox status fails, do not block. Fall back to semantic review only.
+
+When you skip executable compare:
+
+- do not ask for approval
+- do not block on missing sandbox access
+- still run semantic review
+- write refactor evidence with `--no-compare-required`
+
+This path should normally persist `status: partial`, not `ok`.
+
+### Step 6: Equivalence audit
 
 When sandbox status succeeds and the caller did not say to skip `compare-sql`, run the comparison CLI:
 
 ```bash
-mkdir -p .staging
-
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness compare-sql \
   --sql-a-file .staging/<table_fqn>-extracted.sql \
   --sql-b-file .staging/<table_fqn>-refactored.sql \
   --spec test-specs/<table_fqn>.json > .staging/<table_fqn>-compare.json
 ```
+
+The compare spec path is the on-disk test spec under `test-specs/<table_fqn>.json`. The `test_spec` object returned by `refactor context` is for inspection, not a replacement for the CLI `--spec` file argument.
 
 Write the JSON output to `.staging/<table_fqn>-compare.json`.
 
@@ -204,7 +239,7 @@ Read the output JSON. For each scenario:
 If any scenario fails (`equivalent: false`):
 
 1. Analyse the diff: which rows differ and why (missing join, wrong filter, dropped column, type mismatch)
-2. Revise **only the refactored CTE SQL** (sub-agent B's output) to fix the semantic gap. The extracted SQL (sub-agent A's output) is the ground truth — never modify it.
+2. Revise **only the refactored CTE SQL** (sub-agent B's output) to fix the semantic gap. The extracted SQL is the ground truth.
 3. Rewrite `.staging/<table_fqn>-refactored.sql`
 4. Rerun semantic review and write the updated result to `.staging/<table_fqn>-semantic-review.json`
 5. Rerun `compare-sql`
@@ -212,7 +247,7 @@ If any scenario fails (`equivalent: false`):
 
 After 3 failed iterations, proceed to Step 5 with the partial result.
 
-## Step 5: Write to catalog
+### Step 7: Write to catalog
 
 ### When sandbox comparison ran and passed
 
@@ -238,7 +273,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" refactor write \
 
 Do not invent or override the status.
 
-## Step 6: Clean up and report
+### Step 8: Clean up and report
 
 Delete the staging directory after `refactor write` succeeds:
 
@@ -254,6 +289,14 @@ Report:
 4. Semantic review verdict (passed/failed, any issues)
 5. Equivalence audit results (per-scenario pass/fail, or skipped with reason)
 6. Final persisted status
+
+## Common Mistakes
+
+- Writing to `.staging` before creating it. Create the directory first.
+- Editing extracted SQL during self-correction. Only refactored SQL may change.
+- Comparing refactored SQL to dbt expectations. Compare extracted SQL to refactored SQL.
+- Blocking on sandbox access when semantic-review-only fallback is allowed.
+- Inventing surfaced error codes or result fields outside the canonical `/refactor` schema.
 
 ## References
 
