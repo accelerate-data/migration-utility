@@ -179,5 +179,86 @@
   "scoping": {
     "status": "resolved",
     "selected_writer": "silver.usp_load_DimContact"
+  },
+  "profile": {
+    "writer": "silver.usp_load_dimcontact",
+    "classification": {
+      "resolved_kind": "dim_non_scd",
+      "rationale": "TRUNCATE + INSERT pattern with no versioning columns (valid_from, valid_to, is_current). Table contains only descriptive contact attributes with no fact/measure columns. Classic full-reload dimension without SCD2 versioning logic.",
+      "source": "llm"
+    },
+    "primary_key": {
+      "columns": [
+        "ContactKey"
+      ],
+      "source": "catalog",
+      "rationale": "Declared primary key PK_DimContact on ContactKey"
+    },
+    "natural_key": {
+      "columns": [
+        "ContactAlternateKey"
+      ],
+      "source": "llm",
+      "rationale": "ContactAlternateKey (derived from CustomerID) serves as the business key; ContactKey is the IDENTITY surrogate PK."
+    },
+    "foreign_keys": [],
+    "watermark": null,
+    "pii_actions": [
+      {
+        "column": "SocialSecurityNumber",
+        "action": "mask",
+        "source": "catalog",
+        "rationale": "Classified as Highly Confidential, National ID in sensitivity_classifications"
+      },
+      {
+        "column": "EmailAddress",
+        "action": "mask",
+        "source": "catalog",
+        "rationale": "Classified as Confidential, Contact Info in sensitivity_classifications"
+      },
+      {
+        "column": "PhoneNumber",
+        "action": "mask",
+        "source": "catalog",
+        "rationale": "Classified as Confidential, Contact Info in sensitivity_classifications"
+      },
+      {
+        "column": "FirstName",
+        "action": "mask",
+        "source": "llm",
+        "rationale": "Personal name PII; combined with other identifiers poses re-identification risk."
+      },
+      {
+        "column": "LastName",
+        "action": "mask",
+        "source": "llm",
+        "rationale": "Personal name PII; combined with other identifiers poses re-identification risk."
+      },
+      {
+        "column": "BirthDate",
+        "action": "mask",
+        "source": "llm",
+        "rationale": "Date of birth is PII. Commonly used in identity verification."
+      },
+      {
+        "column": "StreetAddress",
+        "action": "mask",
+        "source": "llm",
+        "rationale": "Street address is PII; combined with name and phone poses re-identification risk."
+      },
+      {
+        "column": "City",
+        "action": "mask",
+        "source": "llm",
+        "rationale": "Location PII; when combined with postal code and name, enables re-identification."
+      },
+      {
+        "column": "PostalCode",
+        "action": "mask",
+        "source": "llm",
+        "rationale": "Postal code is location PII; combined with other attributes enables re-identification."
+      }
+    ],
+    "status": "ok"
   }
 }

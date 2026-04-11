@@ -123,11 +123,11 @@
     "selected_writer": "silver.usp_load_FactInventorySnapshot"
   },
   "profile": {
-    "writer": "silver.usp_load_factinventorysnapshot",
+    "writer": "silver.usp_load_FactInventorySnapshot",
     "classification": {
       "resolved_kind": "fact_periodic_snapshot",
-      "source": "catalog+llm",
-      "rationale": "Grain is (ProductKey, WarehouseKey, SnapshotDate) representing daily inventory state. Measures are stock balances (semi-additive), not transactions. Delete-and-reload pattern with date-partitioned load strategy."
+      "rationale": "Single SnapshotDate column with composite grain (ProductKey, WarehouseKey, SnapshotDate)—one row per product per warehouse per day. Measures are inventory balance/stock values (UnitsOnHand, ReorderPoint, UnitCost), semi-additive across time. Procedure executes daily full refresh (DELETE for today + INSERT today's snapshot) from Product dimension table, characteristic of periodic snapshot pattern.",
+      "source": "llm"
     },
     "primary_key": {
       "columns": [
@@ -135,9 +135,9 @@
         "WarehouseKey",
         "SnapshotDate"
       ],
-      "primary_key_type": "composite",
+      "primary_key_type": "natural",
       "source": "catalog",
-      "rationale": "Composite natural key declared in catalog, representing the grain (entity + date)."
+      "rationale": "Declared composite primary key with no identity columns. Forms the natural business grain: product × warehouse × snapshot date."
     },
     "natural_key": {
       "columns": [
@@ -145,15 +145,24 @@
         "WarehouseKey",
         "SnapshotDate"
       ],
-      "source": "catalog",
-      "rationale": "Primary key is composite natural key (no surrogate). All columns are business-sourced identifiers."
+      "rationale": "Composite business key defines the fact grain: one row per product per warehouse per snapshot date. All three columns are business-meaningful identifiers, no surrogate.",
+      "source": "llm"
     },
     "watermark": {
       "column": "SnapshotDate",
-      "watermark_type": "date_partitioned",
-      "source": "llm",
-      "rationale": "Daily full-refresh pattern using CAST(GETDATE() AS DATE). SnapshotDate is the date partition key, suggesting insert_overwrite materialization strategy."
+      "rationale": "SnapshotDate forms the temporal dimension and grain boundary. Procedure uses WHERE SnapshotDate = CAST(GETDATE() AS DATE) to perform daily full refresh.",
+      "source": "llm"
     },
+    "foreign_keys": [],
+    "pii_actions": [],
+    "warnings": [
+      {
+        "code": "UNRESOLVED_FOREIGN_KEYS",
+        "severity": "medium",
+        "message": "No declared foreign keys in catalog. ProductKey and WarehouseKey naming patterns suggest potential FKs to dimension tables (DimProduct, DimWarehouse), but no explicit catalog relationships and no dimension JOIN logic in procedure provides definitive targets. WarehouseKey is hardcoded to constant 1 in procedure. Recommend verifying dimension relationships."
+      }
+    ],
+    "errors": [],
     "status": "ok"
   }
 }
