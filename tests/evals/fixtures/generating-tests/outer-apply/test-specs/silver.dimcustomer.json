@@ -127,7 +127,22 @@
             }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": [
+          {
+            "CustomerAlternateKey": "101",
+            "FirstName": "John",
+            "MiddleName": "Michael",
+            "LastName": "Smith",
+            "Title": "Mr.",
+            "Gender": null,
+            "MaritalStatus": null,
+            "EmailPromotion": 1,
+            "DateFirstPurchase": "2023-03-15"
+          }
+        ]
+      }
     },
     {
       "name": "test_customer_no_orders_null_date",
@@ -167,7 +182,22 @@
           "table": "[bronze].[SalesOrderHeader]",
           "rows": []
         }
-      ]
+      ],
+      "expect": {
+        "rows": [
+          {
+            "CustomerAlternateKey": "102",
+            "FirstName": "Jane",
+            "MiddleName": "Elizabeth",
+            "LastName": "Doe",
+            "Title": "Ms.",
+            "Gender": null,
+            "MaritalStatus": null,
+            "EmailPromotion": 0,
+            "DateFirstPurchase": null
+          }
+        ]
+      }
     },
     {
       "name": "test_null_personid_produces_null_names",
@@ -221,7 +251,10 @@
             }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": []
+      }
     },
     {
       "name": "test_multiple_customers_mixed_scenarios",
@@ -339,7 +372,33 @@
             }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": [
+          {
+            "CustomerAlternateKey": "104",
+            "FirstName": "Robert",
+            "MiddleName": "James",
+            "LastName": "Johnson",
+            "Title": "Dr.",
+            "Gender": null,
+            "MaritalStatus": null,
+            "EmailPromotion": 2,
+            "DateFirstPurchase": "2023-05-01"
+          },
+          {
+            "CustomerAlternateKey": "105",
+            "FirstName": "Sarah",
+            "MiddleName": "Ann",
+            "LastName": "Williams",
+            "Title": "Mrs.",
+            "Gender": null,
+            "MaritalStatus": null,
+            "EmailPromotion": 1,
+            "DateFirstPurchase": null
+          }
+        ]
+      }
     }
   ],
   "uncovered_branches": [],
