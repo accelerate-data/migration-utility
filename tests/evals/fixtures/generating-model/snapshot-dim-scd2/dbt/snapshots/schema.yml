@@ -1,68 +1,21 @@
 version: 2
 
 snapshots:
-  - name: dim_employee_scd2_snapshot
-    description: |
-      SCD Type 2 snapshot of employee dimension.
-      Tracks changes to JobTitle and Department with ValidFrom/ValidTo window.
-      Preserves full change history for audit and analytical purposes.
+  - name: dimemployeescd2_snapshot
+    description: "Migrated from silver.usp_load_DimEmployeeSCD2. Target: silver.DimEmployeeSCD2."
     columns:
-      - name: EmployeeSCD2Key
-        description: Surrogate key (auto-incrementing identity)
-        tests:
+      - name: EmployeeNaturalKey
+        description: "Employee natural key (NationalIDNumber)"
+        data_tests:
           - unique
           - not_null
-      - name: EmployeeNaturalKey
-        description: Business key from bronze.Employee.NationalIDNumber
-        tests:
-          - not_null
       - name: FirstName
-        description: Employee first name from LoginID
+        description: "Employee first name derived from LoginID"
       - name: LastName
-        description: Employee last name placeholder (currently JobTitle)
+        description: "Employee last name (from JobTitle)"
       - name: JobTitle
-        description: Job title — tracked change column
+        description: "Employee job title"
+        data_tests:
+          - not_null
       - name: Department
-        description: Department placeholder from MaritalStatus — tracked change column
-      - name: ValidFrom
-        description: Timestamp when row became current
-        tests:
-          - not_null
-      - name: ValidTo
-        description: Timestamp when row expired (9999-12-31 if current)
-      - name: IsCurrent
-        description: Flag indicating if this is the current row (1 = current, 0 = expired)
-      - name: _dbt_run_id
-        description: dbt invocation ID for lineage
-        tests:
-          - not_null
-
-models:
-  - name: dim_employee_scd2_snapshot
-    unit_tests:
-      - name: test_expire_changed_row
-        model: dim_employee_scd2_snapshot
-        given:
-          - input: source('[bronze]', '[Employee]')
-            rows:
-              - NationalIDNumber: '123456789'
-                LoginID: adventure-works\ken0
-                JobTitle: Engineer
-                MaritalStatus: S
-        expect:
-          rows:
-            - EmployeeNaturalKey: '123456789'
-              JobTitle: Engineer
-      - name: test_insert_new_employee
-        model: dim_employee_scd2_snapshot
-        given:
-          - input: source('[bronze]', '[Employee]')
-            rows:
-              - NationalIDNumber: '987654321'
-                LoginID: adventure-works\jane0
-                JobTitle: Manager
-                MaritalStatus: M
-        expect:
-          rows:
-            - EmployeeNaturalKey: '987654321'
-              JobTitle: Manager
+        description: "Employee department (from MaritalStatus)"
