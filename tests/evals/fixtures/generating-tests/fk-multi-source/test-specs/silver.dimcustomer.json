@@ -8,39 +8,61 @@
       "statement_index": 0,
       "description": "TRUNCATE clears existing customer rows before reload",
       "scenarios": [
+        "test_truncate_before_reload",
         "test_outer_apply_with_orders",
-        "test_null_person_branch"
+        "test_no_orders_null_date",
+        "test_inner_join_filters_unmatched_person"
       ]
     },
     {
-      "id": "insert_with_outer_apply",
+      "id": "insert_with_inner_join",
       "statement_index": 1,
-      "description": "INSERT with OUTER APPLY derives DateFirstPurchase from minimum order date",
+      "description": "INSERT with INNER JOIN between Customer and Person requires PersonID match",
+      "scenarios": [
+        "test_outer_apply_with_orders",
+        "test_no_orders_null_date",
+        "test_inner_join_filters_unmatched_person"
+      ]
+    },
+    {
+      "id": "outer_apply_with_orders",
+      "statement_index": 1,
+      "description": "OUTER APPLY derives DateFirstPurchase from MIN(OrderDate) when orders exist",
       "scenarios": [
         "test_outer_apply_with_orders"
       ]
     },
     {
-      "id": "null_person_handling",
+      "id": "outer_apply_no_orders",
       "statement_index": 1,
-      "description": "NULL PersonID in Customer table produces NULL name columns via LEFT JOIN to Person",
+      "description": "OUTER APPLY produces NULL DateFirstPurchase when customer has no orders",
       "scenarios": [
-        "test_null_person_branch"
+        "test_no_orders_null_date"
       ]
     },
     {
-      "id": "no_orders_null_date",
+      "id": "inner_join_requires_match",
       "statement_index": 1,
-      "description": "Customer with no orders gets NULL DateFirstPurchase from OUTER APPLY",
+      "description": "INNER JOIN filters out customers with NULL or non-matching PersonID (no rows in output)",
       "scenarios": [
-        "test_single_customer_no_orders"
+        "test_inner_join_filters_unmatched_person"
+      ]
+    },
+    {
+      "id": "null_hardcodes",
+      "statement_index": 1,
+      "description": "Gender and MaritalStatus are hardcoded as NULL",
+      "scenarios": [
+        "test_outer_apply_with_orders",
+        "test_no_orders_null_date"
       ]
     }
   ],
   "unit_tests": [
     {
-      "name": "test_single_customer_no_orders",
-      "model": "stg_dimcustomer",
+      "name": "test_truncate_before_reload",
+      "target_table": "[silver].[DimCustomer]",
+      "procedure": "[silver].[usp_load_DimCustomer_Full]",
       "given": [
         {
           "table": "[bronze].[Customer]",
@@ -48,6 +70,8 @@
             {
               "CustomerID": 101,
               "PersonID": 1001,
+              "StoreID": null,
+              "TerritoryID": null,
               "AccountNumber": "AW00000101",
               "ModifiedDate": "2024-01-01"
             }
@@ -61,6 +85,9 @@
               "PersonType": "EM",
               "FirstName": "John",
               "LastName": "Doe",
+              "MiddleName": null,
+              "Title": null,
+              "Suffix": null,
               "EmailPromotion": 0,
               "ModifiedDate": "2024-01-01"
             }
@@ -76,17 +103,21 @@
           {
             "CustomerAlternateKey": "101",
             "FirstName": "John",
+            "MiddleName": null,
             "LastName": "Doe",
+            "Title": null,
+            "Gender": null,
+            "MaritalStatus": null,
+            "EmailPromotion": 0,
             "DateFirstPurchase": null
           }
         ]
-      },
-      "target_table": "[silver].[DimCustomer]",
-      "procedure": "[silver].[usp_load_DimCustomer_Full]"
+      }
     },
     {
       "name": "test_outer_apply_with_orders",
-      "model": "stg_dimcustomer",
+      "target_table": "[silver].[DimCustomer]",
+      "procedure": "[silver].[usp_load_DimCustomer_Full]",
       "given": [
         {
           "table": "[bronze].[Customer]",
@@ -94,6 +125,8 @@
             {
               "CustomerID": 102,
               "PersonID": 1002,
+              "StoreID": null,
+              "TerritoryID": null,
               "AccountNumber": "AW00000102",
               "ModifiedDate": "2024-01-01"
             }
@@ -107,6 +140,9 @@
               "PersonType": "EM",
               "FirstName": "Jane",
               "LastName": "Smith",
+              "MiddleName": null,
+              "Title": "Ms.",
+              "Suffix": null,
               "EmailPromotion": 1,
               "ModifiedDate": "2024-01-01"
             }
@@ -120,17 +156,24 @@
               "RevisionNumber": 0,
               "OrderDate": "2024-03-15",
               "DueDate": "2024-03-22",
+              "ShipDate": "2024-03-20",
               "Status": 5,
               "OnlineOrderFlag": 1,
               "SalesOrderNumber": "SO43659",
+              "PurchaseOrderNumber": null,
+              "AccountNumber": null,
               "CustomerID": 102,
+              "SalesPersonID": null,
+              "TerritoryID": null,
               "BillToAddressID": 1,
               "ShipToAddressID": 1,
               "ShipMethodID": 1,
+              "CreditCardID": null,
               "SubTotal": 100.00,
               "TaxAmt": 10.00,
               "Freight": 5.00,
               "TotalDue": 115.00,
+              "Comment": null,
               "ModifiedDate": "2024-01-01"
             },
             {
@@ -138,17 +181,24 @@
               "RevisionNumber": 0,
               "OrderDate": "2024-02-10",
               "DueDate": "2024-02-17",
+              "ShipDate": "2024-02-14",
               "Status": 5,
               "OnlineOrderFlag": 0,
               "SalesOrderNumber": "SO43660",
+              "PurchaseOrderNumber": null,
+              "AccountNumber": null,
               "CustomerID": 102,
+              "SalesPersonID": null,
+              "TerritoryID": null,
               "BillToAddressID": 1,
               "ShipToAddressID": 1,
               "ShipMethodID": 1,
+              "CreditCardID": null,
               "SubTotal": 150.00,
               "TaxAmt": 15.00,
               "Freight": 7.50,
               "TotalDue": 172.50,
+              "Comment": null,
               "ModifiedDate": "2024-01-01"
             }
           ]
@@ -159,26 +209,94 @@
           {
             "CustomerAlternateKey": "102",
             "FirstName": "Jane",
+            "MiddleName": null,
             "LastName": "Smith",
+            "Title": "Ms.",
+            "Gender": null,
+            "MaritalStatus": null,
             "EmailPromotion": 1,
             "DateFirstPurchase": "2024-02-10"
           }
         ]
-      },
-      "target_table": "[silver].[DimCustomer]",
-      "procedure": "[silver].[usp_load_DimCustomer_Full]"
+      }
     },
     {
-      "name": "test_null_person_branch",
-      "model": "stg_dimcustomer",
+      "name": "test_no_orders_null_date",
+      "target_table": "[silver].[DimCustomer]",
+      "procedure": "[silver].[usp_load_DimCustomer_Full]",
       "given": [
         {
           "table": "[bronze].[Customer]",
           "rows": [
             {
-              "CustomerID": 103,
+              "CustomerID": 104,
+              "PersonID": 1004,
+              "StoreID": null,
+              "TerritoryID": null,
+              "AccountNumber": "AW00000104",
+              "ModifiedDate": "2024-01-01"
+            }
+          ]
+        },
+        {
+          "table": "[bronze].[Person]",
+          "rows": [
+            {
+              "BusinessEntityID": 1004,
+              "PersonType": "EM",
+              "FirstName": "Bob",
+              "LastName": "Johnson",
+              "MiddleName": "Robert",
+              "Title": "Mr.",
+              "Suffix": null,
+              "EmailPromotion": 2,
+              "ModifiedDate": "2024-01-01"
+            }
+          ]
+        },
+        {
+          "table": "[bronze].[SalesOrderHeader]",
+          "rows": []
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "CustomerAlternateKey": "104",
+            "FirstName": "Bob",
+            "MiddleName": "Robert",
+            "LastName": "Johnson",
+            "Title": "Mr.",
+            "Gender": null,
+            "MaritalStatus": null,
+            "EmailPromotion": 2,
+            "DateFirstPurchase": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "test_inner_join_filters_unmatched_person",
+      "target_table": "[silver].[DimCustomer]",
+      "procedure": "[silver].[usp_load_DimCustomer_Full]",
+      "given": [
+        {
+          "table": "[bronze].[Customer]",
+          "rows": [
+            {
+              "CustomerID": 105,
               "PersonID": null,
-              "AccountNumber": "AW00000103",
+              "StoreID": null,
+              "TerritoryID": null,
+              "AccountNumber": "AW00000105",
+              "ModifiedDate": "2024-01-01"
+            },
+            {
+              "CustomerID": 106,
+              "PersonID": 9999,
+              "StoreID": null,
+              "TerritoryID": null,
+              "AccountNumber": "AW00000106",
               "ModifiedDate": "2024-01-01"
             }
           ]
@@ -189,49 +307,19 @@
         },
         {
           "table": "[bronze].[SalesOrderHeader]",
-          "rows": [
-            {
-              "SalesOrderID": 1003,
-              "RevisionNumber": 0,
-              "OrderDate": "2024-04-01",
-              "DueDate": "2024-04-08",
-              "Status": 5,
-              "OnlineOrderFlag": 1,
-              "SalesOrderNumber": "SO43661",
-              "CustomerID": 103,
-              "BillToAddressID": 1,
-              "ShipToAddressID": 1,
-              "ShipMethodID": 1,
-              "SubTotal": 200.00,
-              "TaxAmt": 20.00,
-              "Freight": 10.00,
-              "TotalDue": 230.00,
-              "ModifiedDate": "2024-01-01"
-            }
-          ]
+          "rows": []
         }
       ],
       "expect": {
-        "rows": [
-          {
-            "CustomerAlternateKey": "103",
-            "FirstName": null,
-            "MiddleName": null,
-            "LastName": null,
-            "Title": null,
-            "DateFirstPurchase": "2024-04-01"
-          }
-        ]
-      },
-      "target_table": "[silver].[DimCustomer]",
-      "procedure": "[silver].[usp_load_DimCustomer_Full]"
+        "rows": []
+      }
     }
   ],
   "uncovered_branches": [],
-  "warnings": [],
   "validation": {
     "passed": true,
     "issues": []
   },
+  "warnings": [],
   "errors": []
 }
