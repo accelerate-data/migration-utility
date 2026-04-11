@@ -12,6 +12,8 @@
 //                               Multi-status: {"silver.DimCurrency": "ok,partial,error"} (any is acceptable)
 //   expected_output_terms?,   — comma-separated terms that must appear in output text
 //   expected_error_codes?     — comma-separated error codes that must appear in per-item artifacts or output text
+//   expected_item_review_iterations?, — JSON string: {"silver.Table": 2}
+//   expected_item_review_verdicts?    — JSON string: {"silver.Table": "approved"}
 // }
 const fs = require('fs');
 const path = require('path');
@@ -84,6 +86,8 @@ module.exports = (output, context) => {
       : null;
   const expectedOutputTerms = normalizeTerms(context.vars.expected_output_terms);
   const expectedErrorCodes = normalizeTerms(context.vars.expected_error_codes);
+  let expectedItemReviewIterations = {};
+  let expectedItemReviewVerdicts = {};
 
   // Parse expected_item_statuses if provided
   let expectedItemStatuses = {};
@@ -95,6 +99,30 @@ module.exports = (output, context) => {
         pass: false,
         score: 0,
         reason: `Failed to parse expected_item_statuses: ${e.message}`,
+      };
+    }
+  }
+
+  if (context.vars.expected_item_review_iterations) {
+    try {
+      expectedItemReviewIterations = JSON.parse(context.vars.expected_item_review_iterations);
+    } catch (e) {
+      return {
+        pass: false,
+        score: 0,
+        reason: `Failed to parse expected_item_review_iterations: ${e.message}`,
+      };
+    }
+  }
+
+  if (context.vars.expected_item_review_verdicts) {
+    try {
+      expectedItemReviewVerdicts = JSON.parse(context.vars.expected_item_review_verdicts);
+    } catch (e) {
+      return {
+        pass: false,
+        score: 0,
+        reason: `Failed to parse expected_item_review_verdicts: ${e.message}`,
       };
     }
   }
@@ -141,6 +169,30 @@ module.exports = (output, context) => {
           reason: `Item '${table}': artifact status='${actualStatus}', expected one of [${acceptableStatuses.join(', ')}]`,
         };
       }
+
+      if (expectedItemReviewIterations[table] !== undefined) {
+        const actualIterations = latestResult.output?.review_iterations;
+        if (actualIterations !== expectedItemReviewIterations[table]) {
+          return {
+            pass: false,
+            score: 0,
+            reason: `Item '${table}': review_iterations=${actualIterations}, expected ${expectedItemReviewIterations[table]}`,
+          };
+        }
+      }
+
+      if (expectedItemReviewVerdicts[table] !== undefined) {
+        const acceptableVerdicts = String(expectedItemReviewVerdicts[table]).toLowerCase().split(',').map(s => s.trim());
+        const actualVerdict = String(latestResult.output?.review_verdict || '').toLowerCase();
+        if (!acceptableVerdicts.includes(actualVerdict)) {
+          return {
+            pass: false,
+            score: 0,
+            reason: `Item '${table}': review_verdict='${actualVerdict}', expected one of [${acceptableVerdicts.join(', ')}]`,
+          };
+        }
+      }
+
       continue; // Artifact found and status matches — skip text fallback
     }
 

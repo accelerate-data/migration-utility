@@ -4,6 +4,8 @@ Run /reviewing-tests for table {{target_table}}{{iteration_suffix}} with writer 
 
 Read the skill at plugin/skills/reviewing-tests/SKILL.md. Wherever it references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead. Pass `--project-root {{fixture_path}}` to all CLI commands and `--writer {{writer}}` to `migrate context`.
 
+Treat `reviewer_branch_manifest` as reviewer-owned evidence. Ensure `coverage` counts, uncovered and untestable IDs, and `feedback_for_generator.uncovered_branches` are internally consistent with that manifest instead of the generator's `branch_manifest`.
+
 `fixture_path` is authoritative. Do not question whether it exists, ask to
 create files, or ask permission to write review outputs.
 

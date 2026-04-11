@@ -40,6 +40,23 @@ tests:
       target_tables: "silver.CorrelatedSubqueryTarget"
       expected_item_statuses: '{"silver.CorrelatedSubqueryTarget": "ok"}'
 
+  - description: "review-loop-targeted-repair — IfElseTarget requires reviewer feedback then second-pass repair"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-generate-tests/review-loop-targeted-repair"
+      target_tables: "silver.IfElseTarget"
+      target_table: "silver.IfElseTarget"
+      expected_item_statuses: '{"silver.IfElseTarget": "ok"}'
+      expected_item_review_iterations: '{"silver.IfElseTarget": 2}'
+      expected_item_review_verdicts: '{"silver.IfElseTarget": "approved,approved_with_warnings"}'
+      expected_branch_ids: "if_premium_path,else_standard_path"
+      rejected_uncovered_branches: "else_standard_path"
+      min_scenario_count: 2
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-command-summary.js
+      - type: javascript
+        value: file://../../assertions/check-test-spec.js
+
   # ── error-clean: missing-scoping table + good table ─────────
   - description: "error-clean — DimProduct no scoping + InsertSelectTarget ok"
     vars:
