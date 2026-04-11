@@ -156,29 +156,29 @@
   "refactor": {
     "status": "partial",
     "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, StandardCost, ListPrice, ISNULL(Color, '') AS Color, Size, ProductLine, Class, Style, SellStartDate AS StartDate, SellEndDate AS EndDate, CASE WHEN DiscontinuedDate IS NOT NULL THEN 'Obsolete' WHEN SellEndDate IS NOT NULL THEN 'Outdated' ELSE 'Current' END AS Status FROM bronze.Product",
-    "refactored_sql": "WITH import AS ( SELECT ProductID, ProductName, StandardCost, ListPrice, Color, Size, ProductLine, Class, Style, SellStartDate, SellEndDate, DiscontinuedDate FROM bronze.Product ), logical AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, StandardCost, ListPrice, ISNULL(Color, '') AS Color, Size, ProductLine, Class, Style, SellStartDate AS StartDate, SellEndDate AS EndDate, CASE WHEN DiscontinuedDate IS NOT NULL THEN 'Obsolete' WHEN SellEndDate IS NOT NULL THEN 'Outdated' ELSE 'Current' END AS Status FROM import ), final AS ( SELECT ProductAlternateKey, EnglishProductName, StandardCost, ListPrice, Color, Size, ProductLine, Class, Style, StartDate, EndDate, Status FROM logical ) SELECT * FROM final",
+    "refactored_sql": "WITH import_product AS ( SELECT * FROM bronze.Product ), logical_product AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName, StandardCost, ListPrice, ISNULL(Color, '') AS Color, Size, ProductLine, Class, Style, SellStartDate AS StartDate, SellEndDate AS EndDate, CASE WHEN DiscontinuedDate IS NOT NULL THEN 'Obsolete' WHEN SellEndDate IS NOT NULL THEN 'Outdated' ELSE 'Current' END AS Status FROM import_product ), final AS ( SELECT ProductAlternateKey, EnglishProductName, StandardCost, ListPrice, Color, Size, ProductLine, Class, Style, StartDate, EndDate, Status FROM logical_product ) SELECT * FROM final",
     "semantic_review": {
       "passed": true,
       "checks": {
         "source_tables": {
           "passed": true,
-          "summary": "Both queries read from bronze.Product only"
+          "summary": "Both extracted and refactored SQL read exclusively from bronze.Product. The import CTE wraps the source table, and logical_product transforms from it."
         },
         "output_columns": {
           "passed": true,
-          "summary": "All 12 columns returned in identical order with same transformations"
+          "summary": "Both return identical columns in identical order: ProductAlternateKey, EnglishProductName, StandardCost, ListPrice, Color, Size, ProductLine, Class, Style, StartDate, EndDate, Status. The final CTE explicitly projects all 12 columns matching the target table."
         },
         "joins": {
           "passed": true,
-          "summary": "No joins in either query"
+          "summary": "No joins in either SQL. Both are simple source table reads with columnar transformations. The CTE structure in refactored SQL does not introduce any new join logic."
         },
         "filters": {
           "passed": true,
-          "summary": "No WHERE filters applied in either query"
+          "summary": "Both apply identical filter/transformation logic: CAST(ProductID), ISNULL(Color, ''), CASE WHEN for Status derivation. No row-level filtering occurs; all rows from bronze.Product are preserved."
         },
         "aggregation_grain": {
           "passed": true,
-          "summary": "Both queries operate at detail level with no aggregation (no GROUP BY)"
+          "summary": "Both are row-by-row transformations with no aggregation. One row in bronze.Product produces one row in output. No GROUP BY, no window functions."
         }
       },
       "issues": []
