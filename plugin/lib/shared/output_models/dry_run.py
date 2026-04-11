@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from typing import Literal
 
 from pydantic import BaseModel
@@ -74,6 +75,7 @@ class DiagnosticEntry(BaseModel):
     code: str | None = None
     message: str | None = None
     severity: Literal["warning", "error"] | None = None
+    details: dict[str, Any] | None = None
 
 
 class ObjectNode(BaseModel):

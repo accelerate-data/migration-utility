@@ -17,6 +17,7 @@ Use the canonical `/status` code list in [../lib/shared/status_error_codes.md](.
 
 ## Guards
 
+- **No caching.** Every `/status` invocation MUST execute the CLI commands (`migrate-util status`, `migrate-util batch-plan`, etc.) fresh. Never reuse output from a previous `/status` run in the same conversation. The catalog can change between invocations — always read from disk.
 - `manifest.json` must exist. If missing, tell the user to run `/setup-ddl` first.
 - `catalog/tables/` must contain at least one `.json` file. If empty, tell the user to run `/setup-ddl` first.
 
