@@ -1,5 +1,6 @@
 {
   "item_id": "silver.dimcurrency",
+  "object_type": "table",
   "status": "ok",
   "coverage": "complete",
   "branch_manifest": [
