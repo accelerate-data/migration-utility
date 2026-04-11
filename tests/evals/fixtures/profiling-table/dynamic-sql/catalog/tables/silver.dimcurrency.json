@@ -65,12 +65,11 @@
     "selected_writer": "silver.usp_load_DimCurrency"
   },
   "profile": {
-    "status": "partial",
     "writer": "silver.usp_load_dimcurrency",
     "classification": {
       "resolved_kind": "dim_non_scd",
       "source": "catalog+llm",
-      "rationale": "Currency reference table loaded via TRUNCATE + INSERT inside sp_executesql; descriptive columns (CurrencyAlternateKey, CurrencyName) with no SCD history columns confirm dim_non_scd. Status is partial because the INSERT is inside a dynamic SQL string, not statically parsed by the scoping engine."
+      "rationale": "The writer uses TRUNCATE + INSERT pattern with descriptive VARCHAR columns, which is a classic dimension load pattern. Despite dynamic SQL preventing complete static analysis, the table shape and visible load pattern support a simple dimension classification."
     },
     "primary_key": {
       "columns": [
@@ -78,21 +77,28 @@
       ],
       "primary_key_type": "surrogate",
       "source": "catalog",
-      "rationale": "CurrencyKey is declared as the primary key via catalog constraint PK__DimCurre__DC9C5DF033ED6A78 and is an identity-generated surrogate."
+      "rationale": "Identity column declared as PK in catalog."
     },
     "natural_key": {
       "columns": [
         "CurrencyAlternateKey"
       ],
-      "source": "catalog+llm",
-      "rationale": "CurrencyKey is an identity surrogate (catalog fact); CurrencyAlternateKey (NCHAR(3)) holds the ISO 4217 currency code and is the natural business identifier."
-    },
-    "watermark": {
-      "column": null,
       "source": "llm",
-      "rationale": "Full-reload pattern (TRUNCATE + INSERT) with no datetime columns and no incremental WHERE clause; no watermark applies."
+      "rationale": "CurrencyAlternateKey (CurrencyCode in source) is the business key used for lookups and updates."
     },
     "foreign_keys": [],
-    "pii_actions": []
+    "warnings": [
+      {
+        "code": "PARTIAL_PROFILE",
+        "severity": "warning",
+        "message": "Dynamic SQL prevents a complete static read of the writer, so some profiling decisions remain best-effort."
+      },
+      {
+        "code": "PARSE_ERROR",
+        "severity": "warning",
+        "message": "'EXEC sp_executesql @sql' contains unsupported syntax. Falling back to parsing as a 'Command'."
+      }
+    ],
+    "status": "ok"
   }
 }

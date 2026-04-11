@@ -202,9 +202,37 @@
     }
   },
   "scoping": {
-    "status": "resolved",
     "selected_writer": "silver.usp_stage_FactInternetSales",
-    "selected_writer_rationale": "Stage procedure is the direct writer for FactInternetSales."
+    "selected_writer_rationale": "The stage procedure is the direct writer for FactInternetSales, executing a TRUNCATE + INSERT pattern. The load procedure is an orchestrator that delegates to the stage procedure via EXEC.",
+    "candidates": [
+      {
+        "procedure_name": "silver.usp_load_FactInternetSales",
+        "rationale": "Orchestrator procedure that delegates to the stage procedure via EXEC. Transitive writer, not defensible for direct migration.",
+        "dependencies": {
+          "tables": [
+            "bronze.SalesOrderHeader",
+            "bronze.SalesOrderDetail"
+          ],
+          "views": [],
+          "functions": []
+        }
+      },
+      {
+        "procedure_name": "silver.usp_stage_FactInternetSales",
+        "rationale": "Direct leaf writer that performs TRUNCATE + INSERT. Clear transformation logic with direct access to source tables.",
+        "dependencies": {
+          "tables": [
+            "bronze.SalesOrderHeader",
+            "bronze.SalesOrderDetail"
+          ],
+          "views": [],
+          "functions": []
+        }
+      }
+    ],
+    "warnings": [],
+    "errors": [],
+    "status": "resolved"
   },
   "profile": {
     "status": "ok",

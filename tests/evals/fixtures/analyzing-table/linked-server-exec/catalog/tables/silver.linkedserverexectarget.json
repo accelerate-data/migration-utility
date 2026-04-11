@@ -41,5 +41,28 @@
       "in_scope": [],
       "out_of_scope": []
     }
+  },
+  "scoping": {
+    "selected_writer_rationale": "The apparent writer procedure delegates through a linked-server EXEC to an out-of-scope external procedure. The actual data transformation logic resides entirely in the remote procedure and cannot be resolved from this project.",
+    "candidates": [
+      {
+        "procedure_name": "silver.usp_scope_linkedserverexec",
+        "rationale": "Direct writer procedure, but only delegates to a remote linked-server procedure. No local write logic.",
+        "dependencies": {
+          "tables": [],
+          "views": [],
+          "functions": []
+        }
+      }
+    ],
+    "warnings": [],
+    "errors": [
+      {
+        "code": "REMOTE_EXEC_UNSUPPORTED",
+        "severity": "error",
+        "message": "The apparent writer delegates through a linked-server EXEC to [LinkedServer].[WarehouseDb].[silver].[usp_remote_LoadProduct], so the writer cannot be resolved from this project."
+      }
+    ],
+    "status": "error"
   }
 }

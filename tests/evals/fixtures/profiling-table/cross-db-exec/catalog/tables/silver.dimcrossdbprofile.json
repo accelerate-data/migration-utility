@@ -66,12 +66,11 @@
     "selected_writer_rationale": "The load procedure is the selected writer even though it delegates cross-database work to a helper."
   },
   "profile": {
-    "status": "partial",
-    "writer": "silver.usp_load_DimCrossDbProfile",
+    "writer": "silver.usp_load_dimcrossdbprofile",
     "classification": {
       "resolved_kind": "dim_non_scd",
       "source": "catalog+llm",
-      "rationale": "The target behaves like a simple dimension, but the cross-database helper means the classification is only partially supported."
+      "rationale": "Surrogate PK alongside separate natural key (EmployeeAlternateKey) with descriptive attributes indicates a simple dimension. Cross-database EXEC means writer body is opaque, so profiling relies on table shape and catalog signals."
     },
     "primary_key": {
       "columns": [
@@ -79,16 +78,27 @@
       ],
       "primary_key_type": "surrogate",
       "source": "catalog",
-      "rationale": "CrossDbProfileKey is the declared identity primary key."
+      "rationale": "Identity PK declared in catalog."
     },
     "natural_key": {
       "columns": [
         "EmployeeAlternateKey"
       ],
       "source": "llm",
-      "rationale": "EmployeeAlternateKey represents the business key for the employee dimension."
+      "rationale": "EmployeeAlternateKey is the business identifier matching the employee source dimension."
     },
-    "foreign_keys": [],
-    "pii_actions": []
+    "warnings": [
+      {
+        "code": "PARTIAL_PROFILE",
+        "severity": "warning",
+        "message": "Writer delegates to a cross-database procedure, so profiling relies on table shape and catalog signals rather than procedure logic."
+      },
+      {
+        "code": "PARSE_ERROR",
+        "severity": "warning",
+        "message": "Cross-database EXEC syntax is unsupported; writer proc body is opaque."
+      }
+    ],
+    "status": "ok"
   }
 }

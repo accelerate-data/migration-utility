@@ -45,32 +45,32 @@
   ],
   "statements": [
     {
-      "type": "SetOption",
+      "type": "Declaration",
       "action": "skip",
+      "sql": "DECLARE @sql NVARCHAR(MAX); DECLARE @target NVARCHAR(128); DECLARE @src NVARCHAR(128);",
       "source": "llm",
-      "sql": "SET NOCOUNT ON",
-      "rationale": "Operational noise suppression; dbt does not require this setting."
+      "rationale": "Variable declarations for dynamic SQL construction. Skip as operational setup."
     },
     {
-      "type": "Declare",
+      "type": "Assignment",
       "action": "skip",
+      "sql": "SET @target = 'silver.ExecConcatTarget'; SET @src = 'bronze.Product';",
       "source": "llm",
-      "sql": "DECLARE @sql NVARCHAR(MAX); DECLARE @target NVARCHAR(128) = 'silver.ExecConcatTarget'; DECLARE @src NVARCHAR(128) = 'bronze.Product'",
-      "rationale": "Variable declarations used only to build the dynamic SQL string; no transformation logic."
+      "rationale": "Variable assignments that configure the dynamic SQL. Skip as operational setup."
     },
     {
-      "type": "Set",
-      "action": "skip",
-      "source": "llm",
-      "sql": "SET @sql = 'INSERT INTO ' + @target + ' (ProductAlternateKey, EnglishProductName) ' + 'SELECT CAST(ProductID AS NVARCHAR(25)), ProductName ' + 'FROM ' + @src",
-      "rationale": "String concatenation that constructs the dynamic SQL; the logic lives in the resolved EXEC statement, not here."
-    },
-    {
-      "type": "Exec",
+      "type": "Assignment",
       "action": "migrate",
+      "sql": "SET @sql = 'INSERT INTO ' + @target + ' (ProductAlternateKey, EnglishProductName) ' + 'SELECT CAST(ProductID AS NVARCHAR(25)), ProductName ' + 'FROM ' + @src;",
       "source": "llm",
-      "sql": "INSERT INTO silver.ExecConcatTarget (ProductAlternateKey, EnglishProductName) SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product",
-      "rationale": "Dynamic SQL is built with concatenation before EXEC, so LLM-assisted resolution is required to recover the final statement."
+      "rationale": "Constructs the INSERT statement string that will write to silver.ExecConcatTarget from bronze.Product. This is the core transformation logic."
+    },
+    {
+      "type": "Command",
+      "action": "migrate",
+      "sql": "EXEC(@sql);",
+      "source": "llm",
+      "rationale": "Executes the constructed INSERT statement. This is the primary write operation to silver.ExecConcatTarget."
     }
   ]
 }

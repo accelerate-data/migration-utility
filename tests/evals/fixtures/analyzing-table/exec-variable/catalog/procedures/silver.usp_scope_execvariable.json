@@ -10,8 +10,16 @@
           "is_selected": false,
           "is_updated": true,
           "columns": [
-            {"name": "ProductAlternateKey", "is_selected": false, "is_updated": true},
-            {"name": "EnglishProductName", "is_selected": false, "is_updated": true}
+            {
+              "name": "ProductAlternateKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "EnglishProductName",
+              "is_selected": false,
+              "is_updated": true
+            }
           ]
         }
       ],
@@ -37,11 +45,11 @@
   ],
   "statements": [
     {
-      "type": "Exec",
+      "type": "Command",
       "action": "migrate",
+      "sql": "EXEC(@sql)",
       "source": "llm",
-      "sql": "INSERT INTO silver.ExecVariableTarget (ProductAlternateKey, EnglishProductName) SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product",
-      "rationale": "Dynamic SQL is assembled through a variable assignment before EXEC, so the statement needs LLM-assisted reconstruction."
+      "rationale": "Dynamic SQL executes an INSERT statement into silver.ExecVariableTarget from bronze.Product. The resolved target write path is clear and represents the core transformation."
     }
   ]
 }

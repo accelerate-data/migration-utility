@@ -61,9 +61,30 @@
     }
   },
   "scoping": {
-    "status": "resolved",
-    "selected_writer": "silver.usp_load_DimCrossDbProfile",
-    "selected_writer_rationale": "The load procedure is the selected writer even though it delegates cross-database work to a helper."
+    "selected_writer": null,
+    "selected_writer_rationale": "The apparent writer silver.usp_load_DimCrossDbProfile delegates exclusively to a cross-database procedure [ArchiveDB].[silver].[usp_stage_DimCrossDbProfile], so the core write logic cannot be resolved from this project.",
+    "candidates": [
+      {
+        "procedure_name": "silver.usp_load_DimCrossDbProfile",
+        "rationale": "Direct writer, but delegates all logic to an external cross-database procedure.",
+        "dependencies": {
+          "tables": [
+            "bronze.Employee"
+          ],
+          "views": [],
+          "functions": []
+        }
+      }
+    ],
+    "warnings": [],
+    "errors": [
+      {
+        "code": "REMOTE_EXEC_UNSUPPORTED",
+        "severity": "error",
+        "message": "The apparent writer delegates through a cross-database EXEC to [ArchiveDB].[silver].[usp_stage_DimCrossDbProfile], so the write logic cannot be resolved from this project."
+      }
+    ],
+    "status": "error"
   },
   "profile": {
     "status": "partial",

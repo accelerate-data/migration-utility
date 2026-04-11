@@ -61,8 +61,24 @@
     }
   },
   "scoping": {
-    "status": "resolved",
-    "selected_writer": "silver.usp_load_DimCurrency"
+    "selected_writer": "silver.usp_load_dimcurrency",
+    "selected_writer_rationale": "The only candidate is a direct writer that loads currency reference data. Although the insert uses dynamic SQL (sp_executesql), the transformation logic is clear: truncate and rebuild from the source. This is the primary and defensible writer for the table.",
+    "candidates": [
+      {
+        "procedure_name": "silver.usp_load_dimcurrency",
+        "rationale": "Direct full-load writer using dynamic SQL to insert currency data from MigrationTest.bronze.Currency.",
+        "dependencies": {
+          "tables": [
+            "MigrationTest.bronze.Currency"
+          ],
+          "views": [],
+          "functions": []
+        }
+      }
+    ],
+    "warnings": [],
+    "errors": [],
+    "status": "resolved"
   },
   "profile": {
     "status": "partial",

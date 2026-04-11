@@ -141,5 +141,39 @@
   "scoping": {
     "status": "resolved",
     "selected_writer": "silver.usp_load_DimEmployeeSCD2"
+  },
+  "profile": {
+    "writer": "silver.usp_load_factinventorysnapshot",
+    "classification": {
+      "resolved_kind": "fact_periodic_snapshot",
+      "source": "catalog+llm",
+      "rationale": "Grain is (ProductKey, WarehouseKey, SnapshotDate) representing daily inventory state. Measures are stock balances (semi-additive), not transactions. Delete-and-reload pattern with date-partitioned load strategy."
+    },
+    "primary_key": {
+      "columns": [
+        "ProductKey",
+        "WarehouseKey",
+        "SnapshotDate"
+      ],
+      "primary_key_type": "composite",
+      "source": "catalog",
+      "rationale": "Composite natural key declared in catalog, representing the grain (entity + date)."
+    },
+    "natural_key": {
+      "columns": [
+        "ProductKey",
+        "WarehouseKey",
+        "SnapshotDate"
+      ],
+      "source": "catalog",
+      "rationale": "Primary key is composite natural key (no surrogate). All columns are business-sourced identifiers."
+    },
+    "watermark": {
+      "column": "SnapshotDate",
+      "watermark_type": "date_partitioned",
+      "source": "llm",
+      "rationale": "Daily full-refresh pattern using CAST(GETDATE() AS DATE). SnapshotDate is the date partition key, suggesting insert_overwrite materialization strategy."
+    },
+    "status": "ok"
   }
 }

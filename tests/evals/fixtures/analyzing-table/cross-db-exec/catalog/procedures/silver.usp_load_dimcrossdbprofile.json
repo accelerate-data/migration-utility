@@ -74,11 +74,18 @@
   ],
   "statements": [
     {
-      "type": "Exec",
-      "action": "migrate",
-      "source": "ast",
-      "sql": "EXEC silver.usp_sync_DimCrossDbProfile_External",
-      "rationale": "The loader delegates to a statically referenced helper that reaches across databases, so the writer remains identifiable but the profile stays partial."
+      "type": "Set",
+      "action": "skip",
+      "source": "llm",
+      "sql": "SET NOCOUNT ON",
+      "rationale": "Operational configuration; not part of the core transformation logic."
+    },
+    {
+      "type": "Command",
+      "action": "skip",
+      "source": "llm",
+      "sql": "EXEC [ArchiveDB].[silver].[usp_stage_DimCrossDbProfile]",
+      "rationale": "Cross-database EXEC to an external procedure; the core write logic is opaque and outside this project's scope."
     }
   ]
 }
