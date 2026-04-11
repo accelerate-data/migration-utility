@@ -7,14 +7,12 @@
       "id": "merge_matched_update",
       "statement_index": 0,
       "description": "MERGE WHEN MATCHED updates an existing product row in the source procedure",
-      "testable_in_dbt": false,
       "scenarios": []
     },
     {
       "id": "merge_not_matched_by_target_insert",
       "statement_index": 0,
       "description": "MERGE WHEN NOT MATCHED BY TARGET inserts a new product row in the source procedure",
-      "testable_in_dbt": false,
       "scenarios": []
     },
     {
