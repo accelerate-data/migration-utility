@@ -1,0 +1,22 @@
+{
+  "indexed_at": "2026-04-11T00:00:00Z",
+  "source": "/Users/hbanerjee/src/migration-utility/tests/evals/fixtures/analyzing-table/merge",
+  "objects": {
+    "silver.dimproduct": {
+      "type": "table",
+      "file": "catalog/tables/silver.dimproduct.json",
+      "writes_to": [],
+      "reads_from": [],
+      "calls": [],
+      "parse_error": null
+    },
+    "silver.usp_load_dimproduct": {
+      "type": "procedure",
+      "file": "catalog/procedures/silver.usp_load_dimproduct.json",
+      "writes_to": [],
+      "reads_from": [],
+      "calls": [],
+      "parse_error": null
+    }
+  }
+}
