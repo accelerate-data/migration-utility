@@ -1,10 +1,6 @@
 ---
 name: reviewing-tests
-description: >
-  Reviews test generation output for coverage and quality. Independently
-  enumerates branches, scores coverage, and reviews fixture quality.
-  Handles both source routine (table) and view test specs.
-  Invoked by the /generate-tests command, not directly by the user.
+description: Use when reviewing generated dbt unit test specs for branch coverage gaps, fixture-quality problems, or iteration-2 approval decisions across table, view, or materialized-view cases
 user-invocable: false
 context: fork
 argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
@@ -12,168 +8,130 @@ argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 
 # Reviewing Tests
 
-Quality gate for test generation output — independently enumerates branches, scores coverage, and reviews fixture quality.
+Quality gate for generated test specs. The reviewer owns branch coverage, fixture quality, and the final verdict.
+
+## When to Use
+
+- Generated tests need an independent branch-by-branch review.
+- Fixtures look suspicious, incomplete, or overfit to scenario names.
+- Coverage may be partial because of dynamic SQL, runtime state, or missing edge cases.
+- Iteration 2 needs a final `approved_with_warnings` vs `revision_requested` decision.
 
 ## Arguments
 
-`$ARGUMENTS` is the fully-qualified table or view name (the `item_id`), optionally followed by `--iteration <N>` (1-based). Defaults to 1 if not provided.
+`$ARGUMENTS` is the fully-qualified object name (`item_id`), optionally followed by `--iteration <N>` (1-based). Defaults to 1.
 
-The iteration number controls the verdict in Step 6: on iteration 1, unresolved issues trigger `revision_requested`; on iteration 2, remaining issues are accepted as `approved_with_warnings` to prevent infinite review loops.
+## Quick Workflow
 
-## Contracts
+1. Run `migrate-util ready <item_id> test-gen`. Stop on readiness failure.
+2. Assemble context using the table or view path in [references/table-vs-view-context.md](references/table-vs-view-context.md).
+3. Read `test-specs/<item_id>.json`.
+4. Build your own branch manifest from the source logic. Do not trust the generator's `branch_manifest`.
+5. Map each scenario to the reviewer-owned branches.
+6. Review fixture quality using [references/fixture-quality-rules.md](references/fixture-quality-rules.md).
+7. Write and validate the final review JSON.
 
-Return exactly one JSON object matching this shape:
+## Output Requirements
 
-## Output shape — `TestReviewOutput`
+Return one valid `TestReviewOutput` JSON object and validate it with `test-harness validate-review`.
 
-```json
-{
-  "item_id": "<schema>.<table>",
-  "status": "approved | approved_with_warnings | revision_requested | error",
-  "reviewer_branch_manifest": [
-    {
-      "id": "merge_matched_update",
-      "description": "MERGE WHEN MATCHED → UPDATE",
-      "covered": true,
-      "covering_scenarios": ["test_merge_matched_product_updated"]
-    }
-  ],
-  "coverage": {
-    "total_branches": 5,
-    "covered_branches": 4,
-    "untestable_branches": 0,
-    "score": "complete | partial",
-    "uncovered": [{"id": "branch_id", "description": "..."}],
-    "untestable": [{"id": "dynamic_sql", "description": "...", "rationale": "needs runtime state"}]
-  },
-  "quality_issues": [
-    { "scenario": "test_merge_matched", "issue": "Missing NOT NULL column", "severity": "error | warning" }
-  ],
-  "feedback_for_generator": {
-    "uncovered_branches": ["branch_id"],
-    "quality_fixes": ["Add NOT NULL column to test_merge_matched given rows"]
-  },
-  "warnings": [],
-  "errors": []
-}
-```
+See [references/review-output-contract.md](references/review-output-contract.md) for the field inventory and a full example.
 
-- `untestable_branches` defaults to 0 when absent.
-- `uncovered` and `untestable` arrays are empty when not applicable.
+## Step 0: Readiness
 
-## Before invoking
-
-Run the stage readiness check:
+Run:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <table_fqn> test-gen
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <item_id> test-gen
 ```
 
-If `ready` is `false`, report the failing readiness `code` and `reason` to the
-caller and stop. Use only codes from
-`../../lib/shared/generate_tests_error_codes.md`.
+If `ready` is `false`, return a valid `TestReviewOutput` with `status: "error"` and the surfaced `code` and `reason` from `../../lib/shared/generate_tests_error_codes.md`. Do not infer readiness from filenames or directory listings.
 
-## Object type detection
+## Step 1: Assemble Context
 
-Check whether `catalog/views/<fqn>.json` exists:
+Use the table or view workflow from [references/table-vs-view-context.md](references/table-vs-view-context.md).
 
-- **If yes** → object is a **view or MV**. Note `object_type = view` for the steps below.
-- **If no** → object is a **table**. Note `object_type = table` for the steps below.
+Rules:
 
-## Step 1: Assemble context
+- For tables, pass `--writer <proc_fqn>` when the caller already provided the intended writer or when more than one writer could target the table.
+- For views, use `discover show` plus the view catalog file.
+- In both paths, read `test-specs/<item_id>.json` and use `unit_tests[]`.
 
-**For tables:**
+## Step 2: Enumerate Branches Independently
 
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate context \
-  --table <item_id>
-```
+Enumerate branches from the source logic, not from the generated test spec.
 
-The output contains:
+- Use [../_shared/references/branch-patterns.md](../_shared/references/branch-patterns.md).
+- Use the table patterns for tables and the view patterns for views.
+- Assign each branch a stable snake_case `id` and a human-readable `description`.
+- Record the result in `reviewer_branch_manifest`.
 
-- `proc_body` — full original procedure SQL
-- `statements` — resolved statement list with action and SQL
-- `profile` — classification, keys, watermark, PII answers
-- `columns` — target table column list
-- `source_tables` — tables read by the writer
+## Step 3: Map Scenarios to Branches
 
-**For views:**
-
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show \
-  --name <view_fqn>
-```
-
-Also read `catalog/views/<fqn>.json` directly to get `profile`, `scoping.logic_summary`, and `references.tables.in_scope`.
-
-Assemble the context:
-
-- `proc_body` — `raw_ddl` from `discover show`
-- `statements` — the view's SELECT body (treat as a single `action: migrate` statement)
-- `source_tables` — from `references.tables.in_scope` in the view catalog
-
-**Both:** Also read the test generator's output at `test-specs/<item_id>.json`. Read `unit_tests[]` from this file.
-
-## Step 2: Independent branch enumeration
-
-Enumerate all conditional branches from `proc_body` and `statements` independently. Do NOT read or trust the generator's `branch_manifest` — build your own.
-
-Use the pattern tables in [../_shared/references/branch-patterns.md](../_shared/references/branch-patterns.md) to enumerate branches. Apply the **Table patterns** section for tables and the **View patterns** section for views.
-
-Assign each branch a stable `id` (snake_case, descriptive) and a human-readable `description`. Record the full list as the reviewer's branch manifest.
-
-## Step 3: Map scenarios to branches
-
-Read `unit_tests[]` from `test-specs/<item_id>.json`. For each scenario entry, determine which branches (from the reviewer's own enumeration in Step 2) the scenario exercises.
+For each entry in `unit_tests[]`, determine which reviewer-owned branches it actually exercises.
 
 Rules:
 
 - A scenario may cover multiple branches.
-- A branch may require multiple scenarios to cover fully.
-- Map by analyzing the `given` fixture rows against the proc logic — not by trusting scenario names or descriptions alone.
+- A branch may require multiple scenarios.
+- Map by fixture logic in `given[]` and expected behavior, not by scenario names or generator descriptions.
 
-## Step 4: Score coverage
+## Step 4: Score Coverage
 
-Compute coverage:
+Compute:
 
-- **total_branches**: count of branches from the reviewer's enumeration.
-- **covered_branches**: count of branches with at least one mapped scenario.
-- **untestable_branches**: count of branches marked untestable (see below).
-- **score**: `complete` if all testable branches are covered (covered + untestable = total), `partial` otherwise.
-- **uncovered**: list of branch objects (`id`, `description`) that have zero mapped scenarios and are not untestable.
-- **untestable**: list of branch objects (`id`, `description`, `rationale`) that cannot be tested with static fixtures.
+- `total_branches`
+- `covered_branches`
+- `untestable_branches`
+- `score`
+- `uncovered`
+- `untestable`
 
-A branch is **untestable** when it depends on runtime state that static fixtures cannot reproduce: non-deterministic date/time functions (`GETDATE()`, `SYSDATE`, `now()`, etc.), dynamic SQL with variable table/column targets, external service calls, or non-deterministic functions. Each untestable classification requires a `rationale`.
+Mark a branch as `untestable` only when static fixtures cannot represent it. Every untestable branch needs a concrete `rationale`.
 
-## Step 5: Review fixture quality
+See [references/coverage-rules.md](references/coverage-rules.md) for examples and boundary cases.
 
-For each test scenario in `unit_tests[]`, assess these dimensions:
+## Step 5: Review Fixture Quality
 
-- **Fixture realism:** Are synthetic values type-appropriate and reasonable?
-- **Scenario isolation:** Does each scenario test one branch clearly?
-- **FK consistency:** Do foreign key values in fixture rows align across source tables within each scenario?
-- **Edge cases:** Are boundary values present where appropriate (NULLs, empty strings, MAX values, zero-row inputs)?
-- **NOT NULL completeness:** For every source table in `given[]`, load the catalog column list from `source_tables` in the context output. Check that every column where `is_nullable` is false and `is_identity` is false appears in `rows[0]`. Severity: `error` (not warning — these always fail).
+Check:
 
-Record each issue with the scenario name, a description of the concern, and a severity (`warning` or `error`).
+- fixture realism
+- scenario isolation
+- FK consistency across given tables
+- edge cases where the logic calls for them
+- required source columns
+
+Required-source-column rule:
+
+- Flag a missing source column only when the exercised logic needs that column to join, filter, compute, insert, update, or otherwise represent the reviewed branch correctly.
+- Do not require every catalog-level `NOT NULL` source column.
+- Do not flag unrelated `NOT NULL` columns that the source logic never reads.
+
+Use [references/fixture-quality-rules.md](references/fixture-quality-rules.md) for the detailed heuristics and examples.
+
+Record each issue with:
+
+- `scenario`
+- `issue`
+- `severity`
+
+Use `error` only when the fixture is invalid for the reviewed branch. Use `warning` for weaker realism or coverage concerns.
 
 ## Step 6: Verdict
 
-Apply the following verdict rules:
-
-| Condition | Action |
-|---|---|
-| All testable branches covered + quality acceptable | **Approve** — set `status` to `approved`. If untestable branches exist, include them in the output for documentation |
-| Testable coverage gaps identified | **Kick back** — set `status` to `revision_requested`, populate `feedback_for_generator.uncovered_branches` with the branch IDs that lack scenarios (exclude untestable branches) |
-| Quality issues found | **Kick back** — set `status` to `revision_requested`, populate `feedback_for_generator.quality_fixes` with specific remediation instructions per scenario |
-| Both coverage gaps and quality issues | **Kick back** — set `status` to `revision_requested`, populate both feedback fields |
-| Iteration 2 and issues remain | **Approve with warnings** — set `status` to `approved_with_warnings`, add a warning entry flagging the item for human review |
+| Condition | Status | Required feedback |
+|---|---|---|
+| All testable branches covered and fixture quality acceptable | `approved` | none required |
+| Coverage gaps only | `revision_requested` | `feedback_for_generator.uncovered_branches` |
+| Quality issues only | `revision_requested` | `feedback_for_generator.quality_fixes` |
+| Coverage gaps and quality issues | `revision_requested` | both feedback fields |
+| Iteration 2 and issues remain | `approved_with_warnings` | warning entry for human review |
 
 Maximum review iterations: 2.
 
-## Step 7: Validate and return
+## Step 7: Validate and Return
 
-Write the `TestReviewResult` JSON to `.staging/review.json`, then validate:
+Write the review JSON to `.staging/review.json`, then validate:
 
 ```bash
 mkdir -p .staging
@@ -181,30 +139,32 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness validate-review \
   --review-file .staging/review.json
 ```
 
-If validation fails (exit code 1), fix the JSON fields reported in the error and retry. After validation passes, return the JSON and clean up:
+If validation fails, fix the reported fields and retry. After validation passes, return the JSON and remove `.staging`.
 
-```bash
-rm -rf .staging
-```
+## Common Mistakes
 
-## Boundary rules
+- Trusting the generator's `branch_manifest` instead of building your own.
+- Inferring readiness from files instead of running `migrate-util ready`.
+- Mapping coverage from scenario names instead of the fixture logic.
+- Rejecting fixtures because unrelated source columns are `NOT NULL` in the catalog.
+- Forgetting `--writer` when the intended table writer is already known.
 
-This skill is read-only except for `.staging/review.json` validation. It must not write to `test-specs/`, modify fixtures, execute routines, or override ground truth.
+## Boundary Rules
 
-## Error handling
+This skill is read-only except for `.staging/review.json`. Do not write to `test-specs/`, modify fixtures, execute routines, or override source-of-truth artifacts.
 
-| Command | Exit code | Action |
-|---|---|---|
-| `migrate context` | 1 | Prerequisite missing. Return `TestReviewResult` with `status: "error"` and code `CONTEXT_PREREQUISITE_MISSING` |
-| `migrate context` | 2 | IO/parse error. Return `TestReviewResult` with `status: "error"` and code `CONTEXT_IO_ERROR` |
-| `discover show` | 1 | View not found. Return `TestReviewResult` with `status: "error"` and code `CONTEXT_PREREQUISITE_MISSING` |
-| `discover show` | 2 | IO/parse error. Return `TestReviewResult` with `status: "error"` and code `CONTEXT_IO_ERROR` |
-| `test-specs/<item_id>.json` | missing | Return `TestReviewResult` with `status: "error"` and code `TEST_SPEC_MISSING` |
-| `test-harness validate-review` | 1 | Validation failure — fix the JSON fields reported in the error and retry |
+## Error Handling
 
-Return a valid `TestReviewResult` JSON for all error paths.
+On command failure, still return valid `TestReviewOutput` JSON using surfaced codes from `../../lib/shared/generate_tests_error_codes.md`.
+
+See [references/error-handling.md](references/error-handling.md) for command-specific mappings.
 
 ## References
 
-- [`../_shared/references/branch-patterns.md`](../_shared/references/branch-patterns.md) — conditional branch enumeration patterns for tables and views
-- [`../../lib/shared/generate_tests_error_codes.md`](../../lib/shared/generate_tests_error_codes.md) — canonical generating-tests and reviewing-tests statuses and surfaced error/warning codes
+- [references/review-output-contract.md](references/review-output-contract.md) — full output contract and example JSON
+- [references/table-vs-view-context.md](references/table-vs-view-context.md) — context assembly for table vs view reviews
+- [references/coverage-rules.md](references/coverage-rules.md) — untestable-branch examples and coverage boundary cases
+- [references/fixture-quality-rules.md](references/fixture-quality-rules.md) — detailed fixture-quality heuristics, including NOT NULL guidance
+- [references/error-handling.md](references/error-handling.md) — command-specific error mappings
+- [../_shared/references/branch-patterns.md](../_shared/references/branch-patterns.md) — branch enumeration patterns
+- [`../../lib/shared/generate_tests_error_codes.md`](../../lib/shared/generate_tests_error_codes.md) — canonical surfaced error and warning codes
