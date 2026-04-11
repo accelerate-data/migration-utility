@@ -1,9 +1,8 @@
 ---
 name: refactoring-sql
 description: >
-  Use when a stored procedure, view, or materialized view must be rewritten into
-  import/logical/final CTEs for migration, especially when semantic equivalence
-  must be proven with semantic review and optional sandbox compare-sql.
+  Use when stored procedure, view, or materialized-view SQL must be restructured
+  into import/logical/final CTEs before proof-backed migration persistence.
 user-invocable: false
 argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 ---
@@ -38,42 +37,9 @@ Do not use this skill when:
 | Context assembly | `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" refactor context --table <table_fqn>` |
 | Sandbox check | `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness sandbox-status` |
 | Compare behavior | If caller skips compare, or sandbox is unavailable, do semantic review only and persist with `--no-compare-required` |
-| Statuses | `ok`, `partial`, `error` |
-| Surfaced codes | Use only `../../lib/shared/refactor_error_codes.md` |
+| Write mode | Passed compare: `--compare-sql-file`; fallback path: `--no-compare-required` |
+| Statuses and codes | Use [references/refactor-contracts.md](references/refactor-contracts.md) and [`../../lib/shared/refactor_error_codes.md`](../../lib/shared/refactor_error_codes.md) |
 | Ground truth | Never modify the extracted SQL during self-correction |
-
-The persisted `refactor` section has this shape:
-
-```json
-{
-  "status": "ok | partial | error",
-  "extracted_sql": "pure SELECT extracted from DML",
-  "refactored_sql": "WITH ... CTE-structured SELECT",
-  "semantic_review": {
-    "passed": true,
-    "checks": {
-      "source_tables": { "passed": true, "summary": "..." },
-      "output_columns": { "passed": true, "summary": "..." },
-      "joins": { "passed": true, "summary": "..." },
-      "filters": { "passed": true, "summary": "..." },
-      "aggregation_grain": { "passed": true, "summary": "..." }
-    },
-    "issues": []
-  },
-  "compare_sql": {
-    "required": true,
-    "executed": true,
-    "passed": true,
-    "scenarios_total": 3,
-    "scenarios_passed": 3,
-    "failed_scenarios": []
-  },
-  "warnings": [],
-  "errors": []
-}
-```
-
-Do not invent fields. If `refactor write` rejects the payload, fix the payload and retry.
 
 ## Implementation
 
@@ -94,10 +60,9 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" refactor context \
   --table <table_fqn>
 ```
 
-If `refactor context` fails because a prerequisite is missing, return `status: "error"` with
-code `CONTEXT_PREREQUISITE_MISSING`. If it fails due to IO or parse issues, return
-`status: "error"` with code `CONTEXT_IO_ERROR`. Do not surface raw labels such as
-`no_writer_configured` in the result JSON.
+If `refactor context` fails, use the surfaced-code rules in
+[references/refactor-contracts.md](references/refactor-contracts.md). Do not expose raw
+internal labels such as `no_writer_configured`.
 
 Read `object_type` from the output:
 
@@ -145,8 +110,6 @@ Launch a sub-agent using the prompt template in [references/sub-agent-prompts.md
 - For tables: include `proc_body`, `statements`, `columns`, `source_tables`, and `profile`. If `writer_ddl_slice` is present, use it in place of the full `proc_body`.
 - For views: include `view_sql`, `columns`, `source_tables`, and `profile` in place of `proc_body`/`statements`.
 
-The refactored SQL must contain a CTE literally named `final`, followed by `SELECT * FROM final`.
-
 The sub-agent writes the result to `.staging/<table_fqn>-refactored.sql`.
 
 ### Step 4: Run semantic review
@@ -160,34 +123,14 @@ Inputs:
 - target columns
 - source tables
 
-The sub-agent must return exactly one JSON object with this shape:
+The sub-agent must return exactly the semantic-review contract in
+[references/refactor-contracts.md](references/refactor-contracts.md).
 
-```json
-{
-  "passed": true,
-  "checks": {
-    "source_tables": { "passed": true, "summary": "..." },
-    "output_columns": { "passed": true, "summary": "..." },
-    "joins": { "passed": true, "summary": "..." },
-    "filters": { "passed": true, "summary": "..." },
-    "aggregation_grain": { "passed": true, "summary": "..." }
-  },
-  "issues": [
-    {
-      "code": "EQUIVALENCE_PARTIAL",
-      "message": "Refactored SQL drops the inactive-customer filter from the extracted SQL.",
-      "severity": "warning"
-    }
-  ]
-}
-```
-
-Rules for the semantic-review sub-agent:
+Rules for semantic review:
 
 - compare extracted SQL to refactored SQL, not to dbt expectations
 - use only these checks: source tables, output columns, joins, filters, aggregation grain
-- `issues[]` must use diagnostics-style entries
-- if any check fails, `passed` must be `false`
+- if any check fails, `passed` must be `false`; `issues[]` uses diagnostics-style entries
 
 Write the JSON to `.staging/<table_fqn>-semantic-review.json`.
 
@@ -247,7 +190,7 @@ If any scenario fails (`equivalent: false`):
 5. Rerun `compare-sql`
 6. Repeat up to 3 times total
 
-After 3 failed iterations, proceed to Step 5 with the partial result.
+After 3 failed iterations, persist the partial result with `--no-compare-required`.
 
 ### Step 7: Write to catalog
 
@@ -273,7 +216,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" refactor write \
   --no-compare-required
 ```
 
-Do not invent or override the status.
+Do not invent fields or override the persisted status.
 
 ### Step 8: Clean up and report
 
@@ -298,6 +241,7 @@ Report:
 - Editing extracted SQL during self-correction. Only refactored SQL may change.
 - Comparing refactored SQL to dbt expectations. Compare extracted SQL to refactored SQL.
 - Treating `final` as a conceptual last step instead of a literal CTE name. The refactored SQL must define `final AS (...)`.
+- Using `SELECT *` inside CTE definitions. Enumerate columns explicitly from catalog/context.
 - Blocking on sandbox access when semantic-review-only fallback is allowed.
 - Inventing surfaced error codes or result fields outside the canonical `/refactor` schema.
 
@@ -305,17 +249,8 @@ Report:
 
 - [references/routine-migration-ref.md](references/routine-migration-ref.md) — dialect-routed DML extraction and CTE restructuring rules
 - [references/sub-agent-prompts.md](references/sub-agent-prompts.md) — Prompt templates for sub-agent A (extract core SELECT) and sub-agent B (refactor into CTEs)
+- [references/refactor-contracts.md](references/refactor-contracts.md) — persisted payload keys, semantic-review contract, and command error mapping
 
 ## Schema discipline
 
 Use the canonical `/refactor` surfaced code list in [`../../lib/shared/refactor_error_codes.md`](../../lib/shared/refactor_error_codes.md).
-
-## Error handling
-
-| Command | Exit code | Action |
-|---|---|---|
-| `refactor context` | 1 | Missing catalog/profile/test-spec. Return `status: "error"` with code `CONTEXT_PREREQUISITE_MISSING` and mention the missing prerequisite in the message |
-| `refactor context` | 2 | IO/parse error. Return `status: "error"` with code `CONTEXT_IO_ERROR` and surface the error message |
-| `refactor write` | 1 | Validation failure. Fix payload and retry once |
-| `refactor write` | 2 | IO error. Surface the error message |
-| `test-harness compare-sql` | 1 | One or more scenarios failed. Enter self-correction loop |
