@@ -6,4 +6,4 @@ Use `plugin/lib` wherever the skill references `${CLAUDE_PLUGIN_ROOT}/lib`. Pass
 
 Reviewer feedback for this run, if present: {{feedback_json}}
 
-If reviewer feedback is present, treat it as authoritative for the repair pass. Apply the named uncovered branches and quality fixes before broader regeneration, and preserve non-targeted existing scenarios and `expect` blocks.
+If reviewer feedback is present, treat it as authoritative for the repair pass. Use the existing `test-specs/<item>.json` as the base artifact, keep unrelated `unit_tests[]` entries and branch `scenarios[]` mappings unchanged, and apply only the named uncovered branches and quality fixes. Leave unrelated gaps alone unless the reviewer explicitly requested them.
