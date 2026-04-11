@@ -172,3 +172,15 @@ tests:
     assert:
       - type: javascript
         value: file://../../assertions/check-view-catalog.js
+
+  # aggregation + group_by → mart
+  - description: "view-profile-mart — vw_daily_sales_summary aggregation"
+    prompts: ["profiling-table-view"]
+    vars:
+      fixture_path: "tests/evals/fixtures/profiling-table/view-profile-mart"
+      target_view: "silver.vw_daily_sales_summary"
+      check_type: "profile"
+      expected_classification: "mart"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-view-catalog.js

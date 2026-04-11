@@ -147,5 +147,47 @@
   "scoping": {
     "status": "resolved",
     "selected_writer": "silver.usp_load_FactOrderFulfillment"
+  },
+  "profile": {
+    "writer": "silver.usp_load_FactOrderFulfillment",
+    "classification": {
+      "resolved_kind": "fact_accumulating_snapshot",
+      "rationale": "Procedure performs INSERT to populate initial milestone (OrderDate) with ShipDate, DeliveryDate, InvoiceDate nullable. Sequential UPDATE blocks then advance each milestone date column via WHERE col IS NULL AND source IS NOT NULL pattern. Matches all primary signals for accumulating snapshot per accumulating-snapshot-classification.md.",
+      "source": "llm"
+    },
+    "primary_key": {
+      "columns": [
+        "OrderFulfillmentKey"
+      ],
+      "primary_key_type": "surrogate",
+      "source": "catalog",
+      "rationale": "Identity INT column declared as PRIMARY KEY in catalog"
+    },
+    "natural_key": {
+      "columns": [
+        "SalesOrderNumber"
+      ],
+      "source": "llm",
+      "rationale": "Used in WHERE NOT EXISTS and UPDATE conditions for row identification; NVARCHAR(25) business key"
+    },
+    "watermark": null,
+    "foreign_keys": [
+      {
+        "column": "CustomerKey",
+        "fk_type": "degenerate",
+        "source": "llm",
+        "rationale": "Integer surrogate key populated from bronze.SalesOrderHeader.CustomerID; no declared dimension table, treated as degenerate FK"
+      },
+      {
+        "column": "ProductKey",
+        "fk_type": "degenerate",
+        "source": "llm",
+        "rationale": "Integer surrogate key populated from bronze.SalesOrderDetail.ProductID; no declared dimension table, treated as degenerate FK"
+      }
+    ],
+    "pii_actions": [],
+    "warnings": [],
+    "errors": [],
+    "status": "ok"
   }
 }
