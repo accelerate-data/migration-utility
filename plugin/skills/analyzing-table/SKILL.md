@@ -267,7 +267,7 @@ Use this decision table when selecting the final writer:
 | Multi-table writer with interleaved target logic | no | persist candidate context plus canonical error entry |
 | Remote or linked-server `EXEC` is ancillary and local target-table writes are sufficient | yes | keep the proc selectable; persist the remote statement as `skip` and mention the skipped out-of-scope behavior in rationale or warnings |
 | Remote or linked-server `EXEC` is the only meaningful write path for the target table | no | persist canonical `REMOTE_EXEC_UNSUPPORTED` error |
-| Dynamic or opaque write path leaves the target-table transformation materially unresolved | no | persist canonical error entry and do not select the proc |
+| Dynamic or opaque write path leaves the target-table transformation materially unresolved | no | persist canonical `SCOPING_FAILED` error and do not select the proc |
 | No writers found | no | `no_writer_found` |
 
 Common outcomes:
@@ -291,6 +291,8 @@ If all discovered candidates are unsupported external delegates, persist table s
   ```
 
 ### Step 6 -- Persist scoping to catalog
+
+Treat any existing `scoping` section as non-authoritative on reruns. Recompute scoping from the current catalog evidence, then overwrite `scoping` with the newly derived canonical payload. Do not preserve stale writer decisions, candidate lists, warnings, or errors just because they already exist in the catalog.
 
 Write the scoping JSON to a temp file:
 

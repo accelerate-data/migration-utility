@@ -24,6 +24,8 @@ Diagnostics written to `warnings` or `errors` must use canonical `/profile` entr
 - `severity`
 - `message`
 
+Treat any existing `profile` section as non-authoritative. Recompute from the current catalog evidence and write the canonical payload without asking for confirmation.
+
 ## Before invoking
 
 Check stage readiness:
@@ -204,6 +206,8 @@ Do not include `status` in the profile JSON.
 
 Required fields: `writer`. Each decision point must include a `rationale` field (1–2 sentences): `classification.rationale`, `primary_key.rationale`, `natural_key.rationale`, `watermark.rationale`, and per-entry `rationale` in `foreign_keys[]` and `pii_actions[]`.
 Optional fields: `warnings`, `errors`.
+
+`foreign_keys[]` entries are per local FK column and should use this shape: `{"column": "<local column>", "fk_type": "...", "source": "...", "rationale": "..."}`. Do not replace `column` with `columns`, `reference`, or nested `references` objects.
 
 Status is derived by `profile write`; do not set it yourself. Best-effort payload rules:
 
