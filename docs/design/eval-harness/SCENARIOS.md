@@ -12,11 +12,15 @@ A scenario is one test case inside a package YAML: one prompt, one fixture path,
 
 Current package groups:
 
-- Skill packages: `profiling-table`, `reviewing-tests`, `reviewing-model`, `analyzing-table`, `refactoring-sql`
+- Skill packages: `profiling-table`, `generating-tests`, `reviewing-tests`, `reviewing-model`, `analyzing-table`, `refactoring-sql`
 - Command packages: `cmd-scope`, `cmd-profile`, `cmd-generate-model`, `cmd-generate-tests`, `cmd-refactor`, `cmd-status`, `cmd-commit-push-pr`
 - Dialect packages: `oracle-regression`, `oracle-live`, `mssql-live`
 
-There are no standalone `generating-model` or `generating-tests` Promptfoo packages in the current harness. Their fixtures live under `tests/evals/fixtures/generating-model/` and `tests/evals/fixtures/generating-tests/`, and are exercised via `cmd-generate-model` and `cmd-generate-tests`.
+There is a standalone `generating-tests` Promptfoo package in the current harness:
+
+- `tests/evals/packages/generating-tests/skill-generating-tests.yaml`
+
+There is still no standalone `generating-model` package. `generating-model` fixtures live under `tests/evals/fixtures/generating-model/` and are exercised via `cmd-generate-model`.
 
 ## Scenario Names
 
@@ -49,6 +53,7 @@ The YAML files are the source of truth for scenario names.
 Use these files as the source of truth:
 
 - `tests/evals/packages/profiling-table/skill-profiling-table.yaml`
+- `tests/evals/packages/generating-tests/skill-generating-tests.yaml`
 - `tests/evals/packages/reviewing-tests/skill-reviewing-tests.yaml`
 - `tests/evals/packages/reviewing-model/skill-reviewing-model.yaml`
 - `tests/evals/packages/analyzing-table/skill-analyzing-table.yaml`
@@ -67,6 +72,7 @@ Use these files as the source of truth:
 ## Ownership Notes
 
 - `cmd-generate-model` owns the model-generation scenarios and planning-sweep scenarios.
-- `cmd-generate-tests` owns the test-generation scenarios, including idempotency coverage.
+- `generating-tests` owns the skill-level branch enumeration and fixture-synthesis scenarios.
+- `cmd-generate-tests` owns command orchestration and review-loop behavior for test generation.
 - View scenarios are handled by dedicated view prompts inside `profiling-table` and `analyzing-table`.
 - Oracle regression covers `/scope`, `/profile`, `/generate-model`, `/generate-tests`, and `/refactor` against a shared SH-schema fixture.

@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
-description: "Generating-tests skill — branch enumeration and fixture synthesis for tables and views"
+description: "Generating-tests skill — GREEN application coverage for branch enumeration, fixture synthesis, merge-safe updates, and view/mv handling"
 
 prompts:
   - id: generating-tests
@@ -29,6 +29,10 @@ defaultTest:
       value: file://../../assertions/check-test-spec.js
 
 tests:
+  # This package is the GREEN layer for the skill: it proves application behavior
+  # with the skill present. RED baseline evidence and REFACTOR loophole checks are
+  # documented in docs/design/eval-harness/generating-tests-skill-tdd.md.
+
   # ── merge — DimProduct MERGE WHEN MATCHED / NOT MATCHED ─────────────────────
   - description: "merge — DimProduct MERGE matched and not-matched branches"
     prompts: ["generating-tests"]
