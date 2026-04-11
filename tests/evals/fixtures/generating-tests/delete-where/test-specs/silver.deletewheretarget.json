@@ -35,7 +35,10 @@
             { "ProductAlternateKey": "P001", "EnglishProductName": "Widget A", "IsRetired": 1 }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": []
+      }
     },
     {
       "name": "test_delete_where_active_row_retained",
@@ -48,7 +51,12 @@
             { "ProductAlternateKey": "P002", "EnglishProductName": "Widget B", "IsRetired": 0 }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": [
+          { "ProductAlternateKey": "P002", "EnglishProductName": "Widget B", "IsRetired": 0 }
+        ]
+      }
     },
     {
       "name": "test_delete_where_empty_table_no_op",
@@ -59,7 +67,10 @@
           "table": "[silver].[DeleteWhereTarget]",
           "rows": []
         }
-      ]
+      ],
+      "expect": {
+        "rows": []
+      }
     }
   ],
   "uncovered_branches": [],
