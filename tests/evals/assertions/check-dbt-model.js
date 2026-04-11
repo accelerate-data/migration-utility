@@ -7,6 +7,8 @@
 //   expected_model_terms?,
 //   forbidden_model_terms?,
 //   expected_output_terms?,
+//   expected_yaml_terms?,
+//   forbidden_yaml_terms?,
 //   expected_stg_files?,
 //   expected_stg_terms?,
 //   forbidden_stg_terms?,
@@ -20,8 +22,13 @@ module.exports = (output, context) => {
   const fixturePath = context.vars.fixture_path;
   const table = context.vars.target_table;
   const expectedModelTerms = normalizeTerms(context.vars.expected_model_terms);
-  const forbiddenModelTerms = normalizeTerms(context.vars.forbidden_model_terms);
+  const forbiddenModelTermsRaw = String(context.vars.forbidden_model_terms || '')
+    .split(',')
+    .map((term) => term.trim())
+    .filter(Boolean);
   const expectedOutputTerms = normalizeTerms(context.vars.expected_output_terms);
+  const expectedYamlTerms = normalizeTerms(context.vars.expected_yaml_terms);
+  const forbiddenYamlTerms = normalizeTerms(context.vars.forbidden_yaml_terms);
   const gracefulNoModel = String(context.vars.graceful_no_model || '').toLowerCase() === 'true';
   const expectedStgFiles = normalizeTerms(context.vars.expected_stg_files);
   const expectedStgTerms = normalizeTerms(context.vars.expected_stg_terms);
@@ -101,6 +108,7 @@ module.exports = (output, context) => {
     return { pass: false, score: 0, reason: `Model file ${matchingFiles[0]} missing config() block` };
   }
 
+  const rawModel = modelContent;
   const normalizedModel = modelContent.toLowerCase();
   for (const term of expectedModelTerms) {
     if (!normalizedModel.includes(term)) {
@@ -108,8 +116,11 @@ module.exports = (output, context) => {
     }
   }
 
-  for (const term of forbiddenModelTerms) {
-    if (normalizedModel.includes(term)) {
+  for (const term of forbiddenModelTermsRaw) {
+    const hasUppercase = term !== term.toLowerCase();
+    const haystack = hasUppercase ? rawModel : normalizedModel;
+    const needle = hasUppercase ? term : term.toLowerCase();
+    if (haystack.includes(needle)) {
       return { pass: false, score: 0, reason: `Forbidden model term '${term}' found in ${path.basename(matchingFiles[0])}` };
     }
   }
@@ -118,6 +129,39 @@ module.exports = (output, context) => {
     const failure = assertExpectedOutputTerms();
     if (failure) {
       return failure;
+    }
+  }
+
+  if (expectedYamlTerms.length > 0 || forbiddenYamlTerms.length > 0) {
+    const allYamlFiles = [];
+    const walkYamlDir = (dir) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.isDirectory()) walkYamlDir(path.join(dir, entry.name));
+        else if (entry.name.endsWith('.yml') || entry.name.endsWith('.yaml')) allYamlFiles.push(path.join(dir, entry.name));
+      }
+    };
+    walkYamlDir(modelsDir);
+    if (fs.existsSync(snapshotsDir)) walkYamlDir(snapshotsDir);
+
+    const matchingYamlFiles = allYamlFiles.filter(f => {
+      const fNorm = f.toLowerCase().replace(/_/g, '');
+      return fNorm.includes(tableNameNorm);
+    });
+
+    if (matchingYamlFiles.length === 0) {
+      return { pass: false, score: 0, reason: `No schema YAML matching '${tableName}' found in ${modelsDir}` };
+    }
+
+    const yamlContent = fs.readFileSync(matchingYamlFiles[0], 'utf8').toLowerCase();
+    for (const term of expectedYamlTerms) {
+      if (!yamlContent.includes(term)) {
+        return { pass: false, score: 0, reason: `Expected YAML term '${term}' not found in ${path.basename(matchingYamlFiles[0])}` };
+      }
+    }
+    for (const term of forbiddenYamlTerms) {
+      if (yamlContent.includes(term)) {
+        return { pass: false, score: 0, reason: `Forbidden YAML term '${term}' found in ${path.basename(matchingYamlFiles[0])}` };
+      }
     }
   }
 

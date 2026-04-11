@@ -119,6 +119,7 @@ class ReviewChecks(BaseModel):
 
     standards: CheckResult
     correctness: CheckResult
+    test_integration: CheckResult
 
 
 class ModelReviewOutput(BaseModel):

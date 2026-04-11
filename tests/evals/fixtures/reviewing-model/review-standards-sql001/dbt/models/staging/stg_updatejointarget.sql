@@ -1,24 +1,37 @@
 {{ config(materialized='table') }}
 
+with target_table as (
+    select * from {{ source('silver', 'updatejointarget') }}
+),
+
 with source_product as (
     SELECT *
     from {{ source('bronze', 'product') }}
 ),
 
-product_keyed as (
+updated_rows as (
     select
-        cast(ProductID as nvarchar(25)) as ProductAlternateKey,
-        ProductName as EnglishProductName,
-        current_timestamp() as LastSeenDate
-    from source_product
+        tgt.ProductAlternateKey,
+        coalesce(src.ProductName, tgt.EnglishProductName) as EnglishProductName,
+        case
+            when src.ProductID is not null then current_timestamp()
+            else tgt.LastSeenDate
+        end as LastSeenDate,
+        {{ invocation_id }} as _dbt_run_id,
+        current_timestamp() as _loaded_at
+    from target_table as tgt
+    left join source_product as src
+        on tgt.ProductAlternateKey = cast(src.ProductID as nvarchar(25))
 ),
 
 final as (
     select
         ProductAlternateKey,
         EnglishProductName,
-        LastSeenDate
-    from product_keyed
+        LastSeenDate,
+        _dbt_run_id,
+        _loaded_at
+    from updated_rows
 )
 
 select *

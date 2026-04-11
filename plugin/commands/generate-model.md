@@ -43,15 +43,17 @@ Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2,
 
 Create `.migration-runs/` first if it does not already exist.
 
-**Idempotency check:** For each item, read `catalog/tables/<fqn>.json`. If `generate.status == "ok"` and the user did not explicitly request a rerun, do not re-run the skill. Write a skip result:
+**Idempotency check:** For each item, read `catalog/tables/<fqn>.json`. If `generate.status == "ok"` and the user did not explicitly request a rerun, skip fresh generation but still carry the item into Step 3 review using the existing written artifacts. Write a skip result:
 
 ```json
 {"item_id": "<fqn>", "status": "ok", "output": {"skipped": true, "reason": "model_already_generated"}}
 ```
 
+This skip means "reuse existing artifacts for review," not "bypass the quality gate."
+
 **Single-table path (1 table):** Run `/generating-model` directly in the current conversation — do not launch a sub-agent. After the skill completes, write the item result JSON (see Item Result Schema) to `.migration-runs/<schema.table>.<run_id>.json`. Then continue to Step 3.
 
-**Multi-table path (2+ tables):** Launch one sub-agent per table in parallel (skipping items that passed the idempotency check above). Each sub-agent receives this prompt:
+**Multi-table path (2+ tables):** Launch one sub-agent per table in parallel for items that still need fresh generation. Items that passed the idempotency check above write the skip result immediately, then continue to Step 3 review. Each sub-agent receives this prompt:
 
 ```text
 Run /generating-model for <schema.table>.
@@ -65,9 +67,10 @@ Return the item result JSON.
 
 ### Step 3 — Review model
 
-For each item, read `.migration-runs/<item_id>.<run_id>.json` from Step 2. If `status` is `error`, skip the item. For each remaining item (excluding skipped items), invoke `/reviewing-model <item_id>`.
+For each item, read `.migration-runs/<item_id>.<run_id>.json` from Step 2. If `status` is `error`, skip the item. For each remaining item, invoke `/reviewing-model <item_id>`, including items whose Step 2 result was a skip.
 
 - If verdict is `approved`: proceed to commit/revert below.
+- If Step 2 was a skip and review returns `error` because the persisted artifacts are missing or stale, invoke `/generating-model <item_id>` once to rebuild the artifacts, then invoke `/reviewing-model <item_id>` again.
 - `revision_requested`: invoke `/generating-model <item_id>` with the reviewer's `feedback_for_model_generator` as additional context (pass it via `ModelGenerationHandoff.revision_feedback`). The model-generator must re-run `dbt test` to confirm unit tests still pass after revisions. Then invoke `/reviewing-model <item_id>` again. Maximum 2 review iterations per item.
 - On review failure or max iterations reached: approve with warnings and proceed to commit/revert below.
 

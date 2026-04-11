@@ -7,14 +7,18 @@ with source_product as (
 prepared_product as (
     select
         cast(ProductID as nvarchar(25)) as ProductAlternateKey,
-        ProductName                    as EnglishProductName
+        ProductName as EnglishProductName,
+        {{ invocation_id }} as _dbt_run_id,
+        current_timestamp() as _loaded_at
     from source_product
 ),
 
 final as (
     select
         ProductAlternateKey,
-        EnglishProductName
+        EnglishProductName,
+        _dbt_run_id,
+        _loaded_at
     from prepared_product
 )
 
