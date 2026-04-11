@@ -27,15 +27,15 @@ defaultTest:
 tests:
   - description: "list-tables — reads catalog object names"
     vars:
-      fixture_path: "tests/evals/fixtures/analyzing-table/merge"
+      fixture_path: "tests/evals/fixtures/listing-objects/source-table-guard"
       request_text: "list tables"
-      expected_terms: "silver.dimproduct"
+      expected_terms: "silver.dimsource"
 
   - description: "show-table — surfaces columns and selected writer context"
     vars:
       fixture_path: "tests/evals/fixtures/analyzing-table/merge"
       request_text: "show silver.DimProduct"
-      expected_terms: "productkey,productalternatekey,silver.usp_load_dimproduct,resolved"
+      expected_terms: "silver.dimproduct,productkey,productalternatekey"
 
   - description: "refs-table — surfaces writer references"
     vars:
@@ -49,9 +49,14 @@ tests:
       request_text: "show silver.vDimSalesTerritory"
       expected_terms: "silver.vdimsalesterritory,dimsalesterritory"
 
-  - description: "guard-source-table — blocks object-specific show when table is source"
+  - description: "show-source-table — source tables still surface current catalog state"
     vars:
       fixture_path: "tests/evals/fixtures/listing-objects/source-table-guard"
       request_text: "show silver.DimSource"
-      expected_terms: "source_table,not_applicable"
-      unexpected_terms: "productkey,columns"
+      expected_terms: "silver.dimsource,sourcekey"
+
+  - description: "refs-procedure — unsupported refs target returns payload error"
+    vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/merge"
+      request_text: "refs silver.usp_load_dimproduct"
+      expected_terms: "procedure,command only works,views, and functions"

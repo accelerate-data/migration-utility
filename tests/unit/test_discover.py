@@ -19,6 +19,7 @@ from shared.loader import CatalogFileMissingError, CatalogLoadError, CatalogNotF
 _TESTS_DIR = Path(__file__).parent
 _FLAT_FIXTURES = _TESTS_DIR / "fixtures" / "discover" / "flat"
 _UNPARSEABLE_FIXTURES = _TESTS_DIR / "fixtures" / "discover" / "unparseable"
+_LISTING_OBJECTS_EVAL_FIXTURES = Path(__file__).resolve().parents[2] / "tests" / "evals" / "fixtures" / "analyzing-table" / "merge"
 
 
 # ── test_list_flat_tables ──────────────────────────────────────────────────
@@ -268,6 +269,23 @@ def test_refs_catalog_no_confidence() -> None:
         w_dict = w.model_dump()
         assert "confidence" not in w_dict
         assert "status" not in w_dict
+
+
+def test_refs_procedure_returns_payload_error() -> None:
+    """refs on a procedure returns an error payload instead of raising."""
+    result = discover.run_refs(_LISTING_OBJECTS_EVAL_FIXTURES, "silver.usp_load_dimproduct")
+    assert result.error is not None
+    assert "refs only works for tables, views, and functions" in result.error
+    assert result.readers == []
+    assert result.writers == []
+
+
+def test_refs_missing_target_returns_payload_error() -> None:
+    """refs on a missing target returns a payload error instead of raising."""
+    result = discover.run_refs(_CATALOG_FIXTURES.parent, "silver.DoesNotExist")
+    assert result.error == "no catalog file for silver.doesnotexist — it may not exist in the extracted schemas"
+    assert result.readers == []
+    assert result.writers == []
 
 
 def test_refs_errors_without_catalog() -> None:

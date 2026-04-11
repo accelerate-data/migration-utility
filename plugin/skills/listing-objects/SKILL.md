@@ -51,6 +51,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover show \
 Present whatever the catalog currently holds for the object.
 
 Do not special-case `is_source` tables. If `discover show` returns columns for a source table, present them as normal catalog state.
+For a direct `show <schema.object>` request, run `discover show` once and answer from that payload. Do not ask follow-up questions before presenting the result.
 
 **Tables:** columns, plus scoping results and analyzed statements if present.
 
@@ -79,6 +80,6 @@ Map command results like this:
 |---|---|---|
 | `discover list/show` | 1 | Surface `OBJECT_NOT_FOUND`, then stop |
 | `discover list/show/refs` | 2 | Surface `CATALOG_IO_ERROR`, then stop |
-| `discover refs` | payload `error` saying the target is a procedure or unsupported target for refs | Surface `UNSUPPORTED_OBJECT_TYPE`, include the returned guidance, do not fall back to `show`, then stop |
+| `discover refs` | payload `error` saying the target is a procedure or unsupported target for refs | Surface `UNSUPPORTED_OBJECT_TYPE`, include the returned guidance, do not ask a follow-up question, do not fall back to `show`, then stop |
 | `discover refs` | payload `error` saying `no catalog file for ...` | Surface `OBJECT_NOT_FOUND`, then stop |
 | `discover show` | `parse_error` / parse warning in payload | Surface `PARSE_ERROR` or `DDL_PARSE_ERROR` as a warning and continue showing available raw catalog state |
