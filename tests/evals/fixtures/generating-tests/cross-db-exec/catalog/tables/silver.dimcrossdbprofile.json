@@ -97,9 +97,7 @@
     "branches": 1,
     "unit_tests": 0,
     "coverage": "partial",
-    "warnings": [
-      "cross_db_untestable"
-    ],
+    "warnings": [],
     "errors": []
   }
 }
