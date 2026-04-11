@@ -10,7 +10,7 @@ argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 
 # Generating Tests
 
-Generate or extend a `TestSpec` for one migrated object. Follow [../test-invariants/SKILL.md](../test-invariants/SKILL.md) for the shared generator-reviewer contract.
+Generate or extend a `TestSpec` for one migrated object.
 
 ## When To Use
 
@@ -29,7 +29,7 @@ Do not use this skill to review coverage, run sandbox execution, or generate dbt
 |---|---|
 | Guard | Ready check must pass before any write |
 | Type | Detect `table`, `view`, or `mv` from catalog |
-| Invariants | Apply [../test-invariants/SKILL.md](../test-invariants/SKILL.md) for branch authority, repair scope, and evidence rules |
+| Invariants | Apply [../test-invariants/SKILL.md](../test-invariants/SKILL.md) |
 | Merge mode | Preserve approved scenarios and `expect` blocks |
 | Feedback | On repair passes, follow reviewer feedback before broad regeneration |
 | Guard rails | Use [references/guard-rails-ref.md](references/guard-rails-ref.md) when merge, feedback, or coverage judgment is ambiguous |
@@ -46,7 +46,7 @@ Do not use this skill to review coverage, run sandbox execution, or generate dbt
 
 ## Handling Reviewer Feedback
 
-When `reviewing-tests` returns `feedback_for_generator`, follow [../test-invariants/SKILL.md](../test-invariants/SKILL.md): start from the existing spec, repair named gaps first, and preserve non-targeted approved scenarios and `expect` blocks.
+When `reviewing-tests` returns `feedback_for_generator`, apply [../test-invariants/SKILL.md](../test-invariants/SKILL.md) and start from the existing spec.
 
 Repair-pass algorithm:
 
