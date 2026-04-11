@@ -90,14 +90,16 @@
     {
       "type": "Set",
       "action": "skip",
+      "sql": "SET NOCOUNT ON",
       "source": "ast",
-      "sql": "SET NOCOUNT ON"
+      "rationale": "Operational setting that suppresses row count messages."
     },
     {
       "type": "Merge",
       "action": "migrate",
+      "sql": "MERGE silver.DimMultiWriter AS tgt USING (SELECT CAST(ProductID AS NVARCHAR(20)) AS AlternateKey, ProductName AS DisplayName, ISNULL(ProductLine, 'Unknown') AS Category, CASE WHEN DiscontinuedDate IS NULL THEN 1 ELSE 0 END AS IsActive, ModifiedDate FROM bronze.Product) AS src ON tgt.AlternateKey = src.AlternateKey WHEN MATCHED THEN UPDATE SET tgt.DisplayName = src.DisplayName, tgt.Category = src.Category, tgt.IsActive = src.IsActive, tgt.ModifiedDate = src.ModifiedDate WHEN NOT MATCHED BY TARGET THEN INSERT (AlternateKey, DisplayName, Category, IsActive, ModifiedDate) VALUES (src.AlternateKey, src.DisplayName, src.Category, src.IsActive, src.ModifiedDate)",
       "source": "ast",
-      "sql": "MERGE silver.DimMultiWriter AS tgt USING (SELECT CAST(ProductID AS NVARCHAR(20)) AS AlternateKey, ProductName AS DisplayName, ISNULL(ProductLine, 'Unknown') AS Category, CASE WHEN DiscontinuedDate IS NULL THEN 1 ELSE 0 END AS IsActive, ModifiedDate FROM bronze.Product) AS src ON tgt.AlternateKey = src.AlternateKey WHEN MATCHED THEN UPDATE SET tgt.DisplayName = src.DisplayName, tgt.Category = src.Category, tgt.IsActive = src.IsActive, tgt.ModifiedDate = src.ModifiedDate WHEN NOT MATCHED BY TARGET THEN INSERT (AlternateKey, DisplayName, Category, IsActive, ModifiedDate) VALUES (src.AlternateKey, src.DisplayName, src.Category, src.IsActive, src.ModifiedDate)"
+      "rationale": "Core incremental transformation using MERGE to upsert records based on AlternateKey matching."
     }
   ]
 }
