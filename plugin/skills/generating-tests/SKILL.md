@@ -1,10 +1,9 @@
 ---
 name: generating-tests
 description: >
-  Use when generating or extending `test-specs/<schema.object>.json` for a
-  migrated table, view, or materialized view after scoping/profile are ready
-  and the next step depends on branch coverage, merge-safe updates, or
-  reviewer-driven fixture fixes.
+  Use when a migrated table, view, or materialized view needs a new or
+  merge-safe `test-specs/<schema.object>.json`, especially after SQL changes or
+  reviewer feedback.
 user-invocable: false
 argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 ---
@@ -32,7 +31,7 @@ Do not use this skill to review coverage, run sandbox execution, or generate dbt
 | Type | Detect `table`, `view`, or `mv` from catalog |
 | Branches | Re-extract current `branch_manifest`; never trust the stored one |
 | Merge mode | Preserve approved scenarios and `expect` blocks |
-| Feedback | `feedback_for_generator` overrides broad regeneration |
+| Feedback | On repair passes, follow reviewer feedback before broad regeneration |
 | Guard rails | Use [references/guard-rails-ref.md](references/guard-rails-ref.md) when merge, feedback, or coverage judgment is ambiguous |
 | Output | Write a valid `TestSpec`, then persist the catalog summary |
 
@@ -42,7 +41,7 @@ Do not use this skill to review coverage, run sandbox execution, or generate dbt
 2. Detect object type from catalog before generating: absent view catalog means `table`; `is_materialized_view: true` means `mv`; otherwise `view`.
 3. If `test-specs/<fqn>.json` exists, enter merge mode and load existing scenario names, `branch_manifest`, and `expect` blocks. Also load deterministic object and source-table context from catalog metadata.
 4. Re-extract branches from current SQL. Build a fresh `branch_manifest`; if a prior branch disappeared, add a `STALE_BRANCH` warning.
-5. Generate only missing or explicitly requested coverage. `feedback_for_generator` takes priority. Keep scenarios self-contained and constraint-valid; do not invent columns, nullability, or FK behavior.
+5. Generate only missing or explicitly requested coverage. On reviewer-driven reruns, follow the repair-pass rules below. Keep scenarios self-contained and constraint-valid; do not invent columns, nullability, or FK behavior.
 6. Emit a valid `TestSpec`, preserving approved scenarios unless targeted feedback requires revision. Recalculate `uncovered_branches`, `coverage`, and `status`, then persist the catalog summary.
 
 ## Handling Reviewer Feedback
@@ -51,10 +50,8 @@ When `reviewing-tests` returns `feedback_for_generator`:
 
 - start from the existing `test-specs/<fqn>.json` as the base artifact, not from a blank regenerated file
 - treat `uncovered_branches` as the first repair target
-- apply `quality_fixes` only to the named scenarios unless the fix requires a dependent fixture adjustment
 - preserve non-targeted approved scenarios and `expect` blocks in merge mode
-- do not infer extra reviewer requests from the generator's own `branch_manifest`; the reviewer feedback is the authority for the repair pass
-- leave unrelated uncovered branches unchanged unless the reviewer explicitly requested them
+- do not infer extra reviewer requests from the generator's own `branch_manifest`; apply `quality_fixes` only to named scenarios, and leave unrelated uncovered branches unchanged unless the reviewer explicitly requested them
 
 Repair-pass algorithm:
 
