@@ -8,7 +8,7 @@ argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 
 # Reviewing Tests
 
-Quality gate for generated test specs. Follow [../test-invariants/SKILL.md](../test-invariants/SKILL.md) for the shared generator-reviewer contract.
+Quality gate for generated test specs.
 
 ## When to Use
 
@@ -26,7 +26,7 @@ Quality gate for generated test specs. Follow [../test-invariants/SKILL.md](../t
 1. Run `migrate-util ready <item_id> test-gen`. Stop on readiness failure.
 2. Assemble context using the table or view path in [references/table-vs-view-context.md](references/table-vs-view-context.md).
 3. Read `test-specs/<item_id>.json`.
-4. Build your own branch manifest from the source logic. Apply [../test-invariants/SKILL.md](../test-invariants/SKILL.md): reviewer-owned evidence must not come from the generator's `branch_manifest`.
+4. Build your own branch manifest from the source logic. Apply [../test-invariants/SKILL.md](../test-invariants/SKILL.md).
 5. Map each scenario to the reviewer-owned branches.
 6. Review fixture quality using [references/fixture-quality-rules.md](references/fixture-quality-rules.md).
 7. Write and validate the final review JSON.
@@ -131,7 +131,7 @@ Maximum review iterations: 2.
 
 ## Step 7: Validate and Return
 
-Before schema validation, verify the review is self-consistent according to [../test-invariants/SKILL.md](../test-invariants/SKILL.md): coverage counts and uncovered/untestable/feedback IDs must all derive from `reviewer_branch_manifest`, not the generator's `branch_manifest`.
+Before schema validation, apply [../test-invariants/SKILL.md](../test-invariants/SKILL.md): coverage counts and uncovered, untestable, and feedback IDs must derive from `reviewer_branch_manifest`.
 
 Write the `TestReviewResult` JSON to `.staging/review.json`, then validate:
 
