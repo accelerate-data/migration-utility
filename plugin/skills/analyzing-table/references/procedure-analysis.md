@@ -49,6 +49,15 @@ Tag each statement as `migrate` or `skip`:
 | `migrate` | Core transformation (INSERT, UPDATE, DELETE, MERGE, SELECT INTO) — becomes the dbt model |
 | `skip` | Operational overhead (SET, TRUNCATE, DROP/CREATE INDEX) — dbt handles or ignores |
 
+Use this table for edge cases:
+
+| Statement pattern | Action | Notes |
+|---|---|---|
+| In-scope INSERT/UPDATE/DELETE/MERGE/SELECT INTO that materially writes the target | `migrate` | Core transformation logic |
+| Operational statements (`SET`, `TRUNCATE`, index maintenance) | `skip` | Operational overhead |
+| Cross-database or linked-server `EXEC` | `skip` | Unsupported statement; explain in `rationale` whether it is ancillary or the core write path |
+| Dynamic or opaque statement whose target behavior cannot be resolved | `skip` or stop | Use `skip` only if the remaining target-table write path is still defensible; otherwise stop and report the unresolved path to the parent skill |
+
 Present the tagged list:
 
 ```text
@@ -58,7 +67,12 @@ Migration Guidance
   3. [migrate] Computes DateFirstPurchase via OUTER APPLY on bronze.SalesOrderHeader
 ```
 
-If the procedure delegates through a cross-database or linked-server `EXEC`, classify that statement as unsupported/out-of-scope in the rationale. Treat the procedure as a non-migratable candidate for writer selection. The parent skill decides the final table scoping outcome.
+If the procedure includes a cross-database or linked-server `EXEC`, persist that statement as `action: "skip"` and explain in `rationale` that it is out-of-scope. Do not invent a third action such as `unsupported`.
+
+Do not reject the whole procedure just because one statement is remote. The parent skill decides writer selection based on whether the remaining local statements are sufficient to represent the target-table write path:
+
+- if the remote `EXEC` is ancillary and the target table still has sufficient local `migrate` statements, the proc can remain selectable
+- if the remote `EXEC` is the only meaningful write path for the target table, the parent skill should reject the proc with `REMOTE_EXEC_UNSUPPORTED`
 
 ### Step 6 — Persist resolved statements
 
@@ -72,6 +86,18 @@ After presenting the analysis, persist resolved statements to catalog.
 2. Build the final resolved statement list and persist it immediately. Do not ask for confirmation before writing — this is a write-through workflow.
 3. After the write succeeds, present the resolved statement list and the persisted outcome to the user. All resolved statements get `source: "llm"`. Each statement must include a `rationale` field (1-2 sentences) explaining why it is `migrate` or `skip`.
 
+Example for a remote delegate statement:
+
+```json
+{
+  "type": "Command",
+  "action": "skip",
+  "sql": "EXEC [ArchiveDB].[silver].[usp_stage_DimCrossDbProfile]",
+  "source": "llm",
+  "rationale": "Cross-database EXEC delegate to an external procedure. Skip in statement persistence; the parent scoping step decides whether this remote call is ancillary or the core write path."
+}
+```
+
 No `needs_llm` actions are written to catalog — all must be resolved before persisting.
 
 Write the statements JSON to a temp file:
@@ -84,6 +110,11 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-statements \
 ```
 
 After `discover write-statements` succeeds, report that the statements were persisted and summarize the migrate/skip decisions.
+
+## Common mistakes
+
+- Do not invent `unsupported` as a statement action. `discover write-statements` accepts only `migrate` or `skip`.
+- Do not reject the entire procedure at statement-classification time just because one statement is remote. Record the remote statement as `skip`; the parent skill decides whether the proc is still selectable.
 
 ## Error handling
 

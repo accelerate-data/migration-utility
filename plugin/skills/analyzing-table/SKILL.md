@@ -228,6 +228,8 @@ If a candidate proc has a `MULTI_TABLE_WRITE` warning, do **not** disqualify it.
 
 For each writer candidate, read and follow the [procedure analysis reference](references/procedure-analysis.md). Run all 6 steps (fetch, classify, resolve call graph, logic summary, migration guidance, persist) for each candidate before moving to Step 4.
 
+Every candidate must complete statement persistence before final writer selection, even if the candidate is later rejected. Rejected candidates still need a persisted procedure catalog showing the resolved `migrate`/`skip` decisions that supported the rejection.
+
 If there are multiple candidates, analyze them sequentially — each candidate's analysis must complete before starting the next.
 
 ### Step 4 -- Present writer candidates
@@ -252,10 +254,25 @@ Include rationale (direct writer, transitive writer), dependencies (reads/writes
 
 ### Step 5 -- Resolution
 
-Apply resolution rules:
+Use the decision table below as the primary writer-selection rule set. The bullets that follow are only reminders of the common outcomes.
 
-- **Unsupported external delegate** -- if a candidate procedure only delegates through cross-database or linked-server `EXEC`, mark that candidate as unsupported for writer selection. Do not treat it as a valid resolved writer.
-- **1 writer** -- auto-select and persist
+Use this decision table when selecting the final writer:
+
+| Situation | Select proc? | Persisted outcome |
+|---|---|---|
+| Single defensible local writer | yes | persist `selected_writer` with rationale |
+| Multiple defensible writers, one clearly primary | yes | persist the best-supported `selected_writer` with rationale |
+| Multiple writers, no defensible tie-break | no | persist candidate context and let status resolve to `ambiguous_multi_writer` |
+| Multi-table writer with a clean table-specific slice | yes | write the slice, then evaluate and select normally if it is the best writer |
+| Multi-table writer with interleaved target logic | no | persist candidate context plus canonical error entry |
+| Remote or linked-server `EXEC` is ancillary and local target-table writes are sufficient | yes | keep the proc selectable; persist the remote statement as `skip` and mention the skipped out-of-scope behavior in rationale or warnings |
+| Remote or linked-server `EXEC` is the only meaningful write path for the target table | no | persist canonical `REMOTE_EXEC_UNSUPPORTED` error |
+| Dynamic or opaque write path leaves the target-table transformation materially unresolved | no | persist canonical error entry and do not select the proc |
+| No writers found | no | `no_writer_found` |
+
+Common outcomes:
+
+- **1 writer** -- auto-select and persist when it remains defensible under the decision table
 - **2+ writers** -- present candidates, choose the best-supported writer, and persist with clear rationale
 - **0 writers** -- report `no_writer_found` (already handled in Step 2)
 

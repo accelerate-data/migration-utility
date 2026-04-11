@@ -43,8 +43,23 @@
     }
   },
   "scoping": {
-    "status": "resolved",
     "selected_writer": "silver.usp_scope_execconcat",
-    "selected_writer_rationale": "Only one writer candidate was found for silver.ExecConcatTarget. The procedure builds and executes a dynamic INSERT via string concatenation, writing directly to this table."
+    "selected_writer_rationale": "Only one writer candidate was found for silver.ExecConcatTarget. The procedure builds and executes a dynamic INSERT via string concatenation, writing directly to this table from bronze.Product.",
+    "candidates": [
+      {
+        "procedure_name": "silver.usp_scope_execconcat",
+        "rationale": "Direct writer that constructs and executes a dynamic INSERT statement via string concatenation to populate the target table from bronze.Product.",
+        "dependencies": {
+          "tables": [
+            "bronze.Product"
+          ],
+          "views": [],
+          "functions": []
+        }
+      }
+    ],
+    "warnings": [],
+    "errors": [],
+    "status": "resolved"
   }
 }

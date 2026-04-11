@@ -192,12 +192,11 @@
     "selected_writer": "silver.usp_load_DimCustomer_Full"
   },
   "profile": {
-    "status": "ok",
-    "writer": "silver.usp_load_DimCustomer_Full",
+    "writer": "silver.usp_load_dimcustomer_full",
     "classification": {
       "resolved_kind": "dim_non_scd",
-      "source": "catalog+llm",
-      "rationale": "The full-load writer truncates and reloads a customer dimension projection without SCD history columns or versioning logic, so the table profiles as a non-SCD dimension."
+      "source": "llm",
+      "rationale": "TRUNCATE + INSERT pattern with descriptive VARCHAR columns (names, gender, marital status) signals a simple dimension with full reloads. No SCD2 versioning columns, no fact table aggregation patterns."
     },
     "primary_key": {
       "columns": [
@@ -205,21 +204,49 @@
       ],
       "primary_key_type": "surrogate",
       "source": "catalog",
-      "rationale": "CustomerKey is the declared primary key and uses the table identity mechanism, which makes it the surrogate key."
+      "rationale": "Identity column declared in catalog as primary key."
     },
     "natural_key": {
       "columns": [
         "CustomerAlternateKey"
       ],
       "source": "llm",
-      "rationale": "The writer derives CustomerAlternateKey from bronze.Customer.CustomerID and uses it as the stable business identifier in the dimensional projection."
+      "rationale": "CustomerAlternateKey (derived from original CustomerID) serves as the business identifier across system boundaries."
     },
     "foreign_keys": [],
-    "pii_actions": []
-  },
-  "scoping": {
-    "status": "resolved",
-    "selected_writer": "silver.usp_load_DimCustomer_Full"
+    "pii_actions": [
+      {
+        "column": "FirstName",
+        "suggested_action": "mask",
+        "source": "llm",
+        "rationale": "Personal name field requires masking for privacy protection."
+      },
+      {
+        "column": "MiddleName",
+        "suggested_action": "mask",
+        "source": "llm",
+        "rationale": "Personal name field requires masking for privacy protection."
+      },
+      {
+        "column": "LastName",
+        "suggested_action": "mask",
+        "source": "llm",
+        "rationale": "Personal name field requires masking for privacy protection."
+      },
+      {
+        "column": "Gender",
+        "suggested_action": "mask",
+        "source": "llm",
+        "rationale": "Personal demographic attribute should be masked."
+      },
+      {
+        "column": "MaritalStatus",
+        "suggested_action": "mask",
+        "source": "llm",
+        "rationale": "Personal demographic attribute should be masked."
+      }
+    ],
+    "status": "ok"
   },
   "refactor": {
     "status": "ok",

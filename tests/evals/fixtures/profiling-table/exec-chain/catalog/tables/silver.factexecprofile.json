@@ -90,12 +90,11 @@
     "selected_writer_rationale": "The orchestrator proc is the table writer for profiling and delegates the actual insert to its helper."
   },
   "profile": {
-    "status": "ok",
-    "writer": "silver.usp_load_FactExecProfile",
+    "writer": "silver.usp_load_factexecprofile",
     "classification": {
       "resolved_kind": "fact_transaction",
-      "source": "catalog+llm",
-      "rationale": "The helper inserts one row per product snapshot into a fact-style target and the orchestrator delegates to it through a static EXEC call."
+      "source": "llm",
+      "rationale": "Pure INSERT with no UPDATE/DELETE, no aggregation. Surrogate PK, FK to dimension, timestamp, and numeric measures indicate a fact table tracking discrete execution events."
     },
     "primary_key": {
       "columns": [
@@ -103,24 +102,28 @@
       ],
       "primary_key_type": "surrogate",
       "source": "catalog",
-      "rationale": "ExecProfileKey is the declared identity primary key."
+      "rationale": "Declared PK with identity column mechanism."
     },
-    "natural_key": {
-      "columns": [
-        "ProcedureKey",
-        "ExecutionDate"
-      ],
-      "source": "llm",
-      "rationale": "ProcedureKey and ExecutionDate together identify the grain of each execution profile row."
-    },
+    "foreign_keys": [
+      {
+        "columns": [
+          "ProcedureKey"
+        ],
+        "references_table": "silver.DimProcedure",
+        "fk_type": "standard",
+        "source": "llm",
+        "rationale": "Writer proc joins DimProcedure on procedure name and selects the surrogate key. Standard 1:N relationship."
+      }
+    ],
+    "natural_key": null,
     "watermark": {
       "columns": [
         "ExecutionDate"
       ],
       "source": "llm",
-      "rationale": "ExecutionDate records the execution timestamp for each transaction-style load."
+      "rationale": "ExecutionDate captures the timestamp of each recorded execution. Natural watermark for incremental loads despite the procedure doing full reload."
     },
-    "foreign_keys": [],
-    "pii_actions": []
+    "pii_actions": [],
+    "status": "ok"
   }
 }

@@ -26,11 +26,18 @@
   ],
   "statements": [
     {
-      "type": "Exec",
+      "type": "Set",
       "action": "skip",
+      "sql": "SET NOCOUNT ON",
       "source": "ast",
+      "rationale": "Operational setup statement; no transformation logic."
+    },
+    {
+      "type": "Command",
+      "action": "skip",
       "sql": "EXEC [LinkedServer].[WarehouseDb].[silver].[usp_remote_LoadProduct]",
-      "rationale": "Static EXEC to a linked server target is out-of-scope for direct migration and requires call-graph enrichment."
+      "source": "llm",
+      "rationale": "Cross-database linked-server EXEC delegate to an external procedure. The actual write logic is out-of-scope and cannot be resolved from this project."
     }
   ]
 }

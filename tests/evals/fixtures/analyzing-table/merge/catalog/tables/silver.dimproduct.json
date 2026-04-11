@@ -173,9 +173,24 @@
     }
   },
   "scoping": {
-    "status": "resolved",
-    "selected_writer": "silver.usp_load_DimProduct",
-    "selected_writer_rationale": "Single MERGE writer for DimProduct."
+    "selected_writer": "silver.usp_load_dimproduct",
+    "selected_writer_rationale": "Direct single-table writer that implements SCD1 merge pattern. Updates existing products by alternate key and inserts new products with full attribute set.",
+    "candidates": [
+      {
+        "procedure_name": "silver.usp_load_dimproduct",
+        "rationale": "Direct writer with single target table (silver.DimProduct). Uses MERGE WHEN MATCHED/NOT MATCHED pattern for upsert semantics.",
+        "dependencies": {
+          "tables": [
+            "bronze.product"
+          ],
+          "views": [],
+          "functions": []
+        }
+      }
+    ],
+    "warnings": [],
+    "errors": [],
+    "status": "resolved"
   },
   "profile": {
     "status": "ok",
@@ -202,10 +217,6 @@
     },
     "foreign_keys": [],
     "pii_actions": []
-  },
-  "scoping": {
-    "status": "resolved",
-    "selected_writer": "silver.usp_load_DimProduct"
   },
   "refactor": {
     "status": "ok",
