@@ -1,0 +1,37 @@
+version: 2
+
+models:
+  - name: stg_selectintotarget
+    description: "Projected staging model for silver.SelectIntoTarget."
+    columns:
+      - name: ProductAlternateKey
+        description: "Business key derived from bronze.Product.ProductID."
+        data_tests:
+          - not_null
+          - unique
+      - name: EnglishProductName
+        description: "Product name projected from bronze.Product.ProductName."
+      - name: _dbt_run_id
+        description: "dbt invocation identifier for the run that produced this row."
+      - name: _loaded_at
+        description: "Timestamp when the row was loaded by dbt."
+
+unit_tests:
+  - name: test_selectinto_rows_present_populates_target
+    model: stg_selectintotarget
+    given:
+      - input: source('bronze', 'product')
+        rows:
+          - ProductID: 101
+            ProductName: Mountain Bike
+    expect:
+      rows:
+        - ProductAlternateKey: "101"
+          EnglishProductName: Mountain Bike
+  - name: test_selectinto_empty_source_no_rows
+    model: stg_selectintotarget
+    given:
+      - input: source('bronze', 'product')
+        rows: []
+    expect:
+      rows: []

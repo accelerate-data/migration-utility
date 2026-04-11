@@ -161,5 +161,44 @@
       "source": "ast",
       "sql": "INSERT INTO silver.DimCustomer (CustomerAlternateKey, FirstName, MiddleName, LastName, Title, Gender, MaritalStatus, EmailPromotion, DateFirstPurchase) SELECT CAST(c.CustomerID AS NVARCHAR(15)) AS CustomerAlternateKey, p.FirstName, p.MiddleName, p.LastName, p.Title, NULL AS Gender, NULL AS MaritalStatus, p.EmailPromotion, CAST(h.MinOrderDate AS DATE) AS DateFirstPurchase FROM bronze.Customer c JOIN bronze.Person p ON c.PersonID = p.BusinessEntityID OUTER APPLY (SELECT MIN(OrderDate) AS MinOrderDate FROM bronze.SalesOrderHeader sh WHERE sh.CustomerID = c.CustomerID) h"
     }
-  ]
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT CAST(c.CustomerID AS NVARCHAR(15)) AS CustomerAlternateKey, p.FirstName, p.MiddleName, p.LastName, p.Title, NULL AS Gender, NULL AS MaritalStatus, p.EmailPromotion, CAST(h.MinOrderDate AS DATE) AS DateFirstPurchase FROM bronze.Customer c JOIN bronze.Person p ON c.PersonID = p.BusinessEntityID OUTER APPLY ( SELECT MIN(OrderDate) AS MinOrderDate FROM bronze.SalesOrderHeader sh WHERE sh.CustomerID = c.CustomerID ) h",
+    "refactored_sql": "WITH import_customer AS ( SELECT * FROM bronze.Customer ), import_person AS ( SELECT * FROM bronze.Person ), import_salesorderheader AS ( SELECT * FROM bronze.SalesOrderHeader ), agg_min_order_date AS ( SELECT sh.CustomerID, MIN(sh.OrderDate) AS MinOrderDate FROM import_salesorderheader sh GROUP BY sh.CustomerID ), joined_customer_person AS ( SELECT c.CustomerID, p.FirstName, p.MiddleName, p.LastName, p.Title, p.EmailPromotion, h.MinOrderDate FROM import_customer c JOIN import_person p ON c.PersonID = p.BusinessEntityID LEFT JOIN agg_min_order_date h ON c.CustomerID = h.CustomerID ), final AS ( SELECT CAST(jcp.CustomerID AS NVARCHAR(15)) AS CustomerAlternateKey, jcp.FirstName, jcp.MiddleName, jcp.LastName, jcp.Title, NULL AS Gender, NULL AS MaritalStatus, jcp.EmailPromotion, CAST(jcp.MinOrderDate AS DATE) AS DateFirstPurchase FROM joined_customer_person jcp ) SELECT * FROM final",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both queries read from bronze.Customer, bronze.Person, and bronze.SalesOrderHeader"
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Both queries produce identical output columns with same transformations: CustomerAlternateKey (CAST to NVARCHAR(15)), FirstName, MiddleName, LastName, Title, Gender (NULL), MaritalStatus (NULL), EmailPromotion, DateFirstPurchase (CAST OrderDate to DATE)"
+        },
+        "joins": {
+          "passed": true,
+          "summary": "Both use equivalent join semantics: extracted uses OUTER APPLY (LEFT JOIN equivalent) with correlation, refactored uses LEFT JOIN after GROUP BY aggregation. Semantically equivalent for all customer rows including those without orders."
+        },
+        "filters": {
+          "passed": true,
+          "summary": "Both queries apply identical filtering: extracted filters SalesOrderHeader by CustomerID in OUTER APPLY WHERE clause; refactored applies same filter in GROUP BY aggregation before LEFT JOIN"
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "Both compute MIN(OrderDate) per CustomerID with identical grain: extracted uses correlated subquery, refactored uses pre-aggregated GROUP BY. Both return one row per customer with minimum order date or NULL."
+        }
+      },
+      "issues": []
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
+  }
 }

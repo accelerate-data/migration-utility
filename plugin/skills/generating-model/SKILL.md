@@ -1,292 +1,150 @@
 ---
 name: generating-model
-description: >
-  Generates a dbt model from a source routine. Requires catalog profile,
-  resolved statements from prior discover + profile stages, and an approved
-  test spec from the test-generation stage.
+description: Use when generating or revising one dbt model for a single profiled table or view after refactor and approved test-spec work are complete.
 user-invocable: false
 argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 ---
 
 # Generating Model
 
-Generate one dbt model for one table or view. Use deterministic context from catalog, generate dbt SQL and YAML, validate equivalence, write artifacts, run dbt validation, and return one JSON result.
+Generate or revise one dbt artifact set from deterministic migration context.
 
-## Arguments
+**Core principle:** preserve the semantics of `refactored_sql`; style and materialization choices must not change business logic.
 
-`$ARGUMENTS` is the fully-qualified table name. Ask the user if missing.
+Use the canonical codes in [../../lib/shared/generate_model_error_codes.md](../../lib/shared/generate_model_error_codes.md). Return one JSON object matching `ModelGenerationOutput` in [../../lib/shared/output_models/model_generation.py](../../lib/shared/output_models/model_generation.py).
 
-## Before invoking
+## When to Use
 
-Use the canonical `/generate-model` codes in [../../lib/shared/generate_model_error_codes.md](../../lib/shared/generate_model_error_codes.md).
+- One table or view is ready for model generation.
+- `/generate-model` is delegating a single item.
+- `/reviewing-model` requested a revision and supplied structured feedback.
 
-Check stage readiness:
+Do not use this skill for batch orchestration. `/generate-model` owns batching, review loops, commits, and summaries.
 
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <table_fqn> generate
-```
+## Quick Reference
 
-If `ready` is `false`, report the failing check's `code` and `reason` to the user and stop.
+- Readiness failure: surface the failing `code` and `reason`, then stop.
+- Multi-table writer: use `writer_ddl_slice`; otherwise use `refactored_sql`.
+- Reviewer handoff: use `artifact_paths` and `revision_feedback` exactly as given.
+- Offline compile: fall back to `dbt parse` and skip `dbt test`.
+- Before returning `ok` or `partial`, satisfy [../_shared/references/model-artifact-invariants.md](../_shared/references/model-artifact-invariants.md).
 
-## Caller handoff
+## Happy Path
 
-The caller may provide a structured handoff object:
+1. Check readiness.
 
-```json
-{
-  "artifact_paths": {"model_sql": "...", "model_yaml": "..."} | null,
-  "revision_feedback": [{"code": "SQL_001", "message": "...", "severity": "error | warning | info", "ack_required": true}] | null
-}
-```
+   ```bash
+   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <table_fqn> generate
+   ```
 
-If a handoff is provided:
+2. Assemble deterministic context.
 
-- use `artifact_paths` exactly as given
-- use `revision_feedback` exactly as given
-- do not read or interpret sweep artifacts from `.migration-runs/`
+   ```bash
+   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate context \
+     --table <table_fqn>
+   ```
 
-If no handoff is provided:
+   Use `writer_ddl_slice` when present; otherwise use `refactored_sql`. Never generate from `proc_body`.
 
-- derive `artifact_paths` locally
-- assume no `revision_feedback`
+3. Generate SQL that preserves the transformed logic.
 
-## Output contract
+   Apply [sql-style](../_shared/references/sql-style.md), [cte-structure](../_shared/references/cte-structure.md), [model-naming](../_shared/references/model-naming.md), and [model-artifact-invariants](../_shared/references/model-artifact-invariants.md).
 
-Return exactly one JSON object:
+   Rules:
+   - Keep one dbt model artifact per target. Do not split one target across multiple helper SQL files.
+   - Use `{{ source('<schema>', '<table>') }}` directly in import CTEs.
+   - Preserve joins, filters, grouping, and write intent from `refactored_sql`.
+   - For snapshots, use [references/snapshot-generation.md](references/snapshot-generation.md).
 
-```json
-{
-  "item_id": "<table_fqn>",
-  "status": "ok | partial | error",
-  "output": {
-    "table_ref": "<table_fqn>",
-    "model_name": "<model_name>",
-    "artifact_paths": {"model_sql": "...", "model_yaml": "..."},
-    "generated": {
-      "model_sql": {"materialized": "<materialization>", "uses_watermark": bool},
-      "model_yaml": {"has_model_description": bool, "schema_tests_rendered": [...], "has_unit_tests": bool}
-    },
-    "execution": {"dbt_compile_passed": bool, "dbt_test_passed": bool, "self_correction_iterations": int, "dbt_errors": []},
-    "review": {"iterations": int, "verdict": "approved | approved_with_warnings"},
-    "warnings": [],
-    "errors": []
-  }
-}
-```
+4. Run a logical equivalence pass against `refactored_sql`.
 
-Return only this JSON object. Use codes from [../../lib/shared/generate_model_error_codes.md](../../lib/shared/generate_model_error_codes.md) in `warnings[]` and `errors[]`.
+   Check source tables, selected columns, joins, filters, grain, and write semantics. Record `EQUIVALENCE_GAP` in `warnings[]` if a semantic gap remains.
 
-## Step 1: Assemble context
+5. Build schema YAML.
 
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate context \
-  --table <table_fqn>
-```
+   Apply [yaml-style](../_shared/references/yaml-style.md). Add deterministic tests from context: PK -> `unique` and `not_null`, FK -> `relationships`, PII -> `meta`, watermark -> `recency`.
 
-Use `refactored_sql` as your sole SQL input. Ignore `proc_body` and `statements` — they are not relevant to model generation.
+6. Render canonical unit tests from the approved test spec.
 
-**Multi-table-writer:** If `writer_ddl_slice` is present in the context, the writer is a multi-table proc. Use `writer_ddl_slice` as the primary SQL for this model — it contains only the logic for this table. The full `proc_body` is for reference only.
+   ```bash
+   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate render-unit-tests \
+     --table <table_fqn> \
+     --model-name <model_name> \
+     --spec test-specs/<item_id>.json \
+     --schema-yml .staging/schema.yml \
+     --project-root <project_root>
+   ```
 
-**View detection:** If the catalog object is a view (`catalog/views/<fqn>.json` exists), the refactored SQL lives in `catalog/views/<fqn>.json → refactor.refactored_sql` instead of the procedure catalog. The materialization is determined by the view's profile `classification`:
+   The CLI is the source of truth for canonical `unit_tests:`. Do not hand-write them.
 
-- `stg` classification → `materialized='ephemeral'` staging model
-- `mart` classification → use the same materialization decision rules as tables (table/incremental/snapshot based on profile signals)
+7. Write artifacts through the CLI.
 
-## Step 2: Generate dbt SQL
+   If the caller supplied a handoff object:
+   - use `artifact_paths` exactly as given
+   - use `revision_feedback` exactly as given
 
-Produce the model SQL from the `refactored_sql`. Apply [sql-style.md](../_shared/references/sql-style.md) (keywords, indentation, commas) and [cte-structure.md](../_shared/references/cte-structure.md) (import/logical/final pattern) throughout. Apply [model-naming.md](../_shared/references/model-naming.md) for layer prefixes, `_dbt_run_id`, and `_loaded_at` rules.
+   Then write SQL and YAML through:
 
-**Source table references:** All source table references use `{{ source('<schema>', '<table>') }}` directly in import CTEs. Do not generate separate `stg_*.sql` files.
+   ```bash
+   mkdir -p .staging
+   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate write \
+     --table <table_fqn> \
+     --model-sql-file .staging/model.sql \
+     --schema-yml-file .staging/schema.yml \
+     --project-root <project_root>
+   ```
 
-Follow the import → logical → final CTE pattern from cte-structure.md. For incremental models, add `unique_key` and `incremental_strategy='merge'` to the config, and add the watermark filter in the appropriate logical CTE. For snapshot models, follow [references/snapshot-generation.md](references/snapshot-generation.md).
+   Use the CLI-returned written paths. Do not hardcode output paths.
 
-## Step 3: Logical equivalence check
+8. Validate with dbt.
 
-Compare the generated model against `refactored_sql`. Check each of these:
+   ```bash
+   cd "${DBT_PROJECT_PATH:-./dbt}" && dbt compile --select <model_name>
+   cd "${DBT_PROJECT_PATH:-./dbt}" && dbt test --select <model_name>
+   ```
 
-| Check | What to compare |
-|---|---|
-| Source tables | Same tables read in generated model vs original proc? |
-| Columns selected | Same columns in final SELECT vs original INSERT column list? |
-| Join conditions | Same join keys and join types (INNER/LEFT/RIGHT/FULL)? |
-| Filter predicates | Same WHERE/HAVING conditions (modulo syntax differences)? |
-| Aggregation grain | Same GROUP BY columns? |
-| Write semantics | INSERT/MERGE/UPDATE intent preserved by materialization? |
+   If the warehouse is unavailable, run `dbt parse` and skip `dbt test`. If compile or test fails for model reasons, revise SQL, re-write, and retry up to 3 total attempts.
 
-For each check:
+9. Add gap tests only after canonical tests pass.
 
-- **Match**: proceed silently
-- **Intentional divergence** (e.g., dialect-specific functions replaced with ANSI equivalents (e.g. `ISNULL` → `COALESCE`, `NVL` → `COALESCE`)): note as informational
-- **Semantic gap** (missing join, different grain, dropped column): record an `EQUIVALENCE_GAP` warning
+   Add 1-3 `test_gap_*` scenarios only for uncovered logic branches. Canonical test-spec scenarios are not mutable.
 
-If warnings exist, record them in the item result and continue.
+10. Write generation status to catalog.
 
-## Step 4: Build schema.yml
+   ```bash
+   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate write-catalog \
+     --table <table_fqn> \
+     --model-path <relative_model_sql_path> \
+     --compiled <true|false> \
+     --tests-passed <true|false> \
+     --test-count <number> \
+     --schema-yml <true|false> \
+     --project-root <project_root>
+   ```
 
-Apply [yaml-style.md](../_shared/references/yaml-style.md) (indentation, `version: 2`, required descriptions) throughout.
+   Pass `--warnings` and `--errors` as JSON arrays when needed.
 
-### 4a — Schema tests
+## Review Handoff
 
-Render `schema_tests` from context into the `columns:` section following yaml-style.md. Include `unique` and `not_null` for PK columns, `relationships` for FK columns, PII `meta` tags, and `recency` for incremental models with watermark.
+If `/reviewing-model` sent `revision_feedback`, treat it as bounded revision input:
 
-### 4b — Render test-spec unit tests
+- revise the existing model rather than regenerating from scratch unless the feedback requires a full rewrite
+- preserve canonical unit tests
+- re-run validation after changes
 
-Run the CLI to render unit tests from the test spec into schema.yml:
+The generator owns generation facts, not reviewer judgment.
 
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate render-unit-tests \
-  --table <fqn> --model-name <model_name> \
-  --spec test-specs/<item_id>.json \
-  --schema-yml <schema_yml_path> \
-  --project-root <project_root>
-```
+## Common Mistakes
 
-This writes the canonical test scenarios from the test spec into the `unit_tests:` block of the schema YAML. The CLI is the single source of truth for unit test rendering — do not manually construct the YAML block.
-
-## Step 5: Prepare final result
-
-Include these in the final item result:
-
-1. generated model SQL
-2. schema YAML
-3. equivalence warnings, if any
-4. materialization and config decisions
-
-## Step 6: Write artifacts
-
-Before writing, decide the exact output paths.
-
-If the caller supplied `artifact_paths`, use them exactly. Otherwise decide them locally:
-
-- model → `dbt/models/<layer>/<model_name>.sql` and `dbt/models/<layer>/_<model_name>.yml`
-- snapshot → `dbt/snapshots/<model_name>.sql` and `dbt/snapshots/schema.yml`
-
-Write the generated SQL and YAML to temporary files first to avoid shell escaping issues with multi-line content:
-
-1. Write the model SQL to `.staging/model.sql`
-2. Write the schema YAML to `.staging/schema.yml`
-
-```bash
-mkdir -p .staging
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate write \
-  --table <table_fqn> \
-  --model-path <relative_path_to_model.sql> \
-  --schema-yml-path <relative_path_to_schema.yml> \
-  --model-sql-file .staging/model.sql \
-  --schema-yml-file .staging/schema.yml && rm -rf .staging
-```
-
-Use the CLI-returned written paths when constructing the final item result.
-
-## Step 7: Compile and run canonical tests
-
-### 7a — Compile
-
-Run `dbt compile` to verify the generated model compiles:
-
-```bash
-cd "${DBT_PROJECT_PATH:-./dbt}" && dbt compile --select <model_name>
-```
-
-If compile fails with a **connection error** (adapter cannot reach the warehouse — look for "Could not connect", "Login failed", "Connection refused", or similar adapter errors):
-
-1. Tell the user: "No warehouse connection available. Falling back to offline validation."
-2. Run `dbt parse` in the dbt project directory instead.
-3. Report parse results. If parse fails, attempt to fix (max 3 iterations as below). Skip `dbt test` — unit tests require compilation.
-
-If compile fails with a **non-connection error** (syntax, bad ref, macro resolution), proceed to the self-correction loop in 7c.
-
-### 7b — Run canonical unit tests
-
-On compile success, run unit tests:
-
-```bash
-cd "${DBT_PROJECT_PATH:-./dbt}" && dbt test --select <model_name>
-```
-
-All canonical tests (from the test spec) must pass before proceeding.
-
-### 7c — Self-correction loop (max 3 iterations)
-
-If compile or test fails:
-
-1. Analyze the failure output — identify which test failed and why (wrong column, missing row, type mismatch, etc.).
-2. Revise the model SQL to fix the issue. Do not modify test-spec unit tests — they are immutable ground truth. Only the model SQL is mutable during self-correction.
-3. Re-run `migrate write` with the revised SQL and schema YAML.
-4. Re-run `dbt compile` and `dbt test`.
-5. Repeat up to 3 iterations total.
-
-After 3 failed iterations:
-
-- Report the failing test names and error details to the user.
-- Leave the model as-is with `status: "partial"`.
-- Record failures in `execution.dbt_errors[]`.
-
-## Step 8: Gap tests
-
-Run this step only after all canonical tests pass in Step 7.
-
-Analyze the generated model's logic for branches not covered by existing test-spec scenarios. Look for:
-
-- JOIN conditions with no matching/non-matching test case
-- CASE/WHEN arms not exercised
-- NULL handling paths (dialect-specific function replacements)
-- Incremental filter (`is_incremental()`) boundary cases
-- Empty source table edge cases
-
-Generate 1-3 additional unit test scenarios for uncovered branches. Add them to the `unit_tests:` block in the schema YAML alongside the canonical scenarios. Use the naming convention `test_gap_<description>` to distinguish LLM-generated tests from ground-truth test-spec tests.
-
-Gap tests follow the same structure as test-spec tests (`name`, `model`, `given[]`, `expect`). Since there is no ground-truth execution for gap tests, derive `expect.rows` from the model's logic — these are best-effort expectations that `dbt test` will validate.
-
-After adding gap tests, re-run `migrate write` with the updated schema YAML and run:
-
-```bash
-cd "${DBT_PROJECT_PATH:-./dbt}" && dbt test --select <model_name>
-```
-
-If gap tests fail, revise or remove the failing gap test (gap tests are mutable, unlike canonical tests). Do not re-enter the self-correction loop — a single fix attempt is sufficient for gap tests.
-
-## Final Step — Write generate status to catalog
-
-After the dbt model has been created and tested, record the summary in the catalog:
-
-```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate write-catalog \
-  --table <fqn> \
-  --model-path <relative_path_to_model.sql> \
-  --compiled <true|false> \
-  --tests-passed <true|false> \
-  --test-count <number> \
-  --schema-yml <true|false>
-```
-
-If there are warnings or errors to report, pass them as JSON arrays:
-
-```bash
-  --warnings '[{"code": "...", "message": "..."}]' \
-  --errors '[{"code": "...", "message": "..."}]'
-```
-
-## Output schemas
-
-| Subcommand | Schema reference |
-|---|---|
-| `context` | See `docs/design/skill-contract/model-generator.md` section "AssembleContext" |
-| `write` | `{ "written": [...], "status": "ok" }` |
-
-## Error handling
-
-| Command | Exit code | Action |
-|---|---|---|
-| `migrate context` | 1 | No profile or no statements. Tell user which prerequisite is missing |
-| `migrate context` | 2 | IO/parse error. Surface the error message |
-| `migrate write` | 1 | Validation failure (empty SQL). Tell user to regenerate |
-| `migrate write` | 2 | IO error (missing dbt project). Tell user to run `/init-dbt` |
+- Using `proc_body` as the generation source. Use `refactored_sql`, or `writer_ddl_slice` for multi-table writers.
+- Hardcoding `migrate write` output paths. The CLI decides written paths; report what it returned.
+- Reducing snapshot models to raw `select * from {{ source(...) }}`. Snapshot config may change, but transformed logic must still be preserved.
+- Hand-writing canonical `unit_tests:` blocks. Use `migrate render-unit-tests`.
+- Returning `ok` for artifacts that do not satisfy the shared artifact invariants.
+- Treating review state as generation state. The reviewer owns review findings; generator revisions respond to them.
 
 ## References
 
-- [../_shared/references/sql-style.md](../_shared/references/sql-style.md) — SQL formatting rules with stable codes (SQL_001-SQL_013): keywords, indentation, commas, aliases
-- [../_shared/references/cte-structure.md](../_shared/references/cte-structure.md) — CTE pattern rules (CTE_001-CTE_008): import-first order, `final` naming, no nested CTEs
-- [../_shared/references/model-naming.md](../_shared/references/model-naming.md) — layer prefix, snake_case, `_dbt_run_id` and `_loaded_at` ETL control column rules (MDL_001-MDL_013)
-- [../_shared/references/yaml-style.md](../_shared/references/yaml-style.md) — YAML formatting rules (YML_001-YML_008): `version: 2`, descriptions, indentation
-- [references/snapshot-generation.md](references/snapshot-generation.md) — snapshot file placement, strategy selection (timestamp vs check), and config templates
+- [../../lib/shared/output_models/model_generation.py](../../lib/shared/output_models/model_generation.py) — structured input/output contract
+- [../../lib/shared/generate_model_error_codes.md](../../lib/shared/generate_model_error_codes.md) — canonical statuses and surfaced codes
+- [references/snapshot-generation.md](references/snapshot-generation.md) — snapshot-specific generation rules

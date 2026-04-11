@@ -23,6 +23,8 @@ Each check is:
 { "passed": true, "issues": [] }
 ```
 
+Always include `passed` explicitly. Do not return `{ "issues": [] }` without the boolean.
+
 Example shape:
 
 ```json

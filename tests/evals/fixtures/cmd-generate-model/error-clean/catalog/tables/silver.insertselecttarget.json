@@ -76,5 +76,31 @@
     },
     "foreign_keys": [],
     "pii_actions": []
+  },
+  "test_gen": {
+    "status": "ok",
+    "test_spec_path": "test-specs/silver.insertselecttarget.json",
+    "branches": 2,
+    "unit_tests": 3,
+    "coverage": "complete",
+    "warnings": [],
+    "errors": []
+  },
+  "generate": {
+    "status": "ok",
+    "model_path": "models/staging/stg_insertselecttarget.sql",
+    "schema_yml": true,
+    "compiled": true,
+    "tests_passed": true,
+    "test_count": 5,
+    "warnings": [
+      {
+        "code": "DBT_TEST_FAILED",
+        "message": "unit test test_empty_source_returns_no_rows failed due to dbt-sqlserver adapter LIMIT 0 limitation",
+        "item_id": "silver.insertselecttarget",
+        "severity": "warning"
+      }
+    ],
+    "errors": []
   }
 }

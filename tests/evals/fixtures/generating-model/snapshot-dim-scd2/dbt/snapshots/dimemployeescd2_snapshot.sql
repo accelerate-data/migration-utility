@@ -19,7 +19,7 @@ with import_employee as (
 logical_employee_transformed as (
     select
         src.NationalIDNumber as EmployeeNaturalKey,
-        substring(src.LoginID, charindex('\', src.LoginID) + 1, 50) as FirstName,
+        substring(src.LoginID, charindex('\\', src.LoginID) + 1, 50) as FirstName,
         src.JobTitle as LastName,
         src.JobTitle,
         src.MaritalStatus as Department

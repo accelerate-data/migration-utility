@@ -1,0 +1,66 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "Generating-model skill — baseline dbt artifact generation"
+
+prompts:
+  - id: generating-model
+    label: generating-model
+    raw: file://../../prompts/skill-generating-model.txt
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    config:
+      model: claude-haiku-4-5-20251001
+      working_dir: ../..
+      max_turns: 90
+      permission_mode: auto
+      append_allowed_tools:
+        - Read
+        - Write
+        - Bash
+        - Glob
+        - Grep
+
+tests:
+  - description: "select-into — SelectIntoTarget writes single model artifact"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-model/select-into"
+      target_table: "silver.SelectIntoTarget"
+      writer: "silver.usp_load_SelectIntoTarget"
+      expected_model_terms: "config(,source("
+      expected_yaml_terms: "version: 2,description"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-dbt-model.js
+
+  - description: "merge — DimProduct emits table model with source refs"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-model/merge"
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      expected_model_terms: "materialized='table',source("
+      expected_yaml_terms: "version: 2,description"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-dbt-model.js
+
+  - description: "quality-etl-columns — InsertSelectTarget includes _dbt_run_id"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-model/quality-etl-columns"
+      target_table: "silver.InsertSelectTarget"
+      writer: "silver.usp_load_InsertSelectTarget"
+      expected_model_terms: "_dbt_run_id,config("
+      expected_yaml_terms: "version: 2,description"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-dbt-model.js
+
+  - description: "snapshot-dim-scd2 — DimEmployeeSCD2 writes dbt snapshot"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-model/snapshot-dim-scd2"
+      target_table: "silver.DimEmployeeSCD2"
+      writer: "silver.usp_load_DimEmployeeSCD2"
+      expected_model_terms: "snapshot,strategy"
+      forbidden_model_terms: "materialized='table'"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-dbt-model.js

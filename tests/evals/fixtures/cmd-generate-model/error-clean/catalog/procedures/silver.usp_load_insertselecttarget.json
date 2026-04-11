@@ -65,5 +65,44 @@
       "source": "ast",
       "sql": "INSERT INTO silver.InsertSelectTarget (ProductAlternateKey, EnglishProductName) SELECT CAST(ProductID AS NVARCHAR(25)), ProductName FROM bronze.Product"
     }
-  ]
+  ],
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM bronze.Product",
+    "refactored_sql": "WITH source_product AS ( SELECT * FROM bronze.Product ), final AS ( SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, ProductName AS EnglishProductName FROM source_product ) SELECT * FROM final",
+    "semantic_review": {
+      "passed": true,
+      "checks": {
+        "source_tables": {
+          "passed": true,
+          "summary": "Both queries read from bronze.Product"
+        },
+        "output_columns": {
+          "passed": true,
+          "summary": "Both queries produce identical columns: ProductAlternateKey (CAST(ProductID AS NVARCHAR(25))), EnglishProductName (ProductName) in the same order"
+        },
+        "joins": {
+          "passed": true,
+          "summary": "No joins in either query"
+        },
+        "filters": {
+          "passed": true,
+          "summary": "No WHERE conditions in either query"
+        },
+        "aggregation_grain": {
+          "passed": true,
+          "summary": "Both queries produce row-level output with no aggregation, maintaining the same granularity"
+        }
+      },
+      "issues": []
+    },
+    "compare_sql": {
+      "required": false,
+      "executed": false,
+      "passed": false,
+      "scenarios_total": 0,
+      "scenarios_passed": 0,
+      "failed_scenarios": []
+    }
+  }
 }

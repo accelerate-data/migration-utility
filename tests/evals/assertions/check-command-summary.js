@@ -29,7 +29,12 @@ function findItemResults(migrationsDir, tableFqn, runId = null) {
   const prefix = tableFqn.toLowerCase() + '.';
   return fs.readdirSync(migrationsDir)
     .filter(f => {
-      if (!f.toLowerCase().startsWith(prefix) || !f.endsWith('.json') || f.startsWith('summary')) {
+      if (
+        !f.toLowerCase().startsWith(prefix) ||
+        !f.endsWith('.json') ||
+        f.startsWith('summary') ||
+        f.toLowerCase().endsWith('.review.json')
+      ) {
         return false;
       }
       return runId ? f.endsWith(`.${runId}.json`) : true;

@@ -9,7 +9,7 @@ prompts:
 providers:
   - id: anthropic:claude-agent-sdk
     config:
-      model: claude-haiku-4-5-20251001
+      model: claude-sonnet-4-6
       working_dir: ../..
       max_turns: 120
       permission_mode: auto
@@ -154,7 +154,7 @@ tests:
       target_tables: "silver.InsertSelectTarget"
       target_table: "silver.InsertSelectTarget"
       expected_item_statuses: '{"silver.InsertSelectTarget": "ok,partial"}'
-      expected_output_terms: "version: 2,description"
+      expected_yaml_terms: "version: 2,description"
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
