@@ -17,7 +17,6 @@ Read-only quality gate for generated dbt model artifacts. Review the generated S
 - Input: `$ARGUMENTS` = target table FQN (`schema.table`)
 - Read: `migrate context`, generated SQL/YAML, `test-specs/<item_id>.json`
 - Check: correctness, test integration, standards
-- Return: exactly one `ModelReviewResult` JSON object
 - Never: modify files, run dbt, override profile decisions
 
 This reviewer is stateless. Caller workflows such as `/generate-model` own the max-review-loop policy.
@@ -37,7 +36,6 @@ Use `proc_body` as the ground truth. Ignore `refactored_sql`.
 Then read the generated artifacts from `dbt/models/`:
 
 - Check both `dbt/models/staging/` and `dbt/models/marts/`.
-- For table migrations, review the generated layer model already on disk.
 - If the only discovered SQL/YAML pair for a table migration uses `stg_*`, review that pair and flag naming/layer violations instead of returning `MODEL_NOT_FOUND`.
 - For view-based staging reviews, `stg_<table>.sql` and `_<model_name>.yml` are valid artifact shapes.
 - Return `MODEL_NOT_FOUND` when the selected artifact is missing either the SQL file or the paired schema YAML.
@@ -52,7 +50,7 @@ Also verify the SQL/model name/file path match the naming contract.
 
 These are reviewable artifact failures, not generator metadata disputes. Add them to `checks.standards.issues[]` and `feedback_for_model_generator[]`, then continue with the remaining review steps.
 
-Missing required control columns are blocker defects. If `_dbt_run_id` is missing where `MDL_005` applies, or `_loaded_at` is missing where `MDL_006` applies, the review must end in `revision_requested`, not `approved`.
+Missing blocker controls such as `_dbt_run_id` or `_loaded_at` must end in `revision_requested`, not `approved`.
 
 ## Step 3: Review correctness
 
@@ -70,7 +68,6 @@ Verify:
 - model materialization matches the derived profile
 
 Use `REVIEW_CORRECTNESS_GAP` in `checks.correctness.issues[]` for any correctness failure.
-Partial or uncovered test-spec coverage is not permission to ignore a semantic gap visible in `proc_body`.
 
 ## Step 4: Review test integration
 
@@ -104,10 +101,7 @@ Verify at minimum:
 - YAML indentation and structure beyond the shared invariants
 
 Use `REVIEW_STANDARDS_VIOLATION` in `checks.standards.issues[]`.
-Report every directly observable stable standards code that applies in `feedback_for_model_generator`; do not collapse multiple standards failures into one representative item.
-Even when blocker defects already require `revision_requested`, continue checking the written SQL and YAML for independent standards issues such as `SQL_*`, `CTE_*`, and `YML_*`.
-
-Steps 2, 3, 4, and 5 always run regardless of one another's result.
+Report each directly observable stable standards code in `feedback_for_model_generator`. Steps 2-5 always run.
 
 ## Step 6: Verdict
 
@@ -125,25 +119,7 @@ Caller workflows may convert a second unresolved `revision_requested` result int
 
 ## Output
 
-Return exactly one `ModelReviewResult` JSON object with:
-
-- `item_id`
-- `status`
-- `checks.standards`
-- `checks.correctness`
-- `checks.test_integration`
-- `feedback_for_model_generator`
-- optional `acknowledgements` on resubmission
-- `warnings`
-- `errors`
-
-Every `checks.*` object must include both `passed` and `issues`, even when `issues` is empty. Do not omit `passed: true`.
-Every `feedback_for_model_generator[]` item must be an object with `code`, `message`, `severity`, and `ack_required`. Never use plain strings or shorthand entries.
-Set `ack_required: true` for every `error` or `warning`, and `ack_required: false` only for `info`.
-
-Full output-shape and severity rules: [references/model-review-output.md](references/model-review-output.md)
-
-Code-family allocation rules: [references/review-codes.md](references/review-codes.md)
+Return exactly one `ModelReviewResult` JSON object. Output shape, severity rules, and `ack_required` behavior live in [references/model-review-output.md](references/model-review-output.md). Code-family allocation rules live in [references/review-codes.md](references/review-codes.md).
 
 ## Error handling
 
