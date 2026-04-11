@@ -22,12 +22,18 @@ const { normalizeTerms } = require('./schema-helpers');
 /**
  * Find all per-item result JSON files in .migration-runs/ matching a table FQN.
  * Files follow the pattern: <schema.table>.<run_id>.json where run_id is unique per command run.
+ * When runId is provided, only results from that command run are returned.
  */
-function findItemResults(migrationsDir, tableFqn) {
+function findItemResults(migrationsDir, tableFqn, runId = null) {
   if (!fs.existsSync(migrationsDir)) return [];
   const prefix = tableFqn.toLowerCase() + '.';
   return fs.readdirSync(migrationsDir)
-    .filter(f => f.toLowerCase().startsWith(prefix) && f.endsWith('.json') && !f.startsWith('summary'))
+    .filter(f => {
+      if (!f.toLowerCase().startsWith(prefix) || !f.endsWith('.json') || f.startsWith('summary')) {
+        return false;
+      }
+      return runId ? f.endsWith(`.${runId}.json`) : true;
+    })
     .sort((a, b) => {
       const aPath = path.join(migrationsDir, a);
       const bPath = path.join(migrationsDir, b);
@@ -46,8 +52,13 @@ function findItemResults(migrationsDir, tableFqn) {
     .filter(Boolean);
 }
 
+function extractRunId(fileName) {
+  const match = String(fileName).match(/^summary\.(.+)\.json$/);
+  return match ? match[1] : null;
+}
+
 /**
- * Find the most recent summary.<run_id>.json file.
+ * Find the most recent summary.<run_id>.json file and expose its run id.
  */
 function findSummary(migrationsDir) {
   if (!fs.existsSync(migrationsDir)) return null;
@@ -63,7 +74,10 @@ function findSummary(migrationsDir) {
     });
   if (summaryFiles.length === 0) return null;
   try {
-    return JSON.parse(fs.readFileSync(path.join(migrationsDir, summaryFiles[0]), 'utf8'));
+    return {
+      data: JSON.parse(fs.readFileSync(path.join(migrationsDir, summaryFiles[0]), 'utf8')),
+      runId: extractRunId(summaryFiles[0]),
+    };
   } catch (_e) {
     return null;
   }
@@ -131,7 +145,9 @@ module.exports = (output, context) => {
   const migrationsDir = path.resolve(repoRoot, fixturePath, '.migration-runs');
 
   // Try to read summary file (matches summary.json or summary.<epoch>.json)
-  let summary = findSummary(migrationsDir);
+  const summaryResult = findSummary(migrationsDir);
+  const summary = summaryResult?.data || null;
+  const latestRunId = summaryResult?.runId || summary?.run_id || null;
 
   // Summary count checks (best-effort)
   if (summary) {
@@ -158,7 +174,7 @@ module.exports = (output, context) => {
     const acceptableStatuses = statusSpec.toLowerCase().split(',').map(s => s.trim());
 
     // Try artifact-based check first
-    const itemResults = findItemResults(migrationsDir, tableLower);
+    const itemResults = findItemResults(migrationsDir, tableLower, latestRunId);
     if (itemResults.length > 0) {
       const latestResult = itemResults[itemResults.length - 1];
       const actualStatus = (latestResult.status || '').toLowerCase();
