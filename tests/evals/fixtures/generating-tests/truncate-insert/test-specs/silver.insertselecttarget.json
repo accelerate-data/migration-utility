@@ -1,5 +1,6 @@
 {
   "item_id": "silver.insertselecttarget",
+  "object_type": "table",
   "status": "ok",
   "coverage": "complete",
   "branch_manifest": [
