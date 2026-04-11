@@ -1,24 +1,54 @@
 {
   "item_id": "silver.selectintotarget",
+  "object_type": "table",
   "status": "ok",
   "coverage": "complete",
   "branch_manifest": [
     {
-      "id": "rows_present_full_refresh",
+      "id": "truncate_clears_existing",
       "statement_index": 0,
-      "description": "bronze.Product has rows — SELECT INTO populates silver.SelectIntoTarget with CAST(ProductID) and ProductName",
-      "scenarios": ["test_selectinto_rows_present_populates_target"]
+      "description": "TRUNCATE TABLE clears any existing rows before SELECT INTO executes",
+      "scenarios": ["test_selectinto_truncate_clears_existing"]
     },
     {
-      "id": "empty_source_no_rows_inserted",
-      "statement_index": 0,
-      "description": "bronze.Product is empty — SELECT INTO produces no rows in silver.SelectIntoTarget",
+      "id": "rows_present_populate_target",
+      "statement_index": 1,
+      "description": "SELECT INTO with data — bronze.Product has rows; populates ProductAlternateKey via CAST(ProductID) and EnglishProductName via ProductName alias",
+      "scenarios": ["test_selectinto_single_row_populate", "test_selectinto_multiple_rows_populate", "test_selectinto_cast_productid_nvarchar", "test_selectinto_productname_alias_englishname"]
+    },
+    {
+      "id": "empty_source_no_rows",
+      "statement_index": 1,
+      "description": "SELECT INTO empty source — bronze.Product has zero rows; target table remains empty",
       "scenarios": ["test_selectinto_empty_source_no_rows"]
     }
   ],
   "unit_tests": [
     {
-      "name": "test_selectinto_rows_present_populates_target",
+      "name": "test_selectinto_truncate_clears_existing",
+      "target_table": "[silver].[SelectIntoTarget]",
+      "procedure": "[silver].[usp_load_SelectIntoTarget]",
+      "given": [
+        {
+          "table": "[silver].[SelectIntoTarget]",
+          "rows": [
+            {
+              "ProductAlternateKey": "999",
+              "EnglishProductName": "Old Product"
+            }
+          ]
+        },
+        {
+          "table": "[bronze].[Product]",
+          "rows": []
+        }
+      ],
+      "expect": {
+        "rows": []
+      }
+    },
+    {
+      "name": "test_selectinto_single_row_populate",
       "target_table": "[silver].[SelectIntoTarget]",
       "procedure": "[silver].[usp_load_SelectIntoTarget]",
       "given": [
@@ -26,6 +56,7 @@
           "table": "[bronze].[Product]",
           "rows": [
             {
+              "ProductID": 1,
               "ProductName": "Mountain Bike",
               "ProductNumber": "MB-001",
               "MakeFlag": 1,
@@ -40,7 +71,67 @@
             }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Mountain Bike"
+          }
+        ]
+      }
+    },
+    {
+      "name": "test_selectinto_multiple_rows_populate",
+      "target_table": "[silver].[SelectIntoTarget]",
+      "procedure": "[silver].[usp_load_SelectIntoTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Mountain Bike",
+              "ProductNumber": "MB-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 50,
+              "StandardCost": 200.00,
+              "ListPrice": 499.99,
+              "DaysToManufacture": 4,
+              "SellStartDate": "2020-01-01",
+              "ModifiedDate": "2023-06-01"
+            },
+            {
+              "ProductID": 2,
+              "ProductName": "Road Bike",
+              "ProductNumber": "RB-001",
+              "MakeFlag": 0,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 50,
+              "ReorderPoint": 25,
+              "StandardCost": 150.00,
+              "ListPrice": 399.99,
+              "DaysToManufacture": 2,
+              "SellStartDate": "2020-02-01",
+              "ModifiedDate": "2023-06-02"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Mountain Bike"
+          },
+          {
+            "ProductAlternateKey": "2",
+            "EnglishProductName": "Road Bike"
+          }
+        ]
+      }
     },
     {
       "name": "test_selectinto_empty_source_no_rows",
@@ -51,7 +142,78 @@
           "table": "[bronze].[Product]",
           "rows": []
         }
-      ]
+      ],
+      "expect": {
+        "rows": []
+      }
+    },
+    {
+      "name": "test_selectinto_cast_productid_nvarchar",
+      "target_table": "[silver].[SelectIntoTarget]",
+      "procedure": "[silver].[usp_load_SelectIntoTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 12345,
+              "ProductName": "Special Product",
+              "ProductNumber": "SP-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 200,
+              "ReorderPoint": 100,
+              "StandardCost": 500.00,
+              "ListPrice": 999.99,
+              "DaysToManufacture": 5,
+              "SellStartDate": "2020-01-01",
+              "ModifiedDate": "2023-06-01"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "12345",
+            "EnglishProductName": "Special Product"
+          }
+        ]
+      }
+    },
+    {
+      "name": "test_selectinto_productname_alias_englishname",
+      "target_table": "[silver].[SelectIntoTarget]",
+      "procedure": "[silver].[usp_load_SelectIntoTarget]",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 100,
+              "ProductName": "Deluxe Road Bike",
+              "ProductNumber": "DRB-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 75,
+              "ReorderPoint": 35,
+              "StandardCost": 350.00,
+              "ListPrice": 799.99,
+              "DaysToManufacture": 3,
+              "SellStartDate": "2020-03-01",
+              "ModifiedDate": "2023-06-03"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "100",
+            "EnglishProductName": "Deluxe Road Bike"
+          }
+        ]
+      }
     }
   ],
   "uncovered_branches": [],
