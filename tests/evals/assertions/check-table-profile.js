@@ -10,7 +10,9 @@
 //   expected_output_terms?,
 //   expected_pii_columns?,
 //   expected_fk_type?,
-//   expected_watermark_column?
+//   expected_watermark_column?,
+//   expected_warning_codes?,
+//   expected_error_codes?
 // }
 const fs = require('fs');
 const path = require('path');
@@ -24,6 +26,8 @@ module.exports = (output, context) => {
   const expectedStatus = context.vars.expected_status;
   const expectedSource = context.vars.expected_source;
   const expectedOutputTerms = normalizeTerms(context.vars.expected_output_terms);
+  const expectedWarningCodes = normalizeTerms(context.vars.expected_warning_codes);
+  const expectedErrorCodes = normalizeTerms(context.vars.expected_error_codes);
 
   if (!table && targetView) {
     return { pass: true, score: 1, reason: 'Skipping table profile assertion for view-targeted scenario' };
@@ -131,6 +135,28 @@ module.exports = (output, context) => {
     const actualWatermark = (profile.watermark && profile.watermark.column) || '';
     if (actualWatermark.toLowerCase() !== expectedWatermarkColumn.toLowerCase()) {
       return { pass: false, score: 0, reason: `Expected watermark column '${expectedWatermarkColumn}', got '${actualWatermark}'` };
+    }
+  }
+
+  if (expectedWarningCodes.length > 0) {
+    const actualWarningCodes = Array.isArray(profile.warnings)
+      ? profile.warnings.map((entry) => (entry.code || '').toLowerCase())
+      : [];
+    for (const code of expectedWarningCodes) {
+      if (!actualWarningCodes.includes(code)) {
+        return { pass: false, score: 0, reason: `Expected warning code '${code}' not found in profile.warnings` };
+      }
+    }
+  }
+
+  if (expectedErrorCodes.length > 0) {
+    const actualErrorCodes = Array.isArray(profile.errors)
+      ? profile.errors.map((entry) => (entry.code || '').toLowerCase())
+      : [];
+    for (const code of expectedErrorCodes) {
+      if (!actualErrorCodes.includes(code)) {
+        return { pass: false, score: 0, reason: `Expected error code '${code}' not found in profile.errors` };
+      }
     }
   }
 
