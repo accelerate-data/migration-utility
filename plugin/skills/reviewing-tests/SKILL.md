@@ -1,6 +1,6 @@
 ---
 name: reviewing-tests
-description: Use when reviewing generated dbt unit test specs for branch coverage gaps, fixture-quality problems, or iteration-2 approval decisions across table, view, or materialized-view cases
+description: Use when generated dbt unit test specs may have branch-coverage gaps, fixture-quality problems, or unresolved warnings across table, view, or materialized-view cases
 user-invocable: false
 context: fork
 argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
