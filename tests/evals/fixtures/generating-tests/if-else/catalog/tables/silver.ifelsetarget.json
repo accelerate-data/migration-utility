@@ -80,9 +80,11 @@
   },
   "test_gen": {
     "status": "ok",
-    "validation": {
-      "passed": true,
-      "issues": []
-    }
+    "test_spec_path": "test-specs/silver.ifelsetarget.json",
+    "branches": 2,
+    "unit_tests": 2,
+    "coverage": "complete",
+    "warnings": [],
+    "errors": []
   }
 }
