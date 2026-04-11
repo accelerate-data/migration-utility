@@ -1,7 +1,7 @@
 ---
 name: analyzing-table
 description: >
-  Analyzes a single table, view, or materialized view for migration scoping. For tables: discovers writer procedures, analyzes candidates, resolves the selected writer. For views/MVs: extracts SQL elements, builds call tree, generates logic summary. Auto-detects object type from catalog presence.
+  Use when scoping a single table, view, or materialized view for migration and the next step depends on identifying its writer, SQL structure, or dependency call tree from catalog-backed DDL context.
 user-invocable: true
 argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 ---
@@ -10,6 +10,19 @@ argument-hint: "<schema.object> — Table, View, or Materialized View FQN"
 
 Analyze a table, view, or materialized view — discover writer candidates, evaluate them, and persist the scoping decision to the catalog.
 
+## When to Use
+
+Use this skill when:
+
+- a table needs its writer procedure selected before profiling or model generation
+- a view or materialized view needs SQL elements, call tree, and logic summary written to catalog
+- `/scope` or downstream readiness depends on catalog-backed scoping, not ad-hoc inspection
+
+Do not use this skill when:
+
+- the object is already confirmed as a dbt source and no writer analysis is needed
+- the prerequisite catalog files are missing; fix readiness failures first
+
 ## Arguments
 
 `$ARGUMENTS` is the fully-qualified name (e.g. `silver.DimCustomer`, `silver.vw_CustomerSales`). Ask the user if missing.
@@ -17,6 +30,12 @@ Analyze a table, view, or materialized view — discover writer candidates, eval
 ## Schema discipline
 
 Use the canonical `/scope` surfaced code list in `../../lib/shared/scope_error_codes.md`. If `discover write-scoping` or `discover write-statements` returns a validation error, fix the JSON and retry.
+
+Diagnostics written to `warnings` or `errors` must use canonical entries from that file. Include at least:
+
+- `code`
+- `severity`
+- `message`
 
 ## Before invoking
 
@@ -34,6 +53,13 @@ Check whether `catalog/views/<fqn>.json` exists:
 
 - **If yes** → this is a **view or MV**. Follow the **View Pipeline** below.
 - **If no** → this is a **table**. Follow the **Table Pipeline** below.
+
+## Quick Reference
+
+| Object | Read command | Persist command | Success shape |
+|---|---|---|---|
+| table | `discover refs --name <table>` | `discover write-scoping --name <table> --scoping-file .staging/scoping.json` | `selected_writer` plus rationale and candidate context |
+| view or MV | `discover show --name <view_fqn>` | `discover write-scoping --name <view_fqn> --scoping-file .staging/scoping.json` | `sql_elements`, `call_tree`, `logic_summary`, `rationale` |
 
 ---
 
@@ -54,7 +80,7 @@ Present the object type and, for materialized views, column count:
 silver.vw_CustomerSales (view)
 ```
 
-If `errors` contains `DDL_PARSE_ERROR` (i.e. `sql_elements` is null), note that SQLglot could not parse the DDL and proceed using `raw_ddl` directly for Steps V2-V3.
+If `errors` contains `DDL_PARSE_ERROR` (i.e. `sql_elements` is null), note that SQLglot could not parse the DDL and proceed using `raw_ddl` directly for Steps V2-V4. Preserve the canonical diagnostic entry in the persisted scoping output.
 
 ### Step V2 -- Build call tree
 
@@ -67,7 +93,7 @@ Call tree for silver.vw_CustomerSales:
   Reads views:   silver.vw_AddressBase
 ```
 
-If `references.views.in_scope` is non-empty, add a `VIEW_DEPENDS_ON_VIEWS` warning to the scoping output (see Step V5).
+If `references.views.in_scope` is non-empty, add a warning entry to the scoping output noting that the view depends on other in-scope views. Use a canonical diagnostic entry with `severity: "warning"` and preserve the dependency detail in `message`.
 
 ### Step V3 -- Identify SQL elements
 
@@ -104,7 +130,7 @@ Do not include `status` in the scoping dict.
 
 Required fields: `sql_elements`, `call_tree`, `logic_summary`, `rationale`, `warnings`, `errors`.
 
-Include `VIEW_DEPENDS_ON_VIEWS` in `warnings` if applicable.
+If there was a parse failure, keep the existing `DDL_PARSE_ERROR` entry in `errors`. If the view depends on in-scope views, include a warning entry describing that dependency. Only use canonical `/scope` codes and severities from `../../lib/shared/scope_error_codes.md`.
 
 ### Step V6 -- Present persisted result
 
@@ -163,7 +189,17 @@ If a candidate proc has a `MULTI_TABLE_WRITE` warning, do **not** disqualify it.
 
 **Truly interleaved** — a single MERGE/INSERT block writes to both tables simultaneously, or the logic uses shared variables/transaction semantics that cannot be cleanly attributed to one table:
 
-- Write scoping with `status: "error"` and a clear explanation of why the logic cannot be separated.
+- Do not write `status` manually.
+- Persist a scoping payload with no `selected_writer`, the candidate context you gathered, and an `errors` entry using canonical `/scope` fields:
+
+  ```json
+  {
+    "code": "SCOPING_FAILED",
+    "severity": "error",
+    "message": "Writer logic is interleaved across multiple target tables and cannot be attributed to a table-specific slice."
+  }
+  ```
+
 - Stop evaluating this candidate.
 
 **Separable** — distinct MERGE/INSERT/UPDATE blocks handle each target table (shared upstream CTEs or temp table declarations are fine):
@@ -179,7 +215,7 @@ If a candidate proc has a `MULTI_TABLE_WRITE` warning, do **not** disqualify it.
    rm -rf .staging
    ```
 
-3. Proceed to evaluate this candidate normally — select it with `status: "resolved"` if it is the best writer.
+3. Proceed to evaluate this candidate normally. If it is the best writer, persist it through the standard table scoping payload and let `discover write-scoping` derive the final `status`.
 4. In `selected_writer_rationale`, note that this is a multi-table-writer proc and name the other tables it writes to.
 
 ### Step 3 -- Analyze each writer candidate
@@ -217,11 +253,19 @@ Apply resolution rules:
 - **2+ writers** -- present candidates, choose the best-supported writer, and persist with clear rationale
 - **0 writers** -- report `no_writer_found` (already handled in Step 2)
 
-If all discovered candidates are unsupported external delegates, persist table scoping with `status: "error"`. In that case:
+If all discovered candidates are unsupported external delegates, persist table scoping without `selected_writer`. In that case:
 
 - omit `selected_writer`
 - explain in `selected_writer_rationale` that the apparent writer delegates to an out-of-scope external procedure and cannot be migrated from this project
-- include an `errors` entry with code `REMOTE_EXEC_UNSUPPORTED`
+- include an `errors` entry with canonical fields, for example:
+
+  ```json
+  {
+    "code": "REMOTE_EXEC_UNSUPPORTED",
+    "severity": "error",
+    "message": "The apparent writer delegates through a cross-database or linked-server EXEC, so the writer cannot be resolved from this project."
+  }
+  ```
 
 ### Step 6 -- Persist scoping to catalog
 
@@ -236,7 +280,7 @@ uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" discover write-scoping \
 
 Do not include `status` in the scoping dict.
 
-The scoping JSON must include the selected writer and a `selected_writer_rationale` field (1–2 sentences explaining why this writer was chosen over alternatives, or why no writer / ambiguous). If the write exits non-zero, report the error and ask the user to correct.
+The scoping JSON must include a `selected_writer_rationale` field (1–2 sentences explaining why this writer was chosen over alternatives, or why no writer / ambiguous). If the write exits non-zero, report the error and ask the user to correct.
 
 The table scoping JSON shape:
 
@@ -259,6 +303,13 @@ The table scoping JSON shape:
   "errors": []
 }
 ```
+
+## Common Mistakes
+
+- Do not put `status` in the scoping JSON. `discover write-scoping` derives it from the payload.
+- Do not write diagnostics as code-only strings. Use canonical entries with `code`, `severity`, and `message`.
+- Do not reject every `MULTI_TABLE_WRITE` candidate. Separable writers stay valid after slicing.
+- Do not skip readiness checks or fixture-local `--project-root` overrides when running eval scenarios.
 
 For multi-writer cases, every entry in `candidates` must use `procedure_name` and `rationale`. `dependencies` is optional. Do not use legacy fields such as `procedure`, `write_type`, or `selected`.
 
