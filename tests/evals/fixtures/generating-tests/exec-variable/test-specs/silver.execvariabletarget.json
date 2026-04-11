@@ -1,8 +1,8 @@
 {
   "item_id": "silver.execvariabletarget",
   "object_type": "table",
-  "status": "partial",
-  "coverage": "partial",
+  "status": "ok",
+  "coverage": "complete",
   "branch_manifest": [
     {
       "id": "dynamic_sql_variable_insert",
