@@ -65,7 +65,9 @@ For each item, read `.migration-runs/<item_id>.<run_id>.json` from Step 2. If `s
 Parse the returned TestReviewResult JSON:
 
 - `approved` or `approved_with_warnings`: proceed to step 4.
-- `revision_requested`: pass `feedback_for_generator` to `/generating-tests <item_id>` unchanged (include the feedback JSON — see the skill's "Handling reviewer feedback" section), then invoke `/reviewing-tests <item_id> --iteration 2`. The command relays reviewer-owned feedback; it must not reinterpret branch IDs or broaden the requested repair. Maximum 2 review iterations per item.
+- `revision_requested`: pass `feedback_for_generator` to `/generating-tests <item_id>` unchanged (include the feedback JSON — see the skill's "Handling reviewer feedback" section) and prepend this wrapper line to the repair request:
+  > Apply reviewer feedback exactly; do not broaden repair beyond named branches/scenarios.
+  Then invoke `/reviewing-tests <item_id> --iteration 2`. The command relays reviewer-owned feedback; it must not reinterpret branch IDs or broaden the requested repair. Maximum 2 review iterations per item.
 - On review failure: record `status: "partial"` and continue.
 
 ### Step 4 — Capture ground truth

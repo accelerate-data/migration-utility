@@ -49,10 +49,20 @@ Do not use this skill to review coverage, run sandbox execution, or generate dbt
 
 When `reviewing-tests` returns `feedback_for_generator`:
 
-- treat `uncovered_branches` as the first repair target; add coverage for those reviewer-owned branch IDs before broader regeneration
+- start from the existing `test-specs/<fqn>.json` as the base artifact, not from a blank regenerated file
+- treat `uncovered_branches` as the first repair target
 - apply `quality_fixes` only to the named scenarios unless the fix requires a dependent fixture adjustment
 - preserve non-targeted approved scenarios and `expect` blocks in merge mode
 - do not infer extra reviewer requests from the generator's own `branch_manifest`; the reviewer feedback is the authority for the repair pass
+- leave unrelated uncovered branches unchanged unless the reviewer explicitly requested them
+
+Repair-pass algorithm:
+
+1. Load the existing spec.
+2. Keep every existing `unit_tests[]` entry unless a `quality_fixes` instruction names that scenario.
+3. Keep every unrelated branch's `scenarios[]` list unchanged.
+4. Add or edit only the scenarios needed for the requested `uncovered_branches` and named `quality_fixes`.
+5. Recalculate `uncovered_branches`, `coverage`, and `status` from the merged result.
 
 Use the exact command flow from [references/command-workflow-ref.md](references/command-workflow-ref.md), the runtime field checklist from [references/test-spec-contract-ref.md](references/test-spec-contract-ref.md), the fixture guidance from [references/fixture-synthesis-ref.md](references/fixture-synthesis-ref.md), and the expanded guard rails from [references/guard-rails-ref.md](references/guard-rails-ref.md).
 
@@ -70,6 +80,7 @@ Use the exact command flow from [references/command-workflow-ref.md](references/
 | "Merge mode means I can rewrite the whole file." | Preserve existing scenarios unless feedback requires a targeted revision. |
 | "`feedback_for_generator` is advisory." | Apply requested branch and quality-fix work before broad generation. |
 | "If I am already editing the file, I might as well regenerate everything." | Repair only the reviewer-requested gaps unless broader regeneration is required to keep the spec valid. |
+| "I found other uncovered branches while I was here, so I should fix them too." | On a feedback-driven rerun, leave unrelated gaps alone unless the reviewer requested them. |
 
 ## Boundary Rules
 
