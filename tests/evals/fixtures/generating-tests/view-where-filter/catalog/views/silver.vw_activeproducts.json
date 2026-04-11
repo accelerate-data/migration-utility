@@ -40,10 +40,15 @@
   "scoping": {
     "status": "analyzed",
     "sql_elements": [
-      { "type": "filter", "detail": "WHERE Status = 'Active'" }
+      {
+        "type": "filter",
+        "detail": "WHERE Status = 'Active'"
+      }
     ],
     "call_tree": {
-      "reads_from": ["silver.dimproduct"],
+      "reads_from": [
+        "silver.dimproduct"
+      ],
       "views_referenced": []
     },
     "logic_summary": "Filters DimProduct to rows where Status is 'Active', exposing ProductKey, EnglishProductName, Status, and ListPrice.",
@@ -56,5 +61,14 @@
     "classification": "stg",
     "rationale": "Single-source pass-through with a WHERE filter — staging classification.",
     "source": "llm"
+  },
+  "test_gen": {
+    "status": "ok",
+    "test_spec_path": "test-specs/silver.vw_activeproducts.json",
+    "branches": 5,
+    "unit_tests": 5,
+    "coverage": "complete",
+    "warnings": [],
+    "errors": []
   }
 }
