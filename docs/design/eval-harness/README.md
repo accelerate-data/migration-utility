@@ -66,6 +66,7 @@ Use these when you are working in a specific area:
 | Table scoping / writer selection | `npm run eval:analyzing-table` or `npm run eval:cmd-scope` |
 | Test generation skill behavior | `npm run eval:generating-tests` |
 | Test review behavior | `npm run eval:reviewing-tests` |
+| Model generation skill baseline behavior | `npm run eval:generating-model` |
 | Model review behavior | `npm run eval:reviewing-model` |
 | SQL refactoring behavior | `npm run eval:refactoring-sql` or `npm run eval:cmd-refactor` |
 | `/profile` command orchestration | `npm run eval:cmd-profile` |
@@ -87,6 +88,7 @@ npm run eval:listing-objects
 npm run eval:analyzing-table
 npm run eval:profiling-table
 npm run eval:generating-tests
+npm run eval:generating-model
 npm run eval:reviewing-tests
 npm run eval:refactoring-sql
 npm run eval:reviewing-model
@@ -113,7 +115,7 @@ npm run eval:mssql-live
 
 Start with the smallest package that owns the behavior you changed.
 
-- If you changed skill behavior, run the skill package first.
+- If you changed skill behavior, run the owning skill package first.
 - If you changed command orchestration, run the command package first.
 - If you changed Oracle-specific handling, run `oracle-regression`.
 - Only run `npm run eval` when you want a broader offline pass.
@@ -128,9 +130,21 @@ npx promptfoo eval -c packages/cmd-generate-tests/cmd-generate-tests.yaml --filt
 # One review scenario family
 npx promptfoo eval -c packages/reviewing-model/skill-reviewing-model.yaml --filter-pattern "review-standards"
 
+# One generating-model baseline
+npx promptfoo eval -c packages/generating-model/skill-generating-model.yaml --filter-pattern "snapshot"
+
 # One refactor pattern
 npx promptfoo eval -c packages/refactoring-sql/skill-refactoring-sql.yaml --filter-pattern "recursive-cte"
 ```
+
+### Model generation coverage split
+
+Use two layers for model generation work:
+
+- `eval:generating-model` is the fast baseline for generator-owned invariants such as writing dbt artifacts, materialization shape, control columns, and snapshot rendering.
+- `eval:cmd-generate-model` is the full-flow suite for readiness checks, multi-table orchestration, review loops, and final command summaries.
+
+This keeps direct skill regressions easy to localize without making the command package carry every baseline artifact check.
 
 ### Fixture reset behavior
 

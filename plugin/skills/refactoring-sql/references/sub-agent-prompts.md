@@ -43,6 +43,8 @@ Refactor into CTEs prompt template:
 You are restructuring a source routine into a clean CTE-based SELECT
 following the import/logical/final CTE pattern.
 
+Read references/routine-migration-ref.md for dialect-specific restructuring rules.
+
 Procedure body:
 <proc_body>
 
@@ -63,22 +65,27 @@ Instructions:
    target table written
 2. Restructure into import CTE -> logical CTE -> final CTE pattern:
 
-   Import CTEs: One per source table. SELECT * (or needed columns) from the
-   dialect-quoted table reference. Name descriptively after the source.
+   Import CTEs: One per source table. Select only the needed source columns
+   explicitly from the dialect-quoted table reference. Never use SELECT *.
+   Name descriptively after the source.
 
    Logical CTEs: One transformation step per CTE. Each does one thing: join,
-   filter, aggregate, or transform. Names describe the transformation.
+   filter, aggregate, or transform. Enumerate columns explicitly. Names describe
+   the transformation.
 
-   Final CTE: Assembles the final column list matching the target table.
+   Final CTE: Must be literally named `final` and must assemble the explicit
+   final column list matching the target table. Never use SELECT *.
 
-3. End with: SELECT * FROM final
-4. Keep source dialect syntax (e.g. ISNULL/NVL, CONVERT/TO_CHAR) — no dialect conversion at this stage
-5. Replace procedure parameters with literal defaults where possible
-6. Flatten nested subqueries into sequential CTEs
-7. Temp tables become logical CTEs
-8. Cursor loops become set-based operations (window functions, JOINs)
+3. You MUST create a CTE literally named `final AS (...)`
+4. End with: SELECT * FROM final
+5. Never use SELECT * in import, logical, or final CTEs. The needed columns are knowable from the refactor context and catalog.
+6. Keep source dialect syntax (e.g. ISNULL/NVL, CONVERT/TO_CHAR) — no dialect conversion at this stage
+7. Replace procedure parameters with literal defaults where possible
+8. Flatten nested subqueries into sequential CTEs
+9. Temp tables become logical CTEs
+10. Cursor loops become set-based operations (window functions, JOINs)
 
 Return ONLY the refactored CTE SELECT SQL, nothing else.
 ```
 
-For views, substitute `<view_sql>` for `<proc_body>` and omit `<statements>`.
+For views, substitute `<view_sql>` for `<proc_body>` and omit `<statements>`. Keep `<profile>` when it is present in the refactor context.

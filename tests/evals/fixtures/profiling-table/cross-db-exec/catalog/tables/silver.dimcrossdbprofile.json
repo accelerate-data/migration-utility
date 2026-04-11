@@ -66,12 +66,11 @@
     "selected_writer_rationale": "The load procedure is the selected writer even though it delegates cross-database work to a helper."
   },
   "profile": {
-    "status": "partial",
     "writer": "silver.usp_load_DimCrossDbProfile",
     "classification": {
-      "resolved_kind": "dim_non_scd",
-      "source": "catalog+llm",
-      "rationale": "The target behaves like a simple dimension, but the cross-database helper means the classification is only partially supported."
+      "resolved_kind": "dim_scd1",
+      "source": "llm",
+      "rationale": "Surrogate key (identity) + separate natural key column structure indicates a standard non-versioned dimension. Catalog shows no versioning columns or unique composite constraints. Writer procedure is opaque (delegates to cross-database procedure), preventing full write-pattern analysis."
     },
     "primary_key": {
       "columns": [
@@ -79,16 +78,30 @@
       ],
       "primary_key_type": "surrogate",
       "source": "catalog",
-      "rationale": "CrossDbProfileKey is the declared identity primary key."
+      "rationale": "Declared primary key and identity column."
     },
     "natural_key": {
       "columns": [
         "EmployeeAlternateKey"
       ],
       "source": "llm",
-      "rationale": "EmployeeAlternateKey represents the business key for the employee dimension."
+      "rationale": "EmployeeAlternateKey is the sole non-identity key column, representing the business identifier for employee cross-database profiles."
     },
+    "watermark": null,
     "foreign_keys": [],
-    "pii_actions": []
+    "pii_actions": [],
+    "warnings": [
+      {
+        "code": "PARSE_ERROR",
+        "severity": "warning",
+        "message": "Writer procedure delegates to cross-database EXEC [ArchiveDB].[silver].[usp_stage_DimCrossDbProfile] with unsupported syntax. Write pattern is opaque; profiling relies on catalog signals and table structure."
+      },
+      {
+        "code": "PARTIAL_PROFILE",
+        "severity": "warning",
+        "message": "Watermark and incremental strategy cannot be determined from opaque procedure. Table structure supports SCD1 classification, but write mechanics remain unverified."
+      }
+    ],
+    "status": "ok"
   }
 }

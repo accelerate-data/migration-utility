@@ -121,5 +121,48 @@
   "scoping": {
     "status": "resolved",
     "selected_writer": "silver.usp_load_FactInventorySnapshot"
+  },
+  "profile": {
+    "writer": "silver.usp_load_FactInventorySnapshot",
+    "classification": {
+      "resolved_kind": "fact_periodic_snapshot",
+      "rationale": "Single SnapshotDate column with composite grain (ProductKey, WarehouseKey, SnapshotDate)—one row per product per warehouse per day. Measures are inventory balance/stock values (UnitsOnHand, ReorderPoint, UnitCost), semi-additive across time. Procedure executes daily full refresh (DELETE for today + INSERT today's snapshot) from Product dimension table, characteristic of periodic snapshot pattern.",
+      "source": "llm"
+    },
+    "primary_key": {
+      "columns": [
+        "ProductKey",
+        "WarehouseKey",
+        "SnapshotDate"
+      ],
+      "primary_key_type": "natural",
+      "source": "catalog",
+      "rationale": "Declared composite primary key with no identity columns. Forms the natural business grain: product × warehouse × snapshot date."
+    },
+    "natural_key": {
+      "columns": [
+        "ProductKey",
+        "WarehouseKey",
+        "SnapshotDate"
+      ],
+      "rationale": "Composite business key defines the fact grain: one row per product per warehouse per snapshot date. All three columns are business-meaningful identifiers, no surrogate.",
+      "source": "llm"
+    },
+    "watermark": {
+      "column": "SnapshotDate",
+      "rationale": "SnapshotDate forms the temporal dimension and grain boundary. Procedure uses WHERE SnapshotDate = CAST(GETDATE() AS DATE) to perform daily full refresh.",
+      "source": "llm"
+    },
+    "foreign_keys": [],
+    "pii_actions": [],
+    "warnings": [
+      {
+        "code": "UNRESOLVED_FOREIGN_KEYS",
+        "severity": "medium",
+        "message": "No declared foreign keys in catalog. ProductKey and WarehouseKey naming patterns suggest potential FKs to dimension tables (DimProduct, DimWarehouse), but no explicit catalog relationships and no dimension JOIN logic in procedure provides definitive targets. WarehouseKey is hardcoded to constant 1 in procedure. Recommend verifying dimension relationships."
+      }
+    ],
+    "errors": [],
+    "status": "ok"
   }
 }

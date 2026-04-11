@@ -81,38 +81,58 @@
   "foreign_keys": [
     {
       "constraint_name": "FK_FactResellerSales_OrderDateKey",
-      "column": "OrderDateKey",
-      "references_schema": "silver",
-      "references_table": "DimDate",
-      "references_column": "DateKey"
+      "columns": [
+        "OrderDateKey"
+      ],
+      "referenced_schema": "silver",
+      "referenced_table": "DimDate",
+      "referenced_columns": [
+        "DateKey"
+      ]
     },
     {
       "constraint_name": "FK_FactResellerSales_ShipDateKey",
-      "column": "ShipDateKey",
-      "references_schema": "silver",
-      "references_table": "DimDate",
-      "references_column": "DateKey"
+      "columns": [
+        "ShipDateKey"
+      ],
+      "referenced_schema": "silver",
+      "referenced_table": "DimDate",
+      "referenced_columns": [
+        "DateKey"
+      ]
     },
     {
       "constraint_name": "FK_FactResellerSales_DueDateKey",
-      "column": "DueDateKey",
-      "references_schema": "silver",
-      "references_table": "DimDate",
-      "references_column": "DateKey"
+      "columns": [
+        "DueDateKey"
+      ],
+      "referenced_schema": "silver",
+      "referenced_table": "DimDate",
+      "referenced_columns": [
+        "DateKey"
+      ]
     },
     {
       "constraint_name": "FK_FactResellerSales_ProductKey",
-      "column": "ProductKey",
-      "references_schema": "silver",
-      "references_table": "DimProduct",
-      "references_column": "ProductKey"
+      "columns": [
+        "ProductKey"
+      ],
+      "referenced_schema": "silver",
+      "referenced_table": "DimProduct",
+      "referenced_columns": [
+        "ProductKey"
+      ]
     },
     {
       "constraint_name": "FK_FactResellerSales_CustomerKey",
-      "column": "CustomerKey",
-      "references_schema": "silver",
-      "references_table": "DimCustomer",
-      "references_column": "CustomerKey"
+      "columns": [
+        "CustomerKey"
+      ],
+      "referenced_schema": "silver",
+      "referenced_table": "DimCustomer",
+      "referenced_columns": [
+        "CustomerKey"
+      ]
     }
   ],
   "auto_increment_columns": [
@@ -199,5 +219,55 @@
   "scoping": {
     "status": "resolved",
     "selected_writer": "silver.usp_load_FactResellerSales"
+  },
+  "profile": {
+    "writer": "silver.usp_load_FactResellerSales",
+    "classification": {
+      "resolved_kind": "fact_transaction",
+      "source": "llm",
+      "rationale": "Multiple role-playing FK date keys (OrderDateKey, ShipDateKey, DueDateKey) all reference the same DimDate dimension. Sources are event-level tables (SalesOrderHeader, SalesOrderDetail). Measures (SalesAmount, OrderQuantity, Freight) are fully additive flow metrics. No calendar join or GROUP BY by period."
+    },
+    "primary_key": {
+      "column": "ResellerSalesKey",
+      "primary_key_type": "surrogate",
+      "source": "catalog",
+      "rationale": "Declared IDENTITY primary key in catalog"
+    },
+    "natural_key": null,
+    "watermark": null,
+    "foreign_keys": [
+      {
+        "column": "OrderDateKey",
+        "fk_type": "role_playing",
+        "source": "catalog",
+        "rationale": "FK to silver.DimDate(DateKey) - one of three date keys referencing the same dimension for different business events (order, ship, due dates)"
+      },
+      {
+        "column": "ShipDateKey",
+        "fk_type": "role_playing",
+        "source": "catalog",
+        "rationale": "FK to silver.DimDate(DateKey) - one of three date keys referencing the same dimension for different business events"
+      },
+      {
+        "column": "DueDateKey",
+        "fk_type": "role_playing",
+        "source": "catalog",
+        "rationale": "FK to silver.DimDate(DateKey) - one of three date keys referencing the same dimension for different business events"
+      },
+      {
+        "column": "ProductKey",
+        "fk_type": "standard",
+        "source": "catalog",
+        "rationale": "Standard FK to silver.DimProduct(ProductKey)"
+      },
+      {
+        "column": "CustomerKey",
+        "fk_type": "standard",
+        "source": "catalog",
+        "rationale": "Standard FK to silver.DimCustomer(CustomerKey)"
+      }
+    ],
+    "pii_actions": [],
+    "status": "ok"
   }
 }

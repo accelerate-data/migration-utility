@@ -174,16 +174,14 @@
   },
   "scoping": {
     "status": "resolved",
-    "selected_writer": "silver.usp_load_DimProduct",
-    "selected_writer_rationale": "Single MERGE writer for DimProduct."
+    "selected_writer": "silver.usp_load_DimProduct"
   },
   "profile": {
-    "status": "ok",
     "writer": "silver.usp_load_dimproduct",
     "classification": {
       "resolved_kind": "dim_scd1",
       "source": "llm",
-      "rationale": "The writer uses a MERGE with WHEN MATCHED THEN UPDATE only (no history row insertion or expiry), which is the canonical dim_scd1 pattern. No SCD2 sentinel columns (valid_from, valid_to, is_current) are present; StartDate and EndDate map to product lifecycle dates from the source system, not SCD2 validity dates."
+      "rationale": "MERGE statement with WHEN MATCHED THEN UPDATE + WHEN NOT MATCHED THEN INSERT pattern applies classic SCD1 upsert. No versioning columns (valid_from, valid_to, is_current) present, confirming SCD1 rather than SCD2."
     },
     "primary_key": {
       "columns": [
@@ -191,21 +189,18 @@
       ],
       "primary_key_type": "surrogate",
       "source": "catalog",
-      "rationale": "ProductKey is declared as the primary key via catalog constraint PK__DimProdu__A15E99B3DFC94003 and is an IDENTITY column, confirming it as a system-assigned surrogate key."
+      "rationale": "ProductKey is declared as identity PK in catalog, confirming surrogate key."
     },
     "natural_key": {
       "columns": [
         "ProductAlternateKey"
       ],
       "source": "llm",
-      "rationale": "The MERGE ON clause joins on tgt.ProductAlternateKey = src.ProductAlternateKey, where the source value is CAST(ProductID AS NVARCHAR(25)) from bronze.Product, establishing this as the business natural key for the product entity."
+      "rationale": "MERGE ON clause joins tgt.ProductAlternateKey = src.ProductAlternateKey, indicating the business/natural key for entity matching."
     },
     "foreign_keys": [],
-    "pii_actions": []
-  },
-  "scoping": {
-    "status": "resolved",
-    "selected_writer": "silver.usp_load_DimProduct"
+    "pii_actions": [],
+    "status": "ok"
   },
   "refactor": {
     "status": "ok",

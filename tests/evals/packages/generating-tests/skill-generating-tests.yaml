@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
-description: "Generating-tests skill — branch enumeration and fixture synthesis for tables and views"
+description: "Generating-tests skill — GREEN application coverage for branch enumeration, fixture synthesis, merge-safe updates, and view/mv handling"
 
 prompts:
   - id: generating-tests
@@ -18,6 +18,7 @@ providers:
       permission_mode: auto
       append_allowed_tools:
         - Read
+        - Edit
         - Write
         - Bash
         - Glob
@@ -29,6 +30,10 @@ defaultTest:
       value: file://../../assertions/check-test-spec.js
 
 tests:
+  # This package is the GREEN layer for the skill: it proves application behavior
+  # with the skill present. RED baseline evidence and REFACTOR loophole checks are
+  # documented in docs/design/eval-harness/generating-tests-skill-tdd.md.
+
   # ── merge — DimProduct MERGE WHEN MATCHED / NOT MATCHED ─────────────────────
   - description: "merge — DimProduct MERGE matched and not-matched branches"
     prompts: ["generating-tests"]
@@ -283,6 +288,19 @@ tests:
       target_table: "silver.DimProduct"
       writer: "silver.usp_load_DimProduct"
       min_scenario_count: "1"
+
+  - description: "feedback-targeted-repair — DimProduct repairs reviewer-requested branch without broad rewrite"
+    prompts: ["generating-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-tests/feedback-targeted-repair"
+      target_table: "silver.DimProduct"
+      writer: "silver.usp_load_DimProduct"
+      feedback_json: '{"uncovered_branches":["case_status_outdated"],"quality_fixes":[]}'
+      expected_branch_ids: "case_status_current,case_status_obsolete,case_status_outdated"
+      expected_unit_test_names: "test_status_current_when_active_product,test_status_obsolete_when_discontinued,test_status_outdated_when_sell_end_date_set"
+      rejected_unit_test_names: "test_color_empty_when_null,test_empty_source_yields_empty_result"
+      expected_uncovered_branches: "coalesce_color_null,empty_source_bronze_product"
+      rejected_uncovered_branches: "case_status_outdated"
 
   # ── view scenarios ────────────────────────────────────────────────────────────
 

@@ -78,30 +78,30 @@
   ],
   "refactor": {
     "status": "partial",
-    "extracted_sql": "SELECT 'product_counts', ISNULL([Red], 0), ISNULL([Black], 0), ISNULL([Silver], 0) FROM ( SELECT Color, ProductID FROM bronze.Product ) AS src PIVOT ( COUNT(ProductID) FOR Color IN ([Red], [Black], [Silver]) ) AS p",
-    "refactored_sql": "WITH import_product AS ( SELECT Color, ProductID FROM bronze.Product ), color_values AS ( SELECT 'Red' AS color UNION ALL SELECT 'Black' UNION ALL SELECT 'Silver' ), color_counts AS ( SELECT cv.color, COUNT(ip.ProductID) AS count FROM color_values cv LEFT JOIN import_product ip ON cv.color = ip.Color GROUP BY cv.color ), final AS ( SELECT 'product_counts' AS MetricName, ISNULL(MAX(CASE WHEN color = 'Red' THEN count END), 0) AS RedCount, ISNULL(MAX(CASE WHEN color = 'Black' THEN count END), 0) AS BlackCount, ISNULL(MAX(CASE WHEN color = 'Silver' THEN count END), 0) AS SilverCount FROM color_counts ) SELECT * FROM final",
+    "extracted_sql": "SELECT 'product_counts' AS MetricName, ISNULL([Red], 0) AS RedCount, ISNULL([Black], 0) AS BlackCount, ISNULL([Silver], 0) AS SilverCount FROM ( SELECT Color, ProductID FROM [bronze].[Product] ) AS src PIVOT ( COUNT(ProductID) FOR Color IN ([Red], [Black], [Silver]) ) AS p",
+    "refactored_sql": "WITH import_product AS ( SELECT Color, ProductID FROM [bronze].[Product] ), pivoted AS ( SELECT [Red], [Black], [Silver] FROM import_product PIVOT ( COUNT(ProductID) FOR Color IN ([Red], [Black], [Silver]) ) AS p ), final AS ( SELECT 'product_counts' AS MetricName, ISNULL([Red], 0) AS RedCount, ISNULL([Black], 0) AS BlackCount, ISNULL([Silver], 0) AS SilverCount FROM pivoted ) SELECT * FROM final",
     "semantic_review": {
       "passed": true,
       "checks": {
         "source_tables": {
           "passed": true,
-          "summary": "Both queries source from bronze.Product. Original uses inline subquery; refactored uses CTE. Semantically identical source."
+          "summary": "Both queries source from [bronze].[Product]. Extracted uses it directly in subquery, refactored imports it in first CTE."
         },
         "output_columns": {
           "passed": true,
-          "summary": "Both produce 4 columns with counts by color plus metric label. Column order and data types match the target table schema (MetricName, RedCount, BlackCount, SilverCount). Column mapping by INSERT position ensures equivalence."
+          "summary": "Both return identical columns: MetricName (string literal 'product_counts'), RedCount (ISNULL INT), BlackCount (ISNULL INT), SilverCount (ISNULL INT)."
         },
         "joins": {
           "passed": true,
-          "summary": "Original PIVOT implicitly ensures all IN-clause colors appear. Refactored uses LEFT JOIN with color_values CTE to guarantee all three colors (Red, Black, Silver) are represented. Both semantically equivalent in ensuring complete color coverage."
+          "summary": "No joins in either query. Both operate on single source table with PIVOT as sole transformation."
         },
         "filters": {
           "passed": true,
-          "summary": "No WHERE clauses in either query. Both restrict to specified colors (Red, Black, Silver) via PIVOT IN clause (original) or LEFT JOIN (refactored). Identical filtering."
+          "summary": "Neither query has explicit WHERE clauses. Both process all rows from bronze.Product."
         },
         "aggregation_grain": {
           "passed": true,
-          "summary": "Both aggregate COUNT(ProductID) per color and produce one output row with all three color counts as columns. Aggregation grain and result set size are identical."
+          "summary": "Both use COUNT(ProductID) aggregated by Color via PIVOT clause with identical pivot column list ([Red], [Black], [Silver]). ISNULL applied to handle null counts in both."
         }
       },
       "issues": []

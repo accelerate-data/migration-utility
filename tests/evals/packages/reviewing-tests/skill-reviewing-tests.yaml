@@ -39,7 +39,7 @@ tests:
       fixture_path: "tests/evals/fixtures/reviewing-tests/review-approved"
       target_table: "silver.DimProduct"
       writer: "silver.usp_load_DimProduct"
-      expected_status: "approved,revision_requested"
+      expected_status: "approved"
       min_covered_branches: 2
 
   - description: "review-revision — DimCustomer incomplete coverage"
@@ -61,7 +61,7 @@ tests:
       fixture_path: "tests/evals/fixtures/reviewing-tests/review-approved-insert-select"
       target_table: "silver.InsertSelectTarget"
       writer: "silver.usp_load_InsertSelectTarget"
-      expected_status: "approved,revision_requested"
+      expected_status: "approved"
       min_covered_branches: 1
 
   - description: "review-revision-update-join — UpdateJoinTarget missing join-miss"
@@ -79,6 +79,15 @@ tests:
       target_table: "silver.IfElseTarget"
       writer: "silver.usp_load_IfElseTarget"
       expected_status: "revision_requested"
+
+  - description: "review-independent-if-else — reviewer ignores stale generator branch manifest"
+    prompts: ["reviewing-tests"]
+    vars:
+      fixture_path: "tests/evals/fixtures/reviewing-tests/review-independent-if-else"
+      target_table: "silver.IfElseTarget"
+      writer: "silver.usp_load_IfElseTarget"
+      expected_status: "revision_requested"
+      rejected_reviewer_branch_ids: "legacy_single_path,legacy_obsolete_branch"
 
   - description: "review-revision-exec-chain — FactExecProfile catalog mismatch"
     prompts: ["reviewing-tests"]
@@ -116,7 +125,7 @@ tests:
       target_table: "silver.DimCustomer"
       writer: "silver.usp_load_DimCustomer_Full"
       iteration_suffix: " --iteration 2"
-      expected_status: "approved_with_warnings,revision_requested"
+      expected_status: "approved_with_warnings"
 
   # --- view scenarios ---
 

@@ -1,25 +1,32 @@
 {
   "item_id": "silver.singlectetarget",
+  "object_type": "table",
   "status": "ok",
   "coverage": "complete",
   "branch_manifest": [
     {
       "id": "where_sellenddate_null_row_included",
       "statement_index": 0,
-      "description": "WHERE SellEndDate IS NULL — active product passes the CTE filter and is inserted into silver.SingleCteTarget",
-      "scenarios": ["test_insert_cte_active_product_inserted"]
+      "description": "WHERE SellEndDate IS NULL \u2014 active product passes the CTE filter and is inserted into silver.SingleCteTarget",
+      "scenarios": [
+        "test_insert_cte_active_product_inserted"
+      ]
     },
     {
       "id": "where_sellenddate_not_null_row_excluded",
       "statement_index": 0,
-      "description": "WHERE SellEndDate IS NULL — product with a non-NULL SellEndDate is filtered out and not inserted",
-      "scenarios": ["test_insert_cte_retired_product_excluded"]
+      "description": "WHERE SellEndDate IS NULL \u2014 product with a non-NULL SellEndDate is filtered out and not inserted",
+      "scenarios": [
+        "test_insert_cte_retired_product_excluded"
+      ]
     },
     {
       "id": "empty_source_no_rows_inserted",
       "statement_index": 0,
-      "description": "bronze.Product is empty — CTE produces no rows, INSERT inserts nothing",
-      "scenarios": ["test_insert_cte_empty_source_no_rows"]
+      "description": "bronze.Product is empty \u2014 CTE produces no rows, INSERT inserts nothing",
+      "scenarios": [
+        "test_insert_cte_empty_source_no_rows"
+      ]
     }
   ],
   "unit_tests": [
@@ -32,14 +39,15 @@
           "table": "[bronze].[Product]",
           "rows": [
             {
+              "ProductID": 1,
               "ProductName": "Road Frame",
               "ProductNumber": "RF-100",
               "MakeFlag": 1,
               "FinishedGoodsFlag": 1,
               "SafetyStockLevel": 500,
               "ReorderPoint": 200,
-              "StandardCost": 150.00,
-              "ListPrice": 350.00,
+              "StandardCost": 150.0,
+              "ListPrice": 350.0,
               "DaysToManufacture": 2,
               "SellStartDate": "2019-01-01",
               "SellEndDate": null,
@@ -47,7 +55,15 @@
             }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road Frame"
+          }
+        ]
+      }
     },
     {
       "name": "test_insert_cte_retired_product_excluded",
@@ -58,14 +74,15 @@
           "table": "[bronze].[Product]",
           "rows": [
             {
+              "ProductID": 2,
               "ProductName": "Old Frame",
               "ProductNumber": "OF-001",
               "MakeFlag": 0,
               "FinishedGoodsFlag": 0,
               "SafetyStockLevel": 0,
               "ReorderPoint": 0,
-              "StandardCost": 0.00,
-              "ListPrice": 0.00,
+              "StandardCost": 0.0,
+              "ListPrice": 0.0,
               "DaysToManufacture": 0,
               "SellStartDate": "2010-01-01",
               "SellEndDate": "2015-12-31",
@@ -73,7 +90,10 @@
             }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": []
+      }
     },
     {
       "name": "test_insert_cte_empty_source_no_rows",
@@ -84,7 +104,10 @@
           "table": "[bronze].[Product]",
           "rows": []
         }
-      ]
+      ],
+      "expect": {
+        "rows": []
+      }
     }
   ],
   "uncovered_branches": [],

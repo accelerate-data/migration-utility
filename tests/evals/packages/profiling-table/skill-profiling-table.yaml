@@ -73,6 +73,7 @@ tests:
       target_table: "silver.DimCrossDbProfile"
       writer: "silver.usp_load_DimCrossDbProfile"
       expected_status: "ok,partial"
+      expected_warning_codes: "PARTIAL_PROFILE"
 
   # ── dynamic-sql — DimCurrency sp_executesql partial ─────────
   - description: "dynamic-sql — DimCurrency sp_executesql partial"
@@ -82,6 +83,7 @@ tests:
       target_table: "silver.DimCurrency"
       writer: "silver.usp_load_DimCurrency"
       expected_status: "ok,partial"
+      expected_warning_codes: "PARTIAL_PROFILE,PARSE_ERROR"
 
   # ── classification-dim-scd2 — DimEmployeeSCD2 expire-and-insert
   - description: "classification-dim-scd2 — DimEmployeeSCD2 expire-and-insert"
@@ -167,6 +169,18 @@ tests:
       target_view: "silver.vw_currency_ref"
       check_type: "profile"
       expected_classification: "stg"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-view-catalog.js
+
+  # aggregation + group_by → mart
+  - description: "view-profile-mart — vw_daily_sales_summary aggregation"
+    prompts: ["profiling-table-view"]
+    vars:
+      fixture_path: "tests/evals/fixtures/profiling-table/view-profile-mart"
+      target_view: "silver.vw_daily_sales_summary"
+      check_type: "profile"
+      expected_classification: "mart"
     assert:
       - type: javascript
         value: file://../../assertions/check-view-catalog.js

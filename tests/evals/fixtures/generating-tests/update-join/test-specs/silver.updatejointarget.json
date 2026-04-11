@@ -1,5 +1,6 @@
 {
   "item_id": "silver.updatejointarget",
+  "object_type": "table",
   "status": "ok",
   "coverage": "complete",
   "branch_manifest": [
@@ -20,9 +21,9 @@
       ]
     },
     {
-      "id": "null_join_key",
+      "id": "non_matching_key",
       "statement_index": 0,
-      "description": "NULL ProductAlternateKey in target never matches source, row unchanged",
+      "description": "Non-matching ProductAlternateKey in target never matches source via JOIN, row unchanged",
       "scenarios": [
         "test_update_null_join_key"
       ]
@@ -54,7 +55,16 @@
         }
       ],
       "target_table": "[silver].[UpdateJoinTarget]",
-      "procedure": "[silver].[usp_load_UpdateJoinTarget]"
+      "procedure": "[silver].[usp_load_UpdateJoinTarget]",
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150-Updated",
+            "LastSeenDate": "2026-04-11 06:22:02.593000"
+          }
+        ]
+      }
     },
     {
       "name": "test_update_join_miss_no_update",
@@ -81,7 +91,16 @@
         }
       ],
       "target_table": "[silver].[UpdateJoinTarget]",
-      "procedure": "[silver].[usp_load_UpdateJoinTarget]"
+      "procedure": "[silver].[usp_load_UpdateJoinTarget]",
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "99",
+            "EnglishProductName": "Old-Product",
+            "LastSeenDate": "2024-01-01 00:00:00"
+          }
+        ]
+      }
     },
     {
       "name": "test_update_null_join_key",
@@ -99,7 +118,7 @@
         {
           "rows": [
             {
-              "ProductAlternateKey": null,
+              "ProductAlternateKey": "999",
               "EnglishProductName": "Unknown-Product",
               "LastSeenDate": "2024-01-01T00:00:00Z"
             }
@@ -108,7 +127,16 @@
         }
       ],
       "target_table": "[silver].[UpdateJoinTarget]",
-      "procedure": "[silver].[usp_load_UpdateJoinTarget]"
+      "procedure": "[silver].[usp_load_UpdateJoinTarget]",
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "999",
+            "EnglishProductName": "Unknown-Product",
+            "LastSeenDate": "2024-01-01 00:00:00"
+          }
+        ]
+      }
     }
   ],
   "uncovered_branches": [],

@@ -81,8 +81,8 @@
   "test_gen": {
     "status": "ok",
     "test_spec_path": "test-specs/silver.selectintotarget.json",
-    "branches": 2,
-    "unit_tests": 2,
+    "branches": 3,
+    "unit_tests": 5,
     "coverage": "complete",
     "warnings": [],
     "errors": []

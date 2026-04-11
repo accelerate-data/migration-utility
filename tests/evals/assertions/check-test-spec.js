@@ -12,6 +12,12 @@ module.exports = (output, context) => {
   const expectedWarnings = normalizeTerms(context.vars.expected_warning_terms);
   const expectedErrors = normalizeTerms(context.vars.expected_error_terms);
   const expectedOutputTerms = normalizeTerms(context.vars.expected_output_terms);
+  const expectedBranchIds = normalizeTerms(context.vars.expected_branch_ids);
+  const rejectedBranchIds = normalizeTerms(context.vars.rejected_branch_ids);
+  const expectedUnitTestNames = normalizeTerms(context.vars.expected_unit_test_names);
+  const rejectedUnitTestNames = normalizeTerms(context.vars.rejected_unit_test_names);
+  const expectedUncoveredBranches = normalizeTerms(context.vars.expected_uncovered_branches);
+  const rejectedUncoveredBranches = normalizeTerms(context.vars.rejected_uncovered_branches);
 
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
   const specPath = path.resolve(repoRoot, fixturePath, 'test-specs', `${table}.json`);
@@ -101,6 +107,52 @@ module.exports = (output, context) => {
   const scenarioCount = Array.isArray(spec.unit_tests) ? spec.unit_tests.length : 0;
   if (scenarioCount < minScenarioCount) {
     return { pass: false, score: 0, reason: `Expected at least ${minScenarioCount} scenarios, got ${scenarioCount}` };
+  }
+
+  const branchIds = Array.isArray(spec.branch_manifest)
+    ? spec.branch_manifest.map((branch) => String(branch.id || '').toLowerCase())
+    : [];
+  const unitTestNames = Array.isArray(spec.unit_tests)
+    ? spec.unit_tests.map((test) => String(test.name || '').toLowerCase())
+    : [];
+  const uncoveredBranches = Array.isArray(spec.uncovered_branches)
+    ? spec.uncovered_branches.map((branch) => String(branch || '').toLowerCase())
+    : [];
+
+  for (const branchId of expectedBranchIds) {
+    if (!branchIds.includes(branchId)) {
+      return { pass: false, score: 0, reason: `Expected branch id '${branchId}' not found in branch_manifest` };
+    }
+  }
+
+  for (const branchId of rejectedBranchIds) {
+    if (branchIds.includes(branchId)) {
+      return { pass: false, score: 0, reason: `Rejected branch id '${branchId}' unexpectedly found in branch_manifest` };
+    }
+  }
+
+  for (const testName of expectedUnitTestNames) {
+    if (!unitTestNames.includes(testName)) {
+      return { pass: false, score: 0, reason: `Expected unit test '${testName}' not found in unit_tests` };
+    }
+  }
+
+  for (const testName of rejectedUnitTestNames) {
+    if (unitTestNames.includes(testName)) {
+      return { pass: false, score: 0, reason: `Rejected unit test '${testName}' unexpectedly found in unit_tests` };
+    }
+  }
+
+  for (const branchId of expectedUncoveredBranches) {
+    if (!uncoveredBranches.includes(branchId)) {
+      return { pass: false, score: 0, reason: `Expected uncovered branch '${branchId}' not found in uncovered_branches` };
+    }
+  }
+
+  for (const branchId of rejectedUncoveredBranches) {
+    if (uncoveredBranches.includes(branchId)) {
+      return { pass: false, score: 0, reason: `Rejected uncovered branch '${branchId}' unexpectedly found in uncovered_branches` };
+    }
   }
 
   const specText = JSON.stringify(spec).toLowerCase();

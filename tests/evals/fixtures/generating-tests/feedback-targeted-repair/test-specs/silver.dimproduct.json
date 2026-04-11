@@ -1,0 +1,470 @@
+{
+  "item_id": "silver.dimproduct",
+  "object_type": "table",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {
+      "id": "merge_matched_update",
+      "statement_index": 0,
+      "description": "MERGE WHEN MATCHED updates an existing product row in the source procedure",
+      "scenarios": []
+    },
+    {
+      "id": "merge_not_matched_by_target_insert",
+      "statement_index": 0,
+      "description": "MERGE WHEN NOT MATCHED BY TARGET inserts a new product row in the source procedure",
+      "scenarios": []
+    },
+    {
+      "id": "case_status_obsolete",
+      "statement_index": 0,
+      "description": "CASE branch maps DiscontinuedDate IS NOT NULL to Status = 'Obsolete'",
+      "scenarios": [
+        "test_status_obsolete_when_discontinued"
+      ]
+    },
+    {
+      "id": "case_status_outdated",
+      "statement_index": 0,
+      "description": "CASE branch maps SellEndDate IS NOT NULL and DiscontinuedDate IS NULL to Status = 'Outdated'",
+      "scenarios": [
+        "test_status_outdated_with_sell_end_date_and_no_discontinued",
+        "test_status_outdated_when_sell_end_date_set",
+        "test_status_outdated_explicit_sell_end_date_coverage",
+        "test_status_outdated_sell_end_date_not_null"
+      ]
+    },
+    {
+      "id": "case_status_current",
+      "statement_index": 0,
+      "description": "CASE branch maps DiscontinuedDate IS NULL and SellEndDate IS NULL to Status = 'Current'",
+      "scenarios": [
+        "test_status_current_when_active_product"
+      ]
+    },
+    {
+      "id": "coalesce_color_null",
+      "statement_index": 0,
+      "description": "COALESCE maps NULL Color to empty string",
+      "scenarios": [
+        "test_color_empty_when_null"
+      ]
+    },
+    {
+      "id": "coalesce_color_not_null",
+      "statement_index": 0,
+      "description": "COALESCE preserves non-null Color values",
+      "scenarios": [
+        "test_status_current_when_active_product"
+      ]
+    },
+    {
+      "id": "empty_source_bronze_product",
+      "statement_index": 0,
+      "description": "Empty bronze.Product input yields an empty staged result",
+      "scenarios": [
+        "test_empty_source_yields_empty_result"
+      ]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_status_current_when_active_product",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Road-150",
+              "ProductNumber": "PR-001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 10.0,
+              "ListPrice": 25.0,
+              "Color": "Red",
+              "Size": "M",
+              "ProductLine": "R",
+              "Class": "H",
+              "Style": "U",
+              "DaysToManufacture": 1,
+              "SellStartDate": "2024-01-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-01-01"
+            }
+          ],
+          "table": "[bronze].[Product]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150",
+            "StandardCost": 10.0,
+            "ListPrice": 25.0,
+            "Color": "Red",
+            "Size": "M",
+            "ProductLine": "R",
+            "Class": "H",
+            "Style": "U",
+            "StartDate": "2024-01-01",
+            "EndDate": null,
+            "Status": "Current"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
+    },
+    {
+      "name": "test_status_obsolete_when_discontinued",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "rows": [
+            {
+              "ProductID": 2,
+              "ProductName": "Mountain-200",
+              "ProductNumber": "PR-002",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 20.0,
+              "ListPrice": 45.0,
+              "Color": "Blue",
+              "Size": "L",
+              "ProductLine": "M",
+              "Class": "M",
+              "Style": "U",
+              "DaysToManufacture": 2,
+              "SellStartDate": "2024-02-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": "2024-03-15",
+              "ModifiedDate": "2024-02-01"
+            }
+          ],
+          "table": "[bronze].[Product]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "2",
+            "EnglishProductName": "Mountain-200",
+            "StandardCost": 20.0,
+            "ListPrice": 45.0,
+            "Color": "Blue",
+            "Size": "L",
+            "ProductLine": "M",
+            "Class": "M",
+            "Style": "U",
+            "StartDate": "2024-02-01",
+            "EndDate": null,
+            "Status": "Obsolete"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
+    },
+    {
+      "name": "test_status_outdated_with_sell_end_date_and_no_discontinued",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "rows": [
+            {
+              "ProductID": 5,
+              "ProductName": "Touring-Bike",
+              "ProductNumber": "PR-005",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 75,
+              "ReorderPoint": 50,
+              "StandardCost": 18.0,
+              "ListPrice": 40.0,
+              "Color": "Black",
+              "Size": "M",
+              "ProductLine": "T",
+              "Class": "H",
+              "Style": "U",
+              "DaysToManufacture": 2,
+              "SellStartDate": "2023-03-01",
+              "SellEndDate": "2025-02-28",
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2023-03-01"
+            }
+          ],
+          "table": "[bronze].[Product]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "5",
+            "EnglishProductName": "Touring-Bike",
+            "StandardCost": 18.0,
+            "ListPrice": 40.0,
+            "Color": "Black",
+            "Size": "M",
+            "ProductLine": "T",
+            "Class": "H",
+            "Style": "U",
+            "StartDate": "2023-03-01",
+            "EndDate": "2025-02-28",
+            "Status": "Outdated"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
+    },
+    {
+      "name": "test_color_empty_when_null",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "rows": [
+            {
+              "ProductID": 4,
+              "ProductName": "Urban-Bike",
+              "ProductNumber": "PR-004",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 50,
+              "ReorderPoint": 40,
+              "StandardCost": 25.0,
+              "ListPrice": 50.0,
+              "Color": null,
+              "Size": "M",
+              "ProductLine": "U",
+              "Class": "L",
+              "Style": "M",
+              "DaysToManufacture": 1,
+              "SellStartDate": "2023-01-01",
+              "SellEndDate": null,
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2023-01-01"
+            }
+          ],
+          "table": "[bronze].[Product]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "4",
+            "EnglishProductName": "Urban-Bike",
+            "StandardCost": 25.0,
+            "ListPrice": 50.0,
+            "Color": "",
+            "Size": "M",
+            "ProductLine": "U",
+            "Class": "L",
+            "Style": "M",
+            "StartDate": "2023-01-01",
+            "EndDate": null,
+            "Status": "Current"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
+    },
+    {
+      "name": "test_empty_source_yields_empty_result",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "rows": [],
+          "table": "[bronze].[Product]"
+        }
+      ],
+      "expect": {
+        "rows": []
+      },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
+    },
+    {
+      "name": "test_status_outdated_when_sell_end_date_set",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "rows": [
+            {
+              "ProductID": 3,
+              "ProductName": "City-Commuter",
+              "ProductNumber": "PR-003",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 80,
+              "ReorderPoint": 60,
+              "StandardCost": 15.0,
+              "ListPrice": 35.0,
+              "Color": "Green",
+              "Size": "S",
+              "ProductLine": "C",
+              "Class": "L",
+              "Style": "W",
+              "DaysToManufacture": 1,
+              "SellStartDate": "2023-06-01",
+              "SellEndDate": "2024-12-31",
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2023-06-01"
+            }
+          ],
+          "table": "[bronze].[Product]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "3",
+            "EnglishProductName": "City-Commuter",
+            "StandardCost": 15.0,
+            "ListPrice": 35.0,
+            "Color": "Green",
+            "Size": "S",
+            "ProductLine": "C",
+            "Class": "L",
+            "Style": "W",
+            "StartDate": "2023-06-01",
+            "EndDate": "2024-12-31",
+            "Status": "Outdated"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
+    },
+    {
+      "name": "test_status_outdated_explicit_sell_end_date_coverage",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "rows": [
+            {
+              "ProductID": 6,
+              "ProductName": "Hybrid-Express",
+              "ProductNumber": "PR-006",
+              "MakeFlag": 0,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 60,
+              "ReorderPoint": 45,
+              "StandardCost": 22.0,
+              "ListPrice": 55.0,
+              "Color": "Silver",
+              "Size": "L",
+              "ProductLine": "H",
+              "Class": "M",
+              "Style": "U",
+              "DaysToManufacture": 3,
+              "SellStartDate": "2023-05-01",
+              "SellEndDate": "2025-06-30",
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2023-05-01"
+            }
+          ],
+          "table": "[bronze].[Product]"
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "6",
+            "EnglishProductName": "Hybrid-Express",
+            "StandardCost": 22.0,
+            "ListPrice": 55.0,
+            "Color": "Silver",
+            "Size": "L",
+            "ProductLine": "H",
+            "Class": "M",
+            "Style": "U",
+            "StartDate": "2023-05-01",
+            "EndDate": "2025-06-30",
+            "Status": "Outdated"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
+    },
+    {
+      "name": "test_status_outdated_sell_end_date_not_null",
+      "model": "stg_dimproduct",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 999,
+              "ProductName": "OutdatedProduct",
+              "ProductNumber": "PR-999",
+              "MakeFlag": 0,
+              "FinishedGoodsFlag": 1,
+              "Color": "White",
+              "SafetyStockLevel": 10,
+              "ReorderPoint": 5,
+              "StandardCost": 5.0,
+              "ListPrice": 15.0,
+              "Size": null,
+              "SizeUnitMeasureCode": null,
+              "WeightUnitMeasureCode": null,
+              "Weight": null,
+              "DaysToManufacture": 1,
+              "ProductLine": "X",
+              "Class": "L",
+              "Style": "U",
+              "ProductSubcategoryID": null,
+              "ProductModelID": null,
+              "SellStartDate": "2024-01-01",
+              "SellEndDate": "2025-12-31",
+              "DiscontinuedDate": null,
+              "ModifiedDate": "2024-01-01"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "999",
+            "EnglishProductName": "OutdatedProduct",
+            "StandardCost": 5.0,
+            "ListPrice": 15.0,
+            "Color": "White",
+            "Size": null,
+            "ProductLine": "X",
+            "Class": "L",
+            "Style": "U",
+            "StartDate": "2024-01-01",
+            "EndDate": "2025-12-31",
+            "Status": "Outdated"
+          }
+        ]
+      },
+      "target_table": "[silver].[DimProduct]",
+      "procedure": "[silver].[usp_load_DimProduct]"
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [
+    {
+      "code": "info",
+      "message": "MERGE matched/update and insert-only distinctions are source-procedure behaviors that collapse into the staged SELECT model, so dbt unit tests cover the transformation branches instead.",
+      "severity": "warning"
+    }
+  ],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "errors": []
+}

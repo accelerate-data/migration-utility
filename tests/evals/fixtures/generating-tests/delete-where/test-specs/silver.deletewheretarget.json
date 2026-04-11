@@ -1,25 +1,32 @@
 {
   "item_id": "silver.deletewheretarget",
+  "object_type": "table",
   "status": "ok",
   "coverage": "complete",
   "branch_manifest": [
     {
-      "id": "where_passes_retired_row_deleted",
+      "id": "where_true_row_deleted",
       "statement_index": 0,
-      "description": "WHERE IsRetired = 1 — matching row is deleted from the target table",
-      "scenarios": ["test_delete_where_retired_row_removed"]
+      "description": "WHERE IsRetired = 1 \u2014 row with IsRetired = 1 is deleted from target table",
+      "scenarios": [
+        "test_delete_where_retired_row_removed"
+      ]
     },
     {
-      "id": "where_fails_active_row_kept",
+      "id": "where_false_row_kept",
       "statement_index": 0,
-      "description": "WHERE IsRetired = 0 — non-matching row is not deleted and remains in the target table",
-      "scenarios": ["test_delete_where_active_row_retained"]
+      "description": "WHERE IsRetired = 0 \u2014 row with IsRetired = 0 is not deleted and remains in target table",
+      "scenarios": [
+        "test_delete_where_active_row_retained"
+      ]
     },
     {
-      "id": "empty_source_no_op",
+      "id": "empty_table_no_op",
       "statement_index": 0,
-      "description": "Empty target table — DELETE affects zero rows, no error",
-      "scenarios": ["test_delete_where_empty_table_no_op"]
+      "description": "Empty target table \u2014 DELETE affects zero rows, no error",
+      "scenarios": [
+        "test_delete_where_empty_table_no_op"
+      ]
     }
   ],
   "unit_tests": [
@@ -31,10 +38,17 @@
         {
           "table": "[silver].[DeleteWhereTarget]",
           "rows": [
-            { "ProductAlternateKey": "P001", "EnglishProductName": "Widget A", "IsRetired": 1 }
+            {
+              "ProductAlternateKey": "P001",
+              "EnglishProductName": "Widget A",
+              "IsRetired": 1
+            }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": []
+      }
     },
     {
       "name": "test_delete_where_active_row_retained",
@@ -44,10 +58,23 @@
         {
           "table": "[silver].[DeleteWhereTarget]",
           "rows": [
-            { "ProductAlternateKey": "P002", "EnglishProductName": "Widget B", "IsRetired": 0 }
+            {
+              "ProductAlternateKey": "P002",
+              "EnglishProductName": "Widget B",
+              "IsRetired": 0
+            }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "P002",
+            "EnglishProductName": "Widget B",
+            "IsRetired": 0
+          }
+        ]
+      }
     },
     {
       "name": "test_delete_where_empty_table_no_op",
@@ -58,7 +85,10 @@
           "table": "[silver].[DeleteWhereTarget]",
           "rows": []
         }
-      ]
+      ],
+      "expect": {
+        "rows": []
+      }
     }
   ],
   "uncovered_branches": [],

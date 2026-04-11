@@ -1,5 +1,6 @@
 {
   "item_id": "silver.dimcrossdbprofile",
+  "object_type": "table",
   "status": "partial",
   "coverage": "partial",
   "branch_manifest": [

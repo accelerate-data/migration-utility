@@ -108,5 +108,41 @@
   "scoping": {
     "status": "resolved",
     "selected_writer": "silver.usp_load_FactProductSalesDelta"
+  },
+  "profile": {
+    "writer": "silver.usp_load_FactProductSalesDelta",
+    "classification": {
+      "resolved_kind": "fact_transaction",
+      "rationale": "Pure INSERT pattern with identity surrogate key and fact table structure (foreign key references and measure columns); incremental load driven by ModifiedDate watermark.",
+      "source": "llm"
+    },
+    "primary_key": {
+      "columns": [
+        "SalesDeltaKey"
+      ],
+      "primary_key_type": "surrogate",
+      "source": "catalog"
+    },
+    "foreign_keys": [
+      {
+        "column": "ProductKey",
+        "fk_type": "standard",
+        "source": "llm",
+        "rationale": "References bronze.SalesOrderDetail.ProductID via writer JOIN; fact table references product identifier"
+      },
+      {
+        "column": "CustomerKey",
+        "fk_type": "standard",
+        "source": "llm",
+        "rationale": "References bronze.SalesOrderHeader.CustomerID via writer JOIN; fact table references customer identifier"
+      }
+    ],
+    "watermark": {
+      "column": "ModifiedDate",
+      "source": "llm",
+      "rationale": "Explicit WHERE clause in writer: WHERE h.ModifiedDate > @LastLoadDate; enables incremental loading strategy"
+    },
+    "pii_actions": [],
+    "status": "ok"
   }
 }

@@ -55,30 +55,30 @@
   ],
   "refactor": {
     "status": "partial",
-    "extracted_sql": "SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM silver.DeleteWhereTarget WHERE IsRetired <> 1",
-    "refactored_sql": "WITH import AS ( SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM silver.DeleteWhereTarget ), logical AS ( SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM import WHERE IsRetired <> 1 ), final AS ( SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM logical ) SELECT * FROM final",
+    "extracted_sql": "SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM silver.DeleteWhereTarget WHERE IsRetired = 0;",
+    "refactored_sql": "WITH import AS ( SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM silver.DeleteWhereTarget ), filter AS ( SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM import WHERE IsRetired = 0 ), final AS ( SELECT ProductAlternateKey, EnglishProductName, IsRetired FROM filter ) SELECT * FROM final",
     "semantic_review": {
       "passed": true,
       "checks": {
         "source_tables": {
           "passed": true,
-          "summary": "Both extracted and refactored SQL source from silver.DeleteWhereTarget exclusively. No mismatched or missing source tables."
+          "summary": "Both queries read from silver.DeleteWhereTarget as the sole source table."
         },
         "output_columns": {
           "passed": true,
-          "summary": "Output columns match exactly: ProductAlternateKey, EnglishProductName, IsRetired in identical order and types."
+          "summary": "Both queries output identical columns: ProductAlternateKey, EnglishProductName, IsRetired."
         },
         "joins": {
           "passed": true,
-          "summary": "No joins in extracted or refactored SQL. Both operate on single source table."
+          "summary": "Neither query contains join patterns. No joins to evaluate."
         },
         "filters": {
           "passed": true,
-          "summary": "Both apply identical filter: IsRetired <> 1. This correctly inverts the DELETE WHERE IsRetired = 1 logic to express keep-rows projection."
+          "summary": "Both queries apply the same filter condition: WHERE IsRetired = 0."
         },
         "aggregation_grain": {
           "passed": true,
-          "summary": "Both return individual rows with no aggregation or grouping. Grain is consistent at row level."
+          "summary": "Neither query contains aggregation functions. Both return raw rows at the same grain."
         }
       },
       "issues": []

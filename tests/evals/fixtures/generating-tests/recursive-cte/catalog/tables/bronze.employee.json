@@ -3,6 +3,12 @@
   "name": "employee",
   "columns": [
     {
+      "name": "EmployeeID",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
       "name": "BusinessEntityID",
       "sql_type": "INT",
       "is_nullable": false,
@@ -72,6 +78,18 @@
       "name": "CurrentFlag",
       "sql_type": "BIT",
       "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "LastName",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "ManagerID",
+      "sql_type": "INT",
+      "is_nullable": true,
       "is_identity": false
     },
     {

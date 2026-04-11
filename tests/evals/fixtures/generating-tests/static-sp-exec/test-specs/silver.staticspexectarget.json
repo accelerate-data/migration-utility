@@ -1,12 +1,13 @@
 {
   "item_id": "silver.staticspexectarget",
+  "object_type": "table",
   "status": "ok",
   "coverage": "complete",
   "branch_manifest": [
     {
       "id": "static_sp_executesql_insert",
       "statement_index": 0,
-      "description": "EXEC sp_executesql with a literal SQL string \u2014 INSERT INTO silver.StaticSpExecTarget from bronze.Product after TRUNCATE",
+      "description": "EXEC sp_executesql with a literal SQL string — INSERT INTO silver.StaticSpExecTarget from bronze.Product after TRUNCATE",
       "scenarios": [
         "test_exec_static_single_row",
         "test_exec_static_multiple_rows",
@@ -38,7 +39,15 @@
             }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150"
+          }
+        ]
+      }
     },
     {
       "name": "test_exec_static_multiple_rows",
@@ -76,7 +85,19 @@
             }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150"
+          },
+          {
+            "ProductAlternateKey": "2",
+            "EnglishProductName": "Mountain-200"
+          }
+        ]
+      }
     },
     {
       "name": "test_exec_static_empty_source",
@@ -87,7 +108,10 @@
           "table": "[bronze].[Product]",
           "rows": []
         }
-      ]
+      ],
+      "expect": {
+        "rows": []
+      }
     }
   ],
   "uncovered_branches": [],

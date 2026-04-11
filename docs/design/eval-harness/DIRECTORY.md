@@ -59,6 +59,8 @@ tests/evals/
       skill-refactoring-sql.yaml
     generating-tests/
       skill-generating-tests.yaml
+    generating-model/
+      skill-generating-model.yaml
     cmd-scope/
       cmd-scope.yaml
     cmd-profile/

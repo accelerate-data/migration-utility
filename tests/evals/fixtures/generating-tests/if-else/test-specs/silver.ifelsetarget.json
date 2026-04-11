@@ -1,29 +1,30 @@
 {
   "item_id": "silver.ifelsetarget",
+  "object_type": "table",
   "status": "ok",
   "coverage": "complete",
   "branch_manifest": [
     {
-      "id": "if_premium_path",
+      "id": "premium_path",
       "statement_index": 0,
-      "description": "IF branch: when ListPrice > 100, insert premium-priced products",
+      "description": "INSERT premium products where ListPrice > 100",
       "scenarios": [
-        "test_premium_path_high_avg"
+        "test_premium_path_high_list_price"
       ]
     },
     {
-      "id": "else_standard_path",
+      "id": "standard_path",
       "statement_index": 1,
-      "description": "ELSE branch: insert all products regardless of price",
+      "description": "INSERT all products (standard pricing category)",
       "scenarios": [
-        "test_standard_path_all_products"
+        "test_standard_path_low_list_price"
       ]
     }
   ],
   "unit_tests": [
     {
-      "name": "test_premium_path_high_avg",
-      "model": "stg_ifelsetarget",
+      "name": "test_premium_path_high_list_price",
+      "model": "silver.ifelsetarget",
       "target_table": "[silver].[IfElseTarget]",
       "procedure": "[silver].[usp_load_IfElseTarget]",
       "given": [
@@ -31,14 +32,30 @@
           "table": "[bronze].[Product]",
           "rows": [
             {
-              "ProductID": 1,
               "ProductName": "Road-150",
-              "ListPrice": 200.0
+              "ProductNumber": "FR-R92B-58",
+              "MakeFlag": 0,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 600,
+              "ReorderPoint": 750,
+              "StandardCost": 1059.31,
+              "ListPrice": 3578.27,
+              "DaysToManufacture": 0,
+              "SellStartDate": "2005-05-31T00:00:00",
+              "ModifiedDate": "2013-05-30T00:00:00"
             },
             {
-              "ProductID": 2,
               "ProductName": "Mountain-200",
-              "ListPrice": 180.0
+              "ProductNumber": "BK-M47B-40",
+              "MakeFlag": 0,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 800,
+              "ReorderPoint": 1000,
+              "StandardCost": 485.73,
+              "ListPrice": 2294.99,
+              "DaysToManufacture": 0,
+              "SellStartDate": "2005-05-31T00:00:00",
+              "ModifiedDate": "2013-05-30T00:00:00"
             }
           ]
         }
@@ -59,8 +76,8 @@
       }
     },
     {
-      "name": "test_standard_path_all_products",
-      "model": "stg_ifelsetarget",
+      "name": "test_standard_path_low_list_price",
+      "model": "silver.ifelsetarget",
       "target_table": "[silver].[IfElseTarget]",
       "procedure": "[silver].[usp_load_IfElseTarget]",
       "given": [
@@ -68,14 +85,30 @@
           "table": "[bronze].[Product]",
           "rows": [
             {
-              "ProductID": 1,
               "ProductName": "Budget-Bike",
-              "ListPrice": 50.0
+              "ProductNumber": "BK-B149-56",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 500,
+              "ReorderPoint": 750,
+              "StandardCost": 24.99,
+              "ListPrice": 89.99,
+              "DaysToManufacture": 1,
+              "SellStartDate": "2005-06-01T00:00:00",
+              "ModifiedDate": "2013-05-30T00:00:00"
             },
             {
-              "ProductID": 2,
               "ProductName": "Economy-Wheel",
-              "ListPrice": 25.0
+              "ProductNumber": "WH-W113-30",
+              "MakeFlag": 0,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 400,
+              "ReorderPoint": 600,
+              "StandardCost": 5.99,
+              "ListPrice": 34.99,
+              "DaysToManufacture": 0,
+              "SellStartDate": "2005-06-01T00:00:00",
+              "ModifiedDate": "2013-05-30T00:00:00"
             }
           ]
         }

@@ -207,66 +207,49 @@
     "selected_writer_rationale": "Stage procedure is the direct writer for FactInternetSales."
   },
   "profile": {
-    "status": "ok",
-    "writer": "silver.usp_stage_factinternetsales",
+    "writer": "silver.usp_stage_FactInternetSales",
     "classification": {
       "resolved_kind": "fact_transaction",
-      "rationale": "Table has transactional grain — one row per sales order line (composite natural-key PK of SalesOrderNumber + SalesOrderLineNumber) with additive measures. The TRUNCATE + INSERT write pattern is a full-reload staging strategy; the absence of a snapshot_date column eliminates fact_periodic_snapshot, and all three date columns (OrderDate, DueDate, ShipDate) are populated simultaneously from a single JOIN rather than updated individually, eliminating fact_accumulating_snapshot.",
-      "source": "llm"
+      "source": "llm",
+      "rationale": "Pure INSERT pattern with no UPDATE or DELETE. FK columns + numeric measure columns indicate a transactional fact table. OrderDate, DueDate, ShipDate are transaction dates, not snapshot or periodic indicators."
     },
     "primary_key": {
       "columns": [
         "SalesOrderNumber",
         "SalesOrderLineNumber"
       ],
-      "primary_key_type": "composite",
+      "primary_key_type": "natural",
       "source": "catalog",
-      "rationale": "Declared as PK_FactInternetSales in the catalog. Composite of the business order number (NVARCHAR) and order line number (TINYINT) forming a natural composite key at sales order line grain."
+      "rationale": "Declared as PK_FactInternetSales in catalog. SalesOrderNumber and SalesOrderLineNumber are business-sourced transaction identifiers."
     },
+    "foreign_keys": [
+      {
+        "column": "ProductKey",
+        "fk_type": "standard",
+        "source": "llm",
+        "rationale": "Column name pattern (_Key suffix) and position in SELECT list indicate FK to product dimension. Single fact column to single dimension relation."
+      },
+      {
+        "column": "CustomerKey",
+        "fk_type": "standard",
+        "source": "llm",
+        "rationale": "Column name pattern (_Key suffix) and position in SELECT list indicate FK to customer dimension. Single fact column to single dimension relation."
+      },
+      {
+        "column": "SalesTerritoryKey",
+        "fk_type": "standard",
+        "source": "llm",
+        "rationale": "Column name pattern (_Key suffix) and position in SELECT list indicate FK to territory dimension. Single fact column to single dimension relation."
+      }
+    ],
     "natural_key": {
       "columns": [
         "SalesOrderNumber",
         "SalesOrderLineNumber"
       ],
-      "source": "llm",
-      "rationale": "No IDENTITY column in auto_increment_columns and no NEWID() or surrogate assignment in the proc body. SalesOrderNumber is an NVARCHAR business key sourced directly from bronze.SalesOrderHeader with no _sk suffix."
+      "source": "catalog",
+      "rationale": "Primary key is natural (business-sourced), not surrogate. SalesOrderNumber and SalesOrderLineNumber form the business grain."
     },
-    "foreign_keys": [
-      {
-        "column": "ProductKey",
-        "references_source_relation": "silver.DimProduct",
-        "references_column": "ProductKey",
-        "fk_type": "standard",
-        "source": "llm",
-        "rationale": "Writer maps d.ProductID AS ProductKey; _Key suffix and INT type match DimProduct surrogate key convention with a single fact column referencing this dimension."
-      },
-      {
-        "column": "CustomerKey",
-        "references_source_relation": "silver.DimCustomer",
-        "references_column": "CustomerKey",
-        "fk_type": "standard",
-        "source": "llm",
-        "rationale": "Writer maps h.CustomerID AS CustomerKey; _Key suffix and INT type match DimCustomer surrogate key convention with a single fact column referencing this dimension."
-      },
-      {
-        "column": "SalesTerritoryKey",
-        "references_source_relation": "silver.DimSalesTerritory",
-        "references_column": "SalesTerritoryKey",
-        "fk_type": "standard",
-        "source": "llm",
-        "rationale": "Writer maps h.TerritoryID AS SalesTerritoryKey; _Key suffix and INT type match DimSalesTerritory surrogate key convention."
-      },
-      {
-        "column": "SalesOrderNumber",
-        "fk_type": "degenerate",
-        "source": "llm",
-        "rationale": "NVARCHAR business key sourced directly from the transaction system (bronze.SalesOrderHeader.SalesOrderNumber); no corresponding dimension table exists in the catalog, making it a degenerate dimension for drill-through."
-      }
-    ],
-    "watermark": {
-      "rationale": "Proc performs full reload (TRUNCATE + INSERT) with no WHERE date filter; no etl_date, load_date, modified_at, or equivalent watermark column exists on the table.",
-      "source": "llm"
-    },
-    "pii_actions": []
+    "status": "ok"
   }
 }

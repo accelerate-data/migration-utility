@@ -34,9 +34,32 @@
   ],
   "statements": [
     {
-      "type": "TruncateTable",
+      "type": "SetStatement",
       "action": "skip",
-      "sql": "TRUNCATE TABLE silver.DimCurrency"
+      "sql": "SET NOCOUNT ON;",
+      "source": "llm",
+      "rationale": "Performance optimization; not part of the data transformation."
+    },
+    {
+      "type": "TruncateStatement",
+      "action": "skip",
+      "sql": "TRUNCATE TABLE silver.DimCurrency;",
+      "source": "llm",
+      "rationale": "Operational cleanup; dbt handles table recreation and truncation as part of the model materialization strategy."
+    },
+    {
+      "type": "DeclareStatement",
+      "action": "skip",
+      "sql": "DECLARE @sql NVARCHAR(MAX);",
+      "source": "llm",
+      "rationale": "Variable declaration for dynamic SQL construction; not part of the core transformation."
+    },
+    {
+      "type": "Command",
+      "action": "migrate",
+      "sql": "EXEC sp_executesql @sql;",
+      "source": "llm",
+      "rationale": "Executes the core data transformation. The dynamic SQL contains INSERT INTO silver.DimCurrency from MigrationTest.bronze.Currency, loading currency reference data."
     }
   ],
   "errors": [

@@ -2,12 +2,39 @@
   "schema": "silver",
   "name": "recursivectetarget",
   "columns": [
-    { "name": "OrgLevel", "sql_type": "INT", "is_nullable": false, "is_identity": false },
-    { "name": "ManagerId", "sql_type": "INT", "is_nullable": true, "is_identity": false },
-    { "name": "EmployeeId", "sql_type": "INT", "is_nullable": false, "is_identity": false },
-    { "name": "FullPath", "sql_type": "NVARCHAR(100)", "is_nullable": false, "is_identity": false }
+    {
+      "name": "OrgLevel",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "ManagerId",
+      "sql_type": "INT",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "EmployeeId",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "FullPath",
+      "sql_type": "NVARCHAR(100)",
+      "is_nullable": false,
+      "is_identity": false
+    }
   ],
-  "primary_keys": [{ "constraint_name": "PK_RecursiveCteTarget", "columns": ["EmployeeId"] }],
+  "primary_keys": [
+    {
+      "constraint_name": "PK_RecursiveCteTarget",
+      "columns": [
+        "EmployeeId"
+      ]
+    }
+  ],
   "unique_indexes": [],
   "foreign_keys": [],
   "auto_increment_columns": [],
@@ -15,11 +42,24 @@
   "sensitivity_classifications": [],
   "referenced_by": {
     "procedures": {
-      "in_scope": [{ "schema": "silver", "name": "usp_load_recursivectetarget", "is_selected": false, "is_updated": true }],
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "usp_load_recursivectetarget",
+          "is_selected": false,
+          "is_updated": true
+        }
+      ],
       "out_of_scope": []
     },
-    "views": { "in_scope": [], "out_of_scope": [] },
-    "functions": { "in_scope": [], "out_of_scope": [] }
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
   },
   "scoping": {
     "status": "resolved",
@@ -34,7 +74,9 @@
       "rationale": "Hierarchical employee org chart dimension built via recursive CTE."
     },
     "primary_key": {
-      "columns": ["EmployeeId"],
+      "columns": [
+        "EmployeeId"
+      ],
       "primary_key_type": "natural",
       "source": "catalog",
       "rationale": "EmployeeId uniquely identifies each org node."
@@ -49,9 +91,6 @@
     "unit_tests": 4,
     "coverage": "complete",
     "warnings": [],
-    "validation": {
-      "passed": true,
-      "issues": []
-    }
+    "errors": []
   }
 }

@@ -20,6 +20,14 @@
       ]
     },
     {
+      "id": "filter_excludes_null_status",
+      "statement_index": 0,
+      "description": "WHERE Status = 'Active' with NULL Status — NULL comparison evaluates to FALSE, row is excluded",
+      "scenarios": [
+        "test_filter_excludes_null_status"
+      ]
+    },
+    {
       "id": "mixed_active_inactive",
       "statement_index": 0,
       "description": "Source contains mix of Active and non-Active rows — only Active rows appear in view",
@@ -76,6 +84,26 @@
               "EnglishProductName": "Mountain-200",
               "Status": "Obsolete",
               "ListPrice": 45.00
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": []
+      }
+    },
+    {
+      "name": "test_filter_excludes_null_status",
+      "sql": "SELECT ProductKey, EnglishProductName, Status, ListPrice FROM silver.DimProduct WHERE Status = 'Active'",
+      "given": [
+        {
+          "table": "[silver].[DimProduct]",
+          "rows": [
+            {
+              "ProductKey": 4,
+              "EnglishProductName": "Urban-Commute",
+              "Status": null,
+              "ListPrice": 30.00
             }
           ]
         }

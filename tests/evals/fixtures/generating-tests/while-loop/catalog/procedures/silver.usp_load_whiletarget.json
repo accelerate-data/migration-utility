@@ -34,10 +34,7 @@
   },
   "mode": "llm_required",
   "routing_reasons": [
-    {
-      "routing": "control_flow",
-      "rationale": "WHILE loop with dynamic batch counter requires LLM-assisted analysis to determine iteration boundaries."
-    }
+    "control_flow"
   ],
   "statements": [
     {

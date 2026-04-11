@@ -116,7 +116,7 @@ If no declared PK:
 
 ## Q3 — Foreign Keys
 
-Check catalog `foreign_keys` first. If declared, those are confirmed. Classify `fk_type` using proc JOIN patterns.
+Check catalog `foreign_keys` first. If declared, those relationships are already confirmed and can be sufficient to classify `fk_type`. Use proc JOIN patterns as additional evidence when catalog relationships are absent or ambiguous.
 
 If no declared FKs:
 
@@ -131,7 +131,7 @@ If no declared FKs:
 | `fk_type` | Rule |
 |---|---|
 | `standard` | One fact column joins one dimension key with no multi-role pattern |
-| `role_playing` | Two or more distinct fact columns join the same dimension relation+key |
+| `role_playing` | Two or more distinct fact columns reference or join the same dimension relation+key |
 | `degenerate` | Column behaves as a business key (SELECT/GROUP BY/WHERE) but no dimension join target found |
 
 ---
@@ -174,6 +174,8 @@ If no identity column:
 ## Q6 — PII Actions
 
 Check catalog `sensitivity_classifications` first. If populated, those are confirmed (`source: "catalog"`).
+
+When catalog sensitivity labels are present, emit one `pii_actions[]` entry per confirmed sensitive column before considering heuristic matches. Do not collapse multiple confirmed columns into a single summary or omit them from the persisted payload.
 
 For remaining columns:
 

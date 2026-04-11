@@ -9,7 +9,11 @@ from __future__ import annotations
 import sqlglot
 import sqlglot.expressions as exp
 
-from shared.loader_parse import classify_statement, parse_body_statements
+from shared.loader_parse import (
+    _strip_trailing_sql_comments,
+    classify_statement,
+    parse_body_statements,
+)
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -316,6 +320,25 @@ def test_parse_body_allows_trailing_comment_after_end() -> None:
     stmts, needs_llm, _seg_err = parse_body_statements(ddl)
     assert len(stmts) == 1
     assert needs_llm is False
+
+
+def test_strip_trailing_sql_comments_removes_same_line_and_block_comments() -> None:
+    sql = (
+        "CREATE PROCEDURE dbo.test_proc\n"
+        "AS\n"
+        "BEGIN\n"
+        "    SELECT 1;\n"
+        "END; -- repeated -- -- -- comment\n"
+        "/* repeated *//* repeated *//* trailing block */\n"
+    )
+
+    assert _strip_trailing_sql_comments(sql) == (
+        "CREATE PROCEDURE dbo.test_proc\n"
+        "AS\n"
+        "BEGIN\n"
+        "    SELECT 1;\n"
+        "END;"
+    )
 
 
 # ── classify_statement: skip patterns ────────────────────────────────────────

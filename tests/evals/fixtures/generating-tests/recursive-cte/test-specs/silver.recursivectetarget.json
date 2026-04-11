@@ -7,14 +7,20 @@
     {
       "id": "recursive_cte_anchor_root_employees",
       "statement_index": 0,
-      "description": "Anchor branch — employees with no manager (ManagerID IS NULL) selected at OrgLevel 0",
-      "scenarios": ["test_recursive_cte_single_root_no_subordinates", "test_recursive_cte_multiple_root_employees"]
+      "description": "Anchor branch \u2014 employees with no manager (ManagerID IS NULL) selected at OrgLevel 0",
+      "scenarios": [
+        "test_recursive_cte_single_root_no_subordinates",
+        "test_recursive_cte_multiple_root_employees"
+      ]
     },
     {
       "id": "recursive_cte_recursive_subordinates",
       "statement_index": 0,
-      "description": "Recursive branch — employees with managers recursively selected with incremented OrgLevel and hierarchical FullPath",
-      "scenarios": ["test_recursive_cte_single_level_hierarchy", "test_recursive_cte_multilevel_hierarchy"]
+      "description": "Recursive branch \u2014 employees with managers recursively selected with incremented OrgLevel and hierarchical FullPath",
+      "scenarios": [
+        "test_recursive_cte_single_level_hierarchy",
+        "test_recursive_cte_multilevel_hierarchy"
+      ]
     }
   ],
   "unit_tests": [
@@ -46,17 +52,7 @@
             }
           ]
         }
-      ],
-      "expect": {
-        "rows": [
-          {
-            "OrgLevel": 0,
-            "ManagerId": null,
-            "EmployeeId": 1,
-            "FullPath": "CEO"
-          }
-        ]
-      }
+      ]
     },
     {
       "name": "test_recursive_cte_single_level_hierarchy",
@@ -104,23 +100,7 @@
             }
           ]
         }
-      ],
-      "expect": {
-        "rows": [
-          {
-            "OrgLevel": 0,
-            "ManagerId": null,
-            "EmployeeId": 1,
-            "FullPath": "CEO"
-          },
-          {
-            "OrgLevel": 1,
-            "ManagerId": 1,
-            "EmployeeId": 2,
-            "FullPath": "CEO > VP Sales"
-          }
-        ]
-      }
+      ]
     },
     {
       "name": "test_recursive_cte_multilevel_hierarchy",
@@ -186,29 +166,7 @@
             }
           ]
         }
-      ],
-      "expect": {
-        "rows": [
-          {
-            "OrgLevel": 0,
-            "ManagerId": null,
-            "EmployeeId": 1,
-            "FullPath": "CEO"
-          },
-          {
-            "OrgLevel": 1,
-            "ManagerId": 1,
-            "EmployeeId": 2,
-            "FullPath": "CEO > VP Sales"
-          },
-          {
-            "OrgLevel": 2,
-            "ManagerId": 2,
-            "EmployeeId": 3,
-            "FullPath": "CEO > VP Sales > Sales Manager"
-          }
-        ]
-      }
+      ]
     },
     {
       "name": "test_recursive_cte_multiple_root_employees",
@@ -256,23 +214,7 @@
             }
           ]
         }
-      ],
-      "expect": {
-        "rows": [
-          {
-            "OrgLevel": 0,
-            "ManagerId": null,
-            "EmployeeId": 1,
-            "FullPath": "CEO"
-          },
-          {
-            "OrgLevel": 0,
-            "ManagerId": null,
-            "EmployeeId": 4,
-            "FullPath": "Chief Operating Officer"
-          }
-        ]
-      }
+      ]
     }
   ],
   "uncovered_branches": [],

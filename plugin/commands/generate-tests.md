@@ -1,9 +1,9 @@
 ---
 name: generate-tests
 description: >
-  Multi-table test generation command. Delegates scenario generation to
-  /generating-tests skill with /reviewing-tests review loop, then
-  bulk-executes approved scenarios to capture ground truth.
+  Use when one or more migrated tables are ready for end-to-end test generation
+  after scoping and profiling, and the command workflow should run generation,
+  independent review, and expectation capture together.
 user-invocable: true
 argument-hint: "<schema.table> [schema.table ...]"
 ---
@@ -65,7 +65,9 @@ For each item, read `.migration-runs/<item_id>.<run_id>.json` from Step 2. If `s
 Parse the returned TestReviewResult JSON:
 
 - `approved` or `approved_with_warnings`: proceed to step 4.
-- `revision_requested`: pass `feedback_for_generator` to `/generating-tests <item_id>` (include the feedback JSON — see the skill's "Handling reviewer feedback" section), then invoke `/reviewing-tests <item_id> --iteration 2`. Maximum 2 review iterations per item.
+- `revision_requested`: pass `feedback_for_generator` to `/generating-tests <item_id>` unchanged (include the feedback JSON — see the skill's "Handling reviewer feedback" section) and prepend this wrapper line to the repair request:
+  > Apply reviewer feedback exactly; do not broaden repair beyond named branches/scenarios.
+  Then invoke `/reviewing-tests <item_id> --iteration 2`. Maximum 2 review iterations per item.
 - On review failure: record `status: "partial"` and continue.
 
 ### Step 4 — Capture ground truth

@@ -12,6 +12,8 @@
 //                               Multi-status: {"silver.DimCurrency": "ok,partial,error"} (any is acceptable)
 //   expected_output_terms?,   — comma-separated terms that must appear in output text
 //   expected_error_codes?     — comma-separated error codes that must appear in per-item artifacts or output text
+//   expected_item_review_iterations?, — JSON string: {"silver.Table": 2}
+//   expected_item_review_verdicts?    — JSON string: {"silver.Table": "approved"}
 // }
 const fs = require('fs');
 const path = require('path');
@@ -20,12 +22,23 @@ const { normalizeTerms } = require('./schema-helpers');
 /**
  * Find all per-item result JSON files in .migration-runs/ matching a table FQN.
  * Files follow the pattern: <schema.table>.<run_id>.json where run_id is unique per command run.
+ * When runId is provided, only results from that command run are returned.
  */
-function findItemResults(migrationsDir, tableFqn) {
+function findItemResults(migrationsDir, tableFqn, runId = null) {
   if (!fs.existsSync(migrationsDir)) return [];
   const prefix = tableFqn.toLowerCase() + '.';
   return fs.readdirSync(migrationsDir)
-    .filter(f => f.toLowerCase().startsWith(prefix) && f.endsWith('.json') && !f.startsWith('summary'))
+    .filter(f => {
+      if (
+        !f.toLowerCase().startsWith(prefix) ||
+        !f.endsWith('.json') ||
+        f.startsWith('summary') ||
+        f.toLowerCase().endsWith('.review.json')
+      ) {
+        return false;
+      }
+      return runId ? f.endsWith(`.${runId}.json`) : true;
+    })
     .sort((a, b) => {
       const aPath = path.join(migrationsDir, a);
       const bPath = path.join(migrationsDir, b);
@@ -44,8 +57,13 @@ function findItemResults(migrationsDir, tableFqn) {
     .filter(Boolean);
 }
 
+function extractRunId(fileName) {
+  const match = String(fileName).match(/^summary\.(.+)\.json$/);
+  return match ? match[1] : null;
+}
+
 /**
- * Find the most recent summary.<run_id>.json file.
+ * Find the most recent summary.<run_id>.json file and expose its run id.
  */
 function findSummary(migrationsDir) {
   if (!fs.existsSync(migrationsDir)) return null;
@@ -61,7 +79,10 @@ function findSummary(migrationsDir) {
     });
   if (summaryFiles.length === 0) return null;
   try {
-    return JSON.parse(fs.readFileSync(path.join(migrationsDir, summaryFiles[0]), 'utf8'));
+    return {
+      data: JSON.parse(fs.readFileSync(path.join(migrationsDir, summaryFiles[0]), 'utf8')),
+      runId: extractRunId(summaryFiles[0]),
+    };
   } catch (_e) {
     return null;
   }
@@ -84,6 +105,8 @@ module.exports = (output, context) => {
       : null;
   const expectedOutputTerms = normalizeTerms(context.vars.expected_output_terms);
   const expectedErrorCodes = normalizeTerms(context.vars.expected_error_codes);
+  let expectedItemReviewIterations = {};
+  let expectedItemReviewVerdicts = {};
 
   // Parse expected_item_statuses if provided
   let expectedItemStatuses = {};
@@ -99,11 +122,37 @@ module.exports = (output, context) => {
     }
   }
 
+  if (context.vars.expected_item_review_iterations) {
+    try {
+      expectedItemReviewIterations = JSON.parse(context.vars.expected_item_review_iterations);
+    } catch (e) {
+      return {
+        pass: false,
+        score: 0,
+        reason: `Failed to parse expected_item_review_iterations: ${e.message}`,
+      };
+    }
+  }
+
+  if (context.vars.expected_item_review_verdicts) {
+    try {
+      expectedItemReviewVerdicts = JSON.parse(context.vars.expected_item_review_verdicts);
+    } catch (e) {
+      return {
+        pass: false,
+        score: 0,
+        reason: `Failed to parse expected_item_review_verdicts: ${e.message}`,
+      };
+    }
+  }
+
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
   const migrationsDir = path.resolve(repoRoot, fixturePath, '.migration-runs');
 
   // Try to read summary file (matches summary.json or summary.<epoch>.json)
-  let summary = findSummary(migrationsDir);
+  const summaryResult = findSummary(migrationsDir);
+  const summary = summaryResult?.data || null;
+  const latestRunId = summaryResult?.runId || summary?.run_id || null;
 
   // Summary count checks (best-effort)
   if (summary) {
@@ -130,7 +179,7 @@ module.exports = (output, context) => {
     const acceptableStatuses = statusSpec.toLowerCase().split(',').map(s => s.trim());
 
     // Try artifact-based check first
-    const itemResults = findItemResults(migrationsDir, tableLower);
+    const itemResults = findItemResults(migrationsDir, tableLower, latestRunId);
     if (itemResults.length > 0) {
       const latestResult = itemResults[itemResults.length - 1];
       const actualStatus = (latestResult.status || '').toLowerCase();
@@ -141,6 +190,30 @@ module.exports = (output, context) => {
           reason: `Item '${table}': artifact status='${actualStatus}', expected one of [${acceptableStatuses.join(', ')}]`,
         };
       }
+
+      if (expectedItemReviewIterations[table] !== undefined) {
+        const actualIterations = latestResult.output?.review_iterations;
+        if (actualIterations !== expectedItemReviewIterations[table]) {
+          return {
+            pass: false,
+            score: 0,
+            reason: `Item '${table}': review_iterations=${actualIterations}, expected ${expectedItemReviewIterations[table]}`,
+          };
+        }
+      }
+
+      if (expectedItemReviewVerdicts[table] !== undefined) {
+        const acceptableVerdicts = String(expectedItemReviewVerdicts[table]).toLowerCase().split(',').map(s => s.trim());
+        const actualVerdict = String(latestResult.output?.review_verdict || '').toLowerCase();
+        if (!acceptableVerdicts.includes(actualVerdict)) {
+          return {
+            pass: false,
+            score: 0,
+            reason: `Item '${table}': review_verdict='${actualVerdict}', expected one of [${acceptableVerdicts.join(', ')}]`,
+          };
+        }
+      }
+
       continue; // Artifact found and status matches — skip text fallback
     }
 

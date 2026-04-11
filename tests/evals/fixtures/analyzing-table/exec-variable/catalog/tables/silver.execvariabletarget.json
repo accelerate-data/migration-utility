@@ -41,5 +41,25 @@
       "in_scope": [],
       "out_of_scope": []
     }
+  },
+  "scoping": {
+    "selected_writer": "silver.usp_scope_execvariable",
+    "selected_writer_rationale": "Direct writer that constructs and executes dynamic SQL to insert data from bronze.Product. Single, defensible local writer.",
+    "candidates": [
+      {
+        "procedure_name": "silver.usp_scope_execvariable",
+        "rationale": "Direct full-load writer using dynamic SQL to insert into the target table from source.",
+        "dependencies": {
+          "tables": [
+            "bronze.product"
+          ],
+          "views": [],
+          "functions": []
+        }
+      }
+    ],
+    "warnings": [],
+    "errors": [],
+    "status": "resolved"
   }
 }

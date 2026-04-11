@@ -13,38 +13,20 @@ models:
         description: "Product name projected from bronze.Product.ProductName."
       - name: LastSeenDate
         description: "Refresh timestamp set to current_timestamp() at load time."
+      - name: _dbt_run_id
+        description: "dbt invocation identifier for the run that produced this row."
+      - name: _loaded_at
+        description: "Timestamp when the row was loaded by dbt."
 
 unit_tests:
-  - name: test_gap_cast_product_id_to_product_alternate_key
-    model: stg_updatejointarget
-    given:
-      - input: source('bronze', 'product')
-        rows:
-          - ProductID: 101
-            ProductName: Road-150 Red
-    expect:
-      rows:
-        - ProductAlternateKey: "101"
-          EnglishProductName: Road-150 Red
-  - name: test_gap_empty_source_returns_no_rows
-    model: stg_updatejointarget
-    given:
-      - input: source('bronze', 'product')
-        rows: []
-    expect:
-      rows: []
-  - name: test_gap_multiple_products_all_projected
+  - name: test_update_matched_row
     model: stg_updatejointarget
     given:
       - input: source('bronze', 'product')
         rows:
           - ProductID: 1
-            ProductName: Widget-A
-          - ProductID: 2
-            ProductName: Widget-B
+            ProductName: Road-150-Updated
     expect:
       rows:
         - ProductAlternateKey: "1"
-          EnglishProductName: Widget-A
-        - ProductAlternateKey: "2"
-          EnglishProductName: Widget-B
+          EnglishProductName: Road-150-Updated

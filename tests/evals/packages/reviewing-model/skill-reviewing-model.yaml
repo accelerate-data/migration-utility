@@ -32,14 +32,16 @@ tests:
       fixture_path: "tests/evals/fixtures/reviewing-model/review-approved"
       target_table: "silver.SelectIntoTarget"
       writer: "silver.usp_load_SelectIntoTarget"
-      expected_status: "approved,approved_with_warnings,revision_requested"
+      expected_status: "revision_requested"
+      expect_standards_passed: "false"
+      expected_feedback_codes: "MDL_005,MDL_006"
 
   - description: "review-revision — incorrect materialization flagged"
     vars:
       fixture_path: "tests/evals/fixtures/reviewing-model/review-revision"
       target_table: "silver.DimCustomer"
       writer: "silver.usp_load_DimCustomer_Full"
-      expected_status: "approved,approved_with_warnings,revision_requested"
+      expected_status: "revision_requested"
 
   # --- VU-877: stable codes, tiered feedback, ack_required ---
 
@@ -48,7 +50,8 @@ tests:
       fixture_path: "tests/evals/fixtures/reviewing-model/review-standards-mdl005"
       target_table: "silver.InsertSelectTarget"
       writer: "silver.usp_load_InsertSelectTarget"
-      expected_status: "approved,approved_with_warnings,revision_requested"
+      expected_status: "revision_requested"
+      expect_standards_passed: "false"
       expected_feedback_codes: "MDL_005"
 
   - description: "review-feedback-structure — all items have code and ack_required"
@@ -65,21 +68,28 @@ tests:
       fixture_path: "tests/evals/fixtures/reviewing-model/review-approved-clean"
       target_table: "silver.SelectIntoTarget"
       writer: "silver.usp_load_SelectIntoTarget"
-      expected_status: "approved,approved_with_warnings,revision_requested"
+      expected_status: "approved"
+      expect_standards_passed: "true"
+      expect_correctness_passed: "true"
+      expect_test_integration_passed: "true"
 
   - description: "review-correctness — UpdateJoinTarget validates against proc_body"
     vars:
       fixture_path: "tests/evals/fixtures/reviewing-model/review-correctness"
       target_table: "silver.UpdateJoinTarget"
       writer: "silver.usp_load_UpdateJoinTarget"
-      expected_status: "approved,approved_with_warnings,revision_requested"
+      expected_status: "revision_requested"
+      expect_correctness_passed: "false"
+      expect_test_integration_passed: "true"
+      expected_feedback_codes: "REVIEW_CORRECTNESS_GAP"
 
   - description: "review-standards-sql001 — UpdateJoinTarget uppercase keyword"
     vars:
       fixture_path: "tests/evals/fixtures/reviewing-model/review-standards-sql001"
       target_table: "silver.UpdateJoinTarget"
       writer: "silver.usp_load_UpdateJoinTarget"
-      expected_status: "approved,approved_with_warnings,revision_requested"
+      expected_status: "revision_requested"
+      expect_standards_passed: "false"
       expected_feedback_codes: "SQL_001"
 
   - description: "review-test-integration — DimProduct unit tests in YAML"
@@ -99,4 +109,3 @@ tests:
       expected_status: "approved,approved_with_warnings,revision_requested"
       expect_standards_passed: "false"
       expected_feedback_codes: "CTE_002"
-

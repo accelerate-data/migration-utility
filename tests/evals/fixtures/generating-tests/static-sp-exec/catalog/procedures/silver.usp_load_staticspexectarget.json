@@ -10,8 +10,16 @@
           "is_selected": true,
           "is_updated": false,
           "columns": [
-            { "name": "ProductID", "is_selected": true, "is_updated": false },
-            { "name": "ProductName", "is_selected": true, "is_updated": false }
+            {
+              "name": "ProductID",
+              "is_selected": true,
+              "is_updated": false
+            },
+            {
+              "name": "ProductName",
+              "is_selected": true,
+              "is_updated": false
+            }
           ]
         },
         {
@@ -20,23 +28,37 @@
           "is_selected": false,
           "is_updated": true,
           "columns": [
-            { "name": "ProductAlternateKey", "is_selected": false, "is_updated": true },
-            { "name": "EnglishProductName", "is_selected": false, "is_updated": true }
+            {
+              "name": "ProductAlternateKey",
+              "is_selected": false,
+              "is_updated": true
+            },
+            {
+              "name": "EnglishProductName",
+              "is_selected": false,
+              "is_updated": true
+            }
           ]
         }
       ],
       "out_of_scope": []
     },
-    "views": { "in_scope": [], "out_of_scope": [] },
-    "functions": { "in_scope": [], "out_of_scope": [] },
-    "procedures": { "in_scope": [], "out_of_scope": [] }
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
   },
   "mode": "call_graph_enrich",
   "routing_reasons": [
-    {
-      "routing": "static_exec",
-      "rationale": "Static sp_executesql with literal SQL string — target can be resolved from the string literal during enrichment."
-    }
+    "static_exec"
   ],
   "statements": [
     {

@@ -46,7 +46,10 @@
           "table": "[bronze].[Product]",
           "rows": []
         }
-      ]
+      ],
+      "expect": {
+        "rows": []
+      }
     },
     {
       "name": "test_while_loop_single_batch_products_inserted",
@@ -86,7 +89,21 @@
             }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": [
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150 Red"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "2",
+            "EnglishProductName": "Mountain-200 Black"
+          }
+        ]
+      }
     },
     {
       "name": "test_while_loop_multiple_batches_two_full_batches",
@@ -2198,7 +2215,761 @@
             }
           ]
         }
-      ]
+      ],
+      "expect": {
+        "rows": [
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Product-001"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "2",
+            "EnglishProductName": "Product-002"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "3",
+            "EnglishProductName": "Product-003"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "4",
+            "EnglishProductName": "Product-004"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "5",
+            "EnglishProductName": "Product-005"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "6",
+            "EnglishProductName": "Product-006"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "7",
+            "EnglishProductName": "Product-007"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "8",
+            "EnglishProductName": "Product-008"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "9",
+            "EnglishProductName": "Product-009"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "10",
+            "EnglishProductName": "Product-010"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "11",
+            "EnglishProductName": "Product-011"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "12",
+            "EnglishProductName": "Product-012"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "13",
+            "EnglishProductName": "Product-013"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "14",
+            "EnglishProductName": "Product-014"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "15",
+            "EnglishProductName": "Product-015"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "16",
+            "EnglishProductName": "Product-016"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "17",
+            "EnglishProductName": "Product-017"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "18",
+            "EnglishProductName": "Product-018"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "19",
+            "EnglishProductName": "Product-019"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "20",
+            "EnglishProductName": "Product-020"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "21",
+            "EnglishProductName": "Product-021"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "22",
+            "EnglishProductName": "Product-022"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "23",
+            "EnglishProductName": "Product-023"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "24",
+            "EnglishProductName": "Product-024"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "25",
+            "EnglishProductName": "Product-025"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "26",
+            "EnglishProductName": "Product-026"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "27",
+            "EnglishProductName": "Product-027"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "28",
+            "EnglishProductName": "Product-028"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "29",
+            "EnglishProductName": "Product-029"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "30",
+            "EnglishProductName": "Product-030"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "31",
+            "EnglishProductName": "Product-031"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "32",
+            "EnglishProductName": "Product-032"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "33",
+            "EnglishProductName": "Product-033"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "34",
+            "EnglishProductName": "Product-034"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "35",
+            "EnglishProductName": "Product-035"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "36",
+            "EnglishProductName": "Product-036"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "37",
+            "EnglishProductName": "Product-037"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "38",
+            "EnglishProductName": "Product-038"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "39",
+            "EnglishProductName": "Product-039"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "40",
+            "EnglishProductName": "Product-040"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "41",
+            "EnglishProductName": "Product-041"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "42",
+            "EnglishProductName": "Product-042"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "43",
+            "EnglishProductName": "Product-043"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "44",
+            "EnglishProductName": "Product-044"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "45",
+            "EnglishProductName": "Product-045"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "46",
+            "EnglishProductName": "Product-046"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "47",
+            "EnglishProductName": "Product-047"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "48",
+            "EnglishProductName": "Product-048"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "49",
+            "EnglishProductName": "Product-049"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "50",
+            "EnglishProductName": "Product-050"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "51",
+            "EnglishProductName": "Product-051"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "52",
+            "EnglishProductName": "Product-052"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "53",
+            "EnglishProductName": "Product-053"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "54",
+            "EnglishProductName": "Product-054"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "55",
+            "EnglishProductName": "Product-055"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "56",
+            "EnglishProductName": "Product-056"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "57",
+            "EnglishProductName": "Product-057"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "58",
+            "EnglishProductName": "Product-058"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "59",
+            "EnglishProductName": "Product-059"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "60",
+            "EnglishProductName": "Product-060"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "61",
+            "EnglishProductName": "Product-061"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "62",
+            "EnglishProductName": "Product-062"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "63",
+            "EnglishProductName": "Product-063"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "64",
+            "EnglishProductName": "Product-064"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "65",
+            "EnglishProductName": "Product-065"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "66",
+            "EnglishProductName": "Product-066"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "67",
+            "EnglishProductName": "Product-067"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "68",
+            "EnglishProductName": "Product-068"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "69",
+            "EnglishProductName": "Product-069"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "70",
+            "EnglishProductName": "Product-070"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "71",
+            "EnglishProductName": "Product-071"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "72",
+            "EnglishProductName": "Product-072"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "73",
+            "EnglishProductName": "Product-073"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "74",
+            "EnglishProductName": "Product-074"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "75",
+            "EnglishProductName": "Product-075"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "76",
+            "EnglishProductName": "Product-076"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "77",
+            "EnglishProductName": "Product-077"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "78",
+            "EnglishProductName": "Product-078"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "79",
+            "EnglishProductName": "Product-079"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "80",
+            "EnglishProductName": "Product-080"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "81",
+            "EnglishProductName": "Product-081"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "82",
+            "EnglishProductName": "Product-082"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "83",
+            "EnglishProductName": "Product-083"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "84",
+            "EnglishProductName": "Product-084"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "85",
+            "EnglishProductName": "Product-085"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "86",
+            "EnglishProductName": "Product-086"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "87",
+            "EnglishProductName": "Product-087"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "88",
+            "EnglishProductName": "Product-088"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "89",
+            "EnglishProductName": "Product-089"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "90",
+            "EnglishProductName": "Product-090"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "91",
+            "EnglishProductName": "Product-091"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "92",
+            "EnglishProductName": "Product-092"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "93",
+            "EnglishProductName": "Product-093"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "94",
+            "EnglishProductName": "Product-094"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "95",
+            "EnglishProductName": "Product-095"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "96",
+            "EnglishProductName": "Product-096"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "97",
+            "EnglishProductName": "Product-097"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "98",
+            "EnglishProductName": "Product-098"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "99",
+            "EnglishProductName": "Product-099"
+          },
+          {
+            "BatchId": 1,
+            "ProductAlternateKey": "100",
+            "EnglishProductName": "Product-100"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "101",
+            "EnglishProductName": "Product-101"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "102",
+            "EnglishProductName": "Product-102"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "103",
+            "EnglishProductName": "Product-103"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "104",
+            "EnglishProductName": "Product-104"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "105",
+            "EnglishProductName": "Product-105"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "106",
+            "EnglishProductName": "Product-106"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "107",
+            "EnglishProductName": "Product-107"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "108",
+            "EnglishProductName": "Product-108"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "109",
+            "EnglishProductName": "Product-109"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "110",
+            "EnglishProductName": "Product-110"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "111",
+            "EnglishProductName": "Product-111"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "112",
+            "EnglishProductName": "Product-112"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "113",
+            "EnglishProductName": "Product-113"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "114",
+            "EnglishProductName": "Product-114"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "115",
+            "EnglishProductName": "Product-115"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "116",
+            "EnglishProductName": "Product-116"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "117",
+            "EnglishProductName": "Product-117"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "118",
+            "EnglishProductName": "Product-118"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "119",
+            "EnglishProductName": "Product-119"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "120",
+            "EnglishProductName": "Product-120"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "121",
+            "EnglishProductName": "Product-121"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "122",
+            "EnglishProductName": "Product-122"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "123",
+            "EnglishProductName": "Product-123"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "124",
+            "EnglishProductName": "Product-124"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "125",
+            "EnglishProductName": "Product-125"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "126",
+            "EnglishProductName": "Product-126"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "127",
+            "EnglishProductName": "Product-127"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "128",
+            "EnglishProductName": "Product-128"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "129",
+            "EnglishProductName": "Product-129"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "130",
+            "EnglishProductName": "Product-130"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "131",
+            "EnglishProductName": "Product-131"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "132",
+            "EnglishProductName": "Product-132"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "133",
+            "EnglishProductName": "Product-133"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "134",
+            "EnglishProductName": "Product-134"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "135",
+            "EnglishProductName": "Product-135"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "136",
+            "EnglishProductName": "Product-136"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "137",
+            "EnglishProductName": "Product-137"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "138",
+            "EnglishProductName": "Product-138"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "139",
+            "EnglishProductName": "Product-139"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "140",
+            "EnglishProductName": "Product-140"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "141",
+            "EnglishProductName": "Product-141"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "142",
+            "EnglishProductName": "Product-142"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "143",
+            "EnglishProductName": "Product-143"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "144",
+            "EnglishProductName": "Product-144"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "145",
+            "EnglishProductName": "Product-145"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "146",
+            "EnglishProductName": "Product-146"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "147",
+            "EnglishProductName": "Product-147"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "148",
+            "EnglishProductName": "Product-148"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "149",
+            "EnglishProductName": "Product-149"
+          },
+          {
+            "BatchId": 2,
+            "ProductAlternateKey": "150",
+            "EnglishProductName": "Product-150"
+          }
+        ]
+      }
     }
   ],
   "uncovered_branches": [],
@@ -2207,5 +2978,6 @@
     "passed": true,
     "issues": []
   },
-  "errors": []
+  "errors": [],
+  "object_type": "table"
 }

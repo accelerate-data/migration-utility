@@ -1,13 +1,13 @@
 {
   "item_id": "silver.execvariabletarget",
-  "status": "partial",
-  "coverage": "partial",
+  "object_type": "table",
+  "status": "ok",
+  "coverage": "complete",
   "branch_manifest": [
     {
       "id": "dynamic_sql_variable_insert",
       "statement_index": 0,
       "description": "Dynamic SQL is assembled through a variable assignment before EXEC — INSERT INTO silver.ExecVariableTarget from bronze.Product",
-      "testable_in_dbt": false,
       "scenarios": [
         "test_dynamic_sql_variable_single_row",
         "test_dynamic_sql_variable_multiple_rows",

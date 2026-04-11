@@ -1,0 +1,110 @@
+{
+  "item_id": "silver.ifelsetarget",
+  "object_type": "table",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {
+      "id": "if_premium_path",
+      "statement_index": 0,
+      "description": "IF branch: when ListPrice > 100, insert premium-priced products with PriceCategory='Premium'",
+      "scenarios": [
+        "test_premium_path_high_avg"
+      ]
+    },
+    {
+      "id": "else_standard_path",
+      "statement_index": 1,
+      "description": "ELSE branch: insert all products from bronze.Product with PriceCategory='Standard'",
+      "scenarios": [
+        "test_standard_path_all_products"
+      ]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_premium_path_high_avg",
+      "model": "stg_ifelsetarget",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Road-150",
+              "ProductNumber": "RD-150",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 150.0,
+              "ListPrice": 200.0,
+              "DaysToManufacture": 2,
+              "SellStartDate": "2024-01-01T00:00:00",
+              "ModifiedDate": "2024-01-01T00:00:00"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {
+            "ProductAlternateKey": "1",
+            "EnglishProductName": "Road-150",
+            "PriceCategory": "Premium"
+          }
+        ]
+      },
+      "target_table": "[silver].[IfElseTarget]",
+      "procedure": "[silver].[usp_load_IfElseTarget]"
+    },
+    {
+      "name": "test_standard_path_all_products",
+      "model": "stg_ifelsetarget",
+      "given": [
+        {
+          "table": "[bronze].[Product]",
+          "rows": [
+            {
+              "ProductID": 1,
+              "ProductName": "Budget-Bike",
+              "ProductNumber": "BK-R001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 100,
+              "ReorderPoint": 75,
+              "StandardCost": 125.0,
+              "ListPrice": 150.0,
+              "DaysToManufacture": 1,
+              "SellStartDate": "2024-01-01T00:00:00",
+              "ModifiedDate": "2024-01-01T00:00:00"
+            },
+            {
+              "ProductID": 2,
+              "ProductName": "Economy-Wheel",
+              "ProductNumber": "WH-E001",
+              "MakeFlag": 1,
+              "FinishedGoodsFlag": 1,
+              "SafetyStockLevel": 50,
+              "ReorderPoint": 30,
+              "StandardCost": 140.0,
+              "ListPrice": 175.0,
+              "DaysToManufacture": 1,
+              "SellStartDate": "2024-01-01T00:00:00",
+              "ModifiedDate": "2024-01-01T00:00:00"
+            }
+          ]
+        }
+      ],
+      "target_table": "[silver].[IfElseTarget]",
+      "procedure": "[silver].[usp_load_IfElseTarget]"
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [],
+  "validation": {
+    "passed": true,
+    "issues": []
+  },
+  "errors": []
+}
