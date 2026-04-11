@@ -48,6 +48,8 @@ tests:
       expected_item_statuses: '{"silver.IfElseTarget": "ok"}'
       expected_item_review_iterations: '{"silver.IfElseTarget": 2}'
       expected_item_review_verdicts: '{"silver.IfElseTarget": "approved,approved_with_warnings"}'
+      expected_status: "approved,approved_with_warnings"
+      min_covered_branches: 2
       expected_branch_ids: "if_premium_path,else_standard_path"
       rejected_uncovered_branches: "else_standard_path"
       min_scenario_count: 2
@@ -55,7 +57,11 @@ tests:
       - type: javascript
         value: file://../../assertions/check-command-summary.js
       - type: javascript
+        value: file://../../assertions/check-test-review.js
+      - type: javascript
         value: file://../../assertions/check-test-spec.js
+      - type: javascript
+        value: file://../../assertions/check-ifelsetarget-branch-semantics.js
 
   # ── error-clean: missing-scoping table + good table ─────────
   - description: "error-clean — DimProduct no scoping + InsertSelectTarget ok"

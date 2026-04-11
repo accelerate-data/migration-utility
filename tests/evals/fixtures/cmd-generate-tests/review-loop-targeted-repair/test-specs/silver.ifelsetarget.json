@@ -37,7 +37,7 @@
               "FinishedGoodsFlag": 1,
               "SafetyStockLevel": 100,
               "ReorderPoint": 75,
-              "StandardCost": 150.00,
+              "StandardCost": 150.0,
               "ListPrice": 200.0,
               "DaysToManufacture": 2,
               "SellStartDate": "2024-01-01T00:00:00",
@@ -73,8 +73,8 @@
               "FinishedGoodsFlag": 1,
               "SafetyStockLevel": 100,
               "ReorderPoint": 75,
-              "StandardCost": 25.00,
-              "ListPrice": 50.00,
+              "StandardCost": 125.0,
+              "ListPrice": 150.0,
               "DaysToManufacture": 1,
               "SellStartDate": "2024-01-01T00:00:00",
               "ModifiedDate": "2024-01-01T00:00:00"
@@ -87,8 +87,8 @@
               "FinishedGoodsFlag": 1,
               "SafetyStockLevel": 50,
               "ReorderPoint": 30,
-              "StandardCost": 10.00,
-              "ListPrice": 25.00,
+              "StandardCost": 140.0,
+              "ListPrice": 175.0,
               "DaysToManufacture": 1,
               "SellStartDate": "2024-01-01T00:00:00",
               "ModifiedDate": "2024-01-01T00:00:00"
@@ -96,20 +96,6 @@
           ]
         }
       ],
-      "expect": {
-        "rows": [
-          {
-            "ProductAlternateKey": "1",
-            "EnglishProductName": "Budget-Bike",
-            "PriceCategory": "Standard"
-          },
-          {
-            "ProductAlternateKey": "2",
-            "EnglishProductName": "Economy-Wheel",
-            "PriceCategory": "Standard"
-          }
-        ]
-      },
       "target_table": "[silver].[IfElseTarget]",
       "procedure": "[silver].[usp_load_IfElseTarget]"
     }
