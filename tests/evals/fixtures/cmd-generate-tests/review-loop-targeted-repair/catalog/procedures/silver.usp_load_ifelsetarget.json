@@ -1,0 +1,54 @@
+{
+  "schema": "silver",
+  "name": "usp_load_ifelsetarget",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "Product",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            { "name": "ProductID", "is_selected": true, "is_updated": false },
+            { "name": "ProductName", "is_selected": true, "is_updated": false },
+            { "name": "ListPrice", "is_selected": true, "is_updated": false }
+          ]
+        },
+        {
+          "schema": "silver",
+          "name": "IfElseTarget",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            { "name": "ProductAlternateKey", "is_selected": false, "is_updated": true },
+            { "name": "EnglishProductName", "is_selected": false, "is_updated": true },
+            { "name": "PriceCategory", "is_selected": false, "is_updated": true }
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": { "in_scope": [], "out_of_scope": [] },
+    "functions": { "in_scope": [], "out_of_scope": [] },
+    "procedures": { "in_scope": [], "out_of_scope": [] }
+  },
+  "mode": "llm_required",
+  "routing_reasons": ["control_flow"],
+  "statements": [
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "source": "llm",
+      "needs_llm": true,
+      "sql": "INSERT INTO silver.IfElseTarget (ProductAlternateKey, EnglishProductName, PriceCategory) SELECT CAST(ProductID AS NVARCHAR(25)), ProductName, 'Premium' FROM bronze.Product WHERE ListPrice > 100"
+    },
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "source": "llm",
+      "needs_llm": true,
+      "sql": "INSERT INTO silver.IfElseTarget (ProductAlternateKey, EnglishProductName, PriceCategory) SELECT CAST(ProductID AS NVARCHAR(25)), ProductName, 'Standard' FROM bronze.Product"
+    }
+  ]
+}

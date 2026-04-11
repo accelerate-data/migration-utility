@@ -131,7 +131,15 @@ Maximum review iterations: 2.
 
 ## Step 7: Validate and Return
 
-Write the review JSON to `.staging/review.json`, then validate:
+Before schema validation, verify that the review is self-consistent from reviewer-owned evidence:
+
+- `coverage.total_branches` must equal `len(reviewer_branch_manifest)`
+- `coverage.covered_branches` must equal the number of `reviewer_branch_manifest` entries where `covered: true`
+- every `coverage.uncovered[].id`, `coverage.untestable[].id`, and `feedback_for_generator.uncovered_branches[]` entry must come from `reviewer_branch_manifest`
+
+Do not rely on the generator's `branch_manifest` to fill those fields. The review must remain valid even if the generator's branch manifest is stale or wrong.
+
+Write the `TestReviewResult` JSON to `.staging/review.json`, then validate:
 
 ```bash
 mkdir -p .staging

@@ -45,6 +45,15 @@ Do not use this skill to review coverage, run sandbox execution, or generate dbt
 5. Generate only missing or explicitly requested coverage. `feedback_for_generator` takes priority. Keep scenarios self-contained and constraint-valid; do not invent columns, nullability, or FK behavior.
 6. Emit a valid `TestSpec`, preserving approved scenarios unless targeted feedback requires revision. Recalculate `uncovered_branches`, `coverage`, and `status`, then persist the catalog summary.
 
+## Handling Reviewer Feedback
+
+When `reviewing-tests` returns `feedback_for_generator`:
+
+- treat `uncovered_branches` as the first repair target; add coverage for those reviewer-owned branch IDs before broader regeneration
+- apply `quality_fixes` only to the named scenarios unless the fix requires a dependent fixture adjustment
+- preserve non-targeted approved scenarios and `expect` blocks in merge mode
+- do not infer extra reviewer requests from the generator's own `branch_manifest`; the reviewer feedback is the authority for the repair pass
+
 Use the exact command flow from [references/command-workflow-ref.md](references/command-workflow-ref.md), the runtime field checklist from [references/test-spec-contract-ref.md](references/test-spec-contract-ref.md), the fixture guidance from [references/fixture-synthesis-ref.md](references/fixture-synthesis-ref.md), and the expanded guard rails from [references/guard-rails-ref.md](references/guard-rails-ref.md).
 
 ## Common Mistakes
@@ -60,6 +69,7 @@ Use the exact command flow from [references/command-workflow-ref.md](references/
 | "The old branch manifest is close enough." | Re-extract from current SQL and warn on stale branches. |
 | "Merge mode means I can rewrite the whole file." | Preserve existing scenarios unless feedback requires a targeted revision. |
 | "`feedback_for_generator` is advisory." | Apply requested branch and quality-fix work before broad generation. |
+| "If I am already editing the file, I might as well regenerate everything." | Repair only the reviewer-requested gaps unless broader regeneration is required to keep the spec valid. |
 
 ## Boundary Rules
 
