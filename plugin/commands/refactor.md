@@ -44,16 +44,7 @@ If the sandbox is not found (`status: "not_found"` or non-zero exit), warn the u
 
 ## Progress Tracking
 
-Use `TaskCreate` and `TaskUpdate` to show live progress.
-
-For **2+ objects**, create:
-
-| Task subject | Complete when |
-|---|---|
-| `execute: refactor <fqn>` | That item finishes |
-| `summarize` | Summary written |
-
-For **single-object runs**: create one `execute: refactor <fqn>` task and one `summarize` task.
+Use `TaskCreate` and `TaskUpdate` to show live progress. At the start of Step 2, create one task per table with status `pending`. Update each task to `in_progress` before it starts processing, and to `completed` (ok/partial result) or `cancelled` (error — include the error code) when it finishes.
 
 ## Pipeline
 
