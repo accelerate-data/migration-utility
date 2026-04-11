@@ -162,25 +162,45 @@
     }
   },
   "scoping": {
-    "status": "resolved",
     "selected_writer": "silver.usp_load_dimmultiwriter_full",
-    "selected_writer_rationale": "usp_load_DimMultiWriter_Full performs a TRUNCATE + INSERT full reload from bronze.Product, making it the sole procedure capable of independently producing the complete dimension. The delta and archive procedures are supplementary — incremental upsert and soft-delete passes respectively — and cannot serve as the primary migration source.",
+    "selected_writer_rationale": "silver.usp_load_dimmultiwriter_full is the primary writer because it independently rebuilds the DimMultiWriter dimension table from scratch via TRUNCATE + INSERT from bronze.Product. The delta (upsert via MERGE) and archive (soft-delete via UPDATE) procedures are supplementary operational passes that require the full loader to have established the table structure first. For dbt migration purposes, the full loader represents the authoritative transformation logic.",
     "candidates": [
       {
-        "procedure": "silver.usp_load_dimmultiwriter_full",
-        "write_type": "direct",
-        "selected": true
+        "procedure_name": "silver.usp_load_dimmultiwriter_full",
+        "rationale": "Direct writer that performs full reload via TRUNCATE + INSERT. Reads from bronze.Product to populate the complete dimension with identity key generation and business logic for category defaulting and active status calculation.",
+        "dependencies": {
+          "tables": [
+            "bronze.Product"
+          ],
+          "views": [],
+          "functions": []
+        }
       },
       {
-        "procedure": "silver.usp_load_dimmultiwriter_delta",
-        "write_type": "direct",
-        "selected": false
+        "procedure_name": "silver.usp_load_dimmultiwriter_delta",
+        "rationale": "Supplementary incremental upsert procedure using MERGE to match existing records and insert new ones. Depends on the full loader having established the table.",
+        "dependencies": {
+          "tables": [
+            "bronze.Product"
+          ],
+          "views": [],
+          "functions": []
+        }
       },
       {
-        "procedure": "silver.usp_load_dimmultiwriter_archive",
-        "write_type": "direct",
-        "selected": false
+        "procedure_name": "silver.usp_load_dimmultiwriter_archive",
+        "rationale": "Supplementary soft-delete procedure that marks discontinued products as inactive. Depends on the full loader and delta to establish and maintain the dimension.",
+        "dependencies": {
+          "tables": [
+            "bronze.Product"
+          ],
+          "views": [],
+          "functions": []
+        }
       }
-    ]
+    ],
+    "warnings": [],
+    "errors": [],
+    "status": "resolved"
   }
 }

@@ -90,20 +90,23 @@
     {
       "type": "Set",
       "action": "skip",
+      "sql": "SET NOCOUNT ON",
       "source": "ast",
-      "sql": "SET NOCOUNT ON"
+      "rationale": "Operational setting that suppresses row count messages."
     },
     {
       "type": "TruncateTable",
       "action": "skip",
+      "sql": "TRUNCATE TABLE silver.DimMultiWriter",
       "source": "ast",
-      "sql": "TRUNCATE TABLE silver.DimMultiWriter"
+      "rationale": "Operational cleanup. dbt will manage table state."
     },
     {
       "type": "Insert",
       "action": "migrate",
+      "sql": "INSERT INTO silver.DimMultiWriter (AlternateKey, DisplayName, Category, IsActive, ModifiedDate) SELECT CAST(ProductID AS NVARCHAR(20)), ProductName, ISNULL(ProductLine, 'Unknown'), CASE WHEN DiscontinuedDate IS NULL THEN 1 ELSE 0 END, ModifiedDate FROM bronze.Product",
       "source": "ast",
-      "sql": "INSERT INTO silver.DimMultiWriter (AlternateKey, DisplayName, Category, IsActive, ModifiedDate) SELECT CAST(ProductID AS NVARCHAR(20)), ProductName, ISNULL(ProductLine, 'Unknown'), CASE WHEN DiscontinuedDate IS NULL THEN 1 ELSE 0 END, ModifiedDate FROM bronze.Product"
+      "rationale": "Core transformation that populates the dimension table with product data and business logic transformations."
     }
   ]
 }
