@@ -43,6 +43,8 @@ Refactor into CTEs prompt template:
 You are restructuring a source routine into a clean CTE-based SELECT
 following the import/logical/final CTE pattern.
 
+Read references/routine-migration-ref.md for dialect-specific restructuring rules.
+
 Procedure body:
 <proc_body>
 
@@ -81,4 +83,4 @@ Instructions:
 Return ONLY the refactored CTE SELECT SQL, nothing else.
 ```
 
-For views, substitute `<view_sql>` for `<proc_body>` and omit `<statements>`.
+For views, substitute `<view_sql>` for `<proc_body>` and omit `<statements>`. Keep `<profile>` when it is present in the refactor context.
