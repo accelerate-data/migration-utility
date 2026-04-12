@@ -14,7 +14,7 @@ See `AGENTS.md` for architecture, conventions, and agent guidance.
 |------|---------|
 | Python 3.11+ | Runtime for `lib/` and `mcp/` |
 | [uv](https://docs.astral.sh/uv/) | Python package manager |
-| Node.js + npm | Promptfoo eval harness (`tests/evals/`) |
+| Node.js + npm | Promptfoo eval harness for migration-only evals (`tests/evals/`) |
 | [Claude Code CLI](https://docs.anthropic.com/claude-code) | Plugin development and agent execution |
 | [direnv](https://direnv.net/) | Auto-loads `.env` credentials |
 | [markdownlint-cli](https://github.com/igorshubovych/markdownlint-cli) | All `.md` files must pass before commit |

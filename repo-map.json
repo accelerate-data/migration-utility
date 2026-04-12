@@ -39,7 +39,7 @@
     },
     {
       "name": "promptfoo",
-      "scope": "LLM eval harness in tests/evals/ for migration skills, Linear workflow skills, and command testing. Run via: cd tests/evals && npm run eval"
+      "scope": "LLM eval harness in tests/evals/ for migration skills and command testing. Run via: cd tests/evals && npm run eval"
     }
   ],
   "applications": [
@@ -129,7 +129,7 @@
     "plugin/lib/": "Python DDL analysis library (uv project, sqlglot-based)",
     "plugin/lib/shared/schemas/": "JSON Schema files for catalog, agent I/O, discover CLI output, and shared definitions",
     "tests/unit/": "Python pytest tests for shared library (discover, catalog, catalog_enrich, diagnostics, extract_refs, integration). diagnostics_helpers.py: shared helpers for diagnostic tests. Dialect-specific diagnostic tests: test_diagnostics_sqlserver.py, test_diagnostics_oracle.py",
-    "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages include listing-objects, profiling-table, generating-model, generating-tests, reviewing-tests, reviewing-model, analyzing-table, creating-linear-issues, implementing-linear-issues, raising-linear-prs, closing-linear-issues; command packages include cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests, cmd-refactor, cmd-status, cmd-commit-push-pr)",
+    "tests/evals/": "Promptfoo eval harness for skill and command testing (skill packages include listing-objects, profiling-table, generating-model, generating-tests, reviewing-tests, reviewing-model, analyzing-table; command packages include cmd-scope, cmd-profile, cmd-generate-model, cmd-generate-tests, cmd-refactor, cmd-status, cmd-commit-push-pr)",
     "plugin/mcp/ddl/tests/": "Python pytest tests for the DDL MCP server. fixtures/oracle/ holds Oracle SH-schema DDL fixtures and manifest.",
     "test-fixtures/": "Cross-dialect Kimball DW fixture: schema DDL, baseline seed data, and delta scenarios for SQL Server, Oracle, PostgreSQL",
     "docs/design/": "Architecture decision records and design specs",
@@ -156,10 +156,6 @@
     "eval_all": "cd tests/evals && npm run eval",
     "eval_listing_objects": "cd tests/evals && npm run eval:listing-objects",
     "eval_profiling_table": "cd tests/evals && npm run eval:profiling-table",
-    "eval_creating_linear_issues": "cd tests/evals && npm run eval:creating-linear-issues",
-    "eval_implementing_linear_issues": "cd tests/evals && npm run eval:implementing-linear-issues",
-    "eval_raising_linear_prs": "cd tests/evals && npm run eval:raising-linear-prs",
-    "eval_closing_linear_issues": "cd tests/evals && npm run eval:closing-linear-issues",
     "eval_generating_model": "cd tests/evals && npm run eval:generating-model",
     "eval_generating_tests": "cd tests/evals && npm run eval:generating-tests",
     "eval_reviewing_tests": "cd tests/evals && npm run eval:reviewing-tests",
