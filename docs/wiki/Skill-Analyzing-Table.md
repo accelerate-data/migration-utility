@@ -16,7 +16,7 @@ Argument is the fully-qualified table name (e.g., `silver.DimCustomer`, `[dbo].[
 
 - `manifest.json` must exist in the project root. If missing, run [[Command Setup DDL]] first.
 - `catalog/tables/<table>.json` must exist. If missing, run `/listing-objects list tables` to see available tables.
-- The `migrate-util ready` check must pass before scoping. The skill runs `migrate-util ready <table_fqn> scope` and stops if the readiness check fails.
+- The skill checks scoping readiness through `migrate-util ready` and stops on the surfaced code if the object is not ready.
 
 ## Pipeline
 

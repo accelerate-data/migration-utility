@@ -24,7 +24,8 @@ Trigger phrases: "list tables", "list procedures", "show me object X", "what ref
 
 - `manifest.json` must exist in the project root. If missing, run [[Command Setup DDL]] first.
 - Catalog files must exist in `catalog/` (produced by [[Command Setup DDL]]).
-- The `migrate-util ready` check must pass before listing. The skill runs `migrate-util ready <table_fqn> scope` and stops if the readiness check fails.
+
+This skill is read-only. It does not require a pipeline readiness check beyond having a valid project root and catalog files.
 
 ## Pipeline
 
@@ -189,5 +190,5 @@ None. This skill is strictly read-only.
 |---|---|---|
 | Exit code 1 on any subcommand | Object not found or catalog file missing | Verify the object name matches catalog (use `list` to see available objects) |
 | Exit code 2 on any subcommand | Catalog directory unreadable (IO error) | Check file permissions on `catalog/` directory |
-| `parse_error` set on `discover show` | sqlglot could not parse the procedure body | `raw_ddl` is still preserved for manual inspection. The procedure can still be analyzed via [[Skill Analyzing Object]] using `raw_ddl` |
+| `parse_error` set on `discover show` | sqlglot could not parse the procedure body | `raw_ddl` is still preserved for manual inspection. The object can still be analyzed through the normal scoping flow |
 | Dynamic SQL writers missing from `refs` | `sys.dm_sql_referenced_entities` resolves at definition time | Known limitation -- procs that write only via dynamic SQL (`EXEC(@sql)`, `sp_executesql`) will not appear as writers |

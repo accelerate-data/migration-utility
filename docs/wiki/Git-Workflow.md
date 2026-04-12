@@ -106,7 +106,7 @@ PRs target the repo's default branch. The FDE reviews and merges — commands do
 |---|---|
 | `catalog/tables/*.json` | `.migration-runs/` (`.gitignore`d) |
 | `catalog/procedures/*.json` | |
-| `test-specs/*.json` | |
+| `test-specs/*.yml` | |
 | `dbt/models/**/*.sql` | |
 | `dbt/models/**/*.yml` | |
 | `ddl/*.sql` (from setup, not per-batch) | |

@@ -19,7 +19,7 @@ Trigger phrases: "migrate a procedure", "generate a dbt model", "convert SP to d
 - `manifest.json` must exist in the project root. If missing, run [[Command Setup DDL]] first.
 - `catalog/tables/<table>.json` must exist with completed scoping and profiling sections.
 - A dbt project must exist (`dbt_project.yml` in `./dbt/` relative to project root). If missing, run `/init-dbt` first.
-- `test-specs/<item_id>.json` must exist (produced by [[Skill Generating Tests]] and approved by [[Skill Reviewing Tests]]). There is no test-less path -- the test spec is mandatory.
+- `test-specs/<item_id>.json` must exist. In normal operation it is produced and approved through `/generate-tests`. There is no test-less path.
 
 ## Pipeline
 
