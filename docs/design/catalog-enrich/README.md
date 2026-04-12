@@ -1,6 +1,6 @@
 # Catalog Enrichment Diagnostics
 
-This document covers only the diagnostics and warnings layer of catalog enrichment. The actual enrichment algorithm (AST pass, call-graph BFS, EXEC resolution, SELECT INTO detection) is documented in [setup-ddl design doc, Step 8](../setup-ddl/README.md).
+This document covers only the diagnostics and warnings layer of catalog enrichment. The enrichment implementation lives in `plugin/lib/shared/catalog_enrich.py`, `plugin/lib/shared/setup_ddl.py`, and `plugin/lib/shared/setup_ddl_support/`.
 
 Exhaustive catalog of diagnostic scenarios for `warnings[]` and `errors[]` arrays on view, function, and procedure catalog entries. Each scenario is detectable via static AST analysis (sqlglot) and/or catalog state inspection — no LLM, no live DB queries required.
 
@@ -467,7 +467,7 @@ All diagnostics fire during catalog enrichment (`catalog_enrich.py`) or catalog 
 | Severity | warning |
 | Dialects | Both |
 | Trigger | sqlglot returns `exp.Command` nodes for subtrees within the procedure body. Also triggered when `classify_statement()` returns `needs_llm` for a non-EXEC `Command` node. |
-| Current state | **Gap.** Documented as `unsupported_syntax` routing reason in `tsql-routing-fallback` design doc but not yet emitted by `scan_routing_flags()`. |
+| Current state | **Gap.** `unsupported_syntax` is not yet emitted by `scan_routing_flags()`. |
 | User impact | References within opaque subtrees are missed. The procedure's `needs_llm` flag may be set, but the specific construct that triggered it is not identified. |
 | Remediation | Review the specific construct. |
 | Details | `{"command_text": "<raw text>", "statement_index": 3}` |

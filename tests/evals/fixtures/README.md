@@ -1,6 +1,6 @@
 # Eval Fixtures
 
-DDL project extracted from the MigrationTest Docker database. Source of truth: `scripts/sql/create-migration-test-db.sql`.
+DDL project extracted from the MigrationTest Docker database. Source of truth: `scripts/sql/create-migration-test-db.sql` with background and scenario mapping in `scripts/sql/README.md`.
 
 ## Extraction
 

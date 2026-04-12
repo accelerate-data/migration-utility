@@ -117,7 +117,7 @@
     },
     "docs": {
       "path": "docs/",
-      "description": "Documentation. Use docs/design/README.md as the index for design topics. reference/ contains operator and contributor docs, and requirements/ contains product requirements."
+      "description": "Documentation. Use docs/design/README.md as the index for design topics. reference/ contains operator and contributor docs."
     },
     "test_fixtures": {
       "path": "test-fixtures/",
