@@ -15,7 +15,7 @@ from typing import Any
 
 import pytest
 
-pytest.importorskip("pyodbc", reason="pyodbc not installed — skipping integration tests")
+pyodbc = pytest.importorskip("pyodbc", reason="pyodbc not installed — skipping integration tests")
 
 from shared.sandbox.sql_server import SqlServerSandbox
 
@@ -23,7 +23,24 @@ pytestmark = pytest.mark.integration
 
 
 def _have_mssql_env() -> bool:
-    return bool(os.environ.get("SA_PASSWORD"))
+    if not all(os.environ.get(name) for name in ("MSSQL_HOST", "MSSQL_DB", "SA_PASSWORD")):
+        return False
+    try:
+        conn = pyodbc.connect(
+            f"DRIVER={{{os.environ.get('MSSQL_DRIVER', 'ODBC Driver 18 for SQL Server')}}};"
+            f"SERVER={os.environ.get('MSSQL_HOST', 'localhost')},"
+            f"{os.environ.get('MSSQL_PORT', '1433')};"
+            f"DATABASE={os.environ.get('MSSQL_DB', 'MigrationTest')};"
+            f"UID={os.environ.get('MSSQL_USER', 'sa')};"
+            f"PWD={os.environ.get('SA_PASSWORD', '')};"
+            "TrustServerCertificate=yes;"
+            "LoginTimeout=1;",
+            autocommit=True,
+        )
+        conn.close()
+        return True
+    except pyodbc.Error:
+        return False
 
 
 def _make_backend() -> SqlServerSandbox:
@@ -39,7 +56,7 @@ def _make_backend() -> SqlServerSandbox:
 
 skip_no_mssql = pytest.mark.skipif(
     not _have_mssql_env(),
-    reason="MSSQL env vars not set (SA_PASSWORD required)",
+    reason="MSSQL integration DB not reachable (MSSQL_HOST, MSSQL_DB, SA_PASSWORD and a listening server required)",
 )
 
 

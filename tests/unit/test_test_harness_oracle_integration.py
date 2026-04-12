@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 
+import oracledb
 import pytest
 
 from shared.sandbox.oracle import OracleSandbox
@@ -21,7 +22,18 @@ pytestmark = pytest.mark.oracle
 
 
 def _have_oracle_env() -> bool:
-    return bool(os.environ.get("ORACLE_PWD"))
+    if not os.environ.get("ORACLE_PWD"):
+        return False
+    try:
+        conn = oracledb.connect(
+            user=os.environ.get("ORACLE_ADMIN_USER", "sys"),
+            password=os.environ["ORACLE_PWD"],
+            dsn=f"{os.environ.get('ORACLE_HOST', 'localhost')}:{os.environ.get('ORACLE_PORT', '1521')}/{os.environ.get('ORACLE_SERVICE', 'FREEPDB1')}",
+        )
+        conn.close()
+        return True
+    except oracledb.Error:
+        return False
 
 
 def _make_backend() -> OracleSandbox:
