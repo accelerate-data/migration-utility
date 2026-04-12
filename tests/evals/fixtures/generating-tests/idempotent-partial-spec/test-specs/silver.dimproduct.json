@@ -55,7 +55,7 @@
   "unit_tests": [
     {
       "name": "test_status_current_when_active_product",
-      "model": "stg_dimproduct",
+      "model": "dimproduct",
       "given": [
         {
           "rows": [
@@ -107,7 +107,7 @@
     },
     {
       "name": "test_status_obsolete_when_discontinued",
-      "model": "stg_dimproduct",
+      "model": "dimproduct",
       "given": [
         {
           "rows": [
@@ -159,7 +159,7 @@
     },
     {
       "name": "test_status_outdated_when_sellend_date_set",
-      "model": "stg_dimproduct",
+      "model": "dimproduct",
       "given": [
         {
           "rows": [
@@ -211,7 +211,7 @@
     },
     {
       "name": "test_color_null_converts_to_empty_string",
-      "model": "stg_dimproduct",
+      "model": "dimproduct",
       "given": [
         {
           "rows": [
@@ -263,7 +263,7 @@
     },
     {
       "name": "test_color_not_null_preserved",
-      "model": "stg_dimproduct",
+      "model": "dimproduct",
       "given": [
         {
           "rows": [
@@ -315,7 +315,7 @@
     },
     {
       "name": "test_merge_matched_update_existing_product",
-      "model": "stg_dimproduct",
+      "model": "dimproduct",
       "given": [
         {
           "rows": [
@@ -387,7 +387,7 @@
     },
     {
       "name": "test_merge_insert_new_product",
-      "model": "stg_dimproduct",
+      "model": "dimproduct",
       "given": [
         {
           "rows": [],
@@ -443,7 +443,7 @@
     },
     {
       "name": "test_empty_source_no_changes",
-      "model": "stg_dimproduct",
+      "model": "dimproduct",
       "given": [
         {
           "rows": [

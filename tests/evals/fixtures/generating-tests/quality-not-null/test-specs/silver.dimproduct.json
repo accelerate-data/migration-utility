@@ -68,7 +68,7 @@
   "unit_tests": [
     {
       "name": "test_status_current_when_active_product",
-      "model": "stg_dimproduct",
+      "model": "dimproduct",
       "given": [
         {
           "rows": [
@@ -120,7 +120,7 @@
     },
     {
       "name": "test_status_obsolete_when_discontinued",
-      "model": "stg_dimproduct",
+      "model": "dimproduct",
       "given": [
         {
           "rows": [
@@ -172,7 +172,7 @@
     },
     {
       "name": "test_status_outdated_when_sell_end_present",
-      "model": "stg_dimproduct",
+      "model": "dimproduct",
       "given": [
         {
           "rows": [
@@ -224,7 +224,7 @@
     },
     {
       "name": "test_color_defaults_to_empty_string_when_null",
-      "model": "stg_dimproduct",
+      "model": "dimproduct",
       "given": [
         {
           "rows": [
@@ -276,7 +276,7 @@
     },
     {
       "name": "test_empty_source_returns_no_rows",
-      "model": "stg_dimproduct",
+      "model": "dimproduct",
       "given": [
         {
           "rows": [],

@@ -5,8 +5,8 @@
 //     call must reference an entry in _sources.yml.
 //
 // Only validates files written by the skill for the target table:
-//   - The mart/snapshot model matching target_table
-//   - Any stg_*.sql files created alongside it
+//   - The mart/snapshot/primary model matching target_table
+//   - Any sibling staging SQL files created alongside it
 //
 // Usage:
 //   assert:
@@ -109,21 +109,19 @@ module.exports = (output, context) => {
     }
   }
 
-  // Validate stg_*.sql files in models/staging (likely written by the skill for this run)
+  // Validate sibling staging SQL files in models/staging (likely written by the skill for this run)
   const stagingDir = path.join(modelsDir, 'staging');
-  const stgFiles = collectSql(stagingDir).filter(f =>
-    path.basename(f).startsWith('stg_')
-  );
+  const stagingFiles = collectSql(stagingDir).filter(f => f !== targetFile);
 
-  for (const stgFile of stgFiles) {
-    const stgSql = fs.readFileSync(stgFile, 'utf8');
-    const stgSourceCalls = extractSourceCalls(stgSql);
-    checked.push(path.basename(stgFile));
-    for (const call of stgSourceCalls) {
+  for (const stagingFile of stagingFiles) {
+    const stagingSql = fs.readFileSync(stagingFile, 'utf8');
+    const stagingSourceCalls = extractSourceCalls(stagingSql);
+    checked.push(path.basename(stagingFile));
+    for (const call of stagingSourceCalls) {
       const key = `${call.schema}.${call.table}`;
       if (!validSources.has(key)) {
         errors.push(
-          `${path.basename(stgFile)}: ${call.raw} references '${key}' which is not in _sources.yml`
+          `${path.basename(stagingFile)}: ${call.raw} references '${key}' which is not in _sources.yml`
         );
       }
     }

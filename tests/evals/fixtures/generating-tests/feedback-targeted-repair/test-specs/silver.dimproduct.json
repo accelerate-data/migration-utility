@@ -71,7 +71,7 @@
   "unit_tests": [
     {
       "name": "test_status_current_when_active_product",
-      "model": "stg_dimproduct",
+      "model": "dimproduct",
       "given": [
         {
           "rows": [
@@ -123,7 +123,7 @@
     },
     {
       "name": "test_status_obsolete_when_discontinued",
-      "model": "stg_dimproduct",
+      "model": "dimproduct",
       "given": [
         {
           "rows": [
@@ -175,7 +175,7 @@
     },
     {
       "name": "test_status_outdated_with_sell_end_date_and_no_discontinued",
-      "model": "stg_dimproduct",
+      "model": "dimproduct",
       "given": [
         {
           "rows": [
@@ -227,7 +227,7 @@
     },
     {
       "name": "test_color_empty_when_null",
-      "model": "stg_dimproduct",
+      "model": "dimproduct",
       "given": [
         {
           "rows": [
@@ -279,7 +279,7 @@
     },
     {
       "name": "test_empty_source_yields_empty_result",
-      "model": "stg_dimproduct",
+      "model": "dimproduct",
       "given": [
         {
           "rows": [],
@@ -294,7 +294,7 @@
     },
     {
       "name": "test_status_outdated_when_sell_end_date_set",
-      "model": "stg_dimproduct",
+      "model": "dimproduct",
       "given": [
         {
           "rows": [
@@ -346,7 +346,7 @@
     },
     {
       "name": "test_status_outdated_explicit_sell_end_date_coverage",
-      "model": "stg_dimproduct",
+      "model": "dimproduct",
       "given": [
         {
           "rows": [
@@ -398,7 +398,7 @@
     },
     {
       "name": "test_status_outdated_sell_end_date_not_null",
-      "model": "stg_dimproduct",
+      "model": "dimproduct",
       "given": [
         {
           "table": "[bronze].[Product]",

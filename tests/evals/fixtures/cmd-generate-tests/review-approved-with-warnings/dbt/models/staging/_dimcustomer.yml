@@ -1,0 +1,8 @@
+version: 2
+
+models:
+  - name: dimcustomer
+    description: "Deliberately incomplete model for code-review regression coverage."
+    columns:
+      - name: CustomerAlternateKey
+        description: "Customer business key."

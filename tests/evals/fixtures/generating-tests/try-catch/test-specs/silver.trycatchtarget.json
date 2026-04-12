@@ -25,7 +25,7 @@
   "unit_tests": [
     {
       "name": "test_try_path_single_valid_row",
-      "model": "stg_trycatchtarget",
+      "model": "trycatchtarget",
       "given": [
         {
           "table": "[bronze].[Product]",
@@ -61,7 +61,7 @@
     },
     {
       "name": "test_try_path_multiple_valid_rows",
-      "model": "stg_trycatchtarget",
+      "model": "trycatchtarget",
       "given": [
         {
           "table": "[bronze].[Product]",
@@ -116,7 +116,7 @@
     },
     {
       "name": "test_catch_path_duplicate_key_violation",
-      "model": "stg_trycatchtarget",
+      "model": "trycatchtarget",
       "given": [
         {
           "table": "[bronze].[Product]",

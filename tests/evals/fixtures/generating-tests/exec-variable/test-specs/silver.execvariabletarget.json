@@ -18,7 +18,7 @@
   "unit_tests": [
     {
       "name": "test_dynamic_sql_variable_single_row",
-      "model": "stg_execvariabletarget",
+      "model": "execvariabletarget",
       "given": [
         {
           "rows": [
@@ -53,7 +53,7 @@
     },
     {
       "name": "test_dynamic_sql_variable_multiple_rows",
-      "model": "stg_execvariabletarget",
+      "model": "execvariabletarget",
       "given": [
         {
           "rows": [
@@ -106,7 +106,7 @@
     },
     {
       "name": "test_dynamic_sql_variable_empty_source",
-      "model": "stg_execvariabletarget",
+      "model": "execvariabletarget",
       "given": [
         {
           "rows": [],
