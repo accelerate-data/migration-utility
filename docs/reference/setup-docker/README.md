@@ -186,17 +186,54 @@ The Oracle Docker image expects `ORACLE_PWD` as its container-internal env var (
 
 The SQL Server image bundles pre-built MDF/LDF data files so databases are available instantly on `docker run`. Rebuild when fixture SQL changes or when upgrading the SQL Server CU version.
 
-### Quick rebuild
+### Rebuild locally
 
 ```bash
 SA_PASSWORD='P@ssw0rd123' ./scripts/publish-sqlserver-image.sh
 ```
 
-Add `--push` to publish to GHCR after building:
+This builds two local tags:
+
+- `ghcr.io/accelerate-data/migration-sample-sqlserver:latest`
+- `ghcr.io/accelerate-data/migration-sample-sqlserver:<YYYYMMDD>`
+
+### Publish to GHCR
+
+Log in with a GitHub PAT that has `write:packages`:
+
+```bash
+echo YOUR_GITHUB_PAT | docker login ghcr.io -u YOUR_GITHUB_USER --password-stdin
+```
+
+Then rebuild and push:
 
 ```bash
 SA_PASSWORD='P@ssw0rd123' ./scripts/publish-sqlserver-image.sh --push
 ```
+
+The script pushes both `:latest` and the date-stamped tag it created for that build.
+
+### Pull and run a published image later
+
+To restore the published fixture on another machine, or after deleting local images, pull either `:latest` or a specific date tag:
+
+```bash
+docker pull ghcr.io/accelerate-data/migration-sample-sqlserver:latest
+# or
+docker pull ghcr.io/accelerate-data/migration-sample-sqlserver:<YYYYMMDD>
+```
+
+Run the pulled image:
+
+```bash
+docker run --name sql-test \
+  -e ACCEPT_EULA=Y \
+  -e MSSQL_SA_PASSWORD='P@ssw0rd123' \
+  -p 1433:1433 \
+  -d ghcr.io/accelerate-data/migration-sample-sqlserver:<YYYYMMDD>
+```
+
+Use the date tag when you need reproducibility. Use `:latest` when you just want the newest published fixture.
 
 ### Bumping the SQL Server CU version
 
