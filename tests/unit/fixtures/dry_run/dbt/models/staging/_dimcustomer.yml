@@ -1,5 +1,5 @@
 models:
-  - name: stg_dimcustomer
+  - name: dimcustomer
     description: Staged DimCustomer
     columns:
       - name: CustomerKey

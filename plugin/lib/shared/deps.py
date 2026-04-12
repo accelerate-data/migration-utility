@@ -16,7 +16,7 @@ from typing import Optional
 from shared.catalog import load_proc_catalog, load_table_catalog, load_view_catalog
 from shared.catalog_models import ReferencesBucket, RefEntry, ScopedRefList
 from shared.loader_data import CatalogLoadError
-from shared.name_resolver import fqn_parts, normalize
+from shared.name_resolver import model_name_from_table, normalize
 
 logger = logging.getLogger(__name__)
 
@@ -59,15 +59,9 @@ def _locate_dbt_model(dbt_root: Path, model_name: str) -> Optional[Path]:
     return matches[0] if matches else None
 
 
-def _model_name_for(fqn: str) -> str:
-    """Derive the expected dbt staging model name for a FQN (tables and views)."""
-    _, name = fqn_parts(fqn)
-    return f"stg_{name}"
-
-
 def _has_dbt_model(fqn: str, dbt_root: Path) -> bool:
     """Return True if a migrated dbt model exists for this FQN."""
-    return _locate_dbt_model(dbt_root, _model_name_for(fqn)) is not None
+    return _locate_dbt_model(dbt_root, model_name_from_table(fqn)) is not None
 
 
 # ── Dependency traversal ─────────────────────────────────────────────────────
