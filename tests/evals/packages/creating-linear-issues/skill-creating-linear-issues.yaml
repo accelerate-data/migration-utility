@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "Creating-linear-issues skill — clarification and planning before issue creation"
+
+prompts:
+  - id: creating-linear-issues
+    label: creating-linear-issues
+    raw: file://../../prompts/skill-creating-linear-issues.txt
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    config:
+      model: claude-haiku-4-5-20251001
+      working_dir: ../..
+      max_turns: 20
+      permission_mode: auto
+      append_allowed_tools:
+        - Read
+        - Bash
+        - Glob
+        - Grep
+
+defaultTest:
+  assert:
+    - type: javascript
+      value: file://../../assertions/check-linear-skill-contract.js
+
+tests:
+  - description: "create-issue — classifies request, searches code first, asks one question, enters plan mode"
+    vars:
+      expect_searches_codebase_first: "true"
+      expect_enters_plan_mode: "true"
+      expect_asks_question_now: "true"
+      expect_question_count: "1"
+      expected_issue_kind: "feature"
+      expect_has_distinct_paths: "true"
+      required_terms: "feature,bug,spike,milestone,plan"
+      forbidden_terms: "creates_issue_before_plan_approval\":true"

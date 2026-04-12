@@ -1,0 +1,29 @@
+You are preparing to create a Linear issue in this repository.
+
+Read the skill at `.claude/skills/creating-linear-issues/SKILL.md`.
+
+Scenario:
+
+- The user asks: "Create a Linear issue for improving eval coverage around Oracle live workflows."
+- Codebase review could answer some scoping details.
+- Project resolution is clear from repo context.
+- There are two viable milestone choices.
+- The request should be classified before drafting the issue.
+
+Do not actually call tools. Return JSON only with this shape:
+
+```json
+{
+  "searches_codebase_first": true,
+  "enters_plan_mode": true,
+  "asks_question_now": true,
+  "question_count": 1,
+  "issue_kind": "feature",
+  "has_distinct_paths": true,
+  "question_topic": "string",
+  "creates_issue_before_plan_approval": false,
+  "notes": "string"
+}
+```
+
+Use a single concrete value for `issue_kind`: `feature`, `bug`, or `spike`.
