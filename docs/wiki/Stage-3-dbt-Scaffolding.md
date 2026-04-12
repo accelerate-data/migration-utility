@@ -96,7 +96,7 @@ If `dbt/` already exists:
 - Detects the existing project by checking for `dbt_project.yml`
 - Regenerates `sources.yml` from current catalog using the same `no_writer_found` filter (picks up tables scoped since the last run)
 - Never overwrites `profiles.yml` (you may have added real credentials)
-- Never overwrites existing model files in `models/staging/` or `models/marts/`
+- Never overwrites existing generated model files in `dbt/models/` or snapshot files in `dbt/snapshots/`
 - Re-runs `dbt deps` and `dbt compile`
 
 ## Next Step

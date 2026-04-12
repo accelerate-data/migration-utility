@@ -28,12 +28,10 @@ One sub-agent per table runs in parallel, each following the `/generating-model`
 1. Reads `refactored_sql` from the table's catalog refactor section — this is the CTE-structured SQL produced by `/refactor`. Raw proc SQL is not used.
 2. Reads the test spec with ground truth expectations
 3. Reads the table's profile (materialization, primary key, watermark, etc.)
-4. Applies the staging/mart split: import CTEs become ephemeral `stg_*` models in `dbt/models/staging/`; logical and final CTEs stay in the mart model in `dbt/models/marts/`
-5. Generates dbt model SQL and schema YAML for both staging and mart layers
+4. Generates one reviewable dbt artifact set per target from the refactored SQL. Import CTEs use `{{ source(...) }}` directly inside the model; helper staging models are not generated.
+5. Writes the model SQL and paired schema YAML for the reviewed target
 
-**Staging models.** One ephemeral `stg_<source_table>.sql` is created per import CTE in the refactored SQL. Each is `materialized='ephemeral'` and selects from `{{ source('<schema>', '<table>') }}` with light transforms only. Before creating a staging model, the skill checks for an existing compatible one to avoid duplicates.
-
-**Mart model.** The mart model replaces import CTEs with `{{ ref('stg_...') }}` calls; logical and final CTEs stay as-is. The config block uses the profile-derived materialization.
+**Generated model.** The model keeps the import/logical/final CTE structure from `refactored_sql` in a single file. Import CTEs read from `{{ source('<schema>', '<table>') }}` directly, logical CTEs preserve the transformed logic, and the config block uses the profile-derived materialization.
 
 **Materialization mapping.** The profiling classification drives the mart materialization:
 
@@ -41,7 +39,7 @@ One sub-agent per table runs in parallel, each following the `/generating-model`
 |---|---|---|
 | `fact_transaction` | `incremental` | Based on watermark type |
 | `dim_scd1` | `table` or `incremental` | Based on volume |
-| `dim_scd2` | `incremental` | Snapshot pattern |
+| `dim_scd2` | `snapshot` | Snapshot pattern |
 | `dim_non_scd` | `table` | Full refresh |
 | `fact_periodic_snapshot` | `table` | Full refresh |
 | `fact_accumulating_snapshot` | `incremental` | Merge on PK |
@@ -107,11 +105,11 @@ You are offered a PR. Run `/status` to check overall pipeline progress.
 
 | File | Location | Purpose |
 |---|---|---|
-| Staging model SQL | `dbt/models/staging/stg_<source_table>.sql` | Ephemeral model selecting from source; one per import CTE |
-| Mart model SQL | `dbt/models/marts/<model_name>.sql` | dbt model implementing the procedure logic with `ref()` calls |
+| Model SQL | `dbt/models/staging/<model_name>.sql` | Reviewable dbt model implementing the target logic with inline `source()` import CTEs |
 | Schema YAML | `dbt/models/staging/_<model_name>.yml` | Model description, schema tests, and `unit_tests:` rendered from the test spec |
+| Snapshot SQL | `dbt/snapshots/` | Snapshot artifact for `dim_scd2` targets |
 
-The mart model name follows the pattern `<table>` (e.g., `dimcustomer` for `silver.DimCustomer`). Staging models use the source table name (e.g., `stg_dimcustomer`).
+The model name follows the target naming contract (for example, `stg_dimcustomer` for `silver.DimCustomer` when written under `models/staging/`).
 
 ## Error Codes
 

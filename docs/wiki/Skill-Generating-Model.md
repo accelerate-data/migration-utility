@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Generates a dbt model from a profiled stored procedure. Reads deterministic context from catalog (profile, resolved statements, test spec, and refactored SQL), uses LLM to produce dbt-idiomatic SQL following the import CTE / logical CTE / final CTE pattern with a staging/mart split, validates logical equivalence against the refactored SQL, renders schema YAML with tests, and writes artifacts to the dbt project. Includes a self-correction loop that runs `dbt compile` and `dbt test` up to 3 iterations.
+Generates a dbt model from a profiled stored procedure. Reads deterministic context from catalog (profile, resolved statements, test spec, and refactored SQL), uses LLM to produce dbt-idiomatic SQL following the import CTE / logical CTE / final CTE pattern, validates logical equivalence against the refactored SQL, renders schema YAML with tests, and writes artifacts to the dbt project. Includes a self-correction loop that runs `dbt compile` and `dbt test` up to 3 iterations.
 
 ## Invocation
 
@@ -169,10 +169,6 @@ Every `unit_tests[]` entry is rendered into a `unit_tests:` block in the schema 
 
 After rendering test-spec tests, the model's logic is analyzed for uncovered branches. 1-3 additional `test_gap_*` scenarios are generated with best-effort expectations derived from model logic.
 
-### 6. Present for approval (interactive)
-
-Shows: generated model SQL (staging + mart), schema YAML, equivalence check results, materialization decisions. User approves, requests edits, or declines.
-
 ### 7. Write artifacts
 
 ```bash
@@ -187,9 +183,9 @@ The dbt project path is resolved from `$DBT_PROJECT_PATH` or defaults to `./dbt`
 
 Artifact write paths:
 
-- Staging models: `dbt/models/staging/stg_<source_table>.sql`
-- Mart model: `dbt/models/<layer>/<target_table>.sql` (layer is `silver` or `gold` based on classification)
-- Schema YAML: alongside the mart model
+- Model SQL: `dbt/models/staging/<model_name>.sql`
+- Schema YAML: `dbt/models/staging/_<model_name>.yml`
+- Snapshot SQL: `dbt/snapshots/` for snapshot targets
 
 ### 8. Compile and test
 
@@ -230,13 +226,9 @@ After 3 failed iterations, the model is left as-is with `status: "partial"` and 
 
 ## Writes
 
-### Staging model SQL files
+### Model SQL file
 
-Written to `dbt/models/staging/stg_<source_table>.sql` (one per import CTE).
-
-### Mart model SQL file
-
-Written to `dbt/models/<layer>/<target_table>.sql`.
+Written to `dbt/models/staging/<model_name>.sql`.
 
 ### Schema YAML file
 
@@ -257,22 +249,14 @@ For snapshot models, generated in `dbt/snapshots/` instead of `dbt/models/`.
 | `results[].status` | string | Enum: `ok`, `partial`, `error` |
 | `results[].output.table_ref` | string | Target table reference |
 | `results[].output.model_name` | string | Generated dbt model name |
-| `results[].output.artifact_paths` | object | `model_sql`, `staging_sql`, `model_yaml`, `source_yaml` paths |
-| `results[].output.generated.model_sql` | object | `materialized` (enum: `incremental`, `table`, `snapshot`), `uses_watermark`, `uses_writer_logic` |
-| `results[].output.generated.model_yaml` | object | `has_model_description`, `has_column_descriptions`, `schema_tests_rendered[]`, `has_unit_tests` |
-| `results[].output.execution` | object | `dbt_parse_passed`, `dbt_compile_passed`, `dbt_errors[]` |
+| `results[].output.artifact_paths` | object | `model_sql`, `model_yaml` paths |
+| `results[].output.generated.model_sql` | object | `materialized` (enum: `incremental`, `table`, `snapshot`), `uses_watermark` |
+| `results[].output.generated.model_yaml` | object | `has_model_description`, `schema_tests_rendered[]`, `has_unit_tests` |
+| `results[].output.execution` | object | `dbt_compile_passed`, `dbt_test_passed`, `self_correction_iterations`, `dbt_errors[]` |
 
 ## JSON Format
 
-### Generated staging model SQL example
-
-```sql
-{{ config(materialized='ephemeral') }}
-
-select * from {{ source('bronze', 'customer') }}
-```
-
-### Generated mart model SQL example
+### Generated model SQL example
 
 ```sql
 {{ config(
@@ -282,11 +266,11 @@ select * from {{ source('bronze', 'customer') }}
 ) }}
 
 with source_customers as (
-    select * from {{ ref('stg_customer') }}
+    select * from {{ source('bronze', 'customer') }}
 ),
 
 source_geography as (
-    select * from {{ ref('stg_geography') }}
+    select * from {{ source('bronze', 'geography') }}
 ),
 
 customers_with_region as (
@@ -334,7 +318,7 @@ models:
         description: "Foreign key to DimGeography"
         data_tests:
           - relationships:
-              to: ref('stg_dimgeography')
+              to: ref('dimgeography')
               field: geography_key
       - name: first_name
         meta:

@@ -70,7 +70,7 @@ Successfully refactored items are committed and pushed automatically. You are of
 
 ## View Refactoring (`/refactor-view`)
 
-Converts SQL Server views to ephemeral dbt staging models (`stg_<view_name>.sql`) with import/logical/final CTE structure. Resolves dependent views in topological order and checks equivalence against catalog column metadata.
+Refactors SQL Server views into import/logical/final CTE SQL and persists the proof-backed refactor for downstream model generation. Resolves dependent views in topological order and checks equivalence against catalog column metadata.
 
 ### Prerequisites
 
@@ -88,7 +88,7 @@ Converts SQL Server views to ephemeral dbt staging models (`stg_<view_name>.sql`
 
 **Step 1 -- Dependency resolution.** Walks `references.views.in_scope` recursively to build the full transitive dependency set. Leaf views (no dependencies) are processed first, the requested view last.
 
-**Step 2 -- Refactor per view.** Each view is converted to an ephemeral dbt staging model using `{{ source() }}` and `{{ ref() }}` references. T-SQL syntax is converted to standard SQL (COALESCE instead of ISNULL, CAST instead of CONVERT).
+**Step 2 -- Refactor per view.** Each view is converted into refactored SQL with import/logical/final CTE structure. T-SQL syntax is converted to standard SQL (COALESCE instead of ISNULL, CAST instead of CONVERT).
 
 **Step 3 -- Equivalence check.** Catalog column metadata is compared against the generated model's SELECT list. Missing columns are flagged as warnings.
 
@@ -98,7 +98,7 @@ Converts SQL Server views to ephemeral dbt staging models (`stg_<view_name>.sql`
 
 | File | Purpose |
 |---|---|
-| `dbt/models/staging/stg_<view_name>.sql` | Ephemeral staging model with CTE structure |
+| Refactored SQL persisted in the view catalog | Proof-backed CTE-structured SQL used by downstream generation |
 
 ### Error Codes
 

@@ -52,8 +52,9 @@ Do not use this skill for batch orchestration. `/generate-model` owns batching, 
 
    Rules:
    - Keep one dbt model artifact per target. Do not split one target across multiple helper SQL files.
-   - Use `{{ source('<schema>', '<table>') }}` directly in import CTEs.
+   - Use `{{ source('<schema>', '<table>') }}` directly in import CTEs for raw source relations.
    - Preserve joins, filters, grouping, and write intent from `refactored_sql`.
+   - When the target comes from `catalog/views/` (view or materialized view profile), generate the dbt model with `materialized='view'`. Do not use `ephemeral` for generated view models.
    - For snapshots, use [references/snapshot-generation.md](references/snapshot-generation.md).
 
 4. Run a logical equivalence pass against `refactored_sql`.

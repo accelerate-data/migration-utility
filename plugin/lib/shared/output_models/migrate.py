@@ -17,7 +17,7 @@ class MigrateContextOutput(BaseModel):
     writer: str
     needs_llm: bool
     profile: dict[str, Any]
-    materialization: Literal["table", "incremental", "snapshot"]
+    materialization: Literal["table", "incremental", "snapshot", "view"]
     statements: list[dict[str, Any]]
     proc_body: str
     columns: list[Any]

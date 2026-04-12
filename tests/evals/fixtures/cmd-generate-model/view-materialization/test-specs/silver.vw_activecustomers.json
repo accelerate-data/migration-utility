@@ -1,0 +1,38 @@
+{
+  "item_id": "silver.vw_activecustomers",
+  "status": "ok",
+  "coverage": "complete",
+  "branch_manifest": [
+    {
+      "id": "active_rows_only",
+      "statement_index": 0,
+      "description": "The view keeps only active customers from bronze.CustomerRaw.",
+      "scenarios": ["test_active_customers_only"]
+    }
+  ],
+  "unit_tests": [
+    {
+      "name": "test_active_customers_only",
+      "target_table": "[silver].[vw_activecustomers]",
+      "procedure": "[silver].[vw_activecustomers]",
+      "given": [
+        {
+          "table": "[bronze].[CustomerRaw]",
+          "rows": [
+            {"CustomerID": 1, "FirstName": "Ada", "LastName": "Lovelace", "IsActive": 1},
+            {"CustomerID": 2, "FirstName": "Grace", "LastName": "Hopper", "IsActive": 0}
+          ]
+        }
+      ],
+      "expect": {
+        "rows": [
+          {"CustomerID": 1, "FirstName": "Ada", "LastName": "Lovelace"}
+        ]
+      }
+    }
+  ],
+  "uncovered_branches": [],
+  "warnings": [],
+  "validation": {"passed": true, "issues": []},
+  "errors": []
+}

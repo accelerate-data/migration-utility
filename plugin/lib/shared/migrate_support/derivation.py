@@ -11,6 +11,8 @@ def derive_materialization(profile: Any) -> str:
     """Derive dbt materialization from profile classification and watermark."""
     _get = profile.get if isinstance(profile, dict) else lambda k, d=None: getattr(profile, k, d)
     classification = _get("classification") or {}
+    if classification in ("stg", "mart"):
+        return "view"
     if isinstance(classification, dict) and classification.get("resolved_kind") == "dim_scd2":
         return "snapshot"
     watermark = _get("watermark")
