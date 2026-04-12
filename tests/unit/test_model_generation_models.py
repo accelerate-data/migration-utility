@@ -110,6 +110,7 @@ def _review_output(**overrides: object) -> dict:
         "checks": {
             "standards": _check_result(),
             "correctness": _check_result(),
+            "test_integration": _check_result(),
         },
         "feedback_for_model_generator": [],
         "warnings": [],
@@ -254,6 +255,7 @@ class TestModelReviewOutput:
         assert m.status == "approved"
         assert m.checks.standards.passed is True
         assert m.checks.correctness.passed is True
+        assert m.checks.test_integration.passed is True
 
     def test_revision_requested(self) -> None:
         data = _review_output(

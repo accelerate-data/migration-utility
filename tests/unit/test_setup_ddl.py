@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import oracledb
 import pytest
 
 from shared.sql_types import format_sql_type
@@ -1282,6 +1283,15 @@ class TestListSchemasOracleIntegration:
         for var in ("ORACLE_USER", "ORACLE_PASSWORD", "ORACLE_DSN"):
             if not os.environ.get(var):
                 pytest.skip(f"{var} not set")
+        try:
+            conn = oracledb.connect(
+                user=os.environ["ORACLE_USER"],
+                password=os.environ["ORACLE_PASSWORD"],
+                dsn=os.environ["ORACLE_DSN"],
+            )
+            conn.close()
+        except oracledb.Error as exc:
+            pytest.skip(f"Oracle test database not reachable: {exc}")
         (tmp_path / "manifest.json").write_text(
             '{"technology": "oracle", "dialect": "oracle"}', encoding="utf-8"
         )
@@ -1643,6 +1653,15 @@ class TestExtractOracleIntegration:
         for var in ("ORACLE_USER", "ORACLE_PASSWORD", "ORACLE_DSN"):
             if not os.environ.get(var):
                 pytest.skip(f"{var} not set")
+        try:
+            conn = oracledb.connect(
+                user=os.environ["ORACLE_USER"],
+                password=os.environ["ORACLE_PASSWORD"],
+                dsn=os.environ["ORACLE_DSN"],
+            )
+            conn.close()
+        except oracledb.Error as exc:
+            pytest.skip(f"Oracle test database not reachable: {exc}")
 
     def test_sh_produces_ddl_and_catalog(self, tmp_path):
         self._skip_if_missing()

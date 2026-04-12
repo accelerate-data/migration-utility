@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import oracledb
 import pytest
 
 from shared.catalog_enrich import enrich_catalog
@@ -747,6 +748,15 @@ class TestEnrichCatalogOracleIntegration:
         for var in ("ORACLE_USER", "ORACLE_PASSWORD", "ORACLE_DSN"):
             if not os.environ.get(var):
                 pytest.skip(f"{var} not set")
+        try:
+            conn = oracledb.connect(
+                user=os.environ["ORACLE_USER"],
+                password=os.environ["ORACLE_PASSWORD"],
+                dsn=os.environ["ORACLE_DSN"],
+            )
+            conn.close()
+        except oracledb.Error as exc:
+            pytest.skip(f"Oracle test database not reachable: {exc}")
 
     def test_oracle_dialect_from_manifest(self, tmp_path: Path) -> None:
         """catalog-enrich reads 'oracle' dialect from manifest without --dialect flag."""
