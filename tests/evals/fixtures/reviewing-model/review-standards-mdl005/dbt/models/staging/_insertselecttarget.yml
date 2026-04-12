@@ -1,7 +1,7 @@
 version: 2
 
 models:
-  - name: stg_insertselecttarget
+  - name: insertselecttarget
     description: "Staged insert-select projection for silver.InsertSelectTarget."
     columns:
       - name: ProductAlternateKey
@@ -14,7 +14,7 @@ models:
 
 unit_tests:
   - name: test_insert_select_projects_source_row
-    model: stg_insertselecttarget
+    model: insertselecttarget
     given:
       - input: source('bronze', 'product')
         rows:

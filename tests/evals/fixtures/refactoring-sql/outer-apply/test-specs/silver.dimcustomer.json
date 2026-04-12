@@ -33,7 +33,7 @@
   "unit_tests": [
     {
       "name": "test_single_customer_no_orders",
-      "model": "stg_dimcustomer",
+      "model": "dimcustomer",
       "given": [
         {
           "rows": [

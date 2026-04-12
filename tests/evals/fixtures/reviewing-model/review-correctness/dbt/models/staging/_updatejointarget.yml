@@ -1,7 +1,7 @@
 version: 2
 
 models:
-  - name: stg_updatejointarget
+  - name: updatejointarget
     description: "Migrated from silver.usp_load_UpdateJoinTarget. Target: silver.UpdateJoinTarget."
     columns:
       - name: ProductAlternateKey
@@ -20,7 +20,7 @@ models:
 
 unit_tests:
   - name: test_update_matched_row
-    model: stg_updatejointarget
+    model: updatejointarget
     given:
       - input: source('bronze', 'product')
         rows:

@@ -1,7 +1,7 @@
 version: 2
 
 models:
-  - name: stg_selectintotarget
+  - name: selectintotarget
     description: "Projected staging model for silver.SelectIntoTarget."
     columns:
       - name: ProductAlternateKey
@@ -18,7 +18,7 @@ models:
 
 unit_tests:
   - name: test_selectinto_rows_present_populates_target
-    model: stg_selectintotarget
+    model: selectintotarget
     given:
       - input: source('bronze', 'product')
         rows:
@@ -29,7 +29,7 @@ unit_tests:
         - ProductAlternateKey: "101"
           EnglishProductName: Mountain Bike
   - name: test_selectinto_empty_source_no_rows
-    model: stg_selectintotarget
+    model: selectintotarget
     given:
       - input: source('bronze', 'product')
         rows: []
