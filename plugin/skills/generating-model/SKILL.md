@@ -52,8 +52,13 @@ Do not use this skill for batch orchestration. `/generate-model` owns batching, 
 
    Rules:
    - Keep one dbt model artifact per target. Do not split one target across multiple helper SQL files.
-   - Use `{{ source('<schema>', '<table>') }}` directly in import CTEs.
+   - Use `{{ source('<schema>', '<table>') }}` directly in import CTEs for raw source relations.
+   - For every in-scope view read in `refactored_sql`, resolve it in this order before writing SQL:
+     1. Check `dbt/models/staging/_sources.yml`. If the view is declared there, use `{{ source('<schema>', '<view>') }}`.
+     2. If it is not in `_sources.yml`, search `dbt/models/**` for an existing migrated model for that view (typically `stg_<view>.sql`). If found, use `{{ ref('<model_name>') }}`.
+     3. If neither a source declaration nor an existing dbt model exists, stop and return an error instead of guessing.
    - Preserve joins, filters, grouping, and write intent from `refactored_sql`.
+   - When the target comes from `catalog/views/` (view or materialized view profile), generate the dbt model with `materialized='view'`. Do not use `ephemeral` for generated view models.
    - For snapshots, use [references/snapshot-generation.md](references/snapshot-generation.md).
 
 4. Run a logical equivalence pass against `refactored_sql`.
@@ -103,7 +108,7 @@ Do not use this skill for batch orchestration. `/generate-model` owns batching, 
    cd "${DBT_PROJECT_PATH:-./dbt}" && dbt test --select <model_name>
    ```
 
-   If the warehouse is unavailable, run `dbt parse` and skip `dbt test`. If compile or test fails for model reasons, revise SQL, re-write, and retry up to 3 total attempts.
+   If the warehouse is unavailable, run `dbt parse` and skip `dbt test`. If parse or compile fails because an in-scope view is unresolved, re-check `_sources.yml` and existing dbt view models before revising the SQL. If compile or test fails for model reasons, revise SQL, re-write, and retry up to 3 total attempts.
 
 9. Add gap tests only after canonical tests pass.
 

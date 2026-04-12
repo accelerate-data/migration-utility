@@ -151,13 +151,17 @@
       "source": "catalog+llm",
       "rationale": "UPDATE expire + INSERT current rows pattern with ValidFrom/ValidTo/IsCurrent columns is classic SCD Type 2."
     },
-    "natural_key": ["EmployeeNaturalKey"],
+    "natural_key": [
+      "EmployeeNaturalKey"
+    ],
     "watermark": {
       "column": "ValidFrom",
       "strategy": "timestamp"
     },
     "primary_key": {
-      "columns": ["EmployeeSCD2Key"],
+      "columns": [
+        "EmployeeSCD2Key"
+      ],
       "primary_key_type": "surrogate",
       "source": "catalog",
       "rationale": "EmployeeSCD2Key is an identity surrogate; EmployeeNaturalKey is the business key."
@@ -169,5 +173,15 @@
     "status": "ok",
     "extracted_sql": "UPDATE tgt SET tgt.ValidTo = GETDATE(), tgt.IsCurrent = 0 FROM silver.DimEmployeeSCD2 AS tgt INNER JOIN bronze.Employee AS src ON tgt.EmployeeNaturalKey = src.NationalIDNumber WHERE tgt.IsCurrent = 1 AND (tgt.JobTitle <> src.JobTitle OR tgt.Department <> src.MaritalStatus);\n\nINSERT INTO silver.DimEmployeeSCD2 (EmployeeNaturalKey, FirstName, LastName, JobTitle, Department, ValidFrom, ValidTo, IsCurrent) SELECT src.NationalIDNumber, SUBSTRING(src.LoginID, CHARINDEX(N'\\', src.LoginID) + 1, 50), src.JobTitle, src.JobTitle, src.MaritalStatus, GETDATE(), CAST('9999-12-31' AS DATETIME2), 1 FROM bronze.Employee AS src LEFT JOIN silver.DimEmployeeSCD2 AS tgt ON src.NationalIDNumber = tgt.EmployeeNaturalKey AND tgt.IsCurrent = 1 WHERE tgt.EmployeeSCD2Key IS NULL",
     "refactored_sql": "with import_employee as (\n    select\n        NationalIDNumber,\n        LoginID,\n        JobTitle,\n        MaritalStatus\n    from [bronze].[Employee]\n),\n\nlogical_new_current_rows as (\n    select\n        src.NationalIDNumber  as EmployeeNaturalKey,\n        substring(src.LoginID, charindex(N'\\', src.LoginID) + 1, 50) as FirstName,\n        src.JobTitle          as LastName,\n        src.JobTitle,\n        src.MaritalStatus     as Department,\n        getdate()             as ValidFrom,\n        cast('9999-12-31' as datetime2) as ValidTo,\n        1                     as IsCurrent\n    from import_employee as src\n    left join [silver].[DimEmployeeSCD2] as tgt\n        on src.NationalIDNumber = tgt.EmployeeNaturalKey\n       and tgt.IsCurrent = 1\n    where tgt.EmployeeSCD2Key is null\n),\n\nfinal as (\n    select * from logical_new_current_rows\n)\n\nselect * from final"
+  },
+  "generate": {
+    "status": "error",
+    "model_path": "dbt/snapshots/dim_employee_scd2.sql",
+    "schema_yml": true,
+    "compiled": true,
+    "tests_passed": true,
+    "test_count": 3,
+    "warnings": [],
+    "errors": []
   }
 }

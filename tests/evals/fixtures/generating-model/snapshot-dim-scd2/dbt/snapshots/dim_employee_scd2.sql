@@ -1,10 +1,9 @@
-{% snapshot dimemployeescd2_snapshot %}
+{% snapshot dim_employee_scd2 %}
 
 {{ config(
-    target_schema='snapshots',
     unique_key='EmployeeNaturalKey',
     strategy='check',
-    check_cols=['JobTitle', 'MaritalStatus'],
+    check_cols=['JobTitle', 'Department']
 ) }}
 
 with import_employee as (
@@ -13,13 +12,13 @@ with import_employee as (
         LoginID,
         JobTitle,
         MaritalStatus
-    from {{ ref('stg_employee') }}
+    from {{ source('bronze', 'employee') }}
 ),
 
-logical_employee_transformed as (
+logical_transform as (
     select
         src.NationalIDNumber as EmployeeNaturalKey,
-        substring(src.LoginID, charindex('\\', src.LoginID) + 1, 50) as FirstName,
+        substring(src.LoginID, charindex('\', src.LoginID) + 1, 50) as FirstName,
         src.JobTitle as LastName,
         src.JobTitle,
         src.MaritalStatus as Department
@@ -27,7 +26,7 @@ logical_employee_transformed as (
 ),
 
 final as (
-    select * from logical_employee_transformed
+    select * from logical_transform
 )
 
 select * from final

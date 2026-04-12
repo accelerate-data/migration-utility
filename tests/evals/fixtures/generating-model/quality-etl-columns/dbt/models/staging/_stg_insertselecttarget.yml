@@ -1,0 +1,78 @@
+version: 2
+models:
+- name: stg_insertselecttarget
+  description: Staging model for InsertSelectTarget table
+  columns:
+  - name: ProductAlternateKey
+    description: Product alternate key (cast from ProductID)
+    data_type: nvarchar(25)
+    tests:
+    - unique
+    - not_null
+  - name: EnglishProductName
+    description: Product name from source
+    data_type: nvarchar(50)
+    tests:
+    - not_null
+  unit_tests:
+  - name: test_insert_select_single_row
+    model: stg_insertselecttarget
+    given:
+    - input: source('[bronze]', '[Product]')
+      rows:
+      - ProductID: 1
+        ProductName: Road-150
+        ProductNumber: PR-001
+        MakeFlag: 1
+        FinishedGoodsFlag: 1
+        SafetyStockLevel: 100
+        ReorderPoint: 75
+        StandardCost: 10.0
+        ListPrice: 25.0
+        DaysToManufacture: 1
+        SellStartDate: '2024-01-01'
+        ModifiedDate: '2024-01-01'
+    expect:
+      rows:
+      - ProductAlternateKey: '1'
+        EnglishProductName: Road-150
+  - name: test_insert_select_multiple_rows
+    model: stg_insertselecttarget
+    given:
+    - input: source('[bronze]', '[Product]')
+      rows:
+      - ProductID: 1
+        ProductName: Road-150
+        ProductNumber: PR-001
+        MakeFlag: 1
+        FinishedGoodsFlag: 1
+        SafetyStockLevel: 100
+        ReorderPoint: 75
+        StandardCost: 10.0
+        ListPrice: 25.0
+        DaysToManufacture: 1
+        SellStartDate: '2024-01-01'
+        ModifiedDate: '2024-01-01'
+      - ProductID: 2
+        ProductName: Mountain-200
+        ProductNumber: PR-002
+        MakeFlag: 1
+        FinishedGoodsFlag: 1
+        SafetyStockLevel: 100
+        ReorderPoint: 75
+        StandardCost: 20.0
+        ListPrice: 45.0
+        DaysToManufacture: 2
+        SellStartDate: '2024-02-01'
+        ModifiedDate: '2024-02-01'
+    expect:
+      rows:
+      - ProductAlternateKey: '1'
+        EnglishProductName: Road-150
+      - ProductAlternateKey: '2'
+        EnglishProductName: Mountain-200
+  - name: test_empty_source_returns_no_rows
+    model: stg_insertselecttarget
+    given:
+    - input: source('[bronze]', '[Product]')
+      rows: []

@@ -171,3 +171,15 @@ tests:
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
+
+  # ── view materialization ────────────────────────────────────
+  - description: "view-materialization — generated view model is materialized as view"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-generate-model/view-materialization"
+      target_tables: "silver.vw_activecustomers"
+      target_table: "silver.vw_activecustomers"
+      expected_item_statuses: '{"silver.vw_activecustomers": "ok,partial"}'
+      expected_model_terms: "materialized='view',source("
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-dbt-model.js

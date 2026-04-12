@@ -1,0 +1,382 @@
+version: 2
+models:
+- name: dim_product
+  description: Silver layer dimension table for products (SCD1 merge pattern)
+  columns:
+  - name: ProductAlternateKey
+    description: Business key for the product (Product ID from source system)
+    data_type: nvarchar(25)
+    tests:
+    - relationships:
+        to: source('bronze', 'product')
+        field: ProductID
+  - name: EnglishProductName
+    description: Product name (translated from source ProductName)
+    data_type: nvarchar(50)
+    tests:
+    - not_null
+  - name: StandardCost
+    description: Standard cost of the product
+    data_type: money
+  - name: ListPrice
+    description: List price of the product
+    data_type: money
+  - name: Color
+    description: Product color (defaults to empty string if null)
+    data_type: nvarchar(15)
+    tests:
+    - not_null
+  - name: Size
+    description: Product size
+    data_type: nvarchar(50)
+  - name: ProductLine
+    description: Product line code
+    data_type: nchar(2)
+  - name: Class
+    description: Product class code
+    data_type: nchar(2)
+  - name: Style
+    description: Product style code
+    data_type: nchar(2)
+  - name: StartDate
+    description: Product start date (SellStartDate from source)
+    data_type: datetime
+  - name: EndDate
+    description: Product end date (SellEndDate from source)
+    data_type: datetime
+  - name: Status
+    description: 'Product status determined by source dates:
+
+      - Current: both SellEndDate and DiscontinuedDate are NULL
+
+      - Outdated: SellEndDate is not NULL but DiscontinuedDate is NULL
+
+      - Obsolete: DiscontinuedDate is not NULL
+
+      '
+    data_type: nvarchar(10)
+  unit_tests:
+  - name: test_status_current_when_active_product
+    model: dim_product
+    given:
+    - input: source('[bronze]', '[Product]')
+      rows:
+      - ProductID: 1
+        ProductName: Road-150
+        ProductNumber: PR-001
+        MakeFlag: 1
+        FinishedGoodsFlag: 1
+        SafetyStockLevel: 100
+        ReorderPoint: 75
+        StandardCost: 10.0
+        ListPrice: 25.0
+        Color: Red
+        Size: M
+        ProductLine: R
+        Class: H
+        Style: U
+        DaysToManufacture: 1
+        SellStartDate: '2024-01-01'
+        SellEndDate: null
+        DiscontinuedDate: null
+        ModifiedDate: '2024-01-01'
+    expect:
+      rows:
+      - ProductAlternateKey: '1'
+        EnglishProductName: Road-150
+        StandardCost: 10.0
+        ListPrice: 25.0
+        Color: Red
+        Size: M
+        ProductLine: R
+        Class: H
+        Style: U
+        StartDate: '2024-01-01'
+        EndDate: null
+        Status: Current
+  - name: test_status_obsolete_when_discontinued
+    model: dim_product
+    given:
+    - input: source('[bronze]', '[Product]')
+      rows:
+      - ProductID: 2
+        ProductName: Mountain-200
+        ProductNumber: PR-002
+        MakeFlag: 1
+        FinishedGoodsFlag: 1
+        SafetyStockLevel: 100
+        ReorderPoint: 75
+        StandardCost: 20.0
+        ListPrice: 45.0
+        Color: Blue
+        Size: L
+        ProductLine: M
+        Class: M
+        Style: U
+        DaysToManufacture: 2
+        SellStartDate: '2024-02-01'
+        SellEndDate: null
+        DiscontinuedDate: '2024-03-15'
+        ModifiedDate: '2024-02-01'
+    expect:
+      rows:
+      - ProductAlternateKey: '2'
+        EnglishProductName: Mountain-200
+        StandardCost: 20.0
+        ListPrice: 45.0
+        Color: Blue
+        Size: L
+        ProductLine: M
+        Class: M
+        Style: U
+        StartDate: '2024-02-01'
+        EndDate: null
+        Status: Obsolete
+  - name: test_status_outdated_when_sell_end_present
+    model: dim_product
+    given:
+    - input: source('[bronze]', '[Product]')
+      rows:
+      - ProductID: 3
+        ProductName: Touring-300
+        ProductNumber: PR-003
+        MakeFlag: 1
+        FinishedGoodsFlag: 1
+        SafetyStockLevel: 100
+        ReorderPoint: 75
+        StandardCost: 15.0
+        ListPrice: 30.0
+        Color: Green
+        Size: S
+        ProductLine: T
+        Class: L
+        Style: W
+        DaysToManufacture: 1
+        SellStartDate: '2023-05-01'
+        SellEndDate: '2024-01-31'
+        DiscontinuedDate: null
+        ModifiedDate: '2023-05-01'
+    expect:
+      rows:
+      - ProductAlternateKey: '3'
+        EnglishProductName: Touring-300
+        StandardCost: 15.0
+        ListPrice: 30.0
+        Color: Green
+        Size: S
+        ProductLine: T
+        Class: L
+        Style: W
+        StartDate: '2023-05-01'
+        EndDate: '2024-01-31'
+        Status: Outdated
+  - name: test_color_defaults_to_empty_string_when_null
+    model: dim_product
+    given:
+    - input: source('[bronze]', '[Product]')
+      rows:
+      - ProductID: 4
+        ProductName: Helmet-400
+        ProductNumber: PR-004
+        MakeFlag: 0
+        FinishedGoodsFlag: 1
+        SafetyStockLevel: 100
+        ReorderPoint: 75
+        StandardCost: 5.0
+        ListPrice: 12.0
+        Color: null
+        Size: XS
+        ProductLine: A
+        Class: E
+        Style: U
+        DaysToManufacture: 0
+        SellStartDate: '2024-04-01'
+        SellEndDate: null
+        DiscontinuedDate: null
+        ModifiedDate: '2024-04-01'
+    expect:
+      rows:
+      - ProductAlternateKey: '4'
+        EnglishProductName: Helmet-400
+        StandardCost: 5.0
+        ListPrice: 12.0
+        Color: ''
+        Size: XS
+        ProductLine: A
+        Class: E
+        Style: U
+        StartDate: '2024-04-01'
+        EndDate: null
+        Status: Current
+  - name: test_empty_source_returns_no_rows
+    model: dim_product
+    given:
+    - input: source('[bronze]', '[Product]')
+      rows: []
+unit_tests:
+- name: test_status_current_when_active_product
+  description: Status is 'Current' when both SellEndDate and DiscontinuedDate are
+    NULL
+  model: dim_product
+  given:
+  - input: source('bronze', 'product')
+    rows:
+    - ProductID: 1
+      ProductName: Road-150
+      ProductNumber: PR-001
+      MakeFlag: 1
+      FinishedGoodsFlag: 1
+      SafetyStockLevel: 100
+      ReorderPoint: 75
+      StandardCost: 10.0
+      ListPrice: 25.0
+      Color: Red
+      Size: M
+      ProductLine: R
+      Class: H
+      Style: U
+      DaysToManufacture: 1
+      SellStartDate: 2024-01-01
+      SellEndDate: null
+      DiscontinuedDate: null
+      ModifiedDate: 2024-01-01
+  expect:
+    rows:
+    - ProductAlternateKey: '1'
+      EnglishProductName: Road-150
+      StandardCost: 10.0
+      ListPrice: 25.0
+      Color: Red
+      Size: M
+      ProductLine: R
+      Class: H
+      Style: U
+      StartDate: 2024-01-01
+      EndDate: null
+      Status: Current
+- name: test_status_obsolete_when_discontinued
+  description: Status is 'Obsolete' when DiscontinuedDate is not NULL
+  model: dim_product
+  given:
+  - input: source('bronze', 'product')
+    rows:
+    - ProductID: 2
+      ProductName: Mountain-200
+      ProductNumber: PR-002
+      MakeFlag: 1
+      FinishedGoodsFlag: 1
+      SafetyStockLevel: 100
+      ReorderPoint: 75
+      StandardCost: 20.0
+      ListPrice: 45.0
+      Color: Blue
+      Size: L
+      ProductLine: M
+      Class: M
+      Style: U
+      DaysToManufacture: 2
+      SellStartDate: 2024-02-01
+      SellEndDate: null
+      DiscontinuedDate: 2024-03-15
+      ModifiedDate: 2024-02-01
+  expect:
+    rows:
+    - ProductAlternateKey: '2'
+      EnglishProductName: Mountain-200
+      StandardCost: 20.0
+      ListPrice: 45.0
+      Color: Blue
+      Size: L
+      ProductLine: M
+      Class: M
+      Style: U
+      StartDate: 2024-02-01
+      EndDate: null
+      Status: Obsolete
+- name: test_status_outdated_when_sell_end_present
+  description: Status is 'Outdated' when SellEndDate is not NULL but DiscontinuedDate
+    is NULL
+  model: dim_product
+  given:
+  - input: source('bronze', 'product')
+    rows:
+    - ProductID: 3
+      ProductName: Touring-300
+      ProductNumber: PR-003
+      MakeFlag: 1
+      FinishedGoodsFlag: 1
+      SafetyStockLevel: 100
+      ReorderPoint: 75
+      StandardCost: 15.0
+      ListPrice: 30.0
+      Color: Green
+      Size: S
+      ProductLine: T
+      Class: L
+      Style: W
+      DaysToManufacture: 1
+      SellStartDate: 2023-05-01
+      SellEndDate: 2024-01-31
+      DiscontinuedDate: null
+      ModifiedDate: 2023-05-01
+  expect:
+    rows:
+    - ProductAlternateKey: '3'
+      EnglishProductName: Touring-300
+      StandardCost: 15.0
+      ListPrice: 30.0
+      Color: Green
+      Size: S
+      ProductLine: T
+      Class: L
+      Style: W
+      StartDate: 2023-05-01
+      EndDate: 2024-01-31
+      Status: Outdated
+- name: test_color_defaults_to_empty_string_when_null
+  description: Color defaults to empty string when null in source
+  model: dim_product
+  given:
+  - input: source('bronze', 'product')
+    rows:
+    - ProductID: 4
+      ProductName: Helmet-400
+      ProductNumber: PR-004
+      MakeFlag: 0
+      FinishedGoodsFlag: 1
+      SafetyStockLevel: 100
+      ReorderPoint: 75
+      StandardCost: 5.0
+      ListPrice: 12.0
+      Color: null
+      Size: XS
+      ProductLine: A
+      Class: E
+      Style: U
+      DaysToManufacture: 0
+      SellStartDate: 2024-04-01
+      SellEndDate: null
+      DiscontinuedDate: null
+      ModifiedDate: 2024-04-01
+  expect:
+    rows:
+    - ProductAlternateKey: '4'
+      EnglishProductName: Helmet-400
+      StandardCost: 5.0
+      ListPrice: 12.0
+      Color: ''
+      Size: XS
+      ProductLine: A
+      Class: E
+      Style: U
+      StartDate: 2024-04-01
+      EndDate: null
+      Status: Current
+- name: test_empty_source_returns_no_rows
+  description: Empty source returns no rows in target
+  model: dim_product
+  given:
+  - input: source('bronze', 'product')
+    rows: []
+  expect:
+    rows: []

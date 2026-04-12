@@ -76,5 +76,15 @@
     },
     "foreign_keys": [],
     "pii_actions": []
+  },
+  "generate": {
+    "status": "ok",
+    "model_path": "models/staging/stg_insertselecttarget.sql",
+    "schema_yml": true,
+    "compiled": true,
+    "tests_passed": true,
+    "test_count": 3,
+    "warnings": [],
+    "errors": []
   }
 }

@@ -1,0 +1,1 @@
+-- View-generation fixture. The refactored SQL is sourced from catalog/views/.

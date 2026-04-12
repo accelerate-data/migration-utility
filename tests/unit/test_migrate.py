@@ -109,6 +109,14 @@ class TestDeriveMaterialization:
         profile = {"classification": {"resolved_kind": "fact_periodic_snapshot"}}
         assert derive_materialization(profile) == "table"
 
+    def test_view_profile_stg_returns_view(self) -> None:
+        profile = {"classification": "stg"}
+        assert derive_materialization(profile) == "view"
+
+    def test_view_profile_mart_returns_view(self) -> None:
+        profile = {"classification": "mart"}
+        assert derive_materialization(profile) == "view"
+
 
 # ── derive_schema_tests ──────────────────────────────────────────────────────
 
@@ -639,6 +647,7 @@ class TestRunContextViewSources:
         # Every source_table has an entry in source_columns (may be empty)
         for fqn in result.source_tables:
             assert fqn in result.source_columns
+
 
 
 # ── run_write ─────────────────────────────────────────────────────────────────

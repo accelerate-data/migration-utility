@@ -64,3 +64,19 @@ tests:
     assert:
       - type: javascript
         value: file://../../assertions/check-dbt-model.js
+
+  - description: "proc-using-view-ref — downstream model refs migrated view model"
+    vars:
+      fixture_path: "tests/evals/fixtures/generating-model/proc-using-view-ref"
+      target_table: "silver.DimCustomerFromView"
+      writer: "silver.usp_load_DimCustomerFromView"
+      expected_model_terms: "ref('stg_vw_activecustomers')"
+      forbidden_model_terms: "source('silver', 'vw_activecustomers')"
+      expected_yaml_terms: "version: 2,description"
+      expected_stg_files: "stg_vw_activecustomers"
+      expected_stg_terms: "materialized='view'"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-dbt-model.js
+      - type: javascript
+        value: file://../../assertions/check-dbt-parse.js

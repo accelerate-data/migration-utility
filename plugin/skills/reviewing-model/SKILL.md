@@ -65,7 +65,7 @@ Verify:
 - `UPDATE ... FROM` rewrites preserve target-row retention semantics; if the original routine updates existing target rows and leaves unmatched target rows unchanged, a source-driven full refresh that drops those rows is a correctness gap
 - if the original routine updates an existing target table but the reviewed model never reads that target relation, treat that as a likely `REVIEW_CORRECTNESS_GAP` unless the procedure is clearly full-refresh replacement logic
 - incremental logic matches MERGE intent where applicable
-- model materialization matches the derived profile
+- model materialization matches the derived profile; for view and materialized-view profiles (`classification: stg|mart`), the generated dbt model must materialize as `view`, not `ephemeral`
 
 Use `REVIEW_CORRECTNESS_GAP` in `checks.correctness.issues[]` for any correctness failure.
 

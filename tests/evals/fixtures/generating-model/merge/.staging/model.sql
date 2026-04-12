@@ -47,7 +47,7 @@ final as (
         StartDate,
         EndDate,
         Status,
-        {{ invocation_id }} as _dbt_run_id,
+        {{ invocation_id() }} as _dbt_run_id,
         current_timestamp() as _loaded_at
     from prepared_product
 )

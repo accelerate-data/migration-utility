@@ -1,0 +1,95 @@
+{
+  "schema": "silver",
+  "name": "vw_activecustomers",
+  "is_materialized_view": false,
+  "columns": [
+    {
+      "name": "CustomerID",
+      "data_type": "INT",
+      "is_nullable": false
+    },
+    {
+      "name": "FirstName",
+      "data_type": "NVARCHAR(50)",
+      "is_nullable": true
+    },
+    {
+      "name": "LastName",
+      "data_type": "NVARCHAR(50)",
+      "is_nullable": true
+    }
+  ],
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "bronze",
+          "name": "CustomerRaw",
+          "is_selected": true,
+          "is_updated": false
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "scoping": {
+    "status": "analyzed"
+  },
+  "profile": {
+    "status": "ok",
+    "classification": "stg",
+    "rationale": "Single-source filtered customer lookup view.",
+    "source": "llm"
+  },
+  "test_gen": {
+    "status": "ok"
+  },
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT CustomerID, FirstName, LastName FROM [bronze].[CustomerRaw] WHERE IsActive = 1",
+    "refactored_sql": "with source_customerraw as (\n    select * from [bronze].[CustomerRaw]\n),\n\nactive_customers as (\n    select\n        CustomerID,\n        FirstName,\n        LastName\n    from source_customerraw\n    where IsActive = 1\n),\n\nfinal as (\n    select\n        CustomerID,\n        FirstName,\n        LastName\n    from active_customers\n)\n\nselect * from final"
+  },
+  "generate": {
+    "status": "ok",
+    "model_path": "models/staging/stg_vw_activecustomers.sql",
+    "schema_yml": true,
+    "compiled": true,
+    "tests_passed": true,
+    "test_count": 2,
+    "warnings": [
+      {
+        "code": "DBT_TEST_FAILED",
+        "message": "Schema tests (unique, not_null on CustomerID) errored with 42S02: view not materialized in eval environment. Compile passed; model SQL is valid.",
+        "item_id": "silver.vw_activecustomers",
+        "severity": "warning"
+      }
+    ],
+    "errors": []
+  }
+}

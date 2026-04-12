@@ -2,32 +2,40 @@ version: 2
 
 models:
   - name: dim_product
-    description: "Migrated from silver.usp_load_dimproduct. Target: silver.DimProduct."
+    description: "Silver layer dimension table for products (SCD1 merge pattern)"
     columns:
       - name: ProductAlternateKey
-        description: "Product natural key (ProductID from source)"
+        description: "Business key for the product (Product ID from source system)"
       - name: EnglishProductName
-        description: "Product name"
+        description: "Product name (translated from source ProductName)"
+        tests:
+          - not_null
       - name: StandardCost
         description: "Standard cost of the product"
       - name: ListPrice
         description: "List price of the product"
       - name: Color
-        description: "Product color"
+        description: "Product color (defaults to empty string if null)"
+        tests:
+          - not_null
       - name: Size
         description: "Product size"
       - name: ProductLine
-        description: "Product line category"
+        description: "Product line code"
       - name: Class
-        description: "Product class"
+        description: "Product class code"
       - name: Style
-        description: "Product style"
+        description: "Product style code"
       - name: StartDate
-        description: "Product start date"
+        description: "Product start date (SellStartDate from source)"
       - name: EndDate
-        description: "Product end date"
+        description: "Product end date (SellEndDate from source)"
       - name: Status
-        description: "Product status (Current, Obsolete, or Outdated)"
+        description: |
+          Product status determined by source dates:
+          - Current: both SellEndDate and DiscontinuedDate are NULL
+          - Outdated: SellEndDate is not NULL but DiscontinuedDate is NULL
+          - Obsolete: DiscontinuedDate is not NULL
 
     unit_tests:
       - name: test_status_current_when_active_product
@@ -185,3 +193,11 @@ models:
               StartDate: "2024-04-01"
               EndDate: null
               Status: "Current"
+
+      - name: test_empty_source_returns_no_rows
+        model: dim_product
+        given:
+          - input: source('bronze', 'product')
+            rows: []
+        expect:
+          rows: []

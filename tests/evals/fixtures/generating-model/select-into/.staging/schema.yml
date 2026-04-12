@@ -1,7 +1,7 @@
 version: 2
 models:
-- name: stg_selectintotarget
-  description: Dimension table containing product information populated via SELECT INTO from bronze.product
+- name: select_into_target
+  description: Dimension table containing product information populated via SELECT INTO from bronze.Product
   columns:
   - name: ProductAlternateKey
     description: NVARCHAR(25) product key, cast from ProductID
@@ -14,9 +14,9 @@ models:
     data_type: string
   unit_tests:
   - name: test_selectinto_rows_present_populates_target
-    model: stg_selectintotarget
+    model: select_into_target
     given:
-    - input: source('bronze', 'product')
+    - input: source('[bronze]', '[Product]')
       rows:
       - ProductName: Mountain Bike
         ProductNumber: MB-001
@@ -30,7 +30,7 @@ models:
         SellStartDate: '2020-01-01'
         ModifiedDate: '2023-06-01'
   - name: test_selectinto_empty_source_no_rows
-    model: stg_selectintotarget
+    model: select_into_target
     given:
-    - input: source('bronze', 'product')
+    - input: source('[bronze]', '[Product]')
       rows: []
