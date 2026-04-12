@@ -177,7 +177,6 @@
     "selected_writer": "silver.usp_load_DimProduct"
   },
   "profile": {
-    "writer": "silver.usp_load_dimproduct",
     "classification": {
       "resolved_kind": "dim_scd1",
       "source": "llm",

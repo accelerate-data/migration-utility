@@ -2,17 +2,50 @@
   "schema": "silver",
   "name": "dimproduct",
   "columns": [
-    { "name": "ProductKey", "sql_type": "INT", "is_nullable": false, "is_identity": true },
-    { "name": "EnglishProductName", "sql_type": "NVARCHAR(50)", "is_nullable": false, "is_identity": false },
-    { "name": "Status", "sql_type": "NVARCHAR(10)", "is_nullable": true, "is_identity": false },
-    { "name": "ListPrice", "sql_type": "MONEY", "is_nullable": true, "is_identity": false }
+    {
+      "name": "ProductKey",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": true
+    },
+    {
+      "name": "EnglishProductName",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "Status",
+      "sql_type": "NVARCHAR(10)",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "ListPrice",
+      "sql_type": "MONEY",
+      "is_nullable": true,
+      "is_identity": false
+    }
   ],
-  "primary_keys": ["ProductKey"],
-  "auto_increment_columns": ["ProductKey"],
+  "primary_keys": [
+    "ProductKey"
+  ],
+  "auto_increment_columns": [
+    "ProductKey"
+  ],
   "foreign_keys": [],
   "referenced_by": {
-    "procedures": { "in_scope": [], "out_of_scope": [] },
-    "views": { "in_scope": [], "out_of_scope": [] },
-    "functions": { "in_scope": [], "out_of_scope": [] }
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
   }
 }

@@ -149,7 +149,6 @@
     "selected_writer": "silver.usp_load_FactOrderFulfillment"
   },
   "profile": {
-    "writer": "silver.usp_load_FactOrderFulfillment",
     "classification": {
       "resolved_kind": "fact_accumulating_snapshot",
       "rationale": "Procedure performs INSERT to populate initial milestone (OrderDate) with ShipDate, DeliveryDate, InvoiceDate nullable. Sequential UPDATE blocks then advance each milestone date column via WHERE col IS NULL AND source IS NOT NULL pattern. Matches all primary signals for accumulating snapshot per accumulating-snapshot-classification.md.",

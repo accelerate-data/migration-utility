@@ -74,7 +74,6 @@
   },
   "profile": {
     "status": "ok",
-    "writer": "sh.summarize_channel_sales",
     "classification": {
       "resolved_kind": "fact_aggregate",
       "source": "llm",

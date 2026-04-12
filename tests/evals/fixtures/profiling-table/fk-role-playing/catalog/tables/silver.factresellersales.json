@@ -221,7 +221,6 @@
     "selected_writer": "silver.usp_load_FactResellerSales"
   },
   "profile": {
-    "writer": "silver.usp_load_FactResellerSales",
     "classification": {
       "resolved_kind": "fact_transaction",
       "source": "llm",

@@ -110,7 +110,6 @@
     "selected_writer": "silver.usp_load_FactProductSalesDelta"
   },
   "profile": {
-    "writer": "silver.usp_load_FactProductSalesDelta",
     "classification": {
       "resolved_kind": "fact_transaction",
       "rationale": "Pure INSERT pattern with identity surrogate key and fact table structure (foreign key references and measure columns); incremental load driven by ModifiedDate watermark.",

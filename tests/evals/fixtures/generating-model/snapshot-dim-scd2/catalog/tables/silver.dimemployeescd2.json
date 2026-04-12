@@ -144,20 +144,23 @@
   },
   "profile": {
     "status": "ok",
-    "writer": "silver.usp_load_DimEmployeeSCD2",
     "classification": {
       "resolved_kind": "dim_scd2",
       "confidence": "high",
       "source": "catalog+llm",
       "rationale": "UPDATE expire + INSERT current rows pattern with ValidFrom/ValidTo/IsCurrent columns is classic SCD Type 2."
     },
-    "natural_key": ["EmployeeNaturalKey"],
+    "natural_key": [
+      "EmployeeNaturalKey"
+    ],
     "watermark": {
       "column": "ValidFrom",
       "strategy": "timestamp"
     },
     "primary_key": {
-      "columns": ["EmployeeSCD2Key"],
+      "columns": [
+        "EmployeeSCD2Key"
+      ],
       "primary_key_type": "surrogate",
       "source": "catalog",
       "rationale": "EmployeeSCD2Key is an identity surrogate; EmployeeNaturalKey is the business key."

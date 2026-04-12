@@ -47,7 +47,6 @@
   },
   "profile": {
     "status": "ok",
-    "writer": "silver.usp_scope_ExecVariable",
     "classification": {
       "resolved_kind": "fact_insert",
       "source": "manual",

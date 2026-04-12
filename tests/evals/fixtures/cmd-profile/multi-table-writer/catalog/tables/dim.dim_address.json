@@ -144,7 +144,6 @@
   },
   "profile": {
     "status": "ok",
-    "writer": "dbo.usp_load_dim_address_and_credit_card",
     "classification": {
       "resolved_kind": "dim_scd2",
       "source": "llm",

@@ -143,7 +143,6 @@
     "selected_writer": "silver.usp_load_DimEmployeeSCD2"
   },
   "profile": {
-    "writer": "silver.usp_load_factinventorysnapshot",
     "classification": {
       "resolved_kind": "fact_periodic_snapshot",
       "source": "catalog+llm",

@@ -110,7 +110,6 @@
     "selected_writer": "silver.usp_load_DimSalesFlags"
   },
   "profile": {
-    "writer": "silver.usp_load_DimSalesFlags",
     "classification": {
       "resolved_kind": "dim_junk",
       "rationale": "Multiple low-cardinality BIT flag columns (IsOnlineOrder, IsRushShipment, IsGiftWrapped, IsDiscounted, IsReturnable) representing distinct dimensions of a fact grain. Procedure inserts all combinations via TRUNCATE+INSERT cross-join pattern with no updates.",

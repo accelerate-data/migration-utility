@@ -207,7 +207,6 @@
     "selected_writer_rationale": "Stage procedure is the direct writer for FactInternetSales."
   },
   "profile": {
-    "writer": "silver.usp_stage_FactInternetSales",
     "classification": {
       "resolved_kind": "fact_transaction",
       "source": "llm",

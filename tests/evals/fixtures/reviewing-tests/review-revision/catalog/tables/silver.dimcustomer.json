@@ -193,7 +193,6 @@
   },
   "profile": {
     "status": "ok",
-    "writer": "silver.usp_load_DimCustomer_Full",
     "classification": {
       "resolved_kind": "dim_non_scd",
       "source": "catalog+llm",
@@ -216,10 +215,6 @@
     },
     "foreign_keys": [],
     "pii_actions": []
-  },
-  "scoping": {
-    "status": "resolved",
-    "selected_writer": "silver.usp_load_DimCustomer_Full"
   },
   "refactor": {
     "status": "ok",

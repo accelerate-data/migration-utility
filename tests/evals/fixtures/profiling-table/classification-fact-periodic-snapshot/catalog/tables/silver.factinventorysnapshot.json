@@ -123,7 +123,6 @@
     "selected_writer": "silver.usp_load_FactInventorySnapshot"
   },
   "profile": {
-    "writer": "silver.usp_load_FactInventorySnapshot",
     "classification": {
       "resolved_kind": "fact_periodic_snapshot",
       "rationale": "Single SnapshotDate column with composite grain (ProductKey, WarehouseKey, SnapshotDate)—one row per product per warehouse per day. Measures are inventory balance/stock values (UnitsOnHand, ReorderPoint, UnitCost), semi-additive across time. Procedure executes daily full refresh (DELETE for today + INSERT today's snapshot) from Product dimension table, characteristic of periodic snapshot pattern.",
