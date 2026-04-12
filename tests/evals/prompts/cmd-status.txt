@@ -1,5 +1,10 @@
 You are running in a DDL project directory at {{fixture_path}}.
 
+{% if prior_status_context %}
+A prior `/status` run happened earlier in this same session. {{prior_status_context}}
+Do not reuse or summarize that earlier output. Re-run the CLI commands against the current fixture state and base the answer only on the fresh results from this run.
+{% endif %}
+
 {% if target_table %}
 Run /status for table {{target_table}}.
 {% else %}

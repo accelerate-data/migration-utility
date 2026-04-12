@@ -35,6 +35,8 @@ Extract item IDs from filenames (strip `.json` suffix). Track which FQNs came fr
 
 ### Step 2 — Collect status per object
 
+Do not reuse any JSON or summary from an earlier `/status` invocation in this session. Even if the user just ran `/status`, execute this step again now and use only the fresh CLI output below.
+
 Run a single status call for all objects:
 
 ```bash
@@ -92,6 +94,8 @@ Map the status values to table cells:
 - Writerless table (`scoping.status == "no_writer_found"`) -- `N/A` for all stages after scope
 
 ### Step 3 — Sync exclusion warnings and run batch planner
+
+Do not reuse a prior `batch-plan` result from the same conversation. Execute both commands in this step fresh every time `/status` runs.
 
 First, sync EXCLUDED_DEP catalog warnings so that any active objects depending on excluded objects have up-to-date warnings, and any stale warnings are cleared:
 
@@ -310,6 +314,8 @@ If one or more `STALE_OBJECT` entries are present:
 ## Pipeline — With table argument (detailed)
 
 ### Step 1 — Collect detailed status
+
+Do not reuse any JSON or stage summary from an earlier `/status` invocation in this session. Even if the same table was requested earlier, execute both commands in this step again now and use only the fresh CLI output below.
 
 Run the batch planner to get the node for this specific table (for diagnostics):
 
