@@ -165,29 +165,29 @@
   "refactor": {
     "status": "partial",
     "extracted_sql": "SELECT CAST(c.CustomerID AS NVARCHAR(15)) AS CustomerAlternateKey, p.FirstName, p.MiddleName, p.LastName, p.Title, NULL AS Gender, NULL AS MaritalStatus, p.EmailPromotion, CAST(h.MinOrderDate AS DATE) AS DateFirstPurchase FROM bronze.Customer c JOIN bronze.Person p ON c.PersonID = p.BusinessEntityID OUTER APPLY ( SELECT MIN(OrderDate) AS MinOrderDate FROM bronze.SalesOrderHeader sh WHERE sh.CustomerID = c.CustomerID ) h",
-    "refactored_sql": "WITH import_customers AS ( SELECT CustomerID, PersonID FROM bronze.Customer ), import_persons AS ( SELECT BusinessEntityID, FirstName, MiddleName, LastName, Title, EmailPromotion FROM bronze.Person ), import_orders AS ( SELECT CustomerID, OrderDate FROM bronze.SalesOrderHeader ), logical_customer_first_purchase AS ( SELECT CustomerID, MIN(OrderDate) AS MinOrderDate FROM import_orders GROUP BY CustomerID ), logical_customer_person_join AS ( SELECT c.CustomerID, p.FirstName, p.MiddleName, p.LastName, p.Title, p.EmailPromotion, cfp.MinOrderDate FROM import_customers c JOIN import_persons p ON c.PersonID = p.BusinessEntityID LEFT JOIN logical_customer_first_purchase cfp ON c.CustomerID = cfp.CustomerID ), final AS ( SELECT CAST(CustomerID AS NVARCHAR(15)) AS CustomerAlternateKey, FirstName, MiddleName, LastName, Title, NULL AS Gender, NULL AS MaritalStatus, EmailPromotion, CAST(MinOrderDate AS DATE) AS DateFirstPurchase FROM logical_customer_person_join ) SELECT * FROM final",
+    "refactored_sql": "WITH import AS ( SELECT c.CustomerID, c.PersonID, p.FirstName, p.MiddleName, p.LastName, p.Title, p.EmailPromotion, h.MinOrderDate FROM bronze.Customer c JOIN bronze.Person p ON c.PersonID = p.BusinessEntityID LEFT JOIN ( SELECT CustomerID, MIN(OrderDate) AS MinOrderDate FROM bronze.SalesOrderHeader GROUP BY CustomerID ) h ON c.CustomerID = h.CustomerID ), logical AS ( SELECT CAST(CustomerID AS NVARCHAR(15)) AS CustomerAlternateKey, FirstName, MiddleName, LastName, Title, CAST(NULL AS NVARCHAR(1)) AS Gender, CAST(NULL AS NCHAR(1)) AS MaritalStatus, EmailPromotion, CAST(MinOrderDate AS DATE) AS DateFirstPurchase FROM import ), final AS ( SELECT CustomerAlternateKey, FirstName, MiddleName, LastName, Title, Gender, MaritalStatus, EmailPromotion, DateFirstPurchase FROM logical ) SELECT * FROM final",
     "semantic_review": {
       "passed": true,
       "checks": {
         "source_tables": {
           "passed": true,
-          "summary": "Both queries access bronze.Customer, bronze.Person, and bronze.SalesOrderHeader identically."
+          "summary": "Refactored SQL uses the same source tables as extracted: bronze.Customer, bronze.Person, and bronze.SalesOrderHeader. No tables added or removed."
         },
         "output_columns": {
           "passed": true,
-          "summary": "Both produce the exact same nine columns (CustomerAlternateKey, FirstName, MiddleName, LastName, Title, Gender, MaritalStatus, EmailPromotion, DateFirstPurchase) with matching data types and NULL values in the same positions."
+          "summary": "All 9 output columns match exactly: CustomerAlternateKey, FirstName, MiddleName, LastName, Title, Gender, MaritalStatus, EmailPromotion, DateFirstPurchase. Column order and casts are preserved."
         },
         "joins": {
           "passed": true,
-          "summary": "The OUTER APPLY is correctly converted to a LEFT JOIN with explicit CTE-based aggregation. Customer-Person INNER JOIN on PersonID/BusinessEntityID is preserved."
+          "summary": "Refactored SQL preserves join semantics. Extracted uses OUTER APPLY with correlated subquery to find MIN(OrderDate) per customer; refactored uses semantically equivalent LEFT JOIN with GROUP BY subquery. Both produce one row per customer from bronze.Customer."
         },
         "filters": {
           "passed": true,
-          "summary": "Neither query applies WHERE filters—both retrieve all matching rows."
+          "summary": "Both SQLs apply identical filtering: JOIN bronze.Customer to bronze.Person on PersonID, and OUTER APPLY/LEFT JOIN to find min order date. No filters are added or removed."
         },
         "aggregation_grain": {
           "passed": true,
-          "summary": "Both compute MIN(OrderDate) per CustomerID with identical granularity. The extracted query's implicit per-customer grouping in the OUTER APPLY is explicitly defined via GROUP BY CustomerID in the refactored version."
+          "summary": "Aggregation grain is consistent at customer level. Both extracted and refactored SQLs group results to one row per customer with minimum order date. NULL handling for Gender and MaritalStatus is preserved as literal NULLs."
         }
       },
       "issues": []
