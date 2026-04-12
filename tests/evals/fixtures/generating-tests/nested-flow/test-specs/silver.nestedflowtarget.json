@@ -45,7 +45,7 @@
   "unit_tests": [
     {
       "name": "test_full_load_single_product",
-      "model": "stg_nestedflowtarget",
+      "model": "nestedflowtarget",
       "given": [
         {
           "table": "[bronze].[Product]",
@@ -93,7 +93,7 @@
     },
     {
       "name": "test_full_load_multiple_products",
-      "model": "stg_nestedflowtarget",
+      "model": "nestedflowtarget",
       "given": [
         {
           "table": "[bronze].[Product]",
@@ -172,7 +172,7 @@
     },
     {
       "name": "test_full_load_filters_null_product_name",
-      "model": "stg_nestedflowtarget",
+      "model": "nestedflowtarget",
       "given": [
         {
           "table": "[bronze].[Product]",
@@ -246,7 +246,7 @@
     },
     {
       "name": "test_full_load_empty_source",
-      "model": "stg_nestedflowtarget",
+      "model": "nestedflowtarget",
       "given": [
         {
           "table": "[bronze].[Product]",
@@ -261,7 +261,7 @@
     },
     {
       "name": "test_delta_load_update_existing_product",
-      "model": "stg_nestedflowtarget",
+      "model": "nestedflowtarget",
       "given": [
         {
           "table": "[silver].[NestedFlowTarget]",
@@ -319,7 +319,7 @@
     },
     {
       "name": "test_delta_load_update_multiple_existing_products",
-      "model": "stg_nestedflowtarget",
+      "model": "nestedflowtarget",
       "given": [
         {
           "table": "[silver].[NestedFlowTarget]",
@@ -413,7 +413,7 @@
     },
     {
       "name": "test_delta_load_insert_new_product",
-      "model": "stg_nestedflowtarget",
+      "model": "nestedflowtarget",
       "given": [
         {
           "table": "[silver].[NestedFlowTarget]",
@@ -465,7 +465,7 @@
     },
     {
       "name": "test_delta_load_insert_multiple_new_products",
-      "model": "stg_nestedflowtarget",
+      "model": "nestedflowtarget",
       "given": [
         {
           "table": "[silver].[NestedFlowTarget]",
@@ -548,7 +548,7 @@
     },
     {
       "name": "test_delta_load_mixed_update_and_insert",
-      "model": "stg_nestedflowtarget",
+      "model": "nestedflowtarget",
       "given": [
         {
           "table": "[silver].[NestedFlowTarget]",

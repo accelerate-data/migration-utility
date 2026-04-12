@@ -32,6 +32,6 @@
   "refactor": {
     "status": "ok",
     "extracted_sql": "SELECT c.CustomerKey, p.ProductKey FROM bronze.SalesRaw s JOIN silver.DimCustomer c ON s.CustomerID = c.CustomerID",
-    "refactored_sql": "WITH src AS (SELECT * FROM {{ source('bronze', 'SalesRaw') }}) SELECT c.CustomerKey, p.ProductKey FROM src JOIN {{ ref('stg_dimcustomer') }} c ON src.CustomerID = c.CustomerID"
+    "refactored_sql": "WITH src AS (SELECT * FROM {{ source('bronze', 'SalesRaw') }}) SELECT c.CustomerKey, p.ProductKey FROM src JOIN {{ ref('dimcustomer') }} c ON src.CustomerID = c.CustomerID"
   }
 }

@@ -15,7 +15,7 @@
   "unit_tests": [
     {
       "name": "test_delete_top_keeps_newest_rows",
-      "model": "stg_deletetoptarget",
+      "model": "deletetoptarget",
       "given": [
         {
           "table": "[silver].[DeleteTopTarget]",

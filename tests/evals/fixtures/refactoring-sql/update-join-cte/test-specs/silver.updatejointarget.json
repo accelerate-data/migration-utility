@@ -27,7 +27,7 @@
   "unit_tests": [
     {
       "name": "test_update_matched_row",
-      "model": "stg_updatejointarget",
+      "model": "updatejointarget",
       "given": [
         {
           "rows": [

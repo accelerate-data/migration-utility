@@ -158,7 +158,7 @@ class TestDeriveSchemaTests:
         assert "referential_integrity" in tests
         ri = tests["referential_integrity"][0]
         assert ri["column"] == "customer_sk"
-        assert "ref(" in ri["to"]
+        assert ri["to"] == "ref('dimcustomer')"
         assert ri["field"] == "customer_sk"
 
     def test_watermark_produces_recency(self) -> None:
@@ -653,7 +653,7 @@ class TestRunWrite:
 
     def test_write_valid_sql_and_yml(self, dbt_project: Path) -> None:
         model_sql = "select 1 as id"
-        schema_yml = "version: 2\nmodels:\n  - name: stg_factsales\n"
+        schema_yml = "version: 2\nmodels:\n  - name: factsales\n"
 
         result = run_write(
             "silver.FactSales",
@@ -665,8 +665,8 @@ class TestRunWrite:
 
         assert result.status == "ok"
         assert len(result.written) == 2
-        assert (dbt_project / "models" / "staging" / "stg_factsales.sql").exists()
-        assert (dbt_project / "models" / "staging" / "_stg_factsales.yml").exists()
+        assert (dbt_project / "models" / "staging" / "factsales.sql").exists()
+        assert (dbt_project / "models" / "staging" / "_factsales.yml").exists()
 
     def test_write_sql_only_no_yml(self, dbt_project: Path) -> None:
         result = run_write(
@@ -679,7 +679,7 @@ class TestRunWrite:
 
         assert result.status == "ok"
         assert len(result.written) == 1
-        assert (dbt_project / "models" / "staging" / "stg_factsales.sql").exists()
+        assert (dbt_project / "models" / "staging" / "factsales.sql").exists()
 
     def test_write_empty_sql_raises(self, dbt_project: Path) -> None:
         with pytest.raises(ValueError, match="model SQL is empty"):
@@ -709,7 +709,7 @@ class TestRunWrite:
         run_write("silver.FactSales", Path("/tmp"), dbt_project, model_sql, schema_yml)
         run_write("silver.FactSales", Path("/tmp"), dbt_project, model_sql, schema_yml)
 
-        sql_file = dbt_project / "models" / "staging" / "stg_factsales.sql"
+        sql_file = dbt_project / "models" / "staging" / "factsales.sql"
         assert sql_file.read_text() == model_sql
 
     def test_write_creates_staging_dir_if_missing(self, tmp_path: Path) -> None:
@@ -720,7 +720,7 @@ class TestRunWrite:
 
         result = run_write("silver.FactSales", Path("/tmp"), dbt, "select 1", "")
         assert result.status == "ok"
-        assert (dbt / "models" / "staging" / "stg_factsales.sql").exists()
+        assert (dbt / "models" / "staging" / "factsales.sql").exists()
 
     def test_write_nonexistent_project_exits_2(self, tmp_path: Path) -> None:
         """CLI write to nonexistent dbt project exits with code 2."""
@@ -856,7 +856,7 @@ def _seed_generate_fixture(
     (dbt / "dbt_project.yml").write_text("name: test\nversion: '1.0.0'\nconfig-version: 2\n")
 
     if create_model:
-        model_file = staging / "stg_foo.sql"
+        model_file = staging / "foo.sql"
         model_file.write_text("SELECT 1 AS id")
 
     return project_root
@@ -870,7 +870,7 @@ def test_write_generate_ok(tmp_path: Path) -> None:
     result = run_write_generate(
         project_root=tmp_path,
         table_fqn=fqn,
-        model_path="models/staging/stg_foo.sql",
+        model_path="models/staging/foo.sql",
         compiled=True,
         tests_passed=True,
         test_count=3,
@@ -897,7 +897,7 @@ def test_write_generate_error_file_missing(tmp_path: Path) -> None:
     result = run_write_generate(
         project_root=tmp_path,
         table_fqn=fqn,
-        model_path="models/staging/stg_foo.sql",
+        model_path="models/staging/foo.sql",
         compiled=True,
         tests_passed=True,
         test_count=3,
@@ -915,7 +915,7 @@ def test_write_generate_error_tests_failed(tmp_path: Path) -> None:
     result = run_write_generate(
         project_root=tmp_path,
         table_fqn=fqn,
-        model_path="models/staging/stg_foo.sql",
+        model_path="models/staging/foo.sql",
         compiled=True,
         tests_passed=False,
         test_count=3,
@@ -933,13 +933,13 @@ def test_write_generate_missing_catalog(tmp_path: Path) -> None:
     staging = dbt / "models" / "staging"
     staging.mkdir(parents=True, exist_ok=True)
     (dbt / "dbt_project.yml").write_text("name: test\n")
-    (staging / "stg_foo.sql").write_text("SELECT 1")
+    (staging / "foo.sql").write_text("SELECT 1")
 
     with pytest.raises(CatalogFileMissingError):
         run_write_generate(
             project_root=tmp_path,
             table_fqn=fqn,
-            model_path="models/staging/stg_foo.sql",
+            model_path="models/staging/foo.sql",
             compiled=True,
             tests_passed=True,
             test_count=3,
@@ -955,7 +955,7 @@ def test_write_generate_view_autodetect(tmp_path: Path) -> None:
     result = run_write_generate(
         project_root=tmp_path,
         table_fqn=fqn,
-        model_path="models/staging/stg_foo.sql",
+        model_path="models/staging/foo.sql",
         compiled=True,
         tests_passed=True,
         test_count=2,

@@ -292,13 +292,13 @@ tests:
       expected_refactored_terms: "with,final"
 
   # ── dbt-aware staging reuse ─────────────────────────────────
-  - description: "dbt-aware-stg-reuse — existing stg_dimproduct.sql influences import CTE column names"
+  - description: "dbt-aware-model-reuse — existing dimproduct.sql influences import CTE column names"
     prompts: ["refactoring-sql"]
     vars:
       fixture_path: "tests/evals/fixtures/refactoring-sql/merge"
       target_table: "silver.DimProduct"
       writer: "silver.usp_load_DimProduct"
-      stg_model_file: "stg_dimproduct.sql"
+      stg_model_file: "dimproduct.sql"
       expected_stg_columns: "productalternatekey,englishproductname,standardcost,listprice"
     assert:
       - type: javascript

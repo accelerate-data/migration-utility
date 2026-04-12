@@ -108,7 +108,7 @@ Per-item output written to `.migration-runs/`:
     "model_name": "fct_fact_sales",
     "artifact_paths": {
       "model_sql": "models/gold/fct_fact_sales.sql",
-      "staging_sql": ["models/staging/stg_source_a.sql", "models/staging/stg_source_b.sql"],
+      "staging_sql": ["models/staging/source_a.sql", "models/staging/source_b.sql"],
       "model_yaml": "models/gold/fct_fact_sales.yml",
       "source_yaml": "models/sources/warehouse_sources.yml"
     },

@@ -9,7 +9,7 @@
     {
       "relation": "bronze.Product",
       "binding_type": "ref",
-      "binding_name": "stg_dimproduct"
+      "binding_name": "dimproduct"
     }
   ],
   "shared_staging_candidates": []

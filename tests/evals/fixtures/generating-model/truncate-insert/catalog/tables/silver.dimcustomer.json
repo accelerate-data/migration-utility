@@ -227,7 +227,7 @@
   "statements": [],
   "generate": {
     "status": "ok",
-    "model_path": "models/staging/stg_dimcustomer.sql",
+    "model_path": "models/staging/dimcustomer.sql",
     "schema_yml": true,
     "compiled": true,
     "tests_passed": true,

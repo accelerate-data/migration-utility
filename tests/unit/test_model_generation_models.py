@@ -44,8 +44,8 @@ def _generator_input(**overrides: object) -> dict:
 
 def _artifact_paths(**overrides: object) -> dict:
     base = {
-        "model_sql": "models/staging/stg_dimcustomer.sql",
-        "model_yaml": "models/staging/_stg_dimcustomer.yml",
+        "model_sql": "models/staging/dimcustomer.sql",
+        "model_yaml": "models/staging/_dimcustomer.yml",
     }
     return {**base, **overrides}
 
@@ -68,7 +68,7 @@ def _handoff(**overrides: object) -> dict:
 def _item_output(**overrides: object) -> dict:
     base = {
         "table_ref": "silver.dimcustomer",
-        "model_name": "stg_dimcustomer",
+        "model_name": "dimcustomer",
         "artifact_paths": _artifact_paths(),
         "generated": {
             "model_sql": {"materialized": "table", "uses_watermark": False},
@@ -196,7 +196,7 @@ class TestModelGenerationOutput:
         m = ModelGenerationOutput.model_validate(_generation_output())
         assert m.item_id == "silver.dimcustomer"
         assert m.status == "ok"
-        assert m.output.model_name == "stg_dimcustomer"
+        assert m.output.model_name == "dimcustomer"
         assert m.output.generated.model_sql.materialized == "table"
         assert m.output.execution.dbt_compile_passed is True
         assert m.output.review.verdict == "approved"
@@ -337,7 +337,7 @@ class TestFeedbackItem:
 class TestArtifactPaths:
     def test_valid(self) -> None:
         m = ArtifactPaths.model_validate(_artifact_paths())
-        assert m.model_sql == "models/staging/stg_dimcustomer.sql"
+        assert m.model_sql == "models/staging/dimcustomer.sql"
 
     def test_extra_rejected(self) -> None:
         with pytest.raises(ValidationError, match="extra"):
@@ -371,17 +371,17 @@ class TestRenderUnitTestsOutput:
     def test_valid(self) -> None:
         m = RenderUnitTestsOutput.model_validate({
             "tests_rendered": 5,
-            "model_name": "stg_dimcustomer",
+            "model_name": "dimcustomer",
         })
         assert m.tests_rendered == 5
-        assert m.model_name == "stg_dimcustomer"
+        assert m.model_name == "dimcustomer"
         assert m.warnings == []
         assert m.errors == []
 
     def test_with_warnings(self) -> None:
         m = RenderUnitTestsOutput.model_validate({
             "tests_rendered": 0,
-            "model_name": "stg_dimcustomer",
+            "model_name": "dimcustomer",
             "warnings": [{"code": "NO_UNIT_TESTS", "message": "empty", "severity": "warning"}],
         })
         assert len(m.warnings) == 1

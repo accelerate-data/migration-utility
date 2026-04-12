@@ -24,7 +24,7 @@
   "unit_tests": [
     {
       "name": "test_premium_path_high_avg",
-      "model": "stg_ifelsetarget",
+      "model": "ifelsetarget",
       "given": [
         {
           "table": "[bronze].[Product]",
@@ -60,7 +60,7 @@
     },
     {
       "name": "test_standard_path_all_products",
-      "model": "stg_ifelsetarget",
+      "model": "ifelsetarget",
       "given": [
         {
           "table": "[bronze].[Product]",

@@ -109,7 +109,7 @@ You are offered a PR. Run `/status` to check overall pipeline progress.
 | Schema YAML | `dbt/models/staging/_<model_name>.yml` | Model description, schema tests, and `unit_tests:` rendered from the test spec |
 | Snapshot SQL | `dbt/snapshots/` | Snapshot artifact for `dim_scd2` targets |
 
-The model name follows the target naming contract (for example, `stg_dimcustomer` for `silver.DimCustomer` when written under `models/staging/`).
+The model name follows the target naming contract (for example, `dimcustomer` for `silver.DimCustomer` when written under `models/staging/`).
 
 ## Error Codes
 

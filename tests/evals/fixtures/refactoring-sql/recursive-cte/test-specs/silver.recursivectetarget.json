@@ -15,7 +15,7 @@
   "unit_tests": [
     {
       "name": "test_recursive_hierarchy_three_levels",
-      "model": "stg_recursivectetarget",
+      "model": "recursivectetarget",
       "given": [
         {
           "table": "[bronze].[Employee]",

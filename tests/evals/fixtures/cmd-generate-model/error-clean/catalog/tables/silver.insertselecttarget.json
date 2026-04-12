@@ -87,7 +87,7 @@
   },
   "generate": {
     "status": "ok",
-    "model_path": "models/staging/stg_insertselecttarget.sql",
+    "model_path": "models/staging/insertselecttarget.sql",
     "schema_yml": true,
     "compiled": true,
     "tests_passed": true,

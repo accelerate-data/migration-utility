@@ -1,0 +1,71 @@
+version: 2
+snapshots:
+- name: dim_employee_scd2
+  description: "SCD Type 2 snapshot of employee dimensions with historical tracking via ValidFrom/ValidTo timestamps."
+  columns:
+  - name: EmployeeSCD2Key
+    description: "Surrogate key for the employee snapshot record (identity column)."
+    tests:
+    - unique
+    - not_null
+
+  - name: EmployeeNaturalKey
+    description: "Business key for the employee (from bronze.Employee.NationalIDNumber)."
+
+  - name: FirstName
+    description: "Employee first name (extracted from LoginID)."
+
+  - name: LastName
+    description: "Employee last name (from JobTitle)."
+
+  - name: JobTitle
+    description: "Employee job title."
+
+  - name: Department
+    description: "Employee department (from MaritalStatus)."
+
+  - name: ValidFrom
+    description: "Timestamp when this version became valid."
+    tests:
+    - not_null
+
+  - name: ValidTo
+    description: "Timestamp when this version expired (9999-12-31 for current records)."
+
+  - name: IsCurrent
+    description: "Boolean flag indicating if this is the current version (1 = current, 0 = expired)."
+
+  - name: _dbt_run_id
+    description: "dbt invocation run ID for audit trail."
+
+  - name: _loaded_at
+    description: "Timestamp when the record was loaded into the snapshot."
+
+  unit_tests:
+  - name: test_expire_changed_row
+    model: dim_employee_scd2
+    given:
+    - input: source('[bronze]', '[Employee]')
+      rows:
+      - NationalIDNumber: '123456789'
+        LoginID: adventure-works\ken0
+        JobTitle: Engineer
+        MaritalStatus: S
+    expect:
+      rows:
+      - EmployeeNaturalKey: '123456789'
+        JobTitle: Engineer
+
+  - name: test_insert_new_employee
+    model: dim_employee_scd2
+    given:
+    - input: source('[bronze]', '[Employee]')
+      rows:
+      - NationalIDNumber: '987654321'
+        LoginID: adventure-works\jane0
+        JobTitle: Manager
+        MaritalStatus: M
+    expect:
+      rows:
+      - EmployeeNaturalKey: '987654321'
+        JobTitle: Manager

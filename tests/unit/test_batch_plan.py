@@ -1016,7 +1016,7 @@ class TestBuildBatchPlan:
         (dst / "test-specs").mkdir(parents=True)
         # vw_mid has a dbt model
         (dst / "dbt" / "models" / "staging").mkdir(parents=True)
-        (dst / "dbt" / "models" / "staging" / "stg_vw_mid.sql").write_text("select 1", encoding="utf-8")
+        (dst / "dbt" / "models" / "staging" / "vw_mid.sql").write_text("select 1", encoding="utf-8")
         (dst / "manifest.json").write_text(
             json.dumps({"schema_version": "1.0", "technology": "sql_server"}), encoding="utf-8"
         )

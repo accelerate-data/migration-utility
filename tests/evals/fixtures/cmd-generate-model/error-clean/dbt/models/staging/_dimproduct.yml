@@ -1,7 +1,7 @@
 version: 2
 
 models:
-  - name: stg_dimproduct
+  - name: dimproduct
     description: "Staged product projection for silver.DimProduct."
     columns:
       - name: ProductAlternateKey
@@ -34,7 +34,7 @@ models:
 
 unit_tests:
   - name: test_status_current_when_active_product
-    model: stg_dimproduct
+    model: dimproduct
     given:
       - input: source('bronze', 'product')
         rows:
@@ -65,7 +65,7 @@ unit_tests:
           EndDate: null
           Status: Current
   - name: test_status_obsolete_when_discontinued
-    model: stg_dimproduct
+    model: dimproduct
     given:
       - input: source('bronze', 'product')
         rows:
@@ -96,7 +96,7 @@ unit_tests:
           EndDate: null
           Status: Obsolete
   - name: test_status_outdated_when_sell_end_present
-    model: stg_dimproduct
+    model: dimproduct
     given:
       - input: source('bronze', 'product')
         rows:
@@ -127,7 +127,7 @@ unit_tests:
           EndDate: "2024-01-31"
           Status: Outdated
   - name: test_color_defaults_to_empty_string_when_null
-    model: stg_dimproduct
+    model: dimproduct
     given:
       - input: source('bronze', 'product')
         rows:
@@ -158,7 +158,7 @@ unit_tests:
           EndDate: null
           Status: Current
   - name: test_empty_source_returns_no_rows
-    model: stg_dimproduct
+    model: dimproduct
     given:
       - input: source('bronze', 'product')
         rows: []

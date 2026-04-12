@@ -21,7 +21,7 @@
   "unit_tests": [
     {
       "name": "test_premium_path_high_avg",
-      "model": "stg_ifelsetarget",
+      "model": "ifelsetarget",
       "given": [
         {
           "rows": [

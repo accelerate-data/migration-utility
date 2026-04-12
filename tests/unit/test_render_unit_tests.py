@@ -90,23 +90,23 @@ class TestRunRenderUnitTests:
         spec_path = tmp_path / "test-specs" / "silver.dimcustomer.json"
         spec_path.parent.mkdir(parents=True)
         spec_path.write_text(json.dumps(_minimal_spec()), encoding="utf-8")
-        yml_path = tmp_path / "dbt" / "models" / "staging" / "_stg_dimcustomer.yml"
+        yml_path = tmp_path / "dbt" / "models" / "staging" / "_dimcustomer.yml"
 
-        result = run_render_unit_tests(tmp_path, "silver.DimCustomer", "stg_dimcustomer", spec_path, yml_path)
+        result = run_render_unit_tests(tmp_path, "silver.DimCustomer", "dimcustomer", spec_path, yml_path)
 
         assert isinstance(result, RenderUnitTestsOutput)
         assert result.tests_rendered == 2
-        assert result.model_name == "stg_dimcustomer"
+        assert result.model_name == "dimcustomer"
         assert result.errors == []
 
         schema = yaml.safe_load(yml_path.read_text(encoding="utf-8"))
         assert schema["version"] == 2
         model = schema["models"][0]
-        assert model["name"] == "stg_dimcustomer"
+        assert model["name"] == "dimcustomer"
         unit_tests = model["unit_tests"]
         assert len(unit_tests) == 2
         assert unit_tests[0]["name"] == "merge_insert_new_row"
-        assert unit_tests[0]["model"] == "stg_dimcustomer"
+        assert unit_tests[0]["model"] == "dimcustomer"
         assert unit_tests[0]["given"][0]["input"] == "source('bronze', 'CustomerRaw')"
         assert unit_tests[1]["given"][1]["input"] == "source('silver', 'DimCustomer')"
 
@@ -135,7 +135,7 @@ class TestRunRenderUnitTests:
             "version": 2,
             "models": [
                 {
-                    "name": "stg_dimcustomer",
+                    "name": "dimcustomer",
                     "description": "Customer dimension",
                     "columns": [
                         {"name": "CustomerKey", "tests": ["unique", "not_null"]},
@@ -145,7 +145,7 @@ class TestRunRenderUnitTests:
         }
         yml_path.write_text(yaml.dump(existing_schema), encoding="utf-8")
 
-        result = run_render_unit_tests(tmp_path, "silver.DimCustomer", "stg_dimcustomer", spec_path, yml_path)
+        result = run_render_unit_tests(tmp_path, "silver.DimCustomer", "dimcustomer", spec_path, yml_path)
 
         assert result.tests_rendered == 2
         schema = yaml.safe_load(yml_path.read_text(encoding="utf-8"))
@@ -161,7 +161,7 @@ class TestRunRenderUnitTests:
         spec_path.write_text(json.dumps(_minimal_spec(unit_tests=[])), encoding="utf-8")
         yml_path = tmp_path / "schema.yml"
 
-        result = run_render_unit_tests(tmp_path, "silver.empty", "stg_empty", spec_path, yml_path)
+        result = run_render_unit_tests(tmp_path, "silver.empty", "empty", spec_path, yml_path)
 
         assert result.tests_rendered == 0
         assert len(result.warnings) == 1
@@ -181,7 +181,7 @@ class TestRunRenderUnitTests:
         spec_path.write_text(json.dumps(_minimal_spec(item_id="silver.t", unit_tests=no_expect_tests)), encoding="utf-8")
         yml_path = tmp_path / "schema.yml"
 
-        result = run_render_unit_tests(tmp_path, "silver.t", "stg_t", spec_path, yml_path)
+        result = run_render_unit_tests(tmp_path, "silver.t", "t", spec_path, yml_path)
 
         assert result.tests_rendered == 1
         schema = yaml.safe_load(yml_path.read_text(encoding="utf-8"))
@@ -191,7 +191,7 @@ class TestRunRenderUnitTests:
     def test_spec_not_found(self, tmp_path: Path) -> None:
         """Missing spec file returns error."""
         result = run_render_unit_tests(
-            tmp_path, "silver.missing", "stg_missing",
+            tmp_path, "silver.missing", "missing",
             tmp_path / "nonexistent.json",
             tmp_path / "schema.yml",
         )

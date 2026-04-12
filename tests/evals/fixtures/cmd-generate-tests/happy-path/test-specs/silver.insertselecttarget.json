@@ -24,7 +24,7 @@
   "unit_tests": [
     {
       "name": "test_insert_select_single_row",
-      "model": "stg_insertselecttarget",
+      "model": "insertselecttarget",
       "given": [
         {
           "rows": [
@@ -59,7 +59,7 @@
     },
     {
       "name": "test_insert_select_multiple_rows",
-      "model": "stg_insertselecttarget",
+      "model": "insertselecttarget",
       "given": [
         {
           "rows": [
@@ -112,7 +112,7 @@
     },
     {
       "name": "test_empty_source_returns_no_rows",
-      "model": "stg_insertselecttarget",
+      "model": "insertselecttarget",
       "given": [
         {
           "rows": [],

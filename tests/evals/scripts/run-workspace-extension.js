@@ -9,7 +9,10 @@ const VOLATILE_PATHS = [
   'model-review-results',
   'test-review-results',
   'context.json',
+  path.join('dbt', 'logs'),
+  path.join('dbt', 'target'),
 ];
+const FIXTURE_DB_NAME = 'MigrationTest';
 
 function sanitizeSegment(value, fallback) {
   const normalized = String(value || '')
@@ -27,6 +30,23 @@ function relativePosixPath(targetPath) {
 function clearVolatileArtifacts(projectRoot) {
   for (const relativePath of VOLATILE_PATHS) {
     fs.rmSync(path.join(projectRoot, relativePath), { force: true, recursive: true });
+  }
+}
+
+function pinFixtureDatabase(projectRoot) {
+  const profilesPath = path.join(projectRoot, 'dbt', 'profiles.yml');
+  if (!fs.existsSync(profilesPath)) {
+    return;
+  }
+
+  const original = fs.readFileSync(profilesPath, 'utf8');
+  const pinned = original.replace(
+    /database:\s*"\{\{\s*env_var\('MSSQL_DB',\s*'MigrationTest'\)\s*\}\}"/g,
+    `database: "${FIXTURE_DB_NAME}"`,
+  );
+
+  if (pinned !== original) {
+    fs.writeFileSync(profilesPath, pinned, 'utf8');
   }
 }
 
@@ -55,6 +75,7 @@ async function extensionHook(hookName, context) {
   fs.rmSync(runRoot, { force: true, recursive: true });
   fs.cpSync(fixtureRoot, runRoot, { recursive: true });
   clearVolatileArtifacts(runRoot);
+  pinFixtureDatabase(runRoot);
 
   context.test.vars.run_path = relativePosixPath(runRoot);
   return context;

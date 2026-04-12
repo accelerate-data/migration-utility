@@ -115,10 +115,10 @@ class TestUnitTestEntry:
     def test_optional_model_field(self) -> None:
         u = UnitTestEntry(
             name="test_x",
-            model="stg_dimproduct",
+            model="dimproduct",
             given=[GivenEntry(table="[t]", rows=[{"a": 1}])],
         )
-        assert u.model == "stg_dimproduct"
+        assert u.model == "dimproduct"
 
     def test_rejects_extra_field(self) -> None:
         with pytest.raises(ValidationError, match="extra_forbidden"):

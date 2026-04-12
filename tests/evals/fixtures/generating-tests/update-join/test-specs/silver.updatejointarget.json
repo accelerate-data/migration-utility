@@ -32,7 +32,7 @@
   "unit_tests": [
     {
       "name": "test_update_matched_row",
-      "model": "stg_updatejointarget",
+      "model": "updatejointarget",
       "given": [
         {
           "rows": [
@@ -68,7 +68,7 @@
     },
     {
       "name": "test_update_join_miss_no_update",
-      "model": "stg_updatejointarget",
+      "model": "updatejointarget",
       "given": [
         {
           "rows": [
@@ -104,7 +104,7 @@
     },
     {
       "name": "test_update_null_join_key",
-      "model": "stg_updatejointarget",
+      "model": "updatejointarget",
       "given": [
         {
           "rows": [

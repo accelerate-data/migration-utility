@@ -72,7 +72,7 @@
   "unit_tests": [
     {
       "name": "test_truncate_clears_existing_rows",
-      "model": "stg_dimcurrency",
+      "model": "dimcurrency",
       "given": [
         {
           "rows": [
@@ -98,7 +98,7 @@
     },
     {
       "name": "test_insert_currencies_from_bronze_source",
-      "model": "stg_dimcurrency",
+      "model": "dimcurrency",
       "given": [
         {
           "rows": [
@@ -142,7 +142,7 @@
     },
     {
       "name": "test_insert_empty_when_source_empty",
-      "model": "stg_dimcurrency",
+      "model": "dimcurrency",
       "given": [
         {
           "rows": [],
@@ -157,7 +157,7 @@
     },
     {
       "name": "test_identity_key_auto_increment",
-      "model": "stg_dimcurrency",
+      "model": "dimcurrency",
       "given": [
         {
           "rows": [
@@ -201,7 +201,7 @@
     },
     {
       "name": "test_currency_code_maps_to_alternate_key",
-      "model": "stg_dimcurrency",
+      "model": "dimcurrency",
       "given": [
         {
           "rows": [
@@ -227,7 +227,7 @@
     },
     {
       "name": "test_currency_name_flows_to_target",
-      "model": "stg_dimcurrency",
+      "model": "dimcurrency",
       "given": [
         {
           "rows": [
@@ -253,7 +253,7 @@
     },
     {
       "name": "test_insert_multiple_currencies_batch",
-      "model": "stg_dimcurrency",
+      "model": "dimcurrency",
       "given": [
         {
           "rows": [
@@ -315,7 +315,7 @@
     },
     {
       "name": "test_non_null_constraint_enforced",
-      "model": "stg_dimcurrency",
+      "model": "dimcurrency",
       "given": [
         {
           "rows": [
