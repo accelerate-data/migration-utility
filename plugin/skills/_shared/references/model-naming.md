@@ -4,10 +4,10 @@ Source: https://docs.getdbt.com/best-practices/how-we-style/1-how-we-style-our-d
 
 | code | rule | severity |
 |------|------|----------|
-| MDL_001 | Model name must match the target table name in `snake_case` (e.g., `dimcustomer` for `silver.DimCustomer`) | error |
+| MDL_001 | Model name must match the normalized lowercase target object name (e.g., `dimcustomer` for `silver.DimCustomer`, `dim_customer` for `silver.dim_customer`) | error |
 | MDL_002 | Generate one reviewable model artifact per target. Do not split one target across multiple helper SQL files. | error |
 | MDL_003 | Do not add layer prefixes such as `stg_` to the primary generated target model. Layer context comes from folder placement, not the filename. | error |
-| MDL_004 | All model names must be `snake_case` — no dots, dashes, or mixed case | error |
+| MDL_004 | Model names must be lowercase identifiers with only letters, numbers, and existing underscores. Preserve underscores already present in the target name, but do not invent new separators. | error |
 | MDL_005 | `_dbt_run_id = {{ invocation_id }}` must be present in all materializations | error |
 | MDL_006 | `_loaded_at = current_timestamp()` must be present for table and snapshot materializations | error |
 | MDL_007 | `_loaded_at` must NOT appear in incremental models — incremental models use a watermark column instead | warning |
