@@ -11,9 +11,7 @@ with source_product as (
 final as (
     select
         cast(ProductID as nvarchar(25)) as ProductAlternateKey,
-        ProductName as EnglishProductName,
-        {{ invocation_id }} as _dbt_run_id,
-        current_timestamp() as _loaded_at
+        ProductName as EnglishProductName
     from source_product
 )
 

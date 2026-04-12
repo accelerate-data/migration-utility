@@ -22,7 +22,7 @@ models:
       - name: test_update_matched_row
         model: updatejointarget
         given:
-          - input: ref('stg_updatejointarget')
+          - input: ref('updatejointarget')
             rows:
               - ProductAlternateKey: "1"
                 EnglishProductName: "Road-150-Updated"
@@ -36,7 +36,7 @@ models:
       - name: test_gap_multiple_products_all_projected
         model: updatejointarget
         given:
-          - input: ref('stg_updatejointarget')
+          - input: ref('updatejointarget')
             rows:
               - ProductAlternateKey: "1"
                 EnglishProductName: "Widget-A"
@@ -56,7 +56,7 @@ models:
       - name: test_gap_empty_source_returns_no_rows
         model: updatejointarget
         given:
-          - input: ref('stg_updatejointarget')
+          - input: ref('updatejointarget')
             rows: []
         expect:
           rows: []

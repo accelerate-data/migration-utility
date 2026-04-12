@@ -155,7 +155,7 @@ Every `unit_tests[]` entry is rendered into a `unit_tests:` block in the schema 
 ```yaml
     unit_tests:
       - name: test_merge_matched_existing_product_updated
-        model: stg_dimproduct
+        model: dimproduct
         given:
           - input: source('bronze', 'product')
             rows:
@@ -306,7 +306,7 @@ select * from final
 version: 2
 
 models:
-  - name: stg_dimcustomer
+  - name: dimcustomer
     description: "Migrated from silver.usp_load_dimcustomer. Target: silver.DimCustomer."
     columns:
       - name: customer_key
@@ -326,7 +326,7 @@ models:
           pii_action: mask
     unit_tests:
       - name: test_merge_matched_existing_customer_updated
-        model: stg_dimcustomer
+        model: dimcustomer
         given:
           - input: source('bronze', 'customer')
             rows:

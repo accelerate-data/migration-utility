@@ -77,7 +77,7 @@
   },
   "generate": {
     "status": "ok",
-    "model_path": "models/staging/stg_vw_activecustomers.sql",
+    "model_path": "models/staging/vw_activecustomers.sql",
     "schema_yml": true,
     "compiled": true,
     "tests_passed": true,

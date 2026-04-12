@@ -2,40 +2,29 @@
     materialized='table'
 ) }}
 
-with stg_dimproduct as (
-    select *
-    from {{ ref('stg_dimproduct') }}
+with source_product as (
+    select * from {{ source('bronze', 'product') }}
 ),
 
-source_product as (
+prepared_product as (
     select
-        cast(ProductID as nvarchar(25)) as ProductAlternateKey,
-        Color,
-        DiscontinuedDate,
-        SellEndDate
-    from {{ source('bronze', 'product') }}
-),
-
-enrich_product as (
-    select
-        stg.ProductAlternateKey,
-        stg.EnglishProductName,
-        stg.StandardCost,
-        stg.ListPrice,
-        coalesce(src.Color, '') as Color,
-        stg.Size,
-        stg.ProductLine,
-        stg.Class,
-        stg.Style,
-        stg.StartDate,
-        stg.EndDate,
+        cast(ProductID as string) as ProductAlternateKey,
+        ProductName as EnglishProductName,
+        StandardCost,
+        ListPrice,
+        coalesce(Color, '') as Color,
+        Size,
+        ProductLine,
+        Class,
+        Style,
+        SellStartDate as StartDate,
+        SellEndDate as EndDate,
         case
-            when src.DiscontinuedDate is not null then 'Obsolete'
-            when src.SellEndDate is not null then 'Outdated'
+            when DiscontinuedDate is not null then 'Obsolete'
+            when SellEndDate is not null then 'Outdated'
             else 'Current'
         end as Status
-    from stg_dimproduct stg
-    join source_product src on stg.ProductAlternateKey = src.ProductAlternateKey
+    from source_product
 ),
 
 final as (
@@ -52,7 +41,7 @@ final as (
         StartDate,
         EndDate,
         Status
-    from enrich_product
+    from prepared_product
 )
 
 select * from final

@@ -6,7 +6,7 @@ Source: https://docs.getdbt.com/best-practices/how-we-style/1-how-we-style-our-d
 |------|------|----------|
 | MDL_001 | Model name must match the target table name in `snake_case` (e.g., `dimcustomer` for `silver.DimCustomer`) | error |
 | MDL_002 | Generate one reviewable model artifact per target. Do not split one target across multiple helper SQL files. | error |
-| MDL_003 | `stg_`-prefixed model names are valid when the selected target artifact belongs in the staging layer. | info |
+| MDL_003 | Do not add layer prefixes such as `stg_` to the primary generated target model. Layer context comes from folder placement, not the filename. | error |
 | MDL_004 | All model names must be `snake_case` — no dots, dashes, or mixed case | error |
 | MDL_005 | `_dbt_run_id = {{ invocation_id }}` must be present in all materializations | error |
 | MDL_006 | `_loaded_at = current_timestamp()` must be present for table and snapshot materializations | error |

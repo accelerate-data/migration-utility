@@ -36,8 +36,8 @@ Use `proc_body` as the ground truth. Ignore `refactored_sql`.
 Then read the generated artifacts from `dbt/models/`:
 
 - Check both `dbt/models/staging/` and `dbt/models/marts/`.
-- If the only discovered SQL/YAML pair for a table migration uses `stg_*`, review that pair and flag naming/layer violations instead of returning `MODEL_NOT_FOUND`.
-- For view-based staging reviews, `stg_<table>.sql` and `_<model_name>.yml` are valid artifact shapes.
+- If the only discovered SQL/YAML pair for a table migration uses a legacy `stg_*` filename, review that pair and flag naming/layer violations instead of returning `MODEL_NOT_FOUND`.
+- For view-based staging reviews, `<model_name>.sql` and `_<model_name>.yml` are the valid artifact shapes.
 - Return `MODEL_NOT_FOUND` when the selected artifact is missing either the SQL file or the paired schema YAML.
 
 Derive `model_name` from the SQL filename and verify it matches the naming contract in [model-naming.md](../_shared/references/model-naming.md).
