@@ -2,11 +2,26 @@
   "schema": "silver",
   "name": "dimcustomerfromview",
   "columns": [
-    {"name": "CustomerID", "sql_type": "INT", "is_nullable": false, "is_identity": false},
-    {"name": "FullName", "sql_type": "NVARCHAR(120)", "is_nullable": false, "is_identity": false}
+    {
+      "name": "CustomerID",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "FullName",
+      "sql_type": "NVARCHAR(120)",
+      "is_nullable": false,
+      "is_identity": false
+    }
   ],
   "primary_keys": [
-    {"name": "PK_DimCustomerFromView", "columns": ["CustomerID"]}
+    {
+      "name": "PK_DimCustomerFromView",
+      "columns": [
+        "CustomerID"
+      ]
+    }
   ],
   "foreign_keys": [],
   "unique_indexes": [],
@@ -23,7 +38,9 @@
       "rationale": "Full refresh dimension projected from an upstream migrated view."
     },
     "primary_key": {
-      "columns": ["CustomerID"],
+      "columns": [
+        "CustomerID"
+      ],
       "primary_key_type": "natural",
       "source": "catalog",
       "rationale": "CustomerID is the target primary key."
@@ -35,5 +52,15 @@
     "status": "ok",
     "refactored_sql": "with active_customers as (\n    select * from [silver].[vw_activecustomers]\n),\n\nfinal as (\n    select\n        CustomerID,\n        concat(FirstName, ' ', LastName) as FullName\n    from active_customers\n)\n\nselect * from final"
   },
-  "statements": []
+  "statements": [],
+  "generate": {
+    "status": "error",
+    "model_path": "dbt/models/marts/dim_customer_from_view.sql",
+    "schema_yml": true,
+    "compiled": true,
+    "tests_passed": true,
+    "test_count": 0,
+    "warnings": [],
+    "errors": []
+  }
 }

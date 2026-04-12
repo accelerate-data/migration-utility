@@ -1,7 +1,7 @@
 version: 2
 models:
-- name: stg_dimcustomerfromview
-  description: Dimension table with active customer names
+- name: dim_customer_from_view
+  description: Dimension table projecting full names from active customers
   columns:
   - name: CustomerID
     description: Unique customer identifier
@@ -14,9 +14,9 @@ models:
     - not_null
   unit_tests:
   - name: test_project_active_customer_name
-    model: stg_dimcustomerfromview
+    model: dim_customer_from_view
     given:
-    - input: source('[silver]', '[vw_activecustomers]')
+    - input: ref('stg_vw_activecustomers')
       rows:
       - CustomerID: 1
         FirstName: Ada
