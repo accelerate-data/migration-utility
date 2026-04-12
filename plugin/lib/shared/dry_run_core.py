@@ -22,6 +22,8 @@ from shared.output_models.dry_run import (
     DryRunOutput,
     ExcludeOutput,
     ObjectStatus,
+    ObjectReadiness,
+    ReadinessDetail,
     ResetMigrationOutput,
     ResetTargetResult,
     StageStatuses,
@@ -52,20 +54,90 @@ def _display_scope_status(scope_status: str | None) -> str | None:
     return scope_status
 
 
-def run_ready(project_root: Path, fqn: str, stage: str) -> DryRunOutput:
-    """Check whether the prior stage's CLI-written status allows proceeding."""
-    def out(ready: bool, reason: str, code: str | None = None) -> DryRunOutput:
-        return DryRunOutput(ready=ready, reason=reason, code=code)
+def _detail(ready: bool, reason: str, code: str | None = None) -> ReadinessDetail:
+    return ReadinessDetail(ready=ready, reason=reason, code=code)
 
-    if stage not in VALID_STAGES:
-        return out(False, "invalid_stage")
+
+def _object_detail(
+    object_fqn: str,
+    object_type: str | None,
+    ready: bool,
+    reason: str,
+    code: str | None = None,
+    *,
+    not_applicable: bool | None = None,
+) -> ObjectReadiness:
+    return ObjectReadiness(
+        object=object_fqn,
+        object_type=object_type,
+        ready=ready,
+        reason=reason,
+        code=code,
+        not_applicable=not_applicable,
+    )
+
+
+def _legacy_runtime_sandbox_exists(manifest: dict[str, Any]) -> bool:
+    return bool((manifest.get("sandbox") or {}).get("database"))
+
+
+def _runtime_role_exists(manifest: dict[str, Any], role: str) -> bool:
+    runtime = manifest.get("runtime")
+    if isinstance(runtime, dict):
+        role_data = runtime.get(role)
+        if isinstance(role_data, dict) and role_data:
+            return True
+    if role == "source":
+        return bool(manifest.get("source_database"))
+    if role == "sandbox":
+        return _legacy_runtime_sandbox_exists(manifest)
+    return False
+
+
+def _project_stage_ready(project_root: Path, stage: str) -> ReadinessDetail:
+    manifest_path = project_root / "manifest.json"
+    if not manifest_path.exists():
+        return _detail(False, "manifest_missing")
 
     if stage == "setup-ddl":
-        if not (project_root / "manifest.json").exists():
-            return out(False, "manifest_missing")
-        return out(True, "ok")
+        return _detail(True, "ok")
 
-    norm = normalize(fqn)
+    if stage == "scope":
+        return _detail(True, "ok")
+
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning(
+            "event=manifest_parse_failed path=%s error=%s",
+            manifest_path, exc,
+        )
+        return _detail(False, "manifest_missing")
+
+    if stage in {"profile", "test-gen", "refactor"}:
+        return _detail(True, "ok")
+
+    if stage == "generate":
+        if not _runtime_role_exists(manifest, "sandbox"):
+            return _detail(False, "sandbox_not_configured", "SANDBOX_NOT_CONFIGURED")
+        return _detail(True, "ok")
+
+    return _detail(False, "invalid_stage")
+
+
+def run_ready(project_root: Path, stage: str, object_fqn: str | None = None) -> DryRunOutput:
+    """Check stage readiness, with an optional object-level overlay."""
+    if stage not in VALID_STAGES:
+        return DryRunOutput(stage=stage, ready=False, project=_detail(False, "invalid_stage"))
+
+    project = _project_stage_ready(project_root, stage)
+    if not project.ready:
+        return DryRunOutput(stage=stage, ready=False, project=project)
+
+    if object_fqn is None:
+        return DryRunOutput(stage=stage, ready=True, project=project)
+
+    norm = normalize(object_fqn)
     obj_type = detect_object_type(project_root, norm)
 
     if obj_type == "table":
@@ -75,85 +147,102 @@ def run_ready(project_root: Path, fqn: str, stage: str) -> DryRunOutput:
             cat = None
         if cat is not None:
             if cat.is_source:
-                return out(False, "not_applicable", "SOURCE_TABLE")
+                object_detail = _object_detail(norm, obj_type, False, "not_applicable", "SOURCE_TABLE", not_applicable=True)
+                return DryRunOutput(
+                    stage=stage,
+                    ready=False,
+                    project=project,
+                    object=object_detail,
+                )
             if cat.excluded:
-                return out(False, "not_applicable", "EXCLUDED")
+                object_detail = _object_detail(norm, obj_type, False, "not_applicable", "EXCLUDED", not_applicable=True)
+                return DryRunOutput(
+                    stage=stage,
+                    ready=False,
+                    project=project,
+                    object=object_detail,
+                )
     else:
         try:
             cat = load_view_catalog(project_root, norm)
         except (json.JSONDecodeError, OSError, CatalogLoadError):
             cat = None
         if cat is not None and cat.excluded:
-            return out(False, "not_applicable", "EXCLUDED")
+            object_detail = _object_detail(norm, obj_type, False, "not_applicable", "EXCLUDED", not_applicable=True)
+            return DryRunOutput(
+                stage=stage,
+                ready=False,
+                project=project,
+                object=object_detail,
+            )
+
+    def object_out(ready: bool, reason: str, code: str | None = None) -> DryRunOutput:
+        object_detail = _object_detail(norm, obj_type, ready, reason, code)
+        return DryRunOutput(
+            stage=stage,
+            ready=ready and project.ready,
+            project=project,
+            object=object_detail,
+        )
 
     if stage == "scope":
-        if not (project_root / "manifest.json").exists():
-            return out(False, "manifest_missing")
         if detect_catalog_bucket(project_root, norm) is None:
-            return out(False, "catalog_missing")
-        return out(True, "ok")
+            return object_out(False, "catalog_missing")
+        return object_out(True, "ok")
 
     if stage == "profile":
         if obj_type in ("view", "mv"):
             if cat is None:
-                return out(False, "catalog_missing")
+                return object_out(False, "catalog_missing")
             scoping_status = cat.scoping.status if cat.scoping else None
             if scoping_status != "analyzed":
-                return out(False, "scoping_not_analyzed")
-            return out(True, "ok")
+                return object_out(False, "scoping_not_analyzed")
+            return object_out(True, "ok")
         if cat is None:
-            return out(False, "catalog_missing")
+            return object_out(False, "catalog_missing")
         scoping_status = cat.scoping.status if cat.scoping else None
         if scoping_status == "no_writer_found":
-            return out(False, "not_applicable", "WRITERLESS_TABLE")
+            object_detail = _object_detail(norm, obj_type, False, "not_applicable", "WRITERLESS_TABLE", not_applicable=True)
+            return DryRunOutput(
+                stage=stage,
+                ready=False,
+                project=project,
+                object=object_detail,
+            )
         if scoping_status != "resolved":
-            return out(False, "scoping_not_resolved")
-        return out(True, "ok")
+            return object_out(False, "scoping_not_resolved")
+        return object_out(True, "ok")
 
     if stage == "test-gen":
         if cat is None:
-            return out(False, "catalog_missing")
+            return object_out(False, "catalog_missing")
         profile_status = cat.profile.status if cat.profile else None
         if profile_status not in ("ok", "partial"):
-            return out(False, "profile_not_complete")
-        return out(True, "ok")
+            return object_out(False, "profile_not_complete")
+        return object_out(True, "ok")
 
     if stage == "refactor":
         if cat is None:
-            return out(False, "catalog_missing")
+            return object_out(False, "catalog_missing")
         test_gen_status = cat.test_gen.status if cat.test_gen else None
         if test_gen_status != "ok":
-            return out(False, "test_gen_not_complete")
-        return out(True, "ok")
+            return object_out(False, "test_gen_not_complete")
+        return object_out(True, "ok")
 
     if stage == "generate":
         if cat is None:
-            return out(False, "catalog_missing")
-        manifest_path = project_root / "manifest.json"
-        if not manifest_path.exists():
-            return out(False, "manifest_missing")
-        try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError) as exc:
-            logger.warning(
-                "event=manifest_parse_failed path=%s error=%s",
-                manifest_path, exc,
-            )
-            return out(False, "manifest_missing")
-        sandbox_db = (manifest.get("sandbox") or {}).get("database")
-        if not sandbox_db:
-            return out(False, "sandbox_not_configured", "SANDBOX_NOT_CONFIGURED")
+            return object_out(False, "catalog_missing")
         test_gen_status = cat.test_gen.status if cat.test_gen else None
         if test_gen_status != "ok":
-            return out(False, "test_gen_not_complete", "TEST_SPEC_MISSING")
+            return object_out(False, "test_gen_not_complete", "TEST_SPEC_MISSING")
         if obj_type in ("view", "mv"):
             refactor_status = cat.refactor.status if cat.refactor else None
             if refactor_status != "ok":
-                return out(False, "refactor_not_complete")
-            return out(True, "ok")
+                return object_out(False, "refactor_not_complete")
+            return object_out(True, "ok")
         writer = cat.scoping.selected_writer if cat.scoping else None
         if not writer:
-            return out(False, "no_writer")
+            return object_out(False, "no_writer")
         writer_norm = normalize(writer)
         try:
             proc_cat = load_proc_catalog(project_root, writer_norm)
@@ -163,10 +252,10 @@ def run_ready(project_root: Path, fqn: str, stage: str) -> DryRunOutput:
             proc_cat.refactor.status if proc_cat and proc_cat.refactor else None
         )
         if refactor_status != "ok":
-            return out(False, "refactor_not_complete")
-        return out(True, "ok")
+            return object_out(False, "refactor_not_complete")
+        return object_out(True, "ok")
 
-    return out(False, "invalid_stage")
+    return object_out(False, "invalid_stage")
 
 
 def _single_object_status(project_root: Path, norm_fqn: str) -> ObjectStatus:
