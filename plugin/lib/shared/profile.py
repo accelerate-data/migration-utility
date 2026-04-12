@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import typer
+from pydantic import ValidationError
 
 from shared.catalog import (
     load_and_merge_catalog,
@@ -265,11 +266,6 @@ def _validate_profile(profile: dict[str, Any]) -> list[str]:
     """Validate a profile dict. Returns a list of error messages (empty = valid)."""
     errors: list[str] = []
 
-    # Required top-level fields
-    for field in ("writer",):
-        if field not in profile:
-            errors.append(f"missing required field: {field}")
-
     # Classification validation
     classification = profile.get("classification")
     if classification is not None:
@@ -408,6 +404,10 @@ def run_write(project_root: Path, table: str, profile_json: dict[str, Any]) -> d
     if view_catalog_path.exists():
         return _write_view_profile(project_root, norm, profile_json)
 
+    existing_table = load_table_catalog(project_root, norm)
+    if existing_table is None:
+        raise CatalogFileMissingError("table", norm)
+
     # Validate table profile
     errors = _validate_profile(profile_json)
     if errors:
@@ -496,7 +496,7 @@ def write(
 
     try:
         result = run_write(project_root, table, profile_data)
-    except (ValueError, CatalogFileMissingError) as exc:
+    except (ValueError, ValidationError, CatalogFileMissingError) as exc:
         logger.error("event=write_failed table=%s error=%s", table, exc)
         emit({"ok": False, "error": str(exc), "table": normalize(table)})
         raise typer.Exit(code=1) from exc

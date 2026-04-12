@@ -197,7 +197,6 @@ class TableProfileSection(BaseModel):
     model_config = _STRICT_CONFIG
 
     status: str = ""
-    writer: str = ""
     classification: Any | None = None
     primary_key: Any | None = None
     natural_key: Any | None = None

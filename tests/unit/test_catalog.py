@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from pydantic import ValidationError
 
 from shared.catalog import (
     has_catalog,
@@ -677,6 +678,39 @@ def test_read_selected_writer_corrupt_table_catalog_raises() -> None:
         _write_corrupt(root, "tables", "dbo.broken", "{not json")
         with pytest.raises(CatalogLoadError):
             read_selected_writer(root, "dbo.broken")
+
+
+def test_load_table_catalog_legacy_profile_writer_raises_validation_error() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        path = root / "catalog" / "tables" / "silver.legacy.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "schema": "silver",
+                    "name": "legacy",
+                    "columns": [],
+                    "primary_keys": [],
+                    "unique_indexes": [],
+                    "foreign_keys": [],
+                    "auto_increment_columns": [],
+                    "sensitivity_classifications": [],
+                    "profile": {
+                        "status": "ok",
+                        "writer": "dbo.usp_load_legacy",
+                        "classification": {
+                            "resolved_kind": "dim_non_scd",
+                            "source": "llm",
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValidationError, match="writer"):
+            load_table_catalog(root, "silver.legacy")
 
 
 # ── Cross-cutting edge cases ─────────────────────────────────────────────
