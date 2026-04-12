@@ -112,17 +112,6 @@ Update stale entries in the same commit that introduced the structural change.
 - **Worktrees:** `../worktrees/<branchName>` relative to repo root. Full rules: `.claude/rules/git-workflow.md`.
 - **Worktree creation:** Use `./scripts/worktree.sh <branch-name>` as the canonical way to create or attach a worktree and bootstrap it. Do not use raw `git worktree add` unless you are debugging the wrapper itself.
 
-## Skills
-
-Use these repo-local skills when requests match:
-
-- `.claude/skills/creating-linear-issues/SKILL.md` — create/log/file a Linear issue, bug, feature, or ticket decomposition
-- `.claude/skills/implementing-linear-issues/SKILL.md` — implement/fix/work on a Linear issue (e.g. `VU-123`)
-- `.claude/skills/raising-linear-prs/SKILL.md` — run final quality gates, check off acceptance criteria, raise/update a PR, and move an issue to In Review
-- `.claude/skills/closing-linear-issues/SKILL.md` — close/complete/ship/merge a Linear issue after review
-- `.claude/skills/shadcn-ui/SKILL.md` — shadcn/ui component work
-- `.claude/skills/explaining-code/SKILL.md` — explain code with diagrams/teaching-style breakdowns
-
 ## MCP Servers
 
 ### SQL Server (mssql)
