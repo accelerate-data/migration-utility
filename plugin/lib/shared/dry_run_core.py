@@ -36,7 +36,6 @@ VALID_STAGES = frozenset(
     {"setup-ddl", "scope", "profile", "test-gen", "refactor", "migrate", "generate"}
 )
 RESETTABLE_STAGES = frozenset({"scope", "profile", "generate-tests", "refactor"})
-RESET_STAGE_ALIASES = {"test-gen": "generate-tests"}
 
 _RESET_STAGE_SECTIONS: dict[str, tuple[str, ...]] = {
     "scope": ("scoping", "profile", "test_gen"),
@@ -352,8 +351,6 @@ def run_reset_migration(project_root: Path, stage: str, fqns: list[str]) -> Rese
     table already has model generation complete, the entire run is blocked
     before any mutation occurs.
     """
-    stage = RESET_STAGE_ALIASES.get(stage, stage)
-
     if stage not in RESETTABLE_STAGES:
         raise ValueError(f"Unsupported reset stage: {stage}")
 
