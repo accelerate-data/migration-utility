@@ -1,7 +1,7 @@
 version: 2
 
 snapshots:
-  - name: dim_employee_scd2
+  - name: dimemployeescd2_snapshot
     description: "Migrated from silver.usp_load_DimEmployeeSCD2. Target: silver.DimEmployeeSCD2."
     columns:
       - name: EmployeeNaturalKey

@@ -1,22 +1,33 @@
 version: 2
 models:
 - name: stg_selectintotarget
-  description: Dimension table containing product information populated via SELECT INTO from bronze.product
+  description: Staging table that loads product data from bronze.Product using SELECT
+    INTO pattern. Provides a denormalized product dimension with alternate key and
+    localized name.
   columns:
   - name: ProductAlternateKey
-    description: NVARCHAR(25) product key, cast from ProductID
-    data_type: string
+    data_type: nvarchar(25)
+    description: Product identifier cast to string format, serves as natural primary
+      key.
     tests:
     - unique
     - not_null
   - name: EnglishProductName
-    description: NVARCHAR(50) product name
-    data_type: string
+    data_type: nvarchar(50)
+    description: Localized product name from the source Product table.
+    tests:
+    - not_null
+  - name: _dbt_run_id
+    data_type: text
+    description: dbt invocation ID that identifies the execution run.
+  - name: _loaded_at
+    data_type: timestamp
+    description: Timestamp when the record was loaded into the staging table.
   unit_tests:
   - name: test_selectinto_rows_present_populates_target
     model: stg_selectintotarget
     given:
-    - input: source('bronze', 'product')
+    - input: source('[bronze]', '[Product]')
       rows:
       - ProductName: Mountain Bike
         ProductNumber: MB-001
@@ -32,5 +43,5 @@ models:
   - name: test_selectinto_empty_source_no_rows
     model: stg_selectintotarget
     given:
-    - input: source('bronze', 'product')
+    - input: source('[bronze]', '[Product]')
       rows: []

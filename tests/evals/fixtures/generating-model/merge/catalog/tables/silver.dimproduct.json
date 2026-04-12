@@ -214,7 +214,7 @@
     "schema_yml": true,
     "compiled": true,
     "tests_passed": true,
-    "test_count": 2,
+    "test_count": 5,
     "warnings": [],
     "errors": []
   }

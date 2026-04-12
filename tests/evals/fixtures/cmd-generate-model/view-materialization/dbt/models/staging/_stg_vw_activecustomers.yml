@@ -12,13 +12,11 @@ models:
     description: Customer first name.
   - name: LastName
     description: Customer last name.
-  - name: _dbt_run_id
-    description: dbt invocation identifier for lineage tracking.
   unit_tests:
   - name: test_active_customers_only
     model: stg_vw_activecustomers
     given:
-    - input: source('[bronze]', '[CustomerRaw]')
+    - input: source('bronze', 'customerraw')
       rows:
       - CustomerID: 1
         FirstName: Ada

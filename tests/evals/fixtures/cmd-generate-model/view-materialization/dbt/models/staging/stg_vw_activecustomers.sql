@@ -19,8 +19,7 @@ final as (
     select
         CustomerID,
         FirstName,
-        LastName,
-        {{ invocation_id }} as _dbt_run_id
+        LastName
     from active_customers
 )
 
