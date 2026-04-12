@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "Closing-linear-issues skill — merge, close, and cleanup after review"
+
+prompts:
+  - id: closing-linear-issues
+    label: closing-linear-issues
+    raw: file://../../prompts/skill-closing-linear-issues.txt
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    config:
+      model: claude-haiku-4-5-20251001
+      working_dir: ../..
+      max_turns: 20
+      permission_mode: auto
+      append_allowed_tools:
+        - Read
+        - Bash
+        - Glob
+        - Grep
+
+defaultTest:
+  assert:
+    - type: javascript
+      value: file://../../assertions/check-linear-skill-contract.js
+
+tests:
+  - description: "close-issue — merges PR, closes issue, no plan mode"
+    vars:
+      expect_enters_plan_mode: "false"
+      expect_creates_pr: "false"
+      expect_merges_pr: "true"
+      expect_closes_issue: "true"
+      expect_does_cleanup: "true"
+      expect_checks_off_acceptance_criteria: "false"
+      required_terms: "rebase,merge"

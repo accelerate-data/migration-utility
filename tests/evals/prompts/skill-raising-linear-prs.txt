@@ -1,0 +1,23 @@
+You are preparing to raise a PR for a completed Linear issue in this repository.
+
+Read the skill at `.claude/skills/raising-linear-prs/SKILL.md`.
+
+Scenario:
+
+- Implementation is complete.
+- Local changes are ready for commit.
+- Acceptance criteria can be checked off after verification passes.
+
+Do not actually call tools. Return JSON only with this shape:
+
+```json
+{
+  "searches_codebase_first": false,
+  "enters_plan_mode": false,
+  "creates_pr": true,
+  "checks_off_acceptance_criteria": true,
+  "moves_issue_to_in_review": true,
+  "merges_pr": false,
+  "notes": "string"
+}
+```

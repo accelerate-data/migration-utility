@@ -112,9 +112,10 @@ Update stale entries in the same commit that introduced the structural change.
 
 Use these repo-local skills when requests match:
 
-- `.claude/skills/create-linear-issue/SKILL.md` — create/log/file a Linear issue, bug, feature, or ticket decomposition
-- `.claude/skills/implement-linear-issue/SKILL.md` — implement/fix/work on a Linear issue (e.g. `VU-123`)
-- `.claude/skills/close-linear-issue/SKILL.md` — close/complete/ship/merge a Linear issue
+- `.claude/skills/creating-linear-issues/SKILL.md` — create/log/file a Linear issue, bug, feature, or ticket decomposition
+- `.claude/skills/implementing-linear-issues/SKILL.md` — implement/fix/work on a Linear issue (e.g. `VU-123`)
+- `.claude/skills/raising-linear-prs/SKILL.md` — run final quality gates, check off acceptance criteria, raise/update a PR, and move an issue to In Review
+- `.claude/skills/closing-linear-issues/SKILL.md` — close/complete/ship/merge a Linear issue after review
 - `.claude/skills/shadcn-ui/SKILL.md` — shadcn/ui component work
 - `.claude/skills/explaining-code/SKILL.md` — explain code with diagrams/teaching-style breakdowns
 
