@@ -142,9 +142,9 @@ def _enumerate_catalog(project_root: Path) -> _CatalogInventory:
                 inv.excluded_fqns.add(fqn)
             elif cat is not None and cat.is_source:
                 inv.source_table_fqns.append(fqn)
-            elif cat is not None and cat.scoping and cat.scoping.status == "no_writer_found":
-                inv.source_pending_fqns.append(fqn)
             else:
+                # Keep confirmed writerless tables in the main inventory so
+                # pipeline_status can classify them as n_a instead of pending.
                 inv.table_fqns.append(fqn)
 
     view_dir = catalog_dir / "views"
