@@ -1,0 +1,49 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "Scoping-table skill — readiness guard coverage"
+
+prompts:
+  - id: analyzing-table
+    label: analyzing-table
+    raw: file://../../prompts/skill-analyzing-table.txt
+
+extensions:
+  - file://../../scripts/run-workspace-extension.js:extensionHook
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    config:
+      model: claude-haiku-4-5-20251001
+      working_dir: ../..
+      max_turns: 80
+      permission_mode: auto
+      append_allowed_tools:
+        - Read
+        - Write
+        - Bash
+        - Glob
+        - Grep
+
+tests:
+  - description: "ready-pass — merge fixture proceeds past scope readiness"
+    prompts: ["analyzing-table"]
+    vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/merge"
+      target_table: "silver.DimProduct"
+      target_procedure: "silver.usp_load_DimProduct"
+      expected_status: "resolved"
+      expected_writer: "dimproduct"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-table-scoping.js
+      - type: javascript
+        value: file://../../assertions/check-procedure-catalog.js
+
+  - description: "guard-fail — missing catalog stops on scope readiness"
+    prompts: ["analyzing-table"]
+    vars:
+      fixture_path: "tests/evals/fixtures/analyzing-table/merge"
+      target_table: "silver.MissingTarget"
+      expected_output_terms: "catalog_missing"
+    assert:
+      - type: javascript
+        value: file://../../assertions/check-output-terms.js

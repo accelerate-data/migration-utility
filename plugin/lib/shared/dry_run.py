@@ -59,8 +59,10 @@ app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
 @app.command("ready")
 def ready_cmd(
-    fqn: str = typer.Argument(..., help="Fully-qualified object name"),
     stage: str = typer.Argument(..., help="Pipeline stage to check readiness for"),
+    object_fqn: str | None = typer.Option(
+        None, "--object", help="Optional fully-qualified object name for object-scoped readiness",
+    ),
     project_root: Optional[Path] = typer.Option(
         None, "--project-root", help="Project root directory",
     ),
@@ -73,7 +75,7 @@ def ready_cmd(
         emit({"error": str(exc)})
         raise typer.Exit(code=2) from exc
 
-    result = run_ready(root, fqn, stage)
+    result = run_ready(root, stage, object_fqn=object_fqn)
     emit(result)
 
 

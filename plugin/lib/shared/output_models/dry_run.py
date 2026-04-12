@@ -20,18 +20,27 @@ class GuardResult(BaseModel):
     message: str | None = None
 
 
+class ReadinessDetail(BaseModel):
+    model_config = OUTPUT_CONFIG
+
+    ready: bool
+    reason: str
+    code: str | None = None
+
+
+class ObjectReadiness(ReadinessDetail):
+    object: str
+    object_type: Literal["table", "view", "mv"] | None = None
+    not_applicable: bool | None = None
+
+
 class DryRunOutput(BaseModel):
     model_config = OUTPUT_CONFIG
 
-    table: str | None = None
-    stage: Literal["setup-ddl", "scope", "profile", "test-gen", "refactor", "generate"] | None = None
-    object_type: Literal["table", "view", "mv"] | None = None
-    guards_passed: bool | None = None
-    not_applicable: bool | None = None
-    guard_results: list[GuardResult] | None = None
-    ready: bool | None = None
-    reason: str | None = None
-    code: str | None = None
+    stage: str
+    ready: bool
+    project: ReadinessDetail | None = None
+    object: ObjectReadiness | None = None
 
 
 class StageStatuses(BaseModel):

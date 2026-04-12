@@ -23,7 +23,7 @@ Quality gate for generated test specs.
 
 ## Quick Workflow
 
-1. Run `migrate-util ready <item_id> test-gen`. Stop on readiness failure.
+1. Run `migrate-util ready test-gen --object <item_id>`. Stop on readiness failure.
 2. Assemble context using the table or view path in [references/table-vs-view-context.md](references/table-vs-view-context.md).
 3. Read `test-specs/<item_id>.json`.
 4. Build your own branch manifest from the source logic. Apply [../test-invariants/SKILL.md](../test-invariants/SKILL.md).
@@ -42,7 +42,7 @@ See [references/review-output-contract.md](references/review-output-contract.md)
 Run:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <item_id> test-gen
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready test-gen --object <item_id>
 ```
 
 If `ready` is `false`, return a valid `TestReviewOutput` with `status: "error"` and the surfaced `code` and `reason` from `../../lib/shared/generate_tests_error_codes.md`. Do not infer readiness from filenames or directory listings.

@@ -19,7 +19,7 @@ Persist a fresh profile for one table, view, or materialized view. Treat any exi
 1. Check readiness:
 
    ```bash
-   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <fqn> profile
+   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready profile --object <fqn>
    ```
 
    If `ready` is `false`, report the failing `code` and `reason` and stop.

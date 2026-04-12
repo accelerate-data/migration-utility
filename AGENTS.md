@@ -91,6 +91,7 @@ sentence beats a paragraph. Avoid restating what the code already makes obvious.
 - Stage specific files — use `git add <file>` not `git add .`
 - All `.md` files must pass `markdownlint` before committing (`markdownlint <file>`)
 - Canonical naming and error-handling conventions live in `.claude/rules/coding-conventions.md`
+- Prefer clean-break designs over backward-compatibility shims. Do not engineer for backward compatibility unless the user, issue, or design explicitly requires it.
 
 ### Error handling
 

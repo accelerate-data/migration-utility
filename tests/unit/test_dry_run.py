@@ -91,13 +91,18 @@ def _make_bare_project() -> tuple[tempfile.TemporaryDirectory, Path]:
 
 
 def test_ready_scope_passes() -> None:
-    """Scope ready when manifest and catalog file exist."""
+    """Object scope ready when manifest and catalog file exist."""
     tmp, root = _make_project()
     with tmp:
-        result = dry_run.run_ready(root, "silver.DimCustomer", "scope")
+        result = dry_run.run_ready(root, "scope", object_fqn="silver.DimCustomer")
         assert isinstance(result, DryRunOutput)
         assert result.ready is True
-        assert result.reason == "ok"
+        assert result.project is not None
+        assert result.project.ready is True
+        assert result.object is not None
+        assert result.object.ready is True
+        assert result.project.reason == "ok"
+        assert result.object.reason == "ok"
 
 
 def test_ready_scope_no_manifest() -> None:
@@ -105,30 +110,40 @@ def test_ready_scope_no_manifest() -> None:
     tmp, root = _make_project()
     with tmp:
         (root / "manifest.json").unlink()
-        result = dry_run.run_ready(root, "silver.DimCustomer", "scope")
+        result = dry_run.run_ready(root, "scope", object_fqn="silver.DimCustomer")
         assert isinstance(result, DryRunOutput)
         assert result.ready is False
-        assert result.reason == "manifest_missing"
+        assert result.project is not None
+        assert result.project.ready is False
+        assert result.object is None
+        assert result.project.reason == "manifest_missing"
 
 
 def test_ready_scope_no_catalog_file() -> None:
     """Scope not ready when catalog file does not exist."""
     tmp, root = _make_project()
     with tmp:
-        result = dry_run.run_ready(root, "silver.NonExistent", "scope")
+        result = dry_run.run_ready(root, "scope", object_fqn="silver.NonExistent")
         assert isinstance(result, DryRunOutput)
         assert result.ready is False
-        assert result.reason == "catalog_missing"
+        assert result.project is not None
+        assert result.project.ready is True
+        assert result.object is not None
+        assert result.object.ready is False
+        assert result.object.reason == "catalog_missing"
 
 
 def test_ready_setup_ddl_passes_with_manifest() -> None:
-    """setup-ddl readiness uses the manifest gate and accepts the stage name."""
+    """setup-ddl project readiness uses the manifest gate with no object input."""
     tmp, root = _make_project()
     with tmp:
-        result = dry_run.run_ready(root, "_", "setup-ddl")
+        result = dry_run.run_ready(root, "setup-ddl")
         assert isinstance(result, DryRunOutput)
         assert result.ready is True
-        assert result.reason == "ok"
+        assert result.project is not None
+        assert result.project.ready is True
+        assert result.object is None
+        assert result.project.reason == "ok"
 
 
 # ── run_ready tests: profile stage ───────────────────────────────────────────
@@ -138,31 +153,34 @@ def test_ready_profile_passes() -> None:
     """Profile ready when scoping.status == resolved."""
     tmp, root = _make_project()
     with tmp:
-        result = dry_run.run_ready(root, "silver.DimCustomer", "profile")
+        result = dry_run.run_ready(root, "profile", object_fqn="silver.DimCustomer")
         assert isinstance(result, DryRunOutput)
         assert result.ready is True
-        assert result.reason == "ok"
+        assert result.object is not None
+        assert result.object.reason == "ok"
 
 
 def test_ready_profile_not_scoped() -> None:
     """Profile not ready when table has no scoping section."""
     tmp, root = _make_bare_project()
     with tmp:
-        result = dry_run.run_ready(root, "silver.DimDate", "profile")
+        result = dry_run.run_ready(root, "profile", object_fqn="silver.DimDate")
         assert isinstance(result, DryRunOutput)
         assert result.ready is False
-        assert result.reason == "scoping_not_resolved"
+        assert result.object is not None
+        assert result.object.reason == "scoping_not_resolved"
 
 
 def test_ready_profile_writerless_table() -> None:
     """Profile not applicable for writerless table."""
     tmp, root = _make_project()
     with tmp:
-        result = dry_run.run_ready(root, "silver.RefCurrency", "profile")
+        result = dry_run.run_ready(root, "profile", object_fqn="silver.RefCurrency")
         assert isinstance(result, DryRunOutput)
         assert result.ready is False
-        assert result.reason == "not_applicable"
-        assert result.code == "WRITERLESS_TABLE"
+        assert result.object is not None
+        assert result.object.reason == "not_applicable"
+        assert result.object.code == "WRITERLESS_TABLE"
 
 
 # ── run_ready tests: test-gen stage ──────────────────────────────────────────
@@ -172,10 +190,11 @@ def test_ready_test_gen_passes() -> None:
     """test-gen ready when profile.status is ok or partial."""
     tmp, root = _make_project()
     with tmp:
-        result = dry_run.run_ready(root, "silver.DimCustomer", "test-gen")
+        result = dry_run.run_ready(root, "test-gen", object_fqn="silver.DimCustomer")
         assert isinstance(result, DryRunOutput)
         assert result.ready is True
-        assert result.reason == "ok"
+        assert result.object is not None
+        assert result.object.reason == "ok"
 
 
 def test_ready_test_gen_no_profile() -> None:
@@ -186,10 +205,11 @@ def test_ready_test_gen_no_profile() -> None:
         cat = json.loads(cat_path.read_text(encoding="utf-8"))
         del cat["profile"]
         cat_path.write_text(json.dumps(cat), encoding="utf-8")
-        result = dry_run.run_ready(root, "silver.DimCustomer", "test-gen")
+        result = dry_run.run_ready(root, "test-gen", object_fqn="silver.DimCustomer")
         assert isinstance(result, DryRunOutput)
         assert result.ready is False
-        assert result.reason == "profile_not_complete"
+        assert result.object is not None
+        assert result.object.reason == "profile_not_complete"
 
 
 # ── run_ready tests: refactor stage ──────────────────────────────────────────
@@ -203,10 +223,11 @@ def test_ready_refactor_needs_test_gen() -> None:
         cat = json.loads(cat_path.read_text(encoding="utf-8"))
         del cat["test_gen"]
         cat_path.write_text(json.dumps(cat), encoding="utf-8")
-        result = dry_run.run_ready(root, "silver.DimCustomer", "refactor")
+        result = dry_run.run_ready(root, "refactor", object_fqn="silver.DimCustomer")
         assert isinstance(result, DryRunOutput)
         assert result.ready is False
-        assert result.reason == "test_gen_not_complete"
+        assert result.object is not None
+        assert result.object.reason == "test_gen_not_complete"
 
 
 def test_ready_refactor_passes_with_test_gen() -> None:
@@ -217,10 +238,11 @@ def test_ready_refactor_passes_with_test_gen() -> None:
         cat = json.loads(cat_path.read_text(encoding="utf-8"))
         cat["test_gen"] = {"status": "ok"}
         cat_path.write_text(json.dumps(cat), encoding="utf-8")
-        result = dry_run.run_ready(root, "silver.DimCustomer", "refactor")
+        result = dry_run.run_ready(root, "refactor", object_fqn="silver.DimCustomer")
         assert isinstance(result, DryRunOutput)
         assert result.ready is True
-        assert result.reason == "ok"
+        assert result.object is not None
+        assert result.object.reason == "ok"
 
 
 # ── run_ready tests: generate stage ──────────────────────────────────────────
@@ -230,10 +252,13 @@ def test_ready_generate_with_refactor() -> None:
     """Generate ready when refactor.status == ok on proc catalog."""
     tmp, root = _make_project()
     with tmp:
-        result = dry_run.run_ready(root, "silver.DimCustomer", "generate")
+        result = dry_run.run_ready(root, "generate", object_fqn="silver.DimCustomer")
         assert isinstance(result, DryRunOutput)
         assert result.ready is True
-        assert result.reason == "ok"
+        assert result.project is not None
+        assert result.project.reason == "ok"
+        assert result.object is not None
+        assert result.object.reason == "ok"
 
 
 def test_ready_generate_no_refactor() -> None:
@@ -244,21 +269,23 @@ def test_ready_generate_no_refactor() -> None:
         proc = json.loads(proc_path.read_text(encoding="utf-8"))
         del proc["refactor"]
         proc_path.write_text(json.dumps(proc), encoding="utf-8")
-        result = dry_run.run_ready(root, "silver.DimCustomer", "generate")
+        result = dry_run.run_ready(root, "generate", object_fqn="silver.DimCustomer")
         assert isinstance(result, DryRunOutput)
         assert result.ready is False
-        assert result.reason == "refactor_not_complete"
+        assert result.object is not None
+        assert result.object.reason == "refactor_not_complete"
 
 
 def test_ready_generate_no_sandbox() -> None:
     """Generate not ready when sandbox.database is missing from manifest."""
     tmp, root = _make_project(include_sandbox=False)
     with tmp:
-        result = dry_run.run_ready(root, "silver.DimCustomer", "generate")
+        result = dry_run.run_ready(root, "generate", object_fqn="silver.DimCustomer")
         assert isinstance(result, DryRunOutput)
         assert result.ready is False
-        assert result.reason == "sandbox_not_configured"
-        assert result.code == "SANDBOX_NOT_CONFIGURED"
+        assert result.project is not None
+        assert result.project.reason == "sandbox_not_configured"
+        assert result.project.code == "SANDBOX_NOT_CONFIGURED"
 
 
 def test_ready_generate_requires_test_gen() -> None:
@@ -269,21 +296,23 @@ def test_ready_generate_requires_test_gen() -> None:
         cat = json.loads(cat_path.read_text(encoding="utf-8"))
         del cat["test_gen"]
         cat_path.write_text(json.dumps(cat), encoding="utf-8")
-        result = dry_run.run_ready(root, "silver.DimCustomer", "generate")
+        result = dry_run.run_ready(root, "generate", object_fqn="silver.DimCustomer")
         assert isinstance(result, DryRunOutput)
         assert result.ready is False
-        assert result.reason == "test_gen_not_complete"
-        assert result.code == "TEST_SPEC_MISSING"
+        assert result.object is not None
+        assert result.object.reason == "test_gen_not_complete"
+        assert result.object.code == "TEST_SPEC_MISSING"
 
 
 def test_ready_generate_passes_with_both_gates() -> None:
     """Generate ready when both test_gen and refactor are ok."""
     tmp, root = _make_project()
     with tmp:
-        result = dry_run.run_ready(root, "silver.DimCustomer", "generate")
+        result = dry_run.run_ready(root, "generate", object_fqn="silver.DimCustomer")
         assert isinstance(result, DryRunOutput)
         assert result.ready is True
-        assert result.reason == "ok"
+        assert result.object is not None
+        assert result.object.reason == "ok"
 
 
 # ── run_ready tests: special cases ───────────────────────────────────────────
@@ -297,11 +326,12 @@ def test_ready_source_table() -> None:
         cat = json.loads(cat_path.read_text(encoding="utf-8"))
         cat["is_source"] = True
         cat_path.write_text(json.dumps(cat), encoding="utf-8")
-        result = dry_run.run_ready(root, "silver.DimCustomer", "scope")
+        result = dry_run.run_ready(root, "scope", object_fqn="silver.DimCustomer")
         assert isinstance(result, DryRunOutput)
         assert result.ready is False
-        assert result.reason == "not_applicable"
-        assert result.code == "SOURCE_TABLE"
+        assert result.object is not None
+        assert result.object.reason == "not_applicable"
+        assert result.object.code == "SOURCE_TABLE"
 
 
 def test_ready_excluded_table() -> None:
@@ -312,21 +342,23 @@ def test_ready_excluded_table() -> None:
         cat = json.loads(cat_path.read_text(encoding="utf-8"))
         cat["excluded"] = True
         cat_path.write_text(json.dumps(cat), encoding="utf-8")
-        result = dry_run.run_ready(root, "silver.DimCustomer", "profile")
+        result = dry_run.run_ready(root, "profile", object_fqn="silver.DimCustomer")
         assert isinstance(result, DryRunOutput)
         assert result.ready is False
-        assert result.reason == "not_applicable"
-        assert result.code == "EXCLUDED"
+        assert result.object is not None
+        assert result.object.reason == "not_applicable"
+        assert result.object.code == "EXCLUDED"
 
 
 def test_ready_invalid_stage() -> None:
     """Invalid stage returns ready=False with reason=invalid_stage."""
     tmp, root = _make_project()
     with tmp:
-        result = dry_run.run_ready(root, "silver.DimCustomer", "bogus")
+        result = dry_run.run_ready(root, "bogus", object_fqn="silver.DimCustomer")
         assert isinstance(result, DryRunOutput)
         assert result.ready is False
-        assert result.reason == "invalid_stage"
+        assert result.project is not None
+        assert result.project.reason == "invalid_stage"
 
 
 # ── run_ready tests: view stages ─────────────────────────────────────────────
@@ -336,19 +368,22 @@ def test_ready_view_scope_passes() -> None:
     """View scope ready when manifest and view catalog exist."""
     tmp, root = _make_project()
     with tmp:
-        result = dry_run.run_ready(root, "silver.vDimSalesTerritory", "scope")
+        result = dry_run.run_ready(root, "scope", object_fqn="silver.vDimSalesTerritory")
         assert isinstance(result, DryRunOutput)
         assert result.ready is True
+        assert result.object is not None
+        assert result.object.reason == "ok"
 
 
 def test_ready_view_profile_not_scoped() -> None:
     """View profile not ready when scoping.status != analyzed."""
     tmp, root = _make_project()
     with tmp:
-        result = dry_run.run_ready(root, "silver.vDimSalesTerritory", "profile")
+        result = dry_run.run_ready(root, "profile", object_fqn="silver.vDimSalesTerritory")
         assert isinstance(result, DryRunOutput)
         assert result.ready is False
-        assert result.reason == "scoping_not_analyzed"
+        assert result.object is not None
+        assert result.object.reason == "scoping_not_analyzed"
 
 
 def test_ready_view_profile_when_analyzed() -> None:
@@ -359,9 +394,40 @@ def test_ready_view_profile_when_analyzed() -> None:
         cat = json.loads(view_path.read_text(encoding="utf-8"))
         cat["scoping"] = {"status": "analyzed", "sql_elements": [], "logic_summary": "test"}
         view_path.write_text(json.dumps(cat), encoding="utf-8")
-        result = dry_run.run_ready(root, "silver.vDimSalesTerritory", "profile")
+        result = dry_run.run_ready(root, "profile", object_fqn="silver.vDimSalesTerritory")
         assert isinstance(result, DryRunOutput)
         assert result.ready is True
+        assert result.object is not None
+        assert result.object.reason == "ok"
+
+
+def test_ready_setup_ddl_without_object_reports_project_only() -> None:
+    """Project-only readiness should not attach an object section."""
+    tmp, root = _make_project()
+    with tmp:
+        result = dry_run.run_ready(root, "setup-ddl")
+        assert result.project is not None
+        assert result.project.ready is True
+        assert result.object is None
+
+
+def test_ready_generate_object_failure_preserves_project_success() -> None:
+    """Object overlay should fail independently after project readiness passes."""
+    tmp, root = _make_project(include_sandbox=False)
+    with tmp:
+        manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+        manifest["sandbox"] = {"database": "__test_abc123"}
+        (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
+        proc = json.loads(proc_path.read_text(encoding="utf-8"))
+        del proc["refactor"]
+        proc_path.write_text(json.dumps(proc), encoding="utf-8")
+        result = dry_run.run_ready(root, "generate", object_fqn="silver.DimCustomer")
+        assert result.project is not None
+        assert result.project.ready is True
+        assert result.object is not None
+        assert result.object.ready is False
+        assert result.object.reason == "refactor_not_complete"
 
 
 # ── run_status tests ─────────────────────────────────────────────────────────
@@ -427,16 +493,20 @@ def test_status_mv_object() -> None:
 
 
 def test_cli_ready_scope() -> None:
-    """CLI ready returns JSON with ready/reason."""
+    """CLI ready returns JSON for object-scoped readiness."""
     tmp, root = _make_project()
     with tmp:
         result = _cli_runner.invoke(
             dry_run.app,
-            ["ready", "silver.DimCustomer", "scope", "--project-root", str(root)],
+            ["ready", "scope", "--object", "silver.DimCustomer", "--project-root", str(root)],
         )
         assert result.exit_code == 0
         output = json.loads(result.stdout)
         assert output["ready"] is True
+        assert output["project"]["ready"] is True
+        assert output["object"]["ready"] is True
+        assert output["project"]["reason"] == "ok"
+        assert output["object"]["reason"] == "ok"
 
 
 def test_cli_ready_invalid_stage() -> None:
@@ -445,11 +515,28 @@ def test_cli_ready_invalid_stage() -> None:
     with tmp:
         result = _cli_runner.invoke(
             dry_run.app,
-            ["ready", "silver.DimCustomer", "bogus", "--project-root", str(root)],
+            ["ready", "bogus", "--object", "silver.DimCustomer", "--project-root", str(root)],
         )
         assert result.exit_code == 0
         output = json.loads(result.stdout)
         assert output["ready"] is False
+        assert output["project"]["reason"] == "invalid_stage"
+
+
+def test_cli_ready_project_only() -> None:
+    """CLI ready supports project-only readiness without object input."""
+    tmp, root = _make_project()
+    with tmp:
+        result = _cli_runner.invoke(
+            dry_run.app,
+            ["ready", "setup-ddl", "--project-root", str(root)],
+        )
+        assert result.exit_code == 0
+        output = json.loads(result.stdout)
+        assert output["ready"] is True
+        assert output["project"]["ready"] is True
+        assert output.get("object") is None
+        assert output["project"]["reason"] == "ok"
 
 
 # ── CLI: status subcommand ───────────────────────────────────────────────────

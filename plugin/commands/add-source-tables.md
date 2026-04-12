@@ -34,10 +34,10 @@ For each FQN in `$ARGUMENTS`:
 1. Run the scope guard:
 
    ```bash
-   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <fqn> scope
+   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready scope --object <fqn>
    ```
 
-   If `passed` is `false`, report the error and skip this table. Continue with remaining tables.
+   If `ready` is `false`, report the object readiness `reason` and optional `code`, then skip this table. Continue with remaining tables.
 
 2. Read `catalog/tables/<fqn>.json` and show the current scoping status to the user:
 
