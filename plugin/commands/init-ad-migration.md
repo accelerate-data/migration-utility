@@ -183,7 +183,7 @@ uv sync --project "${CLAUDE_PLUGIN_ROOT}/lib" --extra oracle
 
 ## Step 6: Scaffold project files
 
-Run the `init` CLI to scaffold the project directory, passing the chosen technology. This creates CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, .claude/rules/git-workflow.md, and .githooks/pre-commit — all idempotently and parameterized by source.
+Run the `init` CLI to scaffold the project directory, passing the chosen technology. This creates CLAUDE.md, README.md, repo-map.json, .gitignore, .envrc, `scripts/worktree.sh`, `.claude/rules/git-workflow.md`, and `.githooks/pre-commit` — all idempotently and parameterized by source.
 
 ```bash
 uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init scaffold-project --project-root . --technology $SOURCE
@@ -226,7 +226,7 @@ If on `main`, notify the user:
 Commit the files created or modified in Step 5:
 
 ```bash
-git add CLAUDE.md README.md .gitignore .githooks/ repo-map.json .claude/ manifest.json
+git add CLAUDE.md README.md .gitignore .githooks/ repo-map.json .claude/ scripts/ manifest.json
 git commit -m "chore: init migration project ($SOURCE)"
 ```
 
