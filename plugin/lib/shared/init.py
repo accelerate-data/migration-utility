@@ -31,6 +31,7 @@ from typing import Any, Callable, Optional
 
 import typer
 
+from shared.freetds import run_check_freetds
 from shared.init_templates import (
     _claude_md_oracle,
     _claude_md_sql_server,
@@ -351,6 +352,23 @@ def scaffold_hooks(
     try:
         result = run_scaffold_hooks(project_root, technology)
     except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(json.dumps(result.model_dump(mode="json", exclude_none=True)))
+
+
+@app.command("check-freetds")
+def check_freetds(
+    register_missing: bool = typer.Option(
+        False,
+        "--register-missing",
+        help="Register FreeTDS in unixODBC when the brew package is installed but not registered.",
+    ),
+) -> None:
+    """Check Homebrew FreeTDS installation and unixODBC registration."""
+    try:
+        result = run_check_freetds(register_missing=register_missing)
+    except RuntimeError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
     typer.echo(json.dumps(result.model_dump(mode="json", exclude_none=True)))

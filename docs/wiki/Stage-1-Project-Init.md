@@ -2,6 +2,8 @@
 
 The `/init-ad-migration` command verifies prerequisites, installs missing dependencies, scaffolds project files, and hands off to DDL extraction. This is the entry point for every new migration project. It is source-technology-aware — pass a source name to skip the prompt, or omit it to be guided through selection.
 
+Windows is not supported for the local init flow. The command stops immediately on Windows instead of attempting partial setup.
+
 ```text
 /init-ad-migration           -- prompts for source selection
 /init-ad-migration oracle    -- skips prompt, configures for Oracle
@@ -28,6 +30,7 @@ Checks are grouped into common (all sources) and source-specific sections.
 
 | Check | Required | What it verifies |
 |---|---|---|
+| `uv run ... init check-freetds` | Yes | Homebrew FreeTDS is installed, `odbcinst` is available, and `FreeTDS` is registered in unixODBC |
 | `toolbox --version` | Optional | genai-toolbox binary for live DB skills |
 | `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD` | Optional | SQL Server connectivity for `/setup-ddl` and live-DB skills |
 
@@ -55,6 +58,7 @@ Plugin status:
   git:         ok repo detected      /  not a git repo (recommended)
 
   SQL Server-specific:
+  freetds:     ok installed + registered  /  not installed  /  unixODBC missing  /  not registered
   toolbox:     ok installed (x.y.z)  /  not found (optional)
   MSSQL_HOST:  ok set  /  not set
   MSSQL_PORT:  ok set  /  not set
