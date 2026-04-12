@@ -12,6 +12,13 @@ Use Paperclip as the orchestration layer for one migration engagement while the 
 - Paperclip manages planning, task projection, assignment, heartbeat reconciliation, budget visibility, and human escalation.
 - Repo commands perform all migration work and all durable scope changes.
 
+## Terminology
+
+- `migration object`: an approved in-scope deliverable such as a migrated table, source or lakehouse table, or deployed pipeline
+- `Paperclip parent issue`: the planning container for one migration object
+- `Paperclip phase task`: a child issue representing one executable phase for that migration object
+- `GitHub issue`: a linked defect record for code, CI, validation, data-quality, or operational problems
+
 ## System Roles
 
 ### CDO
@@ -41,8 +48,10 @@ Use Paperclip as the orchestration layer for one migration engagement while the 
 
 ## Source of Truth
 
-- Repo status output is the single source of truth for migration state.
-- Paperclip task state is a projection of repo state.
+- Repo state is authoritative for migration readiness, completion, and durable scope.
+- Paperclip is authoritative for assignment, comments, escalation, approvals, and orchestration history.
+- GitHub Issues are authoritative for code, CI, pipeline, data-quality, and validation defects.
+- Paperclip task state is derived from repo readiness plus linked blocking defects and human decisions.
 - Scope changes must be written through repo commands, then reflected into Paperclip on the next heartbeat.
 - Slack replies are authoritative only after OpenClaw mirrors them into Paperclip task comments.
 
@@ -66,9 +75,11 @@ The CDO then:
 
 ## Task Model
 
-- Durable planning object: one object-level issue per approved migration deliverable
-- Child tasks: one task per phase in that object's template
+- Durable planning unit: one Paperclip parent issue per approved migration object
+- Child tasks: one Paperclip phase task per phase in that migration object's template
 - Planner-owned exception tasks: `manual-fix`, `clarification`, `recheck`
+
+Each migration object may also link to zero or more GitHub Issues. Those defects do not replace the parent Paperclip issue; they provide defect tracking for the same migration object.
 
 Day 1 task creation is full-chain, not lazy. The CDO creates the phase tasks from repo status, then assigns only the runnable tasks.
 
@@ -103,6 +114,13 @@ Paperclip does not lead state back into the repo.
 - Workers may do bounded self-retry for transient or locally fixable failures.
 - Semantic blockers, unsupported patterns, and exhausted retries return control to the CDO.
 
+## External Run Model
+
+- Long-running external work uses a `launch -> poll -> reconcile` pattern.
+- Repo commands or external runtimes perform the actual run; Paperclip phase tasks track the orchestration state around that run.
+- Workers do not hold ownership indefinitely while an external system is running unattended.
+- Heartbeats reconcile external status back into Paperclip statuses, comments, and linked defects.
+
 ## Scope Management
 
 Day 1 requires deterministic repo commands for both directions of scope change:
@@ -124,22 +142,26 @@ Parallel run and cutover are part of the same migration project, not a follow-on
 - The formal run happens after all approved readiness conditions are met.
 - Formal validation compares only like-to-like approved in-scope deliverables, not internal intermediate artifacts created by refactoring.
 - Required lakehouse objects and pipelines are still first-class project deliverables because they are needed to make the formal run and cutover possible.
-- A single Paperclip object may consolidate multiple validation or pipeline defects.
+- A single migration object may consolidate multiple validation or pipeline defects.
+- Paperclip orchestrates run and validation tasks; repo commands and external execution surfaces perform the actual run, output collection, and comparison.
 
 ## GitHub and Paperclip Responsibilities
 
 - GitHub Issues are the source of truth for pipeline failures, data-quality failures, and validation mismatches.
 - Paperclip is the source of truth for project planning, execution state, assignment, escalation, and human approvals or overrides.
 - The CDO may create GitHub Issues automatically when validation or operational defects are detected.
+- The CDO may create new Paperclip phase tasks automatically when new non-scope work is discovered from repo or GitHub state.
 - Humans and agents may update the GitHub Issue lifecycle there.
-- Human approvals and overrides for migration readiness or cutover are recorded in Paperclip against the affected object, even when the underlying defect lives in GitHub.
+- Only scope changes require human approval before re-planning.
+- A migration object may link to multiple GitHub Issues, and only linked blocking defects prevent the affected Paperclip phase from advancing.
+- Human approvals and overrides for migration readiness or cutover are recorded in Paperclip against the affected migration object, even when the underlying defect lives in GitHub.
 
 ## Cutover Concept
 
 - The project ends only when approved in-scope objects are migrated, validated, and ready for cutover.
 - If an approved object is not part of the formal run, it must first be removed from scope through the approved project workflow.
 - The formal run starts automatically when readiness conditions are met, with human notification.
-- Human approval can override unresolved issues, but the override must be attached to the affected project object.
+- Human approval can override unresolved issues, but the override must be attached to the affected migration object.
 
 ## Human Engagement Rules
 
