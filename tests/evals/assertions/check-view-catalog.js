@@ -16,10 +16,10 @@
 
 const fs = require('fs');
 const path = require('path');
-const { normalizeTerms } = require('./schema-helpers');
+const { normalizeTerms, resolveProjectPath } = require('./schema-helpers');
 
 module.exports = (_output, context) => {
-  const fixturePath = context.vars.fixture_path;
+  const fixturePath = resolveProjectPath(context);
   const targetView = context.vars.target_view;
   const checkType = context.vars.check_type;
 

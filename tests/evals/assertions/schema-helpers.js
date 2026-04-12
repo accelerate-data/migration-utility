@@ -35,4 +35,8 @@ function normalizeTerms(value) {
     .filter(Boolean);
 }
 
-module.exports = { normalizeTerms, extractJsonObject };
+function resolveProjectPath(context) {
+  return context?.vars?.run_path || context?.vars?.fixture_path || '';
+}
+
+module.exports = { normalizeTerms, extractJsonObject, resolveProjectPath };

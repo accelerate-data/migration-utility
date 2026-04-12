@@ -9,6 +9,9 @@ prompts:
     label: profiling-table-view
     raw: file://../../prompts/skill-profiling-table-view.txt
 
+extensions:
+  - file://../../scripts/run-workspace-extension.js:extensionHook
+
 providers:
   - id: anthropic:claude-agent-sdk
     config:

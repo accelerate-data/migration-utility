@@ -5,12 +5,12 @@ Run `/refactor` for these tables: `{{target_tables}}`.
 Read `plugin/commands/refactor.md`, but treat the following harness rules as authoritative overrides for this eval. Do not ask clarifying questions. Do not pause for confirmation. Execute the task directly.
 
 Harness overrides:
-- Operate directly on `{{fixture_path}}`. Do not create or use a worktree.
+- Treat `{{fixture_path}}` as read-only input. Write all generated files to `{{run_path}}`. Do not create or use a worktree.
 - Do not run git commands, `/commit`, `/commit-push-pr`, or `git-checkpoints`.
 - Do not spawn sub-agents for this eval. Process the target tables sequentially in the current conversation.
 - Wherever the command references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead.
-- Pass `--project-root {{fixture_path}}` to every CLI command that accepts `--project-root`.
+- Pass `--project-root {{run_path}}` to every CLI command that accepts `--project-root`.
 - Skip sandbox `compare-sql`. Use semantic/logical equivalence review only.
-- Write run artifacts to `{{fixture_path}}/.migration-runs/` using the command's normal item-result and summary formats.
+- Write run artifacts to `{{run_path}}/.migration-runs/` using the command's normal item-result and summary formats.
 
 If one table fails, continue processing the remaining tables and then write the summary.

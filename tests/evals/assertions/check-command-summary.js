@@ -17,7 +17,7 @@
 // }
 const fs = require('fs');
 const path = require('path');
-const { normalizeTerms } = require('./schema-helpers');
+const { normalizeTerms, resolveProjectPath } = require('./schema-helpers');
 
 /**
  * Find all per-item result JSON files in .migration-runs/ matching a table FQN.
@@ -89,7 +89,7 @@ function findSummary(migrationsDir) {
 }
 
 module.exports = (output, context) => {
-  const fixturePath = context.vars.fixture_path;
+  const fixturePath = resolveProjectPath(context);
   const outputStr = String(output || '').toLowerCase();
   const expectedTotal =
     context.vars.expected_total !== undefined

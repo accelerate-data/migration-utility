@@ -5,8 +5,8 @@ You are running an eval harness for `/reset-migration` in the fixture project at
 Read `plugin/commands/reset-migration.md`, but treat the following harness rules as authoritative overrides for this eval. Do not ask clarifying questions. Do not pause for confirmation. Execute the task directly.
 
 Harness overrides:
-- Operate directly on `{{fixture_path}}`. Do not create or use a worktree.
+- Treat `{{fixture_path}}` as read-only input. Operate on writable run workspace `{{run_path}}`. Do not create or use a worktree.
 - Do not run git commands, `/commit`, `/commit-push-pr`, or `git-checkpoints`.
 - Wherever the command references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead.
-- Pass `--project-root {{fixture_path}}` to every CLI command that accepts `--project-root`.
+- Pass `--project-root {{run_path}}` to every CLI command that accepts `--project-root`.
 - Since this is an eval harness, skip the confirmation pause and execute the reset immediately after the preflight summary.

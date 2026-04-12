@@ -6,6 +6,9 @@ prompts:
     label: cmd-scope
     raw: file://../../prompts/cmd-scope.txt
 
+extensions:
+  - file://../../scripts/run-workspace-extension.js:extensionHook
+
 providers:
   - id: anthropic:claude-agent-sdk
     config:

@@ -1,8 +1,8 @@
-You are working on a dbt migration project. The project root is {{fixture_path}}.
+You are working on a dbt migration project. Use canonical fixture input at {{fixture_path}} and writable run workspace at {{run_path}}.
 
 Generate test specifications for {{target_table}}. The writer is {{writer}}.
 
-Use `plugin/lib` wherever the skill references `${CLAUDE_PLUGIN_ROOT}/lib`. Pass `--project-root {{fixture_path}}` to all CLI commands and `--writer {{writer}}` to `migrate context`. Proceed autonomously through all steps.
+Use `plugin/lib` wherever the skill references `${CLAUDE_PLUGIN_ROOT}/lib`. Pass `--project-root {{run_path}}` to all CLI commands and `--writer {{writer}}` to `migrate context`. Proceed autonomously through all steps.
 
 Reviewer feedback for this run, if present: {{feedback_json}}
 

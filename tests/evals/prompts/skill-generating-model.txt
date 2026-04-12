@@ -1,5 +1,5 @@
-You are working on a dbt migration project. The project root is {{fixture_path}}.
+You are working on a dbt migration project. Use canonical fixture input at {{fixture_path}} and writable run workspace at {{run_path}}.
 
 Generate a dbt model for {{target_table}}. The writer is {{writer}}.
 
-Use `plugin/lib` wherever the skill references `${CLAUDE_PLUGIN_ROOT}/lib`. Pass `--project-root {{fixture_path}}` to all CLI commands and `--writer {{writer}}` to `migrate context`. If a `model-sweep.*.json` file exists under `{{fixture_path}}/.migration-runs/`, use it as the sweep artifact for Step 1.5. Proceed autonomously through all steps — write the model without asking for approval.
+Use `plugin/lib` wherever the skill references `${CLAUDE_PLUGIN_ROOT}/lib`. Pass `--project-root {{run_path}}` to all CLI commands and `--writer {{writer}}` to `migrate context`. If a `model-sweep.*.json` file exists under `{{run_path}}/.migration-runs/`, use it as the sweep artifact for Step 1.5. Proceed autonomously through all steps — write the model without asking for approval.
