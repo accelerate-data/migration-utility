@@ -42,6 +42,7 @@ from shared.cli_utils import emit
 from shared.dry_run_core import (
     run_exclude,
     run_ready,
+    run_reset_migration,
     run_status,
     run_sync_excluded_warnings,
 )
@@ -144,6 +145,38 @@ def exclude_cmd(
         raise typer.Exit(code=2) from exc
 
     result = run_exclude(root, list(fqns))
+    emit(result)
+
+
+@app.command("reset-migration")
+def reset_migration_cmd(
+    stage: str = typer.Argument(..., help="Pre-model stage to reset"),
+    fqns: List[str] = typer.Argument(
+        ...,
+        help="Fully-qualified table names to reset",
+    ),
+    project_root: Optional[Path] = typer.Option(
+        None, "--project-root", help="Project root directory",
+    ),
+) -> None:
+    """Reset pre-model migration state for one or more selected tables."""
+    try:
+        root = resolve_project_root(project_root)
+    except RuntimeError as exc:
+        logger.error("event=project_root_error error=%s", exc)
+        emit({"error": str(exc)})
+        raise typer.Exit(code=2) from exc
+
+    try:
+        result = run_reset_migration(root, stage, list(fqns))
+    except ValueError as exc:
+        logger.error("event=reset_migration_failed stage=%s error=%s", stage, exc)
+        emit({"error": str(exc)})
+        raise typer.Exit(code=1) from exc
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.error("event=reset_migration_failed stage=%s error=%s", stage, exc)
+        emit({"error": str(exc)})
+        raise typer.Exit(code=2) from exc
     emit(result)
 
 

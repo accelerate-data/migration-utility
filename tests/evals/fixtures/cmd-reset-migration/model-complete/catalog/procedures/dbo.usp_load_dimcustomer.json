@@ -1,0 +1,18 @@
+{
+  "schema": "dbo",
+  "name": "usp_load_dimcustomer",
+  "statements": [
+    {"index": 0, "action": "migrate", "source": "ast", "sql": "INSERT INTO silver.DimCustomer SELECT ..."}
+  ],
+  "references": {
+    "tables": {"in_scope": [], "out_of_scope": []},
+    "views": {"in_scope": [], "out_of_scope": []},
+    "functions": {"in_scope": [], "out_of_scope": []},
+    "procedures": {"in_scope": [], "out_of_scope": []}
+  },
+  "refactor": {
+    "status": "ok",
+    "extracted_sql": "SELECT 1",
+    "refactored_sql": "WITH src AS (SELECT 1) SELECT * FROM src"
+  }
+}

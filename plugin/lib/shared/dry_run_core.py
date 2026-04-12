@@ -22,6 +22,8 @@ from shared.output_models.dry_run import (
     DryRunOutput,
     ExcludeOutput,
     ObjectStatus,
+    ResetMigrationOutput,
+    ResetTargetResult,
     StageStatuses,
     StatusOutput,
     StatusSummary,
@@ -33,6 +35,14 @@ logger = logging.getLogger(__name__)
 VALID_STAGES = frozenset(
     {"setup-ddl", "scope", "profile", "test-gen", "refactor", "migrate", "generate"}
 )
+RESETTABLE_STAGES = frozenset({"scope", "profile", "generate-tests", "refactor"})
+
+_RESET_STAGE_SECTIONS: dict[str, tuple[str, ...]] = {
+    "scope": ("scoping", "profile", "test_gen"),
+    "profile": ("profile", "test_gen"),
+    "generate-tests": ("test_gen",),
+    "refactor": (),
+}
 
 
 def _display_scope_status(scope_status: str | None) -> str | None:
@@ -274,6 +284,156 @@ def run_exclude(project_root: Path, fqns: list[str]) -> ExcludeOutput:
         )
 
     return ExcludeOutput(marked=marked, not_found=not_found)
+
+
+def _delete_if_present(path: Path) -> bool:
+    if not path.exists():
+        return False
+    path.unlink()
+    return True
+
+
+def _reset_table_sections(
+    project_root: Path,
+    norm: str,
+    stage: str,
+) -> tuple[list[str], list[str], str | None]:
+    table_path = project_root / "catalog" / "tables" / f"{norm}.json"
+    table_data = json.loads(table_path.read_text(encoding="utf-8"))
+    writer = (
+        table_data.get("scoping", {}).get("selected_writer")
+        if isinstance(table_data.get("scoping"), dict)
+        else None
+    )
+
+    cleared_sections: list[str] = []
+    deleted_files: list[str] = []
+
+    for key in _RESET_STAGE_SECTIONS[stage]:
+        if key in table_data:
+            del table_data[key]
+            cleared_sections.append(f"table.{key}")
+
+    if stage in ("scope", "profile", "generate-tests"):
+        spec_path = project_root / "test-specs" / f"{norm}.json"
+        if _delete_if_present(spec_path):
+            deleted_files.append(f"test-specs/{norm}.json")
+
+    write_json(table_path, table_data)
+    return cleared_sections, deleted_files, writer
+
+
+def _reset_writer_refactor(
+    project_root: Path,
+    writer_fqn: str | None,
+) -> list[str]:
+    if not writer_fqn:
+        return []
+
+    writer_norm = normalize(writer_fqn)
+    proc_path = project_root / "catalog" / "procedures" / f"{writer_norm}.json"
+    if not proc_path.exists():
+        return []
+
+    proc_data = json.loads(proc_path.read_text(encoding="utf-8"))
+    if "refactor" not in proc_data:
+        return []
+
+    del proc_data["refactor"]
+    write_json(proc_path, proc_data)
+    return [f"procedure:{writer_norm}.refactor"]
+
+
+def run_reset_migration(project_root: Path, stage: str, fqns: list[str]) -> ResetMigrationOutput:
+    """Reset pre-model migration state for one or more selected tables.
+
+    The command is intentionally limited to pre-model stages. If any selected
+    table already has model generation complete, the entire run is blocked
+    before any mutation occurs.
+    """
+    if stage not in RESETTABLE_STAGES:
+        raise ValueError(f"Unsupported reset stage: {stage}")
+
+    normalized = [normalize(fqn) for fqn in fqns]
+    targets: list[ResetTargetResult] = []
+    blocked: list[str] = []
+    not_found: list[str] = []
+
+    resolved_tables: list[tuple[str, dict[str, Any]]] = []
+    for norm in normalized:
+        bucket = detect_catalog_bucket(project_root, norm)
+        if bucket != "tables":
+            targets.append(
+                ResetTargetResult(
+                    fqn=norm,
+                    status="not_found",
+                    reason="table_catalog_not_found",
+                )
+            )
+            not_found.append(norm)
+            continue
+
+        table_path = project_root / "catalog" / "tables" / f"{norm}.json"
+        table_data = json.loads(table_path.read_text(encoding="utf-8"))
+        generate_status = (
+            table_data.get("generate", {}).get("status")
+            if isinstance(table_data.get("generate"), dict)
+            else None
+        )
+        if generate_status == "ok":
+            targets.append(
+                ResetTargetResult(
+                    fqn=norm,
+                    status="blocked",
+                    reason="generate_already_complete",
+                )
+            )
+            blocked.append(norm)
+            continue
+
+        resolved_tables.append((norm, table_data))
+
+    if blocked or not_found:
+        return ResetMigrationOutput(
+            stage=stage,
+            targets=targets,
+            reset=[],
+            noop=[],
+            blocked=blocked,
+            not_found=not_found,
+        )
+
+    reset: list[str] = []
+    noop: list[str] = []
+
+    for norm, _table_data in resolved_tables:
+        cleared_sections, deleted_files, writer = _reset_table_sections(project_root, norm, stage)
+        if stage in ("scope", "profile", "generate-tests", "refactor"):
+            cleared_sections.extend(_reset_writer_refactor(project_root, writer))
+
+        status = "reset" if cleared_sections or deleted_files else "noop"
+        if status == "reset":
+            reset.append(norm)
+        else:
+            noop.append(norm)
+
+        targets.append(
+            ResetTargetResult(
+                fqn=norm,
+                status=status,
+                cleared_sections=cleared_sections,
+                deleted_files=deleted_files,
+            )
+        )
+
+    return ResetMigrationOutput(
+        stage=stage,
+        targets=targets,
+        reset=reset,
+        noop=noop,
+        blocked=[],
+        not_found=[],
+    )
 
 
 def run_sync_excluded_warnings(project_root: Path) -> SyncExcludedWarningsOutput:

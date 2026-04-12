@@ -1,0 +1,69 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "reset-migration command — pre-model stage reset orchestration"
+
+prompts:
+  - id: cmd-reset-migration
+    label: cmd-reset-migration
+    raw: file://../../prompts/cmd-reset-migration.txt
+
+providers:
+  - id: anthropic:claude-agent-sdk
+    config:
+      model: claude-haiku-4-5-20251001
+      working_dir: ../..
+      max_turns: 60
+      permission_mode: auto
+      append_allowed_tools:
+        - Read
+        - Write
+        - Bash
+        - Glob
+        - Grep
+
+defaultTest:
+  assert:
+    - type: javascript
+      value: file://../../assertions/check-command-summary.js
+
+tests:
+  - description: "scope — reset clears scope and downstream pre-model state"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-reset-migration/base"
+      instruction: "Run `/reset-migration scope silver.DimCustomer`."
+      expected_item_statuses: '{"silver.DimCustomer": "reset"}'
+      expected_output_terms: "reset-migration,dimcustomer,reset,scope"
+
+  - description: "profile — reset clears profile and downstream pre-model state"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-reset-migration/base"
+      instruction: "Run `/reset-migration profile silver.DimCustomer`."
+      expected_item_statuses: '{"silver.DimCustomer": "reset"}'
+      expected_output_terms: "reset-migration,dimcustomer,reset,profile"
+
+  - description: "generate-tests — reset clears test generation state"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-reset-migration/base"
+      instruction: "Run `/reset-migration generate-tests silver.DimCustomer`."
+      expected_item_statuses: '{"silver.DimCustomer": "reset"}'
+      expected_output_terms: "reset-migration,dimcustomer,reset,generate-tests"
+
+  - description: "refactor — reset clears refactor state only"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-reset-migration/base"
+      instruction: "Run `/reset-migration refactor silver.DimCustomer`."
+      expected_item_statuses: '{"silver.DimCustomer": "reset"}'
+      expected_output_terms: "reset-migration,dimcustomer,reset,refactor"
+
+  - description: "idempotent — second reset is reported as no-op"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-reset-migration/base"
+      instruction: "Run `/reset-migration refactor silver.DimCustomer` twice in sequence and report the final result."
+      expected_item_statuses: '{"silver.DimCustomer": "noop"}'
+      expected_output_terms: "reset-migration,dimcustomer,no-op,refactor"
+
+  - description: "blocked — refuse when model generation is already complete"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-reset-migration/model-complete"
+      instruction: "Run `/reset-migration profile silver.DimCustomer`."
+      expected_item_statuses: '{"silver.DimCustomer": "blocked"}'
+      expected_output_terms: "reset-migration,dimcustomer,blocked,model"
