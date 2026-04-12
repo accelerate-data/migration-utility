@@ -121,6 +121,16 @@ def test_ready_scope_no_catalog_file() -> None:
         assert result.reason == "catalog_missing"
 
 
+def test_ready_setup_ddl_passes_with_manifest() -> None:
+    """setup-ddl readiness uses the manifest gate and accepts the stage name."""
+    tmp, root = _make_project()
+    with tmp:
+        result = dry_run.run_ready(root, "_", "setup-ddl")
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is True
+        assert result.reason == "ok"
+
+
 # ── run_ready tests: profile stage ───────────────────────────────────────────
 
 

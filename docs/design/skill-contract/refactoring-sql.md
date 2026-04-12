@@ -43,7 +43,7 @@ The skill handles two object types determined by `context.object_type`:
 Run before any execution:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <table_fqn> refactor
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <table_fqn> refactor
 ```
 
 Guard requires: scoping resolved, profile complete, test-spec present.

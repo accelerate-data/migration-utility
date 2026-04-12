@@ -34,7 +34,7 @@ For each FQN in `$ARGUMENTS`:
 1. Run the scope guard:
 
    ```bash
-   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util guard <fqn> scope
+   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <fqn> scope
    ```
 
    If `passed` is `false`, report the error and skip this table. Continue with remaining tables.
@@ -92,7 +92,7 @@ Run /status to see the updated pipeline view.
 
 | Command | Exit code | Action |
 |---|---|---|
-| `migrate-util guard` | non-zero | Scope not complete for this table. Skip and report. |
+| `migrate-util ready` | non-zero | Scope not complete for this table. Skip and report. |
 | `discover write-source` | 1 | Catalog missing or table not analyzed. Report and skip. |
 | `discover write-source` | 2 | IO error. Report and stop. |
 | `git commit` | non-zero | Not a git repo or nothing to commit. Skip silently. |

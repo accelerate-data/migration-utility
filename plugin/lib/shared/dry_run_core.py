@@ -31,20 +31,25 @@ from shared.output_models.dry_run import (
 logger = logging.getLogger(__name__)
 
 VALID_STAGES = frozenset(
-    {"scope", "profile", "test-gen", "refactor", "migrate", "generate"}
+    {"setup-ddl", "scope", "profile", "test-gen", "refactor", "migrate", "generate"}
 )
 
 
 def run_ready(project_root: Path, fqn: str, stage: str) -> DryRunOutput:
     """Check whether the prior stage's CLI-written status allows proceeding."""
-    norm = normalize(fqn)
-    obj_type = detect_object_type(project_root, norm)
-
     def out(ready: bool, reason: str, code: str | None = None) -> DryRunOutput:
         return DryRunOutput(ready=ready, reason=reason, code=code)
 
     if stage not in VALID_STAGES:
         return out(False, "invalid_stage")
+
+    if stage == "setup-ddl":
+        if not (project_root / "manifest.json").exists():
+            return out(False, "manifest_missing")
+        return out(True, "ok")
+
+    norm = normalize(fqn)
+    obj_type = detect_object_type(project_root, norm)
 
     if obj_type == "table":
         try:
