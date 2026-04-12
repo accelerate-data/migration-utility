@@ -1,0 +1,32 @@
+{
+  "schema": "silver",
+  "name": "DimCustomer",
+  "primary_keys": [],
+  "unique_indexes": [],
+  "foreign_keys": [],
+  "auto_increment_columns": [],
+  "referenced_by": {
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
+  },
+  "generate": {
+    "status": "blocked",
+    "model_path": null,
+    "schema_yml": false,
+    "compiled": false,
+    "tests_passed": false,
+    "test_count": 0,
+    "warnings": [],
+    "errors": []
+  }
+}
