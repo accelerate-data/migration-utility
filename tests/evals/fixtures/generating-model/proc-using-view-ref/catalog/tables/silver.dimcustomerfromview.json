@@ -1,0 +1,39 @@
+{
+  "schema": "silver",
+  "name": "dimcustomerfromview",
+  "columns": [
+    {"name": "CustomerID", "sql_type": "INT", "is_nullable": false, "is_identity": false},
+    {"name": "FullName", "sql_type": "NVARCHAR(120)", "is_nullable": false, "is_identity": false}
+  ],
+  "primary_keys": [
+    {"name": "PK_DimCustomerFromView", "columns": ["CustomerID"]}
+  ],
+  "foreign_keys": [],
+  "unique_indexes": [],
+  "scoping": {
+    "status": "resolved",
+    "selected_writer": "silver.usp_load_DimCustomerFromView"
+  },
+  "profile": {
+    "status": "ok",
+    "writer": "silver.usp_load_dimcustomerfromview",
+    "classification": {
+      "resolved_kind": "dim_non_scd",
+      "source": "llm",
+      "rationale": "Full refresh dimension projected from an upstream migrated view."
+    },
+    "primary_key": {
+      "columns": ["CustomerID"],
+      "primary_key_type": "natural",
+      "source": "catalog",
+      "rationale": "CustomerID is the target primary key."
+    },
+    "foreign_keys": [],
+    "pii_actions": []
+  },
+  "refactor": {
+    "status": "ok",
+    "refactored_sql": "with active_customers as (\n    select * from [silver].[vw_activecustomers]\n),\n\nfinal as (\n    select\n        CustomerID,\n        concat(FirstName, ' ', LastName) as FullName\n    from active_customers\n)\n\nselect * from final"
+  },
+  "statements": []
+}

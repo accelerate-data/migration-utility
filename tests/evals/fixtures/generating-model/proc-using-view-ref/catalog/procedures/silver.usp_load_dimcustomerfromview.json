@@ -1,0 +1,53 @@
+{
+  "schema": "silver",
+  "name": "usp_load_dimcustomerfromview",
+  "references": {
+    "tables": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "DimCustomerFromView",
+          "is_selected": false,
+          "is_updated": true,
+          "columns": [
+            {"name": "CustomerID", "is_selected": false, "is_updated": true},
+            {"name": "FullName", "is_selected": false, "is_updated": true}
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [
+        {
+          "schema": "silver",
+          "name": "vw_activecustomers",
+          "is_selected": true,
+          "is_updated": false,
+          "columns": [
+            {"name": "CustomerID", "is_selected": true, "is_updated": false},
+            {"name": "FirstName", "is_selected": true, "is_updated": false},
+            {"name": "LastName", "is_selected": true, "is_updated": false}
+          ]
+        }
+      ],
+      "out_of_scope": []
+    },
+    "functions": {"in_scope": [], "out_of_scope": []},
+    "procedures": {"in_scope": [], "out_of_scope": []}
+  },
+  "mode": "deterministic",
+  "routing_reasons": [],
+  "statements": [
+    {
+      "type": "Insert",
+      "action": "migrate",
+      "source": "ast",
+      "sql": "INSERT INTO silver.DimCustomerFromView (CustomerID, FullName) SELECT CustomerID, FirstName + ' ' + LastName FROM silver.vw_activecustomers"
+    }
+  ],
+  "refactor": {
+    "status": "ok",
+    "refactored_sql": "with active_customers as (\n    select * from [silver].[vw_activecustomers]\n),\n\nfinal as (\n    select\n        CustomerID,\n        concat(FirstName, ' ', LastName) as FullName\n    from active_customers\n)\n\nselect * from final"
+  }
+}
