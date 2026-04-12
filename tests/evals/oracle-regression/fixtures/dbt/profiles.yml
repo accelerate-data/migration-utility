@@ -8,5 +8,5 @@ oracle_regression_test:
       host: "{{ env_var('ORACLE_HOST', 'localhost') }}"
       port: "{{ env_var('ORACLE_PORT', '1521') | int }}"
       service: "{{ env_var('ORACLE_SERVICE', 'FREEPDB1') }}"
-      schema: sh
+      schema: "{{ env_var('DBT_SCHEMA', 'sh') }}"
       threads: 4
