@@ -1,8 +1,9 @@
 const fs = require('fs');
 const path = require('path');
+const { resolveProjectPath } = require('./schema-helpers');
 
 module.exports = (_output, context) => {
-  const fixturePath = context.vars.fixture_path;
+  const fixturePath = resolveProjectPath(context);
   const table = String(context.vars.target_table || '').toLowerCase();
   const repoRoot = path.resolve(__dirname, '..', '..', '..');
   const specPath = path.resolve(repoRoot, fixturePath, 'test-specs', `${table}.json`);

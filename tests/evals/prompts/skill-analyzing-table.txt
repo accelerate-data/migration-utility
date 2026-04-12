@@ -1,5 +1,5 @@
-You are running in a DDL project directory at {{fixture_path}}.
+You are running in a DDL project with canonical fixture input at {{fixture_path}} and writable run workspace at {{run_path}}.
 
 Run /analyzing-table for table {{target_table}}.
 
-Read the skill at plugin/skills/analyzing-table/SKILL.md. Wherever it references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead. Pass `--project-root {{fixture_path}}` to all CLI commands so reads and writes target the fixture catalog.
+Read the skill at plugin/skills/analyzing-table/SKILL.md. Wherever it references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead. Pass `--project-root {{run_path}}` to all CLI commands so reads and writes target the writable eval workspace.

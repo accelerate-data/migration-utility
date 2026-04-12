@@ -6,6 +6,9 @@ prompts:
     label: cmd-live-pipeline
     raw: file://../prompts/cmd-live-pipeline.txt
 
+extensions:
+  - file://../scripts/run-workspace-extension.js:extensionHook
+
 providers:
   - id: anthropic:claude-agent-sdk
     config:

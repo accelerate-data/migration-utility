@@ -11,10 +11,10 @@
 // }
 const fs = require('fs');
 const path = require('path');
-const { normalizeTerms } = require('./schema-helpers');
+const { normalizeTerms, resolveProjectPath } = require('./schema-helpers');
 
 module.exports = (output, context) => {
-  const fixturePath = context.vars.fixture_path;
+  const fixturePath = resolveProjectPath(context);
   const table = context.vars.target_table;
   const view = context.vars.target_view;
   const expectedStatuses = normalizeTerms(context.vars.expected_status);

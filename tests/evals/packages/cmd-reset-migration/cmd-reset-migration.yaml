@@ -6,6 +6,9 @@ prompts:
     label: cmd-reset-migration
     raw: file://../../prompts/cmd-reset-migration.txt
 
+extensions:
+  - file://../../scripts/run-workspace-extension.js:extensionHook
+
 providers:
   - id: anthropic:claude-agent-sdk
     config:

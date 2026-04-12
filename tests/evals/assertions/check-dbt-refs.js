@@ -17,6 +17,7 @@
 const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
+const { resolveProjectPath } = require('./schema-helpers');
 
 /** Recursively collect .sql files under a directory. */
 function collectSql(dir, results = []) {
@@ -55,7 +56,7 @@ function loadValidSources(dbtDir) {
 }
 
 module.exports = (output, context) => {
-  const fixturePath = context.vars.fixture_path;
+  const fixturePath = resolveProjectPath(context);
   const targetTable = context.vars.target_table;
 
   if (!fixturePath || !targetTable) {

@@ -9,6 +9,9 @@ prompts:
     label: reviewing-tests-view
     raw: file://../../prompts/skill-reviewing-tests-view.txt
 
+extensions:
+  - file://../../scripts/run-workspace-extension.js:extensionHook
+
 providers:
   - id: anthropic:claude-agent-sdk
     config:

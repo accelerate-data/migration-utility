@@ -13,7 +13,7 @@
 // }
 const fs = require('fs');
 const path = require('path');
-const { normalizeTerms } = require('./schema-helpers');
+const { normalizeTerms, resolveProjectPath } = require('./schema-helpers');
 
 function findWriteKeyword(sqlText) {
   const patterns = [
@@ -36,7 +36,7 @@ function findWriteKeyword(sqlText) {
 }
 
 module.exports = (output, context) => {
-  const fixturePath = context.vars.fixture_path;
+  const fixturePath = resolveProjectPath(context);
   const table = context.vars.target_table;
   const targetView = context.vars.target_view;
   const expectedExtractedTerms = normalizeTerms(context.vars.expected_extracted_terms);
