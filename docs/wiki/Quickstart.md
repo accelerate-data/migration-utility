@@ -102,7 +102,7 @@ See [[Stage 5 SQL Refactoring]] for details.
 /generate-model silver.DimCustomer silver.FactInternetSales
 ```
 
-Generates dbt models from the refactored SQL. Import CTEs become ephemeral staging models (`stg_*`); logical and final CTEs become the mart model. Runs `dbt test` with up to 3 self-corrections, then a code review loop with up to 2 iterations.
+Generates one dbt model artifact set per target from the refactored SQL. Import CTEs use `source()` directly inside the generated model, then the command runs `dbt test` with up to 3 self-corrections and a code review loop with up to 2 iterations.
 
 See [[Stage 4 Model Generation]] for details.
 

@@ -121,7 +121,7 @@ These errors occur during dbt model generation and dependency checking.
 |---|---|---|---|
 | `DBT_PROJECT_MISSING` | `dbt_project.yml` not found in the dbt project directory | `generating-model`, `reviewing-model` guards | Run `/init-dbt` to scaffold the dbt project |
 | `VIEW_DEP_CHECK_ERROR` | Could not load procedure catalog to check view dependencies | `generating-model`, `reviewing-model` guards | Verify the procedure catalog file exists and is valid JSON. Re-run `/setup-ddl` if needed |
-| `VIEW_DEPENDENCIES_NOT_MIGRATED` | View dependencies not yet migrated to dbt staging models | `generating-model`, `reviewing-model` guards | Run `/refactor-view` on each listed view before generating the dbt model |
+| `VIEW_DEPENDENCIES_NOT_MIGRATED` | View dependencies not yet refactored for downstream model generation | `generating-model`, `reviewing-model` guards | Run `/refactor-view` on each listed view before generating the dbt model |
 
 ## Migration errors
 
@@ -139,7 +139,7 @@ The model generator self-corrects up to 3 iterations when `dbt test` fails. If i
 
 **Model not found in dbt project**
 
-The model generator writes to `dbt/models/staging/` and `dbt/models/marts/`. If the dbt project was not scaffolded, run `/init-dbt` first. Verify with `/status <table>` that the `dbt_model_exists` flag is set.
+The model generator writes the reviewed model artifact under `dbt/models/` and writes snapshot artifacts under `dbt/snapshots/` when applicable. If the dbt project was not scaffolded, run `/init-dbt` first. Verify with `/status <table>` that the `dbt_model_exists` flag is set.
 
 ## Guard check reference
 
