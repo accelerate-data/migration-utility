@@ -47,15 +47,15 @@ All-objects mode shape:
 
 ```json
 {
-  "objects": [{"fqn": "silver.dimproduct", "type": "table", "stages": {"scope": "resolved", "profile": "ok", "test_gen": null, "refactor": null, "generate": null}}],
-  "summary": {"total": 5, "by_stage": {"scope": {"resolved": 3, "pending": 2}}}
+  "objects": [{"fqn": "silver.dimproduct", "type": "table", "stages": {"scope": "ok", "profile": "ok", "test_gen": null, "refactor": null, "generate": null}}],
+  "summary": {"total": 5, "by_stage": {"scope": {"ok": 3, "pending": 2}}}
 }
 ```
 
 Single-object mode shape:
 
 ```json
-{"fqn": "silver.dimproduct", "type": "table", "stages": {"scope": "resolved", "profile": "ok", "test_gen": null, "refactor": null, "generate": null}}
+{"fqn": "silver.dimproduct", "type": "table", "stages": {"scope": "ok", "profile": "ok", "test_gen": null, "refactor": null, "generate": null}}
 ```
 
 The `batch-plan` command returns:
@@ -88,7 +88,8 @@ The `exclude` command returns:
 
 Map the status values to table cells:
 
-- Status present (e.g., `"ok"`, `"resolved"`, `"analyzed"`) -- show that value
+- Completed scope (`"resolved"` for tables, `"analyzed"` for views/materialized views) -- show `ok`
+- Other status present (e.g., `"ok"`, `"partial"`, `"error"`) -- show that value
 - Status is `null` (section does not exist yet) AND it is the first null stage -- `pending`
 - Status is `null` AND a prior stage is null/pending -- `blocked`
 - Writerless table (`scoping.status == "no_writer_found"`) -- `N/A` for all stages after scope
@@ -122,12 +123,12 @@ migration status — 6 objects (4 tables, 2 views)
 
   Object                        type    scope        profile    test-gen   refactor    migrate
   ──────────────────────────────────────────────────────────────────────────────────────────────
-  silver.DimCustomer            table   resolved     ok         ok         ok          pending
-  silver.DimProduct             table   resolved~    partial    blocked    blocked!    blocked!
+  silver.DimCustomer            table   ok           ok         ok         ok          pending
+  silver.DimProduct             table   ok~          partial    blocked    blocked!    blocked!
   silver.DimDate                table   pending      blocked    blocked    blocked     blocked
   silver.FactSales              table   pending!     blocked!   blocked!   blocked!    blocked!
-  silver.RefCurrency            table   resolved     N/A        N/A        N/A         N/A
-  silver.vDimSalesTerritory     view    resolved     ok         ok         pending     blocked
+  silver.RefCurrency            table   ok           N/A        N/A        N/A         N/A
+  silver.vDimSalesTerritory     view    ok           ok         ok         pending     blocked
   silver.vwFactPromo            mv      pending      blocked    blocked    blocked     blocked
 
   scope: 4/6 | profile: 2/5 (1 N/A) | test-gen: 2/5 (1 N/A) | refactor: 1/5 (1 N/A) | migrate: 0/5 (1 N/A)
@@ -137,7 +138,7 @@ migration status — 6 objects (4 tables, 2 views)
 
 Stage status values:
 
-- Stage complete: show the stage's status value (`resolved`, `ok`, `partial`, etc.)
+- Stage complete: show `ok` for scope completion, otherwise show the stage's status value (`ok`, `partial`, etc.)
 - Stage is the first incomplete: `pending`
 - Stage blocked by prior incomplete stage: `blocked`
 - Stage does not apply to this object (writerless table): `N/A`
@@ -145,7 +146,7 @@ Stage status values:
 **Diagnostic overlay** — for each object, look up its node in the batch-plan output and read `diagnostic_stage_flags`:
 
 - If the node has `diagnostic_stage_flags.refactor == "error"`: the refactor stage cell shows its normal value with `!` appended (e.g. `pending!`, `ok!`). All subsequent stage cells that are not `N/A` show `blocked!`.
-- If the node has `diagnostic_stage_flags.scope == "warning"`: the scope stage cell shows its normal value with `~` appended (e.g. `resolved~`). Subsequent stages are not affected.
+- If the node has `diagnostic_stage_flags.scope == "warning"`: the scope stage cell shows its normal value with `~` appended (e.g. `ok~`). Subsequent stages are not affected.
 - If the node has `diagnostic_stage_flags.refactor == "error"` AND `diagnostic_stage_flags.scope == "warning"`: apply both — scope cell gets `~`, refactor cell gets `!`, all post-refactor cells get `blocked!`.
 - Objects with no `diagnostic_stage_flags` entries display exactly as before.
 
@@ -339,6 +340,7 @@ For each stage, present the status and detail content:
 status for silver.DimCustomer
 
   scope ✓
+    status: ok
     selected_writer: dbo.usp_load_dimcustomer
     candidates: 1
     statements: 3 migrate, 1 skip, 0 unresolved
@@ -366,11 +368,12 @@ status for silver.DimCustomer
 For the first failing stage, explain what prerequisite is missing and suggest the specific command to run.
 
 If the stage status indicates not applicable, show it as `N/A` and continue to the next stage.
+Do not surface internal scope-completion labels like `resolved` or `analyzed` in the `/status` display; completed scope is always shown as `ok`.
 
 For completed stages, show the key signals from the status detail content:
 
-- **scope (table):** selected_writer, candidate count, statement resolution counts
-- **scope (view):** scoping_status, is_materialized_view
+- **scope (table):** status, selected_writer, candidate count, statement resolution counts
+- **scope (view):** status, is_materialized_view, logic_summary, references summary
 - **profile (table):** status, resolved_kind, primary_key type, watermark column, FK count, PII count, questions answered/total
 - **profile (view):** profile_status, classification, source
 - **test-gen:** status, coverage, branch count, test count, sandbox database

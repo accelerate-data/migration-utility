@@ -5,7 +5,7 @@
 // {
 //   fixture_path,
 //   target_table?,              — single table name (omit for all-tables mode)
-//   expected_stage_statuses?,   — JSON string: {"scope": "resolved", "profile": "ok", "test-gen": "pending", "migrate": "blocked"}
+//   expected_stage_statuses?,   — JSON string: {"scope": "ok", "profile": "ok", "test-gen": "pending", "migrate": "blocked"}
 //   expected_output_terms?,     — comma-separated terms that must appear in output text
 //   unexpected_output_terms?,   — comma-separated terms that must NOT appear in output text
 //   expected_blocked_stage?,    — stage name that should be reported as blocked/pending
@@ -27,7 +27,7 @@ module.exports = (output, context) => {
     // Single-item detailed status views often use symbols instead of repeating
     // the raw stage value. Accept those richer presentations when they imply
     // the same status.
-    if (stageLower === 'scope' && statusLower === 'resolved') {
+    if (stageLower === 'scope' && statusLower === 'ok') {
       return outputStr.includes('scope ✓') || outputStr.includes('selected_writer:');
     }
     if (stageLower === 'profile' && statusLower === 'ok') {

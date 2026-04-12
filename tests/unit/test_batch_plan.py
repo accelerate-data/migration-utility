@@ -686,13 +686,13 @@ class TestBuildBatchPlan:
         try:
             result = build_batch_plan(dst)
             summary = result.summary
-            # refcurrency has no_writer_found → goes to source_pending, not pipeline
-            # 5 pipeline tables + 2 views = 7 pipeline objects
-            assert summary.total_objects == 7
-            assert summary.tables == 5
+            # refcurrency has no_writer_found → writerless n_a object
+            # 6 tables + 2 views = 8 active catalog objects
+            assert summary.total_objects == 8
+            assert summary.tables == 6
             assert summary.views == 2
-            assert summary.writerless_tables == 0
-            assert summary.source_pending == 1  # refcurrency awaits confirmation
+            assert summary.writerless_tables == 1
+            assert summary.source_pending == 0
             assert summary.source_tables == 0
         finally:
             tmp.cleanup()
@@ -718,22 +718,22 @@ class TestBuildBatchPlan:
         finally:
             tmp.cleanup()
 
-    def test_n_a_objects_empty_for_fixture(self):
-        """n_a_objects is empty in the fixture — refcurrency moved to source_pending."""
+    def test_n_a_objects_contains_refcurrency(self):
+        """Writerless fixture table appears in n_a_objects."""
         tmp, dst = _make_project()
         try:
             result = build_batch_plan(dst)
-            assert result.n_a_objects == []
+            n_a_fqns = {o.fqn for o in result.n_a_objects}
+            assert "silver.refcurrency" in n_a_fqns
         finally:
             tmp.cleanup()
 
-    def test_source_pending_contains_refcurrency(self):
-        """Writerless table without is_source flag appears in source_pending."""
+    def test_source_pending_empty_for_fixture(self):
+        """Confirmed writerless fixture table is not source_pending."""
         tmp, dst = _make_project()
         try:
             result = build_batch_plan(dst)
-            pending_fqns = {o.fqn for o in result.source_pending}
-            assert "silver.refcurrency" in pending_fqns
+            assert result.source_pending == []
         finally:
             tmp.cleanup()
 
@@ -1343,9 +1343,9 @@ class TestExcludedObjects:
         result = build_batch_plan(tmp_path)
         excluded_fqns_in_output = {e.fqn for e in result.excluded_objects}
         assert "silver.excludedsource" in excluded_fqns_in_output
-        # silver.facttable has no_writer_found → goes to source_pending with VU-948
-        pending_fqns = {n.fqn for n in result.source_pending}
-        assert "silver.facttable" in pending_fqns
+        # silver.facttable has no_writer_found → writerless n_a
+        n_a_fqns = {n.fqn for n in result.n_a_objects}
+        assert "silver.facttable" in n_a_fqns
 
     def test_full_fixture_excluded_count_zero(self):
         """Standard fixture (no excluded objects) has excluded_count=0."""
@@ -1368,7 +1368,7 @@ class TestExcludedObjects:
 
             result = build_batch_plan(dst)
             assert result.summary.excluded_count == 1
-            assert result.summary.total_objects == 6  # refcurrency in source_pending, dimdate excluded
+            assert result.summary.total_objects == 7  # refcurrency remains as writerless n_a, dimdate excluded
             excluded_fqns = {e.fqn for e in result.excluded_objects}
             assert "silver.dimdate" in excluded_fqns
             # silver.dimdate must not appear in any active phase
@@ -1536,8 +1536,8 @@ class TestIsSourceBatchPlan:
         assert result.summary.source_tables == 1
         assert result.summary.total_objects == 0
 
-    def test_source_pending_populated(self, tmp_path):
-        """no_writer_found table without is_source appears in source_pending."""
+    def test_writerless_table_populates_n_a_objects(self, tmp_path):
+        """no_writer_found table without is_source appears in n_a_objects."""
         root = _make_minimal_project(tmp_path)
         cat_dir = root / "catalog" / "tables"
         _write_table_cat(
@@ -1546,12 +1546,13 @@ class TestIsSourceBatchPlan:
             {"status": "no_writer_found"},
         )
         result = build_batch_plan(root)
-        pending_fqns = {o.fqn for o in result.source_pending}
-        assert "silver.lookup" in pending_fqns
-        assert result.summary.source_pending == 1
+        n_a_fqns = {o.fqn for o in result.n_a_objects}
+        assert "silver.lookup" in n_a_fqns
+        assert result.summary.writerless_tables == 1
+        assert result.summary.source_pending == 0
 
-    def test_source_pending_not_in_pipeline(self, tmp_path):
-        """source_pending tables do not appear in any pipeline phase."""
+    def test_writerless_table_not_in_active_pipeline_phases(self, tmp_path):
+        """Writerless tables do not appear in active pipeline phases."""
         root = _make_minimal_project(tmp_path)
         cat_dir = root / "catalog" / "tables"
         _write_table_cat(
@@ -1564,7 +1565,7 @@ class TestIsSourceBatchPlan:
             {n.fqn for n in result.scope_phase}
             | {n.fqn for n in result.profile_phase}
             | {n.fqn for batch in result.migrate_batches for n in batch.objects}
-            | {n.fqn for n in result.n_a_objects}
+            | {n.fqn for n in result.completed_objects}
         )
         assert "silver.lookup" not in all_pipeline_fqns
 
@@ -1609,8 +1610,8 @@ class TestEnumerateCatalog:
         assert inv.source_table_fqns == ["dbo.src"]
         assert inv.table_fqns == []
 
-    def test_classifies_source_pending(self, tmp_path):
-        """Tables with no_writer_found and no is_source go to source_pending."""
+    def test_classifies_writerless_tables_as_pipeline_tables(self, tmp_path):
+        """Tables with no_writer_found and no is_source stay in table inventory."""
         cat_dir = tmp_path / "catalog" / "tables"
         cat_dir.mkdir(parents=True)
         (cat_dir / "dbo.pending.json").write_text(
@@ -1621,7 +1622,8 @@ class TestEnumerateCatalog:
             encoding="utf-8",
         )
         inv = _enumerate_catalog(tmp_path)
-        assert inv.source_pending_fqns == ["dbo.pending"]
+        assert inv.table_fqns == ["dbo.pending"]
+        assert inv.source_pending_fqns == []
 
     def test_classifies_pipeline_tables(self, tmp_path):
         """Normal tables go to table_fqns."""
