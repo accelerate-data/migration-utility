@@ -1,94 +1,104 @@
 # Migration Utility
 
-A Claude Code plugin and batch CLI pipeline that migrates Microsoft Fabric Warehouse stored procedures to dbt models. Targets silver and gold transformations only (bronze is out of scope).
+A Claude Code plugin and batch CLI pipeline that migrates Microsoft Fabric Warehouse stored procedures to dbt models. It targets silver and gold transformations; bronze remains out of scope.
 
-## Who is this for?
+## Who uses it
 
-- **Field Data Engineers (FDEs)** running customer migrations
-- **Customers** doing self-service stored-procedure-to-dbt conversions
+- Field Data Engineers running customer migrations
+- Customers doing self-service stored-procedure-to-dbt conversions
 
-## Pipeline Overview
+## Pipeline overview
 
-The migration pipeline has two phases: **environment setup** (run once per project) and **per-table migration** (run for each table).
+The workflow has two layers:
 
-### Environment Setup
+1. **Project setup** runs once per migration repo.
+2. **Per-object migration** runs for each table or view you want to migrate.
 
-| Step | Command | What it does |
+### Project setup
+
+| Step | Command | Result |
 |---|---|---|
-| 1 | `/init-ad-migration` | Scaffold project files, check prerequisites |
-| 2 | `/setup-ddl` | Extract DDL and build catalog from live SQL Server |
-| 3 | `/init-dbt` | Scaffold dbt project with sources from catalog |
-| 4 | `/setup-sandbox` | Create throwaway test database for ground-truth capture |
+| 1 | `/init-ad-migration` | Scaffolds project files, git hooks, and `scripts/worktree.sh` |
+| 2 | `/setup-ddl` | Extracts DDL and builds the local catalog |
+| 3 | `/init-dbt` | Scaffolds the dbt project and generates `sources.yml` |
+| 4 | `/setup-sandbox` | Creates the throwaway database used for proof-backed testing |
 
-### Per-Table Migration
+### Per-object migration
 
 ```text
-Scoping (/scope)
-    │
-    ▼
-Profiling (/profile)
-    │
-    ▼
-Test Generation (/generate-tests)
-  ┌─────────────────────────┐
-  │ generate → review → fix │  ≤2 review iterations
-  └─────────────────────────┘
-    │
-    ▼
-SQL Refactoring (/refactor)
-  ┌─────────────────────────────────────────┐
-  │ restructure into CTEs → audit loop      │  self-corrects until equivalence passes
-  └─────────────────────────────────────────┘
-    │
-    ▼
-Model Generation (/generate-model)
-  ┌─────────────────────────┐
-  │ generate → dbt test     │  ≤3 self-corrections
-  │ → code review → fix     │  ≤2 review iterations
-  └─────────────────────────┘
-    │
-    ▼
-  Done
+/scope
+  -> /profile
+  -> /generate-tests
+  -> /refactor
+  -> /generate-model
 ```
 
-## Two Ways to Run
+Batch commands create or reuse worktrees through `git-checkpoints`, commit successful items as they finish, and can raise a PR for the run at the end.
 
-| Mode | Entry point | Tables | Approval |
-|---|---|---|---|
-| Interactive | Skills (`/analyzing-table`, `/profiling-table`, etc.) | One at a time | FDE reviews each step inline |
-| Multi-table | Commands (`/scope`, `/profile`, etc.) | Multiple in parallel | FDE reviews summary at end |
+## Interactive vs batch
 
-**Example (multi-table):**
+| Mode | Entry point | Best for |
+|---|---|---|
+| Interactive | Skills such as `/listing-objects`, `/analyzing-table`, `/profiling-table` | Exploring or fixing one object at a time |
+| Batch | Commands such as `/scope`, `/profile`, `/generate-tests`, `/refactor`, `/generate-model` | Processing multiple objects with parallel sub-agents and git automation |
+
+## User-invocable commands
+
+The plugin currently exposes these user-facing commands:
+
+- `/init-ad-migration`
+- `/setup-ddl`
+- `/init-dbt`
+- `/setup-sandbox`
+- `/scope`
+- `/profile`
+- `/generate-tests`
+- `/refactor`
+- `/generate-model`
+- `/status`
+- `/add-source-tables`
+- `/exclude-table`
+- `/reset-migration`
+- `/commit`
+- `/commit-push-pr`
+- `/teardown-sandbox`
+- `/cleanup-worktrees`
+
+See [[Command Reference]] for a one-page summary.
+
+## User-invocable skills
+
+The main user-facing skills are:
+
+- `/listing-objects`
+- `/analyzing-table`
+- `/profiling-table`
+- `/generating-tests`
+- `/generating-model`
+
+Internal skills such as `git-checkpoints`, `reviewing-tests`, `reviewing-model`, and `test-invariants` support the batch commands but are not the normal user entrypoints.
+
+## Where to start
+
+- New repo: [[Installation and Prerequisites]] then [[Quickstart]]
+- Specific stage: use the sidebar stage pages
+- Troubleshooting: [[Troubleshooting and Error Codes]]
+
+## Repository layout
+
+A migration project produces a structure like:
 
 ```text
-/scope silver.DimCustomer silver.DimProduct silver.FactSales
-```
-
-## Where to Start
-
-- **New to the tool?** Start with [[Installation and Prerequisites]], then follow the [[Quickstart]]
-- **Already set up?** Jump to the stage you need from the sidebar
-- **Looking up a specific skill?** See the Skill Reference section in the sidebar
-- **Troubleshooting?** See [[Troubleshooting and Error Codes]]
-
-## Repository Layout
-
-A migration project produces this directory structure:
-
-```text
-manifest.json                 # source metadata (technology, dialect, database)
-catalog/                      # shared state — all stages read/write here
+manifest.json
+catalog/
   tables/<schema>.<table>.json
   procedures/<schema>.<proc>.json
   views/<schema>.<view>.json
   functions/<schema>.<func>.json
-ddl/                          # extracted DDL (read-only after setup)
-  tables.sql, procedures.sql, views.sql, functions.sql
-test-specs/                   # test fixtures (test-gen output → model-gen input)
-  <item_id>.json
-dbt/                          # generated dbt project
-  models/staging/sources.yml
-  ...
+ddl/
+test-specs/
+dbt/
+scripts/worktree.sh
 ```
 
-The catalog is the source of truth. Every stage reads from and writes to catalog files. Git is the durable store — catalog files, test specs, and dbt models are committed artifacts.
+The catalog is the durable project state. Batch commands read from it, write back to it, and persist successful outputs to git.

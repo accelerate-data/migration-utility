@@ -11,7 +11,7 @@
 - [[Stage 3 dbt Scaffolding]]
 - [[Stage 4 Sandbox Setup]]
 
-**Per-Table Migration**
+**Per-Object Migration**
 
 - [[Stage 1 Scoping]]
 - [[Stage 2 Profiling]]
@@ -19,17 +19,17 @@
 - [[Stage 5 SQL Refactoring]]
 - [[Stage 4 Model Generation]]
 
-**Command Reference**
+**Commands**
 
+- [[Command Reference]]
 - [[Command Setup DDL]]
 
-**Skill Reference**
+**Skills**
 
 - [[Skill Listing Objects]]
 - [[Skill Analyzing Table]]
 - [[Skill Profiling Table]]
 - [[Skill Generating Tests]]
-- [[Skill Refactoring SQL]]
 - [[Skill Generating Model]]
 
 **Operations**

@@ -1,123 +1,143 @@
 # Quickstart
 
-Happy-path walkthrough migrating two tables (`silver.DimCustomer` and `silver.FactInternetSales`) from SQL Server stored procedures to dbt models. Each step runs one command with minimal explanation. See the linked stage pages for full details.
+Happy-path walkthrough for migrating two tables, `silver.DimCustomer` and `silver.FactInternetSales`.
 
 ## Prerequisites
 
-- All tools installed and verified (see [[Installation and Prerequisites]])
-- A migration project repo initialized with git
-- SQL Server accessible with MSSQL environment variables set
-- `toolbox` binary on PATH
+- All tools installed and verified, see [[Installation and Prerequisites]]
+- A git repo for the migration project
+- Access to the source database
 
-## Step 1 -- Scaffold the project
+## 1. Scaffold the project
 
 ```text
 /init-ad-migration
 ```
 
-Prompts you to select a source technology (SQL Server or Oracle), then checks prerequisites, installs missing dependencies, and scaffolds project files (`CLAUDE.md`, `README.md`, `repo-map.json`, `.gitignore`, `.envrc`, `.githooks/`). Safe to re-run. Pass the source directly to skip the prompt: `/init-ad-migration oracle`.
+This checks prerequisites, writes the project starter files, and scaffolds `scripts/worktree.sh` plus the repo-local git-workflow guidance.
 
-See [[Stage 1 Project Init]] for details.
+Generated files include:
 
-## Step 2 -- Extract DDL and catalog
+- `CLAUDE.md`
+- `README.md`
+- `repo-map.json`
+- `.envrc`
+- `.githooks/pre-commit`
+- `.claude/rules/git-workflow.md`
+- `scripts/worktree.sh`
+
+See [[Stage 1 Project Init]].
+
+## 2. Extract DDL and build the catalog
 
 ```text
 /setup-ddl
 ```
 
-Connects to your SQL Server, walks you through database and schema selection, extracts DDL for all objects, and builds catalog files with 12 signal queries. Produces `manifest.json`, `ddl/*.sql`, and `catalog/**/*.json`.
+This creates `manifest.json`, writes extracted DDL into `ddl/`, and builds per-object catalog files in `catalog/`.
 
-See [[Stage 2 DDL Extraction]] for details.
+See [[Stage 2 DDL Extraction]].
 
-## Step 3 -- Scope all extracted tables
+## 3. Resolve extracted tables before dbt init
 
 ```text
 /scope silver.DimCustomer silver.FactInternetSales
 ```
 
-Discovers which stored procedures write to each table. Launches one sub-agent per table in parallel, analyzes candidate writers, and writes the `selected_writer` to each table's catalog file.
+Before `/init-dbt` can proceed, every extracted table needs one of these outcomes:
 
-**`/init-dbt` requires every extracted table to have a resolved scoping status before it will proceed.** This means every table in `catalog/tables/` must be either scoped (status `resolved`) or handled via one of these commands:
+- scoped to a writer via `/scope` or `/analyzing-table`
+- excluded from the migration via `/exclude-table`
+- confirmed as a source via `/add-source-tables`
 
-- `/exclude-table <schema.table>` — mark a table as excluded from the migration entirely
-- `/add-source-tables <schema.table>` — confirm a table as an external source (no writer)
+Tables with `scoping.status == "no_writer_found"` are not automatically included in `sources.yml`; they stay pending until you explicitly confirm them as sources.
 
-Both count as resolved and satisfy the guard. Run `/scope`, `/exclude-table`, or `/add-source-tables` on every extracted table before moving to Step 4.
+See [[Stage 1 Scoping]].
 
-See [[Stage 1 Scoping]] for details.
-
-## Step 4 -- Scaffold dbt project
+## 4. Scaffold the dbt project
 
 ```text
 /init-dbt
 ```
 
-Reads the manifest and catalog, asks you to pick a target platform (Fabric Lakehouse, Spark, Snowflake, or DuckDB), and scaffolds a dbt project. `sources.yml` is generated from catalog tables with no writer — tables with a `selected_writer` are excluded because they will become dbt models.
+This asks for the target adapter, scaffolds `dbt/`, and generates `models/staging/sources.yml`.
 
-See [[Stage 3 dbt Scaffolding]] for details.
+`sources.yml` includes only tables explicitly marked `is_source: true`. Writerless tables that have not been confirmed yet are shown as pending so you can decide whether to add them as sources.
 
-## Step 5 -- Profile tables
+See [[Stage 3 dbt Scaffolding]].
+
+## 5. Profile the migration targets
 
 ```text
 /profile silver.DimCustomer silver.FactInternetSales
 ```
 
-Classifies each table (dimension vs. fact, SCD type), identifies primary keys, foreign keys, natural keys, watermark columns, and PII. Writes profile answers to catalog files.
+This writes the migration profile for each object: classification, keys, watermark, and other downstream signals used by test generation and model generation.
 
-See [[Stage 2 Profiling]] for details.
+See [[Stage 2 Profiling]].
 
-## Step 6 -- Create sandbox
+## 6. Create the sandbox
 
 ```text
 /setup-sandbox
 ```
 
-Creates a throwaway database (`__test_<random_hex>`) by cloning schema and procedures from your source SQL Server. The sandbox is used by the test generator to execute procs and capture ground truth output.
+This creates the throwaway database used for ground-truth capture and SQL equivalence checks.
 
-See [[Stage 4 Sandbox Setup]] for details.
+See [[Stage 4 Sandbox Setup]].
 
-## Step 7 -- Generate tests
+## 7. Generate tests
 
 ```text
 /generate-tests silver.DimCustomer silver.FactInternetSales
 ```
 
-Enumerates branches in each stored procedure, synthesizes fixture data, executes the proc in the sandbox, and captures ground truth output. Includes a review loop for coverage quality.
+This generates scenarios, runs the independent review loop, executes approved scenarios in the sandbox, and writes dbt-ready YAML test artifacts.
 
-See [[Stage 3 Test Generation]] for details.
+See [[Stage 3 Test Generation]].
 
-## Step 8 -- Refactor SQL
+## 8. Refactor the source SQL
 
 ```text
 /refactor silver.DimCustomer silver.FactInternetSales
 ```
 
-Restructures the raw stored procedure SQL into import/logical/final CTEs. Runs an equivalence audit loop — seeds the sandbox with test fixtures, executes both the original and refactored SQL, and self-corrects until the result sets match. The refactored SQL is written to the catalog and used as input for model generation.
+This restructures the source SQL into import/logical/final CTE form and proves equivalence against the extracted ground truth. For table migrations, the proof-backed refactor is persisted on the selected writer procedure catalog entry.
 
-See [[Stage 5 SQL Refactoring]] for details.
+See [[Stage 5 SQL Refactoring]].
 
-## Step 9 -- Generate dbt models
+## 9. Generate dbt models
 
 ```text
 /generate-model silver.DimCustomer silver.FactInternetSales
 ```
 
-Generates one dbt model artifact set per target from the refactored SQL. Import CTEs use `source()` directly inside the generated model, then the command runs `dbt test` with up to 3 self-corrections and a code review loop with up to 2 iterations.
+This generates dbt SQL and schema YAML, runs `dbt test`, applies the independent model review loop, and commits successful items.
 
-See [[Stage 4 Model Generation]] for details.
+See [[Stage 4 Model Generation]].
 
-## Step 10 -- Tear down sandbox
+## 10. Check overall progress
+
+```text
+/status
+```
+
+Use this to see what is complete, what is blocked, which source tables still need confirmation, and what command to run next.
+
+See [[Status Dashboard]].
+
+## 11. Tear down the sandbox when finished
 
 ```text
 /teardown-sandbox
 ```
 
-Drops the throwaway sandbox database. This is a destructive operation and requires confirmation.
+Run this after all test generation and refactor work that depends on the sandbox is complete.
 
-See [[Stage 3 Test Generation]] for details.
+## 12. Clean up merged worktrees later
 
-## What's Next
+```text
+/cleanup-worktrees
+```
 
-- Review and merge the PRs opened by each batch command
-- Run `/cleanup-worktrees` to remove stale worktrees after PRs are merged
-- Repeat steps 3, 5, and 7–9 for additional tables in your migration scope
+After PRs are merged, use this to remove stale worktrees and merged branches.

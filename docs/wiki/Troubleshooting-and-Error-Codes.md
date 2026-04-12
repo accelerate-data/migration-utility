@@ -1,199 +1,118 @@
 # Troubleshooting and Error Codes
 
-Cross-reference index of error codes, common issues, and fixes organized by pipeline stage.
+Cross-reference index of common pipeline failures and the user-facing command that usually fixes them.
 
-## Setup errors
+## Setup and catalog
 
-These errors occur during project initialization and DDL extraction.
-
-| Code | Message | Command | Fix |
+| Code | Typical meaning | Usually seen from | Fix |
 |---|---|---|---|
-| `MANIFEST_NOT_FOUND` | `manifest.json` not found in project root | `/status`, any dry-run guard | Run `/setup-ddl` to extract DDL and create the manifest |
-| `MANIFEST_CORRUPT` | `manifest.json` is not valid JSON | `/status`, any dry-run guard | Re-run `/setup-ddl` or manually fix the JSON syntax in `manifest.json` |
-| `CATALOG_FILE_MISSING` | `catalog/tables/<table>.json` not found | `/status`, any dry-run guard | Run `/setup-ddl` to populate the catalog. If the table was added after initial setup, re-run extraction for the relevant schema |
-| `CATALOG_FILE_CORRUPT` | Table catalog file is not valid JSON | `/status`, any dry-run guard | Re-run `/setup-ddl` or manually fix the JSON syntax in the catalog file |
-| `TECHNOLOGY_NOT_SET` | `manifest.json` has no `technology` field | `setup-ddl` guard | Run `/init-ad-migration` to initialise the project and set the technology |
-| `TECHNOLOGY_UNKNOWN` | `manifest.json` `technology` value is not recognised | `setup-ddl` guard | Edit `manifest.json` and set `technology` to one of: `sql_server`, `fabric_warehouse`, `fabric_lakehouse`, `snowflake`, `oracle` |
+| `MANIFEST_NOT_FOUND` | `manifest.json` is missing | `/status` or any downstream batch command | Run `/setup-ddl` |
+| `MANIFEST_CORRUPT` | `manifest.json` is invalid JSON | `/status` or downstream commands | Repair the file or re-run `/setup-ddl` |
+| `CATALOG_FILE_MISSING` | Expected catalog file is missing | `/status`, `/scope`, `/profile`, downstream commands | Re-run `/setup-ddl` for the relevant source objects |
+| `CATALOG_FILE_CORRUPT` | Catalog JSON is invalid | `/status` or downstream commands | Repair the file or re-run `/setup-ddl` |
+| `TECHNOLOGY_NOT_SET` | Source technology was not initialized | `/setup-ddl` | Run `/init-ad-migration` again if the scaffold is incomplete |
+| `TECHNOLOGY_UNKNOWN` | Unsupported or misspelled technology value | `/setup-ddl` | Fix `manifest.json` to a supported technology |
 
 ### Common setup issues
 
-**Toolbox not found on PATH**
+**Toolbox not found**
 
-The `/setup-ddl` skill requires `genai-toolbox` to be available. If the command fails with a toolbox error, ensure `genai-toolbox` is installed and on your `PATH`. In GitHub Actions, the toolbox runs in HTTP mode; locally it runs via stdio.
+Live SQL Server extraction requires `toolbox` on `PATH`.
 
-**MSSQL environment variables not set**
+**MSSQL environment variables missing**
 
-DDL extraction and sandbox creation require these environment variables:
+`/setup-ddl` and `/setup-sandbox` need:
 
-- `MSSQL_HOST` -- SQL Server hostname
-- `MSSQL_PORT` -- SQL Server port
-- `SA_PASSWORD` -- SQL Server SA password
+- `MSSQL_HOST`
+- `MSSQL_PORT`
+- `MSSQL_DB`
+- `SA_PASSWORD`
 
-If these are not set, `/setup-ddl` and `/setup-sandbox` will fail. Set them in your `.env` file (symlinked into worktrees by `worktree.sh`).
+**Plugin root not configured**
 
-**`CLAUDE_PLUGIN_ROOT` not set**
+If `CLAUDE_PLUGIN_ROOT` is missing, the plugin was not loaded correctly. Launch Claude Code with the plugin enabled.
 
-All plugin commands require the `CLAUDE_PLUGIN_ROOT` environment variable. This is set automatically when the `ad-migration` plugin is installed via the marketplace or loaded with `claude --plugin-dir plugin/`. If you see this error, ensure the plugin is installed (see [[Installation and Prerequisites]]).
+## Scoping and source confirmation
 
-## View errors
-
-These errors apply to the view-specific pipeline stages (`scope-view`, `profile-view`, `refactor-view`).
-
-| Code | Message | Command | Fix |
+| Code | Typical meaning | Usually seen from | Fix |
 |---|---|---|---|
-| `VIEW_CATALOG_FILE_MISSING` | `catalog/views/<view>.json` not found | View guard checks | Run `/setup-ddl` to extract view DDL and populate the catalog |
-| `VIEW_CATALOG_FILE_CORRUPT` | View catalog JSON is not valid JSON | View guard checks | Re-run `/setup-ddl` or manually fix the JSON syntax in the view catalog file |
-| `VIEW_SCOPING_NOT_COMPLETED` | View scoping not completed (status is not `analyzed`) | `profile-view`, `refactor-view` guards | Run `/analyzing-view <view>` to complete view scoping |
-| `VIEW_PROFILE_NOT_COMPLETED` | View profile not completed (status is not `ok` or `partial`) | `refactor-view` guard | Run `/profile <view>` to complete view profiling |
-
-## Scoping errors
-
-These errors indicate that scoping has not been completed for a table.
-
-| Code | Message | Command | Fix |
-|---|---|---|---|
-| `SCOPING_NOT_COMPLETED` | `scoping.selected_writer` missing in catalog | `/status`, profile/test-gen/refactor/migrate guards | Run `/scope <table>` or `/analyzing-table <table>` to discover and resolve the writer |
-| `STATEMENTS_NOT_RESOLVED` | One or more statements not resolved to `migrate` or `skip` | `/status`, profile/test-gen/refactor/migrate guards | Run `/scope <table>` to resolve remaining statements. Use `/listing-objects show <proc>` to inspect unresolved statements |
+| `SCOPING_NOT_COMPLETED` | No selected writer yet | `/status`, `/profile`, later stages | Run `/scope <object>` or `/analyzing-table <object>` |
+| `STATEMENTS_NOT_RESOLVED` | Not all writer statements are classified | `/status`, later stages | Re-run `/scope <object>` and inspect the writer with `/listing-objects show <proc>` |
+| `SOURCE_TABLE` | The object is already marked `is_source: true` | `/scope`, `/profile`, `/generate-tests`, `/refactor`, `/generate-model` | Skip migration for that object or remove the source designation intentionally |
 
 ### Common scoping issues
 
-**No writer candidates found**
+**No writer found**
 
-If `/analyzing-table` finds no procedures that write to the table, the table may be populated by an ETL process outside of stored procedures (e.g. ADF copy activity, SSIS). Check `/listing-objects refs <table>` to verify.
+If the object is truly an external source, mark it with `/add-source-tables`. If it should be migrated, inspect references with `/listing-objects refs <object>`.
 
-**Multiple writer candidates**
+**Multiple writers**
 
-When multiple procedures write to the same table, scoping presents all candidates and asks the FDE to select one. Use `/listing-objects show <proc>` to inspect each candidate before choosing.
+Use `/listing-objects show <proc>` on each candidate before choosing a writer.
 
-## Profiling errors
+## Profiling
 
-These errors indicate that profiling has not been completed.
-
-| Code | Message | Command | Fix |
+| Code | Typical meaning | Usually seen from | Fix |
 |---|---|---|---|
-| `PROFILE_NOT_COMPLETED` | Profile section missing or status is not `ok`/`partial` | `/status`, test-gen/refactor/migrate guards | Run `/profile <table>` or `/profiling-table <table>` |
+| `PROFILE_NOT_COMPLETED` | No usable profile has been written yet | `/status`, `/generate-tests`, `/refactor`, `/generate-model` | Run `/profile <object>` or `/profiling-table <object>` |
+| `PARTIAL_PROFILE` | The profile was written but some evidence stayed ambiguous | `/profile` summary or `/status` | Review the object and re-run `/profile` if needed |
 
-### Common profiling issues
+## Sandbox and test generation
 
-**Profile status is `partial`**
-
-A `partial` status means some profiling questions were not answered. The pipeline can proceed with a partial profile, but the generated model may need manual adjustment. Run `/status <table>` to see which questions are unanswered.
-
-## Test generation errors
-
-These errors relate to sandbox setup and test spec creation.
-
-| Code | Message | Command | Fix |
+| Code | Typical meaning | Usually seen from | Fix |
 |---|---|---|---|
-| `SANDBOX_NOT_CONFIGURED` | Sandbox metadata (`database`) missing from manifest | `/status`, test-gen/refactor/migrate guards | Run `/setup-sandbox` to create the throwaway test database |
-| `TEST_SPEC_NOT_FOUND` | `test-specs/<table>.json` not found | `/status`, refactor/migrate guards | Run `/generate-tests <table>` or `/generating-tests <table>` |
-| `SANDBOX_DOWN_FAILED` | Sandbox teardown failed | `/teardown-sandbox` | Check SQL Server connectivity and permissions. Verify the database exists |
+| `SANDBOX_NOT_CONFIGURED` | No sandbox metadata in `manifest.json` | `/status`, `/generate-tests`, `/refactor`, `/generate-model` | Run `/setup-sandbox` |
+| `SANDBOX_NOT_RUNNING` | Sandbox database is missing or unreachable | `/generate-tests`, `/refactor` | Recreate it with `/setup-sandbox` |
+| `TEST_SPEC_NOT_FOUND` | The approved test spec is missing | `/status`, `/refactor`, `/generate-model` | Run `/generate-tests <object>` |
+| `SANDBOX_DOWN_FAILED` | Sandbox teardown failed | `/teardown-sandbox` | Check connectivity, permissions, and whether the DB still exists |
 
-### Common test generation issues
+## Refactor
 
-**Sandbox database not reachable**
-
-The sandbox requires a running SQL Server instance. Locally, this is typically a Docker container. In CI, it runs as a service container. Verify that `MSSQL_HOST` and `MSSQL_PORT` point to a running instance and that `SA_PASSWORD` is correct.
-
-**Stored procedure requires parameters**
-
-When a stored procedure needs parameters to execute, the test generator infers defaults or asks the FDE inline. If execution fails, check the procedure's parameter list via `/listing-objects show <proc>` and provide appropriate values.
-
-## SQL refactoring errors
-
-These errors indicate that the refactor stage has not been completed.
-
-| Code | Message | Command | Fix |
+| Code | Typical meaning | Usually seen from | Fix |
 |---|---|---|---|
-| `REFACTOR_NOT_COMPLETED` | Refactor section missing or `refactored_sql` absent | `/status`, migrate guard | Run `/refactor <table>` or `/refactoring-sql <table>` |
+| `REFACTOR_NOT_COMPLETED` | No usable persisted refactor exists yet | `/status`, `/generate-model` | Run `/refactor <object>` |
+| `EQUIVALENCE_PARTIAL` | Semantic refactor exists but executable proof was partial or skipped | `/refactor` summary or `/status` | Re-run `/refactor` with a working sandbox if full proof is required |
 
-### Common refactoring issues
+### Common refactor issue
 
 **Audit loop does not converge**
 
-The refactoring skill self-corrects the refactored SQL until the sandbox equivalence audit passes. If the loop does not converge after several iterations, the proc may have side effects (temp tables, dynamic SQL) that complicate equivalence checking. Review the audit output and manually verify the refactored SQL before proceeding.
+This usually points to dynamic SQL, side effects, or behavior that is hard to isolate with current fixtures. Review the compare output, tighten the test spec, then re-run `/refactor`.
 
-## dbt and dependency errors
+## dbt and model generation
 
-These errors occur during dbt model generation and dependency checking.
-
-| Code | Message | Command | Fix |
+| Code | Typical meaning | Usually seen from | Fix |
 |---|---|---|---|
-| `DBT_PROJECT_MISSING` | `dbt_project.yml` not found in the dbt project directory | `generating-model`, `reviewing-model` guards | Run `/init-dbt` to scaffold the dbt project |
-| `VIEW_DEP_CHECK_ERROR` | Could not load procedure catalog to check view dependencies | `generating-model`, `reviewing-model` guards | Verify the procedure catalog file exists and is valid JSON. Re-run `/setup-ddl` if needed |
-| `VIEW_DEPENDENCIES_NOT_MIGRATED` | View dependencies not yet refactored for downstream model generation | `generating-model`, `reviewing-model` guards | Run `/refactor-view` on each listed view before generating the dbt model |
+| `DBT_PROJECT_MISSING` | `dbt/` has not been scaffolded | `/generate-model` | Run `/init-dbt` |
+| `DBT_PROFILE_MISSING` | `profiles.yml` is missing | `/generate-model` | Re-run `/init-dbt` or restore the file |
+| `DBT_CONNECTION_FAILED` | `dbt debug` failed | `/generate-model` | Fix `profiles.yml` or the target credentials |
+| `DBT_COMPILE_FAILED` | Generated model did not compile | `/generate-model` | Review the generated SQL and rerun the command |
+| `DBT_TEST_FAILED` | Generated model still failed tests after retries | `/generate-model` | Inspect the generated artifact and test output, then rerun |
+| `EQUIVALENCE_GAP` | Semantic gap remains between proof-backed refactor and dbt output | `/generate-model` | Review the flagged differences before accepting the result |
 
-## Migration errors
+## Status as the first diagnostic tool
 
-These errors occur during dbt model generation.
+When in doubt, run:
 
-| Code | Message | Command | Fix |
-|---|---|---|---|
-| All guards from prior stages | Any unmet prerequisite blocks migration | `/status`, migrate guards | Fix the upstream stage first -- run `/status <table>` to identify the blocking guard |
+```text
+/status
+/status <schema.object>
+```
 
-### Common migration issues
+`/status` is the fastest way to see:
 
-**`dbt test` fails after model generation**
-
-The model generator self-corrects up to 3 iterations when `dbt test` fails. If it still fails after 3 attempts, the code reviewer may kick back for revisions (up to 2 review iterations). Check the test output in the dbt `target/` directory for details.
-
-**Model not found in dbt project**
-
-The model generator writes the reviewed model artifact under `dbt/models/` and writes snapshot artifacts under `dbt/snapshots/` when applicable. If the dbt project was not scaffolded, run `/init-dbt` first. Verify with `/status <table>` that the `dbt_model_exists` flag is set.
-
-## Guard check reference
-
-Quick reference for which guards apply to each stage:
-
-### Table pipeline stages
-
-| Guard | scope | profile | test-gen | refactor | migrate | generating-model |
-|---|---|---|---|---|---|---|
-| `manifest_exists` | yes | yes | yes | yes | yes | yes |
-| `table_catalog_exists` | yes | yes | yes | yes | yes | yes |
-| `selected_writer_set` | | yes | yes | yes | yes | yes |
-| `statements_resolved` | | yes | yes | yes | yes | yes |
-| `profile_completed` | | | yes | yes | yes | yes |
-| `sandbox_configured` | | | yes | yes | yes | yes |
-| `test_spec_exists` | | | | yes | yes | yes |
-| `refactor_completed` | | | | | yes | yes |
-| `dbt_project_exists` | | | | | | yes |
-| `view_dependencies_migrated` | | | | | | yes |
-
-### View pipeline stages
-
-| Guard | scope-view | profile-view | refactor-view |
-|---|---|---|---|
-| `manifest_exists` | yes | yes | yes |
-| `view_catalog_exists` | yes | yes | yes |
-| `view_scoping_analyzed` | | yes | yes |
-| `view_profiled` | | | yes |
-
-### Setup stages
-
-| Guard | setup-ddl |
-|---|---|
-| `technology_configured` | yes |
-
-## CLI exit codes
-
-The `migrate-util dry-run` CLI uses these exit codes:
-
-| Exit code | Meaning |
-|---|---|
-| 0 | Success (check `guards_passed` in JSON output for pass/fail) |
-| 1 | Domain failure (invalid stage name, malformed table FQN) |
-| 2 | IO or parse error |
+- the first failing stage
+- whether an object is blocked versus pending
+- whether a writerless table still needs source confirmation
+- which batch command should run next
 
 ## Related pages
 
-- [[Status Dashboard]] -- running guard checks and viewing recommendations
-- [[Stage 1 Project Init]] -- project initialization and DDL extraction
-- [[Stage 1 Scoping]] -- writer discovery and statement resolution
-- [[Stage 2 Profiling]] -- table classification and profiling questions
-- [[Stage 3 Test Generation]] -- test spec creation
-- [[Stage 4 Sandbox Setup]] -- sandbox database setup
-- [[Stage 5 SQL Refactoring]] -- SQL restructuring and equivalence audit
-- [[Stage 4 Model Generation]] -- dbt model generation
-- [[Cleanup and Teardown]] -- sandbox teardown and worktree cleanup
-- [[Glossary]] -- definitions of terms used in error messages
+- [[Quickstart]]
+- [[Status Dashboard]]
+- [[Stage 1 Scoping]]
+- [[Stage 2 Profiling]]
+- [[Stage 3 Test Generation]]
+- [[Stage 5 SQL Refactoring]]
+- [[Stage 4 Model Generation]]
+- [[Cleanup and Teardown]]

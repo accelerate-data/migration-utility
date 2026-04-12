@@ -1,35 +1,24 @@
 # Stage 3 -- dbt Scaffolding
 
-The `/init-dbt` command reads `manifest.json` and catalog data, asks you to pick a target platform, and scaffolds a complete dbt project with `sources.yml` generated from your catalog tables.
+`/init-dbt` scaffolds the dbt project for the selected target platform and generates `sources.yml` from the catalog.
 
 ## Prerequisites
 
-- `manifest.json` must exist (run `/setup-ddl` first)
-- `catalog/tables/` must contain at least one `.json` file (warns if empty)
-- All extracted tables must have a resolved scoping status before the command will proceed. The command blocks if any table is still in `scope_needed` state. For each unresolved table, use one of:
-  - `/scope <schema.table>` or `/analyzing-table <schema.table>` — discover the writer
-  - `/exclude-table <schema.table>` — mark as excluded from the migration
-  - `/add-source-tables <schema.table>` — confirm as an external source with no writer
+- `manifest.json` must exist
+- `catalog/tables/` must exist
+- the initial analyze stage must be complete for in-scope tables
 
-## Platform Selection
+Before `/init-dbt` can proceed, extracted tables need to be in one of these states:
 
-The command presents an explicit choice -- there is no default:
+- resolved to a writer
+- excluded from the migration
+- writerless and explicitly confirmed as a source
 
-```text
-Which target platform are you migrating to?
+## Target selection
 
-  1. Fabric Lakehouse (dbt-fabric)
-  2. Spark (dbt-spark)
-  3. Snowflake (dbt-snowflake)
-  4. SQL Server (dbt-sqlserver) -- development, CI testing, and on-prem
-  5. DuckDB (dbt-duckdb) -- development and CI testing only
-```
+The command prompts for the target adapter. Current options include Fabric Lakehouse, Spark, Snowflake, SQL Server, and DuckDB.
 
-Each platform generates a different `profiles.yml` with adapter-specific connection settings. DuckDB is intended for local development and CI testing only -- it uses a local file-based database at `target/dev.duckdb`.
-
-## What It Produces
-
-The command creates the following structure at `<project-root>/dbt/`:
+## What it writes
 
 ```text
 dbt/
@@ -45,60 +34,25 @@ dbt/
   tests/
 ```
 
-### dbt_project.yml
+## `sources.yml` behavior
 
-Configured with the project slug derived from the directory name (lowercase, hyphens replaced with underscores). Default materializations:
+This is the part that matters most operationally:
 
-- `staging/` models: `view`
-- `marts/` models: `table`
+- tables with `is_source: true` are included in `sources.yml`
+- writerless tables with `scoping.status == "no_writer_found"` but no `is_source` flag are left in the unconfirmed bucket
+- resolved migration targets are excluded from `sources.yml` because they are expected to become dbt models
+- excluded tables do not appear in `sources.yml`
 
-### profiles.yml
+So `no_writer_found` by itself is not enough. Source tables have to be explicitly confirmed, either with `/add-source-tables` or during the `/init-dbt` confirmation flow.
 
-Generated with placeholder credentials for the selected adapter. For non-DuckDB targets, you need to update this file with real connection details before running `dbt compile`.
+## Re-running
 
-| Target | Adapter package | Key settings |
-|---|---|---|
-| Fabric Lakehouse | `dbt-fabric` | `type: fabric`, CLI authentication, ODBC driver |
-| Spark | `dbt-spark` | `type: spark`, ODBC method, HTTP path |
-| Snowflake | `dbt-snowflake` | `type: snowflake`, external browser auth |
-| SQL Server | `dbt-sqlserver` | `type: sqlserver`, SQL or Windows auth |
-| DuckDB | `dbt-duckdb` | `type: duckdb`, local file path |
+Re-running `/init-dbt` is safe:
 
-### packages.yml
+- it regenerates `sources.yml`
+- it does not overwrite your edited `profiles.yml`
+- it does not overwrite generated models or snapshots
 
-Includes `dbt-labs/dbt_utils` (>=1.0.0, <2.0.0).
+## Next step
 
-### sources.yml
-
-Generated from catalog table files using the `generate-sources` CLI. Only tables where `scoping.status == "no_writer_found"` are included — these are true external sources that no stored procedure writes to. Tables with `scoping.status == "resolved"` (procedure write targets) are excluded because they will become dbt models referenced via `{{ ref() }}` rather than `{{ source() }}`.
-
-```yaml
-version: 2
-
-sources:
-  - name: silver
-    description: "Source tables from silver schema"
-    tables:
-      - name: DimDate
-        description: "DimDate from source system"
-```
-
-The `generate-sources` output lists included, excluded, and any incomplete tables so you can verify coverage before proceeding.
-
-## Validation
-
-The command runs `dbt deps` to install packages, then `dbt compile` to validate the project. For non-DuckDB targets, a `dbt compile` failure due to placeholder credentials is expected -- the command tells you to update `profiles.yml` with real credentials.
-
-## Idempotency
-
-If `dbt/` already exists:
-
-- Detects the existing project by checking for `dbt_project.yml`
-- Regenerates `sources.yml` from current catalog using the same `no_writer_found` filter (picks up tables scoped since the last run)
-- Never overwrites `profiles.yml` (you may have added real credentials)
-- Never overwrites existing generated model files in `dbt/models/` or snapshot files in `dbt/snapshots/`
-- Re-runs `dbt deps` and `dbt compile`
-
-## Next Step
-
-Proceed to [[Stage 4 Sandbox Setup]] to create the throwaway test database.
+Proceed to [[Stage 4 Sandbox Setup]].
