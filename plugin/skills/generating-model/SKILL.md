@@ -34,7 +34,7 @@ Do not use this skill for batch orchestration. `/generate-model` owns batching, 
 1. Check readiness.
 
    ```bash
-   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <table_fqn> generate
+   uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready generate --object <table_fqn>
    ```
 
 2. Assemble deterministic context.

@@ -16,7 +16,7 @@ Generate or extend a `TestSpec` for one migrated object.
 
 Use this skill when:
 
-- `migrate-util ready <fqn> test-gen` should pass and the next artifact is `test-specs/<fqn>.json`
+- `migrate-util ready test-gen --object <fqn>` should pass and the next artifact is `test-specs/<fqn>.json`
 - an existing spec needs merge-safe updates after SQL changed
 - `reviewing-tests` returned `feedback_for_generator`
 - the target object is a table, view, or materialized view and fixtures must follow catalog metadata

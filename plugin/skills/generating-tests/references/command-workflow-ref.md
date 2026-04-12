@@ -5,7 +5,7 @@ Exact command flow for `plugin/skills/generating-tests`.
 ## Guard
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready <fqn> test-gen
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready test-gen --object <fqn>
 ```
 
 Stop if readiness fails.

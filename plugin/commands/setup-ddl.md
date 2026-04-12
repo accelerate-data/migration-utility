@@ -16,10 +16,10 @@ Extract DDL from a live SQL Server or Oracle database and write local artifact f
 Run the stage guard before doing anything else:
 
 ```bash
-uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready _ setup-ddl
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" migrate-util ready setup-ddl
 ```
 
-If `passed` is `false`, report the failing guard's `code` and `message` and stop.
+If `ready` is `false`, report the failing project readiness `reason` and optional `code`, then stop.
 
 ## Confirm project root
 
