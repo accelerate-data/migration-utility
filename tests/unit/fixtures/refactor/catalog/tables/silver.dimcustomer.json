@@ -1,25 +1,69 @@
 {
   "schema": "silver",
   "name": "DimCustomer",
-  "primary_keys": [{"constraint_name": "PK_DimCustomer", "columns": ["CustomerKey"]}],
+  "primary_keys": [
+    {
+      "constraint_name": "PK_DimCustomer",
+      "columns": [
+        "CustomerKey"
+      ]
+    }
+  ],
   "unique_indexes": [],
   "foreign_keys": [],
-  "auto_increment_columns": [{"column": "CustomerKey", "seed": 1, "increment": 1}],
+  "auto_increment_columns": [
+    {
+      "column": "CustomerKey",
+      "seed": 1,
+      "increment": 1
+    }
+  ],
   "columns": [
-    {"name": "CustomerKey", "sql_type": "INT", "is_nullable": false, "is_identity": true},
-    {"name": "CustomerID", "sql_type": "NVARCHAR(50)", "is_nullable": false, "is_identity": false},
-    {"name": "FirstName", "sql_type": "NVARCHAR(100)", "is_nullable": true, "is_identity": false},
-    {"name": "LastName", "sql_type": "NVARCHAR(100)", "is_nullable": true, "is_identity": false}
+    {
+      "name": "CustomerKey",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": true
+    },
+    {
+      "name": "CustomerID",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "FirstName",
+      "sql_type": "NVARCHAR(100)",
+      "is_nullable": true,
+      "is_identity": false
+    },
+    {
+      "name": "LastName",
+      "sql_type": "NVARCHAR(100)",
+      "is_nullable": true,
+      "is_identity": false
+    }
   ],
   "referenced_by": {
     "procedures": {
       "in_scope": [
-        {"schema": "dbo", "name": "usp_load_dimcustomer", "is_selected": false, "is_updated": true}
+        {
+          "schema": "dbo",
+          "name": "usp_load_dimcustomer",
+          "is_selected": false,
+          "is_updated": true
+        }
       ],
       "out_of_scope": []
     },
-    "views": {"in_scope": [], "out_of_scope": []},
-    "functions": {"in_scope": [], "out_of_scope": []}
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
   },
   "scoping": {
     "status": "resolved",
@@ -27,7 +71,13 @@
     "candidates": [
       {
         "procedure_name": "dbo.usp_load_dimcustomer",
-        "dependencies": {"tables": ["bronze.customerraw"], "views": [], "functions": []},
+        "dependencies": {
+          "tables": [
+            "bronze.customerraw"
+          ],
+          "views": [],
+          "functions": []
+        },
         "rationale": "is_updated=true in catalog."
       }
     ],
@@ -36,11 +86,30 @@
   },
   "profile": {
     "status": "ok",
-    "writer": "dbo.usp_load_dimcustomer",
-    "classification": {"resolved_kind": "dim_scd1", "rationale": "MERGE with UPDATE.", "source": "llm"},
-    "primary_key": {"columns": ["CustomerKey"], "primary_key_type": "surrogate", "source": "catalog"},
-    "natural_key": {"columns": ["CustomerID"], "rationale": "MERGE ON clause.", "source": "llm"},
-    "watermark": {"column": "ModifiedDate", "rationale": "WHERE ModifiedDate > @last_run.", "source": "llm"},
+    "classification": {
+      "resolved_kind": "dim_scd1",
+      "rationale": "MERGE with UPDATE.",
+      "source": "llm"
+    },
+    "primary_key": {
+      "columns": [
+        "CustomerKey"
+      ],
+      "primary_key_type": "surrogate",
+      "source": "catalog"
+    },
+    "natural_key": {
+      "columns": [
+        "CustomerID"
+      ],
+      "rationale": "MERGE ON clause.",
+      "source": "llm"
+    },
+    "watermark": {
+      "column": "ModifiedDate",
+      "rationale": "WHERE ModifiedDate > @last_run.",
+      "source": "llm"
+    },
     "foreign_keys": [],
     "pii_actions": [],
     "warnings": [],

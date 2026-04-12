@@ -2,20 +2,39 @@
   "schema": "silver",
   "name": "dimproduct",
   "columns": [
-    { "name": "product_sk", "data_type": "BIGINT", "is_nullable": false },
-    { "name": "product_name", "data_type": "NVARCHAR(100)", "is_nullable": false },
-    { "name": "category", "data_type": "NVARCHAR(50)", "is_nullable": true }
+    {
+      "name": "product_sk",
+      "data_type": "BIGINT",
+      "is_nullable": false
+    },
+    {
+      "name": "product_name",
+      "data_type": "NVARCHAR(100)",
+      "is_nullable": false
+    },
+    {
+      "name": "category",
+      "data_type": "NVARCHAR(50)",
+      "is_nullable": true
+    }
   ],
   "primary_keys": [
     {
       "constraint_name": "PK_DimProduct",
-      "columns": ["product_sk"],
+      "columns": [
+        "product_sk"
+      ],
       "type": "PRIMARY KEY"
     }
   ],
   "unique_indexes": [],
   "foreign_keys": [],
-  "auto_increment_columns": [{ "column": "product_sk", "mechanism": "identity" }],
+  "auto_increment_columns": [
+    {
+      "column": "product_sk",
+      "mechanism": "identity"
+    }
+  ],
   "change_capture": null,
   "sensitivity_classifications": [],
   "referenced_by": {
@@ -31,8 +50,14 @@
       ],
       "out_of_scope": []
     },
-    "views": { "in_scope": [], "out_of_scope": [] },
-    "functions": { "in_scope": [], "out_of_scope": [] }
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
   },
   "refactor": {
     "status": "ok",
@@ -41,13 +66,14 @@
   },
   "profile": {
     "status": "ok",
-    "writer": "dbo.usp_load_dim_product",
     "classification": {
       "resolved_kind": "dim_non_scd",
       "source": "catalog"
     },
     "primary_key": {
-      "columns": ["product_sk"],
+      "columns": [
+        "product_sk"
+      ],
       "primary_key_type": "surrogate"
     },
     "watermark": null,

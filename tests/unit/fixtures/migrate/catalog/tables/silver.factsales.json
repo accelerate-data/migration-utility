@@ -2,16 +2,38 @@
   "schema": "silver",
   "name": "factsales",
   "columns": [
-    { "name": "sale_id", "data_type": "BIGINT", "is_nullable": false },
-    { "name": "customer_sk", "data_type": "BIGINT", "is_nullable": false },
-    { "name": "product_sk", "data_type": "BIGINT", "is_nullable": false },
-    { "name": "amount", "data_type": "DECIMAL(18,2)", "is_nullable": false },
-    { "name": "load_date", "data_type": "DATETIME2", "is_nullable": false }
+    {
+      "name": "sale_id",
+      "data_type": "BIGINT",
+      "is_nullable": false
+    },
+    {
+      "name": "customer_sk",
+      "data_type": "BIGINT",
+      "is_nullable": false
+    },
+    {
+      "name": "product_sk",
+      "data_type": "BIGINT",
+      "is_nullable": false
+    },
+    {
+      "name": "amount",
+      "data_type": "DECIMAL(18,2)",
+      "is_nullable": false
+    },
+    {
+      "name": "load_date",
+      "data_type": "DATETIME2",
+      "is_nullable": false
+    }
   ],
   "primary_keys": [
     {
       "constraint_name": "PK_FactSales",
-      "columns": ["sale_id"],
+      "columns": [
+        "sale_id"
+      ],
       "type": "PRIMARY KEY"
     }
   ],
@@ -25,7 +47,12 @@
       "references_column": "customer_sk"
     }
   ],
-  "auto_increment_columns": [{ "column": "sale_id", "mechanism": "identity" }],
+  "auto_increment_columns": [
+    {
+      "column": "sale_id",
+      "mechanism": "identity"
+    }
+  ],
   "change_capture": null,
   "sensitivity_classifications": [],
   "referenced_by": {
@@ -41,8 +68,14 @@
       ],
       "out_of_scope": []
     },
-    "views": { "in_scope": [], "out_of_scope": [] },
-    "functions": { "in_scope": [], "out_of_scope": [] }
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
   },
   "scoping": {
     "status": "resolved",
@@ -53,13 +86,14 @@
   },
   "profile": {
     "status": "ok",
-    "writer": "dbo.usp_load_fact_sales",
     "classification": {
       "resolved_kind": "fact_transaction",
       "source": "catalog"
     },
     "primary_key": {
-      "columns": ["sale_id"],
+      "columns": [
+        "sale_id"
+      ],
       "primary_key_type": "surrogate"
     },
     "watermark": {

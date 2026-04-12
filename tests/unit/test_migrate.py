@@ -336,7 +336,6 @@ END
                 },
                 "profile": {
                     "status": "ok",
-                    "writer": "dbo.usp_load_dim_currency",
                     "classification": {"resolved_kind": "dim_non_scd", "source": "catalog"},
                     "primary_key": {"columns": ["currency_key"], "primary_key_type": "natural"},
                     "watermark": None,
@@ -406,7 +405,6 @@ END
                 },
                 "profile": {
                     "status": "ok",
-                    "writer": "dbo.usp_load_fact_orders",
                     "classification": {"resolved_kind": "fact_transaction", "source": "catalog"},
                     "primary_key": {"columns": ["order_id"], "primary_key_type": "natural"},
                     "watermark": None,
@@ -476,7 +474,6 @@ END
                 },
                 "profile": {
                     "status": "ok",
-                    "writer": "dbo.usp_load_dim_geography",
                     "classification": {"resolved_kind": "dim_non_scd", "source": "catalog"},
                     "primary_key": {"columns": ["geo_key"], "primary_key_type": "natural"},
                     "watermark": None,
@@ -539,7 +536,6 @@ END
                 "columns": [{"name": "CurrencyCode", "data_type": "NCHAR(3)"}],
                 "profile": {
                     "status": "ok",
-                    "writer": "dbo.usp_load_fact_currency_rate",
                     "classification": {"resolved_kind": "fact_transaction", "source": "catalog"},
                     "primary_key": None,
                     "watermark": None,
@@ -608,7 +604,6 @@ class TestRunContextViewSources:
                 "referenced_by": {"procedures": {"in_scope": [], "out_of_scope": []}, "views": {"in_scope": [], "out_of_scope": []}, "functions": {"in_scope": [], "out_of_scope": []}},
                 "profile": {
                     "status": "ok",
-                    "writer": "dbo.usp_load_from_view",
                     "classification": {"resolved_kind": "dim_non_scd", "source": "catalog"},
                     "primary_key": {"columns": ["customer_id"], "primary_key_type": "surrogate"},
                     "watermark": None,
