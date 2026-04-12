@@ -35,6 +35,13 @@ VALID_STAGES = frozenset(
 )
 
 
+def _display_scope_status(scope_status: str | None) -> str | None:
+    """Map completed internal scope states to the unified /status display value."""
+    if scope_status in {"resolved", "analyzed"}:
+        return "ok"
+    return scope_status
+
+
 def run_ready(project_root: Path, fqn: str, stage: str) -> DryRunOutput:
     """Check whether the prior stage's CLI-written status allows proceeding."""
     def out(ready: bool, reason: str, code: str | None = None) -> DryRunOutput:
@@ -148,7 +155,7 @@ def _single_object_status(project_root: Path, norm_fqn: str) -> ObjectStatus:
             cat = load_view_catalog(project_root, norm_fqn)
         except (json.JSONDecodeError, OSError, CatalogLoadError):
             cat = None
-        scope = cat.scoping.status if cat and cat.scoping else None
+        scope = _display_scope_status(cat.scoping.status if cat and cat.scoping else None)
         profile = cat.profile.status if cat and cat.profile else None
         test_gen = cat.test_gen.status if cat and cat.test_gen else None
         refactor = cat.refactor.status if cat and cat.refactor else None
@@ -158,7 +165,7 @@ def _single_object_status(project_root: Path, norm_fqn: str) -> ObjectStatus:
             cat = load_table_catalog(project_root, norm_fqn)
         except (json.JSONDecodeError, OSError, CatalogLoadError):
             cat = None
-        scope = cat.scoping.status if cat and cat.scoping else None
+        scope = _display_scope_status(cat.scoping.status if cat and cat.scoping else None)
         profile = cat.profile.status if cat and cat.profile else None
         test_gen = cat.test_gen.status if cat and cat.test_gen else None
         refactor_status: str | None = cat.refactor.status if cat and cat.refactor else None

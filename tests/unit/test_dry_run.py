@@ -366,7 +366,7 @@ def test_status_single_object() -> None:
         result = dry_run.run_status(root, "silver.DimCustomer")
         assert result.fqn == "silver.dimcustomer"
         assert result.type == "table"
-        assert result.stages.scope == "resolved"
+        assert result.stages.scope == "ok"
         assert result.stages.profile == "ok"
         assert result.stages.test_gen == "ok"
 
@@ -386,10 +386,25 @@ def test_status_view_object() -> None:
     """Status for a view returns correct type and stages."""
     tmp, root = _make_project()
     with tmp:
+        view_path = root / "catalog" / "views" / "silver.vdimsalesterritory.json"
+        cat = json.loads(view_path.read_text(encoding="utf-8"))
+        cat["scoping"] = {"status": "analyzed", "sql_elements": [], "logic_summary": "test"}
+        view_path.write_text(json.dumps(cat), encoding="utf-8")
         result = dry_run.run_status(root, "silver.vDimSalesTerritory")
         assert result.type == "view"
-        # View without scoping → scope is None
-        assert result.stages.scope is None
+        assert result.stages.scope == "ok"
+
+
+def test_status_pending_scope_preserves_specific_status() -> None:
+    """Status output preserves incomplete scope states verbatim."""
+    tmp, root = _make_project()
+    with tmp:
+        table_path = root / "catalog" / "tables" / "silver.dimcustomer.json"
+        cat = json.loads(table_path.read_text(encoding="utf-8"))
+        cat["scoping"]["status"] = "ambiguous_multi_writer"
+        table_path.write_text(json.dumps(cat), encoding="utf-8")
+        result = dry_run.run_status(root, "silver.DimCustomer")
+        assert result.stages.scope == "ambiguous_multi_writer"
 
 
 def test_status_mv_object() -> None:

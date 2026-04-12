@@ -9,7 +9,9 @@
   },
   "profile": {
     "status": "ok",
-    "classification": {"resolved_kind": "stg", "source": "llm", "rationale": "Simple pass-through."}
+    "classification": "stg",
+    "source": "llm",
+    "rationale": "Simple pass-through."
   },
   "references": {
     "tables": {

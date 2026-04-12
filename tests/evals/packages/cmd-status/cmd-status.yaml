@@ -31,7 +31,7 @@ tests:
     vars:
       fixture_path: "tests/evals/fixtures/cmd-status/status-single-insertselecttarget"
       target_table: "silver.InsertSelectTarget"
-      expected_stage_statuses: '{"scope": "resolved", "profile": "ok"}'
+      expected_stage_statuses: '{"scope": "ok", "profile": "ok"}'
       expected_blocked_stage: "test-gen"
       expected_output_terms: "scope,profile,test-gen,blocked"
       expected_recommendation: "generate-tests"
