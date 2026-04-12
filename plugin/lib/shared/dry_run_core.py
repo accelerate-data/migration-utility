@@ -33,7 +33,7 @@ from shared.output_models.dry_run import (
 logger = logging.getLogger(__name__)
 
 VALID_STAGES = frozenset(
-    {"setup-ddl", "scope", "profile", "test-gen", "refactor", "migrate", "generate"}
+    {"setup-ddl", "scope", "profile", "test-gen", "refactor", "generate"}
 )
 RESETTABLE_STAGES = frozenset({"scope", "profile", "generate-tests", "refactor"})
 
@@ -126,7 +126,15 @@ def run_ready(project_root: Path, fqn: str, stage: str) -> DryRunOutput:
             return out(False, "test_gen_not_complete")
         return out(True, "ok")
 
-    if stage in ("migrate", "generate"):
+    if stage == "generate":
+        manifest_path = project_root / "manifest.json"
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            manifest = {}
+        sandbox_db = (manifest.get("sandbox") or {}).get("database")
+        if not sandbox_db:
+            return out(False, "sandbox_not_configured", "SANDBOX_NOT_CONFIGURED")
         if cat is None:
             return out(False, "catalog_missing")
         test_gen_status = cat.test_gen.status if cat.test_gen else None

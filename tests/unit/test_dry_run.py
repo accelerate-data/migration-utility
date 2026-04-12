@@ -223,34 +223,42 @@ def test_ready_refactor_passes_with_test_gen() -> None:
         assert result.reason == "ok"
 
 
-# ── run_ready tests: migrate stage ───────────────────────────────────────────
+# ── run_ready tests: generate stage ──────────────────────────────────────────
 
 
-def test_ready_migrate_passes() -> None:
-    """Migrate ready when refactor.status == ok on proc catalog."""
+def test_ready_generate_with_refactor() -> None:
+    """Generate ready when refactor.status == ok on proc catalog."""
     tmp, root = _make_project()
     with tmp:
-        result = dry_run.run_ready(root, "silver.DimCustomer", "migrate")
+        result = dry_run.run_ready(root, "silver.DimCustomer", "generate")
         assert isinstance(result, DryRunOutput)
         assert result.ready is True
         assert result.reason == "ok"
 
 
-def test_ready_migrate_no_refactor() -> None:
-    """Migrate not ready when refactor missing from proc catalog."""
+def test_ready_generate_no_refactor() -> None:
+    """Generate not ready when refactor missing from proc catalog."""
     tmp, root = _make_project()
     with tmp:
         proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
         proc = json.loads(proc_path.read_text(encoding="utf-8"))
         del proc["refactor"]
         proc_path.write_text(json.dumps(proc), encoding="utf-8")
-        result = dry_run.run_ready(root, "silver.DimCustomer", "migrate")
+        result = dry_run.run_ready(root, "silver.DimCustomer", "generate")
         assert isinstance(result, DryRunOutput)
         assert result.ready is False
         assert result.reason == "refactor_not_complete"
 
 
-# ── run_ready tests: generate stage ──────────────────────────────────────────
+def test_ready_generate_no_sandbox() -> None:
+    """Generate not ready when sandbox.database is missing from manifest."""
+    tmp, root = _make_project(include_sandbox=False)
+    with tmp:
+        result = dry_run.run_ready(root, "silver.DimCustomer", "generate")
+        assert isinstance(result, DryRunOutput)
+        assert result.ready is False
+        assert result.reason == "sandbox_not_configured"
+        assert result.code == "SANDBOX_NOT_CONFIGURED"
 
 
 def test_ready_generate_requires_test_gen() -> None:
