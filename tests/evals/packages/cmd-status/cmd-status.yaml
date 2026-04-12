@@ -99,3 +99,11 @@ tests:
     vars:
       fixture_path: "tests/evals/fixtures/cmd-status/status-all-migrate-recommend"
       expected_output_terms: "generate-model"
+
+  # ── status-reinvoked-session: must ignore stale prior output ──────
+  - description: "status-reinvoked-session — reruns status instead of reusing stale prior session output"
+    vars:
+      fixture_path: "tests/evals/fixtures/cmd-status/status-all-migrate-recommend"
+      prior_status_context: "Earlier `/status` incorrectly reported that `silver.DimCustomer` still needed `/scope`, but the catalog has changed since then."
+      expected_output_terms: "generate-model"
+      unexpected_output_terms: "/scope silver.dimcustomer"
