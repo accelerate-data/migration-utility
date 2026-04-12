@@ -640,6 +640,37 @@ def test_write_proc_statements_missing_catalog_raises_file_not_found() -> None:
             write_proc_statements(root, "dbo.nonexistent", [{"type": "insert"}])
 
 
+def test_write_proc_statements_clears_parse_error_and_preserves_other_errors() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        refs = {
+            "tables": {"in_scope": [], "out_of_scope": []},
+            "views": {"in_scope": [], "out_of_scope": []},
+            "functions": {"in_scope": [], "out_of_scope": []},
+            "procedures": {"in_scope": [], "out_of_scope": []},
+        }
+        write_proc_catalog(root, "dbo.usp_test", refs)
+        cat_path = root / "catalog" / "procedures" / "dbo.usp_test.json"
+        cat_data = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat_data["errors"] = [
+            {"code": "PARSE_ERROR", "severity": "error", "message": "DDL failed to parse"},
+            {"code": "OTHER_ERROR", "severity": "error", "message": "keep me"},
+        ]
+        cat_path.write_text(json.dumps(cat_data), encoding="utf-8")
+
+        write_proc_statements(
+            root,
+            "dbo.usp_test",
+            [{"id": "stmt-1", "action": "migrate", "source": "llm", "sql": "SELECT 1"}],
+        )
+
+        updated = json.loads(cat_path.read_text(encoding="utf-8"))
+        assert updated["statements"] == [{"id": "stmt-1", "action": "migrate", "source": "llm", "sql": "SELECT 1"}]
+        assert updated["errors"] == [
+            {"code": "OTHER_ERROR", "severity": "error", "message": "keep me"},
+        ]
+
+
 def test_read_selected_writer_corrupt_table_catalog_raises() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)

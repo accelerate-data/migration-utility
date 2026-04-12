@@ -28,6 +28,17 @@ logger = logging.getLogger(__name__)
 # ── Pass 1: per-object checks ───────────────────────────────────────────────
 
 
+def _has_llm_recovery_statements(catalog_data: dict[str, Any]) -> bool:
+    """Return True when persisted LLM statements prove parse recovery succeeded."""
+    statements = catalog_data.get("statements")
+    if not isinstance(statements, list):
+        return False
+    return any(
+        isinstance(stmt, dict) and stmt.get("source") == "llm"
+        for stmt in statements
+    )
+
+
 @diagnostic(
     code="PARSE_ERROR",
     objects=["view", "function", "procedure"],
@@ -40,6 +51,12 @@ def check_parse_error(ctx: CatalogContext) -> DiagnosticResult | None:
         return None
     err = ctx.ddl_entry.parse_error
     if not err:
+        return None
+    if ctx.object_type == "procedure" and _has_llm_recovery_statements(ctx.catalog_data):
+        logger.info(
+            "event=parse_error_suppressed component=diagnostics operation=check_parse_error object=%s status=success",
+            ctx.fqn,
+        )
         return None
     return DiagnosticResult(
         code="PARSE_ERROR",
