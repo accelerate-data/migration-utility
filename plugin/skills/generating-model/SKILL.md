@@ -97,11 +97,18 @@ Do not use this skill for batch orchestration. `/generate-model` owns batching, 
 
    Use the CLI-returned written paths. Do not hardcode output paths.
 
-8. Validate with dbt.
+8. Validate with dbt against the sandbox.
+
+   Read `manifest.json` at the project root and extract `sandbox.database` and `technology`. Use the sandbox value to override the appropriate env var so that `dbt compile` and `dbt test` resolve source relations against the sandbox, which contains cloned schema from the source system.
+
+   | Technology | Sandbox type | Env var override |
+   |---|---|---|
+   | `sql_server`, `fabric_warehouse` | database | `MSSQL_DB=<sandbox_database>` |
+   | `oracle` | schema | `DBT_SCHEMA=<sandbox_database>` |
 
    ```bash
-   cd "${DBT_PROJECT_PATH:-./dbt}" && dbt compile --select <model_name>
-   cd "${DBT_PROJECT_PATH:-./dbt}" && dbt test --select <model_name>
+   cd "${DBT_PROJECT_PATH:-./dbt}" && <ENV_OVERRIDE> dbt compile --select <model_name>
+   cd "${DBT_PROJECT_PATH:-./dbt}" && <ENV_OVERRIDE> dbt test --select <model_name>
    ```
 
    If the warehouse is unavailable, run `dbt parse` and skip `dbt test`. If compile or test fails for model reasons, revise SQL, re-write, and retry up to 3 total attempts.

@@ -29,6 +29,7 @@ the `reviewing-model` skill.
 | `DBT_PROJECT_MISSING` | error | `dbt/dbt_project.yml` or required dbt project files are missing | `error` |
 | `DBT_PROFILE_MISSING` | error | dbt profile configuration is missing | `error` |
 | `DBT_CONNECTION_FAILED` | error | `dbt debug` connection test failed | `error` |
+| `SANDBOX_NOT_CONFIGURED` | error | sandbox not configured in manifest — run `/setup-sandbox` first | `error` |
 | `CATALOG_FILE_MISSING` | error | required table or view catalog file is missing | `error` |
 | `SCOPING_NOT_COMPLETED` | error | scoping is missing or unresolved for the target object | `error` |
 | `PROFILE_NOT_COMPLETED` | error | profile is missing or not complete enough for model generation | `error` |
