@@ -40,12 +40,12 @@ tests:
       expected_item_statuses: '{"silver.DimCustomer": "reset"}'
       expected_output_terms: "reset-migration,dimcustomer,reset,profile"
 
-  - description: "test-gen — reset clears test-gen state"
+  - description: "generate-tests — reset clears test generation state"
     vars:
       fixture_path: "tests/evals/fixtures/cmd-reset-migration/base"
-      instruction: "Run `/reset-migration test-gen silver.DimCustomer`."
+      instruction: "Run `/reset-migration generate-tests silver.DimCustomer`."
       expected_item_statuses: '{"silver.DimCustomer": "reset"}'
-      expected_output_terms: "reset-migration,dimcustomer,reset,test-gen"
+      expected_output_terms: "reset-migration,dimcustomer,reset,generate-tests"
 
   - description: "refactor — reset clears refactor state only"
     vars:

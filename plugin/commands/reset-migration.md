@@ -5,7 +5,7 @@ description: >
   clearing persisted catalog state and test-spec artifacts, then re-exposing
   the same stage gates on the next run.
 user-invocable: true
-argument-hint: "<scope|profile|test-gen|refactor> <schema.table> [schema.table ...]"
+argument-hint: "<scope|profile|generate-tests|refactor> <schema.table> [schema.table ...]"
 ---
 
 # Reset Migration
@@ -15,7 +15,7 @@ Reset one or more selected tables from a chosen pre-model stage onward. This com
 ## Guards
 
 - Require at least one target table.
-- Supported stages are only: `scope`, `profile`, `test-gen`, `refactor`.
+- Supported stages are only: `scope`, `profile`, `generate-tests`, `refactor`.
 - Do not run if any selected table already has model generation complete. Surface the CLI block result and stop without partial mutation.
 - Treat repeated reset of already-cleared state as a valid no-op.
 
@@ -43,7 +43,7 @@ Use this reset boundary:
 
 - `scope` → clears table `scoping`, `profile`, `test_gen`, deletes `test-specs/<fqn>.json` if present, clears selected writer `refactor`
 - `profile` → clears table `profile`, `test_gen`, deletes `test-specs/<fqn>.json` if present, clears selected writer `refactor`
-- `test-gen` → clears table `test_gen`, deletes `test-specs/<fqn>.json` if present, clears selected writer `refactor`
+- `generate-tests` → clears table `test_gen`, deletes `test-specs/<fqn>.json` if present, clears selected writer `refactor`
 - `refactor` → clears selected writer `refactor` only
 
 ## Step 3 — Confirmation

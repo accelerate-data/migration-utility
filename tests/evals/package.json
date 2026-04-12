@@ -15,7 +15,7 @@
     "eval:cmd-generate-model": "git checkout -- fixtures/ && ./scripts/promptfoo.sh eval --no-cache -c packages/cmd-generate-model/cmd-generate-model.yaml; git checkout -- fixtures/ && git clean -fd fixtures/",
     "eval:cmd-generate-tests": "git checkout -- fixtures/ && ./scripts/promptfoo.sh eval --no-cache -c packages/cmd-generate-tests/cmd-generate-tests.yaml; git checkout -- fixtures/ && git clean -fd fixtures/",
     "eval:cmd-status": "git checkout -- fixtures/ && ./scripts/promptfoo.sh eval --no-cache -c packages/cmd-status/cmd-status.yaml; git checkout -- fixtures/ && git clean -fd fixtures/",
-    "eval:cmd-reset-migration": "git checkout -- fixtures/ && ./scripts/promptfoo.sh eval --no-cache -c packages/cmd-reset-migration/cmd-reset-migration.yaml; git checkout -- fixtures/ && git clean -fd fixtures/",
+    "eval:cmd-reset-migration": "git checkout -- fixtures/ && ./scripts/promptfoo.sh eval --no-cache --max-concurrency 1 -c packages/cmd-reset-migration/cmd-reset-migration.yaml; git checkout -- fixtures/ && git clean -fd fixtures/",
     "eval:refactoring-sql": "git checkout -- fixtures/ && ./scripts/promptfoo.sh eval --no-cache -c packages/refactoring-sql/skill-refactoring-sql.yaml; git checkout -- fixtures/ && git clean -fd fixtures/",
     "eval:generating-tests": "git checkout -- fixtures/ && ./scripts/promptfoo.sh eval --no-cache -c packages/generating-tests/skill-generating-tests.yaml; git checkout -- fixtures/ && git clean -fd fixtures/",
     "eval:cmd-refactor": "git checkout -- fixtures/ && ./scripts/promptfoo.sh eval --no-cache -c packages/cmd-refactor/cmd-refactor.yaml; git checkout -- fixtures/ && git clean -fd fixtures/",

@@ -994,7 +994,7 @@ def test_run_reset_migration_multiple_tables(tmp_path: Path) -> None:
     dst = _make_reset_project(tmp_path)
     result = dry_run.run_reset_migration(
         dst,
-        "test-gen",
+        "generate-tests",
         ["silver.DimCustomer", "silver.DimProduct"],
     )
 
@@ -1040,11 +1040,11 @@ def test_reset_migration_cli_subcommand(tmp_path: Path) -> None:
     dst = _make_reset_project(tmp_path)
     result = _cli_runner.invoke(
         dry_run.app,
-        ["reset-migration", "test-gen", "silver.DimCustomer", "--project-root", str(dst)],
+        ["reset-migration", "generate-tests", "silver.DimCustomer", "--project-root", str(dst)],
     )
 
     assert result.exit_code == 0, result.output
     output = json.loads(result.stdout)
-    assert output["stage"] == "test-gen"
+    assert output["stage"] == "generate-tests"
     assert output["reset"] == ["silver.dimcustomer"]
     assert not (dst / "test-specs" / "silver.dimcustomer.json").exists()

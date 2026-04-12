@@ -35,12 +35,13 @@ logger = logging.getLogger(__name__)
 VALID_STAGES = frozenset(
     {"setup-ddl", "scope", "profile", "test-gen", "refactor", "migrate", "generate"}
 )
-RESETTABLE_STAGES = frozenset({"scope", "profile", "test-gen", "refactor"})
+RESETTABLE_STAGES = frozenset({"scope", "profile", "generate-tests", "refactor"})
+RESET_STAGE_ALIASES = {"test-gen": "generate-tests"}
 
 _RESET_STAGE_SECTIONS: dict[str, tuple[str, ...]] = {
     "scope": ("scoping", "profile", "test_gen"),
     "profile": ("profile", "test_gen"),
-    "test-gen": ("test_gen",),
+    "generate-tests": ("test_gen",),
     "refactor": (),
 }
 
@@ -314,7 +315,7 @@ def _reset_table_sections(
             del table_data[key]
             cleared_sections.append(f"table.{key}")
 
-    if stage in ("scope", "profile", "test-gen"):
+    if stage in ("scope", "profile", "generate-tests"):
         spec_path = project_root / "test-specs" / f"{norm}.json"
         if _delete_if_present(spec_path):
             deleted_files.append(f"test-specs/{norm}.json")
@@ -351,6 +352,8 @@ def run_reset_migration(project_root: Path, stage: str, fqns: list[str]) -> Rese
     table already has model generation complete, the entire run is blocked
     before any mutation occurs.
     """
+    stage = RESET_STAGE_ALIASES.get(stage, stage)
+
     if stage not in RESETTABLE_STAGES:
         raise ValueError(f"Unsupported reset stage: {stage}")
 
@@ -408,7 +411,7 @@ def run_reset_migration(project_root: Path, stage: str, fqns: list[str]) -> Rese
 
     for norm, _table_data in resolved_tables:
         cleared_sections, deleted_files, writer = _reset_table_sections(project_root, norm, stage)
-        if stage in ("scope", "profile", "test-gen", "refactor"):
+        if stage in ("scope", "profile", "generate-tests", "refactor"):
             cleared_sections.extend(_reset_writer_refactor(project_root, writer))
 
         status = "reset" if cleared_sections or deleted_files else "noop"

@@ -216,7 +216,7 @@ class ResetTargetResult(BaseModel):
 class ResetMigrationOutput(BaseModel):
     model_config = OUTPUT_CONFIG
 
-    stage: Literal["scope", "profile", "test-gen", "refactor"]
+    stage: Literal["scope", "profile", "generate-tests", "refactor"]
     targets: list[ResetTargetResult]
     reset: list[str]
     noop: list[str]
