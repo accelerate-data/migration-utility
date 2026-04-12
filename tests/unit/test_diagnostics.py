@@ -184,6 +184,37 @@ class TestParseError:
 
         assert result is None
 
+    def test_parse_error_suppressed_when_llm_statements_exist(self):
+        """LLM-classified statements suppress the parse diagnostic after recovery."""
+        entry = DdlEntry(raw_ddl="CREATE PROC bad", ast=None, parse_error="Unexpected token at line 1")
+        ctx = _make_ctx(
+            Path("/tmp/fake"),
+            "dbo.usp_bad",
+            "procedure",
+            {"statements": [{"id": "stmt-1", "source": "llm", "action": "migrate", "sql": "SELECT 1"}]},
+            ddl_entry=entry,
+        )
+
+        result = check_parse_error(ctx)
+
+        assert result is None
+
+    def test_parse_error_not_suppressed_for_non_llm_statements(self):
+        """Non-LLM statements do not suppress a real parse diagnostic."""
+        entry = DdlEntry(raw_ddl="CREATE PROC bad", ast=None, parse_error="Unexpected token at line 1")
+        ctx = _make_ctx(
+            Path("/tmp/fake"),
+            "dbo.usp_bad",
+            "procedure",
+            {"statements": [{"id": "stmt-1", "source": "ast", "action": "migrate", "sql": "SELECT 1"}]},
+            ddl_entry=entry,
+        )
+
+        result = check_parse_error(ctx)
+
+        assert result is not None
+        assert result.code == "PARSE_ERROR"
+
 
 # ── UNSUPPORTED_SYNTAX ───────────────────────────────────────────────────────
 

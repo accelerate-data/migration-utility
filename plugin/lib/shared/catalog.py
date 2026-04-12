@@ -301,6 +301,21 @@ def write_proc_statements(
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise CatalogLoadError(str(p), exc) from exc
     data["statements"] = statements
+    llm_recovered = any(stmt.get("source") == "llm" for stmt in statements if isinstance(stmt, dict))
+    if llm_recovered:
+        existing_errors = data.get("errors")
+        if isinstance(existing_errors, list):
+            filtered_errors = [
+                err
+                for err in existing_errors
+                if not (isinstance(err, dict) and err.get("code") == "PARSE_ERROR")
+            ]
+            if len(filtered_errors) != len(existing_errors):
+                logger.info(
+                    "event=proc_parse_error_cleared component=catalog operation=write_proc_statements proc=%s status=success",
+                    norm,
+                )
+                data["errors"] = filtered_errors
     write_json(p, data)
     return p
 
