@@ -30,6 +30,7 @@ Use `docs/design/` for architecture and implementation design details.
 - [Coverage Matrix](coverage-matrix/README.md) — statement-by-statement coverage by phase and by test layer
 - [Data Reconciliation](data-reconciliation/README.md) — row-level A-B / B-A diff between SQL Server and Fabric Lakehouse via DuckDB EXCEPT ALL
 - [Catalog Enrichment Diagnostics](catalog-enrich/README.md) — exhaustive warning/error scenarios for view, function, and procedure catalog entries
+- [Worktree Wrapper](worktree-wrapper/README.md) — single entrypoint for worktree creation, bootstrap, and structured failure reporting
 
 ## What Goes In `references`
 

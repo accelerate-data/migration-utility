@@ -18,10 +18,15 @@ For batch command worktrees, the branch name is derived from the command and tab
 ../worktrees/feature/scope-silver-dimcustomer-silver-dimproduct
 ```
 
-The `setup-worktree.sh` script runs after worktree creation and handles two things:
+Use `./scripts/worktree.sh <branch-name>` to create or attach a worktree and bootstrap it in one step.
 
-- Symlinks `.env` from the main repo root
-- Runs `direnv allow`
+The wrapper bootstraps the worktree by:
+
+- Symlinking `.env` from the main repo root
+- Running `direnv allow`
+- Running `uv sync --extra dev` in `plugin/lib/`
+- Verifying `pyodbc` and `oracledb` import from the worktree venv
+- Running `npm install --no-audit --no-fund` in `tests/evals/`
 
 ## Main-branch check
 
@@ -31,9 +36,7 @@ Every batch command checks the current branch at startup. If you are on `main`, 
 ⚠️  You are on main. It is recommended to work on a feature branch.
 
 To create a worktree now:
-  mkdir -p ../worktrees/feature
-  git worktree add ../worktrees/feature/<slug> -b feature/<slug>
-  ./scripts/setup-worktree.sh ../worktrees/feature/<slug>
+  ./scripts/worktree.sh feature/<slug>
 
 Proceed on main anyway? (y/n)
 ```

@@ -109,7 +109,7 @@
     },
     "scripts": {
       "path": "scripts/",
-      "description": "Developer scripts: setup-worktree.sh, restore-dw-samples.sh, publish-sqlserver-image.sh (build + push SQL Server Docker image with pre-baked data files), build-dacpac-extract.sh, sql/ (test DB creation scripts and JSON fixtures)."
+      "description": "Developer scripts: worktree.sh (single entrypoint for worktree creation/attach plus bootstrap and structured failure output), restore-dw-samples.sh, publish-sqlserver-image.sh (build + push SQL Server Docker image with pre-baked data files), build-dacpac-extract.sh, sql/ (test DB creation scripts and JSON fixtures)."
     },
     "docker_sqlserver": {
       "path": "docker/sqlserver/",

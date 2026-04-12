@@ -29,7 +29,7 @@ DDL extraction and sandbox creation require these environment variables:
 - `MSSQL_PORT` -- SQL Server port
 - `SA_PASSWORD` -- SQL Server SA password
 
-If these are not set, `/setup-ddl` and `/setup-sandbox` will fail. Set them in your `.env` file (symlinked into worktrees by `setup-worktree.sh`).
+If these are not set, `/setup-ddl` and `/setup-sandbox` will fail. Set them in your `.env` file (symlinked into worktrees by `worktree.sh`).
 
 **`CLAUDE_PLUGIN_ROOT` not set**
 

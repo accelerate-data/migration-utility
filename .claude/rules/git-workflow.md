@@ -9,18 +9,23 @@ Example:
 - Branch: `feature/vu-354-scaffold-tauri-app-with-full-frontend-stack`
 - Worktree path: `../worktrees/feature/vu-354-scaffold-tauri-app-with-full-frontend-stack`
 
-Pre-create the parent directory before adding the worktree:
+Create or attach a worktree with:
 
 ```bash
-mkdir -p ../worktrees/feature
-git worktree add ../worktrees/feature/<branch-name> <branch-name>
-./scripts/setup-worktree.sh ../worktrees/feature/<branch-name>
+./scripts/worktree.sh <branch-name>
 ```
 
-`setup-worktree.sh` does two things:
+`worktree.sh` creates or attaches the worktree at `../worktrees/<branch-name>` and then bootstraps it:
 
 1. Symlinks `.env` from the main repo root
-2. Runs `direnv allow`
+2. Runs `direnv allow` when available
+3. Runs `uv sync --extra dev` in `plugin/lib/`
+4. Verifies `pyodbc` and `oracledb` import from the worktree venv
+5. Runs `npm install --no-audit --no-fund` in `tests/evals/`
+
+It fails fast if a required setup step breaks so the worktree is not left half-configured. When the
+branch is already checked out in a different worktree, it exits with structured JSON on stderr that
+identifies the existing checkout path.
 
 ## PR Format
 

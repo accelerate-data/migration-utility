@@ -79,6 +79,9 @@ Design notes live in `docs/design/`. Each topic gets its own subdirectory with a
 (e.g. `docs/design/orchestrator-design/README.md`). The index at `docs/design/README.md` must be
 updated when adding a new subdirectory.
 
+If a generic agent workflow or skill asks you to write a spec or design doc somewhere else, use
+`docs/design/<topic>/README.md` in this repo instead and update the design index.
+
 Write design docs concisely — state the decision and the reason, not the reasoning process. One
 sentence beats a paragraph. Avoid restating what the code already makes obvious.
 
@@ -107,6 +110,7 @@ Update stale entries in the same commit that introduced the structural change.
 - **PR title format:** `VU-XXX: short description`
 - **PR body link:** `Fixes VU-XXX`
 - **Worktrees:** `../worktrees/<branchName>` relative to repo root. Full rules: `.claude/rules/git-workflow.md`.
+- **Worktree creation:** Use `./scripts/worktree.sh <branch-name>` as the canonical way to create or attach a worktree and bootstrap it. Do not use raw `git worktree add` unless you are debugging the wrapper itself.
 
 ## Skills
 

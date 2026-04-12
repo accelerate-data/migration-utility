@@ -143,6 +143,8 @@ GIT_WORKFLOW_MD = """\
 
 Worktree base path: `{worktree_base}`
 
+Use `./scripts/worktree.sh <branch-name>` to create or attach a worktree and bootstrap it in one step.
+
 Commands create worktrees at `<base>/<run-slug>` where `<run-slug>` is generated from the command name and table names (e.g. `scope-dimcustomer-dimproduct`).
 
 ## Cleanup

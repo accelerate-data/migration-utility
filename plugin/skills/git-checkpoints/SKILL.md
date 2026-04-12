@@ -76,39 +76,14 @@ Resolve the repo root absolutely:
 repo_root=$(git rev-parse --show-toplevel)
 ```
 
-Determine the worktree path: `$repo_root/../worktrees/feature/<slug>`.
-
-Substitute the resolved slug value for every `<slug>` placeholder in all commands below before executing.
-
 Create the worktree:
 
 ```bash
-mkdir -p "$repo_root/../worktrees/feature"
-git worktree add "$repo_root/../worktrees/feature/<slug>" -b "feature/<slug>"
+cd "$repo_root"
+./scripts/worktree.sh "feature/<slug>"
 ```
-
-Inline setup (symlink `.env` and run `direnv allow`):
-
-```bash
-env_src="$repo_root/.env"
-env_dst="$repo_root/../worktrees/feature/<slug>/.env"
-if [ -f "$env_src" ]; then
-  ln -sf "$env_src" "$env_dst"
-  echo "ENV: symlinked $env_dst -> $env_src"
-else
-  echo "ENV: skipped (no .env in $repo_root)"
-fi
-
-worktree_path="$repo_root/../worktrees/feature/<slug>"
-if command -v direnv >/dev/null 2>&1 && [ -f "$worktree_path/.envrc" ]; then
-  direnv allow "$worktree_path"
-  echo "direnv: allowed $worktree_path"
-else
-  echo "direnv: skipped"
-fi
-```
-
-Return the absolute worktree path. All subsequent file writes and git operations for this run must target that path.
+Determine the worktree path as `$repo_root/../worktrees/feature/<slug>` and return that absolute
+path. All subsequent file writes and git operations for this run must target that path.
 
 ## Return Value
 

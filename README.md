@@ -80,6 +80,22 @@ See `repo-map.json` for the full structure, entrypoints, and command reference.
 
 ## Development
 
+### Worktrees
+
+Use the single wrapper command to create or attach a worktree and bootstrap it:
+
+```bash
+./scripts/worktree.sh feature/<branch-name>
+```
+
+The wrapper creates the worktree under `../worktrees/<branch-name>`, symlinks `.env`, runs
+`direnv allow` when available, installs Python dev dependencies in `plugin/lib`, verifies
+`pyodbc` and `oracledb`, and installs eval dependencies in `tests/evals`.
+
+If the requested branch is already checked out in another worktree, the script fails with
+structured JSON on stderr that includes the existing worktree path so an agent can recover
+deterministically.
+
 ### Tests
 
 ```bash
