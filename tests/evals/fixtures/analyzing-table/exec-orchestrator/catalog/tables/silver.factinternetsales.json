@@ -236,7 +236,6 @@
   },
   "profile": {
     "status": "ok",
-    "writer": "silver.usp_stage_factinternetsales",
     "classification": {
       "resolved_kind": "fact_transaction",
       "rationale": "Table has transactional grain — one row per sales order line (composite natural-key PK of SalesOrderNumber + SalesOrderLineNumber) with additive measures. The TRUNCATE + INSERT write pattern is a full-reload staging strategy; the absence of a snapshot_date column eliminates fact_periodic_snapshot, and all three date columns (OrderDate, DueDate, ShipDate) are populated simultaneously from a single JOIN rather than updated individually, eliminating fact_accumulating_snapshot.",

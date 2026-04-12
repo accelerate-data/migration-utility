@@ -61,7 +61,6 @@
   },
   "profile": {
     "status": "ok",
-    "writer": "silver.usp_load_UpdateJoinTarget",
     "classification": {
       "resolved_kind": "fact_transaction",
       "source": "catalog+llm",

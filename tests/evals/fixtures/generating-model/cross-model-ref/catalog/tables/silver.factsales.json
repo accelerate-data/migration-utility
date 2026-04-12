@@ -2,14 +2,47 @@
   "schema": "silver",
   "name": "factsales",
   "columns": [
-    {"name": "SalesKey", "sql_type": "INT", "is_nullable": false, "is_identity": true},
-    {"name": "CustomerKey", "sql_type": "INT", "is_nullable": false, "is_identity": false},
-    {"name": "OrderDate", "sql_type": "DATE", "is_nullable": false, "is_identity": false},
-    {"name": "SalesAmount", "sql_type": "DECIMAL(18,2)", "is_nullable": false, "is_identity": false}
+    {
+      "name": "SalesKey",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": true
+    },
+    {
+      "name": "CustomerKey",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "OrderDate",
+      "sql_type": "DATE",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "SalesAmount",
+      "sql_type": "DECIMAL(18,2)",
+      "is_nullable": false,
+      "is_identity": false
+    }
   ],
-  "primary_keys": [{"name": "PK_FactSales", "columns": ["SalesKey"]}],
+  "primary_keys": [
+    {
+      "name": "PK_FactSales",
+      "columns": [
+        "SalesKey"
+      ]
+    }
+  ],
   "foreign_keys": [
-    {"name": "FK_FactSales_Customer", "column": "CustomerKey", "references_schema": "silver", "references_table": "DimCustomer", "references_column": "CustomerKey"}
+    {
+      "name": "FK_FactSales_Customer",
+      "column": "CustomerKey",
+      "references_schema": "silver",
+      "references_table": "DimCustomer",
+      "references_column": "CustomerKey"
+    }
   ],
   "unique_indexes": [],
   "scoping": {
@@ -18,19 +51,24 @@
   },
   "profile": {
     "status": "ok",
-    "writer": "silver.usp_load_factsales",
     "classification": {
       "resolved_kind": "fact_transaction",
       "source": "llm",
       "rationale": "Full reload INSERT from bronze source joined to silver dim. Standard fact_transaction pattern."
     },
     "primary_key": {
-      "columns": ["SalesKey"],
+      "columns": [
+        "SalesKey"
+      ],
       "primary_key_type": "surrogate",
       "source": "catalog",
       "rationale": "SalesKey is declared as primary key and is an IDENTITY column."
     },
-    "natural_key": {"columns": [], "source": "llm", "rationale": "No natural key identified."},
+    "natural_key": {
+      "columns": [],
+      "source": "llm",
+      "rationale": "No natural key identified."
+    },
     "foreign_keys": [
       {
         "column": "CustomerKey",

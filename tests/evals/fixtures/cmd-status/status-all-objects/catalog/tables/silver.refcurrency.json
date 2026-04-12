@@ -2,7 +2,12 @@
   "schema": "silver",
   "name": "RefCurrency",
   "columns": [
-    {"name": "CurrencyCode", "sql_type": "NCHAR(3)", "is_nullable": false, "is_identity": false}
+    {
+      "name": "CurrencyCode",
+      "sql_type": "NCHAR(3)",
+      "is_nullable": false,
+      "is_identity": false
+    }
   ],
   "primary_keys": [],
   "unique_indexes": [],
@@ -11,9 +16,18 @@
   "change_capture": null,
   "sensitivity_classifications": [],
   "referenced_by": {
-    "procedures": {"in_scope": [], "out_of_scope": []},
-    "views": {"in_scope": [], "out_of_scope": []},
-    "functions": {"in_scope": [], "out_of_scope": []}
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
   },
   "scoping": {
     "status": "no_writer_found",

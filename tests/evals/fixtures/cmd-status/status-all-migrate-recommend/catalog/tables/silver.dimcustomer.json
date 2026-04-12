@@ -2,23 +2,51 @@
   "schema": "silver",
   "name": "DimCustomer",
   "columns": [
-    {"name": "CustomerKey", "sql_type": "INT", "is_nullable": false, "is_identity": true}
+    {
+      "name": "CustomerKey",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": true
+    }
   ],
-  "primary_keys": [{"constraint_name": "PK_DimCustomer", "columns": ["CustomerKey"]}],
+  "primary_keys": [
+    {
+      "constraint_name": "PK_DimCustomer",
+      "columns": [
+        "CustomerKey"
+      ]
+    }
+  ],
   "unique_indexes": [],
   "foreign_keys": [],
-  "auto_increment_columns": [{"column": "CustomerKey", "mechanism": "identity"}],
+  "auto_increment_columns": [
+    {
+      "column": "CustomerKey",
+      "mechanism": "identity"
+    }
+  ],
   "change_capture": null,
   "sensitivity_classifications": [],
   "referenced_by": {
     "procedures": {
       "in_scope": [
-        {"schema": "dbo", "name": "usp_load_dimcustomer", "is_selected": true, "is_updated": true}
+        {
+          "schema": "dbo",
+          "name": "usp_load_dimcustomer",
+          "is_selected": true,
+          "is_updated": true
+        }
       ],
       "out_of_scope": []
     },
-    "views": {"in_scope": [], "out_of_scope": []},
-    "functions": {"in_scope": [], "out_of_scope": []}
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
   },
   "scoping": {
     "status": "resolved",
@@ -26,9 +54,18 @@
   },
   "profile": {
     "status": "ok",
-    "writer": "dbo.usp_load_dimcustomer",
-    "classification": {"resolved_kind": "dim_scd1", "source": "llm", "rationale": "MERGE with UPDATE."},
-    "primary_key": {"columns": ["CustomerKey"], "primary_key_type": "surrogate", "source": "catalog"},
+    "classification": {
+      "resolved_kind": "dim_scd1",
+      "source": "llm",
+      "rationale": "MERGE with UPDATE."
+    },
+    "primary_key": {
+      "columns": [
+        "CustomerKey"
+      ],
+      "primary_key_type": "surrogate",
+      "source": "catalog"
+    },
     "foreign_keys": [],
     "pii_actions": []
   },

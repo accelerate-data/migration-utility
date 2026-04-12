@@ -42,7 +42,9 @@
   "primary_keys": [
     {
       "constraint_name": "CHANNELS_PK",
-      "columns": ["CHANNEL_ID"]
+      "columns": [
+        "CHANNEL_ID"
+      ]
     }
   ],
   "unique_indexes": [],

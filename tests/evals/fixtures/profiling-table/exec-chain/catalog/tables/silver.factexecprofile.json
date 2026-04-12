@@ -90,7 +90,6 @@
     "selected_writer_rationale": "The orchestrator proc is the table writer for profiling and delegates the actual insert to its helper."
   },
   "profile": {
-    "writer": "silver.usp_load_factexecprofile",
     "classification": {
       "resolved_kind": "fact_transaction",
       "source": "llm",

@@ -65,7 +65,6 @@
     "selected_writer": "silver.usp_load_DimCurrency"
   },
   "profile": {
-    "writer": "silver.usp_load_dimcurrency",
     "classification": {
       "resolved_kind": "dim_non_scd",
       "rationale": "Full reload pattern: TRUNCATE + INSERT with no update logic. Surrogate key (CurrencyKey identity) paired with business key (CurrencyAlternateKey) and descriptive columns only. No versioning columns, date pairs, or update operations — classic non-SCD lookup dimension.",

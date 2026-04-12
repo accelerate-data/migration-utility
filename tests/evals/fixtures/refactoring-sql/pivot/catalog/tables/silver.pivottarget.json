@@ -67,7 +67,6 @@
   },
   "profile": {
     "status": "ok",
-    "writer": "silver.usp_load_PivotTarget",
     "classification": {
       "resolved_kind": "fact_aggregate",
       "source": "catalog+llm",

@@ -2,9 +2,21 @@
   "schema": "silver",
   "name": "DimDate",
   "columns": [
-    {"name": "DateKey", "sql_type": "INT", "is_nullable": false, "is_identity": false}
+    {
+      "name": "DateKey",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": false
+    }
   ],
-  "primary_keys": [{"constraint_name": "PK_DimDate", "columns": ["DateKey"]}],
+  "primary_keys": [
+    {
+      "constraint_name": "PK_DimDate",
+      "columns": [
+        "DateKey"
+      ]
+    }
+  ],
   "unique_indexes": [],
   "foreign_keys": [],
   "auto_increment_columns": [],
@@ -13,11 +25,22 @@
   "referenced_by": {
     "procedures": {
       "in_scope": [
-        {"schema": "dbo", "name": "usp_load_dimdate", "is_selected": true, "is_updated": true}
+        {
+          "schema": "dbo",
+          "name": "usp_load_dimdate",
+          "is_selected": true,
+          "is_updated": true
+        }
       ],
       "out_of_scope": []
     },
-    "views": {"in_scope": [], "out_of_scope": []},
-    "functions": {"in_scope": [], "out_of_scope": []}
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
   }
 }

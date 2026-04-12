@@ -174,12 +174,10 @@
   },
   "scoping": {
     "status": "resolved",
-    "selected_writer": "silver.usp_load_DimProduct",
-    "selected_writer_rationale": "Single MERGE writer for DimProduct."
+    "selected_writer": "silver.usp_load_DimProduct"
   },
   "profile": {
     "status": "ok",
-    "writer": "silver.usp_load_dimproduct",
     "classification": {
       "resolved_kind": "dim_scd1",
       "source": "llm",
@@ -202,10 +200,6 @@
     },
     "foreign_keys": [],
     "pii_actions": []
-  },
-  "scoping": {
-    "status": "resolved",
-    "selected_writer": "silver.usp_load_DimProduct"
   },
   "refactor": {
     "status": "ok",

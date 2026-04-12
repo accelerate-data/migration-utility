@@ -14,9 +14,11 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from shared import profile
+from shared.catalog import load_table_catalog
 from shared.loader import CatalogFileMissingError, CatalogLoadError
 from shared.output_models.profile import ProfileContext, ViewProfileContext
 
@@ -173,7 +175,6 @@ def test_write_valid_profile_merges() -> None:
     tmp, ddl_path = _make_writable_copy()
     try:
         valid_profile = {
-            "writer": "dbo.usp_load_fact_sales",
             "classification": {
                 "resolved_kind": "fact_transaction",
                 "rationale": "Pure INSERT with no UPDATE or DELETE.",
@@ -193,6 +194,7 @@ def test_write_valid_profile_merges() -> None:
         cat = json.loads(cat_path.read_text(encoding="utf-8"))
         assert "profile" in cat
         assert cat["profile"]["status"] == "ok"
+        assert "writer" not in cat["profile"]
         assert cat["profile"]["classification"]["resolved_kind"] == "fact_transaction"
     finally:
         tmp.cleanup()
@@ -201,19 +203,19 @@ def test_write_valid_profile_merges() -> None:
 # ── Write: missing required field ────────────────────────────────────────────
 
 
-def test_write_missing_required_field_raises() -> None:
-    """Write with missing required field raises ValueError."""
+def test_write_legacy_writer_field_raises() -> None:
+    """Write rejects the legacy persisted writer field."""
     tmp, ddl_path = _make_writable_copy()
     try:
         bad_profile = {
+            "writer": "dbo.usp_load_fact_sales",
             "classification": {
                 "resolved_kind": "fact_transaction",
                 "rationale": "test",
                 "source": "llm",
             },
-            # missing "writer"
         }
-        with pytest.raises(ValueError, match="validation failed"):
+        with pytest.raises(ValidationError, match="writer"):
             profile.run_write(ddl_path, "silver.FactSales", bad_profile)
     finally:
         tmp.cleanup()
@@ -227,7 +229,6 @@ def test_write_invalid_enum_raises() -> None:
     tmp, ddl_path = _make_writable_copy()
     try:
         bad_profile = {
-            "writer": "dbo.usp_load_fact_sales",
             "classification": {
                 "resolved_kind": "invalid_kind",
                 "source": "llm",
@@ -244,7 +245,6 @@ def test_write_invalid_fk_type_raises() -> None:
     tmp, ddl_path = _make_writable_copy()
     try:
         bad_profile = {
-            "writer": "dbo.usp_load_fact_sales",
             "foreign_keys": [
                 {
                     "column": "customer_key",
@@ -264,7 +264,6 @@ def test_write_invalid_suggested_action_raises() -> None:
     tmp, ddl_path = _make_writable_copy()
     try:
         bad_profile = {
-            "writer": "dbo.usp_load_fact_sales",
             "pii_actions": [
                 {
                     "column": "email",
@@ -284,7 +283,6 @@ def test_write_invalid_source_raises() -> None:
     tmp, ddl_path = _make_writable_copy()
     try:
         bad_profile = {
-            "writer": "dbo.usp_load_fact_sales",
             "classification": {
                 "resolved_kind": "fact_transaction",
                 "source": "invalid_source",
@@ -303,9 +301,7 @@ def test_write_nonexistent_catalog_raises() -> None:
     """Write to nonexistent catalog file raises CatalogFileMissingError."""
     tmp, ddl_path = _make_writable_copy()
     try:
-        valid_profile = {
-            "writer": "dbo.usp_load_nonexistent",
-        }
+        valid_profile: dict[str, object] = {}
         with pytest.raises(CatalogFileMissingError):
             profile.run_write(ddl_path, "dbo.NonexistentTable", valid_profile)
     finally:
@@ -322,7 +318,6 @@ def test_write_idempotent() -> None:
     tmp, ddl_path = _make_writable_copy()
     try:
         valid_profile = {
-            "writer": "dbo.usp_load_fact_sales",
             "classification": {
                 "resolved_kind": "fact_transaction",
                 "rationale": "Pure INSERT.",
@@ -359,7 +354,7 @@ def test_write_cli_emits_error_json_on_validation_failure() -> None:
     tmp, ddl_path = _make_writable_copy()
     try:
         subprocess.run(["git", "init"], cwd=ddl_path, capture_output=True, check=True)
-        bad_profile = json.dumps({"classification": {"resolved_kind": "fact_transaction", "source": "llm"}})  # missing writer
+        bad_profile = json.dumps({"writer": "dbo.usp_load_fact_sales"})
         result = _cli_runner.invoke(
             profile.app,
             ["write", "--project-root", str(ddl_path), "--table", "silver.FactSales", "--profile", bad_profile],
@@ -419,12 +414,34 @@ def test_write_corrupt_existing_table_catalog_exit_2() -> None:
         subprocess.run(["git", "init"], cwd=ddl_path, capture_output=True, check=True)
         cat_path = ddl_path / "catalog" / "tables" / "silver.factsales.json"
         cat_path.write_text("{truncated", encoding="utf-8")
-        good_profile = json.dumps({"writer": "dbo.usp_load_fact_sales"})
+        good_profile = json.dumps({})
         result = _cli_runner.invoke(
             profile.app,
             ["write", "--project-root", str(ddl_path), "--table", "silver.FactSales", "--profile", good_profile],
         )
         assert result.exit_code == 2
+    finally:
+        tmp.cleanup()
+
+
+def test_write_legacy_catalog_profile_writer_fails_loudly() -> None:
+    """Legacy table catalogs with profile.writer fail validation on load."""
+    tmp, ddl_path = _make_writable_copy()
+    try:
+        cat_path = ddl_path / "catalog" / "tables" / "silver.factsales.json"
+        cat = json.loads(cat_path.read_text(encoding="utf-8"))
+        cat["profile"] = {
+            "status": "ok",
+            "writer": "dbo.usp_load_fact_sales",
+            "classification": {
+                "resolved_kind": "fact_transaction",
+                "source": "llm",
+            },
+        }
+        cat_path.write_text(json.dumps(cat), encoding="utf-8")
+
+        with pytest.raises(ValidationError, match="writer"):
+            load_table_catalog(ddl_path, "silver.FactSales")
     finally:
         tmp.cleanup()
 

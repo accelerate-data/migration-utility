@@ -69,7 +69,6 @@
   },
   "profile": {
     "status": "ok",
-    "writer": "dbo.usp_load_dimcustomer",
     "classification": {
       "resolved_kind": "dim_scd1",
       "rationale": "MERGE with UPDATE.",

@@ -2,26 +2,61 @@
   "schema": "silver",
   "name": "dimcustomer",
   "columns": [
-    { "name": "customer_sk", "data_type": "BIGINT", "is_nullable": false },
-    { "name": "customer_name", "data_type": "NVARCHAR(100)", "is_nullable": false },
-    { "name": "email", "data_type": "NVARCHAR(255)", "is_nullable": true },
-    { "name": "valid_from", "data_type": "DATETIME2", "is_nullable": false },
-    { "name": "valid_to", "data_type": "DATETIME2", "is_nullable": true },
-    { "name": "is_current", "data_type": "BIT", "is_nullable": false }
+    {
+      "name": "customer_sk",
+      "data_type": "BIGINT",
+      "is_nullable": false
+    },
+    {
+      "name": "customer_name",
+      "data_type": "NVARCHAR(100)",
+      "is_nullable": false
+    },
+    {
+      "name": "email",
+      "data_type": "NVARCHAR(255)",
+      "is_nullable": true
+    },
+    {
+      "name": "valid_from",
+      "data_type": "DATETIME2",
+      "is_nullable": false
+    },
+    {
+      "name": "valid_to",
+      "data_type": "DATETIME2",
+      "is_nullable": true
+    },
+    {
+      "name": "is_current",
+      "data_type": "BIT",
+      "is_nullable": false
+    }
   ],
   "primary_keys": [
     {
       "constraint_name": "PK_DimCustomer",
-      "columns": ["customer_sk"],
+      "columns": [
+        "customer_sk"
+      ],
       "type": "PRIMARY KEY"
     }
   ],
   "unique_indexes": [],
   "foreign_keys": [],
-  "auto_increment_columns": [{ "column": "customer_sk", "mechanism": "identity" }],
+  "auto_increment_columns": [
+    {
+      "column": "customer_sk",
+      "mechanism": "identity"
+    }
+  ],
   "change_capture": null,
   "sensitivity_classifications": [
-    { "column": "email", "label": "Confidential", "information_type": "Contact Info" }
+    {
+      "column": "email",
+      "label": "Confidential",
+      "information_type": "Contact Info"
+    }
   ],
   "referenced_by": {
     "procedures": {
@@ -36,8 +71,14 @@
       ],
       "out_of_scope": []
     },
-    "views": { "in_scope": [], "out_of_scope": [] },
-    "functions": { "in_scope": [], "out_of_scope": [] }
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
   },
   "refactor": {
     "status": "ok",
@@ -46,19 +87,23 @@
   },
   "profile": {
     "status": "ok",
-    "writer": "dbo.usp_load_dim_customer",
     "classification": {
       "resolved_kind": "dim_scd2",
       "source": "catalog"
     },
     "primary_key": {
-      "columns": ["customer_sk"],
+      "columns": [
+        "customer_sk"
+      ],
       "primary_key_type": "surrogate"
     },
     "watermark": null,
     "foreign_keys": [],
     "pii_actions": [
-      { "column": "email", "suggested_action": "mask" }
+      {
+        "column": "email",
+        "suggested_action": "mask"
+      }
     ]
   }
 }

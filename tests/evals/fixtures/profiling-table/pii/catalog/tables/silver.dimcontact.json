@@ -181,7 +181,6 @@
     "selected_writer": "silver.usp_load_DimContact"
   },
   "profile": {
-    "writer": "silver.usp_load_dimcontact",
     "classification": {
       "resolved_kind": "dim_non_scd",
       "rationale": "TRUNCATE + INSERT pattern with no versioning columns (valid_from, valid_to, is_current). Table contains only descriptive contact attributes with no fact/measure columns. Classic full-reload dimension without SCD2 versioning logic.",

@@ -48,7 +48,6 @@
   },
   "profile": {
     "status": "ok",
-    "writer": "silver.usp_scope_execconcat",
     "classification": {
       "resolved_kind": "fact",
       "source": "catalog+llm",

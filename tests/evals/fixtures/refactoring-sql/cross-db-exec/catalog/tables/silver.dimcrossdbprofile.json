@@ -67,7 +67,6 @@
   },
   "profile": {
     "status": "partial",
-    "writer": "silver.usp_load_DimCrossDbProfile",
     "classification": {
       "resolved_kind": "dim_non_scd",
       "source": "catalog+llm",

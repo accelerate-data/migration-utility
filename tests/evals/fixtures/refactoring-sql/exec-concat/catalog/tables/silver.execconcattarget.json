@@ -49,7 +49,6 @@
   },
   "profile": {
     "status": "partial",
-    "writer": "silver.usp_scope_ExecConcat",
     "classification": {
       "resolved_kind": "fact_transaction",
       "source": "catalog+llm",

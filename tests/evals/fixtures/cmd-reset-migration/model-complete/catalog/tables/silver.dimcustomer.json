@@ -6,9 +6,18 @@
   "foreign_keys": [],
   "auto_increment_columns": [],
   "referenced_by": {
-    "procedures": {"in_scope": [], "out_of_scope": []},
-    "views": {"in_scope": [], "out_of_scope": []},
-    "functions": {"in_scope": [], "out_of_scope": []}
+    "procedures": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
   },
   "scoping": {
     "status": "resolved",
@@ -18,11 +27,27 @@
   },
   "profile": {
     "status": "ok",
-    "writer": "dbo.usp_load_dimcustomer",
-    "classification": {"resolved_kind": "dim_scd1", "source": "llm"},
-    "primary_key": {"columns": ["CustomerKey"], "primary_key_type": "surrogate", "source": "catalog"},
-    "natural_key": {"columns": ["CustomerID"], "source": "llm"},
-    "watermark": {"column": "ModifiedDate", "source": "llm"},
+    "classification": {
+      "resolved_kind": "dim_scd1",
+      "source": "llm"
+    },
+    "primary_key": {
+      "columns": [
+        "CustomerKey"
+      ],
+      "primary_key_type": "surrogate",
+      "source": "catalog"
+    },
+    "natural_key": {
+      "columns": [
+        "CustomerID"
+      ],
+      "source": "llm"
+    },
+    "watermark": {
+      "column": "ModifiedDate",
+      "source": "llm"
+    },
     "foreign_keys": [],
     "pii_actions": [],
     "warnings": [],

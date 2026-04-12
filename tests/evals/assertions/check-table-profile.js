@@ -85,19 +85,6 @@ module.exports = (output, context) => {
     };
   }
 
-  // Cross-artifact consistency: scoping.selected_writer should match profile.writer
-  if (catalog.scoping && catalog.scoping.selected_writer && profile.writer) {
-    const scopingWriter = catalog.scoping.selected_writer.toLowerCase();
-    const profileWriter = profile.writer.toLowerCase();
-    if (!scopingWriter.includes(profileWriter) && !profileWriter.includes(scopingWriter)) {
-      return {
-        pass: false,
-        score: 0,
-        reason: `Cross-artifact mismatch: scoping.selected_writer='${catalog.scoping.selected_writer}' vs profile.writer='${profile.writer}'`
-      };
-    }
-  }
-
   if (expectedOutputTerms.length > 0) {
     const outputStr = String(output || '').toLowerCase();
     for (const term of expectedOutputTerms) {

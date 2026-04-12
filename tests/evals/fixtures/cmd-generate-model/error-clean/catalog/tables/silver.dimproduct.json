@@ -177,7 +177,6 @@
   },
   "profile": {
     "status": "ok",
-    "writer": "silver.usp_load_dimproduct",
     "classification": {
       "resolved_kind": "dim_scd1",
       "source": "llm",
@@ -203,9 +202,6 @@
   },
   "test_gen": {
     "status": "ok"
-  },
-  "scoping": {
-    "status": "pending"
   },
   "refactor": {
     "status": "ok",

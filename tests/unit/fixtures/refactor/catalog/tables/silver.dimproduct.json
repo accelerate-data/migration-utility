@@ -1,24 +1,63 @@
 {
   "schema": "silver",
   "name": "DimProduct",
-  "primary_keys": [{"constraint_name": "PK_DimProduct", "columns": ["ProductKey"]}],
+  "primary_keys": [
+    {
+      "constraint_name": "PK_DimProduct",
+      "columns": [
+        "ProductKey"
+      ]
+    }
+  ],
   "unique_indexes": [],
   "foreign_keys": [],
-  "auto_increment_columns": [{"column": "ProductKey", "seed": 1, "increment": 1}],
+  "auto_increment_columns": [
+    {
+      "column": "ProductKey",
+      "seed": 1,
+      "increment": 1
+    }
+  ],
   "columns": [
-    {"name": "ProductKey", "sql_type": "INT", "is_nullable": false, "is_identity": true},
-    {"name": "ProductID", "sql_type": "NVARCHAR(50)", "is_nullable": false, "is_identity": false},
-    {"name": "ProductName", "sql_type": "NVARCHAR(200)", "is_nullable": true, "is_identity": false}
+    {
+      "name": "ProductKey",
+      "sql_type": "INT",
+      "is_nullable": false,
+      "is_identity": true
+    },
+    {
+      "name": "ProductID",
+      "sql_type": "NVARCHAR(50)",
+      "is_nullable": false,
+      "is_identity": false
+    },
+    {
+      "name": "ProductName",
+      "sql_type": "NVARCHAR(200)",
+      "is_nullable": true,
+      "is_identity": false
+    }
   ],
   "referenced_by": {
     "procedures": {
       "in_scope": [
-        {"schema": "dbo", "name": "usp_load_dimproduct", "is_selected": false, "is_updated": true}
+        {
+          "schema": "dbo",
+          "name": "usp_load_dimproduct",
+          "is_selected": false,
+          "is_updated": true
+        }
       ],
       "out_of_scope": []
     },
-    "views": {"in_scope": [], "out_of_scope": []},
-    "functions": {"in_scope": [], "out_of_scope": []}
+    "views": {
+      "in_scope": [],
+      "out_of_scope": []
+    },
+    "functions": {
+      "in_scope": [],
+      "out_of_scope": []
+    }
   },
   "scoping": {
     "status": "resolved",
@@ -26,7 +65,14 @@
     "candidates": [
       {
         "procedure_name": "dbo.usp_load_dimproduct",
-        "dependencies": {"tables": ["bronze.customerraw", "bronze.productraw"], "views": [], "functions": []},
+        "dependencies": {
+          "tables": [
+            "bronze.customerraw",
+            "bronze.productraw"
+          ],
+          "views": [],
+          "functions": []
+        },
         "rationale": "is_updated=true in catalog."
       }
     ],
@@ -35,10 +81,25 @@
   },
   "profile": {
     "status": "ok",
-    "writer": "dbo.usp_load_dimproduct",
-    "classification": {"resolved_kind": "dim_scd1", "rationale": "Dimension table.", "source": "llm"},
-    "primary_key": {"columns": ["ProductKey"], "primary_key_type": "surrogate", "source": "catalog"},
-    "natural_key": {"columns": ["ProductID"], "rationale": "Business key.", "source": "llm"},
+    "classification": {
+      "resolved_kind": "dim_scd1",
+      "rationale": "Dimension table.",
+      "source": "llm"
+    },
+    "primary_key": {
+      "columns": [
+        "ProductKey"
+      ],
+      "primary_key_type": "surrogate",
+      "source": "catalog"
+    },
+    "natural_key": {
+      "columns": [
+        "ProductID"
+      ],
+      "rationale": "Business key.",
+      "source": "llm"
+    },
     "watermark": null,
     "foreign_keys": [],
     "pii_actions": [],

@@ -521,7 +521,6 @@ def _add_table_to_project(
     if include_profile:
         cat["profile"] = {
             "status": "ok",
-            "writer": f"dbo.usp_load_{name}",
             "classification": {"resolved_kind": "fact_transaction", "rationale": "test", "source": "llm"},
             "primary_key": {"columns": ["id"], "primary_key_type": "surrogate", "source": "llm"},
             "natural_key": {},
@@ -789,7 +788,6 @@ def _make_reset_project(tmp_path: Path) -> Path:
         },
         "profile": {
             "status": "ok",
-            "writer": "dbo.usp_load_dimcustomer",
             "classification": {"resolved_kind": "dim_scd1", "source": "llm"},
             "primary_key": {"columns": ["CustomerKey"], "primary_key_type": "surrogate", "source": "catalog"},
             "natural_key": {"columns": ["CustomerID"], "source": "llm"},
@@ -836,7 +834,6 @@ def _make_reset_project(tmp_path: Path) -> Path:
     second_table = json.loads(json.dumps(table_cat))
     second_table["name"] = "DimProduct"
     second_table["scoping"]["selected_writer"] = "dbo.usp_load_dimproduct"
-    second_table["profile"]["writer"] = "dbo.usp_load_dimproduct"
     second_table["test_gen"]["test_spec_path"] = "test-specs/silver.dimproduct.json"
     (tmp_path / "catalog" / "tables" / "silver.dimproduct.json").write_text(
         json.dumps(second_table), encoding="utf-8",
