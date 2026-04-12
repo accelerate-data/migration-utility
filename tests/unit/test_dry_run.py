@@ -759,6 +759,109 @@ def _make_exclude_project(tmp_path: Path) -> Path:
     return tmp_path
 
 
+def _make_reset_project(tmp_path: Path) -> Path:
+    """Create a minimal project with resettable migration state."""
+    (tmp_path / "catalog" / "tables").mkdir(parents=True)
+    (tmp_path / "catalog" / "procedures").mkdir(parents=True)
+    (tmp_path / "test-specs").mkdir(parents=True)
+    (tmp_path / "manifest.json").write_text(
+        json.dumps({"schema_version": "1.0", "technology": "sql_server"}),
+        encoding="utf-8",
+    )
+
+    table_cat = {
+        "schema": "silver",
+        "name": "DimCustomer",
+        "primary_keys": [],
+        "unique_indexes": [],
+        "foreign_keys": [],
+        "auto_increment_columns": [],
+        "referenced_by": {
+            "procedures": {"in_scope": [], "out_of_scope": []},
+            "views": {"in_scope": [], "out_of_scope": []},
+            "functions": {"in_scope": [], "out_of_scope": []},
+        },
+        "scoping": {
+            "status": "resolved",
+            "selected_writer": "dbo.usp_load_dimcustomer",
+            "warnings": [],
+            "errors": [],
+        },
+        "profile": {
+            "status": "ok",
+            "writer": "dbo.usp_load_dimcustomer",
+            "classification": {"resolved_kind": "dim_scd1", "source": "llm"},
+            "primary_key": {"columns": ["CustomerKey"], "primary_key_type": "surrogate", "source": "catalog"},
+            "natural_key": {"columns": ["CustomerID"], "source": "llm"},
+            "watermark": {"column": "ModifiedDate", "source": "llm"},
+            "foreign_keys": [],
+            "pii_actions": [],
+            "warnings": [],
+            "errors": [],
+        },
+        "test_gen": {
+            "status": "ok",
+            "test_spec_path": "test-specs/silver.dimcustomer.json",
+            "branches": 2,
+            "unit_tests": 2,
+            "coverage": "complete",
+            "warnings": [],
+            "errors": [],
+        },
+    }
+    (tmp_path / "catalog" / "tables" / "silver.dimcustomer.json").write_text(
+        json.dumps(table_cat), encoding="utf-8",
+    )
+
+    proc_cat = {
+        "schema": "dbo",
+        "name": "usp_load_dimcustomer",
+        "statements": [{"index": 0, "action": "migrate", "source": "ast", "sql": "INSERT INTO silver.DimCustomer SELECT ..."}],
+        "references": {
+            "tables": {"in_scope": [], "out_of_scope": []},
+            "views": {"in_scope": [], "out_of_scope": []},
+            "functions": {"in_scope": [], "out_of_scope": []},
+            "procedures": {"in_scope": [], "out_of_scope": []},
+        },
+        "refactor": {
+            "status": "ok",
+            "extracted_sql": "SELECT 1",
+            "refactored_sql": "WITH src AS (SELECT 1) SELECT * FROM src",
+        },
+    }
+    (tmp_path / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json").write_text(
+        json.dumps(proc_cat), encoding="utf-8",
+    )
+
+    second_table = json.loads(json.dumps(table_cat))
+    second_table["name"] = "DimProduct"
+    second_table["scoping"]["selected_writer"] = "dbo.usp_load_dimproduct"
+    second_table["profile"]["writer"] = "dbo.usp_load_dimproduct"
+    second_table["test_gen"]["test_spec_path"] = "test-specs/silver.dimproduct.json"
+    (tmp_path / "catalog" / "tables" / "silver.dimproduct.json").write_text(
+        json.dumps(second_table), encoding="utf-8",
+    )
+
+    second_proc = json.loads(json.dumps(proc_cat))
+    second_proc["name"] = "usp_load_dimproduct"
+    (tmp_path / "catalog" / "procedures" / "dbo.usp_load_dimproduct.json").write_text(
+        json.dumps(second_proc), encoding="utf-8",
+    )
+
+    for norm in ("silver.dimcustomer", "silver.dimproduct"):
+        (tmp_path / "test-specs" / f"{norm}.json").write_text(
+            json.dumps({"item_id": norm, "status": "ok", "scenarios": [{"name": "basic"}]}),
+            encoding="utf-8",
+        )
+
+    subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", "init"],
+        cwd=tmp_path, capture_output=True, check=True, env=_GIT_ENV,
+    )
+    return tmp_path
+
+
 def test_run_exclude_table_sets_flag(tmp_path: Path) -> None:
     """run_exclude sets excluded: true on a table catalog file."""
     dst = _make_exclude_project(tmp_path)
@@ -835,3 +938,113 @@ def test_exclude_cli_subcommand(tmp_path: Path) -> None:
     assert output["marked"] == ["silver.auditlog"]
     cat = json.loads((dst / "catalog" / "tables" / "silver.auditlog.json").read_text())
     assert cat.get("excluded") is True
+
+
+# ── run_reset_migration tests ───────────────────────────────────────────────
+
+
+def test_run_reset_migration_profile_clears_downstream_and_preserves_scoping(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+    result = dry_run.run_reset_migration(dst, "profile", ["silver.DimCustomer"])
+
+    assert result.reset == ["silver.dimcustomer"]
+    assert result.noop == []
+    target = result.targets[0]
+    assert target.status == "reset"
+    assert "table.profile" in target.cleared_sections
+    assert "table.test_gen" in target.cleared_sections
+    assert "procedure:dbo.usp_load_dimcustomer.refactor" in target.cleared_sections
+    assert target.deleted_files == ["test-specs/silver.dimcustomer.json"]
+
+    table_cat = json.loads((dst / "catalog" / "tables" / "silver.dimcustomer.json").read_text())
+    assert "scoping" in table_cat
+    assert "profile" not in table_cat
+    assert "test_gen" not in table_cat
+    assert not (dst / "test-specs" / "silver.dimcustomer.json").exists()
+
+    proc_cat = json.loads((dst / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json").read_text())
+    assert "refactor" not in proc_cat
+
+
+def test_run_reset_migration_refactor_only_clears_writer_refactor(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+    result = dry_run.run_reset_migration(dst, "refactor", ["silver.DimCustomer"])
+
+    assert result.reset == ["silver.dimcustomer"]
+    table_cat = json.loads((dst / "catalog" / "tables" / "silver.dimcustomer.json").read_text())
+    assert "profile" in table_cat
+    assert "test_gen" in table_cat
+    assert (dst / "test-specs" / "silver.dimcustomer.json").exists()
+
+    proc_cat = json.loads((dst / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json").read_text())
+    assert "refactor" not in proc_cat
+
+
+def test_run_reset_migration_is_idempotent_noop(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+    dry_run.run_reset_migration(dst, "refactor", ["silver.DimCustomer"])
+    result = dry_run.run_reset_migration(dst, "refactor", ["silver.DimCustomer"])
+
+    assert result.reset == []
+    assert result.noop == ["silver.dimcustomer"]
+    assert result.targets[0].status == "noop"
+
+
+def test_run_reset_migration_multiple_tables(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+    result = dry_run.run_reset_migration(
+        dst,
+        "test-gen",
+        ["silver.DimCustomer", "silver.DimProduct"],
+    )
+
+    assert sorted(result.reset) == ["silver.dimcustomer", "silver.dimproduct"]
+    assert result.blocked == []
+    assert result.not_found == []
+    assert not (dst / "test-specs" / "silver.dimcustomer.json").exists()
+    assert not (dst / "test-specs" / "silver.dimproduct.json").exists()
+
+
+def test_run_reset_migration_blocks_model_complete_before_mutation(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+    table_path = dst / "catalog" / "tables" / "silver.dimcustomer.json"
+    table_cat = json.loads(table_path.read_text(encoding="utf-8"))
+    table_cat["generate"] = {"status": "ok"}
+    table_path.write_text(json.dumps(table_cat), encoding="utf-8")
+
+    result = dry_run.run_reset_migration(
+        dst,
+        "profile",
+        ["silver.DimCustomer", "silver.DimProduct"],
+    )
+
+    assert result.reset == []
+    assert result.blocked == ["silver.dimcustomer"]
+    assert result.targets[0].status == "blocked"
+
+    untouched = json.loads(table_path.read_text(encoding="utf-8"))
+    assert "profile" in untouched
+    assert (dst / "test-specs" / "silver.dimproduct.json").exists()
+
+
+def test_run_reset_migration_not_found_returns_without_mutation(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+    result = dry_run.run_reset_migration(dst, "profile", ["silver.Missing"])
+
+    assert result.not_found == ["silver.missing"]
+    assert result.targets[0].status == "not_found"
+    assert (dst / "test-specs" / "silver.dimcustomer.json").exists()
+
+
+def test_reset_migration_cli_subcommand(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+    result = _cli_runner.invoke(
+        dry_run.app,
+        ["reset-migration", "test-gen", "silver.DimCustomer", "--project-root", str(dst)],
+    )
+
+    assert result.exit_code == 0, result.output
+    output = json.loads(result.stdout)
+    assert output["stage"] == "test-gen"
+    assert output["reset"] == ["silver.dimcustomer"]
+    assert not (dst / "test-specs" / "silver.dimcustomer.json").exists()

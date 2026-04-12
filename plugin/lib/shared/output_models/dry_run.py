@@ -203,6 +203,27 @@ class ExcludeOutput(BaseModel):
     not_found: list[str]
 
 
+class ResetTargetResult(BaseModel):
+    model_config = OUTPUT_CONFIG
+
+    fqn: str
+    status: Literal["reset", "noop", "blocked", "not_found"]
+    cleared_sections: list[str] = Field(default_factory=list)
+    deleted_files: list[str] = Field(default_factory=list)
+    reason: str | None = None
+
+
+class ResetMigrationOutput(BaseModel):
+    model_config = OUTPUT_CONFIG
+
+    stage: Literal["scope", "profile", "test-gen", "refactor"]
+    targets: list[ResetTargetResult]
+    reset: list[str]
+    noop: list[str]
+    blocked: list[str]
+    not_found: list[str]
+
+
 class SyncExcludedWarningsOutput(BaseModel):
     model_config = OUTPUT_CONFIG
 
