@@ -83,7 +83,7 @@ tests:
       target_table: "silver.DimCurrency"
       writer: "silver.usp_load_DimCurrency"
       expected_status: "ok,partial"
-      expected_warning_codes: "PARTIAL_PROFILE,PARSE_ERROR"
+      expected_warning_codes: "PARSE_ERROR"
 
   # ── classification-dim-scd2 — DimEmployeeSCD2 expire-and-insert
   - description: "classification-dim-scd2 — DimEmployeeSCD2 expire-and-insert"
