@@ -2,6 +2,10 @@
 
 This page covers the tools, environment variables, and verification steps needed before running the migration utility.
 
+## Platform Support
+
+Local execution is supported on macOS and Linux. Windows is not supported for the current local workflow because the project setup depends on Unix-oriented tooling such as `brew`, `direnv`, bash hooks, and unixODBC-based FreeTDS registration.
+
 ## Required Tools
 
 | Tool | Version | Purpose |
@@ -16,7 +20,7 @@ This page covers the tools, environment variables, and verification steps needed
 
 | Tool | Version | Purpose |
 |---|---|---|
-| [FreeTDS](https://www.freetds.org/) | Latest | Open-source ODBC driver for SQL Server connectivity. Install: `brew install freetds` |
+| [FreeTDS](https://www.freetds.org/) | Latest | Open-source ODBC driver for SQL Server connectivity. Install: `brew install freetds` and ensure it is registered in unixODBC |
 
 ## Optional Tools
 
@@ -42,6 +46,8 @@ The variables required depend on your source technology. The `/init-ad-migration
 | `MSSQL_DRIVER` | _(optional)_ ODBC driver override | `FreeTDS` _(default)_ |
 
 `MSSQL_DRIVER` defaults to `FreeTDS`. Set it to `ODBC Driver 18 for SQL Server` if you prefer the Microsoft driver (requires `brew install msodbcsql18` with interactive EULA acceptance).
+
+When using the default `FreeTDS` path, `/init-ad-migration` now verifies both the Homebrew package and the unixODBC driver registration. A plain `brew install freetds` is not considered sufficient if `FreeTDS` does not appear in `odbcinst -q -d`.
 
 All four connection variables are required for `/setup-ddl`, `/setup-sandbox`, `/generate-tests`, `/refactor`, and any other live-database skill.
 

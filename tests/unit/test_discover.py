@@ -991,54 +991,6 @@ def test_run_write_view_scoping_parse_error() -> None:
         assert written["scoping"]["errors"][0]["code"] == "DDL_PARSE_ERROR"
 
 
-def test_write_scoping_cli_routes_to_view_catalog_on_windows_style_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    """write-scoping routes to views using path components, not string sniffing."""
-    import json as _json
-    from pathlib import PureWindowsPath
-    from typer.testing import CliRunner
-
-    called: dict[str, str] = {}
-
-    def fake_resolve_catalog_path(project_root: Path, fqn: str) -> PureWindowsPath:
-        return PureWindowsPath(r"C:\repo\catalog\views\silver.vw_cli_test.json")
-
-    def fake_view_write(project_root: Path, name: str, scoping_data: dict[str, object]) -> dict[str, str]:
-        called["route"] = "view"
-        return {"written": "view", "status": "ok"}
-
-    def fake_table_write(project_root: Path, name: str, scoping_data: dict[str, object]) -> dict[str, str]:
-        called["route"] = "table"
-        return {"written": "table", "status": "ok"}
-
-    monkeypatch.setattr(discover, "resolve_catalog_path", fake_resolve_catalog_path)
-    monkeypatch.setattr(discover, "run_write_view_scoping", fake_view_write)
-    monkeypatch.setattr(discover, "run_write_scoping", fake_table_write)
-
-    repo_root = Path(__file__).parent.parent.parent
-    scoping_file = repo_root / ".staging-test-scoping-windows-path.json"
-    try:
-        scoping_file.write_text(_json.dumps({"errors": [], "warnings": []}), encoding="utf-8")
-
-        runner = CliRunner()
-        result = runner.invoke(
-            discover.app,
-            [
-                "write-scoping",
-                "--project-root",
-                str(repo_root),
-                "--name",
-                "silver.vw_cli_test",
-                "--scoping-file",
-                str(scoping_file),
-            ],
-        )
-    finally:
-        scoping_file.unlink(missing_ok=True)
-
-    assert result.exit_code == 0, result.output
-    assert called["route"] == "view"
-
-
 # ── write-source tests ────────────────────────────────────────────────────────
 
 

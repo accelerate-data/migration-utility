@@ -16,6 +16,8 @@ Use `TaskCreate` and `TaskUpdate` to track the automated phases of this command.
 
 If `CLAUDE_PLUGIN_ROOT` is not set, stop immediately and tell the user to load the plugin with `claude --plugin-dir <path-to-ad-migration>` before running this command.
 
+If the host platform is Windows, stop immediately and tell the user local Windows execution is not supported for this workflow. Recommend running the plugin on macOS or Linux instead. Do not continue with any prerequisite checks on Windows.
+
 ## Step 2: Source selection
 
 Determine which source technology to configure:
@@ -55,7 +57,7 @@ Do NOT install or change anything yet — only gather evidence for items not alr
 
 ### SQL Server prerequisites (when `$SOURCE` is `sql_server`)
 
-1. `brew list --formula freetds 2>/dev/null` — is FreeTDS installed? (exit 0 = installed, non-zero = missing)
+1. `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init check-freetds` — verify that Homebrew FreeTDS is installed, `odbcinst` is available, and `FreeTDS` appears in `odbcinst -q -d`
 2. `toolbox --version` — is the genai-toolbox binary installed?
 3. Check whether each of the four MSSQL environment variables is set (non-empty): `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, `SA_PASSWORD`. Do not print their values.
 4. If all MSSQL env vars are set, verify the MCP server: `uv run "${CLAUDE_PLUGIN_ROOT}/mcp/ddl/server.py" --help`
@@ -85,7 +87,7 @@ Common prerequisites:
 
 ```text
 SQL Server prerequisites:
-  freetds:     ✓ installed          /  ✗ not found
+  freetds:     ✓ installed + registered  /  ✗ not installed  /  ✗ unixODBC missing  /  ✗ not registered
   toolbox:     ✓ installed (x.y.z)  /  — not found (optional)
   MSSQL_HOST:  ✓ set  /  — not set
   MSSQL_PORT:  ✓ set  /  — not set
@@ -108,6 +110,8 @@ Oracle prerequisites:
 ```
 
 `toolbox`, `direnv`, and the source credentials are marked `—` (not `✗`) when missing — they are optional for DDL file mode but required for `/setup-ddl` and any live-database skill. They will not block setup of the core tools.
+
+For SQL Server, `freetds` is only green after both installation and unixODBC registration pass. If `brew` reports FreeTDS installed but `odbcinst` is missing, treat that as a failed prerequisite because `/setup-ddl` will not work with the default `MSSQL_DRIVER="FreeTDS"` path.
 
 If any credential variable is unset, recommend using direnv for credential management:
 
@@ -146,6 +150,14 @@ brew install freetds
 ```
 
 After installing, re-run `brew list --formula freetds` to confirm. FreeTDS is the default ODBC driver for SQL Server connectivity. Users who prefer the Microsoft driver can set `MSSQL_DRIVER="ODBC Driver 18 for SQL Server"` and install `msodbcsql18` themselves (requires interactive EULA acceptance).
+
+**Register FreeTDS in unixODBC** (SQL Server, when installed but not registered):
+
+```bash
+uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" init check-freetds --register-missing
+```
+
+This command must succeed and report `registered: true` before you record `freetds: true` in the handoff.
 
 **Sync source-specific deps**:
 

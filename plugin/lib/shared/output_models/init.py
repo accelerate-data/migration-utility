@@ -18,3 +18,16 @@ class ScaffoldHooksOutput(BaseModel):
 
     hook_created: bool
     hooks_path_configured: bool
+
+
+class FreeTdsCheckOutput(BaseModel):
+    model_config = OUTPUT_CONFIG
+
+    supported_platform: bool
+    installed: bool
+    unixodbc_present: bool
+    registered: bool
+    auto_registered: bool
+    registration_file: str | None
+    driver_lib_path: str | None
+    message: str | None
