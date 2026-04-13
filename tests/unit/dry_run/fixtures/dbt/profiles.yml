@@ -2,6 +2,10 @@ dry_run_fixture:
   target: dev
   outputs:
     dev:
-      type: duckdb
-      path: ".runtime/duckdb/target.duckdb"
+      type: sqlserver
+      server: localhost
+      port: 1433
+      database: MigrationTarget
+      user: sa
+      password: secret
       schema: bronze

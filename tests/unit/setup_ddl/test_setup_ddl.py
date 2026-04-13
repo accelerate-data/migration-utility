@@ -353,6 +353,35 @@ class TestWriteManifest:
         ])
         assert result.returncode != 0
 
+    def test_write_manifest_scrubs_stale_unsupported_runtime_roles(self, tmp_path):
+        (tmp_path / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "runtime": {
+                        "target": {
+                            "technology": "duckdb",
+                            "dialect": "duckdb",
+                            "connection": {"path": ".runtime/target.duckdb"},
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = _run_cli([
+            "write-manifest",
+            "--project-root", str(tmp_path),
+            "--technology", "sql_server",
+            "--database", "TestDB",
+            "--schemas", "bronze",
+        ])
+
+        assert result.returncode == 0, result.stderr
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert "target" not in manifest["runtime"]
+        assert manifest["runtime"]["source"]["technology"] == "sql_server"
+
 
 # ── Unit: write-catalog ──────────────────────────────────────────────────────
 
@@ -1017,6 +1046,33 @@ class TestWritePartialManifest:
         assert manifest["extraction"]["schemas"] == ["SH", "HR"]
         assert "extracted_at" in manifest["extraction"]
 
+    def test_partial_manifest_scrubs_stale_unsupported_runtime_roles(self, tmp_path):
+        (tmp_path / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "runtime": {
+                        "sandbox": {
+                            "technology": "duckdb",
+                            "dialect": "duckdb",
+                            "connection": {"path": ".runtime/sandbox.duckdb"},
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = _run_cli([
+            "write-partial-manifest",
+            "--project-root", str(tmp_path),
+            "--technology", "oracle",
+        ])
+
+        assert result.returncode == 0, result.stderr
+        manifest = json.loads((tmp_path / "manifest.json").read_text())
+        assert "runtime" not in manifest
+        assert manifest["technology"] == "oracle"
+
 
 # ── Unit: write-partial-manifest with prereqs ───────────────────────────────
 
@@ -1118,6 +1174,53 @@ class TestListDatabasesGuards:
         (tmp_path / "manifest.json").write_text('{"schema_version": "1.0"}', encoding="utf-8")
         result = _run_cli(["list-databases", "--project-root", str(tmp_path)])
         assert result.returncode != 0
+
+    def test_unsupported_runtime_technology_fails(self, tmp_path):
+        (tmp_path / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "runtime": {
+                        "source": {
+                            "technology": "duckdb",
+                            "dialect": "duckdb",
+                            "connection": {"path": ".runtime/source.duckdb"},
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = _run_cli(["list-databases", "--project-root", str(tmp_path)])
+        assert result.returncode != 0
+        assert "supported runtime technology" in result.stderr.lower() or "supported runtime technology" in result.stdout.lower()
+
+    def test_unsupported_top_level_technology_fails(self, tmp_path):
+        (tmp_path / "manifest.json").write_text(
+            '{"technology": "duckdb", "dialect": "duckdb"}',
+            encoding="utf-8",
+        )
+        result = _run_cli(["list-databases", "--project-root", str(tmp_path)])
+        assert result.returncode != 0
+        assert "supported runtime technology" in result.stderr.lower() or "supported runtime technology" in result.stdout.lower()
+
+    def test_unsupported_non_source_runtime_technology_fails(self, tmp_path):
+        (tmp_path / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "runtime": {
+                        "target": {
+                            "technology": "duckdb",
+                            "dialect": "duckdb",
+                            "connection": {"path": ".runtime/target.duckdb"},
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = _run_cli(["list-databases", "--project-root", str(tmp_path)])
+        assert result.returncode != 0
+        assert "supported runtime technology" in result.stderr.lower() or "supported runtime technology" in result.stdout.lower()
 
     def test_oracle_unsupported(self, tmp_path):
         (tmp_path / "manifest.json").write_text(

@@ -15,7 +15,6 @@ if TYPE_CHECKING:
 _BACKENDS: dict[str, str] = {
     "sql_server": "shared.sandbox.sql_server:SqlServerSandbox",
     "oracle": "shared.sandbox.oracle:OracleSandbox",
-    "duckdb": "shared.sandbox.duckdb:DuckDbSandbox",
 }
 
 

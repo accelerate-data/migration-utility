@@ -50,27 +50,6 @@ def test_oracle_dbops_materialize_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert env["ORACLE_PWD"] == "secret"
 
 
-def test_duckdb_dbops_materialize_env() -> None:
-    role = RuntimeRole(
-        technology="duckdb",
-        dialect="duckdb",
-        connection=RuntimeConnection(path=".runtime/duckdb/source.duckdb"),
-    )
-    adapter = get_dbops("duckdb").from_role(role)
-    env = adapter.materialize_migration_test_env()
-    assert env == {"DUCKDB_PATH": ".runtime/duckdb/source.duckdb"}
-
-
-def test_duckdb_dbops_resolves_relative_path_from_project_root(tmp_path: Path) -> None:
-    role = RuntimeRole(
-        technology="duckdb",
-        dialect="duckdb",
-        connection=RuntimeConnection(path=".runtime/duckdb/source.duckdb"),
-    )
-    adapter = get_dbops("duckdb").from_role(role, project_root=tmp_path)
-    assert adapter.environment_name() == str(tmp_path / ".runtime" / "duckdb" / "source.duckdb")
-
-
 def test_oracle_ensure_source_schema_checks_named_schema_exists(monkeypatch: pytest.MonkeyPatch) -> None:
     role = RuntimeRole(
         technology="oracle",
@@ -125,12 +104,12 @@ def test_oracle_create_source_table_qualifies_schema(monkeypatch: pytest.MonkeyP
 
 def test_dbops_fixture_script_paths_are_repo_relative() -> None:
     role = RuntimeRole(
-        technology="duckdb",
-        dialect="duckdb",
-        connection=RuntimeConnection(path="target.duckdb"),
+        technology="sql_server",
+        dialect="tsql",
+        connection=RuntimeConnection(database="MigrationTest"),
     )
-    adapter = get_dbops("duckdb").from_role(role)
-    assert adapter.fixture_script_path(Path("/repo")) == Path("/repo/scripts/sql/duckdb/materialize-migration-test.sh")
+    adapter = get_dbops("sql_server").from_role(role)
+    assert adapter.fixture_script_path(Path("/repo")) == Path("/repo/scripts/sql/sql_server/materialize-migration-test.sh")
 
 
 def test_get_dbops_rejects_unknown_technology() -> None:
@@ -161,17 +140,6 @@ def test_sql_server_dbops_closes_connection_after_schema_lookup(monkeypatch: pyt
     adapter.ensure_source_schema("bronze")
 
     conn.close.assert_called_once()
-
-
-def test_duckdb_map_type_does_not_treat_point_as_integer() -> None:
-    role = RuntimeRole(
-        technology="duckdb",
-        dialect="duckdb",
-        connection=RuntimeConnection(path="target.duckdb"),
-    )
-    adapter = get_dbops("duckdb").from_role(role)
-
-    assert adapter._map_type("POINT") == "VARCHAR"  # type: ignore[attr-defined]
 
 
 def test_oracle_map_type_does_not_treat_point_as_integer(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -222,11 +190,11 @@ def test_oracle_ensure_source_schema_raises_when_missing(monkeypatch: pytest.Mon
 def test_dbops_rejects_unsafe_identifier() -> None:
     """Identifier validation catches injection attempts."""
     role = RuntimeRole(
-        technology="duckdb",
-        dialect="duckdb",
-        connection=RuntimeConnection(path="target.duckdb"),
+        technology="sql_server",
+        dialect="tsql",
+        connection=RuntimeConnection(database="MigrationTest"),
     )
-    adapter = get_dbops("duckdb").from_role(role)
+    adapter = get_dbops("sql_server").from_role(role)
 
     with pytest.raises(ValueError, match="Unsafe SQL identifier"):
         adapter.ensure_source_schema('bronze"; DROP TABLE --')

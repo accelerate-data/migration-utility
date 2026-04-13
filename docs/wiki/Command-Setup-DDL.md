@@ -168,8 +168,8 @@ This skill reads from a live SQL Server via the `mssql` MCP tool. No local catal
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `schema_version` | string | yes | Always `"1.0"` |
-| `technology` | string | yes | Primary project technology. Enum: `sql_server`, `oracle`, `duckdb`, `snowflake` |
-| `dialect` | string | yes | Primary sqlglot dialect. Enum: `tsql`, `oracle`, `duckdb`, `snowflake` |
+| `technology` | string | yes | Primary project technology. Enum: `sql_server`, `oracle` |
+| `dialect` | string | yes | Primary sqlglot dialect. Enum: `tsql`, `oracle` |
 | `runtime.source` | object | yes | Active source runtime endpoint and connection information |
 | `runtime.target` | object | no | Active target runtime endpoint, written later by `/setup-target` |
 | `runtime.sandbox` | object | no | Active sandbox runtime endpoint, written later by `/setup-sandbox` |
@@ -183,8 +183,6 @@ Technology-to-dialect mapping:
 |---|---|---|
 | `sql_server` | `tsql` | `GO` |
 | `oracle` | `oracle` | `/` |
-| `duckdb` | `duckdb` | `;` |
-| `snowflake` | `snowflake` | `;` |
 
 ### `ddl/` directory
 

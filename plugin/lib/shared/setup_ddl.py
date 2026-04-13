@@ -125,7 +125,7 @@ def write_manifest(
         None, "--project-root",
         help="Project root containing ddl/, catalog/, manifest.json (defaults to CWD)"
     ),
-    technology: str = typer.Option(..., help="Source technology: sql_server, snowflake, oracle, duckdb"),
+    technology: str = typer.Option(..., help="Source technology: sql_server or oracle"),
     database: str = typer.Option(..., help="Source database name"),
     schemas: str = typer.Option(..., help="Comma-separated list of extracted schemas"),
 ) -> None:
@@ -147,7 +147,7 @@ def write_partial_manifest(
         None, "--project-root",
         help="Project root directory (defaults to CWD)"
     ),
-    technology: str = typer.Option(..., help="Source technology: sql_server, snowflake, oracle, duckdb"),
+    technology: str = typer.Option(..., help="Source technology: sql_server or oracle"),
     prereqs_json: Optional[str] = typer.Option(
         None, "--prereqs-json",
         help="JSON object of validated prerequisite results (env_vars, tools)",
@@ -246,7 +246,7 @@ def list_schemas(
 def extract(
     database: Optional[str] = typer.Option(
         None, "--database",
-        help="Source database name (required for SQL Server; ignored for Oracle and optional for DuckDB)",
+        help="Source database name (required for SQL Server; ignored for Oracle)",
     ),
     schemas: str = typer.Option(
         ..., "--schemas",

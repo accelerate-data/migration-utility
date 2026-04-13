@@ -10,13 +10,15 @@ from pathlib import Path
 from typing import Any
 
 from shared.runtime_config import (
-    KNOWN_TECHNOLOGIES,
     TECH_DIALECT,
     dialect_for_technology,
     get_primary_technology,
     get_runtime_role,
+    sanitize_manifest,
     set_extraction,
     set_runtime_role,
+    validate_supported_dialects,
+    validate_supported_technologies,
 )
 from shared.runtime_config_models import RuntimeConnection, RuntimeRole
 
@@ -37,6 +39,8 @@ def require_technology(project_root: Path) -> str:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
         raise ValueError(f"manifest.json is not valid JSON: {exc}") from exc
+    validate_supported_technologies(manifest)
+    validate_supported_dialects(manifest)
     technology = get_primary_technology(manifest)
     if technology is None:
         raise ValueError(
@@ -128,16 +132,9 @@ def get_connection_identity(technology: str, database: str) -> dict[str, Any]:
             ),
         )
         return role.model_dump(mode="json", by_alias=True, exclude_none=True)
-    if technology == "duckdb":
-        role = RuntimeRole(
-            technology=technology,
-            dialect=dialect_for_technology(technology),
-            connection=RuntimeConnection(
-                path=database or os.environ.get("DUCKDB_PATH", "") or None,
-            ),
-        )
-        return role.model_dump(mode="json", by_alias=True, exclude_none=True)
-    return {}
+    raise ValueError(
+        f"Unknown technology: {technology}. Must be one of {sorted(TECH_DIALECT)}."
+    )
 
 
 def identity_changed(existing_manifest: dict[str, Any], current_identity: dict[str, Any]) -> bool:
@@ -149,12 +146,14 @@ def identity_changed(existing_manifest: dict[str, Any], current_identity: dict[s
     identity_fields_by_tech = {
         "sql_server": {"host", "port", "database"},
         "oracle": {"dsn", "host", "port", "service", "schema"},
-        "duckdb": {"path"},
     }
-    identity_fields = identity_fields_by_tech.get(
-        existing_source.technology,
-        set(current_identity.get("connection", {}).keys()),
-    )
+    try:
+        identity_fields = identity_fields_by_tech[existing_source.technology]
+    except KeyError as exc:
+        raise ValueError(
+            f"Unknown technology: {existing_source.technology}. "
+            f"Must be one of {sorted(TECH_DIALECT)}."
+        ) from exc
     for key, value in current_identity.get("connection", {}).items():
         if key not in identity_fields:
             continue
@@ -183,6 +182,7 @@ def run_write_partial_manifest(
     project_root.mkdir(parents=True, exist_ok=True)
     out_path = project_root / "manifest.json"
     existing = read_manifest_or_empty(project_root)
+    existing = sanitize_manifest(existing)
     manifest: dict[str, Any] = {
         **existing,
         "schema_version": "1.0",
@@ -230,6 +230,7 @@ def run_write_manifest(
         )
     out_path = project_root / "manifest.json"
     existing = read_manifest_or_empty(project_root)
+    existing = sanitize_manifest(existing)
     source_role = build_runtime_role(technology, database)
     manifest = {**existing, "schema_version": "1.0"}
     manifest = set_runtime_role(manifest, "source", source_role)

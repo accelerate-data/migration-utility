@@ -194,7 +194,7 @@ class TestExecuteScenario:
     """Execute a real scenario against a sandbox database."""
 
     def _create_temp_proc(self, backend: SqlServerSandbox, proc_name: str, body: str) -> None:
-        with backend._connect(database=backend.database) as conn:
+        with backend._connect_source(database=backend.source_database) as conn:
             cursor = conn.cursor()
             cursor.execute(
                 f"""
@@ -207,7 +207,7 @@ class TestExecuteScenario:
             )
 
     def _drop_temp_proc(self, backend: SqlServerSandbox, proc_name: str) -> None:
-        with backend._connect(database=backend.database) as conn:
+        with backend._connect_source(database=backend.source_database) as conn:
             cursor = conn.cursor()
             cursor.execute(f"DROP PROCEDURE IF EXISTS [silver].[{proc_name}]")
 
@@ -371,7 +371,7 @@ class TestExecuteScenario:
 
         try:
             # Create a temp table with MONEY columns in the source DB
-            with backend._connect(database=backend.database) as conn:
+            with backend._connect_source(database=backend.source_database) as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     f"CREATE TABLE silver.[{table_name}] ("
@@ -412,8 +412,9 @@ class TestExecuteScenario:
             assert price == Decimal("42.50")
             assert fee == Decimal("9.99")
         finally:
-            backend.sandbox_down(sandbox_db=up_result.sandbox_database)
-            with backend._connect(database=backend.database) as conn:
+            if up_result:
+                backend.sandbox_down(sandbox_db=up_result.sandbox_database)
+            with backend._connect_source(database=backend.source_database) as conn:
                 cursor = conn.cursor()
                 cursor.execute(f"DROP PROCEDURE IF EXISTS silver.[{proc_name}]")
                 cursor.execute(f"DROP TABLE IF EXISTS silver.[{table_name}]")
@@ -559,7 +560,7 @@ class TestEnsureViewTablesIntegration:
     """Verify that view-sourced fixtures are materialised end-to-end in a real SQL Server sandbox."""
 
     def _create_view(self, backend: SqlServerSandbox, view_name: str) -> None:
-        with backend._connect(database=backend.database) as conn:
+        with backend._connect_source(database=backend.source_database) as conn:
             cursor = conn.cursor()
             cursor.execute(
                 f"CREATE OR ALTER VIEW [silver].[{view_name}] "
@@ -567,14 +568,14 @@ class TestEnsureViewTablesIntegration:
             )
 
     def _drop_view(self, backend: SqlServerSandbox, view_name: str) -> None:
-        with backend._connect(database=backend.database) as conn:
+        with backend._connect_source(database=backend.source_database) as conn:
             cursor = conn.cursor()
             cursor.execute(f"DROP VIEW IF EXISTS [silver].[{view_name}]")
 
     def _create_proc(
         self, backend: SqlServerSandbox, proc_name: str, view_name: str
     ) -> None:
-        with backend._connect(database=backend.database) as conn:
+        with backend._connect_source(database=backend.source_database) as conn:
             cursor = conn.cursor()
             cursor.execute(
                 f"""
@@ -589,7 +590,7 @@ class TestEnsureViewTablesIntegration:
             )
 
     def _drop_proc(self, backend: SqlServerSandbox, proc_name: str) -> None:
-        with backend._connect(database=backend.database) as conn:
+        with backend._connect_source(database=backend.source_database) as conn:
             cursor = conn.cursor()
             cursor.execute(f"DROP PROCEDURE IF EXISTS [silver].[{proc_name}]")
 

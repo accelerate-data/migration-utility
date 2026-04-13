@@ -14,7 +14,7 @@ from shared.runtime_config_models import RuntimeConnection, RuntimeRole
 def test_materialize_migration_test_uses_adapter_script_and_env(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    script = tmp_path / "scripts/sql/duckdb/materialize-migration-test.sh"
+    script = tmp_path / "scripts/sql/sql_server/materialize-migration-test.sh"
     script.parent.mkdir(parents=True)
     script.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     script.chmod(0o755)
@@ -31,11 +31,12 @@ def test_materialize_migration_test_uses_adapter_script_and_env(
         return subprocess.CompletedProcess(cmd, 0, stdout="ok", stderr="")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setenv("SA_PASSWORD", "secret")
 
     role = RuntimeRole(
-        technology="duckdb",
-        dialect="duckdb",
-        connection=RuntimeConnection(path=".runtime/duckdb/source.duckdb"),
+        technology="sql_server",
+        dialect="tsql",
+        connection=RuntimeConnection(database="MigrationTest", password_env="SA_PASSWORD"),
     )
 
     result = materialize_migration_test(role, tmp_path, extra_env={"EXTRA_FLAG": "1"})
@@ -46,7 +47,8 @@ def test_materialize_migration_test_uses_adapter_script_and_env(
     assert captured["capture_output"] is True
     assert captured["text"] is True
     assert captured["check"] is False
-    assert captured["env"]["DUCKDB_PATH"] == str(tmp_path / ".runtime" / "duckdb" / "source.duckdb")
+    assert captured["env"]["MSSQL_DB"] == "MigrationTest"
+    assert captured["env"]["SA_PASSWORD"] == "secret"
     assert captured["env"]["EXTRA_FLAG"] == "1"
 
 

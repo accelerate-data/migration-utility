@@ -45,10 +45,14 @@ Example:
       }
     },
     "target": {
-      "technology": "duckdb",
-      "dialect": "duckdb",
+      "technology": "sql_server",
+      "dialect": "tsql",
       "connection": {
-        "path": ".runtime/duckdb/target.duckdb"
+        "host": "localhost",
+        "port": "1433",
+        "database": "MigrationTarget",
+        "user": "sa",
+        "password_env": "SA_PASSWORD"
       },
       "schemas": {
         "source": "bronze",
@@ -137,7 +141,6 @@ Implementations should exist for:
 
 - SQL Server
 - Oracle
-- DuckDB
 
 ## Command Ownership
 
@@ -194,7 +197,6 @@ Repo entrypoints:
 
 - `scripts/sql/sql_server/materialize-migration-test.sh`
 - `scripts/sql/oracle/materialize-migration-test.sh`
-- `scripts/sql/duckdb/materialize-migration-test.sh`
 
 These shell scripts are env-driven and idempotent.
 

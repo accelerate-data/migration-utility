@@ -22,7 +22,6 @@ from shared.sandbox.oracle import (
     _validate_oracle_identifier,
     _validate_oracle_sandbox_name,
 )
-from shared.sandbox.duckdb import DuckDbSandbox
 from shared.sandbox.base import serialize_rows as _serialize_rows
 from shared.output_models.sandbox import (
     ErrorEntry,
@@ -58,10 +57,6 @@ class TestBackendRegistry:
     def test_oracle_returns_oracle_sandbox(self) -> None:
         cls = get_backend("oracle")
         assert cls is OracleSandbox
-
-    def test_duckdb_returns_duckdb_sandbox(self) -> None:
-        cls = get_backend("duckdb")
-        assert cls is DuckDbSandbox
 
     def test_unknown_technology_raises(self) -> None:
         with pytest.raises(ValueError, match="Unsupported technology"):
@@ -1249,9 +1244,9 @@ class TestCLIManifestRouting:
                     "schema_version": "1.0",
                     "runtime": {
                         "sandbox": {
-                            "technology": "duckdb",
-                            "dialect": "duckdb",
-                            "connection": {"path": ".runtime/duckdb/sandbox.duckdb"},
+                            "technology": "oracle",
+                            "dialect": "oracle",
+                            "connection": {"service": "SANDBOXPDB"},
                         }
                     },
                 }
@@ -1260,16 +1255,14 @@ class TestCLIManifestRouting:
         )
 
         manifest = _load_manifest(tmp_path)
-        assert manifest["runtime"]["sandbox"]["technology"] == "duckdb"
+        assert manifest["runtime"]["sandbox"]["technology"] == "oracle"
 
     def test_create_backend_prefers_runtime_sandbox_technology(self) -> None:
         from shared.test_harness_support.manifest import _create_backend
 
         backend_cls = MagicMock()
-        backend_cls.from_env.return_value = DuckDbSandbox(
-            source_path=".runtime/duckdb/source.duckdb",
-            sandbox_path=".runtime/duckdb/sandbox.duckdb",
-        )
+        backend_instance = MagicMock(spec=SandboxBackend)
+        backend_cls.from_env.return_value = backend_instance
         with patch("shared.test_harness_support.manifest.get_backend", return_value=backend_cls) as mock_get_backend:
             backend = _create_backend(
                 {
@@ -1283,18 +1276,16 @@ class TestCLIManifestRouting:
                             "connection": {"database": "MigrationTest"},
                         },
                         "sandbox": {
-                            "technology": "duckdb",
-                            "dialect": "duckdb",
-                            "connection": {
-                                "path": ".runtime/duckdb/sandbox.duckdb",
-                            },
+                            "technology": "oracle",
+                            "dialect": "oracle",
+                            "connection": {"service": "SANDBOXPDB"},
                         },
                     },
                 }
             )
 
-        mock_get_backend.assert_called_once_with("duckdb")
-        assert isinstance(backend, DuckDbSandbox)
+        mock_get_backend.assert_called_once_with("oracle")
+        assert backend is backend_instance
 
 
 # ── Manifest sandbox persistence ──────────────────────────────────────────────
@@ -1346,23 +1337,23 @@ class TestWriteManifestSandbox:
         with pytest.raises(ValueError, match="runtime.sandbox"):
             write_manifest_sandbox(tmp_path, "__test_run_123")
 
-    def test_preserves_existing_duckdb_sandbox_role(self, tmp_path: Path) -> None:
+    def test_preserves_existing_oracle_sandbox_role(self, tmp_path: Path) -> None:
         (tmp_path / "manifest.json").write_text(
             json.dumps(
                 {
                     "schema_version": "1.0",
-                    "technology": "duckdb",
-                    "dialect": "duckdb",
+                    "technology": "oracle",
+                    "dialect": "oracle",
                     "runtime": {
                         "source": {
-                            "technology": "duckdb",
-                            "dialect": "duckdb",
-                            "connection": {"path": ".runtime/duckdb/source.duckdb"},
+                            "technology": "oracle",
+                            "dialect": "oracle",
+                            "connection": {"service": "SRCPDB", "schema": "SH"},
                         },
                         "sandbox": {
-                            "technology": "duckdb",
-                            "dialect": "duckdb",
-                            "connection": {"path": ".runtime/duckdb/template.duckdb"},
+                            "technology": "oracle",
+                            "dialect": "oracle",
+                            "connection": {"service": "SANDBOXPDB", "schema": "TEMPLATE"},
                         },
                     },
                 }
@@ -1370,11 +1361,11 @@ class TestWriteManifestSandbox:
             encoding="utf-8",
         )
 
-        write_manifest_sandbox(tmp_path, ".runtime/duckdb/sandbox.duckdb")
+        write_manifest_sandbox(tmp_path, "SANDBOX_USER")
 
         manifest = read_manifest(tmp_path)
-        assert manifest["runtime"]["sandbox"]["technology"] == "duckdb"
-        assert manifest["runtime"]["sandbox"]["connection"]["path"] == ".runtime/duckdb/sandbox.duckdb"
+        assert manifest["runtime"]["sandbox"]["technology"] == "oracle"
+        assert manifest["runtime"]["sandbox"]["connection"]["schema"] == "SANDBOX_USER"
 
 
 class TestClearManifestSandbox:
@@ -2160,117 +2151,6 @@ class TestOracleSandboxFromEnv:
         )
         assert backend.source_service == "SRCPDB"
         assert backend.service == "SANDBOXPDB"
-
-
-# ── DuckDbSandbox ────────────────────────────────────────────────────────────
-
-
-class TestDuckDbSandbox:
-    def test_from_env_requires_runtime_roles(self) -> None:
-        with pytest.raises(ValueError, match="runtime.source.connection.path"):
-            DuckDbSandbox.from_env(
-                {
-                    "runtime": {
-                        "sandbox": {
-                            "technology": "duckdb",
-                            "dialect": "duckdb",
-                            "connection": {"path": ".runtime/duckdb/sandbox.duckdb"},
-                        }
-                    }
-                }
-            )
-
-    def test_sandbox_up_copies_source_file(self, tmp_path: Path) -> None:
-        import duckdb
-
-        source_path = tmp_path / "source.duckdb"
-        sandbox_path = tmp_path / "sandbox.duckdb"
-        conn = duckdb.connect(str(source_path))
-        conn.execute("create schema bronze")
-        conn.execute("create table bronze.product(id integer, name varchar)")
-        conn.close()
-
-        backend = DuckDbSandbox(str(source_path), str(sandbox_path))
-        result = backend.sandbox_up(["bronze"])
-
-        assert result.status == "ok"
-        assert sandbox_path.exists()
-        assert result.tables_cloned == ["bronze.product"]
-        conn = duckdb.connect(str(sandbox_path))
-        try:
-            rows = conn.execute("select * from bronze.product").fetchall()
-        finally:
-            conn.close()
-        assert rows == []
-
-    def test_execute_scenario_is_explicitly_unsupported(self, tmp_path: Path) -> None:
-        source_path = tmp_path / "source.duckdb"
-        sandbox_path = tmp_path / "sandbox.duckdb"
-        source_path.write_bytes(b"")
-        backend = DuckDbSandbox(str(source_path), str(sandbox_path))
-
-        with pytest.raises(NotImplementedError, match="does not support procedure-based execute_scenario"):
-            backend.execute_scenario(
-                str(sandbox_path),
-                {
-                    "name": "scenario",
-                    "procedure": "[silver].[usp_load_target]",
-                    "target_table": "[silver].[Target]",
-                    "given": [],
-                },
-            )
-
-    def test_execute_select_rolls_back_fixtures(self, tmp_path: Path) -> None:
-        import duckdb
-
-        source_path = tmp_path / "source.duckdb"
-        sandbox_path = tmp_path / "sandbox.duckdb"
-        conn = duckdb.connect(str(source_path))
-        conn.execute("create schema bronze")
-        conn.execute("create table bronze.product(id integer, name varchar)")
-        conn.close()
-        shutil.copy2(source_path, sandbox_path)
-
-        backend = DuckDbSandbox(str(source_path), str(sandbox_path))
-        result = backend.execute_select(
-            str(sandbox_path),
-            'select id, name from bronze.product order by id',
-            [{"table": "[bronze].[product]", "rows": [{"id": 1, "name": "Widget"}]}],
-        )
-
-        assert result.status == "ok"
-        assert result.ground_truth_rows == [{"id": 1, "name": "Widget"}]
-
-        conn = duckdb.connect(str(sandbox_path))
-        try:
-            rows = conn.execute("select count(*) from bronze.product").fetchone()
-        finally:
-            conn.close()
-        assert rows == (0,)
-
-    def test_compare_two_sql_reports_equivalence(self, tmp_path: Path) -> None:
-        import duckdb
-
-        source_path = tmp_path / "source.duckdb"
-        sandbox_path = tmp_path / "sandbox.duckdb"
-        conn = duckdb.connect(str(source_path))
-        conn.execute("create schema bronze")
-        conn.execute("create table bronze.product(id integer, name varchar)")
-        conn.close()
-        shutil.copy2(source_path, sandbox_path)
-
-        backend = DuckDbSandbox(str(source_path), str(sandbox_path))
-        result = backend.compare_two_sql(
-            str(sandbox_path),
-            "select id, name from bronze.product",
-            "select id, name from bronze.product",
-            [{"table": "[bronze].[product]", "rows": [{"id": 1, "name": "Widget"}]}],
-        )
-
-        assert result["status"] == "ok"
-        assert result["equivalent"] is True
-        assert result["a_count"] == 1
-        assert result["b_count"] == 1
 
 
 class TestCompareTwoSqlSqlServerRollback:
