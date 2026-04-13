@@ -6,7 +6,8 @@ import json
 
 import pytest
 
-from tests.helpers import ORACLE_MIGRATION_SCHEMA, run_setup_ddl_cli as _run_cli
+from tests.helpers import run_setup_ddl_cli as _run_cli
+from tests.integration.runtime_helpers import ORACLE_MIGRATION_SCHEMA
 
 pytestmark = pytest.mark.oracle
 

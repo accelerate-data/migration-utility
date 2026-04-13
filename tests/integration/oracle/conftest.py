@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from tests.helpers import configure_oracle_extract_env, require_oracle_extract_env
+from tests.integration.runtime_helpers import (
+    configure_oracle_extract_env,
+    require_oracle_extract_env,
+)
 
 
 @pytest.fixture
