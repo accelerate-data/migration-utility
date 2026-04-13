@@ -7,11 +7,11 @@ import json
 import pytest
 
 from tests.helpers import (
-    ORACLE_MIGRATION_SCHEMA,
     git_init,
     run_catalog_enrich_cli,
     run_setup_ddl_cli,
 )
+from tests.integration.runtime_helpers import ORACLE_MIGRATION_SCHEMA
 
 pytestmark = pytest.mark.oracle
 

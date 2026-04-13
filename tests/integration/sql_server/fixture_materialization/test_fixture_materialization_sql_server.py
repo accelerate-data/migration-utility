@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 import pytest
 
@@ -13,41 +12,29 @@ pyodbc = pytest.importorskip(
 )
 
 from shared.fixture_materialization import materialize_migration_test
-from shared.runtime_config_models import RuntimeConnection, RuntimeRole
 from tests.helpers import REPO_ROOT
+from tests.integration.runtime_helpers import (
+    SQL_SERVER_MIGRATION_DATABASE,
+    build_sql_server_connection_string,
+    build_sql_server_source_role,
+    sql_server_is_available,
+)
 
 pytestmark = pytest.mark.integration
 
 
 def _have_mssql_env() -> bool:
-    return all(os.environ.get(name) for name in ("MSSQL_HOST", "MSSQL_DB", "SA_PASSWORD"))
+    return sql_server_is_available(pyodbc)
 
 
 @pytest.mark.skipif(not _have_mssql_env(), reason="SQL Server fixture env not configured")
 def test_materialize_migration_test_sql_server_creates_core_objects() -> None:
-    role = RuntimeRole(
-        technology="sql_server",
-        dialect="tsql",
-        connection=RuntimeConnection(
-            host=os.environ.get("MSSQL_HOST", "localhost"),
-            port=os.environ.get("MSSQL_PORT", "1433"),
-            database=os.environ.get("MSSQL_DB", "MigrationTest"),
-            user=os.environ.get("MSSQL_USER", "sa"),
-            driver=os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
-            password_env="SA_PASSWORD",
-        ),
-    )
+    role = build_sql_server_source_role()
     result = materialize_migration_test(role, REPO_ROOT)
     assert result.returncode == 0, result.stderr
 
     conn = pyodbc.connect(
-        (
-            f"DRIVER={{{os.environ.get('MSSQL_DRIVER', 'ODBC Driver 18 for SQL Server')}}};"
-            f"SERVER={os.environ.get('MSSQL_HOST', 'localhost')},{os.environ.get('MSSQL_PORT', '1433')};"
-            f"DATABASE={os.environ.get('MSSQL_DB', 'MigrationTest')};"
-            f"UID={os.environ.get('MSSQL_USER', 'sa')};PWD={os.environ['SA_PASSWORD']};"
-            "TrustServerCertificate=yes;"
-        ),
+        build_sql_server_connection_string(database=SQL_SERVER_MIGRATION_DATABASE),
         autocommit=True,
     )
     try:
@@ -68,18 +55,7 @@ def test_materialize_migration_test_sql_server_creates_core_objects() -> None:
 
 @pytest.mark.skipif(not _have_mssql_env(), reason="SQL Server fixture env not configured")
 def test_materialize_migration_test_sql_server_is_idempotent() -> None:
-    role = RuntimeRole(
-        technology="sql_server",
-        dialect="tsql",
-        connection=RuntimeConnection(
-            host=os.environ.get("MSSQL_HOST", "localhost"),
-            port=os.environ.get("MSSQL_PORT", "1433"),
-            database=os.environ.get("MSSQL_DB", "MigrationTest"),
-            user=os.environ.get("MSSQL_USER", "sa"),
-            driver=os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
-            password_env="SA_PASSWORD",
-        ),
-    )
+    role = build_sql_server_source_role()
     first = materialize_migration_test(role, REPO_ROOT)
     second = materialize_migration_test(role, REPO_ROOT)
     assert first.returncode == 0, first.stderr

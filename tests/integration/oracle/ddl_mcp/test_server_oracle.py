@@ -1,14 +1,22 @@
 """Live Oracle integration coverage for ddl_mcp/server.py."""
 
+from __future__ import annotations
+
 import json
+import sys
 from pathlib import Path
 
 import pytest
 
-from helpers import ORACLE_MIGRATION_SCHEMA, git_init, run_setup_ddl
-from shared.loader import load_directory
+_DDL_MCP_DIR = Path(__file__).resolve().parents[4] / "mcp" / "ddl"
+if str(_DDL_MCP_DIR) not in sys.path:
+    sys.path.insert(0, str(_DDL_MCP_DIR))
 
 import server as ddl_server
+from shared.loader import load_directory
+from tests.helpers import git_init, run_setup_ddl_cli
+from tests.integration.runtime_helpers import ORACLE_MIGRATION_SCHEMA
+
 
 @pytest.mark.oracle
 @pytest.mark.usefixtures("oracle_extract_env")
@@ -20,8 +28,9 @@ class TestOracleLiveIntegration:
             json.dumps({"technology": "oracle", "dialect": "oracle"}),
             encoding="utf-8",
         )
-        result = run_setup_ddl(
-            ["extract", "--schemas", ORACLE_MIGRATION_SCHEMA, "--project-root", str(tmp_path)]
+        result = run_setup_ddl_cli(
+            ["extract", "--schemas", ORACLE_MIGRATION_SCHEMA, "--project-root", str(tmp_path)],
+            timeout=120,
         )
         assert result.returncode == 0, f"setup-ddl extract failed: {result.stderr}"
 
