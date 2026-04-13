@@ -146,7 +146,17 @@ class TestFromEnv:
     def test_from_env_prefers_manifest_source_database(self) -> None:
         env = {"MSSQL_HOST": "localhost", "SA_PASSWORD": "pass", "MSSQL_DB": "envDB"}
         with patch.dict(os.environ, env, clear=True):
-            backend = SqlServerSandbox.from_env({"source_database": "manifestDB"})
+            backend = SqlServerSandbox.from_env(
+                {
+                    "runtime": {
+                        "source": {
+                            "technology": "sql_server",
+                            "dialect": "tsql",
+                            "connection": {"database": "manifestDB"},
+                        }
+                    }
+                }
+            )
         assert backend.database == "manifestDB"
 
     def test_from_env_reads_user_and_driver(self) -> None:
@@ -1041,8 +1051,8 @@ class TestCLIManifestRouting:
 
         manifest = _load_manifest(tmp_path)
         assert manifest["technology"] == "sql_server"
-        assert manifest["source_database"] == "TestDB"
-        assert manifest["extracted_schemas"] == ["dbo", "silver"]
+        assert manifest["runtime"]["source"]["connection"]["database"] == "TestDB"
+        assert manifest["extraction"]["schemas"] == ["dbo", "silver"]
 
     def test_load_manifest_missing_raises(self, tmp_path: Path) -> None:
         from click.exceptions import Exit
@@ -1067,10 +1077,10 @@ class TestWriteManifestSandbox:
         write_manifest_sandbox(tmp_path, "__test_run_123")
 
         manifest = read_manifest(tmp_path)
-        assert manifest["sandbox"] == {"database": "__test_run_123"}
+        assert manifest["runtime"]["sandbox"]["connection"]["database"] == "__test_run_123"
         # Original fields are preserved
         assert manifest["technology"] == "sql_server"
-        assert manifest["extracted_schemas"] == ["dbo", "silver"]
+        assert manifest["extraction"]["schemas"] == ["dbo", "silver"]
 
     def test_persist_overwrites_existing_sandbox(self, tmp_path: Path) -> None:
         _write_fixture_manifest(tmp_path)
@@ -1078,7 +1088,7 @@ class TestWriteManifestSandbox:
         write_manifest_sandbox(tmp_path, "__test_new_run")
 
         manifest = read_manifest(tmp_path)
-        assert manifest["sandbox"]["database"] == "__test_new_run"
+        assert manifest["runtime"]["sandbox"]["connection"]["database"] == "__test_new_run"
 
 
 class TestClearManifestSandbox:
@@ -1088,7 +1098,7 @@ class TestClearManifestSandbox:
         clear_manifest_sandbox(tmp_path)
 
         manifest = read_manifest(tmp_path)
-        assert "sandbox" not in manifest
+        assert "sandbox" not in manifest.get("runtime", {})
         # Original fields are preserved
         assert manifest["technology"] == "sql_server"
 
@@ -1097,7 +1107,7 @@ class TestClearManifestSandbox:
         clear_manifest_sandbox(tmp_path)
 
         manifest = read_manifest(tmp_path)
-        assert "sandbox" not in manifest
+        assert "sandbox" not in manifest.get("runtime", {})
 
 
 class TestResolveSandboxDb:
@@ -1179,7 +1189,7 @@ class TestCLISandboxUpPersists:
 
         assert result.exit_code == 0
         manifest = json.loads((tmp_path / "manifest.json").read_text())
-        assert manifest["sandbox"] == {"database": "__test_e2e_run"}
+        assert manifest["runtime"]["sandbox"]["connection"]["database"] == "__test_e2e_run"
 
     def test_sandbox_up_error_does_not_write_manifest(self, tmp_path: Path) -> None:
         from typer.testing import CliRunner
@@ -1208,7 +1218,7 @@ class TestCLISandboxUpPersists:
 
         assert result.exit_code == 1
         manifest = json.loads((tmp_path / "manifest.json").read_text())
-        assert "sandbox" not in manifest
+        assert "sandbox" not in manifest.get("runtime", {})
 
 
 class TestCLISandboxDownClears:
@@ -1237,7 +1247,7 @@ class TestCLISandboxDownClears:
 
         assert result.exit_code == 0
         manifest = json.loads((tmp_path / "manifest.json").read_text())
-        assert "sandbox" not in manifest
+        assert "sandbox" not in manifest.get("runtime", {})
 
     def test_sandbox_down_reads_sandbox_db_from_manifest(self, tmp_path: Path) -> None:
         from typer.testing import CliRunner
@@ -1540,7 +1550,7 @@ class TestCorruptJsonHandling:
 
         (tmp_path / "manifest.json").write_text("{truncated", encoding="utf-8")
         runner = CliRunner()
-        # sandbox-status reads sandbox.database from manifest, which will fail
+        # sandbox-status reads runtime.sandbox from manifest, which will fail
         result = runner.invoke(app, ["sandbox-status", "--project-root", str(tmp_path)])
         assert result.exit_code == 1
 
@@ -1553,7 +1563,19 @@ class TestCorruptJsonHandling:
         spec = tmp_path / "corrupt-spec.json"
         spec.write_text("{not valid json", encoding="utf-8")
         (tmp_path / "manifest.json").write_text(
-            json.dumps({"dialect": "tsql", "technology": "sql_server", "sandbox": {"database": "__test_abc123"}}),
+            json.dumps(
+                {
+                    "dialect": "tsql",
+                    "technology": "sql_server",
+                    "runtime": {
+                        "sandbox": {
+                            "technology": "sql_server",
+                            "dialect": "tsql",
+                            "connection": {"database": "__test_abc123"},
+                        }
+                    },
+                }
+            ),
             encoding="utf-8",
         )
         runner = CliRunner()
@@ -1571,7 +1593,19 @@ class TestCorruptJsonHandling:
         spec = tmp_path / "empty-spec.json"
         spec.write_text('{"model": "stg_test"}', encoding="utf-8")
         (tmp_path / "manifest.json").write_text(
-            json.dumps({"dialect": "tsql", "technology": "sql_server", "sandbox": {"database": "__test_abc123"}}),
+            json.dumps(
+                {
+                    "dialect": "tsql",
+                    "technology": "sql_server",
+                    "runtime": {
+                        "sandbox": {
+                            "technology": "sql_server",
+                            "dialect": "tsql",
+                            "connection": {"database": "__test_abc123"},
+                        }
+                    },
+                }
+            ),
             encoding="utf-8",
         )
         runner = CliRunner()
@@ -1667,7 +1701,9 @@ class TestOracleSandboxFromEnv:
         monkeypatch.delenv("ORACLE_PWD", raising=False)
         monkeypatch.setenv("ORACLE_SCHEMA", "SH")
         with pytest.raises(ValueError, match="ORACLE_PWD"):
-            OracleSandbox.from_env({"source_database": ""})
+            OracleSandbox.from_env(
+                {"runtime": {"source": {"technology": "oracle", "dialect": "oracle", "connection": {}}}}
+            )
 
     def test_raises_when_source_schema_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("ORACLE_PWD", "secret")
@@ -1678,7 +1714,17 @@ class TestOracleSandboxFromEnv:
     def test_uses_manifest_source_database(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("ORACLE_PWD", "secret")
         monkeypatch.delenv("ORACLE_SCHEMA", raising=False)
-        backend = OracleSandbox.from_env({"source_database": "SH"})
+        backend = OracleSandbox.from_env(
+            {
+                "runtime": {
+                    "source": {
+                        "technology": "oracle",
+                        "dialect": "oracle",
+                        "connection": {"schema": "SH"},
+                    }
+                }
+            }
+        )
         assert backend.source_schema == "SH"
 
     def test_falls_back_to_oracle_schema_env(self, monkeypatch: pytest.MonkeyPatch) -> None:

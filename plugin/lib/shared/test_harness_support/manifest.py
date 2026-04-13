@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from shared.loader_io import read_manifest
 from shared.output_models import TestSpec
+from shared.runtime_config import get_primary_technology, get_sandbox_name
 from shared.sandbox import get_backend
 from shared.sandbox.base import SandboxBackend
 
@@ -53,7 +54,7 @@ def _load_manifest(project_root: Path) -> dict[str, Any]:
             exit_code=2,
         )
 
-    if "technology" not in manifest:
+    if get_primary_technology(manifest) is None:
         _error_exit(
             "MISSING_TECHNOLOGY",
             f"manifest.json is missing required 'technology' key at {project_root}",
@@ -63,7 +64,9 @@ def _load_manifest(project_root: Path) -> dict[str, Any]:
 
 def _create_backend(manifest: dict[str, Any]) -> SandboxBackend:
     """Instantiate the sandbox backend for the manifest's technology."""
-    technology = manifest["technology"]
+    technology = get_primary_technology(manifest)
+    if technology is None:
+        _error_exit("MISSING_TECHNOLOGY", "manifest.json has no configured source technology")
     backend_cls = get_backend(technology)
 
     try:
@@ -73,12 +76,12 @@ def _create_backend(manifest: dict[str, Any]) -> SandboxBackend:
 
 
 def _resolve_sandbox_db(project_root: Path) -> tuple[str, dict[str, Any]]:
-    """Read sandbox.database from manifest or fail with SANDBOX_NOT_CONFIGURED."""
+    """Read sandbox runtime from manifest or fail with SANDBOX_NOT_CONFIGURED."""
     manifest = _load_manifest(project_root)
-    sandbox = manifest.get("sandbox")
-    if not sandbox or not sandbox.get("database"):
+    sandbox_name = get_sandbox_name(manifest)
+    if not sandbox_name:
         _error_exit(
             "SANDBOX_NOT_CONFIGURED",
             "No sandbox configured in manifest.json. Run /setup-sandbox first.",
         )
-    return sandbox["database"], manifest
+    return sandbox_name, manifest

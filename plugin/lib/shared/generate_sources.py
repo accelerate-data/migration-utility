@@ -30,13 +30,37 @@ from shared.env_config import (
     resolve_project_root,
 )
 from shared.output_models.generate_sources import GenerateSourcesOutput
+from shared.runtime_config import get_runtime_role
 
 logger = logging.getLogger(__name__)
 
 app = typer.Typer(add_completion=False, pretty_exceptions_enable=False)
 
 
-def generate_sources(project_root: Path) -> GenerateSourcesOutput:
+def _resolve_physical_source_schema(
+    project_root: Path,
+    source_schema_override: str | None = None,
+) -> str | None:
+    if source_schema_override:
+        return source_schema_override
+    manifest_path = project_root / "manifest.json"
+    if not manifest_path.exists():
+        return None
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    target_role = get_runtime_role(manifest, "target")
+    if target_role is None or target_role.schemas is None:
+        return None
+    return target_role.schemas.source
+
+
+def generate_sources(
+    project_root: Path,
+    *,
+    source_schema_override: str | None = None,
+) -> GenerateSourcesOutput:
     """Build sources.yml content from catalog tables.
 
     Only tables with ``is_source: true`` are included. Tables with
@@ -44,6 +68,10 @@ def generate_sources(project_root: Path) -> GenerateSourcesOutput:
     ``scoping.status == "no_writer_found"`` but no ``is_source`` flag are
     listed in ``unconfirmed`` — they need explicit confirmation before
     being included.
+
+    When a target source schema override is configured, logical source names
+    remain grouped by extracted schema while the emitted dbt ``schema:``
+    points at the configured physical target schema.
 
     Returns a dict with:
       - ``sources``: the YAML-serialisable sources dict (or None if empty)
@@ -69,7 +97,12 @@ def generate_sources(project_root: Path) -> GenerateSourcesOutput:
     unconfirmed: list[str] = []
     incomplete: list[str] = []
 
-    # schema_name → list of table names
+    physical_source_schema = _resolve_physical_source_schema(
+        project_root,
+        source_schema_override,
+    )
+
+    # logical schema_name → list of table names
     sources_by_schema: dict[str, list[str]] = {}
 
     for table_file in sorted(tables_dir.glob("*.json")):
@@ -116,11 +149,14 @@ def generate_sources(project_root: Path) -> GenerateSourcesOutput:
             {"name": t, "description": f"{t} from source system"}
             for t in sorted(sources_by_schema[schema_name])
         ]
-        source_entries.append({
+        source_entry: dict[str, Any] = {
             "name": schema_name,
             "description": f"Source tables from {schema_name} schema",
             "tables": tables,
-        })
+        }
+        if physical_source_schema:
+            source_entry["schema"] = physical_source_schema
+        source_entries.append(source_entry)
 
     sources_dict: dict[str, Any] = {"version": 2, "sources": source_entries}
 
@@ -133,12 +169,19 @@ def generate_sources(project_root: Path) -> GenerateSourcesOutput:
     )
 
 
-def write_sources_yml(project_root: Path) -> GenerateSourcesOutput:
+def write_sources_yml(
+    project_root: Path,
+    *,
+    source_schema_override: str | None = None,
+) -> GenerateSourcesOutput:
     """Generate sources.yml and write it to the dbt project.
 
     Returns the generate_sources result dict with an added ``path`` field.
     """
-    result = generate_sources(project_root)
+    result = generate_sources(
+        project_root,
+        source_schema_override=source_schema_override,
+    )
     dbt_root = resolve_dbt_project_path(project_root)
     sources_path = dbt_root / "models" / "staging" / "sources.yml"
 

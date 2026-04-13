@@ -9,24 +9,22 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from shared.runtime_config import (
+    KNOWN_TECHNOLOGIES,
+    TECH_DIALECT,
+    dialect_for_technology,
+    get_primary_technology,
+    get_runtime_role,
+    set_extraction,
+    set_runtime_role,
+)
+from shared.runtime_config_models import RuntimeConnection, RuntimeRole
+
 logger = logging.getLogger(__name__)
 
 
 class UnsupportedOperationError(Exception):
     """Raised when an operation is not supported for the configured technology."""
-
-
-TECH_DIALECT = {
-    "sql_server": "tsql",
-    "fabric_warehouse": "tsql",
-    "fabric_lakehouse": "spark",
-    "snowflake": "snowflake",
-    "oracle": "oracle",
-}
-
-KNOWN_TECHNOLOGIES = frozenset(
-    {"sql_server", "fabric_warehouse", "fabric_lakehouse", "snowflake", "oracle"}
-)
 
 
 def require_technology(project_root: Path) -> str:
@@ -39,15 +37,10 @@ def require_technology(project_root: Path) -> str:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
         raise ValueError(f"manifest.json is not valid JSON: {exc}") from exc
-    technology = manifest.get("technology")
+    technology = get_primary_technology(manifest)
     if technology is None:
         raise ValueError(
-            "manifest.json has no 'technology' field. Run /init-ad-migration."
-        )
-    if technology not in KNOWN_TECHNOLOGIES:
-        raise ValueError(
-            f"technology '{technology}' is not recognised. "
-            f"Known: {sorted(KNOWN_TECHNOLOGIES)}."
+            "manifest.json has no source technology configured. Run /init-ad-migration."
         )
     return technology
 
@@ -107,24 +100,75 @@ def read_manifest_or_empty(project_root: Path) -> dict[str, Any]:
 
 def get_connection_identity(technology: str, database: str) -> dict[str, Any]:
     if technology in ("sql_server", "fabric_warehouse"):
-        return {
-            "source_host": os.environ.get("MSSQL_HOST", ""),
-            "source_port": os.environ.get("MSSQL_PORT", ""),
-            "source_database": database,
-        }
+        role = RuntimeRole(
+            technology=technology,
+            dialect=dialect_for_technology(technology),
+            connection=RuntimeConnection(
+                host=os.environ.get("MSSQL_HOST", "") or None,
+                port=os.environ.get("MSSQL_PORT", "") or None,
+                database=database or None,
+                user=os.environ.get("MSSQL_USER", "sa") or None,
+                driver=os.environ.get("MSSQL_DRIVER", "FreeTDS") or None,
+            ),
+        )
+        return role.model_dump(mode="json", by_alias=True, exclude_none=True)
     if technology == "oracle":
-        return {"source_dsn": os.environ.get("ORACLE_DSN", "")}
+        role = RuntimeRole(
+            technology=technology,
+            dialect=dialect_for_technology(technology),
+            connection=RuntimeConnection(
+                dsn=os.environ.get("ORACLE_DSN", "") or None,
+                host=os.environ.get("ORACLE_HOST", "") or None,
+                port=os.environ.get("ORACLE_PORT", "") or None,
+                service=os.environ.get("ORACLE_SERVICE", "") or None,
+                user=os.environ.get("ORACLE_USER", "") or None,
+                schema=database or os.environ.get("ORACLE_SCHEMA", "") or None,
+                password_env="ORACLE_PWD",
+            ),
+        )
+        return role.model_dump(mode="json", by_alias=True, exclude_none=True)
+    if technology == "duckdb":
+        role = RuntimeRole(
+            technology=technology,
+            dialect=dialect_for_technology(technology),
+            connection=RuntimeConnection(
+                path=database or os.environ.get("DUCKDB_PATH", "") or None,
+            ),
+        )
+        return role.model_dump(mode="json", by_alias=True, exclude_none=True)
     return {}
 
 
 def identity_changed(existing_manifest: dict[str, Any], current_identity: dict[str, Any]) -> bool:
-    non_empty = {k: v for k, v in current_identity.items() if v}
-    if not non_empty:
+    if not current_identity:
         return False
-    for key, value in non_empty.items():
-        if existing_manifest.get(key, "") != value:
+    existing_source = get_runtime_role(existing_manifest, "source")
+    if existing_source is None:
+        return False
+    identity_fields_by_tech = {
+        "sql_server": {"host", "port", "database"},
+        "fabric_warehouse": {"host", "port", "database"},
+        "oracle": {"dsn", "host", "port", "service", "schema"},
+        "duckdb": {"path"},
+    }
+    identity_fields = identity_fields_by_tech.get(
+        existing_source.technology,
+        set(current_identity.get("connection", {}).keys()),
+    )
+    for key, value in current_identity.get("connection", {}).items():
+        if key not in identity_fields:
+            continue
+        if not value:
+            continue
+        field_name = "schema_name" if key == "schema" else key
+        if getattr(existing_source.connection, field_name, None) != value:
             return True
     return False
+
+
+def build_runtime_role(technology: str, database: str) -> RuntimeRole:
+    """Build a typed runtime role from the current environment for a technology."""
+    return RuntimeRole.model_validate(get_connection_identity(technology, database))
 
 
 def run_write_partial_manifest(
@@ -186,16 +230,10 @@ def run_write_manifest(
         )
     out_path = project_root / "manifest.json"
     existing = read_manifest_or_empty(project_root)
-    manifest = {
-        **existing,
-        "schema_version": "1.0",
-        "technology": technology,
-        "dialect": TECH_DIALECT[technology],
-        "source_database": database,
-        "extracted_schemas": schemas,
-        "extracted_at": datetime.now(timezone.utc).isoformat(),
-        **get_connection_identity(technology, database),
-    }
+    source_role = build_runtime_role(technology, database)
+    manifest = {**existing, "schema_version": "1.0"}
+    manifest = set_runtime_role(manifest, "source", source_role)
+    manifest = set_extraction(manifest, schemas, datetime.now(timezone.utc).isoformat())
     project_root.mkdir(parents=True, exist_ok=True)
     out_path.write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",

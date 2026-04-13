@@ -12,6 +12,7 @@ from shared.cli_utils import emit
 from shared.env_config import resolve_project_root
 from shared.loader import CatalogFileMissingError, CatalogLoadError
 from shared.loader_io import clear_manifest_sandbox, read_manifest, write_manifest_sandbox
+from shared.runtime_config import get_extracted_schemas, get_sandbox_name
 from shared.test_harness_support.catalog_write import run_write_test_gen
 from shared.test_harness_support.execution import run_compare_sql, run_execute_spec
 from shared.test_harness_support.manifest import (
@@ -48,15 +49,15 @@ def _load_manifest(project_root: Path) -> dict[str, Any]:
 
 
 def _resolve_sandbox_db(project_root: Path) -> tuple[str, dict[str, Any]]:
-    """Read sandbox.database from manifest or fail with SANDBOX_NOT_CONFIGURED."""
+    """Read runtime.sandbox from manifest or fail with SANDBOX_NOT_CONFIGURED."""
     manifest = _load_manifest(project_root)
-    sandbox = manifest.get("sandbox")
-    if not sandbox or not sandbox.get("database"):
+    sandbox_name = get_sandbox_name(manifest)
+    if not sandbox_name:
         _error_exit(
             "SANDBOX_NOT_CONFIGURED",
             "No sandbox configured in manifest.json. Run /setup-sandbox first.",
         )
-    return sandbox["database"], manifest
+    return sandbox_name, manifest
 
 
 @app.command()
@@ -69,11 +70,11 @@ def sandbox_up(
     manifest = _load_manifest(root)
     backend = _create_backend(manifest)
 
-    schemas = manifest.get("extracted_schemas", [])
+    schemas = get_extracted_schemas(manifest)
     if not schemas:
         _error_exit(
             "NO_SCHEMAS",
-            "extracted_schemas is missing or empty in manifest.json — nothing to clone",
+            "extraction.schemas is missing or empty in manifest.json — nothing to clone",
         )
 
     try:

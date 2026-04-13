@@ -27,6 +27,7 @@ from shared.sandbox.base import (
     validate_fixtures as _validate_fixtures_base,
     validate_readonly_sql as _validate_readonly_sql_base,
 )
+from shared.runtime_config import get_runtime_role
 
 logger = logging.getLogger(__name__)
 
@@ -252,9 +253,14 @@ class SqlServerSandbox(SandboxBackend):
 
         Raises ValueError if required configuration is missing.
         """
+        source_role = get_runtime_role(manifest, "source")
         host = os.environ.get("MSSQL_HOST", "")
         port = os.environ.get("MSSQL_PORT", "1433")
-        database = manifest.get("source_database", os.environ.get("MSSQL_DB", ""))
+        database = (
+            source_role.connection.database
+            if source_role is not None and source_role.connection.database
+            else os.environ.get("MSSQL_DB", "")
+        )
         password = os.environ.get("SA_PASSWORD", "")
         user = os.environ.get("MSSQL_USER", "sa")
         driver = os.environ.get("MSSQL_DRIVER", "FreeTDS")
@@ -265,7 +271,7 @@ class SqlServerSandbox(SandboxBackend):
         if not password:
             missing.append("SA_PASSWORD")
         if not database:
-            missing.append("MSSQL_DB (or source_database in manifest)")
+            missing.append("MSSQL_DB or runtime.source.connection.database")
         if missing:
             raise ValueError(f"Required environment variables not set: {missing}")
 

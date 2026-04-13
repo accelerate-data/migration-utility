@@ -4,7 +4,7 @@ Creates a throwaway database (`__test_<random_hex>`) by cloning schema and proce
 
 ## Prerequisites
 
-- `manifest.json` with `technology` and `source_database`
+- `manifest.json` with `runtime.source`
 - `extracted_schemas` must be a non-empty array in the manifest
 - All four MSSQL environment variables set
 - `test-harness` CLI available
@@ -15,8 +15,8 @@ Creates a throwaway database (`__test_<random_hex>`) by cloning schema and proce
 1. Verifies all prerequisites and presents a status summary
 2. Asks for confirmation before proceeding
 3. Runs `test-harness sandbox-up` to create the throwaway database
-4. Persists `sandbox.database` to `manifest.json`
-5. Reports the sandbox database name and clone statistics
+4. Persists `runtime.sandbox` to `manifest.json`
+5. Reports the sandbox environment name and clone statistics
 
 ## Invocation
 

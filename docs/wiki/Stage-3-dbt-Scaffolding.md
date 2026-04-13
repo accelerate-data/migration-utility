@@ -1,6 +1,6 @@
 # Stage 3 -- dbt Scaffolding
 
-`/init-dbt` scaffolds the dbt project for the selected target platform and generates `sources.yml` from the catalog.
+`/setup-target` collects target runtime information, scaffolds the dbt project, and generates `sources.yml` from the catalog.
 
 ## Prerequisites
 
@@ -8,7 +8,7 @@
 - `catalog/tables/` must exist
 - the initial analyze stage must be complete for in-scope tables
 
-Before `/init-dbt` can proceed, extracted tables need to be in one of these states:
+Before `/setup-target` can proceed, extracted tables need to be in one of these states:
 
 - resolved to a writer
 - excluded from the migration
@@ -43,11 +43,11 @@ This is the part that matters most operationally:
 - resolved migration targets are excluded from `sources.yml` because they are expected to become dbt models
 - excluded tables do not appear in `sources.yml`
 
-So `no_writer_found` by itself is not enough. Source tables have to be explicitly confirmed, either with `/add-source-tables` or during the `/init-dbt` confirmation flow.
+So `no_writer_found` by itself is not enough. Source tables have to be explicitly confirmed, either with `/add-source-tables` or during the `/setup-target` confirmation flow.
 
 ## Re-running
 
-Re-running `/init-dbt` is safe:
+Re-running `/setup-target` is safe:
 
 - it regenerates `sources.yml`
 - it does not overwrite your edited `profiles.yml`

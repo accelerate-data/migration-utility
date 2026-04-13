@@ -49,10 +49,10 @@ Use this branch when `technology` is `sql_server` or `fabric_warehouse`.
 
 ### Step 1 — Select database
 
-> **Skip this step** if `manifest.json` already has `source_database` set. Show the user:
+> **Skip this step** if `manifest.json` already has `runtime.source` set. Show the user:
 >
 > ```text
-> Previously extracted database: <source_database>
+> Previously extracted source runtime: <runtime.source>
 > Previously extracted schemas:  <extracted_schemas>
 > ```
 >
@@ -131,7 +131,7 @@ Schemas:  <selected-schemas>
 
 Tell the user: "To browse the extracted objects, run `/listing-objects list tables`. To start scoping tables for migration, run `/scope`."
 
-If `dbt/models/staging/sources.yml` already exists, warn: "sources.yml already exists and may be stale after this extraction. Run `/analyzing-table` on new tables, then re-run `/init-dbt` to regenerate."
+If `dbt/models/staging/sources.yml` already exists, warn: "sources.yml already exists and may be stale after this extraction. Run `/analyzing-table` on new tables, then re-run `/setup-target` to regenerate."
 
 ### Step 6 — Stale catalog cleanup
 
@@ -240,7 +240,7 @@ Schemas: <selected-owners>
 
 Tell the user: "To browse the extracted objects, run `/listing-objects list tables`. To start scoping tables for migration, run `/scope`."
 
-If `dbt/models/staging/sources.yml` already exists, warn: "sources.yml already exists and may be stale after this extraction. Run `/analyzing-table` on new tables, then re-run `/init-dbt` to regenerate."
+If `dbt/models/staging/sources.yml` already exists, warn: "sources.yml already exists and may be stale after this extraction. Run `/analyzing-table` on new tables, then re-run `/setup-target` to regenerate."
 
 ### Step 5 — Stale catalog cleanup
 

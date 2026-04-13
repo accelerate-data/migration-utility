@@ -1,34 +1,26 @@
 # SQL Fixtures
 
-## MigrationTest Fixture Database
+`MigrationTest` is the canonical integration fixture across supported technologies.
 
-`create-migration-test-db.sql` is the source file for the `MigrationTest` SQL Server fixture database.
+## Materialization entrypoints
 
-It exists to give the repo a controlled set of `bronze` and `silver` objects for scoping, profiling, extraction, and eval scenarios without depending on a customer warehouse.
+Each technology has an env-driven, idempotent shell entrypoint:
 
-### Why this database exists
+- `scripts/sql/sql_server/materialize-migration-test.sh`
+- `scripts/sql/oracle/materialize-migration-test.sh`
+- `scripts/sql/duckdb/materialize-migration-test.sh`
 
-- Bronze tables are copied from `AdventureWorks2022` so the fixture starts from realistic source data.
-- Silver tables and procedures are hand-authored to cover migration-specific scenarios that are hard to get cleanly from an off-the-shelf warehouse sample.
-- The published SQL Server Docker image bakes this database in so local test environments can be restored by pulling the image, but this SQL file remains the editable source-of-truth when the fixture needs to change.
+These scripts create or refresh the runtime fixture environment used by tests.
+Mutable runtime databases are generated on demand and are not committed.
 
-### Scenario coverage
+## SQL Server source-of-truth
 
-Each silver table targets a specific scoping scenario:
+`create-migration-test-db.sql` remains the editable SQL Server source for the
+`MigrationTest` fixture database. It defines the SQL Server-specific schema and
+data set that local SQL Server-backed tests and images are built from.
 
-| Silver table | Scoping scenario | Expected status |
-|---|---|---|
-| `silver.DimProduct` | Direct MERGE writer | `resolved` |
-| `silver.DimCustomer` | Two writers (Full + Delta) | `ambiguous_multi_writer` |
-| `silver.FactInternetSales` | Orchestrator calls staging proc | `resolved` (call graph) |
-| `silver.DimGeography` | No loader proc | `no_writer_found` |
-| `silver.DimCurrency` | All writes via `sp_executesql` | `partial` |
-| `silver.DimEmployee` | Callee references `[OtherDB]` | `error` (cross-db) |
-| `silver.DimPromotion` | Writes through updateable view | `resolved` (writer-through-view) |
-| `silver.DimSalesTerritory` | Indexed view as target | `resolved` (MV-as-target) |
+## Related artifacts
 
-### Related artifacts
-
-- SQL source: `scripts/sql/create-migration-test-db.sql`
+- SQL Server source: `scripts/sql/create-migration-test-db.sql`
 - Eval fixture extraction target: `tests/evals/fixtures/migration-test/`
 - Published SQL Server image build path: `scripts/publish-sqlserver-image.sh`

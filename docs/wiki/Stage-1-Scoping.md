@@ -39,4 +39,4 @@ If a table ends up `no_writer_found`, it is not automatically treated as a sourc
 
 ## Next step
 
-Proceed to [[Stage 2 Profiling]] or use `/add-source-tables` and `/exclude-table` to clean up remaining non-migration targets before `/init-dbt`.
+Proceed to [[Stage 2 Profiling]] or use `/add-source-tables` and `/exclude-table` to clean up remaining non-migration targets before `/setup-target`.

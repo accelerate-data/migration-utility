@@ -63,6 +63,7 @@ from shared.sandbox.base import (
     validate_fixtures as _validate_fixtures_base,
     validate_readonly_sql as _validate_readonly_sql_base,
 )
+from shared.runtime_config import get_runtime_role
 
 logger = logging.getLogger(__name__)
 
@@ -201,15 +202,18 @@ class OracleSandbox(SandboxBackend):
         service = os.environ.get("ORACLE_SERVICE", "FREEPDB1")
         admin_user = os.environ.get("ORACLE_ADMIN_USER", "sys")
         password = os.environ.get("ORACLE_PWD", "")
-        source_schema = manifest.get(
-            "source_database", os.environ.get("ORACLE_SCHEMA", ""),
+        source_role = get_runtime_role(manifest, "source")
+        source_schema = (
+            source_role.connection.schema_name
+            if source_role is not None and source_role.connection.schema_name
+            else os.environ.get("ORACLE_SCHEMA", "")
         )
 
         missing = []
         if not password:
             missing.append("ORACLE_PWD")
         if not source_schema:
-            missing.append("ORACLE_SCHEMA (or source_database in manifest)")
+            missing.append("ORACLE_SCHEMA or runtime.source.connection.schema")
         if missing:
             raise ValueError(f"Required environment variables not set: {missing}")
 

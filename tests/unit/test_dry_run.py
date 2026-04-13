@@ -26,15 +26,23 @@ _TESTS_DIR = Path(__file__).parent
 _FIXTURES = _TESTS_DIR / "fixtures" / "dry_run"
 
 
-def _make_project(*, include_sandbox: bool = True) -> tuple[tempfile.TemporaryDirectory, Path]:
+def _make_project(
+    *,
+    include_sandbox: bool = True,
+    include_target: bool = True,
+) -> tuple[tempfile.TemporaryDirectory, Path]:
     """Copy dry_run fixtures to a temp dir and git-init it."""
     tmp = tempfile.TemporaryDirectory()
     dst = Path(tmp.name) / "project"
     shutil.copytree(_FIXTURES, dst)
-    if not include_sandbox:
+    if not include_sandbox or not include_target:
         manifest_path = dst / "manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        del manifest["sandbox"]
+        runtime = manifest.setdefault("runtime", {})
+        if not include_sandbox:
+            runtime.pop("sandbox", None)
+        if not include_target:
+            runtime.pop("target", None)
         manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     subprocess.run(["git", "init"], cwd=dst, capture_output=True, check=True)
     subprocess.run(
@@ -54,9 +62,17 @@ def _make_bare_project() -> tuple[tempfile.TemporaryDirectory, Path]:
         "schema_version": "1.0",
         "technology": "sql_server",
         "dialect": "tsql",
-        "source_database": "TestDB",
-        "extracted_schemas": ["silver"],
-        "extracted_at": "2026-04-01T00:00:00Z",
+        "runtime": {
+            "source": {
+                "technology": "sql_server",
+                "dialect": "tsql",
+                "connection": {"database": "TestDB"},
+            }
+        },
+        "extraction": {
+            "schemas": ["silver"],
+            "extracted_at": "2026-04-01T00:00:00Z",
+        },
         "init_handoff": {
             "timestamp": "2026-04-01T00:00:00+00:00",
             "env_vars": {"MSSQL_HOST": True, "MSSQL_PORT": True, "MSSQL_DB": True, "SA_PASSWORD": True},
@@ -277,15 +293,15 @@ def test_ready_generate_no_refactor() -> None:
 
 
 def test_ready_generate_no_sandbox() -> None:
-    """Generate not ready when sandbox.database is missing from manifest."""
-    tmp, root = _make_project(include_sandbox=False)
+    """Generate not ready when runtime.target is missing from manifest."""
+    tmp, root = _make_project(include_target=False)
     with tmp:
         result = dry_run.run_ready(root, "generate", object_fqn="silver.DimCustomer")
         assert isinstance(result, DryRunOutput)
         assert result.ready is False
         assert result.project is not None
-        assert result.project.reason == "sandbox_not_configured"
-        assert result.project.code == "SANDBOX_NOT_CONFIGURED"
+        assert result.project.reason == "target_not_configured"
+        assert result.project.code == "TARGET_NOT_CONFIGURED"
 
 
 def test_ready_generate_requires_test_gen() -> None:
@@ -413,10 +429,14 @@ def test_ready_setup_ddl_without_object_reports_project_only() -> None:
 
 def test_ready_generate_object_failure_preserves_project_success() -> None:
     """Object overlay should fail independently after project readiness passes."""
-    tmp, root = _make_project(include_sandbox=False)
+    tmp, root = _make_project(include_sandbox=False, include_target=False)
     with tmp:
         manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
-        manifest["sandbox"] = {"database": "__test_abc123"}
+        manifest.setdefault("runtime", {})["target"] = {
+            "technology": "sql_server",
+            "dialect": "tsql",
+            "connection": {"database": "TargetDB"},
+        }
         (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
         proc_path = root / "catalog" / "procedures" / "dbo.usp_load_dimcustomer.json"
         proc = json.loads(proc_path.read_text(encoding="utf-8"))

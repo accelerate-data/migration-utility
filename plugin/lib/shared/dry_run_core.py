@@ -31,6 +31,7 @@ from shared.output_models.dry_run import (
     StatusSummary,
     SyncExcludedWarningsOutput,
 )
+from shared.runtime_config import get_runtime_role
 
 logger = logging.getLogger(__name__)
 
@@ -77,21 +78,8 @@ def _object_detail(
     )
 
 
-def _legacy_runtime_sandbox_exists(manifest: dict[str, Any]) -> bool:
-    return bool((manifest.get("sandbox") or {}).get("database"))
-
-
 def _runtime_role_exists(manifest: dict[str, Any], role: str) -> bool:
-    runtime = manifest.get("runtime")
-    if isinstance(runtime, dict):
-        role_data = runtime.get(role)
-        if isinstance(role_data, dict) and role_data:
-            return True
-    if role == "source":
-        return bool(manifest.get("source_database"))
-    if role == "sandbox":
-        return _legacy_runtime_sandbox_exists(manifest)
-    return False
+    return get_runtime_role(manifest, role) is not None
 
 
 def _project_stage_ready(project_root: Path, stage: str) -> ReadinessDetail:
@@ -114,12 +102,17 @@ def _project_stage_ready(project_root: Path, stage: str) -> ReadinessDetail:
         )
         return _detail(False, "manifest_missing")
 
-    if stage in {"profile", "test-gen", "refactor"}:
+    if stage == "profile":
+        return _detail(True, "ok")
+
+    if stage in {"test-gen", "refactor"}:
+        if not _runtime_role_exists(manifest, "sandbox"):
+            return _detail(False, "sandbox_not_configured", "SANDBOX_NOT_CONFIGURED")
         return _detail(True, "ok")
 
     if stage == "generate":
-        if not _runtime_role_exists(manifest, "sandbox"):
-            return _detail(False, "sandbox_not_configured", "SANDBOX_NOT_CONFIGURED")
+        if not _runtime_role_exists(manifest, "target"):
+            return _detail(False, "target_not_configured", "TARGET_NOT_CONFIGURED")
         return _detail(True, "ok")
 
     return _detail(False, "invalid_stage")

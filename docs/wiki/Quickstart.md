@@ -38,13 +38,13 @@ This creates `manifest.json`, writes extracted DDL into `ddl/`, and builds per-o
 
 See [[Stage 2 DDL Extraction]].
 
-## 3. Resolve extracted tables before dbt init
+## 3. Resolve extracted tables before target setup
 
 ```text
 /scope silver.DimCustomer silver.FactInternetSales
 ```
 
-Before `/init-dbt` can proceed, every extracted table needs one of these outcomes:
+Before `/setup-target` can proceed, every extracted table needs one of these outcomes:
 
 - scoped to a writer via `/scope` or `/analyzing-table`
 - excluded from the migration via `/exclude-table`
@@ -54,13 +54,13 @@ Tables with `scoping.status == "no_writer_found"` are not automatically included
 
 See [[Stage 1 Scoping]].
 
-## 4. Scaffold the dbt project
+## 4. Set up the target
 
 ```text
-/init-dbt
+/setup-target
 ```
 
-This asks for the target adapter, scaffolds `dbt/`, and generates `models/staging/sources.yml`.
+This asks for the target adapter and connection details, scaffolds `dbt/`, persists `runtime.target`, and generates `models/staging/sources.yml`.
 
 `sources.yml` includes only tables explicitly marked `is_source: true`. Writerless tables that have not been confirmed yet are shown as pending so you can decide whether to add them as sources.
 

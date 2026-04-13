@@ -2,11 +2,32 @@
   "schema_version": "1.0",
   "technology": "sql_server",
   "dialect": "tsql",
-  "source_database": "TestDB",
-  "extracted_schemas": ["silver"],
-  "extracted_at": "2026-04-01T00:00:00Z",
-  "sandbox": {
-    "database": "__test_abc123"
+  "runtime": {
+    "source": {
+      "technology": "sql_server",
+      "dialect": "tsql",
+      "connection": {
+        "database": "TestDB"
+      }
+    },
+    "target": {
+      "technology": "sql_server",
+      "dialect": "tsql",
+      "connection": {
+        "database": "TargetDB"
+      }
+    },
+    "sandbox": {
+      "technology": "sql_server",
+      "dialect": "tsql",
+      "connection": {
+        "database": "__test_abc123"
+      }
+    }
+  },
+  "extraction": {
+    "schemas": ["silver"],
+    "extracted_at": "2026-04-01T00:00:00Z"
   },
   "init_handoff": {
     "timestamp": "2026-04-01T00:00:00+00:00",

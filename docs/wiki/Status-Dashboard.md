@@ -50,11 +50,11 @@ The command distinguishes three cases:
 - writerless but unconfirmed tables: surfaced as pending source confirmation
 - excluded tables: omitted from active migration planning and counted separately
 
-This is why `/status` is the best checkpoint before running `/init-dbt`, `/generate-tests`, `/refactor`, or `/generate-model`.
+This is why `/status` is the best checkpoint before running `/setup-target`, `/generate-tests`, `/refactor`, or `/generate-model`.
 
 ## Typical use
 
 - run `/status` after `/setup-ddl` to see what still needs scoping
 - run it after `/scope` to see which items are ready for `/profile`
-- run it before `/init-dbt` to clear remaining source/exclude decisions
+- run it before `/setup-target` to clear remaining source/exclude decisions
 - run it after each batch command to choose the next highest-leverage action

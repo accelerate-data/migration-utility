@@ -147,7 +147,7 @@ These values are passed to the `mssql` MCP server at startup via environment inh
 ├── ddl/               # Extracted DDL files (from setup-ddl)
 ├── catalog/           # Catalog JSON files (from setup-ddl)
 ├── manifest.json      # Extraction manifest (from setup-ddl)
-└── dbt/               # dbt project (from init-dbt)
+└── dbt/               # dbt project (from setup-target)
 ```
 
 ## Git Safety
@@ -189,7 +189,7 @@ def _repo_map_sql_server() -> dict[str, Any]:
         "key_directories": {
             "ddl/": "Extracted DDL files from setup-ddl (tables.sql, procedures.sql, views.sql, functions.sql)",
             "catalog/": "Catalog JSON files — tables/, procedures/, views/, functions/ subdirectories",
-            "dbt/": "dbt project (created by init-dbt)",
+            "dbt/": "dbt project (created by setup-target)",
         },
         "notes_for_agents": {
             "startup": "Read this file before exploring the project. It is the primary startup context for structure and conventions.",
@@ -381,7 +381,7 @@ These values are used to connect the Oracle MCP server at session start — they
 ├── ddl/               # Extracted DDL files (from setup-ddl)
 ├── catalog/           # Catalog JSON files (from setup-ddl)
 ├── manifest.json      # Extraction manifest (from setup-ddl)
-└── dbt/               # dbt project (from init-dbt)
+└── dbt/               # dbt project (from setup-target)
 ```
 
 ## Git Safety
@@ -423,7 +423,7 @@ def _repo_map_oracle() -> dict[str, Any]:
         "key_directories": {
             "ddl/": "Extracted DDL files from setup-ddl (tables.sql, procedures.sql, views.sql, functions.sql)",
             "catalog/": "Catalog JSON files — tables/, procedures/, views/, functions/ subdirectories",
-            "dbt/": "dbt project (created by init-dbt)",
+            "dbt/": "dbt project (created by setup-target)",
         },
         "notes_for_agents": {
             "startup": "Read this file before exploring the project. It is the primary startup context for structure and conventions.",

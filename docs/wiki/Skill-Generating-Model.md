@@ -18,7 +18,7 @@ Trigger phrases: "migrate a procedure", "generate a dbt model", "convert SP to d
 
 - `manifest.json` must exist in the project root. If missing, run [[Command Setup DDL]] first.
 - `catalog/tables/<table>.json` must exist with completed scoping and profiling sections.
-- A dbt project must exist (`dbt_project.yml` in `./dbt/` relative to project root). If missing, run `/init-dbt` first.
+- A dbt project must exist (`dbt_project.yml` in `./dbt/` relative to project root). If missing, run `/setup-target` first.
 - `test-specs/<item_id>.json` must exist. In normal operation it is produced and approved through `/generate-tests`. There is no test-less path.
 
 ## Pipeline
@@ -343,7 +343,7 @@ models:
 | `migrate context` exit code 1 | No profile or no statements in catalog | Run [[Skill Analyzing Table]], [[Skill Profiling Table]], and [[Skill Generating Tests]] first |
 | `migrate context` exit code 2 | IO/parse error | Check file permissions and JSON validity in `catalog/` |
 | `migrate write` exit code 1 | Validation failure (empty SQL) | Regenerate the model |
-| `migrate write` exit code 2 | IO error (missing dbt project) | Run `/init-dbt` to create the dbt project |
+| `migrate write` exit code 2 | IO error (missing dbt project) | Run `/setup-target` to create the dbt project |
 | `dbt compile` connection error | No warehouse connection available | Falls back to `dbt parse` for offline validation. Unit tests are skipped |
 | `dbt test` failure after 3 iterations | Model cannot pass all unit tests | Model left with `status: "partial"`. Failing tests recorded in `execution.dbt_errors[]`. Manual intervention needed |
 | Equivalence check warnings | Generated model diverges from refactored SQL semantics | Review warnings with user. Revise model if semantic gaps are real |

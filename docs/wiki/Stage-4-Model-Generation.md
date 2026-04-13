@@ -5,7 +5,7 @@
 ## Prerequisites
 
 - `manifest.json`
-- `dbt/` scaffolded by `/init-dbt`
+- `dbt/` scaffolded by `/setup-target`
 - completed scoping
 - completed profiling
 - approved test spec

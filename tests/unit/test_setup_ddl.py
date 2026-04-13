@@ -346,9 +346,9 @@ class TestWriteManifest:
         assert manifest["schema_version"] == "1.0"
         assert manifest["technology"] == "sql_server"
         assert manifest["dialect"] == "tsql"
-        assert manifest["source_database"] == "TestDB"
-        assert manifest["extracted_schemas"] == ["bronze", "silver"]
-        assert "extracted_at" in manifest
+        assert manifest["runtime"]["source"]["connection"]["database"] == "TestDB"
+        assert manifest["extraction"]["schemas"] == ["bronze", "silver"]
+        assert "extracted_at" in manifest["extraction"]
 
     def test_fabric_warehouse_dialect(self, tmp_path):
         result = _run_cli([
@@ -1003,9 +1003,8 @@ class TestWritePartialManifest:
         assert manifest["technology"] == "oracle"
         assert manifest["dialect"] == "oracle"
         # Partial manifest should NOT have database or schema fields
-        assert "source_database" not in manifest
-        assert "extracted_schemas" not in manifest
-        assert "extracted_at" not in manifest
+        assert "runtime" not in manifest
+        assert "extraction" not in manifest
 
     def test_partial_manifest_sql_server(self, tmp_path):
         result = _run_cli([
@@ -1046,9 +1045,9 @@ class TestWritePartialManifest:
         # All fields present
         assert manifest["technology"] == "oracle"
         assert manifest["dialect"] == "oracle"
-        assert manifest["source_database"] == "FREEPDB1"
-        assert manifest["extracted_schemas"] == ["SH", "HR"]
-        assert "extracted_at" in manifest
+        assert manifest["runtime"]["source"]["connection"]["schema"] == "FREEPDB1"
+        assert manifest["extraction"]["schemas"] == ["SH", "HR"]
+        assert "extracted_at" in manifest["extraction"]
 
 
 # ── Unit: write-partial-manifest with prereqs ───────────────────────────────
@@ -1561,8 +1560,8 @@ class TestExtractSqlServerIntegration:
 
         manifest = json.loads((tmp_path / "manifest.json").read_text())
         assert manifest["technology"] == "sql_server"
-        assert "dbo" in manifest["extracted_schemas"]
-        assert manifest["source_database"] == "MigrationTest"
+        assert "dbo" in manifest["extraction"]["schemas"]
+        assert manifest["runtime"]["source"]["connection"]["database"] == "MigrationTest"
 
     def test_catalog_tables_non_empty(self, tmp_path):
         if not os.environ.get("MSSQL_HOST"):
@@ -1845,16 +1844,16 @@ class TestConnectionIdentity:
         monkeypatch.setenv("MSSQL_HOST", "server1.example.com")
         monkeypatch.setenv("MSSQL_PORT", "1433")
         identity = get_connection_identity("sql_server", "AdventureWorks")
-        assert identity["source_host"] == "server1.example.com"
-        assert identity["source_port"] == "1433"
-        assert identity["source_database"] == "AdventureWorks"
+        assert identity["connection"]["host"] == "server1.example.com"
+        assert identity["connection"]["port"] == "1433"
+        assert identity["connection"]["database"] == "AdventureWorks"
 
     def test_oracle_identity_reads_dsn(self, monkeypatch):
         get_connection_identity, _, _ = self._import()
         monkeypatch.setenv("ORACLE_DSN", "localhost:1521/FREEPDB1")
         identity = get_connection_identity("oracle", "")
-        assert identity["source_dsn"] == "localhost:1521/FREEPDB1"
-        assert "source_host" not in identity
+        assert identity["connection"]["dsn"] == "localhost:1521/FREEPDB1"
+        assert "host" not in identity["connection"]
 
     def test_sqlserver_manifest_stores_identity(self, tmp_path, monkeypatch):
         monkeypatch.setenv("MSSQL_HOST", "db1.internal")
@@ -1868,9 +1867,9 @@ class TestConnectionIdentity:
         ])
         assert result.returncode == 0, result.stderr
         manifest = json.loads((tmp_path / "manifest.json").read_text())
-        assert manifest["source_host"] == "db1.internal"
-        assert manifest["source_port"] == "1433"
-        assert manifest["source_database"] == "MyDB"
+        assert manifest["runtime"]["source"]["connection"]["host"] == "db1.internal"
+        assert manifest["runtime"]["source"]["connection"]["port"] == "1433"
+        assert manifest["runtime"]["source"]["connection"]["database"] == "MyDB"
 
     def test_oracle_manifest_stores_dsn(self, tmp_path, monkeypatch):
         monkeypatch.setenv("ORACLE_DSN", "oraclehost:1521/PROD")
@@ -1883,45 +1882,45 @@ class TestConnectionIdentity:
         ])
         assert result.returncode == 0, result.stderr
         manifest = json.loads((tmp_path / "manifest.json").read_text())
-        assert manifest["source_dsn"] == "oraclehost:1521/PROD"
+        assert manifest["runtime"]["source"]["connection"]["dsn"] == "oraclehost:1521/PROD"
 
     def test_identity_changed_host(self):
         _, identity_changed_fn, _ = self._import()
-        existing = {"source_host": "old-server", "source_port": "1433", "source_database": "DB1"}
-        current = {"source_host": "new-server", "source_port": "1433", "source_database": "DB1"}
+        existing = {"runtime": {"source": {"technology": "sql_server", "dialect": "tsql", "connection": {"host": "old-server", "port": "1433", "database": "DB1"}}}}
+        current = {"connection": {"host": "new-server", "port": "1433", "database": "DB1"}}
         assert identity_changed_fn(existing, current) is True
 
     def test_identity_changed_database(self):
         _, identity_changed_fn, _ = self._import()
-        existing = {"source_host": "server1", "source_port": "1433", "source_database": "DB1"}
-        current = {"source_host": "server1", "source_port": "1433", "source_database": "DB2"}
+        existing = {"runtime": {"source": {"technology": "sql_server", "dialect": "tsql", "connection": {"host": "server1", "port": "1433", "database": "DB1"}}}}
+        current = {"connection": {"host": "server1", "port": "1433", "database": "DB2"}}
         assert identity_changed_fn(existing, current) is True
 
     def test_identity_unchanged(self):
         _, identity_changed_fn, _ = self._import()
-        existing = {"source_host": "server1", "source_port": "1433", "source_database": "DB1"}
-        current = {"source_host": "server1", "source_port": "1433", "source_database": "DB1"}
+        existing = {"runtime": {"source": {"technology": "sql_server", "dialect": "tsql", "connection": {"host": "server1", "port": "1433", "database": "DB1"}}}}
+        current = {"connection": {"host": "server1", "port": "1433", "database": "DB1"}}
         assert identity_changed_fn(existing, current) is False
 
     def test_identity_changed_oracle_dsn(self):
         _, identity_changed_fn, _ = self._import()
-        existing = {"source_dsn": "host1:1521/SVC1"}
-        current = {"source_dsn": "host2:1521/SVC1"}
+        existing = {"runtime": {"source": {"technology": "oracle", "dialect": "oracle", "connection": {"dsn": "host1:1521/SVC1"}}}}
+        current = {"connection": {"dsn": "host2:1521/SVC1"}}
         assert identity_changed_fn(existing, current) is True
 
     def test_identity_missing_env_no_false_positive(self):
         _, identity_changed_fn, _ = self._import()
         # No current env values (all empty) — must not trigger stale flush
-        existing = {"source_host": "server1", "source_port": "1433", "source_database": "DB1"}
-        current = {"source_host": "", "source_port": "", "source_database": "DB1"}
+        existing = {"runtime": {"source": {"technology": "sql_server", "dialect": "tsql", "connection": {"host": "server1", "port": "1433", "database": "DB1"}}}}
+        current = {"connection": {"host": "", "port": "", "database": "DB1"}}
         # source_database is non-empty and matches — no change
         assert identity_changed_fn(existing, current) is False
 
     def test_identity_empty_env_vars_no_false_positive(self):
         _, identity_changed_fn, _ = self._import()
-        existing = {"source_host": "server1", "source_port": "1433", "source_database": "DB1"}
+        existing = {"runtime": {"source": {"technology": "sql_server", "dialect": "tsql", "connection": {"host": "server1", "port": "1433", "database": "DB1"}}}}
         # All identity values empty → treat as absent, no false positive
-        current = {"source_host": "", "source_port": ""}
+        current = {"connection": {"host": "", "port": ""}}
         assert identity_changed_fn(existing, current) is False
 
     def test_mark_all_catalog_stale(self, tmp_path):
@@ -1947,11 +1946,21 @@ class TestConnectionIdentity:
             "schema_version": "1.0",
             "technology": "sql_server",
             "dialect": "tsql",
-            "source_database": "DB1",
-            "extracted_schemas": ["silver"],
-            "extracted_at": "2025-01-01T00:00:00+00:00",
-            "source_host": "old-server",
-            "source_port": "1433",
+            "runtime": {
+                "source": {
+                    "technology": "sql_server",
+                    "dialect": "tsql",
+                    "connection": {
+                        "database": "DB1",
+                        "host": "old-server",
+                        "port": "1433",
+                    },
+                }
+            },
+            "extraction": {
+                "schemas": ["silver"],
+                "extracted_at": "2025-01-01T00:00:00+00:00",
+            },
         }
         (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
@@ -1981,11 +1990,21 @@ class TestConnectionIdentity:
             "schema_version": "1.0",
             "technology": "sql_server",
             "dialect": "tsql",
-            "source_database": "DB1",
-            "extracted_schemas": ["silver"],
-            "extracted_at": "2025-01-01T00:00:00+00:00",
-            "source_host": "server1",
-            "source_port": "1433",
+            "runtime": {
+                "source": {
+                    "technology": "sql_server",
+                    "dialect": "tsql",
+                    "connection": {
+                        "database": "DB1",
+                        "host": "server1",
+                        "port": "1433",
+                    },
+                }
+            },
+            "extraction": {
+                "schemas": ["silver"],
+                "extracted_at": "2025-01-01T00:00:00+00:00",
+            },
         }
         (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 

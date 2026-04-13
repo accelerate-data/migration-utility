@@ -209,7 +209,7 @@ After the "What to do next" section, show these notes if applicable:
 
   ```text
   pending source confirmation (N tables)
-    Run /add-source-tables <fqn> to confirm, or confirm during /init-dbt.
+    Run /add-source-tables <fqn> to confirm, or confirm during /setup-target.
     silver.AuditLog
     silver.TempStaging
   ```
@@ -253,7 +253,7 @@ If there are no diagnostics, omit this section entirely.
 
 ### Step 7 — Sources staleness check
 
-If `dbt/models/staging/sources.yml` exists and any table has `scope_needed` status, show: "sources.yml may be stale — N tables have incomplete scoping. Re-run `/init-dbt` after scoping is complete."
+If `dbt/models/staging/sources.yml` exists and any table has `scope_needed` status, show: "sources.yml may be stale — N tables have incomplete scoping. Re-run `/setup-target` after scoping is complete."
 
 ### Step 8 — Source tables note
 
@@ -266,15 +266,15 @@ N source tables hidden — see sources.yml
 If `source_pending` is non-empty AND `summary.source_tables == 0`, instead show:
 
 ```text
-No source tables confirmed yet. Run /add-source-tables or confirm during /init-dbt.
+No source tables confirmed yet. Run /add-source-tables or confirm during /setup-target.
 ```
 
-### Step 9 — init-dbt readiness hint
+### Step 9 — setup-target readiness hint
 
 If `dbt/dbt_project.yml` does **not** exist AND the batch-plan `scope_phase` is empty (all in-scope objects have completed scope), show:
 
 ```text
-ready to initialise dbt  — all tables are scoped. Run /init-dbt to scaffold your dbt project.
+ready to initialise dbt  — all tables are scoped. Run /setup-target to scaffold your dbt project.
 ```
 
 If there are still tables in the scope phase, omit this hint entirely. Do not show the hint if `dbt/dbt_project.yml` already exists.
