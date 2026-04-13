@@ -10,6 +10,7 @@ from tests.integration.runtime_helpers import (
     build_sql_server_connection_string,
     build_sql_server_sandbox_manifest,
     build_sql_server_source_role,
+    find_oracle_cli,
 )
 
 
@@ -61,3 +62,9 @@ def test_build_oracle_sandbox_manifest_uses_canonical_schema_defaults() -> None:
 
 def test_build_oracle_dsn_uses_default_service() -> None:
     assert build_oracle_dsn() == "localhost:1521/FREEPDB1"
+
+
+def test_find_oracle_cli_prefers_sqlcl_bin(monkeypatch) -> None:
+    monkeypatch.setenv("SQLCL_BIN", "/tmp/sql")
+
+    assert find_oracle_cli() == "/tmp/sql"

@@ -28,10 +28,21 @@ trap 'rm -f "${TMP_SQL}"' EXIT
 sed "s/__SCHEMA__/${ORACLE_SCHEMA}/g" "${FIXTURE_SQL}" > "${TMP_SQL}"
 
 echo "materialize-migration-test oracle service=${ORACLE_SERVICE} host=${ORACLE_HOST} port=${ORACLE_PORT} schema=${ORACLE_SCHEMA}"
-if command -v sqlplus >/dev/null 2>&1; then
+ORACLE_CLI="${SQLCL_BIN:-}"
+if [[ -z "${ORACLE_CLI}" ]] && command -v sql >/dev/null 2>&1; then
+  ORACLE_CLI="$(command -v sql)"
+fi
+if [[ -z "${ORACLE_CLI}" ]] && command -v sqlplus >/dev/null 2>&1; then
+  ORACLE_CLI="$(command -v sqlplus)"
+fi
+
+if [[ -n "${ORACLE_CLI}" ]]; then
+  CONNECT_DIRECTIVE="CONNECT ${ORACLE_USER}/\"${ORACLE_PWD}\"@${ORACLE_HOST}:${ORACLE_PORT}/${ORACLE_SERVICE}"
   if [[ "${ORACLE_USER,,}" == "sys" ]]; then
-    sqlplus -S /nolog <<SQL
-CONNECT ${CONNECT_STRING} AS SYSDBA
+    CONNECT_DIRECTIVE="${CONNECT_DIRECTIVE} AS SYSDBA"
+  fi
+  "${ORACLE_CLI}" -S /nolog <<SQL
+${CONNECT_DIRECTIVE}
 DECLARE
   v_count NUMBER;
 BEGIN
@@ -51,9 +62,6 @@ END;
 @${TMP_SQL}
 EXIT
 SQL
-  else
-    sqlplus -S "${CONNECT_STRING}" @"${TMP_SQL}"
-  fi
   exit 0
 fi
 
@@ -67,7 +75,7 @@ try:
     import oracledb
 except ImportError as exc:
     raise SystemExit(
-        "sqlplus is not installed and python package 'oracledb' is unavailable for Oracle materialization"
+        "no Oracle CLI (SQLCL/sql or sqlplus) is installed and python package 'oracledb' is unavailable for Oracle materialization"
     ) from exc
 
 sql_path = Path(sys.argv[1])

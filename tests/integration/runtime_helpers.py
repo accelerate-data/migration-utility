@@ -21,6 +21,17 @@ _SQL_SERVER_MIGRATION_TEST_READY = False
 SQL_SERVER_MIGRATION_DATABASE = "MigrationTest"
 
 
+def find_oracle_cli() -> str | None:
+    configured = os.environ.get("SQLCL_BIN")
+    if configured:
+        return configured
+    for candidate in ("sql", "sqlplus"):
+        resolved = shutil.which(candidate)
+        if resolved:
+            return resolved
+    return None
+
+
 def build_sql_server_connection_string(
     *,
     database: str = SQL_SERVER_MIGRATION_DATABASE,
@@ -204,10 +215,10 @@ def ensure_oracle_migration_test_materialized() -> None:
 
     if not os.environ.get("ORACLE_PWD"):
         pytest.skip("ORACLE_PWD not set")
-    if shutil.which("sqlplus") is None:
+    if find_oracle_cli() is None:
         pytest.importorskip(
             "oracledb",
-            reason="sqlplus not installed and oracledb not available for Oracle materialization",
+            reason="no Oracle CLI (SQLCL/sql or sqlplus) is installed and python package 'oracledb' is unavailable for Oracle materialization",
         )
 
     role = build_oracle_admin_role()
