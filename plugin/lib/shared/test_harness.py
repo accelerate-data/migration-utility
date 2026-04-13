@@ -162,7 +162,7 @@ def execute_spec(
         "event=cli_complete command=execute_spec sandbox_db=%s total=%d ok=%d failed=%d",
         sandbox_db, output.total, output.ok, output.failed,
     )
-    if output.ok == 0:
+    if output.failed > 0:
         raise typer.Exit(code=1)
 
 

@@ -74,11 +74,12 @@ def _project_root() -> Path:
 
 def _catalog(project_root: Path) -> DdlCatalog:
     resolved = project_root.resolve()
-    if resolved not in _catalog_cache:
+    dialect = _catalog_dialect_cache.get(resolved)
+    if dialect is None:
         manifest = read_manifest(project_root)
         dialect = manifest["dialect"]
-        _catalog_cache[resolved] = load_directory(project_root, dialect=dialect)
-        _catalog_dialect_cache[resolved] = dialect
+    _catalog_cache[resolved] = load_directory(project_root, dialect=dialect)
+    _catalog_dialect_cache[resolved] = dialect
     return _catalog_cache[resolved]
 
 

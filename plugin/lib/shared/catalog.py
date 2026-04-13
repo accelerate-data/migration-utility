@@ -154,7 +154,7 @@ def detect_catalog_bucket(project_root: Path, fqn: str) -> str | None:
     return None
 
 
-def detect_object_type(project_root: Path, fqn: str) -> str:
+def detect_object_type(project_root: Path, fqn: str) -> str | None:
     """Detect whether a normalized FQN refers to a table, view, or MV."""
     norm = normalize(fqn)
     bucket = detect_catalog_bucket(project_root, norm)
@@ -168,7 +168,7 @@ def detect_object_type(project_root: Path, fqn: str) -> str:
         except (json.JSONDecodeError, OSError, CatalogLoadError):
             pass
         return "view"
-    return "table"
+    return None
 
 
 def load_and_merge_catalog(

@@ -1714,7 +1714,7 @@ class TestCLIExecuteSpec:
                 "--project-root", str(tmp_path),
             ])
 
-        assert result.exit_code == 0  # partial success → exit 0
+        assert result.exit_code == 1
         output = json.loads(result.output)
         assert output["ok"] == 1
         assert output["failed"] == 1
@@ -2520,6 +2520,26 @@ class TestExecuteSelectOracle:
         assert result.row_count == 2
         assert len(result.ground_truth_rows) == 2
         conn.rollback.assert_called_once()
+
+
+class TestCompareTwoSqlOracle:
+    """Unit tests for OracleSandbox.compare_two_sql."""
+
+    def test_invalid_sql_returns_syntax_error(self) -> None:
+        backend = OracleSandbox(
+            host="localhost", port="1521", service="FREEPDB1",
+            password="pw", admin_user="sys", source_schema="SH",
+        )
+
+        result = backend.compare_two_sql(
+            sandbox_db="__test_abc123",
+            sql_a='SELECT ( FROM "SH"."CHANNELS"',
+            sql_b='SELECT "CHANNEL_ID" FROM "SH"."CHANNELS"',
+            fixtures=[],
+        )
+
+        assert result["status"] == "error"
+        assert result["errors"][0]["code"] == "SQL_SYNTAX_ERROR"
 
 
 # ── execute_spec view routing ──────────────────────────────────────────────

@@ -253,6 +253,34 @@ def test_get_table_schema_uses_cached_catalog_dialect(
     assert any(col["type"] == "VARCHAR2(20)" for col in payload["columns"])
 
 
+def test_call_tool_reloads_catalog_after_ddl_changes(
+    ddl_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Subsequent tool calls should see on-disk DDL changes without restart."""
+    ddl_server._catalog_cache.clear()
+    ddl_server._catalog_dialect_cache.clear()
+    monkeypatch.setattr(ddl_server, "_project_root", lambda: ddl_dir)
+
+    first = asyncio.run(ddl_server.call_tool("list_tables", {}))
+    assert first[0].text == "silver.dimproduct"
+
+    ddl_path = ddl_dir / "ddl" / "tables.sql"
+    ddl_path.write_text(
+        TABLES_SQL
+        + """
+CREATE TABLE silver.DimCategory (
+    CategoryKey INT NOT NULL,
+    Name NVARCHAR(100) NOT NULL
+)
+GO
+""",
+        encoding="utf-8",
+    )
+
+    second = asyncio.run(ddl_server.call_tool("list_tables", {}))
+    assert second[0].text == "silver.dimcategory\nsilver.dimproduct"
+
+
 def test_get_table_schema_column_count(ddl_dir: Path) -> None:
     """Column list has the expected number of entries."""
     catalog = load_directory(ddl_dir)

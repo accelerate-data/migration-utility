@@ -19,6 +19,10 @@ from shared.output_models.sandbox import (
 from shared.runtime_config import get_runtime_role
 from shared.sandbox.base import (
     SandboxBackend,
+    build_compare_error,
+    build_compare_result,
+    build_execute_error,
+    build_execute_output,
     serialize_rows,
     validate_fixture_rows,
     validate_readonly_sql as _validate_readonly_sql_base,
@@ -83,45 +87,6 @@ def _capture_rows(cursor: Any) -> list[dict[str, Any]]:
         return []
     columns = [col[0] for col in description]
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
-
-
-def _diff_rows(a_rows: list[dict[str, Any]], b_rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    def _key(row: dict[str, Any]) -> tuple[tuple[str, str], ...]:
-        return tuple(sorted((key, repr(value)) for key, value in row.items()))
-
-    b_counts: dict[tuple[tuple[str, str], ...], int] = {}
-    b_lookup: dict[tuple[tuple[str, str], ...], dict[str, Any]] = {}
-    for row in b_rows:
-        row_key = _key(row)
-        b_counts[row_key] = b_counts.get(row_key, 0) + 1
-        b_lookup[row_key] = row
-
-    a_minus_b: list[dict[str, Any]] = []
-    for row in a_rows:
-        row_key = _key(row)
-        count = b_counts.get(row_key, 0)
-        if count:
-            b_counts[row_key] = count - 1
-        else:
-            a_minus_b.append(row)
-
-    a_counts: dict[tuple[tuple[str, str], ...], int] = {}
-    a_lookup: dict[tuple[tuple[str, str], ...], dict[str, Any]] = {}
-    for row in a_rows:
-        row_key = _key(row)
-        a_counts[row_key] = a_counts.get(row_key, 0) + 1
-        a_lookup[row_key] = row
-
-    b_minus_a: list[dict[str, Any]] = []
-    for row in b_rows:
-        row_key = _key(row)
-        count = a_counts.get(row_key, 0)
-        if count:
-            a_counts[row_key] = count - 1
-        else:
-            b_minus_a.append(row)
-
-    return a_minus_b, b_minus_a
 
 
 class DuckDbSandbox(SandboxBackend):
@@ -266,21 +231,9 @@ class DuckDbSandbox(SandboxBackend):
                 finally:
                     conn.execute("ROLLBACK")
         except Exception as exc:  # duckdb raises multiple subclasses
-            return TestHarnessExecuteOutput(
-                scenario_name="execute_select",
-                status="error",
-                ground_truth_rows=[],
-                row_count=0,
-                errors=[ErrorEntry(code="SCENARIO_FAILED", message=str(exc))],
-            )
+            return build_execute_error("execute_select", "SCENARIO_FAILED", str(exc))
 
-        return TestHarnessExecuteOutput(
-            scenario_name="execute_select",
-            status="ok",
-            ground_truth_rows=rows,
-            row_count=len(rows),
-            errors=[],
-        )
+        return build_execute_output("execute_select", rows)
 
     def compare_two_sql(
         self,
@@ -302,23 +255,6 @@ class DuckDbSandbox(SandboxBackend):
                 finally:
                     conn.execute("ROLLBACK")
         except Exception as exc:
-            return {
-                "status": "error",
-                "equivalent": False,
-                "a_count": 0,
-                "b_count": 0,
-                "a_minus_b": [],
-                "b_minus_a": [],
-                "errors": [{"code": "COMPARE_FAILED", "message": str(exc)}],
-            }
+            return build_compare_error("COMPARE_FAILED", str(exc))
 
-        a_minus_b, b_minus_a = _diff_rows(rows_a, rows_b)
-        return {
-            "status": "ok",
-            "equivalent": not a_minus_b and not b_minus_a,
-            "a_count": len(rows_a),
-            "b_count": len(rows_b),
-            "a_minus_b": a_minus_b,
-            "b_minus_a": b_minus_a,
-            "errors": [],
-        }
+        return build_compare_result(rows_a, rows_b)

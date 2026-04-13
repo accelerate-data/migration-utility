@@ -17,6 +17,8 @@ if TYPE_CHECKING:
         TestHarnessExecuteOutput,
     )
 
+from shared.output_models.sandbox import ErrorEntry, TestHarnessExecuteOutput
+
 
 def serialize_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Ensure all values in a result set are JSON-serializable.
@@ -112,6 +114,67 @@ def capture_rows(cursor: Any) -> list[dict[str, Any]]:
     from shared.db_connect import cursor_to_dicts
 
     return cursor_to_dicts(cursor)
+
+
+def build_execute_output(
+    scenario_name: str,
+    rows: list[dict[str, Any]],
+) -> TestHarnessExecuteOutput:
+    """Build the standard execute-select/scenario success payload."""
+    return TestHarnessExecuteOutput(
+        scenario_name=scenario_name,
+        status="ok",
+        ground_truth_rows=serialize_rows(rows),
+        row_count=len(rows),
+        errors=[],
+    )
+
+
+def build_execute_error(
+    scenario_name: str,
+    code: str,
+    message: str,
+) -> TestHarnessExecuteOutput:
+    """Build the standard execute-select/scenario error payload."""
+    return TestHarnessExecuteOutput(
+        scenario_name=scenario_name,
+        status="error",
+        ground_truth_rows=[],
+        row_count=0,
+        errors=[ErrorEntry(code=code, message=message)],
+    )
+
+
+def build_compare_result(
+    rows_a: list[dict[str, Any]],
+    rows_b: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Build the standard compare-two-sql success payload."""
+    from shared.refactor_support.diffing import symmetric_diff
+
+    diff = symmetric_diff(serialize_rows(rows_a), serialize_rows(rows_b))
+    return {
+        "status": "ok",
+        "equivalent": diff["equivalent"],
+        "a_count": diff["a_count"],
+        "b_count": diff["b_count"],
+        "a_minus_b": diff["a_minus_b"],
+        "b_minus_a": diff["b_minus_a"],
+        "errors": [],
+    }
+
+
+def build_compare_error(code: str, message: str) -> dict[str, Any]:
+    """Build the standard compare-two-sql error payload."""
+    return {
+        "status": "error",
+        "equivalent": False,
+        "a_count": 0,
+        "b_count": 0,
+        "a_minus_b": [],
+        "b_minus_a": [],
+        "errors": [{"code": code, "message": message}],
+    }
 
 
 class SandboxBackend(ABC):

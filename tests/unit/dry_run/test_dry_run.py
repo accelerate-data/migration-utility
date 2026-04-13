@@ -149,7 +149,9 @@ def test_ready_scope_no_catalog_file() -> None:
         assert result.project.ready is True
         assert result.object is not None
         assert result.object.ready is False
-        assert result.object.reason == "catalog_missing"
+        assert result.object.reason == "object_not_found"
+        assert result.object.object_type is None
+        assert result.object.code == "OBJECT_NOT_FOUND"
 
 
 def test_ready_setup_ddl_passes_with_manifest() -> None:
@@ -556,6 +558,16 @@ def test_status_mv_object() -> None:
     with tmp:
         result = dry_run.run_status(root, "silver.mv_FactSales")
         assert result.type == "mv"
+
+
+def test_status_single_missing_object_reports_not_found() -> None:
+    """Single-object status should not fabricate a table for missing objects."""
+    tmp, root = _make_project()
+    with tmp:
+        result = dry_run.run_status(root, "silver.Missing")
+        assert result.fqn == "silver.missing"
+        assert result.type is None
+        assert result.stages is None
 
 
 # ── CLI: ready subcommand ────────────────────────────────────────────────────
@@ -1195,6 +1207,24 @@ def test_run_reset_migration_not_found_returns_without_mutation(tmp_path: Path) 
     assert result.not_found == ["silver.missing"]
     assert result.targets[0].status == "not_found"
     assert (dst / "test-specs" / "silver.dimcustomer.json").exists()
+
+
+def test_run_reset_migration_mixed_valid_and_missing_resets_valid_targets(tmp_path: Path) -> None:
+    dst = _make_reset_project(tmp_path)
+
+    result = dry_run.run_reset_migration(
+        dst,
+        "profile",
+        ["silver.DimCustomer", "silver.Missing"],
+    )
+
+    assert result.not_found == ["silver.missing"]
+    assert result.reset == ["silver.dimcustomer"]
+    assert {target.fqn: target.status for target in result.targets} == {
+        "silver.missing": "not_found",
+        "silver.dimcustomer": "reset",
+    }
+    assert not (dst / "test-specs" / "silver.dimcustomer.json").exists()
 
 
 def test_reset_migration_cli_subcommand(tmp_path: Path) -> None:

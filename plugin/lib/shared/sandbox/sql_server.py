@@ -21,6 +21,10 @@ from shared.output_models.sandbox import (
 )
 from shared.sandbox.base import (
     SandboxBackend,
+    build_compare_error,
+    build_compare_result,
+    build_execute_error,
+    build_execute_output,
     capture_rows as _capture_rows_base,
     generate_sandbox_name,
     serialize_rows,
@@ -995,26 +999,14 @@ class SqlServerSandbox(SandboxBackend):
                 "event=scenario_complete sandbox_db=%s scenario=%s rows=%d",
                 sandbox_db, scenario_name, len(result_rows),
             )
-            return TestHarnessExecuteOutput(
-                scenario_name=scenario_name,
-                status="ok",
-                ground_truth_rows=serialize_rows(result_rows),
-                row_count=len(result_rows),
-                errors=[],
-            )
+            return build_execute_output(scenario_name, result_rows)
 
         except _import_pyodbc().Error as exc:
             logger.error(
                 "event=scenario_failed sandbox_db=%s scenario=%s error=%s",
                 sandbox_db, scenario_name, exc,
             )
-            return TestHarnessExecuteOutput(
-                scenario_name=scenario_name,
-                status="error",
-                ground_truth_rows=[],
-                row_count=0,
-                errors=[ErrorEntry(code="SCENARIO_FAILED", message=str(exc))],
-            )
+            return build_execute_error(scenario_name, "SCENARIO_FAILED", str(exc))
 
     def execute_select(
         self,
@@ -1036,13 +1028,7 @@ class SqlServerSandbox(SandboxBackend):
                 "event=view_materialize_failed sandbox_db=%s error=%s",
                 sandbox_db, exc,
             )
-            return TestHarnessExecuteOutput(
-                scenario_name=scenario_name,
-                status="error",
-                ground_truth_rows=[],
-                row_count=0,
-                errors=[ErrorEntry(code="VIEW_MATERIALIZE_FAILED", message=str(exc))],
-            )
+            return build_execute_error(scenario_name, "VIEW_MATERIALIZE_FAILED", str(exc))
 
         result_rows: list[dict[str, Any]] = []
         try:
@@ -1060,25 +1046,13 @@ class SqlServerSandbox(SandboxBackend):
                 "event=execute_select_complete sandbox_db=%s rows=%d",
                 sandbox_db, len(result_rows),
             )
-            return TestHarnessExecuteOutput(
-                scenario_name=scenario_name,
-                status="ok",
-                ground_truth_rows=serialize_rows(result_rows),
-                row_count=len(result_rows),
-                errors=[],
-            )
+            return build_execute_output(scenario_name, result_rows)
         except _import_pyodbc().Error as exc:
             logger.error(
                 "event=execute_select_failed sandbox_db=%s error=%s",
                 sandbox_db, exc,
             )
-            return TestHarnessExecuteOutput(
-                scenario_name=scenario_name,
-                status="error",
-                ground_truth_rows=[],
-                row_count=0,
-                errors=[ErrorEntry(code="EXECUTE_SELECT_FAILED", message=str(exc))],
-            )
+            return build_execute_error(scenario_name, "EXECUTE_SELECT_FAILED", str(exc))
 
     def compare_two_sql(
         self,
@@ -1104,15 +1078,7 @@ class SqlServerSandbox(SandboxBackend):
                 "event=view_materialize_failed sandbox_db=%s error=%s",
                 sandbox_db, exc,
             )
-            return {
-                "status": "error",
-                "equivalent": False,
-                "a_count": 0,
-                "b_count": 0,
-                "a_minus_b": [],
-                "b_minus_a": [],
-                "errors": [{"code": "VIEW_MATERIALIZE_FAILED", "message": str(exc)}],
-            }
+            return build_compare_error("VIEW_MATERIALIZE_FAILED", str(exc))
 
         try:
             with self._connect(database=sandbox_db) as conn:
@@ -1133,60 +1099,35 @@ class SqlServerSandbox(SandboxBackend):
                                 "event=sql_syntax_error sandbox_db=%s label=%s error=%s",
                                 sandbox_db, label, parse_exc,
                             )
-                            return {
-                                "status": "error",
-                                "equivalent": False,
-                                "a_count": 0,
-                                "b_count": 0,
-                                "a_minus_b": [],
-                                "b_minus_a": [],
-                                "errors": [{
-                                    "code": "SQL_SYNTAX_ERROR",
-                                    "message": f"SQL {label} has syntax errors: {parse_exc}",
-                                }],
-                            }
+                            return build_compare_error(
+                                "SQL_SYNTAX_ERROR",
+                                f"SQL {label} has syntax errors: {parse_exc}",
+                            )
 
                     self._seed_fixtures(cursor, sandbox_db, fixtures)
 
                     cursor.execute(sql_a)
-                    rows_a = serialize_rows(self._capture_rows(cursor))
+                    rows_a = self._capture_rows(cursor)
 
                     cursor.execute(sql_b)
-                    rows_b = serialize_rows(self._capture_rows(cursor))
+                    rows_b = self._capture_rows(cursor)
                 finally:
                     conn.rollback()
 
-            from shared.refactor import symmetric_diff
-
-            diff = symmetric_diff(rows_a, rows_b)
-
+            result = build_compare_result(rows_a, rows_b)
             logger.info(
                 "event=compare_two_sql_complete sandbox_db=%s equivalent=%s "
                 "a_count=%d b_count=%d",
-                sandbox_db, diff["equivalent"],
-                diff["a_count"], diff["b_count"],
+                sandbox_db,
+                result["equivalent"],
+                result["a_count"],
+                result["b_count"],
             )
-            return {
-                "status": "ok",
-                "equivalent": diff["equivalent"],
-                "a_count": diff["a_count"],
-                "b_count": diff["b_count"],
-                "a_minus_b": diff["a_minus_b"],
-                "b_minus_a": diff["b_minus_a"],
-                "errors": [],
-            }
+            return result
 
         except _import_pyodbc().Error as exc:
             logger.error(
                 "event=compare_two_sql_failed sandbox_db=%s error=%s",
                 sandbox_db, exc,
             )
-            return {
-                "status": "error",
-                "equivalent": False,
-                "a_count": 0,
-                "b_count": 0,
-                "a_minus_b": [],
-                "b_minus_a": [],
-                "errors": [{"code": "COMPARE_SQL_FAILED", "message": str(exc)}],
-            }
+            return build_compare_error("COMPARE_SQL_FAILED", str(exc))

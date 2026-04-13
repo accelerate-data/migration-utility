@@ -138,6 +138,20 @@ def run_ready(project_root: Path, stage: str, object_fqn: str | None = None) -> 
 
     norm = normalize(object_fqn)
     obj_type = detect_object_type(project_root, norm)
+    if obj_type is None:
+        object_detail = _object_detail(
+            norm,
+            None,
+            False,
+            "object_not_found",
+            "OBJECT_NOT_FOUND",
+        )
+        return DryRunOutput(
+            stage=stage,
+            ready=False,
+            project=project,
+            object=object_detail,
+        )
 
     if obj_type == "table":
         try:
@@ -257,9 +271,15 @@ def run_ready(project_root: Path, stage: str, object_fqn: str | None = None) -> 
     return object_out(False, "invalid_stage")
 
 
-def _single_object_status(project_root: Path, norm_fqn: str) -> ObjectStatus:
+def _single_object_status(project_root: Path, norm_fqn: str) -> ObjectStatus | StatusOutput:
     """Collate all stage statuses for a single object."""
     obj_type = detect_object_type(project_root, norm_fqn)
+    if obj_type is None:
+        return StatusOutput(
+            fqn=norm_fqn,
+            type=None,
+            stages=None,
+        )
     scope = profile = test_gen = refactor = generate = None
 
     if obj_type in ("view", "mv"):
@@ -495,7 +515,7 @@ def run_reset_migration(project_root: Path, stage: str, fqns: list[str]) -> Rese
 
         resolved_tables.append((norm, table_data))
 
-    if blocked or not_found:
+    if blocked:
         return ResetMigrationOutput(
             stage=stage,
             targets=targets,
@@ -534,7 +554,7 @@ def run_reset_migration(project_root: Path, stage: str, fqns: list[str]) -> Rese
         reset=reset,
         noop=noop,
         blocked=[],
-        not_found=[],
+        not_found=not_found,
     )
 
 
