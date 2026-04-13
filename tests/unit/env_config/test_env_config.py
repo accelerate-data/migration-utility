@@ -16,7 +16,7 @@ from shared.env_config import (
 )
 
 # Path to the worktree — guaranteed to be inside a git repo.
-_WORKTREE_ROOT = Path(__file__).resolve().parents[2]
+_WORKTREE_ROOT = Path(__file__).resolve().parents[3]
 
 
 class TestAssertGitRepo:

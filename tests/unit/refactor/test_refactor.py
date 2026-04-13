@@ -26,7 +26,7 @@ from shared.output_models.sandbox import CompareSqlOutput, CompareSqlScenario
 _cli_runner = CliRunner()
 
 _TESTS_DIR = Path(__file__).parent
-_REFACTOR_FIXTURES = _TESTS_DIR / "fixtures" / "refactor"
+_REFACTOR_FIXTURES = _TESTS_DIR / "fixtures"
 
 
 def _make_writable_copy() -> tuple[tempfile.TemporaryDirectory, Path]:

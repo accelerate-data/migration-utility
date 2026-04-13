@@ -22,7 +22,7 @@ from shared.loader import (
 )
 from shared.loader_parse import classify_statement
 
-FIXTURES = Path(__file__).parent / "fixtures" / "discover" / "flat"
+FIXTURES = Path(__file__).parent / "fixtures" / "flat"
 
 
 def _make_proc(body: str) -> str:

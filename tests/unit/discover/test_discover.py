@@ -17,9 +17,9 @@ from shared import discover
 from shared.loader import CatalogFileMissingError, CatalogLoadError, CatalogNotFoundError, DdlParseError, ObjectNotFoundError
 
 _TESTS_DIR = Path(__file__).parent
-_FLAT_FIXTURES = _TESTS_DIR / "fixtures" / "discover" / "flat"
-_UNPARSEABLE_FIXTURES = _TESTS_DIR / "fixtures" / "discover" / "unparseable"
-_LISTING_OBJECTS_EVAL_FIXTURES = Path(__file__).resolve().parents[2] / "tests" / "evals" / "fixtures" / "analyzing-table" / "merge"
+_FLAT_FIXTURES = _TESTS_DIR / "fixtures" / "flat"
+_UNPARSEABLE_FIXTURES = _TESTS_DIR / "fixtures" / "unparseable"
+_LISTING_OBJECTS_EVAL_FIXTURES = Path(__file__).resolve().parents[3] / "tests" / "evals" / "fixtures" / "analyzing-table" / "merge"
 
 
 # ── test_list_flat_tables ──────────────────────────────────────────────────
@@ -239,7 +239,7 @@ def test_show_errors_without_catalog() -> None:
 # ── Catalog-first refs tests ────────────────────────────────────────────
 
 
-_CATALOG_FIXTURES = _TESTS_DIR / "fixtures" / "catalog"
+_CATALOG_FIXTURES = _TESTS_DIR.parent / "fixtures" / "catalog"
 
 
 def test_refs_catalog_finds_writers() -> None:
@@ -793,7 +793,7 @@ def test_write_scoping_cli_auto_detects_view_catalog() -> None:
     from typer.testing import CliRunner
 
     # Repo root is 4 levels up from this test file: tests/unit/test_discover.py
-    repo_root = Path(__file__).parent.parent.parent
+    repo_root = Path(__file__).resolve().parents[3]
     views_dir = repo_root / "catalog" / "views"
     cat_file = views_dir / "silver.vw_cli_test.json"
     scoping_file = repo_root / ".staging-test-scoping.json"
@@ -834,7 +834,7 @@ def test_write_scoping_cli_reports_schema_validation_errors(caplog: pytest.LogCa
     import json as _json
     from typer.testing import CliRunner
 
-    repo_root = Path(__file__).parent.parent.parent
+    repo_root = Path(__file__).resolve().parents[3]
     tables_dir = repo_root / "catalog" / "tables"
     procs_dir = repo_root / "catalog" / "procedures"
     cat_file = tables_dir / "dbo.t.json"

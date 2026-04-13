@@ -15,7 +15,7 @@ import pytest
 from shared.catalog_enrich import enrich_catalog
 from shared import catalog_enrich
 
-SHARED_DIR = Path(__file__).parent.parent.parent / "plugin" / "lib"
+SHARED_DIR = Path(__file__).resolve().parents[3] / "plugin" / "lib"
 
 
 def _run_enrich_cli(project_root: Path, extra_args: list[str] = (), timeout: int = 30) -> subprocess.CompletedProcess:

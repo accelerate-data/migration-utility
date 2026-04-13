@@ -23,7 +23,7 @@ from shared.output_models.dry_run import DryRunOutput
 _cli_runner = CliRunner()
 
 _TESTS_DIR = Path(__file__).parent
-_FIXTURES = _TESTS_DIR / "fixtures" / "dry_run"
+_FIXTURES = _TESTS_DIR / "fixtures"
 
 
 def _make_project(

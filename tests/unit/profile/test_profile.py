@@ -25,7 +25,7 @@ from shared.output_models.profile import ProfileContext, ViewProfileContext
 _cli_runner = CliRunner()
 
 _TESTS_DIR = Path(__file__).parent
-_PROFILE_FIXTURES = _TESTS_DIR / "fixtures" / "profile"
+_PROFILE_FIXTURES = _TESTS_DIR / "fixtures"
 
 
 def _make_writable_copy() -> tuple[tempfile.TemporaryDirectory, Path]:

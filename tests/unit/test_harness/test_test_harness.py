@@ -45,7 +45,7 @@ from shared.sandbox.sql_server import (
     _validate_sandbox_db_name,
 )
 
-FIXTURES = Path(__file__).parent / "fixtures" / "test_harness"
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 # ── Backend registry ─────────────────────────────────────────────────────────

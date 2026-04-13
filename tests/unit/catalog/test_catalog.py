@@ -31,7 +31,7 @@ from shared.dmf_processing import (
 )
 from shared.catalog_dmf import write_catalog_files
 
-FIXTURES = Path(__file__).parent / "fixtures" / "catalog"
+FIXTURES = Path(__file__).parent.parent / "fixtures" / "catalog"
 
 
 # ── Loading fixtures ────────────────────────────────────────────────────────

@@ -26,7 +26,7 @@ from shared.migrate import (
     run_write_generate,
 )
 
-FIXTURES = Path(__file__).parent / "fixtures" / "migrate"
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 @pytest.fixture()

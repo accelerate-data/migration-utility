@@ -33,7 +33,7 @@ from shared.pipeline_status import (
 )
 
 _TESTS_DIR = Path(__file__).parent
-_FIXTURES = _TESTS_DIR / "fixtures" / "batch_plan"
+_FIXTURES = _TESTS_DIR / "fixtures"
 
 
 # ── Project helpers ───────────────────────────────────────────────────────────
