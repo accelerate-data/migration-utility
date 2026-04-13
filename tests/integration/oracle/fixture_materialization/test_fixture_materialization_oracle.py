@@ -12,15 +12,7 @@ oracledb = pytest.importorskip(
 )
 
 from shared.fixture_materialization import materialize_migration_test
-from tests.helpers import (
-    MIGRATION_FIXTURE_BRONZE_CURRENCY,
-    MIGRATION_FIXTURE_SCHEMA,
-    MIGRATION_FIXTURE_SILVER_CONFIG,
-    MIGRATION_FIXTURE_SILVER_DIMCURRENCY,
-    MIGRATION_FIXTURE_SILVER_LOAD_DIMCURRENCY_PROC,
-    MIGRATION_FIXTURE_SILVER_PATTERN_PROC,
-    REPO_ROOT,
-)
+from tests.helpers import REPO_ROOT
 from tests.integration.runtime_helpers import (
     ORACLE_MIGRATION_SCHEMA,
     build_oracle_admin_connect_kwargs,
@@ -29,6 +21,13 @@ from tests.integration.runtime_helpers import (
 )
 
 pytestmark = pytest.mark.oracle
+
+MIGRATION_FIXTURE_SCHEMA = "MIGRATIONTEST"
+MIGRATION_FIXTURE_BRONZE_CURRENCY = "BRONZE_CURRENCY"
+MIGRATION_FIXTURE_SILVER_CONFIG = "SILVER_CONFIG"
+MIGRATION_FIXTURE_SILVER_DIMCURRENCY = "SILVER_DIMCURRENCY"
+MIGRATION_FIXTURE_SILVER_LOAD_DIMCURRENCY_PROC = "SILVER_USP_LOAD_DIMCURRENCY"
+MIGRATION_FIXTURE_SILVER_PATTERN_PROC = "SILVER_USP_UNIONALL"
 
 
 def _have_oracle_env() -> bool:
