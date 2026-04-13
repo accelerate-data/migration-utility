@@ -9,6 +9,7 @@ Requires: MSSQL_HOST, SA_PASSWORD, MSSQL_DB env vars (or Docker 'sql-test' on lo
 """
 
 from __future__ import annotations
+import os
 from pathlib import Path
 from typing import Any
 
@@ -16,23 +17,93 @@ import pytest
 
 pyodbc = pytest.importorskip("pyodbc", reason="pyodbc not installed — skipping integration tests")
 
+from shared.fixture_materialization import materialize_migration_test
 from shared.sandbox.sql_server import SqlServerSandbox
+from shared.runtime_config_models import RuntimeConnection, RuntimeRole
+from tests.helpers import REPO_ROOT, SQL_SERVER_FIXTURE_DATABASE, SQL_SERVER_FIXTURE_SCHEMA
 from tests.integration.runtime_helpers import (
-    build_sql_server_sandbox_manifest,
-    ensure_sql_server_migration_test_materialized,
     sql_server_is_available,
 )
 
 pytestmark = pytest.mark.integration
+
+_SQL_SERVER_FIXTURE_READY = False
+
+BRONZE_CURRENCY = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[bronze_currency]"
+BRONZE_PRODUCT = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[bronze_product]"
+BRONZE_PROMOTION = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[bronze_promotion]"
+BRONZE_CUSTOMER = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[bronze_customer]"
+BRONZE_PERSON = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[bronze_person]"
+BRONZE_SALESORDERHEADER = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[bronze_salesorderheader]"
+BRONZE_SALESORDERDETAIL = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[bronze_salesorderdetail]"
+BRONZE_SALESTERRITORY = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[bronze_salesterritory]"
+SILVER_DIMCURRENCY = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[silver_dimcurrency]"
+SILVER_DIMPRODUCT = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[silver_dimproduct]"
+SILVER_CONFIG = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[silver_config]"
+SILVER_USP_LOAD_DIMPRODUCT = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[silver_usp_load_dimproduct]"
 
 
 def _have_mssql_env() -> bool:
     return sql_server_is_available(pyodbc)
 
 
+def _ensure_sql_server_fixture_materialized() -> None:
+    global _SQL_SERVER_FIXTURE_READY
+    if _SQL_SERVER_FIXTURE_READY:
+        return
+
+    role = RuntimeRole(
+        technology="sql_server",
+        dialect="tsql",
+        connection=RuntimeConnection(
+            host=os.environ.get("MSSQL_HOST", "localhost"),
+            port=os.environ.get("MSSQL_PORT", "1433"),
+            database=SQL_SERVER_FIXTURE_DATABASE,
+            schema=SQL_SERVER_FIXTURE_SCHEMA,
+            user=os.environ.get("MSSQL_USER", "sa"),
+            driver=os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
+            password_env="SA_PASSWORD",
+        ),
+    )
+    result = materialize_migration_test(role, REPO_ROOT)
+    if result.returncode != 0:
+        raise RuntimeError(
+            "SQL Server MigrationTest materialization failed:\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+    _SQL_SERVER_FIXTURE_READY = True
+
+
 def _make_backend() -> SqlServerSandbox:
-    ensure_sql_server_migration_test_materialized()
-    return SqlServerSandbox.from_env(build_sql_server_sandbox_manifest())
+    _ensure_sql_server_fixture_materialized()
+    return SqlServerSandbox.from_env({
+        "runtime": {
+            "source": {
+                "technology": "sql_server",
+                "dialect": "tsql",
+                "connection": {
+                    "host": os.environ.get("MSSQL_HOST", "localhost"),
+                    "port": os.environ.get("MSSQL_PORT", "1433"),
+                    "database": SQL_SERVER_FIXTURE_DATABASE,
+                    "user": os.environ.get("MSSQL_USER", "sa"),
+                    "driver": os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
+                    "password_env": "SA_PASSWORD",
+                },
+            },
+            "sandbox": {
+                "technology": "sql_server",
+                "dialect": "tsql",
+                "connection": {
+                    "host": os.environ.get("MSSQL_HOST", "localhost"),
+                    "port": os.environ.get("MSSQL_PORT", "1433"),
+                    "user": os.environ.get("MSSQL_USER", "sa"),
+                    "driver": os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
+                    "password_env": "SA_PASSWORD",
+                },
+            },
+        }
+    })
 
 
 skip_no_mssql = pytest.mark.skipif(
@@ -47,7 +118,7 @@ skip_no_mssql = pytest.mark.skipif(
 
 _CURRENCY_FIXTURES: list[dict[str, Any]] = [
     {
-        "table": "[bronze].[Currency]",
+        "table": BRONZE_CURRENCY,
         "rows": [
             {"CurrencyCode": "USD", "CurrencyName": "US Dollar"},
             {"CurrencyCode": "EUR", "CurrencyName": "Euro"},
@@ -59,7 +130,7 @@ _CURRENCY_FIXTURES: list[dict[str, Any]] = [
 
 _PRODUCT_FIXTURES: list[dict[str, Any]] = [
     {
-        "table": "[bronze].[Product]",
+        "table": BRONZE_PRODUCT,
         "rows": [
             {"ProductID": 1, "ProductName": "Widget A", "Color": "Red", "StandardCost": 10.00, "ListPrice": 20.00, "SellStartDate": "2024-01-01"},
             {"ProductID": 2, "ProductName": "Widget B", "Color": "Blue", "StandardCost": 15.00, "ListPrice": 30.00, "SellStartDate": "2024-01-01"},
@@ -70,7 +141,7 @@ _PRODUCT_FIXTURES: list[dict[str, Any]] = [
 
 _PROMOTION_FIXTURES: list[dict[str, Any]] = [
     {
-        "table": "[bronze].[Promotion]",
+        "table": BRONZE_PROMOTION,
         "rows": [
             {"PromotionID": 1, "Description": "Summer Sale", "DiscountPct": 0.10, "PromotionType": "Discount", "PromotionCategory": "Seasonal", "StartDate": "2024-06-01"},
             {"PromotionID": 2, "Description": "No Discount", "DiscountPct": 0.0, "PromotionType": "None", "PromotionCategory": "None", "StartDate": "2024-01-01"},
@@ -80,21 +151,21 @@ _PROMOTION_FIXTURES: list[dict[str, Any]] = [
 
 _CUSTOMER_PERSON_FIXTURES: list[dict[str, Any]] = [
     {
-        "table": "[bronze].[Customer]",
+        "table": BRONZE_CUSTOMER,
         "rows": [
             {"CustomerID": 1, "PersonID": 10, "TerritoryID": 1},
             {"CustomerID": 2, "PersonID": 20, "TerritoryID": 2},
         ],
     },
     {
-        "table": "[bronze].[Person]",
+        "table": BRONZE_PERSON,
         "rows": [
             {"BusinessEntityID": 10, "FirstName": "Alice", "LastName": "Smith", "EmailPromotion": 1},
             {"BusinessEntityID": 20, "FirstName": "Bob", "LastName": "Jones", "EmailPromotion": 0},
         ],
     },
     {
-        "table": "[bronze].[SalesOrderHeader]",
+        "table": BRONZE_SALESORDERHEADER,
         "rows": [
             {"SalesOrderID": 100, "SalesOrderNumber": "SO100", "CustomerID": 1, "OrderDate": "2024-03-15"},
         ],
@@ -103,7 +174,7 @@ _CUSTOMER_PERSON_FIXTURES: list[dict[str, Any]] = [
 
 _DIM_PRODUCT_FIXTURES: list[dict[str, Any]] = [
     {
-        "table": "[silver].[DimProduct]",
+        "table": SILVER_DIMPRODUCT,
         "rows": [
             {"ProductKey": 1, "ProductAlternateKey": "1", "EnglishProductName": "Widget A", "StandardCost": 10.00, "ListPrice": 20.00, "Color": "Red"},
             {"ProductKey": 2, "ProductAlternateKey": "2", "EnglishProductName": "Widget B", "StandardCost": 15.00, "ListPrice": 30.00, "Color": "Blue"},
@@ -114,13 +185,13 @@ _DIM_PRODUCT_FIXTURES: list[dict[str, Any]] = [
 
 _SALES_ORDER_FIXTURES: list[dict[str, Any]] = [
     {
-        "table": "[bronze].[SalesOrderHeader]",
+        "table": BRONZE_SALESORDERHEADER,
         "rows": [
             {"SalesOrderID": 1, "SalesOrderNumber": "SO001", "CustomerID": 1, "TerritoryID": 1, "OrderDate": "2024-03-15", "TaxAmt": 40.00, "Freight": 10.00},
         ],
     },
     {
-        "table": "[bronze].[SalesOrderDetail]",
+        "table": BRONZE_SALESORDERDETAIL,
         "rows": [
             {"SalesOrderID": 1, "SalesOrderDetailID": 1, "OrderQty": 2, "ProductID": 1, "UnitPrice": 20.00, "LineTotal": 40.00},
             {"SalesOrderID": 1, "SalesOrderDetailID": 2, "OrderQty": 3, "ProductID": 2, "UnitPrice": 30.00, "LineTotal": 90.00},
@@ -130,7 +201,7 @@ _SALES_ORDER_FIXTURES: list[dict[str, Any]] = [
 
 _TERRITORY_FIXTURES: list[dict[str, Any]] = [
     {
-        "table": "[bronze].[SalesTerritory]",
+        "table": BRONZE_SALESTERRITORY,
         "rows": [
             {"TerritoryID": 1, "TerritoryName": "Northwest", "CountryRegionCode": "US", "TerritoryGroup": "North America", "SalesYTD": 1000000.00},
             {"TerritoryID": 2, "TerritoryName": "Northeast", "CountryRegionCode": "US", "TerritoryGroup": "North America", "SalesYTD": 2000000.00},
@@ -148,7 +219,7 @@ class TestCompareTwoSqlEquivalent:
         self, sql_a: str, sql_b: str, fixtures: list[dict[str, Any]],
     ) -> dict[str, Any]:
         backend = _make_backend()
-        up = backend.sandbox_up(schemas=["bronze", "silver"])
+        up = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
         try:
             return backend.compare_two_sql(
                 sandbox_db=up.sandbox_database,
@@ -161,15 +232,15 @@ class TestCompareTwoSqlEquivalent:
 
     def test_insert_select_extraction(self) -> None:
         """INSERT...SELECT: extracted SELECT == CTE refactored SELECT."""
-        # Mirrors silver.usp_load_DimPromotion which does INSERT...SELECT from bronze.Promotion
+        # Mirrors MigrationTest.silver_usp_load_dimpromotion.
         extracted = (
             "SELECT p.PromotionID, p.Description, p.DiscountPct, "
             "p.PromotionType, p.PromotionCategory, p.StartDate, p.EndDate, p.MinQty, p.MaxQty "
-            "FROM [bronze].[Promotion] p"
+            f"FROM {BRONZE_PROMOTION} p"
         )
         refactored = (
             "WITH source_promotion AS ("
-            "    SELECT * FROM [bronze].[Promotion]"
+            f"    SELECT * FROM {BRONZE_PROMOTION}"
             ") "
             "SELECT PromotionID, Description, DiscountPct, "
             "PromotionType, PromotionCategory, StartDate, EndDate, MinQty, MaxQty "
@@ -182,7 +253,7 @@ class TestCompareTwoSqlEquivalent:
 
     def test_merge_using_extraction(self) -> None:
         """MERGE: extracted USING clause == CTE refactored SELECT."""
-        # Mirrors silver.usp_load_DimProduct's USING clause
+        # Mirrors MigrationTest.silver_usp_load_dimproduct's USING clause.
         extracted = (
             "SELECT "
             "    CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, "
@@ -195,11 +266,11 @@ class TestCompareTwoSqlEquivalent:
             "    CASE WHEN DiscontinuedDate IS NOT NULL THEN 'Obsolete' "
             "         WHEN SellEndDate IS NOT NULL THEN 'Outdated' "
             "         ELSE 'Current' END AS Status "
-            "FROM bronze.Product"
+            f"FROM {BRONZE_PRODUCT}"
         )
         refactored = (
             "WITH source_product AS ("
-            "    SELECT * FROM [bronze].[Product]"
+            f"    SELECT * FROM {BRONZE_PRODUCT}"
             "), "
             "transformed_product AS ("
             "    SELECT "
@@ -224,25 +295,25 @@ class TestCompareTwoSqlEquivalent:
 
     def test_join_with_outer_apply(self) -> None:
         """Multi-join with OUTER APPLY: both sides produce same result."""
-        # Mirrors silver.usp_load_DimCustomer_Full
+        # Mirrors MigrationTest.silver_usp_load_dimcustomer_full.
         sql = (
             "SELECT "
             "    CAST(c.CustomerID AS NVARCHAR(15)) AS CustomerAlternateKey, "
             "    p.FirstName, p.MiddleName, p.LastName, p.Title, "
             "    NULL AS Gender, NULL AS MaritalStatus, p.EmailPromotion, "
             "    CAST(h.MinOrderDate AS DATE) AS DateFirstPurchase "
-            "FROM bronze.Customer c "
-            "JOIN bronze.Person p ON c.PersonID = p.BusinessEntityID "
+            f"FROM {BRONZE_CUSTOMER} c "
+            f"JOIN {BRONZE_PERSON} p ON c.PersonID = p.BusinessEntityID "
             "OUTER APPLY ("
             "    SELECT MIN(OrderDate) AS MinOrderDate "
-            "    FROM bronze.SalesOrderHeader sh "
+            f"    FROM {BRONZE_SALESORDERHEADER} sh "
             "    WHERE sh.CustomerID = c.CustomerID"
             ") h"
         )
         refactored = (
-            "WITH source_customer AS (SELECT * FROM [bronze].[Customer]), "
-            "source_person AS (SELECT * FROM [bronze].[Person]), "
-            "source_orders AS (SELECT * FROM [bronze].[SalesOrderHeader]), "
+            f"WITH source_customer AS (SELECT * FROM {BRONZE_CUSTOMER}), "
+            f"source_person AS (SELECT * FROM {BRONZE_PERSON}), "
+            f"source_orders AS (SELECT * FROM {BRONZE_SALESORDERHEADER}), "
             "customer_first_purchase AS ("
             "    SELECT CustomerID, MIN(OrderDate) AS MinOrderDate "
             "    FROM source_orders GROUP BY CustomerID"
@@ -269,21 +340,21 @@ class TestCompareTwoSqlEquivalent:
         extracted = (
             "SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, "
             "ProductName AS EnglishProductName, ISNULL(Color, '') AS Color "
-            "FROM bronze.Product WHERE ProductID <= 250 "
+            f"FROM {BRONZE_PRODUCT} WHERE ProductID <= 250 "
             "UNION ALL "
             "SELECT CAST(ProductID AS NVARCHAR(25)), ProductName, ISNULL(Color, '') "
-            "FROM bronze.Product WHERE ProductID > 250"
+            f"FROM {BRONZE_PRODUCT} WHERE ProductID > 250"
         )
         refactored = (
             "WITH low_ids AS ("
             "    SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, "
             "        ProductName AS EnglishProductName, ISNULL(Color, '') AS Color "
-            "    FROM bronze.Product WHERE ProductID <= 250"
+            f"    FROM {BRONZE_PRODUCT} WHERE ProductID <= 250"
             "), "
             "high_ids AS ("
             "    SELECT CAST(ProductID AS NVARCHAR(25)) AS ProductAlternateKey, "
             "        ProductName AS EnglishProductName, ISNULL(Color, '') AS Color "
-            "    FROM bronze.Product WHERE ProductID > 250"
+            f"    FROM {BRONZE_PRODUCT} WHERE ProductID > 250"
             "), "
             "final AS ("
             "    SELECT * FROM low_ids UNION ALL SELECT * FROM high_ids"
@@ -303,16 +374,16 @@ class TestCompareTwoSqlEquivalent:
             "    CASE WHEN l.ProductName IS NOT NULL THEN l.ProductName "
             "         ELSE d.EnglishProductName END AS EnglishProductName, "
             "    d.StandardCost, d.ListPrice, d.Color "
-            "FROM silver.DimProduct d "
-            "LEFT JOIN (SELECT CAST(ProductID AS NVARCHAR(25)) AS AltKey, ProductName FROM bronze.Product) l "
+            f"FROM {SILVER_DIMPRODUCT} d "
+            f"LEFT JOIN (SELECT CAST(ProductID AS NVARCHAR(25)) AS AltKey, ProductName FROM {BRONZE_PRODUCT}) l "
             "    ON d.ProductAlternateKey = l.AltKey"
         )
         refactored = (
             "WITH source_product AS ("
-            "    SELECT CAST(ProductID AS NVARCHAR(25)) AS AltKey, ProductName FROM [bronze].[Product]"
+            f"    SELECT CAST(ProductID AS NVARCHAR(25)) AS AltKey, ProductName FROM {BRONZE_PRODUCT}"
             "), "
             "existing_product AS ("
-            "    SELECT * FROM [silver].[DimProduct]"
+            f"    SELECT * FROM {SILVER_DIMPRODUCT}"
             "), "
             "final AS ("
             "    SELECT d.ProductAlternateKey, "
@@ -332,14 +403,14 @@ class TestCompareTwoSqlEquivalent:
         """DELETE WHERE: extracted as inverted SELECT matches CTE version."""
         # Mirrors dbo.usp_DeleteWithCTE — keep rows where EnglishProductName IS NOT NULL
         extracted = (
-            "SELECT * FROM silver.DimProduct "
+            f"SELECT * FROM {SILVER_DIMPRODUCT} "
             "WHERE ProductAlternateKey NOT IN ("
-            "    SELECT ProductAlternateKey FROM silver.DimProduct WHERE EnglishProductName IS NULL"
+            f"    SELECT ProductAlternateKey FROM {SILVER_DIMPRODUCT} WHERE EnglishProductName IS NULL"
             ")"
         )
         refactored = (
             "WITH all_products AS ("
-            "    SELECT * FROM [silver].[DimProduct]"
+            f"    SELECT * FROM {SILVER_DIMPRODUCT}"
             "), "
             "surviving AS ("
             "    SELECT * FROM all_products WHERE EnglishProductName IS NOT NULL"
@@ -356,16 +427,16 @@ class TestCompareTwoSqlEquivalent:
         extracted = (
             "SELECT CAST(c.CustomerID AS NVARCHAR(15)) AS CustomerAlternateKey, "
             "    p.FirstName, p.LastName "
-            "FROM bronze.Customer c "
-            "JOIN bronze.Person p ON c.PersonID = p.BusinessEntityID "
+            f"FROM {BRONZE_CUSTOMER} c "
+            f"JOIN {BRONZE_PERSON} p ON c.PersonID = p.BusinessEntityID "
             "WHERE EXISTS ("
-            "    SELECT 1 FROM bronze.SalesOrderHeader h WHERE h.CustomerID = c.CustomerID"
+            f"    SELECT 1 FROM {BRONZE_SALESORDERHEADER} h WHERE h.CustomerID = c.CustomerID"
             ")"
         )
         refactored = (
-            "WITH source_customer AS (SELECT * FROM [bronze].[Customer]), "
-            "source_person AS (SELECT * FROM [bronze].[Person]), "
-            "source_orders AS (SELECT * FROM [bronze].[SalesOrderHeader]), "
+            f"WITH source_customer AS (SELECT * FROM {BRONZE_CUSTOMER}), "
+            f"source_person AS (SELECT * FROM {BRONZE_PERSON}), "
+            f"source_orders AS (SELECT * FROM {BRONZE_SALESORDERHEADER}), "
             "customers_with_orders AS ("
             "    SELECT DISTINCT CustomerID FROM source_orders"
             "), "
@@ -388,14 +459,14 @@ class TestCompareTwoSqlEquivalent:
         # Mirrors dbo.usp_NotExistsSubquery
         extracted = (
             "SELECT cur.CurrencyCode, cur.CurrencyName "
-            "FROM bronze.Currency cur "
+            f"FROM {BRONZE_CURRENCY} cur "
             "WHERE NOT EXISTS ("
-            "    SELECT 1 FROM silver.DimCurrency d WHERE d.CurrencyAlternateKey = cur.CurrencyCode"
+            f"    SELECT 1 FROM {SILVER_DIMCURRENCY} d WHERE d.CurrencyAlternateKey = cur.CurrencyCode"
             ")"
         )
         refactored = (
-            "WITH source_currency AS (SELECT * FROM [bronze].[Currency]), "
-            "existing_currency AS (SELECT * FROM [silver].[DimCurrency]), "
+            f"WITH source_currency AS (SELECT * FROM {BRONZE_CURRENCY}), "
+            f"existing_currency AS (SELECT * FROM {SILVER_DIMCURRENCY}), "
             "new_currencies AS ("
             "    SELECT s.CurrencyCode, s.CurrencyName "
             "    FROM source_currency s "
@@ -417,13 +488,13 @@ class TestCompareTwoSqlEquivalent:
             "    d.ProductID AS ProductKey, "
             "    h.CustomerID AS CustomerKey, "
             "    CAST(h.TaxAmt / COUNT(*) OVER (PARTITION BY h.SalesOrderID) AS MONEY) AS TaxAmt "
-            "FROM bronze.SalesOrderHeader h "
-            "JOIN bronze.SalesOrderDetail d ON h.SalesOrderID = d.SalesOrderID "
+            f"FROM {BRONZE_SALESORDERHEADER} h "
+            f"JOIN {BRONZE_SALESORDERDETAIL} d ON h.SalesOrderID = d.SalesOrderID "
             "WHERE h.SalesOrderID <= 43662"
         )
         refactored = (
-            "WITH source_header AS (SELECT * FROM [bronze].[SalesOrderHeader] WHERE SalesOrderID <= 43662), "
-            "source_detail AS (SELECT * FROM [bronze].[SalesOrderDetail]), "
+            f"WITH source_header AS (SELECT * FROM {BRONZE_SALESORDERHEADER} WHERE SalesOrderID <= 43662), "
+            f"source_detail AS (SELECT * FROM {BRONZE_SALESORDERDETAIL}), "
             "joined AS ("
             "    SELECT h.SalesOrderNumber, "
             "        CAST(d.SalesOrderDetailID % 127 AS TINYINT) AS SalesOrderLineNumber, "
@@ -447,14 +518,14 @@ class TestCompareTwoSqlEquivalent:
             "FROM ("
             "    SELECT st.TerritoryGroup, st.TerritoryID, "
             "        CAST(st.SalesYTD AS MONEY) AS SalesAmt "
-            "    FROM bronze.SalesTerritory st"
+            f"    FROM {BRONZE_SALESTERRITORY} st"
             ") src "
             "PIVOT (SUM(SalesAmt) FOR TerritoryID IN ([1], [2], [3])) pvt"
         )
         refactored = (
             "WITH source_territory AS ("
             "    SELECT TerritoryGroup, TerritoryID, CAST(SalesYTD AS MONEY) AS SalesAmt "
-            "    FROM [bronze].[SalesTerritory]"
+            f"    FROM {BRONZE_SALESTERRITORY}"
             "), "
             "pivoted AS ("
             "    SELECT pvt.TerritoryGroup, CAST(pvt.[1] + pvt.[2] + pvt.[3] AS NVARCHAR(50)) AS TotalSales "
@@ -475,7 +546,7 @@ class TestCompareTwoSqlEquivalent:
             "    SELECT ProductID, "
             "        CAST(ISNULL(ProductName, '') AS NVARCHAR(50)) AS ProductName, "
             "        CAST(ISNULL(ProductNumber, '') AS NVARCHAR(50)) AS ProductNumber "
-            "    FROM bronze.Product WHERE ProductID <= 10"
+            f"    FROM {BRONZE_PRODUCT} WHERE ProductID <= 10"
             ") src "
             "UNPIVOT (AttrValue FOR AttrName IN (ProductName, ProductNumber)) unpvt"
         )
@@ -484,7 +555,7 @@ class TestCompareTwoSqlEquivalent:
             "    SELECT ProductID, "
             "        CAST(ISNULL(ProductName, '') AS NVARCHAR(50)) AS ProductName, "
             "        CAST(ISNULL(ProductNumber, '') AS NVARCHAR(50)) AS ProductNumber "
-            "    FROM [bronze].[Product] WHERE ProductID <= 10"
+            f"    FROM {BRONZE_PRODUCT} WHERE ProductID <= 10"
             "), "
             "unpivoted AS ("
             "    SELECT CAST(unpvt.ProductID AS NVARCHAR(100)) AS ProductIdStr, unpvt.AttrValue "
@@ -503,11 +574,11 @@ class TestCompareTwoSqlEquivalent:
         sql = (
             "SELECT COALESCE(Color, 'ALL_COLORS') AS ColorGroup, "
             "    CAST(COUNT(*) AS NVARCHAR(50)) AS Cnt "
-            "FROM bronze.Product "
+            f"FROM {BRONZE_PRODUCT} "
             "GROUP BY GROUPING SETS ((Color), ())"
         )
         refactored = (
-            "WITH source_product AS (SELECT * FROM [bronze].[Product]), "
+            f"WITH source_product AS (SELECT * FROM {BRONZE_PRODUCT}), "
             "grouped AS ("
             "    SELECT COALESCE(Color, 'ALL_COLORS') AS ColorGroup, "
             "        CAST(COUNT(*) AS NVARCHAR(50)) AS Cnt "
@@ -525,14 +596,14 @@ class TestCompareTwoSqlEquivalent:
         """Scalar subquery in SELECT: extracted vs CTE with LEFT JOIN."""
         extracted = (
             "SELECT CAST(c.CustomerID AS NVARCHAR(15)) AS CustomerAlternateKey, "
-            "    (SELECT TOP 1 p.FirstName FROM bronze.Person p WHERE p.BusinessEntityID = c.PersonID) AS FirstName, "
-            "    (SELECT TOP 1 p.LastName FROM bronze.Person p WHERE p.BusinessEntityID = c.PersonID) AS LastName "
-            "FROM bronze.Customer c "
+            f"    (SELECT TOP 1 p.FirstName FROM {BRONZE_PERSON} p WHERE p.BusinessEntityID = c.PersonID) AS FirstName, "
+            f"    (SELECT TOP 1 p.LastName FROM {BRONZE_PERSON} p WHERE p.BusinessEntityID = c.PersonID) AS LastName "
+            f"FROM {BRONZE_CUSTOMER} c "
             "WHERE c.PersonID IS NOT NULL"
         )
         refactored = (
-            "WITH source_customer AS (SELECT * FROM [bronze].[Customer] WHERE PersonID IS NOT NULL), "
-            "source_person AS (SELECT * FROM [bronze].[Person]), "
+            f"WITH source_customer AS (SELECT * FROM {BRONZE_CUSTOMER} WHERE PersonID IS NOT NULL), "
+            f"source_person AS (SELECT * FROM {BRONZE_PERSON}), "
             "final AS ("
             "    SELECT CAST(c.CustomerID AS NVARCHAR(15)) AS CustomerAlternateKey, "
             "        p.FirstName, p.LastName "
@@ -550,13 +621,13 @@ class TestCompareTwoSqlEquivalent:
         """CROSS JOIN: extracted vs CTE version."""
         sql = (
             "SELECT CAST(t.TerritoryID AS NVARCHAR(100)) AS TerritoryStr, cur.CurrencyName "
-            "FROM bronze.SalesTerritory t "
-            "CROSS JOIN bronze.Currency cur "
+            f"FROM {BRONZE_SALESTERRITORY} t "
+            f"CROSS JOIN {BRONZE_CURRENCY} cur "
             "WHERE t.TerritoryID <= 3 AND cur.CurrencyCode IN ('USD', 'EUR', 'GBP')"
         )
         refactored = (
-            "WITH source_territory AS (SELECT * FROM [bronze].[SalesTerritory] WHERE TerritoryID <= 3), "
-            "source_currency AS (SELECT * FROM [bronze].[Currency] WHERE CurrencyCode IN ('USD', 'EUR', 'GBP')), "
+            f"WITH source_territory AS (SELECT * FROM {BRONZE_SALESTERRITORY} WHERE TerritoryID <= 3), "
+            f"source_currency AS (SELECT * FROM {BRONZE_CURRENCY} WHERE CurrencyCode IN ('USD', 'EUR', 'GBP')), "
             "crossed AS ("
             "    SELECT CAST(t.TerritoryID AS NVARCHAR(100)) AS TerritoryStr, c.CurrencyName "
             "    FROM source_territory t CROSS JOIN source_currency c"
@@ -571,13 +642,13 @@ class TestCompareTwoSqlEquivalent:
     def test_intersect(self) -> None:
         """INTERSECT: extracted vs CTE version."""
         sql = (
-            "SELECT CurrencyCode, CurrencyName FROM bronze.Currency WHERE CurrencyCode <= 'M' "
+            f"SELECT CurrencyCode, CurrencyName FROM {BRONZE_CURRENCY} WHERE CurrencyCode <= 'M' "
             "INTERSECT "
-            "SELECT CurrencyCode, CurrencyName FROM bronze.Currency WHERE CurrencyCode >= 'E'"
+            f"SELECT CurrencyCode, CurrencyName FROM {BRONZE_CURRENCY} WHERE CurrencyCode >= 'E'"
         )
         refactored = (
-            "WITH set_a AS (SELECT CurrencyCode, CurrencyName FROM [bronze].[Currency] WHERE CurrencyCode <= 'M'), "
-            "set_b AS (SELECT CurrencyCode, CurrencyName FROM [bronze].[Currency] WHERE CurrencyCode >= 'E'), "
+            f"WITH set_a AS (SELECT CurrencyCode, CurrencyName FROM {BRONZE_CURRENCY} WHERE CurrencyCode <= 'M'), "
+            f"set_b AS (SELECT CurrencyCode, CurrencyName FROM {BRONZE_CURRENCY} WHERE CurrencyCode >= 'E'), "
             "intersected AS (SELECT * FROM set_a INTERSECT SELECT * FROM set_b) "
             "SELECT * FROM intersected"
         )
@@ -589,13 +660,13 @@ class TestCompareTwoSqlEquivalent:
     def test_except(self) -> None:
         """EXCEPT: extracted vs CTE version."""
         sql = (
-            "SELECT CurrencyCode, CurrencyName FROM bronze.Currency "
+            f"SELECT CurrencyCode, CurrencyName FROM {BRONZE_CURRENCY} "
             "EXCEPT "
-            "SELECT CurrencyAlternateKey, CurrencyName FROM silver.DimCurrency"
+            f"SELECT CurrencyAlternateKey, CurrencyName FROM {SILVER_DIMCURRENCY}"
         )
         refactored = (
-            "WITH all_bronze AS (SELECT CurrencyCode, CurrencyName FROM [bronze].[Currency]), "
-            "all_silver AS (SELECT CurrencyAlternateKey, CurrencyName FROM [silver].[DimCurrency]), "
+            f"WITH all_bronze AS (SELECT CurrencyCode, CurrencyName FROM {BRONZE_CURRENCY}), "
+            f"all_silver AS (SELECT CurrencyAlternateKey, CurrencyName FROM {SILVER_DIMCURRENCY}), "
             "new_only AS (SELECT * FROM all_bronze EXCEPT SELECT * FROM all_silver) "
             "SELECT * FROM new_only"
         )
@@ -605,8 +676,11 @@ class TestCompareTwoSqlEquivalent:
 
     def test_empty_result_both_sides(self) -> None:
         """Both SELECTs return 0 rows: should be equivalent."""
-        sql_a = "SELECT CurrencyCode, CurrencyName FROM bronze.Currency WHERE 1 = 0"
-        sql_b = "WITH empty AS (SELECT CurrencyCode, CurrencyName FROM bronze.Currency WHERE 1 = 0) SELECT * FROM empty"
+        sql_a = f"SELECT CurrencyCode, CurrencyName FROM {BRONZE_CURRENCY} WHERE 1 = 0"
+        sql_b = (
+            f"WITH empty AS (SELECT CurrencyCode, CurrencyName FROM {BRONZE_CURRENCY} WHERE 1 = 0) "
+            "SELECT * FROM empty"
+        )
         result = self._run(sql_a, sql_b, _CURRENCY_FIXTURES)
         assert result["status"] == "ok"
         assert result["equivalent"] is True
@@ -622,7 +696,7 @@ class TestCompareTwoSqlNotEquivalent:
         self, sql_a: str, sql_b: str, fixtures: list[dict[str, Any]],
     ) -> dict[str, Any]:
         backend = _make_backend()
-        up = backend.sandbox_up(schemas=["bronze", "silver"])
+        up = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
         try:
             return backend.compare_two_sql(
                 sandbox_db=up.sandbox_database,
@@ -635,16 +709,16 @@ class TestCompareTwoSqlNotEquivalent:
 
     def test_missing_column(self) -> None:
         """Refactored SQL drops a column: produces different rows."""
-        sql_a = "SELECT CurrencyCode, CurrencyName FROM bronze.Currency"
-        sql_b = "SELECT CurrencyCode FROM bronze.Currency"
+        sql_a = f"SELECT CurrencyCode, CurrencyName FROM {BRONZE_CURRENCY}"
+        sql_b = f"SELECT CurrencyCode FROM {BRONZE_CURRENCY}"
         result = self._run(sql_a, sql_b, _CURRENCY_FIXTURES)
         assert result["status"] == "ok"
         assert result["equivalent"] is False
 
     def test_wrong_filter(self) -> None:
         """Refactored SQL has a different WHERE clause: row count mismatch."""
-        sql_a = "SELECT CurrencyCode, CurrencyName FROM bronze.Currency"
-        sql_b = "SELECT CurrencyCode, CurrencyName FROM bronze.Currency WHERE CurrencyCode = 'USD'"
+        sql_a = f"SELECT CurrencyCode, CurrencyName FROM {BRONZE_CURRENCY}"
+        sql_b = f"SELECT CurrencyCode, CurrencyName FROM {BRONZE_CURRENCY} WHERE CurrencyCode = 'USD'"
         result = self._run(sql_a, sql_b, _CURRENCY_FIXTURES)
         assert result["status"] == "ok"
         assert result["equivalent"] is False
@@ -652,11 +726,11 @@ class TestCompareTwoSqlNotEquivalent:
 
     def test_extra_rows_in_b(self) -> None:
         """Refactored SQL produces extra rows via UNION."""
-        sql_a = "SELECT CurrencyCode, CurrencyName FROM bronze.Currency WHERE CurrencyCode = 'USD'"
+        sql_a = f"SELECT CurrencyCode, CurrencyName FROM {BRONZE_CURRENCY} WHERE CurrencyCode = 'USD'"
         sql_b = (
-            "SELECT CurrencyCode, CurrencyName FROM bronze.Currency WHERE CurrencyCode = 'USD' "
+            f"SELECT CurrencyCode, CurrencyName FROM {BRONZE_CURRENCY} WHERE CurrencyCode = 'USD' "
             "UNION ALL "
-            "SELECT CurrencyCode, CurrencyName FROM bronze.Currency WHERE CurrencyCode = 'EUR'"
+            f"SELECT CurrencyCode, CurrencyName FROM {BRONZE_CURRENCY} WHERE CurrencyCode = 'EUR'"
         )
         result = self._run(sql_a, sql_b, _CURRENCY_FIXTURES)
         assert result["status"] == "ok"
@@ -672,7 +746,7 @@ class TestCompareTwoSqlWithFixtures:
         self, sql_a: str, sql_b: str, fixtures: list[dict[str, Any]],
     ) -> dict[str, Any]:
         backend = _make_backend()
-        up = backend.sandbox_up(schemas=["bronze", "silver"])
+        up = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
         try:
             return backend.compare_two_sql(
                 sandbox_db=up.sandbox_database,
@@ -687,13 +761,13 @@ class TestCompareTwoSqlWithFixtures:
         """Fixtures include explicit identity column values — IDENTITY_INSERT toggled."""
         fixtures = [
             {
-                "table": "[silver].[DimProduct]",
+                "table": SILVER_DIMPRODUCT,
                 "rows": [
                     {"ProductKey": 99999, "EnglishProductName": "Test Product", "Color": "Red"},
                 ],
             },
         ]
-        sql = "SELECT ProductKey, EnglishProductName, Color FROM [silver].[DimProduct] WHERE ProductKey = 99999"
+        sql = f"SELECT ProductKey, EnglishProductName, Color FROM {SILVER_DIMPRODUCT} WHERE ProductKey = 99999"
         result = self._run(sql, sql, fixtures)
         assert result["status"] == "ok"
         assert result["equivalent"] is True
@@ -703,13 +777,13 @@ class TestCompareTwoSqlWithFixtures:
         """Fixtures reference FK parent keys that may not exist — FK constraints disabled."""
         fixtures = [
             {
-                "table": "[bronze].[Currency]",
+                "table": BRONZE_CURRENCY,
                 "rows": [
                     {"CurrencyCode": "ZZZ", "CurrencyName": "Test Currency", "ModifiedDate": "2024-01-01"},
                 ],
             },
         ]
-        sql = "SELECT CurrencyCode, CurrencyName FROM [bronze].[Currency] WHERE CurrencyCode = 'ZZZ'"
+        sql = f"SELECT CurrencyCode, CurrencyName FROM {BRONZE_CURRENCY} WHERE CurrencyCode = 'ZZZ'"
         result = self._run(sql, sql, fixtures)
         assert result["status"] == "ok"
         assert result["equivalent"] is True
@@ -719,7 +793,7 @@ class TestCompareTwoSqlWithFixtures:
         """Both SELECTs return NULLs — symmetric diff handles None correctly."""
         fixtures = [
             {
-                "table": "[bronze].[Product]",
+                "table": BRONZE_PRODUCT,
                 "rows": [
                     {
                         "ProductID": 77777,
@@ -741,19 +815,18 @@ class TestCompareTwoSqlWithFixtures:
         ]
         sql = (
             "SELECT ProductID, ProductName, Color, Size, ProductLine "
-            "FROM [bronze].[Product] WHERE ProductID = 77777"
+            f"FROM {BRONZE_PRODUCT} WHERE ProductID = 77777"
         )
         result = self._run(sql, sql, fixtures)
         assert result["status"] == "ok"
         assert result["equivalent"] is True
-        row_a = result  # just check it didn't crash on NULLs
         assert result["a_count"] == 1
 
     def test_money_type_precision(self) -> None:
         """MONEY columns are compared correctly after string serialization."""
         fixtures = [
             {
-                "table": "[bronze].[Product]",
+                "table": BRONZE_PRODUCT,
                 "rows": [
                     {
                         "ProductID": 88888,
@@ -773,9 +846,9 @@ class TestCompareTwoSqlWithFixtures:
                 ],
             },
         ]
-        sql_a = "SELECT StandardCost, ListPrice FROM [bronze].[Product] WHERE ProductID = 88888"
+        sql_a = f"SELECT StandardCost, ListPrice FROM {BRONZE_PRODUCT} WHERE ProductID = 88888"
         sql_b = (
-            "WITH src AS (SELECT * FROM [bronze].[Product] WHERE ProductID = 88888) "
+            f"WITH src AS (SELECT * FROM {BRONZE_PRODUCT} WHERE ProductID = 88888) "
             "SELECT StandardCost, ListPrice FROM src"
         )
         result = self._run(sql_a, sql_b, fixtures)
@@ -786,14 +859,14 @@ class TestCompareTwoSqlWithFixtures:
         """Both sides produce duplicate rows — multiset comparison is correct."""
         fixtures = [
             {
-                "table": "[bronze].[Currency]",
+                "table": BRONZE_CURRENCY,
                 "rows": [
                     {"CurrencyCode": "DUP", "CurrencyName": "Dup Currency", "ModifiedDate": "2024-01-01"},
                     {"CurrencyCode": "DUP", "CurrencyName": "Dup Currency", "ModifiedDate": "2024-01-01"},
                 ],
             },
         ]
-        sql = "SELECT CurrencyCode, CurrencyName FROM [bronze].[Currency] WHERE CurrencyCode = 'DUP'"
+        sql = f"SELECT CurrencyCode, CurrencyName FROM {BRONZE_CURRENCY} WHERE CurrencyCode = 'DUP'"
         result = self._run(sql, sql, fixtures)
         assert result["status"] == "ok"
         assert result["equivalent"] is True
@@ -807,19 +880,19 @@ class TestCompareTwoSqlTransactionRollback:
     def test_rollback_leaves_no_residual_data(self) -> None:
         """After compare_two_sql, fixture data is gone (transaction rolled back)."""
         backend = _make_backend()
-        up = backend.sandbox_up(schemas=["bronze", "silver"])
+        up = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
         sandbox_db = up.sandbox_database
 
         try:
             fixtures = [
                 {
-                    "table": "[bronze].[Currency]",
+                    "table": BRONZE_CURRENCY,
                     "rows": [
                         {"CurrencyCode": "RBK", "CurrencyName": "Rollback Test", "ModifiedDate": "2024-01-01"},
                     ],
                 },
             ]
-            sql = "SELECT CurrencyCode FROM [bronze].[Currency] WHERE CurrencyCode = 'RBK'"
+            sql = f"SELECT CurrencyCode FROM {BRONZE_CURRENCY} WHERE CurrencyCode = 'RBK'"
 
             backend.compare_two_sql(
                 sandbox_db=sandbox_db, sql_a=sql, sql_b=sql, fixtures=fixtures,
@@ -828,7 +901,7 @@ class TestCompareTwoSqlTransactionRollback:
             # Verify fixture data was rolled back
             with backend._connect(database=sandbox_db) as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT COUNT(*) FROM [bronze].[Currency] WHERE CurrencyCode = 'RBK'")
+                cursor.execute(f"SELECT COUNT(*) FROM {BRONZE_CURRENCY} WHERE CurrencyCode = 'RBK'")
                 count = cursor.fetchone()[0]
                 assert count == 0, "Fixture data should be rolled back"
         finally:
@@ -842,12 +915,12 @@ class TestCompareTwoSqlValidation:
     def test_rejects_write_sql(self) -> None:
         """SQL containing INSERT/UPDATE/DELETE is rejected before execution."""
         backend = _make_backend()
-        up = backend.sandbox_up(schemas=["bronze"])
+        up = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
         try:
             with pytest.raises(ValueError, match="write operation"):
                 backend.compare_two_sql(
                     sandbox_db=up.sandbox_database,
-                    sql_a="INSERT INTO bronze.Currency VALUES ('BAD', 'Bad', GETDATE())",
+                    sql_a=f"INSERT INTO {BRONZE_CURRENCY} VALUES ('BAD', 'Bad', GETDATE())",
                     sql_b="SELECT 1",
                     fixtures=[],
                 )
@@ -857,13 +930,13 @@ class TestCompareTwoSqlValidation:
     def test_rejects_exec_in_sql(self) -> None:
         """SQL containing EXEC is rejected."""
         backend = _make_backend()
-        up = backend.sandbox_up(schemas=["bronze"])
+        up = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
         try:
             with pytest.raises(ValueError, match="write operation"):
                 backend.compare_two_sql(
                     sandbox_db=up.sandbox_database,
                     sql_a="SELECT 1",
-                    sql_b="EXEC silver.usp_load_DimProduct",
+                    sql_b=f"EXEC {SILVER_USP_LOAD_DIMPRODUCT}",
                     fixtures=[],
                 )
         finally:
@@ -872,7 +945,7 @@ class TestCompareTwoSqlValidation:
     def test_rejects_invalid_syntax_in_sql_a(self) -> None:
         """Malformed SQL A is caught by PARSEONLY before execution."""
         backend = _make_backend()
-        up = backend.sandbox_up(schemas=["bronze"])
+        up = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
         try:
             result = backend.compare_two_sql(
                 sandbox_db=up.sandbox_database,
@@ -889,7 +962,7 @@ class TestCompareTwoSqlValidation:
     def test_rejects_invalid_syntax_in_sql_b(self) -> None:
         """Malformed SQL B is caught by PARSEONLY before execution."""
         backend = _make_backend()
-        up = backend.sandbox_up(schemas=["bronze"])
+        up = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
         try:
             result = backend.compare_two_sql(
                 sandbox_db=up.sandbox_database,
@@ -906,7 +979,7 @@ class TestCompareTwoSqlValidation:
     def test_rejects_empty_sql(self) -> None:
         """Empty SQL string is rejected."""
         backend = _make_backend()
-        up = backend.sandbox_up(schemas=["bronze"])
+        up = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
         try:
             with pytest.raises(ValueError, match="empty"):
                 backend.compare_two_sql(

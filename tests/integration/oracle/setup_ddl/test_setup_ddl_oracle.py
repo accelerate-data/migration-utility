@@ -11,6 +11,10 @@ from tests.integration.runtime_helpers import ORACLE_MIGRATION_SCHEMA
 
 pytestmark = pytest.mark.oracle
 
+BRONZE_CURRENCY = "bronze_currency"
+SILVER_DIMCURRENCY = "silver_dimcurrency"
+SILVER_USP_LOAD_DIMCURRENCY = "silver_usp_load_dimcurrency"
+
 
 @pytest.mark.usefixtures("oracle_extract_env")
 class TestListSchemasOracleIntegration:
@@ -46,7 +50,9 @@ class TestExtractOracleIntegration:
         assert (tmp_path / "catalog").is_dir()
         tables_dir = tmp_path / "catalog" / "tables"
         assert tables_dir.is_dir()
-        assert len(list(tables_dir.glob("*.json"))) > 0
+        table_stems = {path.stem.lower() for path in tables_dir.glob("*.json")}
+        assert any(stem.endswith(BRONZE_CURRENCY) for stem in table_stems)
+        assert any(stem.endswith(SILVER_DIMCURRENCY) for stem in table_stems)
 
     def test_migrationtest_table_has_pk(self, tmp_path, oracle_extract_env):
         (tmp_path / "manifest.json").write_text(
@@ -105,6 +111,9 @@ class TestExtractOracleIntegration:
             "--project-root", str(tmp_path),
         ], timeout=120)
         assert result.returncode == 0, result.stderr
+        procedures_dir = tmp_path / "catalog" / "procedures"
+        proc_stems = {path.stem.lower() for path in procedures_dir.glob("*.json")}
+        assert any(stem.endswith(SILVER_USP_LOAD_DIMCURRENCY) for stem in proc_stems)
         views_sql = tmp_path / "ddl" / "views.sql"
         assert views_sql.exists()
         content = views_sql.read_text(encoding="utf-8")

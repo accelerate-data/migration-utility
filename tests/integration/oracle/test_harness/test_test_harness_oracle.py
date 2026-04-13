@@ -25,6 +25,16 @@ from tests.integration.runtime_helpers import (
 
 pytestmark = pytest.mark.oracle
 
+BRONZE_CURRENCY = "BRONZE_CURRENCY"
+BRONZE_PROMOTION = "BRONZE_PROMOTION"
+SILVER_DIMCURRENCY = "SILVER_DIMCURRENCY"
+SILVER_DIMPROMOTION = "SILVER_DIMPROMOTION"
+SILVER_CONFIG = "SILVER_CONFIG"
+SILVER_VW_DIMPROMOTION = "SILVER_VW_DIMPROMOTION"
+SILVER_USP_LOAD_DIMCURRENCY = "SILVER_USP_LOAD_DIMCURRENCY"
+SILVER_USP_LOAD_DIMPROMOTION = "SILVER_USP_LOAD_DIMPROMOTION"
+SILVER_USP_UNIONALL = "SILVER_USP_UNIONALL"
+
 
 def _have_oracle_env() -> bool:
     return oracle_is_available(oracledb)
@@ -56,12 +66,16 @@ class TestOracleSandboxLifecycle:
             assert result.status in ("ok", "partial"), result.errors
             assert sandbox_schema.startswith("__test_")
             assert len(result.tables_cloned) > 0
-            assert any("CHANNELS" in t for t in result.tables_cloned)
-            assert any("SALES" in t for t in result.tables_cloned)
-            assert any("CHANNEL_SALES_SUMMARY" in t for t in result.tables_cloned)
+            assert any(BRONZE_CURRENCY in t for t in result.tables_cloned)
+            assert any(BRONZE_PROMOTION in t for t in result.tables_cloned)
+            assert any(SILVER_DIMCURRENCY in t for t in result.tables_cloned)
+            assert any(SILVER_DIMPROMOTION in t for t in result.tables_cloned)
+            assert any(SILVER_CONFIG in t for t in result.tables_cloned)
 
             assert len(result.procedures_cloned) > 0
-            assert any("SUMMARIZE_CHANNEL_SALES" in p for p in result.procedures_cloned)
+            assert any(SILVER_USP_LOAD_DIMCURRENCY in p for p in result.procedures_cloned)
+            assert any(SILVER_USP_LOAD_DIMPROMOTION in p for p in result.procedures_cloned)
+            assert any(SILVER_USP_UNIONALL in p for p in result.procedures_cloned)
 
             # Verify sandbox user exists and tables are accessible
             with backend._connect() as conn:
@@ -120,9 +134,41 @@ class TestOracleSandboxLifecycle:
 class TestOracleExecuteScenario:
     """Execute a real scenario against the sandbox using the MigrationTest schema."""
 
-    def test_full_lifecycle_execute_summarize_channel_sales(self) -> None:
-        """sandbox_up → execute_scenario (SUMMARIZE_CHANNEL_SALES) → sandbox_down."""
+    def _create_temp_proc(self, backend: OracleSandbox, proc_name: str, body: str) -> None:
+        with backend._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"""
+                CREATE OR REPLACE PROCEDURE {backend.source_schema}.{proc_name}
+                AS
+                BEGIN
+                    {body}
+                END;
+                """
+            )
+
+    def _drop_temp_proc(self, backend: OracleSandbox, proc_name: str) -> None:
+        with backend._connect() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(f"DROP PROCEDURE {backend.source_schema}.{proc_name}")
+            except Exception:
+                pass
+
+    def test_full_lifecycle_execute_load_dimcurrency(self) -> None:
+        """sandbox_up → execute_scenario against canonical currency tables → sandbox_down."""
         backend = _make_backend()
+        proc_name = "PROC_LOAD_DIMCURRENCY"
+        self._create_temp_proc(
+            backend,
+            proc_name,
+            (
+                f'DELETE FROM {SILVER_DIMCURRENCY}; '
+                f'INSERT INTO {SILVER_DIMCURRENCY} ("CURRENCYKEY", "CURRENCYALTERNATEKEY", "CURRENCYNAME") '
+                f'SELECT ROW_NUMBER() OVER (ORDER BY "CURRENCYCODE"), "CURRENCYCODE", "CURRENCYNAME" '
+                f'FROM {BRONZE_CURRENCY};'
+            ),
+        )
 
         try:
             up_result = backend.sandbox_up(schemas=[ORACLE_MIGRATION_SCHEMA])
@@ -130,51 +176,22 @@ class TestOracleExecuteScenario:
             assert up_result.status in ("ok", "partial"), up_result.errors
 
             scenario = {
-                "name": "test_summarize_channel_sales",
-                "target_table": "CHANNEL_SALES_SUMMARY",
-                "procedure": "SUMMARIZE_CHANNEL_SALES",
+                "name": "test_load_dimcurrency",
+                "target_table": SILVER_DIMCURRENCY,
+                "procedure": proc_name,
                 "given": [
                     {
-                        "table": "CHANNELS",
+                        "table": BRONZE_CURRENCY,
                         "rows": [
                             {
-                                "CHANNEL_ID": 1,
-                                "CHANNEL_DESC": "Direct Sales",
-                                "CHANNEL_CLASS": "Direct",
-                                "CHANNEL_CLASS_ID": 12,
-                                "CHANNEL_TOTAL": "Channel total",
-                                "CHANNEL_TOTAL_ID": 1,
+                                "CURRENCYCODE": "USD",
+                                "CURRENCYNAME": "US Dollar",
+                                "MODIFIEDDATE": "2024-01-01",
                             },
                             {
-                                "CHANNEL_ID": 2,
-                                "CHANNEL_DESC": "Internet",
-                                "CHANNEL_CLASS": "Indirect",
-                                "CHANNEL_CLASS_ID": 13,
-                                "CHANNEL_TOTAL": "Channel total",
-                                "CHANNEL_TOTAL_ID": 1,
-                            },
-                        ],
-                    },
-                    {
-                        "table": "SALES",
-                        "rows": [
-                            {
-                                "PROD_ID": 1,
-                                "CUST_ID": 1,
-                                "TIME_ID": "1998-01-01",
-                                "CHANNEL_ID": 1,
-                                "PROMO_ID": 999,
-                                "QUANTITY_SOLD": 10,
-                                "AMOUNT_SOLD": 600000,
-                            },
-                            {
-                                "PROD_ID": 2,
-                                "CUST_ID": 2,
-                                "TIME_ID": "1998-01-02",
-                                "CHANNEL_ID": 2,
-                                "PROMO_ID": 999,
-                                "QUANTITY_SOLD": 5,
-                                "AMOUNT_SOLD": 50000,
+                                "CURRENCYCODE": "EUR",
+                                "CURRENCYNAME": "Euro",
+                                "MODIFIEDDATE": "2024-01-02",
                             },
                         ],
                     },
@@ -186,18 +203,17 @@ class TestOracleExecuteScenario:
             )
 
             assert result.status == "ok", result.errors
-            assert result.scenario_name == "test_summarize_channel_sales"
+            assert result.scenario_name == "test_load_dimcurrency"
             assert result.row_count == 2
             assert result.errors == []
 
-            rows = {r["CHANNEL_ID"]: r for r in result.ground_truth_rows}
-            # Channel 1 had 600000 → HIGH tier
-            assert rows[1]["TIER"] == "HIGH"
-            # Channel 2 had 50000 → LOW tier
-            assert rows[2]["TIER"] == "LOW"
+            rows = {r["CURRENCYALTERNATEKEY"]: r for r in result.ground_truth_rows}
+            assert rows["USD"]["CURRENCYNAME"] == "US Dollar"
+            assert rows["EUR"]["CURRENCYNAME"] == "Euro"
 
         finally:
             backend.sandbox_down(sandbox_db=up_result.sandbox_database)
+            self._drop_temp_proc(backend, proc_name)
 
     def test_execute_rolls_back_fixture_data(self) -> None:
         """Fixture rows seeded during execute_scenario are rolled back."""
@@ -209,19 +225,15 @@ class TestOracleExecuteScenario:
 
             scenario = {
                 "name": "test_rollback",
-                "target_table": "CHANNEL_SALES_SUMMARY",
-                "procedure": "SUMMARIZE_CHANNEL_SALES",
+                "target_table": SILVER_DIMCURRENCY,
+                "procedure": SILVER_USP_LOAD_DIMCURRENCY,
                 "given": [
                     {
-                        "table": "CHANNELS",
+                        "table": BRONZE_CURRENCY,
                         "rows": [
                             {
-                                "CHANNEL_ID": 99,
-                                "CHANNEL_DESC": "Test",
-                                "CHANNEL_CLASS": "Test",
-                                "CHANNEL_CLASS_ID": 99,
-                                "CHANNEL_TOTAL": "Channel total",
-                                "CHANNEL_TOTAL_ID": 1,
+                                "CURRENCYCODE": "ZZZ",
+                                "CURRENCYNAME": "Rollback Test",
                             },
                         ],
                     },
@@ -234,8 +246,8 @@ class TestOracleExecuteScenario:
             with backend._connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    f'SELECT COUNT(*) FROM "{sandbox_schema}".CHANNELS '
-                    f"WHERE CHANNEL_ID = 99"
+                    f'SELECT COUNT(*) FROM "{sandbox_schema}"."{BRONZE_CURRENCY}" '
+                    f"WHERE \"CURRENCYCODE\" = 'ZZZ'"
                 )
                 assert cursor.fetchone()[0] == 0, "Fixture row should be rolled back"
         finally:
@@ -244,6 +256,8 @@ class TestOracleExecuteScenario:
     def test_execute_empty_fixtures(self) -> None:
         """Scenario with no fixture rows still runs the procedure (produces 0 rows)."""
         backend = _make_backend()
+        proc_name = "PROC_EMPTY_FIXTURES"
+        self._create_temp_proc(backend, proc_name, "NULL;")
 
         try:
             up_result = backend.sandbox_up(schemas=[ORACLE_MIGRATION_SCHEMA])
@@ -251,8 +265,8 @@ class TestOracleExecuteScenario:
 
             scenario = {
                 "name": "test_empty",
-                "target_table": "CHANNEL_SALES_SUMMARY",
-                "procedure": "SUMMARIZE_CHANNEL_SALES",
+                "target_table": SILVER_DIMCURRENCY,
+                "procedure": proc_name,
                 "given": [],
             }
 
@@ -261,6 +275,7 @@ class TestOracleExecuteScenario:
             assert result.row_count == 0
         finally:
             backend.sandbox_down(sandbox_db=up_result.sandbox_database)
+            self._drop_temp_proc(backend, proc_name)
 
 
 @skip_no_oracle
@@ -276,36 +291,30 @@ class TestOracleCompareTwoSql:
 
             fixtures = [
                 {
-                    "table": "CHANNELS",
-                    "rows": [
-                        {
-                            "CHANNEL_ID": 1,
-                            "CHANNEL_DESC": "Direct",
-                            "CHANNEL_CLASS": "Direct",
-                            "CHANNEL_CLASS_ID": 12,
-                            "CHANNEL_TOTAL": "Channel total",
-                            "CHANNEL_TOTAL_ID": 1,
-                        },
-                        {
-                            "CHANNEL_ID": 2,
-                            "CHANNEL_DESC": "Internet",
-                            "CHANNEL_CLASS": "Indirect",
-                            "CHANNEL_CLASS_ID": 13,
-                            "CHANNEL_TOTAL": "Channel total",
-                            "CHANNEL_TOTAL_ID": 1,
-                        },
-                    ],
-                },
+                    "table": BRONZE_CURRENCY,
+                        "rows": [
+                            {
+                                "CURRENCYCODE": "USD",
+                                "CURRENCYNAME": "US Dollar",
+                                "MODIFIEDDATE": "2024-01-01",
+                            },
+                            {
+                                "CURRENCYCODE": "EUR",
+                                "CURRENCYNAME": "Euro",
+                                "MODIFIEDDATE": "2024-01-02",
+                            },
+                        ],
+                    },
             ]
             sql_a = (
-                f'SELECT CHANNEL_ID, CHANNEL_DESC '
-                f'FROM "{sandbox_schema}"."CHANNELS" '
-                f'ORDER BY CHANNEL_ID'
+                f'SELECT "CURRENCYCODE", "CURRENCYNAME" '
+                f'FROM "{sandbox_schema}"."{BRONZE_CURRENCY}" '
+                f'ORDER BY "CURRENCYCODE"'
             )
             sql_b = (
-                f'SELECT CHANNEL_ID, CHANNEL_DESC '
-                f'FROM "{sandbox_schema}"."CHANNELS" '
-                f'ORDER BY CHANNEL_ID'
+                f'SELECT "CURRENCYCODE", "CURRENCYNAME" '
+                f'FROM "{sandbox_schema}"."{BRONZE_CURRENCY}" '
+                f'ORDER BY "CURRENCYCODE"'
             )
 
             result = backend.compare_two_sql(
@@ -333,36 +342,30 @@ class TestOracleCompareTwoSql:
 
             fixtures = [
                 {
-                    "table": "CHANNELS",
-                    "rows": [
-                        {
-                            "CHANNEL_ID": 1,
-                            "CHANNEL_DESC": "Direct",
-                            "CHANNEL_CLASS": "Direct",
-                            "CHANNEL_CLASS_ID": 12,
-                            "CHANNEL_TOTAL": "Channel total",
-                            "CHANNEL_TOTAL_ID": 1,
-                        },
-                        {
-                            "CHANNEL_ID": 2,
-                            "CHANNEL_DESC": "Internet",
-                            "CHANNEL_CLASS": "Indirect",
-                            "CHANNEL_CLASS_ID": 13,
-                            "CHANNEL_TOTAL": "Channel total",
-                            "CHANNEL_TOTAL_ID": 1,
-                        },
-                    ],
-                },
+                    "table": BRONZE_CURRENCY,
+                        "rows": [
+                            {
+                                "CURRENCYCODE": "USD",
+                                "CURRENCYNAME": "US Dollar",
+                                "MODIFIEDDATE": "2024-01-01",
+                            },
+                            {
+                                "CURRENCYCODE": "EUR",
+                                "CURRENCYNAME": "Euro",
+                                "MODIFIEDDATE": "2024-01-02",
+                            },
+                        ],
+                    },
             ]
             sql_a = (
-                f'SELECT CHANNEL_ID, CHANNEL_DESC '
-                f'FROM "{sandbox_schema}"."CHANNELS"'
+                f'SELECT "CURRENCYCODE", "CURRENCYNAME" '
+                f'FROM "{sandbox_schema}"."{BRONZE_CURRENCY}"'
             )
             # Returns only one row
             sql_b = (
-                f'SELECT CHANNEL_ID, CHANNEL_DESC '
-                f'FROM "{sandbox_schema}"."CHANNELS" '
-                f'WHERE CHANNEL_ID = 1'
+                f'SELECT "CURRENCYCODE", "CURRENCYNAME" '
+                f'FROM "{sandbox_schema}"."{BRONZE_CURRENCY}" '
+                f'WHERE "CURRENCYCODE" = \'USD\''
             )
 
             result = backend.compare_two_sql(
@@ -390,7 +393,7 @@ class TestOracleEnsureViewTablesIntegration:
             # Unquoted identifiers so ALL_VIEWS stores them without quotes
             cursor.execute(
                 f"CREATE OR REPLACE VIEW {backend.source_schema}.{view_name} "
-                f"AS SELECT CHANNEL_ID, CHANNEL_DESC FROM {backend.source_schema}.CHANNELS"
+                f"AS SELECT CURRENCYCODE, CURRENCYNAME FROM {backend.source_schema}.{BRONZE_CURRENCY}"
             )
 
     def _drop_view(self, backend: OracleSandbox, view_name: str) -> None:
@@ -408,15 +411,15 @@ class TestOracleEnsureViewTablesIntegration:
             cursor = conn.cursor()
             # Unquoted identifiers so ALL_SOURCE stores them without quotes,
             # allowing _clone_procedures' regex substitution to match.
-            # Unqualified table names (CHANNEL_SALES_SUMMARY, view_name) resolve
+            # Unqualified table names (SILVER_DIMCURRENCY, view_name) resolve
             # to the sandbox schema when the cloned procedure runs there.
             cursor.execute(
                 f"""
                 CREATE OR REPLACE PROCEDURE {backend.source_schema}.{proc_name}
                 AS
                 BEGIN
-                    DELETE FROM CHANNEL_SALES_SUMMARY
-                    WHERE CHANNEL_ID IN (SELECT CHANNEL_ID FROM {view_name});
+                    DELETE FROM {SILVER_DIMCURRENCY}
+                    WHERE CURRENCYALTERNATEKEY IN (SELECT CURRENCYCODE FROM {view_name});
                 END;
                 """
             )
@@ -451,15 +454,15 @@ class TestOracleEnsureViewTablesIntegration:
 
             scenario = {
                 "name": "test_view_fixture",
-                "target_table": "CHANNEL_SALES_SUMMARY",
+                "target_table": SILVER_DIMCURRENCY,
                 "procedure": proc_name,
                 "given": [
                     {
                         "table": view_name,
                         "rows": [
                             {
-                                "CHANNEL_ID": 99,
-                                "CHANNEL_DESC": "View Test",
+                                "CURRENCYCODE": "VWT",
+                                "CURRENCYNAME": "View Test",
                             },
                         ],
                     }
@@ -517,31 +520,25 @@ class TestOracleExecuteSelectIntegration:
 
             fixtures = [
                 {
-                    "table": "CHANNELS",
-                    "rows": [
+                    "table": SILVER_DIMCURRENCY,
+                        "rows": [
                         {
-                            "CHANNEL_ID": 1,
-                            "CHANNEL_DESC": "Direct",
-                            "CHANNEL_CLASS": "Direct",
-                            "CHANNEL_CLASS_ID": 12,
-                            "CHANNEL_TOTAL": "Channel total",
-                            "CHANNEL_TOTAL_ID": 1,
+                            "CURRENCYKEY": 1,
+                            "CURRENCYALTERNATEKEY": "USD",
+                            "CURRENCYNAME": "US Dollar",
                         },
                         {
-                            "CHANNEL_ID": 2,
-                            "CHANNEL_DESC": "Internet",
-                            "CHANNEL_CLASS": "Indirect",
-                            "CHANNEL_CLASS_ID": 13,
-                            "CHANNEL_TOTAL": "Channel total",
-                            "CHANNEL_TOTAL_ID": 1,
+                            "CURRENCYKEY": 2,
+                            "CURRENCYALTERNATEKEY": "EUR",
+                            "CURRENCYNAME": "Euro",
                         },
                     ],
                 },
             ]
             sql = (
-                f'SELECT "CHANNEL_ID", "CHANNEL_DESC" '
-                f'FROM "{sandbox_schema}"."CHANNELS" '
-                f'ORDER BY "CHANNEL_ID"'
+                f'SELECT "CURRENCYALTERNATEKEY", "CURRENCYNAME" '
+                f'FROM "{sandbox_schema}"."{SILVER_DIMCURRENCY}" '
+                f'ORDER BY "CURRENCYALTERNATEKEY"'
             )
 
             result = backend.execute_select(
@@ -552,8 +549,8 @@ class TestOracleExecuteSelectIntegration:
             assert result.row_count == 2
             assert result.errors == []
             rows = result.ground_truth_rows
-            descs = {r["CHANNEL_DESC"] for r in rows}
-            assert descs == {"Direct", "Internet"}
+            codes = {r["CURRENCYALTERNATEKEY"] for r in rows}
+            assert codes == {"USD", "EUR"}
         finally:
             backend.sandbox_down(sandbox_db=up_result.sandbox_database)
 
@@ -566,36 +563,30 @@ class TestOracleExecuteSelectIntegration:
             sandbox_schema = up_result.sandbox_database
             fixtures = [
                 {
-                    "table": "CHANNELS",
-                    "rows": [
+                    "table": SILVER_DIMCURRENCY,
+                        "rows": [
                         {
-                            "CHANNEL_ID": 1,
-                            "CHANNEL_DESC": "Direct",
-                            "CHANNEL_CLASS": "Direct",
-                            "CHANNEL_CLASS_ID": 12,
-                            "CHANNEL_TOTAL": "Channel total",
-                            "CHANNEL_TOTAL_ID": 1,
+                            "CURRENCYKEY": 1,
+                            "CURRENCYALTERNATEKEY": "USD",
+                            "CURRENCYNAME": "US Dollar",
                         },
                         {
-                            "CHANNEL_ID": 2,
-                            "CHANNEL_DESC": "Internet",
-                            "CHANNEL_CLASS": "Indirect",
-                            "CHANNEL_CLASS_ID": 13,
-                            "CHANNEL_TOTAL": "Channel total",
-                            "CHANNEL_TOTAL_ID": 1,
+                            "CURRENCYKEY": 2,
+                            "CURRENCYALTERNATEKEY": "EUR",
+                            "CURRENCYNAME": "Euro",
                         },
                     ],
                 },
             ]
             sql_a = (
-                f'SELECT "CHANNEL_ID", "CHANNEL_DESC" '
-                f'FROM "{sandbox_schema}"."CHANNELS"'
+                f'SELECT "CURRENCYALTERNATEKEY", "CURRENCYNAME" '
+                f'FROM "{sandbox_schema}"."{SILVER_DIMCURRENCY}"'
             )
             sql_b = (
                 "WITH src AS ("
-                f'  SELECT "CHANNEL_ID", "CHANNEL_DESC" FROM "{sandbox_schema}"."CHANNELS"'
+                f'  SELECT "CURRENCYALTERNATEKEY", "CURRENCYNAME" FROM "{sandbox_schema}"."{SILVER_DIMCURRENCY}"'
                 ") "
-                'SELECT "CHANNEL_ID", "CHANNEL_DESC" FROM src'
+                'SELECT "CURRENCYALTERNATEKEY", "CURRENCYNAME" FROM src'
             )
 
             result = backend.compare_two_sql(
@@ -622,7 +613,7 @@ class TestOracleExecuteSelectIntegration:
 
             result = backend.execute_select(
                 sandbox_db=sandbox_schema,
-                sql=f'SELECT "CHANNEL_ID" FROM "{sandbox_schema}"."CHANNELS"',
+                sql=f'SELECT "CURRENCYALTERNATEKEY" FROM "{sandbox_schema}"."{SILVER_DIMCURRENCY}"',
                 fixtures=[],
             )
 
@@ -641,22 +632,18 @@ class TestOracleExecuteSelectIntegration:
 
             fixtures = [
                 {
-                    "table": "CHANNELS",
+                    "table": SILVER_DIMCURRENCY,
                     "rows": [
                         {
-                            "CHANNEL_ID": 99,
-                            "CHANNEL_DESC": "Rollback Test",
-                            "CHANNEL_CLASS": "Test",
-                            "CHANNEL_CLASS_ID": 99,
-                            "CHANNEL_TOTAL": "Channel total",
-                            "CHANNEL_TOTAL_ID": 1,
+                            "CURRENCYALTERNATEKEY": "ZZZ",
+                            "CURRENCYNAME": "Rollback Test",
                         },
                     ],
                 },
             ]
             backend.execute_select(
                 sandbox_db=sandbox_schema,
-                sql=f'SELECT "CHANNEL_ID" FROM "{sandbox_schema}"."CHANNELS"',
+                sql=f'SELECT "CURRENCYALTERNATEKEY" FROM "{sandbox_schema}"."{SILVER_DIMCURRENCY}"',
                 fixtures=fixtures,
             )
 
@@ -664,8 +651,8 @@ class TestOracleExecuteSelectIntegration:
             with backend._connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    f'SELECT COUNT(*) FROM "{sandbox_schema}"."CHANNELS" '
-                    f"WHERE \"CHANNEL_ID\" = 99"
+                    f'SELECT COUNT(*) FROM "{sandbox_schema}"."{SILVER_DIMCURRENCY}" '
+                    f"WHERE \"CURRENCYALTERNATEKEY\" = 'ZZZ'"
                 )
                 assert cursor.fetchone()[0] == 0, "Fixture row should be rolled back"
         finally:

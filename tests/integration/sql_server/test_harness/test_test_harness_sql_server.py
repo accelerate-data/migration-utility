@@ -7,6 +7,7 @@ Requires: MSSQL_HOST, SA_PASSWORD, MSSQL_DB env vars (or Docker 'sql-test' on lo
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from pathlib import Path
 
@@ -14,23 +15,90 @@ import pytest
 
 pyodbc = pytest.importorskip("pyodbc", reason="pyodbc not installed — skipping integration tests")
 
+from shared.fixture_materialization import materialize_migration_test
 from shared.sandbox.sql_server import SqlServerSandbox
+from shared.runtime_config_models import RuntimeConnection, RuntimeRole
+from tests.helpers import REPO_ROOT, SQL_SERVER_FIXTURE_DATABASE, SQL_SERVER_FIXTURE_SCHEMA
 from tests.integration.runtime_helpers import (
-    build_sql_server_sandbox_manifest,
-    ensure_sql_server_migration_test_materialized,
     sql_server_is_available,
 )
 
 pytestmark = pytest.mark.integration
+
+_SQL_SERVER_FIXTURE_READY = False
+
+BRONZE_CURRENCY = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[bronze_currency]"
+BRONZE_PRODUCT = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[bronze_product]"
+BRONZE_CUSTOMER = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[bronze_customer]"
+BRONZE_PERSON = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[bronze_person]"
+BRONZE_SALESORDERHEADER = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[bronze_salesorderheader]"
+SILVER_DIMCURRENCY = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[silver_dimcurrency]"
+SILVER_DIMPRODUCT = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[silver_dimproduct]"
+SILVER_USP_LOAD_DIMCURRENCY = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[silver_usp_load_dimcurrency]"
+SILVER_USP_LOAD_DIMPRODUCT = f"[{SQL_SERVER_FIXTURE_SCHEMA}].[silver_usp_load_dimproduct]"
 
 
 def _have_mssql_env() -> bool:
     return sql_server_is_available(pyodbc)
 
 
+def _ensure_sql_server_fixture_materialized() -> None:
+    global _SQL_SERVER_FIXTURE_READY
+    if _SQL_SERVER_FIXTURE_READY:
+        return
+
+    role = RuntimeRole(
+        technology="sql_server",
+        dialect="tsql",
+        connection=RuntimeConnection(
+            host=os.environ.get("MSSQL_HOST", "localhost"),
+            port=os.environ.get("MSSQL_PORT", "1433"),
+            database=SQL_SERVER_FIXTURE_DATABASE,
+            schema=SQL_SERVER_FIXTURE_SCHEMA,
+            user=os.environ.get("MSSQL_USER", "sa"),
+            driver=os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
+            password_env="SA_PASSWORD",
+        ),
+    )
+    result = materialize_migration_test(role, REPO_ROOT)
+    if result.returncode != 0:
+        raise RuntimeError(
+            "SQL Server MigrationTest materialization failed:\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+    _SQL_SERVER_FIXTURE_READY = True
+
+
 def _make_backend() -> SqlServerSandbox:
-    ensure_sql_server_migration_test_materialized()
-    return SqlServerSandbox.from_env(build_sql_server_sandbox_manifest())
+    _ensure_sql_server_fixture_materialized()
+    return SqlServerSandbox.from_env({
+        "runtime": {
+            "source": {
+                "technology": "sql_server",
+                "dialect": "tsql",
+                "connection": {
+                    "host": os.environ.get("MSSQL_HOST", "localhost"),
+                    "port": os.environ.get("MSSQL_PORT", "1433"),
+                    "database": SQL_SERVER_FIXTURE_DATABASE,
+                    "user": os.environ.get("MSSQL_USER", "sa"),
+                    "driver": os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
+                    "password_env": "SA_PASSWORD",
+                },
+            },
+            "sandbox": {
+                "technology": "sql_server",
+                "dialect": "tsql",
+                "connection": {
+                    "host": os.environ.get("MSSQL_HOST", "localhost"),
+                    "port": os.environ.get("MSSQL_PORT", "1433"),
+                    "user": os.environ.get("MSSQL_USER", "sa"),
+                    "driver": os.environ.get("MSSQL_DRIVER", "ODBC Driver 18 for SQL Server"),
+                    "password_env": "SA_PASSWORD",
+                },
+            },
+        }
+    })
 
 
 skip_no_mssql = pytest.mark.skipif(
@@ -47,15 +115,21 @@ class TestSandboxLifecycle:
         backend = _make_backend()
 
         try:
-            result = backend.sandbox_up(schemas=["silver"])
+            result = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
             sandbox_db = result.sandbox_database
 
             assert result.status in ("ok", "partial")
             assert sandbox_db.startswith("__test_")
             assert len(result.tables_cloned) > 0
-            assert any("DimCurrency" in t for t in result.tables_cloned)
+            assert any(
+                table.lower() == f"{SQL_SERVER_FIXTURE_SCHEMA.lower()}.silver_dimcurrency"
+                for table in result.tables_cloned
+            )
             assert len(result.procedures_cloned) > 0
-            assert any("usp_load_DimCurrency" in p for p in result.procedures_cloned)
+            assert any(
+                proc.lower() == f"{SQL_SERVER_FIXTURE_SCHEMA.lower()}.silver_usp_load_dimcurrency"
+                for proc in result.procedures_cloned
+            )
 
             # Verify the sandbox DB actually exists
             with backend._connect(database=sandbox_db) as conn:
@@ -72,7 +146,7 @@ class TestSandboxLifecycle:
     def test_sandbox_down_drops_database(self) -> None:
         backend = _make_backend()
 
-        result = backend.sandbox_up(schemas=["silver"])
+        result = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
         sandbox_db = result.sandbox_database
         down_result = backend.sandbox_down(sandbox_db=sandbox_db)
 
@@ -95,13 +169,12 @@ class TestSandboxLifecycle:
         backend = _make_backend()
 
         try:
-            result = backend.sandbox_up(schemas=["bronze", "silver"])
+            result = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
             sandbox_db = result.sandbox_database
 
             assert result.status in ("ok", "partial")
-            schemas_seen = {t.split(".")[0] for t in result.tables_cloned}
-            assert "bronze" in schemas_seen
-            assert "silver" in schemas_seen
+            schemas_seen = {t.split(".")[0].lower() for t in result.tables_cloned}
+            assert schemas_seen == {SQL_SERVER_FIXTURE_SCHEMA.lower()}
         finally:
             backend.sandbox_down(sandbox_db=result.sandbox_database)
 
@@ -110,8 +183,8 @@ class TestSandboxLifecycle:
         backend = _make_backend()
 
         try:
-            result1 = backend.sandbox_up(schemas=["silver"])
-            result2 = backend.sandbox_up(schemas=["silver"])
+            result1 = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
+            result2 = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
 
             assert result1.status in ("ok", "partial")
             assert result2.status in ("ok", "partial")
@@ -132,7 +205,7 @@ class TestExecuteScenario:
             cursor = conn.cursor()
             cursor.execute(
                 f"""
-                CREATE OR ALTER PROCEDURE [silver].[{proc_name}]
+                CREATE OR ALTER PROCEDURE [{SQL_SERVER_FIXTURE_SCHEMA}].[{proc_name}]
                 AS
                 BEGIN
                     {body}
@@ -143,24 +216,24 @@ class TestExecuteScenario:
     def _drop_temp_proc(self, backend: SqlServerSandbox, proc_name: str) -> None:
         with backend._connect_source(database=backend.source_database) as conn:
             cursor = conn.cursor()
-            cursor.execute(f"DROP PROCEDURE IF EXISTS [silver].[{proc_name}]")
+            cursor.execute(f"DROP PROCEDURE IF EXISTS [{SQL_SERVER_FIXTURE_SCHEMA}].[{proc_name}]")
 
     def test_execute_inserts_and_captures_ground_truth(self) -> None:
         backend = _make_backend()
 
         try:
-            up_result = backend.sandbox_up(schemas=["bronze", "silver"])
+            up_result = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
             sandbox_db = up_result.sandbox_database
             assert up_result.status in ("ok", "partial")
-            assert any("DimCurrency" in t for t in up_result.tables_cloned)
+            assert any("silver_dimcurrency" in t.lower() for t in up_result.tables_cloned)
 
             scenario = {
                 "name": "test_load_dim_currency",
-                "target_table": "[silver].[DimCurrency]",
-                "procedure": "[silver].[usp_load_DimCurrency]",
+                "target_table": SILVER_DIMCURRENCY,
+                "procedure": SILVER_USP_LOAD_DIMCURRENCY,
                 "given": [
                     {
-                        "table": "[bronze].[Currency]",
+                        "table": BRONZE_CURRENCY,
                         "rows": [
                             {"CurrencyCode": "TST", "CurrencyName": "Test Currency",
                              "ModifiedDate": "2024-01-01"},
@@ -185,16 +258,16 @@ class TestExecuteScenario:
         backend = _make_backend()
 
         try:
-            up_result = backend.sandbox_up(schemas=["bronze", "silver"])
+            up_result = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
             sandbox_db = up_result.sandbox_database
 
             scenario = {
                 "name": "test_rollback",
-                "target_table": "[silver].[DimCurrency]",
-                "procedure": "[silver].[usp_load_DimCurrency]",
+                "target_table": SILVER_DIMCURRENCY,
+                "procedure": SILVER_USP_LOAD_DIMCURRENCY,
                 "given": [
                     {
-                        "table": "[bronze].[Currency]",
+                        "table": BRONZE_CURRENCY,
                         "rows": [
                             {"CurrencyCode": "RBK", "CurrencyName": "Rollback Test"},
                         ],
@@ -208,7 +281,7 @@ class TestExecuteScenario:
             with backend._connect(database=sandbox_db) as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT COUNT(*) FROM [bronze].[Currency] "
+                    f"SELECT COUNT(*) FROM {BRONZE_CURRENCY} "
                     "WHERE CurrencyCode = 'RBK'"
                 )
                 count = cursor.fetchone()[0]
@@ -221,15 +294,15 @@ class TestExecuteScenario:
         backend = _make_backend()
 
         try:
-            up_result = backend.sandbox_up(schemas=["bronze", "silver"])
+            up_result = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
             sandbox_db = up_result.sandbox_database
 
             scenario = {
                 "name": "test_empty_fixtures",
-                "target_table": "[silver].[DimCurrency]",
-                "procedure": "[silver].[usp_load_DimCurrency]",
+                "target_table": SILVER_DIMCURRENCY,
+                "procedure": SILVER_USP_LOAD_DIMCURRENCY,
                 "given": [
-                    {"table": "[bronze].[Currency]", "rows": []},
+                    {"table": BRONZE_CURRENCY, "rows": []},
                 ],
             }
 
@@ -246,7 +319,7 @@ class TestExecuteScenario:
         self._create_temp_proc(backend, proc_name, "EXEC OtherDB.dbo.usp_Load;")
 
         try:
-            up_result = backend.sandbox_up(schemas=["silver"])
+            up_result = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
             sandbox_db = up_result.sandbox_database
             assert up_result.status in ("ok", "partial")
 
@@ -254,8 +327,8 @@ class TestExecuteScenario:
                 sandbox_db=sandbox_db,
                 scenario={
                     "name": "test_cross_database_exec",
-                    "target_table": "[silver].[DimCurrency]",
-                    "procedure": f"[silver].[{proc_name}]",
+                    "target_table": SILVER_DIMCURRENCY,
+                    "procedure": f"[{SQL_SERVER_FIXTURE_SCHEMA}].[{proc_name}]",
                     "given": [],
                 },
             )
@@ -275,7 +348,7 @@ class TestExecuteScenario:
         self._create_temp_proc(backend, proc_name, "EXEC [LinkedServer].db.dbo.usp_Load;")
 
         try:
-            up_result = backend.sandbox_up(schemas=["silver"])
+            up_result = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
             sandbox_db = up_result.sandbox_database
             assert up_result.status in ("ok", "partial")
 
@@ -283,8 +356,8 @@ class TestExecuteScenario:
                 sandbox_db=sandbox_db,
                 scenario={
                     "name": "test_linked_server_exec",
-                    "target_table": "[silver].[DimCurrency]",
-                    "procedure": f"[silver].[{proc_name}]",
+                    "target_table": SILVER_DIMCURRENCY,
+                    "procedure": f"[{SQL_SERVER_FIXTURE_SCHEMA}].[{proc_name}]",
                     "given": [],
                 },
             )
@@ -308,20 +381,20 @@ class TestExecuteScenario:
             with backend._connect_source(database=backend.source_database) as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    f"CREATE TABLE silver.[{table_name}] ("
+                    f"CREATE TABLE [{SQL_SERVER_FIXTURE_SCHEMA}].[{table_name}] ("
                     "  id INT PRIMARY KEY,"
                     "  price MONEY,"
                     "  fee SMALLMONEY"
                     ")"
                 )
                 cursor.execute(
-                    f"CREATE PROCEDURE silver.[{proc_name}] AS BEGIN "
-                    f"  INSERT INTO silver.[{table_name}] (id, price, fee) "
+                    f"CREATE PROCEDURE [{SQL_SERVER_FIXTURE_SCHEMA}].[{proc_name}] AS BEGIN "
+                    f"  INSERT INTO [{SQL_SERVER_FIXTURE_SCHEMA}].[{table_name}] (id, price, fee) "
                     "  VALUES (1, 42.50, 9.99) "
                     "END"
                 )
 
-            up_result = backend.sandbox_up(schemas=["silver"])
+            up_result = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
             sandbox_db = up_result.sandbox_database
             assert up_result.status in ("ok", "partial")
 
@@ -329,8 +402,8 @@ class TestExecuteScenario:
                 sandbox_db=sandbox_db,
                 scenario={
                     "name": "test_money_columns",
-                    "target_table": f"[silver].[{table_name}]",
-                    "procedure": f"[silver].[{proc_name}]",
+                    "target_table": f"[{SQL_SERVER_FIXTURE_SCHEMA}].[{table_name}]",
+                    "procedure": f"[{SQL_SERVER_FIXTURE_SCHEMA}].[{proc_name}]",
                     "given": [],
                 },
             )
@@ -350,8 +423,8 @@ class TestExecuteScenario:
                 backend.sandbox_down(sandbox_db=up_result.sandbox_database)
             with backend._connect_source(database=backend.source_database) as conn:
                 cursor = conn.cursor()
-                cursor.execute(f"DROP PROCEDURE IF EXISTS silver.[{proc_name}]")
-                cursor.execute(f"DROP TABLE IF EXISTS silver.[{table_name}]")
+                cursor.execute(f"DROP PROCEDURE IF EXISTS [{SQL_SERVER_FIXTURE_SCHEMA}].[{proc_name}]")
+                cursor.execute(f"DROP TABLE IF EXISTS [{SQL_SERVER_FIXTURE_SCHEMA}].[{table_name}]")
 
 
 # ── IDENTITY_INSERT integration ──────────────────────────────────────────────
@@ -364,13 +437,13 @@ class TestIdentityInsertIntegration:
     def test_explicit_identity_value_succeeds(self) -> None:
         """Insert a fixture row with an explicit identity column value.
 
-        silver.DimProduct has ProductKey INT IDENTITY(1,1). Before the fix
+        [MigrationTest].[silver_dimproduct] has ProductKey INT IDENTITY(1,1). Before the fix
         this would fail with 'Cannot insert explicit value for identity column'.
         """
         backend = _make_backend()
 
         try:
-            up = backend.sandbox_up(schemas=["bronze", "silver"])
+            up = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
             sandbox_db = up.sandbox_database
             assert up.status in ("ok", "partial")
 
@@ -378,11 +451,11 @@ class TestIdentityInsertIntegration:
                 sandbox_db=sandbox_db,
                 scenario={
                     "name": "test_identity_explicit",
-                    "target_table": "[silver].[DimProduct]",
-                    "procedure": "[silver].[usp_load_DimProduct]",
+                    "target_table": SILVER_DIMPRODUCT,
+                    "procedure": SILVER_USP_LOAD_DIMPRODUCT,
                     "given": [
                         {
-                            "table": "[silver].[DimProduct]",
+                            "table": SILVER_DIMPRODUCT,
                             "rows": [
                                 {
                                     "ProductKey": 999,
@@ -392,7 +465,7 @@ class TestIdentityInsertIntegration:
                             ],
                         },
                         {
-                            "table": "[bronze].[Product]",
+                            "table": BRONZE_PRODUCT,
                             "rows": [
                                 {
                                     "ProductID": 9999,
@@ -423,13 +496,13 @@ class TestIdentityInsertIntegration:
     def test_mixed_identity_and_non_identity_tables(self) -> None:
         """Insert into tables where one has identity and one does not.
 
-        silver.DimProduct → identity (ProductKey)
-        bronze.Currency → no identity column
+        [MigrationTest].[silver_dimproduct] → identity (ProductKey)
+        [MigrationTest].[bronze_currency] → no identity column
         """
         backend = _make_backend()
 
         try:
-            up = backend.sandbox_up(schemas=["bronze", "silver"])
+            up = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
             sandbox_db = up.sandbox_database
             assert up.status in ("ok", "partial")
 
@@ -437,11 +510,11 @@ class TestIdentityInsertIntegration:
                 sandbox_db=sandbox_db,
                 scenario={
                     "name": "test_mixed_identity",
-                    "target_table": "[silver].[DimProduct]",
-                    "procedure": "[silver].[usp_load_DimProduct]",
+                    "target_table": SILVER_DIMPRODUCT,
+                    "procedure": SILVER_USP_LOAD_DIMPRODUCT,
                     "given": [
                         {
-                            "table": "[silver].[DimProduct]",
+                            "table": SILVER_DIMPRODUCT,
                             "rows": [
                                 {
                                     "ProductKey": 888,
@@ -451,7 +524,7 @@ class TestIdentityInsertIntegration:
                             ],
                         },
                         {
-                            "table": "[bronze].[Currency]",
+                            "table": BRONZE_CURRENCY,
                             "rows": [
                                 {
                                     "CurrencyCode": "MXD",
@@ -461,7 +534,7 @@ class TestIdentityInsertIntegration:
                             ],
                         },
                         {
-                            "table": "[bronze].[Product]",
+                            "table": BRONZE_PRODUCT,
                             "rows": [
                                 {
                                     "ProductID": 8888,
@@ -497,14 +570,14 @@ class TestEnsureViewTablesIntegration:
         with backend._connect_source(database=backend.source_database) as conn:
             cursor = conn.cursor()
             cursor.execute(
-                f"CREATE OR ALTER VIEW [silver].[{view_name}] "
-                f"AS SELECT CurrencyCode, CurrencyName FROM [bronze].[Currency]"
+                f"CREATE OR ALTER VIEW [{SQL_SERVER_FIXTURE_SCHEMA}].[{view_name}] "
+                f"AS SELECT CurrencyCode, CurrencyName FROM {BRONZE_CURRENCY}"
             )
 
     def _drop_view(self, backend: SqlServerSandbox, view_name: str) -> None:
         with backend._connect_source(database=backend.source_database) as conn:
             cursor = conn.cursor()
-            cursor.execute(f"DROP VIEW IF EXISTS [silver].[{view_name}]")
+            cursor.execute(f"DROP VIEW IF EXISTS [{SQL_SERVER_FIXTURE_SCHEMA}].[{view_name}]")
 
     def _create_proc(
         self, backend: SqlServerSandbox, proc_name: str, view_name: str
@@ -513,12 +586,12 @@ class TestEnsureViewTablesIntegration:
             cursor = conn.cursor()
             cursor.execute(
                 f"""
-                CREATE OR ALTER PROCEDURE [silver].[{proc_name}]
+                CREATE OR ALTER PROCEDURE [{SQL_SERVER_FIXTURE_SCHEMA}].[{proc_name}]
                 AS
                 BEGIN
                     -- Reads from view fixture; ground truth is whatever remains in target
                     DECLARE @cnt INT;
-                    SELECT @cnt = COUNT(*) FROM [silver].[{view_name}];
+                    SELECT @cnt = COUNT(*) FROM [{SQL_SERVER_FIXTURE_SCHEMA}].[{view_name}];
                 END
                 """
             )
@@ -526,7 +599,7 @@ class TestEnsureViewTablesIntegration:
     def _drop_proc(self, backend: SqlServerSandbox, proc_name: str) -> None:
         with backend._connect_source(database=backend.source_database) as conn:
             cursor = conn.cursor()
-            cursor.execute(f"DROP PROCEDURE IF EXISTS [silver].[{proc_name}]")
+            cursor.execute(f"DROP PROCEDURE IF EXISTS [{SQL_SERVER_FIXTURE_SCHEMA}].[{proc_name}]")
 
     def test_view_fixture_executes_without_error(self) -> None:
         """execute_scenario succeeds when a fixture source is a view in the source DB."""
@@ -539,17 +612,17 @@ class TestEnsureViewTablesIntegration:
 
         up_result: dict = {}
         try:
-            up_result = backend.sandbox_up(schemas=["bronze", "silver"])
+            up_result = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
             sandbox_db = up_result.sandbox_database
             assert up_result.status in ("ok", "partial")
 
             scenario = {
                 "name": "test_view_fixture",
-                "target_table": "[silver].[DimCurrency]",
-                "procedure": f"[silver].[{proc_name}]",
+                "target_table": SILVER_DIMCURRENCY,
+                "procedure": f"[{SQL_SERVER_FIXTURE_SCHEMA}].[{proc_name}]",
                 "given": [
                     {
-                        "table": f"[silver].[{view_name}]",
+                        "table": f"[{SQL_SERVER_FIXTURE_SCHEMA}].[{view_name}]",
                         "rows": [
                             {"CurrencyCode": "VWT", "CurrencyName": "View Test"},
                         ],
@@ -577,13 +650,13 @@ class TestExecuteSelectIntegration:
         backend = _make_backend()
 
         try:
-            up_result = backend.sandbox_up(schemas=["silver"])
+            up_result = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
             sandbox_db = up_result.sandbox_database
             assert up_result.status in ("ok", "partial")
 
             fixtures = [
                 {
-                    "table": "[silver].[DimCurrency]",
+                    "table": SILVER_DIMCURRENCY,
                     "rows": [
                         {"CurrencyAlternateKey": "USD", "CurrencyName": "US Dollar"},
                         {"CurrencyAlternateKey": "EUR", "CurrencyName": "Euro"},
@@ -592,7 +665,7 @@ class TestExecuteSelectIntegration:
             ]
             sql = (
                 "SELECT CurrencyAlternateKey, CurrencyName "
-                "FROM [silver].[DimCurrency] "
+                f"FROM {SILVER_DIMCURRENCY} "
                 "ORDER BY CurrencyAlternateKey"
             )
 
@@ -614,11 +687,11 @@ class TestExecuteSelectIntegration:
         backend = _make_backend()
 
         try:
-            up_result = backend.sandbox_up(schemas=["silver"])
+            up_result = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
             sandbox_db = up_result.sandbox_database
             fixtures = [
                 {
-                    "table": "[silver].[DimCurrency]",
+                    "table": SILVER_DIMCURRENCY,
                     "rows": [
                         {"CurrencyAlternateKey": "USD", "CurrencyName": "US Dollar"},
                         {"CurrencyAlternateKey": "EUR", "CurrencyName": "Euro"},
@@ -627,12 +700,12 @@ class TestExecuteSelectIntegration:
             ]
             sql_a = (
                 "SELECT CurrencyAlternateKey, CurrencyName "
-                "FROM [silver].[DimCurrency]"
+                f"FROM {SILVER_DIMCURRENCY}"
             )
             sql_b = (
                 "WITH src AS ("
                 "  SELECT CurrencyAlternateKey, CurrencyName "
-                "  FROM [silver].[DimCurrency]"
+                f"  FROM {SILVER_DIMCURRENCY}"
                 ") "
                 "SELECT CurrencyAlternateKey, CurrencyName FROM src"
             )
@@ -656,12 +729,12 @@ class TestExecuteSelectIntegration:
         backend = _make_backend()
 
         try:
-            up_result = backend.sandbox_up(schemas=["silver"])
+            up_result = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
             sandbox_db = up_result.sandbox_database
 
             result = backend.execute_select(
                 sandbox_db=sandbox_db,
-                sql="SELECT CurrencyAlternateKey FROM [silver].[DimCurrency]",
+                sql=f"SELECT CurrencyAlternateKey FROM {SILVER_DIMCURRENCY}",
                 fixtures=[],
             )
 
@@ -675,12 +748,12 @@ class TestExecuteSelectIntegration:
         backend = _make_backend()
 
         try:
-            up_result = backend.sandbox_up(schemas=["silver"])
+            up_result = backend.sandbox_up(schemas=[SQL_SERVER_FIXTURE_SCHEMA])
             sandbox_db = up_result.sandbox_database
 
             fixtures = [
                 {
-                    "table": "[silver].[DimCurrency]",
+                    "table": SILVER_DIMCURRENCY,
                     "rows": [
                         {"CurrencyAlternateKey": "ZZZ", "CurrencyName": "Rollback Test"},
                     ],
@@ -688,7 +761,7 @@ class TestExecuteSelectIntegration:
             ]
             backend.execute_select(
                 sandbox_db=sandbox_db,
-                sql="SELECT CurrencyAlternateKey FROM [silver].[DimCurrency]",
+                sql=f"SELECT CurrencyAlternateKey FROM {SILVER_DIMCURRENCY}",
                 fixtures=fixtures,
             )
 
@@ -696,7 +769,7 @@ class TestExecuteSelectIntegration:
             with backend._connect(database=sandbox_db) as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT COUNT(*) FROM [silver].[DimCurrency] "
+                    f"SELECT COUNT(*) FROM {SILVER_DIMCURRENCY} "
                     "WHERE CurrencyAlternateKey = 'ZZZ'"
                 )
                 assert cursor.fetchone()[0] == 0, "Fixture row should be rolled back"
