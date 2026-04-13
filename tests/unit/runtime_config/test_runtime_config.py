@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from shared.runtime_config import (
     dialect_for_technology,
@@ -84,7 +85,7 @@ def test_runtime_roles_are_independent() -> None:
 
 
 def test_runtime_schemas_reject_unknown_keys() -> None:
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         RuntimeSchemas.model_validate({"source": "bronze", "soruce": "typo"})
 
 

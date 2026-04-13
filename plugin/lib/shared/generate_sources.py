@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import typer
 import yaml
@@ -203,7 +203,7 @@ def write_sources_yml(
 
 @app.command()
 def main(
-    project_root: Optional[Path] = typer.Option(
+    project_root: Path | None = typer.Option(
         None, "--project-root", help="Project root directory",
     ),
     write: bool = typer.Option(
