@@ -41,7 +41,9 @@ tests:
     vars:
       fixture_path: "tests/evals/fixtures/cmd-generate-tests/review-cycle"
       target_tables: "silver.CorrelatedSubqueryTarget"
-      expected_item_statuses: '{"silver.CorrelatedSubqueryTarget": "partial"}'
+      expected_item_statuses: '{"silver.CorrelatedSubqueryTarget": "ok"}'
+      expected_item_review_iterations: '{"silver.CorrelatedSubqueryTarget": 1}'
+      expected_item_review_verdicts: '{"silver.CorrelatedSubqueryTarget": "approved"}'
 
   - description: "review-loop-targeted-repair — IfElseTarget requires reviewer feedback then second-pass repair"
     vars:
