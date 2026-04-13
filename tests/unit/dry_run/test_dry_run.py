@@ -560,6 +560,19 @@ def test_status_view_object() -> None:
         assert result.stages.scope == "ok"
 
 
+def test_status_view_logs_warning_on_corrupt_catalog(caplog: pytest.LogCaptureFixture) -> None:
+    """A corrupt view catalog JSON logs a warning and degrades gracefully."""
+    tmp, root = _make_project()
+    with tmp:
+        view_path = root / "catalog" / "views" / "silver.vdimsalesterritory.json"
+        view_path.write_text("{bad json", encoding="utf-8")
+        with caplog.at_level("WARNING"):
+            result = dry_run.run_status(root, "silver.vDimSalesTerritory")
+        assert result.type == "view"
+        assert result.stages.scope is None
+        assert any("view_catalog_load_failed" in r.message for r in caplog.records)
+
+
 def test_status_pending_scope_preserves_specific_status() -> None:
     """Status output preserves incomplete scope states verbatim."""
     tmp, root = _make_project()

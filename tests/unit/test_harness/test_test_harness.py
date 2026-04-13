@@ -39,6 +39,7 @@ from shared.sandbox.sql_server import (
     _detect_remote_exec_target,
     _get_identity_columns,
     _get_not_null_defaults,
+    _import_pyodbc,
     _validate_identifier,
     _validate_sandbox_db_name,
 )
@@ -357,6 +358,31 @@ class TestSqlServerSandboxUp:
         create_db_calls = [c for c in calls if "CREATE DATABASE" in c]
         assert len(create_db_calls) == 1
 
+    def test_sandbox_up_calls_sandbox_down_on_failure(self) -> None:
+        """sandbox_up cleans up the orphaned DB when cloning raises."""
+        backend = _make_backend()
+
+        pyodbc = _import_pyodbc()
+        default_cursor = MagicMock()
+
+        @contextmanager
+        def _admin_connect(*, database=None):
+            if database and database.startswith("__test_"):
+                raise pyodbc.Error("connection failed to sandbox db")
+            yield MagicMock(cursor=MagicMock(return_value=default_cursor))
+
+        @contextmanager
+        def _source_connect(*, database=None):
+            yield MagicMock()
+
+        with patch.object(backend, "_connect", side_effect=_admin_connect), \
+             patch.object(backend, "_connect_source", side_effect=_source_connect), \
+             patch.object(backend, "sandbox_down") as mock_down:
+            result = backend.sandbox_up(schemas=["dbo"])
+
+        assert result.status == "error"
+        mock_down.assert_called_once()
+        assert result.sandbox_database == mock_down.call_args.args[0]
 
 
 # ── Sandbox down (mocked) ────────────────────────────────────────────────────
@@ -2247,6 +2273,47 @@ class TestDuckDbSandbox:
         assert result["b_count"] == 1
 
 
+class TestCompareTwoSqlSqlServerRollback:
+    """Verify compare_two_sql calls conn.rollback() on PARSEONLY failure."""
+
+    def test_rollback_called_on_parse_error(self) -> None:
+        backend = _make_backend()
+        pyodbc = _import_pyodbc()
+
+        cursor = MagicMock()
+        call_count = 0
+
+        def _execute_side_effect(sql, *args):
+            nonlocal call_count
+            call_count += 1
+            if sql == "SET PARSEONLY ON":
+                return None
+            if call_count == 3:
+                raise pyodbc.Error("syntax error near ...")
+            return None
+
+        cursor.execute.side_effect = _execute_side_effect
+        conn = MagicMock()
+        conn.cursor.return_value = cursor
+
+        @contextmanager
+        def _fake_connect(*, database=None):
+            yield conn
+
+        with patch.object(backend, "_connect", side_effect=_fake_connect), \
+             patch.object(backend, "_ensure_view_tables", return_value=[]):
+            result = backend.compare_two_sql(
+                sandbox_db="__test_abc123",
+                sql_a="SELECT bad syntax",
+                sql_b="SELECT 1",
+                fixtures=[],
+            )
+
+        assert result["status"] == "error"
+        assert result["errors"][0]["code"] == "SQL_SYNTAX_ERROR"
+        conn.rollback.assert_called()
+
+
 # ── _ensure_view_tables (SQL Server) ─────────────────────────────────────────
 
 
@@ -2601,6 +2668,33 @@ class TestOracleConnectionLifecycle:
                     pass
 
         conn.close.assert_called_once()
+
+
+class TestOracleSandboxUpCleanup:
+    def test_sandbox_up_calls_sandbox_down_on_failure(self) -> None:
+        """sandbox_up cleans up the orphaned schema when cloning raises."""
+        backend = OracleSandbox(
+            host="localhost", port="1521", service="FREEPDB1",
+            password="pw", admin_user="sys", source_schema="SH",
+        )
+
+        db_error_cls = type("DatabaseError", (Exception,), {})
+
+        @contextmanager
+        def _fail_connect():
+            raise db_error_cls("connection failed")
+            yield  # noqa: unreachable — keeps it a generator
+
+        with patch("shared.sandbox.oracle._import_oracledb") as ora_mock, \
+             patch.object(backend, "_connect", side_effect=_fail_connect), \
+             patch.object(backend, "_connect_source", side_effect=_fail_connect), \
+             patch.object(backend, "sandbox_down") as mock_down:
+            ora_mock.return_value.DatabaseError = db_error_cls
+            result = backend.sandbox_up(schemas=["SH"])
+
+        assert result.status == "error"
+        mock_down.assert_called_once()
+        assert result.sandbox_database == mock_down.call_args.args[0]
 
 
 class TestExecuteScenarioOracle:
