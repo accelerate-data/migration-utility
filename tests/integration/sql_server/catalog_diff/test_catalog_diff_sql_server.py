@@ -1,11 +1,12 @@
-"""Integration tests for diff-aware catalog reexport — requires Docker SQL Server.
+"""Integration tests for diff-aware catalog reexport against SQL Server.
 
 Validates hash stability and diff-aware behavior against real OBJECT_DEFINITION()
 output and sys.columns metadata, which have whitespace patterns that hand-crafted
 staging data cannot replicate.
 
 Run with: cd lib && uv run pytest ../tests/integration/sql_server/catalog_diff -v -k test_catalog_diff
-Requires: SA_PASSWORD env var (Docker SQL Server with MigrationTest DB).
+Requires: SA_PASSWORD env var and a configured SQL Server container with the
+canonical MigrationTest schema fixture materialized.
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ from typing import Any
 
 import pytest
 
-from tests.helpers import SHARED_LIB_DIR
+from tests.helpers import SHARED_LIB_DIR, SQL_SERVER_FIXTURE_SCHEMA
 from tests.integration.runtime_helpers import (
     SQL_SERVER_MIGRATION_DATABASE,
     build_sql_server_connection_string,
@@ -365,13 +366,14 @@ class TestViewCatalogEnrichmentIntegration:
     def test_view_catalog_has_sql_and_columns(self) -> None:
         """setup-ddl write-catalog writes sql and columns into view catalog JSON.
 
-        Creates a temporary test view in the MigrationTest DB, runs write-catalog
-        with view_columns.json extracted via sys.columns, then asserts the view
-        catalog at catalog/views/<fqn>.json has non-empty sql and columns fields.
+        Creates a temporary test view in the canonical MigrationTest schema
+        fixture, runs write-catalog with view_columns.json extracted via
+        sys.columns, then asserts the view catalog at
+        catalog/views/<fqn>.json has non-empty sql and columns fields.
         """
         conn = _connect()
         database = SQL_SERVER_MIGRATION_DATABASE
-        view_schema = "dbo"
+        view_schema = SQL_SERVER_FIXTURE_SCHEMA
         view_name = "vw_integration_test_view"
         fqn = f"{view_schema}.{view_name}"
 
@@ -379,11 +381,14 @@ class TestViewCatalogEnrichmentIntegration:
         tables = _query_rows(conn, f"""
             SELECT TOP 1 SCHEMA_NAME(t.schema_id) AS schema_name, t.name AS table_name
             FROM sys.tables t
-            WHERE SCHEMA_NAME(t.schema_id) = 'dbo'
+            WHERE SCHEMA_NAME(t.schema_id) = '{view_schema}'
               AND t.is_ms_shipped = 0
+            ORDER BY t.name
         """)
         if not tables:
-            pytest.skip("No dbo tables found in test DB — cannot create test view")
+            pytest.skip(
+                f"No tables found in canonical fixture schema {view_schema} — cannot create test view"
+            )
 
         source_table = f"[{tables[0]['schema_name']}].[{tables[0]['table_name']}]"
         cursor = conn.cursor()

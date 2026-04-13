@@ -13,7 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "unit"))
 
 def pytest_configure(config):
     config.addinivalue_line(
-        "markers", "integration: requires Docker SQL Server (MigrationTest database)"
+        "markers",
+        "integration: requires Docker SQL Server with the canonical MigrationTest schema fixture materialized in the configured database",
     )
     config.addinivalue_line(
         "markers",
