@@ -248,14 +248,13 @@ class TestFromEnv:
             clear=True,
         ):
             backend = SqlServerSandbox.from_env(manifest)
-        assert backend.database == "master"
         assert backend.user == "admin"
         assert backend.driver == "FreeTDS"
         assert backend.source_user == "source_user"
 
     def test_connect_cant_open_lib_raises_runtime_error(self) -> None:
         backend = SqlServerSandbox(
-            host="localhost", port="1433", database="testdb", password="pass",
+            host="localhost", port="1433", password="pass",
         )
         with patch("shared.sandbox.sql_server._pyodbc") as mock_pyodbc:
             mock_pyodbc.Error = type("Error", (Exception,), {})
@@ -274,7 +273,6 @@ def _make_backend() -> SqlServerSandbox:
     return SqlServerSandbox(
         host="localhost",
         port="1433",
-        database="TestDB",
         password="TestPass123",
     )
 
@@ -2474,7 +2472,7 @@ class TestExecuteSelectSqlServer:
     def test_happy_path_returns_rows(self) -> None:
         """execute_select seeds fixtures, runs SELECT, returns rows."""
         backend = SqlServerSandbox(
-            host="localhost", port="1433", database="testdb",
+            host="localhost", port="1433",
             password="pw", user="sa", driver="ODBC Driver 18 for SQL Server",
         )
         cursor = MagicMock()
@@ -2506,7 +2504,7 @@ class TestExecuteSelectSqlServer:
     def test_empty_result(self) -> None:
         """execute_select with no matching rows returns row_count=0."""
         backend = SqlServerSandbox(
-            host="localhost", port="1433", database="testdb",
+            host="localhost", port="1433",
             password="pw", user="sa", driver="ODBC Driver 18 for SQL Server",
         )
         cursor = MagicMock()
@@ -2536,7 +2534,7 @@ class TestExecuteSelectSqlServer:
     def test_rejects_write_sql(self) -> None:
         """execute_select rejects SQL containing write operations."""
         backend = SqlServerSandbox(
-            host="localhost", port="1433", database="testdb",
+            host="localhost", port="1433",
             password="pw", user="sa", driver="ODBC Driver 18 for SQL Server",
         )
         with pytest.raises(ValueError, match="write operation"):
