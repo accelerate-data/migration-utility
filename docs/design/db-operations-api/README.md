@@ -1,0 +1,198 @@
+# DB Operations API
+
+Define one manifest-first runtime contract and one adapter-style database API so new technologies can be added without re-embedding workflow logic.
+
+## Runtime Contract
+
+`manifest.json` is the only runtime source of truth.
+
+Runtime roles:
+
+- `runtime.source`
+- `runtime.target`
+- `runtime.sandbox`
+
+Rules:
+
+- each role is fully independent
+- no role inherits credentials from another role
+- no role assumes another role's technology
+- defaults in setup flows are only UX defaults, not persisted derivation rules
+
+Each role stores:
+
+- `technology`
+- `dialect`
+- `connection`
+- optional `schemas`
+
+Example:
+
+```json
+{
+  "runtime": {
+    "source": {
+      "technology": "oracle",
+      "dialect": "oracle",
+      "connection": {
+        "host": "localhost",
+        "port": "1521",
+        "service": "SRCPDB",
+        "user": "kimball_src",
+        "password_env": "ORACLE_SOURCE_PASSWORD",
+        "schema": "bronze"
+      }
+    },
+    "target": {
+      "technology": "duckdb",
+      "dialect": "duckdb",
+      "connection": {
+        "path": ".runtime/duckdb/target.duckdb"
+      },
+      "schemas": {
+        "source": "bronze",
+        "marts": "silver"
+      }
+    },
+    "sandbox": {
+      "technology": "oracle",
+      "dialect": "oracle",
+      "connection": {
+        "host": "localhost",
+        "port": "1521",
+        "service": "SANDBOXPDB",
+        "user": "kimball_sandbox",
+        "password_env": "ORACLE_SANDBOX_PASSWORD",
+        "schema": "bronze"
+      }
+    }
+  },
+  "extraction": {
+    "schemas": ["bronze", "silver"],
+    "extracted_at": "2026-04-13T00:00:00Z"
+  }
+}
+```
+
+For Oracle, source, target, and sandbox should use separate PDB or service endpoints.
+
+## Layer Split
+
+Technology-specific DB layer:
+
+- low-level connectivity
+- environment existence checks
+- environment creation and teardown
+- schema existence and creation
+- fixture materialization
+- fixture seeding
+- procedure execution
+- select execution
+- compare execution
+
+Source-agnostic orchestration layer:
+
+- manifest validation
+- desired state planning
+- delta calculation
+- logical source artifact generation
+- target setup orchestration
+- sandbox setup orchestration
+- execution workflow orchestration
+
+Read path:
+
+- adapter reads backend state
+- returns normalized data
+- orchestration decides how to act
+
+Write path:
+
+- orchestration computes desired state
+- adapter performs backend-specific writes
+
+## Adapter API
+
+Every supported technology should implement one adapter contract that can back source, target, and sandbox roles.
+
+Core operations:
+
+- `connect(role)`
+- `environment_exists(role)`
+- `ensure_environment(role)`
+- `drop_environment(role)`
+- `schema_exists(role, schema_name)`
+- `ensure_schema(role, schema_name)`
+- `materialize_fixture(role, fixture_spec)`
+- `seed_fixtures(role, fixtures)`
+- `execute_procedure(role, scenario)`
+- `execute_select(role, sql, fixtures)`
+- `compare_two_sql(role, sql_a, sql_b, fixtures)`
+
+Implementations should exist for:
+
+- SQL Server
+- Oracle
+- DuckDB
+
+## Command Ownership
+
+`/setup-ddl`
+
+- collects source runtime
+- extracts metadata
+- does not own target or sandbox setup
+
+`/setup-target`
+
+- collects target runtime from the user
+- owns target dbt setup
+- owns target-side source schema setup
+- reuses logical source artifact generation
+- replaces `/init-dbt`
+
+`/setup-sandbox`
+
+- defaults sandbox technology to source technology
+- allows user override
+- collects full sandbox runtime independently
+
+`generate-tests`
+
+- consumes sandbox execution services
+
+`refactoring-sql`
+
+- consumes compare execution services
+
+`generate-model`
+
+- consumes target validation runtime services
+
+## MigrationTest Fixture
+
+`MigrationTest` is the canonical integration fixture name across supported technologies.
+
+Rules:
+
+- each technology materializes whatever schema, data, procedures, and support objects it needs under the `MigrationTest` fixture contract
+- mutable runtime databases are generated on demand
+- mutable database files are not committed
+
+Repo entrypoints:
+
+- `scripts/sql/sql_server/materialize-migration-test.sh`
+- `scripts/sql/oracle/materialize-migration-test.sh`
+- `scripts/sql/duckdb/materialize-migration-test.sh`
+
+These shell scripts are env-driven and idempotent.
+
+## Adding a New Technology
+
+To add a new source or target technology:
+
+1. extend the runtime technology-to-dialect mapping
+2. implement the adapter contract
+3. add `MigrationTest` materialization assets and shell entrypoint
+4. wire the technology into setup flows
+5. add unit, integration, and affected eval coverage
