@@ -6,11 +6,11 @@ user-invocable: true
 
 # Set Up Sandbox
 
-Create a throwaway sandbox execution environment from the configured source runtime. The sandbox is used by the test generator to execute stored procedures and capture ground truth output. The environment name is auto-generated (`__test_<random_hex>`) unless the backend requires a different identifier shape.
+Create a throwaway sandbox execution environment from the configured source runtime. The sandbox is used by the test generator to execute stored procedures and capture ground truth output. The active sandbox endpoint is persisted in `manifest.json` as `runtime.sandbox`. The environment name is auto-generated (`__test_<random_hex>`) unless the backend requires a different identifier shape.
 
 ## Progress Tracking
 
-Use `TaskCreate` and `TaskUpdate` to track the automated phases of this command. After the user confirms (Step 3) and before execution begins, create a task for `Create sandbox database`. Update it to `in_progress` when the CLI starts and to `completed` or `cancelled` (include the error reason) when it finishes.
+Use `TaskCreate` and `TaskUpdate` to track the automated phases of this command. After the user confirms (Step 3) and before execution begins, create a task for `Create sandbox environment`. Update it to `in_progress` when the CLI starts and to `completed` or `cancelled` (include the error reason) when it finishes.
 
 ## Step 1: Pre-check
 
@@ -20,12 +20,12 @@ If `CLAUDE_PLUGIN_ROOT` is not set, stop and tell the user to load the plugin wi
 
 Run all checks silently — do not change anything yet.
 
-1. Check `manifest.json` exists in the current working directory. Read it to confirm `runtime.source` is configured. Default the sandbox technology to the source technology, but let the user choose a different supported sandbox technology if they want one.
+1. Check `manifest.json` exists in the current working directory. Read it to confirm `runtime.source` is configured. Default the sandbox technology to the source technology, but let the user choose a different supported sandbox technology if they want one. Persist the chosen sandbox endpoint explicitly in `runtime.sandbox`; do not infer it from source after setup is complete.
 2. Check that `extraction.schemas` in the manifest is a non-empty array.
 3. Check FreeTDS is installed: `brew list --formula freetds 2>/dev/null`. If missing, tell the user to run `brew install freetds` (or run `/init-ad-migration` which auto-installs it) and stop.
 4. Inspect `runtime.sandbox.connection` in `manifest.json` and note which env-bound secrets it requires, such as `password_env`. Check that every referenced env var is set (non-empty). Do not print secret values.
 5. Verify the test-harness CLI is available: `uv run --project "${CLAUDE_PLUGIN_ROOT}/lib" test-harness --help`
-6. Check `dbt/profiles.yml` exists. This is **required** — without it, `/generate-tests` and `/generate-model` will fail on `dbt compile`/`dbt test`. If missing, stop and tell the user: "No `dbt/profiles.yml` found. Run `/setup-target` to scaffold the dbt project and select a target platform before setting up the sandbox." If present, read the adapter `type:` and compare against `runtime.target.technology` in `manifest.json`. Warn on mismatch but don't block.
+6. Check `dbt/profiles.yml` exists. This is **required** — without it, `/generate-tests` and `/generate-model` will fail on target-side dbt validation. If missing, stop and tell the user: "No `dbt/profiles.yml` found. Run `/setup-target` to scaffold the dbt project and select a target platform before setting up the sandbox." If present, read the adapter `type:` and compare against `runtime.target.technology` in `manifest.json`. Warn on mismatch but don't block.
 7. Verify dbt can connect: `cd dbt && dbt debug`. Check the output shows "Connection test: OK". If it fails, stop and tell the user to check the env vars named by the configured runtime roles and any target-specific values in `profiles.yml`.
 
 ## Step 3: Present plan
@@ -103,4 +103,4 @@ If there were errors, list them and recommend checking the source database conne
 
 ## Idempotency
 
-Safe to re-run. The CLI drops and recreates the sandbox database if it already exists for the given run ID.
+Safe to re-run. The CLI recreates the active sandbox endpoint if it already exists for the given run ID.

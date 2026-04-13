@@ -19,14 +19,18 @@ Cross-reference index of common pipeline failures and the user-facing command th
 
 Live SQL Server extraction requires `toolbox` on `PATH`.
 
-**MSSQL environment variables missing**
+**Source runtime environment variables missing**
 
-`/setup-ddl` and `/setup-sandbox` need:
+`/setup-ddl` needs the source-side environment variables for the configured source technology.
+
+For SQL Server sources that usually means:
 
 - `MSSQL_HOST`
 - `MSSQL_PORT`
 - `MSSQL_DB`
 - `SA_PASSWORD`
+
+`/setup-sandbox` and `/generate-model` instead rely on the env vars referenced by `runtime.sandbox` and `runtime.target`.
 
 **Plugin root not configured**
 
@@ -85,7 +89,7 @@ This usually points to dynamic SQL, side effects, or behavior that is hard to is
 |---|---|---|---|
 | `DBT_PROJECT_MISSING` | `dbt/` has not been scaffolded | `/generate-model` | Run `/setup-target` |
 | `DBT_PROFILE_MISSING` | `profiles.yml` is missing | `/generate-model` | Re-run `/setup-target` or restore the file |
-| `DBT_CONNECTION_FAILED` | `dbt debug` failed | `/generate-model` | Fix `profiles.yml` or the target credentials |
+| `DBT_CONNECTION_FAILED` | `dbt debug` failed | `/generate-model` | Fix `profiles.yml` or the env-bound credentials referenced by `runtime.target` |
 | `DBT_COMPILE_FAILED` | Generated model did not compile | `/generate-model` | Review the generated SQL and rerun the command |
 | `DBT_TEST_FAILED` | Generated model still failed tests after retries | `/generate-model` | Inspect the generated artifact and test output, then rerun |
 | `EQUIVALENCE_GAP` | Semantic gap remains between proof-backed refactor and dbt output | `/generate-model` | Review the flagged differences before accepting the result |

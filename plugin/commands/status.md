@@ -376,7 +376,7 @@ For completed stages, show the key signals from the status detail content:
 - **scope (view):** status, is_materialized_view, logic_summary, references summary
 - **profile (table):** status, resolved_kind, primary_key type, watermark column, FK count, PII count, questions answered/total
 - **profile (view):** profile_status, classification, source
-- **test-gen:** status, coverage, branch count, test count, sandbox database
+- **test-gen:** status, coverage, branch count, test count, sandbox endpoint
 - **refactor (table):** status, has_refactored_sql
 - **refactor (view):** dbt_model_exists, model_name
 - **migrate:** dbt model exists, schema YAML has unit_tests, compiled, test results

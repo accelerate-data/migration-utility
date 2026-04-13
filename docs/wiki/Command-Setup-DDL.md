@@ -31,7 +31,7 @@ uv run --project <shared-path> setup-ddl extract \
 | `--schemas` | yes | Comma-separated list of schemas to extract |
 | `--project-root` | no | Defaults to current working directory |
 
-`manifest.json` must already exist and contain a valid `technology` field before running `extract`. Run `write-manifest` first if starting from scratch.
+`manifest.json` must already exist and contain a valid source technology before running `extract`. The extraction flow writes the active source endpoint to `runtime.source` and extraction metadata to `extraction.*`.
 
 Enriched catalog fields (`scoping`, `profile`, `refactor`) written by earlier skill runs are preserved across re-extractions.
 
@@ -60,7 +60,7 @@ Enriched catalog fields (`scoping`, `profile`, `refactor`) written by earlier sk
 ## Prerequisites
 
 - **`toolbox` binary on PATH** -- the `mssql` MCP server requires genai-toolbox. Run `toolbox --version` to verify. Install from `https://github.com/googleapis/genai-toolbox/releases` if missing.
-- **Environment variables set** -- the `mssql` MCP server reads these at startup:
+- **Environment variables set** -- the SQL Server source flow reads these at startup:
 
   | Variable | Description | Example |
   |---|---|---|
@@ -168,13 +168,14 @@ This skill reads from a live SQL Server via the `mssql` MCP tool. No local catal
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `schema_version` | string | yes | Always `"1.0"` |
-| `technology` | string | yes | Source technology. Enum: `sql_server`, `oracle`, `duckdb`, `snowflake` |
-| `dialect` | string | yes | sqlglot dialect. Enum: `tsql`, `oracle`, `duckdb`, `snowflake` |
-| `runtime.source` | object | yes | Source runtime endpoint and connection information |
+| `technology` | string | yes | Primary project technology. Enum: `sql_server`, `oracle`, `duckdb`, `snowflake` |
+| `dialect` | string | yes | Primary sqlglot dialect. Enum: `tsql`, `oracle`, `duckdb`, `snowflake` |
+| `runtime.source` | object | yes | Active source runtime endpoint and connection information |
+| `runtime.target` | object | no | Active target runtime endpoint, written later by `/setup-target` |
+| `runtime.sandbox` | object | no | Active sandbox runtime endpoint, written later by `/setup-sandbox` |
 | `extraction.schemas` | string[] | yes | List of schemas included in the extraction |
-| `extracted_at` | string | yes | ISO 8601 timestamp of extraction |
+| `extraction.extracted_at` | string | yes | ISO 8601 timestamp of extraction |
 | `init_handoff` | object | no | Validated prerequisite state (`env_vars`, `tools`, `timestamp`) written by `/init-ad-migration`. Required by all stage guards via `check_init_prerequisites` |
-| `sandbox` | object | no | Sandbox runtime metadata -- added later by the test harness |
 
 Technology-to-dialect mapping:
 
@@ -250,11 +251,19 @@ The 12 catalog signal queries produce these staging files in `.staging/`:
     "source": {
       "technology": "sql_server",
       "dialect": "tsql",
-      "connection": {"database": "AdventureWorksDW"}
+      "connection": {
+        "host": "localhost",
+        "port": "1433",
+        "database": "AdventureWorksDW",
+        "user": "sa",
+        "driver": "FreeTDS"
+      }
     }
   },
-  "extraction": {"schemas": ["dbo", "silver", "gold"]},
-  "extracted_at": "2025-03-15T14:30:00Z"
+  "extraction": {
+    "schemas": ["dbo", "silver", "gold"],
+    "extracted_at": "2025-03-15T14:30:00Z"
+  }
 }
 ```
 
@@ -307,7 +316,7 @@ The 12 catalog signal queries produce these staging files in `.staging/`:
 | Error | Cause | Fix |
 |---|---|---|
 | `toolbox: command not found` | genai-toolbox not installed | Install from `https://github.com/googleapis/genai-toolbox/releases` and add to PATH |
-| `MSSQL_HOST is not set` | Missing environment variable | Set `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, and `SA_PASSWORD` in `.env` or shell |
+| `MSSQL_HOST is not set` | Missing source-side environment variable | Set `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_DB`, and `SA_PASSWORD` in `.env` or shell before extraction |
 | `USE` statement not carrying across calls | Each MCP call is a discrete connection | Prepend `USE [<database>];` to every SQL block -- this is handled automatically by the skill |
 | Change tracking query fails | Feature not enabled on server | Graceful degradation -- the query uses TRY/CATCH and saves an error marker instead of failing |
 | Sensitivity classifications query fails | Feature not available (e.g., SQL Server edition) | Graceful degradation -- same TRY/CATCH pattern |

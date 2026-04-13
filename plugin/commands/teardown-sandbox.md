@@ -1,12 +1,12 @@
 ---
 name: teardown-sandbox
-description: Drops a throwaway sandbox database created by setup-sandbox.
+description: Drops the active sandbox endpoint created by setup-sandbox.
 user-invocable: true
 ---
 
 # Tear Down Sandbox
 
-Drop the sandbox database that was previously created by `setup-sandbox`.
+Drop the active sandbox endpoint that was previously created by `setup-sandbox`.
 
 ## Step 1: Pre-check
 

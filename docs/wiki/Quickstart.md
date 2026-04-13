@@ -82,7 +82,7 @@ See [[Stage 2 Profiling]].
 /setup-sandbox
 ```
 
-This creates the throwaway database used for ground-truth capture and SQL equivalence checks.
+This creates the active sandbox endpoint used for ground-truth capture and SQL equivalence checks and persists it as `runtime.sandbox`.
 
 See [[Stage 4 Sandbox Setup]].
 
@@ -112,7 +112,7 @@ See [[Stage 5 SQL Refactoring]].
 /generate-model silver.DimCustomer silver.FactInternetSales
 ```
 
-This generates dbt SQL and schema YAML, runs `dbt test`, applies the independent model review loop, and commits successful items.
+This generates dbt SQL and schema YAML, runs `dbt build`, applies the independent model review loop, and commits successful items.
 
 See [[Stage 4 Model Generation]].
 

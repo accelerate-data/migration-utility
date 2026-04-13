@@ -1500,6 +1500,7 @@ class TestConnectionIdentity:
         assert result.returncode == 0, result.stderr
         manifest = json.loads((tmp_path / "manifest.json").read_text())
         assert manifest["runtime"]["source"]["connection"]["dsn"] == "oraclehost:1521/PROD"
+        assert manifest["runtime"]["source"]["connection"]["password_env"] == "ORACLE_PASSWORD"
 
     def test_identity_changed_host(self):
         _, identity_changed_fn, _ = self._import()

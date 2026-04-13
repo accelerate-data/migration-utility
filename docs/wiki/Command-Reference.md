@@ -9,8 +9,8 @@ This page lists the current user-invocable commands exposed by the plugin.
 | `/init-ad-migration` | Scaffold the migration repo and check prerequisites |
 | `/setup-ddl` | Extract DDL and build the local catalog |
 | `/setup-target` | Configure the target runtime, scaffold the dbt project, and generate `sources.yml` |
-| `/setup-sandbox` | Create the throwaway sandbox database |
-| `/teardown-sandbox` | Drop the sandbox database and clear sandbox metadata |
+| `/setup-sandbox` | Create the active sandbox execution endpoint |
+| `/teardown-sandbox` | Drop the sandbox endpoint and clear sandbox metadata |
 
 ## Migration pipeline
 

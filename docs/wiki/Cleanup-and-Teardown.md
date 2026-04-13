@@ -4,7 +4,7 @@ Two cleanup commands remove resources created during the migration pipeline: `/c
 
 ## `/teardown-sandbox`
 
-Drops the throwaway sandbox database that was created by `/setup-sandbox` during test generation.
+Drops the active sandbox endpoint that was created by `/setup-sandbox` during test generation.
 
 ### When to run
 
