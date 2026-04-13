@@ -4,9 +4,9 @@ from pathlib import Path
 import pytest
 
 # Ensure plugin/lib/ is on the path so tests can import shared.* directly.
-sys.path.insert(0, str(Path(__file__).parents[2] / "plugin" / "lib"))
+sys.path.insert(0, str(Path(__file__).parents[1] / "plugin" / "lib"))
 # Ensure tests/unit/ is on the path so test modules can import shared helpers.
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent / "unit"))
 
 
 def pytest_configure(config):

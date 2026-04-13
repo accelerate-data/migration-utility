@@ -1,6 +1,6 @@
 """Integration tests for OracleSandbox — requires local Oracle Docker.
 
-Run with: cd plugin/lib && uv run pytest -m oracle -v
+Run with: cd plugin/lib && uv run pytest ../../tests/integration/oracle/test_harness -v
 
 Requires:
 - Docker Oracle container running (see docs/reference/setup-docker/README.md)
@@ -80,7 +80,7 @@ def _materialize_oracle_fixture() -> None:
     global _FIXTURE_READY
     if _FIXTURE_READY:
         return
-    repo_root = Path(__file__).resolve().parents[2]
+    repo_root = Path(__file__).resolve().parents[4]
     role = RuntimeRole(
         technology="oracle",
         dialect="oracle",

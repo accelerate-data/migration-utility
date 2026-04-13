@@ -48,7 +48,7 @@ def _have_mssql_env() -> bool:
 def _make_backend() -> SqlServerSandbox:
     global _FIXTURE_READY
     if not _FIXTURE_READY:
-        repo_root = Path(__file__).resolve().parents[2]
+        repo_root = Path(__file__).resolve().parents[4]
         role = RuntimeRole(
             technology="sql_server",
             dialect="tsql",

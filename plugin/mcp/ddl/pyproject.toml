@@ -16,7 +16,7 @@ dev = []
 shared = { path = "../../lib", editable = true }
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests/unit"]
 markers = [
     "oracle: requires Docker Oracle with SH schema loaded",
     "integration: requires external infrastructure",
