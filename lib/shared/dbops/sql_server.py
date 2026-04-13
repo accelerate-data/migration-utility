@@ -33,6 +33,7 @@ class SqlServerOperations(DatabaseOperations):
             "MSSQL_HOST": self.role.connection.host or "localhost",
             "MSSQL_PORT": self.role.connection.port or "1433",
             "MSSQL_DB": self.environment_name(),
+            "MSSQL_SCHEMA": self.role.connection.schema_name or "MigrationTest",
         }
         if self.role.connection.user:
             env["MSSQL_USER"] = self.role.connection.user

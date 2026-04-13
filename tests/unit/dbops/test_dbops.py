@@ -20,13 +20,34 @@ def test_sql_server_dbops_materialize_env(monkeypatch: pytest.MonkeyPatch) -> No
         connection=RuntimeConnection(
             host="localhost",
             port="1433",
-            database="MigrationTest",
+            database="WarehouseOne",
             password_env="SA_PASSWORD",
         ),
     )
     adapter = get_dbops("sql_server").from_role(role)
     env = adapter.materialize_migration_test_env()
-    assert env["MSSQL_DB"] == "MigrationTest"
+    assert env["MSSQL_DB"] == "WarehouseOne"
+    assert env["MSSQL_SCHEMA"] == "MigrationTest"
+    assert env["SA_PASSWORD"] == "secret"
+
+
+def test_sql_server_dbops_materialize_env_uses_runtime_schema(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SA_PASSWORD", "secret")
+    role = RuntimeRole(
+        technology="sql_server",
+        dialect="tsql",
+        connection=RuntimeConnection(
+            host="localhost",
+            port="1433",
+            database="WarehouseOne",
+            schema="FixtureSchema",
+            password_env="SA_PASSWORD",
+        ),
+    )
+    adapter = get_dbops("sql_server").from_role(role)
+    env = adapter.materialize_migration_test_env()
+    assert env["MSSQL_DB"] == "WarehouseOne"
+    assert env["MSSQL_SCHEMA"] == "FixtureSchema"
     assert env["SA_PASSWORD"] == "secret"
 
 
