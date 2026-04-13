@@ -2,7 +2,17 @@
   "schema_version": "1.0",
   "technology": "sql_server",
   "dialect": "tsql",
-  "source_database": "MigrationTest",
-  "extracted_schemas": ["silver"],
-  "extracted_at": "2026-04-09T00:00:00Z"
+  "runtime": {
+    "source": {
+      "technology": "sql_server",
+      "dialect": "tsql",
+      "connection": {
+        "database": "MigrationTest"
+      }
+    }
+  },
+  "extraction": {
+    "schemas": ["silver"],
+    "extracted_at": "2026-04-09T00:00:00Z"
+  }
 }

@@ -26,7 +26,7 @@ Do not use this skill for batch orchestration. `/generate-model` owns batching, 
 - Readiness failure: surface the failing `code` and `reason`, then stop.
 - Multi-table writer: use `writer_ddl_slice`; otherwise use `refactored_sql`.
 - Reviewer handoff: use `artifact_paths` and `revision_feedback` exactly as given.
-- Offline compile: fall back to `dbt parse` and skip `dbt test`.
+- Offline compile: fall back to `dbt parse` and skip dbt execution.
 - Before returning `ok` or `partial`, satisfy [../_shared/references/model-artifact-invariants.md](../_shared/references/model-artifact-invariants.md).
 
 ## Happy Path
@@ -97,21 +97,20 @@ Do not use this skill for batch orchestration. `/generate-model` owns batching, 
 
    Use the CLI-returned written paths. Do not hardcode output paths.
 
-8. Validate with dbt against the sandbox.
+8. Validate with dbt using the manifest runtime roles.
 
-   Read `manifest.json` at the project root and extract `sandbox.database` and `technology`. Use the sandbox value to override the appropriate env var so that `dbt compile` and `dbt test` resolve source relations against the sandbox, which contains cloned schema from the source system.
+   Read `manifest.json` at the project root and use the canonical runtime contract:
+   - `runtime.target` is the dbt validation target
+   - `runtime.sandbox` is the source-relation execution endpoint when the workflow requires sandbox-backed validation
 
-   | Technology | Sandbox type | Env var override |
-   |---|---|---|
-   | `sql_server`, `fabric_warehouse` | database | `MSSQL_DB=<sandbox_database>` |
-   | `oracle` | schema | `DBT_SCHEMA=<sandbox_database>` |
+   Do not read flat fields such as `sandbox.database`. Do not derive `target` from `source` or `sandbox`. Use the fully specified runtime roles from the manifest and map them to the backend-specific environment required by the dbt profile in the eval or project environment.
 
    ```bash
    cd "${DBT_PROJECT_PATH:-./dbt}" && <ENV_OVERRIDE> dbt compile --select <model_name>
-   cd "${DBT_PROJECT_PATH:-./dbt}" && <ENV_OVERRIDE> dbt test --select <model_name>
+   cd "${DBT_PROJECT_PATH:-./dbt}" && <ENV_OVERRIDE> dbt build --select <model_name>
    ```
 
-   If the warehouse is unavailable, run `dbt parse` and skip `dbt test`. If compile or test fails for model reasons, revise SQL, re-write, and retry up to 3 total attempts.
+   Use `dbt build` rather than `dbt test` alone so the generated model relation is materialized before generic tests run. If the warehouse is unavailable, run `dbt parse` and skip dbt execution. If compile or build fails for model reasons, revise SQL, re-write, and retry up to 3 total attempts.
 
 9. Add gap tests only after canonical tests pass.
 

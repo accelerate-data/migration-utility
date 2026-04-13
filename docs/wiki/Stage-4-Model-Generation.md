@@ -20,7 +20,7 @@
 ## Pipeline
 
 1. generate dbt SQL and schema YAML
-2. run `dbt test`
+2. run `dbt compile` and `dbt build`
 3. self-correct up to the command limits
 4. run the independent `/reviewing-model` loop
 5. commit successful items and optionally raise a PR

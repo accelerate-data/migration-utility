@@ -2,6 +2,16 @@
   "schema_version": "1.0",
   "technology": "sql_server",
   "dialect": "tsql",
-  "source_database": "TestDB",
-  "extracted_schemas": ["silver"]
+  "runtime": {
+    "source": {
+      "technology": "sql_server",
+      "dialect": "tsql",
+      "connection": {
+        "database": "TestDB"
+      }
+    }
+  },
+  "extraction": {
+    "schemas": ["silver"]
+  }
 }

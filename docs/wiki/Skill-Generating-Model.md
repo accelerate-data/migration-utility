@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Generates a dbt model from a profiled stored procedure. Reads deterministic context from catalog (profile, resolved statements, test spec, and refactored SQL), uses LLM to produce dbt-idiomatic SQL following the import CTE / logical CTE / final CTE pattern, validates logical equivalence against the refactored SQL, renders schema YAML with tests, and writes artifacts to the dbt project. Includes a self-correction loop that runs `dbt compile` and `dbt test` up to 3 iterations.
+Generates a dbt model from a profiled stored procedure. Reads deterministic context from catalog (profile, resolved statements, test spec, and refactored SQL), uses LLM to produce dbt-idiomatic SQL following the import CTE / logical CTE / final CTE pattern, validates logical equivalence against the refactored SQL, renders schema YAML with tests, and writes artifacts to the dbt project. Includes a self-correction loop that runs `dbt compile` and `dbt build` up to 3 iterations.
 
 ## Invocation
 
@@ -197,19 +197,21 @@ cd "${DBT_PROJECT_PATH:-./dbt}" && dbt compile --select <model_name>
 
 If compile fails with a connection error, falls back to `dbt parse` for offline validation.
 
-**8b -- Run unit tests:**
+**8b -- Materialize and run tests:**
 
 ```bash
-cd "${DBT_PROJECT_PATH:-./dbt}" && dbt test --select <model_name>
+cd "${DBT_PROJECT_PATH:-./dbt}" && dbt build --select <model_name>
 ```
+
+`dbt build` is used rather than `dbt test` alone so the model relation exists before generic tests execute.
 
 **8c -- Self-correction loop (max 3 iterations):**
 
-If compile or test fails:
+If compile or build fails:
 
 1. Analyze failure output
 2. Revise model SQL (test-spec unit tests are ground truth and cannot be modified; `test_gap_*` tests may be revised)
-3. Re-run `migrate write`, `dbt compile`, `dbt test`
+3. Re-run `migrate write`, `dbt compile`, `dbt build`
 4. Repeat up to 3 iterations
 
 After 3 failed iterations, the model is left as-is with `status: "partial"` and failures recorded in `execution.dbt_errors[]`.
@@ -252,7 +254,7 @@ For snapshot models, generated in `dbt/snapshots/` instead of `dbt/models/`.
 | `results[].output.artifact_paths` | object | `model_sql`, `model_yaml` paths |
 | `results[].output.generated.model_sql` | object | `materialized` (enum: `incremental`, `table`, `snapshot`), `uses_watermark` |
 | `results[].output.generated.model_yaml` | object | `has_model_description`, `schema_tests_rendered[]`, `has_unit_tests` |
-| `results[].output.execution` | object | `dbt_compile_passed`, `dbt_test_passed`, `self_correction_iterations`, `dbt_errors[]` |
+| `results[].output.execution` | object | `dbt_compile_passed`, `dbt_build_passed`, `self_correction_iterations`, `dbt_errors[]` |
 
 ## JSON Format
 
@@ -293,7 +295,7 @@ final as (
         first_name,
         last_name,
         region,
-        current_timestamp() as _loaded_at
+        {{ current_timestamp() }} as _loaded_at
     from customers_with_region
 )
 
@@ -344,7 +346,7 @@ models:
 | `migrate context` exit code 2 | IO/parse error | Check file permissions and JSON validity in `catalog/` |
 | `migrate write` exit code 1 | Validation failure (empty SQL) | Regenerate the model |
 | `migrate write` exit code 2 | IO error (missing dbt project) | Run `/setup-target` to create the dbt project |
-| `dbt compile` connection error | No warehouse connection available | Falls back to `dbt parse` for offline validation. Unit tests are skipped |
-| `dbt test` failure after 3 iterations | Model cannot pass all unit tests | Model left with `status: "partial"`. Failing tests recorded in `execution.dbt_errors[]`. Manual intervention needed |
+| `dbt compile` connection error | No warehouse connection available | Falls back to `dbt parse` for offline validation. dbt execution is skipped |
+| `dbt build` failure after 3 iterations | Model cannot pass materialization and tests | Model left with `status: "partial"`. Failing dbt steps are recorded in `execution.dbt_errors[]`. Manual intervention needed |
 | Equivalence check warnings | Generated model diverges from refactored SQL semantics | Review warnings with user. Revise model if semantic gaps are real |
 | Test-spec scenario missing from YAML | Scenario dropped during rendering | All `unit_tests[]` from test spec must be preserved -- re-run rendering |
