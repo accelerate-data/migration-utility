@@ -41,7 +41,10 @@ BEGIN
                 "CHANNEL_ID" NUMBER NOT NULL,
                 "PROMO_ID" NUMBER,
                 "QUANTITY_SOLD" NUMBER,
-                "AMOUNT_SOLD" NUMBER
+                "AMOUNT_SOLD" NUMBER,
+                CONSTRAINT "__SCHEMA___SALES_CHANNELS_FK"
+                    FOREIGN KEY ("CHANNEL_ID")
+                    REFERENCES "__SCHEMA__"."CHANNELS" ("CHANNEL_ID")
             )
         ]';
     END IF;
@@ -109,6 +112,17 @@ BEGIN
             UPDATE SET tgt."TIER" = src.tier, tgt."UPDATED_AT" = SYSDATE;
     END LOOP;
 END SUMMARIZE_CHANNEL_SALES;
+/
+
+CREATE OR REPLACE VIEW "__SCHEMA__".V_CHANNEL_SALES AS
+SELECT
+    c."CHANNEL_ID",
+    c."CHANNEL_DESC",
+    NVL(SUM(s."AMOUNT_SOLD"), 0) AS "TOTAL_AMOUNT"
+FROM "__SCHEMA__"."CHANNELS" c
+LEFT JOIN "__SCHEMA__"."SALES" s
+    ON s."CHANNEL_ID" = c."CHANNEL_ID"
+GROUP BY c."CHANNEL_ID", c."CHANNEL_DESC";
 /
 
 COMMIT;

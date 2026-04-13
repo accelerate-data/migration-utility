@@ -16,7 +16,7 @@ from pathlib import Path
 import oracledb
 import pytest
 
-from tests.helpers import REPO_ROOT
+from tests.helpers import ORACLE_MIGRATION_SCHEMA, REPO_ROOT
 from shared.fixture_materialization import materialize_migration_test
 from shared.sandbox.oracle import OracleSandbox
 from shared.runtime_config_models import RuntimeConnection, RuntimeRole
@@ -58,7 +58,7 @@ def _make_backend() -> OracleSandbox:
                     "host": os.environ.get("ORACLE_HOST", "localhost"),
                     "port": os.environ.get("ORACLE_PORT", "1521"),
                     "service": os.environ.get("ORACLE_SERVICE", "FREEPDB1"),
-                    "schema": os.environ.get("ORACLE_SCHEMA", "SH"),
+                    "schema": os.environ.get("ORACLE_SCHEMA", ORACLE_MIGRATION_SCHEMA),
                 },
             },
             "sandbox": {
@@ -89,7 +89,7 @@ def _materialize_oracle_fixture() -> None:
             port=os.environ.get("ORACLE_PORT", "1521"),
             service=os.environ.get("ORACLE_SERVICE", "FREEPDB1"),
             user=os.environ.get("ORACLE_ADMIN_USER", "sys"),
-            schema=os.environ.get("ORACLE_SCHEMA", "SH"),
+            schema=os.environ.get("ORACLE_SCHEMA", ORACLE_MIGRATION_SCHEMA),
             password_env="ORACLE_PWD",
         ),
     )
@@ -113,11 +113,11 @@ skip_no_oracle = pytest.mark.skipif(
 class TestOracleSandboxLifecycle:
     """Full sandbox lifecycle: up → verify → down against local Oracle Docker."""
 
-    def test_sandbox_up_creates_and_clones_sh_schema(self) -> None:
+    def test_sandbox_up_creates_and_clones_migrationtest_schema(self) -> None:
         backend = _make_backend()
 
         try:
-            result = backend.sandbox_up(schemas=["SH"])
+            result = backend.sandbox_up(schemas=[ORACLE_MIGRATION_SCHEMA])
             sandbox_schema = result.sandbox_database
 
             assert result.status in ("ok", "partial"), result.errors
@@ -145,7 +145,7 @@ class TestOracleSandboxLifecycle:
     def test_sandbox_down_removes_user(self) -> None:
         backend = _make_backend()
 
-        result = backend.sandbox_up(schemas=["SH"])
+        result = backend.sandbox_up(schemas=[ORACLE_MIGRATION_SCHEMA])
         sandbox_schema = result.sandbox_database
         down_result = backend.sandbox_down(sandbox_db=sandbox_schema)
 
@@ -163,7 +163,7 @@ class TestOracleSandboxLifecycle:
     def test_sandbox_status_reflects_existence(self) -> None:
         backend = _make_backend()
 
-        result = backend.sandbox_up(schemas=["SH"])
+        result = backend.sandbox_up(schemas=[ORACLE_MIGRATION_SCHEMA])
         sandbox_schema = result.sandbox_database
 
         try:
@@ -185,14 +185,14 @@ class TestOracleSandboxLifecycle:
 
 @skip_no_oracle
 class TestOracleExecuteScenario:
-    """Execute a real scenario against the sandbox using the SH schema."""
+    """Execute a real scenario against the sandbox using the MigrationTest schema."""
 
     def test_full_lifecycle_execute_summarize_channel_sales(self) -> None:
         """sandbox_up → execute_scenario (SUMMARIZE_CHANNEL_SALES) → sandbox_down."""
         backend = _make_backend()
 
         try:
-            up_result = backend.sandbox_up(schemas=["SH"])
+            up_result = backend.sandbox_up(schemas=[ORACLE_MIGRATION_SCHEMA])
             sandbox_schema = up_result.sandbox_database
             assert up_result.status in ("ok", "partial"), up_result.errors
 
@@ -271,7 +271,7 @@ class TestOracleExecuteScenario:
         backend = _make_backend()
 
         try:
-            up_result = backend.sandbox_up(schemas=["SH"])
+            up_result = backend.sandbox_up(schemas=[ORACLE_MIGRATION_SCHEMA])
             sandbox_schema = up_result.sandbox_database
 
             scenario = {
@@ -313,7 +313,7 @@ class TestOracleExecuteScenario:
         backend = _make_backend()
 
         try:
-            up_result = backend.sandbox_up(schemas=["SH"])
+            up_result = backend.sandbox_up(schemas=[ORACLE_MIGRATION_SCHEMA])
             sandbox_schema = up_result.sandbox_database
 
             scenario = {
@@ -338,7 +338,7 @@ class TestOracleCompareTwoSql:
         backend = _make_backend()
 
         try:
-            up_result = backend.sandbox_up(schemas=["SH"])
+            up_result = backend.sandbox_up(schemas=[ORACLE_MIGRATION_SCHEMA])
             sandbox_schema = up_result.sandbox_database
 
             fixtures = [
@@ -395,7 +395,7 @@ class TestOracleCompareTwoSql:
         backend = _make_backend()
 
         try:
-            up_result = backend.sandbox_up(schemas=["SH"])
+            up_result = backend.sandbox_up(schemas=[ORACLE_MIGRATION_SCHEMA])
             sandbox_schema = up_result.sandbox_database
 
             fixtures = [
@@ -512,7 +512,7 @@ class TestOracleEnsureViewTablesIntegration:
 
         up_result: dict = {}
         try:
-            up_result = backend.sandbox_up(schemas=["SH"])
+            up_result = backend.sandbox_up(schemas=[ORACLE_MIGRATION_SCHEMA])
             sandbox_schema = up_result.sandbox_database
             assert up_result.status in ("ok", "partial"), up_result.errors
 
@@ -553,7 +553,7 @@ class TestOracleSandboxNoOrphanedUsers:
     def test_sandbox_down_leaves_no_orphaned_user(self) -> None:
         backend = _make_backend()
 
-        result = backend.sandbox_up(schemas=["SH"])
+        result = backend.sandbox_up(schemas=[ORACLE_MIGRATION_SCHEMA])
         sandbox_schema = result.sandbox_database
         assert result.status in ("ok", "partial")
 
@@ -578,7 +578,7 @@ class TestOracleExecuteSelectIntegration:
         backend = _make_backend()
 
         try:
-            up_result = backend.sandbox_up(schemas=["SH"])
+            up_result = backend.sandbox_up(schemas=[ORACLE_MIGRATION_SCHEMA])
             sandbox_schema = up_result.sandbox_database
             assert up_result.status in ("ok", "partial")
 
@@ -629,7 +629,7 @@ class TestOracleExecuteSelectIntegration:
         backend = _make_backend()
 
         try:
-            up_result = backend.sandbox_up(schemas=["SH"])
+            up_result = backend.sandbox_up(schemas=[ORACLE_MIGRATION_SCHEMA])
             sandbox_schema = up_result.sandbox_database
             fixtures = [
                 {
@@ -684,7 +684,7 @@ class TestOracleExecuteSelectIntegration:
         backend = _make_backend()
 
         try:
-            up_result = backend.sandbox_up(schemas=["SH"])
+            up_result = backend.sandbox_up(schemas=[ORACLE_MIGRATION_SCHEMA])
             sandbox_schema = up_result.sandbox_database
 
             result = backend.execute_select(
@@ -703,7 +703,7 @@ class TestOracleExecuteSelectIntegration:
         backend = _make_backend()
 
         try:
-            up_result = backend.sandbox_up(schemas=["SH"])
+            up_result = backend.sandbox_up(schemas=[ORACLE_MIGRATION_SCHEMA])
             sandbox_schema = up_result.sandbox_database
 
             fixtures = [

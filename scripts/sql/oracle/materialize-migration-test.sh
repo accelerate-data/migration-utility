@@ -5,7 +5,8 @@ set -euo pipefail
 : "${ORACLE_PORT:=1521}"
 : "${ORACLE_SERVICE:=FREEPDB1}"
 : "${ORACLE_USER:=sys}"
-: "${ORACLE_SCHEMA:=SH}"
+: "${ORACLE_SCHEMA:=MIGRATIONTEST}"
+: "${ORACLE_SCHEMA_PASSWORD:=${ORACLE_SCHEMA,,}}"
 
 if [[ -z "${ORACLE_PWD:-}" ]]; then
   echo "ORACLE_PWD must be set" >&2
@@ -31,6 +32,22 @@ if command -v sqlplus >/dev/null 2>&1; then
   if [[ "${ORACLE_USER,,}" == "sys" ]]; then
     sqlplus -S /nolog <<SQL
 CONNECT ${CONNECT_STRING} AS SYSDBA
+DECLARE
+  v_count NUMBER;
+BEGIN
+  SELECT COUNT(*) INTO v_count FROM ALL_USERS WHERE USERNAME = UPPER('${ORACLE_SCHEMA}');
+  IF v_count = 0 THEN
+    EXECUTE IMMEDIATE 'CREATE USER "${ORACLE_SCHEMA}" IDENTIFIED BY "${ORACLE_SCHEMA_PASSWORD}"';
+  ELSE
+    EXECUTE IMMEDIATE 'ALTER USER "${ORACLE_SCHEMA}" IDENTIFIED BY "${ORACLE_SCHEMA_PASSWORD}"';
+  END IF;
+  EXECUTE IMMEDIATE 'GRANT CREATE SESSION TO "${ORACLE_SCHEMA}"';
+  EXECUTE IMMEDIATE 'GRANT CREATE TABLE TO "${ORACLE_SCHEMA}"';
+  EXECUTE IMMEDIATE 'GRANT CREATE VIEW TO "${ORACLE_SCHEMA}"';
+  EXECUTE IMMEDIATE 'GRANT CREATE PROCEDURE TO "${ORACLE_SCHEMA}"';
+  EXECUTE IMMEDIATE 'GRANT UNLIMITED TABLESPACE TO "${ORACLE_SCHEMA}"';
+END;
+/
 @${TMP_SQL}
 EXIT
 SQL
@@ -68,6 +85,30 @@ conn = oracledb.connect(
 
 try:
     cursor = conn.cursor()
+    if os.environ.get("ORACLE_USER", "sys").lower() == "sys":
+        schema = os.environ.get("ORACLE_SCHEMA", "MIGRATIONTEST")
+        schema_password = os.environ.get("ORACLE_SCHEMA_PASSWORD", schema.lower())
+        cursor.execute(
+            """
+            DECLARE
+                v_count NUMBER;
+            BEGIN
+                SELECT COUNT(*) INTO v_count FROM ALL_USERS WHERE USERNAME = UPPER(:schema_name);
+                IF v_count = 0 THEN
+                    EXECUTE IMMEDIATE 'CREATE USER "' || :schema_name || '" IDENTIFIED BY "' || :schema_password || '"';
+                ELSE
+                    EXECUTE IMMEDIATE 'ALTER USER "' || :schema_name || '" IDENTIFIED BY "' || :schema_password || '"';
+                END IF;
+                EXECUTE IMMEDIATE 'GRANT CREATE SESSION TO "' || :schema_name || '"';
+                EXECUTE IMMEDIATE 'GRANT CREATE TABLE TO "' || :schema_name || '"';
+                EXECUTE IMMEDIATE 'GRANT CREATE VIEW TO "' || :schema_name || '"';
+                EXECUTE IMMEDIATE 'GRANT CREATE PROCEDURE TO "' || :schema_name || '"';
+                EXECUTE IMMEDIATE 'GRANT UNLIMITED TABLESPACE TO "' || :schema_name || '"';
+            END;
+            """,
+            schema_name=schema,
+            schema_password=schema_password,
+        )
     raw = sql_path.read_text(encoding="utf-8")
     raw = "\n".join(
         line for line in raw.splitlines()

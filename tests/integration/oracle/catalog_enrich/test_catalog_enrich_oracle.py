@@ -7,6 +7,7 @@ import json
 import pytest
 
 from tests.helpers import (
+    ORACLE_MIGRATION_SCHEMA,
     git_init,
     run_catalog_enrich_cli,
     run_setup_ddl_cli,
@@ -23,7 +24,9 @@ class TestEnrichCatalogOracleIntegration:
             json.dumps({"technology": "oracle", "dialect": "oracle"}), encoding="utf-8"
         )
         extract = run_setup_ddl_cli([
-            "extract", "--schemas", "SH", "--project-root", str(tmp_path),
+            "extract",
+            "--schemas", ORACLE_MIGRATION_SCHEMA,
+            "--project-root", str(tmp_path),
         ])
         assert extract.returncode == 0, f"extract failed: {extract.stderr}"
 
