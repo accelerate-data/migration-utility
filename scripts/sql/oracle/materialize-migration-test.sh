@@ -26,31 +26,32 @@ TMP_SQL="$(mktemp)"
 trap 'rm -f "${TMP_SQL}"' EXIT
 sed "s/__SCHEMA__/${ORACLE_SCHEMA}/g" "${FIXTURE_SQL}" > "${TMP_SQL}"
 
-echo "materialize-migration-test oracle service=${ORACLE_SERVICE} host=${ORACLE_HOST} port=${ORACLE_PORT} schema=${ORACLE_SCHEMA}"
-ORACLE_CLI="${SQLCL_BIN:-}"
-if [[ -z "${ORACLE_CLI}" ]] && command -v sql >/dev/null 2>&1; then
-  ORACLE_CLI="$(command -v sql)"
-fi
-if [[ -z "${ORACLE_CLI}" ]] && command -v sqlplus >/dev/null 2>&1; then
-  ORACLE_CLI="$(command -v sqlplus)"
-fi
-
-if [[ -n "${ORACLE_CLI}" ]]; then
-  CONNECT_DIRECTIVE="CONNECT ${ORACLE_USER}/\"${ORACLE_PWD}\"@${ORACLE_HOST}:${ORACLE_PORT}/${ORACLE_SERVICE}"
-  if [[ "${ORACLE_USER,,}" == "sys" ]]; then
-    CONNECT_DIRECTIVE="${CONNECT_DIRECTIVE} AS SYSDBA"
-  fi
-  "${ORACLE_CLI}" -S /nolog <<SQL
-${CONNECT_DIRECTIVE}
+if [[ "${ORACLE_USER,,}" != "${ORACLE_SCHEMA,,}" ]]; then
+  BOOTSTRAP_SQL="$(cat <<SQL
 DECLARE
   v_count NUMBER;
 BEGIN
+  FOR session_rec IN (
+    SELECT sid, serial#
+    FROM v\$session
+    WHERE username = UPPER('${ORACLE_SCHEMA}')
+  ) LOOP
+    BEGIN
+      EXECUTE IMMEDIATE
+        'ALTER SYSTEM KILL SESSION ''' || session_rec.sid || ',' || session_rec.serial# || ''' IMMEDIATE';
+    EXCEPTION
+      WHEN OTHERS THEN
+        NULL;
+    END;
+  END LOOP;
+
   SELECT COUNT(*) INTO v_count FROM ALL_USERS WHERE USERNAME = UPPER('${ORACLE_SCHEMA}');
-  IF v_count = 0 THEN
-    EXECUTE IMMEDIATE 'CREATE USER "${ORACLE_SCHEMA}" IDENTIFIED BY "${ORACLE_SCHEMA_PASSWORD}"';
-  ELSE
-    EXECUTE IMMEDIATE 'ALTER USER "${ORACLE_SCHEMA}" IDENTIFIED BY "${ORACLE_SCHEMA_PASSWORD}"';
+  IF v_count > 0 THEN
+    EXECUTE IMMEDIATE 'DROP USER "${ORACLE_SCHEMA}" CASCADE';
   END IF;
+
+  EXECUTE IMMEDIATE
+    'CREATE USER "${ORACLE_SCHEMA}" IDENTIFIED BY "${ORACLE_SCHEMA_PASSWORD}" ACCOUNT UNLOCK';
   EXECUTE IMMEDIATE 'GRANT CREATE SESSION TO "${ORACLE_SCHEMA}"';
   EXECUTE IMMEDIATE 'GRANT CREATE TABLE TO "${ORACLE_SCHEMA}"';
   EXECUTE IMMEDIATE 'GRANT CREATE VIEW TO "${ORACLE_SCHEMA}"';
@@ -58,12 +59,61 @@ BEGIN
   EXECUTE IMMEDIATE 'GRANT UNLIMITED TABLESPACE TO "${ORACLE_SCHEMA}"';
 END;
 /
-@${TMP_SQL}
-EXIT
 SQL
-  exit 0
+)"
+else
+  BOOTSTRAP_SQL="$(cat <<SQL
+BEGIN
+  FOR object_rec IN (
+    SELECT object_name, object_type
+    FROM user_objects
+    WHERE object_type IN (
+      'VIEW',
+      'MATERIALIZED VIEW',
+      'SYNONYM',
+      'PROCEDURE',
+      'FUNCTION',
+      'PACKAGE',
+      'TABLE',
+      'SEQUENCE'
+    )
+    ORDER BY CASE object_type
+      WHEN 'VIEW' THEN 1
+      WHEN 'MATERIALIZED VIEW' THEN 2
+      WHEN 'SYNONYM' THEN 3
+      WHEN 'PROCEDURE' THEN 4
+      WHEN 'FUNCTION' THEN 5
+      WHEN 'PACKAGE' THEN 6
+      WHEN 'TABLE' THEN 7
+      WHEN 'SEQUENCE' THEN 8
+      ELSE 9
+    END
+  ) LOOP
+    BEGIN
+      IF object_rec.object_type = 'TABLE' THEN
+        EXECUTE IMMEDIATE
+          'DROP TABLE "' || object_rec.object_name || '" CASCADE CONSTRAINTS PURGE';
+      ELSIF object_rec.object_type = 'MATERIALIZED VIEW' THEN
+        EXECUTE IMMEDIATE 'DROP MATERIALIZED VIEW "' || object_rec.object_name || '"';
+      ELSE
+        EXECUTE IMMEDIATE
+          'DROP ' || object_rec.object_type || ' "' || object_rec.object_name || '"';
+      END IF;
+    EXCEPTION
+      WHEN OTHERS THEN
+        IF SQLCODE NOT IN (-942, -4043) THEN
+          RAISE;
+        END IF;
+    END;
+  END LOOP;
+END;
+/
+SQL
+)"
 fi
 
+echo "materialize-migration-test oracle service=${ORACLE_SERVICE} host=${ORACLE_HOST} port=${ORACLE_PORT} schema=${ORACLE_SCHEMA}"
+run_python_materialization() {
 python - <<'PY' "${TMP_SQL}"
 import os
 import re
@@ -92,20 +142,40 @@ conn = oracledb.connect(
 
 try:
     cursor = conn.cursor()
-    if os.environ.get("ORACLE_USER", "sys").lower() == "sys":
-        schema = os.environ.get("ORACLE_SCHEMA", "MIGRATIONTEST")
-        schema_password = os.environ.get("ORACLE_SCHEMA_PASSWORD", schema.lower())
+    schema = os.environ.get("ORACLE_SCHEMA", "MIGRATIONTEST")
+    schema_password = os.environ.get("ORACLE_SCHEMA_PASSWORD", schema.lower())
+    connect_user = os.environ.get("ORACLE_USER", "sys").lower()
+    if connect_user != schema.lower():
         cursor.execute(
             """
             DECLARE
                 v_count NUMBER;
             BEGIN
+                FOR session_rec IN (
+                    SELECT sid, serial#
+                    FROM v$session
+                    WHERE username = UPPER(:schema_name)
+                ) LOOP
+                    BEGIN
+                        EXECUTE IMMEDIATE
+                            'ALTER SYSTEM KILL SESSION '''
+                            || session_rec.sid
+                            || ','
+                            || session_rec.serial#
+                            || ''' IMMEDIATE';
+                    EXCEPTION
+                        WHEN OTHERS THEN
+                            NULL;
+                    END;
+                END LOOP;
+
                 SELECT COUNT(*) INTO v_count FROM ALL_USERS WHERE USERNAME = UPPER(:schema_name);
-                IF v_count = 0 THEN
-                    EXECUTE IMMEDIATE 'CREATE USER "' || :schema_name || '" IDENTIFIED BY "' || :schema_password || '"';
-                ELSE
-                    EXECUTE IMMEDIATE 'ALTER USER "' || :schema_name || '" IDENTIFIED BY "' || :schema_password || '"';
+                IF v_count > 0 THEN
+                    EXECUTE IMMEDIATE 'DROP USER "' || :schema_name || '" CASCADE';
                 END IF;
+
+                EXECUTE IMMEDIATE
+                    'CREATE USER "' || :schema_name || '" IDENTIFIED BY "' || :schema_password || '" ACCOUNT UNLOCK';
                 EXECUTE IMMEDIATE 'GRANT CREATE SESSION TO "' || :schema_name || '"';
                 EXECUTE IMMEDIATE 'GRANT CREATE TABLE TO "' || :schema_name || '"';
                 EXECUTE IMMEDIATE 'GRANT CREATE VIEW TO "' || :schema_name || '"';
@@ -115,6 +185,56 @@ try:
             """,
             schema_name=schema,
             schema_password=schema_password,
+        )
+    else:
+        cursor.execute(
+            """
+            BEGIN
+                FOR object_rec IN (
+                    SELECT object_name, object_type
+                    FROM user_objects
+                    WHERE object_type IN (
+                        'VIEW',
+                        'MATERIALIZED VIEW',
+                        'SYNONYM',
+                        'PROCEDURE',
+                        'FUNCTION',
+                        'PACKAGE',
+                        'TABLE',
+                        'SEQUENCE'
+                    )
+                    ORDER BY CASE object_type
+                        WHEN 'VIEW' THEN 1
+                        WHEN 'MATERIALIZED VIEW' THEN 2
+                        WHEN 'SYNONYM' THEN 3
+                        WHEN 'PROCEDURE' THEN 4
+                        WHEN 'FUNCTION' THEN 5
+                        WHEN 'PACKAGE' THEN 6
+                        WHEN 'TABLE' THEN 7
+                        WHEN 'SEQUENCE' THEN 8
+                        ELSE 9
+                    END
+                ) LOOP
+                    BEGIN
+                        IF object_rec.object_type = 'TABLE' THEN
+                            EXECUTE IMMEDIATE
+                                'DROP TABLE "' || object_rec.object_name || '" CASCADE CONSTRAINTS PURGE';
+                        ELSIF object_rec.object_type = 'MATERIALIZED VIEW' THEN
+                            EXECUTE IMMEDIATE
+                                'DROP MATERIALIZED VIEW "' || object_rec.object_name || '"';
+                        ELSE
+                            EXECUTE IMMEDIATE
+                                'DROP ' || object_rec.object_type || ' "' || object_rec.object_name || '"';
+                        END IF;
+                    EXCEPTION
+                        WHEN OTHERS THEN
+                            IF SQLCODE NOT IN (-942, -4043) THEN
+                                RAISE;
+                            END IF;
+                    END;
+                END LOOP;
+            END;
+            """
         )
     raw = sql_path.read_text(encoding="utf-8")
     raw = "\n".join(
@@ -130,3 +250,37 @@ try:
 finally:
     conn.close()
 PY
+}
+
+if python - <<'PY' >/dev/null 2>&1; then
+import importlib.util
+import sys
+sys.exit(0 if importlib.util.find_spec("oracledb") else 1)
+PY
+  run_python_materialization
+  exit 0
+fi
+
+ORACLE_CLI="${SQLCL_BIN:-}"
+if [[ -z "${ORACLE_CLI}" ]] && command -v sql >/dev/null 2>&1; then
+  ORACLE_CLI="$(command -v sql)"
+fi
+if [[ -z "${ORACLE_CLI}" ]] && command -v sqlplus >/dev/null 2>&1; then
+  ORACLE_CLI="$(command -v sqlplus)"
+fi
+
+if [[ -n "${ORACLE_CLI}" ]]; then
+  CONNECT_DIRECTIVE="CONNECT ${ORACLE_USER}/\"${ORACLE_PWD}\"@${ORACLE_HOST}:${ORACLE_PORT}/${ORACLE_SERVICE}"
+  if [[ "${ORACLE_USER,,}" == "sys" ]]; then
+    CONNECT_DIRECTIVE="${CONNECT_DIRECTIVE} AS SYSDBA"
+  fi
+  "${ORACLE_CLI}" -S /nolog <<SQL
+${CONNECT_DIRECTIVE}
+${BOOTSTRAP_SQL}
+@${TMP_SQL}
+EXIT
+SQL
+  exit 0
+fi
+
+run_python_materialization
