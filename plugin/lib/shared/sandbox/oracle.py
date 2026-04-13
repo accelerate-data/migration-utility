@@ -39,6 +39,18 @@ from shared.output_models.sandbox import (
     SandboxUpOutput,
     TestHarnessExecuteOutput,
 )
+from shared.sandbox.base import (
+    SandboxBackend,
+    build_compare_error,
+    build_compare_result,
+    build_execute_error,
+    build_execute_output,
+    capture_rows as _capture_rows_base,
+    generate_sandbox_name,
+    validate_fixtures as _validate_fixtures_base,
+    validate_readonly_sql as _validate_readonly_sql_base,
+)
+from shared.runtime_config import get_runtime_role
 
 _oracledb = None
 
@@ -56,19 +68,6 @@ def _import_oracledb():
             ) from exc
         _oracledb = oracledb
     return _oracledb
-
-from shared.sandbox.base import (
-    SandboxBackend,
-    build_compare_error,
-    build_compare_result,
-    build_execute_error,
-    build_execute_output,
-    capture_rows as _capture_rows_base,
-    generate_sandbox_name,
-    validate_fixtures as _validate_fixtures_base,
-    validate_readonly_sql as _validate_readonly_sql_base,
-)
-from shared.runtime_config import get_runtime_role
 
 logger = logging.getLogger(__name__)
 
@@ -590,6 +589,7 @@ class OracleSandbox(SandboxBackend):
             logger.error(
                 "event=oracle_sandbox_up_failed sandbox=%s error=%s", sandbox_schema, exc,
             )
+            self.sandbox_down(sandbox_schema)
             return SandboxUpOutput(
                 sandbox_database=sandbox_schema,
                 status="error",
