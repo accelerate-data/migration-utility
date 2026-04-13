@@ -209,7 +209,7 @@
     "catalog_mandatory": "discover.py requires catalog/ files from setup-ddl. Errors if catalog is missing. No AST fallback.",
     "parse_errors": "sqlglot parse failures are hard errors (DdlParseError). The loader does not silently skip unparseable DDL.",
     "python_tests": "Two pytest suites: (1) shared lib — default unit run: cd plugin/lib && uv run pytest; path-scoped runs: ../../tests/unit/<module> and ../../tests/integration/<technology>/<module>. (2) DDL MCP server — default unit run: cd plugin/mcp/ddl && uv run pytest; live backend runs target ../../../tests/integration/<technology>/ddl_mcp/.",
-    "mssql_env_vars": "Live SQL Server access requires MSSQL_HOST, MSSQL_PORT, MSSQL_DB, SA_PASSWORD exported before launching claude.",
+    "mssql_env_vars": "Live SQL Server access requires MSSQL_HOST, MSSQL_PORT, and SA_PASSWORD exported before launching claude. Integration helpers provision or reuse the canonical MigrationTest database automatically.",
     "update_repo_map": "Refresh this file whenever any entry here becomes stale, especially after architecture, entrypoint, command, module, package, test/eval layout, or documentation-index changes."
   }
 }
