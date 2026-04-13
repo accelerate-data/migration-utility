@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
@@ -69,6 +70,13 @@ class DatabaseOperations(ABC):
         if not env_var_name:
             return None
         return os.environ.get(env_var_name)
+
+    _SAFE_IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_ $#]*$")
+
+    def _validate_identifier(self, name: str) -> None:
+        """Raise ``ValueError`` if *name* is not a safe SQL identifier."""
+        if not self._SAFE_IDENTIFIER_RE.match(name):
+            raise ValueError(f"Unsafe SQL identifier: {name!r}")
 
     def _base_type_token(self, source_type: str) -> str:
         """Return the leading SQL type token without precision/length suffixes."""
