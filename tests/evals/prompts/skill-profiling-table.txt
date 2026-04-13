@@ -2,4 +2,4 @@ You are running in a DDL project with canonical fixture input at {{fixture_path}
 
 Run /profiling-table for table {{target_table}} with writer {{writer}}.
 
-Read the skill at plugin/skills/profiling-table/SKILL.md. Wherever it references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead. Pass `--project-root {{run_path}}` to all CLI commands so reads and writes target the writable eval workspace.
+Read the skill at `${CLAUDE_PLUGIN_ROOT}/skills/profiling-table/SKILL.md`. Keep `${CLAUDE_PLUGIN_ROOT}` references as written. Pass `--project-root {{run_path}}` to all CLI commands so reads and writes target the writable eval workspace.

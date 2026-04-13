@@ -90,7 +90,7 @@ export ORACLE_PASSWORD=<your-password>
 
 ## Python Dependencies
 
-The shared library depends on pydantic, sqlglot, and typer as its key runtime libraries. All Python dependencies (including transitive ones) are managed by uv and pinned in `plugin/lib/pyproject.toml`. Running `uv sync` in the `plugin/lib` directory installs everything needed.
+The shared library depends on pydantic, sqlglot, and typer as its key runtime libraries. All Python dependencies (including transitive ones) are managed by uv and pinned in `lib/pyproject.toml`. Running `uv sync` in the `lib` directory installs everything needed.
 
 ## Loading the Plugin
 
@@ -104,7 +104,7 @@ Install from the Vibedata marketplace:
 Alternatively, for local development, load the plugin directly:
 
 ```bash
-claude --plugin-dir plugin/
+claude --plugin-dir .
 ```
 
 The `ad-migration` plugin provides all pipeline commands and skills in a single package.

@@ -19,7 +19,7 @@ Create or attach a worktree with:
 
 1. Symlinks `.env` from the main repo root
 2. Runs `direnv allow` when available
-3. Runs `uv sync --extra dev` in `plugin/lib/`
+3. Runs `uv sync --extra dev` in `lib/`
 4. Verifies `pyodbc` and `oracledb` import from the worktree venv
 5. Runs `npm install --no-audit --no-fund` in `tests/evals/`
 

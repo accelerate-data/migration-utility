@@ -11,7 +11,7 @@ Run /status for table {{target_table}}.
 Run /status for all tables.
 {% endif %}
 
-Read the command at plugin/commands/status.md. Wherever it references `${CLAUDE_PLUGIN_ROOT}/lib`, use `plugin/lib` instead. Pass `--project-root {{run_path}}` to all CLI commands.
+Read the command at `${CLAUDE_PLUGIN_ROOT}/commands/status.md`. Keep `${CLAUDE_PLUGIN_ROOT}` references as written. Pass `--project-root {{run_path}}` to all CLI commands.
 
 Skip git operations — operate directly on the writable run workspace.
 Treat this as harness mode: present recommendations, but do not execute the suggested next command and do not delete stale files.

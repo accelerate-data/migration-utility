@@ -1,6 +1,6 @@
 """Integration tests for OracleSandbox — requires local Oracle Docker.
 
-Run with: cd plugin/lib && uv run pytest ../../tests/integration/oracle/test_harness -v
+Run with: cd lib && uv run pytest ../tests/integration/oracle/test_harness -v
 
 Requires:
 - Docker Oracle container running (see docs/reference/setup-docker/README.md)

@@ -27,10 +27,10 @@ export SA_PASSWORD=<your-password>
 
 # 3. Extract DDL and build catalog via setup-ddl
 cd <migration-project-root>
-claude --plugin-dir plugin/ -p "/setup-ddl"
+claude --plugin-dir . -p "/setup-ddl"
 
 # 4. Run AST enrichment
-uv run --project plugin/lib catalog-enrich
+uv run --project lib catalog-enrich
 
 # 5. Copy to fixture directory
 cp -r . tests/evals/fixtures/migration-test/

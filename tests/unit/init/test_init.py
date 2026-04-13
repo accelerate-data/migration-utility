@@ -53,7 +53,10 @@ class TestScaffoldProject:
         worktree_script = tmp_path / "scripts" / "worktree.sh"
         assert worktree_script.exists()
         assert worktree_script.stat().st_mode & stat.S_IXUSR
-        assert "WORKTREE_BRANCH_ALREADY_CHECKED_OUT" in worktree_script.read_text()
+        worktree_script_text = worktree_script.read_text()
+        assert "WORKTREE_BRANCH_ALREADY_CHECKED_OUT" in worktree_script_text
+        assert 'local lib_dir="$worktree_path/lib"' in worktree_script_text
+        assert 'local lib_dir="$worktree_path/plugin' not in worktree_script_text
 
     def test_idempotent_skips_existing_files(self, tmp_path: Path) -> None:
         run_scaffold_project(tmp_path)

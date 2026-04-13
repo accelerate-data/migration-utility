@@ -10,7 +10,7 @@ from shared.fixture_materialization import materialize_migration_test
 from shared.runtime_config_models import RuntimeConnection, RuntimeRole
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-SHARED_LIB_DIR = REPO_ROOT / "plugin" / "lib"
+SHARED_LIB_DIR = REPO_ROOT / "lib"
 ORACLE_MIGRATION_SCHEMA = os.environ.get("ORACLE_SCHEMA", "MIGRATIONTEST").upper()
 ORACLE_MIGRATION_SCHEMA_PASSWORD = os.environ.get(
     "ORACLE_SCHEMA_PASSWORD", ORACLE_MIGRATION_SCHEMA.lower()

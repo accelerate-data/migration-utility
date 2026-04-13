@@ -47,8 +47,8 @@ if [[ "$1" == "worktree" && "$2" == "add" ]]; then
     path="$3"
     branch="$4"
   fi
-  mkdir -p "$path/plugin/lib" "$path/tests/evals"
-  printf "[project]\\nname='x'\\n" > "$path/plugin/lib/pyproject.toml"
+  mkdir -p "$path/lib" "$path/tests/evals"
+  printf "[project]\\nname='x'\\n" > "$path/lib/pyproject.toml"
   printf "{{}}\\n" > "$path/tests/evals/package.json"
   printf "dotenv\\n" > "$path/.envrc"
   printf "worktree %s\\nHEAD deadbeef\\nbranch refs/heads/%s\\n\\n" "$path" "$branch" > "${{FAKE_GIT_WORKTREE_LIST_OUT:-/dev/null}}"

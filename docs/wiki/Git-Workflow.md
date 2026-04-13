@@ -24,7 +24,7 @@ The wrapper bootstraps the worktree by:
 
 - Symlinking `.env` from the main repo root
 - Running `direnv allow`
-- Running `uv sync --extra dev` in `plugin/lib/`
+- Running `uv sync --extra dev` in `lib/`
 - Verifying `pyodbc` and `oracledb` import from the worktree venv
 - Running `npm install --no-audit --no-fund` in `tests/evals/`
 

@@ -4,7 +4,7 @@ Validates hash stability and diff-aware behavior against real OBJECT_DEFINITION(
 output and sys.columns metadata, which have whitespace patterns that hand-crafted
 staging data cannot replicate.
 
-Run with: cd plugin/lib && uv run pytest ../../tests/integration/sql_server/catalog_diff -v -k test_catalog_diff
+Run with: cd lib && uv run pytest ../tests/integration/sql_server/catalog_diff -v -k test_catalog_diff
 Requires: SA_PASSWORD env var (Docker SQL Server with MigrationTest DB).
 """
 

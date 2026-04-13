@@ -5,9 +5,9 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# Ensure repo, plugin/lib, and tests/unit are importable regardless of cwd.
+# Ensure repo, lib, and tests/unit are importable regardless of cwd.
 sys.path.insert(0, str(REPO_ROOT))
-sys.path.insert(0, str(REPO_ROOT / "plugin" / "lib"))
+sys.path.insert(0, str(REPO_ROOT / "lib"))
 sys.path.insert(0, str(Path(__file__).resolve().parent / "unit"))
 
 

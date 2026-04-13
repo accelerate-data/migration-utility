@@ -1,6 +1,6 @@
 # Design Docs
 
-Use `docs/design/` only for durable agent-facing design context that is not clear from code, tests, `repo-map.json`, or the skill/reference files under `plugin/skills/`.
+Use `docs/design/` only for durable agent-facing design context that is not clear from code, tests, `repo-map.json`, or the skill/reference files under `skills/`.
 
 Keep out of this directory:
 
