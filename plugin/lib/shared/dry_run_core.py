@@ -302,6 +302,9 @@ def _single_object_status(
         try:
             cat = load_view_catalog(project_root, norm_fqn)
         except (json.JSONDecodeError, OSError, CatalogLoadError):
+            logger.warning(
+                "event=view_catalog_load_failed fqn=%s", norm_fqn,
+            )
             cat = None
         scope = _display_scope_status(cat.scoping.status if cat and cat.scoping else None)
         profile = cat.profile.status if cat and cat.profile else None

@@ -60,6 +60,7 @@ class OracleOperations(DatabaseOperations):
         )
 
     def ensure_source_schema(self, schema_name: str) -> None:
+        self._validate_identifier(schema_name)
         conn = self._connect()
         try:
             cursor = conn.cursor()
@@ -93,6 +94,9 @@ class OracleOperations(DatabaseOperations):
         table_name: str,
         columns: list[ColumnSpec],
     ) -> None:
+        self._validate_identifier(table_name)
+        for column in columns:
+            self._validate_identifier(column.name)
         self.ensure_source_schema(schema_name)
         rendered = ", ".join(
             f'"{column.name}" {self._map_type(column.source_type)} {"NULL" if column.nullable else "NOT NULL"}'

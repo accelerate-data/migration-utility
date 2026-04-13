@@ -66,6 +66,7 @@ class SqlServerOperations(DatabaseOperations):
         )
 
     def ensure_source_schema(self, schema_name: str) -> None:
+        self._validate_identifier(schema_name)
         conn = self._connect()
         try:
             cursor = conn.cursor()
@@ -94,6 +95,10 @@ class SqlServerOperations(DatabaseOperations):
         table_name: str,
         columns: list[ColumnSpec],
     ) -> None:
+        self._validate_identifier(schema_name)
+        self._validate_identifier(table_name)
+        for column in columns:
+            self._validate_identifier(column.name)
         rendered = ", ".join(
             f"[{column.name}] {self._map_type(column.source_type)} {'NULL' if column.nullable else 'NOT NULL'}"
             for column in columns

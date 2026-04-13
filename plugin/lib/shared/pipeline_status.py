@@ -85,6 +85,24 @@ def object_pipeline_status(
 # ── Diagnostics ──────────────────────────────────────────────────────────────
 
 
+def _diag_as_dict(entry: Any, default_severity: str) -> dict[str, Any]:
+    """Normalize a diagnostic entry to a plain dict with a severity key."""
+    d = entry.model_dump(exclude_none=True) if hasattr(entry, "model_dump") else entry
+    if isinstance(d, dict) and "severity" not in d:
+        d = {**d, "severity": default_severity}
+    return d
+
+
+def _gather_diagnostics(source: Any, out: list[dict[str, Any]]) -> None:
+    """Append warnings and errors from *source* into *out*."""
+    if not source:
+        return
+    for entry in getattr(source, "warnings", None) or []:
+        out.append(_diag_as_dict(entry, "warning"))
+    for entry in getattr(source, "errors", None) or []:
+        out.append(_diag_as_dict(entry, "error"))
+
+
 def collect_object_diagnostics(
     project_root: Path,
     fqn: str,
@@ -93,42 +111,28 @@ def collect_object_diagnostics(
     """Collect all warnings and errors from a catalog object and its sub-sections."""
     diagnostics: list[dict[str, Any]] = []
 
-    def _as_dict(entry: Any, default_severity: str) -> dict[str, Any]:
-        d = entry.model_dump(exclude_none=True) if hasattr(entry, "model_dump") else entry
-        if isinstance(d, dict) and "severity" not in d:
-            d = {**d, "severity": default_severity}
-        return d
-
-    def _gather(source: Any) -> None:
-        if not source:
-            return
-        for entry in getattr(source, "warnings", None) or []:
-            diagnostics.append(_as_dict(entry, "warning"))
-        for entry in getattr(source, "errors", None) or []:
-            diagnostics.append(_as_dict(entry, "error"))
-
     try:
         if obj_type in ("view", "mv"):
             cat = load_view_catalog(project_root, fqn)
             if cat is None:
                 return diagnostics
-            _gather(cat)
-            _gather(cat.scoping)
+            _gather_diagnostics(cat, diagnostics)
+            _gather_diagnostics(cat.scoping, diagnostics)
         else:
             cat = load_table_catalog(project_root, fqn)
             if cat is None:
                 return diagnostics
-            _gather(cat)
-            _gather(cat.scoping)
-            _gather(cat.profile)
-            _gather(cat.refactor)
+            _gather_diagnostics(cat, diagnostics)
+            _gather_diagnostics(cat.scoping, diagnostics)
+            _gather_diagnostics(cat.profile, diagnostics)
+            _gather_diagnostics(cat.refactor, diagnostics)
             writer = cat.scoping.selected_writer if cat.scoping else None
             if writer:
                 try:
                     proc_cat = load_proc_catalog(project_root, normalize(writer))
                     if proc_cat is not None:
-                        _gather(proc_cat)
-                        _gather(proc_cat.refactor)
+                        _gather_diagnostics(proc_cat, diagnostics)
+                        _gather_diagnostics(proc_cat.refactor, diagnostics)
                 except (json.JSONDecodeError, OSError, CatalogLoadError):
                     pass
     except (json.JSONDecodeError, OSError, CatalogLoadError):
@@ -150,20 +154,6 @@ def _compute_status_and_diagnostics(
     """
     diagnostics: list[dict[str, Any]] = []
 
-    def _as_dict(entry: Any, default_severity: str) -> dict[str, Any]:
-        d = entry.model_dump(exclude_none=True) if hasattr(entry, "model_dump") else entry
-        if isinstance(d, dict) and "severity" not in d:
-            d = {**d, "severity": default_severity}
-        return d
-
-    def _gather(source: Any) -> None:
-        if not source:
-            return
-        for entry in getattr(source, "warnings", None) or []:
-            diagnostics.append(_as_dict(entry, "warning"))
-        for entry in getattr(source, "errors", None) or []:
-            diagnostics.append(_as_dict(entry, "error"))
-
     if obj_type in ("view", "mv"):
         try:
             cat = load_view_catalog(project_root, fqn)
@@ -171,8 +161,8 @@ def _compute_status_and_diagnostics(
             return "scope_needed", diagnostics
         if cat is None:
             return "scope_needed", diagnostics
-        _gather(cat)
-        _gather(cat.scoping)
+        _gather_diagnostics(cat, diagnostics)
+        _gather_diagnostics(cat.scoping, diagnostics)
         scoping_status = cat.scoping.status if cat.scoping else None
         if scoping_status != "analyzed":
             return "scope_needed", diagnostics
@@ -197,10 +187,10 @@ def _compute_status_and_diagnostics(
         return "scope_needed", diagnostics
     if cat is None:
         return "scope_needed", diagnostics
-    _gather(cat)
-    _gather(cat.scoping)
-    _gather(cat.profile)
-    _gather(cat.refactor)
+    _gather_diagnostics(cat, diagnostics)
+    _gather_diagnostics(cat.scoping, diagnostics)
+    _gather_diagnostics(cat.profile, diagnostics)
+    _gather_diagnostics(cat.refactor, diagnostics)
 
     scoping_status = cat.scoping.status if cat.scoping else None
     if scoping_status == "no_writer_found":
@@ -223,8 +213,8 @@ def _compute_status_and_diagnostics(
         try:
             proc_cat = load_proc_catalog(project_root, writer_norm)
             if proc_cat is not None:
-                _gather(proc_cat)
-                _gather(proc_cat.refactor)
+                _gather_diagnostics(proc_cat, diagnostics)
+                _gather_diagnostics(proc_cat.refactor, diagnostics)
         except (json.JSONDecodeError, OSError, CatalogLoadError):
             pass
         refactor_status = proc_cat.refactor.status if proc_cat and proc_cat.refactor else None

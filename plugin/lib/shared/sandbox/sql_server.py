@@ -239,7 +239,6 @@ class SqlServerSandbox(SandboxBackend):
         self,
         host: str,
         port: str,
-        database: str,
         password: str,
         user: str = "sa",
         driver: str = "ODBC Driver 18 for SQL Server",
@@ -253,13 +252,12 @@ class SqlServerSandbox(SandboxBackend):
     ) -> None:
         self.host = host
         self.port = port
-        self.database = database
         self.password = password
         self.user = user
         self.driver = driver
         self.source_host = source_host or host
         self.source_port = source_port or port
-        self.source_database = source_database or database
+        self.source_database = source_database or "master"
         self.source_user = source_user or user
         self.source_password = source_password or password
         self.source_driver = source_driver or driver
@@ -330,7 +328,6 @@ class SqlServerSandbox(SandboxBackend):
         return cls(
             host=sandbox_host,
             port=sandbox_port,
-            database=sandbox_role.connection.database or "master",
             password=sandbox_password,
             user=sandbox_user,
             driver=sandbox_driver,
@@ -658,6 +655,7 @@ class SqlServerSandbox(SandboxBackend):
 
         except _import_pyodbc().Error as exc:
             logger.error("event=sandbox_up_failed sandbox_db=%s error=%s", sandbox_db, exc)
+            self.sandbox_down(sandbox_db)
             return SandboxUpOutput(
                 sandbox_database=sandbox_db,
                 status="error",
@@ -1094,6 +1092,7 @@ class SqlServerSandbox(SandboxBackend):
                             cursor.execute("SET PARSEONLY OFF")
                         except _import_pyodbc().Error as parse_exc:
                             cursor.execute("SET PARSEONLY OFF")
+                            conn.rollback()
                             logger.error(
                                 "event=sql_syntax_error sandbox_db=%s label=%s error=%s",
                                 sandbox_db, label, parse_exc,

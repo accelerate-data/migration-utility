@@ -190,3 +190,43 @@ def test_oracle_map_type_does_not_treat_point_as_integer(monkeypatch: pytest.Mon
     adapter = get_dbops("oracle").from_role(role)
 
     assert adapter._map_type("POINT") == "VARCHAR2(4000)"  # type: ignore[attr-defined]
+
+
+def test_oracle_ensure_source_schema_raises_when_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ensure_source_schema raises ValueError when the schema does not exist."""
+    role = RuntimeRole(
+        technology="oracle",
+        dialect="oracle",
+        connection=RuntimeConnection(
+            host="localhost",
+            port="1521",
+            service="TARGETPDB",
+            user="system",
+            password_env="ORACLE_PWD",
+        ),
+    )
+    monkeypatch.setenv("ORACLE_PWD", "secret")
+    adapter = get_dbops("oracle").from_role(role)
+    cursor = MagicMock()
+    cursor.fetchone.return_value = (0,)
+    conn = MagicMock()
+    conn.cursor.return_value = cursor
+    adapter._connect = MagicMock(return_value=conn)  # type: ignore[attr-defined]
+
+    with pytest.raises(ValueError, match="does not exist"):
+        adapter.ensure_source_schema("MISSING_SCHEMA")
+
+    conn.close.assert_called_once()
+
+
+def test_dbops_rejects_unsafe_identifier() -> None:
+    """Identifier validation catches injection attempts."""
+    role = RuntimeRole(
+        technology="duckdb",
+        dialect="duckdb",
+        connection=RuntimeConnection(path="target.duckdb"),
+    )
+    adapter = get_dbops("duckdb").from_role(role)
+
+    with pytest.raises(ValueError, match="Unsafe SQL identifier"):
+        adapter.ensure_source_schema('bronze"; DROP TABLE --')
